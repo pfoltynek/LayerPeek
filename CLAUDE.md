@@ -76,10 +76,26 @@ dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # Native AO
 
 Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (format in `tasks/README.md`).
 1. Pick a task from `tasks/todo/` whose dependencies are in `done/` and whose `platform` is `all` or matches the current OS; `macos` tasks are implemented only on macOS.
-2. `git mv` it to `tasks/in-progress/`, set `status: in-progress`.
-3. Implement + tests. `dotnet build` and `dotnet test` must pass with zero warnings.
-4. Tick acceptance criteria, add a short `## Poznámky k implementaci`, `git mv` to `tasks/done/`, set `status: done`.
-5. Never mark a task done with failing tests or unticked criteria — leave it in progress and report why.
+2. Create the task's feature branch from an up-to-date `develop`: `git switch develop && git switch -c feature/T-XXX-slug` (slug = task file name).
+3. `git mv` the task to `tasks/in-progress/`, set `status: in-progress`.
+4. Implement + tests. `dotnet build` and `dotnet test` must pass with zero warnings.
+5. Tick acceptance criteria, add a short `## Poznámky k implementaci`, `git mv` to `tasks/done/`, set `status: done`.
+6. Never mark a task done with failing tests or unticked criteria — leave it in progress and report why.
+7. When the user asks, commit on the feature branch and merge it into `develop` with `git merge --no-ff`, then delete the feature branch.
+
+## Git workflow (Gitflow)
+
+| Branch | Purpose |
+|---|---|
+| `main` | released versions only, each merge tagged `vX.Y.Z`; never commit directly |
+| `develop` | integration branch, base for all work; never commit directly |
+| `feature/T-XXX-slug` | exactly one branch per task, from `develop`, merged back with `--no-ff` |
+| `feature/slug` | non-task changes (docs, tooling), same rules as task branches |
+| `release/X.Y.Z` | from `develop`; stabilization only; merged into `main` (tagged) and back into `develop` |
+| `hotfix/X.Y.Z` | from `main`; merged into `main` (tagged) and `develop` |
+
+- Commit, merge, tag and push only when the user asks.
+- Windows refs are case-insensitive: never create two branches whose names differ only in case.
 
 ## Agents
 

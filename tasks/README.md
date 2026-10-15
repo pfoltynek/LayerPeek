@@ -24,6 +24,13 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 - `depends_on` – seznam ID, které musí být v `done/`; úkoly `macos` závisí na svém sdíleném / Windows protějšku
 - `## Otevřené otázky` – co musí rozhodnout uživatel. Úkol s nezodpovězenou otázkou, která blokuje implementaci, se neimplementuje.
 
+## Větve (Gitflow)
+
+- Každý úkol má vlastní větev `feature/T-XXX-kratky-nazev` (stejný název jako soubor úkolu), založenou z `develop`.
+- Po dokončení úkolu se větev sloučí do `develop` (`git merge --no-ff`) a smaže.
+- `main` obsahuje jen vydané verze. Dostává se do něj pouze sloučením větve `release/X.Y.Z` nebo `hotfix/X.Y.Z` a každé vydání má tag `vX.Y.Z`.
+- Do `main` ani do `develop` se přímo necommituje.
+
 ## Jak přidat úkol
 
 Napiš ho ručně podle šablony, nebo požádej Clauda např.: *„Použij agenta architect a rozpadni funkci X na úkoly.“*
