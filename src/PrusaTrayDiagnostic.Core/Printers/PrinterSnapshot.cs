@@ -33,11 +33,14 @@ public sealed record PrinterSnapshot
     public string? StatusMessage { get; init; }
 
     /// <summary>
-    /// Expected end of the job (<see cref="Timestamp"/> + <see cref="PrintJob.EstimatedRemaining"/>),
-    /// <see langword="null"/> when unknown.
+    /// Expected end of the job (<see cref="Timestamp"/> + <see cref="PrintJob.EstimatedRemaining"/>) while it is running,
+    /// paused or waiting for the user mid-print (<see cref="PrinterState.Attention"/> with a job);
+    /// <see langword="null"/> after it ended or when unknown.
     /// </summary>
     public DateTimeOffset? EstimatedCompletion =>
-        Job?.EstimatedRemaining is { } remaining && remaining.Ticks <= MaxAddableTicks(Timestamp)
+        (State.HasActiveJob() || State == PrinterState.Attention)
+        && Job?.EstimatedRemaining is { } remaining
+        && remaining.Ticks <= MaxAddableTicks(Timestamp)
             ? Timestamp + remaining
             : null;
 

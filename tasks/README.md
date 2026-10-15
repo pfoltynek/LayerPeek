@@ -46,7 +46,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-000 | Založení repozitáře a kostry řešení (hotovo) | all | architect | P1 | – |
 | T-001 | Doménový model a abstrakce (hotovo) | all | core-dev | P1 | – |
 | T-002 | Konfigurace tiskáren a uložení tajných údajů (hotovo; vč. Windows Credential Manager) | all | core-dev | P1 | T-001 |
-| T-003 | PrusaLink klient | all | core-dev | P1 | T-001 |
+| T-003 | PrusaLink klient (hotovo) | all | core-dev | P1 | T-001 |
 | T-004 | Prusa Connect – průzkum API (spike) | all | architect | P1 | – |
 | T-005 | Prusa Connect klient | all | core-dev | P2 | T-001, T-004 |
 | T-006 | Monitorovací služba (polling) | all | core-dev | P1 | T-001 |
@@ -58,6 +58,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-013 | Více tiskáren | all | ui-dev | P2 | T-007, T-002 |
 | T-014 | Snímek z kamery | all | core-dev + ui-dev | P3 | T-003, T-005 |
 | T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) | all | ui-dev | P1 | T-002, T-003 |
+| T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo** | all | qa-reviewer | P3 | – |
 
 ### Windows (`windows`)

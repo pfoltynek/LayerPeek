@@ -47,6 +47,40 @@ public class PrinterSnapshotTests
         Assert.Equal(Now.AddMinutes(30), snapshot.EstimatedCompletion);
     }
 
+    [Theory]
+    [InlineData(PrinterState.Stopped)]
+    [InlineData(PrinterState.Finished)]
+    [InlineData(PrinterState.Idle)]
+    [InlineData(PrinterState.Offline)]
+    public void EstimatedCompletionIsUnknownWhenTheJobIsNotActive(PrinterState state)
+    {
+        PrinterSnapshot snapshot = new()
+        {
+            PrinterId = "mk4",
+            State = state,
+            Timestamp = Now,
+            Job = new PrintJob { ProgressPercent = 50, Elapsed = TimeSpan.FromMinutes(30), Remaining = TimeSpan.FromMinutes(30) },
+        };
+
+        Assert.Null(snapshot.EstimatedCompletion);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Paused)]
+    [InlineData(PrinterState.Attention)]
+    public void EstimatedCompletionIsKnownWhileThePrintIsInterrupted(PrinterState state)
+    {
+        PrinterSnapshot snapshot = new()
+        {
+            PrinterId = "mk4",
+            State = state,
+            Timestamp = Now,
+            Job = new PrintJob { Remaining = TimeSpan.FromMinutes(30) },
+        };
+
+        Assert.Equal(Now.AddMinutes(30), snapshot.EstimatedCompletion);
+    }
+
     [Fact]
     public void EstimatedCompletionIsUnknownWithoutJob()
     {
