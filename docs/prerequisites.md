@@ -5,7 +5,7 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT.
 > - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `osx-x64` na Apple Silicon Macu).
-> - CI (GitHub Actions) sestavuje AOT pro obě platformy automaticky, takže lokálně AOT nutně potřeba není.
+> - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně.
 
 ## Společné (obě platformy)
 
@@ -19,15 +19,23 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 
 | Co | Poznámka |
 |---|---|
-| Visual Studio 2022 (17.x) nebo novější, **případně jen Build Tools for Visual Studio** | stačí bezplatné Build Tools, plné IDE není nutné |
-| Workload **Desktop development with C++** | obsahuje MSVC překladač/linker (`Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) a Windows SDK |
+| **Build Tools for Visual Studio 2026** (nebo Visual Studio 2022/2026) | bezplatné, plné IDE není nutné |
+| Workload **Desktop development with C++** | obsahuje MSVC překladač/linker (komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) a Windows SDK |
 | *(volitelně)* **C++ ARM64 build tools** | jen pro publish na `win-arm64` |
 
-Instalace Build Tools z příkazové řádky (příklad pro verzi 2022):
+Komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64` se samostatně nestahuje, je součástí workloadu *Desktop development with C++* v instalátoru Visual Studia.
+
+### Varianta A – winget (doporučeno)
 
 ```powershell
-winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait"
+winget install --id Microsoft.VisualStudio.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait"
 ```
+
+### Varianta B – ručně
+
+1. Stáhni **Build Tools for Visual Studio** z https://visualstudio.microsoft.com/downloads/ (sekce *Tools for Visual Studio*).
+2. Spusť instalátor a zaškrtni workload **Desktop development with C++** (vpravo musí zůstat zaškrtnuté *MSVC … x64/x86 build tools* a *Windows 11 SDK*).
+3. Nainstaluj (cca 2–7 GB).
 
 Pokud už máš Visual Studio, otevři *Visual Studio Installer → Upravit* a zaškrtni workload **Desktop development with C++**.
 

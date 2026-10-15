@@ -3,17 +3,19 @@ id: T-016
 title: CI – GitHub Actions (Windows + macOS)
 status: todo
 owner: qa-reviewer
-priority: P1
+priority: P3
 depends_on: []
 ---
 
 ## Cíl
-Automatický build a testy při každém push a PR. Základní workflow `.github/workflows/build.yml` už existuje – ověřit, že prochází, a doplnit.
+Automatický build a testy při každém push a PR. 
+
+> **Odloženo** (2026-10-15): uživatel zatím GitHub Actions nechce. Neimplementovat, dokud to uživatel nepotvrdí.
 
 ## Rozsah
 - Matrix `windows-latest`, `macos-latest`
 - SDK podle `global.json`
-- Native AOT publish pro `win-x64` a `osx-arm64` + upload artefaktů (základ už je ve workflow)
+- Native AOT publish pro `win-x64` a `osx-arm64` + upload artefaktů
 - Cache NuGet, publikace výsledků testů
 
 ## Akceptační kritéria

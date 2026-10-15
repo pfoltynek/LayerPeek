@@ -17,7 +17,7 @@ Instalovatelná aplikace pro Windows a macOS, spouštění po přihlášení.
 
 ## Akceptační kritéria
 - [ ] Postup sestavení zdokumentovaný v `docs/`
-- [ ] Release workflow v CI
+- [ ] Postup sestavení release lokálně na Windows a macOS (CI odloženo, viz T-016)
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky

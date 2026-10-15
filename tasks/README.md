@@ -44,5 +44,5 @@ Napiš ho ručně podle šablony, nebo požádej Clauda např.: *„Použij agen
 | T-013 | Více tiskáren | ui-dev | P2 | T-007, T-002 |
 | T-014 | Snímek z kamery | core-dev + ui-dev | P3 | T-003, T-005 |
 | T-015 | Okno nastavení | ui-dev | P1 | T-002, T-003 |
-| T-016 | CI – GitHub Actions (Windows + macOS) | qa-reviewer | P1 | – |
+| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo** | qa-reviewer | P3 | – |
 | T-017 | Balení a distribuce, autostart | ui-dev | P2 | T-008 |

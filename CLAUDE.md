@@ -43,7 +43,7 @@ There is no main window — UI lives in the system tray (Windows) / menu bar (ma
 - No `BuiltInComInteropSupport`; Windows interop via `[LibraryImport]` / source-generated COM (`[GeneratedComInterface]`).
 - **Every new NuGet package must be AOT/trim compatible** — verify before proposing it and state it in the task notes.
 - Never silence trim/AOT warnings with `UnconditionalSuppressMessage` or `<NoWarn>` without a justification approved by the user.
-- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS (CI matrix). Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug needs neither. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
+- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug needs neither. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
 
 ## Repository layout
 
@@ -88,7 +88,7 @@ Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (forma
 | `architect` | breaks down work, maintains `tasks/` and `docs/architecture.md`, reviews design boundaries |
 | `core-dev` | Core domain, monitoring service, PrusaLink and Prusa Connect clients |
 | `ui-dev` | Avalonia tray app, menus, notifications, auxiliary windows, Windows/macOS specifics |
-| `qa-reviewer` | tests, code review, CI workflow (GitHub Actions, Windows + macOS) |
+| `qa-reviewer` | tests, code review, local AOT publish checks |
 
 ## Conventions
 
