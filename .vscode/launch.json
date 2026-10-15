@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "PrusaTrayDiagnostic (tray app)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/src/PrusaTrayDiagnostic.App/bin/Debug/net11.0/PrusaTrayDiagnostic.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/src/PrusaTrayDiagnostic.App",
+      "console": "internalConsole",
+      "stopAtEntry": false
+    }
+  ]
+}

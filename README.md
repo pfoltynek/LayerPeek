@@ -40,3 +40,11 @@ V Claude Code např.:
 - *„Implementuj T-001 agentem core-dev a pak ho zkontroluj agentem qa-reviewer.“*
 
 Úkoly s otevřenými otázkami agenti neimplementují – nejdřív se zeptají.
+
+## VS Code
+
+Doporučená rozšíření se nabídnou při otevření složky (C# Dev Kit, Avalonia, EditorConfig).
+
+- **F5** – sestaví a spustí tray aplikaci s debuggerem (konfigurace *PrusaTrayDiagnostic (tray app)*)
+- **Ctrl+Shift+B** – build řešení
+- *Terminal → Run Task… → test* – spustí testy, *watch app* – `dotnet watch` s hot reloadem
