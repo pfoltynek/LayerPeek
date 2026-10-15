@@ -13,7 +13,7 @@ Zobrazit aktuální snímek z kamery tiskárny.
 
 ## Rozsah
 - PrusaLink: kamery a snímek (ověřit endpointy v OpenAPI)
-- Prusa Connect: kamera dle T-004
+- Prusa Connect: nedokumentovaný `GET /app/cameras/{camera_id}/snapshots/last` (viz `docs/api/prusa-connect.md`) – jen pokud uživatel schválí nedokumentované API (T-005)
 - UI: okno se snímkem a obnovením (část pro ui-dev)
 
 ## Akceptační kritéria

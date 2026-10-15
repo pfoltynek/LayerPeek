@@ -34,6 +34,16 @@ PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macO
 2. Nový `PrinterSnapshot` se publikuje odběratelům (tray ikona, menu, diagnostika).
 3. Detektor událostí porovná předchozí a nový snapshot a při změně (dokončeno, chyba…) zavolá `INotificationService`.
 
+## Prusa Connect (cloud)
+
+Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podrobnosti a rozhodnutí, která čekají na uživatele, jsou v [api/prusa-connect.md](api/prusa-connect.md). Pokud se klient (T-005) bude implementovat, platí pro něj:
+
+- Přihlašovací údaje patří k **účtu** Prusa Account, ne k tiskárně. Jeden účet obsluhuje víc `PrinterDefinition` (`Address` = UUID tiskárny).
+- Klienti téhož účtu sdílejí jeden dotaz na seznam tiskáren za cyklus pollingu, aby se nepřetěžovala služba.
+- Trvale se ukládá jen refresh token, a to přes `ISecretStore` pod klíčem pro účet. Access token zůstává jen v paměti.
+- Kód pro OAuth/PKCE a obnovu tokenů je v `PrusaTrayDiagnostic.PrusaConnect` a nezávisí na UI. UI přihlášení (T-022) je v App.
+- Klient jen čte a je izolovaný za `IPrinterClient`, takže ho jde při změně nedokumentovaného API vypnout bez dopadu na PrusaLink.
+
 ## Platformní rozdíly
 
 | Oblast | Windows | macOS |
