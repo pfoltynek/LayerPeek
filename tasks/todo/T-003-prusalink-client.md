@@ -4,6 +4,7 @@ title: PrusaLink klient
 status: todo
 owner: core-dev
 priority: P1
+platform: all
 depends_on: [T-001]
 ---
 

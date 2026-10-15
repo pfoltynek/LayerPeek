@@ -4,6 +4,7 @@ title: Teploty a diagnostika
 status: todo
 owner: ui-dev
 priority: P2
+platform: all
 depends_on: [T-006]
 ---
 

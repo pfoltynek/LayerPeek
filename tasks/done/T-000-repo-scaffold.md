@@ -4,6 +4,7 @@ title: Založení repozitáře a kostry řešení
 status: done
 owner: architect
 priority: P1
+platform: all
 depends_on: []
 ---
 

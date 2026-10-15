@@ -75,7 +75,7 @@ dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # Native AO
 ## Task workflow
 
 Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (format in `tasks/README.md`).
-1. Pick a task from `tasks/todo/` whose dependencies are in `done/`.
+1. Pick a task from `tasks/todo/` whose dependencies are in `done/` and whose `platform` is `all` or matches the current OS; `macos` tasks are implemented only on macOS.
 2. `git mv` it to `tasks/in-progress/`, set `status: in-progress`.
 3. Implement + tests. `dotnet build` and `dotnet test` must pass with zero warnings.
 4. Tick acceptance criteria, add a short `## Poznámky k implementaci`, `git mv` to `tasks/done/`, set `status: done`.
