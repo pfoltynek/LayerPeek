@@ -1,0 +1,20 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="PrusaTrayDiagnostic.App.App"
+             RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+  </Application.Styles>
+
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="/Assets/tray-idle.png" ToolTipText="Prusa Tray Diagnostic">
+        <TrayIcon.Menu>
+          <NativeMenu>
+            <NativeMenuItem Header="Quit" Click="OnQuitClicked" />
+          </NativeMenu>
+        </TrayIcon.Menu>
+      </TrayIcon>
+    </TrayIcons>
+  </TrayIcon.Icons>
+</Application>
