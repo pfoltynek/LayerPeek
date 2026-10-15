@@ -4,6 +4,7 @@ title: Krátký název
 status: todo
 owner: core-dev
 priority: P2
+platform: all
 depends_on: []
 ---
 

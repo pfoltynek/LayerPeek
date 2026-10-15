@@ -4,6 +4,7 @@ title: CI – GitHub Actions (Windows + macOS)
 status: todo
 owner: qa-reviewer
 priority: P3
+platform: all
 depends_on: []
 ---
 

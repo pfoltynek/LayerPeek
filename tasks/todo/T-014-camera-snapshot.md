@@ -4,6 +4,7 @@ title: Snímek z kamery
 status: todo
 owner: core-dev + ui-dev
 priority: P3
+platform: all
 depends_on: [T-003, T-005]
 ---
 

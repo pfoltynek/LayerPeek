@@ -4,6 +4,7 @@ title: Tray menu
 status: todo
 owner: ui-dev
 priority: P1
+platform: all
 depends_on: [T-007]
 ---
 

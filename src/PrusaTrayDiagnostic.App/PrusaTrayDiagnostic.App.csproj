@@ -5,7 +5,12 @@
     <PublishAot>true</PublishAot>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Required by [LibraryImport] interop with pointer types (Platform/*). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PrusaTrayDiagnostic.App.Tests" />
+  </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Assets\**" />
   </ItemGroup>

@@ -4,6 +4,7 @@ title: Prusa Connect – průzkum API (spike)
 status: todo
 owner: architect
 priority: P1
+platform: all
 depends_on: []
 ---
 

@@ -4,6 +4,7 @@ title: Více tiskáren
 status: todo
 owner: ui-dev
 priority: P2
+platform: all
 depends_on: [T-007, T-002]
 ---
 

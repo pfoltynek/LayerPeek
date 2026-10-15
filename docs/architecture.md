@@ -38,10 +38,12 @@ PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macO
 
 | Oblast | Windows | macOS |
 |---|---|---|
-| Ikona | oznamovací oblast, barevná ikona | menu bar, doporučená monochromatická „template“ ikona |
-| Notifikace | toast | User Notifications (vyžaduje .app bundle) |
-| Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` |
-| Autostart | registry `Run` / Startup | Login Items |
-| Tajné údaje | DPAPI / Credential Manager | Keychain |
+| Ikona | oznamovací oblast, barevná ikona – T-007 | menu bar, doporučená monochromatická „template“ ikona – T-018 |
+| Notifikace | toast – T-010 | User Notifications (vyžaduje .app bundle) – T-020 |
+| Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` – T-019 |
+| Autostart, balení | registry `Run` / Startup, instalátor – T-017 | Login Items, `.app` bundle – T-019 |
+| Tajné údaje | Credential Manager (`[LibraryImport]`, roaming s profilem) – T-002 (hotovo) | Keychain (`Security.framework` přes `[LibraryImport]`) – T-021 |
 
-Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-002, T-010, T-017).
+Výběr platformní implementace (`ISecretStore`, `INotificationService`) probíhá v composition rootu v App podle OS (explicitní registrace kvůli Native AOT); registraci `ISecretStore` zavádí T-015. Úkoly s `platform: macos` se implementují až na Macu a Windows úkoly na nich nezávisí.
+
+Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-010, T-017, T-019, T-020, T-021).

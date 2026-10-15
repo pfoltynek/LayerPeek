@@ -4,6 +4,7 @@ title: Detekce událostí tisku
 status: todo
 owner: core-dev
 priority: P1
+platform: all
 depends_on: [T-006]
 ---
 
@@ -13,7 +14,7 @@ Z posloupnosti snapshotů odvodit události, na které se posílají notifikace.
 ## Rozsah
 - Události: tisk zahájen, dokončen, pozastaven, obnoven, zrušen, chyba, vyžaduje pozornost (např. došel filament), tiskárna offline/online
 - Deduplikace (stejná událost se neposílá opakovaně)
-- Abstrakce `INotificationService` v Core (implementace v App – T-010)
+- Abstrakce `INotificationService` v Core (implementace v App – T-010 Windows, T-020 macOS)
 
 ## Akceptační kritéria
 - [ ] Tabulkové testy přechodů stavů

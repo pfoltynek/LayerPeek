@@ -6,6 +6,7 @@
     <Project Path="src/PrusaTrayDiagnostic.PrusaLink/PrusaTrayDiagnostic.PrusaLink.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/PrusaTrayDiagnostic.App.Tests/PrusaTrayDiagnostic.App.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.Core.Tests/PrusaTrayDiagnostic.Core.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.PrusaConnect.Tests/PrusaTrayDiagnostic.PrusaConnect.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.PrusaLink.Tests/PrusaTrayDiagnostic.PrusaLink.Tests.csproj" />

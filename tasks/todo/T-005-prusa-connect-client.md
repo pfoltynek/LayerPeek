@@ -4,6 +4,7 @@ title: Prusa Connect klient
 status: todo
 owner: core-dev
 priority: P2
+platform: all
 depends_on: [T-001, T-004]
 ---
 
@@ -22,5 +23,6 @@ Implementace `IPrinterClient` nad cloudovým Prusa Connect podle výsledku T-004
 
 ## Otevřené otázky
 - Závisí na výsledku T-004
+- Windows Credential Manager má limit 2560 B na jeden tajný údaj (UTF-8) – pokud Connect používá OAuth/JWT tokeny, počítat s tím (např. ukládat jen refresh token nebo tokeny pod samostatnými klíči). Implementace pro macOS Keychain je T-021.
 
 ## Poznámky k implementaci
