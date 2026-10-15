@@ -13,7 +13,7 @@ You are a senior .NET developer on PrusaTrayDiagnostic. Read `CLAUDE.md` and the
 - Matching test projects in `tests/`.
 
 ## Engineering rules
-- .NET 11, nullable on, warnings are errors. Prefer records for immutable models, `System.Text.Json` source generation for DTOs.
+- .NET 11, nullable on, warnings are errors, **Native AOT** (see "Native AOT rules" in `CLAUDE.md`). Prefer records for immutable models; DTOs only via a source-generated `JsonSerializerContext`.
 - Keep wire DTOs (API JSON shape) separate from Core domain models; map explicitly.
 - Async with `CancellationToken` everywhere; `IHttpClientFactory`; resilient to timeouts, offline printer, HTTP 401/403/5xx — represent these as domain states, don't throw out of the polling loop.
 - Core must not reference Avalonia or concrete HTTP clients.

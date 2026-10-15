@@ -15,6 +15,7 @@ Implementace `IPrinterClient` nad lokálním REST API PrusaLink (viz `docs/api/p
 - Autentizace: HTTP Digest (uživatel `maker` + heslo) a/nebo hlavička `X-Api-Key` (starší firmware) – ověřit dle OpenAPI
 - Mapování DTO -> doménový model, chybové stavy (offline, 401, timeout) jako `PrinterState`
 - Registrace přes `IHttpClientFactory`
+- DTO deserializace jen přes source-generated `JsonSerializerContext` (Native AOT)
 
 ## Akceptační kritéria
 - [ ] Testy s JSON fixtures (tisk, pauza, idle, chyba, 401, timeout)

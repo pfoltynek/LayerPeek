@@ -14,6 +14,7 @@ Implementace `INotificationService` pomocí nativních notifikací.
 - Windows: toast notifikace
 - macOS: User Notifications (vyžaduje bundle identifikátor a podepsanou .app)
 - Kliknutí na notifikaci otevře detail / web tiskárny
+- Řešení musí být kompatibilní s Native AOT (žádné `BuiltInComInteropSupport`, interop přes `[LibraryImport]` / `[GeneratedComInterface]`)
 
 ## Akceptační kritéria
 - [ ] Notifikace fungují na Windows (ověřeno)

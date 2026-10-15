@@ -14,6 +14,7 @@ Uložit seznam tiskáren a nastavení aplikace mezi spuštěními.
 - Model nastavení (tiskárny, interval pollingu, povolené notifikace)
 - Uložení JSON do `%APPDATA%/PrusaTrayDiagnostic` (Windows) a `~/Library/Application Support/PrusaTrayDiagnostic` (macOS)
 - Abstrakce `ISecretStore` pro hesla / API klíče / tokeny
+- Serializace přes source-generated `JsonSerializerContext` (Native AOT)
 
 ## Akceptační kritéria
 - [ ] Načtení/uložení nastavení s testy (vč. chybějícího a poškozeného souboru)

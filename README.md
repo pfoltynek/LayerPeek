@@ -6,7 +6,7 @@ Plánované funkce: stav a progress tisku v ikoně, systémové notifikace (doko
 
 ## Technologie
 
-- .NET 11 (SDK v `global.json`), C#
+- .NET 11 (SDK v `global.json`), C#, publikace jako **Native AOT**
 - Avalonia 12 – tray ikona a menu
 - xUnit v3 + Microsoft.Testing.Platform
 
@@ -26,10 +26,16 @@ Plánované funkce: stav a progress tisku v ikoně, systémové notifikace (doko
 
 ## Sestavení a spuštění
 
+Prerekvizity (včetně nástrojů pro Native AOT na Windows a macOS): [docs/prerequisites.md](docs/prerequisites.md).
+
 ```bash
 dotnet build
 dotnet test
 dotnet run --project src/PrusaTrayDiagnostic.App
+
+# Native AOT – jeden nativní soubor bez nutnosti instalovat .NET
+dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64     # na Windows
+dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # na macOS
 ```
 
 ## Vývoj s agenty

@@ -12,7 +12,8 @@ You are a senior Avalonia developer on PrusaTrayDiagnostic, a **tray-only** app 
 ## Engineering rules
 - App runs with `ShutdownMode.OnExplicitShutdown`; closing an auxiliary window must not quit the app.
 - All UI updates on the UI thread (`Dispatcher.UIThread`). Monitoring runs in Core services; UI only subscribes.
-- MVVM: logic in view models, testable without Avalonia where possible; compiled bindings are on by default.
+- MVVM: logic in view models, testable without Avalonia where possible; compiled bindings only (required by Native AOT).
+- The app ships as **Native AOT** (see "Native AOT rules" in `CLAUDE.md`): no reflection, no `BuiltInComInteropSupport`, platform interop via `[LibraryImport]` / `[GeneratedComInterface]`, and any notification/packaging library must be AOT compatible.
 - Platform differences (Windows tray vs macOS menu bar, template/monochrome icons on macOS, toast vs UNUserNotificationCenter, hiding the Dock icon via `LSUIElement`) are isolated behind interfaces; document behaviour per platform in the task notes.
 - You develop on Windows. For macOS-only behaviour you cannot run, state clearly in the report what was not verified locally — never claim it works.
 - Tray icon assets go to `src/PrusaTrayDiagnostic.App/Assets/`.

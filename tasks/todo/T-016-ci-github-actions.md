@@ -13,6 +13,7 @@ Automatický build a testy při každém push a PR. Základní workflow `.github
 ## Rozsah
 - Matrix `windows-latest`, `macos-latest`
 - SDK podle `global.json`
+- Native AOT publish pro `win-x64` a `osx-arm64` + upload artefaktů (základ už je ve workflow)
 - Cache NuGet, publikace výsledků testů
 
 ## Akceptační kritéria

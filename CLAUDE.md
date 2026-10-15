@@ -31,6 +31,19 @@ There is no main window — UI lives in the system tray (Windows) / menu bar (ma
 - UI: Avalonia 12 (`TrayIcon`, `NativeMenu`), MVVM via CommunityToolkit.Mvvm.
 - Tests: xUnit v3 on Microsoft.Testing.Platform (`dotnet test`). No VSTest packages.
 - Solution file: `PrusaTrayDiagnostic.slnx`.
+- **Native AOT**: the app is published with `PublishAot=true`; every project under `src/` has `IsAotCompatible=true` (via `src/Directory.Build.props`), so trim/AOT analyzer warnings fail the build.
+
+## Native AOT rules
+
+- No unconstrained reflection: no `Activator.CreateInstance(Type)`, `Type.GetType(string)`, assembly scanning, `dynamic`, runtime `Emit`.
+- `System.Text.Json` only through source-generated `JsonSerializerContext` (never the reflection-based `JsonSerializer.Serialize<T>(value)` overloads without type info).
+- Configuration binding only with the configuration binding source generator (`EnableConfigurationBindingGenerator`) or manual mapping.
+- DI: explicit registrations only (no convention/scanning-based registration).
+- Avalonia: compiled bindings only (default on); no reflection bindings, no `x:CompileBindings="False"`.
+- No `BuiltInComInteropSupport`; Windows interop via `[LibraryImport]` / source-generated COM (`[GeneratedComInterface]`).
+- **Every new NuGet package must be AOT/trim compatible** — verify before proposing it and state it in the task notes.
+- Never silence trim/AOT warnings with `UnconditionalSuppressMessage` or `<NoWarn>` without a justification approved by the user.
+- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS (CI matrix). Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug needs neither. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
 
 ## Repository layout
 
@@ -55,6 +68,8 @@ Dependency direction: `App -> PrusaLink, PrusaConnect -> Core`. Core must never 
 dotnet build                                  # whole solution
 dotnet test                                   # all tests (MTP runner)
 dotnet run --project src/PrusaTrayDiagnostic.App
+dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64     # Native AOT (needs MSVC on Windows)
+dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # Native AOT (on macOS only)
 ```
 
 ## Task workflow
