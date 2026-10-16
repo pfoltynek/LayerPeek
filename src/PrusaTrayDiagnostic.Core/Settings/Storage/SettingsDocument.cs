@@ -40,6 +40,12 @@ internal sealed class NotificationsDocument
     public bool? Attention { get; set; }
 
     public bool? Offline { get; set; }
+
+    /// <summary>Written as a whole number; read leniently (fractions are rounded, out-of-range values clamped).</summary>
+    public double? RemainingTimeMinutes { get; set; }
+
+    /// <summary><see cref="NotificationSound"/> name (<c>Off</c>, <c>ImportantOnly</c>, <c>All</c>); unknown names fall back to the default.</summary>
+    public string? Sound { get; set; }
 }
 
 internal sealed class PrinterDocument

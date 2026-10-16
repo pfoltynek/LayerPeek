@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Monitoring;
+using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -58,10 +60,21 @@ internal static class AppServices
             sp.GetRequiredService<IUiDispatcher>(),
             sp.GetRequiredService<IUrlLauncher>(),
             sp.GetRequiredService<TrayMenuOptions>()));
+        // Windows toasts (T-010) and macOS notifications (T-020) replace this per OS; until then notifications are silently not sent.
+        services.AddSingleton<INotificationService>(static _ => NullNotificationService.Instance);
+        services.AddSingleton(static sp => new PrintEventNotifier(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<ILogger<PrintEventNotifier>>()));
+        services.AddSingleton(static sp => new PrintNotificationObserver(sp.GetRequiredService<PrintEventNotifier>()));
         services.AddSingleton(static sp => new MonitoringSession(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
-            [sp.GetRequiredService<TrayStatusViewModel>(), sp.GetRequiredService<TrayMenuViewModel>()],
+            [
+                sp.GetRequiredService<TrayStatusViewModel>(),
+                sp.GetRequiredService<TrayMenuViewModel>(),
+                sp.GetRequiredService<PrintNotificationObserver>(),
+            ],
             sp.GetRequiredService<ILogger<MonitoringSession>>()));
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });

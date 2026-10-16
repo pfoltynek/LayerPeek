@@ -6,6 +6,12 @@ namespace PrusaTrayDiagnostic.Core.Printers;
 /// </summary>
 public sealed record PrintJob
 {
+    /// <summary>
+    /// Identifier assigned by the data source, unique per printer and job (a reprint of the same file gets a new one);
+    /// <see langword="null"/> when unknown. Tells consecutive jobs apart even when their file names are equal.
+    /// </summary>
+    public long? Id { get; init; }
+
     /// <summary>File name of the job, <see langword="null"/> when unknown.</summary>
     public string? FileName
     {

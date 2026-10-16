@@ -3,11 +3,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Composition;
+using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Monitoring;
+using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 
@@ -42,6 +44,17 @@ public sealed class AppServicesTests
         // Quit logs after the container was disposed (T-024), so the factory must still be alive.
         Assert.False(loggerFactory.Disposed);
         Assert.Contains(typeof(MonitoringSession).FullName!, loggerFactory.Categories);
+    }
+
+    [Fact]
+    public async Task NotificationPipelineIsRegisteredWithNoOpServiceUntilPlatformImplementationsExist()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        // Windows toasts follow in T-010, macOS in T-020; until then notifications are silently not sent.
+        Assert.Same(NullNotificationService.Instance, services.GetRequiredService<INotificationService>());
+        Assert.Same(services.GetRequiredService<PrintEventNotifier>(), services.GetRequiredService<PrintEventNotifier>());
+        Assert.NotNull(services.GetRequiredService<PrintNotificationObserver>());
     }
 
     [Fact]
