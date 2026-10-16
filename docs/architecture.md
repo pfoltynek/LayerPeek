@@ -34,7 +34,9 @@ PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macO
 2. Nový `PrinterSnapshot` se publikuje odběratelům (tray ikona, menu, diagnostika).
 3. Detektor událostí porovná předchozí a nový snapshot a při změně (dokončeno, chyba…) zavolá `INotificationService`.
    - `Core/Events/PrintEventDetector` je čistý stavový automat (bez I/O). `Core/Notifications/PrintEventNotifier` odebírá `IPrinterMonitor.SnapshotUpdated`, filtruje události podle `NotificationSettings` a volá `INotificationService` (T-009).
-   - App předává nastavení každého běhu přes `IMonitoringObserver.ApplySettings` (`App/Notifications/PrintNotificationObserver`). Dokud neexistují T-010 / T-020, je zaregistrovaná `NullNotificationService` (notifikace se tiše neposílají).
+   - App předává nastavení každého běhu přes `IMonitoringObserver.ApplySettings` (`App/Notifications/PrintNotificationObserver`).
+4. Na Windows je `INotificationService` = `App/Notifications/ToastNotificationService` (T-010): `Show` jen zařadí notifikaci do omezené fronty, vlastní vlákno sestaví XML toastu (`ToastContentBuilder`) a zobrazí ho přes WinRT (`Platform/Windows/WindowsToastPlatform`, vlastní interop přes `[GeneratedComInterface]`). Na ostatních OS je zaregistrovaná `NullNotificationService`, dokud neexistuje T-020.
+5. Kliknutí na toast vrátí argument s id tiskárny; `App/Notifications/ToastActivationRouter` (také `IMonitoringObserver`) ho přeloží na aktuálně nastavenou tiskárnu a otevře její web přes `PrinterWebAddress` a `IUrlLauncher`.
 
 ## Prusa Connect (cloud)
 
@@ -51,11 +53,11 @@ Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podr
 | Oblast | Windows | macOS |
 |---|---|---|
 | Ikona | oznamovací oblast, barevná ikona kreslená za běhu (`ITrayIconSet`) – T-007 | menu bar, doporučená monochromatická „template“ ikona – T-018 |
-| Notifikace | toast – T-010 | User Notifications (vyžaduje .app bundle) – T-020 |
+| Notifikace | toast přes vlastní WinRT interop, AppUserModelID přes zástupce ve Start menu uživatele – T-010 | User Notifications (vyžaduje .app bundle) – T-020 |
 | Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` – T-019 |
 | Autostart, balení | registry `Run` / Startup, instalátor – T-017 | Login Items, `.app` bundle – T-019 |
 | Tajné údaje | Credential Manager (`[LibraryImport]`, roaming s profilem) – T-002 (hotovo) | Keychain (`Security.framework` přes `[LibraryImport]`) – T-021 |
 
-Výběr platformní implementace (`ISecretStore`, `INotificationService`) probíhá v composition rootu v App podle OS (explicitní registrace kvůli Native AOT); registraci `ISecretStore` zavedl T-007 (`Composition/AppServices`): Windows → `WindowsCredentialSecretStore`, ostatní OS → `UnsupportedSecretStore` (hesla nedostupná, aplikace běží dál), dokud T-021 nedodá Keychain. Úkoly s `platform: macos` se implementují až na Macu a Windows úkoly na nich nezávisí.
+Výběr platformní implementace (`ISecretStore`, `INotificationService`) probíhá v composition rootu v App podle OS (explicitní registrace kvůli Native AOT); registraci `ISecretStore` zavedl T-007 (`Composition/AppServices`): Windows → `WindowsCredentialSecretStore`, ostatní OS → `UnsupportedSecretStore` (hesla nedostupná, aplikace běží dál), dokud T-021 nedodá Keychain. `INotificationService` (T-010): Windows → `ToastNotificationService`, ostatní OS → `NullNotificationService`, dokud T-020 nedodá macOS notifikace. Úkoly s `platform: macos` se implementují až na Macu a Windows úkoly na nich nezávisí.
 
 Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-010, T-017, T-019, T-020, T-021).

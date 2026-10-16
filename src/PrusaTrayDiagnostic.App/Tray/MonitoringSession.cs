@@ -47,6 +47,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
         _logger = logger;
     }
 
+    /// <summary>Receivers of the settings of every run, in notification order.</summary>
+    internal IReadOnlyList<IMonitoringObserver> Observers => _observers;
+
     /// <summary>Completes when monitoring ended (stopped or failed); never faults. Already completed before <see cref="Start"/>.</summary>
     public Task Completion { get; private set; } = Task.CompletedTask;
 
