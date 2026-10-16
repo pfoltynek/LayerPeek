@@ -3,6 +3,13 @@
     <OutputType>WinExe</OutputType>
     <AssemblyName>PrusaTrayDiagnostic</AssemblyName>
     <PublishAot>true</PublishAot>
+    <!--
+      The .NET 11 SDK "optimized publish" for Native AOT runs PrepareResources before ResolveReferences.
+      Avalonia adds its !AvaloniaResources embedded resource in a target hooked before ResolveReferences,
+      so on that path the resource misses SplitResourcesByCulture, is never embedded, XAML is not compiled
+      and the published exe throws "No precompiled XAML found" at startup. Use the regular full build.
+    -->
+    <UseOptimizedPublish>false</UseOptimizedPublish>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <!-- Required by [LibraryImport] interop with pointer types (Platform/*). -->
