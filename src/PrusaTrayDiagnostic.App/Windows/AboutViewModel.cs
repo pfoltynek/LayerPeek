@@ -1,0 +1,89 @@
+using System.Globalization;
+using System.Reflection;
+
+using CommunityToolkit.Mvvm.Input;
+
+using PrusaTrayDiagnostic.App.Platform;
+using PrusaTrayDiagnostic.App.Resources;
+using PrusaTrayDiagnostic.App.Tray;
+
+namespace PrusaTrayDiagnostic.App.Windows;
+
+/// <summary>Content of the About window in the current UI culture (static texts; no change notification needed).</summary>
+public sealed partial class AboutViewModel
+{
+    /// <summary>Project page opened by the repository link.</summary>
+    public static readonly Uri RepositoryUri = new("https://github.com/pfoltynek/PrusaTrayDiagnostic");
+
+    /// <summary>Used when the assembly carries no copyright attribute (it is generated from Directory.Build.props).</summary>
+    internal const string DefaultCopyright = "Copyright © Petr Foltýnek";
+
+    /// <summary>License of the project (<c>LICENSE</c> in the repository root); a name, not translated.</summary>
+    public const string LicenseName = "Apache License 2.0";
+
+    private readonly IUrlLauncher _launcher;
+
+    internal AboutViewModel(IUrlLauncher launcher)
+        : this(launcher, typeof(AboutViewModel).Assembly)
+    {
+    }
+
+    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(launcher);
+        ArgumentNullException.ThrowIfNull(assembly);
+        _launcher = launcher;
+        VersionText = Format(Strings.AboutVersion, ProductVersion(assembly));
+        Copyright = ProductCopyright(assembly);
+    }
+
+    public string Title { get; } = Strings.AboutTitle;
+
+    public string AppName { get; } = TrayToolTipFormatter.AppName;
+
+    public string VersionText { get; }
+
+    public string Description { get; } = Strings.AboutDescription;
+
+    public string Disclaimer { get; } = Strings.AboutDisclaimer;
+
+    public string LicenseText { get; } = Format(Strings.AboutLicense, LicenseName);
+
+    /// <summary>Copyright notice from the assembly metadata (<c>Copyright</c> in Directory.Build.props); not translated.</summary>
+    public string Copyright { get; }
+
+    public string RepositoryText { get; } = Strings.AboutRepository;
+
+    public string CloseText { get; } = Strings.AboutClose;
+
+    /// <summary><see cref="AssemblyCopyrightAttribute"/> of <paramref name="assembly"/>, or <see cref="DefaultCopyright"/>.</summary>
+    internal static string ProductCopyright(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        // Attribute metadata only, like ProductVersion: safe under Native AOT.
+        string? copyright = assembly.GetCustomAttribute<AssemblyCopyrightAttribute>()?.Copyright;
+        return string.IsNullOrWhiteSpace(copyright) ? DefaultCopyright : copyright;
+    }
+
+    /// <summary>Informational version without the source revision suffix ("1.2.0+abc123" → "1.2.0").</summary>
+    internal static string ProductVersion(Assembly assembly)
+    {
+        ArgumentNullException.ThrowIfNull(assembly);
+        // Attributes survive Native AOT; this reads assembly metadata, not members by name.
+        string? informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrWhiteSpace(informational))
+        {
+            int plus = informational.IndexOf('+', StringComparison.Ordinal);
+            return plus > 0 ? informational[..plus] : informational;
+        }
+
+        return assembly.GetName().Version?.ToString(3) ?? "?";
+    }
+
+    private static string Format(string format, object? arg0) =>
+        string.Format(CultureInfo.CurrentCulture, format, arg0);
+
+    /// <summary>Opens the project page in the browser (the launcher validates the address and logs failures).</summary>
+    [RelayCommand]
+    private void OpenRepository() => _ = _launcher.OpenAsync(RepositoryUri);
+}

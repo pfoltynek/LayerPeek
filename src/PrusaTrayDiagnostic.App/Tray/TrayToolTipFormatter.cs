@@ -2,7 +2,6 @@ using System.Globalization;
 using System.Text;
 
 using PrusaTrayDiagnostic.App.Resources;
-using PrusaTrayDiagnostic.Core.Printers;
 
 namespace PrusaTrayDiagnostic.App.Tray;
 
@@ -19,7 +18,6 @@ internal static class TrayToolTipFormatter
     public const int MaxLength = 127;
 
     private const char LineSeparator = '\n';
-    private const string Ellipsis = "…";
 
     public static string Starting() => AppName + LineSeparator + Strings.ToolTipStarting;
 
@@ -34,7 +32,7 @@ internal static class TrayToolTipFormatter
 
     public static string Format(ToolTipContent content)
     {
-        string state = StateName(content.State);
+        string state = TrayText.StateName(content.State);
         if (content.ProgressPercent is { } progress)
         {
             state = Format(Strings.ToolTipStateWithProgress, state, Format(Strings.ToolTipProgress, progress));
@@ -60,22 +58,6 @@ internal static class TrayToolTipFormatter
         };
     }
 
-    private static string StateName(PrinterState? state) => state switch
-    {
-        null => Strings.StateConnecting,
-        PrinterState.Idle => Strings.StateIdle,
-        PrinterState.Busy => Strings.StateBusy,
-        PrinterState.Printing => Strings.StatePrinting,
-        PrinterState.Paused => Strings.StatePaused,
-        PrinterState.Finished => Strings.StateFinished,
-        PrinterState.Stopped => Strings.StateStopped,
-        PrinterState.Error => Strings.StateError,
-        PrinterState.Attention => Strings.StateAttention,
-        PrinterState.Offline => Strings.StateOffline,
-        PrinterState.Unauthorized => Strings.StateUnauthorized,
-        _ => Strings.StateUnknown,
-    };
-
     private static string Compose(string name, string state, string? remaining, string? fileName, string? others)
     {
         int fixedLength = name.Length + 1 + state.Length
@@ -86,7 +68,7 @@ internal static class TrayToolTipFormatter
         if (fileName is not null)
         {
             int available = MaxLength - fixedLength - 1;
-            fileName = available >= 2 ? Ellipsize(fileName, available) : null;
+            fileName = available >= 2 ? TrayText.Ellipsize(fileName, available) : null;
         }
 
         StringBuilder text = new(fixedLength + (fileName?.Length + 1 ?? 0));
@@ -96,7 +78,7 @@ internal static class TrayToolTipFormatter
         AppendLine(text, others);
 
         // Only a very long printer name can still exceed the limit.
-        return text.Length > MaxLength ? Ellipsize(text.ToString(), MaxLength) : text.ToString();
+        return text.Length > MaxLength ? TrayText.Ellipsize(text.ToString(), MaxLength) : text.ToString();
     }
 
     private static void AppendLine(StringBuilder text, string? line)
@@ -105,23 +87,6 @@ internal static class TrayToolTipFormatter
         {
             text.Append(LineSeparator).Append(line);
         }
-    }
-
-    private static string Ellipsize(string text, int maxLength)
-    {
-        if (text.Length <= maxLength)
-        {
-            return text;
-        }
-
-        int cut = maxLength - Ellipsis.Length;
-        // Never leave half of a surrogate pair (e.g. an emoji) in front of the ellipsis.
-        if (cut > 0 && char.IsHighSurrogate(text[cut - 1]))
-        {
-            cut--;
-        }
-
-        return string.Concat(text.AsSpan(0, cut), Ellipsis);
     }
 
     private static string Format(string format, object? arg0) =>

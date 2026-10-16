@@ -54,3 +54,9 @@ Doporučená rozšíření se nabídnou při otevření složky (C# Dev Kit, Ava
 - **F5** – sestaví a spustí tray aplikaci s debuggerem (konfigurace *PrusaTrayDiagnostic (tray app)*)
 - **Ctrl+Shift+B** – build řešení
 - *Terminal → Run Task… → test* – spustí testy, *watch app* – `dotnet watch` s hot reloadem
+
+## Licence
+
+Projekt je licencovaný pod [Apache License 2.0](LICENSE). Copyright © Petr Foltýnek.
+
+Nejde o oficiální produkt společnosti Prusa Research.

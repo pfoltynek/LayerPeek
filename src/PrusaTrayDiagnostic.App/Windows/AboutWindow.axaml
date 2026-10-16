@@ -1,0 +1,30 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PrusaTrayDiagnostic.App.Windows"
+        x:Class="PrusaTrayDiagnostic.App.Windows.AboutWindow"
+        x:DataType="vm:AboutViewModel"
+        Title="{Binding Title}"
+        Icon="/Assets/tray-idle.png"
+        SizeToContent="WidthAndHeight"
+        CanResize="False"
+        CanMinimize="False"
+        CanMaximize="False"
+        WindowStartupLocation="CenterScreen"
+        MinWidth="320">
+  <StackPanel Margin="24" Spacing="8" MaxWidth="400">
+    <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="SemiBold" />
+    <TextBlock Text="{Binding VersionText}" />
+    <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding Disclaimer}" TextWrapping="Wrap" Opacity="0.75" />
+    <TextBlock Text="{Binding LicenseText}" Margin="0,8,0,0" />
+    <TextBlock Text="{Binding Copyright}" />
+    <!-- Opened through IUrlLauncher (validated http(s) address), not through NavigateUri. -->
+    <HyperlinkButton Content="{Binding RepositoryText}" Command="{Binding OpenRepositoryCommand}" Padding="0" />
+    <Button Content="{Binding CloseText}"
+            HorizontalAlignment="Right"
+            Margin="0,16,0,0"
+            IsDefault="True"
+            IsCancel="True"
+            Click="OnCloseClicked" />
+  </StackPanel>
+</Window>

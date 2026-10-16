@@ -7,7 +7,7 @@ namespace PrusaTrayDiagnostic.App.Tray;
 
 /// <summary>
 /// Runs the monitoring service for the lifetime of the app: loads the settings, hands the printers to the
-/// tray view model and polls them until stopped. Never throws into the UI: failures are logged and shown in the tray.
+/// tray observers (icon, menu) and polls them until stopped. Never throws into the UI: failures are logged and shown in the tray.
 /// </summary>
 internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
 {
@@ -15,7 +15,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
 
     private readonly Func<ISettingsStore> _settingsStoreFactory;
     private readonly IPrinterMonitor _monitor;
-    private readonly TrayStatusViewModel _viewModel;
+    private readonly IMonitoringObserver[] _observers;
     private readonly ILogger<MonitoringSession> _logger;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
@@ -29,16 +29,21 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
     public MonitoringSession(
         Func<ISettingsStore> settingsStoreFactory,
         IPrinterMonitor monitor,
-        TrayStatusViewModel viewModel,
+        IEnumerable<IMonitoringObserver> observers,
         ILogger<MonitoringSession> logger)
     {
         ArgumentNullException.ThrowIfNull(settingsStoreFactory);
         ArgumentNullException.ThrowIfNull(monitor);
-        ArgumentNullException.ThrowIfNull(viewModel);
+        ArgumentNullException.ThrowIfNull(observers);
         ArgumentNullException.ThrowIfNull(logger);
         _settingsStoreFactory = settingsStoreFactory;
         _monitor = monitor;
-        _viewModel = viewModel;
+        _observers = [.. observers];
+        if (Array.Exists(_observers, static observer => observer is null))
+        {
+            throw new ArgumentException("Observers must not contain null entries.", nameof(observers));
+        }
+
         _logger = logger;
     }
 
@@ -152,7 +157,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
         {
             AppSettings settings = await LoadSettingsAsync(stopToken).ConfigureAwait(false);
             stopToken.ThrowIfCancellationRequested();
-            _viewModel.SetPrinters(settings.Printers);
+            foreach (IMonitoringObserver observer in _observers)
+            {
+                observer.SetPrinters(settings.Printers);
+            }
+
             await _monitor.RunAsync(settings.Printers, settings.PollingInterval, stopToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
@@ -162,7 +171,23 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
         catch (Exception ex)
         {
             LogMonitoringFailed(ex);
-            _viewModel.ReportMonitoringFailed();
+            ReportFailure();
+        }
+    }
+
+    /// <summary>Tells every observer, even if one of them fails, so that the session never faults.</summary>
+    private void ReportFailure()
+    {
+        foreach (IMonitoringObserver observer in _observers)
+        {
+            try
+            {
+                observer.ReportMonitoringFailed();
+            }
+            catch (Exception ex)
+            {
+                LogObserverFailed(ex);
+            }
         }
     }
 
@@ -204,6 +229,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Printer monitoring stopped unexpectedly.")]
     private partial void LogMonitoringFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Showing the monitoring failure in the tray failed.")]
+    private partial void LogObserverFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Printer monitoring did not stop within {Timeout}.")]
     private partial void LogStopTimedOut(TimeSpan timeout);

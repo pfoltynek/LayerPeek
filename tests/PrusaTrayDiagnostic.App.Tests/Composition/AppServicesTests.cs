@@ -1,9 +1,12 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Tray;
+using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
@@ -21,7 +24,24 @@ public sealed class AppServicesTests
         Assert.IsType<PrinterMonitor>(services.GetRequiredService<IPrinterMonitor>());
         Assert.IsType<PrinterClientFactory>(services.GetRequiredService<IPrinterClientFactory>());
         Assert.Same(services.GetRequiredService<TrayStatusViewModel>(), services.GetRequiredService<TrayStatusViewModel>());
+        Assert.Same(services.GetRequiredService<TrayMenuViewModel>(), services.GetRequiredService<TrayMenuViewModel>());
+        Assert.IsType<ProcessUrlLauncher>(services.GetRequiredService<IUrlLauncher>());
         Assert.NotNull(services.GetRequiredService<MonitoringSession>());
+    }
+
+    [Fact]
+    public async Task SuppliedLoggerFactoryIsUsedAndOutlivesContainer()
+    {
+        TrackingLoggerFactory loggerFactory = new();
+        ServiceProvider services = AppServices.Create(loggerFactory);
+
+        Assert.Same(loggerFactory, services.GetRequiredService<ILoggerFactory>());
+        _ = services.GetRequiredService<ILogger<MonitoringSession>>();
+        await services.DisposeAsync();
+
+        // Quit logs after the container was disposed (T-024), so the factory must still be alive.
+        Assert.False(loggerFactory.Disposed);
+        Assert.Contains(typeof(MonitoringSession).FullName!, loggerFactory.Categories);
     }
 
     [Fact]
@@ -39,5 +59,24 @@ public sealed class AppServicesTests
         {
             Assert.IsType<UnsupportedSecretStore>(store);
         }
+    }
+
+    private sealed class TrackingLoggerFactory : ILoggerFactory
+    {
+        public bool Disposed { get; private set; }
+
+        public List<string> Categories { get; } = [];
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName)
+        {
+            Categories.Add(categoryName);
+            return NullLogger.Instance;
+        }
+
+        public void Dispose() => Disposed = true;
     }
 }
