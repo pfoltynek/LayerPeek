@@ -67,10 +67,26 @@ dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-x64     # Intel (lz
 
 Universal binary (arm64 + x64) se spojí nástrojem `lipo` – řeší úkol T-017.
 
+## AOT smoke test
+
+`dotnet build` a `dotnet test` běží přes JIT, takže neodhalí chyby, které se projeví až v nativní AOT binárce. Po změnách v buildu, balíčcích nebo XAML proto spusť:
+
+```powershell
+pwsh scripts/aot-smoke.ps1                         # RID podle aktuálního OS/architektury
+pwsh scripts/aot-smoke.ps1 -Runtime osx-x64 -Seconds 15
+```
+
+Skript publikuje aplikaci (Release) do dočasné složky mimo repozitář, spustí ji a ověří, že po `-Seconds` sekundách (výchozí 10) stále běží. Pak proces ukončí a dočasnou složku smaže (i při chybě). Při neúspěchu vrací nenulový exit code a vypíše výstup aplikace. Vyžaduje PowerShell 7 a nativní toolchain popsaný výše.
+
+### Proč `UseOptimizedPublish=false`
+
+V `src/PrusaTrayDiagnostic.App/PrusaTrayDiagnostic.App.csproj` je nastaveno `<UseOptimizedPublish>false</UseOptimizedPublish>`. .NET 11 SDK při AOT publishi standardně používá „optimalizovaný“ publish, který místo celého `Build` spouští jen `PrepareResources; Compile` – a `PrepareResources` tak běží před `ResolveReferences`. Avalonia 12 ale přidává své `!AvaloniaResources` až před `ResolveReferences`, takže se resource nevloží do assembly, XAML se nezkompiluje a publikovaná aplikace hned po startu spadne s `XamlLoadException: No precompiled XAML found`. Publish přitom projde bez varování. Nastavení vrací běžný plný build; odstranit ho lze až po opravě v Avalonii nebo SDK (ověřit smoke testem).
+
 ## Časté chyby
 
 | Chyba | Řešení |
 |---|---|
 | `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64` | chybí workload *Desktop development with C++* (viz Windows) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
+| Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
