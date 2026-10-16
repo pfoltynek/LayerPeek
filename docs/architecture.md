@@ -35,6 +35,7 @@ PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macO
 3. Detektor událostí porovná předchozí a nový snapshot a při změně (dokončeno, chyba…) zavolá `INotificationService`.
    - `Core/Events/PrintEventDetector` je čistý stavový automat (bez I/O). `Core/Notifications/PrintEventNotifier` odebírá `IPrinterMonitor.SnapshotUpdated`, filtruje události podle `NotificationSettings` a volá `INotificationService` (T-009).
    - App předává nastavení každého běhu přes `IMonitoringObserver.ApplySettings` (`App/Notifications/PrintNotificationObserver`). Dokud neexistují T-010 / T-020, je zaregistrovaná `NullNotificationService` (notifikace se tiše neposílají).
+4. Historie telemetrie (T-012): `Core/History/TelemetryHistory` drží pro každou tiskárnu v paměti kruhový buffer vzorků (`TelemetrySample`, 48 B, bez objektů na haldě) za posledních 24 h, bez ukládání na disk. Plní ho `App/History/TelemetryHistoryObserver` ze `SnapshotUpdated` a při každém běhu mu předá tiskárny a interval. Graf teplot (T-011) čte rozsah přes `CopySamples` do vlastního bufferu a překresluje jen při změně `GetVersion` / události `Changed`.
 
 ## Prusa Connect (cloud)
 
