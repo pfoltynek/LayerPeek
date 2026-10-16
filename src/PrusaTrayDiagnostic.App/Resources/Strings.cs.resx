@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MenuQuit" xml:space="preserve">
+    <value>Ukončit</value>
+  </data>
+  <data name="ToolTipStarting" xml:space="preserve">
+    <value>Spouštění…</value>
+  </data>
+  <data name="ToolTipNoPrinter" xml:space="preserve">
+    <value>Není nastavena žádná tiskárna</value>
+  </data>
+  <data name="ToolTipMonitoringFailed" xml:space="preserve">
+    <value>Sledování se zastavilo kvůli chybě</value>
+  </data>
+  <data name="ToolTipStateWithProgress" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="ToolTipProgress" xml:space="preserve">
+    <value>{0} %</value>
+  </data>
+  <data name="ToolTipRemaining" xml:space="preserve">
+    <value>Zbývá {0}</value>
+  </data>
+  <data name="ToolTipOtherPrinters" xml:space="preserve">
+    <value>Další tiskárny: {0}</value>
+  </data>
+  <data name="DurationLessThanMinute" xml:space="preserve">
+    <value>&lt; 1 min</value>
+  </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="DurationHoursMinutes" xml:space="preserve">
+    <value>{0} h {1} min</value>
+  </data>
+  <data name="DurationDaysHours" xml:space="preserve">
+    <value>{0} d {1} h</value>
+  </data>
+  <data name="StateConnecting" xml:space="preserve">
+    <value>Připojování…</value>
+  </data>
+  <data name="StateIdle" xml:space="preserve">
+    <value>Připravena</value>
+  </data>
+  <data name="StateBusy" xml:space="preserve">
+    <value>Zaneprázdněna</value>
+  </data>
+  <data name="StatePrinting" xml:space="preserve">
+    <value>Tiskne</value>
+  </data>
+  <data name="StatePaused" xml:space="preserve">
+    <value>Pozastaveno</value>
+  </data>
+  <data name="StateFinished" xml:space="preserve">
+    <value>Dokončeno</value>
+  </data>
+  <data name="StateStopped" xml:space="preserve">
+    <value>Zastaveno</value>
+  </data>
+  <data name="StateError" xml:space="preserve">
+    <value>Chyba</value>
+  </data>
+  <data name="StateAttention" xml:space="preserve">
+    <value>Vyžaduje zásah</value>
+  </data>
+  <data name="StateOffline" xml:space="preserve">
+    <value>Nedostupná</value>
+  </data>
+  <data name="StateUnauthorized" xml:space="preserve">
+    <value>Neplatné přihlašovací údaje</value>
+  </data>
+  <data name="StateUnknown" xml:space="preserve">
+    <value>Neznámý stav</value>
+  </data>
+</root>

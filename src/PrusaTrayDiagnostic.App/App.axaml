@@ -1,17 +1,19 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:res="using:PrusaTrayDiagnostic.App.Resources"
              x:Class="PrusaTrayDiagnostic.App.App"
              RequestedThemeVariant="Default">
   <Application.Styles>
     <FluentTheme />
   </Application.Styles>
 
+  <!-- Icon and tooltip are replaced at runtime by TrayIconPresenter; the static icon is the fallback if rendering fails. -->
   <TrayIcon.Icons>
     <TrayIcons>
       <TrayIcon Icon="/Assets/tray-idle.png" ToolTipText="Prusa Tray Diagnostic">
         <TrayIcon.Menu>
           <NativeMenu>
-            <NativeMenuItem Header="Quit" Click="OnQuitClicked" />
+            <NativeMenuItem Header="{x:Static res:Strings.MenuQuit}" Click="OnQuitClicked" />
           </NativeMenu>
         </TrayIcon.Menu>
       </TrayIcon>
