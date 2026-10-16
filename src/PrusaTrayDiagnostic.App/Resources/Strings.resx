@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MenuQuit" xml:space="preserve">
+    <value>Quit</value>
+    <comment>Tray menu item that exits the application.</comment>
+  </data>
+  <data name="ToolTipStarting" xml:space="preserve">
+    <value>Starting…</value>
+    <comment>Tray tooltip before the settings are loaded.</comment>
+  </data>
+  <data name="ToolTipNoPrinter" xml:space="preserve">
+    <value>No printer configured</value>
+  </data>
+  <data name="ToolTipMonitoringFailed" xml:space="preserve">
+    <value>Monitoring stopped due to an error</value>
+  </data>
+  <data name="ToolTipStateWithProgress" xml:space="preserve">
+    <value>{0} – {1}</value>
+    <comment>{0} = state name, {1} = formatted progress.</comment>
+  </data>
+  <data name="ToolTipProgress" xml:space="preserve">
+    <value>{0}%</value>
+    <comment>{0} = whole percent.</comment>
+  </data>
+  <data name="ToolTipRemaining" xml:space="preserve">
+    <value>{0} remaining</value>
+    <comment>{0} = formatted duration.</comment>
+  </data>
+  <data name="ToolTipOtherPrinters" xml:space="preserve">
+    <value>Other printers: {0}</value>
+    <comment>{0} = number of further configured printers.</comment>
+  </data>
+  <data name="DurationLessThanMinute" xml:space="preserve">
+    <value>&lt; 1 min</value>
+  </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="DurationHoursMinutes" xml:space="preserve">
+    <value>{0} h {1} min</value>
+  </data>
+  <data name="DurationDaysHours" xml:space="preserve">
+    <value>{0} d {1} h</value>
+  </data>
+  <data name="StateConnecting" xml:space="preserve">
+    <value>Connecting…</value>
+    <comment>No data received from the printer yet.</comment>
+  </data>
+  <data name="StateIdle" xml:space="preserve">
+    <value>Ready</value>
+  </data>
+  <data name="StateBusy" xml:space="preserve">
+    <value>Busy</value>
+    <comment>Homing, calibration, filament change...</comment>
+  </data>
+  <data name="StatePrinting" xml:space="preserve">
+    <value>Printing</value>
+  </data>
+  <data name="StatePaused" xml:space="preserve">
+    <value>Paused</value>
+  </data>
+  <data name="StateFinished" xml:space="preserve">
+    <value>Finished</value>
+  </data>
+  <data name="StateStopped" xml:space="preserve">
+    <value>Stopped</value>
+    <comment>Print was cancelled.</comment>
+  </data>
+  <data name="StateError" xml:space="preserve">
+    <value>Error</value>
+  </data>
+  <data name="StateAttention" xml:space="preserve">
+    <value>Needs attention</value>
+  </data>
+  <data name="StateOffline" xml:space="preserve">
+    <value>Offline</value>
+  </data>
+  <data name="StateUnauthorized" xml:space="preserve">
+    <value>Invalid credentials</value>
+  </data>
+  <data name="StateUnknown" xml:space="preserve">
+    <value>Unknown state</value>
+  </data>
+</root>
