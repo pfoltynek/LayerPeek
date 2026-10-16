@@ -10,12 +10,12 @@ namespace PrusaTrayDiagnostic.Core.Tests.History;
 
 public sealed class TelemetryHistoryTests
 {
-    private static readonly DateTimeOffset Start = new(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
-    private static readonly TimeSpan Second = TimeSpan.FromSeconds(1);
+    internal static readonly DateTimeOffset Start = new(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
+    internal static readonly TimeSpan Second = TimeSpan.FromSeconds(1);
 
     private const int SamplesPerPrinter = 20_000;
 
-    private static readonly PrinterDefinition Mk4 = Definition("mk4");
+    internal static readonly PrinterDefinition Mk4 = Definition("mk4");
     private static readonly PrinterDefinition Xl = Definition("xl");
 
     // ---- Sample content ----
@@ -251,20 +251,6 @@ public sealed class TelemetryHistoryTests
         }
 
         AssertNozzles(ReadAll(history, "mk4"), 989, 990, 991, 992, 993, 994, 995, 996, 997, 998, 999);
-    }
-
-    [Fact]
-    public void MemoryGrowsWithSamplesNotWithCapacity()
-    {
-        // A one-day history at 1 s holds up to ~4 MB; a fresh printer must not allocate it up front.
-        TelemetryHistory history = new();
-        long before = GC.GetAllocatedBytesForCurrentThread();
-
-        history.Configure([Mk4], Second);
-        history.Record(Snapshot(Start, 1));
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.InRange(allocated, 0, 64 * 1024);
     }
 
     [Fact]
@@ -809,59 +795,6 @@ public sealed class TelemetryHistoryTests
         Assert.Equal(0, raised);
     }
 
-    // ---- Allocation ----
-
-    [Fact]
-    public void RecordDoesNotAllocateInSteadyState()
-    {
-        TelemetryHistory history = Create(TimeSpan.FromSeconds(10), Second, Mk4);
-        history.Changed += static (_, _) => { };
-        PrinterSnapshot[] snapshots = new PrinterSnapshot[64];
-        for (int i = 0; i < snapshots.Length; i++)
-        {
-            snapshots[i] = Snapshot(Start + (i * Second), i);
-        }
-
-        // Fill and wrap the buffer first (growth allocates).
-        for (int i = 0; i < 32; i++)
-        {
-            history.Record(snapshots[i]);
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 32; i < snapshots.Length; i++)
-        {
-            history.Record(snapshots[i]);
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-        Assert.Equal(0, allocated);
-    }
-
-    [Fact]
-    public void ReadingDoesNotAllocate()
-    {
-        TelemetryHistory history = Create(TimeSpan.FromSeconds(10), Second, Mk4);
-        for (int i = 0; i < 20; i++)
-        {
-            history.Record(Snapshot(Start + (i * Second), i));
-        }
-
-        TelemetrySample[] destination = new TelemetrySample[16];
-        history.CopySamples("mk4", Start, Start + TimeSpan.FromMinutes(1), destination, out _);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        int count = history.CountSamples("mk4", Start, Start + TimeSpan.FromMinutes(1));
-        int copied = history.CopySamples("mk4", Start, Start + TimeSpan.FromMinutes(1), destination, out _);
-        long version = history.GetVersion("mk4");
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        Assert.Equal(0, allocated);
-        Assert.Equal(11, count);
-        Assert.Equal(11, copied);
-        Assert.True(version > 0);
-    }
-
     // ---- Concurrency ----
 
     [Fact]
@@ -1057,10 +990,10 @@ public sealed class TelemetryHistoryTests
         return reads;
     }
 
-    private static PrinterDefinition Definition(string id) =>
+    internal static PrinterDefinition Definition(string id) =>
         new() { Id = id, Name = id.ToUpperInvariant(), ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.10" };
 
-    private static TelemetryHistory Create(TimeSpan retention, TimeSpan interval, params PrinterDefinition[] printers)
+    internal static TelemetryHistory Create(TimeSpan retention, TimeSpan interval, params PrinterDefinition[] printers)
     {
         TelemetryHistory history = new(new TelemetryHistoryOptions { Retention = retention });
         history.Configure(printers, interval);
@@ -1068,7 +1001,7 @@ public sealed class TelemetryHistoryTests
     }
 
     /// <summary>Snapshot whose nozzle temperature identifies it.</summary>
-    private static PrinterSnapshot Snapshot(DateTimeOffset timestamp, double marker, string printerId = "mk4") =>
+    internal static PrinterSnapshot Snapshot(DateTimeOffset timestamp, double marker, string printerId = "mk4") =>
         new()
         {
             PrinterId = printerId,

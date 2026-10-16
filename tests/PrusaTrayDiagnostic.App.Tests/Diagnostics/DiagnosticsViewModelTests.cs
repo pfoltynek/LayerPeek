@@ -94,6 +94,122 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void OpeningForAPrinterSelectsItAndLoadsOnlyItsInfo()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        _monitor.Raise(Printing(nozzle: 120, printerId: "b"));
+
+        DiagnosticsViewModel viewModel = Create(initialPrinterId: "B");
+
+        Assert.Equal("b", viewModel.SelectedPrinter?.Id);
+        Assert.Equal("b", viewModel.ChartPrinterId);
+        Assert.Equal("120.0 °C", viewModel.NozzleActualText);
+        Assert.Equal("b", Assert.Single(_info.Requests).Printer.Id);
+    }
+
+    [Fact]
+    public void OpeningForAnUnknownPrinterFallsBackToTheFirst()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+
+        DiagnosticsViewModel viewModel = Create(initialPrinterId: "gone");
+
+        Assert.Equal("a", viewModel.SelectedPrinter?.Id);
+    }
+
+    [Fact]
+    public void OpeningForAPrinterBeforeMonitoringStartsSelectsItOnceKnown()
+    {
+        DiagnosticsViewModel viewModel = Create(initialPrinterId: "b");
+
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        _dispatcher.RunAll();
+
+        Assert.Equal("b", viewModel.SelectedPrinter?.Id);
+        Assert.Equal("b", Assert.Single(_info.Requests).Printer.Id);
+    }
+
+    [Fact]
+    public void ShowPrinterSwitchesTheOpenWindow()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        _monitor.Raise(Printing(nozzle: 130, printerId: "b"));
+        DiagnosticsViewModel viewModel = Create();
+
+        viewModel.ShowPrinter("b");
+
+        Assert.Equal("b", viewModel.SelectedPrinter?.Id);
+        Assert.Equal("130.0 °C", viewModel.NozzleActualText);
+        Assert.Equal(["a", "b"], _info.Requests.Select(request => request.Printer.Id));
+    }
+
+    [Fact]
+    public void ShowPrinterOfTheShownPrinterChangesNothing()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        DiagnosticsViewModel viewModel = Create();
+        List<string?> changes = Track(viewModel);
+
+        viewModel.ShowPrinter("A");
+
+        Assert.Empty(changes);
+        Assert.Single(_info.Requests);
+    }
+
+    [Fact]
+    public void ShowPrinterOfAnUnknownPrinterKeepsTheSelection()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        DiagnosticsViewModel viewModel = Create();
+        viewModel.ShowPrinter("b");
+
+        viewModel.ShowPrinter("gone");
+
+        Assert.Equal("b", viewModel.SelectedPrinter?.Id);
+    }
+
+    [Fact]
+    public void ManualSelectionWinsOverAPendingMenuRequest()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        DiagnosticsViewModel viewModel = Create();
+        // Requested from the menu of a printer this window does not know yet (its printer list is older).
+        viewModel.ShowPrinter("c");
+
+        viewModel.SelectedPrinter = viewModel.Printers[1];
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"), Definition("c", "Gamma"));
+        _dispatcher.RunAll();
+
+        Assert.Equal("b", viewModel.SelectedPrinter?.Id);
+    }
+
+    [Fact]
+    public void PendingMenuRequestIsAppliedWhenThePrinterArrives()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        DiagnosticsViewModel viewModel = Create();
+        viewModel.ShowPrinter("c");
+
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"), Definition("c", "Gamma"));
+        _dispatcher.RunAll();
+
+        Assert.Equal("c", viewModel.SelectedPrinter?.Id);
+    }
+
+    [Fact]
+    public void ShowPrinterAfterDisposeIsIgnored()
+    {
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        DiagnosticsViewModel viewModel = Create();
+        viewModel.Dispose();
+
+        viewModel.ShowPrinter("b");
+
+        Assert.Equal("a", viewModel.SelectedPrinter?.Id);
+        Assert.Single(_info.Requests);
+    }
+
+    [Fact]
     public void BeforeTheFirstPollValuesAreMissing()
     {
         Configure(Definition());
@@ -710,6 +826,6 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     private void Configure(params PrinterDefinition[] printers) =>
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = printers });
 
-    private DiagnosticsViewModel Create() =>
-        _viewModel = new DiagnosticsViewModel(_monitor, _printers, _history, _dispatcher, _info, _clock);
+    private DiagnosticsViewModel Create(string? initialPrinterId = null) =>
+        _viewModel = new DiagnosticsViewModel(_monitor, _printers, _history, _dispatcher, _info, _clock, initialPrinterId);
 }

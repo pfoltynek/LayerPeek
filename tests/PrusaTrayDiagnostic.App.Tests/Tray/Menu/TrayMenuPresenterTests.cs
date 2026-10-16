@@ -113,7 +113,67 @@ public sealed class TrayMenuPresenterTests : IDisposable
         _target.Click(Fixed(TrayMenuCommand.Diagnostics));
 
         Assert.Equal(1, _commands.DiagnosticsCount);
+        Assert.Equal([null], _commands.DiagnosticsRequests);
         Assert.Equal(0, _commands.AboutCount);
+    }
+
+    [Fact]
+    public void SubmenuItemsAreRoutedToTheirPrinter()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta") with { Address = "192.168.1.11" }]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Child(1, TrayMenuCommand.Diagnostics));
+        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+        _target.Click(Child(1, TrayMenuCommand.OpenWeb));
+
+        Assert.Equal(["b", "a"], _commands.DiagnosticsRequests);
+        Assert.Equal([new Uri("http://192.168.1.11/")], _launcher.Opened);
+    }
+
+    [Fact]
+    public void ClickOnSubmenuHeaderDoesNothing()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(_target.Printers[0]);
+
+        Assert.Empty(_launcher.Opened);
+        Assert.Equal(0, _commands.DiagnosticsCount);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public void DisabledOpenWebSubmenuItemDoesNothing()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha") with { Address = "ftp://nope" }, Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Child(0, TrayMenuCommand.OpenWeb));
+        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+
+        Assert.Empty(_launcher.Opened);
+        Assert.Equal(["a"], _commands.DiagnosticsRequests);
+    }
+
+    [Fact]
+    public void PrinterUpdateInSubmenuModeUpdatesOnlyItsItem()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta"), Definition("c", "Gamma")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+        _target.Operations.Clear();
+
+        _monitor.Raise(Snapshot(PrinterState.Paused, Job(12), printerId: "c"));
+        _dispatcher.RunAll();
+
+        Assert.Equal(["update 2"], _target.Operations);
+        Assert.Equal("Gamma: Paused – 12%", _target.Printers[2].Header);
+        Assert.NotNull(_target.Printers[2].Submenu);
     }
 
     [Fact]
@@ -158,6 +218,8 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     private TrayMenuEntry Fixed(TrayMenuCommand command) => _target.Fixed.Single(item => item.Command == command);
+
+    private TrayMenuEntry Child(int printer, TrayMenuCommand command) => _target.Printers[printer].Submenu!.Single(item => item.Command == command);
 
     private TrayMenuPresenter Create() => new(_target, _viewModel, _commands, _logger);
 }

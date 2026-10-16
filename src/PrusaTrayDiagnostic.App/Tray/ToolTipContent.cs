@@ -18,6 +18,9 @@ internal readonly record struct ToolTipContent(
     string? FileName,
     int OtherPrinterCount)
 {
+    /// <summary>What the icon would show for this printer; not polled yet counts as offline.</summary>
+    public TrayStatus Status => State is { } state ? TrayStatusRules.FromPrinterState(state) : TrayStatus.Offline;
+
     public static ToolTipContent From(TrayPrinter printer, int otherPrinterCount)
     {
         PrinterSnapshot? snapshot = printer.Snapshot;

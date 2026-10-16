@@ -45,14 +45,41 @@ public sealed class TrayPresentationKeyTests
     }
 
     [Fact]
-    public void NonPrimaryPrinterChangeDoesNotChangeKey()
+    public void SeveralPrintersAreIdentifiedBySummaryVersion()
     {
         TrayPrinter error = Printer(PrinterState.Error, id: "a", name: "A");
+        TrayPrinter[] printers = [error, Printer(PrinterState.Printing, Job(40), id: "b", name: "B")];
 
-        TrayPresentationKey before = TrayPresentationKey.Create([error, Printer(PrinterState.Printing, Job(40), id: "b", name: "B")], monitoringFailed: false);
-        TrayPresentationKey after = TrayPresentationKey.Create([error, Printer(PrinterState.Printing, Job(41), id: "b", name: "B")], monitoringFailed: false);
+        TrayPresentationKey first = TrayPresentationKey.Create(printers, monitoringFailed: false, summaryVersion: 1);
 
-        Assert.Equal(before, after);
+        Assert.Equal(TrayMessage.Summary, first.Message);
+        Assert.Equal(default, first.Printer);
+        Assert.Equal(first, TrayPresentationKey.Create(printers, monitoringFailed: false, summaryVersion: 1));
+        Assert.NotEqual(first, TrayPresentationKey.Create(printers, monitoringFailed: false, summaryVersion: 2));
+    }
+
+    [Fact]
+    public void SinglePrinterKeyIgnoresSummaryVersion()
+    {
+        TrayPrinter[] printers = [Printer(PrinterState.Idle)];
+
+        Assert.Equal(
+            TrayPresentationKey.Create(printers, monitoringFailed: false, summaryVersion: 1),
+            TrayPresentationKey.Create(printers, monitoringFailed: false, summaryVersion: 2));
+    }
+
+    [Fact]
+    public void FormattingSummaryKeyMatchesSummaryFormatter()
+    {
+        using CultureScope culture = new("en-US");
+        TrayPrinter[] printers = [Printer(PrinterState.Idle, id: "a", name: "A"), Printer(PrinterState.Paused, Job(10), id: "b", name: "B")];
+        ToolTipContent[] contents = [.. printers.Select(static printer => ToolTipContent.From(printer, otherPrinterCount: 0))];
+
+        TrayPresentation presentation = TrayPresentation.Format(TrayPresentationKey.Create(printers, monitoringFailed: false, summaryVersion: 7), contents);
+
+        Assert.Equal(TrayIconKey.For(TrayStatus.Paused, 10), presentation.IconKey);
+        Assert.Equal("B: Paused – 10%\nA: Ready", presentation.ToolTipText);
+        Assert.Equal(TrayToolTipFormatter.FormatSummary(contents), presentation.ToolTipText);
     }
 
     [Fact]

@@ -58,6 +58,10 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
 
     // UI thread only.
     private Dictionary<string, PrinterDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
+
+    // Printer to show as soon as the configured printers are known (opened from a printer submenu while monitoring was
+    // starting, or a request racing a configuration change); cleared by the next printer list.
+    private string? _preferredId;
     private bool _syncingPrinters;
     private CancellationTokenSource? _infoCancellation;
     private int _infoRequest;
@@ -97,7 +101,8 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         TelemetryHistory history,
         IUiDispatcher dispatcher,
         IPrinterInfoSource infoSource,
-        TimeProvider clock)
+        TimeProvider clock,
+        string? initialPrinterId = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(printers);
@@ -122,6 +127,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         _selectedTimeWindow = TimeWindows[1];
         ShowContent(null);
         ShowInfo(null);
+        _preferredId = initialPrinterId;
 
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
@@ -161,6 +167,8 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
                 return;
             }
 
+            // The user's choice wins over a printer requested from the menu that is still waiting for the printer list.
+            _preferredId = null;
             if (string.Equals(value.Id, _selectedPrinter?.Id, StringComparison.OrdinalIgnoreCase))
             {
                 SetProperty(ref _selectedPrinter, value);
@@ -358,6 +366,32 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// UI thread: shows <paramref name="printerId"/> (opened from the printer's submenu while the window is open). An id
+    /// that is not configured yet is remembered until the next printer list arrives; the current printer stays otherwise.
+    /// </summary>
+    public void ShowPrinter(string printerId)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        if (IsDisposed())
+        {
+            return;
+        }
+
+        PrinterChoice? choice = FindChoice(_printers, printerId);
+        if (choice is null)
+        {
+            _preferredId = printerId;
+            return;
+        }
+
+        _preferredId = null;
+        if (!string.Equals(choice.Id, _selectedPrinter?.Id, StringComparison.OrdinalIgnoreCase))
+        {
+            Select(choice);
+        }
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -374,6 +408,19 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         _monitoredPrinters.Changed -= OnPrintersChanged;
         _infoCancellation?.Cancel();
         _infoCancellation = null;
+    }
+
+    private static PrinterChoice? FindChoice(IReadOnlyList<PrinterChoice> choices, string id)
+    {
+        foreach (PrinterChoice choice in choices)
+        {
+            if (string.Equals(choice.Id, id, StringComparison.OrdinalIgnoreCase))
+            {
+                return choice;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsSameMachine(PrinterDefinition a, PrinterDefinition b) =>
@@ -504,9 +551,20 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
 
         HasPrinterSelector = _printers.Count > 1;
 
-        PrinterChoice? kept = _selectedPrinter is { } current
-            ? choices.Find(choice => string.Equals(choice.Id, current.Id, StringComparison.OrdinalIgnoreCase))
-            : null;
+        PrinterChoice? kept = _selectedPrinter is { } current ? FindChoice(choices, current.Id) : null;
+        PrinterChoice? preferred = _preferredId is { } preferredId ? FindChoice(choices, preferredId) : null;
+        if (state.Printers is not null)
+        {
+            // A printer list is known: the preference is either applied now or it names a printer that is not configured.
+            _preferredId = null;
+        }
+
+        if (preferred is not null && (kept is null || !string.Equals(preferred.Id, kept.Id, StringComparison.OrdinalIgnoreCase)))
+        {
+            Select(preferred);
+            return;
+        }
+
         if (kept is null)
         {
             Select(choices.Count > 0 ? choices[0] : null);

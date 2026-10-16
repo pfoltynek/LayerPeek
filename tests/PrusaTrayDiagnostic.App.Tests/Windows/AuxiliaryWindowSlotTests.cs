@@ -29,6 +29,23 @@ public sealed class AuxiliaryWindowSlotTests
     }
 
     [Fact]
+    public void ActivatingTheOpenWindowLetsTheCallerUpdateWhatItOwnsFirst()
+    {
+        List<string> calls = [];
+        _slot.ShowOrActivate(Create, _ => calls.Add("first"));
+
+        _slot.ShowOrActivate(Create, owned =>
+        {
+            Assert.Same(_owned[0], owned);
+            calls.Add("reuse activate=" + _windows[0].Calls.Count(call => call == "activate"));
+        });
+
+        Assert.Equal(["reuse activate=1"], calls);
+        Assert.Single(_windows);
+        Assert.Equal(["show", "activate", "activate"], _windows[0].Calls);
+    }
+
+    [Fact]
     public void ClosingTheWindowReleasesItsViewModelAndAllowsANewWindow()
     {
         _slot.ShowOrActivate(Create);

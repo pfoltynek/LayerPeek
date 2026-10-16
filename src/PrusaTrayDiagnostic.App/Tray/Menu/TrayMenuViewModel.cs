@@ -9,8 +9,9 @@ using PrusaTrayDiagnostic.Core.Settings;
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
-/// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress
-/// (clicking opens the web interface), followed by the fixed items.
+/// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
+/// followed by the fixed items. A single printer is a plain item (clicking opens the web interface); with several
+/// printers each one is a submenu ("Open … in the browser", "Diagnostics…" preselected on that printer, T-013).
 /// Snapshots arrive on background threads. Each one only compares a cheap <see cref="PrinterMenuContent"/> of its
 /// printer under the lock; when nothing visible changed nothing else happens. Changed printers are marked and a single
 /// UI update is posted for a whole burst; it formats only the marked items and replaces only those whose
@@ -22,6 +23,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private readonly IPrinterMonitor _monitor;
     private readonly IUiDispatcher _dispatcher;
     private readonly IUrlLauncher _launcher;
+    private readonly bool _diagnosticsAvailable;
     private readonly Action _apply;
     private readonly Lock _gate = new();
 
@@ -46,6 +48,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _monitor = monitor;
         _dispatcher = dispatcher;
         _launcher = launcher;
+        _diagnosticsAvailable = options.DiagnosticsAvailable;
         _apply = Apply;
         FixedItems =
         [
@@ -135,12 +138,47 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     private static TrayMenuEntry MessageEntry(string text) => new(TrayMenuCommand.None, text, IsEnabled: false);
 
-    private static TrayMenuEntry PrinterEntry(PrinterLine line) => new(
-        TrayMenuCommand.OpenWeb,
-        TrayMenuFormatter.PrinterHeader(line.Name, line.Content),
-        IsEnabled: line.WebUri is not null,
-        TrayMenuFormatter.PrinterToolTip(line.ConnectionType, line.WebUri is not null),
-        line.WebUri);
+    /// <summary>
+    /// UI thread. One printer: a plain item that opens the web interface (as before T-013). Several printers: a submenu
+    /// header "Name: State – 42%" whose items (web interface, diagnostics) are built once per configuration and reused,
+    /// so a state change only formats the header.
+    /// </summary>
+    private TrayMenuEntry PrinterEntry(PrinterLine line)
+    {
+        string header = TrayMenuFormatter.PrinterHeader(line.Name, line.Content);
+        if (!line.Grouped)
+        {
+            return new TrayMenuEntry(
+                TrayMenuCommand.OpenWeb,
+                header,
+                IsEnabled: line.WebUri is not null,
+                TrayMenuFormatter.PrinterToolTip(line.ConnectionType, line.WebUri is not null),
+                line.WebUri,
+                line.Id);
+        }
+
+        // Enabled even when the address is invalid: the submenu still offers diagnostics.
+        return new TrayMenuEntry(TrayMenuCommand.None, header, IsEnabled: true, PrinterId: line.Id)
+        {
+            Submenu = line.Owner.Submenu ??= PrinterSubmenu(line),
+        };
+    }
+
+    private TrayMenuEntryList PrinterSubmenu(PrinterLine line)
+    {
+        bool canOpenWeb = line.WebUri is not null;
+        return new TrayMenuEntryList(
+        [
+            new TrayMenuEntry(
+                TrayMenuCommand.OpenWeb,
+                line.ConnectionType == ConnectionType.PrusaConnect ? Strings.MenuOpenPrusaConnect : Strings.MenuOpenPrusaLink,
+                canOpenWeb,
+                canOpenWeb ? null : Strings.MenuInvalidAddress,
+                line.WebUri,
+                line.Id),
+            new TrayMenuEntry(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _diagnosticsAvailable, PrinterId: line.Id),
+        ]);
+    }
 
     private void OnSnapshotUpdated(object? sender, PrinterSnapshot snapshot)
     {
@@ -221,18 +259,19 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
             if (message is null && _slots is not null)
             {
+                bool grouped = _slots.Length > 1;
                 if (layoutChanged)
                 {
                     for (int i = 0; i < _slots.Length; i++)
                     {
-                        (lines ??= new(_slots.Length)).Add((i, _slots[i].ToLine()));
+                        (lines ??= new(_slots.Length)).Add((i, _slots[i].ToLine(grouped)));
                     }
                 }
                 else
                 {
                     foreach (int index in _dirtySlots)
                     {
-                        (lines ??= new(_dirtySlots.Count)).Add((index, _slots[index].ToLine()));
+                        (lines ??= new(_dirtySlots.Count)).Add((index, _slots[index].ToLine(grouped)));
                     }
                 }
             }
@@ -254,7 +293,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         }
         else if (layoutChanged)
         {
-            Synchronize(lines is null ? [] : [.. lines.Select(static line => PrinterEntry(line.Line))]);
+            Synchronize(lines is null ? [] : [.. lines.Select(line => PrinterEntry(line.Line))]);
         }
         else if (lines is not null)
         {
@@ -294,9 +333,17 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     }
 
     /// <summary>What one printer item needs; copied out of the lock for formatting.</summary>
-    private readonly record struct PrinterLine(string Name, ConnectionType ConnectionType, Uri? WebUri, PrinterMenuContent Content);
+    /// <param name="Grouped">Several printers are configured: the printer is a submenu.</param>
+    private readonly record struct PrinterLine(
+        Slot Owner,
+        string Id,
+        string Name,
+        ConnectionType ConnectionType,
+        Uri? WebUri,
+        PrinterMenuContent Content,
+        bool Grouped);
 
-    /// <summary>Mutable per-printer state, guarded by the owner's lock.</summary>
+    /// <summary>Mutable per-printer state, guarded by the owner's lock (except <see cref="Submenu"/>).</summary>
     private sealed class Slot(PrinterDefinition definition, Uri? webUri)
     {
         public PrinterMenuContent Content { get; set; }
@@ -304,6 +351,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         /// <summary>Queued in <c>_dirtySlots</c> for the next UI update.</summary>
         public bool Dirty { get; set; }
 
-        public PrinterLine ToLine() => new(definition.Name, definition.ConnectionType, webUri, Content);
+        /// <summary>UI thread only: the submenu items, built on first use and reused for this configuration.</summary>
+        public TrayMenuEntryList? Submenu { get; set; }
+
+        public PrinterLine ToLine(bool grouped) =>
+            new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, grouped);
     }
 }
