@@ -23,4 +23,6 @@ Z posloupnosti snapshotů odvodit události, na které se posílají notifikace.
 ## Otevřené otázky
 - Upozornit i na „zbývá X minut do konce“? Pokud ano, jaký práh?
 
+**Rozhodnutí (2026-10-16):** Ano – upozornění „zbývá X minut“, jedno na tisk, práh nastavitelný (výchozí 10 min, 0 = vypnuto).
+
 ## Poznámky k implementaci

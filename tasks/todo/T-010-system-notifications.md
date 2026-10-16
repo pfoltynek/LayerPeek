@@ -29,4 +29,9 @@ Implementace `INotificationService` pomocí nativních toast notifikací Windows
 - Zvuk u notifikací ano/ne? (Rozhodnutí platí i pro macOS – T-020.)
 - Co má aplikace dělat na macOS, dokud neexistuje T-020 (no-op implementace, nebo notifikace vypnuté v UI)?
 
+**Rozhodnutí (2026-10-16):**
+- Vlastní WinRT interop (`ToastNotificationManager` přes `[GeneratedComInterface]`), bez nového balíčku a bez změny TFM; AppUserModelID registrovat při startu (zástupce ve Start menu, HKCU, bez admin práv).
+- Zvuk nastavitelný; výchozí zvuk jen u chyby a „vyžaduje pozornost“, ostatní potichu; v nastavení jde zvuk vypnout úplně.
+- macOS před T-020: no-op implementace (notifikace se tiše neposílají).
+
 ## Poznámky k implementaci

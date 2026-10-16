@@ -24,4 +24,6 @@ Monitorovat více tiskáren současně.
 - Jedna ikona pro všechny tiskárny, nebo ikona pro každou tiskárnu zvlášť?
 - Pořadí závažnosti stavů?
 
+**Rozhodnutí (2026-10-16):** Jedna agregovaná ikona, tiskárny jako podmenu. Pořadí závažnosti: chyba > vyžaduje pozornost > offline > pozastaveno > tiskne > hotovo > idle (detaily stavů Busy/Stopped/Unknown/Unauthorized viz T-007).
+
 ## Poznámky k implementaci

@@ -24,4 +24,6 @@ Malé okno / popup s diagnostikou otevírané z tray menu.
 ## Otevřené otázky
 - Má okno obsahovat graf teplot (navazuje na T-012) a jakou knihovnu grafů použít?
 
+**Rozhodnutí (2026-10-16):** Ano, graf teplot (tryska, podložka) jako vlastní lehký Avalonia control nad historií z T-012, bez knihovny grafů. T-012 se implementuje před T-011.
+
 ## Poznámky k implementaci

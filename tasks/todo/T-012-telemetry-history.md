@@ -22,4 +22,6 @@ Uchovávat historii teplot a stavů pro grafy a diagnostiku.
 ## Otevřené otázky
 - Jak dlouhou historii držet? Ukládat na disk (např. SQLite), nebo jen v paměti?
 
+**Rozhodnutí (2026-10-16):** Jen v paměti, 24 h historie na tiskárnu (ring buffer), bez perzistence na disk.
+
 ## Poznámky k implementaci
