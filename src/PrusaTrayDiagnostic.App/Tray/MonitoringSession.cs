@@ -6,8 +6,8 @@ using PrusaTrayDiagnostic.Core.Settings;
 namespace PrusaTrayDiagnostic.App.Tray;
 
 /// <summary>
-/// Runs the monitoring service for the lifetime of the app: loads the settings, hands the printers to the
-/// tray observers (icon, menu) and polls them until stopped. Never throws into the UI: failures are logged and shown in the tray.
+/// Runs the monitoring service for the lifetime of the app: loads the settings, hands them to the
+/// observers (icon, menu, notifications) and polls the printers until stopped. Never throws into the UI: failures are logged and shown in the tray.
 /// </summary>
 internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
 {
@@ -159,7 +159,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
             stopToken.ThrowIfCancellationRequested();
             foreach (IMonitoringObserver observer in _observers)
             {
-                observer.SetPrinters(settings.Printers);
+                observer.ApplySettings(settings);
             }
 
             await _monitor.RunAsync(settings.Printers, settings.PollingInterval, stopToken).ConfigureAwait(false);

@@ -133,6 +133,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
             string? fileName = await GetFileNameAsync(statusJob.Id, cancellationToken).ConfigureAwait(false);
             return _lastJob = new PrintJob
             {
+                Id = statusJob.Id,
                 FileName = fileName,
                 ProgressPercent = statusJob.Progress ?? 0,
                 Elapsed = Seconds(statusJob.TimePrinting),

@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Printers;
+using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Tray;
 
@@ -57,6 +58,13 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
     {
         get => _toolTipText;
         private set => SetProperty(ref _toolTipText, value);
+    }
+
+    /// <inheritdoc/>
+    void IMonitoringObserver.ApplySettings(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        SetPrinters(settings.Printers);
     }
 
     /// <summary>

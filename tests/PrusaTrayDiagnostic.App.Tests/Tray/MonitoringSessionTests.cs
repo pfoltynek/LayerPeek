@@ -105,6 +105,19 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ObserversReceiveLoadedSettingsIncludingNotifications()
+    {
+        RecordingObserver observer = new();
+        AppSettings settings = new() { Printers = [Definition()], Notifications = new NotificationSettings { RemainingTimeMinutes = 7 } };
+        _session = new MonitoringSession(() => FakeSettingsStore.Returning(settings), _monitor, [observer], _logger);
+
+        _session.Start();
+        await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Same(settings, observer.Settings);
+    }
+
+    [Fact]
     public async Task StopCancelsMonitorAndCompletes()
     {
         _session = Create(() => FakeSettingsStore.Returning(new AppSettings { Printers = [Definition()] }));
@@ -269,8 +282,13 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
     {
         public List<string> Calls { get; } = [];
 
-        public void SetPrinters(IReadOnlyList<PrinterDefinition> printers) =>
-            Calls.Add("printers: " + string.Join(",", printers.Select(printer => printer.Id)));
+        public AppSettings? Settings { get; private set; }
+
+        public void ApplySettings(AppSettings settings)
+        {
+            Settings = settings;
+            Calls.Add("printers: " + string.Join(",", settings.Printers.Select(printer => printer.Id)));
+        }
 
         public void ReportMonitoringFailed() => Calls.Add("failed");
     }

@@ -100,6 +100,7 @@ public sealed class PrusaLinkClientTests : IDisposable
         PrinterSnapshot snapshot = await _client.GetSnapshotAsync(Ct);
 
         PrintJob job = Assert.IsType<PrintJob>(snapshot.Job);
+        Assert.Equal(42, job.Id);
         Assert.Equal("benchy_0.4n_0.2mm_PLA_COREONE.bgcode", job.FileName);
         Assert.Equal(37.0, job.ProgressPercent);
         Assert.Equal(TimeSpan.FromSeconds(3120), job.Remaining);
@@ -131,6 +132,7 @@ public sealed class PrusaLinkClientTests : IDisposable
         PrinterSnapshot next = await _client.GetSnapshotAsync(Ct);
 
         Assert.Equal("calibration-cube.bgcode", next.Job!.FileName);
+        Assert.Equal(43, next.Job.Id);
         Assert.Equal(2, _server.Requests.Count(static r => r.PathAndQuery == JobPath && r.Status == HttpStatusCode.OK));
     }
 
@@ -159,6 +161,7 @@ public sealed class PrusaLinkClientTests : IDisposable
 
         Assert.Equal(PrinterState.Finished, finished.State);
         PrintJob job = Assert.IsType<PrintJob>(finished.Job);
+        Assert.Equal(42, job.Id);
         Assert.Equal("benchy_0.4n_0.2mm_PLA_COREONE.bgcode", job.FileName);
         Assert.Equal(100.0, job.ProgressPercent);
         Assert.Equal(TimeSpan.Zero, job.Remaining);
@@ -176,6 +179,7 @@ public sealed class PrusaLinkClientTests : IDisposable
 
         Assert.Equal(PrinterState.Stopped, stopped.State);
         Assert.Equal(37.0, stopped.Job!.ProgressPercent);
+        Assert.Equal(42, stopped.Job.Id);
     }
 
     [Fact]

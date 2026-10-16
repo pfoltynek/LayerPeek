@@ -2,6 +2,7 @@ using System.ComponentModel;
 
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Printers;
+using PrusaTrayDiagnostic.Core.Settings;
 
 using static PrusaTrayDiagnostic.App.Tests.Tray.TestPrinters;
 
@@ -203,6 +204,21 @@ public sealed class TrayStatusViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal("MK4\nConnecting…", _viewModel.ToolTipText);
+    }
+
+    [Fact]
+    public void AppliedSettingsShowPrintersAndClearFailure()
+    {
+        IMonitoringObserver observer = _viewModel;
+        _viewModel.SetPrinters([Definition()]);
+        _viewModel.ReportMonitoringFailed();
+        _dispatcher.RunAll();
+
+        observer.ApplySettings(new AppSettings { Printers = [Definition("a", "Alpha"), Definition("b", "Beta")] });
+        _dispatcher.RunAll();
+
+        Assert.Equal("Alpha\nConnecting…\nOther printers: 1", _viewModel.ToolTipText);
+        Assert.Throws<ArgumentNullException>(() => observer.ApplySettings(null!));
     }
 
     [Fact]

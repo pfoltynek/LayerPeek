@@ -4,6 +4,7 @@ using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Printers;
+using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
@@ -64,6 +65,13 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     public ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
     /// <inheritdoc/>
+    void IMonitoringObserver.ApplySettings(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        SetPrinters(settings.Printers);
+    }
+
+    /// <summary>Starts showing <paramref name="printers"/> (configuration order); clears a previous failure. Thread-safe.</summary>
     public void SetPrinters(IReadOnlyList<PrinterDefinition> printers)
     {
         ArgumentNullException.ThrowIfNull(printers);

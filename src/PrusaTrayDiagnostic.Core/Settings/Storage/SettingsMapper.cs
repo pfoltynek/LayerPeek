@@ -28,6 +28,8 @@ internal static class SettingsMapper
                 Error = notifications.Error,
                 Attention = notifications.Attention,
                 Offline = notifications.Offline,
+                RemainingTimeMinutes = notifications.RemainingTimeMinutes,
+                Sound = FormatSound(notifications.Sound),
             },
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
             {
@@ -49,7 +51,7 @@ internal static class SettingsMapper
         return new AppSettings
         {
             PollingInterval = ToPollingInterval(document.PollingIntervalSeconds, warnings),
-            Notifications = ToNotifications(document.Notifications),
+            Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings),
         };
     }
@@ -78,7 +80,7 @@ internal static class SettingsMapper
         return TimeSpan.FromTicks((long)Math.Round(clamped * TimeSpan.TicksPerSecond));
     }
 
-    private static NotificationSettings ToNotifications(NotificationsDocument? document)
+    private static NotificationSettings ToNotifications(NotificationsDocument? document, List<string> warnings)
     {
         NotificationSettings defaults = AppSettings.Default.Notifications;
         if (document is null)
@@ -97,7 +99,61 @@ internal static class SettingsMapper
             Error = document.Error ?? defaults.Error,
             Attention = document.Attention ?? defaults.Attention,
             Offline = document.Offline ?? defaults.Offline,
+            RemainingTimeMinutes = ToRemainingTimeMinutes(document.RemainingTimeMinutes, warnings),
+            Sound = ToSound(document.Sound, defaults.Sound, warnings),
         };
+    }
+
+    private static NotificationSound ToSound(string? value, NotificationSound fallback, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return fallback;
+        }
+
+        // Explicit names instead of Enum.Parse: numeric strings must not be accepted and the format must stay stable.
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (NotificationSound sound in (ReadOnlySpan<NotificationSound>)[NotificationSound.Off, NotificationSound.ImportantOnly, NotificationSound.All])
+        {
+            if (name.Equals(FormatSound(sound), StringComparison.OrdinalIgnoreCase))
+            {
+                return sound;
+            }
+        }
+
+        warnings.Add($"Unknown notification sound setting '{Shorten(value)}'; the default is used.");
+        return fallback;
+    }
+
+    private static string FormatSound(NotificationSound sound) => sound switch
+    {
+        NotificationSound.Off => nameof(NotificationSound.Off),
+        NotificationSound.ImportantOnly => nameof(NotificationSound.ImportantOnly),
+        NotificationSound.All => nameof(NotificationSound.All),
+        _ => throw new ArgumentOutOfRangeException(nameof(sound), sound, "Unknown notification sound setting."),
+    };
+
+    private static int ToRemainingTimeMinutes(double? minutes, List<string> warnings)
+    {
+        if (minutes is not { } requested)
+        {
+            return NotificationSettings.DefaultRemainingTimeMinutes;
+        }
+
+        if (!double.IsFinite(requested))
+        {
+            warnings.Add("Remaining time alert is not a number; the default is used.");
+            return NotificationSettings.DefaultRemainingTimeMinutes;
+        }
+
+        // Clamp before converting so that huge values cannot overflow int.
+        int corrected = (int)Math.Round(Math.Clamp(requested, 0, NotificationSettings.MaxRemainingTimeMinutes), MidpointRounding.AwayFromZero);
+        if (corrected != requested)
+        {
+            warnings.Add($"Remaining time alert {requested} min is not a whole number within 0–{NotificationSettings.MaxRemainingTimeMinutes}; {corrected} min is used.");
+        }
+
+        return corrected;
     }
 
     private static List<PrinterDefinition> ToPrinters(List<PrinterDocument?>? documents, List<string> warnings)

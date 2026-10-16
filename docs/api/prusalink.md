@@ -40,6 +40,7 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 | `UNKNOWN` a cokoli jiného | `Unknown` |
 
 - Po skončení tisku zmizí objekt `job` ze `/status`. Klient proto u FINISHED/STOPPED vrací poslední známou úlohu (u FINISHED s progressem 100 %).
+- `job.id` se mapuje na `PrintJob.Id`. Detekce událostí (T-009) podle něj rozliší dvě po sobě jdoucí úlohy i se stejným názvem souboru.
 - `time_remaining` firmware vynechává, když odhad není k dispozici. Hodnota nikdy není `null`.
 
 ## Autentizace
