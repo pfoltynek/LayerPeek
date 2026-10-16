@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Http" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PrusaTrayDiagnostic.PrusaLink.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\PrusaTrayDiagnostic.Core\PrusaTrayDiagnostic.Core.csproj" />
   </ItemGroup>
 </Project>
