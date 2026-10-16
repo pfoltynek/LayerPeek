@@ -90,17 +90,32 @@ internal sealed class FakePrinterMonitor : IPrinterMonitor
 
     public int SubscriberCount => SnapshotUpdated?.GetInvocationList().Length ?? 0;
 
-    public IReadOnlyList<PrinterSnapshot> Snapshots => [];
+    private readonly Dictionary<string, PrinterSnapshot> _latest = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Lock _latestLock = new();
+
+    public IReadOnlyList<PrinterSnapshot> Snapshots
+    {
+        get
+        {
+            lock (_latestLock)
+            {
+                return [.. _latest.Values];
+            }
+        }
+    }
 
     /// <summary>What <see cref="RunAsync"/> does after recording its arguments; defaults to waiting for cancellation.</summary>
     public Func<CancellationToken, Task>? RunBehavior { get; set; }
 
     public Task<(IReadOnlyList<PrinterDefinition> Printers, TimeSpan Interval)> Started => _started.Task;
 
+    /// <summary>Like the real monitor: the latest raised snapshot of the printer.</summary>
     public bool TryGetSnapshot(string printerId, [NotNullWhen(true)] out PrinterSnapshot? snapshot)
     {
-        snapshot = null;
-        return false;
+        lock (_latestLock)
+        {
+            return _latest.TryGetValue(printerId, out snapshot);
+        }
     }
 
     public async Task RunAsync(IReadOnlyList<PrinterDefinition> printers, TimeSpan pollingInterval, CancellationToken cancellationToken)
@@ -121,7 +136,19 @@ internal sealed class FakePrinterMonitor : IPrinterMonitor
         }
     }
 
-    public void Raise(PrinterSnapshot snapshot) => SnapshotUpdated?.Invoke(this, snapshot);
+    public void Raise(PrinterSnapshot snapshot)
+    {
+        // Null is raised on purpose by tests of defensive handlers; it is not remembered.
+        if (snapshot is not null)
+        {
+            lock (_latestLock)
+            {
+                _latest[snapshot.PrinterId] = snapshot;
+            }
+        }
+
+        SnapshotUpdated?.Invoke(this, snapshot!);
+    }
 }
 
 internal sealed class FakeSettingsStore(Func<CancellationToken, Task<SettingsLoadResult>> load) : ISettingsStore

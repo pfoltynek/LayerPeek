@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
@@ -55,7 +56,7 @@ internal static class AppServices
         services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
-        // Settings (T-015) and diagnostics (T-011) windows do not exist yet: their menu items are disabled.
+        // The settings window (T-015) does not exist yet: its menu item is disabled. Diagnostics (T-011) is enabled.
         services.AddSingleton(static _ => TrayMenuOptions.Default);
         services.AddSingleton(static sp => new TrayMenuViewModel(
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -72,6 +73,9 @@ internal static class AppServices
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
+        // Diagnostics window (T-011): the printers of the current run, and printer/firmware information on demand.
+        services.AddSingleton(static _ => new MonitoredPrinters());
+        services.AddSingleton<IPrinterInfoSource>(static sp => new PrinterInfoSource(sp.GetRequiredService<PrusaLinkClientFactory>()));
         services.AddSingleton(static sp => new MonitoringSession(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -80,10 +84,27 @@ internal static class AppServices
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
+                sp.GetRequiredService<MonitoredPrinters>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>()));
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+    }
+
+    /// <summary>
+    /// A new view model for one diagnostics window; the caller disposes it when the window closes (it subscribes to the
+    /// monitor). Call on the UI thread.
+    /// </summary>
+    public static DiagnosticsViewModel CreateDiagnosticsViewModel(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return new DiagnosticsViewModel(
+            services.GetRequiredService<IPrinterMonitor>(),
+            services.GetRequiredService<MonitoredPrinters>(),
+            services.GetRequiredService<TelemetryHistory>(),
+            services.GetRequiredService<IUiDispatcher>(),
+            services.GetRequiredService<IPrinterInfoSource>(),
+            services.GetRequiredService<TimeProvider>());
     }
 
     private static ISecretStore CreateSecretStore() =>

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Composition;
+using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
@@ -67,6 +68,24 @@ public sealed class AppServicesTests
         Assert.Same(services.GetRequiredService<TelemetryHistory>(), services.GetRequiredService<TelemetryHistory>());
         Assert.Same(services.GetRequiredService<TelemetryHistoryObserver>(), services.GetRequiredService<TelemetryHistoryObserver>());
         Assert.Equal(TimeSpan.FromDays(1), services.GetRequiredService<TelemetryHistory>().Retention);
+    }
+
+    [Fact]
+    public async Task DiagnosticsWindowServicesAreRegisteredAndItsMenuItemEnabled()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<MonitoredPrinters>(), services.GetRequiredService<MonitoredPrinters>());
+        Assert.IsType<PrinterInfoSource>(services.GetRequiredService<IPrinterInfoSource>());
+        Assert.True(services.GetRequiredService<TrayMenuOptions>().DiagnosticsAvailable);
+        Assert.False(services.GetRequiredService<TrayMenuOptions>().SettingsAvailable);
+
+        // One view model per opened window; nothing is configured yet, so it shows the starting notice.
+        using DiagnosticsViewModel first = AppServices.CreateDiagnosticsViewModel(services);
+        using DiagnosticsViewModel second = AppServices.CreateDiagnosticsViewModel(services);
+        Assert.NotSame(first, second);
+        Assert.Same(services.GetRequiredService<TelemetryHistory>(), first.History);
+        Assert.True(first.HasNotice);
     }
 
     [Fact]

@@ -86,6 +86,8 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public int QuitCount { get; private set; }
 
+    public int DiagnosticsCount { get; private set; }
+
     public Exception? ThrowOnAbout { get; set; }
 
     public void ShowAbout()
@@ -96,6 +98,8 @@ internal sealed class FakeAppCommands : ITrayAppCommands
             throw ThrowOnAbout;
         }
     }
+
+    public void ShowDiagnostics() => DiagnosticsCount++;
 
     public void Quit() => QuitCount++;
 }

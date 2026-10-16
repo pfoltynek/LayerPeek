@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Icons;
@@ -46,7 +47,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     }
 
     /// <param name="trayIcon">Tray icon to drive; <see langword="null"/> when the platform has none (monitoring still runs).</param>
-    /// <param name="commands">About / Quit handlers of the tray menu.</param>
+    /// <param name="commands">Diagnostics / About / Quit handlers of the tray menu.</param>
     public static TrayHost Start(TrayIcon? trayIcon, ITrayAppCommands commands)
     {
         ArgumentNullException.ThrowIfNull(commands);
@@ -94,6 +95,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     /// <summary>Opens web pages (About window link). Valid until <see cref="StopAsync"/>.</summary>
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
+
+    /// <summary>A view model for a new diagnostics window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
+    public DiagnosticsViewModel CreateDiagnosticsViewModel() => AppServices.CreateDiagnosticsViewModel(_services);
 
     /// <summary>Creates loggers for UI objects outside the container; valid until <see cref="ReleaseLogging"/>.</summary>
     public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();

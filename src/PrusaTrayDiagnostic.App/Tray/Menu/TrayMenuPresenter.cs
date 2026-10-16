@@ -106,6 +106,9 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                 case TrayMenuCommand.OpenWeb:
                     _source.OpenWeb(entry);
                     break;
+                case TrayMenuCommand.Diagnostics:
+                    _commands.ShowDiagnostics();
+                    break;
                 case TrayMenuCommand.About:
                     _commands.ShowAbout();
                     break;
@@ -113,7 +116,7 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                     _commands.Quit();
                     break;
                 default:
-                    // Settings (T-015) and Diagnostics (T-011) get their handlers with their windows.
+                    // Settings (T-015) gets its handler with its window.
                     break;
             }
         }

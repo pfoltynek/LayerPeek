@@ -627,8 +627,36 @@ public sealed class PrusaLinkClientTests : IDisposable
         Assert.Equal("prusa-core-one", info.Hostname);
         Assert.Equal("6.9.2+10123", info.Firmware);
         Assert.Equal("2.0.0", info.ApiVersion);
+        Assert.Equal("7.0.0", info.PrinterModel);
         Assert.Equal(0.4, info.NozzleDiameter);
         Assert.True(info.HasMmu);
+    }
+
+    [Fact]
+    public async Task InfoWithoutPrinterInfoEndpointStillReportsTheVersion()
+    {
+        _server.RouteFixture("/api/version", "version");
+        _server.Route("/api/v1/info", HttpStatusCode.NotFound);
+
+        PrusaLinkInfoResult result = await _client.GetInfoAsync(Ct);
+
+        Assert.Equal(PrinterState.Idle, result.State);
+        Assert.Equal("6.9.2+10123", result.Info!.Firmware);
+        Assert.Equal(0.4, result.Info.NozzleDiameter);
+        Assert.False(result.Info.HasMmu);
+    }
+
+    [Fact]
+    public async Task InfoOfInvalidAddressIsReportedWithoutNetworkAccess()
+    {
+        PrusaLinkClient client = CreateClient("ftp://printer");
+
+        PrusaLinkInfoResult result = await client.GetInfoAsync(Ct);
+
+        Assert.Equal(PrinterState.Unknown, result.State);
+        Assert.NotNull(result.Message);
+        Assert.Null(result.Info);
+        Assert.Empty(_server.Requests);
     }
 
     [Fact]
