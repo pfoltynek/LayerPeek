@@ -28,4 +28,8 @@ Uživatel přidá/upraví/odebere tiskárnu bez ruční editace souborů.
 - Automatické vyhledání tiskáren v síti (mDNS/Zeroconf) – chceme?
 - Co má aplikace dělat na OS, kde zatím není implementace `ISecretStore` (macOS před dokončením T-021): nespustit se s chybou, zakázat ukládání hesel v UI, nebo jiné chování?
 
+**Rozhodnutí (2026-10-16):**
+- Automatické vyhledání tiskáren (mDNS) zatím ne, případně samostatný budoucí úkol.
+- OS bez implementace `ISecretStore` (macOS před T-021): ukládání hesel v UI zakázané s vysvětlením, aplikace běží dál (`UnsupportedSecretStore` z T-007).
+
 ## Poznámky k implementaci

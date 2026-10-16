@@ -25,4 +25,6 @@ Zobrazit aktuální snímek z kamery tiskárny.
 - Přikládat snímek k notifikaci o dokončení/chybě?
 - Interval automatického obnovení?
 
+**Stav (2026-10-16):** Blokováno – Buddy firmware v PrusaLink kamery nemá (`/api/v1/cameras` vrací 404) a Prusa Connect klient (T-005) je odložený. Úkol zůstává v todo, dokud nebude zdroj dat.
+
 ## Poznámky k implementaci

@@ -24,4 +24,6 @@ Kontextové menu tray ikony.
 ## Otevřené otázky
 - Jazyk UI: čeština, angličtina, nebo lokalizace obou?
 
+**Rozhodnutí (2026-10-16):** UI je lokalizované CZ + EN přes .resx (infrastruktura vznikla v T-007), jazyk podle systému s fallbackem na angličtinu.
+
 ## Poznámky k implementaci
