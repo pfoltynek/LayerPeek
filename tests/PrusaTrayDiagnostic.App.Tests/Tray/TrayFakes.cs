@@ -182,3 +182,15 @@ internal sealed class ListLogger<T> : Microsoft.Extensions.Logging.ILogger<T>
         }
     }
 }
+
+/// <summary>A logger whose provider is gone (e.g. disposed during quit): every write throws.</summary>
+internal sealed class ThrowingLogger : Microsoft.Extensions.Logging.ILogger
+{
+    public IDisposable? BeginScope<TState>(TState state)
+        where TState : notnull => null;
+
+    public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+
+    public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        throw new ObjectDisposedException("LoggerFactory");
+}

@@ -84,4 +84,46 @@
   <data name="StateUnknown" xml:space="preserve">
     <value>Neznámý stav</value>
   </data>
+  <data name="MenuPrinter" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MenuSettings" xml:space="preserve">
+    <value>Nastavení…</value>
+  </data>
+  <data name="MenuDiagnostics" xml:space="preserve">
+    <value>Diagnostika…</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>O aplikaci</value>
+  </data>
+  <data name="MenuOpenPrusaLink" xml:space="preserve">
+    <value>Otevřít PrusaLink v prohlížeči</value>
+  </data>
+  <data name="MenuOpenPrusaConnect" xml:space="preserve">
+    <value>Otevřít Prusa Connect v prohlížeči</value>
+  </data>
+  <data name="MenuInvalidAddress" xml:space="preserve">
+    <value>Adresa tiskárny není platná</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>O aplikaci Prusa Tray Diagnostic</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Verze {0}</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>Sledování stavu 3D tiskáren Prusa.</value>
+  </data>
+  <data name="AboutClose" xml:space="preserve">
+    <value>Zavřít</value>
+  </data>
+  <data name="AboutDisclaimer" xml:space="preserve">
+    <value>Nejde o oficiální produkt společnosti Prusa Research.</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>Licence: {0}</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Zdrojový kód na GitHubu</value>
+  </data>
 </root>

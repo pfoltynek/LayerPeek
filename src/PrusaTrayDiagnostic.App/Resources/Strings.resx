@@ -93,4 +93,46 @@
   <data name="StateUnknown" xml:space="preserve">
     <value>Unknown state</value>
   </data>
+  <data name="MenuPrinter" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MenuSettings" xml:space="preserve">
+    <value>Settings…</value>
+  </data>
+  <data name="MenuDiagnostics" xml:space="preserve">
+    <value>Diagnostics…</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="MenuOpenPrusaLink" xml:space="preserve">
+    <value>Open PrusaLink in the browser</value>
+  </data>
+  <data name="MenuOpenPrusaConnect" xml:space="preserve">
+    <value>Open Prusa Connect in the browser</value>
+  </data>
+  <data name="MenuInvalidAddress" xml:space="preserve">
+    <value>The printer address is not valid</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>About Prusa Tray Diagnostic</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>Status monitor for Prusa 3D printers.</value>
+  </data>
+  <data name="AboutClose" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="AboutDisclaimer" xml:space="preserve">
+    <value>This is not an official Prusa Research product.</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>License: {0}</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Source code on GitHub</value>
+  </data>
 </root>

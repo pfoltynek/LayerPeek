@@ -12,7 +12,7 @@ namespace PrusaTrayDiagnostic.App.Tray;
 /// Bursts are coalesced into one UI update that applies the latest presentation.
 /// Properties change and <see cref="ObservableObject.PropertyChanged"/> is raised on the UI thread only.
 /// </summary>
-internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource, IDisposable
+internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource, IMonitoringObserver, IDisposable
 {
     private readonly IPrinterMonitor _monitor;
     private readonly IUiDispatcher _dispatcher;

@@ -86,6 +86,25 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task EveryObserverReceivesPrintersAndFailure()
+    {
+        RecordingObserver second = new();
+        _monitor.RunBehavior = _ => Task.FromException(new InvalidOperationException("boom"));
+        _session = new MonitoringSession(
+            () => FakeSettingsStore.Returning(new AppSettings { Printers = [Definition()] }),
+            _monitor,
+            [_viewModel, second],
+            _logger);
+
+        _session.Start();
+        await _session.Completion.WaitAsync(TestTimeouts.Wait, Ct);
+        _dispatcher.RunAll();
+
+        Assert.Equal(TrayIconKey.For(TrayStatus.Error, null), _viewModel.IconKey);
+        Assert.Equal(["printers: mk4", "failed"], second.Calls);
+    }
+
+    [Fact]
     public async Task StopCancelsMonitorAndCompletes()
     {
         _session = Create(() => FakeSettingsStore.Returning(new AppSettings { Printers = [Definition()] }));
@@ -244,5 +263,15 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
     }
 
     private MonitoringSession Create(Func<ISettingsStore> settingsStoreFactory) =>
-        new(settingsStoreFactory, _monitor, _viewModel, _logger);
+        new(settingsStoreFactory, _monitor, [_viewModel], _logger);
+
+    private sealed class RecordingObserver : IMonitoringObserver
+    {
+        public List<string> Calls { get; } = [];
+
+        public void SetPrinters(IReadOnlyList<PrinterDefinition> printers) =>
+            Calls.Add("printers: " + string.Join(",", printers.Select(printer => printer.Id)));
+
+        public void ReportMonitoringFailed() => Calls.Add("failed");
+    }
 }

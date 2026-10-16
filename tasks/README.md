@@ -51,7 +51,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-005 | Prusa Connect klient (odloženo – bez oficiálního API) | all | core-dev | P3 | T-001, T-002, T-004 |
 | T-006 | Monitorovací služba (polling) (hotovo) | all | core-dev | P1 | T-001 |
 | T-007 | Tray ikona se stavem a progressem (hotovo) | all | ui-dev | P1 | T-006 |
-| T-008 | Tray menu | all | ui-dev | P1 | T-007 |
+| T-008 | Tray menu (hotovo) | all | ui-dev | P1 | T-007 |
 | T-009 | Detekce událostí tisku | all | core-dev | P1 | T-006 |
 | T-011 | Teploty a diagnostika | all | ui-dev | P2 | T-006 |
 | T-012 | Historie telemetrie | all | core-dev | P3 | T-006 |
