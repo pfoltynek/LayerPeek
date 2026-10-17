@@ -11,7 +11,7 @@ depends_on: []
 ## Cíl
 Automatický build a testy při každém push a PR. 
 
-> **Odloženo** (2026-10-15): uživatel zatím GitHub Actions nechce. Neimplementovat, dokud to uživatel nepotvrdí.
+> **Odloženo** (2026-10-15, znovu potvrzeno 2026-10-17): uživatel zatím GitHub Actions nechce. Neimplementovat a při výběru dalšího úkolu přeskočit, dokud to uživatel výslovně nepotvrdí.
 
 ## Rozsah
 - Matrix `windows-latest`, `macos-latest`
