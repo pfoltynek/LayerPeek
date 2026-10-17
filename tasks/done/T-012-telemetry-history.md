@@ -1,7 +1,7 @@
 ---
 id: T-012
 title: Historie telemetrie
-status: in-progress
+status: done
 owner: core-dev
 priority: P3
 platform: all
@@ -22,9 +22,9 @@ Uchovávat historii teplot a stavů pro grafy a diagnostiku.
 ## Otevřené otázky
 - ~~Jak dlouhou historii držet? Ukládat na disk (např. SQLite), nebo jen v paměti?~~ **Vyřešeno (2026-10-16):** Jen v paměti, 24 h historie na tiskárnu (ring buffer), bez perzistence na disk. Implementováno.
 
-Nové otázky (implementace zvolila variantu v závorce, změna je snadná):
-1. Když se tiskárně v nastavení změní adresa nebo typ připojení, má se její historie zahodit? (Ano – stejně jako stav notifikací v T-009: může jít o jiný stroj a graf by míchal dvě tiskárny. Přejmenování historii zachová.)
-2. Má graf (T-011) přerušit čáru, když delší dobu nepřišel žádný vzorek (např. uspaný počítač)? A od jaké pauzy? (Ano, od 3 intervalů pollingu, ale nejméně od 30 s, aby pomalá odpověď tiskárny čáru nerozdělila.)
+Další otázky (obě rozhodnuty uživatelem podle implementace):
+1. **Vyřešeno (2026-10-17, potvrzeno uživatelem):** Když se tiskárně v nastavení změní adresa nebo typ připojení, má se její historie zahodit? (Ano – stejně jako stav notifikací v T-009: může jít o jiný stroj a graf by míchal dvě tiskárny. Přejmenování historii zachová.)
+2. **Vyřešeno (2026-10-17, potvrzeno uživatelem):** Má graf (T-011) přerušit čáru, když delší dobu nepřišel žádný vzorek (např. uspaný počítač)? A od jaké pauzy? (Ano, od 3 intervalů pollingu, ale nejméně od 30 s, aby pomalá odpověď tiskárny čáru nerozdělila.)
 
 ## Poznámky k implementaci
 - **Model (`Core/History/TelemetrySample`):** `readonly record struct` o velikosti 48 B bez referencí (ověřeno testem), takže historie tiskárny je jedno pole bez objektů na haldě.
