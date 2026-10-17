@@ -1,11 +1,13 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.History;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -67,6 +69,9 @@ internal static class AppServices
             sp.GetRequiredService<INotificationService>(),
             sp.GetRequiredService<ILogger<PrintEventNotifier>>()));
         services.AddSingleton(static sp => new PrintNotificationObserver(sp.GetRequiredService<PrintEventNotifier>()));
+        // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
+        services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
+        services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
         services.AddSingleton(static sp => new MonitoringSession(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -74,6 +79,7 @@ internal static class AppServices
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
+                sp.GetRequiredService<TelemetryHistoryObserver>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>()));
 
