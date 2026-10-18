@@ -1,7 +1,7 @@
 ---
 id: T-011
 title: Teploty a diagnostika
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -17,7 +17,7 @@ Malé okno / popup s diagnostikou otevírané z tray menu.
 - Informace o tiskárně a firmwaru (`/api/v1/info`, `/api/version`)
 
 ## Akceptační kritéria
-- [ ] Okno se otevře z menu, zavření neukončí aplikaci – směrování položky menu, jediná instance okna a uvolnění při zavření/ukončení jsou pokryté testy; **ruční ověření kliknutím v menu čeká na uživatele** (automatizované klikání na plochu se nepoužívá)
+- [x] Okno se otevře z menu, zavření neukončí aplikaci – směrování položky menu, jediná instance okna a uvolnění při zavření/ukončení jsou pokryté testy; **ručně ověřeno uživatelem na Windows (2026-10-18)** (automatizované klikání na plochu se nepoužívá)
 - [x] Hodnoty se živě aktualizují (testy view modelu a přípravy dat grafu; naživo se skutečnou tiskárnou zatím neověřeno)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
