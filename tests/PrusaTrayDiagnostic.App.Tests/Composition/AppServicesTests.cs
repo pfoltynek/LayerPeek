@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -48,6 +49,17 @@ public sealed class AppServicesTests
         // Quit logs after the container was disposed (T-024), so the factory must still be alive.
         Assert.False(loggerFactory.Disposed);
         Assert.Contains(typeof(MonitoringSession).FullName!, loggerFactory.Categories);
+    }
+
+    [Fact]
+    public async Task LanguageIsASingletonStartingWithTheSystemLanguage()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        UiLanguage language = services.GetRequiredService<UiLanguage>();
+        Assert.Same(language, services.GetRequiredService<UiLanguage>());
+        Assert.Null(language.Code);
+        Assert.Same(services.GetRequiredService<UiLanguageObserver>(), services.GetRequiredService<UiLanguageObserver>());
     }
 
     [Fact]

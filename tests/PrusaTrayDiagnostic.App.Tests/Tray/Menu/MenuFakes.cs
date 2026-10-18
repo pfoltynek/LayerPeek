@@ -111,6 +111,8 @@ internal sealed class FakeMenuTarget : ITrayMenuTarget
         Operations.Add("fixed");
         Fixed.Clear();
         Fixed.AddRange(items);
+        // Like the real target: the whole menu is replaced, printer items are inserted again.
+        Printers.Clear();
     }
 
     public void InsertPrinterItem(int index, TrayMenuEntry entry)

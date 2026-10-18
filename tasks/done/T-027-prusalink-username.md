@@ -1,7 +1,7 @@
 ---
 id: T-027
 title: PrusaLink – uživatelské jméno v nastavení
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P2
 platform: all
@@ -21,7 +21,7 @@ Uživatelské jméno pro PrusaLink už nebude natvrdo `maker`, ale půjde zadat 
 - UI texty v `Strings.resx` i `Strings.cs.resx`.
 
 ## Akceptační kritéria
-- [ ] Jméno jde v nastavení zadat, uložit a po restartu aplikace se načte.
+- [x] Jméno jde v nastavení zadat, uložit a po restartu aplikace se načte. (ověřeno uživatelem 2026-10-18)
 - [x] Starý soubor nastavení bez jména se načte s `maker` (test s fixture).
 - [x] Klient PrusaLink posílá v digest hlavičce nastavené jméno (test s falešným `HttpMessageHandler`).
 - [x] Neplatné jméno (prázdné, s dvojtečkou, s řídicími znaky, příliš dlouhé) okno nastavení odmítne se srozumitelnou chybou.

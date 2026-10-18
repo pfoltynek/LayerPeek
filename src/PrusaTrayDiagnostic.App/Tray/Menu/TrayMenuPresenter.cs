@@ -35,6 +35,7 @@ internal sealed partial class TrayMenuPresenter : IDisposable
         _target.SetFixedItems(source.FixedItems);
         InsertAll();
         _printerItems.CollectionChanged += OnPrinterItemsChanged;
+        _source.FixedItemsChanged += OnFixedItemsChanged;
         _target.ItemClicked += OnItemClicked;
     }
 
@@ -47,7 +48,20 @@ internal sealed partial class TrayMenuPresenter : IDisposable
 
         _disposed = true;
         _printerItems.CollectionChanged -= OnPrinterItemsChanged;
+        _source.FixedItemsChanged -= OnFixedItemsChanged;
         _target.ItemClicked -= OnItemClicked;
+    }
+
+    /// <summary>Language switch: the menu is built again (it happens once per switch, never on a poll).</summary>
+    private void OnFixedItemsChanged(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _target.SetFixedItems(_source.FixedItems);
+        InsertAll();
     }
 
     private void OnPrinterItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)

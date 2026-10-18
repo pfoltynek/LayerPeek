@@ -275,6 +275,93 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void RefreshTextsSwitchesTheLanguageButNotTheNumberFormat()
+    {
+        Configure(Definition());
+        _monitor.Raise(Printing());
+        DiagnosticsViewModel viewModel = Create();
+        _info.Requests[0].Completion.SetResult(new PrusaLinkInfoResult(PrinterState.Idle, null, CoreOneInfo));
+        _dispatcher.RunAll();
+        ChartWindowOption window = viewModel.SelectedTimeWindow;
+        int requests = _info.Requests.Count;
+
+        using (new UiCultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal("Tiskne", viewModel.StateText);
+            Assert.Equal("Ano", viewModel.MmuText);
+        }
+
+        // Only the texts: numbers keep the (en-US) format of the system, no new information request.
+        Assert.Equal("215.3 °C", viewModel.NozzleActualText);
+        Assert.Equal("0.40 mm", viewModel.NozzleDiameterText);
+        Assert.Same(window, viewModel.SelectedTimeWindow);
+        Assert.Equal(requests, _info.Requests.Count);
+    }
+
+    [Fact]
+    public void RefreshTextsTranslatesNoticeInfoStatusAndChartRanges()
+    {
+        DiagnosticsViewModel viewModel = Create();
+        List<string?> windowChanges = [];
+        ((INotifyPropertyChanged)viewModel.TimeWindows[0]).PropertyChanged += (_, e) => windowChanges.Add(e.PropertyName);
+
+        using (new UiCultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal("Spouštění…", viewModel.Notice);
+        }
+
+        Assert.Equal([nameof(ChartWindowOption.Text)], windowChanges);
+
+        Configure(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "printer-uuid" });
+        _dispatcher.RunAll();
+        _info.Requests[0].Completion.SetResult(null);
+        _dispatcher.RunAll();
+        using (new UiCultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal("Pro Prusa Connect není k dispozici", viewModel.InfoStatusText);
+            Assert.Null(viewModel.Notice);
+        }
+    }
+
+    [Fact]
+    public void RefreshTextsKeepsTheReasonOfFailedInfo()
+    {
+        Configure(Definition());
+        DiagnosticsViewModel viewModel = Create();
+        _info.Requests[0].Completion.SetResult(new PrusaLinkInfoResult(PrinterState.Offline, "The printer is not reachable.", null));
+        _dispatcher.RunAll();
+
+        using (new UiCultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal("Nelze načíst: Nedostupná", viewModel.InfoStatusText);
+        }
+
+        Assert.Single(_info.Requests);
+    }
+
+    [Fact]
+    public void RefreshTextsAfterDisposeDoesNothing()
+    {
+        DiagnosticsViewModel viewModel = Create();
+        viewModel.Dispose();
+
+        using (new UiCultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+        }
+
+        Assert.Equal("Starting…", viewModel.Notice);
+    }
+
+    [Fact]
     public void BurstOfSnapshotsIsCoalescedIntoOneUiUpdate()
     {
         Configure(Definition());
@@ -761,7 +848,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         DiagnosticsViewModel viewModel = Create();
 
         Assert.Equal([TimeSpan.FromMinutes(30), TimeSpan.FromHours(2), TimeSpan.FromHours(24)], viewModel.TimeWindows.Select(static option => option.Window));
-        Assert.Equal(["30 min", "2 h", "24 h"], viewModel.TimeWindows.Select(static option => option.Label));
+        Assert.Equal(["30 min", "2 h", "24 h"], viewModel.TimeWindows.Select(static option => option.Text));
         Assert.Equal(TimeSpan.FromHours(2), viewModel.SelectedTimeWindow.Window);
 
         viewModel.SelectedTimeWindow = viewModel.TimeWindows[0];
