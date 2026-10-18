@@ -257,6 +257,58 @@ public sealed class TrayStatusViewModelTests : IDisposable
     }
 
     [Fact]
+    public void RefreshTextsFormatsTheToolTipInTheNewLanguage()
+    {
+        _viewModel.SetPrinters([Definition()]);
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42, TimeSpan.FromMinutes(10))));
+        _dispatcher.RunAll();
+        _changes.Clear();
+
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        Assert.Equal("MK4\nTiskne – 42 %\nZbývá 10 min\nbenchy.bgcode", _viewModel.ToolTipText);
+        Assert.Equal([nameof(TrayStatusViewModel.ToolTipText)], _changes);
+    }
+
+    [Fact]
+    public void RefreshTextsCoversStatusMessagesAndTheSummary()
+    {
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        Assert.Equal("Prusa Tray Diagnostic\nSpouštění…", _viewModel.ToolTipText);
+
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _monitor.Raise(Snapshot(PrinterState.Error, printerId: "a"));
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "b"));
+        _dispatcher.RunAll();
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        Assert.Equal("Alpha: Chyba\nBeta: Připravena", _viewModel.ToolTipText);
+    }
+
+    [Fact]
+    public void RefreshTextsAfterDisposeDoesNothing()
+    {
+        _viewModel.Dispose();
+
+        _viewModel.RefreshTexts();
+
+        Assert.Equal(0, _dispatcher.Pending);
+    }
+
+    [Fact]
     public void VisibleChangeOfNonPrimaryPrinterUpdatesOnlyToolTip()
     {
         _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Monitoring;
@@ -18,12 +19,13 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 /// <see cref="TrayMenuEntry"/> really differs, so the platform menu is never rebuilt on a poll.
 /// <see cref="PrinterItems"/> changes on the UI thread only.
 /// </summary>
-internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, IDisposable
+internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, IDisposable, ILanguageAware
 {
     private readonly IPrinterMonitor _monitor;
     private readonly IUiDispatcher _dispatcher;
     private readonly IUrlLauncher _launcher;
     private readonly bool _diagnosticsAvailable;
+    private readonly TrayMenuOptions _options;
     private readonly Action _apply;
     private readonly Lock _gate = new();
 
@@ -49,21 +51,18 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _dispatcher = dispatcher;
         _launcher = launcher;
         _diagnosticsAvailable = options.DiagnosticsAvailable;
+        _options = options;
         _apply = Apply;
-        FixedItems =
-        [
-            new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, options.SettingsAvailable),
-            new TrayMenuEntry(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, options.DiagnosticsAvailable),
-            TrayMenuEntry.Separator,
-            new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true),
-            new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true),
-        ];
+        FixedItems = CreateFixedItems();
         _items = [MessageEntry(Strings.ToolTipStarting)];
         PrinterItems = new ReadOnlyObservableCollection<TrayMenuEntry>(_items);
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
     }
 
-    public IReadOnlyList<TrayMenuEntry> FixedItems { get; }
+    /// <summary>UI thread only (after construction).</summary>
+    public IReadOnlyList<TrayMenuEntry> FixedItems { get; private set; }
+
+    public event EventHandler? FixedItemsChanged;
 
     public ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
@@ -127,6 +126,32 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _ = _launcher.OpenAsync(uri);
     }
 
+    /// <summary>
+    /// UI thread: the language changed. Every printer item (including its cached submenu) and the fixed items are
+    /// formatted again; the presenter then rebuilds the platform menu once.
+    /// </summary>
+    public void RefreshTexts()
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            foreach (Slot slot in _slots ?? [])
+            {
+                slot.Submenu = null;
+            }
+
+            _layoutChanged = true;
+        }
+
+        Apply();
+        FixedItems = CreateFixedItems();
+        FixedItemsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public void Dispose()
     {
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
@@ -135,6 +160,15 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             _disposed = true;
         }
     }
+
+    private TrayMenuEntry[] CreateFixedItems() =>
+    [
+        new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, _options.SettingsAvailable),
+        new TrayMenuEntry(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _options.DiagnosticsAvailable),
+        TrayMenuEntry.Separator,
+        new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true),
+        new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true),
+    ];
 
     private static TrayMenuEntry MessageEntry(string text) => new(TrayMenuCommand.None, text, IsEnabled: false);
 

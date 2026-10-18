@@ -36,6 +36,9 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private bool _testCancelledByUser;
     private bool _isTesting;
     private string? _testResultText;
+
+    // What produced the test result, so that a language switch formats it again.
+    private Func<string>? _testResultSource;
     private TestResultKind _testResultKind;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
@@ -255,6 +258,24 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPasswordPresentationChanged();
     }
 
+    /// <summary>
+    /// UI thread: the language changed. Validation messages, the test result and the password texts are formatted again
+    /// (the owner refreshes the name problem); nothing that was typed or tested changes.
+    /// </summary>
+    internal void RefreshTexts()
+    {
+        ValidateAddress();
+        ValidatePassword();
+        if (_testResultSource is { } source)
+        {
+            _testResultText = source();
+            OnPropertyChanged(nameof(TestResultText));
+        }
+
+        OnPropertyChanged(nameof(DisplayName));
+        OnPasswordPresentationChanged();
+    }
+
     /// <summary>The printer was removed or the window closed: stops a running test and forgets a typed password.</summary>
     internal void Detach()
     {
@@ -283,7 +304,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         {
             // Never send anything to an address the client would refuse; explain it like the inline error does.
             RevealErrors();
-            SetTestResult(_addressProblem, TestResultKind.Failure);
+            SetTestResult(() => AddressProblem() ?? Strings.SettingsErrorAddressInvalid, TestResultKind.Failure);
             return;
         }
 
@@ -304,17 +325,17 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _test = test;
         _testCancelledByUser = false;
         IsTesting = true;
-        SetTestResult(Strings.SettingsTesting, TestResultKind.Running);
+        SetTestResult(static () => Strings.SettingsTesting, TestResultKind.Running);
         try
         {
             ConnectionTestResult result = await _owner.Tester.TestAsync(printer, password, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
-                SetTestResult(Describe(result), result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+                SetTestResult(() => Describe(result), result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
             }
             else if (_testCancelledByUser)
             {
-                SetTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+                SetTestResult(static () => Strings.SettingsTestCancelled, TestResultKind.Information);
             }
         }
         catch (OperationCanceledException) when (test.IsCancellationRequested)
@@ -322,13 +343,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
             // Cancelled by the user; an edit, removal or closing the window already cleared the result.
             if (_testCancelledByUser)
             {
-                SetTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+                SetTestResult(static () => Strings.SettingsTestCancelled, TestResultKind.Information);
             }
         }
         catch (Exception)
         {
             // A command handler must never throw into the UI.
-            SetTestResult(Strings.SettingsTestFailed, TestResultKind.Failure);
+            SetTestResult(static () => Strings.SettingsTestFailed, TestResultKind.Failure);
         }
         finally
         {
@@ -379,8 +400,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _ => Strings.SettingsTestUnexpectedResponse,
     };
 
-    private void SetTestResult(string? text, TestResultKind kind)
+    private void SetTestResult(Func<string>? source, TestResultKind kind)
     {
+        _testResultSource = source;
+        string? text = source?.Invoke();
         bool textChanged = _testResultText != text;
         bool kindChanged = _testResultKind != kind;
         _testResultText = text;
@@ -398,12 +421,15 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
     }
 
+    private string? AddressProblem() =>
+        _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
+        // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
+        : IsPrusaLink && !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
+        : null;
+
     private void ValidateAddress()
     {
-        string? problem = _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
-            // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
-            : IsPrusaLink && !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
-            : null;
+        string? problem = AddressProblem();
         if (_addressProblem != problem)
         {
             _addressProblem = problem;

@@ -1,0 +1,486 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MenuQuit" xml:space="preserve">
+    <value>Zakończ</value>
+  </data>
+  <data name="ToolTipStarting" xml:space="preserve">
+    <value>Uruchamianie…</value>
+  </data>
+  <data name="ToolTipNoPrinter" xml:space="preserve">
+    <value>Nie skonfigurowano żadnej drukarki</value>
+  </data>
+  <data name="ToolTipMonitoringFailed" xml:space="preserve">
+    <value>Monitorowanie zatrzymane z powodu błędu</value>
+  </data>
+  <data name="ToolTipStateWithProgress" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="ToolTipProgress" xml:space="preserve">
+    <value>{0}%</value>
+  </data>
+  <data name="ToolTipRemaining" xml:space="preserve">
+    <value>Pozostało {0}</value>
+  </data>
+  <data name="ToolTipOtherPrinters" xml:space="preserve">
+    <value>Inne drukarki: {0}</value>
+  </data>
+  <data name="ToolTipLineRemaining" xml:space="preserve">
+    <value>{0}, pozostało {1}</value>
+  </data>
+  <data name="DurationLessThanMinute" xml:space="preserve">
+    <value>&lt; 1 min</value>
+  </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="DurationHoursMinutes" xml:space="preserve">
+    <value>{0} h {1} min</value>
+  </data>
+  <data name="DurationDaysHours" xml:space="preserve">
+    <value>{0} d {1} h</value>
+  </data>
+  <data name="StateConnecting" xml:space="preserve">
+    <value>Łączenie…</value>
+  </data>
+  <data name="StateIdle" xml:space="preserve">
+    <value>Gotowa</value>
+  </data>
+  <data name="StateBusy" xml:space="preserve">
+    <value>Zajęta</value>
+  </data>
+  <data name="StatePrinting" xml:space="preserve">
+    <value>Drukuje</value>
+  </data>
+  <data name="StatePaused" xml:space="preserve">
+    <value>Wstrzymano</value>
+  </data>
+  <data name="StateFinished" xml:space="preserve">
+    <value>Zakończono</value>
+  </data>
+  <data name="StateStopped" xml:space="preserve">
+    <value>Zatrzymano</value>
+  </data>
+  <data name="StateError" xml:space="preserve">
+    <value>Błąd</value>
+  </data>
+  <data name="StateAttention" xml:space="preserve">
+    <value>Wymaga interwencji</value>
+  </data>
+  <data name="StateOffline" xml:space="preserve">
+    <value>Offline</value>
+  </data>
+  <data name="StateUnauthorized" xml:space="preserve">
+    <value>Nieprawidłowe dane logowania</value>
+  </data>
+  <data name="StateUnknown" xml:space="preserve">
+    <value>Nieznany stan</value>
+  </data>
+  <data name="MenuPrinter" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MenuSettings" xml:space="preserve">
+    <value>Ustawienia…</value>
+  </data>
+  <data name="MenuDiagnostics" xml:space="preserve">
+    <value>Diagnostyka…</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>O programie</value>
+  </data>
+  <data name="MenuOpenPrusaLink" xml:space="preserve">
+    <value>Otwórz PrusaLink w przeglądarce</value>
+  </data>
+  <data name="MenuOpenPrusaConnect" xml:space="preserve">
+    <value>Otwórz Prusa Connect w przeglądarce</value>
+  </data>
+  <data name="MenuInvalidAddress" xml:space="preserve">
+    <value>Adres drukarki jest nieprawidłowy</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>O programie Prusa Tray Diagnostic</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Wersja {0}</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>Monitorowanie stanu drukarek 3D Prusa.</value>
+  </data>
+  <data name="AboutClose" xml:space="preserve">
+    <value>Zamknij</value>
+  </data>
+  <data name="AboutDisclaimer" xml:space="preserve">
+    <value>To nie jest oficjalny produkt firmy Prusa Research.</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>Licencja: {0}</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Kod źródłowy w serwisie GitHub</value>
+  </data>
+  <data name="DiagnosticsTitle" xml:space="preserve">
+    <value>Diagnostyka – Prusa Tray Diagnostic</value>
+  </data>
+  <data name="DiagnosticsPrinter" xml:space="preserve">
+    <value>Drukarka</value>
+  </data>
+  <data name="DiagnosticsStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="DiagnosticsState" xml:space="preserve">
+    <value>Stan</value>
+  </data>
+  <data name="DiagnosticsDetail" xml:space="preserve">
+    <value>Szczegóły</value>
+  </data>
+  <data name="DiagnosticsLastUpdate" xml:space="preserve">
+    <value>Ostatnia aktualizacja</value>
+  </data>
+  <data name="DiagnosticsTemperatures" xml:space="preserve">
+    <value>Temperatury</value>
+  </data>
+  <data name="DiagnosticsActual" xml:space="preserve">
+    <value>Aktualna</value>
+  </data>
+  <data name="DiagnosticsTarget" xml:space="preserve">
+    <value>Docelowa</value>
+  </data>
+  <data name="DiagnosticsNozzle" xml:space="preserve">
+    <value>Dysza</value>
+  </data>
+  <data name="DiagnosticsBed" xml:space="preserve">
+    <value>Stół grzewczy</value>
+  </data>
+  <data name="DiagnosticsMotionAndFans" xml:space="preserve">
+    <value>Wentylatory i ruch</value>
+  </data>
+  <data name="DiagnosticsHotendFan" xml:space="preserve">
+    <value>Wentylator hotendu</value>
+  </data>
+  <data name="DiagnosticsPrintFan" xml:space="preserve">
+    <value>Wentylator chłodzenia wydruku</value>
+  </data>
+  <data name="DiagnosticsSpeed" xml:space="preserve">
+    <value>Prędkość druku</value>
+  </data>
+  <data name="DiagnosticsFlow" xml:space="preserve">
+    <value>Przepływ</value>
+  </data>
+  <data name="DiagnosticsAxisZ" xml:space="preserve">
+    <value>Oś Z</value>
+  </data>
+  <data name="DiagnosticsTemperatureValue" xml:space="preserve">
+    <value>{0} °C</value>
+  </data>
+  <data name="DiagnosticsHeaterOff" xml:space="preserve">
+    <value>Wyłączone</value>
+  </data>
+  <data name="DiagnosticsRpmValue" xml:space="preserve">
+    <value>{0} obr./min</value>
+  </data>
+  <data name="DiagnosticsPercentValue" xml:space="preserve">
+    <value>{0}%</value>
+  </data>
+  <data name="DiagnosticsMillimetreValue" xml:space="preserve">
+    <value>{0} mm</value>
+  </data>
+  <data name="DiagnosticsMissingValue" xml:space="preserve">
+    <value>–</value>
+  </data>
+  <data name="DiagnosticsYes" xml:space="preserve">
+    <value>Tak</value>
+  </data>
+  <data name="DiagnosticsNo" xml:space="preserve">
+    <value>Nie</value>
+  </data>
+  <data name="DiagnosticsChart" xml:space="preserve">
+    <value>Historia temperatur</value>
+  </data>
+  <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
+    <value>30 min</value>
+  </data>
+  <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
+    <value>2 h</value>
+  </data>
+  <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
+    <value>24 h</value>
+  </data>
+  <data name="DiagnosticsChartNoData" xml:space="preserve">
+    <value>Brak danych o temperaturze w tym okresie</value>
+  </data>
+  <data name="DiagnosticsChartTargetLegend" xml:space="preserve">
+    <value>przerywana: docelowa</value>
+  </data>
+  <data name="DiagnosticsPrinterInfo" xml:space="preserve">
+    <value>Informacje o drukarce</value>
+  </data>
+  <data name="DiagnosticsFirmware" xml:space="preserve">
+    <value>Firmware</value>
+  </data>
+  <data name="DiagnosticsModel" xml:space="preserve">
+    <value>Kod modelu</value>
+  </data>
+  <data name="DiagnosticsHostname" xml:space="preserve">
+    <value>Nazwa hosta</value>
+  </data>
+  <data name="DiagnosticsNozzleDiameter" xml:space="preserve">
+    <value>Średnica dyszy</value>
+  </data>
+  <data name="DiagnosticsMmu" xml:space="preserve">
+    <value>MMU</value>
+  </data>
+  <data name="DiagnosticsInfoLoading" xml:space="preserve">
+    <value>Wczytywanie…</value>
+  </data>
+  <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
+    <value>Nie udało się odczytać: {0}</value>
+  </data>
+  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
+    <value>Niedostępne dla Prusa Connect</value>
+  </data>
+  <data name="DiagnosticsClose" xml:space="preserve">
+    <value>Zamknij</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Ustawienia</value>
+  </data>
+  <data name="SettingsTabPrinters" xml:space="preserve">
+    <value>Drukarki</value>
+  </data>
+  <data name="SettingsTabGeneral" xml:space="preserve">
+    <value>Ogólne</value>
+  </data>
+  <data name="SettingsAddPrinter" xml:space="preserve">
+    <value>Dodaj drukarkę</value>
+  </data>
+  <data name="SettingsRemovePrinter" xml:space="preserve">
+    <value>Usuń</value>
+  </data>
+  <data name="SettingsNoPrinters" xml:space="preserve">
+    <value>Nie skonfigurowano żadnej drukarki. Dodaj ją przyciskiem „Dodaj drukarkę”.</value>
+  </data>
+  <data name="SettingsNewPrinter" xml:space="preserve">
+    <value>Nowa drukarka</value>
+  </data>
+  <data name="SettingsName" xml:space="preserve">
+    <value>Nazwa</value>
+  </data>
+  <data name="SettingsConnectionType" xml:space="preserve">
+    <value>Połączenie</value>
+  </data>
+  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
+    <value>PrusaLink (sieć lokalna)</value>
+  </data>
+  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
+    <value>Prusa Connect (jeszcze niedostępne)</value>
+  </data>
+  <data name="SettingsAddress" xml:space="preserve">
+    <value>Adres</value>
+  </data>
+  <data name="SettingsAddressHint" xml:space="preserve">
+    <value>Adres IP lub nazwa hosta, np. 192.168.1.20 lub http://prusa-mk4.local</value>
+  </data>
+  <data name="SettingsPassword" xml:space="preserve">
+    <value>Hasło</value>
+  </data>
+  <data name="SettingsPasswordNewHint" xml:space="preserve">
+    <value>Hasło PrusaLink z ustawień drukarki. Nazwa użytkownika „maker” jest używana automatycznie.</value>
+  </data>
+  <data name="SettingsPasswordUnchanged" xml:space="preserve">
+    <value>Bez zmian</value>
+  </data>
+  <data name="SettingsPasswordNotSet" xml:space="preserve">
+    <value>Nie ustawiono</value>
+  </data>
+  <data name="SettingsPasswordKeepHint" xml:space="preserve">
+    <value>Pozostaw puste, aby zachować zapisane hasło.</value>
+  </data>
+  <data name="SettingsPasswordUnsupported" xml:space="preserve">
+    <value>W tym systemie nie można jeszcze zapisywać haseł. Drukarki wymagające hasła zgłoszą, że go brakuje.</value>
+  </data>
+  <data name="SettingsPasswordNotUsed" xml:space="preserve">
+    <value>Prusa Connect nie używa hasła drukarki.</value>
+  </data>
+  <data name="SettingsTestConnection" xml:space="preserve">
+    <value>Testuj połączenie</value>
+  </data>
+  <data name="SettingsCancelTest" xml:space="preserve">
+    <value>Anuluj test</value>
+  </data>
+  <data name="SettingsTesting" xml:space="preserve">
+    <value>Testowanie połączenia…</value>
+  </data>
+  <data name="SettingsTestSuccess" xml:space="preserve">
+    <value>Połączenie działa. Kod modelu: {0}, firmware: {1}.</value>
+  </data>
+  <data name="SettingsTestNotReachable" xml:space="preserve">
+    <value>Drukarka jest nieosiągalna. Sprawdź adres oraz to, czy drukarka jest włączona i podłączona do sieci.</value>
+  </data>
+  <data name="SettingsTestTimeout" xml:space="preserve">
+    <value>Drukarka nie odpowiedziała na czas.</value>
+  </data>
+  <data name="SettingsTestSecureConnection" xml:space="preserve">
+    <value>Bezpieczne połączenie (https) nie powiodło się. Spróbuj adresu z http:// lub sprawdź certyfikat drukarki.</value>
+  </data>
+  <data name="SettingsTestPasswordRejected" xml:space="preserve">
+    <value>Drukarka odrzuciła hasło.</value>
+  </data>
+  <data name="SettingsTestAccessDenied" xml:space="preserve">
+    <value>Drukarka odmówiła dostępu.</value>
+  </data>
+  <data name="SettingsTestPasswordMissing" xml:space="preserve">
+    <value>Drukarka wymaga hasła. Wpisz je powyżej.</value>
+  </data>
+  <data name="SettingsTestPasswordUnavailable" xml:space="preserve">
+    <value>Nie udało się odczytać zapisanego hasła.</value>
+  </data>
+  <data name="SettingsTestUnsupportedAuthentication" xml:space="preserve">
+    <value>Drukarka wymaga nieobsługiwanej metody logowania.</value>
+  </data>
+  <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
+    <value>Pod tym adresem coś odpowiada, ale nie wygląda to na drukarkę z PrusaLink.</value>
+  </data>
+  <data name="SettingsTestNotSupported" xml:space="preserve">
+    <value>Test nie jest jeszcze dostępny dla Prusa Connect.</value>
+  </data>
+  <data name="SettingsTestCancelled" xml:space="preserve">
+    <value>Test anulowany.</value>
+  </data>
+  <data name="SettingsTestFailed" xml:space="preserve">
+    <value>Test nieoczekiwanie się nie powiódł.</value>
+  </data>
+  <data name="SettingsErrorNameRequired" xml:space="preserve">
+    <value>Wpisz nazwę.</value>
+  </data>
+  <data name="SettingsErrorNameTooLong" xml:space="preserve">
+    <value>Nazwa może mieć maksymalnie {0} znaków.</value>
+  </data>
+  <data name="SettingsErrorNameDuplicate" xml:space="preserve">
+    <value>Inna drukarka ma już tę nazwę.</value>
+  </data>
+  <data name="SettingsErrorAddressRequired" xml:space="preserve">
+    <value>Wpisz adres drukarki.</value>
+  </data>
+  <data name="SettingsErrorAddressInvalid" xml:space="preserve">
+    <value>Wpisz adres IP lub nazwę hosta, opcjonalnie z http:// lub https://, portem i ścieżką. Nazwa użytkownika, hasło, zapytanie (?) ani fragment (#) nie są dozwolone.</value>
+  </data>
+  <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
+    <value>Hasło jest za długie (maksymalnie {0} bajtów w UTF-8).</value>
+  </data>
+  <data name="SettingsErrorPasswordInvalid" xml:space="preserve">
+    <value>Hasło zawiera znaki, których nie można zapisać.</value>
+  </data>
+  <data name="SettingsPollingInterval" xml:space="preserve">
+    <value>Interwał odpytywania (sekundy)</value>
+  </data>
+  <data name="SettingsPollingIntervalHint" xml:space="preserve">
+    <value>Jak często drukarki są pytane o swój stan.</value>
+  </data>
+  <data name="SettingsErrorPollingInterval" xml:space="preserve">
+    <value>Wpisz liczbę od {0} do {1}.</value>
+  </data>
+  <data name="SettingsNotifications" xml:space="preserve">
+    <value>Powiadomienia</value>
+  </data>
+  <data name="SettingsNotificationsEnabled" xml:space="preserve">
+    <value>Pokazuj powiadomienia</value>
+  </data>
+  <data name="SettingsNotifyPrintStarted" xml:space="preserve">
+    <value>Rozpoczęto drukowanie</value>
+  </data>
+  <data name="SettingsNotifyPrintFinished" xml:space="preserve">
+    <value>Zakończono drukowanie</value>
+  </data>
+  <data name="SettingsNotifyPrintPaused" xml:space="preserve">
+    <value>Wstrzymano drukowanie</value>
+  </data>
+  <data name="SettingsNotifyPrintResumed" xml:space="preserve">
+    <value>Wznowiono drukowanie</value>
+  </data>
+  <data name="SettingsNotifyPrintStopped" xml:space="preserve">
+    <value>Zatrzymano drukowanie (anulowano)</value>
+  </data>
+  <data name="SettingsNotifyError" xml:space="preserve">
+    <value>Błąd drukarki</value>
+  </data>
+  <data name="SettingsNotifyAttention" xml:space="preserve">
+    <value>Drukarka wymaga interwencji (także odrzucone hasło)</value>
+  </data>
+  <data name="SettingsNotifyOffline" xml:space="preserve">
+    <value>Drukarka jest offline lub znów online</value>
+  </data>
+  <data name="SettingsRemainingTime" xml:space="preserve">
+    <value>Powiadom, gdy do końca druku zostanie tyle minut (0 = wyłączone)</value>
+  </data>
+  <data name="SettingsErrorRemainingTime" xml:space="preserve">
+    <value>Wpisz liczbę całkowitą od 0 do {0} (0 = wyłączone).</value>
+  </data>
+  <data name="SettingsSound" xml:space="preserve">
+    <value>Dźwięk</value>
+  </data>
+  <data name="SettingsSoundOff" xml:space="preserve">
+    <value>Wyłączony</value>
+  </data>
+  <data name="SettingsSoundImportantOnly" xml:space="preserve">
+    <value>Tylko ważne powiadomienia</value>
+  </data>
+  <data name="SettingsSoundAll" xml:space="preserve">
+    <value>Wszystkie powiadomienia</value>
+  </data>
+  <data name="SettingsSave" xml:space="preserve">
+    <value>Zapisz</value>
+  </data>
+  <data name="SettingsCancel" xml:space="preserve">
+    <value>Anuluj</value>
+  </data>
+  <data name="SettingsLoading" xml:space="preserve">
+    <value>Wczytywanie…</value>
+  </data>
+  <data name="SettingsSaving" xml:space="preserve">
+    <value>Zapisywanie…</value>
+  </data>
+  <data name="SettingsFixErrors" xml:space="preserve">
+    <value>Niektóre wartości są nieprawidłowe. Popraw wyróżnione pola.</value>
+  </data>
+  <data name="SettingsNoticeCorrupted" xml:space="preserve">
+    <value>Plik ustawień jest uszkodzony. Wyświetlane są ustawienia domyślne; zapisanie zastąpi plik.</value>
+  </data>
+  <data name="SettingsNoticeUnreadable" xml:space="preserve">
+    <value>Nie udało się odczytać pliku ustawień. Wyświetlane są ustawienia domyślne; zapisanie zastąpi plik.</value>
+  </data>
+  <data name="SettingsNoticeWarnings" xml:space="preserve">
+    <value>Niektóre wartości w pliku ustawień były nieprawidłowe i zostały poprawione lub pominięte. Po zapisaniu zostaną zapisane poprawione ustawienia.</value>
+  </data>
+  <data name="SettingsSaveFailedSettings" xml:space="preserve">
+    <value>Nie udało się zapisać ustawień. Nic nie zostało zmienione.</value>
+  </data>
+  <data name="SettingsSaveFailedPassword" xml:space="preserve">
+    <value>Nie udało się zapisać hasła w systemowym magazynie poświadczeń. Nic nie zostało zmienione.</value>
+  </data>
+  <data name="SettingsSaveRollbackIncomplete" xml:space="preserve">
+    <value>Nie udało się zapisać ustawień, a wcześniej zapisane hasło mogło się zmienić. Sprawdź hasła drukarek.</value>
+  </data>
+  <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
+    <value>Ustawienia zostały zapisane. Nie udało się usunąć hasła usuniętej drukarki z systemowego magazynu poświadczeń.</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Język</value>
+  </data>
+  <data name="SettingsLanguageSystem" xml:space="preserve">
+    <value>Język systemu</value>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Zmienia tylko teksty. Liczby, daty i godziny zawsze są zgodne z ustawieniami regionalnymi systemu.</value>
+  </data>
+</root>

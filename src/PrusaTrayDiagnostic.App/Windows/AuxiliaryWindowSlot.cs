@@ -10,6 +10,11 @@ internal interface IAuxiliaryWindow
     void Activate();
 
     void Close();
+
+    /// <summary>The language changed: texts its view model formats itself are formatted again (XAML texts follow on their own).</summary>
+    void RefreshTexts()
+    {
+    }
 }
 
 /// <summary>
@@ -61,6 +66,9 @@ internal sealed class AuxiliaryWindowSlot
             throw;
         }
     }
+
+    /// <summary>The language changed: the open window (if any) formats its texts again.</summary>
+    public void RefreshTexts() => _window?.RefreshTexts();
 
     /// <summary>Closes the open window, releases what it owns and refuses new windows. Safe to call repeatedly.</summary>
     public void Shutdown()

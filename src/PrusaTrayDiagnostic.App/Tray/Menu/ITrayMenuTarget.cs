@@ -12,7 +12,7 @@ internal interface ITrayMenuTarget
     /// <summary>The user clicked an item; the argument is the entry the item currently shows.</summary>
     event EventHandler<TrayMenuEntry>? ItemClicked;
 
-    /// <summary>Sets the fixed part (settings, about, quit...). Called once.</summary>
+    /// <summary>Sets the fixed part (settings, about, quit...) and removes the printer items; again after a language switch.</summary>
     void SetFixedItems(IReadOnlyList<TrayMenuEntry> items);
 
     void InsertPrinterItem(int index, TrayMenuEntry entry);
@@ -29,6 +29,9 @@ internal interface ITrayMenuTarget
 internal interface ITrayMenuSource
 {
     IReadOnlyList<TrayMenuEntry> FixedItems { get; }
+
+    /// <summary><see cref="FixedItems"/> was replaced (language switch); raised on the UI thread.</summary>
+    event EventHandler? FixedItemsChanged;
 
     /// <summary>
     /// One entry per configured printer (a submenu header when there are several printers), or a single disabled status
