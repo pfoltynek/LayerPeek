@@ -262,4 +262,226 @@
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="SettingsTabPrinters" xml:space="preserve">
+    <value>Printers</value>
+  </data>
+  <data name="SettingsTabGeneral" xml:space="preserve">
+    <value>General</value>
+  </data>
+  <data name="SettingsAddPrinter" xml:space="preserve">
+    <value>Add printer</value>
+  </data>
+  <data name="SettingsRemovePrinter" xml:space="preserve">
+    <value>Remove</value>
+  </data>
+  <data name="SettingsNoPrinters" xml:space="preserve">
+    <value>No printer is configured. Add one with “Add printer”.</value>
+  </data>
+  <data name="SettingsNewPrinter" xml:space="preserve">
+    <value>New printer</value>
+  </data>
+  <data name="SettingsName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="SettingsConnectionType" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
+    <value>PrusaLink (local network)</value>
+  </data>
+  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
+    <value>Prusa Connect (not available yet)</value>
+  </data>
+  <data name="SettingsAddress" xml:space="preserve">
+    <value>Address</value>
+  </data>
+  <data name="SettingsAddressHint" xml:space="preserve">
+    <value>IP address or host name, e.g. 192.168.1.20 or http://prusa-mk4.local</value>
+  </data>
+  <data name="SettingsPassword" xml:space="preserve">
+    <value>Password</value>
+  </data>
+  <data name="SettingsPasswordNewHint" xml:space="preserve">
+    <value>PrusaLink password from the printer settings. The user name “maker” is used automatically.</value>
+  </data>
+  <data name="SettingsPasswordUnchanged" xml:space="preserve">
+    <value>Unchanged</value>
+  </data>
+  <data name="SettingsPasswordNotSet" xml:space="preserve">
+    <value>Not set</value>
+  </data>
+  <data name="SettingsPasswordKeepHint" xml:space="preserve">
+    <value>Leave empty to keep the saved password.</value>
+  </data>
+  <data name="SettingsPasswordUnsupported" xml:space="preserve">
+    <value>Passwords cannot be saved on this system yet. Printers that require a password will report that it is missing.</value>
+  </data>
+  <data name="SettingsPasswordNotUsed" xml:space="preserve">
+    <value>Prusa Connect does not use a printer password.</value>
+  </data>
+  <data name="SettingsTestConnection" xml:space="preserve">
+    <value>Test connection</value>
+  </data>
+  <data name="SettingsCancelTest" xml:space="preserve">
+    <value>Cancel test</value>
+  </data>
+  <data name="SettingsTesting" xml:space="preserve">
+    <value>Testing connection…</value>
+  </data>
+  <data name="SettingsTestSuccess" xml:space="preserve">
+    <value>Connection works. Model code: {0}, firmware: {1}.</value>
+  </data>
+  <data name="SettingsTestNotReachable" xml:space="preserve">
+    <value>The printer is not reachable. Check the address and that the printer is switched on and connected to the network.</value>
+  </data>
+  <data name="SettingsTestTimeout" xml:space="preserve">
+    <value>The printer did not respond in time.</value>
+  </data>
+  <data name="SettingsTestSecureConnection" xml:space="preserve">
+    <value>The secure (https) connection failed. Try the address with http:// or check the printer's certificate.</value>
+  </data>
+  <data name="SettingsTestPasswordRejected" xml:space="preserve">
+    <value>The printer rejected the password.</value>
+  </data>
+  <data name="SettingsTestAccessDenied" xml:space="preserve">
+    <value>The printer denied access.</value>
+  </data>
+  <data name="SettingsTestPasswordMissing" xml:space="preserve">
+    <value>The printer requires a password. Enter it above.</value>
+  </data>
+  <data name="SettingsTestPasswordUnavailable" xml:space="preserve">
+    <value>The saved password could not be read.</value>
+  </data>
+  <data name="SettingsTestUnsupportedAuthentication" xml:space="preserve">
+    <value>The printer requires an unsupported sign-in method.</value>
+  </data>
+  <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
+    <value>Something answers at this address, but it does not look like a PrusaLink printer.</value>
+  </data>
+  <data name="SettingsTestNotSupported" xml:space="preserve">
+    <value>Testing is not available for Prusa Connect yet.</value>
+  </data>
+  <data name="SettingsTestCancelled" xml:space="preserve">
+    <value>Test cancelled.</value>
+  </data>
+  <data name="SettingsTestFailed" xml:space="preserve">
+    <value>The test failed unexpectedly.</value>
+  </data>
+  <data name="SettingsErrorNameRequired" xml:space="preserve">
+    <value>Enter a name.</value>
+  </data>
+  <data name="SettingsErrorNameTooLong" xml:space="preserve">
+    <value>The name can have at most {0} characters.</value>
+  </data>
+  <data name="SettingsErrorNameDuplicate" xml:space="preserve">
+    <value>Another printer already has this name.</value>
+  </data>
+  <data name="SettingsErrorAddressRequired" xml:space="preserve">
+    <value>Enter the printer address.</value>
+  </data>
+  <data name="SettingsErrorAddressInvalid" xml:space="preserve">
+    <value>Enter an IP address or host name, optionally with http:// or https://, a port and a path. A user name, password, query (?) or fragment (#) is not allowed.</value>
+  </data>
+  <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
+    <value>The password is too long (at most {0} bytes in UTF-8).</value>
+  </data>
+  <data name="SettingsErrorPasswordInvalid" xml:space="preserve">
+    <value>The password contains characters that cannot be saved.</value>
+  </data>
+  <data name="SettingsPollingInterval" xml:space="preserve">
+    <value>Polling interval (seconds)</value>
+  </data>
+  <data name="SettingsPollingIntervalHint" xml:space="preserve">
+    <value>How often the printers are asked for their state.</value>
+  </data>
+  <data name="SettingsErrorPollingInterval" xml:space="preserve">
+    <value>Enter a number from {0} to {1}.</value>
+  </data>
+  <data name="SettingsNotifications" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="SettingsNotificationsEnabled" xml:space="preserve">
+    <value>Show notifications</value>
+  </data>
+  <data name="SettingsNotifyPrintStarted" xml:space="preserve">
+    <value>Print started</value>
+  </data>
+  <data name="SettingsNotifyPrintFinished" xml:space="preserve">
+    <value>Print finished</value>
+  </data>
+  <data name="SettingsNotifyPrintPaused" xml:space="preserve">
+    <value>Print paused</value>
+  </data>
+  <data name="SettingsNotifyPrintResumed" xml:space="preserve">
+    <value>Print resumed</value>
+  </data>
+  <data name="SettingsNotifyPrintStopped" xml:space="preserve">
+    <value>Print stopped (cancelled)</value>
+  </data>
+  <data name="SettingsNotifyError" xml:space="preserve">
+    <value>Printer error</value>
+  </data>
+  <data name="SettingsNotifyAttention" xml:space="preserve">
+    <value>Printer needs attention (also a rejected password)</value>
+  </data>
+  <data name="SettingsNotifyOffline" xml:space="preserve">
+    <value>Printer went offline or is back online</value>
+  </data>
+  <data name="SettingsRemainingTime" xml:space="preserve">
+    <value>Notify when this many minutes of printing remain (0 = off)</value>
+  </data>
+  <data name="SettingsErrorRemainingTime" xml:space="preserve">
+    <value>Enter a whole number from 0 to {0} (0 = off).</value>
+  </data>
+  <data name="SettingsSound" xml:space="preserve">
+    <value>Sound</value>
+  </data>
+  <data name="SettingsSoundOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="SettingsSoundImportantOnly" xml:space="preserve">
+    <value>Important notifications only</value>
+  </data>
+  <data name="SettingsSoundAll" xml:space="preserve">
+    <value>All notifications</value>
+  </data>
+  <data name="SettingsSave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="SettingsCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="SettingsLoading" xml:space="preserve">
+    <value>Loading…</value>
+  </data>
+  <data name="SettingsSaving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="SettingsFixErrors" xml:space="preserve">
+    <value>Some values are not valid. Fix the highlighted fields.</value>
+  </data>
+  <data name="SettingsNoticeCorrupted" xml:space="preserve">
+    <value>The settings file is damaged. Default settings are shown; saving replaces the file.</value>
+  </data>
+  <data name="SettingsNoticeUnreadable" xml:space="preserve">
+    <value>The settings file could not be read. Default settings are shown; saving replaces the file.</value>
+  </data>
+  <data name="SettingsNoticeWarnings" xml:space="preserve">
+    <value>Some values in the settings file were invalid and were corrected or left out. Saving stores the corrected settings.</value>
+  </data>
+  <data name="SettingsSaveFailedSettings" xml:space="preserve">
+    <value>The settings could not be saved. Nothing was changed.</value>
+  </data>
+  <data name="SettingsSaveFailedPassword" xml:space="preserve">
+    <value>The password could not be saved to the system credential store. Nothing was changed.</value>
+  </data>
+  <data name="SettingsSaveRollbackIncomplete" xml:space="preserve">
+    <value>The settings could not be saved, and a previously saved password may have changed. Check the printer passwords.</value>
+  </data>
+  <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
+    <value>Settings saved. The password of a removed printer could not be deleted from the system credential store.</value>
+  </data>
 </root>

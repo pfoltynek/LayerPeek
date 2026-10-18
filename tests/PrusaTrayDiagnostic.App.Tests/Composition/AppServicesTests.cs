@@ -8,6 +8,7 @@ using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
+using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.History;
@@ -78,7 +79,7 @@ public sealed class AppServicesTests
         Assert.Same(services.GetRequiredService<MonitoredPrinters>(), services.GetRequiredService<MonitoredPrinters>());
         Assert.IsType<PrinterInfoSource>(services.GetRequiredService<IPrinterInfoSource>());
         Assert.True(services.GetRequiredService<TrayMenuOptions>().DiagnosticsAvailable);
-        Assert.False(services.GetRequiredService<TrayMenuOptions>().SettingsAvailable);
+        Assert.True(services.GetRequiredService<TrayMenuOptions>().SettingsAvailable);
 
         // One view model per opened window; nothing is configured yet, so it shows the starting notice.
         using DiagnosticsViewModel first = AppServices.CreateDiagnosticsViewModel(services);
@@ -103,6 +104,29 @@ public sealed class AppServicesTests
         {
             Assert.IsType<UnsupportedSecretStore>(store);
         }
+    }
+
+    [Fact]
+    public async Task SettingsWindowServicesAreRegisteredAndItsMenuItemEnabled()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.True(services.GetRequiredService<TrayMenuOptions>().SettingsAvailable);
+        // Saved settings restart the running monitoring session.
+        Assert.Same(services.GetRequiredService<MonitoringSession>(), services.GetRequiredService<ISettingsApplier>());
+        Assert.IsType<SettingsEditorStore>(services.GetRequiredService<ISettingsEditorStore>());
+        Assert.IsType<PrusaLinkConnectionTester>(services.GetRequiredService<IConnectionTester>());
+        // Derived from the registered store, so the window and the store can never disagree.
+        PasswordPolicy policy = services.GetRequiredService<PasswordPolicy>();
+        Assert.Equal(PasswordPolicy.For(services.GetRequiredService<ISecretStore>()), policy);
+        Assert.Equal(OperatingSystem.IsWindows(), policy.IsSupported);
+
+        // One view model per opened window; creating it does not load anything yet (no disk access in this test).
+        using SettingsViewModel first = AppServices.CreateSettingsViewModel(services);
+        using SettingsViewModel second = AppServices.CreateSettingsViewModel(services);
+        Assert.NotSame(first, second);
+        Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
+        Assert.True(first.IsLoading);
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

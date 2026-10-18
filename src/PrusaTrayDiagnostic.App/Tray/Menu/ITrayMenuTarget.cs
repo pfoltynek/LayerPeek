@@ -51,5 +51,8 @@ internal interface ITrayAppCommands
     /// </summary>
     void ShowDiagnostics(string? printerId);
 
+    /// <summary>Opens the settings window, or activates it when it is already open.</summary>
+    void ShowSettings();
+
     void Quit();
 }

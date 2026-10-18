@@ -6,6 +6,7 @@ using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
+using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.History;
@@ -56,7 +57,7 @@ internal static class AppServices
         services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
-        // The settings window (T-015) does not exist yet: its menu item is disabled. Diagnostics (T-011) is enabled.
+        // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.Default);
         services.AddSingleton(static sp => new TrayMenuViewModel(
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -88,6 +89,21 @@ internal static class AppServices
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>()));
 
+        // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store.
+        services.AddSingleton<ISettingsApplier>(static sp => sp.GetRequiredService<MonitoringSession>());
+        services.AddSingleton(static sp => PasswordPolicy.For(sp.GetRequiredService<ISecretStore>()));
+        services.AddSingleton<ISettingsEditorStore>(static sp => new SettingsEditorStore(
+            sp.GetRequiredService<ISettingsStore>,
+            sp.GetRequiredService<ISecretStore>(),
+            sp.GetRequiredService<PasswordPolicy>(),
+            sp.GetRequiredService<ISettingsApplier>(),
+            sp.GetRequiredService<ILogger<SettingsEditorStore>>()));
+        services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ISecretStore>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
+
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
@@ -107,6 +123,19 @@ internal static class AppServices
             services.GetRequiredService<IPrinterInfoSource>(),
             services.GetRequiredService<TimeProvider>(),
             initialPrinterId);
+    }
+
+    /// <summary>
+    /// A new view model for one settings window; the caller disposes it when the window closes and calls
+    /// <see cref="SettingsViewModel.LoadAsync"/> after showing it (creating it touches no files). Call on the UI thread.
+    /// </summary>
+    public static SettingsViewModel CreateSettingsViewModel(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        return new SettingsViewModel(
+            services.GetRequiredService<ISettingsEditorStore>(),
+            services.GetRequiredService<IConnectionTester>(),
+            services.GetRequiredService<PasswordPolicy>());
     }
 
     private static ISecretStore CreateSecretStore() =>

@@ -554,6 +554,25 @@ public sealed class PrinterMonitorTests : IAsyncDisposable
         }
     }
 
+    [Fact]
+    public async Task SnapshotFinishedAfterStopIsNotPublished()
+    {
+        // E.g. a removed printer whose password was deleted while its last poll ran: the late "unauthorized" result
+        // belongs to a run that is already stopping and must not reach observers (spurious notification).
+        int published = 0;
+        _monitor.SnapshotUpdated += (_, _) => Interlocked.Increment(ref published);
+        _factory["mk4"].Behavior = _ =>
+        {
+            _cts.Cancel();
+            return Task.FromResult(_factory["mk4"].Snapshot(PrinterState.Unauthorized));
+        };
+
+        Run("mk4");
+        await _run!.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, published);
+    }
+
     private void Run(params string[] printerIds) =>
         _run = _monitor.RunAsync([.. printerIds.Select(Printer)], Interval, _cts.Token);
 

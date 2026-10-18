@@ -1,4 +1,5 @@
 using PrusaTrayDiagnostic.App.Notifications;
+using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.Core.Events;
 using PrusaTrayDiagnostic.Core.Notifications;
@@ -37,6 +38,21 @@ public sealed class PrintNotificationObserverTests : IDisposable
         PrintNotification notification = Assert.Single(_service.Notifications);
         Assert.Equal(PrintEventKind.PrintStarted, notification.Kind);
         Assert.Same(printer, notification.Printer);
+    }
+
+    [Fact]
+    public void UpdatedSettingsWithoutRestartReachTheNotifier()
+    {
+        PrinterDefinition printer = Definition();
+        _observer.ApplySettings(new AppSettings { Printers = [printer] });
+        _monitor.Raise(Snapshot(PrinterState.Idle));
+
+        ((IMonitoringObserver)_observer).UpdateSettings(new AppSettings { Printers = [printer], Notifications = new NotificationSettings { PrintStarted = false } });
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10)) with { Timestamp = Now.AddSeconds(5) });
+        _monitor.Raise(Snapshot(PrinterState.Paused, Job(10)) with { Timestamp = Now.AddSeconds(10) });
+
+        // The started print is not announced any more, and the printer kept its state (no new baseline).
+        Assert.Equal(PrintEventKind.PrintPaused, Assert.Single(_service.Notifications).Kind);
     }
 
     [Fact]

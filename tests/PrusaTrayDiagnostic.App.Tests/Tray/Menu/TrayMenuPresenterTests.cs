@@ -98,11 +98,24 @@ public sealed class TrayMenuPresenterTests : IDisposable
         using TrayMenuPresenter presenter = Create();
 
         _target.Click(_target.Printers[0]);
-        _target.Click(Fixed(TrayMenuCommand.Settings));
+        _target.Click(Fixed(TrayMenuCommand.Settings) with { IsEnabled = false });
 
         Assert.Empty(_launcher.Opened);
         Assert.Equal(0, _commands.AboutCount);
         Assert.Equal(0, _commands.QuitCount);
+        Assert.Equal(0, _commands.SettingsCount);
+    }
+
+    [Fact]
+    public void ClickOnSettingsOpensTheSettingsWindow()
+    {
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Fixed(TrayMenuCommand.Settings));
+
+        Assert.Equal(1, _commands.SettingsCount);
+        Assert.Equal(0, _commands.DiagnosticsCount);
+        Assert.Equal(0, _commands.AboutCount);
     }
 
     [Fact]

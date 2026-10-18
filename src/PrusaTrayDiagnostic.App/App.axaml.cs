@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
+using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.App.Windows;
@@ -22,6 +23,7 @@ public partial class App : Application, ITrayAppCommands
     // One instance each; closing a window never quits the app (ShutdownMode.OnExplicitShutdown).
     private readonly AuxiliaryWindowSlot _aboutWindow = new();
     private readonly AuxiliaryWindowSlot _diagnosticsWindow = new();
+    private readonly AuxiliaryWindowSlot _settingsWindow = new();
     private TrayHost? _host;
     private QuitCoordinator? _quit;
 
@@ -72,6 +74,34 @@ public partial class App : Application, ITrayAppCommands
             });
     }
 
+    void ITrayAppCommands.ShowSettings()
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        SettingsViewModel? created = null;
+        _settingsWindow.ShowOrActivate(() =>
+        {
+            // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
+            SettingsViewModel viewModel = host.CreateSettingsViewModel();
+            try
+            {
+                created = viewModel;
+                return (new AvaloniaAuxiliaryWindow(new SettingsWindow { DataContext = viewModel }), viewModel);
+            }
+            catch
+            {
+                viewModel.Dispose();
+                throw;
+            }
+        });
+
+        // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.
+        _ = created?.LoadAsync();
+    }
+
     void ITrayAppCommands.ShowAbout()
     {
         if (_host is not { } host || _quit is { IsQuitting: true })
@@ -93,8 +123,10 @@ public partial class App : Application, ITrayAppCommands
 
     private Task StopHostAsync(TimeSpan timeout)
     {
-        // Auxiliary windows go first so that nothing is left on screen while monitoring stops; the diagnostics view
+        // Auxiliary windows go first so that nothing is left on screen while monitoring stops (unsaved settings are
+        // discarded, a running connection test is cancelled); the diagnostics view
         // model unsubscribes from the monitor before the services are released.
+        _settingsWindow.Shutdown();
         _diagnosticsWindow.Shutdown();
         _aboutWindow.Shutdown();
         return _host?.StopAsync(timeout) ?? Task.CompletedTask;
