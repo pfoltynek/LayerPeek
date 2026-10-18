@@ -42,6 +42,10 @@
     <value>Other printers: {0}</value>
     <comment>{0} = number of further configured printers.</comment>
   </data>
+  <data name="ToolTipLineRemaining" xml:space="preserve">
+    <value>{0}, {1} left</value>
+    <comment>One printer line of the multi-printer tooltip. {0} = "Name: State – 42%", {1} = remaining duration.</comment>
+  </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
     <value>&lt; 1 min</value>
   </data>

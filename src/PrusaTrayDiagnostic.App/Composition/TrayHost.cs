@@ -97,7 +97,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
 
     /// <summary>A view model for a new diagnostics window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
-    public DiagnosticsViewModel CreateDiagnosticsViewModel() => AppServices.CreateDiagnosticsViewModel(_services);
+    public DiagnosticsViewModel CreateDiagnosticsViewModel(string? initialPrinterId) => AppServices.CreateDiagnosticsViewModel(_services, initialPrinterId);
 
     /// <summary>Creates loggers for UI objects outside the container; valid until <see cref="ReleaseLogging"/>.</summary>
     public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();

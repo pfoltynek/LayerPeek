@@ -40,27 +40,36 @@ public partial class App : Application, ITrayAppCommands
         base.OnFrameworkInitializationCompleted();
     }
 
-    void ITrayAppCommands.ShowDiagnostics()
+    void ITrayAppCommands.ShowDiagnostics(string? printerId)
     {
         if (_host is not { } host || _quit is { IsQuitting: true })
         {
             return;
         }
 
-        _diagnosticsWindow.ShowOrActivate(() =>
-        {
-            // Live data only while the window is open: the slot disposes the view model when the window closes.
-            DiagnosticsViewModel viewModel = host.CreateDiagnosticsViewModel();
-            try
+        _diagnosticsWindow.ShowOrActivate(
+            () =>
             {
-                return (new AvaloniaAuxiliaryWindow(new DiagnosticsWindow { DataContext = viewModel }), viewModel);
-            }
-            catch
+                // Live data only while the window is open: the slot disposes the view model when the window closes.
+                DiagnosticsViewModel viewModel = host.CreateDiagnosticsViewModel(printerId);
+                try
+                {
+                    return (new AvaloniaAuxiliaryWindow(new DiagnosticsWindow { DataContext = viewModel }), viewModel);
+                }
+                catch
+                {
+                    viewModel.Dispose();
+                    throw;
+                }
+            },
+            owned =>
             {
-                viewModel.Dispose();
-                throw;
-            }
-        });
+                // Already open: switch to the printer whose submenu was used; the general item keeps the current one.
+                if (printerId is not null && owned is DiagnosticsViewModel viewModel)
+                {
+                    viewModel.ShowPrinter(printerId);
+                }
+            });
     }
 
     void ITrayAppCommands.ShowAbout()

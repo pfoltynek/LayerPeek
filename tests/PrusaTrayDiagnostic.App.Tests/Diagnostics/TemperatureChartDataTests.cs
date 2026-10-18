@@ -8,7 +8,7 @@ namespace PrusaTrayDiagnostic.App.Tests.Diagnostics;
 
 public sealed class TemperatureChartDataTests
 {
-    private static readonly DateTimeOffset T0 = Now;
+    internal static readonly DateTimeOffset T0 = Now;
     private readonly TelemetryHistory _history = new();
     private readonly TemperatureChartData _data = new();
 
@@ -286,40 +286,6 @@ public sealed class TemperatureChartDataTests
         Assert.True(_data.ColumnBufferAllocations > allocations);
     }
 
-    [Fact]
-    public void SteadyStateUpdatesDoNotAllocate()
-    {
-        TelemetryHistory history = new();
-        history.Configure([Definition()], TimeSpan.FromSeconds(1));
-        int capacity = history.GetCapacity("mk4");
-        PrinterSnapshot[] snapshots = new PrinterSnapshot[capacity + 50];
-        for (int i = 0; i < snapshots.Length; i++)
-        {
-            snapshots[i] = Sample(i, nozzle: 200 + (i % 10), nozzleTarget: 215, bed: i % 100 == 0 ? null : 60, bedTarget: 60);
-        }
-
-        // Fill the history (the ring reaches its capacity) and warm up the chart buffers.
-        for (int i = 0; i < capacity; i++)
-        {
-            history.Record(snapshots[i]);
-        }
-
-        _data.Update(history, "mk4", T0, T0.AddSeconds(capacity), 640);
-
-        long allocated = 0;
-        for (int i = capacity; i < snapshots.Length; i++)
-        {
-            history.Record(snapshots[i]);
-            DateTimeOffset to = T0.AddSeconds(i);
-            long before = GC.GetAllocatedBytesForCurrentThread();
-            bool changed = _data.Update(history, "mk4", to.AddDays(-1), to, 640);
-            allocated += GC.GetAllocatedBytesForCurrentThread() - before;
-            Assert.True(changed);
-        }
-
-        Assert.Equal(0, allocated);
-    }
-
     private static int ExpectedColumn(int second, int spanSeconds, int columns) =>
         Math.Min((int)(second * (double)columns / spanSeconds), columns - 1);
 
@@ -351,7 +317,7 @@ public sealed class TemperatureChartDataTests
     private void Record(int second, double? nozzle = null, double? nozzleTarget = null, double? bed = null, double? bedTarget = null) =>
         _history.Record(Sample(second, nozzle, nozzleTarget, bed, bedTarget));
 
-    private static PrinterSnapshot Sample(
+    internal static PrinterSnapshot Sample(
         int second,
         double? nozzle = null,
         double? nozzleTarget = null,

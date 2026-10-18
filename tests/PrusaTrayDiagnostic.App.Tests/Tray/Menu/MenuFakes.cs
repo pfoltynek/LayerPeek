@@ -99,7 +99,14 @@ internal sealed class FakeAppCommands : ITrayAppCommands
         }
     }
 
-    public void ShowDiagnostics() => DiagnosticsCount++;
+    /// <summary>Printer ids of diagnostics requests in order; <see langword="null"/> = no preselection.</summary>
+    public List<string?> DiagnosticsRequests { get; } = [];
+
+    public void ShowDiagnostics(string? printerId)
+    {
+        DiagnosticsCount++;
+        DiagnosticsRequests.Add(printerId);
+    }
 
     public void Quit() => QuitCount++;
 }

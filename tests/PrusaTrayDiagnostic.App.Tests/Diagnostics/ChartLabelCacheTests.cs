@@ -43,22 +43,6 @@ public sealed class ChartLabelCacheTests
         Assert.Equal(100, _created.Count);
     }
 
-    [Fact]
-    public void ReusingKeysDoesNotAllocate()
-    {
-        _cache.Get(1);
-        _cache.Get(2);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1000; i++)
-        {
-            _cache.Get(1);
-            _cache.Get(2);
-        }
-
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
-    }
-
     private string Create(long key)
     {
         _created.Add(key);

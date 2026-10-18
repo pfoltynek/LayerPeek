@@ -173,7 +173,7 @@ public sealed class TrayStatusViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal(TrayIconKey.For(TrayStatus.Error, null), _viewModel.IconKey);
-        Assert.Equal("Beta\nError\nOther printers: 1", _viewModel.ToolTipText);
+        Assert.Equal("Beta: Error\nAlpha: Printing – 50%", _viewModel.ToolTipText);
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public sealed class TrayStatusViewModelTests : IDisposable
         observer.ApplySettings(new AppSettings { Printers = [Definition("a", "Alpha"), Definition("b", "Beta")] });
         _dispatcher.RunAll();
 
-        Assert.Equal("Alpha\nConnecting…\nOther printers: 1", _viewModel.ToolTipText);
+        Assert.Equal("Alpha: Connecting…\nBeta: Connecting…", _viewModel.ToolTipText);
         Assert.Throws<ArgumentNullException>(() => observer.ApplySettings(null!));
     }
 
@@ -253,7 +253,88 @@ public sealed class TrayStatusViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal(TrayIconKey.For(TrayStatus.Printing, 100), _viewModel.IconKey);
-        Assert.StartsWith("P0\nPrinting – 100%", _viewModel.ToolTipText, StringComparison.Ordinal);
+        Assert.StartsWith("P0: Printing – 100%\nP1: Printing – 100%\n", _viewModel.ToolTipText, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void VisibleChangeOfNonPrimaryPrinterUpdatesOnlyToolTip()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _monitor.Raise(Snapshot(PrinterState.Error, printerId: "a"));
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10), printerId: "b"));
+        _dispatcher.RunAll();
+        _changes.Clear();
+
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(11), printerId: "b"));
+        _dispatcher.RunAll();
+
+        Assert.Equal([nameof(TrayStatusViewModel.ToolTipText)], _changes);
+        Assert.Equal(TrayIconKey.For(TrayStatus.Error, null), _viewModel.IconKey);
+        Assert.Equal("Alpha: Error\nBeta: Printing – 11%", _viewModel.ToolTipText);
+    }
+
+    [Fact]
+    public void InvisibleChangeOfAnyPrinterDoesNotDispatch()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "a"));
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10.2, TimeSpan.FromSeconds(570)), printerId: "b"));
+        _dispatcher.RunAll();
+        int posts = _dispatcher.PostCount;
+
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "a") with { Timestamp = Now.AddSeconds(5) });
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10.7, TimeSpan.FromSeconds(600)), printerId: "b") with { Timestamp = Now.AddSeconds(5) });
+
+        Assert.Equal(posts, _dispatcher.PostCount);
+    }
+
+    [Fact]
+    public void RemainingTimeOfAnyPrinterIsShownInSummary()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "a"));
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10, TimeSpan.FromMinutes(10)), printerId: "b"));
+        _dispatcher.RunAll();
+
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10, TimeSpan.FromMinutes(9)), printerId: "b"));
+        _dispatcher.RunAll();
+
+        Assert.Equal("Beta: Printing – 10%, 9 min left\nAlpha: Ready", _viewModel.ToolTipText);
+    }
+
+    [Fact]
+    public void ChangeBackAndForthWithinOneBurstEndsWithTheSameText()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "a"));
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "b"));
+        _dispatcher.RunAll();
+        _changes.Clear();
+
+        _monitor.Raise(Snapshot(PrinterState.Busy, printerId: "b"));
+        _monitor.Raise(Snapshot(PrinterState.Idle, printerId: "b"));
+        _dispatcher.RunAll();
+
+        // A burst may post one update, but nothing visible changes.
+        Assert.Empty(_changes);
+        Assert.Equal("Alpha: Ready\nBeta: Ready", _viewModel.ToolTipText);
+    }
+
+    [Fact]
+    public void ToolTipOfTwentyPrintersFitsWindowsLimit()
+    {
+        PrinterDefinition[] printers = [.. Enumerable.Range(0, 20).Select(i => Definition($"p{i}", $"Printer {i}"))];
+        _viewModel.SetPrinters(printers);
+        foreach (PrinterDefinition printer in printers)
+        {
+            _monitor.Raise(Snapshot(PrinterState.Printing, Job(50, TimeSpan.FromHours(2)), printer.Id));
+        }
+
+        _dispatcher.RunAll();
+
+        Assert.True(_viewModel.ToolTipText.Length <= TrayToolTipFormatter.MaxLength);
+        Assert.StartsWith("Printer 0: Printing – 50%\n", _viewModel.ToolTipText, StringComparison.Ordinal);
+        Assert.Matches(@"\nOther printers: \d+$", _viewModel.ToolTipText);
     }
 
     private void OnPropertyChanged(object? sender, PropertyChangedEventArgs e) => _changes.Add(e.PropertyName);

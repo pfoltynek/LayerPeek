@@ -26,7 +26,11 @@ internal sealed class AuxiliaryWindowSlot
     public bool IsOpen => _window is not null;
 
     /// <param name="create">Creates the window and what it owns (e.g. its view model, which subscribes to live data).</param>
-    public void ShowOrActivate(Func<(IAuxiliaryWindow Window, IDisposable? Owned)> create)
+    /// <param name="reuse">
+    /// Called with what the open window owns before it is activated again (e.g. to show another printer); not called
+    /// for a new window.
+    /// </param>
+    public void ShowOrActivate(Func<(IAuxiliaryWindow Window, IDisposable? Owned)> create, Action<IDisposable?>? reuse = null)
     {
         ArgumentNullException.ThrowIfNull(create);
         if (_shutDown)
@@ -36,6 +40,7 @@ internal sealed class AuxiliaryWindowSlot
 
         if (_window is not null)
         {
+            reuse?.Invoke(_owned);
             _window.Activate();
             return;
         }

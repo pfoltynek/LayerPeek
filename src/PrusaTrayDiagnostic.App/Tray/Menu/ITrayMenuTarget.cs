@@ -4,7 +4,8 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// The platform menu the presenter writes to (Avalonia <c>NativeMenu</c> in the app, a fake in tests).
-/// Layout: printer items first, then a separator, then the fixed items. UI thread only.
+/// Layout: printer items first (each with its submenu when there are several printers), then a separator, then the
+/// fixed items. UI thread only.
 /// </summary>
 internal interface ITrayMenuTarget
 {
@@ -29,7 +30,10 @@ internal interface ITrayMenuSource
 {
     IReadOnlyList<TrayMenuEntry> FixedItems { get; }
 
-    /// <summary>One entry per configured printer, or a single disabled status message ("Starting…", "No printer configured"...).</summary>
+    /// <summary>
+    /// One entry per configured printer (a submenu header when there are several printers), or a single disabled status
+    /// message ("Starting…", "No printer configured"...).
+    /// </summary>
     ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
     /// <summary>Opens the web interface of a printer entry; does nothing for an entry without an address.</summary>
@@ -41,8 +45,11 @@ internal interface ITrayAppCommands
 {
     void ShowAbout();
 
-    /// <summary>Opens the diagnostics window, or activates it when it is already open.</summary>
-    void ShowDiagnostics();
+    /// <summary>
+    /// Opens the diagnostics window, or activates it when it is already open; shows <paramref name="printerId"/> when set
+    /// (a printer submenu), otherwise keeps the current or default printer.
+    /// </summary>
+    void ShowDiagnostics(string? printerId);
 
     void Quit();
 }

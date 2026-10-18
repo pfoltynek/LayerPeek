@@ -95,7 +95,8 @@ internal static class AppServices
     /// A new view model for one diagnostics window; the caller disposes it when the window closes (it subscribes to the
     /// monitor). Call on the UI thread.
     /// </summary>
-    public static DiagnosticsViewModel CreateDiagnosticsViewModel(IServiceProvider services)
+    /// <param name="initialPrinterId">Printer to show first (opened from its submenu); <see langword="null"/> = the first printer.</param>
+    public static DiagnosticsViewModel CreateDiagnosticsViewModel(IServiceProvider services, string? initialPrinterId = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         return new DiagnosticsViewModel(
@@ -104,7 +105,8 @@ internal static class AppServices
             services.GetRequiredService<TelemetryHistory>(),
             services.GetRequiredService<IUiDispatcher>(),
             services.GetRequiredService<IPrinterInfoSource>(),
-            services.GetRequiredService<TimeProvider>());
+            services.GetRequiredService<TimeProvider>(),
+            initialPrinterId);
     }
 
     private static ISecretStore CreateSecretStore() =>

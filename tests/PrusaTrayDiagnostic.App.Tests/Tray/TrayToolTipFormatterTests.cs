@@ -201,6 +201,157 @@ public sealed class TrayToolTipFormatterTests
     }
 
     [Fact]
+    public void SummaryShowsOneLinePerPrinterMostSevereFirstInEnglish()
+    {
+        using CultureScope culture = new("en-US");
+
+        string text = TrayToolTipFormatter.FormatSummary(
+        [
+            Content(PrinterState.Printing, Job(45.6, OneHour23), "Alpha"),
+            Content(PrinterState.Idle, name: "Beta"),
+            Content(PrinterState.Error, name: "Gamma"),
+        ]);
+
+        Assert.Equal("Gamma: Error\nAlpha: Printing – 45%, 1 h 23 min left\nBeta: Ready", text);
+    }
+
+    [Fact]
+    public void SummaryShowsOneLinePerPrinterMostSevereFirstInCzech()
+    {
+        using CultureScope culture = new("cs-CZ");
+
+        string text = TrayToolTipFormatter.FormatSummary(
+        [
+            Content(PrinterState.Printing, Job(45.6, OneHour23), "Alpha"),
+            Content(PrinterState.Paused, Job(10), "Beta"),
+            Content(state: null, name: "Gamma"),
+        ]);
+
+        Assert.Equal("Gamma: Připojování…\nBeta: Pozastaveno – 10 %\nAlpha: Tiskne – 45 %, zbývá 1 h 23 min", text);
+    }
+
+    [Fact]
+    public void SummaryKeepsConfigurationOrderOnTie()
+    {
+        using CultureScope culture = new("en-US");
+
+        string text = TrayToolTipFormatter.FormatSummary(
+        [
+            Content(PrinterState.Offline, name: "A"),
+            Content(PrinterState.Unknown, name: "B"),
+            Content(state: null, name: "C"),
+            Content(PrinterState.Idle, name: "D"),
+            Content(PrinterState.Stopped, name: "E"),
+        ]);
+
+        Assert.Equal("A: Offline\nB: Unknown state\nC: Connecting…\nD: Ready\nE: Stopped", text);
+    }
+
+    [Fact]
+    public void SummaryDoesNotShowStaleJobOfUnreachablePrinter()
+    {
+        using CultureScope culture = new("en-US");
+
+        string text = TrayToolTipFormatter.FormatSummary([Content(PrinterState.Offline, Job(50, OneHour23), "A"), Content(PrinterState.Idle, name: "B")]);
+
+        Assert.Equal("A: Offline\nB: Ready", text);
+    }
+
+    [Fact]
+    public void SummaryDropsRemainingTimesWhenTheyDoNotFit()
+    {
+        using CultureScope culture = new("en-US");
+        ToolTipContent[] printers = [.. Enumerable.Range(1, 4).Select(i => Content(PrinterState.Printing, Job(10 * i, OneHour23), "Printer" + i))];
+
+        string text = TrayToolTipFormatter.FormatSummary(printers);
+
+        Assert.Equal("Printer1: Printing – 10%\nPrinter2: Printing – 20%\nPrinter3: Printing – 30%\nPrinter4: Printing – 40%", text);
+    }
+
+    [Fact]
+    public void SummaryOfManyPrintersShowsMostSevereAndCountsTheRest()
+    {
+        using CultureScope culture = new("en-US");
+        List<ToolTipContent> printers = [.. Enumerable.Range(1, 18).Select(i => Content(PrinterState.Idle, name: "Idle" + i))];
+        printers.Insert(9, Content(PrinterState.Error, name: "Broken"));
+        printers.Add(Content(PrinterState.Printing, Job(50), "Busy"));
+
+        string text = TrayToolTipFormatter.FormatSummary(printers);
+
+        Assert.True(text.Length <= TrayToolTipFormatter.MaxLength, $"Length {text.Length}");
+        string[] lines = text.Split('\n');
+        Assert.Equal("Broken: Error", lines[0]);
+        Assert.Equal("Busy: Printing – 50%", lines[1]);
+        Assert.Equal("Idle1: Ready", lines[2]);
+        int shown = lines.Length - 1;
+        Assert.Equal($"Other printers: {printers.Count - shown}", lines[^1]);
+    }
+
+    [Fact]
+    public void SummaryOfTwentyPrintersInCzechFitsTheLimit()
+    {
+        using CultureScope culture = new("cs-CZ");
+        ToolTipContent[] printers = [.. Enumerable.Range(1, 20).Select(i => Content(PrinterState.Printing, Job(i, OneHour23), "Tiskárna " + i))];
+
+        string text = TrayToolTipFormatter.FormatSummary(printers);
+
+        Assert.True(text.Length <= TrayToolTipFormatter.MaxLength, $"Length {text.Length}");
+        Assert.StartsWith("Tiskárna 1: Tiskne – 1 %\n", text, StringComparison.Ordinal);
+        Assert.Matches(@"\nDalší tiskárny: \d+$", text);
+    }
+
+    [Fact]
+    public void SummaryShortensLongNamesPerLine()
+    {
+        using CultureScope culture = new("en-US");
+
+        string text = TrayToolTipFormatter.FormatSummary([Content(PrinterState.Idle, name: new string('A', 200)), Content(PrinterState.Idle, name: "B")]);
+
+        string[] lines = text.Split('\n');
+        Assert.Equal(2, lines.Length);
+        Assert.Equal(new string('A', TrayToolTipFormatter.MaxSummaryNameLength - 1) + "…: Ready", lines[0]);
+        Assert.Equal("B: Ready", lines[1]);
+    }
+
+    [Fact]
+    public void SummaryNeverSplitsSurrogatePairs()
+    {
+        using CultureScope culture = new("en-US");
+        string horses = string.Concat(Enumerable.Repeat("🐎", 40));
+        ToolTipContent[] printers = [.. Enumerable.Range(0, 12).Select(i => Content(PrinterState.Printing, Job(i, OneHour23), new string('x', 1 + (i % 2)) + horses))];
+
+        string text = TrayToolTipFormatter.FormatSummary(printers);
+
+        Assert.True(text.Length <= TrayToolTipFormatter.MaxLength, $"Length {text.Length}");
+        for (int i = 0; i < text.Length; i++)
+        {
+            Assert.False(char.IsHighSurrogate(text[i]) && (i + 1 == text.Length || !char.IsLowSurrogate(text[i + 1])), $"Dangling high surrogate at {i}.");
+            Assert.False(char.IsLowSurrogate(text[i]) && (i == 0 || !char.IsHighSurrogate(text[i - 1])), $"Dangling low surrogate at {i}.");
+        }
+    }
+
+    [Theory]
+    [InlineData(2)]
+    [InlineData(5)]
+    [InlineData(10)]
+    [InlineData(20)]
+    [InlineData(100)]
+    public void SummaryAlwaysFitsWindowsLimitAndMentionsEveryPrinter(int count)
+    {
+        using CultureScope culture = new("cs-CZ");
+        ToolTipContent[] printers = [.. Enumerable.Range(0, count).Select(i => Content(PrinterState.Paused, Job(i % 100, TimeSpan.FromDays(3)), new string('N', 60) + i))];
+
+        string text = TrayToolTipFormatter.FormatSummary(printers);
+
+        Assert.True(text.Length <= TrayToolTipFormatter.MaxLength, $"Length {text.Length}");
+        string[] lines = text.Split('\n');
+        int other = lines[^1].StartsWith("Další tiskárny: ", StringComparison.Ordinal) ? int.Parse(lines[^1]["Další tiskárny: ".Length..], System.Globalization.CultureInfo.InvariantCulture) : 0;
+        int printerLines = other > 0 ? lines.Length - 1 : lines.Length;
+        Assert.True(printerLines >= 1);
+        Assert.Equal(count, printerLines + other);
+    }
+
+    [Fact]
     public void ApplicationLevelTexts()
     {
         using (new CultureScope("en-US"))
@@ -215,4 +366,7 @@ public sealed class TrayToolTipFormatterTests
             Assert.Equal("Prusa Tray Diagnostic\nNení nastavena žádná tiskárna", TrayToolTipFormatter.NotConfigured());
         }
     }
+
+    private static ToolTipContent Content(PrinterState? state, PrintJob? job = null, string name = "MK4") =>
+        ToolTipContent.From(Printer(state, job, id: name, name: name), otherPrinterCount: 0);
 }
