@@ -48,7 +48,9 @@ internal static class FFmpegRuntime
                 $"avformat {Format(ffmpeg.avformat_version())}, avcodec {Format(ffmpeg.avcodec_version())}, avutil {Format(ffmpeg.avutil_version())}, swscale {Format(ffmpeg.swscale_version())} ({ffmpeg.avcodec_license()})");
             return new LoadResult(version, null);
         }
-        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or BadImageFormatException)
+        // Typically DllNotFoundException, EntryPointNotFoundException or BadImageFormatException; anything else from
+        // loading native code (e.g. a crash in an initializer surfacing as an exception) is reported the same way.
+        catch (Exception ex)
         {
             return new LoadResult(null, ex);
         }

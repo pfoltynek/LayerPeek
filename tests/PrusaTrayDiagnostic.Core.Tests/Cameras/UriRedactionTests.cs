@@ -18,6 +18,9 @@ public class UriRedactionTests
     [InlineData("rtsp://admin:secret@192.168.0.227:554/live", "rtsp://***@192.168.0.227:554/live")]
     [InlineData("rtsp://admin@192.168.0.227/live", "rtsp://***@192.168.0.227/live")]
     [InlineData("rtsp://admin:secret%40x@camera.local/live?a=1", "rtsp://***@camera.local/live?a=1")]
+    // Uri sees host "admin", port 1234 and no user info; the text up to the last "@" is masked anyway.
+    [InlineData("rtsp://admin:1234/secret@192.168.0.227/live", "rtsp://***@192.168.0.227/live")]
+    [InlineData("rtsp://admin:secret@192.168.0.227/live?x=admin@b", "rtsp://***@b")]
     public void UserInfoIsMasked(string url, string expected)
     {
         string redacted = UriRedaction.Redact(new Uri(url));

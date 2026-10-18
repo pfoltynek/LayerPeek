@@ -31,16 +31,6 @@ internal sealed class LoopbackServer : IAsyncDisposable
     /// <summary>Number of accepted connections.</summary>
     public int Connections => Volatile.Read(ref _connections);
 
-    /// <summary>An address on which nothing listens (a port that was just free): connecting is refused.</summary>
-    public static Uri RefusingStreamUri()
-    {
-        TcpListener probe = new(IPAddress.Loopback, 0);
-        probe.Start();
-        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-        return new Uri($"rtsp://127.0.0.1:{port}/live");
-    }
-
     public async ValueTask DisposeAsync()
     {
         await _stop.CancelAsync();
@@ -152,4 +142,24 @@ internal enum LoopbackBehavior
 
     /// <summary>Answers every RTSP request with <c>401 Unauthorized</c>.</summary>
     Unauthorized,
+}
+
+/// <summary>
+/// A loopback port that refuses connections for as long as this object lives: the socket is bound but never
+/// listens, so no other process can take the port meanwhile (unlike a port that was free a moment ago).
+/// </summary>
+internal sealed class RefusingEndpoint : IDisposable
+{
+    private readonly Socket _socket = new(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+
+    public RefusingEndpoint()
+    {
+        _socket.ExclusiveAddressUse = true;
+        _socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
+        StreamUri = new Uri($"rtsp://127.0.0.1:{((IPEndPoint)_socket.LocalEndPoint!).Port}/live");
+    }
+
+    public Uri StreamUri { get; }
+
+    public void Dispose() => _socket.Dispose();
 }

@@ -9,7 +9,7 @@ public sealed class CoreIntegrationTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
+    [FFmpegFact]
     public async Task ReconnectingFeedReopensTheStreamAfterItEnds()
     {
         ReconnectingCameraFeed camera = new(
@@ -44,7 +44,7 @@ public sealed class CoreIntegrationTests
             statuses.Select(static s => s.State));
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task ReconnectingFeedReportsAMissingFileAsError()
     {
         ReconnectingCameraFeed camera = new(
@@ -79,7 +79,7 @@ public sealed class CoreIntegrationTests
         Assert.DoesNotContain("does-not-exist", error.Reason, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task SnapshotIsTheFirstFrame()
     {
         CameraImage image = await CameraSnapshot.CaptureAsync(new FFmpegCameraFeedFactory(), TestFixtures.Buddy3D, Ct);

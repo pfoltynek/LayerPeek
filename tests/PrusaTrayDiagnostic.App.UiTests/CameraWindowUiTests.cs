@@ -336,22 +336,23 @@ public sealed class CameraWindowUiTests
             JsonCameraWindowStateStore secondStore = new(directory, NullLogger<JsonCameraWindowStateStore>.Instance);
             await secondStore.LoadAsync(TestContext.Current.CancellationToken);
             Assert.Equal(CameraWindowMode.Mini, secondStore.Get("a").Mode);
-            CameraHarness second = new(secondStore);
-            CameraWindow restored = second.Open();
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            await using (CameraHarness second = new(secondStore))
+            {
+                CameraWindow restored = second.Open();
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
 
-            Assert.True(ViewModel(restored).IsMini);
-            Assert.Equal(WindowDecorations.None, restored.WindowDecorations);
-            Assert.Equal(new Size(400, 225), restored.ClientSize);
-            Assert.Equal(new PixelPoint(300, 200), restored.Position);
+                Assert.True(ViewModel(restored).IsMini);
+                Assert.Equal(WindowDecorations.None, restored.WindowDecorations);
+                Assert.Equal(new Size(400, 225), restored.ClientSize);
+                Assert.Equal(new PixelPoint(300, 200), restored.Position);
 
-            ViewModel(restored).ShowNormalCommand.Execute(null);
-            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-            Assert.Equal(new Size(700, 400), restored.ClientSize);
-            Assert.Equal(new PixelPoint(120, 80), restored.Position);
+                ViewModel(restored).ShowNormalCommand.Execute(null);
+                Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+                Assert.Equal(new Size(700, 400), restored.ClientSize);
+                Assert.Equal(new PixelPoint(120, 80), restored.Position);
+            }
 
-            // Closing saves again in the background; the folder is deleted only after that write.
-            await second.DisposeAsync();
+            // Closing saved again in the background; the folder is deleted only after that write.
             Assert.True(await secondStore.WaitForPendingSaveAsync(TestTimeouts.Wait));
         }
         finally

@@ -65,6 +65,28 @@ public sealed class CameraWindowStateStoreTests : IDisposable
         Assert.Equal(newer, second.Get("mk4"));
     }
 
+    [Fact]
+    public async Task SetBeforeLoadingKeepsTheOtherPrintersOfTheFile()
+    {
+        JsonCameraWindowStateStore first = Create();
+        first.Set("a", Mini);
+        first.Set("b", Mini);
+        await first.WaitForPendingSaveAsync(TestTimeouts.Wait);
+
+        // Not loaded yet (e.g. a window closed before the background load ran): the save merges the file first.
+        JsonCameraWindowStateStore second = Create();
+        CameraWindowState full = CameraWindowState.Default with { Mode = CameraWindowMode.FullScreen };
+        second.Set("c", full);
+        second.Set("a", full);
+        Assert.True(await second.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        JsonCameraWindowStateStore third = Create();
+        await third.LoadAsync(Ct);
+        Assert.Equal(full, third.Get("a"));
+        Assert.Equal(Mini, third.Get("b"));
+        Assert.Equal(full, third.Get("c"));
+    }
+
     [Theory]
     [InlineData("not json")]
     [InlineData("[]")]

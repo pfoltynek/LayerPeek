@@ -20,6 +20,7 @@ internal sealed class FakeRtspCamera : IAsyncDisposable
     private readonly Task _serve;
     private readonly List<byte[]> _nals;
     private readonly List<string> _requests = [];
+    private readonly List<string> _requestLines = [];
 
     public FakeRtspCamera(string annexBFile)
     {
@@ -42,6 +43,18 @@ internal sealed class FakeRtspCamera : IAsyncDisposable
             lock (_requests)
             {
                 return [.. _requests];
+            }
+        }
+    }
+
+    /// <summary>First lines of the requests ("METHOD url RTSP/1.0").</summary>
+    public IReadOnlyList<string> RequestLines
+    {
+        get
+        {
+            lock (_requests)
+            {
+                return [.. _requestLines];
             }
         }
     }
@@ -130,6 +143,7 @@ internal sealed class FakeRtspCamera : IAsyncDisposable
                 lock (_requests)
                 {
                     _requests.Add(method);
+                    _requestLines.Add(lines[0]);
                 }
 
                 string cseq = lines.FirstOrDefault(static l => l.StartsWith("CSeq:", StringComparison.OrdinalIgnoreCase))?["CSeq:".Length..].Trim() ?? "0";

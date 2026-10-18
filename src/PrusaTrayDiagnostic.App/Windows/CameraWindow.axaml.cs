@@ -113,9 +113,7 @@ public sealed partial class CameraWindow : Window
         }
 
         Detach();
-        WriteableBitmap? shown = Video.Source as WriteableBitmap;
-        Video.Source = null;
-        shown?.Dispose();
+        ClearImage();
         base.OnClosed(e);
     }
 
@@ -215,7 +213,10 @@ public sealed partial class CameraWindow : Window
         Position = new PixelPoint(placement.X, placement.Y);
     }
 
-    /// <summary>A remembered position on a screen that is no longer connected: the window moves to the primary screen.</summary>
+    /// <summary>
+    /// A remembered position that cannot be reached (another screen layout, the title bar above a screen): the window moves
+    /// to the primary screen.
+    /// </summary>
     private void EnsureOnScreen()
     {
         if (!_opened || WindowState != WindowState.Normal || Screens.ScreenCount == 0)
@@ -225,13 +226,9 @@ public sealed partial class CameraWindow : Window
 
         double scaling = DesktopScaling;
         PixelRect bounds = new(Position, PixelSize.FromSize(ClientSize, scaling));
-        foreach (Screen screen in Screens.All)
+        if (CameraWindowPlacementRules.IsReachable(bounds, [.. Screens.All.Select(static screen => screen.WorkingArea)]))
         {
-            PixelRect visible = screen.WorkingArea.Intersect(bounds);
-            if (visible.Width >= 48 && visible.Height >= 32)
-            {
-                return;
-            }
+            return;
         }
 
         if (Screens.Primary is { } primary)
@@ -333,8 +330,17 @@ public sealed partial class CameraWindow : Window
         Video.InvalidateVisual();
     }
 
+    private void ClearImage()
+    {
+        WriteableBitmap? shown = Video.Source as WriteableBitmap;
+        Video.Source = null;
+        shown?.Dispose();
+    }
+
     private sealed class FrameSink(CameraWindow owner) : ICameraFrameSink
     {
         public void Present(CameraFrameBuffer frame) => owner.Present(frame);
+
+        public void Clear() => owner.ClearImage();
     }
 }

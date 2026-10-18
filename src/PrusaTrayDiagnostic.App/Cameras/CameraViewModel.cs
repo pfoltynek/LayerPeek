@@ -26,6 +26,9 @@ internal interface ICameraFrameSink
 {
     /// <summary>Shows <paramref name="frame"/>; it is valid only during the call (copy it).</summary>
     void Present(CameraFrameBuffer frame);
+
+    /// <summary>Removes the image (the camera address changed).</summary>
+    void Clear();
 }
 
 /// <summary>
@@ -333,6 +336,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
             return;
         }
 
+        // Owned by the UI thread: cancelled by StopStream, disposed by OnRunEnded once the run has ended.
         CancellationTokenSource run = new();
         _run = run;
         int runId = ++_runId;
@@ -341,7 +345,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         SetStatus(CameraStatus.Connecting);
         StatusReporter status = new(this, runId);
         // Task.Run: a decoder may block while connecting; nothing of the stream runs on the UI thread.
-        _streaming = Task.Run(() => RunStreamAsync(previous, uri, status, run), CancellationToken.None);
+        _streaming = Task.Run(() => RunStreamAsync(previous, uri, status, run, runId), CancellationToken.None);
     }
 
     private void StopStream()
@@ -352,35 +356,54 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         }
 
         _run = null;
-        // Statuses of the stopped run are ignored from now on.
+        // Statuses and frames of the stopped run are ignored from now on.
         _runId++;
+        // Never disposed yet: only OnRunEnded disposes it, after clearing _run on this thread.
         run.Cancel();
     }
 
-    private async Task RunStreamAsync(Task previous, Uri uri, StatusReporter status, CancellationTokenSource run)
+    /// <summary>
+    /// UI thread, after a run ended (stopped, or by itself after an unexpected failure): a run that ended by itself is
+    /// no longer active, so the next activation or address change starts a new one. Disposes the run's token source.
+    /// </summary>
+    private void OnRunEnded(CancellationTokenSource run)
     {
+        if (ReferenceEquals(_run, run))
+        {
+            _run = null;
+            _runId++;
+        }
+
+        run.Dispose();
+    }
+
+    private async Task RunStreamAsync(Task previous, Uri uri, StatusReporter status, CancellationTokenSource run, int runId)
+    {
+        CancellationToken token = run.Token;
         try
         {
             // One connection per window: the previous run must have closed its connection first.
             await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            await foreach (CameraFrame frame in _feed.ReadFramesAsync(uri, status, run.Token).ConfigureAwait(false))
+            // Only this run produces frames now; a notification lost by an earlier run must not block it.
+            _exchange.ResetNotification();
+            await foreach (CameraFrame frame in _feed.ReadFramesAsync(uri, status, token).ConfigureAwait(false))
             {
-                if (run.IsCancellationRequested)
+                if (token.IsCancellationRequested)
                 {
                     break;
                 }
 
-                if (_exchange.Publish(frame))
+                if (_exchange.Publish(frame, runId))
                 {
                     _dispatcher.Post(_presentFrame);
                 }
             }
         }
-        catch (Exception ex) when (ex is not OperationCanceledException || !run.IsCancellationRequested)
+        catch (Exception ex) when (ex is not OperationCanceledException || !token.IsCancellationRequested)
         {
             // The feed reports stream failures as statuses; this is only a safety net (e.g. a broken frame).
             LogStreamFailed(ex);
-            status.Report(new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({ex.GetType().Name})."));
+            TryReport(status, new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({ex.GetType().Name})."));
         }
         catch (OperationCanceledException)
         {
@@ -388,14 +411,35 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         }
         finally
         {
-            run.Dispose();
+            try
+            {
+                _dispatcher.Post(() => OnRunEnded(run));
+            }
+            catch (Exception ex)
+            {
+                // The UI is gone (quitting); the token source holds no unmanaged resources.
+                LogStreamFailed(ex);
+            }
+        }
+    }
+
+    private void TryReport(StatusReporter status, CameraStatus value)
+    {
+        try
+        {
+            status.Report(value);
+        }
+        catch (Exception ex)
+        {
+            LogStreamFailed(ex);
         }
     }
 
     private void PresentFrame()
     {
         CameraFrameBuffer? frame = _exchange.TakeLatest();
-        if (frame is null || _disposed || _sink is not { } sink)
+        // Frames of a stopped run (paused, or the previous camera address) are not drawn any more.
+        if (frame is null || _disposed || _sink is not { } sink || frame.Generation != _runId)
         {
             return;
         }
@@ -521,9 +565,13 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {
             _streamUri = target.StreamUri;
-            if (_run is not null)
+            // Another camera: its predecessor's image must not stay on screen.
+            _sink?.Clear();
+            HasFrame = false;
+            StopStream();
+            SetStatus(CameraStatus.Connecting);
+            if (_active)
             {
-                StopStream();
                 StartStream();
             }
         }

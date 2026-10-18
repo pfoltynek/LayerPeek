@@ -1,8 +1,8 @@
 namespace PrusaTrayDiagnostic.App.Cameras;
 
 /// <summary>
-/// Printers whose camera address lost its credentials when the settings were loaded at startup (T-014 decision: the
-/// file is saved right away, so that the password disappears from it). The settings file no longer tells, so the settings
+/// Printers whose camera address lost its credentials when the settings were loaded at startup (T-014 decision: they
+/// are removed from the file right away). The settings file no longer tells, so the settings
 /// window learns it from here and shows the notice until the user saves the settings. In memory only; thread-safe.
 /// </summary>
 internal sealed class RemovedCameraCredentials

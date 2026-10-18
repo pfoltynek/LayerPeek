@@ -40,10 +40,10 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     private static PrinterDefinition CameraPrinter(string id = "mk4", string name = "MK4", string url = "rtsp://192.168.0.227/live") =>
         Definition(id, name) with { Camera = new CameraSettings(enabled: true, new Uri(url)) };
 
-    private CameraViewModel Create(string id = "mk4", string name = "MK4")
+    private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null)
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, _dispatcher, _states, NullLogger<CameraViewModel>.Instance);
+        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);
         viewModel.AttachFrameSink(_sink);
         return viewModel;
@@ -475,5 +475,113 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.Null(CameraTarget.From(Definition()));
         Assert.Null(CameraTarget.From(Definition() with { Camera = new CameraSettings(enabled: false, StreamUri) }));
         Assert.Equal(new CameraTarget("mk4", "MK4", StreamUri), CameraTarget.From(CameraPrinter()));
+    }
+
+    // ---- Review round 1 ----
+
+    [Fact]
+    public async Task FailingSinkDoesNotBreakPausingAndReconnecting()
+    {
+        CameraViewModel viewModel = Create();
+        _sink.FailNext = 1;
+        viewModel.SetActive(true);
+        FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
+        first.Send(fill: 1);
+        await Waiting.UntilAsync(() => first.Consumed >= 1, "frame published");
+        // The broken bitmap is reported and logged, never thrown into the dispatcher.
+        _dispatcher.RunAll();
+        Assert.False(viewModel.HasFrame);
+
+        viewModel.SetActive(false);
+        await first.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+        viewModel.SetActive(true);
+        FakeCameraFeed second = await _factory.WaitForFeedAsync(2);
+        second.Send(fill: 2);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return _sink.Frames.Count == 1; }, "second stream drawn");
+
+        Assert.Equal(2, _sink.Frames[0].First);
+        Assert.True(viewModel.IsStreaming);
+    }
+
+    [Fact]
+    public async Task RunThatEndsByItselfCanBePausedAndRestartedWithoutException()
+    {
+        // The third post (the first frame, after "connecting" and "streaming") throws: the run ends by itself.
+        FaultyDispatcher dispatcher = new(_dispatcher, failingPost: 3);
+        CameraViewModel viewModel = Create(dispatcher: dispatcher);
+        viewModel.SetActive(true);
+        FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
+
+        first.Send();
+        await first.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+        Assert.False(viewModel.IsStreaming);
+        Assert.Equal("Camera error", viewModel.StatusText);
+
+        viewModel.SetActive(false);
+        viewModel.SetActive(true);
+        await _factory.WaitForFeedAsync(2);
+        Assert.True(viewModel.IsStreaming);
+    }
+
+    [Fact]
+    public async Task RestartWaitsUntilThePreviousConnectionIsClosed()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.SetActive(true);
+        FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
+        TaskCompletionSource closing = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        first.DisposeGate = closing.Task;
+
+        viewModel.SetActive(false);
+        viewModel.SetActive(true);
+        await first.DisposeStarted.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.Single(_factory.Feeds);
+
+        closing.SetResult();
+        await _factory.WaitForFeedAsync(2);
+        Assert.True(first.IsDisposed);
+    }
+
+    [Fact]
+    public async Task ChangedAddressClearsTheOldImage()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.SetActive(true);
+        FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
+        first.Send(fill: 1);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return viewModel.HasFrame && !viewModel.IsStatusVisible; }, "first camera streaming");
+
+        ApplyPrinters(CameraPrinter(url: "rtsp://192.168.0.228/live"));
+        // A frame of the old camera that is still on its way when the address changes.
+        first.Send(fill: 9);
+        await Waiting.UntilAsync(() => first.Consumed >= 2, "late frame published");
+        _dispatcher.RunAll();
+
+        Assert.Equal(1, _sink.ClearCount);
+        Assert.False(viewModel.HasFrame);
+        Assert.True(viewModel.IsStatusVisible);
+        Assert.Equal("Connecting to the camera…", viewModel.StatusText);
+        Assert.DoesNotContain(_sink.Frames, static frame => frame.First == 9);
+    }
+
+    /// <summary>Forwards to an inner dispatcher; the given post (1-based) throws instead.</summary>
+    private sealed class FaultyDispatcher(ManualDispatcher inner, int failingPost) : IUiDispatcher
+    {
+        private int _posts;
+
+        public void Post(Action action)
+        {
+            if (Interlocked.Increment(ref _posts) == failingPost)
+            {
+                throw new InvalidOperationException("The dispatcher is shutting down.");
+            }
+
+            inner.Post(action);
+        }
     }
 }

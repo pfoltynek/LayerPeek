@@ -15,6 +15,9 @@ internal sealed class CameraFrameBuffer
 
     public int Height { get; private set; }
 
+    /// <summary>Which stream run produced the frame (see <see cref="CameraFrameExchange.Publish"/>).</summary>
+    public int Generation { get; internal set; }
+
     public int Stride => Width * CameraFrame.BytesPerPixel;
 
     /// <summary>Exactly <see cref="Stride"/> × <see cref="Height"/> bytes.</summary>
@@ -84,9 +87,10 @@ internal sealed class CameraFrameExchange
     /// Streaming thread: copies <paramref name="frame"/> (borrowed, valid only during this call) and makes it the newest.
     /// </summary>
     /// <returns><see langword="true"/> when the UI must be notified (it has no notification pending).</returns>
-    public bool Publish(in CameraFrame frame)
+    public bool Publish(in CameraFrame frame, int generation = 0)
     {
         _back.CopyFrom(frame);
+        _back.Generation = generation;
         lock (_gate)
         {
             (_back, _ready) = (_ready, _back);
@@ -103,6 +107,18 @@ internal sealed class CameraFrameExchange
 
             _notificationPending = true;
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Streaming thread, before a new run publishes: forgets a notification that was never delivered (a run that ended
+    /// while its UI callback could not be queued), so that the new run notifies again.
+    /// </summary>
+    public void ResetNotification()
+    {
+        lock (_gate)
+        {
+            _notificationPending = false;
         }
     }
 

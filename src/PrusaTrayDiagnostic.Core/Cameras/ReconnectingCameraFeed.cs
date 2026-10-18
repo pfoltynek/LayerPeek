@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.CompilerServices;
 
 using Microsoft.Extensions.Logging;
@@ -41,10 +42,10 @@ public sealed partial class ReconnectingCameraFeed
         _options = options ?? CameraFeedOptions.Default;
         _connectTimedOut = new CameraStatus(
             CameraConnectionState.NoSignal,
-            $"The camera sent no image within {_options.ConnectTimeout.TotalSeconds:0.#} s.");
+            string.Create(CultureInfo.InvariantCulture, $"The camera sent no image within {_options.ConnectTimeout.TotalSeconds:0.#} s."));
         _frameTimedOut = new CameraStatus(
             CameraConnectionState.NoSignal,
-            $"The camera stopped sending images (none within {_options.FrameTimeout.TotalSeconds:0.#} s).");
+            string.Create(CultureInfo.InvariantCulture, $"The camera stopped sending images (none within {_options.FrameTimeout.TotalSeconds:0.#} s)."));
     }
 
     /// <summary>
@@ -90,13 +91,32 @@ public sealed partial class ReconnectingCameraFeed
                 watchdog.Attach(attempt);
                 try
                 {
-                    failure = TryOpen(streamUri, address, attempt.Token, out stream, out frames);
+                    failure = TryOpen(streamUri, address, status, attempt.Token, out stream, out frames);
                     bool streaming = false;
                     while (frames is not null)
                     {
-                        failure = await ReadNextAsync(frames, watchdog, streaming, address, stopToken).ConfigureAwait(false);
-                        if (failure is not null)
+                        // Armed only while waiting for the stream: the consumer's time between frames is not counted.
+                        watchdog.Arm(streaming ? _options.FrameTimeout : _options.ConnectTimeout);
+                        bool moved;
+                        try
                         {
+                            // Awaited right here: the iterator's own state machine is reused for every frame, so a read
+                            // that completes asynchronously (the normal case with a real decoder) allocates nothing.
+                            moved = await frames.MoveNextAsync().ConfigureAwait(false);
+                        }
+                        catch (Exception ex)
+                        {
+                            failure = ReadFailed(ex, watchdog, streaming, address, status, stopToken);
+                            break;
+                        }
+                        finally
+                        {
+                            watchdog.Disarm();
+                        }
+
+                        if (!moved)
+                        {
+                            failure = Ended(address);
                             break;
                         }
 
@@ -104,6 +124,7 @@ public sealed partial class ReconnectingCameraFeed
                         {
                             streaming = true;
                             status.Report(CameraStatus.Streaming);
+                            status.ClearFailures();
                         }
 
                         yield return frames.Current;
@@ -139,6 +160,7 @@ public sealed partial class ReconnectingCameraFeed
     private CameraStatus? TryOpen(
         Uri streamUri,
         string address,
+        StatusReporter status,
         CancellationToken attemptToken,
         out ICameraFeed? stream,
         out IAsyncEnumerator<CameraFrame>? frames)
@@ -153,63 +175,28 @@ public sealed partial class ReconnectingCameraFeed
         }
         catch (Exception ex)
         {
-            LogOpenFailed(ex, address);
+            LogFailure(ex, address, status, opening: true);
             return Failed(ex);
         }
     }
 
-    /// <returns><see langword="null"/> when a frame is available in <see cref="IAsyncEnumerator{T}.Current"/>, otherwise why not.</returns>
-    /// <remarks>
-    /// Not an async method: a frame the stream has ready is handled synchronously without any state machine,
-    /// only a pending read goes through <see cref="AwaitNextAsync"/>.
-    /// </remarks>
-    private ValueTask<CameraStatus?> ReadNextAsync(
-        IAsyncEnumerator<CameraFrame> frames,
-        Watchdog watchdog,
-        bool streaming,
-        string address,
-        CancellationToken stopToken)
+    /// <summary>
+    /// The full exception once, then a short line while the same failure repeats (an unreachable camera fails on every
+    /// attempt); a different failure or a frame in between starts over.
+    /// </summary>
+    private void LogFailure(Exception exception, string address, StatusReporter status, bool opening)
     {
-        // Armed only while waiting for the stream: the consumer's time between frames is not counted.
-        watchdog.Arm(streaming ? _options.FrameTimeout : _options.ConnectTimeout);
-        ValueTask<bool> move;
-        try
+        if (status.IsRepeatedFailure(exception))
         {
-            move = frames.MoveNextAsync();
+            LogFailedAgain(address, Failed(exception).Reason);
         }
-        catch (Exception ex)
+        else if (opening)
         {
-            watchdog.Disarm();
-            return new ValueTask<CameraStatus?>(ReadFailed(ex, watchdog, streaming, address, stopToken));
+            LogOpenFailed(exception, address);
         }
-
-        if (!move.IsCompletedSuccessfully)
+        else
         {
-            return AwaitNextAsync(move, watchdog, streaming, address, stopToken);
-        }
-
-        watchdog.Disarm();
-        return new ValueTask<CameraStatus?>(move.Result ? null : Ended(address));
-    }
-
-    private async ValueTask<CameraStatus?> AwaitNextAsync(
-        ValueTask<bool> move,
-        Watchdog watchdog,
-        bool streaming,
-        string address,
-        CancellationToken stopToken)
-    {
-        try
-        {
-            return await move.ConfigureAwait(false) ? null : Ended(address);
-        }
-        catch (Exception ex)
-        {
-            return ReadFailed(ex, watchdog, streaming, address, stopToken);
-        }
-        finally
-        {
-            watchdog.Disarm();
+            LogStreamFailed(exception, address);
         }
     }
 
@@ -219,7 +206,7 @@ public sealed partial class ReconnectingCameraFeed
         return StreamEnded;
     }
 
-    private CameraStatus ReadFailed(Exception exception, Watchdog watchdog, bool streaming, string address, CancellationToken stopToken)
+    private CameraStatus ReadFailed(Exception exception, Watchdog watchdog, bool streaming, string address, StatusReporter status, CancellationToken stopToken)
     {
         if (exception is OperationCanceledException)
         {
@@ -237,7 +224,7 @@ public sealed partial class ReconnectingCameraFeed
             }
         }
 
-        LogStreamFailed(exception, address);
+        LogFailure(exception, address, status, opening: false);
         return Failed(exception);
     }
 
@@ -279,6 +266,9 @@ public sealed partial class ReconnectingCameraFeed
     [LoggerMessage(Level = LogLevel.Warning, Message = "Camera stream '{Address}' failed.")]
     private partial void LogStreamFailed(Exception exception, string address);
 
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Camera stream '{Address}' failed again: {Reason}")]
+    private partial void LogFailedAgain(string address, string? reason);
+
     [LoggerMessage(Level = LogLevel.Information, Message = "Camera stream '{Address}' ended.")]
     private partial void LogStreamEnded(string address);
 
@@ -295,6 +285,7 @@ public sealed partial class ReconnectingCameraFeed
     private sealed class StatusReporter(ReconnectingCameraFeed owner, IProgress<CameraStatus>? progress, string address)
     {
         private CameraStatus? _last;
+        private string? _lastFailure;
 
         public void Report(CameraStatus status)
         {
@@ -313,6 +304,18 @@ public sealed partial class ReconnectingCameraFeed
                 owner.LogStatusObserverFailed(ex, address);
             }
         }
+
+        /// <summary>Whether <paramref name="exception"/> repeats the previous failure (same type and message).</summary>
+        public bool IsRepeatedFailure(Exception exception)
+        {
+            string key = string.Concat(exception.GetType().FullName, "\n", exception.Message);
+            bool repeated = string.Equals(key, _lastFailure, StringComparison.Ordinal);
+            _lastFailure = key;
+            return repeated;
+        }
+
+        /// <summary>Frames arrived: the next failure is a new one.</summary>
+        public void ClearFailures() => _lastFailure = null;
     }
 
     /// <summary>
@@ -323,7 +326,10 @@ public sealed partial class ReconnectingCameraFeed
     {
         private readonly ITimer _timer;
         private CancellationTokenSource? _attempt;
-        private volatile bool _fired;
+
+        // The attempt the timer cancelled. Kept per attempt, so that a timer firing just while one attempt ends and the
+        // next one starts can never make the new attempt look timed out.
+        private CancellationTokenSource? _firedFor;
 
         public Watchdog(TimeProvider timeProvider)
         {
@@ -331,13 +337,9 @@ public sealed partial class ReconnectingCameraFeed
         }
 
         /// <summary>The current attempt was cancelled because of a timeout.</summary>
-        public bool HasFired => _fired;
+        public bool HasFired => Volatile.Read(ref _attempt) is { } attempt && ReferenceEquals(Volatile.Read(ref _firedFor), attempt);
 
-        public void Attach(CancellationTokenSource attempt)
-        {
-            _fired = false;
-            Volatile.Write(ref _attempt, attempt);
-        }
+        public void Attach(CancellationTokenSource attempt) => Volatile.Write(ref _attempt, attempt);
 
         public void Detach()
         {
@@ -358,7 +360,8 @@ public sealed partial class ReconnectingCameraFeed
                 return;
             }
 
-            _fired = true;
+            // Marked before cancelling: whoever sees the cancellation must also see why.
+            Volatile.Write(ref _firedFor, attempt);
             try
             {
                 attempt.Cancel();

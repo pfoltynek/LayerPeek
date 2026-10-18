@@ -145,11 +145,24 @@ internal sealed class FakeCameraFeed : ICameraFeed
         }
     }
 
-    public ValueTask DisposeAsync()
+    /// <summary>When set, closing the connection waits for it (like a decoder that needs time to release its resources).</summary>
+    public Task? DisposeGate { get; set; }
+
+    /// <summary>Completes when <see cref="DisposeAsync"/> was entered (it may still wait for <see cref="DisposeGate"/>).</summary>
+    public Task DisposeStarted => _disposeStarted.Task;
+
+    private readonly TaskCompletionSource _disposeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    public async ValueTask DisposeAsync()
     {
+        _disposeStarted.TrySetResult();
         _items.Writer.TryComplete();
+        if (DisposeGate is { } gate)
+        {
+            await gate;
+        }
+
         _disposed.TrySetResult();
-        return ValueTask.CompletedTask;
     }
 }
 
@@ -158,7 +171,23 @@ internal sealed class RecordingFrameSink : ICameraFrameSink
 {
     public List<(int Width, int Height, byte First)> Frames { get; } = [];
 
-    public void Present(CameraFrameBuffer frame) => Frames.Add((frame.Width, frame.Height, frame.Pixels[0]));
+    /// <summary>The next <see cref="Present"/> calls throw this many times (like a broken bitmap).</summary>
+    public int FailNext { get; set; }
+
+    public int ClearCount { get; private set; }
+
+    public void Present(CameraFrameBuffer frame)
+    {
+        if (FailNext > 0)
+        {
+            FailNext--;
+            throw new InvalidOperationException("The bitmap is broken.");
+        }
+
+        Frames.Add((frame.Width, frame.Height, frame.Pixels[0]));
+    }
+
+    public void Clear() => ClearCount++;
 }
 
 internal static class Waiting

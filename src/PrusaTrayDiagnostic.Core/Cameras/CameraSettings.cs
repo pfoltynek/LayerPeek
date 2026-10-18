@@ -91,10 +91,12 @@ public sealed record CameraSettings
     /// invalid text, or dropped when nothing is left.
     /// </summary>
     /// <remarks>
-    /// Credentials are detected in the text, so that also unparseable addresses lose them: everything up to the last
-    /// <c>@</c> of the authority (after <c>scheme://</c>, or from the start when there is no <c>://</c>, up to the first
-    /// <c>/</c>, <c>?</c> or <c>#</c>) is removed. Limit: a password containing an unescaped <c>/</c>, <c>?</c> or
-    /// <c>#</c> ends the authority early and is not recognised.
+    /// Credentials are detected in the text, so that also unparseable addresses lose them: everything after
+    /// <c>scheme://</c> (or from the start when there is no <c>://</c>) up to and including the <b>last</b> <c>@</c> of the
+    /// whole text is removed. That also covers passwords with <c>/</c>, <c>?</c> or <c>#</c>, e.g.
+    /// <c>rtsp://admin:1234/x@host</c>, which <see cref="Uri"/> reads as host <c>admin</c> without user info. A
+    /// legitimate <c>@</c> in the path or query is removed as well; such addresses are rejected anyway
+    /// (<see cref="CameraUrlProblem.ContainsCredentials"/>) and the user reviews the rest.
     /// </remarks>
     internal static CameraSettings FromStoredStreamUrl(bool enabled, string streamUrl)
     {
@@ -129,21 +131,24 @@ public sealed record CameraSettings
         return camera with { CredentialsRemoved = true };
     }
 
-    /// <returns>Whether the text had user info; <paramref name="result"/> is the text without it.</returns>
-    private static bool RemoveUserInfo(string text, out string result)
+    /// <summary>
+    /// Removes everything that could be credentials (see <see cref="FromStoredStreamUrl"/>): the text after
+    /// <c>scheme://</c> (or from the start) up to and including its last <c>@</c>.
+    /// </summary>
+    /// <returns>Whether the text contained an <c>@</c>; <paramref name="result"/> is the text without the credentials part.</returns>
+    internal static bool RemoveUserInfo(string text, out string result)
     {
         int schemeEnd = text.IndexOf(Uri.SchemeDelimiter, StringComparison.Ordinal);
         int start = schemeEnd < 0 ? 0 : schemeEnd + Uri.SchemeDelimiter.Length;
-        int end = text.AsSpan(start).IndexOfAny('/', '?', '#');
-        ReadOnlySpan<char> authority = end < 0 ? text.AsSpan(start) : text.AsSpan(start, end);
-        int at = authority.LastIndexOf('@');
+        int at = text.LastIndexOf('@');
         if (at < 0)
         {
             result = text;
             return false;
         }
 
-        result = string.Concat(text.AsSpan(0, start), text.AsSpan(start + at + 1));
+        // An "@" before "://" means the "scheme" is not one; everything up to it goes.
+        result = at < start ? text[(at + 1)..] : string.Concat(text.AsSpan(0, start), text.AsSpan(at + 1));
         return true;
     }
 
@@ -170,7 +175,11 @@ public sealed record CameraSettings
             return CameraUrlProblem.MissingHost;
         }
 
-        return string.IsNullOrEmpty(uri.UserInfo) ? CameraUrlProblem.None : CameraUrlProblem.ContainsCredentials;
+        // Any "@" counts (T-014 decision): "rtsp://admin:1234/x@host" has no user info for Uri (host "admin", port
+        // 1234), but other parsers (FFmpeg) and readers take "admin:1234/x" for credentials.
+        return string.IsNullOrEmpty(uri.UserInfo) && !uri.OriginalString.Contains('@', StringComparison.Ordinal)
+            ? CameraUrlProblem.None
+            : CameraUrlProblem.ContainsCredentials;
     }
 
     /// <summary>Parses user input (surrounding white space is ignored) into a valid stream address.</summary>
@@ -207,7 +216,7 @@ public sealed record CameraSettings
         CameraUrlProblem.NotAbsolute => "the address is not an absolute URL",
         CameraUrlProblem.UnsupportedScheme => "only rtsp:// addresses are supported",
         CameraUrlProblem.MissingHost => "the address has no host",
-        CameraUrlProblem.ContainsCredentials => "the address contains credentials, which must not be stored in the settings file",
+        CameraUrlProblem.ContainsCredentials => "the address contains credentials or an '@', which must not be stored in the settings file",
         _ => throw new ArgumentOutOfRangeException(nameof(problem), problem, "Unknown camera address problem."),
     };
 

@@ -218,6 +218,9 @@ public class SettingsMapperTests
     [InlineData("rtsp://admin:secret@192.168.0.227/live", "rtsp://192.168.0.227/live", null)]
     [InlineData("http://admin:secret@192.168.0.227/live", null, "http://192.168.0.227/live")]
     [InlineData("rtsp://admin:se cret@[broken/live", null, "rtsp://[broken/live")]
+    // Only credentials: nothing is left, but the flag must survive (the camera becomes CameraSettings.Disabled).
+    [InlineData("admin:secret@", null, null)]
+    [InlineData("rtsp://admin:1234/x@192.168.0.227/live", "rtsp://192.168.0.227/live", null)]
     public void CredentialsAreRemovedFromStoredCameraUrl(string url, string? expectedUri, string? expectedInvalid)
     {
         AppSettings settings = Load(PrinterJson($$""", "camera": { "enabled": true, "streamUrl": "{{url}}" }"""), out List<string> warnings);

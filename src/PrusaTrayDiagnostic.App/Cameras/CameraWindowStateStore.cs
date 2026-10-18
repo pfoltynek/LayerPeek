@@ -99,9 +99,8 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
             }
 
             Remember(printerId, state);
-            byte[] content = JsonSerializer.SerializeToUtf8Bytes(ToDocument(), CameraWindowsJsonContext.Default.CameraWindowsDocument);
             long version = ++_saveVersion;
-            _pendingSave = SaveAfterAsync(_pendingSave, content, version);
+            _pendingSave = SaveAfterAsync(_pendingSave, version);
         }
     }
 
@@ -151,16 +150,20 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
 
         lock (_gate)
         {
+            // States set before the file was read are newer than the file: they win and stay the most recent ones.
+            List<string> loaded = [];
             foreach ((string printerId, CameraWindowDocument? window) in windows)
             {
-                // States set before the file was read are newer than the file.
                 if (_states.Count >= MaxEntries || string.IsNullOrWhiteSpace(printerId) || window is null || _states.ContainsKey(printerId))
                 {
                     continue;
                 }
 
-                Remember(printerId, FromDocument(window));
+                _states[printerId] = FromDocument(window);
+                loaded.Add(printerId);
             }
+
+            _order.InsertRange(0, loaded);
         }
     }
 
@@ -181,9 +184,12 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
         }
     }
 
-    private async Task SaveAfterAsync(Task previous, byte[] content, long version)
+    private async Task SaveAfterAsync(Task previous, long version)
     {
         await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ForceYielding);
+        // The file is read first (once), so that a state set before the background load does not drop the other printers.
+        await LoadAsync(CancellationToken.None).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        byte[] content;
         lock (_gate)
         {
             if (version != _saveVersion)
@@ -191,6 +197,9 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
                 // A newer state was set meanwhile; its save writes everything.
                 return;
             }
+
+            // Serialized now (not when set): includes what the load merged in.
+            content = JsonSerializer.SerializeToUtf8Bytes(ToDocument(), CameraWindowsJsonContext.Default.CameraWindowsDocument);
         }
 
         string temporary = FilePath + ".tmp";

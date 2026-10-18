@@ -10,7 +10,7 @@ public sealed class FFmpegCameraFeedFileTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
+    [FFmpegFact]
     public async Task DecodesEveryFrameOfTheFixture()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -20,7 +20,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.Equal(TestFixtures.Buddy3DFrameCount, count);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task FramesAreOpaqueBgraWithPlausibleContent()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -58,7 +58,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.Equal(TestFixtures.Buddy3DFrameCount, checkedFrames);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task FramesReuseOneBuffer()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -79,7 +79,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.Equal(10, frames);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task EndOfFileCompletesTheEnumeration()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -100,7 +100,7 @@ public sealed class FFmpegCameraFeedFileTests
         }
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task CancellationMidStreamThrowsAndReleasesResources()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -123,7 +123,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task EnumeratorTokenIsHonouredToo()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -144,7 +144,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task AlreadyCancelledTokenThrowsWithoutOpening()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -156,7 +156,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task DisposingTheFeedDuringEnumerationEndsIt()
     {
         FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -178,7 +178,7 @@ public sealed class FFmpegCameraFeedFileTests
         }
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task DisposingTheFeedWhileAFrameIsPendingEndsTheRead()
     {
         FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -207,7 +207,7 @@ public sealed class FFmpegCameraFeedFileTests
         }
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task DisposeIsIdempotent()
     {
         FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -222,7 +222,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task DisposingWithoutEnumeratingDoesNothing()
     {
         FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -233,7 +233,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.Throws<ObjectDisposedException>(() => feed.ReadFramesAsync(Ct));
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task CanBeEnumeratedOnlyOnce()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
@@ -244,7 +244,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.Throws<InvalidOperationException>(() => frames.GetAsyncEnumerator(Ct));
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task MissingFileThrowsCameraFeedExceptionWithoutThePath()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.MissingFile);
@@ -256,7 +256,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task FileThatIsNotVideoThrowsCameraFeedException()
     {
         // The test assembly's dependency manifest: an existing file that is certainly no video.
@@ -268,7 +268,7 @@ public sealed class FFmpegCameraFeedFileTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task EnumerationDoesNotBlockTheCallersThread()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);

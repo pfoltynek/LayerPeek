@@ -143,6 +143,7 @@ public sealed class AppServicesTests
         Assert.Equal((TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)), (options.ConnectTimeout, options.FrameTimeout, options.ReconnectDelay));
         Assert.Same(services.GetRequiredService<ReconnectingCameraFeed>(), services.GetRequiredService<ReconnectingCameraFeed>());
         Assert.Equal(TimeSpan.FromSeconds(15), Assert.IsType<CameraSnapshotTester>(services.GetRequiredService<ICameraTester>()).Timeout);
+        // Only the type: resolving it touches no files (nothing is loaded or saved in this test).
         Assert.IsType<JsonCameraWindowStateStore>(services.GetRequiredService<ICameraWindowStateStore>());
         Assert.Same(services.GetRequiredService<RemovedCameraCredentials>(), services.GetRequiredService<RemovedCameraCredentials>());
     }
@@ -150,7 +151,11 @@ public sealed class AppServicesTests
     [Fact]
     public async Task CameraWindowNeedsAMonitoredPrinterWithAnEnabledCamera()
     {
-        await using ServiceProvider services = AppServices.Create(cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance);
+        MemoryCameraWindowStateStore states = new();
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: _ => states);
+        Assert.Same(states, services.GetRequiredService<ICameraWindowStateStore>());
         IMonitoringObserver printers = services.GetRequiredService<MonitoredPrinters>();
 
         // Before monitoring started nothing is known.
@@ -171,7 +176,10 @@ public sealed class AppServicesTests
         Assert.NotNull(camera);
         Assert.Equal("a", camera.PrinterId);
         Assert.Contains("Alpha", camera.Title, StringComparison.Ordinal);
-        // Disposing saves only a changed state: an untouched window writes nothing to the real user data folder.
+        // The window state goes to the memory store, never to the user data folder.
+        camera.ShowMiniCommand.Execute(null);
+        camera.Dispose();
+        Assert.Equal(CameraWindowMode.Mini, states.Get("a").Mode);
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

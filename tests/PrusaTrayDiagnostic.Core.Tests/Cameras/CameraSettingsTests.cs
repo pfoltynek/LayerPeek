@@ -47,6 +47,9 @@ public class CameraSettingsTests
     [InlineData("rtsp:///live", CameraUrlProblem.MissingHost)]
     [InlineData("rtsp://admin:secret@192.168.0.227/live", CameraUrlProblem.ContainsCredentials)]
     [InlineData("rtsp://admin@192.168.0.227/live", CameraUrlProblem.ContainsCredentials)]
+    // No user info for Uri (host "admin", port 1234), but the text hides credentials: any "@" is rejected.
+    [InlineData("rtsp://admin:1234/x@192.168.0.227/live", CameraUrlProblem.ContainsCredentials)]
+    [InlineData("rtsp://192.168.0.227/live?user=a@b", CameraUrlProblem.ContainsCredentials)]
     public void InvalidStreamUriIsRejectedEvenWhenDisabled(string url, CameraUrlProblem expected)
     {
         Uri uri = new(url);
@@ -87,6 +90,8 @@ public class CameraSettingsTests
     [InlineData("https://camera.local/live", CameraUrlProblem.UnsupportedScheme)]
     [InlineData("rtsp:live", CameraUrlProblem.MissingHost)]
     [InlineData("rtsp://user:pw@camera.local/live", CameraUrlProblem.ContainsCredentials)]
+    [InlineData("rtsp://admin:1234/x@camera.local/live", CameraUrlProblem.ContainsCredentials)]
+    [InlineData("rtsp://camera.local/a@b", CameraUrlProblem.ContainsCredentials)]
     public void TryParseStreamUriReportsProblem(string? value, CameraUrlProblem expected)
     {
         Assert.False(CameraSettings.TryParseStreamUri(value, out Uri? uri, out CameraUrlProblem problem));
@@ -98,7 +103,6 @@ public class CameraSettingsTests
     [InlineData("http://192.168.0.227/live", CameraUrlProblem.UnsupportedScheme)]
     [InlineData(" not an address ", CameraUrlProblem.NotAbsolute)]
     [InlineData("rtsp:live", CameraUrlProblem.MissingHost)]
-    [InlineData("http://192.168.0.227/a@b", CameraUrlProblem.UnsupportedScheme)]
     public void InvalidStreamUrlIsKeptOnDisabledCamera(string text, CameraUrlProblem expected)
     {
         CameraSettings camera = CameraSettings.FromInvalidStreamUrl(text);
@@ -156,6 +160,8 @@ public class CameraSettingsTests
     [InlineData("http://admin@192.168.0.227/live")]
     [InlineData("rtsp://admin:se cret@[broken/live")]
     [InlineData("admin:secret@192.168.0.227/live")]
+    [InlineData("http://192.168.0.227/a@b")]
+    [InlineData("rtsp://admin:secret/x@192.168.0.227/live")]
     public void FromInvalidStreamUrlRejectsTextWithCredentials(string text)
     {
         ArgumentException error = Assert.ThrowsAny<ArgumentException>(() => CameraSettings.FromInvalidStreamUrl(text));
@@ -176,6 +182,10 @@ public class CameraSettingsTests
     // Nothing (useful) left.
     [InlineData("rtsp://admin:secret@", null, "rtsp://", CameraUrlProblem.MissingHost)]
     [InlineData("admin:secret@", null, null, CameraUrlProblem.None)]
+    // "@" outside the authority as Uri sees it: everything up to the last "@" goes.
+    [InlineData("rtsp://admin:secret/x@192.168.0.227/live", "rtsp://192.168.0.227/live", null, CameraUrlProblem.None)]
+    [InlineData("rtsp://admin:se/c?r#et@192.168.0.227/live", "rtsp://192.168.0.227/live", null, CameraUrlProblem.None)]
+    [InlineData("http://192.168.0.227/a@secret", null, "http://secret", CameraUrlProblem.UnsupportedScheme)]
     public void StoredStreamUrlLosesItsCredentials(string text, string? expectedUri, string? expectedInvalid, CameraUrlProblem expectedProblem)
     {
         CameraSettings camera = CameraSettings.FromStoredStreamUrl(enabled: true, text);
@@ -191,7 +201,6 @@ public class CameraSettingsTests
     [Theory]
     [InlineData(true, "rtsp://192.168.0.227/live", "rtsp://192.168.0.227/live", null)]
     [InlineData(false, " rtsp://192.168.0.227/live ", "rtsp://192.168.0.227/live", null)]
-    [InlineData(true, "http://192.168.0.227/a@b", null, "http://192.168.0.227/a@b")]
     [InlineData(true, "not an address", null, "not an address")]
     public void StoredStreamUrlWithoutCredentialsIsKept(bool enabled, string text, string? expectedUri, string? expectedInvalid)
     {

@@ -530,7 +530,7 @@
     <value>The address has no host name or IP address.</value>
   </data>
   <data name="SettingsCameraErrorCredentials" xml:space="preserve">
-    <value>The address must not contain a user name or password.</value>
+    <value>The address must not contain a user name, a password or the @ character.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
     <value>Camera…</value>

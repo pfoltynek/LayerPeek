@@ -35,7 +35,7 @@ public sealed class FFmpegCameraFeedFactoryTests
         Assert.DoesNotContain("192.168.0.227", error.Message, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task CreateDoesNotConnect()
     {
         await using LoopbackServer server = new(LoopbackBehavior.Silent);
@@ -51,7 +51,7 @@ public sealed class FFmpegCameraFeedFactoryTests
         Assert.Equal(0, server.Connections);
     }
 
-    [Fact]
+    [FFmpegFact]
     public void ReportsTheLoadedFFmpegVersion()
     {
         string version = FFmpegCameraFeedFactory.LibraryVersion;

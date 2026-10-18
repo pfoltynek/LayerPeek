@@ -9,7 +9,7 @@ public sealed class FFmpegCameraFeedRtspTests
 {
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    [Fact]
+    [FFmpegFact]
     public async Task StreamsTheRecordingFromAFakeRtspCamera()
     {
         // Exercises the low-latency path: the decoder starts from the session description without probing.
@@ -25,10 +25,25 @@ public sealed class FFmpegCameraFeedRtspTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
+    public async Task FragmentIsNotSentToTheCamera()
+    {
+        await using FakeRtspCamera camera = new(TestFixtures.Buddy3D.LocalPath);
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(new Uri(camera.StreamUri, "#secret"));
+        using CancellationTokenSource guard = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        guard.CancelAfter(TimeSpan.FromSeconds(20));
+
+        Assert.Equal(TestFixtures.Buddy3DFrameCount, await TestFixtures.CountFramesAsync(feed, guard.Token));
+
+        Assert.NotEmpty(camera.RequestLines);
+        Assert.All(camera.RequestLines, static line => Assert.DoesNotContain("secret", line, StringComparison.Ordinal));
+    }
+
+    [FFmpegFact]
     public async Task RefusedConnectionThrowsCameraFeedExceptionWithoutTheAddress()
     {
-        Uri uri = LoopbackServer.RefusingStreamUri();
+        using RefusingEndpoint refusing = new();
+        Uri uri = refusing.StreamUri;
         // The Windows FFmpeg build does not notice a refused connect and fails only at the I/O timeout.
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(uri, ioTimeout: TimeSpan.FromSeconds(2));
         using CancellationTokenSource guard = CancellationTokenSource.CreateLinkedTokenSource(Ct);
@@ -44,7 +59,7 @@ public sealed class FFmpegCameraFeedRtspTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task CancellationWhileConnectingIsPrompt()
     {
         await using LoopbackServer server = new(LoopbackBehavior.Silent);
@@ -64,7 +79,7 @@ public sealed class FFmpegCameraFeedRtspTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task DisposingWhileConnectingIsPrompt()
     {
         await using LoopbackServer server = new(LoopbackBehavior.Silent);
@@ -89,7 +104,7 @@ public sealed class FFmpegCameraFeedRtspTests
         }
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task ConcurrentMoveNextIsRejected()
     {
         await using LoopbackServer server = new(LoopbackBehavior.Silent);
@@ -105,7 +120,7 @@ public sealed class FFmpegCameraFeedRtspTests
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task SilentServerTimesOutWithCameraFeedException()
     {
         await using LoopbackServer server = new(LoopbackBehavior.Silent);
@@ -120,7 +135,7 @@ public sealed class FFmpegCameraFeedRtspTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task ServerClosingTheConnectionThrowsCameraFeedException()
     {
         await using LoopbackServer server = new(LoopbackBehavior.CloseImmediately);
@@ -134,7 +149,7 @@ public sealed class FFmpegCameraFeedRtspTests
         Assert.False(feed.HoldsNativeResources);
     }
 
-    [Fact]
+    [FFmpegFact]
     public async Task UnauthorizedAnswerThrowsCameraFeedException()
     {
         await using LoopbackServer server = new(LoopbackBehavior.Unauthorized);

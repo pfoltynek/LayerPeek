@@ -520,7 +520,7 @@
     <value>V adrese chybí název nebo IP adresa kamery.</value>
   </data>
   <data name="SettingsCameraErrorCredentials" xml:space="preserve">
-    <value>Adresa nesmí obsahovat uživatelské jméno ani heslo.</value>
+    <value>Adresa nesmí obsahovat uživatelské jméno, heslo ani znak @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
     <value>Kamera…</value>

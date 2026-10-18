@@ -7,6 +7,10 @@ namespace PrusaTrayDiagnostic.Core.Cameras;
 /// the frame advances or is disposed. A consumer that needs the image later copies it (e.g. into a bitmap, or with
 /// <see cref="ToImage"/>). This keeps streaming free of per-frame allocations.
 /// </para>
+/// <para>
+/// Code that handles a frame may run on the decoder's thread (see <see cref="ICameraFeed.ReadFramesAsync"/>): copy or
+/// draw quickly and never block synchronously on the feed (e.g. on its <c>DisposeAsync</c>) from there.
+/// </para>
 /// </summary>
 public readonly struct CameraFrame
 {

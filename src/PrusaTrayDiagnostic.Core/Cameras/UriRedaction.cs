@@ -21,12 +21,20 @@ public static class UriRedaction
         string redacted = uri.GetComponents(
             UriComponents.SchemeAndServer | UriComponents.PathAndQuery | UriComponents.Fragment,
             UriFormat.UriEscaped);
+        int authority = uri.Scheme.Length + Uri.SchemeDelimiter.Length;
+        // An "@" left after removing the user info: e.g. "rtsp://admin:1234/x@host", where Uri sees host "admin" and
+        // no user info. Everything up to the last "@" is masked, as when such an address is loaded from the settings.
+        int at = redacted.LastIndexOf('@');
+        if (at >= authority && redacted.AsSpan(0, authority).EndsWith(Uri.SchemeDelimiter, StringComparison.Ordinal))
+        {
+            return string.Concat(redacted.AsSpan(0, authority), Mask + "@", redacted.AsSpan(at + 1));
+        }
+
         if (string.IsNullOrEmpty(uri.UserInfo))
         {
             return redacted;
         }
 
-        int authority = uri.Scheme.Length + Uri.SchemeDelimiter.Length;
         return string.Concat(redacted.AsSpan(0, authority), Mask + "@", redacted.AsSpan(authority));
     }
 }

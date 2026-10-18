@@ -28,6 +28,7 @@ public sealed partial class ThirdPartyLicensesTests
     private static List<(string Id, string Version)> AppPackages()
     {
         string assets = Path.Combine(RepositoryRoot, "src", "PrusaTrayDiagnostic.App", "obj", "project.assets.json");
+        Assert.True(File.Exists(assets), $"{assets} is missing: restore or build src/PrusaTrayDiagnostic.App before running this test.");
         using JsonDocument document = JsonDocument.Parse(File.ReadAllText(assets));
         List<(string, string)> packages = [];
         foreach (JsonProperty library in document.RootElement.GetProperty("libraries").EnumerateObject())
@@ -86,6 +87,17 @@ public sealed partial class ThirdPartyLicensesTests
         {
             PackageRef? entry = Find(id);
             Assert.True(entry is not null && entry.Version == version, $"No licence entry for {id} {version}.");
+        }
+    }
+
+    [Fact]
+    public void ShownVersionIsTheVersionOfEveryPackageOfTheComponent()
+    {
+        foreach (ThirdPartyComponent component in ThirdPartyLicenses.All.Where(static c => c.Version is not null))
+        {
+            Assert.All(component.Packages, package => Assert.Equal(component.Version, package.Version));
+            LicenseItemViewModel item = new(component, new Tests.Tray.Menu.FakeUrlLauncher());
+            Assert.EndsWith(component.Version!, item.VersionText, StringComparison.Ordinal);
         }
     }
 

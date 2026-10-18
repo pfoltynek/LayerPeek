@@ -36,3 +36,8 @@ Zprovoznit na macOS živý stream z kamery (RTSP/H.264, Prusa Buddy3D) z T-014. 
 - Vyžaduje macOS pro RTSP v lokální síti oprávnění „Local Network“ (`NSLocalNetworkUsageDescription` v `Info.plist`)?
 
 ## Poznámky k implementaci
+
+### Podklady z T-014 (code review, kolo 1) – 2026-10-18
+- **Názvy nativních knihoven jsou zatím windowsové:** `NativeMethods.Scale` v `src/PrusaTrayDiagnostic.Camera.FFmpeg/NativeMethods.cs` volá `[LibraryImport("swscale-10")]` a binding FFmpeg.AutoGen.Bindings.DynamicallyLinked používá názvy `avformat-63`, `avcodec-63` atd. Na macOS se knihovny jmenují jinak (např. `libswscale.10.dylib`), takže je potřeba ověřit nebo upravit resolvování (např. `NativeLibrary.SetDllImportResolver`).
+- **`build/FFmpeg.targets` je jen pro Windows:** přesun hotové cache používá `move` a krok běží jen pro `win-x64`. Pro macOS doplnit stažení a ověření `.dylib` a přesun (`mv`).
+- **Testy FFmpeg se mimo win-x64 přeskakují** (`[FFmpegFact]`, rozhodnutí T-014), dokud FFmpeg na platformě nejde načíst. Po dodání knihoven na macOS musí testy na Macu běžet a projít.

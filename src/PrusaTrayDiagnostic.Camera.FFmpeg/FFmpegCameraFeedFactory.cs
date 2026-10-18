@@ -55,7 +55,8 @@ public sealed class FFmpegCameraFeedFactory : ICameraFeedFactory
         bool isNetwork;
         if (string.Equals(streamUri.Scheme, "rtsp", StringComparison.OrdinalIgnoreCase))
         {
-            url = streamUri.AbsoluteUri;
+            // Without the fragment: it is not part of the request and FFmpeg would send it to the camera.
+            url = streamUri.GetComponents(UriComponents.AbsoluteUri & ~UriComponents.Fragment, UriFormat.UriEscaped);
             isNetwork = true;
         }
         else if (streamUri.IsFile)

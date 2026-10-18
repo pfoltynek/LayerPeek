@@ -163,7 +163,9 @@ public sealed class CameraSettingsTests : IDisposable
     [InlineData("192.168.0.227/live", "This is not a valid address. Use the form rtsp://address/path.")]
     [InlineData("http://192.168.0.227/live", "Only rtsp:// addresses are supported.")]
     [InlineData("rtsp:live", "The address has no host name or IP address.")]
-    [InlineData("rtsp://admin:pw@192.168.0.227/live", "The address must not contain a user name or password.")]
+    [InlineData("rtsp://admin:pw@192.168.0.227/live", "The address must not contain a user name, a password or the @ character.")]
+    [InlineData("rtsp://admin:1234/x@192.168.0.227/live", "The address must not contain a user name, a password or the @ character.")]
+    [InlineData("rtsp://192.168.0.227/live?user=a@b", "The address must not contain a user name, a password or the @ character.")]
     public async Task EnabledCameraNeedsAValidAddress(string url, string error)
     {
         SettingsViewModel vm = await LoadAsync(null, LinkPrinter("a", "Alpha"));
@@ -187,7 +189,7 @@ public sealed class CameraSettingsTests : IDisposable
         printer.CameraUrl = "rtsp://admin:pw@192.168.0.227/live";
 
         Assert.False(printer.CameraEnabled);
-        Assert.Equal("The address must not contain a user name or password.", printer.CameraUrlError);
+        Assert.Equal("The address must not contain a user name, a password or the @ character.", printer.CameraUrlError);
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Empty(_store.Saves);
     }
@@ -200,7 +202,7 @@ public sealed class CameraSettingsTests : IDisposable
 
         printer.CameraUrl = "admin:pw@camera";
 
-        Assert.Equal("The address must not contain a user name or password.", printer.CameraUrlError);
+        Assert.Equal("The address must not contain a user name, a password or the @ character.", printer.CameraUrlError);
         Assert.True(printer.HasErrors);
     }
 

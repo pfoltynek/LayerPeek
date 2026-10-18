@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
-using PrusaTrayDiagnostic.Camera.FFmpeg;
 using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
@@ -11,6 +10,7 @@ using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Camera.FFmpeg;
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.History;
 using PrusaTrayDiagnostic.Core.Monitoring;
@@ -35,7 +35,13 @@ internal static class AppServices
     /// quitting still logs after the container is gone. <see langword="null"/>: the container creates its own.
     /// </param>
     /// <param name="cameraFeedFactory">Video decoder for tests; <see langword="null"/>: the app's (see <see cref="CreateCameraFeedFactory"/>).</param>
-    public static ServiceProvider Create(ILoggerFactory? loggerFactory = null, Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null)
+    /// <param name="cameraWindowStateStore">
+    /// Where camera windows are remembered, for tests; <see langword="null"/>: <c>camera-windows.json</c> in the user data folder.
+    /// </param>
+    public static ServiceProvider Create(
+        ILoggerFactory? loggerFactory = null,
+        Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
+        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null)
     {
         ServiceCollection services = new();
 
@@ -112,7 +118,7 @@ internal static class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
 
-        AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory);
+        AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
@@ -125,7 +131,10 @@ internal static class AppServices
         static _ => new FFmpegCameraFeedFactory();
 
     /// <summary>Camera windows and the camera test of the settings window (T-014), on top of <paramref name="cameraFeedFactory"/>.</summary>
-    private static void AddCameras(ServiceCollection services, Func<IServiceProvider, ICameraFeedFactory> cameraFeedFactory)
+    private static void AddCameras(
+        ServiceCollection services,
+        Func<IServiceProvider, ICameraFeedFactory> cameraFeedFactory,
+        Func<IServiceProvider, ICameraWindowStateStore> cameraWindowStateStore)
     {
         services.AddSingleton(cameraFeedFactory);
         // User decision (T-014): 15 s to connect, 10 s without a frame, 5 s between attempts, no backoff.
@@ -146,14 +155,14 @@ internal static class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
-        services.AddSingleton<ICameraWindowStateStore>(static sp => CreateCameraWindowStateStore(sp.GetRequiredService<ILogger<JsonCameraWindowStateStore>>()));
+        services.AddSingleton(cameraWindowStateStore);
     }
 
-    private static ICameraWindowStateStore CreateCameraWindowStateStore(ILogger<JsonCameraWindowStateStore> logger)
+    private static ICameraWindowStateStore CreateCameraWindowStateStore(IServiceProvider services)
     {
         try
         {
-            return JsonCameraWindowStateStore.CreateDefault(logger);
+            return JsonCameraWindowStateStore.CreateDefault(services.GetRequiredService<ILogger<JsonCameraWindowStateStore>>());
         }
         catch (InvalidOperationException)
         {

@@ -471,35 +471,41 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     }
 
     /// <summary>
-    /// Credentials found in a camera address were removed while loading, but they stay in the file until it is written
-    /// again: it is saved right away (T-014 decision), so that the password does not remain on disk. A failure is logged
-    /// and monitoring goes on (the next start tries again). The settings window is told which cameras were affected.
+    /// Credentials found in camera addresses were removed while loading, but they stay in the file until it is written
+    /// again: the store removes them from the file right away (T-014 decisions), changing only those addresses, so that
+    /// the password does not remain on disk and nothing else of the file (skipped entries, unknown values) is lost. A
+    /// failure is logged and monitoring goes on (the next start tries again). The settings window is told which cameras
+    /// were affected.
     /// </summary>
     private async Task RemoveCameraCredentialsFromFileAsync(ISettingsStore store, AppSettings settings, CancellationToken stopToken)
     {
-        List<string>? affected = null;
+        HashSet<string> affected = new(StringComparer.OrdinalIgnoreCase);
         foreach (PrinterDefinition printer in settings.Printers)
         {
             if (printer.Camera.CredentialsRemoved)
             {
-                (affected ??= []).Add(printer.Id);
+                affected.Add(printer.Id);
             }
         }
 
-        if (affected is null)
-        {
-            return;
-        }
-
-        _removedCameraCredentials?.Add(affected);
         try
         {
-            await store.SaveAsync(settings, stopToken).ConfigureAwait(false);
-            LogCameraCredentialsRemoved(affected.Count);
+            // Also cleans entries that were not loaded (skipped printers), which the loaded settings cannot tell.
+            IReadOnlyList<string> cleaned = await store.RemoveCameraCredentialsAsync(stopToken).ConfigureAwait(false);
+            affected.UnionWith(cleaned);
+            if (cleaned.Count > 0)
+            {
+                LogCameraCredentialsRemoved(cleaned.Count);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !stopToken.IsCancellationRequested)
         {
             LogCameraCredentialsNotRemoved(ex);
+        }
+
+        if (affected.Count > 0)
+        {
+            _removedCameraCredentials?.Add(affected);
         }
     }
 
@@ -512,7 +518,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     [LoggerMessage(Level = LogLevel.Warning, Message = "Settings: {Warning}")]
     private partial void LogSettingsWarning(string warning);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from {Count} camera address(es); the settings file was saved without them.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from {Count} camera address(es) in the settings file; nothing else was changed.")]
     private partial void LogCameraCredentialsRemoved(int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The settings file could not be saved after removing credentials from camera addresses; they stay in the file until it is saved.")]

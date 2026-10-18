@@ -124,6 +124,32 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RepeatedFailureIsLoggedInFullOnlyTheFirstTime()
+    {
+        // An unreachable camera fails every few seconds; one stack trace is enough, then a short line per attempt.
+        Task<bool> move = Next();
+        foreach (string reason in new[] { "Connection refused.", "Connection refused.", "Connection timed out." })
+        {
+            (await _factory.NextStreamAsync())!.Fail(new CameraFeedException(reason));
+            Assert.Equal(CameraStatus.Connecting, await _status.NextAsync());
+            Assert.Equal(CameraConnectionState.Error, (await _status.NextAsync()).State);
+            _time.Advance(Options.ReconnectDelay);
+        }
+
+        Assert.NotNull(await _factory.NextStreamAsync());
+
+        var failures = _logger.Entries.Where(static e => e.Level == LogLevel.Warning).ToList();
+        Assert.Equal(3, failures.Count);
+        Assert.IsType<CameraFeedException>(failures[0].Exception);
+        Assert.Null(failures[1].Exception);
+        Assert.Contains("Connection refused.", failures[1].Message, StringComparison.Ordinal);
+        Assert.Contains("again", failures[1].Message, StringComparison.Ordinal);
+        // A different failure is logged in full again.
+        Assert.IsType<CameraFeedException>(failures[2].Exception);
+        Assert.False(move.IsCompleted);
+    }
+
+    [Fact]
     public async Task CameraFeedExceptionReportsErrorWithItsReason()
     {
         Task<bool> move = Next();

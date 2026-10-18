@@ -22,7 +22,10 @@ Projekt `PrusaTrayDiagnostic.Camera.FFmpeg` potřebuje nativní DLL FFmpeg (LGPL
 - **První build na Windows potřebuje internet** (~77 MB z GitHubu). Archiv se ověří podle SHA256. Při neshodě build selže.
 - Cache je mimo repozitář: `%LOCALAPPDATA%\PrusaTrayDiagnostic.Build\ffmpeg\<sha256>\`. Další buildy fungují offline. Jinou složku nastavíš proměnnou prostředí `PtdFFmpegCacheRoot`.
 - DLL a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují.
-- IDE (design-time build) nic nestahuje. Na macOS se krok zatím přeskočí (úkol T-026).
+- IDE (design-time build) nic nestahuje. Na macOS se krok zatím přeskočí (úkol T-026). Testy FFmpeg se tam přeskakují.
+- **Když stažení selže** (offline, nebo připnuté vydání z GitHubu zmizelo), build skončí chybou s návodem. Zrcadlo není. Možnosti:
+  1. V `build/FFmpeg.targets` změnit `PtdFFmpegUrl`, `PtdFFmpegSha256` a `PtdFFmpegArchiveFolder` na jiný LGPL shared win64 build BtbN se stejnými verzemi knihoven (`avformat-63` …).
+  2. Cache naplnit ručně: do `<cache>\<sha256>\bin\` dát `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll` a `swresample-7.dll`, do `<cache>\<sha256>\` dát `LICENSE.txt` a soubor `verified.sha256`. Případně nastavit `PtdFFmpegCacheRoot` na složku s takovou cache.
 
 ## Windows
 

@@ -183,7 +183,8 @@ internal static class SettingsMapper
             {
                 // Only for accepted entries, so that a skipped printer does not also produce a camera warning.
                 CameraSettings camera = ToCamera(documents[i]!.Camera, printer!.Id, warnings);
-                printers.Add(camera == CameraSettings.Disabled ? printer : printer with { Camera = camera });
+                // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
+                printers.Add(ReferenceEquals(camera, CameraSettings.Disabled) ? printer : printer with { Camera = camera });
             }
             else
             {

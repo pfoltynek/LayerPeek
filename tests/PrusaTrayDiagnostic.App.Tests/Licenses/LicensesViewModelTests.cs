@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 using PrusaTrayDiagnostic.App.Licenses;
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tests.Tray.Menu;
@@ -105,16 +107,18 @@ public sealed class LicensesViewModelTests : IDisposable
     public void ShippedFFmpegLicenceFileIsReadFromTheApplicationFolder()
     {
         string? text = LicensesViewModel.ReadShippedFFmpegLicense();
+        bool shipped = File.Exists(Path.Combine(AppContext.BaseDirectory, ThirdPartyLicenses.FFmpeg.LicenseFileName));
 
-        // The FFmpeg DLLs and their licence flow into this test output through the App reference.
-        if (File.Exists(Path.Combine(AppContext.BaseDirectory, ThirdPartyLicenses.FFmpeg.LicenseFileName)))
+        // On Windows x64 the build always brings FFmpeg (build/FFmpeg.targets): the licence must be next to the DLLs.
+        // Elsewhere FFmpeg is not provided yet (macOS: T-026), so a missing licence is skipped, not failed.
+        if (!(OperatingSystem.IsWindows() && RuntimeInformation.ProcessArchitecture == Architecture.X64))
         {
-            Assert.False(string.IsNullOrWhiteSpace(text));
+            Assert.SkipUnless(shipped, "FFmpeg is only provided for win-x64 so far.");
         }
-        else
-        {
-            Assert.Null(text);
-        }
+
+        Assert.True(shipped, $"{ThirdPartyLicenses.FFmpeg.LicenseFileName} is missing next to the application.");
+        Assert.False(string.IsNullOrWhiteSpace(text));
+        Assert.Contains("LESSER GENERAL PUBLIC LICENSE", text, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

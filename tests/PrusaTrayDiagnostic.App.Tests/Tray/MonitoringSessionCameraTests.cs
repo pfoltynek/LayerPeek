@@ -99,10 +99,67 @@ public sealed class MonitoringSessionCameraTests : IAsyncDisposable
         Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Error && entry.Exception is IOException);
     }
 
+    [Fact]
+    public async Task OnlyTheCameraAddressChangesInTheFile()
+    {
+        Directory.CreateDirectory(_directory);
+        string path = Path.Combine(_directory, JsonSettingsStore.FileName);
+        await File.WriteAllTextAsync(
+            path,
+            """
+            {
+              "version": 1,
+              "futureSetting": { "keep": true },
+              "printers": [
+                { "id": "a", "name": "Alpha", "connectionType": "PrusaLink", "address": "192.168.0.226",
+                  "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@192.168.0.227/live" } },
+                { "id": "A", "name": "Duplicate", "connectionType": "PrusaLink", "address": "192.168.0.230" }
+              ]
+            }
+            """,
+            Ct);
+        _file = new JsonSettingsStore(_directory);
+        SaveRecordingStore store = new(_file);
+        Create(() => store);
+
+        _session!.Start();
+        (IReadOnlyList<PrinterDefinition> printers, _) = await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
+
+        string content = await File.ReadAllTextAsync(path, Ct);
+        Assert.DoesNotContain("secret", content, StringComparison.Ordinal);
+        Assert.Contains("rtsp://192.168.0.227/live", content, StringComparison.Ordinal);
+        // The skipped entry (duplicate id) and the unknown value are still there: nothing but the address was written.
+        Assert.Contains("Duplicate", content, StringComparison.Ordinal);
+        Assert.Contains("futureSetting", content, StringComparison.Ordinal);
+        Assert.Equal(0, store.Saves);
+        Assert.Single(printers);
+        Assert.Equal(["a"], _removed.PrinterIds);
+    }
+
     private sealed class FailingSaveStore(ISettingsStore inner) : ISettingsStore
     {
         public Task<SettingsLoadResult> LoadAsync(CancellationToken cancellationToken) => inner.LoadAsync(cancellationToken);
 
         public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken) => Task.FromException(new IOException("read-only"));
+
+        public Task<IReadOnlyList<string>> RemoveCameraCredentialsAsync(CancellationToken cancellationToken) =>
+            Task.FromException<IReadOnlyList<string>>(new IOException("read-only"));
+    }
+
+    /// <summary>Records whether the full settings were saved (they must not be at startup).</summary>
+    private sealed class SaveRecordingStore(ISettingsStore inner) : ISettingsStore
+    {
+        public int Saves { get; private set; }
+
+        public Task<SettingsLoadResult> LoadAsync(CancellationToken cancellationToken) => inner.LoadAsync(cancellationToken);
+
+        public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken)
+        {
+            Saves++;
+            return inner.SaveAsync(settings, cancellationToken);
+        }
+
+        public Task<IReadOnlyList<string>> RemoveCameraCredentialsAsync(CancellationToken cancellationToken) =>
+            inner.RemoveCameraCredentialsAsync(cancellationToken);
     }
 }
