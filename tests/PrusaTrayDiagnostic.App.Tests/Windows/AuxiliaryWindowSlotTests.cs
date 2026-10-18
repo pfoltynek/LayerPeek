@@ -117,6 +117,20 @@ public sealed class AuxiliaryWindowSlotTests
         Assert.False(_slot.IsOpen);
     }
 
+    [Fact]
+    public void RefreshTextsReachesOnlyTheOpenWindow()
+    {
+        _slot.RefreshTexts();
+        _slot.ShowOrActivate(Create);
+
+        _slot.RefreshTexts();
+        Assert.Equal(["show", "activate", "refresh"], _windows[0].Calls);
+
+        _windows[0].Close();
+        _slot.RefreshTexts();
+        Assert.Equal(["show", "activate", "refresh", "close"], _windows[0].Calls);
+    }
+
     private (IAuxiliaryWindow Window, IDisposable? Owned) Create()
     {
         FakeWindow window = new();
@@ -158,6 +172,8 @@ public sealed class AuxiliaryWindowSlotTests
         }
 
         public void Activate() => Calls.Add("activate");
+
+        public void RefreshTexts() => Calls.Add("refresh");
 
         public void Close()
         {

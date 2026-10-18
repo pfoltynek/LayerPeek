@@ -17,6 +17,7 @@ internal static class SettingsMapper
         {
             Version = SettingsDocument.CurrentVersion,
             PollingIntervalSeconds = settings.PollingInterval.TotalSeconds,
+            Language = settings.Language,
             Notifications = new NotificationsDocument
             {
                 Enabled = notifications.Enabled,
@@ -51,6 +52,7 @@ internal static class SettingsMapper
         return new AppSettings
         {
             PollingInterval = ToPollingInterval(document.PollingIntervalSeconds, warnings),
+            Language = ToLanguage(document.Language, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings),
         };
@@ -78,6 +80,23 @@ internal static class SettingsMapper
 
         // Rounded to whole ticks so that TotalSeconds written by ToDocument reads back as exactly the same interval.
         return TimeSpan.FromTicks((long)Math.Round(clamped * TimeSpan.TicksPerSecond));
+    }
+
+    /// <summary>Missing = follow the system; an unknown code also follows the system, with a warning.</summary>
+    private static string? ToLanguage(string? value, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (AppLanguages.TryNormalize(value, out string? code))
+        {
+            return code;
+        }
+
+        warnings.Add($"Unknown language '{Shorten(value)}'; the system language is used.");
+        return null;
     }
 
     private static NotificationSettings ToNotifications(NotificationsDocument? document, List<string> warnings)

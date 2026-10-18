@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.History;
@@ -15,7 +16,10 @@ namespace PrusaTrayDiagnostic.App.Diagnostics;
 public sealed record PrinterChoice(string Id, string Name);
 
 /// <summary>A time range of the temperature chart.</summary>
-public sealed record ChartWindowOption(TimeSpan Window, string Label);
+public sealed class ChartWindowOption(TimeSpan window, Func<string> text) : LocalizedOption(text)
+{
+    public TimeSpan Window { get; } = window;
+}
 
 /// <summary>
 /// Content of the diagnostics window for the selected printer: state, temperatures, fans, motion, last update, printer
@@ -35,7 +39,7 @@ public sealed record ChartWindowOption(TimeSpan Window, string Label);
 /// </para>
 /// <para>All public members are for the UI thread.</para>
 /// </remarks>
-public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
+public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILanguageAware
 {
     /// <summary>Time range of the chart when the window opens.</summary>
     public static readonly TimeSpan DefaultTimeWindow = TimeSpan.FromHours(2);
@@ -95,6 +99,12 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
     private string? _chartPrinterId;
     private ChartWindowOption _selectedTimeWindow;
 
+    // What the texts were formatted from, so that a language switch formats them again.
+    private Func<string>? _noticeSource;
+    private Func<string>? _infoStatusSource;
+    private DiagnosticsContent? _shownContent;
+    private PrusaLinkPrinterInfo? _shownInfo;
+
     internal DiagnosticsViewModel(
         IPrinterMonitor monitor,
         MonitoredPrinters printers,
@@ -120,9 +130,9 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         Printers = new ReadOnlyObservableCollection<PrinterChoice>(_printers);
         TimeWindows =
         [
-            new ChartWindowOption(TimeSpan.FromMinutes(30), Strings.DiagnosticsChartWindow30Minutes),
-            new ChartWindowOption(DefaultTimeWindow, Strings.DiagnosticsChartWindow2Hours),
-            new ChartWindowOption(TimeSpan.FromHours(24), Strings.DiagnosticsChartWindow24Hours),
+            new ChartWindowOption(TimeSpan.FromMinutes(30), static () => Strings.DiagnosticsChartWindow30Minutes),
+            new ChartWindowOption(DefaultTimeWindow, static () => Strings.DiagnosticsChartWindow2Hours),
+            new ChartWindowOption(TimeSpan.FromHours(24), static () => Strings.DiagnosticsChartWindow24Hours),
         ];
         _selectedTimeWindow = TimeWindows[1];
         ShowContent(null);
@@ -392,6 +402,25 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>UI thread: the language changed; every text is formatted again from what is shown (no new request).</summary>
+    public void RefreshTexts()
+    {
+        if (IsDisposed())
+        {
+            return;
+        }
+
+        foreach (ChartWindowOption option in TimeWindows)
+        {
+            option.RefreshText();
+        }
+
+        Notice = _noticeSource?.Invoke();
+        InfoStatusText = _infoStatusSource?.Invoke();
+        FormatContent(_shownContent);
+        ShowInfo(_shownInfo);
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -519,10 +548,11 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
     /// <summary>UI thread: mirrors the configured printers with the fewest collection changes and keeps the selection when possible.</summary>
     private void SyncPrinters(MonitoredPrintersState state)
     {
-        Notice = state.MonitoringFailed ? Strings.ToolTipMonitoringFailed
-            : state.Printers is null ? Strings.ToolTipStarting
-            : state.Printers.Count == 0 ? Strings.ToolTipNoPrinter
+        _noticeSource = state.MonitoringFailed ? static () => Strings.ToolTipMonitoringFailed
+            : state.Printers is null ? static () => Strings.ToolTipStarting
+            : state.Printers.Count == 0 ? static () => Strings.ToolTipNoPrinter
             : null;
+        Notice = _noticeSource?.Invoke();
 
         IReadOnlyList<PrinterDefinition> printers = state.Printers ?? [];
         Dictionary<string, PrinterDefinition> definitions = new(printers.Count, StringComparer.OrdinalIgnoreCase);
@@ -646,6 +676,30 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
 
     private void ShowContent(DiagnosticsContent? value)
     {
+        FormatContent(value);
+        if (value is not { } content)
+        {
+            return;
+        }
+
+        // Failed information is read again once, on the next reachable snapshot: after an outage (e.g. the window
+        // opened while the printer was off) and also when it failed while the printer answered polls (request in
+        // flight during start, transient error). When that retry fails too, polls of the still reachable printer ask
+        // no more; the next outage allows one more retry. So there is never a request per poll.
+        if (!content.State.IsReachable())
+        {
+            _infoRetryUsed = false;
+        }
+        else if (_infoStatus == InfoStatus.Failed && !_infoRetryUsed && _selectedPrinter is { } selected)
+        {
+            LoadInfo(_definitions.GetValueOrDefault(selected.Id), isRetry: true);
+        }
+    }
+
+    /// <summary>Only the texts of <paramref name="value"/>; also used again after a language switch.</summary>
+    private void FormatContent(DiagnosticsContent? value)
+    {
+        _shownContent = value;
         if (value is not { } content)
         {
             StateText = TrayText.StateName(null);
@@ -668,19 +722,6 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         SpeedText = DiagnosticsFormatter.Percent(content.SpeedPercent);
         FlowText = DiagnosticsFormatter.Percent(content.FlowPercent);
         AxisZText = DiagnosticsFormatter.Millimetres(content.AxisZ, DiagnosticsFormatter.AxisZDecimals);
-
-        // Failed information is read again once, on the next reachable snapshot: after an outage (e.g. the window
-        // opened while the printer was off) and also when it failed while the printer answered polls (request in
-        // flight during start, transient error). When that retry fails too, polls of the still reachable printer ask
-        // no more; the next outage allows one more retry. So there is never a request per poll.
-        if (!content.State.IsReachable())
-        {
-            _infoRetryUsed = false;
-        }
-        else if (_infoStatus == InfoStatus.Failed && !_infoRetryUsed && _selectedPrinter is { } selected)
-        {
-            LoadInfo(_definitions.GetValueOrDefault(selected.Id), isRetry: true);
-        }
     }
 
     /// <summary>UI thread: cancels a pending request and asks for the information of <paramref name="printer"/>.</summary>
@@ -696,12 +737,12 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         if (printer is null)
         {
             _infoStatus = InfoStatus.None;
-            InfoStatusText = null;
+            SetInfoStatus(null);
             return;
         }
 
         _infoStatus = InfoStatus.Loading;
-        InfoStatusText = Strings.DiagnosticsInfoLoading;
+        SetInfoStatus(static () => Strings.DiagnosticsInfoLoading);
         CancellationTokenSource cancellation = new();
         _infoCancellation = cancellation;
         _ = FetchInfoAsync(printer, request, cancellation.Token);
@@ -741,23 +782,31 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable
         if (result is null)
         {
             _infoStatus = InfoStatus.NotSupported;
-            InfoStatusText = Strings.DiagnosticsInfoNotSupported;
+            SetInfoStatus(static () => Strings.DiagnosticsInfoNotSupported);
         }
         else if (result.Info is { } info)
         {
             _infoStatus = InfoStatus.Loaded;
-            InfoStatusText = null;
+            SetInfoStatus(null);
             ShowInfo(info);
         }
         else
         {
             _infoStatus = InfoStatus.Failed;
-            InfoStatusText = DiagnosticsFormatter.InfoUnavailable(result.State);
+            PrinterState state = result.State;
+            SetInfoStatus(() => DiagnosticsFormatter.InfoUnavailable(state));
         }
+    }
+
+    private void SetInfoStatus(Func<string>? source)
+    {
+        _infoStatusSource = source;
+        InfoStatusText = source?.Invoke();
     }
 
     private void ShowInfo(PrusaLinkPrinterInfo? info)
     {
+        _shownInfo = info;
         FirmwareText = DiagnosticsFormatter.Text(info?.Firmware);
         ModelText = DiagnosticsFormatter.Text(info?.PrinterModel);
         HostnameText = DiagnosticsFormatter.Text(info?.Hostname);

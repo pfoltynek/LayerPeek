@@ -32,7 +32,7 @@ public sealed class TrayToolTipFormatterTests
     [Fact]
     public void UnsupportedCultureFallsBackToEnglish()
     {
-        using CultureScope culture = new("de-DE");
+        using CultureScope culture = new("ja-JP");
 
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Idle), otherPrinterCount: 0);
 

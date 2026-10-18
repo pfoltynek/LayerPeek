@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -70,6 +71,58 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
         (IReadOnlyList<PrinterDefinition> printers, _) = await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
 
         Assert.Empty(printers);
+    }
+
+    [Fact]
+    public async Task StartWithPreloadedSettingsDoesNotLoadAgain()
+    {
+        int loads = 0;
+        AppSettings settings = new() { Printers = [Definition()], PollingInterval = TimeSpan.FromSeconds(9), Language = "de" };
+        _session = Create(() =>
+        {
+            Interlocked.Increment(ref loads);
+            return FakeSettingsStore.Returning(AppSettings.Default);
+        });
+
+        _session.Start(settings);
+        (IReadOnlyList<PrinterDefinition> printers, TimeSpan interval) = await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(settings.Printers, printers);
+        Assert.Equal(TimeSpan.FromSeconds(9), interval);
+        Assert.Same(settings, _session.CurrentSettings);
+        Assert.Equal(0, Volatile.Read(ref loads));
+    }
+
+    [Fact]
+    public async Task StartWithPreloadedSettingsCanOnlyStartOnce()
+    {
+        _session = Create(() => FakeSettingsStore.Returning(AppSettings.Default));
+        _session.Start(AppSettings.Default);
+
+        Assert.Throws<InvalidOperationException>(() => _session.Start(AppSettings.Default));
+        Assert.Throws<InvalidOperationException>(() => _session.Start());
+        await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
+    }
+
+    [Fact]
+    public async Task LoadSettingsReturnsTheStoredSettingsAndLogsWarnings()
+    {
+        AppSettings stored = new() { Language = "pl" };
+        SettingsLoadResult result = new() { Settings = stored, Status = SettingsLoadStatus.Loaded, Warnings = ["Unknown language 'xx'; the system language is used."] };
+
+        AppSettings loaded = await MonitoringSession.LoadSettingsAsync(() => new FakeSettingsStore(_ => Task.FromResult(result)), _logger, Ct);
+
+        Assert.Same(stored, loaded);
+        Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Unknown language", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task LoadSettingsFallsBackToDefaultsWhenTheStoreIsUnavailable()
+    {
+        AppSettings loaded = await MonitoringSession.LoadSettingsAsync(() => throw new InvalidOperationException("no app data folder"), _logger, Ct);
+
+        Assert.Same(AppSettings.Default, loaded);
+        Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Error);
     }
 
     [Fact]
@@ -272,7 +325,7 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
         _session = Create(() => FakeSettingsStore.Returning(AppSettings.Default));
         _session.Start();
 
-        Assert.Throws<InvalidOperationException>(_session.Start);
+        Assert.Throws<InvalidOperationException>(() => _session.Start());
     }
 
     [Fact]
@@ -456,6 +509,27 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
         _ = _session.ApplyAsync(saved with { Printers = [Definition("a", "Renamed")] }, credentialsChanged: false);
         await _monitor.WaitForRunsAsync(2).WaitAsync(TestTimeouts.Wait, Ct);
         Assert.Equal(["printers: a", "update", "printers: a"], observer.Calls);
+    }
+
+    [Fact]
+    public async Task LanguageOnlyChangeKeepsTheMonitorRunningAndReachesTheLanguage()
+    {
+        RecordingObserver observer = new();
+        ManualDispatcher dispatcher = new();
+        UiLanguage language = new(static _ => { });
+        AppSettings loaded = new() { Printers = [Definition("a", "Alpha")] };
+        _session = new MonitoringSession(() => FakeSettingsStore.Returning(loaded), _monitor, [new UiLanguageObserver(language, dispatcher), observer], _logger);
+        _session.Start();
+        await _monitor.WaitForRunsAsync(1).WaitAsync(TestTimeouts.Wait, Ct);
+
+        // A language-only change completes without waiting for a restart.
+        await _session.ApplyAsync(loaded with { Language = "fr" }, credentialsChanged: false).WaitAsync(TestTimeouts.Wait, Ct);
+        dispatcher.RunAll();
+
+        // No restart (the tray keeps the printer states), the texts switch.
+        Assert.Single(_monitor.Runs);
+        Assert.Equal(["printers: a", "update"], observer.Calls);
+        Assert.Equal("fr", language.Code);
     }
 
     [Fact]

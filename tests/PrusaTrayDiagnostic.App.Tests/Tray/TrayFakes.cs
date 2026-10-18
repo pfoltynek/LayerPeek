@@ -34,6 +34,19 @@ internal sealed class CultureScope : IDisposable
     }
 }
 
+/// <summary>
+/// Sets only the UI culture of the calling thread (the language of the texts, like a language switch) and restores it;
+/// number and date formats stay.
+/// </summary>
+internal sealed class UiCultureScope : IDisposable
+{
+    private readonly CultureInfo _previous = CultureInfo.CurrentUICulture;
+
+    public UiCultureScope(string name) => CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(name);
+
+    public void Dispose() => CultureInfo.CurrentUICulture = _previous;
+}
+
 /// <summary>Queues posted actions until the test runs them, like a busy UI thread would.</summary>
 internal sealed class ManualDispatcher : IUiDispatcher
 {

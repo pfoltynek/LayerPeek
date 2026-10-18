@@ -1,16 +1,18 @@
 using System.Globalization;
 using System.Reflection;
 
+using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tray;
 
 namespace PrusaTrayDiagnostic.App.Windows;
 
-/// <summary>Content of the About window in the current UI culture (static texts; no change notification needed).</summary>
-public sealed partial class AboutViewModel
+/// <summary>Content of the About window in the current language; <see cref="RefreshTexts"/> after a language switch.</summary>
+public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 {
     /// <summary>Project page opened by the repository link.</summary>
     public static readonly Uri RepositoryUri = new("https://github.com/pfoltynek/PrusaTrayDiagnostic");
@@ -22,6 +24,7 @@ public sealed partial class AboutViewModel
     public const string LicenseName = "Apache License 2.0";
 
     private readonly IUrlLauncher _launcher;
+    private readonly string _version;
 
     internal AboutViewModel(IUrlLauncher launcher)
         : this(launcher, typeof(AboutViewModel).Assembly)
@@ -33,28 +36,36 @@ public sealed partial class AboutViewModel
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(assembly);
         _launcher = launcher;
-        VersionText = Format(Strings.AboutVersion, ProductVersion(assembly));
+        _version = ProductVersion(assembly);
         Copyright = ProductCopyright(assembly);
+        FormatTexts();
     }
 
-    public string Title { get; } = Strings.AboutTitle;
+    public string Title { get; private set; } = string.Empty;
 
     public string AppName { get; } = TrayToolTipFormatter.AppName;
 
-    public string VersionText { get; }
+    public string VersionText { get; private set; } = string.Empty;
 
-    public string Description { get; } = Strings.AboutDescription;
+    public string Description { get; private set; } = string.Empty;
 
-    public string Disclaimer { get; } = Strings.AboutDisclaimer;
+    public string Disclaimer { get; private set; } = string.Empty;
 
-    public string LicenseText { get; } = Format(Strings.AboutLicense, LicenseName);
+    public string LicenseText { get; private set; } = string.Empty;
 
     /// <summary>Copyright notice from the assembly metadata (<c>Copyright</c> in Directory.Build.props); not translated.</summary>
     public string Copyright { get; }
 
-    public string RepositoryText { get; } = Strings.AboutRepository;
+    public string RepositoryText { get; private set; } = string.Empty;
 
-    public string CloseText { get; } = Strings.AboutClose;
+    public string CloseText { get; private set; } = string.Empty;
+
+    /// <summary>UI thread: the language changed; every text is formatted again.</summary>
+    public void RefreshTexts()
+    {
+        FormatTexts();
+        OnPropertyChanged(string.Empty);
+    }
 
     /// <summary><see cref="AssemblyCopyrightAttribute"/> of <paramref name="assembly"/>, or <see cref="DefaultCopyright"/>.</summary>
     internal static string ProductCopyright(Assembly assembly)
@@ -78,6 +89,17 @@ public sealed partial class AboutViewModel
         }
 
         return assembly.GetName().Version?.ToString(3) ?? "?";
+    }
+
+    private void FormatTexts()
+    {
+        Title = Strings.AboutTitle;
+        VersionText = Format(Strings.AboutVersion, _version);
+        Description = Strings.AboutDescription;
+        Disclaimer = Strings.AboutDisclaimer;
+        LicenseText = Format(Strings.AboutLicense, LicenseName);
+        RepositoryText = Strings.AboutRepository;
+        CloseText = Strings.AboutClose;
     }
 
     private static string Format(string format, object? arg0) =>

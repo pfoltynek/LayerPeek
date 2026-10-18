@@ -90,8 +90,56 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
     }
 
+    /// <summary>Starts monitoring; the settings are loaded first (on a background thread).</summary>
     /// <exception cref="InvalidOperationException">The session was already started.</exception>
-    public void Start()
+    public void Start() => StartCore(initialSettings: null);
+
+    /// <summary>
+    /// Starts monitoring with settings the caller already loaded (<see cref="LoadSettingsAsync(Func{ISettingsStore}, ILogger, CancellationToken)"/>
+    /// at startup, so that the language is applied before the tray shows any text); settings applied before win.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The session was already started.</exception>
+    public void Start(AppSettings initialSettings)
+    {
+        ArgumentNullException.ThrowIfNull(initialSettings);
+        StartCore(initialSettings);
+    }
+
+    /// <summary>
+    /// Loads the settings like <see cref="Start()"/> does: never throws except for cancellation; problems are logged and
+    /// defaults (or the corrected settings) are returned.
+    /// </summary>
+    /// <param name="settingsStoreFactory">May throw (e.g. no per-user data folder): the defaults are used.</param>
+    public static async Task<AppSettings> LoadSettingsAsync(Func<ISettingsStore> settingsStoreFactory, ILogger logger, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(settingsStoreFactory);
+        ArgumentNullException.ThrowIfNull(logger);
+        SettingsLoadResult result;
+        try
+        {
+            result = await settingsStoreFactory().LoadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // File problems come back in the result; this covers a missing data folder and the unexpected.
+            LogSettingsUnavailable(logger, ex);
+            return AppSettings.Default;
+        }
+
+        if (result.Status is SettingsLoadStatus.Corrupted or SettingsLoadStatus.Unreadable)
+        {
+            LogSettingsNotUsed(logger, result.Status, result.ErrorMessage);
+        }
+
+        foreach (string warning in result.Warnings)
+        {
+            LogSettingsWarning(logger, warning);
+        }
+
+        return result.Settings;
+    }
+
+    private void StartCore(AppSettings? initialSettings)
     {
         if (Interlocked.Exchange(ref _started, 1) != 0)
         {
@@ -108,7 +156,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             _loopActive = true;
             CancellationToken stopToken = _stop.Token;
             // Task.Run: loading the settings does file I/O and must not run on the UI thread.
-            _completion = Task.Run(() => RunLoopAsync(loadSettings: true, stopToken), CancellationToken.None);
+            _completion = initialSettings is null
+                ? Task.Run(() => RunLoopAsync(loadSettings: true, stopToken), CancellationToken.None)
+                : Task.Run(() => RunLoopAsync(loadSettings: false, stopToken, initialSettings), CancellationToken.None);
         }
     }
 
@@ -324,11 +374,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// Runs the monitor until stopped; each <see cref="ApplyAsync"/> ends the current run and starts the next one with the
     /// applied settings. A failed run is reported and ends the loop unless new settings are already waiting.
     /// </summary>
-    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken)
+    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken, AppSettings? initialSettings = null)
     {
         try
         {
-            AppSettings? settings = loadSettings ? await LoadSettingsAsync(stopToken).ConfigureAwait(false) : null;
+            AppSettings? settings = loadSettings ? await LoadSettingsAsync(_settingsStoreFactory, _logger, stopToken).ConfigureAwait(false) : initialSettings;
             while (true)
             {
                 CancellationTokenSource run;
@@ -428,41 +478,14 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
     }
 
-    private async Task<AppSettings> LoadSettingsAsync(CancellationToken stopToken)
-    {
-        SettingsLoadResult result;
-        try
-        {
-            result = await _settingsStoreFactory().LoadAsync(stopToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !stopToken.IsCancellationRequested)
-        {
-            // File problems come back in the result; this covers a missing data folder and the unexpected.
-            LogSettingsUnavailable(ex);
-            return AppSettings.Default;
-        }
-
-        if (result.Status is SettingsLoadStatus.Corrupted or SettingsLoadStatus.Unreadable)
-        {
-            LogSettingsNotUsed(result.Status, result.ErrorMessage);
-        }
-
-        foreach (string warning in result.Warnings)
-        {
-            LogSettingsWarning(warning);
-        }
-
-        return result.Settings;
-    }
-
     [LoggerMessage(Level = LogLevel.Error, Message = "Settings could not be loaded; defaults are used.")]
-    private partial void LogSettingsUnavailable(Exception exception);
+    private static partial void LogSettingsUnavailable(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Stored settings were not used ({Status}): {ErrorMessage}")]
-    private partial void LogSettingsNotUsed(SettingsLoadStatus status, string? errorMessage);
+    private static partial void LogSettingsNotUsed(ILogger logger, SettingsLoadStatus status, string? errorMessage);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Settings: {Warning}")]
-    private partial void LogSettingsWarning(string warning);
+    private static partial void LogSettingsWarning(ILogger logger, string warning);
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Printer monitoring stopped unexpectedly.")]
     private partial void LogMonitoringFailed(Exception exception);

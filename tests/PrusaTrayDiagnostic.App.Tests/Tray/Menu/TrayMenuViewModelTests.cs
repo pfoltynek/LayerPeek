@@ -185,6 +185,54 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
+    public void RefreshTextsFormatsEveryItemInTheNewLanguage()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42), printerId: "b"));
+        _dispatcher.RunAll();
+        int fixedChanges = 0;
+        _viewModel.FixedItemsChanged += (_, _) => fixedChanges++;
+
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+        }
+
+        // Applied right away (UI thread), not posted.
+        Assert.Equal(1, fixedChanges);
+        Assert.Equal(
+            ["Nastavení…", "Diagnostika…", "O aplikaci", "Ukončit"],
+            _viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
+        Assert.Equal("Beta: Tiskne – 42 %", _viewModel.PrinterItems[1].Header);
+        // The cached submenu is formatted again too.
+        Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
+        Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[0].Submenu!.Select(item => item.Header));
+    }
+
+    [Fact]
+    public void RefreshTextsTranslatesTheStatusMessage()
+    {
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+        }
+
+        Assert.Equal("Spouštění…", Assert.Single(_viewModel.PrinterItems).Header);
+    }
+
+    [Fact]
+    public void RefreshTextsAfterDisposeDoesNothing()
+    {
+        int fixedChanges = 0;
+        _viewModel.FixedItemsChanged += (_, _) => fixedChanges++;
+        _viewModel.Dispose();
+
+        _viewModel.RefreshTexts();
+
+        Assert.Equal(0, fixedChanges);
+    }
+
+    [Fact]
     public void SubmenuIsReusedWhenOnlyTheStateChanges()
     {
         _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);

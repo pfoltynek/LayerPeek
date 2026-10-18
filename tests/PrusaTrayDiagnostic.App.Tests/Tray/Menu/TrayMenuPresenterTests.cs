@@ -230,6 +230,43 @@ public sealed class TrayMenuPresenterTests : IDisposable
         Assert.Equal(0, _target.ClickSubscriberCount);
     }
 
+    [Fact]
+    public void LanguageSwitchRebuildsTheMenuOnce()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+        _target.Operations.Clear();
+
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+        }
+
+        // The printer items are replaced first (still in place), then the whole menu is built again.
+        Assert.Equal(["update 0", "update 1", "fixed", "insert 0", "insert 1"], _target.Operations);
+        Assert.Equal(_viewModel.FixedItems, _target.Fixed);
+        Assert.Equal(_viewModel.PrinterItems, _target.Printers);
+        Assert.Equal("Ukončit", Fixed(TrayMenuCommand.Quit).Header);
+        Assert.Equal("Alpha: Připojování…", _target.Printers[0].Header);
+
+        // Clicks act on the rebuilt items.
+        _target.Click(Fixed(TrayMenuCommand.Quit));
+        Assert.Equal(1, _commands.QuitCount);
+    }
+
+    [Fact]
+    public void LanguageSwitchAfterDisposeTouchesNothing()
+    {
+        TrayMenuPresenter presenter = Create();
+        presenter.Dispose();
+        _target.Operations.Clear();
+
+        _viewModel.RefreshTexts();
+
+        Assert.Empty(_target.Operations);
+    }
+
     private TrayMenuEntry Fixed(TrayMenuCommand command) => _target.Fixed.Single(item => item.Command == command);
 
     private TrayMenuEntry Child(int printer, TrayMenuCommand command) => _target.Printers[printer].Submenu!.Single(item => item.Command == command);

@@ -484,4 +484,15 @@
   <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
     <value>Settings saved. The password of a removed printer could not be deleted from the system credential store.</value>
   </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Language</value>
+    <comment>Settings, General tab: language of the application texts.</comment>
+  </data>
+  <data name="SettingsLanguageSystem" xml:space="preserve">
+    <value>System default</value>
+    <comment>Language selection item: use the language of the operating system.</comment>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Changes only the texts. Numbers, dates and times always follow the regional settings of the system.</value>
+  </data>
 </root>

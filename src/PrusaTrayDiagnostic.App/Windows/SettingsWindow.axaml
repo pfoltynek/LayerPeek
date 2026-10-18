@@ -1,10 +1,10 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PrusaTrayDiagnostic.App.Settings"
-        xmlns:res="using:PrusaTrayDiagnostic.App.Resources"
+        xmlns:loc="using:PrusaTrayDiagnostic.App.Localization"
         x:Class="PrusaTrayDiagnostic.App.Windows.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
-        Title="{x:Static res:Strings.SettingsTitle}"
+        Title="{Binding [SettingsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
         Icon="/Assets/tray-idle.png"
         Width="780"
         Height="680"
@@ -72,13 +72,13 @@
       <Button Grid.Column="1"
               Classes="accent"
               MinWidth="96"
-              Content="{x:Static res:Strings.SettingsSave}"
+              Content="{Binding [SettingsSave], Source={x:Static loc:LocalizedStrings.Instance}}"
               Command="{Binding SaveCommand}"
               IsDefault="True" />
       <Button Grid.Column="2"
               MinWidth="96"
               Margin="8,0,0,0"
-              Content="{x:Static res:Strings.SettingsCancel}"
+              Content="{Binding [SettingsCancel], Source={x:Static loc:LocalizedStrings.Instance}}"
               Command="{Binding CancelCommand}"
               IsCancel="True" />
     </Grid>
@@ -91,16 +91,16 @@
             IsVisible="{Binding HasNotice}">
       <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
     </Border>
-    <TextBlock DockPanel.Dock="Top" Text="{x:Static res:Strings.SettingsLoading}" IsVisible="{Binding IsLoading}" Margin="0,0,0,8" />
+    <TextBlock DockPanel.Dock="Top" Text="{Binding [SettingsLoading], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding IsLoading}" Margin="0,0,0,8" />
 
     <TabControl SelectedIndex="{Binding SelectedTabIndex}" IsEnabled="{Binding IsEditable}">
       <!-- Printers: list on the left, form of the selected printer on the right. -->
-      <TabItem Header="{x:Static res:Strings.SettingsTabPrinters}">
+      <TabItem Header="{Binding [SettingsTabPrinters], Source={x:Static loc:LocalizedStrings.Instance}}">
         <Grid ColumnDefinitions="220,16,*" Margin="0,8,0,0">
           <DockPanel>
             <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-              <Button Content="{x:Static res:Strings.SettingsAddPrinter}" Command="{Binding AddPrinterCommand}" />
-              <Button Content="{x:Static res:Strings.SettingsRemovePrinter}" Command="{Binding RemovePrinterCommand}" />
+              <Button Content="{Binding [SettingsAddPrinter], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding AddPrinterCommand}" />
+              <Button Content="{Binding [SettingsRemovePrinter], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding RemovePrinterCommand}" />
             </StackPanel>
             <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding SelectedPrinter}">
               <ListBox.ItemTemplate>
@@ -119,7 +119,7 @@
           </DockPanel>
 
           <TextBlock Grid.Column="2"
-                     Text="{x:Static res:Strings.SettingsNoPrinters}"
+                     Text="{Binding [SettingsNoPrinters], Source={x:Static loc:LocalizedStrings.Instance}}"
                      IsVisible="{Binding HasNoPrinters}"
                      TextWrapping="Wrap"
                      Opacity="0.75" />
@@ -129,11 +129,11 @@
               <ContentControl.ContentTemplate>
                 <DataTemplate x:DataType="vm:PrinterEditorViewModel">
                   <StackPanel>
-                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsName}" Margin="0,0,0,4" />
+                    <TextBlock Classes="label" Text="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}" Margin="0,0,0,4" />
                     <TextBox Text="{Binding Name}" MaxLength="200" />
                     <TextBlock Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsConnectionType}" />
+                    <TextBlock Classes="label" Text="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}" />
                     <ComboBox ItemsSource="{Binding ConnectionTypes}" SelectedItem="{Binding SelectedConnectionType}" HorizontalAlignment="Stretch">
                       <ComboBox.Styles>
                         <Style Selector="ComboBoxItem" x:DataType="vm:ConnectionTypeOption">
@@ -147,12 +147,12 @@
                       </ComboBox.ItemTemplate>
                     </ComboBox>
 
-                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsAddress}" />
+                    <TextBlock Classes="label" Text="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}" />
                     <TextBox Text="{Binding Address}" PlaceholderText="192.168.1.20" />
-                    <TextBlock Classes="hint" Text="{x:Static res:Strings.SettingsAddressHint}" IsVisible="{Binding IsPrusaLink}" />
+                    <TextBlock Classes="hint" Text="{Binding [SettingsAddressHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding IsPrusaLink}" />
                     <TextBlock Classes="error" Text="{Binding AddressError}" IsVisible="{Binding AddressError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsPassword}" />
+                    <TextBlock Classes="label" Text="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}" />
                     <TextBox Text="{Binding Password}"
                              PasswordChar="●"
                              PlaceholderText="{Binding PasswordWatermark}"
@@ -161,8 +161,8 @@
                     <TextBlock Classes="error" Text="{Binding PasswordError}" IsVisible="{Binding PasswordError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
-                      <Button Content="{x:Static res:Strings.SettingsTestConnection}" Command="{Binding TestConnectionCommand}" />
-                      <Button Content="{x:Static res:Strings.SettingsCancelTest}" Command="{Binding CancelTestCommand}" IsVisible="{Binding IsTesting}" />
+                      <Button Content="{Binding [SettingsTestConnection], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding TestConnectionCommand}" />
+                      <Button Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelTestCommand}" IsVisible="{Binding IsTesting}" />
                       <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" IsVisible="{Binding IsTesting}" />
                     </StackPanel>
                     <TextBlock Classes="result"
@@ -181,10 +181,10 @@
       </TabItem>
 
       <!-- General: polling interval and notifications. -->
-      <TabItem Header="{x:Static res:Strings.SettingsTabGeneral}">
+      <TabItem Header="{Binding [SettingsTabGeneral], Source={x:Static loc:LocalizedStrings.Instance}}">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Margin="0,8,12,0">
-            <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsPollingInterval}" Margin="0,0,0,4" />
+            <TextBlock Classes="label" Text="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}" Margin="0,0,0,4" />
             <NumericUpDown Value="{Binding PollingIntervalSeconds}"
                            Minimum="{x:Static vm:SettingsViewModel.MinPollingIntervalSeconds}"
                            Maximum="{x:Static vm:SettingsViewModel.MaxPollingIntervalSeconds}"
@@ -192,22 +192,32 @@
                            FormatString="0.###"
                            Width="160"
                            HorizontalAlignment="Left" />
-            <TextBlock Classes="hint" Text="{x:Static res:Strings.SettingsPollingIntervalHint}" />
+            <TextBlock Classes="hint" Text="{Binding [SettingsPollingIntervalHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
             <TextBlock Classes="error" Text="{Binding PollingIntervalError}" IsVisible="{Binding PollingIntervalError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-            <TextBlock Classes="section" Text="{x:Static res:Strings.SettingsNotifications}" />
-            <CheckBox Content="{x:Static res:Strings.SettingsNotificationsEnabled}" IsChecked="{Binding NotificationsEnabled}" />
-            <StackPanel Margin="28,0,0,0" IsEnabled="{Binding NotificationsEnabled}">
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintStarted}" IsChecked="{Binding NotifyPrintStarted}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintFinished}" IsChecked="{Binding NotifyPrintFinished}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintPaused}" IsChecked="{Binding NotifyPrintPaused}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintResumed}" IsChecked="{Binding NotifyPrintResumed}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintStopped}" IsChecked="{Binding NotifyPrintStopped}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyError}" IsChecked="{Binding NotifyError}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyAttention}" IsChecked="{Binding NotifyAttention}" />
-              <CheckBox Content="{x:Static res:Strings.SettingsNotifyOffline}" IsChecked="{Binding NotifyOffline}" />
+            <TextBlock Classes="label" Text="{Binding [SettingsLanguage], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <ComboBox ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage}" MinWidth="260">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="loc:LanguageOption">
+                  <TextBlock Text="{Binding Text}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock Classes="hint" Text="{Binding [SettingsLanguageHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
 
-              <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsRemainingTime}" />
+            <TextBlock Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <CheckBox Content="{Binding [SettingsNotificationsEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotificationsEnabled}" />
+            <StackPanel Margin="28,0,0,0" IsEnabled="{Binding NotificationsEnabled}">
+              <CheckBox Content="{Binding [SettingsNotifyPrintStarted], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStarted}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintFinished], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintFinished}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintPaused], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintPaused}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintResumed], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintResumed}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStopped}" />
+              <CheckBox Content="{Binding [SettingsNotifyError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyError}" />
+              <CheckBox Content="{Binding [SettingsNotifyAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyAttention}" />
+              <CheckBox Content="{Binding [SettingsNotifyOffline], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyOffline}" />
+
+              <TextBlock Classes="label" Text="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}" />
               <NumericUpDown Value="{Binding RemainingTimeMinutes}"
                              Minimum="0"
                              Maximum="{x:Static vm:SettingsViewModel.MaxRemainingTimeMinutes}"
@@ -217,7 +227,7 @@
                              HorizontalAlignment="Left" />
               <TextBlock Classes="error" Text="{Binding RemainingTimeError}" IsVisible="{Binding RemainingTimeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-              <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsSound}" />
+              <TextBlock Classes="label" Text="{Binding [SettingsSound], Source={x:Static loc:LocalizedStrings.Instance}}" />
               <ComboBox ItemsSource="{Binding SoundOptions}" SelectedItem="{Binding SelectedSound}" MinWidth="260">
                 <ComboBox.ItemTemplate>
                   <DataTemplate x:DataType="vm:SoundOption">
