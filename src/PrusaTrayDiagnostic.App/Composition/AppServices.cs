@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -55,6 +56,9 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<PrinterMonitor>>()));
 
         services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
+        // Language of the texts (T-029): applied at startup before any text exists, then from every saved setting.
+        services.AddSingleton(static _ => new UiLanguage());
+        services.AddSingleton(static sp => new UiLanguageObserver(sp.GetRequiredService<UiLanguage>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
@@ -81,6 +85,8 @@ internal static class AppServices
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
             [
+                // First: its language switch is posted to the UI thread before the menu and tooltip updates of the same settings.
+                sp.GetRequiredService<UiLanguageObserver>(),
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),

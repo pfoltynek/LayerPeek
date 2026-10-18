@@ -197,6 +197,84 @@ public class SettingsMapperTests
         Assert.InRange(Assert.Single(warnings).Length, 1, 200);
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("cs")]
+    [InlineData("sk")]
+    [InlineData("de")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("it")]
+    [InlineData("pl")]
+    public void LanguageRoundTripsAsCode(string code)
+    {
+        AppSettings settings = new() { Language = code };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains($"\"language\": \"{code}\"", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Fact]
+    public void SystemLanguageIsNotWritten()
+    {
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(new AppSettings()), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(new AppSettings(), out List<string> warnings);
+
+        Assert.DoesNotContain("language", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(warnings);
+        Assert.Null(loaded.Language);
+    }
+
+    [Theory]
+    [InlineData("""{ }""")]
+    [InlineData("""{ "language": null }""")]
+    public void MissingLanguageMeansSystem(string json)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Null(settings.Language);
+    }
+
+    [Theory]
+    [InlineData(" DE ", "de")]
+    [InlineData("Cs", "cs")]
+    public void LanguageCodeIsCaseInsensitive(string value, string expected)
+    {
+        AppSettings settings = Load($$"""{ "language": "{{value}}" }""", out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(expected, settings.Language);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ja")]
+    [InlineData("de-AT")]
+    [InlineData("system")]
+    [InlineData("Deutsch")]
+    public void UnknownLanguageMeansSystemWithWarning(string value)
+    {
+        AppSettings settings = Load($$"""{ "language": "{{value}}", "pollingIntervalSeconds": 9 }""", out List<string> warnings);
+
+        Assert.Null(settings.Language);
+        Assert.Contains("language", Assert.Single(warnings), StringComparison.OrdinalIgnoreCase);
+        // The rest of the settings is still loaded.
+        Assert.Equal(TimeSpan.FromSeconds(9), settings.PollingInterval);
+    }
+
+    [Fact]
+    public void HugeUnknownLanguageIsShortenedInWarning()
+    {
+        Load($$"""{ "language": "{{new string('x', 10_000)}}" }""", out List<string> warnings);
+
+        Assert.InRange(Assert.Single(warnings).Length, 1, 200);
+    }
+
     private static AppSettings RoundTrip(AppSettings settings, out List<string> warnings)
     {
         string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);

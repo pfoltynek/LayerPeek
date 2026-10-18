@@ -84,6 +84,80 @@ public class AppSettingsTests
         Assert.False(first.Equals(null));
     }
 
+    [Fact]
+    public void LanguageDefaultsToSystem()
+    {
+        Assert.Null(AppSettings.Default.Language);
+        Assert.Null(new AppSettings().Language);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("cs")]
+    [InlineData("sk")]
+    [InlineData("de")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("it")]
+    [InlineData("pl")]
+    public void SupportedLanguageIsAccepted(string code)
+    {
+        AppSettings settings = new() { Language = code };
+
+        Assert.Equal(code, settings.Language);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("DE")]
+    [InlineData(" de")]
+    [InlineData("de-AT")]
+    [InlineData("ja")]
+    [InlineData("system")]
+    public void UnsupportedOrNonCanonicalLanguageIsRejected(string code)
+    {
+        Assert.Throws<ArgumentException>(() => new AppSettings { Language = code });
+    }
+
+    [Fact]
+    public void EqualityIncludesLanguage()
+    {
+        AppSettings german = new() { Language = "de" };
+
+        Assert.NotEqual(new AppSettings(), german);
+        Assert.Equal(german, new AppSettings { Language = "de" });
+        Assert.Equal(german.GetHashCode(), new AppSettings { Language = "de" }.GetHashCode());
+        Assert.NotEqual(german, german with { Language = "pl" });
+    }
+
+    [Fact]
+    public void SupportedLanguagesAreTheTranslatedOnes()
+    {
+        Assert.Equal(["en", "cs", "sk", "de", "es", "fr", "it", "pl"], AppLanguages.Supported);
+    }
+
+    [Theory]
+    [InlineData("de", "de")]
+    [InlineData(" DE ", "de")]
+    [InlineData("Pl", "pl")]
+    public void LanguageCodeIsNormalized(string value, string expected)
+    {
+        Assert.True(AppLanguages.TryNormalize(value, out string? code));
+        Assert.Equal(expected, code);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("de-AT")]
+    [InlineData("deutsch")]
+    [InlineData("ja")]
+    public void UnknownLanguageCodeIsNotNormalized(string value)
+    {
+        Assert.False(AppLanguages.TryNormalize(value, out string? code));
+        Assert.Null(code);
+    }
+
     private static PrinterDefinition Printer(string id) =>
         new() { Id = id, Name = id, ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.20" };
 }

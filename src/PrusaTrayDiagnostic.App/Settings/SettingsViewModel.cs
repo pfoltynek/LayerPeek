@@ -5,6 +5,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -12,10 +13,18 @@ using PrusaTrayDiagnostic.Core.Settings;
 namespace PrusaTrayDiagnostic.App.Settings;
 
 /// <summary>An item of the sound selection.</summary>
-public sealed record SoundOption(NotificationSound Value, string Text);
+public sealed class SoundOption(NotificationSound value, Func<string> text) : LocalizedOption(text)
+{
+    public NotificationSound Value { get; } = value;
+}
 
 /// <summary>An item of the connection type selection; Prusa Connect is shown but disabled until T-005.</summary>
-public sealed record ConnectionTypeOption(ConnectionType Value, string Text, bool IsEnabled);
+public sealed class ConnectionTypeOption(ConnectionType value, Func<string> text, bool isEnabled) : LocalizedOption(text)
+{
+    public ConnectionType Value { get; } = value;
+
+    public bool IsEnabled { get; } = isEnabled;
+}
 
 /// <summary>
 /// The settings window (T-015): printers (add / edit / remove, test connection) and general settings (polling interval,
@@ -23,7 +32,7 @@ public sealed record ConnectionTypeOption(ConnectionType Value, string Text, boo
 /// <see cref="Dispose"/> (running tests are cancelled, typed passwords forgotten). Edits stay in the view model until
 /// saved; cancelling or closing discards them. Call on the UI thread.
 /// </summary>
-public sealed class SettingsViewModel : ObservableObject, IDisposable
+public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguageAware
 {
     /// <summary>Longer names would be cut in the tray menu anyway (<c>TrayMenuFormatter</c> limit).</summary>
     public const int MaxNameLength = 100;
@@ -39,9 +48,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
 
     // Ids that must never be generated again: loaded printers (a removed one's password is deleted on save) and generated ones.
     private readonly HashSet<string> _usedIds = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConnectionTypeOption _prusaLinkOption = new(ConnectionType.PrusaLink, Strings.SettingsConnectionPrusaLink, IsEnabled: true);
-    private readonly ConnectionTypeOption _prusaConnectOption = new(ConnectionType.PrusaConnect, Strings.SettingsConnectionPrusaConnect, IsEnabled: false);
-    private readonly ConnectionTypeOption _prusaConnectExistingOption = new(ConnectionType.PrusaConnect, Strings.SettingsConnectionPrusaConnect, IsEnabled: true);
+    private readonly ConnectionTypeOption _prusaLinkOption = new(ConnectionType.PrusaLink, static () => Strings.SettingsConnectionPrusaLink, isEnabled: true);
+    private readonly ConnectionTypeOption _prusaConnectOption = new(ConnectionType.PrusaConnect, static () => Strings.SettingsConnectionPrusaConnect, isEnabled: false);
+    private readonly ConnectionTypeOption _prusaConnectExistingOption = new(ConnectionType.PrusaConnect, static () => Strings.SettingsConnectionPrusaConnect, isEnabled: true);
 
     private AppSettings _baseline = AppSettings.Default;
     private bool _loadStarted;
@@ -53,6 +62,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     private int _selectedTabIndex;
     private string? _notice;
     private string? _statusText;
+
+    // What produced the notice and the status, so that a language switch formats them again.
+    private Func<string>? _noticeSource;
+    private Func<string>? _statusSource;
     private bool _statusIsError;
 
     private decimal? _pollingIntervalSeconds;
@@ -69,6 +82,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     private decimal? _remainingTimeMinutes;
     private string? _remainingTimeError;
     private SoundOption _selectedSound;
+    private LanguageOption _selectedLanguage;
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
     internal SettingsViewModel(ISettingsEditorStore store, IConnectionTester tester, PasswordPolicy policy, Func<string>? newId = null)
@@ -82,11 +96,13 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         _newId = newId ?? (static () => Guid.NewGuid().ToString("N"));
         SoundOptions =
         [
-            new SoundOption(NotificationSound.Off, Strings.SettingsSoundOff),
-            new SoundOption(NotificationSound.ImportantOnly, Strings.SettingsSoundImportantOnly),
-            new SoundOption(NotificationSound.All, Strings.SettingsSoundAll),
+            new SoundOption(NotificationSound.Off, static () => Strings.SettingsSoundOff),
+            new SoundOption(NotificationSound.ImportantOnly, static () => Strings.SettingsSoundImportantOnly),
+            new SoundOption(NotificationSound.All, static () => Strings.SettingsSoundAll),
         ];
         _selectedSound = SoundOptions[1];
+        LanguageOptions = LanguageOption.CreateAll();
+        _selectedLanguage = LanguageOptions[0];
         AddPrinterCommand = new RelayCommand(AddPrinter, () => IsEditable);
         RemovePrinterCommand = new RelayCommand(RemovePrinter, () => IsEditable && _selectedPrinter is not null);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditable);
@@ -286,6 +302,23 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>"System default" first, then every supported language under its own name.</summary>
+    public IReadOnlyList<LanguageOption> LanguageOptions { get; }
+
+    /// <summary>Language of the texts (T-029); applied right after saving, without a restart.</summary>
+    public LanguageOption SelectedLanguage
+    {
+        get => _selectedLanguage;
+        set
+        {
+            // A ComboBox may write null while its items change.
+            if (value is not null)
+            {
+                SetGeneral(ref _selectedLanguage, value);
+            }
+        }
+    }
+
     /// <summary>Passwords can be saved on this OS (false on macOS until T-021).</summary>
     public bool IsPasswordSupported => Policy.IsSupported;
 
@@ -369,6 +402,37 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         Printers.CollectionChanged -= OnPrintersChanged;
     }
 
+    /// <summary>
+    /// UI thread: the language changed. Option texts, the notice, the save status and every validation message are
+    /// formatted again; edits, the selection and a running test are kept.
+    /// </summary>
+    public void RefreshTexts()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption];
+        foreach (LocalizedOption option in options)
+        {
+            option.RefreshText();
+        }
+
+        Notice = _noticeSource?.Invoke();
+        StatusText = _statusSource?.Invoke();
+        if (_loaded)
+        {
+            ValidateGeneral();
+        }
+
+        ValidateNames();
+        foreach (PrinterEditorViewModel printer in Printers)
+        {
+            printer.RefreshTexts();
+        }
+    }
+
     internal ConnectionTypeOption[] ConnectionTypesFor(ConnectionType current) =>
         current == ConnectionType.PrusaConnect
             ? [_prusaLinkOption, _prusaConnectExistingOption]
@@ -409,13 +473,15 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         _notifyOffline = notifications.Offline;
         _remainingTimeMinutes = notifications.RemainingTimeMinutes;
         _selectedSound = FindSound(notifications.Sound);
+        _selectedLanguage = FindLanguage(settings.Language);
 
-        Notice = data.Status switch
+        _noticeSource = data.Status switch
         {
-            SettingsLoadStatus.Corrupted => Strings.SettingsNoticeCorrupted,
-            SettingsLoadStatus.Unreadable => Strings.SettingsNoticeUnreadable,
-            _ => data.Warnings.Count > 0 ? Strings.SettingsNoticeWarnings : null,
+            SettingsLoadStatus.Corrupted => static () => Strings.SettingsNoticeCorrupted,
+            SettingsLoadStatus.Unreadable => static () => Strings.SettingsNoticeUnreadable,
+            _ => data.Warnings.Count > 0 ? static () => Strings.SettingsNoticeWarnings : null,
         };
+        Notice = _noticeSource?.Invoke();
 
         _loaded = true;
         // Everything general at once: the fields above were set without notifications.
@@ -438,6 +504,19 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         }
 
         return SoundOptions[1];
+    }
+
+    private LanguageOption FindLanguage(string? code)
+    {
+        foreach (LanguageOption option in LanguageOptions)
+        {
+            if (string.Equals(option.Code, code, StringComparison.Ordinal))
+            {
+                return option;
+            }
+        }
+
+        return LanguageOptions[0];
     }
 
     private void Cancel()
@@ -508,14 +587,14 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         {
             SelectedPrinter = invalid;
             SelectedTabIndex = 0;
-            ShowStatus(Strings.SettingsFixErrors, isError: true);
+            ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
 
         if (_pollingIntervalError is not null || _remainingTimeError is not null || !TryBuildSettings(out AppSettings? updated))
         {
             SelectedTabIndex = 1;
-            ShowStatus(Strings.SettingsFixErrors, isError: true);
+            ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
 
@@ -535,7 +614,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         }
 
         IsSaving = true;
-        ShowStatus(Strings.SettingsSaving, isError: false);
+        ShowStatus(static () => Strings.SettingsSaving, isError: false);
         SettingsSaveResult result;
         try
         {
@@ -559,9 +638,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         if (result.Status != SettingsSaveStatus.Saved)
         {
             ShowStatus(
-                result.RollbackIncomplete ? Strings.SettingsSaveRollbackIncomplete
-                : result.Status == SettingsSaveStatus.PasswordNotSaved ? Strings.SettingsSaveFailedPassword
-                : Strings.SettingsSaveFailedSettings,
+                result.RollbackIncomplete ? static () => Strings.SettingsSaveRollbackIncomplete
+                : result.Status == SettingsSaveStatus.PasswordNotSaved ? static () => Strings.SettingsSaveFailedPassword
+                : static () => Strings.SettingsSaveFailedSettings,
                 isError: true);
             return;
         }
@@ -575,7 +654,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         UpdateDirty();
         if (result.UndeletedPasswords > 0)
         {
-            ShowStatus(Strings.SettingsSavedPasswordsNotDeleted, isError: false);
+            ShowStatus(static () => Strings.SettingsSavedPasswordsNotDeleted, isError: false);
             return;
         }
 
@@ -620,6 +699,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
             settings = new AppSettings
             {
                 PollingInterval = TimeSpan.FromSeconds((double)seconds),
+                Language = _selectedLanguage.Code,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,
@@ -704,10 +784,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         IsDirty = dirty || !TryBuildSettings(out AppSettings? current) || !current.Equals(_baseline);
     }
 
-    private void ShowStatus(string? text, bool isError)
+    private void ShowStatus(Func<string>? text, bool isError)
     {
+        _statusSource = text;
         StatusIsError = isError;
-        StatusText = text;
+        StatusText = text?.Invoke();
     }
 
     private void OnEditableChanged()

@@ -30,6 +30,24 @@ public sealed record AppSettings
         }
     } = DefaultPollingInterval;
 
+    /// <summary>
+    /// Language of the texts: one of <see cref="AppLanguages.Supported"/>, or <see langword="null"/> to follow the
+    /// system (the default). Number and date formats always follow the system.
+    /// </summary>
+    public string? Language
+    {
+        get;
+        init
+        {
+            if (value is not null && !AppLanguages.IsSupported(value))
+            {
+                throw new ArgumentException($"Unsupported language code '{value}'.", nameof(value));
+            }
+
+            field = value;
+        }
+    }
+
     public NotificationSettings Notifications
     {
         get;
@@ -51,10 +69,11 @@ public sealed record AppSettings
     public bool Equals(AppSettings? other) =>
         other is not null
         && PollingInterval == other.PollingInterval
+        && string.Equals(Language, other.Language, StringComparison.Ordinal)
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
-    public override int GetHashCode() => HashCode.Combine(PollingInterval, Notifications, Printers.Count);
+    public override int GetHashCode() => HashCode.Combine(PollingInterval, Language, Notifications, Printers.Count);
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

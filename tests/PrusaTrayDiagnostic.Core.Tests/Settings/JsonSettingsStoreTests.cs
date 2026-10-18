@@ -52,6 +52,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         AppSettings settings = new()
         {
             PollingInterval = TimeSpan.FromSeconds(12.5),
+            Language = "de",
             Notifications = new NotificationSettings { Enabled = true, PrintStarted = false, Offline = false },
             Printers =
             [
@@ -320,6 +321,28 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.False(result.Settings.Notifications.PrintFinished);
         Assert.True(result.Settings.Notifications.PrintStarted);
         Assert.True(result.Settings.Notifications.Enabled);
+        Assert.Null(result.Settings.Language);
+    }
+
+    [Fact]
+    public async Task LoadUnknownLanguageUsesSystemWithWarning()
+    {
+        await WriteSettingsFileAsync("""{ "language": "tlh", "pollingIntervalSeconds": 9 }""");
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Null(result.Settings.Language);
+        Assert.Equal(TimeSpan.FromSeconds(9), result.Settings.PollingInterval);
+        Assert.Contains("language", Assert.Single(result.Warnings), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SavedFileStoresLanguageCode()
+    {
+        await _store.SaveAsync(new AppSettings { Language = "pl" }, Ct);
+
+        Assert.Contains("\"language\": \"pl\"", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
     }
 
     [Fact]

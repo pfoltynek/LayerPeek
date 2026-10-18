@@ -498,4 +498,13 @@
   <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
     <value>Nastavení je uloženo. Heslo odebrané tiskárny se nepodařilo smazat ze systémového úložiště přihlašovacích údajů.</value>
   </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Jazyk</value>
+  </data>
+  <data name="SettingsLanguageSystem" xml:space="preserve">
+    <value>Podle systému</value>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Mění jen texty. Čísla, data a časy se vždy řídí regionálním nastavením systému.</value>
+  </data>
 </root>
