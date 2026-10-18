@@ -1,7 +1,7 @@
 ---
 id: T-015
 title: Okno nastavení
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: all
@@ -21,7 +21,7 @@ Uživatel přidá/upraví/odebere tiskárnu bez ruční editace souborů.
 - [x] Validace vstupů, test spojení ukáže srozumitelnou chybu (testy view modelu a testeru; vzhled zkontrolován ve vykreslených obrázcích)
 - [x] Tajné údaje se ukládají přes `ISecretStore` (nikdy v `settings.json`; pořadí zápisu a návrat při chybě pokryté testy)
 - [x] Composition root vybírá implementaci `ISecretStore` podle OS (explicitní registrace, bez skenování – Native AOT) – ověřeno: registraci zavedl T-007 v `Composition/AppServices`, test `SecretStoreMatchesOperatingSystem`
-- [ ] Ověřeno na Windows – **čeká na ruční ověření uživatelem** (okno se otevírá kliknutím v menu; automatizované klikání se nepoužívá), viz „Co ověřit“ v poznámkách
+- [x] Ověřeno na Windows – **ručně ověřeno uživatelem (2026-10-18)** (okno se otevírá kliknutím v menu; automatizované klikání se nepoužívá), viz „Co ověřit“ v poznámkách
 - [x] `dotnet build` a `dotnet test` bez chyb a varování (0 varování, 1510 testů, 1 přeskočený existující)
 
 ## Otevřené otázky
