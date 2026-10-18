@@ -507,4 +507,43 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Ne modifie que les textes. Les nombres, les dates et les heures suivent toujours les paramètres régionaux du système.</value>
   </data>
+  <data name="NotificationPrintStarted" xml:space="preserve">
+    <value>Impression démarrée</value>
+  </data>
+  <data name="NotificationPrintFinished" xml:space="preserve">
+    <value>Impression terminée</value>
+  </data>
+  <data name="NotificationPrintPaused" xml:space="preserve">
+    <value>Impression en pause</value>
+  </data>
+  <data name="NotificationPrintResumed" xml:space="preserve">
+    <value>Impression reprise</value>
+  </data>
+  <data name="NotificationPrintStopped" xml:space="preserve">
+    <value>Impression arrêtée</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>L'imprimante signale une erreur</value>
+  </data>
+  <data name="NotificationAttention" xml:space="preserve">
+    <value>L'imprimante requiert votre attention</value>
+  </data>
+  <data name="NotificationCredentialsRejected" xml:space="preserve">
+    <value>L'imprimante a refusé les identifiants</value>
+  </data>
+  <data name="NotificationOffline" xml:space="preserve">
+    <value>L'imprimante est hors ligne</value>
+  </data>
+  <data name="NotificationOnline" xml:space="preserve">
+    <value>L'imprimante est de nouveau en ligne</value>
+  </data>
+  <data name="NotificationRemainingTime" xml:space="preserve">
+    <value>Temps restant : {0}</value>
+  </data>
+  <data name="NotificationAlmostFinished" xml:space="preserve">
+    <value>L'impression est sur le point de se terminer</value>
+  </data>
+  <data name="NotificationStatusChanged" xml:space="preserve">
+    <value>L'état de l'imprimante a changé</value>
+  </data>
 </root>

@@ -96,17 +96,32 @@ internal static class TrayToolTipFormatter
     /// <summary>Duration rounded up to whole minutes ("&lt; 1 min", "5 min", "1 h 23 min", "2 d 5 h").</summary>
     public static string FormatDuration(TimeSpan duration) => FormatMinutes(ToolTipContent.CeilingMinutes(duration));
 
-    private static string FormatMinutes(long minutes)
+    /// <summary>
+    /// <see cref="FormatDuration(TimeSpan)"/> with the units in <paramref name="textCulture"/> instead of the chosen
+    /// language, for texts built in one resolved language (toasts). Number formats still follow <c>CurrentCulture</c>.
+    /// </summary>
+    public static string FormatDurationIn(TimeSpan duration, CultureInfo textCulture)
+    {
+        ArgumentNullException.ThrowIfNull(textCulture);
+        return FormatMinutes(ToolTipContent.CeilingMinutes(duration), textCulture);
+    }
+
+    /// <param name="textCulture"><see langword="null"/> = like the generated <see cref="Strings"/> properties.</param>
+    private static string FormatMinutes(long minutes, CultureInfo? textCulture = null)
     {
         const long MinutesPerDay = 24 * 60;
+        CultureInfo? culture = textCulture ?? Strings.Culture;
         return minutes switch
         {
-            < 1 => Strings.DurationLessThanMinute,
-            < 60 => Format(Strings.DurationMinutes, minutes),
-            < MinutesPerDay => Format(Strings.DurationHoursMinutes, minutes / 60, minutes % 60),
-            _ => Format(Strings.DurationDaysHours, minutes / MinutesPerDay, minutes % MinutesPerDay / 60),
+            < 1 => Text(nameof(Strings.DurationLessThanMinute), culture),
+            < 60 => Format(Text(nameof(Strings.DurationMinutes), culture), minutes),
+            < MinutesPerDay => Format(Text(nameof(Strings.DurationHoursMinutes), culture), minutes / 60, minutes % 60),
+            _ => Format(Text(nameof(Strings.DurationDaysHours), culture), minutes / MinutesPerDay, minutes % MinutesPerDay / 60),
         };
     }
+
+    /// <summary>A resource text in <paramref name="culture"/> (<see langword="null"/> = the thread's UI culture), exactly as the generated properties read it.</summary>
+    private static string Text(string name, CultureInfo? culture) => Strings.ResourceManager.GetString(name, culture) ?? name;
 
     private static string Compose(string name, string state, string? remaining, string? fileName, string? others)
     {

@@ -66,14 +66,34 @@ public sealed class AppServicesTests
     }
 
     [Fact]
-    public async Task NotificationPipelineIsRegisteredWithNoOpServiceUntilPlatformImplementationsExist()
+    public async Task WindowsUsesToastNotifications()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Toast notifications exist only on Windows.");
         await using ServiceProvider services = AppServices.Create();
 
-        // Windows toasts follow in T-010, macOS in T-020; until then notifications are silently not sent.
+        // Resolving creates no thread, no shortcut and no toast: the service starts on TrayHost.Start / first Show.
+        ToastNotificationService toasts = Assert.IsType<ToastNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.Same(toasts, services.GetRequiredService<INotificationService>());
+        AssertNotificationPipeline(services);
+    }
+
+    [Fact]
+    public async Task OtherOperatingSystemsSilentlyDropNotifications()
+    {
+        // macOS notifications follow in T-020; until then notifications are silently not sent.
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: false);
+
         Assert.Same(NullNotificationService.Instance, services.GetRequiredService<INotificationService>());
+        AssertNotificationPipeline(services);
+    }
+
+    private static void AssertNotificationPipeline(ServiceProvider services)
+    {
         Assert.Same(services.GetRequiredService<PrintEventNotifier>(), services.GetRequiredService<PrintEventNotifier>());
         Assert.NotNull(services.GetRequiredService<PrintNotificationObserver>());
+        Assert.Same(services.GetRequiredService<ToastActivationRouter>(), services.GetRequiredService<ToastActivationRouter>());
+        // The router receives the printers of every run, so a click opens the current address.
+        Assert.Contains(services.GetRequiredService<ToastActivationRouter>(), services.GetRequiredService<MonitoringSession>().Observers);
     }
 
     [Fact]

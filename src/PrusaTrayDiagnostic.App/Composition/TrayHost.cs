@@ -5,11 +5,13 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Icons;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Settings;
 using PrusaTrayDiagnostic.Core.Web;
 
@@ -113,6 +115,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
             MonitoringSession session = services.GetRequiredService<MonitoringSession>();
             session.Start(initialSettings);
+            // Registers the app for toasts in the background now, not with the first notification (T-010).
+            if (services.GetRequiredService<INotificationService>() is ToastNotificationService toasts)
+            {
+                toasts.Start();
+            }
+
             return new TrayHost(loggerFactory, services, session, iconSet, iconPresenter, menuPresenter);
         }
         catch

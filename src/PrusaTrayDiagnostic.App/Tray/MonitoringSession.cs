@@ -63,6 +63,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         _logger = logger;
     }
 
+    /// <summary>Receivers of the settings of every run, in notification order.</summary>
+    internal IReadOnlyList<IMonitoringObserver> Observers => _observers;
+
     /// <summary>Settings of the current run, including a notification-only update; <see langword="null"/> before the first run.</summary>
     internal AppSettings? CurrentSettings
     {

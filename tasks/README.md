@@ -60,6 +60,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) (hotovo) | all | ui-dev | P1 | T-002, T-003 |
 | T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
 | T-024 | Logování do souboru | all | core-dev | P2 | T-007 |
+| T-025 | Ikona aplikace | all | ui-dev | P2 | T-007 |
 | T-027 | PrusaLink – uživatelské jméno v nastavení (hotovo) | all | core-dev + ui-dev | P2 | T-003, T-015 |
 | T-028 | Otevření webu PrusaLink s přihlášením (lokální proxy) (hotovo) | all | core-dev + ui-dev | P2 | T-027 |
 | T-029 | Jazyk aplikace a další překlady (de, es, fr, it, pl, sk) (hotovo) | all | ui-dev | P2 | T-015 |

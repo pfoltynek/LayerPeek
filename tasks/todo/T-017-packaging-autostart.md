@@ -14,6 +14,10 @@ Instalovatelná aplikace pro Windows, spouštění po přihlášení. Balení a 
 ## Rozsah
 - Windows: Native AOT publish (`win-x64`, případně `win-arm64`) + instalátor
 - Autostart po přihlášení (registry `Run` / složka Startup)
+- Toasty (navazuje na T-010):
+  - instalátor vytvoří zástupce ve Start menu se stejným AppUserModelID `PrusaTrayDiagnostic` a názvem „Prusa Tray Diagnostic“ (obojí je finální);
+  - COM aktivátor (`ToastActivatorCLSID` v zástupci), aby kliknutí na toast fungovalo i když aplikace neběží (rozhodnutí uživatele: patří sem, ne do T-010);
+  - odinstalace uklidí zástupce, klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic` a historii toastů (podrobnosti v poznámkách T-010).
 
 ## Akceptační kritéria
 - [ ] Postup sestavení pro Windows zdokumentovaný v `docs/`
@@ -22,7 +26,7 @@ Instalovatelná aplikace pro Windows, spouštění po přihlášení. Balení a 
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- Formát pro Windows: MSIX, instalátor (Inno Setup/WiX), nebo jen zip? (Ovlivňuje AppUserModelID pro toasty v T-010.)
+- Formát pro Windows: MSIX, instalátor (Inno Setup/WiX), nebo jen zip? (AppUserModelID `PrusaTrayDiagnostic` je daný z T-010; MSIX by ho nahradil identitou balíčku.)
 - Podepisování kódu na Windows (certifikát)?
 - Automatické aktualizace (např. Velopack – ověřit kompatibilitu s Native AOT)? Rozhodnutí se týká i macOS (T-019).
 - Má být autostart volitelný v nastavení (T-015), nebo ho řeší jen instalátor?
