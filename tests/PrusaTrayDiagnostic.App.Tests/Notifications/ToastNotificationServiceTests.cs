@@ -72,6 +72,8 @@ public sealed class ToastNotificationServiceTests : IDisposable
         await _platform.Session.WaitForShownAsync(1);
         Volatile.Write(ref language, CultureInfo.GetCultureInfo("pl-PL"));
         _service.Show(Notification(PrintEventKind.PrintFinished));
+        // The language is read when the worker builds the toast, so switch only after it did.
+        await _platform.Session.WaitForShownAsync(2);
         Volatile.Write(ref language, CultureInfo.GetCultureInfo("it-IT"));
         _service.Show(Notification(PrintEventKind.PrintPaused));
 
@@ -280,10 +282,11 @@ public sealed class ToastNotificationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task UpdatedSettingsReachTheNextToast()
+    public async Task SavedSettingsReachTheNextToast()
     {
-        // Settings window without restart (T-015): sound and printer names flow through the notifier into the toast; with
-        // several printers (T-013) every toast is titled with its own printer.
+        // Settings window (T-015): a notification-only change arrives without restart (UpdateSettings), a rename restarts
+        // the run (ApplySettings); both flow through the notifier into the next toast. With several printers (T-013) every
+        // toast is titled with its own printer.
         FakePrinterMonitor monitor = new();
         using PrintEventNotifier notifier = new(monitor, Service, new ListLogger<PrintEventNotifier>());
         IMonitoringObserver observer = new PrintNotificationObserver(notifier);
@@ -293,19 +296,24 @@ public sealed class ToastNotificationServiceTests : IDisposable
         monitor.Raise(Snapshot(PrinterState.Idle, printerId: "xl"));
         monitor.Raise(Snapshot(PrinterState.Printing, Job(10), printerId: "xl") with { Timestamp = Now.AddSeconds(5) });
 
-        observer.UpdateSettings(new AppSettings
+        observer.UpdateSettings(new AppSettings { Printers = [mk4, xl], Notifications = new NotificationSettings { Sound = NotificationSound.All } });
+        monitor.Raise(Snapshot(PrinterState.Paused, Job(10), printerId: "xl") with { Timestamp = Now.AddSeconds(10) });
+
+        observer.ApplySettings(new AppSettings
         {
             Printers = [mk4, Definition("xl", "XL <left>")],
             Notifications = new NotificationSettings { Sound = NotificationSound.All },
         });
-        monitor.Raise(Snapshot(PrinterState.Paused, Job(10), printerId: "xl") with { Timestamp = Now.AddSeconds(10) });
+        monitor.Raise(Snapshot(PrinterState.Printing, Job(10), printerId: "xl") with { Timestamp = Now.AddSeconds(15) });
 
-        IReadOnlyList<string> shown = await _platform.Session.WaitForShownAsync(2);
+        IReadOnlyList<string> shown = await _platform.Session.WaitForShownAsync(3);
         Assert.Contains("<text>XL</text><text>Print started</text>", shown[0], StringComparison.Ordinal);
         Assert.Contains("silent=\"true\"", shown[0], StringComparison.Ordinal);
-        Assert.Contains("<text>XL &lt;left&gt;</text><text>Print paused</text>", shown[1], StringComparison.Ordinal);
+        Assert.Contains("<text>XL</text><text>Print paused</text>", shown[1], StringComparison.Ordinal);
         Assert.DoesNotContain("<audio", shown[1], StringComparison.Ordinal);
-        Assert.Contains("launch=\"printer=xl\"", shown[1], StringComparison.Ordinal);
+        // The rename keeps the printer's state (same id and address): the resume is a transition, not a new baseline.
+        Assert.Contains("<text>XL &lt;left&gt;</text><text>Print resumed</text>", shown[2], StringComparison.Ordinal);
+        Assert.Contains("launch=\"printer=xl\"", shown[2], StringComparison.Ordinal);
     }
 
     [Fact]

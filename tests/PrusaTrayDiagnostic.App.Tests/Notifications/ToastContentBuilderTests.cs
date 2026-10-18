@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 
 using PrusaTrayDiagnostic.App.Notifications;
@@ -159,7 +160,7 @@ public sealed class ToastContentBuilderTests
             FileName = FileName,
         };
 
-        string xml = ToastContentBuilder.Build(notification);
+        string xml = ToastContentBuilder.Build(notification, CultureInfo.CurrentUICulture);
         XElement toast = XElement.Parse(xml);
 
         // Exactly the elements the builder writes, nothing smuggled in.
@@ -178,7 +179,7 @@ public sealed class ToastContentBuilderTests
             FileName = "bad\uD800surrogate 🐎\u0008.bgcode",
         };
 
-        string[] texts = Texts(XElement.Parse(ToastContentBuilder.Build(notification)));
+        string[] texts = Texts(XElement.Parse(ToastContentBuilder.Build(notification, CultureInfo.CurrentUICulture)));
 
         Assert.Equal("MK4", texts[0]);
         Assert.Equal("badsurrogate 🐎.bgcode", texts[2]);
@@ -212,9 +213,10 @@ public sealed class ToastContentBuilderTests
     }
 
     [Fact]
-    public void NullNotificationIsRejected()
+    public void NullArgumentsAreRejected()
     {
-        Assert.Throws<ArgumentNullException>(() => ToastContentBuilder.Build(null!));
+        Assert.Throws<ArgumentNullException>(() => ToastContentBuilder.Build(null!, CultureInfo.InvariantCulture));
+        Assert.Throws<ArgumentNullException>(() => ToastContentBuilder.Build(Notification(PrintEventKind.PrintFinished), null!));
     }
 
     internal static PrintNotification Notification(PrintEventKind kind) => new()
@@ -224,7 +226,7 @@ public sealed class ToastContentBuilderTests
         Timestamp = Now,
     };
 
-    private static XElement Build(PrintNotification notification) => XElement.Parse(ToastContentBuilder.Build(notification));
+    private static XElement Build(PrintNotification notification) => XElement.Parse(ToastContentBuilder.Build(notification, CultureInfo.CurrentUICulture));
 
     private static string[] Texts(XElement toast) =>
         [.. toast.Elements("visual").Elements("binding").Elements("text").Select(e => e.Value)];

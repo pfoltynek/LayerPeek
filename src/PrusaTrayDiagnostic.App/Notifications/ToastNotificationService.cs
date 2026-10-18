@@ -200,31 +200,13 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                 LogNoClickTarget(notification.Kind, notification.Printer.Id.Length);
             }
 
-            session.Show(Build(notification));
+            // The language is resolved once per toast, right now, and every text of the toast is read in it (the thread's
+            // own UI culture is never changed). Number formats follow CurrentCulture, as in the tray.
+            session.Show(ToastContentBuilder.Build(notification, _textCulture()));
         }
         catch (Exception ex)
         {
             LogShowFailed(ex, notification.Kind, notification.Printer.Id);
-        }
-    }
-
-    /// <summary>
-    /// Builds the toast in the language active now. The builder reads the resources in the thread's UI culture, so it is
-    /// set for this toast only: the thread's own UI culture (the system's) stays, and "system language" keeps meaning it.
-    /// Number formats follow <c>CurrentCulture</c>, which is never changed (as in the tray).
-    /// </summary>
-    private string Build(PrintNotification notification)
-    {
-        CultureInfo culture = _textCulture();
-        CultureInfo previous = CultureInfo.CurrentUICulture;
-        CultureInfo.CurrentUICulture = culture;
-        try
-        {
-            return ToastContentBuilder.Build(notification);
-        }
-        finally
-        {
-            CultureInfo.CurrentUICulture = previous;
         }
     }
 

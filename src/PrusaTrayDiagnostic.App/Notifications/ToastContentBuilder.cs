@@ -9,8 +9,9 @@ using PrusaTrayDiagnostic.Core.Notifications;
 namespace PrusaTrayDiagnostic.App.Notifications;
 
 /// <summary>
-/// Builds the toast XML (Windows <c>ToastGeneric</c> schema) of a <see cref="PrintNotification"/> in the current UI
-/// culture: printer name as the title, the event as the body and the job file name as a third line.
+/// Builds the toast XML (Windows <c>ToastGeneric</c> schema) of a <see cref="PrintNotification"/> with all texts in one
+/// given language (a language switch while building cannot mix languages): printer name as the title, the event as the
+/// body and the job file name as a third line.
 /// Printer and file names come from the user and the printer: they are stripped of characters XML cannot carry,
 /// shortened and escaped, so they can never add markup (actions, protocol launches...).
 /// </summary>
@@ -19,9 +20,11 @@ internal static class ToastContentBuilder
     /// <summary>Longest text line; toasts show about three lines anyway and the whole payload is limited (5 kB).</summary>
     public const int MaxTextLength = 200;
 
-    public static string Build(PrintNotification notification)
+    /// <param name="textCulture">Language of the texts (the app passes <c>UiLanguage.CurrentTextCulture()</c>); numbers follow <c>CurrentCulture</c>.</param>
+    public static string Build(PrintNotification notification, CultureInfo textCulture)
     {
         ArgumentNullException.ThrowIfNull(notification);
+        ArgumentNullException.ThrowIfNull(textCulture);
 
         string title = Clean(notification.Printer.Name);
         if (title.Length == 0)
@@ -44,7 +47,7 @@ internal static class ToastContentBuilder
         // Foreground activation: the click is delivered to the running app (ToastNotification.Activated).
         xml.Append(" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
         AppendText(xml, title);
-        AppendText(xml, EventText(notification.Kind, notification.Remaining));
+        AppendText(xml, EventText(notification.Kind, notification.Remaining, textCulture));
         if (!string.IsNullOrEmpty(fileName))
         {
             AppendText(xml, fileName);
@@ -62,23 +65,26 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>The body line describing the event.</summary>
-    internal static string EventText(PrintEventKind kind, TimeSpan? remaining) => kind switch
+    internal static string EventText(PrintEventKind kind, TimeSpan? remaining, CultureInfo culture) => kind switch
     {
-        PrintEventKind.PrintStarted => Strings.NotificationPrintStarted,
-        PrintEventKind.PrintFinished => Strings.NotificationPrintFinished,
-        PrintEventKind.PrintPaused => Strings.NotificationPrintPaused,
-        PrintEventKind.PrintResumed => Strings.NotificationPrintResumed,
-        PrintEventKind.PrintStopped => Strings.NotificationPrintStopped,
-        PrintEventKind.Error => Strings.NotificationError,
-        PrintEventKind.AttentionRequired => Strings.NotificationAttention,
-        PrintEventKind.CredentialsRejected => Strings.NotificationCredentialsRejected,
-        PrintEventKind.PrinterOffline => Strings.NotificationOffline,
-        PrintEventKind.PrinterOnline => Strings.NotificationOnline,
+        PrintEventKind.PrintStarted => Text(nameof(Strings.NotificationPrintStarted), culture),
+        PrintEventKind.PrintFinished => Text(nameof(Strings.NotificationPrintFinished), culture),
+        PrintEventKind.PrintPaused => Text(nameof(Strings.NotificationPrintPaused), culture),
+        PrintEventKind.PrintResumed => Text(nameof(Strings.NotificationPrintResumed), culture),
+        PrintEventKind.PrintStopped => Text(nameof(Strings.NotificationPrintStopped), culture),
+        PrintEventKind.Error => Text(nameof(Strings.NotificationError), culture),
+        PrintEventKind.AttentionRequired => Text(nameof(Strings.NotificationAttention), culture),
+        PrintEventKind.CredentialsRejected => Text(nameof(Strings.NotificationCredentialsRejected), culture),
+        PrintEventKind.PrinterOffline => Text(nameof(Strings.NotificationOffline), culture),
+        PrintEventKind.PrinterOnline => Text(nameof(Strings.NotificationOnline), culture),
         PrintEventKind.RemainingTime when remaining is { } time =>
-            Format(Strings.NotificationRemainingTime, TrayToolTipFormatter.FormatDuration(time)),
-        PrintEventKind.RemainingTime => Strings.NotificationAlmostFinished,
-        _ => Strings.NotificationStatusChanged,
+            Format(Text(nameof(Strings.NotificationRemainingTime), culture), TrayToolTipFormatter.FormatDurationIn(time, culture)),
+        PrintEventKind.RemainingTime => Text(nameof(Strings.NotificationAlmostFinished), culture),
+        _ => Text(nameof(Strings.NotificationStatusChanged), culture),
     };
+
+    /// <summary>A resource text in exactly <paramref name="culture"/>, regardless of the chosen language (<see cref="Strings.Culture"/>).</summary>
+    private static string Text(string name, CultureInfo culture) => Strings.ResourceManager.GetString(name, culture) ?? name;
 
     private static string Format(string format, object? arg0) =>
         string.Format(CultureInfo.CurrentCulture, format, arg0);

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.Versioning;
 
 using PrusaTrayDiagnostic.App.Notifications;
@@ -28,7 +29,7 @@ public sealed class WinRtToastInteropTests
         {
             FileName = "a&b <c> \"d\".bgcode",
             PlaySound = playSound,
-        });
+        }, CultureInfo.GetCultureInfo("cs-CZ"));
 
         RunOnNewThread(() =>
         {

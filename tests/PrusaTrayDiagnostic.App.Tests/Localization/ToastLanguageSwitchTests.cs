@@ -4,6 +4,7 @@ using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tests.Notifications;
+using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.Core.Events;
 using PrusaTrayDiagnostic.Core.Notifications;
@@ -89,6 +90,24 @@ public sealed class ToastLanguageSwitchTests : IDisposable
 
         language.Apply(null);
         Assert.Equal(system, await Task.Run(UiLanguage.CurrentTextCulture, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public void ExplicitCultureWinsOverTheChosenLanguage()
+    {
+        // The toast is built in one resolved language: a switch while it is being built cannot mix languages.
+        UiLanguage language = new();
+        language.Apply("de");
+        PrintNotification remaining = Notification(PrintEventKind.RemainingTime) with { Remaining = TimeSpan.FromHours(26) };
+
+        string xml = ToastContentBuilder.Build(remaining, CultureInfo.GetCultureInfo("fr-FR"));
+
+        Assert.Contains("<text>Temps restant : 1 j 2 h</text>", xml, StringComparison.Ordinal);
+        Assert.Equal("L'impression est sur le point de se terminer", ToastContentBuilder.EventText(PrintEventKind.RemainingTime, null, CultureInfo.GetCultureInfo("fr-FR")));
+        Assert.Equal("1 j 2 h", TrayToolTipFormatter.FormatDurationIn(TimeSpan.FromHours(26), CultureInfo.GetCultureInfo("fr-FR")));
+        // The tray keeps following the chosen language.
+        Assert.Equal("1 d 2 h", TrayToolTipFormatter.FormatDuration(TimeSpan.FromHours(26)));
+        Assert.Equal("1 g 2 h", TrayToolTipFormatter.FormatDurationIn(TimeSpan.FromHours(26), CultureInfo.GetCultureInfo("it-IT")));
     }
 
     private static PrintNotification Notification(PrintEventKind kind) => new()
