@@ -32,7 +32,10 @@ internal static class AppServices
     /// Logger factory owned by the caller. Registered as an instance, so disposing the container does not dispose it:
     /// quitting still logs after the container is gone. <see langword="null"/>: the container creates its own.
     /// </param>
-    public static ServiceProvider Create(ILoggerFactory? loggerFactory = null)
+    public static ServiceProvider Create(ILoggerFactory? loggerFactory = null) => Create(loggerFactory, OperatingSystem.IsWindows());
+
+    /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
+    internal static ServiceProvider Create(ILoggerFactory? loggerFactory, bool windows)
     {
         ServiceCollection services = new();
 
@@ -68,8 +71,8 @@ internal static class AppServices
             sp.GetRequiredService<IUiDispatcher>(),
             sp.GetRequiredService<IUrlLauncher>(),
             sp.GetRequiredService<TrayMenuOptions>()));
-        // Windows toasts (T-010) and macOS notifications (T-020) replace this per OS; until then notifications are silently not sent.
-        services.AddSingleton<INotificationService>(static _ => NullNotificationService.Instance);
+        services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
+        services.AddSingleton(sp => CreateNotificationService(sp, windows));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -92,6 +95,7 @@ internal static class AppServices
                 sp.GetRequiredService<PrintNotificationObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
+                sp.GetRequiredService<ToastActivationRouter>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>()));
 
@@ -111,6 +115,30 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+    }
+
+    /// <summary>
+    /// Windows: toasts (T-010). Other OS: notifications are silently not sent until macOS notifications (T-020) exist.
+    /// Creating the toast service starts nothing; <see cref="TrayHost"/> starts it, tests never do.
+    /// </summary>
+    private static INotificationService CreateNotificationService(IServiceProvider services, bool windows)
+    {
+        if (!windows || !OperatingSystem.IsWindows())
+        {
+            return NullNotificationService.Instance;
+        }
+
+        ToastActivationRouter router = services.GetRequiredService<ToastActivationRouter>();
+        WindowsToastPlatform platform = new(
+            new AppShortcutRegistration(new WindowsShortcutStore(), services.GetRequiredService<ILogger<AppShortcutRegistration>>()),
+            AppShortcutRegistration.DefaultShortcutPath,
+            Environment.ProcessPath,
+            services.GetRequiredService<ILogger<WindowsToastPlatform>>());
+        return new ToastNotificationService(
+            platform,
+            argument => _ = router.ActivateAsync(argument),
+            UiLanguage.CurrentTextCulture,
+            services.GetRequiredService<ILogger<ToastNotificationService>>());
     }
 
     /// <summary>

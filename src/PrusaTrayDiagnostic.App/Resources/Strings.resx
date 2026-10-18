@@ -139,6 +139,45 @@
   <data name="AboutRepository" xml:space="preserve">
     <value>Source code on GitHub</value>
   </data>
+  <data name="NotificationPrintStarted" xml:space="preserve">
+    <value>Print started</value>
+  </data>
+  <data name="NotificationPrintFinished" xml:space="preserve">
+    <value>Print finished</value>
+  </data>
+  <data name="NotificationPrintPaused" xml:space="preserve">
+    <value>Print paused</value>
+  </data>
+  <data name="NotificationPrintResumed" xml:space="preserve">
+    <value>Print resumed</value>
+  </data>
+  <data name="NotificationPrintStopped" xml:space="preserve">
+    <value>Print stopped</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>The printer reports an error</value>
+  </data>
+  <data name="NotificationAttention" xml:space="preserve">
+    <value>The printer needs your attention</value>
+  </data>
+  <data name="NotificationCredentialsRejected" xml:space="preserve">
+    <value>The printer rejected the credentials</value>
+  </data>
+  <data name="NotificationOffline" xml:space="preserve">
+    <value>The printer is offline</value>
+  </data>
+  <data name="NotificationOnline" xml:space="preserve">
+    <value>The printer is back online</value>
+  </data>
+  <data name="NotificationRemainingTime" xml:space="preserve">
+    <value>{0} remaining</value>
+  </data>
+  <data name="NotificationAlmostFinished" xml:space="preserve">
+    <value>The print is about to finish</value>
+  </data>
+  <data name="NotificationStatusChanged" xml:space="preserve">
+    <value>The printer status changed</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostics – Prusa Tray Diagnostic</value>
   </data>

@@ -507,4 +507,43 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Ändert nur die Texte. Zahlen, Datum und Uhrzeit richten sich immer nach den Regionaleinstellungen des Systems.</value>
   </data>
+  <data name="NotificationPrintStarted" xml:space="preserve">
+    <value>Druck gestartet</value>
+  </data>
+  <data name="NotificationPrintFinished" xml:space="preserve">
+    <value>Druck abgeschlossen</value>
+  </data>
+  <data name="NotificationPrintPaused" xml:space="preserve">
+    <value>Druck pausiert</value>
+  </data>
+  <data name="NotificationPrintResumed" xml:space="preserve">
+    <value>Druck fortgesetzt</value>
+  </data>
+  <data name="NotificationPrintStopped" xml:space="preserve">
+    <value>Druck gestoppt</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>Der Drucker meldet einen Fehler</value>
+  </data>
+  <data name="NotificationAttention" xml:space="preserve">
+    <value>Der Drucker benötigt Ihre Aufmerksamkeit</value>
+  </data>
+  <data name="NotificationCredentialsRejected" xml:space="preserve">
+    <value>Der Drucker hat die Anmeldedaten abgelehnt</value>
+  </data>
+  <data name="NotificationOffline" xml:space="preserve">
+    <value>Der Drucker ist offline</value>
+  </data>
+  <data name="NotificationOnline" xml:space="preserve">
+    <value>Der Drucker ist wieder online</value>
+  </data>
+  <data name="NotificationRemainingTime" xml:space="preserve">
+    <value>Noch {0}</value>
+  </data>
+  <data name="NotificationAlmostFinished" xml:space="preserve">
+    <value>Der Druck ist gleich fertig</value>
+  </data>
+  <data name="NotificationStatusChanged" xml:space="preserve">
+    <value>Der Druckerstatus hat sich geändert</value>
+  </data>
 </root>
