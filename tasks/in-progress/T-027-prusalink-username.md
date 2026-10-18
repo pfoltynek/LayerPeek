@@ -33,7 +33,7 @@ Uživatelské jméno pro PrusaLink už nebude natvrdo `maker`, ale půjde zadat 
 - (core-dev, 2026-10-18) Validace kromě zadaných pravidel odmítá i `"`, `\` a znaky mimo ASCII. **Rozhodnuto 2026-10-18:** omezení zůstávají.
 - (core-dev, 2026-10-18) Neplatné jméno v ručně upraveném souboru nastavení. **Rozhodnuto 2026-10-18:** nahradí se `maker` s varováním, tiskárna se načte.
 - (core-dev, 2026-10-18) Text chyby „heslo odmítnuto“. **Rozhodnuto 2026-10-18:** okno nastavení hlásí, že tiskárna odmítla uživatelské jméno nebo heslo (`SettingsTestPasswordRejected` upraveno).
-- (ui-dev, 2026-10-18) Popisek pole: zadání uvádí **Uživatel**, v okně je zatím „Uživatelské jméno“ / „User name“ (shodně s textem chyb a nápovědy). Ponechat, nebo zkrátit na „Uživatel“? Totéž platí pro znění nápověd a chybových hlášek (viz Poznámky) – jsou to návrhy, ne finální rozhodnutí.
+- (ui-dev, 2026-10-18) Popisek pole. **Rozhodnuto 2026-10-18:** „Uživatelské jméno“ / „User name“ (shodně s nápovědou a chybami).
 
 ## Poznámky k implementaci
 Část Core + PrusaLink (core-dev):
