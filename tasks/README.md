@@ -64,7 +64,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-027 | PrusaLink – uživatelské jméno v nastavení (hotovo) | all | core-dev + ui-dev | P2 | T-003, T-015 |
 | T-028 | Otevření webu PrusaLink s přihlášením (lokální proxy) (hotovo) | all | core-dev + ui-dev | P2 | T-027 |
 | T-029 | Jazyk aplikace a další překlady (de, es, fr, it, pl, sk) (hotovo) | all | ui-dev | P2 | T-015 |
-| T-030 | E2E testy webu přes proxy (Playwright + Edge) | all | qa-reviewer | P2 | T-028 |
+| T-030 | E2E testy webu přes proxy (Playwright + Edge) (hotovo) | all | qa-reviewer | P2 | T-028 |
 | T-031 | Headless UI testy Avalonie (okno nastavení, tray menu) | all | qa-reviewer | P2 | T-015, T-028 |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
@@ -83,4 +83,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-018 | macOS – ikona a menu v menu baru | macos | ui-dev | P1 | T-007, T-008 |
 | T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015 |
 | T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019 |
-| T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002 |
+| T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
