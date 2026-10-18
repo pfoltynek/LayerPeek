@@ -22,10 +22,11 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 {
     private readonly IPrinterMonitor _monitor;
     private readonly IUiDispatcher _dispatcher;
-    private readonly IUrlLauncher _launcher;
+    private readonly PrinterWebOpener _webOpener;
     private readonly bool _diagnosticsAvailable;
     private readonly Action _apply;
     private readonly Lock _gate = new();
+    private readonly CancellationTokenSource _disposing = new();
 
     // UI thread only (after construction).
     private readonly ObservableCollection<TrayMenuEntry> _items;
@@ -39,15 +40,15 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private bool _applyPending;
     private bool _disposed;
 
-    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, IUrlLauncher launcher, TrayMenuOptions options)
+    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, PrinterWebOpener webOpener, TrayMenuOptions options)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(dispatcher);
-        ArgumentNullException.ThrowIfNull(launcher);
+        ArgumentNullException.ThrowIfNull(webOpener);
         ArgumentNullException.ThrowIfNull(options);
         _monitor = monitor;
         _dispatcher = dispatcher;
-        _launcher = launcher;
+        _webOpener = webOpener;
         _diagnosticsAvailable = options.DiagnosticsAvailable;
         _apply = Apply;
         FixedItems =
@@ -115,16 +116,31 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             return;
         }
 
+        PrinterDefinition? printer = null;
+        CancellationToken cancellationToken;
         lock (_gate)
         {
             if (_disposed)
             {
                 return;
             }
+
+            // Credentials are sent only when the entry still shows the current address of its printer: an entry from a
+            // previous configuration (printer moved) opens its address without them.
+            if (entry.PrinterId is { } id
+                && _slots is not null
+                && _slotById.TryGetValue(id, out int index)
+                && _slots[index].WebUri == uri)
+            {
+                printer = _slots[index].Definition;
+            }
+
+            cancellationToken = _disposing.Token;
         }
 
-        // The launcher validates the address again, runs off the UI thread and logs failures; it never throws.
-        _ = _launcher.OpenAsync(uri);
+        // The opener reads the password now (not when the menu was built), the launcher validates the address again and
+        // runs off the UI thread; neither throws, failures are logged without credentials.
+        _ = _webOpener.OpenAsync(uri, printer, cancellationToken);
     }
 
     public void Dispose()
@@ -132,8 +148,17 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         lock (_gate)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
             _disposed = true;
         }
+
+        // A browser start still waiting for the password is dropped (e.g. when quitting).
+        _disposing.Cancel();
+        _disposing.Dispose();
     }
 
     private static TrayMenuEntry MessageEntry(string text) => new(TrayMenuCommand.None, text, IsEnabled: false);
@@ -346,6 +371,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// <summary>Mutable per-printer state, guarded by the owner's lock (except <see cref="Submenu"/>).</summary>
     private sealed class Slot(PrinterDefinition definition, Uri? webUri)
     {
+        public PrinterDefinition Definition => definition;
+
+        public Uri? WebUri => webUri;
+
         public PrinterMenuContent Content { get; set; }
 
         /// <summary>Queued in <c>_dirtySlots</c> for the next UI update.</summary>

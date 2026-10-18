@@ -18,7 +18,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
     private readonly ListLogger<TrayMenuPresenterTests> _logger = new();
     private readonly TrayMenuViewModel _viewModel;
 
-    public TrayMenuPresenterTests() => _viewModel = new TrayMenuViewModel(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default);
+    public TrayMenuPresenterTests() => _viewModel = new TrayMenuViewModel(_monitor, _dispatcher, TestWebOpener.Create(_launcher), TrayMenuOptions.Default);
 
     public void Dispose()
     {
@@ -67,13 +67,14 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     [Fact]
-    public void ClickOnPrinterOpensItsWebInterface()
+    public async Task ClickOnPrinterOpensItsWebInterface()
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = Create();
 
         _target.Click(_target.Printers[0]);
+        await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
     }
@@ -131,7 +132,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     [Fact]
-    public void SubmenuItemsAreRoutedToTheirPrinter()
+    public async Task SubmenuItemsAreRoutedToTheirPrinter()
     {
         _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta") with { Address = "192.168.1.11" }]);
         _dispatcher.RunAll();
@@ -140,6 +141,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
         _target.Click(Child(1, TrayMenuCommand.Diagnostics));
         _target.Click(Child(0, TrayMenuCommand.Diagnostics));
         _target.Click(Child(1, TrayMenuCommand.OpenWeb));
+        await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal(["b", "a"], _commands.DiagnosticsRequests);
         Assert.Equal([new Uri("http://192.168.1.11/")], _launcher.Opened);
@@ -192,7 +194,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
     [Fact]
     public void DisabledDiagnosticsItemDoesNothing()
     {
-        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default with { DiagnosticsAvailable = false });
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher), TrayMenuOptions.Default with { DiagnosticsAvailable = false });
         using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
 
         _target.Click(Fixed(TrayMenuCommand.Diagnostics));

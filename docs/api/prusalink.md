@@ -63,6 +63,26 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 
 **Reverzní proxy:** adresa smí obsahovat cestu (např. `http://proxy/printers/mk4`). Proxy ale musí cestu předat beze změny, protože firmware počítá Digest z cesty v požadavku. Proxy, která prefix odřízne, se projeví jako „The printer rejected the password.“
 
+## Otevření webu s přihlášením (T-028)
+
+Položka „Otevřít PrusaLink v prohlížeči“ v tray menu předá prohlížeči jméno a heslo přímo v adrese: `http://jmeno:heslo@tiskarna/`.
+
+**Jak to funguje:**
+- Platí jen pro tiskárny PrusaLink s uloženým heslem. Heslo se z `ISecretStore` čte až při kliknutí, menu ho v paměti nedrží.
+- Bez hesla, při chybě úložiště tajných údajů nebo u Prusa Connect se otevře holá adresa jako dřív. Prohlížeč se pak na přihlášení zeptá sám.
+- Jméno i heslo jsou procentově zakódované jako userinfo podle RFC 3986 (`Uri.EscapeDataString`). Znaky jako `@ : / # % ?`, mezera nebo diakritika tak adresu nerozbijí.
+- Výsledná adresa se předává jako text, ne jako `System.Uri`. `Uri.ToString()` totiž zakódovanou diakritiku a mezery vrací zpět na surové znaky.
+- Adresa tiskárny zadaná uživatelem s vlastním userinfo (`http://user:pw@tiskarna`) se dál odmítá v nastavení i před spuštěním prohlížeče. Userinfo přidává jen aplikace z uložených údajů.
+- Prohlížeč se spouští jako dosud: na Windows přes ShellExecute, na macOS `open` s adresou jako jediným argumentem bez shellu.
+- Do logu se nikdy nedostane heslo ani adresa s userinfo, jen adresa bez přihlašovacích údajů. Při selhání spuštění se nezapisuje ani text výjimky: `Process.Start` do něj vkládá celou adresu.
+
+**Známá omezení:**
+- Edge a Chrome údaje z adresy přijmou a web otevřou přihlášený.
+- Firefox se před přihlášením zeptá na potvrzení v dialogu.
+- Safari může zobrazit varování. Chování na macOS zatím nikdo neověřil.
+- Heslo je vidět v příkazové řádce procesu prohlížeče, tedy pro ostatní procesy stejného uživatele (Správce úloh, `ps`).
+- Adresa s heslem může zůstat v historii prohlížeče, v napovídání adresního řádku nebo v synchronizaci prohlížeče.
+
 ## Spojení a zátěž
 
 - Keep-alive je podporovaný.

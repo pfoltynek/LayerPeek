@@ -59,10 +59,15 @@ internal static class AppServices
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.Default);
+        // Opens PrusaLink logged in with the stored password, read at click time (T-028).
+        services.AddSingleton(static sp => new PrinterWebOpener(
+            sp.GetRequiredService<ISecretStore>(),
+            sp.GetRequiredService<IUrlLauncher>(),
+            sp.GetRequiredService<ILogger<PrinterWebOpener>>()));
         services.AddSingleton(static sp => new TrayMenuViewModel(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<IUiDispatcher>(),
-            sp.GetRequiredService<IUrlLauncher>(),
+            sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<TrayMenuOptions>()));
         // Windows toasts (T-010) and macOS notifications (T-020) replace this per OS; until then notifications are silently not sent.
         services.AddSingleton<INotificationService>(static _ => NullNotificationService.Instance);

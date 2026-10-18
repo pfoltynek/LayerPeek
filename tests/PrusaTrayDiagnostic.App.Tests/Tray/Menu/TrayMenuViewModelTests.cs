@@ -1,5 +1,6 @@
 using System.Collections.Specialized;
 
+using PrusaTrayDiagnostic.App.Tests.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -15,12 +16,13 @@ public sealed class TrayMenuViewModelTests : IDisposable
     private readonly FakePrinterMonitor _monitor = new();
     private readonly ManualDispatcher _dispatcher = new();
     private readonly FakeUrlLauncher _launcher = new();
+    private readonly FakeSecretStore _secrets = new();
     private readonly TrayMenuViewModel _viewModel;
     private readonly List<NotifyCollectionChangedEventArgs> _changes = [];
 
     public TrayMenuViewModelTests()
     {
-        _viewModel = new TrayMenuViewModel(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default);
+        _viewModel = new TrayMenuViewModel(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _secrets), TrayMenuOptions.Default);
         ((INotifyCollectionChanged)_viewModel.PrinterItems).CollectionChanged += OnCollectionChanged;
     }
 
@@ -56,7 +58,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     [Fact]
     public void UnavailableWindowsAreDisabled()
     {
-        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, new TrayMenuOptions(SettingsAvailable: false, DiagnosticsAvailable: false));
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _secrets), new TrayMenuOptions(SettingsAvailable: false, DiagnosticsAvailable: false));
 
         Assert.False(viewModel.FixedItems.Single(item => item.Command == TrayMenuCommand.Settings).IsEnabled);
         Assert.False(viewModel.FixedItems.Single(item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
@@ -66,7 +68,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     public void FixedItemsFollowUiCulture()
     {
         using CultureScope czech = new("cs-CZ");
-        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default);
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _secrets), TrayMenuOptions.Default);
 
         Assert.Equal(
             ["Nastavení…", "Diagnostika…", "O aplikaci", "Ukončit"],
@@ -165,7 +167,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     [Fact]
     public void SubmenuDiagnosticsFollowsOptions()
     {
-        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default with { DiagnosticsAvailable = false });
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _secrets), TrayMenuOptions.Default with { DiagnosticsAvailable = false });
         viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
         _dispatcher.RunAll();
 
@@ -475,14 +477,95 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void OpenWebLaunchesTheEntryAddress()
+    public async Task OpenWebLaunchesTheEntryAddress()
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
         _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
+    }
+
+    [Fact]
+    public async Task OpenWebLogsInWithTheStoredPasswordAndUserName()
+    {
+        _secrets.Seed("mk4", "pw");
+        _viewModel.SetPrinters([Definition() with { UserName = "admin" }]);
+        _dispatcher.RunAll();
+
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        await _launcher.WaitForOpenedAsync(1);
+
+        Assert.Equal([(new Uri("http://192.168.1.10/"), "admin", "pw")], _launcher.OpenedWithCredentials);
+        Assert.Empty(_launcher.Opened);
+    }
+
+    [Fact]
+    public async Task OpenWebFromSubmenuLogsInAsThatPrinter()
+    {
+        _secrets.Seed("b", "pw-b");
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta") with { Address = "192.168.1.11" }]);
+        _dispatcher.RunAll();
+
+        _viewModel.OpenWeb(_viewModel.PrinterItems[1].Submenu![0]);
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0].Submenu![0]);
+        await _launcher.WaitForOpenedAsync(2);
+
+        Assert.Equal([(new Uri("http://192.168.1.11/"), "maker", "pw-b")], _launcher.OpenedWithCredentials);
+        Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
+    }
+
+    [Fact]
+    public async Task OpenWebFromAStaleEntryNeverSendsCredentials()
+    {
+        _secrets.Seed("mk4", "pw");
+        _viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+        TrayMenuEntry stale = _viewModel.PrinterItems[0];
+        // The printer moved: the old entry must not send the password to the old address.
+        _viewModel.SetPrinters([Definition() with { Address = "192.168.1.99" }]);
+
+        _viewModel.OpenWeb(stale);
+        await _launcher.WaitForOpenedAsync(1);
+
+        Assert.Empty(_launcher.OpenedWithCredentials);
+        Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
+    }
+
+    [Fact]
+    public async Task OpenWebWithFailingSecretStoreOpensPlainAddress()
+    {
+        _secrets.FailGet.Add(Core.Secrets.SecretKeys.ForPrinter("mk4"));
+        _viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        await _launcher.WaitForOpenedAsync(1);
+
+        Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
+        Assert.Empty(_launcher.OpenedWithCredentials);
+    }
+
+    [Fact]
+    public async Task DisposeCancelsAnOpenWaitingForThePassword()
+    {
+        BlockingSecretStore secrets = new();
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, secrets), TrayMenuOptions.Default);
+        viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+
+        viewModel.OpenWeb(viewModel.PrinterItems[0]);
+        CancellationToken readToken = await secrets.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        Assert.False(readToken.IsCancellationRequested);
+        viewModel.Dispose();
+
+        Assert.True(readToken.IsCancellationRequested);
+        secrets.Release.SetResult();
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.Empty(_launcher.Opened);
+        Assert.Empty(_launcher.OpenedWithCredentials);
     }
 
     [Fact]
@@ -580,4 +663,23 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e) => _changes.Add(e);
+
+    /// <summary>Holds every password read until <see cref="Release"/> is set; reports the token of the read.</summary>
+    private sealed class BlockingSecretStore : Core.Secrets.ISecretStore
+    {
+        public TaskCompletionSource<CancellationToken> Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public async Task<string?> GetAsync(string key, CancellationToken cancellationToken)
+        {
+            Entered.TrySetResult(cancellationToken);
+            await Release.Task.ConfigureAwait(false);
+            return "pw";
+        }
+
+        public Task SetAsync(string key, string secret, CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<bool> DeleteAsync(string key, CancellationToken cancellationToken) => throw new NotSupportedException();
+    }
 }
