@@ -10,9 +10,12 @@ namespace PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 /// <summary>Records opened addresses instead of starting a browser.</summary>
 internal sealed class FakeUrlLauncher : IUrlLauncher
 {
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
+
     private readonly Lock _lock = new();
     private readonly List<Uri> _opened = [];
     private readonly List<Uri> _openedSecret = [];
+    private readonly List<(int Count, TaskCompletionSource Reached)> _waiters = [];
 
     public bool Result { get; set; } = true;
 
@@ -44,6 +47,7 @@ internal sealed class FakeUrlLauncher : IUrlLauncher
         lock (_lock)
         {
             _opened.Add(uri);
+            ReleaseWaitersLocked();
         }
 
         return Task.FromResult(Result);
@@ -59,32 +63,54 @@ internal sealed class FakeUrlLauncher : IUrlLauncher
         lock (_lock)
         {
             _openedSecret.Add(uri);
+            ReleaseWaitersLocked();
         }
 
         return Task.FromResult(Result);
     }
 
     /// <summary>
-    /// Waits until <paramref name="count"/> addresses were opened in total (plain or secret): the web opener asks the
-    /// gateway off the calling thread, so the launcher is reached asynchronously.
+    /// Completes when <paramref name="count"/> addresses were opened in total (plain or secret): the web opener asks the
+    /// gateway off the calling thread, so the launcher is reached asynchronously. No polling; fails after a real-time guard.
     /// </summary>
     public async Task WaitForOpenedAsync(int count)
     {
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(10));
-        while (OpenedCount < count)
+        (int Count, TaskCompletionSource Reached) waiter;
+        lock (_lock)
         {
-            await Task.Delay(5, timeout.Token);
+            if (OpenedCountLocked >= count)
+            {
+                return;
+            }
+
+            waiter = (count, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously));
+            _waiters.Add(waiter);
+        }
+
+        try
+        {
+            await waiter.Reached.Task.WaitAsync(WaitTimeout, TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            // A timed-out or cancelled wait leaves no waiter behind (a released one is already gone).
+            lock (_lock)
+            {
+                _waiters.Remove(waiter);
+            }
         }
     }
 
-    private int OpenedCount
+    private int OpenedCountLocked => _opened.Count + _openedSecret.Count;
+
+    private void ReleaseWaitersLocked()
     {
-        get
+        for (int i = _waiters.Count - 1; i >= 0; i--)
         {
-            lock (_lock)
+            if (OpenedCountLocked >= _waiters[i].Count)
             {
-                return _opened.Count + _openedSecret.Count;
+                _waiters[i].Reached.TrySetResult();
+                _waiters.RemoveAt(i);
             }
         }
     }
