@@ -18,7 +18,7 @@ public enum PrusaLinkFailure
     /// <summary>The https (TLS) handshake failed, e.g. an untrusted certificate or https against an http-only printer.</summary>
     SecureConnectionFailed,
 
-    /// <summary>The printer rejected the password (HTTP 401 after answering the challenge).</summary>
+    /// <summary>The printer rejected the user name or password (HTTP 401 after answering the challenge); Digest cannot tell which.</summary>
     PasswordRejected,
 
     /// <summary>The printer denied access (HTTP 403).</summary>

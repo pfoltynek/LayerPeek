@@ -14,6 +14,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\PrusaTrayDiagnostic.Core\PrusaTrayDiagnostic.Core.csproj" />
   </ItemGroup>
 </Project>

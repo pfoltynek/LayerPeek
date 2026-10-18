@@ -704,6 +704,231 @@ public sealed class SettingsViewModelTests : IDisposable
         Assert.Equal(cloud with { Name = "Cloud 2" }, Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
     }
 
+    // ---- PrusaLink user name ----
+
+    [Fact]
+    public async Task LoadShowsTheSavedUserName()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha", userName: "operator")] });
+
+        Assert.Equal("operator", vm.Printers[0].UserName);
+        Assert.Null(vm.Printers[0].UserNameError);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task NewPrinterStartsWithTheDefaultUserName()
+    {
+        SettingsViewModel vm = await LoadAsync(AppSettings.Default);
+        vm.AddPrinterCommand.Execute(null);
+        PrinterEditorViewModel added = vm.SelectedPrinter!;
+
+        Assert.Equal("maker", added.UserName);
+        Assert.Null(added.UserNameError);
+        Assert.Equal("PrusaLink user name from the printer settings. The default is “maker”.", added.UserNameHint);
+        Assert.Equal("PrusaLink password from the printer settings.", added.PasswordHint);
+    }
+
+    [Fact]
+    public async Task SavingOtherChangesKeepsTheLoadedUserName()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha", userName: "operator")] });
+
+        vm.Printers[0].Name = "Alpha 2";
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(LinkPrinter("a", "Alpha 2", userName: "operator"), Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
+    }
+
+    [Fact]
+    public async Task ChangedUserNameIsSavedTrimmed()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] });
+
+        vm.Printers[0].UserName = " operator ";
+        Assert.True(vm.IsDirty);
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(LinkPrinter("a", "Alpha", userName: "operator"), Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
+        Assert.Equal(1, _closeRequests);
+    }
+
+    [Fact]
+    public async Task NewPrinterIsSavedWithTheEnteredUserName()
+    {
+        SettingsViewModel vm = await LoadAsync(AppSettings.Default);
+        vm.AddPrinterCommand.Execute(null);
+        vm.SelectedPrinter!.Name = "MK4";
+        vm.SelectedPrinter.Address = "192.168.1.30";
+        vm.SelectedPrinter.UserName = "operator";
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(LinkPrinter("new1", "MK4", "192.168.1.30", "operator"), Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
+    }
+
+    [Fact]
+    public async Task UserNameOnlyDiffersInSurroundingSpacesIsNotDirty()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] });
+
+        vm.Printers[0].UserName = "operator";
+        Assert.True(vm.IsDirty);
+        vm.Printers[0].UserName = " maker ";
+        Assert.False(vm.IsDirty);
+    }
+
+    [Theory]
+    [InlineData("", "Enter a user name.")]
+    [InlineData("   ", "Enter a user name.")]
+    [InlineData("a\tb", "The user name must not contain tabs, line breaks or other control characters.")]
+    [InlineData("a\nb", "The user name must not contain tabs, line breaks or other control characters.")]
+    [InlineData("a:b", "The user name must not contain a colon (:).")]
+    [InlineData("a\"b", UserNameUnsupported)]
+    [InlineData("a\\b", UserNameUnsupported)]
+    [InlineData("tomáš", UserNameUnsupported)]
+    [InlineData("operator", null)]
+    [InlineData(" maker ", null)]
+    [InlineData("user.name-1_@x", null)]
+    public async Task UserNameFollowsTheSharedRules(string userName, string? expected)
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+
+        printer.UserName = userName;
+
+        Assert.Equal(expected, printer.UserNameError);
+        Assert.Equal(expected is not null, printer.HasErrors);
+        Assert.Equal(expected is not null, printer.ShowsErrorMarker);
+    }
+
+    [Fact]
+    public async Task UserNameHasAMaximumLength()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+
+        printer.UserName = new string('x', PrinterUserName.MaxLength);
+        Assert.Null(printer.UserNameError);
+
+        printer.UserName = new string('x', PrinterUserName.MaxLength + 1);
+        Assert.Equal("The user name can have at most 64 characters.", printer.UserNameError);
+    }
+
+    [Fact]
+    public async Task UserNameErrorsFollowUiCulture()
+    {
+        using CultureScope czech = new("cs-CZ");
+        PrinterEditorViewModel printer = await LoadOneAsync();
+
+        printer.UserName = string.Empty;
+
+        Assert.Equal("Zadejte uživatelské jméno.", printer.UserNameError);
+    }
+
+    [Fact]
+    public async Task SaveWithInvalidUserNameSelectsThePrinterAndSavesNothing()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta")] });
+        vm.Printers[1].UserName = "a:b";
+        vm.SelectedPrinter = vm.Printers[0];
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Empty(_store.Saves);
+        Assert.Same(vm.Printers[1], vm.SelectedPrinter);
+        Assert.True(vm.StatusIsError);
+        Assert.Equal("Some values are not valid. Fix the highlighted fields.", vm.StatusText);
+        Assert.Equal(0, _closeRequests);
+    }
+
+    [Fact]
+    public async Task ExistingPrusaConnectPrinterIgnoresTheUserName()
+    {
+        PrinterDefinition cloud = CloudPrinter("c", "Cloud");
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [cloud] });
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        Assert.False(printer.IsPrusaLink);
+        Assert.Equal("Prusa Connect does not use a printer user name.", printer.UserNameHint);
+
+        // The disabled field is not validated and never changes the saved definition.
+        printer.UserName = string.Empty;
+        Assert.Null(printer.UserNameError);
+        Assert.False(printer.HasErrors);
+        printer.Name = "Cloud 2";
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(cloud with { Name = "Cloud 2" }, Assert.Single(Assert.Single(_store.Saves).Updated.Printers));
+    }
+
+    [Fact]
+    public async Task SwitchingToPrusaConnectRestoresTheSavedUserName()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [CloudPrinter("c", "Cloud")] });
+        PrinterEditorViewModel printer = vm.Printers[0];
+        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaLink);
+        printer.Address = "192.168.1.40";
+        printer.UserName = "a:b";
+        Assert.NotNull(printer.UserNameError);
+
+        printer.SelectedConnectionType = printer.ConnectionTypes.Single(static o => o.Value == ConnectionType.PrusaConnect);
+        printer.Address = "c0ffee00-0000-4000-8000-000000000001";
+
+        Assert.Equal("maker", printer.UserName);
+        Assert.Null(printer.UserNameError);
+        Assert.False(printer.HasErrors);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task UserNameStaysEditableWithoutASecretStore()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] }, policy: PasswordPolicy.Unsupported, withPassword: null);
+
+        vm.Printers[0].UserName = "operator";
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal("operator", Assert.Single(Assert.Single(_store.Saves).Updated.Printers).UserName);
+    }
+
+    [Fact]
+    public async Task TestUsesTheEnteredUserName()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        _tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.Success);
+        printer.UserName = " operator ";
+
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+
+        Assert.Equal("operator", Assert.Single(_tester.Calls).Printer.UserName);
+        Assert.Empty(_store.Saves);
+    }
+
+    [Fact]
+    public async Task InvalidUserNameIsReportedWithoutTesting()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        printer.UserName = "a:b";
+
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+
+        Assert.Empty(_tester.Calls);
+        Assert.Equal("The user name must not contain a colon (:).", printer.TestResultText);
+        Assert.True(printer.TestFailed);
+    }
+
+    [Fact]
+    public async Task EditingTheUserNameClearsAnOldResult()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        _tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.PasswordRejected);
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+        Assert.True(printer.HasTestResult);
+
+        printer.UserName = "operator";
+
+        Assert.False(printer.HasTestResult);
+    }
+
     // ---- Test connection ----
 
     [Fact]
@@ -771,7 +996,7 @@ public sealed class SettingsViewModelTests : IDisposable
     [InlineData(ConnectionTestOutcome.NotReachable, "The printer is not reachable. Check the address and that the printer is switched on and connected to the network.")]
     [InlineData(ConnectionTestOutcome.Timeout, "The printer did not respond in time.")]
     [InlineData(ConnectionTestOutcome.SecureConnectionFailed, "The secure (https) connection failed. Try the address with http:// or check the printer's certificate.")]
-    [InlineData(ConnectionTestOutcome.PasswordRejected, "The printer rejected the password.")]
+    [InlineData(ConnectionTestOutcome.PasswordRejected, "The printer rejected the user name or password.")]
     [InlineData(ConnectionTestOutcome.AccessDenied, "The printer denied access.")]
     [InlineData(ConnectionTestOutcome.PasswordUnavailable, "The saved password could not be read.")]
     [InlineData(ConnectionTestOutcome.UnsupportedAuthentication, "The printer requires an unsupported sign-in method.")]
@@ -903,6 +1128,9 @@ public sealed class SettingsViewModelTests : IDisposable
 
     private const string AddressInvalid =
         "Enter an IP address or host name, optionally with http:// or https://, a port and a path. A user name, password, query (?) or fragment (#) is not allowed.";
+
+    private const string UserNameUnsupported =
+        "The user name can contain only letters without diacritics, digits and common symbols, except \" and \\.";
 
     private string NextId() => _ids.Dequeue();
 

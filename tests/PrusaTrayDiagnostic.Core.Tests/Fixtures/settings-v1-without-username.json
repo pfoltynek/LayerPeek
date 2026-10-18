@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "pollingIntervalSeconds": 5,
+  "notifications": {
+    "enabled": true,
+    "printStarted": true,
+    "printFinished": true,
+    "printPaused": true,
+    "printResumed": true,
+    "printStopped": true,
+    "error": true,
+    "attention": true,
+    "offline": true,
+    "remainingTimeMinutes": 0,
+    "sound": "ImportantOnly"
+  },
+  "printers": [
+    {
+      "id": "core-one",
+      "name": "Core One",
+      "connectionType": "PrusaLink",
+      "address": "192.168.1.20"
+    },
+    {
+      "id": "xl",
+      "name": "XL",
+      "connectionType": "PrusaConnect",
+      "address": "c0ffee00-1234-5678-9abc-def012345678"
+    }
+  ]
+}

@@ -37,6 +37,7 @@ internal static class SettingsMapper
                 Name = printer.Name,
                 ConnectionType = FormatConnectionType(printer.ConnectionType),
                 Address = printer.Address,
+                UserName = printer.UserName,
             })],
         };
     }
@@ -167,7 +168,7 @@ internal static class SettingsMapper
         HashSet<string> ids = new(documents.Count, StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < documents.Count; i++)
         {
-            string? problem = TryCreatePrinter(documents[i], out PrinterDefinition? printer);
+            string? problem = TryCreatePrinter(documents[i], i, warnings, out PrinterDefinition? printer);
             if (printer is not null && !ids.Add(printer.Id))
             {
                 problem = $"duplicate id '{Shorten(printer.Id)}'";
@@ -187,7 +188,7 @@ internal static class SettingsMapper
     }
 
     /// <returns><see langword="null"/> on success, otherwise the reason why the entry is invalid.</returns>
-    private static string? TryCreatePrinter(PrinterDocument? document, out PrinterDefinition? printer)
+    private static string? TryCreatePrinter(PrinterDocument? document, int index, List<string> warnings, out PrinterDefinition? printer)
     {
         printer = null;
         if (document is null)
@@ -216,8 +217,28 @@ internal static class SettingsMapper
             Name = string.IsNullOrWhiteSpace(document.Name) ? document.Address : document.Name,
             ConnectionType = connectionType,
             Address = document.Address,
+            UserName = ToUserName(document.UserName, index, warnings),
         };
         return null;
+    }
+
+    private static string ToUserName(string? value, int index, List<string> warnings)
+    {
+        if (value is null)
+        {
+            // Files written before the user name was configurable.
+            return PrinterUserName.Default;
+        }
+
+        PrinterUserNameError error = PrinterUserName.Validate(value);
+        if (error == PrinterUserNameError.None)
+        {
+            return value;
+        }
+
+        // The value is not echoed: it may contain control characters.
+        warnings.Add($"Printer entry {index + 1}: invalid user name ({error}); '{PrinterUserName.Default}' is used.");
+        return PrinterUserName.Default;
     }
 
     // Warnings are shown in the UI; a garbage file must not be able to push huge strings there.

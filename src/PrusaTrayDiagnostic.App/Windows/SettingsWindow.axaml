@@ -152,6 +152,11 @@
                     <TextBlock Classes="hint" Text="{x:Static res:Strings.SettingsAddressHint}" IsVisible="{Binding IsPrusaLink}" />
                     <TextBlock Classes="error" Text="{Binding AddressError}" IsVisible="{Binding AddressError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
+                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsUserName}" />
+                    <TextBox Text="{Binding UserName}" MaxLength="200" IsEnabled="{Binding IsPrusaLink}" />
+                    <TextBlock Classes="hint" Text="{Binding UserNameHint}" />
+                    <TextBlock Classes="error" Text="{Binding UserNameError}" IsVisible="{Binding UserNameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
                     <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsPassword}" />
                     <TextBox Text="{Binding Password}"
                              PasswordChar="●"
