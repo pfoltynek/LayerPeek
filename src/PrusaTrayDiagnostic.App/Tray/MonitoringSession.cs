@@ -9,7 +9,7 @@ namespace PrusaTrayDiagnostic.App.Tray;
 /// <summary>
 /// Runs the monitoring service for the lifetime of the app: loads the settings, hands them to the
 /// observers (icon, menu, notifications) and polls the printers until stopped; settings saved in the settings window
-/// restart it (<see cref="Apply"/>). Never throws into the UI: failures are logged and shown in the tray.
+/// restart it (<see cref="ApplyAsync"/>). Never throws into the UI: failures are logged and shown in the tray.
 /// </summary>
 internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable, ISettingsApplier
 {
@@ -63,10 +63,6 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         _logger = logger;
     }
 
-    /// <summary>
-    /// Completes when monitoring ended (stopped or failed); never faults. Already completed before <see cref="Start"/>.
-    /// After a failure, <see cref="Apply"/> starts monitoring again with a new completion task.
-    /// </summary>
     /// <summary>Settings of the current run, including a notification-only update; <see langword="null"/> before the first run.</summary>
     internal AppSettings? CurrentSettings
     {
@@ -79,6 +75,10 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
     }
 
+    /// <summary>
+    /// Completes when monitoring ended (stopped or failed); never faults. Already completed before <see cref="Start"/>.
+    /// After a failure, <see cref="ApplyAsync"/> starts monitoring again with a new completion task.
+    /// </summary>
     public Task Completion
     {
         get
@@ -321,7 +321,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     }
 
     /// <summary>
-    /// Runs the monitor until stopped; each <see cref="Apply"/> ends the current run and starts the next one with the
+    /// Runs the monitor until stopped; each <see cref="ApplyAsync"/> ends the current run and starts the next one with the
     /// applied settings. A failed run is reported and ends the loop unless new settings are already waiting.
     /// </summary>
     private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken)
