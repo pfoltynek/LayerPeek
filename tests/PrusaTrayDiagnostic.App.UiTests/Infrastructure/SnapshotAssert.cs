@@ -40,8 +40,15 @@ public static class SnapshotAssert
     /// <summary>The verdict of <see cref="Matches"/> for a count of pixels beyond the channel tolerance.</summary>
     internal static bool IsWithinTolerance(int differentPixels) => differentPixels <= MaxDifferentPixels;
 
-    /// <summary>Reserved folder for the images of failed comparisons; nothing else is ever written there.</summary>
-    public static string FailureDirectory { get; } = Path.Combine(Path.GetTempPath(), "PrusaTrayDiagnostic.App.UiTests.Snapshots");
+    /// <summary>
+    /// The reservation of this assembly in %TEMP% for this worktree (the un-hashed folder of older runs is swept too).
+    /// Runs in the same worktree are serialized by its lock (<see cref="HeadlessSession"/>).
+    /// </summary>
+    internal static ReservedTempDirectory Reserved { get; } =
+        ReservedTempDirectory.ForCurrentWorktree("PrusaTrayDiagnostic.App.UiTests", legacyDirectoryName: "PrusaTrayDiagnostic.App.UiTests.Snapshots");
+
+    /// <summary>Reserved folder for the images of failed comparisons; nothing else is written there (besides its marker).</summary>
+    public static string FailureDirectory => Reserved.Path;
 
     /// <summary>The <c>Snapshots</c> folder of the test project in the source tree.</summary>
     public static string ReferenceDirectory { get; } =
@@ -119,22 +126,19 @@ public static class SnapshotAssert
         return CountDifferentPixels(Capture(expected), Capture(actual), ChannelTolerance, diff: null);
     }
 
-    /// <summary>Start of a run: removes the images of the previous run's failures.</summary>
-    internal static Task SweepFailureOutputAsync() =>
-        TestRunLock.RetryAsync($"delete '{FailureDirectory}'", static () =>
-        {
-            if (Directory.Exists(FailureDirectory))
-            {
-                Directory.Delete(FailureDirectory, recursive: true);
-            }
-        });
+    /// <summary>Start of a run (under the lock): removes the images of the previous run's failures and other leftovers.</summary>
+    internal static async Task SweepFailureOutputAsync()
+    {
+        await Reserved.SweepAsync().ConfigureAwait(false);
+        await Reserved.CreateAsync().ConfigureAwait(false);
+    }
 
     /// <summary>End of a run: the folder stays only when it holds images of failures.</summary>
     internal static void RemoveEmptyFailureOutput()
     {
-        if (Directory.Exists(FailureDirectory) && !Directory.EnumerateFileSystemEntries(FailureDirectory).Any())
+        if (Reserved.HoldsOnlyMarker())
         {
-            Directory.Delete(FailureDirectory);
+            Directory.Delete(FailureDirectory, recursive: true);
         }
     }
 

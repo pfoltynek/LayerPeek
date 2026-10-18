@@ -23,6 +23,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
     <!-- The fakes of the view model tests, linked (no copy that could diverge). -->
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Settings\SettingsFakes.cs" Link="Shared\SettingsFakes.cs" />
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\TrayFakes.cs" Link="Shared\TrayFakes.cs" />

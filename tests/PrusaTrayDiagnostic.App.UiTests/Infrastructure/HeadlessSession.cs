@@ -72,11 +72,12 @@ public sealed class HeadlessSession : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        // Another run of this assembly (IDE and CLI) must not sweep the snapshot output of a running one.
-        _runLock = await TestRunLock.AcquireAsync("PrusaTrayDiagnostic.App.UiTests", TimeSpan.FromMinutes(5)).ConfigureAwait(false);
+        // Another run of this assembly in this worktree (IDE and CLI) must not sweep the snapshot output of a running one.
+        _runLock = await SnapshotAssert.Reserved.AcquireLockAsync(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
         try
         {
-            // Actual and diff images of the previous run's snapshot failures (kept for inspection until now).
+            // Actual and diff images of the previous run's snapshot failures (kept for inspection until now), leftovers of
+            // deleted worktrees and of older runs.
             await SnapshotAssert.SweepFailureOutputAsync().ConfigureAwait(false);
             _session = HeadlessUnitTestSession.StartNew(typeof(HeadlessTestApp), AvaloniaTestIsolationLevel.PerTest);
         }
@@ -96,8 +97,13 @@ public sealed class HeadlessSession : IAsyncLifetime
         }
         finally
         {
-            // Nothing stays behind unless a snapshot failed (then its images do, until the next run).
-            SnapshotAssert.RemoveEmptyFailureOutput();
+            // Nothing stays behind unless a snapshot failed (then its images do, until the next run). Without the lock
+            // (not initialized) the folder may belong to another run of this worktree and is not touched.
+            if (_runLock is not null)
+            {
+                SnapshotAssert.RemoveEmptyFailureOutput();
+            }
+
             _runLock?.Dispose();
             _runLock = null;
         }
