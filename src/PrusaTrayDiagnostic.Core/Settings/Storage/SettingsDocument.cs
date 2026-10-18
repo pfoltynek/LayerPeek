@@ -61,6 +61,9 @@ internal sealed class PrinterDocument
     public string? ConnectionType { get; set; }
 
     public string? Address { get; set; }
+
+    /// <summary>PrusaLink user name; missing in files written before it was configurable (then <see cref="Printers.PrinterUserName.Default"/>).</summary>
+    public string? UserName { get; set; }
 }
 
 [JsonSourceGenerationOptions(

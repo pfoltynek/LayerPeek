@@ -5,6 +5,7 @@ using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Tray;
+using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 
 using static PrusaTrayDiagnostic.App.Tests.Settings.SettingsTestData;
@@ -147,6 +148,51 @@ public sealed class SettingsLanguageTests : IDisposable
         Assert.Equal(0.5m, vm.PollingIntervalSeconds);
         Assert.Equal("Alpha", printer.Name);
         Assert.True(printer.TestFailed);
+    }
+
+    [Fact]
+    public async Task RefreshTextsFormatsUserNameTextsInTheNewLanguageAndKeepsTheUserName()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] });
+        PrinterEditorViewModel printer = vm.Printers[0];
+        printer.UserName = "john:doe";
+        List<string?> changes = [];
+        printer.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        Assert.Equal("The user name must not contain a colon (:).", printer.UserNameError);
+
+        using (new CultureScope("cs-CZ"))
+        {
+            vm.RefreshTexts();
+
+            Assert.Equal(Cs(nameof(Strings.SettingsErrorUserNameColon)), printer.UserNameError);
+            Assert.Equal(Cs(nameof(Strings.SettingsUserNameHint)), printer.UserNameHint);
+        }
+
+        Assert.Contains(nameof(PrinterEditorViewModel.UserNameError), changes);
+        Assert.Contains(nameof(PrinterEditorViewModel.UserNameHint), changes);
+        Assert.Equal("john:doe", printer.UserName);
+    }
+
+    [Fact]
+    public async Task RefreshTextsFormatsTheTestResultOfAnInvalidUserNameInTheNewLanguage()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] });
+        PrinterEditorViewModel printer = vm.Printers[0];
+        printer.UserName = new string('u', 1000);
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+        string english = Assert.IsType<string>(printer.UserNameError);
+        Assert.Equal(english, printer.TestResultText);
+        Assert.Empty(_tester.Calls);
+
+        using (new CultureScope("cs-CZ"))
+        {
+            vm.RefreshTexts();
+
+            string czech = string.Format(CultureInfo.CurrentCulture, Cs(nameof(Strings.SettingsErrorUserNameTooLong)), PrinterUserName.MaxLength);
+            Assert.Equal(czech, printer.UserNameError);
+            Assert.Equal(czech, printer.TestResultText);
+            Assert.True(printer.TestFailed);
+        }
     }
 
     [Fact]

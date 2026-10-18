@@ -46,8 +46,9 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 ## Autentizace
 
 **HTTP Digest podle RFC 2069:**
-- MD5, **bez `qop`**, uživatel `maker`, realm `Printer API`, heslo z menu tiskárny.
-- Výpočet: `response = MD5(MD5("maker:Printer API:<heslo>"):nonce:MD5("GET:<uri>"))`.
+- MD5, **bez `qop`**, realm `Printer API`, heslo z menu tiskárny.
+- Uživatelské jméno se nastavuje u každé tiskárny (T-027), výchozí je `maker`. Ukládá se v souboru nastavení (není tajné), heslo v `ISecretStore`.
+- Výpočet: `response = MD5(MD5("<uživatel>:Printer API:<heslo>"):nonce:MD5("GET:<uri>"))`.
 - Firmware čte z hlavičky `Authorization` jen `nonce` a `response`.
 
 **Nonce:**

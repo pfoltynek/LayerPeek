@@ -77,6 +77,28 @@ public sealed class PrusaLinkConnectionTesterTests : IDisposable
     }
 
     [Fact]
+    public async Task EnteredUserNameIsUsedForTheDigest()
+    {
+        _printer.UserName = "operator";
+        _printer.Password = "entered";
+
+        ConnectionTestResult result = await Create().TestAsync(LinkPrinter("a", "Alpha", userName: "operator"), "entered", Ct);
+
+        Assert.Equal(ConnectionTestOutcome.Success, result.Outcome);
+    }
+
+    [Fact]
+    public async Task WrongUserNameIsRejected()
+    {
+        _printer.UserName = "operator";
+        _printer.Password = "entered";
+
+        ConnectionTestResult result = await Create().TestAsync(LinkPrinter("a", "Alpha"), "entered", Ct);
+
+        Assert.Equal(ConnectionTestOutcome.PasswordRejected, result.Outcome);
+    }
+
+    [Fact]
     public async Task EmptyPasswordIsMissingWithoutAskingTheStore()
     {
         _secrets.Seed("a", "saved");
@@ -185,13 +207,15 @@ public sealed class PrusaLinkConnectionTesterTests : IDisposable
         }
     }
 
-    /// <summary>Minimal PrusaLink: RFC 2069 digest (user "maker"), /api/version and /api/v1/info. No network.</summary>
+    /// <summary>Minimal PrusaLink: RFC 2069 digest (user <see cref="UserName"/>), /api/version and /api/v1/info. No network.</summary>
     private sealed class DigestPrinter : HttpMessageHandler
     {
         private const string Realm = "Printer API";
         private const string Nonce = "a1b2c3";
         private readonly TaskCompletionSource _firstRequest = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _requestCount;
+
+        public string UserName { get; set; } = PrinterUserName.Default;
 
         public string Password { get; set; } = "Rk7mPq2x";
 
@@ -248,8 +272,9 @@ public sealed class PrusaLinkConnectionTesterTests : IDisposable
 
             string header = string.Join(",", values);
             string uri = request.RequestUri!.PathAndQuery;
-            string expected = Md5Hex($"{Md5Hex($"maker:{Realm}:{Password}")}:{Nonce}:{Md5Hex($"GET:{uri}")}");
-            return header.Contains($"response=\"{expected}\"", StringComparison.Ordinal);
+            string expected = Md5Hex($"{Md5Hex($"{UserName}:{Realm}:{Password}")}:{Nonce}:{Md5Hex($"GET:{uri}")}");
+            return header.Contains($"username=\"{UserName}\"", StringComparison.Ordinal)
+                && header.Contains($"response=\"{expected}\"", StringComparison.Ordinal);
         }
 
         private static string Md5Hex(string text) =>

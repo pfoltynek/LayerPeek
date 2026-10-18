@@ -291,11 +291,20 @@
   <data name="SettingsAddressHint" xml:space="preserve">
     <value>IP-Adresse oder Hostname, z. B. 192.168.1.20 oder http://prusa-mk4.local</value>
   </data>
+  <data name="SettingsUserName" xml:space="preserve">
+    <value>Benutzername</value>
+  </data>
+  <data name="SettingsUserNameHint" xml:space="preserve">
+    <value>PrusaLink-Benutzername aus den Druckereinstellungen. Standard ist „maker“.</value>
+  </data>
+  <data name="SettingsUserNameNotUsed" xml:space="preserve">
+    <value>Prusa Connect verwendet keinen Druckerbenutzernamen.</value>
+  </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Passwort</value>
   </data>
   <data name="SettingsPasswordNewHint" xml:space="preserve">
-    <value>PrusaLink-Passwort aus den Druckereinstellungen. Der Benutzername „maker“ wird automatisch verwendet.</value>
+    <value>PrusaLink-Passwort aus den Druckereinstellungen.</value>
   </data>
   <data name="SettingsPasswordUnchanged" xml:space="preserve">
     <value>Unverändert</value>
@@ -334,7 +343,7 @@
     <value>Die sichere Verbindung (https) ist fehlgeschlagen. Versuchen Sie die Adresse mit http:// oder prüfen Sie das Zertifikat des Druckers.</value>
   </data>
   <data name="SettingsTestPasswordRejected" xml:space="preserve">
-    <value>Der Drucker hat das Passwort abgelehnt.</value>
+    <value>Der Drucker hat den Benutzernamen oder das Passwort abgelehnt.</value>
   </data>
   <data name="SettingsTestAccessDenied" xml:space="preserve">
     <value>Der Drucker hat den Zugriff verweigert.</value>
@@ -374,6 +383,21 @@
   </data>
   <data name="SettingsErrorAddressInvalid" xml:space="preserve">
     <value>Geben Sie eine IP-Adresse oder einen Hostnamen ein, optional mit http:// oder https://, Port und Pfad. Benutzername, Passwort, Abfrage (?) und Fragment (#) sind nicht erlaubt.</value>
+  </data>
+  <data name="SettingsErrorUserNameRequired" xml:space="preserve">
+    <value>Geben Sie einen Benutzernamen ein.</value>
+  </data>
+  <data name="SettingsErrorUserNameTooLong" xml:space="preserve">
+    <value>Der Benutzername darf höchstens {0} Zeichen lang sein.</value>
+  </data>
+  <data name="SettingsErrorUserNameControlCharacter" xml:space="preserve">
+    <value>Der Benutzername darf keine Tabulatoren, Zeilenumbrüche oder anderen Steuerzeichen enthalten.</value>
+  </data>
+  <data name="SettingsErrorUserNameColon" xml:space="preserve">
+    <value>Der Benutzername darf keinen Doppelpunkt (:) enthalten.</value>
+  </data>
+  <data name="SettingsErrorUserNameUnsupported" xml:space="preserve">
+    <value>Der Benutzername darf nur Buchstaben ohne diakritische Zeichen, Ziffern und gängige Symbole außer " und \ enthalten.</value>
   </data>
   <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
     <value>Das Passwort ist zu lang (höchstens {0} Bytes in UTF-8).</value>

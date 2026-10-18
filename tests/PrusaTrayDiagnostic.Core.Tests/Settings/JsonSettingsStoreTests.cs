@@ -386,6 +386,35 @@ public sealed class JsonSettingsStoreTests : IDisposable
         await Assert.ThrowsAsync<ArgumentNullException>(() => _store.SaveAsync(null!, Ct));
     }
 
+    [Fact]
+    public async Task LoadFileWithoutUserNameUsesMaker()
+    {
+        Directory.CreateDirectory(_directory);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "settings-v1-without-username.json"), FilePath);
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(["core-one", "xl"], result.Settings.Printers.Select(static p => p.Id));
+        Assert.All(result.Settings.Printers, static p => Assert.Equal("maker", p.UserName));
+    }
+
+    [Fact]
+    public async Task SaveThenLoadPreservesUserName()
+    {
+        AppSettings settings = new()
+        {
+            Printers = [new PrinterDefinition { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "10.0.0.5", UserName = "workshop" }],
+        };
+
+        await _store.SaveAsync(settings, Ct);
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal("workshop", Assert.Single(result.Settings.Printers).UserName);
+        Assert.Contains("\"userName\": \"workshop\"", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
     private async Task<string> SaveAndReadPrinterJsonAsync()
     {
         await _store.SaveAsync(

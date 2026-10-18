@@ -8,7 +8,7 @@ namespace PrusaTrayDiagnostic.PrusaLink.Tests;
 
 /// <summary>
 /// In-memory imitation of the PrusaLink server in Buddy firmware 6.x: RFC 2069 digest (MD5, no qop) with
-/// realm "Printer API" and user "maker", nonces valid until replaced (stale=true for a replaced nonce),
+/// realm "Printer API" and user <see cref="UserName"/> ("maker" by default), nonces valid until replaced (stale=true for a replaced nonce),
 /// 204 for /api/v1/job without a job. Digest is verified independently of the production implementation.
 /// </summary>
 internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
@@ -22,6 +22,9 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
     public FakePrusaLinkServer() => CurrentNonce = NextNonce();
 
     public string Password { get; set; } = "Rk7mPq2x";
+
+    /// <summary>The only user the server accepts.</summary>
+    public string UserName { get; set; } = "maker";
 
     /// <summary>Scheme of the challenge: "Digest" (firmware default) or e.g. "ApiKey".</summary>
     public string ChallengeScheme { get; set; } = "Digest";
@@ -55,8 +58,8 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
         CurrentNonce = NextNonce();
     }
 
-    public static string ExpectedResponse(string password, string nonce, string method, string uri) =>
-        Md5Hex($"{Md5Hex($"maker:{Realm}:{password}")}:{nonce}:{Md5Hex($"{method}:{uri}")}");
+    public static string ExpectedResponse(string password, string nonce, string method, string uri, string userName = "maker") =>
+        Md5Hex($"{Md5Hex($"{userName}:{Realm}:{password}")}:{nonce}:{Md5Hex($"{method}:{uri}")}");
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -110,9 +113,9 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
         {
             string? nonce = Parameter(authorization, "nonce");
             string? response = Parameter(authorization, "response");
-            if (nonce is not null && response is not null)
+            if (nonce is not null && response is not null && Parameter(authorization, "username") == UserName)
             {
-                bool correctForNonce = response == ExpectedResponse(Password, nonce, method, uri);
+                bool correctForNonce = response == ExpectedResponse(Password, nonce, method, uri, UserName);
                 if (correctForNonce && nonce == CurrentNonce)
                 {
                     return null;

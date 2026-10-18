@@ -291,11 +291,20 @@
   <data name="SettingsAddressHint" xml:space="preserve">
     <value>Adres IP lub nazwa hosta, np. 192.168.1.20 lub http://prusa-mk4.local</value>
   </data>
+  <data name="SettingsUserName" xml:space="preserve">
+    <value>Nazwa użytkownika</value>
+  </data>
+  <data name="SettingsUserNameHint" xml:space="preserve">
+    <value>Nazwa użytkownika PrusaLink z ustawień drukarki. Domyślnie „maker”.</value>
+  </data>
+  <data name="SettingsUserNameNotUsed" xml:space="preserve">
+    <value>Prusa Connect nie używa nazwy użytkownika drukarki.</value>
+  </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Hasło</value>
   </data>
   <data name="SettingsPasswordNewHint" xml:space="preserve">
-    <value>Hasło PrusaLink z ustawień drukarki. Nazwa użytkownika „maker” jest używana automatycznie.</value>
+    <value>Hasło PrusaLink z ustawień drukarki.</value>
   </data>
   <data name="SettingsPasswordUnchanged" xml:space="preserve">
     <value>Bez zmian</value>
@@ -334,7 +343,7 @@
     <value>Bezpieczne połączenie (https) nie powiodło się. Spróbuj adresu z http:// lub sprawdź certyfikat drukarki.</value>
   </data>
   <data name="SettingsTestPasswordRejected" xml:space="preserve">
-    <value>Drukarka odrzuciła hasło.</value>
+    <value>Drukarka odrzuciła nazwę użytkownika lub hasło.</value>
   </data>
   <data name="SettingsTestAccessDenied" xml:space="preserve">
     <value>Drukarka odmówiła dostępu.</value>
@@ -374,6 +383,21 @@
   </data>
   <data name="SettingsErrorAddressInvalid" xml:space="preserve">
     <value>Wpisz adres IP lub nazwę hosta, opcjonalnie z http:// lub https://, portem i ścieżką. Nazwa użytkownika, hasło, zapytanie (?) ani fragment (#) nie są dozwolone.</value>
+  </data>
+  <data name="SettingsErrorUserNameRequired" xml:space="preserve">
+    <value>Wpisz nazwę użytkownika.</value>
+  </data>
+  <data name="SettingsErrorUserNameTooLong" xml:space="preserve">
+    <value>Nazwa użytkownika może mieć maksymalnie {0} znaków.</value>
+  </data>
+  <data name="SettingsErrorUserNameControlCharacter" xml:space="preserve">
+    <value>Nazwa użytkownika nie może zawierać tabulatorów, znaków końca wiersza ani innych znaków sterujących.</value>
+  </data>
+  <data name="SettingsErrorUserNameColon" xml:space="preserve">
+    <value>Nazwa użytkownika nie może zawierać dwukropka (:).</value>
+  </data>
+  <data name="SettingsErrorUserNameUnsupported" xml:space="preserve">
+    <value>Nazwa użytkownika może zawierać tylko litery bez znaków diakrytycznych, cyfry i popularne symbole z wyjątkiem " i \.</value>
   </data>
   <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
     <value>Hasło jest za długie (maksymalnie {0} bajtów w UTF-8).</value>

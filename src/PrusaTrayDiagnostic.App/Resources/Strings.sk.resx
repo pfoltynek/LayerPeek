@@ -291,11 +291,20 @@
   <data name="SettingsAddressHint" xml:space="preserve">
     <value>IP adresa alebo názov hostiteľa, napr. 192.168.1.20 alebo http://prusa-mk4.local</value>
   </data>
+  <data name="SettingsUserName" xml:space="preserve">
+    <value>Používateľské meno</value>
+  </data>
+  <data name="SettingsUserNameHint" xml:space="preserve">
+    <value>Používateľské meno PrusaLink z nastavení tlačiarne. Predvolené je „maker“.</value>
+  </data>
+  <data name="SettingsUserNameNotUsed" xml:space="preserve">
+    <value>Prusa Connect používateľské meno tlačiarne nepoužíva.</value>
+  </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Heslo</value>
   </data>
   <data name="SettingsPasswordNewHint" xml:space="preserve">
-    <value>Heslo PrusaLink z nastavení tlačiarne. Používateľské meno „maker“ sa doplní automaticky.</value>
+    <value>Heslo PrusaLink z nastavení tlačiarne.</value>
   </data>
   <data name="SettingsPasswordUnchanged" xml:space="preserve">
     <value>Bez zmeny</value>
@@ -334,7 +343,7 @@
     <value>Zabezpečené spojenie (https) zlyhalo. Skúste adresu s http:// alebo skontrolujte certifikát tlačiarne.</value>
   </data>
   <data name="SettingsTestPasswordRejected" xml:space="preserve">
-    <value>Tlačiareň odmietla heslo.</value>
+    <value>Tlačiareň odmietla používateľské meno alebo heslo.</value>
   </data>
   <data name="SettingsTestAccessDenied" xml:space="preserve">
     <value>Tlačiareň odoprela prístup.</value>
@@ -374,6 +383,21 @@
   </data>
   <data name="SettingsErrorAddressInvalid" xml:space="preserve">
     <value>Zadajte IP adresu alebo názov hostiteľa, prípadne s http:// alebo https://, portom a cestou. Používateľské meno, heslo, dopyt (?) ani fragment (#) nie sú povolené.</value>
+  </data>
+  <data name="SettingsErrorUserNameRequired" xml:space="preserve">
+    <value>Zadajte používateľské meno.</value>
+  </data>
+  <data name="SettingsErrorUserNameTooLong" xml:space="preserve">
+    <value>Používateľské meno môže mať najviac {0} znakov.</value>
+  </data>
+  <data name="SettingsErrorUserNameControlCharacter" xml:space="preserve">
+    <value>Používateľské meno nesmie obsahovať tabulátory, konce riadkov ani iné riadiace znaky.</value>
+  </data>
+  <data name="SettingsErrorUserNameColon" xml:space="preserve">
+    <value>Používateľské meno nesmie obsahovať dvojbodku (:).</value>
+  </data>
+  <data name="SettingsErrorUserNameUnsupported" xml:space="preserve">
+    <value>Používateľské meno môže obsahovať len písmená bez diakritiky, číslice a bežné symboly okrem " a \.</value>
   </data>
   <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
     <value>Heslo je príliš dlhé (najviac {0} bajtov v UTF-8).</value>

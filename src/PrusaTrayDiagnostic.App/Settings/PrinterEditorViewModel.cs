@@ -21,6 +21,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private readonly SettingsViewModel _owner;
     private string _name;
     private string _address;
+    private string _userName;
+
+    // The saved user name (default for a new printer); kept for Prusa Connect, which does not use it.
+    private readonly string _savedUserName;
     private string _password = string.Empty;
     private ConnectionTypeOption _connectionType;
     private bool _isNew;
@@ -30,6 +34,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private bool _showErrors;
     private string? _nameProblem;
     private string? _addressProblem;
+    private string? _userNameProblem;
     private string? _passwordProblem;
 
     private CancellationTokenSource? _test;
@@ -53,6 +58,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _hasSavedPassword = hasSavedPassword;
         _name = saved?.Name ?? string.Empty;
         _address = saved?.Address ?? string.Empty;
+        _savedUserName = saved?.UserName ?? PrinterUserName.Default;
+        _userName = _savedUserName;
         ConnectionType type = saved?.ConnectionType ?? ConnectionType.PrusaLink;
         ConnectionTypes = owner.ConnectionTypesFor(type);
         _connectionType = Array.Find((ConnectionTypeOption[])ConnectionTypes, option => option.Value == type)!;
@@ -60,6 +67,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => IsPrusaLink && !_isTesting && !_owner.IsDisposed);
         CancelTestCommand = new RelayCommand(CancelTest, () => _isTesting);
         ValidateAddress();
+        ValidateUserName();
         ValidatePassword();
     }
 
@@ -120,10 +128,18 @@ public sealed class PrinterEditorViewModel : ObservableObject
                 ForgetPassword();
             }
 
+            if (!IsPrusaLink)
+            {
+                // Prusa Connect does not use the disabled field, so it shows (and keeps) the saved user name.
+                SetProperty(ref _userName, _savedUserName, nameof(UserName));
+            }
+
+            OnPropertyChanged(nameof(UserNameHint));
             OnPasswordPresentationChanged();
             TestConnectionCommand.NotifyCanExecuteChanged();
             InvalidateTest();
             ValidateAddress();
+            ValidateUserName();
             ValidatePassword();
             RevealErrors();
             _owner.OnPrinterEdited(nameChanged: false);
@@ -146,6 +162,28 @@ public sealed class PrinterEditorViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>
+    /// PrusaLink user name (not a secret; saved trimmed with the definition). Validated by <see cref="PrinterUserName"/>;
+    /// ignored for Prusa Connect, which keeps the saved one.
+    /// </summary>
+    public string UserName
+    {
+        get => _userName;
+        set
+        {
+            if (SetProperty(ref _userName, value ?? string.Empty))
+            {
+                InvalidateTest();
+                ValidateUserName();
+                RevealErrors();
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>Explanation under the user name field.</summary>
+    public string UserNameHint => IsPrusaLink ? Strings.SettingsUserNameHint : Strings.SettingsUserNameNotUsed;
 
     /// <summary>A new password (not saved yet); empty keeps the saved one. Never logged.</summary>
     public string Password
@@ -183,10 +221,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public string? AddressError => _showErrors ? _addressProblem : null;
 
+    public string? UserNameError => _showErrors ? _userNameProblem : null;
+
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors => _nameProblem is not null || _addressProblem is not null || _passwordProblem is not null;
+    public bool HasErrors =>
+        _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || _passwordProblem is not null;
 
     /// <summary>The list marks the printer as invalid.</summary>
     public bool ShowsErrorMarker => _showErrors && HasErrors;
@@ -220,11 +261,14 @@ public sealed class PrinterEditorViewModel : ObservableObject
     /// <summary>The field holds a password that will be saved.</summary>
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
-    /// <summary>The definition to save; <see langword="null"/> while the name or address is invalid.</summary>
+    /// <summary>The definition to save; <see langword="null"/> while the name, address or user name is invalid.</summary>
     internal PrinterDefinition? ToDefinition() =>
-        _nameProblem is not null || _addressProblem is not null
+        _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null
             ? null
-            : new PrinterDefinition { Id = Id, Name = _name, ConnectionType = _connectionType.Value, Address = _address };
+            : new PrinterDefinition { Id = Id, Name = _name, ConnectionType = _connectionType.Value, Address = _address, UserName = EffectiveUserName };
+
+    /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
+    private string EffectiveUserName => IsPrusaLink ? _userName : _savedUserName;
 
     internal void SetNameProblem(string? problem)
     {
@@ -259,12 +303,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// UI thread: the language changed. Validation messages, the test result and the password texts are formatted again
-    /// (the owner refreshes the name problem); nothing that was typed or tested changes.
+    /// UI thread: the language changed. Validation messages, the test result, the user name hint and the password texts
+    /// are formatted again (the owner refreshes the name problem); nothing that was typed or tested changes.
     /// </summary>
     internal void RefreshTexts()
     {
         ValidateAddress();
+        ValidateUserName();
         ValidatePassword();
         if (_testResultSource is { } source)
         {
@@ -273,6 +318,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(UserNameHint));
         OnPasswordPresentationChanged();
     }
 
@@ -300,11 +346,12 @@ public sealed class PrinterEditorViewModel : ObservableObject
             return;
         }
 
-        if (_addressProblem is not null)
+        if (_addressProblem is not null || _userNameProblem is not null)
         {
-            // Never send anything to an address the client would refuse; explain it like the inline error does.
+            // Never send anything to an address the client would refuse or with a user name the definition would reject;
+            // explain it like the inline error does.
             RevealErrors();
-            SetTestResult(() => AddressProblem() ?? Strings.SettingsErrorAddressInvalid, TestResultKind.Failure);
+            SetTestResult(() => AddressProblem() ?? UserNameProblem() ?? Strings.SettingsErrorAddressInvalid, TestResultKind.Failure);
             return;
         }
 
@@ -314,6 +361,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
             Name = _name.Trim() is { Length: > 0 } name ? name : Id,
             ConnectionType = _connectionType.Value,
             Address = _address,
+            UserName = EffectiveUserName,
         };
 
         // Typed password, else the saved one (null); a printer that has none is tested without one.
@@ -437,6 +485,28 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
     }
 
+    // The rules live in Core (PrinterUserName); only the wording is decided here.
+    private string? UserNameProblem() =>
+        (IsPrusaLink ? PrinterUserName.Validate(_userName) : PrinterUserNameError.None) switch
+        {
+            PrinterUserNameError.None => null,
+            PrinterUserNameError.Empty => Strings.SettingsErrorUserNameRequired,
+            PrinterUserNameError.TooLong => Format(Strings.SettingsErrorUserNameTooLong, PrinterUserName.MaxLength),
+            PrinterUserNameError.ContainsControlCharacter => Strings.SettingsErrorUserNameControlCharacter,
+            PrinterUserNameError.ContainsColon => Strings.SettingsErrorUserNameColon,
+            _ => Strings.SettingsErrorUserNameUnsupported,
+        };
+
+    private void ValidateUserName()
+    {
+        string? problem = UserNameProblem();
+        if (_userNameProblem != problem)
+        {
+            _userNameProblem = problem;
+            OnErrorsChanged();
+        }
+    }
+
     private void ValidatePassword()
     {
         string? problem = !HasNewPassword ? null : _owner.Policy.Check(_password) switch
@@ -456,6 +526,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(NameError));
         OnPropertyChanged(nameof(AddressError));
+        OnPropertyChanged(nameof(UserNameError));
         OnPropertyChanged(nameof(PasswordError));
         OnPropertyChanged(nameof(HasErrors));
         OnPropertyChanged(nameof(ShowsErrorMarker));
