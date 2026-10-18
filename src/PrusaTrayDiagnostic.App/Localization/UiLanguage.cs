@@ -55,6 +55,13 @@ internal sealed class UiLanguage
         return true;
     }
 
+    /// <summary>
+    /// The culture the texts are in right now, on any thread: the chosen language, or for the system language the UI
+    /// culture of the calling thread (the system's). For texts formatted outside the resources' own lookup, e.g. on a
+    /// thread whose UI culture has to be set explicitly (toasts, T-010); read it for every text, never cache it.
+    /// </summary>
+    public static CultureInfo CurrentTextCulture() => Strings.Culture ?? CultureInfo.CurrentUICulture;
+
     private static void ApplyToResources(CultureInfo? culture)
     {
         // Read by every generated Strings property on any thread; null = the calling thread's UI culture (the system's).

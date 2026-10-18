@@ -18,7 +18,7 @@ Implementace `INotificationService` pomocí nativních toast notifikací Windows
 - Řešení musí být kompatibilní s Native AOT (žádné `BuiltInComInteropSupport`, interop přes `[LibraryImport]` / `[GeneratedComInterface]`)
 
 ## Akceptační kritéria
-- [ ] Notifikace fungují na Windows (ověřeno) – Windows toasty prokazatelně přijal (jsou v historii centra oznámení), banner na obrazovce ale při ověření vidět nebyl, viz poznámky; potvrdí uživatel
+- [x] Notifikace fungují na Windows (ověřeno) – uživatel 2026-10-18 ručně potvrdil, že se bannery toastů na Windows zobrazují
 - [ ] Kliknutí na notifikaci otevře detail / web tiskárny – implementováno a pokryto testy, skutečné kliknutí ověří uživatel
 - [x] Na jiném OS než Windows se Windows implementace neregistruje a build/spuštění nespadne – registrace ověřena testem (větev „jiný OS“), spuštění na macOS lokálně neověřeno (dle rozhodnutí uživatele postačuje test; reálný běh na macOS ověří T-020)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
@@ -40,7 +40,7 @@ Vyřešené po implementaci (rozhodnutí uživatele 2026-10-16):
 - **Architektura (App):**
   - `Notifications/ToastNotificationService` (`INotificationService`, `IDisposable`):
     - `Show` jen zařadí notifikaci do fronty (max. `MaxPending` = 32, další se zahodí s varováním v logu) a nikdy neblokuje.
-    - Jedno vlákno na pozadí (vlastní `Thread`, ne pool, kvůli COM apartmentu) líně otevře platformu, sestaví XML v jazyce zachyceném při vytvoření služby (UI kultura) a toasty zobrazuje postupně.
+    - Jedno vlákno na pozadí (vlastní `Thread`, ne pool, kvůli COM apartmentu) líně otevře platformu, sestaví XML v jazyce aktivním v okamžiku sestavení (viz merge s T-029 níže) a toasty zobrazuje postupně.
     - Selhání otevření platformy se zaloguje jednou a služba se změní na no-op. Selhání jednoho toastu se zaloguje a další se zobrazí.
     - Po `Dispose` se volání ignorují. `Dispose` nečeká na rozběhnutý toast, vlákno uvolní WinRT objekty samo. Žádná výjimka z vlákna neunikne (shodila by proces).
     - `Start()` volá `TrayHost.Start`, takže registrace zástupce a notifier vzniknou hned po startu, ne až s první notifikací (Windows potřebuje chvíli na zaregistrování nového zástupce).
@@ -133,7 +133,23 @@ Vyřešené po implementaci (rozhodnutí uživatele 2026-10-16):
   - Zástupce vznikl a Windows toasty přijal: jsou v `ToastNotificationManager.History` pro `PrusaTrayDiagnostic` s očekávaným, správně escapovaným XML a `silent="true"`. Nastavení aplikace je `Enabled`.
   - Banner na snímcích obrazovky vidět nebyl. Ikona oznámení na hlavním panelu zřejmě ukazovala režim Nerušit, ve kterém Windows toasty posílá rovnou do centra oznámení. Neověřeno.
   - Po ověření byla historie toastů smazána a zástupce odstraněn (při dalším startu vznikne znovu).
+- **Merge `develop` a integrace s T-029 (jazyk aplikace), T-015 a T-013 (2026-10-18):**
+  - Konflikty vyřešené tak, že zůstalo chování obou stran:
+    - `AppServices`: pozorovatelé session z develop (`UiLanguageObserver` první, historie, `MonitoredPrinters`) a navíc `ToastActivationRouter`.
+    - `TrayHost`: `session.Start(initialSettings)` z develop, hned po něm `ToastNotificationService.Start()`.
+    - `MonitoringSession`: návrh z develop (`ApplyAsync`, `UpdateSettings`, `CurrentSettings`), ponechaná interní vlastnost `Observers` (používá ji test kompozice).
+    - `Strings.resx` / `Strings.cs.resx`: sjednocení klíčů (13 klíčů `Notification*` + klíče z develop, žádné duplicity).
+    - `tasks/README.md` a `docs/architecture.md`: řádky a body obou stran (T-010 dál rozpracovaný, body z develop přečíslované na 6–10).
+  - **Překlady:** 13 klíčů `Notification*` doplněno do `Strings.{sk,de,es,fr,it,pl}.resx`. Terminologie a styl podle T-029 a podle přeložených textů upozornění v nastavení (`SettingsNotify*`): vykání (Sie, vous, usted), „offline/online“ jako ve stavech, ve francouzštině nezlomitelná mezera před dvojtečkou („Temps restant : {0}“), zbývající čas stejným obratem jako v tooltipu („Noch {0}“, „Quedan {0}“, „Mancano {0}“, „Pozostało {0}“, „Zostáva {0}“). Test shody klíčů a zástupných symbolů (`StringsTests`) prochází. Překlady by měl projít rodilý mluvčí (stejně jako ostatní texty T-029).
+  - **Jazyk toastů za běhu:** `ToastNotificationService` už nedostává kulturu zachycenou při vytvoření. Dostává `Func<CultureInfo>` (v aplikaci `UiLanguage.CurrentTextCulture` = `Strings.Culture`, jinak UI kultura vlákna, tedy systému). Volá ji pro každý toast těsně před sestavením XML. UI kulturu vlákna toastů nastaví jen na dobu sestavení a pak ji vrátí. „Podle systému“ tedy po předchozím přepnutí znovu znamená jazyk systému. Formát čísel (`CurrentCulture`) se nemění, stejně jako v trayi. Selhání zdroje jazyka se zaloguje jako selhání toastu a další toast se zobrazí.
+  - **Nastavení z T-015 a více tiskáren z T-013:** zvuk (`notifications.sound`), přepínače upozornění i názvy tiskáren jdou do toastu přes `PrintEventNotifier.Configure`. Ten volá `PrintNotificationObserver` při `ApplySettings` i při `UpdateSettings` (uložení bez restartu monitoringu), takže změna platí pro další toast. Titulek toastu je název tiskárny, které se událost týká (u více tiskáren každá svým názvem).
+  - **Testy:**
+    - `ToastNotificationServiceTests`: jazyk podle zdroje, změna jazyka po vytvoření služby platí pro další toast (en → pl → it), selhání zdroje jazyka. Nově `UpdatedSettingsReachTheNextToast`: pozorovatel + notifier + služba s falešnou platformou, dvě tiskárny, `UpdateSettings` změní zvuk (Off → All) a název → další toast má nový titulek (escapovaný), zvuk a správný argument `launch`.
+    - `Localization/ToastLanguageSwitchTests` (skupina `GlobalLanguageGroup`, běží samostatně, vrátí jazyk i `DefaultThreadCurrentUICulture`): skutečné `UiLanguage.Apply` en → de → sk mění text dalšího toastu; návrat na „Podle systému“ po francouzštině dá zase jazyk systému; `CurrentTextCulture` na libovolném vlákně.
+    - Falešná platforma toastů je přesunutá do `Notifications/ToastFakes.cs`.
+  - **Ověření (Windows 11):** `dotnet build` 0 varování, `dotnet test` 1843 testů (1842 prošlo, 1 přeskočený existující), 3× po sobě bez chyby. `scripts/aot-smoke.ps1` prošel: publish win-x64 (jen dvě známé hlášky ILC z Avalonia DComposition), exe běželo 10 s, zástupce ukazoval na publikované exe. Toast v jiném jazyce naživo neověřen.
 - **Co ověří uživatel ručně:**
   1. Vypnout režim Nerušit, spustit aplikaci (`dotnet run --project src/PrusaTrayDiagnostic.App`) s nastavenou tiskárnou a vyvolat událost (např. pozastavit a obnovit tisk, nebo tiskárnu odpojit od sítě a počkat na „offline“). Měl by se ukázat banner s názvem tiskárny.
   2. Kliknout na banner (nebo na toast v centru oznámení, dokud aplikace běží) → v prohlížeči se otevře PrusaLink tiskárny.
   3. Volitelně: při výchozím nastavení zvuk u chyby a „vyžaduje pozornost“, ostatní potichu.
+  4. Volitelně (T-029): v Nastavení přepnout jazyk (např. Deutsch), uložit a vyvolat událost → toast je v novém jazyce bez restartu aplikace.

@@ -1,5 +1,3 @@
-using System.Globalization;
-
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -139,7 +137,7 @@ internal static class AppServices
         return new ToastNotificationService(
             platform,
             argument => _ = router.ActivateAsync(argument),
-            CultureInfo.CurrentUICulture,
+            UiLanguage.CurrentTextCulture,
             services.GetRequiredService<ILogger<ToastNotificationService>>());
     }
 

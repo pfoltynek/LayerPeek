@@ -5,9 +5,12 @@ using System.Globalization;
 using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Notifications;
+using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.Core.Events;
 using PrusaTrayDiagnostic.Core.Notifications;
+using PrusaTrayDiagnostic.Core.Printers;
+using PrusaTrayDiagnostic.Core.Settings;
 
 using static PrusaTrayDiagnostic.App.Tests.Tray.TestPrinters;
 
@@ -27,7 +30,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
         _platform.Session.Release();
     }
 
-    private ToastNotificationService Service => _service ??= Create(CultureInfo.GetCultureInfo("en-US"));
+    private ToastNotificationService Service => _service ??= Create(static () => CultureInfo.GetCultureInfo("en-US"));
 
     [Fact]
     public void ConstructionStartsNothing()
@@ -50,13 +53,45 @@ public sealed class ToastNotificationServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task TextsUseTheCultureGivenAtConstruction()
+    public async Task TextsUseTheLanguageOfTheTextCulture()
     {
-        _service = Create(CultureInfo.GetCultureInfo("cs-CZ"));
+        _service = Create(static () => CultureInfo.GetCultureInfo("cs-CZ"));
 
         _service.Show(Notification(PrintEventKind.PrintFinished));
 
         Assert.Contains("Tisk dokončen", Assert.Single(await _platform.Session.WaitForShownAsync(1)), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LanguageChangedAfterConstructionReachesTheNextToast()
+    {
+        CultureInfo language = CultureInfo.GetCultureInfo("en-US");
+        _service = Create(() => Volatile.Read(ref language));
+
+        _service.Show(Notification(PrintEventKind.PrintFinished));
+        await _platform.Session.WaitForShownAsync(1);
+        Volatile.Write(ref language, CultureInfo.GetCultureInfo("pl-PL"));
+        _service.Show(Notification(PrintEventKind.PrintFinished));
+        Volatile.Write(ref language, CultureInfo.GetCultureInfo("it-IT"));
+        _service.Show(Notification(PrintEventKind.PrintPaused));
+
+        IReadOnlyList<string> shown = await _platform.Session.WaitForShownAsync(3);
+        Assert.Contains("Print finished", shown[0], StringComparison.Ordinal);
+        Assert.Contains("Zakończono drukowanie", shown[1], StringComparison.Ordinal);
+        Assert.Contains("Stampa in pausa", shown[2], StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FailingTextCultureIsLoggedAndTheNextToastIsStillShown()
+    {
+        int calls = 0;
+        _service = Create(() => Interlocked.Increment(ref calls) == 1 ? throw new InvalidOperationException("no language") : CultureInfo.GetCultureInfo("en-US"));
+
+        _service.Show(Notification(PrintEventKind.PrintStarted));
+        _service.Show(Notification(PrintEventKind.PrintFinished));
+
+        Assert.Contains("Print finished", Assert.Single(await _platform.Session.WaitForShownAsync(1)), StringComparison.Ordinal);
+        await Waiting.ForAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Error && e.Exception?.Message == "no language"));
     }
 
     [Fact]
@@ -135,7 +170,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
 
         string xml = Assert.Single(await _platform.Session.WaitForShownAsync(1));
         Assert.Contains("Print finished", xml, StringComparison.Ordinal);
-        await WaitForAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Error && e.Exception?.Message == "WinRT failed"));
+        await Waiting.ForAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Error && e.Exception?.Message == "WinRT failed"));
     }
 
     [Fact]
@@ -154,7 +189,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
         _platform.OpenFailure = new InvalidOperationException("No WinRT");
 
         Service.Show(Notification(PrintEventKind.PrintStarted));
-        await WaitForAsync(() => _logger.Entries.Any(e => e.Exception?.Message == "No WinRT"));
+        await Waiting.ForAsync(() => _logger.Entries.Any(e => e.Exception?.Message == "No WinRT"));
         Service.Show(Notification(PrintEventKind.PrintFinished));
         Service.Start();
         await Task.Delay(200, TestContext.Current.CancellationToken);
@@ -169,7 +204,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
         Service.Start();
         Service.Start();
 
-        await WaitForAsync(() => _platform.OpenCount > 0);
+        await Waiting.ForAsync(() => _platform.OpenCount > 0);
         await Task.Delay(100, TestContext.Current.CancellationToken);
         Assert.Equal(1, _platform.OpenCount);
         Assert.Empty(_platform.Session.Shown);
@@ -203,7 +238,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
         Assert.True(elapsed.Elapsed < TimeSpan.FromSeconds(2), $"Dispose blocked for {elapsed.Elapsed}.");
         Assert.False(_platform.Session.Disposed);
         _platform.Session.Release();
-        await WaitForAsync(() => _platform.Session.Disposed);
+        await Waiting.ForAsync(() => _platform.Session.Disposed);
         // The queued toast is not shown after dispose.
         Assert.Single(_platform.Session.Shown);
         Assert.Equal(_platform.OpenThreadId, _platform.Session.DisposeThreadId);
@@ -213,7 +248,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
     public async Task ClickIsForwarded()
     {
         Service.Start();
-        await WaitForAsync(() => _platform.Activated is not null);
+        await Waiting.ForAsync(() => _platform.Activated is not null);
 
         _platform.Activated!("printer=mk4");
 
@@ -224,7 +259,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
     public async Task ClickAfterDisposeIsIgnored()
     {
         Service.Start();
-        await WaitForAsync(() => _platform.Activated is not null);
+        await Waiting.ForAsync(() => _platform.Activated is not null);
         Service.Dispose();
 
         _platform.Activated!("printer=mk4");
@@ -235,9 +270,9 @@ public sealed class ToastNotificationServiceTests : IDisposable
     [Fact]
     public async Task FailingClickHandlerIsLoggedNotThrown()
     {
-        _service = new ToastNotificationService(_platform, _ => throw new InvalidOperationException("boom"), CultureInfo.InvariantCulture, _logger);
+        _service = new ToastNotificationService(_platform, _ => throw new InvalidOperationException("boom"), static () => CultureInfo.InvariantCulture, _logger);
         _service.Start();
-        await WaitForAsync(() => _platform.Activated is not null);
+        await Waiting.ForAsync(() => _platform.Activated is not null);
 
         _platform.Activated!("printer=mk4");
 
@@ -245,9 +280,38 @@ public sealed class ToastNotificationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task UpdatedSettingsReachTheNextToast()
+    {
+        // Settings window without restart (T-015): sound and printer names flow through the notifier into the toast; with
+        // several printers (T-013) every toast is titled with its own printer.
+        FakePrinterMonitor monitor = new();
+        using PrintEventNotifier notifier = new(monitor, Service, new ListLogger<PrintEventNotifier>());
+        IMonitoringObserver observer = new PrintNotificationObserver(notifier);
+        PrinterDefinition mk4 = Definition("mk4", "MK4");
+        PrinterDefinition xl = Definition("xl", "XL");
+        observer.ApplySettings(new AppSettings { Printers = [mk4, xl], Notifications = new NotificationSettings { Sound = NotificationSound.Off } });
+        monitor.Raise(Snapshot(PrinterState.Idle, printerId: "xl"));
+        monitor.Raise(Snapshot(PrinterState.Printing, Job(10), printerId: "xl") with { Timestamp = Now.AddSeconds(5) });
+
+        observer.UpdateSettings(new AppSettings
+        {
+            Printers = [mk4, Definition("xl", "XL <left>")],
+            Notifications = new NotificationSettings { Sound = NotificationSound.All },
+        });
+        monitor.Raise(Snapshot(PrinterState.Paused, Job(10), printerId: "xl") with { Timestamp = Now.AddSeconds(10) });
+
+        IReadOnlyList<string> shown = await _platform.Session.WaitForShownAsync(2);
+        Assert.Contains("<text>XL</text><text>Print started</text>", shown[0], StringComparison.Ordinal);
+        Assert.Contains("silent=\"true\"", shown[0], StringComparison.Ordinal);
+        Assert.Contains("<text>XL &lt;left&gt;</text><text>Print paused</text>", shown[1], StringComparison.Ordinal);
+        Assert.DoesNotContain("<audio", shown[1], StringComparison.Ordinal);
+        Assert.Contains("launch=\"printer=xl\"", shown[1], StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void NullArgumentsAreRejected()
     {
-        CultureInfo culture = CultureInfo.InvariantCulture;
+        Func<CultureInfo> culture = static () => CultureInfo.InvariantCulture;
         Assert.Throws<ArgumentNullException>(() => new ToastNotificationService(null!, _activations.Enqueue, culture, _logger));
         Assert.Throws<ArgumentNullException>(() => new ToastNotificationService(_platform, null!, culture, _logger));
         Assert.Throws<ArgumentNullException>(() => new ToastNotificationService(_platform, _activations.Enqueue, null!, _logger));
@@ -255,7 +319,7 @@ public sealed class ToastNotificationServiceTests : IDisposable
         Assert.Throws<ArgumentNullException>(() => Service.Show(null!));
     }
 
-    private ToastNotificationService Create(CultureInfo culture) => new(_platform, _activations.Enqueue, culture, _logger);
+    private ToastNotificationService Create(Func<CultureInfo> textCulture) => new(_platform, _activations.Enqueue, textCulture, _logger);
 
     private static PrintNotification Notification(PrintEventKind kind) => new()
     {
@@ -263,105 +327,4 @@ public sealed class ToastNotificationServiceTests : IDisposable
         Kind = kind,
         Timestamp = Now,
     };
-
-    private static async Task WaitForAsync(Func<bool> condition)
-    {
-        Stopwatch elapsed = Stopwatch.StartNew();
-        while (!condition())
-        {
-            Assert.True(elapsed.Elapsed < TestTimeouts.Wait, "Condition not met in time.");
-            await Task.Delay(10, TestContext.Current.CancellationToken);
-        }
-    }
-
-    private sealed class FakeToastPlatform : IToastPlatform
-    {
-        private int _openCount;
-
-        public FakeToastSession Session { get; } = new();
-
-        public Exception? OpenFailure { get; set; }
-
-        public int OpenCount => Volatile.Read(ref _openCount);
-
-        public int OpenThreadId { get; private set; }
-
-        public Action<string?>? Activated { get; private set; }
-
-        public IToastSession Open(Action<string?> activated)
-        {
-            Interlocked.Increment(ref _openCount);
-            OpenThreadId = Environment.CurrentManagedThreadId;
-            if (OpenFailure is not null)
-            {
-                throw OpenFailure;
-            }
-
-            Activated = activated;
-            return Session;
-        }
-    }
-
-    private sealed class FakeToastSession : IToastSession
-    {
-        private readonly Lock _lock = new();
-        private readonly List<string> _shown = [];
-        private readonly ManualResetEventSlim _gate = new(initialState: true);
-        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private volatile bool _disposed;
-
-        public Exception? FailNext { get; set; }
-
-        public int ShowThreadId { get; private set; }
-
-        public int DisposeThreadId { get; private set; }
-
-        public bool Disposed => _disposed;
-
-        public IReadOnlyList<string> Shown
-        {
-            get
-            {
-                lock (_lock)
-                {
-                    return [.. _shown];
-                }
-            }
-        }
-
-        public void Block() => _gate.Reset();
-
-        public void Release() => _gate.Set();
-
-        public Task WaitUntilShowEnteredAsync() => _entered.Task.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
-
-        public async Task<IReadOnlyList<string>> WaitForShownAsync(int count)
-        {
-            await WaitForAsync(() => Shown.Count >= count);
-            return Shown;
-        }
-
-        public void Show(string toastXml)
-        {
-            ShowThreadId = Environment.CurrentManagedThreadId;
-            _entered.TrySetResult();
-            _gate.Wait(TestTimeouts.Wait);
-            if (FailNext is { } failure)
-            {
-                FailNext = null;
-                throw failure;
-            }
-
-            lock (_lock)
-            {
-                _shown.Add(toastXml);
-            }
-        }
-
-        public void Dispose()
-        {
-            DisposeThreadId = Environment.CurrentManagedThreadId;
-            _disposed = true;
-        }
-    }
 }

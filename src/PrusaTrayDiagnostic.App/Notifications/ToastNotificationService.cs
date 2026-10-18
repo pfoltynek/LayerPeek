@@ -12,8 +12,12 @@ namespace PrusaTrayDiagnostic.App.Notifications;
 /// <see cref="INotificationService"/> on top of an <see cref="IToastPlatform"/> (Windows toasts, T-010).
 /// <para>
 /// <see cref="Show"/> only queues the notification (bounded, never blocks): one background thread opens the platform
-/// lazily (first <see cref="Start"/> or <see cref="Show"/>), builds the toast XML in the culture captured at
-/// construction and shows the toasts one after another, so slow or failing OS calls never reach the monitor threads.
+/// lazily (first <see cref="Start"/> or <see cref="Show"/>), builds the toast XML and shows the toasts one after another,
+/// so slow or failing OS calls never reach the monitor threads.
+/// </para>
+/// <para>
+/// The language of the texts is read for every toast right before it is built, so a language switch (T-029) applies to
+/// the next toast without a restart.
 /// </para>
 /// <para>
 /// Failures never escape: a platform that cannot be opened is logged once and turns the service into a no-op, a
@@ -28,7 +32,7 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     private readonly IToastPlatform _platform;
     private readonly Action<string?> _activated;
-    private readonly CultureInfo _culture;
+    private readonly Func<CultureInfo> _textCulture;
     private readonly ILogger<ToastNotificationService> _logger;
 
     // Monitor.Wait/Pulse need a plain object.
@@ -43,16 +47,19 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     private volatile bool _disposed;
 
     /// <param name="activated">Receives the launch argument of a clicked toast (an OS thread); failures are logged.</param>
-    /// <param name="culture">UI culture of the toast texts; captured here because the thread does not inherit it.</param>
-    public ToastNotificationService(IToastPlatform platform, Action<string?> activated, CultureInfo culture, ILogger<ToastNotificationService> logger)
+    /// <param name="textCulture">
+    /// Language of the toast texts, called on the toast thread for every toast right before it is built (the app passes
+    /// <see cref="Localization.UiLanguage.CurrentTextCulture"/>); may throw, the toast is then skipped and logged.
+    /// </param>
+    public ToastNotificationService(IToastPlatform platform, Action<string?> activated, Func<CultureInfo> textCulture, ILogger<ToastNotificationService> logger)
     {
         ArgumentNullException.ThrowIfNull(platform);
         ArgumentNullException.ThrowIfNull(activated);
-        ArgumentNullException.ThrowIfNull(culture);
+        ArgumentNullException.ThrowIfNull(textCulture);
         ArgumentNullException.ThrowIfNull(logger);
         _platform = platform;
         _activated = activated;
-        _culture = culture;
+        _textCulture = textCulture;
         _logger = logger;
     }
 
@@ -118,7 +125,6 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     {
         try
         {
-            CultureInfo.CurrentUICulture = _culture;
             IToastSession? session = Open();
             if (session is null)
             {
@@ -194,11 +200,31 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                 LogNoClickTarget(notification.Kind, notification.Printer.Id.Length);
             }
 
-            session.Show(ToastContentBuilder.Build(notification));
+            session.Show(Build(notification));
         }
         catch (Exception ex)
         {
             LogShowFailed(ex, notification.Kind, notification.Printer.Id);
+        }
+    }
+
+    /// <summary>
+    /// Builds the toast in the language active now. The builder reads the resources in the thread's UI culture, so it is
+    /// set for this toast only: the thread's own UI culture (the system's) stays, and "system language" keeps meaning it.
+    /// Number formats follow <c>CurrentCulture</c>, which is never changed (as in the tray).
+    /// </summary>
+    private string Build(PrintNotification notification)
+    {
+        CultureInfo culture = _textCulture();
+        CultureInfo previous = CultureInfo.CurrentUICulture;
+        CultureInfo.CurrentUICulture = culture;
+        try
+        {
+            return ToastContentBuilder.Build(notification);
+        }
+        finally
+        {
+            CultureInfo.CurrentUICulture = previous;
         }
     }
 
