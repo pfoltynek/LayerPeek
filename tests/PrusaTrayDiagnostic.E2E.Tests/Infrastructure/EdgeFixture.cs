@@ -13,13 +13,24 @@ namespace PrusaTrayDiagnostic.E2E.Tests.Infrastructure;
 /// <para>
 /// Everything the driver and the browser write (profiles, artifacts, temporary files) lies under
 /// <see cref="Root"/>, which is removed before the first test (leftovers of a crashed run, including still running
-/// browser processes of that run) and after the last one. Concurrent runs are serialized by <see cref="TestRunLock"/>.
+/// browser processes of that run) and after the last one. <see cref="Root"/> is reserved per worktree: concurrent runs
+/// in the same worktree are serialized by its lock, runs in other worktrees use their own folder, lock and processes.
 /// </para>
 /// </summary>
 public sealed class EdgeFixture : IAsyncLifetime
 {
-    /// <summary>Reserved for this assembly: every browser process whose profile lies here was started by these tests.</summary>
-    public static readonly string Root = Path.Combine(Path.GetTempPath(), "PrusaTrayDiagnostic.E2E.Tests");
+    /// <summary>
+    /// The reservation of this assembly in %TEMP% for this worktree. Before a folder of it is deleted (the own one, one of
+    /// a deleted worktree or the un-hashed one of older runs, each only under its lock) the browser processes whose
+    /// profile lies in that folder are killed; processes of another existing worktree never match.
+    /// </summary>
+    private static readonly ReservedTempDirectory Reserved = ReservedTempDirectory.ForCurrentWorktree(
+        "PrusaTrayDiagnostic.E2E.Tests",
+        legacyDirectoryName: "PrusaTrayDiagnostic.E2E.Tests",
+        beforeDelete: static directory => OwnProcesses.WaitForExitOrKillAsync(directory + Path.DirectorySeparatorChar, TimeSpan.Zero));
+
+    /// <summary>Reserved for this assembly and worktree: every browser process whose profile lies here was started by these tests.</summary>
+    public static readonly string Root = Reserved.Path;
 
     /// <summary>How the <c>--user-data-dir</c> of a process started by these tests begins (no match for a sibling name).</summary>
     public static readonly string ProcessMarker = Root + Path.DirectorySeparatorChar;
@@ -43,10 +54,11 @@ public sealed class EdgeFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _runLock = await TestRunLock.AcquireAsync("PrusaTrayDiagnostic.E2E.Tests", TimeSpan.FromMinutes(5));
+        _runLock = await Reserved.AcquireLockAsync(TimeSpan.FromMinutes(5));
         try
         {
-            await SweepAsync();
+            await Reserved.SweepAsync();
+            await Reserved.CreateAsync();
             string temp = Directory.CreateDirectory(Path.Combine(Root, "tmp")).FullName;
             _playwright = await CreatePlaywrightAsync(temp);
             (_browser, SkipReason) = await EdgeLauncher.LaunchAsync(_playwright.Chromium, new BrowserTypeLaunchOptions());
@@ -104,7 +116,7 @@ public sealed class EdgeFixture : IAsyncLifetime
             // the sweep itself is left for the start sweep of the next run (RetryAsync says so).
             List<string> leaked = [];
             await CaptureAsync(errors, async () => leaked = await OwnProcesses.WaitForExitOrKillAsync(ProcessMarker, ProcessExitTimeout));
-            await CaptureAsync(errors, SweepAsync);
+            await CaptureAsync(errors, Reserved.DeleteAsync);
             if (leaked.Count != 0)
             {
                 errors.Add(new InvalidOperationException($"Browser processes outlived the tests and were killed: {string.Join(", ", leaked)}."));
@@ -143,19 +155,6 @@ public sealed class EdgeFixture : IAsyncLifetime
         }
 
         return await BrowserSession.StartAsync(Browser);
-    }
-
-    /// <summary>Kills browser processes of a crashed run and deletes <see cref="Root"/>.</summary>
-    private static async Task SweepAsync()
-    {
-        await OwnProcesses.WaitForExitOrKillAsync(ProcessMarker, TimeSpan.Zero);
-        await TestRunLock.RetryAsync($"delete '{Root}'", static () =>
-        {
-            if (Directory.Exists(Root))
-            {
-                Directory.Delete(Root, recursive: true);
-            }
-        });
     }
 
     /// <summary>

@@ -6,12 +6,16 @@ using PrusaTrayDiagnostic.Tests.Shared;
 namespace PrusaTrayDiagnostic.Core.Tests;
 
 /// <summary>
-/// All temporary files of this test assembly live under <see cref="Root"/>, so they can be removed
-/// even when a previous test run crashed before its own cleanup ran.
+/// All temporary files of this test assembly live under <see cref="Root"/> (reserved per worktree), so they can be
+/// removed even when a previous test run crashed before its own cleanup ran.
 /// </summary>
 internal static class TestDirectories
 {
-    public static string Root { get; } = Path.Combine(Path.GetTempPath(), "PrusaTrayDiagnostic.Core.Tests");
+    /// <summary>The reservation of this assembly in %TEMP% (the un-hashed folder of older runs is swept too).</summary>
+    public static ReservedTempDirectory Reserved { get; } =
+        ReservedTempDirectory.ForCurrentWorktree("PrusaTrayDiagnostic.Core.Tests", legacyDirectoryName: "PrusaTrayDiagnostic.Core.Tests");
+
+    public static string Root => Reserved.Path;
 
     /// <summary>Path of a new, not yet created, unique directory under <see cref="Root"/>.</summary>
     public static string NewDirectoryPath() => Path.Combine(Root, Guid.NewGuid().ToString("N"));
@@ -26,8 +30,9 @@ internal static class TestDirectories
 }
 
 /// <summary>
-/// Removes <see cref="TestDirectories.Root"/> before the first test (leftovers of a crashed run) and after the last one.
-/// Concurrent runs of this assembly are serialized by <see cref="TestRunLock"/>.
+/// Sweeps leftovers of crashed runs before the first test (<see cref="ReservedTempDirectory.SweepAsync"/>), creates
+/// <see cref="TestDirectories.Root"/> and removes it after the last test. Concurrent runs of this assembly in the same
+/// worktree are serialized by its lock; runs in other worktrees use their own folder and lock.
 /// </summary>
 public sealed class TestDirectoriesCleanupFixture : IAsyncLifetime
 {
@@ -35,10 +40,11 @@ public sealed class TestDirectoriesCleanupFixture : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        _runLock = await TestRunLock.AcquireAsync("PrusaTrayDiagnostic.Core.Tests", TimeSpan.FromMinutes(5));
+        _runLock = await TestDirectories.Reserved.AcquireLockAsync(TimeSpan.FromMinutes(5));
         try
         {
-            await SweepAsync();
+            await TestDirectories.Reserved.SweepAsync();
+            await TestDirectories.Reserved.CreateAsync();
         }
         catch
         {
@@ -51,16 +57,20 @@ public sealed class TestDirectoriesCleanupFixture : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        if (_runLock is null)
+        {
+            // Not initialized: without the lock the folder may belong to another run of this worktree.
+            return;
+        }
+
         try
         {
-            await SweepAsync();
+            await TestDirectories.Reserved.DeleteAsync();
         }
         finally
         {
-            _runLock?.Dispose();
+            _runLock.Dispose();
+            _runLock = null;
         }
     }
-
-    private static Task SweepAsync() =>
-        TestRunLock.RetryAsync($"delete '{TestDirectories.Root}'", static () => TestDirectories.Delete(TestDirectories.Root));
 }

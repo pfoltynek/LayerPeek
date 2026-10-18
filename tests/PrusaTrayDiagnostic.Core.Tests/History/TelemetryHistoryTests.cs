@@ -930,7 +930,9 @@ public sealed class TelemetryHistoryTests
     {
         TimeSpan timeout = TimeSpan.FromSeconds(30);
         using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
-        Task<int>[] readerTasks = Array.ConvertAll(readers, reader => Task.Run(() => reader(stop.Token), stop.Token));
+        // Not Task.Run(..., stop.Token): on a busy machine the writers may finish before a reader is scheduled, and a reader
+        // cancelled before it starts would never read (each reader copies at least once and then stops with the token).
+        Task<int>[] readerTasks = Array.ConvertAll(readers, reader => Task.Run(() => reader(stop.Token), CancellationToken.None));
         Task[] workers = [];
         try
         {

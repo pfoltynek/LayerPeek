@@ -66,6 +66,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-029 | Jazyk aplikace a další překlady (de, es, fr, it, pl, sk) (hotovo) | all | ui-dev | P2 | T-015 |
 | T-030 | E2E testy webu přes proxy (Playwright + Edge) (hotovo) | all | qa-reviewer | P2 | T-028 |
 | T-031 | Headless UI testy Avalonie (okno nastavení, tray menu) (hotovo) | all | qa-reviewer | P2 | T-015, T-028 |
+| T-032 | Zámky a úklid testů zvlášť pro každý worktree (hotovo) | all | qa-reviewer | P3 | T-030, T-031 |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 
