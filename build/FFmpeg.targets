@@ -1,0 +1,103 @@
+<Project>
+  <!--
+    Native FFmpeg libraries (LGPL shared build by BtbN, pinned release, decided in T-014).
+
+    Imported ONLY by src/PrusaTrayDiagnostic.Camera.FFmpeg. The DLLs are None items with CopyToOutputDirectory and
+    CopyToPublishDirectory, so every project that references the FFmpeg project (App, tests) gets them in its output
+    and publish directory transitively. Do not import this file into a referencing project as well: the DLLs would be
+    listed twice and publish fails with NETSDK1152 (duplicate output paths).
+
+    The archive is downloaded once into a per-user cache outside the repository, verified against the pinned SHA256
+    (the build fails on mismatch), extracted, and only the needed DLLs and the license text are kept in the cache.
+    Later builds only check the cache. Nothing is downloaded during design-time builds (IDE).
+
+    Windows x64 only for now; on other platforms / runtime identifiers nothing happens (macOS: task T-026).
+
+    Overridable properties:
+      PtdFFmpegCacheRoot  cache root (default %LOCALAPPDATA%\PrusaTrayDiagnostic.Build\ffmpeg\; also as environment variable)
+      PtdFFmpegEnabled    set to false to skip the native libraries entirely
+  -->
+  <PropertyGroup>
+    <PtdFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</PtdFFmpegUrl>
+    <PtdFFmpegSha256>00ab3bc8fe02554bd0fffac9968bba498d1ab7e899a4871b85fbba828a50bfcc</PtdFFmpegSha256>
+    <!-- Top-level folder inside the archive. -->
+    <PtdFFmpegArchiveFolder>ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0</PtdFFmpegArchiveFolder>
+
+    <PtdFFmpegEnabled Condition="'$(PtdFFmpegEnabled)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'win-x64')">true</PtdFFmpegEnabled>
+    <PtdFFmpegCacheRoot Condition="'$(PtdFFmpegCacheRoot)' == ''">$(LOCALAPPDATA)\PrusaTrayDiagnostic.Build\ffmpeg\</PtdFFmpegCacheRoot>
+    <!-- Separate property: a global property (/p:) cannot be reassigned. -->
+    <_PtdFFmpegCacheRoot>$([MSBuild]::EnsureTrailingSlash('$(PtdFFmpegCacheRoot)'))</_PtdFFmpegCacheRoot>
+    <!-- Keyed by the archive hash: a new pinned build never mixes with an old one. -->
+    <PtdFFmpegCacheDir>$(_PtdFFmpegCacheRoot)$(PtdFFmpegSha256)\</PtdFFmpegCacheDir>
+    <_PtdFFmpegMarker>$(PtdFFmpegCacheDir)verified.sha256</_PtdFFmpegMarker>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(PtdFFmpegEnabled)' == 'true'">
+    <_PtdFFmpegLibrary Include="avformat-63.dll;avcodec-63.dll;avutil-61.dll;swscale-10.dll;swresample-7.dll" />
+  </ItemGroup>
+
+  <!-- A design-time build (IDE) downloads nothing, so it lists the files only once they are in the cache. -->
+  <ItemGroup Condition="'$(PtdFFmpegEnabled)' == 'true' and ('$(DesignTimeBuild)' != 'true' or Exists('$(_PtdFFmpegMarker)'))">
+    <!-- Paths into the cache; the files exist once PtdAcquireFFmpeg ran (before anything copies them). -->
+    <None Include="@(_PtdFFmpegLibrary->'$(PtdFFmpegCacheDir)bin\%(Identity)')"
+          Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Visible="false" />
+    <!-- LGPL: the license text travels with the DLLs. Final placement of the notice is an open question of T-014. -->
+    <None Include="$(PtdFFmpegCacheDir)LICENSE.txt"
+          Link="FFmpeg-LICENSE.txt"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          Visible="false" />
+  </ItemGroup>
+
+  <Target Name="PtdAcquireFFmpeg"
+          BeforeTargets="AssignTargetPaths;GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems;CopyFilesToOutputDirectory"
+          Condition="'$(PtdFFmpegEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <_PtdFFmpegNeeded>false</_PtdFFmpegNeeded>
+      <_PtdFFmpegNeeded Condition="!Exists('$(_PtdFFmpegMarker)') or !Exists('$(PtdFFmpegCacheDir)LICENSE.txt')">true</_PtdFFmpegNeeded>
+    </PropertyGroup>
+    <PropertyGroup Condition="'$(_PtdFFmpegNeeded)' != 'true'">
+      <_PtdFFmpegNeeded Condition="!Exists('$(PtdFFmpegCacheDir)bin\%(_PtdFFmpegLibrary.Identity)')">true</_PtdFFmpegNeeded>
+    </PropertyGroup>
+
+    <CallTarget Targets="_PtdDownloadFFmpeg" Condition="'$(_PtdFFmpegNeeded)' == 'true'" />
+  </Target>
+
+  <Target Name="_PtdDownloadFFmpeg">
+    <PropertyGroup>
+      <!-- Unique per build, so that concurrent builds never share a half-written download. -->
+      <_PtdFFmpegWorkDir>$(_PtdFFmpegCacheRoot)tmp-$([System.Guid]::NewGuid().ToString('N'))\</_PtdFFmpegWorkDir>
+      <_PtdFFmpegArchive>$(_PtdFFmpegWorkDir)ffmpeg.zip</_PtdFFmpegArchive>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="Downloading FFmpeg (LGPL, ~77 MB) into $(PtdFFmpegCacheDir) ..." />
+    <DownloadFile SourceUrl="$(PtdFFmpegUrl)" DestinationFolder="$(_PtdFFmpegWorkDir)" DestinationFileName="ffmpeg.zip" Retries="3" RetryDelayMilliseconds="2000" />
+
+    <GetFileHash Files="$(_PtdFFmpegArchive)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_PtdFFmpegActualSha256" />
+    </GetFileHash>
+    <!-- MSBuild compares strings case-insensitively. -->
+    <Error Condition="'$(_PtdFFmpegActualSha256)' != '$(PtdFFmpegSha256)'"
+           Text="FFmpeg archive SHA256 mismatch: expected $(PtdFFmpegSha256), got $(_PtdFFmpegActualSha256). The download was discarded; check build/FFmpeg.targets and the source URL." />
+
+    <Unzip SourceFiles="$(_PtdFFmpegArchive)" DestinationFolder="$(_PtdFFmpegWorkDir)x" />
+    <ItemGroup>
+      <_PtdFFmpegExtracted Include="@(_PtdFFmpegLibrary->'$(_PtdFFmpegWorkDir)x\$(PtdFFmpegArchiveFolder)\bin\%(Identity)')" />
+    </ItemGroup>
+    <Error Condition="!Exists('%(_PtdFFmpegExtracted.FullPath)')" Text="FFmpeg archive does not contain %(_PtdFFmpegExtracted.Filename)%(_PtdFFmpegExtracted.Extension)." />
+
+    <Copy SourceFiles="@(_PtdFFmpegExtracted)" DestinationFolder="$(PtdFFmpegCacheDir)bin" SkipUnchangedFiles="true" Retries="5" RetryDelayMilliseconds="500" />
+    <Copy SourceFiles="$(_PtdFFmpegWorkDir)x\$(PtdFFmpegArchiveFolder)\LICENSE.txt" DestinationFolder="$(PtdFFmpegCacheDir)" SkipUnchangedFiles="true" Retries="5" RetryDelayMilliseconds="500" />
+    <WriteLinesToFile File="$(_PtdFFmpegMarker)" Lines="$(PtdFFmpegSha256)" Overwrite="true" />
+
+    <RemoveDir Directories="$(_PtdFFmpegWorkDir)" ContinueOnError="true" />
+    <OnError ExecuteTargets="_PtdCleanFFmpegWorkDir" />
+  </Target>
+
+  <Target Name="_PtdCleanFFmpegWorkDir">
+    <RemoveDir Directories="$(_PtdFFmpegWorkDir)" Condition="'$(_PtdFFmpegWorkDir)' != ''" ContinueOnError="true" />
+  </Target>
+</Project>

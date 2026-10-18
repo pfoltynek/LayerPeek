@@ -172,6 +172,36 @@
                                IsVisible="{Binding HasTestResult}"
                                TextWrapping="Wrap"
                                Margin="0,8,0,0" />
+
+                    <!-- Camera (T-014): RTSP stream shown from the tray menu. -->
+                    <TextBlock Classes="section" Text="{x:Static res:Strings.SettingsCamera}" />
+                    <Border Background="{DynamicResource NoticeBrush}"
+                            CornerRadius="4"
+                            Padding="10,6"
+                            Margin="0,0,0,6"
+                            IsVisible="{Binding CameraCredentialsRemoved}">
+                      <TextBlock Text="{x:Static res:Strings.SettingsCameraCredentialsRemoved}" TextWrapping="Wrap" />
+                    </Border>
+                    <CheckBox Content="{x:Static res:Strings.SettingsCameraEnabled}" IsChecked="{Binding CameraEnabled}" />
+                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsCameraUrl}" />
+                    <TextBox Text="{Binding CameraUrl}"
+                             PlaceholderText="rtsp://192.168.0.227/live"
+                             AutomationProperties.Name="{x:Static res:Strings.SettingsCameraUrl}" />
+                    <TextBlock Classes="hint" Text="{x:Static res:Strings.SettingsCameraUrlHint}" />
+                    <TextBlock Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+                      <Button Content="{x:Static res:Strings.SettingsCameraTest}" Command="{Binding TestCameraCommand}" />
+                      <Button Content="{x:Static res:Strings.SettingsCancelTest}" Command="{Binding CancelCameraTestCommand}" IsVisible="{Binding IsTestingCamera}" />
+                      <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" IsVisible="{Binding IsTestingCamera}" />
+                    </StackPanel>
+                    <TextBlock Classes="result"
+                               Classes.success="{Binding CameraTestSucceeded}"
+                               Classes.failure="{Binding CameraTestFailed}"
+                               Text="{Binding CameraTestResultText}"
+                               IsVisible="{Binding HasCameraTestResult}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,16" />
                   </StackPanel>
                 </DataTemplate>
               </ContentControl.ContentTemplate>

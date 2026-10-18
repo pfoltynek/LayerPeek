@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- FFmpeg structures are accessed through pointers (FFmpeg.AutoGen). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="FFmpeg.AutoGen.Abstractions" />
+    <PackageReference Include="FFmpeg.AutoGen.Bindings.DynamicallyLinked" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PrusaTrayDiagnostic.Camera.FFmpeg.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PrusaTrayDiagnostic.Core\PrusaTrayDiagnostic.Core.csproj" />
+  </ItemGroup>
+  <!-- Native FFmpeg DLLs; they flow to the output and publish directory of every referencing project. -->
+  <Import Project="..\..\build\FFmpeg.targets" />
+</Project>

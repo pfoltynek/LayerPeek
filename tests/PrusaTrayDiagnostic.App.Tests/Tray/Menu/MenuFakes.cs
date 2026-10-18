@@ -112,5 +112,10 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public void ShowSettings() => SettingsCount++;
 
+    /// <summary>Printer ids of camera window requests in order.</summary>
+    public List<string> CameraRequests { get; } = [];
+
+    public void ShowCamera(string printerId) => CameraRequests.Add(printerId);
+
     public void Quit() => QuitCount++;
 }

@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Cameras;
+
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -30,6 +32,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     private readonly ISettingsApplier _applier;
     private readonly ILogger<SettingsEditorStore> _logger;
     private readonly TimeSpan _applyWaitTimeout;
+    private readonly RemovedCameraCredentials? _removedCameraCredentials;
     private readonly Lock _pendingLock = new();
 
     // Guarded by _pendingLock. The last save, awaited when the app quits (an interrupted save could leave an orphan).
@@ -40,13 +43,17 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
 
     /// <param name="settingsStore">Resolved on first use; may throw (e.g. no per-user data folder).</param>
     /// <param name="applyWaitTimeout">Default <see cref="DefaultApplyWaitTimeout"/>; a stuck printer client must not block the save forever.</param>
+    /// <param name="removedCameraCredentials">
+    /// Cameras whose credentials were removed at startup; reported by loads and cleared by a successful save.
+    /// </param>
     public SettingsEditorStore(
         Func<ISettingsStore> settingsStore,
         ISecretStore secrets,
         PasswordPolicy policy,
         ISettingsApplier applier,
         ILogger<SettingsEditorStore> logger,
-        TimeSpan? applyWaitTimeout = null)
+        TimeSpan? applyWaitTimeout = null,
+        RemovedCameraCredentials? removedCameraCredentials = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(secrets);
@@ -59,6 +66,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         _applier = applier;
         _logger = logger;
         _applyWaitTimeout = applyWaitTimeout ?? DefaultApplyWaitTimeout;
+        _removedCameraCredentials = removedCameraCredentials;
     }
 
     public Task<SettingsEditorData> LoadAsync(CancellationToken cancellationToken) =>
@@ -117,7 +125,27 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         }
 
         IReadOnlySet<string>? withPassword = await FindSavedPasswordsAsync(result.Settings, cancellationToken).ConfigureAwait(false);
-        return new SettingsEditorData(result.Settings, result.Status, result.Warnings, withPassword);
+        return new SettingsEditorData(result.Settings, result.Status, result.Warnings, withPassword, CamerasWithRemovedCredentials(result.Settings));
+    }
+
+    /// <summary>Removed in this load (the startup save failed, or the file changed since) or at startup.</summary>
+    private HashSet<string>? CamerasWithRemovedCredentials(AppSettings settings)
+    {
+        HashSet<string>? ids = null;
+        foreach (PrinterDefinition printer in settings.Printers)
+        {
+            if (printer.Camera.CredentialsRemoved)
+            {
+                (ids ??= new(StringComparer.OrdinalIgnoreCase)).Add(printer.Id);
+            }
+        }
+
+        if (_removedCameraCredentials?.PrinterIds is { Count: > 0 } atStartup)
+        {
+            (ids ??= new(StringComparer.OrdinalIgnoreCase)).UnionWith(atStartup);
+        }
+
+        return ids;
     }
 
     /// <summary>Only whether a password exists; the value is dropped right away.</summary>
@@ -194,6 +222,9 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             LogSettingsNotSaved(ex);
             return new SettingsSaveResult(SettingsSaveStatus.SettingsNotSaved, RollbackIncomplete: !await RollbackAsync(written).ConfigureAwait(false));
         }
+
+        // The user saved what the window showed, including the notice about removed camera credentials.
+        _removedCameraCredentials?.Clear();
 
         // Step 4: monitoring restarts with the new settings. Waiting for the old run to end means no poll of a removed
         // printer can find its password deleted below (that would be a spurious "password rejected" notification).

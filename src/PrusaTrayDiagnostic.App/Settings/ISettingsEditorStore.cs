@@ -9,11 +9,16 @@ namespace PrusaTrayDiagnostic.App.Settings;
 /// Ids (case-insensitive) of printers with a saved password; <see langword="null"/> when that is unknown (no secret store
 /// on this OS, or it failed).
 /// </param>
+/// <param name="CamerasWithRemovedCredentials">
+/// Ids (case-insensitive) of printers whose camera address lost its credentials when the settings were loaded, in this
+/// load or at startup (the file was saved without them since, see <c>MonitoringSession</c>); <see langword="null"/> = none.
+/// </param>
 internal sealed record SettingsEditorData(
     AppSettings Settings,
     SettingsLoadStatus Status,
     IReadOnlyList<string> Warnings,
-    IReadOnlySet<string>? PrintersWithPassword);
+    IReadOnlySet<string>? PrintersWithPassword,
+    IReadOnlySet<string>? CamerasWithRemovedCredentials = null);
 
 /// <summary>A change made in the settings window.</summary>
 /// <param name="Original">The settings the window started with; printers missing in <paramref name="Updated"/> were removed.</param>

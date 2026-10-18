@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Headless Avalonia UI tests (T-014): real windows, XAML, compiled bindings and Skia rendering, without a screen.
+    A separate project, because Avalonia.Headless.XUnit 12.1.4 is built against xunit.v3 3.x (it fails on 4.x) and runs
+    every [AvaloniaFact] on one dedicated UI thread; App.Tests stay plain, parallel, Avalonia-free view model tests.
+    xunit.v3 is pinned here only (VersionOverride, user decision 2026-10-18); the MTP v2 flavour keeps the same test
+    platform generation as the other test projects (xunit.v3 4.x = xunit.v3.mtp-v2).
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Reading pixels of captured frames. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="xunit.v3.mtp-v2" VersionOverride="3.2.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\*.cs" Link="Shared\%(Filename)%(Extension)" />
+    <!-- Fakes shared with App.Tests (no network, no camera, no OS credential store). -->
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\TrayFakes.cs" Link="Fakes\TrayFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\MenuFakes.cs" Link="Fakes\MenuFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Settings\SettingsFakes.cs" Link="Fakes\SettingsFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Cameras\CameraFakes.cs" Link="Fakes\CameraFakes.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PrusaTrayDiagnostic.App\PrusaTrayDiagnostic.App.csproj" />
+  </ItemGroup>
+</Project>

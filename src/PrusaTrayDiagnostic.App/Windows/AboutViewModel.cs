@@ -3,6 +3,7 @@ using System.Reflection;
 
 using CommunityToolkit.Mvvm.Input;
 
+using PrusaTrayDiagnostic.App.Licenses;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tray;
@@ -55,6 +56,17 @@ public sealed partial class AboutViewModel
     public string RepositoryText { get; } = Strings.AboutRepository;
 
     public string CloseText { get; } = Strings.AboutClose;
+
+    public string ThirdPartyLicensesText { get; } = Strings.AboutThirdPartyLicenses;
+
+    /// <summary>The user wants the third-party licences; the window opens (or activates) the licences window.</summary>
+    public event EventHandler? LicensesRequested;
+
+    /// <summary>Content of a new licences window (T-014).</summary>
+    internal LicensesViewModel CreateLicensesViewModel() => new(_launcher);
+
+    [RelayCommand]
+    private void ShowLicenses() => LicensesRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary><see cref="AssemblyCopyrightAttribute"/> of <paramref name="assembly"/>, or <see cref="DefaultCopyright"/>.</summary>
     internal static string ProductCopyright(Assembly assembly)

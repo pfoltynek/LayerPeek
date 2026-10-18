@@ -20,6 +20,8 @@
     <TextBlock Text="{Binding Copyright}" />
     <!-- Opened through IUrlLauncher (validated http(s) address), not through NavigateUri. -->
     <HyperlinkButton Content="{Binding RepositoryText}" Command="{Binding OpenRepositoryCommand}" Padding="0" />
+    <!-- FFmpeg (LGPL) and all other shipped components with their full licence texts (T-014). -->
+    <HyperlinkButton Content="{Binding ThirdPartyLicensesText}" Command="{Binding ShowLicensesCommand}" Padding="0" />
     <Button Content="{Binding CloseText}"
             HorizontalAlignment="Right"
             Margin="0,16,0,0"

@@ -15,6 +15,15 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 | Git | |
 | VS Code + rozšíření | C# Dev Kit, Avalonia for VS Code, EditorConfig (nabídnou se automaticky) |
 
+## Nativní knihovny FFmpeg (kamera)
+
+Projekt `PrusaTrayDiagnostic.Camera.FFmpeg` potřebuje nativní DLL FFmpeg (LGPL build BtbN, připnutá verze). DLL nejsou v repozitáři. Stáhne je build (`build/FFmpeg.targets`):
+
+- **První build na Windows potřebuje internet** (~77 MB z GitHubu). Archiv se ověří podle SHA256. Při neshodě build selže.
+- Cache je mimo repozitář: `%LOCALAPPDATA%\PrusaTrayDiagnostic.Build\ffmpeg\<sha256>\`. Další buildy fungují offline. Jinou složku nastavíš proměnnou prostředí `PtdFFmpegCacheRoot`.
+- DLL a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují.
+- IDE (design-time build) nic nestahuje. Na macOS se krok zatím přeskočí (úkol T-026).
+
 ## Windows
 
 | Co | Poznámka |
@@ -89,4 +98,5 @@ V `src/PrusaTrayDiagnostic.App/PrusaTrayDiagnostic.App.csproj` je nastaveno `<Us
 | `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64` | chybí workload *Desktop development with C++* (viz Windows) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
+| `FFmpeg archive SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |

@@ -32,7 +32,8 @@ internal interface ITrayMenuSource
 
     /// <summary>
     /// One entry per configured printer (a submenu header when there are several printers), or a single disabled status
-    /// message ("Starting…", "No printer configured"...).
+    /// message ("Starting…", "No printer configured"...). A single printer with an enabled camera is followed by its
+    /// "Camera…" entry (with several printers it is in the printer's submenu).
     /// </summary>
     ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
@@ -53,6 +54,12 @@ internal interface ITrayAppCommands
 
     /// <summary>Opens the settings window, or activates it when it is already open.</summary>
     void ShowSettings();
+
+    /// <summary>
+    /// Opens the camera window of <paramref name="printerId"/>, or activates it when it is already open (one window per
+    /// printer; windows of different printers may be open at the same time).
+    /// </summary>
+    void ShowCamera(string printerId);
 
     void Quit();
 }

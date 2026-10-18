@@ -1,5 +1,6 @@
 using System.Text;
 
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 
@@ -349,6 +350,106 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.NotEqual(0xEF, bytes[0]);
         Assert.Contains("\"pollingIntervalSeconds\": 5", json, StringComparison.Ordinal);
         Assert.Contains("\"PrusaLink\"", await SaveAndReadPrinterJsonAsync(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task LoadFileOfCurrentFormatWithoutCameraDisablesCamera()
+    {
+        // A file written before cameras existed (T-015 format).
+        Directory.CreateDirectory(_directory);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "settings-v1-without-camera.json"), FilePath);
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(TimeSpan.FromSeconds(7), result.Settings.PollingInterval);
+        Assert.False(result.Settings.Notifications.PrintStarted);
+        Assert.Equal(15, result.Settings.Notifications.RemainingTimeMinutes);
+        Assert.Collection(
+            result.Settings.Printers,
+            static printer =>
+            {
+                Assert.Equal("Workshop MK4", printer.Name);
+                Assert.Equal(CameraSettings.Disabled, printer.Camera);
+            },
+            static printer =>
+            {
+                Assert.Equal("Core One", printer.Name);
+                Assert.Equal(CameraSettings.Disabled, printer.Camera);
+            });
+    }
+
+    [Fact]
+    public async Task SaveThenLoadRoundTripsCameraSettings()
+    {
+        AppSettings settings = new()
+        {
+            Printers =
+            [
+                new PrinterDefinition
+                {
+                    Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226",
+                    Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")),
+                },
+                new PrinterDefinition
+                {
+                    Id = "core", Name = "Core One", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.228",
+                    Camera = new CameraSettings(enabled: false, new Uri("rtsp://192.168.0.229:8554/live")),
+                },
+                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.230" },
+            ],
+        };
+
+        await _store.SaveAsync(settings, Ct);
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(settings, result.Settings);
+        Assert.Contains("\"streamUrl\": \"rtsp://192.168.0.227/live\"", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task InvalidCameraUrlSurvivesLoadAndSave()
+    {
+        await WriteSettingsFileAsync("""
+            { "printers": [ { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "10.0.0.5",
+                              "camera": { "enabled": true, "streamUrl": "http://10.0.0.6/live" } } ] }
+            """);
+
+        SettingsLoadResult loaded = await _store.LoadAsync(Ct);
+        await _store.SaveAsync(loaded.Settings, Ct);
+        SettingsLoadResult reloaded = await _store.LoadAsync(Ct);
+
+        CameraSettings camera = Assert.Single(reloaded.Settings.Printers).Camera;
+        Assert.False(camera.Enabled);
+        Assert.Equal("http://10.0.0.6/live", camera.InvalidStreamUrl);
+        Assert.Equal(CameraUrlProblem.UnsupportedScheme, camera.StreamUrlProblem);
+        Assert.Single(reloaded.Warnings);
+        Assert.Contains("\"streamUrl\": \"http://10.0.0.6/live\"", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task CameraCredentialsNeverReachTheFileAgain()
+    {
+        await WriteSettingsFileAsync("""
+            { "printers": [ { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "10.0.0.5",
+                              "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@10.0.0.6/live" } } ] }
+            """);
+
+        SettingsLoadResult loaded = await _store.LoadAsync(Ct);
+        await _store.SaveAsync(loaded.Settings, Ct);
+        string json = await File.ReadAllTextAsync(FilePath, Ct);
+        SettingsLoadResult reloaded = await _store.LoadAsync(Ct);
+
+        Assert.True(Assert.Single(loaded.Settings.Printers).Camera.CredentialsRemoved);
+        Assert.DoesNotContain("secret", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("admin", json, StringComparison.Ordinal);
+        CameraSettings camera = Assert.Single(reloaded.Settings.Printers).Camera;
+        Assert.Equal(new CameraSettings(enabled: false, new Uri("rtsp://10.0.0.6/live")), camera);
+        Assert.False(camera.CredentialsRemoved);
+        Assert.Empty(reloaded.Warnings);
     }
 
     [Fact]

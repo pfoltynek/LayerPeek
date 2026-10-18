@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
 using PrusaTrayDiagnostic.App.Resources;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.PrusaLink;
 
@@ -38,9 +39,23 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private string? _testResultText;
     private TestResultKind _testResultKind;
 
+    // Camera (T-014). The address field keeps an invalid address loaded from the file for correction.
+    private bool _cameraEnabled;
+    private string _cameraUrl;
+    private bool _cameraCredentialsRemoved;
+    private string? _cameraUrlProblem;
+    private bool _cameraBlocksSave;
+
+    private CancellationTokenSource? _cameraTest;
+    private bool _cameraTestCancelledByUser;
+    private bool _isTestingCamera;
+    private string? _cameraTestResultText;
+    private TestResultKind _cameraTestResultKind;
+
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
-    internal PrinterEditorViewModel(SettingsViewModel owner, string id, PrinterDefinition? saved, bool? hasSavedPassword)
+    /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until saved).</param>
+    internal PrinterEditorViewModel(SettingsViewModel owner, string id, PrinterDefinition? saved, bool? hasSavedPassword, bool cameraCredentialsRemoved = false)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -56,8 +71,15 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _showErrors = saved is not null;
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => IsPrusaLink && !_isTesting && !_owner.IsDisposed);
         CancelTestCommand = new RelayCommand(CancelTest, () => _isTesting);
+        CameraSettings camera = saved?.Camera ?? CameraSettings.Disabled;
+        _cameraEnabled = camera.Enabled;
+        _cameraUrl = camera.StreamUri?.OriginalString ?? camera.InvalidStreamUrl ?? string.Empty;
+        _cameraCredentialsRemoved = cameraCredentialsRemoved || camera.CredentialsRemoved;
+        TestCameraCommand = new AsyncRelayCommand(TestCameraAsync, () => !_isTestingCamera && !_owner.IsDisposed);
+        CancelCameraTestCommand = new RelayCommand(CancelCameraTest, () => _isTestingCamera);
         ValidateAddress();
         ValidatePassword();
+        ValidateCamera();
     }
 
     private enum TestResultKind
@@ -183,7 +205,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors => _nameProblem is not null || _addressProblem is not null || _passwordProblem is not null;
+    public bool HasErrors => _nameProblem is not null || _addressProblem is not null || _passwordProblem is not null || _cameraBlocksSave;
 
     /// <summary>The list marks the printer as invalid.</summary>
     public bool ShowsErrorMarker => _showErrors && HasErrors;
@@ -214,14 +236,116 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public bool TestFailed => _testResultKind == TestResultKind.Failure;
 
+    /// <summary>Show the camera in the tray menu (needs a valid address).</summary>
+    public bool CameraEnabled
+    {
+        get => _cameraEnabled;
+        set
+        {
+            if (SetProperty(ref _cameraEnabled, value))
+            {
+                ValidateCamera();
+                RevealErrors();
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>RTSP address of the stream (an invalid address loaded from the file is shown here for correction).</summary>
+    public string CameraUrl
+    {
+        get => _cameraUrl;
+        set
+        {
+            if (SetProperty(ref _cameraUrl, value ?? string.Empty))
+            {
+                InvalidateCameraTest();
+                ValidateCamera();
+                RevealErrors();
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Why the address cannot be used. Blocks saving while the camera is on or the address contains credentials; a
+    /// disabled camera may keep an invalid address (it stays off until corrected).
+    /// </summary>
+    public string? CameraUrlError => _showErrors ? _cameraUrlProblem : null;
+
+    /// <summary>Credentials were removed from the stored address; the camera stays off until the user checks it.</summary>
+    public bool CameraCredentialsRemoved
+    {
+        get => _cameraCredentialsRemoved;
+        private set => SetProperty(ref _cameraCredentialsRemoved, value);
+    }
+
+    /// <summary>Opens the stream in the form (not saved) and waits for one image; disabled while running.</summary>
+    public IAsyncRelayCommand TestCameraCommand { get; }
+
+    public IRelayCommand CancelCameraTestCommand { get; }
+
+    public bool IsTestingCamera
+    {
+        get => _isTestingCamera;
+        private set
+        {
+            if (SetProperty(ref _isTestingCamera, value))
+            {
+                TestCameraCommand.NotifyCanExecuteChanged();
+                CancelCameraTestCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? CameraTestResultText => _cameraTestResultText;
+
+    public bool HasCameraTestResult => _cameraTestResultText is not null;
+
+    public bool CameraTestSucceeded => _cameraTestResultKind == TestResultKind.Success;
+
+    public bool CameraTestFailed => _cameraTestResultKind == TestResultKind.Failure;
+
     /// <summary>The field holds a password that will be saved.</summary>
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
-    /// <summary>The definition to save; <see langword="null"/> while the name or address is invalid.</summary>
+    /// <summary>The definition to save; <see langword="null"/> while the name, address or camera is invalid.</summary>
     internal PrinterDefinition? ToDefinition() =>
-        _nameProblem is not null || _addressProblem is not null
+        _nameProblem is not null || _addressProblem is not null || BuildCamera() is not { } camera
             ? null
-            : new PrinterDefinition { Id = Id, Name = _name, ConnectionType = _connectionType.Value, Address = _address };
+            : new PrinterDefinition { Id = Id, Name = _name, ConnectionType = _connectionType.Value, Address = _address, Camera = camera };
+
+    /// <summary>
+    /// The camera as entered; <see langword="null"/> when it cannot be saved (an enabled camera without a valid address,
+    /// or credentials in the address, which are never stored). A disabled camera keeps an invalid address unchanged.
+    /// </summary>
+    private CameraSettings? BuildCamera()
+    {
+        if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
+        {
+            return new CameraSettings(_cameraEnabled, uri);
+        }
+
+        if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
+        {
+            return null;
+        }
+
+        if (problem == CameraUrlProblem.Missing)
+        {
+            return CameraSettings.Disabled;
+        }
+
+        try
+        {
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl);
+        }
+        catch (ArgumentException)
+        {
+            // Something credential-like that the parser did not recognise as such: never kept.
+            return null;
+        }
+    }
 
     internal void SetNameProblem(string? problem)
     {
@@ -253,12 +377,15 @@ public sealed class PrinterEditorViewModel : ObservableObject
         ForgetPassword();
         IsNew = false;
         OnPasswordPresentationChanged();
+        // The user saved after seeing the notice (see RemovedCameraCredentials).
+        CameraCredentialsRemoved = false;
     }
 
-    /// <summary>The printer was removed or the window closed: stops a running test and forgets a typed password.</summary>
+    /// <summary>The printer was removed or the window closed: stops running tests and forgets a typed password.</summary>
     internal void Detach()
     {
         _test?.Cancel();
+        _cameraTest?.Cancel();
         ForgetPassword();
     }
 
@@ -341,6 +468,135 @@ public sealed class PrinterEditorViewModel : ObservableObject
             IsTesting = false;
         }
     }
+
+    private async Task TestCameraAsync()
+    {
+        if (_isTestingCamera || _owner.IsDisposed)
+        {
+            return;
+        }
+
+        if (!CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
+        {
+            // Never open an address that could not be saved; explain it like the inline error does.
+            RevealErrors();
+            SetCameraTestResult(CameraProblemText(problem), TestResultKind.Failure);
+            return;
+        }
+
+        CancellationTokenSource test = CancellationTokenSource.CreateLinkedTokenSource(_owner.LifetimeToken);
+        _cameraTest = test;
+        _cameraTestCancelledByUser = false;
+        IsTestingCamera = true;
+        SetCameraTestResult(Strings.SettingsCameraTesting, TestResultKind.Running);
+        try
+        {
+            CameraTestResult result = await _owner.CameraTester.TestAsync(uri, test.Token).ConfigureAwait(true);
+            if (!test.IsCancellationRequested)
+            {
+                SetCameraTestResult(Describe(result), result.Outcome == CameraTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+            }
+            else if (_cameraTestCancelledByUser)
+            {
+                SetCameraTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+            }
+        }
+        catch (OperationCanceledException) when (test.IsCancellationRequested)
+        {
+            // Cancelled by the user; an edit, removal or closing the window already cleared the result.
+            if (_cameraTestCancelledByUser)
+            {
+                SetCameraTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+            }
+        }
+        catch (Exception)
+        {
+            // A command handler must never throw into the UI.
+            SetCameraTestResult(Strings.SettingsCameraTestFailedUnknown, TestResultKind.Failure);
+        }
+        finally
+        {
+            if (ReferenceEquals(_cameraTest, test))
+            {
+                _cameraTest = null;
+            }
+
+            test.Dispose();
+            IsTestingCamera = false;
+        }
+    }
+
+    private void CancelCameraTest()
+    {
+        if (_cameraTest is { } test)
+        {
+            _cameraTestCancelledByUser = true;
+            test.Cancel();
+        }
+    }
+
+    /// <summary>The tested address changed: a running test is stopped and an old result no longer applies.</summary>
+    private void InvalidateCameraTest()
+    {
+        _cameraTest?.Cancel();
+        SetCameraTestResult(null, TestResultKind.None);
+    }
+
+    private string Describe(CameraTestResult result) => result.Outcome switch
+    {
+        CameraTestOutcome.Success => Format(Strings.SettingsCameraTestSuccess, result.Width, result.Height),
+        CameraTestOutcome.Timeout => Format(Strings.SettingsCameraTestTimeout, (int)Math.Ceiling(_owner.CameraTester.Timeout.TotalSeconds)),
+        _ when string.IsNullOrWhiteSpace(result.Reason) => Strings.SettingsCameraTestFailedUnknown,
+        _ => Format(Strings.SettingsCameraTestFailed, result.Reason),
+    };
+
+    private void SetCameraTestResult(string? text, TestResultKind kind)
+    {
+        bool textChanged = _cameraTestResultText != text;
+        bool kindChanged = _cameraTestResultKind != kind;
+        _cameraTestResultText = text;
+        _cameraTestResultKind = kind;
+        if (textChanged)
+        {
+            OnPropertyChanged(nameof(CameraTestResultText));
+            OnPropertyChanged(nameof(HasCameraTestResult));
+        }
+
+        if (kindChanged)
+        {
+            OnPropertyChanged(nameof(CameraTestSucceeded));
+            OnPropertyChanged(nameof(CameraTestFailed));
+        }
+    }
+
+    private void ValidateCamera()
+    {
+        bool blocks = BuildCamera() is null;
+        string? problem = null;
+        if (!CameraSettings.TryParseStreamUri(_cameraUrl, out _, out CameraUrlProblem kind))
+        {
+            problem = kind == CameraUrlProblem.Missing && !_cameraEnabled ? null
+                // A disabled camera blocks only because of credentials the parser did not name as such.
+                : blocks && !_cameraEnabled ? CameraProblemText(CameraUrlProblem.ContainsCredentials)
+                : CameraProblemText(kind);
+        }
+
+        if (_cameraUrlProblem != problem || _cameraBlocksSave != blocks)
+        {
+            _cameraUrlProblem = problem;
+            _cameraBlocksSave = blocks;
+            OnErrorsChanged();
+        }
+    }
+
+    private static string CameraProblemText(CameraUrlProblem problem) => problem switch
+    {
+        CameraUrlProblem.Missing => Strings.SettingsCameraErrorMissing,
+        CameraUrlProblem.UnsupportedScheme => Strings.SettingsCameraErrorScheme,
+        CameraUrlProblem.MissingHost => Strings.SettingsCameraErrorHost,
+        CameraUrlProblem.ContainsCredentials => Strings.SettingsCameraErrorCredentials,
+        _ => Strings.SettingsCameraErrorInvalid,
+    };
 
     private void CancelTest()
     {
@@ -431,6 +687,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(NameError));
         OnPropertyChanged(nameof(AddressError));
         OnPropertyChanged(nameof(PasswordError));
+        OnPropertyChanged(nameof(CameraUrlError));
         OnPropertyChanged(nameof(HasErrors));
         OnPropertyChanged(nameof(ShowsErrorMarker));
     }

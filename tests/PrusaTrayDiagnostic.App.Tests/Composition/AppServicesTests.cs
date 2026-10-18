@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
@@ -11,11 +12,14 @@ using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Camera.FFmpeg;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.History;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
+using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Tests.Composition;
 
@@ -127,6 +131,47 @@ public sealed class AppServicesTests
         Assert.NotSame(first, second);
         Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
         Assert.True(first.IsLoading);
+    }
+
+    [Fact]
+    public async Task CameraServicesUseFFmpegWithTheDecidedTimingWithoutTouchingUserData()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.IsType<FFmpegCameraFeedFactory>(services.GetRequiredService<ICameraFeedFactory>());
+        CameraFeedOptions options = services.GetRequiredService<CameraFeedOptions>();
+        Assert.Equal((TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)), (options.ConnectTimeout, options.FrameTimeout, options.ReconnectDelay));
+        Assert.Same(services.GetRequiredService<ReconnectingCameraFeed>(), services.GetRequiredService<ReconnectingCameraFeed>());
+        Assert.Equal(TimeSpan.FromSeconds(15), Assert.IsType<CameraSnapshotTester>(services.GetRequiredService<ICameraTester>()).Timeout);
+        Assert.IsType<JsonCameraWindowStateStore>(services.GetRequiredService<ICameraWindowStateStore>());
+        Assert.Same(services.GetRequiredService<RemovedCameraCredentials>(), services.GetRequiredService<RemovedCameraCredentials>());
+    }
+
+    [Fact]
+    public async Task CameraWindowNeedsAMonitoredPrinterWithAnEnabledCamera()
+    {
+        await using ServiceProvider services = AppServices.Create(cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance);
+        IMonitoringObserver printers = services.GetRequiredService<MonitoredPrinters>();
+
+        // Before monitoring started nothing is known.
+        Assert.Null(AppServices.CreateCameraViewModel(services, "a"));
+
+        printers.ApplySettings(new AppSettings
+        {
+            Printers =
+            [
+                new PrinterDefinition { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) },
+                new PrinterDefinition { Id = "b", Name = "Beta", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.228" },
+            ],
+        });
+
+        Assert.Null(AppServices.CreateCameraViewModel(services, "b"));
+        Assert.Null(AppServices.CreateCameraViewModel(services, "missing"));
+        using CameraViewModel? camera = AppServices.CreateCameraViewModel(services, "A");
+        Assert.NotNull(camera);
+        Assert.Equal("a", camera.PrinterId);
+        Assert.Contains("Alpha", camera.Title, StringComparison.Ordinal);
+        // Disposing saves only a changed state: an untouched window writes nothing to the real user data folder.
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

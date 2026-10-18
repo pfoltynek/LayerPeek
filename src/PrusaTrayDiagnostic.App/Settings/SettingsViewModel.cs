@@ -5,6 +5,9 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using Microsoft.Extensions.Logging.Abstractions;
+
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -71,7 +74,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
     private SoundOption _selectedSound;
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
-    internal SettingsViewModel(ISettingsEditorStore store, IConnectionTester tester, PasswordPolicy policy, Func<string>? newId = null)
+    /// <param name="cameraTester">Camera "Test" button; default: none available (every test fails).</param>
+    internal SettingsViewModel(ISettingsEditorStore store, IConnectionTester tester, PasswordPolicy policy, Func<string>? newId = null, ICameraTester? cameraTester = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -80,6 +84,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         Tester = tester;
         Policy = policy;
         _newId = newId ?? (static () => Guid.NewGuid().ToString("N"));
+        CameraTester = cameraTester ?? new CameraSnapshotTester(UnavailableCameraFeedFactory.Instance, TimeProvider.System, NullLogger<CameraSnapshotTester>.Instance);
         SoundOptions =
         [
             new SoundOption(NotificationSound.Off, Strings.SettingsSoundOff),
@@ -316,6 +321,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
 
     internal IConnectionTester Tester { get; }
 
+    internal ICameraTester CameraTester { get; }
+
     internal bool IsDisposed => _disposed;
 
     /// <summary>Cancelled when the window closes.</summary>
@@ -393,7 +400,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable
         {
             _usedIds.Add(printer.Id);
             bool? hasPassword = data.PrintersWithPassword is { } withPassword ? withPassword.Contains(printer.Id) : null;
-            Printers.Add(new PrinterEditorViewModel(this, printer.Id, printer, hasPassword));
+            bool cameraCredentialsRemoved = printer.Camera.CredentialsRemoved || data.CamerasWithRemovedCredentials?.Contains(printer.Id) == true;
+            Printers.Add(new PrinterEditorViewModel(this, printer.Id, printer, hasPassword, cameraCredentialsRemoved));
         }
 
         _pollingIntervalSeconds = (decimal)settings.PollingInterval.TotalSeconds;

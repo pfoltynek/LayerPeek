@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The FFmpeg DLLs come with this reference (build/FFmpeg.targets). -->
+    <ProjectReference Include="..\..\src\PrusaTrayDiagnostic.Camera.FFmpeg\PrusaTrayDiagnostic.Camera.FFmpeg.csproj" />
+  </ItemGroup>
+</Project>

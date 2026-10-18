@@ -1,0 +1,145 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PrusaTrayDiagnostic.App.Cameras"
+        xmlns:res="using:PrusaTrayDiagnostic.App.Resources"
+        x:Class="PrusaTrayDiagnostic.App.Windows.CameraWindow"
+        x:DataType="vm:CameraViewModel"
+        Title="{Binding Title}"
+        Icon="/Assets/tray-idle.png"
+        Width="960"
+        Height="540"
+        MinWidth="160"
+        MinHeight="90"
+        Background="Black"
+        WindowStartupLocation="CenterScreen">
+  <!-- F11 toggles full screen, Esc returns to the normal window (from full screen and from the mini preview). -->
+  <Window.KeyBindings>
+    <KeyBinding Gesture="F11" Command="{Binding ToggleFullScreenCommand}" />
+    <KeyBinding Gesture="Escape" Command="{Binding ShowNormalCommand}" />
+  </Window.KeyBindings>
+
+  <Window.Styles>
+    <!-- The window buttons appear while the pointer is over the window or a button has keyboard focus. -->
+    <Style Selector="StackPanel.windowButtons">
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Grid#Root:pointerover StackPanel.windowButtons, StackPanel.windowButtons:focus-within">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="StackPanel.windowButtons > Button">
+      <Setter Property="Background" Value="#99000000" />
+      <Setter Property="Padding" Value="6" />
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
+    <Style Selector="Path.icon">
+      <Setter Property="Stroke" Value="White" />
+      <Setter Property="StrokeThickness" Value="1.5" />
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="Stretch" Value="None" />
+    </Style>
+    <Style Selector="Border.overlay">
+      <Setter Property="Background" Value="#A6000000" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.overlay TextBlock">
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- Resize grips of the borderless mini preview. -->
+    <Style Selector="Border.grip">
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+  </Window.Styles>
+
+  <Grid x:Name="Root" Background="Black">
+    <!-- Whole client area: double-click switches modes, dragging moves the mini preview. -->
+    <Border x:Name="Surface"
+            Background="Black"
+            PointerPressed="OnSurfacePointerPressed"
+            PointerMoved="OnSurfacePointerMoved"
+            PointerReleased="OnSurfacePointerReleased"
+            AutomationProperties.Name="{x:Static res:Strings.CameraImageHint}">
+      <Image x:Name="Video" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="MediumQuality" />
+    </Border>
+
+    <!-- Connection state over the last image: connecting, no signal, error with its reason. -->
+    <Border Classes="overlay"
+            Padding="14,10"
+            Margin="16"
+            MaxWidth="480"
+            HorizontalAlignment="Center"
+            VerticalAlignment="Center"
+            IsVisible="{Binding IsStatusVisible}">
+      <StackPanel Spacing="4">
+        <TextBlock Text="{Binding StatusText}" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center" />
+        <TextBlock Text="{Binding StatusDetail}"
+                   IsVisible="{Binding HasStatusDetail}"
+                   FontSize="12"
+                   Opacity="0.85"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <!-- Print state in a corner, in every mode (user decision 2026-10-18). -->
+    <Border Classes="overlay"
+            Padding="6,3"
+            Margin="6"
+            HorizontalAlignment="Left"
+            VerticalAlignment="Bottom"
+            IsVisible="{Binding IsPrintOverlayVisible}">
+      <StackPanel>
+        <TextBlock Text="{Binding PrintStateText}" FontSize="12" FontWeight="SemiBold" />
+        <TextBlock Text="{Binding RemainingText}" FontSize="12" IsVisible="{Binding HasRemaining}" />
+      </StackPanel>
+    </Border>
+
+    <StackPanel Classes="windowButtons"
+                Orientation="Horizontal"
+                Spacing="4"
+                Margin="6"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Top">
+      <Button Command="{Binding ToggleFullScreenCommand}"
+              IsVisible="{Binding !IsMini}"
+              ToolTip.Tip="{Binding FullScreenToolTip}"
+              AutomationProperties.Name="{Binding FullScreenToolTip}">
+        <Path Classes="icon" Data="M1,5 V1 H5 M11,1 H15 V5 M15,11 V15 H11 M5,15 H1 V11" />
+      </Button>
+      <Button Command="{Binding ShowMiniCommand}"
+              IsVisible="{Binding !IsMini}"
+              ToolTip.Tip="{x:Static res:Strings.CameraMini}"
+              AutomationProperties.Name="{x:Static res:Strings.CameraMini}">
+        <Grid>
+          <Path Classes="icon" Data="M1,2 H15 V14 H1 Z" />
+          <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />
+        </Grid>
+      </Button>
+      <Button Command="{Binding ShowNormalCommand}"
+              IsVisible="{Binding IsMini}"
+              ToolTip.Tip="{x:Static res:Strings.CameraNormal}"
+              AutomationProperties.Name="{x:Static res:Strings.CameraNormal}">
+        <Path Classes="icon" Data="M2,3 H14 V13 H2 Z M2,5 H14" />
+      </Button>
+    </StackPanel>
+
+    <!-- The mini preview has no window frame: these edges resize it. -->
+    <Grid IsVisible="{Binding IsMini}" RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
+      <Border Classes="grip" Grid.Row="0" Grid.Column="0" Cursor="TopLeftCorner" Tag="{x:Static WindowEdge.NorthWest}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="0" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.North}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="0" Grid.Column="2" Cursor="TopRightCorner" Tag="{x:Static WindowEdge.NorthEast}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="1" Grid.Column="0" Cursor="SizeWestEast" Tag="{x:Static WindowEdge.West}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="1" Grid.Column="2" Cursor="SizeWestEast" Tag="{x:Static WindowEdge.East}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="2" Grid.Column="0" Cursor="BottomLeftCorner" Tag="{x:Static WindowEdge.SouthWest}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="2" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.South}" PointerPressed="OnGripPointerPressed" />
+      <Border Classes="grip" Grid.Row="2" Grid.Column="2" Cursor="BottomRightCorner" Tag="{x:Static WindowEdge.SouthEast}" PointerPressed="OnGripPointerPressed" />
+    </Grid>
+  </Grid>
+</Window>
