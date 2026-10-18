@@ -110,6 +110,6 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
 /// <summary>Which auxiliary windows exist; their items are shown disabled until the window is implemented.</summary>
 internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsAvailable)
 {
-    /// <summary>Diagnostics (T-011) exists; settings (T-015) are not implemented yet.</summary>
-    public static TrayMenuOptions Default { get; } = new(SettingsAvailable: false, DiagnosticsAvailable: true);
+    /// <summary>Both auxiliary windows exist: settings (T-015) and diagnostics (T-011).</summary>
+    public static TrayMenuOptions Default { get; } = new(SettingsAvailable: true, DiagnosticsAvailable: true);
 }

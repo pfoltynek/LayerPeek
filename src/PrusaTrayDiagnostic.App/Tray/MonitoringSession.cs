@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Settings;
 
@@ -7,9 +8,10 @@ namespace PrusaTrayDiagnostic.App.Tray;
 
 /// <summary>
 /// Runs the monitoring service for the lifetime of the app: loads the settings, hands them to the
-/// observers (icon, menu, notifications) and polls the printers until stopped. Never throws into the UI: failures are logged and shown in the tray.
+/// observers (icon, menu, notifications) and polls the printers until stopped; settings saved in the settings window
+/// restart it (<see cref="ApplyAsync"/>). Never throws into the UI: failures are logged and shown in the tray.
 /// </summary>
-internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
+internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable, ISettingsApplier
 {
     private static readonly TimeSpan DisposeTimeout = TimeSpan.FromSeconds(3);
 
@@ -19,11 +21,25 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
     private readonly ILogger<MonitoringSession> _logger;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
+
+    // Serializes handing settings to observers (run start vs. notification-only update); taken before _gate, never inside it.
+    private readonly Lock _delivery = new();
     private int _started;
 
     // Guarded by _gate. The first stop request; later requests reuse it.
     private Task? _stopping;
     private bool _disposed;
+
+    // Guarded by _gate. The run loop (see RunLoopAsync) and settings waiting for it (Apply).
+    private Task _completion = Task.CompletedTask;
+    private bool _loopActive;
+    private AppSettings? _pending;
+    private CancellationTokenSource? _run;
+    private Task _runCancelling = Task.CompletedTask;
+
+    // Guarded by _gate. Settings of the current run, and completion of the current run (for ApplyAsync).
+    private AppSettings? _current;
+    private TaskCompletionSource? _runEnded;
 
     /// <param name="settingsStoreFactory">Called once on a background thread; may throw (e.g. no per-user data folder).</param>
     public MonitoringSession(
@@ -47,8 +63,32 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
         _logger = logger;
     }
 
-    /// <summary>Completes when monitoring ended (stopped or failed); never faults. Already completed before <see cref="Start"/>.</summary>
-    public Task Completion { get; private set; } = Task.CompletedTask;
+    /// <summary>Settings of the current run, including a notification-only update; <see langword="null"/> before the first run.</summary>
+    internal AppSettings? CurrentSettings
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _current;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Completes when monitoring ended (stopped or failed); never faults. Already completed before <see cref="Start"/>.
+    /// After a failure, <see cref="ApplyAsync"/> starts monitoring again with a new completion task.
+    /// </summary>
+    public Task Completion
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _completion;
+            }
+        }
+    }
 
     /// <exception cref="InvalidOperationException">The session was already started.</exception>
     public void Start()
@@ -58,8 +98,135 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
             throw new InvalidOperationException("The monitoring session was already started.");
         }
 
-        // Task.Run: loading the settings does file I/O and must not run on the UI thread.
-        Completion = Task.Run(() => RunAsync(_stop.Token), CancellationToken.None);
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _loopActive = true;
+            CancellationToken stopToken = _stop.Token;
+            // Task.Run: loading the settings does file I/O and must not run on the UI thread.
+            _completion = Task.Run(() => RunLoopAsync(loadSettings: true, stopToken), CancellationToken.None);
+        }
+    }
+
+    /// <summary>
+    /// Restarts monitoring with <paramref name="settings"/> (saved in the settings window): the current run is cancelled
+    /// and, once it ended, observers get the new settings and a new run starts. Settings applied in quick succession
+    /// collapse into the latest one. Before <see cref="Start"/> the settings replace the loaded ones; after a monitoring
+    /// failure monitoring starts again; after a stop request they are ignored. When the printers (id, name, address,
+    /// connection type, order) and the polling interval stay the same, nothing restarts: observers only get
+    /// <see cref="IMonitoringObserver.UpdateSettings"/>, unless <paramref name="credentialsChanged"/>: a changed password
+    /// is read by a running client only after the next rejection (and a rejected printer is on backoff), so it always
+    /// restarts. Thread-safe; blocks only while observers receive settings.
+    /// </summary>
+    /// <returns>
+    /// Completes when the previous run ended, i.e. nothing polls with the old settings any more (immediately when nothing
+    /// had to be restarted). Never faults.
+    /// </returns>
+    public Task ApplyAsync(AppSettings settings, bool credentialsChanged)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        Task oldRunEnded = Task.CompletedTask;
+        bool updateOnly = false;
+        lock (_gate)
+        {
+            if (_stopping is not null || _disposed)
+            {
+                return Task.CompletedTask;
+            }
+
+            if (!credentialsChanged && _loopActive && _run is { IsCancellationRequested: false } && _pending is null && _current is { } current && KeepsMonitoring(current, settings))
+            {
+                // Only notification settings changed: no restart, so the tray keeps the current state (no "connecting").
+                _current = settings;
+                updateOnly = true;
+            }
+            else
+            {
+                _pending = settings;
+                if (_loopActive)
+                {
+                    // The loop picks _pending up when the run ends; between runs it finds it without a cancellation.
+                    if (_run is { IsCancellationRequested: false } run)
+                    {
+                        // CancelAsync: the monitor's cancellation work runs on the thread pool, not on the (UI) caller.
+                        _runCancelling = run.CancelAsync();
+                    }
+
+                    oldRunEnded = _runEnded?.Task ?? Task.CompletedTask;
+                }
+                else if (Volatile.Read(ref _started) != 0)
+                {
+                    // Monitoring failed earlier (the loop ended): start again.
+                    _loopActive = true;
+                    CancellationToken stopToken = _stop.Token;
+                    _completion = Task.Run(() => RunLoopAsync(loadSettings: false, stopToken), CancellationToken.None);
+                }
+            }
+        }
+
+        if (updateOnly)
+        {
+            UpdateObservers(settings);
+            return Task.CompletedTask;
+        }
+
+        return oldRunEnded;
+    }
+
+    /// <summary>Same printers (id, name, address, connection type, order) and polling interval: the run can go on.</summary>
+    private static bool KeepsMonitoring(AppSettings current, AppSettings next) =>
+        current.PollingInterval == next.PollingInterval && current.Printers.SequenceEqual(next.Printers);
+
+    /// <summary>
+    /// Start of a run: observers get its settings, or the newer ones a notification-only update stored meanwhile.
+    /// Serialized with <see cref="UpdateObservers"/> so that observers always end with the latest settings.
+    /// </summary>
+    private void DeliverRunSettings(AppSettings runSettings)
+    {
+        lock (_delivery)
+        {
+            AppSettings latest;
+            lock (_gate)
+            {
+                latest = _current ?? runSettings;
+            }
+
+            foreach (IMonitoringObserver observer in _observers)
+            {
+                observer.ApplySettings(latest);
+            }
+        }
+    }
+
+    /// <summary>Notification-only update; skipped when newer settings replaced it (their own delivery follows).</summary>
+    private void UpdateObservers(AppSettings settings)
+    {
+        lock (_delivery)
+        {
+            lock (_gate)
+            {
+                if (!ReferenceEquals(_current, settings))
+                {
+                    return;
+                }
+            }
+
+            foreach (IMonitoringObserver observer in _observers)
+            {
+                try
+                {
+                    observer.UpdateSettings(settings);
+                }
+                catch (Exception ex)
+                {
+                    LogObserverUpdateFailed(ex);
+                }
+            }
+        }
     }
 
     /// <summary>
@@ -75,9 +242,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
     public async Task StopAsync(TimeSpan timeout)
     {
         await RequestStopCore().ConfigureAwait(false);
-        await Completion.WaitAsync(timeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        // Stable from here on: once the stop is requested, Apply never starts another run.
+        Task completion = Completion;
+        await completion.WaitAsync(timeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         // A zero timeout means "do not wait"; not finishing is then expected and not worth a warning.
-        if (!Completion.IsCompleted && timeout > TimeSpan.Zero)
+        if (!completion.IsCompleted && timeout > TimeSpan.Zero)
         {
             LogStopTimedOut(timeout);
         }
@@ -151,27 +320,95 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
         }
     }
 
-    private async Task RunAsync(CancellationToken stopToken)
+    /// <summary>
+    /// Runs the monitor until stopped; each <see cref="ApplyAsync"/> ends the current run and starts the next one with the
+    /// applied settings. A failed run is reported and ends the loop unless new settings are already waiting.
+    /// </summary>
+    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken)
     {
         try
         {
-            AppSettings settings = await LoadSettingsAsync(stopToken).ConfigureAwait(false);
-            stopToken.ThrowIfCancellationRequested();
-            foreach (IMonitoringObserver observer in _observers)
+            AppSettings? settings = loadSettings ? await LoadSettingsAsync(stopToken).ConfigureAwait(false) : null;
+            while (true)
             {
-                observer.ApplySettings(settings);
-            }
+                CancellationTokenSource run;
+                lock (_gate)
+                {
+                    if (_pending is not null)
+                    {
+                        settings = _pending;
+                        _pending = null;
+                    }
 
-            await _monitor.RunAsync(settings.Printers, settings.PollingInterval, stopToken).ConfigureAwait(false);
+                    if (stopToken.IsCancellationRequested || settings is null)
+                    {
+                        _loopActive = false;
+                        return;
+                    }
+
+                    run = CancellationTokenSource.CreateLinkedTokenSource(stopToken);
+                    _run = run;
+                    _current = settings;
+                    _runEnded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+                }
+
+                await RunOnceAsync(settings, run).ConfigureAwait(false);
+
+                lock (_gate)
+                {
+                    if (stopToken.IsCancellationRequested || _pending is null)
+                    {
+                        _loopActive = false;
+                        return;
+                    }
+                }
+            }
         }
         catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
         {
-            // Normal shutdown.
+            // Stopped while loading the settings.
+            lock (_gate)
+            {
+                _loopActive = false;
+            }
+        }
+    }
+
+    private async Task RunOnceAsync(AppSettings settings, CancellationTokenSource run)
+    {
+        try
+        {
+            DeliverRunSettings(settings);
+
+            await _monitor.RunAsync(settings.Printers, settings.PollingInterval, run.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (run.IsCancellationRequested)
+        {
+            // Normal shutdown or restart with applied settings.
         }
         catch (Exception ex)
         {
             LogMonitoringFailed(ex);
             ReportFailure();
+        }
+        finally
+        {
+            Task cancelling;
+            TaskCompletionSource? ended;
+            lock (_gate)
+            {
+                _run = null;
+                cancelling = _runCancelling;
+                _runCancelling = Task.CompletedTask;
+                ended = _runEnded;
+                _runEnded = null;
+            }
+
+            // The source must not be disposed while its asynchronous cancellation callbacks still run.
+            await cancelling.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            run.Dispose();
+            // Nothing of this run polls any more (the monitor waited for its loops): ApplyAsync callers may go on.
+            ended?.TrySetResult();
         }
     }
 
@@ -232,6 +469,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Showing the monitoring failure in the tray failed.")]
     private partial void LogObserverFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Handing updated settings to a tray observer failed.")]
+    private partial void LogObserverUpdateFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Printer monitoring did not stop within {Timeout}.")]
     private partial void LogStopTimedOut(TimeSpan timeout);

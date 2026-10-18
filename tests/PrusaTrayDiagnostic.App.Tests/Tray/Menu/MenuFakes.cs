@@ -108,5 +108,9 @@ internal sealed class FakeAppCommands : ITrayAppCommands
         DiagnosticsRequests.Add(printerId);
     }
 
+    public int SettingsCount { get; private set; }
+
+    public void ShowSettings() => SettingsCount++;
+
     public void Quit() => QuitCount++;
 }

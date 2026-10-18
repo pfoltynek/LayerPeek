@@ -32,7 +32,7 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
         Challenge? challenge = FindDigestChallenge(challenges);
         if (challenge is null)
         {
-            return new ChallengeResult("The printer requires an unsupported authentication method.", PasswordReloaded: false);
+            return new ChallengeResult("The printer requires an unsupported authentication method.", PasswordReloaded: false, PrusaLinkFailure.UnsupportedAuthentication);
         }
 
         Session? current = Volatile.Read(ref _session);
@@ -48,7 +48,7 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
         if (string.IsNullOrEmpty(password))
         {
             Volatile.Write(ref _session, null);
-            return new ChallengeResult("No PrusaLink password is configured for this printer.", PasswordReloaded: true);
+            return new ChallengeResult("No PrusaLink password is configured for this printer.", PasswordReloaded: true, PrusaLinkFailure.PasswordMissing);
         }
 
         string ha1 = Md5Hex($"{UserName}:{challenge.Value.Realm}:{password}");
@@ -154,7 +154,8 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
 
 /// <param name="Error">Why the challenge cannot be answered; null when the request should be retried.</param>
 /// <param name="PasswordReloaded">The password was read from the secret store (false when only the nonce was renewed).</param>
-internal readonly record struct ChallengeResult(string? Error, bool PasswordReloaded);
+/// <param name="Reason">Machine-readable <paramref name="Error"/>; <see cref="PrusaLinkFailure.None"/> when there is none.</param>
+internal readonly record struct ChallengeResult(string? Error, bool PasswordReloaded, PrusaLinkFailure Reason = PrusaLinkFailure.None);
 
 /// <summary>Parser of the comma-separated <c>name=value</c> / <c>name="value"</c> list of a Digest challenge.</summary>
 internal static class DigestParameters

@@ -252,4 +252,226 @@
   <data name="DiagnosticsClose" xml:space="preserve">
     <value>Zavřít</value>
   </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Nastavení</value>
+  </data>
+  <data name="SettingsTabPrinters" xml:space="preserve">
+    <value>Tiskárny</value>
+  </data>
+  <data name="SettingsTabGeneral" xml:space="preserve">
+    <value>Obecné</value>
+  </data>
+  <data name="SettingsAddPrinter" xml:space="preserve">
+    <value>Přidat tiskárnu</value>
+  </data>
+  <data name="SettingsRemovePrinter" xml:space="preserve">
+    <value>Odebrat</value>
+  </data>
+  <data name="SettingsNoPrinters" xml:space="preserve">
+    <value>Není nastavena žádná tiskárna. Přidejte ji tlačítkem „Přidat tiskárnu“.</value>
+  </data>
+  <data name="SettingsNewPrinter" xml:space="preserve">
+    <value>Nová tiskárna</value>
+  </data>
+  <data name="SettingsName" xml:space="preserve">
+    <value>Název</value>
+  </data>
+  <data name="SettingsConnectionType" xml:space="preserve">
+    <value>Připojení</value>
+  </data>
+  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
+    <value>PrusaLink (místní síť)</value>
+  </data>
+  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
+    <value>Prusa Connect (zatím není k dispozici)</value>
+  </data>
+  <data name="SettingsAddress" xml:space="preserve">
+    <value>Adresa</value>
+  </data>
+  <data name="SettingsAddressHint" xml:space="preserve">
+    <value>IP adresa nebo název hostitele, např. 192.168.1.20 nebo http://prusa-mk4.local</value>
+  </data>
+  <data name="SettingsPassword" xml:space="preserve">
+    <value>Heslo</value>
+  </data>
+  <data name="SettingsPasswordNewHint" xml:space="preserve">
+    <value>Heslo PrusaLink z nastavení tiskárny. Uživatelské jméno „maker“ se doplní automaticky.</value>
+  </data>
+  <data name="SettingsPasswordUnchanged" xml:space="preserve">
+    <value>Beze změny</value>
+  </data>
+  <data name="SettingsPasswordNotSet" xml:space="preserve">
+    <value>Nenastaveno</value>
+  </data>
+  <data name="SettingsPasswordKeepHint" xml:space="preserve">
+    <value>Ponechte prázdné, pokud chcete zachovat uložené heslo.</value>
+  </data>
+  <data name="SettingsPasswordUnsupported" xml:space="preserve">
+    <value>Na tomto systému zatím nelze ukládat hesla. Tiskárny, které heslo vyžadují, ohlásí, že chybí.</value>
+  </data>
+  <data name="SettingsPasswordNotUsed" xml:space="preserve">
+    <value>Prusa Connect heslo tiskárny nepoužívá.</value>
+  </data>
+  <data name="SettingsTestConnection" xml:space="preserve">
+    <value>Otestovat spojení</value>
+  </data>
+  <data name="SettingsCancelTest" xml:space="preserve">
+    <value>Zrušit test</value>
+  </data>
+  <data name="SettingsTesting" xml:space="preserve">
+    <value>Testuji spojení…</value>
+  </data>
+  <data name="SettingsTestSuccess" xml:space="preserve">
+    <value>Spojení funguje. Kód modelu: {0}, firmware: {1}.</value>
+  </data>
+  <data name="SettingsTestNotReachable" xml:space="preserve">
+    <value>Tiskárna není dosažitelná. Zkontrolujte adresu a jestli je tiskárna zapnutá a připojená k síti.</value>
+  </data>
+  <data name="SettingsTestTimeout" xml:space="preserve">
+    <value>Tiskárna neodpověděla včas.</value>
+  </data>
+  <data name="SettingsTestSecureConnection" xml:space="preserve">
+    <value>Zabezpečené spojení (https) selhalo. Zkuste adresu s http:// nebo zkontrolujte certifikát tiskárny.</value>
+  </data>
+  <data name="SettingsTestPasswordRejected" xml:space="preserve">
+    <value>Tiskárna odmítla heslo.</value>
+  </data>
+  <data name="SettingsTestAccessDenied" xml:space="preserve">
+    <value>Tiskárna odepřela přístup.</value>
+  </data>
+  <data name="SettingsTestPasswordMissing" xml:space="preserve">
+    <value>Tiskárna vyžaduje heslo. Zadejte ho výše.</value>
+  </data>
+  <data name="SettingsTestPasswordUnavailable" xml:space="preserve">
+    <value>Uložené heslo se nepodařilo načíst.</value>
+  </data>
+  <data name="SettingsTestUnsupportedAuthentication" xml:space="preserve">
+    <value>Tiskárna vyžaduje nepodporovaný způsob přihlášení.</value>
+  </data>
+  <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
+    <value>Na této adrese něco odpovídá, ale nevypadá to jako tiskárna s PrusaLink.</value>
+  </data>
+  <data name="SettingsTestNotSupported" xml:space="preserve">
+    <value>Pro Prusa Connect zatím test není k dispozici.</value>
+  </data>
+  <data name="SettingsTestCancelled" xml:space="preserve">
+    <value>Test zrušen.</value>
+  </data>
+  <data name="SettingsTestFailed" xml:space="preserve">
+    <value>Test neočekávaně selhal.</value>
+  </data>
+  <data name="SettingsErrorNameRequired" xml:space="preserve">
+    <value>Zadejte název.</value>
+  </data>
+  <data name="SettingsErrorNameTooLong" xml:space="preserve">
+    <value>Název může mít nejvýš {0} znaků.</value>
+  </data>
+  <data name="SettingsErrorNameDuplicate" xml:space="preserve">
+    <value>Tento název už má jiná tiskárna.</value>
+  </data>
+  <data name="SettingsErrorAddressRequired" xml:space="preserve">
+    <value>Zadejte adresu tiskárny.</value>
+  </data>
+  <data name="SettingsErrorAddressInvalid" xml:space="preserve">
+    <value>Zadejte IP adresu nebo název hostitele, případně s http:// nebo https://, portem a cestou. Uživatelské jméno, heslo, dotaz (?) ani fragment (#) nejsou povolené.</value>
+  </data>
+  <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
+    <value>Heslo je příliš dlouhé (nejvýš {0} bajtů v UTF-8).</value>
+  </data>
+  <data name="SettingsErrorPasswordInvalid" xml:space="preserve">
+    <value>Heslo obsahuje znaky, které nelze uložit.</value>
+  </data>
+  <data name="SettingsPollingInterval" xml:space="preserve">
+    <value>Interval dotazování (sekundy)</value>
+  </data>
+  <data name="SettingsPollingIntervalHint" xml:space="preserve">
+    <value>Jak často se aplikace ptá tiskáren na jejich stav.</value>
+  </data>
+  <data name="SettingsErrorPollingInterval" xml:space="preserve">
+    <value>Zadejte číslo od {0} do {1}.</value>
+  </data>
+  <data name="SettingsNotifications" xml:space="preserve">
+    <value>Upozornění</value>
+  </data>
+  <data name="SettingsNotificationsEnabled" xml:space="preserve">
+    <value>Zobrazovat upozornění</value>
+  </data>
+  <data name="SettingsNotifyPrintStarted" xml:space="preserve">
+    <value>Tisk zahájen</value>
+  </data>
+  <data name="SettingsNotifyPrintFinished" xml:space="preserve">
+    <value>Tisk dokončen</value>
+  </data>
+  <data name="SettingsNotifyPrintPaused" xml:space="preserve">
+    <value>Tisk pozastaven</value>
+  </data>
+  <data name="SettingsNotifyPrintResumed" xml:space="preserve">
+    <value>Tisk obnoven</value>
+  </data>
+  <data name="SettingsNotifyPrintStopped" xml:space="preserve">
+    <value>Tisk zastaven (zrušen)</value>
+  </data>
+  <data name="SettingsNotifyError" xml:space="preserve">
+    <value>Chyba tiskárny</value>
+  </data>
+  <data name="SettingsNotifyAttention" xml:space="preserve">
+    <value>Tiskárna vyžaduje zásah (i odmítnuté heslo)</value>
+  </data>
+  <data name="SettingsNotifyOffline" xml:space="preserve">
+    <value>Tiskárna je offline nebo opět online</value>
+  </data>
+  <data name="SettingsRemainingTime" xml:space="preserve">
+    <value>Upozornit, když zbývá tolik minut tisku (0 = vypnuto)</value>
+  </data>
+  <data name="SettingsErrorRemainingTime" xml:space="preserve">
+    <value>Zadejte celé číslo od 0 do {0} (0 = vypnuto).</value>
+  </data>
+  <data name="SettingsSound" xml:space="preserve">
+    <value>Zvuk</value>
+  </data>
+  <data name="SettingsSoundOff" xml:space="preserve">
+    <value>Vypnutý</value>
+  </data>
+  <data name="SettingsSoundImportantOnly" xml:space="preserve">
+    <value>Jen důležitá upozornění</value>
+  </data>
+  <data name="SettingsSoundAll" xml:space="preserve">
+    <value>Všechna upozornění</value>
+  </data>
+  <data name="SettingsSave" xml:space="preserve">
+    <value>Uložit</value>
+  </data>
+  <data name="SettingsCancel" xml:space="preserve">
+    <value>Zrušit</value>
+  </data>
+  <data name="SettingsLoading" xml:space="preserve">
+    <value>Načítání…</value>
+  </data>
+  <data name="SettingsSaving" xml:space="preserve">
+    <value>Ukládání…</value>
+  </data>
+  <data name="SettingsFixErrors" xml:space="preserve">
+    <value>Některé hodnoty nejsou platné. Opravte zvýrazněná pole.</value>
+  </data>
+  <data name="SettingsNoticeCorrupted" xml:space="preserve">
+    <value>Soubor nastavení je poškozený. Zobrazuje se výchozí nastavení; uložením se soubor přepíše.</value>
+  </data>
+  <data name="SettingsNoticeUnreadable" xml:space="preserve">
+    <value>Soubor nastavení se nepodařilo přečíst. Zobrazuje se výchozí nastavení; uložením se soubor přepíše.</value>
+  </data>
+  <data name="SettingsNoticeWarnings" xml:space="preserve">
+    <value>Některé hodnoty v souboru nastavení byly neplatné a byly opraveny nebo vynechány. Uložením se zapíše opravené nastavení.</value>
+  </data>
+  <data name="SettingsSaveFailedSettings" xml:space="preserve">
+    <value>Nastavení se nepodařilo uložit. Nic se nezměnilo.</value>
+  </data>
+  <data name="SettingsSaveFailedPassword" xml:space="preserve">
+    <value>Heslo se nepodařilo uložit do systémového úložiště přihlašovacích údajů. Nic se nezměnilo.</value>
+  </data>
+  <data name="SettingsSaveRollbackIncomplete" xml:space="preserve">
+    <value>Nastavení se nepodařilo uložit a dříve uložené heslo se mohlo změnit. Zkontrolujte hesla tiskáren.</value>
+  </data>
+  <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
+    <value>Nastavení je uloženo. Heslo odebrané tiskárny se nepodařilo smazat ze systémového úložiště přihlašovacích údajů.</value>
+  </data>
 </root>

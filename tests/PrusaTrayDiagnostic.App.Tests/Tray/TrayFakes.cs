@@ -118,8 +118,51 @@ internal sealed class FakePrinterMonitor : IPrinterMonitor
         }
     }
 
+    private readonly List<(IReadOnlyList<PrinterDefinition> Printers, TimeSpan Interval)> _runs = [];
+    private readonly List<(int Count, TaskCompletionSource Done)> _runWaiters = [];
+
+    /// <summary>Every <see cref="RunAsync"/> call so far (restarts after applied settings included).</summary>
+    public IReadOnlyList<(IReadOnlyList<PrinterDefinition> Printers, TimeSpan Interval)> Runs
+    {
+        get
+        {
+            lock (_latestLock)
+            {
+                return [.. _runs];
+            }
+        }
+    }
+
+    /// <summary>Completes when <see cref="RunAsync"/> was called at least <paramref name="count"/> times.</summary>
+    public Task WaitForRunsAsync(int count)
+    {
+        lock (_latestLock)
+        {
+            if (_runs.Count >= count)
+            {
+                return Task.CompletedTask;
+            }
+
+            TaskCompletionSource done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _runWaiters.Add((count, done));
+            return done.Task;
+        }
+    }
+
     public async Task RunAsync(IReadOnlyList<PrinterDefinition> printers, TimeSpan pollingInterval, CancellationToken cancellationToken)
     {
+        lock (_latestLock)
+        {
+            _runs.Add((printers, pollingInterval));
+            foreach ((int count, TaskCompletionSource done) in _runWaiters)
+            {
+                if (_runs.Count >= count)
+                {
+                    done.TrySetResult();
+                }
+            }
+        }
+
         _started.TrySetResult((printers, pollingInterval));
         if (RunBehavior is not null)
         {

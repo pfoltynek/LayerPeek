@@ -204,6 +204,13 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
                 while (!stopToken.IsCancellationRequested)
                 {
                     PrinterSnapshot snapshot = await PollAsync(timeout, stopToken).ConfigureAwait(false);
+                    if (stopToken.IsCancellationRequested)
+                    {
+                        // The run is stopping (e.g. new settings): a result that finished meanwhile may reflect a change
+                        // already made for the next run (a removed printer's deleted password) and must not reach observers.
+                        break;
+                    }
+
                     // Reschedule before publishing, so that observers always see the next poll already planned.
                     timer = Reschedule(timer, snapshot.State.IsReachable());
                     _monitor.Publish(_table, _slot, snapshot);

@@ -46,7 +46,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     {
         Assert.Collection(
             _viewModel.FixedItems,
-            item => AssertCommand(item, TrayMenuCommand.Settings, "Settings…", enabled: false),
+            item => AssertCommand(item, TrayMenuCommand.Settings, "Settings…", enabled: true),
             item => AssertCommand(item, TrayMenuCommand.Diagnostics, "Diagnostics…", enabled: true),
             item => Assert.True(item.IsSeparator),
             item => AssertCommand(item, TrayMenuCommand.About, "About", enabled: true),
@@ -54,11 +54,12 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void AvailableWindowsAreEnabled()
+    public void UnavailableWindowsAreDisabled()
     {
-        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, new TrayMenuOptions(SettingsAvailable: true, DiagnosticsAvailable: true));
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, new TrayMenuOptions(SettingsAvailable: false, DiagnosticsAvailable: false));
 
-        Assert.All(viewModel.FixedItems.Where(item => !item.IsSeparator), item => Assert.True(item.IsEnabled));
+        Assert.False(viewModel.FixedItems.Single(item => item.Command == TrayMenuCommand.Settings).IsEnabled);
+        Assert.False(viewModel.FixedItems.Single(item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
     }
 
     [Fact]

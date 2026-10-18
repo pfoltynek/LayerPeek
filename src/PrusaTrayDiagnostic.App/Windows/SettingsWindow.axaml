@@ -1,0 +1,234 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PrusaTrayDiagnostic.App.Settings"
+        xmlns:res="using:PrusaTrayDiagnostic.App.Resources"
+        x:Class="PrusaTrayDiagnostic.App.Windows.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="{x:Static res:Strings.SettingsTitle}"
+        Icon="/Assets/tray-idle.png"
+        Width="780"
+        Height="680"
+        MinWidth="640"
+        MinHeight="480"
+        WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="SettingsErrorBrush" Color="#C42B1C" />
+          <SolidColorBrush x:Key="SettingsSuccessBrush" Color="#0F7B0F" />
+          <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="SettingsErrorBrush" Color="#FF99A4" />
+          <SolidColorBrush x:Key="SettingsSuccessBrush" Color="#6CCB5F" />
+          <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Margin" Value="0,10,0,4" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="TextBlock.error">
+      <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="0,2,0,0" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,16,0,4" />
+    </Style>
+    <Style Selector="TextBlock.result.success">
+      <Setter Property="Foreground" Value="{DynamicResource SettingsSuccessBrush}" />
+    </Style>
+    <Style Selector="TextBlock.result.failure">
+      <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
+    </Style>
+    <Style Selector="TextBlock.status.isError">
+      <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <!-- Save / Cancel and the outcome of the last save attempt. -->
+    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+      <TextBlock Classes="status"
+                 Classes.isError="{Binding StatusIsError}"
+                 Text="{Binding StatusText}"
+                 IsVisible="{Binding HasStatus}"
+                 TextWrapping="Wrap"
+                 VerticalAlignment="Center"
+                 Margin="0,0,12,0" />
+      <Button Grid.Column="1"
+              Classes="accent"
+              MinWidth="96"
+              Content="{x:Static res:Strings.SettingsSave}"
+              Command="{Binding SaveCommand}"
+              IsDefault="True" />
+      <Button Grid.Column="2"
+              MinWidth="96"
+              Margin="8,0,0,0"
+              Content="{x:Static res:Strings.SettingsCancel}"
+              Command="{Binding CancelCommand}"
+              IsCancel="True" />
+    </Grid>
+
+    <Border DockPanel.Dock="Top"
+            Background="{DynamicResource NoticeBrush}"
+            CornerRadius="4"
+            Padding="10,6"
+            Margin="0,0,0,8"
+            IsVisible="{Binding HasNotice}">
+      <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
+    </Border>
+    <TextBlock DockPanel.Dock="Top" Text="{x:Static res:Strings.SettingsLoading}" IsVisible="{Binding IsLoading}" Margin="0,0,0,8" />
+
+    <TabControl SelectedIndex="{Binding SelectedTabIndex}" IsEnabled="{Binding IsEditable}">
+      <!-- Printers: list on the left, form of the selected printer on the right. -->
+      <TabItem Header="{x:Static res:Strings.SettingsTabPrinters}">
+        <Grid ColumnDefinitions="220,16,*" Margin="0,8,0,0">
+          <DockPanel>
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+              <Button Content="{x:Static res:Strings.SettingsAddPrinter}" Command="{Binding AddPrinterCommand}" />
+              <Button Content="{x:Static res:Strings.SettingsRemovePrinter}" Command="{Binding RemovePrinterCommand}" />
+            </StackPanel>
+            <ListBox ItemsSource="{Binding Printers}" SelectedItem="{Binding SelectedPrinter}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Text="!"
+                               FontWeight="Bold"
+                               Margin="0,0,6,0"
+                               Foreground="{DynamicResource SettingsErrorBrush}"
+                               IsVisible="{Binding ShowsErrorMarker}" />
+                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+          </DockPanel>
+
+          <TextBlock Grid.Column="2"
+                     Text="{x:Static res:Strings.SettingsNoPrinters}"
+                     IsVisible="{Binding HasNoPrinters}"
+                     TextWrapping="Wrap"
+                     Opacity="0.75" />
+
+          <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasSelectedPrinter}">
+            <ContentControl Content="{Binding SelectedPrinter}" Margin="0,0,12,0">
+              <ContentControl.ContentTemplate>
+                <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                  <StackPanel>
+                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsName}" Margin="0,0,0,4" />
+                    <TextBox Text="{Binding Name}" MaxLength="200" />
+                    <TextBlock Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsConnectionType}" />
+                    <ComboBox ItemsSource="{Binding ConnectionTypes}" SelectedItem="{Binding SelectedConnectionType}" HorizontalAlignment="Stretch">
+                      <ComboBox.Styles>
+                        <Style Selector="ComboBoxItem" x:DataType="vm:ConnectionTypeOption">
+                          <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                        </Style>
+                      </ComboBox.Styles>
+                      <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ConnectionTypeOption">
+                          <TextBlock Text="{Binding Text}" />
+                        </DataTemplate>
+                      </ComboBox.ItemTemplate>
+                    </ComboBox>
+
+                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsAddress}" />
+                    <TextBox Text="{Binding Address}" PlaceholderText="192.168.1.20" />
+                    <TextBlock Classes="hint" Text="{x:Static res:Strings.SettingsAddressHint}" IsVisible="{Binding IsPrusaLink}" />
+                    <TextBlock Classes="error" Text="{Binding AddressError}" IsVisible="{Binding AddressError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                    <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsPassword}" />
+                    <TextBox Text="{Binding Password}"
+                             PasswordChar="●"
+                             PlaceholderText="{Binding PasswordWatermark}"
+                             IsEnabled="{Binding IsPasswordEnabled}" />
+                    <TextBlock Classes="hint" Text="{Binding PasswordHint}" />
+                    <TextBlock Classes="error" Text="{Binding PasswordError}" IsVisible="{Binding PasswordError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+                      <Button Content="{x:Static res:Strings.SettingsTestConnection}" Command="{Binding TestConnectionCommand}" />
+                      <Button Content="{x:Static res:Strings.SettingsCancelTest}" Command="{Binding CancelTestCommand}" IsVisible="{Binding IsTesting}" />
+                      <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" IsVisible="{Binding IsTesting}" />
+                    </StackPanel>
+                    <TextBlock Classes="result"
+                               Classes.success="{Binding TestSucceeded}"
+                               Classes.failure="{Binding TestFailed}"
+                               Text="{Binding TestResultText}"
+                               IsVisible="{Binding HasTestResult}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,0" />
+                  </StackPanel>
+                </DataTemplate>
+              </ContentControl.ContentTemplate>
+            </ContentControl>
+          </ScrollViewer>
+        </Grid>
+      </TabItem>
+
+      <!-- General: polling interval and notifications. -->
+      <TabItem Header="{x:Static res:Strings.SettingsTabGeneral}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Margin="0,8,12,0">
+            <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsPollingInterval}" Margin="0,0,0,4" />
+            <NumericUpDown Value="{Binding PollingIntervalSeconds}"
+                           Minimum="{x:Static vm:SettingsViewModel.MinPollingIntervalSeconds}"
+                           Maximum="{x:Static vm:SettingsViewModel.MaxPollingIntervalSeconds}"
+                           Increment="1"
+                           FormatString="0.###"
+                           Width="160"
+                           HorizontalAlignment="Left" />
+            <TextBlock Classes="hint" Text="{x:Static res:Strings.SettingsPollingIntervalHint}" />
+            <TextBlock Classes="error" Text="{Binding PollingIntervalError}" IsVisible="{Binding PollingIntervalError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <TextBlock Classes="section" Text="{x:Static res:Strings.SettingsNotifications}" />
+            <CheckBox Content="{x:Static res:Strings.SettingsNotificationsEnabled}" IsChecked="{Binding NotificationsEnabled}" />
+            <StackPanel Margin="28,0,0,0" IsEnabled="{Binding NotificationsEnabled}">
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintStarted}" IsChecked="{Binding NotifyPrintStarted}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintFinished}" IsChecked="{Binding NotifyPrintFinished}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintPaused}" IsChecked="{Binding NotifyPrintPaused}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintResumed}" IsChecked="{Binding NotifyPrintResumed}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyPrintStopped}" IsChecked="{Binding NotifyPrintStopped}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyError}" IsChecked="{Binding NotifyError}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyAttention}" IsChecked="{Binding NotifyAttention}" />
+              <CheckBox Content="{x:Static res:Strings.SettingsNotifyOffline}" IsChecked="{Binding NotifyOffline}" />
+
+              <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsRemainingTime}" />
+              <NumericUpDown Value="{Binding RemainingTimeMinutes}"
+                             Minimum="0"
+                             Maximum="{x:Static vm:SettingsViewModel.MaxRemainingTimeMinutes}"
+                             Increment="1"
+                             FormatString="0"
+                             Width="160"
+                             HorizontalAlignment="Left" />
+              <TextBlock Classes="error" Text="{Binding RemainingTimeError}" IsVisible="{Binding RemainingTimeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+              <TextBlock Classes="label" Text="{x:Static res:Strings.SettingsSound}" />
+              <ComboBox ItemsSource="{Binding SoundOptions}" SelectedItem="{Binding SelectedSound}" MinWidth="260">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SoundOption">
+                    <TextBlock Text="{Binding Text}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </DockPanel>
+</Window>
