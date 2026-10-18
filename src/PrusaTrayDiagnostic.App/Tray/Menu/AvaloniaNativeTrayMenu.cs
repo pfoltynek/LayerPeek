@@ -3,8 +3,9 @@ using Avalonia.Controls;
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
-/// Thin adapter over the <see cref="NativeMenu"/> of an Avalonia <see cref="TrayIcon"/> (rendered by Avalonia on
-/// Windows, native NSMenu on macOS). All menu logic lives in <see cref="TrayMenuTarget"/>. UI thread only.
+/// Thin adapter over the <see cref="NativeMenu"/> of an Avalonia <see cref="TrayIcon"/> or of one of its submenus
+/// (rendered by Avalonia on Windows, native NSMenu on macOS). All menu logic lives in <see cref="TrayMenuTarget"/>.
+/// UI thread only.
 /// </summary>
 internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
 {
@@ -15,6 +16,8 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
         ArgumentNullException.ThrowIfNull(trayIcon);
         _menu = trayIcon.Menu ??= new NativeMenu();
     }
+
+    private AvaloniaNativeTrayMenu(NativeMenu menu) => _menu = menu;
 
     public INativeTrayMenuItem CreateItem(Action clicked) => new Item(clicked);
 
@@ -46,6 +49,13 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
         public void SetEnabled(bool enabled) => Native.IsEnabled = enabled;
 
         public void SetToolTip(string? toolTip) => Native.ToolTip = toolTip;
+
+        public INativeTrayMenu CreateSubmenu()
+        {
+            NativeMenu submenu = new();
+            Native.Menu = submenu;
+            return new AvaloniaNativeTrayMenu(submenu);
+        }
 
         public void Detach() => Native.Click -= OnClick;
 

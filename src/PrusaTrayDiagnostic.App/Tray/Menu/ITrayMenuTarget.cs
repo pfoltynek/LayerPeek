@@ -4,14 +4,15 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// The platform menu the presenter writes to (Avalonia <c>NativeMenu</c> in the app, a fake in tests).
-/// Layout: printer items first, then a separator, then the fixed items. UI thread only.
+/// Layout: printer items first (each with its submenu when there are several printers), then a separator, then the
+/// fixed items. UI thread only.
 /// </summary>
 internal interface ITrayMenuTarget
 {
     /// <summary>The user clicked an item; the argument is the entry the item currently shows.</summary>
     event EventHandler<TrayMenuEntry>? ItemClicked;
 
-    /// <summary>Sets the fixed part (settings, about, quit...). Called once.</summary>
+    /// <summary>Sets the fixed part (settings, about, quit...) and removes the printer items; again after a language switch.</summary>
     void SetFixedItems(IReadOnlyList<TrayMenuEntry> items);
 
     void InsertPrinterItem(int index, TrayMenuEntry entry);
@@ -29,7 +30,13 @@ internal interface ITrayMenuSource
 {
     IReadOnlyList<TrayMenuEntry> FixedItems { get; }
 
-    /// <summary>One entry per configured printer, or a single disabled status message ("Starting…", "No printer configured"...).</summary>
+    /// <summary><see cref="FixedItems"/> was replaced (language switch); raised on the UI thread.</summary>
+    event EventHandler? FixedItemsChanged;
+
+    /// <summary>
+    /// One entry per configured printer (a submenu header when there are several printers), or a single disabled status
+    /// message ("Starting…", "No printer configured"...).
+    /// </summary>
     ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
     /// <summary>Opens the web interface of a printer entry; does nothing for an entry without an address.</summary>
@@ -40,6 +47,15 @@ internal interface ITrayMenuSource
 internal interface ITrayAppCommands
 {
     void ShowAbout();
+
+    /// <summary>
+    /// Opens the diagnostics window, or activates it when it is already open; shows <paramref name="printerId"/> when set
+    /// (a printer submenu), otherwise keeps the current or default printer.
+    /// </summary>
+    void ShowDiagnostics(string? printerId);
+
+    /// <summary>Opens the settings window, or activates it when it is already open.</summary>
+    void ShowSettings();
 
     void Quit();
 }

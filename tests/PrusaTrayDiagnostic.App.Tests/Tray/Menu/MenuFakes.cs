@@ -51,6 +51,8 @@ internal sealed class FakeMenuTarget : ITrayMenuTarget
         Operations.Add("fixed");
         Fixed.Clear();
         Fixed.AddRange(items);
+        // Like the real target: the whole menu is replaced, printer items are inserted again.
+        Printers.Clear();
     }
 
     public void InsertPrinterItem(int index, TrayMenuEntry entry)
@@ -86,6 +88,8 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public int QuitCount { get; private set; }
 
+    public int DiagnosticsCount { get; private set; }
+
     public Exception? ThrowOnAbout { get; set; }
 
     public void ShowAbout()
@@ -96,6 +100,19 @@ internal sealed class FakeAppCommands : ITrayAppCommands
             throw ThrowOnAbout;
         }
     }
+
+    /// <summary>Printer ids of diagnostics requests in order; <see langword="null"/> = no preselection.</summary>
+    public List<string?> DiagnosticsRequests { get; } = [];
+
+    public void ShowDiagnostics(string? printerId)
+    {
+        DiagnosticsCount++;
+        DiagnosticsRequests.Add(printerId);
+    }
+
+    public int SettingsCount { get; private set; }
+
+    public void ShowSettings() => SettingsCount++;
 
     public void Quit() => QuitCount++;
 }

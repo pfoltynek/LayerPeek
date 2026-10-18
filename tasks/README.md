@@ -53,15 +53,18 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-007 | Tray ikona se stavem a progressem (hotovo) | all | ui-dev | P1 | T-006 |
 | T-008 | Tray menu (hotovo) | all | ui-dev | P1 | T-007 |
 | T-009 | Detekce událostí tisku (hotovo) | all | core-dev | P1 | T-006 |
-| T-011 | Teploty a diagnostika | all | ui-dev | P2 | T-006 |
-| T-012 | Historie telemetrie | all | core-dev | P3 | T-006 |
-| T-013 | Více tiskáren | all | ui-dev | P2 | T-007, T-002 |
+| T-011 | Teploty a diagnostika (hotovo) | all | ui-dev | P2 | T-006 |
+| T-012 | Historie telemetrie (hotovo) | all | core-dev | P3 | T-006 |
+| T-013 | Více tiskáren (hotovo) | all | ui-dev | P2 | T-007, T-002 |
 | T-014 | Snímek z kamery | all | core-dev + ui-dev | P3 | T-003, T-005 |
-| T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) | all | ui-dev | P1 | T-002, T-003 |
+| T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) (hotovo) | all | ui-dev | P1 | T-002, T-003 |
 | T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
 | T-024 | Logování do souboru | all | core-dev | P2 | T-007 |
 | T-025 | Ikona aplikace | all | ui-dev | P2 | T-007 |
-| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo** | all | qa-reviewer | P3 | – |
+| T-027 | PrusaLink – uživatelské jméno v nastavení (hotovo) | all | core-dev + ui-dev | P2 | T-003, T-015 |
+| T-028 | Otevření webu PrusaLink s přihlášením (odloženo) | all | ui-dev | P2 | T-027 |
+| T-029 | Jazyk aplikace a další překlady (de, es, fr, it, pl, sk) (hotovo) | all | ui-dev | P2 | T-015 |
+| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 
 ### Windows (`windows`)

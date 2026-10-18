@@ -121,8 +121,129 @@ public sealed class TrayMenuTargetTests
         Assert.True(oldAbout.Detached);
     }
 
+    [Fact]
+    public void PrinterWithSubmenuBuildsItsChildren()
+    {
+        _target.SetFixedItems([Quit]);
+
+        _target.InsertPrinterItem(0, Parent("A: Idle", "a"));
+        _target.InsertPrinterItem(1, Parent("B_x: Idle", "b"));
+
+        Assert.Equal(["A: Idle", "B__x: Idle", "---", "Quit"], _menu.Layout());
+        FakeNativeItem b = _menu.Items[1];
+        Assert.NotNull(b.Submenu);
+        Assert.Equal(["Open b", "Diagnostics…"], b.Submenu.Layout());
+        Assert.Null(_menu.Items[^1].Submenu);
+    }
+
+    [Fact]
+    public void ClickOnSubmenuChildReportsChildEntryAndHeaderClickIsIgnored()
+    {
+        _target.SetFixedItems([]);
+        _target.InsertPrinterItem(0, Parent("A: Idle", "a"));
+        _target.InsertPrinterItem(1, Parent("B: Idle", "b"));
+
+        _menu.Items[1].Click();
+        _menu.Items[1].Submenu!.Items[1].Click();
+        _menu.Items[0].Submenu!.Items[0].Click();
+
+        Assert.Collection(
+            _clicked,
+            entry => Assert.Equal((TrayMenuCommand.Diagnostics, "b"), (entry.Command, entry.PrinterId)),
+            entry => Assert.Equal((TrayMenuCommand.OpenWeb, new Uri("http://a/")), (entry.Command, entry.WebUri)));
+    }
+
+    [Fact]
+    public void StateChangeUpdatesOnlyTheSubmenuHeaderInPlace()
+    {
+        _target.SetFixedItems([]);
+        TrayMenuEntry first = Parent("A: Idle", "a");
+        _target.InsertPrinterItem(0, first);
+        FakeNativeItem item = _menu.Items[0];
+        FakeNativeItem[] children = [.. item.Submenu!.Items];
+        int structureChanges = _menu.StructureChanges;
+        item.Writes.Clear();
+        foreach (FakeNativeItem child in children)
+        {
+            child.Writes.Clear();
+        }
+
+        _target.UpdatePrinterItem(0, first with { Header = "A: Printing – 3%" });
+
+        Assert.Same(item, _menu.Items[0]);
+        Assert.Equal(["header=A: Printing – 3%"], item.Writes);
+        Assert.Equal(children, item.Submenu!.Items);
+        Assert.All(children, child => Assert.Empty(child.Writes));
+        Assert.Equal(structureChanges, _menu.StructureChanges);
+    }
+
+    [Fact]
+    public void ChangedChildIsUpdatedInPlaceAndClickUsesIt()
+    {
+        _target.SetFixedItems([]);
+        TrayMenuEntry first = Parent("A: Idle", "a");
+        _target.InsertPrinterItem(0, first);
+        FakeNativeItem web = _menu.Items[0].Submenu!.Items[0];
+        web.Writes.Clear();
+
+        TrayMenuEntry moved = first with { Submenu = new TrayMenuEntryList([first.Submenu![0] with { WebUri = new Uri("http://moved/") }, first.Submenu[1]]) };
+        _target.UpdatePrinterItem(0, moved);
+        web.Click();
+
+        Assert.Empty(web.Writes);
+        Assert.Equal(new Uri("http://moved/"), Assert.Single(_clicked).WebUri);
+    }
+
+    [Fact]
+    public void SwitchingBetweenFlatAndSubmenuReplacesTheItemAtTheSameIndex()
+    {
+        _target.SetFixedItems([Quit]);
+        _target.InsertPrinterItem(0, Printer("A"));
+        _target.InsertPrinterItem(1, Printer("B"));
+        FakeNativeItem flat = _menu.Items[0];
+
+        _target.UpdatePrinterItem(0, Parent("A: Idle", "a"));
+
+        Assert.True(flat.Detached);
+        Assert.Equal(["A: Idle", "B", "---", "Quit"], _menu.Layout());
+        Assert.NotNull(_menu.Items[0].Submenu);
+
+        FakeNativeItem parent = _menu.Items[0];
+        FakeNativeItem child = parent.Submenu!.Items[0];
+        _target.UpdatePrinterItem(0, Printer("A"));
+
+        Assert.True(parent.Detached);
+        Assert.True(child.Detached);
+        Assert.Null(_menu.Items[0].Submenu);
+        Assert.Equal(["A", "B", "---", "Quit"], _menu.Layout());
+    }
+
+    [Fact]
+    public void RemovedSubmenuNoLongerReportsChildClicks()
+    {
+        _target.SetFixedItems([]);
+        _target.InsertPrinterItem(0, Parent("A: Idle", "a"));
+        FakeNativeItem child = _menu.Items[0].Submenu!.Items[1];
+
+        _target.RemovePrinterItem(0);
+        child.Click();
+
+        Assert.True(child.Detached);
+        Assert.Empty(_clicked);
+    }
+
     private static TrayMenuEntry Printer(string header, string? uri = "http://printer/") =>
         new(TrayMenuCommand.OpenWeb, header, IsEnabled: uri is not null, "Open", uri is null ? null : new Uri(uri));
+
+    private static TrayMenuEntry Parent(string header, string id) =>
+        new(TrayMenuCommand.None, header, IsEnabled: true, PrinterId: id)
+        {
+            Submenu = new TrayMenuEntryList(
+            [
+                new TrayMenuEntry(TrayMenuCommand.OpenWeb, "Open " + id, IsEnabled: true, WebUri: new Uri($"http://{id}/"), PrinterId: id),
+                new TrayMenuEntry(TrayMenuCommand.Diagnostics, "Diagnostics…", IsEnabled: true, PrinterId: id),
+            ]),
+        };
 
     private sealed class FakeNativeMenu : INativeTrayMenu
     {
@@ -131,17 +252,36 @@ public sealed class TrayMenuTargetTests
         /// <summary>Real items in menu order (separators skipped).</summary>
         public List<FakeNativeItem> Items => [.. _entries.OfType<FakeNativeItem>()];
 
+        /// <summary>Inserts, adds, removals and clears (structure changes of this menu level).</summary>
+        public int StructureChanges { get; private set; }
+
         public INativeTrayMenuItem CreateItem(Action clicked) => new FakeNativeItem(clicked);
 
-        public void Insert(int index, INativeTrayMenuItem item) => _entries.Insert(index, (FakeNativeItem)item);
+        public void Insert(int index, INativeTrayMenuItem item)
+        {
+            StructureChanges++;
+            _entries.Insert(index, (FakeNativeItem)item);
+        }
 
-        public void Add(INativeTrayMenuItem item) => _entries.Add((FakeNativeItem)item);
+        public void Add(INativeTrayMenuItem item)
+        {
+            StructureChanges++;
+            _entries.Add((FakeNativeItem)item);
+        }
 
         public void AddSeparator() => _entries.Add(null);
 
-        public void RemoveAt(int index) => _entries.RemoveAt(index);
+        public void RemoveAt(int index)
+        {
+            StructureChanges++;
+            _entries.RemoveAt(index);
+        }
 
-        public void Clear() => _entries.Clear();
+        public void Clear()
+        {
+            StructureChanges++;
+            _entries.Clear();
+        }
 
         public string[] Layout() => [.. _entries.Select(entry => entry?.Header ?? "---")];
     }
@@ -153,6 +293,15 @@ public sealed class TrayMenuTargetTests
         public string Header { get; private set; } = string.Empty;
 
         public bool Detached { get; private set; }
+
+        public FakeNativeMenu? Submenu { get; private set; }
+
+        public INativeTrayMenu CreateSubmenu()
+        {
+            Assert.Null(Submenu);
+            Submenu = new FakeNativeMenu();
+            return Submenu;
+        }
 
         public void SetHeader(string header)
         {

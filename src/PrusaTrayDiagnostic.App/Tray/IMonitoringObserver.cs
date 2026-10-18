@@ -13,4 +13,12 @@ internal interface IMonitoringObserver
 
     /// <summary>Monitoring stopped unexpectedly; shown until the next <see cref="ApplySettings"/>. Thread-safe.</summary>
     void ReportMonitoringFailed();
+
+    /// <summary>
+    /// Saved settings that keep the printers (id, name, address, connection type) and the polling interval: the running
+    /// monitoring continues and only other settings (notifications) change. Thread-safe. Default: nothing to do.
+    /// </summary>
+    void UpdateSettings(AppSettings settings)
+    {
+    }
 }

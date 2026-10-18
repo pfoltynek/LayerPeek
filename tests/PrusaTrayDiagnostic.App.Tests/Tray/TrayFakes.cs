@@ -34,6 +34,19 @@ internal sealed class CultureScope : IDisposable
     }
 }
 
+/// <summary>
+/// Sets only the UI culture of the calling thread (the language of the texts, like a language switch) and restores it;
+/// number and date formats stay.
+/// </summary>
+internal sealed class UiCultureScope : IDisposable
+{
+    private readonly CultureInfo _previous = CultureInfo.CurrentUICulture;
+
+    public UiCultureScope(string name) => CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo(name);
+
+    public void Dispose() => CultureInfo.CurrentUICulture = _previous;
+}
+
 /// <summary>Queues posted actions until the test runs them, like a busy UI thread would.</summary>
 internal sealed class ManualDispatcher : IUiDispatcher
 {
@@ -90,21 +103,79 @@ internal sealed class FakePrinterMonitor : IPrinterMonitor
 
     public int SubscriberCount => SnapshotUpdated?.GetInvocationList().Length ?? 0;
 
-    public IReadOnlyList<PrinterSnapshot> Snapshots => [];
+    private readonly Dictionary<string, PrinterSnapshot> _latest = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Lock _latestLock = new();
+
+    public IReadOnlyList<PrinterSnapshot> Snapshots
+    {
+        get
+        {
+            lock (_latestLock)
+            {
+                return [.. _latest.Values];
+            }
+        }
+    }
 
     /// <summary>What <see cref="RunAsync"/> does after recording its arguments; defaults to waiting for cancellation.</summary>
     public Func<CancellationToken, Task>? RunBehavior { get; set; }
 
     public Task<(IReadOnlyList<PrinterDefinition> Printers, TimeSpan Interval)> Started => _started.Task;
 
+    /// <summary>Like the real monitor: the latest raised snapshot of the printer.</summary>
     public bool TryGetSnapshot(string printerId, [NotNullWhen(true)] out PrinterSnapshot? snapshot)
     {
-        snapshot = null;
-        return false;
+        lock (_latestLock)
+        {
+            return _latest.TryGetValue(printerId, out snapshot);
+        }
+    }
+
+    private readonly List<(IReadOnlyList<PrinterDefinition> Printers, TimeSpan Interval)> _runs = [];
+    private readonly List<(int Count, TaskCompletionSource Done)> _runWaiters = [];
+
+    /// <summary>Every <see cref="RunAsync"/> call so far (restarts after applied settings included).</summary>
+    public IReadOnlyList<(IReadOnlyList<PrinterDefinition> Printers, TimeSpan Interval)> Runs
+    {
+        get
+        {
+            lock (_latestLock)
+            {
+                return [.. _runs];
+            }
+        }
+    }
+
+    /// <summary>Completes when <see cref="RunAsync"/> was called at least <paramref name="count"/> times.</summary>
+    public Task WaitForRunsAsync(int count)
+    {
+        lock (_latestLock)
+        {
+            if (_runs.Count >= count)
+            {
+                return Task.CompletedTask;
+            }
+
+            TaskCompletionSource done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            _runWaiters.Add((count, done));
+            return done.Task;
+        }
     }
 
     public async Task RunAsync(IReadOnlyList<PrinterDefinition> printers, TimeSpan pollingInterval, CancellationToken cancellationToken)
     {
+        lock (_latestLock)
+        {
+            _runs.Add((printers, pollingInterval));
+            foreach ((int count, TaskCompletionSource done) in _runWaiters)
+            {
+                if (_runs.Count >= count)
+                {
+                    done.TrySetResult();
+                }
+            }
+        }
+
         _started.TrySetResult((printers, pollingInterval));
         if (RunBehavior is not null)
         {
@@ -121,7 +192,19 @@ internal sealed class FakePrinterMonitor : IPrinterMonitor
         }
     }
 
-    public void Raise(PrinterSnapshot snapshot) => SnapshotUpdated?.Invoke(this, snapshot);
+    public void Raise(PrinterSnapshot snapshot)
+    {
+        // Null is raised on purpose by tests of defensive handlers; it is not remembered.
+        if (snapshot is not null)
+        {
+            lock (_latestLock)
+            {
+                _latest[snapshot.PrinterId] = snapshot;
+            }
+        }
+
+        SnapshotUpdated?.Invoke(this, snapshot!);
+    }
 }
 
 internal sealed class FakeSettingsStore(Func<CancellationToken, Task<SettingsLoadResult>> load) : ISettingsStore

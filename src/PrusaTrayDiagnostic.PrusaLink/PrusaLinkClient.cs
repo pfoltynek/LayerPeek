@@ -40,7 +40,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         _printer = printer;
         _timeProvider = timeProvider;
         _logger = logger;
-        _authenticator = new DigestAuthenticator(secretStore, SecretKeys.ForPrinter(printer.Id));
+        _authenticator = new DigestAuthenticator(secretStore, SecretKeys.ForPrinter(printer.Id), printer.UserName);
         _uris = PrusaLinkAddress.TryCreateBaseUri(printer.Address, out Uri? baseUri) ? new ApiUris(baseUri) : null;
     }
 
@@ -86,7 +86,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
     {
         if (_uris is null)
         {
-            return new PrusaLinkInfoResult(PrinterState.Unknown, Messages.InvalidAddress, null);
+            return new PrusaLinkInfoResult(PrinterState.Unknown, Messages.InvalidAddress, null) { Failure = PrusaLinkFailure.InvalidAddress };
         }
 
         try
@@ -94,12 +94,12 @@ public sealed partial class PrusaLinkClient : IPrinterClient
             ApiResult<VersionResponse> version = await GetAsync(_uris.Version, PrusaLinkJsonContext.Default.VersionResponse, cancellationToken).ConfigureAwait(false);
             if (version.Failure is { } failure)
             {
-                return new PrusaLinkInfoResult(failure.State, failure.Message, null);
+                return InfoFailure(failure);
             }
 
             if (version.Value is not { } versionValue)
             {
-                return new PrusaLinkInfoResult(PrinterState.Unknown, Messages.UnexpectedResponse, null);
+                return InfoFailure(new Failure(PrinterState.Unknown, Messages.UnexpectedResponse, PrusaLinkFailure.UnexpectedResponse));
             }
 
             // /api/v1/info is optional for the result: version alone proves the connection works.
@@ -118,7 +118,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         }
         catch (Exception ex) when (ToFailure(ex, cancellationToken) is { } failure)
         {
-            return new PrusaLinkInfoResult(failure.State, failure.Message, null);
+            return InfoFailure(failure);
         }
     }
 
@@ -192,10 +192,10 @@ public sealed partial class PrusaLinkClient : IPrinterClient
     private async Task<ApiResult<T>> GetAsync<T>(Uri uri, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
         where T : class
     {
-        (HttpResponseMessage? response, string? authenticationError) = await SendAuthenticatedAsync(uri, cancellationToken).ConfigureAwait(false);
+        (HttpResponseMessage? response, AuthenticationError authenticationError) = await SendAuthenticatedAsync(uri, cancellationToken).ConfigureAwait(false);
         if (response is null)
         {
-            return ApiResult<T>.Fail(PrinterState.Unauthorized, authenticationError!);
+            return ApiResult<T>.Fail(PrinterState.Unauthorized, authenticationError.Message, authenticationError.Reason);
         }
 
         using (response)
@@ -211,15 +211,15 @@ public sealed partial class PrusaLinkClient : IPrinterClient
                     }
 
                 case HttpStatusCode.Unauthorized:
-                    return ApiResult<T>.Fail(PrinterState.Unauthorized, Messages.PasswordRejected);
+                    return ApiResult<T>.Fail(PrinterState.Unauthorized, Messages.PasswordRejected, PrusaLinkFailure.PasswordRejected);
 
                 case HttpStatusCode.Forbidden:
-                    return ApiResult<T>.Fail(PrinterState.Unauthorized, Messages.Forbidden);
+                    return ApiResult<T>.Fail(PrinterState.Unauthorized, Messages.Forbidden, PrusaLinkFailure.AccessDenied);
 
                 default:
                     int code = (int)response.StatusCode;
                     LogUnexpectedStatus(_printer.Id, uri.AbsolutePath, code);
-                    return ApiResult<T>.Fail(PrinterState.Unknown, string.Create(CultureInfo.InvariantCulture, $"The printer answered with HTTP {code}."));
+                    return ApiResult<T>.Fail(PrinterState.Unknown, string.Create(CultureInfo.InvariantCulture, $"The printer answered with HTTP {code}."), PrusaLinkFailure.UnexpectedResponse);
             }
         }
     }
@@ -227,9 +227,10 @@ public sealed partial class PrusaLinkClient : IPrinterClient
     /// <summary>
     /// Sends a GET with cached digest credentials and answers 401 challenges: at most twice, and the second time only when
     /// the first one reused the cached password (stale nonce), so that a password changed at the same moment is re-read.
-    /// A final 401 is returned as is. When a challenge cannot be answered, the response is null and the error says why.
+    /// A final 401 is returned as is. When a challenge cannot be answered, the response is null and the error says why
+    /// (the error is only meaningful then).
     /// </summary>
-    private async Task<(HttpResponseMessage? Response, string? AuthenticationError)> SendAuthenticatedAsync(Uri uri, CancellationToken cancellationToken)
+    private async Task<(HttpResponseMessage? Response, AuthenticationError AuthenticationError)> SendAuthenticatedAsync(Uri uri, CancellationToken cancellationToken)
     {
         HttpResponseMessage response = await SendOnceAsync(uri, cancellationToken).ConfigureAwait(false);
         for (int round = 0; round < 2 && response.StatusCode == HttpStatusCode.Unauthorized; round++)
@@ -246,7 +247,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
 
             if (challenge.Error is not null)
             {
-                return (null, challenge.Error);
+                return (null, new AuthenticationError(challenge.Error, challenge.Reason));
             }
 
             response = await SendOnceAsync(uri, cancellationToken).ConfigureAwait(false);
@@ -256,7 +257,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
             }
         }
 
-        return (response, null);
+        return (response, default);
     }
 
     private async Task<HttpResponseMessage> SendOnceAsync(Uri uri, CancellationToken cancellationToken)
@@ -283,27 +284,34 @@ public sealed partial class PrusaLinkClient : IPrinterClient
                 return null;
             case OperationCanceledException:
                 // HttpClient.Timeout elapsed.
-                return new Failure(PrinterState.Offline, Messages.Timeout);
+                return new Failure(PrinterState.Offline, Messages.Timeout, PrusaLinkFailure.Timeout);
             case HttpRequestException { HttpRequestError: HttpRequestError.ConfigurationLimitExceeded } tooLarge:
                 // The response exceeded the buffer limit: whatever answered, it is not a printer.
                 LogMalformedResponse(tooLarge, _printer.Id);
-                return new Failure(PrinterState.Unknown, Messages.UnexpectedResponse);
+                return new Failure(PrinterState.Unknown, Messages.UnexpectedResponse, PrusaLinkFailure.UnexpectedResponse);
+            case HttpRequestException { HttpRequestError: HttpRequestError.SecureConnectionError } tlsException:
+                // E.g. an untrusted certificate, or https against a printer that serves plain http only.
+                LogNotReachable(tlsException, _printer.Id);
+                return new Failure(PrinterState.Offline, Messages.SecureConnectionFailed, PrusaLinkFailure.SecureConnectionFailed);
             case HttpRequestException httpException:
                 LogNotReachable(httpException, _printer.Id);
-                return new Failure(PrinterState.Offline, Messages.NotReachable);
+                return new Failure(PrinterState.Offline, Messages.NotReachable, PrusaLinkFailure.NotReachable);
             case IOException ioException:
                 LogNotReachable(ioException, _printer.Id);
-                return new Failure(PrinterState.Offline, Messages.NotReachable);
+                return new Failure(PrinterState.Offline, Messages.NotReachable, PrusaLinkFailure.NotReachable);
             case JsonException jsonException:
                 LogMalformedResponse(jsonException, _printer.Id);
-                return new Failure(PrinterState.Unknown, Messages.UnexpectedResponse);
+                return new Failure(PrinterState.Unknown, Messages.UnexpectedResponse, PrusaLinkFailure.UnexpectedResponse);
             case SecretStoreException secretStoreException:
                 LogPasswordUnreadable(secretStoreException, _printer.Id);
-                return new Failure(PrinterState.Unknown, Messages.PasswordUnreadable);
+                return new Failure(PrinterState.Unknown, Messages.PasswordUnreadable, PrusaLinkFailure.PasswordUnreadable);
             default:
                 return null;
         }
     }
+
+    private static PrusaLinkInfoResult InfoFailure(Failure failure) =>
+        new(failure.State, failure.Message, null) { Failure = failure.Reason };
 
     private PrinterSnapshot Unavailable(PrinterState state, string message) =>
         PrinterSnapshot.Unavailable(_printer.Id, state, _timeProvider.GetUtcNow(), message);
@@ -351,14 +359,16 @@ public sealed partial class PrusaLinkClient : IPrinterClient
 
     private sealed record JobFileName(long JobId, string? FileName);
 
-    private readonly record struct Failure(PrinterState State, string Message);
+    private readonly record struct Failure(PrinterState State, string Message, PrusaLinkFailure Reason);
+
+    private readonly record struct AuthenticationError(string Message, PrusaLinkFailure Reason);
 
     private readonly record struct ApiResult<T>(T? Value, Failure? Failure)
         where T : class
     {
         public static ApiResult<T> Ok(T? value) => new(value, null);
 
-        public static ApiResult<T> Fail(PrinterState state, string message) => new(null, new Failure(state, message));
+        public static ApiResult<T> Fail(PrinterState state, string message, PrusaLinkFailure reason) => new(null, new Failure(state, message, reason));
     }
 
     /// <summary>Technical English texts; they never contain addresses, credentials or exception details.</summary>
@@ -367,7 +377,8 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         public const string InvalidAddress = "The printer address is not valid.";
         public const string NotReachable = "The printer is not reachable.";
         public const string Timeout = "The printer did not respond in time.";
-        public const string PasswordRejected = "The printer rejected the password.";
+        public const string SecureConnectionFailed = "The secure (https) connection to the printer failed.";
+        public const string PasswordRejected = "The printer rejected the user name or password.";
         public const string Forbidden = "The printer denied access (HTTP 403).";
         public const string UnexpectedResponse = "The printer sent an unexpected response.";
         public const string PasswordUnreadable = "The stored password could not be read.";

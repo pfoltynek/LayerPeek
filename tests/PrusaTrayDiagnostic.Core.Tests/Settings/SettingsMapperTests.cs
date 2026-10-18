@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 using PrusaTrayDiagnostic.Core.Settings.Storage;
 
@@ -122,6 +123,156 @@ public class SettingsMapperTests
         Assert.Equal(NotificationSound.ImportantOnly, settings.Notifications.Sound);
         Assert.Contains("sound", Assert.Single(warnings), StringComparison.OrdinalIgnoreCase);
         Assert.False(settings.Notifications.Error);
+    }
+
+    [Fact]
+    public void UserNameRoundTrips()
+    {
+        AppSettings settings = new()
+        {
+            Printers =
+            [
+                new PrinterDefinition { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "10.0.0.5", UserName = "workshop" },
+                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaLink, Address = "10.0.0.6" },
+            ],
+        };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains("\"userName\": \"workshop\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"userName\": \"maker\"", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Theory]
+    [InlineData("""{ "printers": [ { "id": "mk4", "connectionType": "PrusaLink", "address": "10.0.0.5" } ] }""")]
+    [InlineData("""{ "printers": [ { "id": "mk4", "connectionType": "PrusaLink", "address": "10.0.0.5", "userName": null } ] }""")]
+    public void MissingUserNameUsesMakerWithoutWarning(string json)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal("maker", Assert.Single(settings.Printers).UserName);
+    }
+
+    [Theory]
+    [InlineData(" workshop ", "workshop")]
+    [InlineData("Maker", "Maker")]
+    public void UserNameIsLoadedTrimmedAndCaseSensitive(string value, string expected)
+    {
+        AppSettings settings = Load($$"""{ "printers": [ { "id": "mk4", "connectionType": "PrusaLink", "address": "10.0.0.5", "userName": "{{value}}" } ] }""", out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(expected, Assert.Single(settings.Printers).UserName);
+    }
+
+    [Theory]
+    [InlineData("\"\"")]
+    [InlineData("\"   \"")]
+    [InlineData("\"john:doe\"")]
+    [InlineData("\"john\\ndoe\"")]
+    [InlineData("\"john\\\"doe\"")]
+    public void InvalidUserNameUsesMakerWithWarningAndKeepsPrinter(string value)
+    {
+        AppSettings settings = Load($$"""{ "printers": [ { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "10.0.0.5", "userName": {{value}} } ] }""", out List<string> warnings);
+
+        PrinterDefinition printer = Assert.Single(settings.Printers);
+        Assert.Equal("maker", printer.UserName);
+        Assert.Equal("MK4", printer.Name);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("user name", warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("john", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TooLongUserNameUsesMakerWithShortWarning()
+    {
+        string value = new('u', 10_000);
+
+        AppSettings settings = Load($$"""{ "printers": [ { "id": "mk4", "connectionType": "PrusaLink", "address": "10.0.0.5", "userName": "{{value}}" } ] }""", out List<string> warnings);
+
+        Assert.Equal("maker", Assert.Single(settings.Printers).UserName);
+        Assert.InRange(Assert.Single(warnings).Length, 1, 200);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("cs")]
+    [InlineData("sk")]
+    [InlineData("de")]
+    [InlineData("es")]
+    [InlineData("fr")]
+    [InlineData("it")]
+    [InlineData("pl")]
+    public void LanguageRoundTripsAsCode(string code)
+    {
+        AppSettings settings = new() { Language = code };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains($"\"language\": \"{code}\"", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Fact]
+    public void SystemLanguageIsNotWritten()
+    {
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(new AppSettings()), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(new AppSettings(), out List<string> warnings);
+
+        Assert.DoesNotContain("language", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(warnings);
+        Assert.Null(loaded.Language);
+    }
+
+    [Theory]
+    [InlineData("""{ }""")]
+    [InlineData("""{ "language": null }""")]
+    public void MissingLanguageMeansSystem(string json)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Null(settings.Language);
+    }
+
+    [Theory]
+    [InlineData(" DE ", "de")]
+    [InlineData("Cs", "cs")]
+    public void LanguageCodeIsCaseInsensitive(string value, string expected)
+    {
+        AppSettings settings = Load($$"""{ "language": "{{value}}" }""", out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(expected, settings.Language);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("ja")]
+    [InlineData("de-AT")]
+    [InlineData("system")]
+    [InlineData("Deutsch")]
+    public void UnknownLanguageMeansSystemWithWarning(string value)
+    {
+        AppSettings settings = Load($$"""{ "language": "{{value}}", "pollingIntervalSeconds": 9 }""", out List<string> warnings);
+
+        Assert.Null(settings.Language);
+        Assert.Contains("language", Assert.Single(warnings), StringComparison.OrdinalIgnoreCase);
+        // The rest of the settings is still loaded.
+        Assert.Equal(TimeSpan.FromSeconds(9), settings.PollingInterval);
+    }
+
+    [Fact]
+    public void HugeUnknownLanguageIsShortenedInWarning()
+    {
+        Load($$"""{ "language": "{{new string('x', 10_000)}}" }""", out List<string> warnings);
+
+        Assert.InRange(Assert.Single(warnings).Length, 1, 200);
     }
 
     private static AppSettings RoundTrip(AppSettings settings, out List<string> warnings)

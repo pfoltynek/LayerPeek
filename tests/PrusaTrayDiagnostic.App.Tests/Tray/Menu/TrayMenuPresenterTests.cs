@@ -98,12 +98,107 @@ public sealed class TrayMenuPresenterTests : IDisposable
         using TrayMenuPresenter presenter = Create();
 
         _target.Click(_target.Printers[0]);
-        _target.Click(Fixed(TrayMenuCommand.Settings));
-        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
+        _target.Click(Fixed(TrayMenuCommand.Settings) with { IsEnabled = false });
 
         Assert.Empty(_launcher.Opened);
         Assert.Equal(0, _commands.AboutCount);
         Assert.Equal(0, _commands.QuitCount);
+        Assert.Equal(0, _commands.SettingsCount);
+    }
+
+    [Fact]
+    public void ClickOnSettingsOpensTheSettingsWindow()
+    {
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Fixed(TrayMenuCommand.Settings));
+
+        Assert.Equal(1, _commands.SettingsCount);
+        Assert.Equal(0, _commands.DiagnosticsCount);
+        Assert.Equal(0, _commands.AboutCount);
+    }
+
+    [Fact]
+    public void ClickOnDiagnosticsOpensTheDiagnosticsWindow()
+    {
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
+
+        Assert.Equal(1, _commands.DiagnosticsCount);
+        Assert.Equal([null], _commands.DiagnosticsRequests);
+        Assert.Equal(0, _commands.AboutCount);
+    }
+
+    [Fact]
+    public void SubmenuItemsAreRoutedToTheirPrinter()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta") with { Address = "192.168.1.11" }]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Child(1, TrayMenuCommand.Diagnostics));
+        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+        _target.Click(Child(1, TrayMenuCommand.OpenWeb));
+
+        Assert.Equal(["b", "a"], _commands.DiagnosticsRequests);
+        Assert.Equal([new Uri("http://192.168.1.11/")], _launcher.Opened);
+    }
+
+    [Fact]
+    public void ClickOnSubmenuHeaderDoesNothing()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(_target.Printers[0]);
+
+        Assert.Empty(_launcher.Opened);
+        Assert.Equal(0, _commands.DiagnosticsCount);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public void DisabledOpenWebSubmenuItemDoesNothing()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha") with { Address = "ftp://nope" }, Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Child(0, TrayMenuCommand.OpenWeb));
+        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+
+        Assert.Empty(_launcher.Opened);
+        Assert.Equal(["a"], _commands.DiagnosticsRequests);
+    }
+
+    [Fact]
+    public void PrinterUpdateInSubmenuModeUpdatesOnlyItsItem()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta"), Definition("c", "Gamma")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+        _target.Operations.Clear();
+
+        _monitor.Raise(Snapshot(PrinterState.Paused, Job(12), printerId: "c"));
+        _dispatcher.RunAll();
+
+        Assert.Equal(["update 2"], _target.Operations);
+        Assert.Equal("Gamma: Paused – 12%", _target.Printers[2].Header);
+        Assert.NotNull(_target.Printers[2].Submenu);
+    }
+
+    [Fact]
+    public void DisabledDiagnosticsItemDoesNothing()
+    {
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default with { DiagnosticsAvailable = false });
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+
+        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
+
+        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        Assert.Equal(0, _commands.DiagnosticsCount);
     }
 
     [Fact]
@@ -135,7 +230,46 @@ public sealed class TrayMenuPresenterTests : IDisposable
         Assert.Equal(0, _target.ClickSubscriberCount);
     }
 
+    [Fact]
+    public void LanguageSwitchRebuildsTheMenuOnce()
+    {
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+        _target.Operations.Clear();
+
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+        }
+
+        // The printer items are replaced first (still in place), then the whole menu is built again.
+        Assert.Equal(["update 0", "update 1", "fixed", "insert 0", "insert 1"], _target.Operations);
+        Assert.Equal(_viewModel.FixedItems, _target.Fixed);
+        Assert.Equal(_viewModel.PrinterItems, _target.Printers);
+        Assert.Equal("Ukončit", Fixed(TrayMenuCommand.Quit).Header);
+        Assert.Equal("Alpha: Připojování…", _target.Printers[0].Header);
+
+        // Clicks act on the rebuilt items.
+        _target.Click(Fixed(TrayMenuCommand.Quit));
+        Assert.Equal(1, _commands.QuitCount);
+    }
+
+    [Fact]
+    public void LanguageSwitchAfterDisposeTouchesNothing()
+    {
+        TrayMenuPresenter presenter = Create();
+        presenter.Dispose();
+        _target.Operations.Clear();
+
+        _viewModel.RefreshTexts();
+
+        Assert.Empty(_target.Operations);
+    }
+
     private TrayMenuEntry Fixed(TrayMenuCommand command) => _target.Fixed.Single(item => item.Command == command);
+
+    private TrayMenuEntry Child(int printer, TrayMenuCommand command) => _target.Printers[printer].Submenu!.Single(item => item.Command == command);
 
     private TrayMenuPresenter Create() => new(_target, _viewModel, _commands, _logger);
 }

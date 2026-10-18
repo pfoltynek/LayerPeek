@@ -256,6 +256,49 @@ public sealed class PrusaLinkClientTests : IDisposable
     }
 
     [Fact]
+    public async Task DigestAuthorizationHeaderCarriesConfiguredUserName()
+    {
+        _server.UserName = "workshop";
+        PrusaLinkClient client = CreateClient("192.168.1.20", userName: " workshop ");
+
+        PrinterSnapshot snapshot = await client.GetSnapshotAsync(Ct);
+
+        Assert.Equal(PrinterState.Idle, snapshot.State);
+        string authorization = _server.Requests.Last().Authorization!;
+        Assert.Contains("username=\"workshop\"", authorization, StringComparison.Ordinal);
+        Assert.DoesNotContain("maker", authorization, StringComparison.Ordinal);
+        Assert.Contains(
+            $"response=\"{FakePrusaLinkServer.ExpectedResponse(_server.Password, _server.CurrentNonce, "GET", StatusPath, "workshop")}\"",
+            authorization,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConfiguredUserNameIsKeptWhenNonceIsRenewed()
+    {
+        _server.UserName = "workshop";
+        PrusaLinkClient client = CreateClient("192.168.1.20", userName: "workshop");
+        await client.GetSnapshotAsync(Ct);
+        _server.ExpireNonce();
+
+        Assert.Equal(PrinterState.Idle, (await client.GetSnapshotAsync(Ct)).State);
+        Assert.Contains("username=\"workshop\"", _server.Requests.Last().Authorization!, StringComparison.Ordinal);
+        Assert.Equal(1, _secrets.ReadCount);
+    }
+
+    [Fact]
+    public async Task WrongUserNameIsReportedAsRejectedCredentials()
+    {
+        _server.UserName = "workshop";
+
+        PrinterSnapshot snapshot = await _client.GetSnapshotAsync(Ct);
+
+        Assert.Equal(PrinterState.Unauthorized, snapshot.State);
+        Assert.Contains("user name or password", snapshot.StatusMessage, StringComparison.Ordinal);
+        Assert.Contains(_server.Requests, static r => r.Authorization?.Contains("username=\"maker\"", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
     public async Task StaleNonceIsRenewedTransparently()
     {
         await _client.GetSnapshotAsync(Ct);
@@ -627,8 +670,36 @@ public sealed class PrusaLinkClientTests : IDisposable
         Assert.Equal("prusa-core-one", info.Hostname);
         Assert.Equal("6.9.2+10123", info.Firmware);
         Assert.Equal("2.0.0", info.ApiVersion);
+        Assert.Equal("7.0.0", info.PrinterModel);
         Assert.Equal(0.4, info.NozzleDiameter);
         Assert.True(info.HasMmu);
+    }
+
+    [Fact]
+    public async Task InfoWithoutPrinterInfoEndpointStillReportsTheVersion()
+    {
+        _server.RouteFixture("/api/version", "version");
+        _server.Route("/api/v1/info", HttpStatusCode.NotFound);
+
+        PrusaLinkInfoResult result = await _client.GetInfoAsync(Ct);
+
+        Assert.Equal(PrinterState.Idle, result.State);
+        Assert.Equal("6.9.2+10123", result.Info!.Firmware);
+        Assert.Equal(0.4, result.Info.NozzleDiameter);
+        Assert.False(result.Info.HasMmu);
+    }
+
+    [Fact]
+    public async Task InfoOfInvalidAddressIsReportedWithoutNetworkAccess()
+    {
+        PrusaLinkClient client = CreateClient("ftp://printer");
+
+        PrusaLinkInfoResult result = await client.GetInfoAsync(Ct);
+
+        Assert.Equal(PrinterState.Unknown, result.State);
+        Assert.NotNull(result.Message);
+        Assert.Null(result.Info);
+        Assert.Empty(_server.Requests);
     }
 
     [Fact]
@@ -692,10 +763,10 @@ public sealed class PrusaLinkClientTests : IDisposable
         public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 
-    private PrusaLinkClient CreateClient(string address) =>
+    private PrusaLinkClient CreateClient(string address, string userName = PrinterUserName.Default) =>
         new(
             _httpClient,
-            new PrinterDefinition { Id = "core-one", Name = "Core One", ConnectionType = ConnectionType.PrusaLink, Address = address },
+            new PrinterDefinition { Id = "core-one", Name = "Core One", ConnectionType = ConnectionType.PrusaLink, Address = address, UserName = userName },
             _secrets,
             _time,
             NullLogger<PrusaLinkClient>.Instance);

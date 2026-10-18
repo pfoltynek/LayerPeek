@@ -1,0 +1,549 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MenuQuit" xml:space="preserve">
+    <value>Ukončiť</value>
+  </data>
+  <data name="ToolTipStarting" xml:space="preserve">
+    <value>Spúšťa sa…</value>
+  </data>
+  <data name="ToolTipNoPrinter" xml:space="preserve">
+    <value>Nie je nastavená žiadna tlačiareň</value>
+  </data>
+  <data name="ToolTipMonitoringFailed" xml:space="preserve">
+    <value>Sledovanie sa zastavilo pre chybu</value>
+  </data>
+  <data name="ToolTipStateWithProgress" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="ToolTipProgress" xml:space="preserve">
+    <value>{0} %</value>
+  </data>
+  <data name="ToolTipRemaining" xml:space="preserve">
+    <value>Zostáva {0}</value>
+  </data>
+  <data name="ToolTipOtherPrinters" xml:space="preserve">
+    <value>Ďalšie tlačiarne: {0}</value>
+  </data>
+  <data name="ToolTipLineRemaining" xml:space="preserve">
+    <value>{0}, zostáva {1}</value>
+  </data>
+  <data name="DurationLessThanMinute" xml:space="preserve">
+    <value>&lt; 1 min</value>
+  </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="DurationHoursMinutes" xml:space="preserve">
+    <value>{0} h {1} min</value>
+  </data>
+  <data name="DurationDaysHours" xml:space="preserve">
+    <value>{0} d {1} h</value>
+  </data>
+  <data name="StateConnecting" xml:space="preserve">
+    <value>Pripája sa…</value>
+  </data>
+  <data name="StateIdle" xml:space="preserve">
+    <value>Pripravená</value>
+  </data>
+  <data name="StateBusy" xml:space="preserve">
+    <value>Zaneprázdnená</value>
+  </data>
+  <data name="StatePrinting" xml:space="preserve">
+    <value>Tlačí</value>
+  </data>
+  <data name="StatePaused" xml:space="preserve">
+    <value>Pozastavené</value>
+  </data>
+  <data name="StateFinished" xml:space="preserve">
+    <value>Dokončené</value>
+  </data>
+  <data name="StateStopped" xml:space="preserve">
+    <value>Zastavené</value>
+  </data>
+  <data name="StateError" xml:space="preserve">
+    <value>Chyba</value>
+  </data>
+  <data name="StateAttention" xml:space="preserve">
+    <value>Vyžaduje zásah</value>
+  </data>
+  <data name="StateOffline" xml:space="preserve">
+    <value>Nedostupná</value>
+  </data>
+  <data name="StateUnauthorized" xml:space="preserve">
+    <value>Neplatné prihlasovacie údaje</value>
+  </data>
+  <data name="StateUnknown" xml:space="preserve">
+    <value>Neznámy stav</value>
+  </data>
+  <data name="MenuPrinter" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MenuSettings" xml:space="preserve">
+    <value>Nastavenia…</value>
+  </data>
+  <data name="MenuDiagnostics" xml:space="preserve">
+    <value>Diagnostika…</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>O aplikácii</value>
+  </data>
+  <data name="MenuOpenPrusaLink" xml:space="preserve">
+    <value>Otvoriť PrusaLink v prehliadači</value>
+  </data>
+  <data name="MenuOpenPrusaConnect" xml:space="preserve">
+    <value>Otvoriť Prusa Connect v prehliadači</value>
+  </data>
+  <data name="MenuInvalidAddress" xml:space="preserve">
+    <value>Adresa tlačiarne nie je platná</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>O aplikácii Prusa Tray Diagnostic</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Verzia {0}</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>Sledovanie stavu 3D tlačiarní Prusa.</value>
+  </data>
+  <data name="AboutClose" xml:space="preserve">
+    <value>Zavrieť</value>
+  </data>
+  <data name="AboutDisclaimer" xml:space="preserve">
+    <value>Nejde o oficiálny produkt spoločnosti Prusa Research.</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>Licencia: {0}</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Zdrojový kód na GitHube</value>
+  </data>
+  <data name="DiagnosticsTitle" xml:space="preserve">
+    <value>Diagnostika – Prusa Tray Diagnostic</value>
+  </data>
+  <data name="DiagnosticsPrinter" xml:space="preserve">
+    <value>Tlačiareň</value>
+  </data>
+  <data name="DiagnosticsStatus" xml:space="preserve">
+    <value>Stav</value>
+  </data>
+  <data name="DiagnosticsState" xml:space="preserve">
+    <value>Stav</value>
+  </data>
+  <data name="DiagnosticsDetail" xml:space="preserve">
+    <value>Podrobnosti</value>
+  </data>
+  <data name="DiagnosticsLastUpdate" xml:space="preserve">
+    <value>Posledná aktualizácia</value>
+  </data>
+  <data name="DiagnosticsTemperatures" xml:space="preserve">
+    <value>Teploty</value>
+  </data>
+  <data name="DiagnosticsActual" xml:space="preserve">
+    <value>Aktuálna</value>
+  </data>
+  <data name="DiagnosticsTarget" xml:space="preserve">
+    <value>Cieľová</value>
+  </data>
+  <data name="DiagnosticsNozzle" xml:space="preserve">
+    <value>Tryska</value>
+  </data>
+  <data name="DiagnosticsBed" xml:space="preserve">
+    <value>Podložka</value>
+  </data>
+  <data name="DiagnosticsMotionAndFans" xml:space="preserve">
+    <value>Ventilátory a pohyb</value>
+  </data>
+  <data name="DiagnosticsHotendFan" xml:space="preserve">
+    <value>Ventilátor hotendu</value>
+  </data>
+  <data name="DiagnosticsPrintFan" xml:space="preserve">
+    <value>Ventilátor chladenia tlače</value>
+  </data>
+  <data name="DiagnosticsSpeed" xml:space="preserve">
+    <value>Rýchlosť tlače</value>
+  </data>
+  <data name="DiagnosticsFlow" xml:space="preserve">
+    <value>Prietok</value>
+  </data>
+  <data name="DiagnosticsAxisZ" xml:space="preserve">
+    <value>Os Z</value>
+  </data>
+  <data name="DiagnosticsTemperatureValue" xml:space="preserve">
+    <value>{0} °C</value>
+  </data>
+  <data name="DiagnosticsHeaterOff" xml:space="preserve">
+    <value>Vypnuté</value>
+  </data>
+  <data name="DiagnosticsRpmValue" xml:space="preserve">
+    <value>{0} ot./min</value>
+  </data>
+  <data name="DiagnosticsPercentValue" xml:space="preserve">
+    <value>{0} %</value>
+  </data>
+  <data name="DiagnosticsMillimetreValue" xml:space="preserve">
+    <value>{0} mm</value>
+  </data>
+  <data name="DiagnosticsMissingValue" xml:space="preserve">
+    <value>–</value>
+  </data>
+  <data name="DiagnosticsYes" xml:space="preserve">
+    <value>Áno</value>
+  </data>
+  <data name="DiagnosticsNo" xml:space="preserve">
+    <value>Nie</value>
+  </data>
+  <data name="DiagnosticsChart" xml:space="preserve">
+    <value>História teplôt</value>
+  </data>
+  <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
+    <value>30 min</value>
+  </data>
+  <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
+    <value>2 h</value>
+  </data>
+  <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
+    <value>24 h</value>
+  </data>
+  <data name="DiagnosticsChartNoData" xml:space="preserve">
+    <value>V tomto období nie sú žiadne údaje o teplote</value>
+  </data>
+  <data name="DiagnosticsChartTargetLegend" xml:space="preserve">
+    <value>prerušovaná: cieľová</value>
+  </data>
+  <data name="DiagnosticsPrinterInfo" xml:space="preserve">
+    <value>Informácie o tlačiarni</value>
+  </data>
+  <data name="DiagnosticsFirmware" xml:space="preserve">
+    <value>Firmvér</value>
+  </data>
+  <data name="DiagnosticsModel" xml:space="preserve">
+    <value>Kód modelu</value>
+  </data>
+  <data name="DiagnosticsHostname" xml:space="preserve">
+    <value>Názov hostiteľa</value>
+  </data>
+  <data name="DiagnosticsNozzleDiameter" xml:space="preserve">
+    <value>Priemer trysky</value>
+  </data>
+  <data name="DiagnosticsMmu" xml:space="preserve">
+    <value>MMU</value>
+  </data>
+  <data name="DiagnosticsInfoLoading" xml:space="preserve">
+    <value>Načítava sa…</value>
+  </data>
+  <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
+    <value>Nedá sa načítať: {0}</value>
+  </data>
+  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
+    <value>Pre Prusa Connect nie je k dispozícii</value>
+  </data>
+  <data name="DiagnosticsClose" xml:space="preserve">
+    <value>Zavrieť</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Nastavenia</value>
+  </data>
+  <data name="SettingsTabPrinters" xml:space="preserve">
+    <value>Tlačiarne</value>
+  </data>
+  <data name="SettingsTabGeneral" xml:space="preserve">
+    <value>Všeobecné</value>
+  </data>
+  <data name="SettingsAddPrinter" xml:space="preserve">
+    <value>Pridať tlačiareň</value>
+  </data>
+  <data name="SettingsRemovePrinter" xml:space="preserve">
+    <value>Odobrať</value>
+  </data>
+  <data name="SettingsNoPrinters" xml:space="preserve">
+    <value>Nie je nastavená žiadna tlačiareň. Pridajte ju tlačidlom „Pridať tlačiareň“.</value>
+  </data>
+  <data name="SettingsNewPrinter" xml:space="preserve">
+    <value>Nová tlačiareň</value>
+  </data>
+  <data name="SettingsName" xml:space="preserve">
+    <value>Názov</value>
+  </data>
+  <data name="SettingsConnectionType" xml:space="preserve">
+    <value>Pripojenie</value>
+  </data>
+  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
+    <value>PrusaLink (miestna sieť)</value>
+  </data>
+  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
+    <value>Prusa Connect (zatiaľ nie je k dispozícii)</value>
+  </data>
+  <data name="SettingsAddress" xml:space="preserve">
+    <value>Adresa</value>
+  </data>
+  <data name="SettingsAddressHint" xml:space="preserve">
+    <value>IP adresa alebo názov hostiteľa, napr. 192.168.1.20 alebo http://prusa-mk4.local</value>
+  </data>
+  <data name="SettingsUserName" xml:space="preserve">
+    <value>Používateľské meno</value>
+  </data>
+  <data name="SettingsUserNameHint" xml:space="preserve">
+    <value>Používateľské meno PrusaLink z nastavení tlačiarne. Predvolené je „maker“.</value>
+  </data>
+  <data name="SettingsUserNameNotUsed" xml:space="preserve">
+    <value>Prusa Connect používateľské meno tlačiarne nepoužíva.</value>
+  </data>
+  <data name="SettingsPassword" xml:space="preserve">
+    <value>Heslo</value>
+  </data>
+  <data name="SettingsPasswordNewHint" xml:space="preserve">
+    <value>Heslo PrusaLink z nastavení tlačiarne.</value>
+  </data>
+  <data name="SettingsPasswordUnchanged" xml:space="preserve">
+    <value>Bez zmeny</value>
+  </data>
+  <data name="SettingsPasswordNotSet" xml:space="preserve">
+    <value>Nenastavené</value>
+  </data>
+  <data name="SettingsPasswordKeepHint" xml:space="preserve">
+    <value>Ak chcete zachovať uložené heslo, nechajte pole prázdne.</value>
+  </data>
+  <data name="SettingsPasswordUnsupported" xml:space="preserve">
+    <value>V tomto systéme zatiaľ nie je možné ukladať heslá. Tlačiarne, ktoré heslo vyžadujú, ohlásia, že chýba.</value>
+  </data>
+  <data name="SettingsPasswordNotUsed" xml:space="preserve">
+    <value>Prusa Connect heslo tlačiarne nepoužíva.</value>
+  </data>
+  <data name="SettingsTestConnection" xml:space="preserve">
+    <value>Otestovať spojenie</value>
+  </data>
+  <data name="SettingsCancelTest" xml:space="preserve">
+    <value>Zrušiť test</value>
+  </data>
+  <data name="SettingsTesting" xml:space="preserve">
+    <value>Testuje sa spojenie…</value>
+  </data>
+  <data name="SettingsTestSuccess" xml:space="preserve">
+    <value>Spojenie funguje. Kód modelu: {0}, firmvér: {1}.</value>
+  </data>
+  <data name="SettingsTestNotReachable" xml:space="preserve">
+    <value>Tlačiareň nie je dostupná. Skontrolujte adresu a či je tlačiareň zapnutá a pripojená k sieti.</value>
+  </data>
+  <data name="SettingsTestTimeout" xml:space="preserve">
+    <value>Tlačiareň neodpovedala včas.</value>
+  </data>
+  <data name="SettingsTestSecureConnection" xml:space="preserve">
+    <value>Zabezpečené spojenie (https) zlyhalo. Skúste adresu s http:// alebo skontrolujte certifikát tlačiarne.</value>
+  </data>
+  <data name="SettingsTestPasswordRejected" xml:space="preserve">
+    <value>Tlačiareň odmietla používateľské meno alebo heslo.</value>
+  </data>
+  <data name="SettingsTestAccessDenied" xml:space="preserve">
+    <value>Tlačiareň odoprela prístup.</value>
+  </data>
+  <data name="SettingsTestPasswordMissing" xml:space="preserve">
+    <value>Tlačiareň vyžaduje heslo. Zadajte ho vyššie.</value>
+  </data>
+  <data name="SettingsTestPasswordUnavailable" xml:space="preserve">
+    <value>Uložené heslo sa nepodarilo načítať.</value>
+  </data>
+  <data name="SettingsTestUnsupportedAuthentication" xml:space="preserve">
+    <value>Tlačiareň vyžaduje nepodporovaný spôsob prihlásenia.</value>
+  </data>
+  <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
+    <value>Na tejto adrese niečo odpovedá, ale nevyzerá to ako tlačiareň s PrusaLink.</value>
+  </data>
+  <data name="SettingsTestNotSupported" xml:space="preserve">
+    <value>Pre Prusa Connect zatiaľ test nie je k dispozícii.</value>
+  </data>
+  <data name="SettingsTestCancelled" xml:space="preserve">
+    <value>Test bol zrušený.</value>
+  </data>
+  <data name="SettingsTestFailed" xml:space="preserve">
+    <value>Test neočakávane zlyhal.</value>
+  </data>
+  <data name="SettingsErrorNameRequired" xml:space="preserve">
+    <value>Zadajte názov.</value>
+  </data>
+  <data name="SettingsErrorNameTooLong" xml:space="preserve">
+    <value>Názov môže mať najviac {0} znakov.</value>
+  </data>
+  <data name="SettingsErrorNameDuplicate" xml:space="preserve">
+    <value>Tento názov už má iná tlačiareň.</value>
+  </data>
+  <data name="SettingsErrorAddressRequired" xml:space="preserve">
+    <value>Zadajte adresu tlačiarne.</value>
+  </data>
+  <data name="SettingsErrorAddressInvalid" xml:space="preserve">
+    <value>Zadajte IP adresu alebo názov hostiteľa, prípadne s http:// alebo https://, portom a cestou. Používateľské meno, heslo, dopyt (?) ani fragment (#) nie sú povolené.</value>
+  </data>
+  <data name="SettingsErrorUserNameRequired" xml:space="preserve">
+    <value>Zadajte používateľské meno.</value>
+  </data>
+  <data name="SettingsErrorUserNameTooLong" xml:space="preserve">
+    <value>Používateľské meno môže mať najviac {0} znakov.</value>
+  </data>
+  <data name="SettingsErrorUserNameControlCharacter" xml:space="preserve">
+    <value>Používateľské meno nesmie obsahovať tabulátory, konce riadkov ani iné riadiace znaky.</value>
+  </data>
+  <data name="SettingsErrorUserNameColon" xml:space="preserve">
+    <value>Používateľské meno nesmie obsahovať dvojbodku (:).</value>
+  </data>
+  <data name="SettingsErrorUserNameUnsupported" xml:space="preserve">
+    <value>Používateľské meno môže obsahovať len písmená bez diakritiky, číslice a bežné symboly okrem " a \.</value>
+  </data>
+  <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
+    <value>Heslo je príliš dlhé (najviac {0} bajtov v UTF-8).</value>
+  </data>
+  <data name="SettingsErrorPasswordInvalid" xml:space="preserve">
+    <value>Heslo obsahuje znaky, ktoré nie je možné uložiť.</value>
+  </data>
+  <data name="SettingsPollingInterval" xml:space="preserve">
+    <value>Interval dopytovania (sekundy)</value>
+  </data>
+  <data name="SettingsPollingIntervalHint" xml:space="preserve">
+    <value>Ako často sa aplikácia pýta tlačiarní na ich stav.</value>
+  </data>
+  <data name="SettingsErrorPollingInterval" xml:space="preserve">
+    <value>Zadajte číslo od {0} do {1}.</value>
+  </data>
+  <data name="SettingsNotifications" xml:space="preserve">
+    <value>Upozornenia</value>
+  </data>
+  <data name="SettingsNotificationsEnabled" xml:space="preserve">
+    <value>Zobrazovať upozornenia</value>
+  </data>
+  <data name="SettingsNotifyPrintStarted" xml:space="preserve">
+    <value>Tlač sa začala</value>
+  </data>
+  <data name="SettingsNotifyPrintFinished" xml:space="preserve">
+    <value>Tlač sa dokončila</value>
+  </data>
+  <data name="SettingsNotifyPrintPaused" xml:space="preserve">
+    <value>Tlač bola pozastavená</value>
+  </data>
+  <data name="SettingsNotifyPrintResumed" xml:space="preserve">
+    <value>Tlač pokračuje</value>
+  </data>
+  <data name="SettingsNotifyPrintStopped" xml:space="preserve">
+    <value>Tlač bola zastavená (zrušená)</value>
+  </data>
+  <data name="SettingsNotifyError" xml:space="preserve">
+    <value>Chyba tlačiarne</value>
+  </data>
+  <data name="SettingsNotifyAttention" xml:space="preserve">
+    <value>Tlačiareň vyžaduje zásah (aj odmietnuté heslo)</value>
+  </data>
+  <data name="SettingsNotifyOffline" xml:space="preserve">
+    <value>Tlačiareň je offline alebo znova online</value>
+  </data>
+  <data name="SettingsRemainingTime" xml:space="preserve">
+    <value>Upozorniť, keď zostáva toľko minút tlače (0 = vypnuté)</value>
+  </data>
+  <data name="SettingsErrorRemainingTime" xml:space="preserve">
+    <value>Zadajte celé číslo od 0 do {0} (0 = vypnuté).</value>
+  </data>
+  <data name="SettingsSound" xml:space="preserve">
+    <value>Zvuk</value>
+  </data>
+  <data name="SettingsSoundOff" xml:space="preserve">
+    <value>Vypnutý</value>
+  </data>
+  <data name="SettingsSoundImportantOnly" xml:space="preserve">
+    <value>Len dôležité upozornenia</value>
+  </data>
+  <data name="SettingsSoundAll" xml:space="preserve">
+    <value>Všetky upozornenia</value>
+  </data>
+  <data name="SettingsSave" xml:space="preserve">
+    <value>Uložiť</value>
+  </data>
+  <data name="SettingsCancel" xml:space="preserve">
+    <value>Zrušiť</value>
+  </data>
+  <data name="SettingsLoading" xml:space="preserve">
+    <value>Načítava sa…</value>
+  </data>
+  <data name="SettingsSaving" xml:space="preserve">
+    <value>Ukladá sa…</value>
+  </data>
+  <data name="SettingsFixErrors" xml:space="preserve">
+    <value>Niektoré hodnoty nie sú platné. Opravte zvýraznené polia.</value>
+  </data>
+  <data name="SettingsNoticeCorrupted" xml:space="preserve">
+    <value>Súbor nastavení je poškodený. Zobrazujú sa predvolené nastavenia; uložením sa súbor prepíše.</value>
+  </data>
+  <data name="SettingsNoticeUnreadable" xml:space="preserve">
+    <value>Súbor nastavení sa nepodarilo prečítať. Zobrazujú sa predvolené nastavenia; uložením sa súbor prepíše.</value>
+  </data>
+  <data name="SettingsNoticeWarnings" xml:space="preserve">
+    <value>Niektoré hodnoty v súbore nastavení boli neplatné a boli opravené alebo vynechané. Uložením sa zapíšu opravené nastavenia.</value>
+  </data>
+  <data name="SettingsSaveFailedSettings" xml:space="preserve">
+    <value>Nastavenia sa nepodarilo uložiť. Nič sa nezmenilo.</value>
+  </data>
+  <data name="SettingsSaveFailedPassword" xml:space="preserve">
+    <value>Heslo sa nepodarilo uložiť do systémového úložiska prihlasovacích údajov. Nič sa nezmenilo.</value>
+  </data>
+  <data name="SettingsSaveRollbackIncomplete" xml:space="preserve">
+    <value>Nastavenia sa nepodarilo uložiť a predtým uložené heslo sa mohlo zmeniť. Skontrolujte heslá tlačiarní.</value>
+  </data>
+  <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
+    <value>Nastavenia sú uložené. Heslo odobranej tlačiarne sa nepodarilo odstrániť zo systémového úložiska prihlasovacích údajov.</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Jazyk</value>
+  </data>
+  <data name="SettingsLanguageSystem" xml:space="preserve">
+    <value>Podľa systému</value>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Mení iba texty. Čísla, dátumy a časy sa vždy riadia regionálnymi nastaveniami systému.</value>
+  </data>
+  <data name="NotificationPrintStarted" xml:space="preserve">
+    <value>Tlač sa začala</value>
+  </data>
+  <data name="NotificationPrintFinished" xml:space="preserve">
+    <value>Tlač sa dokončila</value>
+  </data>
+  <data name="NotificationPrintPaused" xml:space="preserve">
+    <value>Tlač bola pozastavená</value>
+  </data>
+  <data name="NotificationPrintResumed" xml:space="preserve">
+    <value>Tlač pokračuje</value>
+  </data>
+  <data name="NotificationPrintStopped" xml:space="preserve">
+    <value>Tlač bola zastavená</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>Tlačiareň hlási chybu</value>
+  </data>
+  <data name="NotificationAttention" xml:space="preserve">
+    <value>Tlačiareň vyžaduje pozornosť</value>
+  </data>
+  <data name="NotificationCredentialsRejected" xml:space="preserve">
+    <value>Tlačiareň odmietla prihlasovacie údaje</value>
+  </data>
+  <data name="NotificationOffline" xml:space="preserve">
+    <value>Tlačiareň je offline</value>
+  </data>
+  <data name="NotificationOnline" xml:space="preserve">
+    <value>Tlačiareň je znova online</value>
+  </data>
+  <data name="NotificationRemainingTime" xml:space="preserve">
+    <value>Zostáva {0}</value>
+  </data>
+  <data name="NotificationAlmostFinished" xml:space="preserve">
+    <value>Tlač sa čoskoro skončí</value>
+  </data>
+  <data name="NotificationStatusChanged" xml:space="preserve">
+    <value>Stav tlačiarne sa zmenil</value>
+  </data>
+</root>

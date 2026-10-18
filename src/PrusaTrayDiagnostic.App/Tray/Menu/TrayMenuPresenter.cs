@@ -7,7 +7,8 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// Mirrors an <see cref="ITrayMenuSource"/> onto a platform menu item by item (a changed printer updates only its own
-/// item) and routes clicks: printer items to the web interface, fixed items to <see cref="ITrayAppCommands"/>.
+/// item) and routes clicks: "open web" items to the web interface, diagnostics (with the printer of its submenu), settings and the
+/// other fixed items to <see cref="ITrayAppCommands"/>; submenu headers do nothing.
 /// UI thread only.
 /// </summary>
 internal sealed partial class TrayMenuPresenter : IDisposable
@@ -34,6 +35,7 @@ internal sealed partial class TrayMenuPresenter : IDisposable
         _target.SetFixedItems(source.FixedItems);
         InsertAll();
         _printerItems.CollectionChanged += OnPrinterItemsChanged;
+        _source.FixedItemsChanged += OnFixedItemsChanged;
         _target.ItemClicked += OnItemClicked;
     }
 
@@ -46,7 +48,20 @@ internal sealed partial class TrayMenuPresenter : IDisposable
 
         _disposed = true;
         _printerItems.CollectionChanged -= OnPrinterItemsChanged;
+        _source.FixedItemsChanged -= OnFixedItemsChanged;
         _target.ItemClicked -= OnItemClicked;
+    }
+
+    /// <summary>Language switch: the menu is built again (it happens once per switch, never on a poll).</summary>
+    private void OnFixedItemsChanged(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _target.SetFixedItems(_source.FixedItems);
+        InsertAll();
     }
 
     private void OnPrinterItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -106,6 +121,12 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                 case TrayMenuCommand.OpenWeb:
                     _source.OpenWeb(entry);
                     break;
+                case TrayMenuCommand.Diagnostics:
+                    _commands.ShowDiagnostics(entry.PrinterId);
+                    break;
+                case TrayMenuCommand.Settings:
+                    _commands.ShowSettings();
+                    break;
                 case TrayMenuCommand.About:
                     _commands.ShowAbout();
                     break;
@@ -113,7 +134,6 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                     _commands.Quit();
                     break;
                 default:
-                    // Settings (T-015) and Diagnostics (T-011) get their handlers with their windows.
                     break;
             }
         }

@@ -3,11 +3,16 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Composition;
+using PrusaTrayDiagnostic.App.Diagnostics;
+using PrusaTrayDiagnostic.App.History;
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
+using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.History;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -47,6 +52,17 @@ public sealed class AppServicesTests
     }
 
     [Fact]
+    public async Task LanguageIsASingletonStartingWithTheSystemLanguage()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        UiLanguage language = services.GetRequiredService<UiLanguage>();
+        Assert.Same(language, services.GetRequiredService<UiLanguage>());
+        Assert.Null(language.Code);
+        Assert.Same(services.GetRequiredService<UiLanguageObserver>(), services.GetRequiredService<UiLanguageObserver>());
+    }
+
+    [Fact]
     public async Task WindowsUsesToastNotifications()
     {
         Assert.SkipUnless(OperatingSystem.IsWindows(), "Toast notifications exist only on Windows.");
@@ -78,6 +94,34 @@ public sealed class AppServicesTests
     }
 
     [Fact]
+    public async Task TelemetryHistoryIsRegisteredAsSingletonWithObserver()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<TelemetryHistory>(), services.GetRequiredService<TelemetryHistory>());
+        Assert.Same(services.GetRequiredService<TelemetryHistoryObserver>(), services.GetRequiredService<TelemetryHistoryObserver>());
+        Assert.Equal(TimeSpan.FromDays(1), services.GetRequiredService<TelemetryHistory>().Retention);
+    }
+
+    [Fact]
+    public async Task DiagnosticsWindowServicesAreRegisteredAndItsMenuItemEnabled()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<MonitoredPrinters>(), services.GetRequiredService<MonitoredPrinters>());
+        Assert.IsType<PrinterInfoSource>(services.GetRequiredService<IPrinterInfoSource>());
+        Assert.True(services.GetRequiredService<TrayMenuOptions>().DiagnosticsAvailable);
+        Assert.True(services.GetRequiredService<TrayMenuOptions>().SettingsAvailable);
+
+        // One view model per opened window; nothing is configured yet, so it shows the starting notice.
+        using DiagnosticsViewModel first = AppServices.CreateDiagnosticsViewModel(services);
+        using DiagnosticsViewModel second = AppServices.CreateDiagnosticsViewModel(services);
+        Assert.NotSame(first, second);
+        Assert.Same(services.GetRequiredService<TelemetryHistory>(), first.History);
+        Assert.True(first.HasNotice);
+    }
+
+    [Fact]
     public async Task SecretStoreMatchesOperatingSystem()
     {
         await using ServiceProvider services = AppServices.Create();
@@ -92,6 +136,29 @@ public sealed class AppServicesTests
         {
             Assert.IsType<UnsupportedSecretStore>(store);
         }
+    }
+
+    [Fact]
+    public async Task SettingsWindowServicesAreRegisteredAndItsMenuItemEnabled()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.True(services.GetRequiredService<TrayMenuOptions>().SettingsAvailable);
+        // Saved settings restart the running monitoring session.
+        Assert.Same(services.GetRequiredService<MonitoringSession>(), services.GetRequiredService<ISettingsApplier>());
+        Assert.IsType<SettingsEditorStore>(services.GetRequiredService<ISettingsEditorStore>());
+        Assert.IsType<PrusaLinkConnectionTester>(services.GetRequiredService<IConnectionTester>());
+        // Derived from the registered store, so the window and the store can never disagree.
+        PasswordPolicy policy = services.GetRequiredService<PasswordPolicy>();
+        Assert.Equal(PasswordPolicy.For(services.GetRequiredService<ISecretStore>()), policy);
+        Assert.Equal(OperatingSystem.IsWindows(), policy.IsSupported);
+
+        // One view model per opened window; creating it does not load anything yet (no disk access in this test).
+        using SettingsViewModel first = AppServices.CreateSettingsViewModel(services);
+        using SettingsViewModel second = AppServices.CreateSettingsViewModel(services);
+        Assert.NotSame(first, second);
+        Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
+        Assert.True(first.IsLoading);
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

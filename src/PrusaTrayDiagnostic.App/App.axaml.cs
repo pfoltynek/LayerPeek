@@ -4,6 +4,8 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 
 using PrusaTrayDiagnostic.App.Composition;
+using PrusaTrayDiagnostic.App.Diagnostics;
+using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.App.Windows;
@@ -18,9 +20,15 @@ public partial class App : Application, ITrayAppCommands
     /// <summary>Extra time for releasing services after <see cref="QuitTimeout"/>; then the app exits regardless.</summary>
     private static readonly TimeSpan QuitGrace = TimeSpan.FromSeconds(2);
 
+    // One instance each; closing a window never quits the app (ShutdownMode.OnExplicitShutdown).
+    private readonly AuxiliaryWindowSlot _aboutWindow = new();
+    private readonly AuxiliaryWindowSlot _diagnosticsWindow = new();
+    private readonly AuxiliaryWindowSlot _settingsWindow = new();
     private TrayHost? _host;
     private QuitCoordinator? _quit;
-    private AboutWindow? _aboutWindow;
+
+    // The OS ended the session (desktop Exit) before the host finished starting.
+    private bool _exited;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -29,32 +37,110 @@ public partial class App : Application, ITrayAppCommands
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && !Design.IsDesignMode)
         {
             TrayIcon? trayIcon = TrayIcon.GetIcons(this) is [TrayIcon first, ..] ? first : null;
-            _host = TrayHost.Start(trayIcon, this);
-            _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, _host.CreateLogger<QuitCoordinator>());
             desktop.Exit += OnDesktopExit;
+            StartHost(desktop, trayIcon);
         }
 
         base.OnFrameworkInitializationCompleted();
     }
 
+    /// <summary>
+    /// The settings are loaded before the tray gets its menu (milliseconds, with the static icon from App.axaml
+    /// meanwhile), so that every text starts in the saved language. async void: a startup failure crashes the app as
+    /// before instead of leaving it silently without a menu.
+    /// </summary>
+    private async void StartHost(IClassicDesktopStyleApplicationLifetime desktop, TrayIcon? trayIcon)
+    {
+        TrayHost host = await TrayHost.StartAsync(trayIcon, this).ConfigureAwait(true);
+        if (_exited)
+        {
+            // The OS ended the session while the settings were loading.
+            host.RequestStop();
+            host.ReleaseLogging();
+            return;
+        }
+
+        _host = host;
+        _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
+        host.LanguageChanged += OnLanguageChanged;
+    }
+
+    /// <summary>The tray already switched; open windows format the texts of their view models again.</summary>
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        _settingsWindow.RefreshTexts();
+        _diagnosticsWindow.RefreshTexts();
+        _aboutWindow.RefreshTexts();
+    }
+
+    void ITrayAppCommands.ShowDiagnostics(string? printerId)
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        _diagnosticsWindow.ShowOrActivate(
+            () =>
+            {
+                // Live data only while the window is open: the slot disposes the view model when the window closes.
+                DiagnosticsViewModel viewModel = host.CreateDiagnosticsViewModel(printerId);
+                try
+                {
+                    return (new AvaloniaAuxiliaryWindow(new DiagnosticsWindow { DataContext = viewModel }), viewModel);
+                }
+                catch
+                {
+                    viewModel.Dispose();
+                    throw;
+                }
+            },
+            owned =>
+            {
+                // Already open: switch to the printer whose submenu was used; the general item keeps the current one.
+                if (printerId is not null && owned is DiagnosticsViewModel viewModel)
+                {
+                    viewModel.ShowPrinter(printerId);
+                }
+            });
+    }
+
+    void ITrayAppCommands.ShowSettings()
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        SettingsViewModel? created = null;
+        _settingsWindow.ShowOrActivate(() =>
+        {
+            // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
+            SettingsViewModel viewModel = host.CreateSettingsViewModel();
+            try
+            {
+                created = viewModel;
+                return (new AvaloniaAuxiliaryWindow(new SettingsWindow { DataContext = viewModel }), viewModel);
+            }
+            catch
+            {
+                viewModel.Dispose();
+                throw;
+            }
+        });
+
+        // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.
+        _ = created?.LoadAsync();
+    }
+
     void ITrayAppCommands.ShowAbout()
     {
-        if (_aboutWindow is not null)
-        {
-            _aboutWindow.Activate();
-            return;
-        }
-
-        if (_host is null || _quit is { IsQuitting: true })
+        if (_host is not { } host || _quit is { IsQuitting: true })
         {
             return;
         }
 
-        AboutWindow window = new() { DataContext = new AboutViewModel(_host.UrlLauncher) };
-        window.Closed += (_, _) => _aboutWindow = null;
-        _aboutWindow = window;
-        window.Show();
-        window.Activate();
+        _aboutWindow.ShowOrActivate(() => (new AvaloniaAuxiliaryWindow(new AboutWindow { DataContext = new AboutViewModel(host.UrlLauncher) }), null));
     }
 
     async void ITrayAppCommands.Quit()
@@ -68,13 +154,19 @@ public partial class App : Application, ITrayAppCommands
 
     private Task StopHostAsync(TimeSpan timeout)
     {
-        // Auxiliary windows go first so that nothing is left on screen while monitoring stops.
-        _aboutWindow?.Close();
+        // Auxiliary windows go first so that nothing is left on screen while monitoring stops (unsaved settings are
+        // discarded, a running connection test is cancelled); the diagnostics view
+        // model unsubscribes from the monitor before the services are released.
+        _settingsWindow.Shutdown();
+        _diagnosticsWindow.Shutdown();
+        _aboutWindow.Shutdown();
         return _host?.StopAsync(timeout) ?? Task.CompletedTask;
     }
 
     private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
+        _exited = true;
+
         // Exit initiated by the OS (log off, shutdown): only request the stop, the process ends right after.
         if (_quit is not { IsQuitting: true })
         {

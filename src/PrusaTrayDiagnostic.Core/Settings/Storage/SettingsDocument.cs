@@ -16,6 +16,10 @@ internal sealed class SettingsDocument
 
     public double? PollingIntervalSeconds { get; set; }
 
+    /// <summary>Language code (<see cref="AppLanguages.Supported"/>); not written when the app follows the system language.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Language { get; set; }
+
     public NotificationsDocument? Notifications { get; set; }
 
     public List<PrinterDocument?>? Printers { get; set; }
@@ -57,6 +61,9 @@ internal sealed class PrinterDocument
     public string? ConnectionType { get; set; }
 
     public string? Address { get; set; }
+
+    /// <summary>PrusaLink user name; missing in files written before it was configurable (then <see cref="Printers.PrinterUserName.Default"/>).</summary>
+    public string? UserName { get; set; }
 }
 
 [JsonSourceGenerationOptions(

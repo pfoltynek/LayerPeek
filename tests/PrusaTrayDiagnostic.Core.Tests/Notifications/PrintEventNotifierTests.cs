@@ -45,6 +45,29 @@ public sealed class PrintEventNotifierTests : IDisposable
     }
 
     [Fact]
+    public void EachPrinterNotifiesWithItsOwnNameAmongSeveralPrinters()
+    {
+        PrinterDefinition xl = new() { Id = "xl", Name = "Office XL", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.21" };
+        PrinterDefinition mini = new() { Id = "mini", Name = "Mini", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.22" };
+        _notifier.Configure([Mk4, xl, mini], new NotificationSettings());
+        foreach (string id in new[] { "mk4", "xl", "mini" })
+        {
+            _monitor.Raise(Snapshot(PrinterState.Idle, Start, printerId: id));
+        }
+
+        _monitor.Raise(Snapshot(PrinterState.Printing, Start.AddSeconds(5), Job("a"), printerId: "xl"));
+        _monitor.Raise(Snapshot(PrinterState.Error, Start.AddSeconds(5), printerId: "mini"));
+        _monitor.Raise(Snapshot(PrinterState.Idle, Start.AddSeconds(5), printerId: "mk4"));
+
+        Assert.Collection(
+            _service.Notifications,
+            notification => Assert.Equal(("Office XL", PrintEventKind.PrintStarted), (notification.Printer.Name, notification.Kind)),
+            notification => Assert.Equal(("Mini", PrintEventKind.Error), (notification.Printer.Name, notification.Kind)));
+        Assert.Same(xl, _service.Notifications[0].Printer);
+        Assert.Same(mini, _service.Notifications[1].Printer);
+    }
+
+    [Fact]
     public void MasterSwitchSuppressesEverything()
     {
         _notifier.Configure([Mk4], new NotificationSettings { Enabled = false });

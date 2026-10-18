@@ -19,14 +19,14 @@ namespace PrusaTrayDiagnostic.Core.Tests.Events;
 /// </summary>
 public sealed class PrintEventDetectorTests
 {
-    private const string PrinterId = "mk4";
+    internal const string PrinterId = "mk4";
 
-    private static readonly TimeSpan Step = TimeSpan.FromSeconds(5);
+    internal static readonly TimeSpan Step = TimeSpan.FromSeconds(5);
 
-    private static readonly DateTimeOffset Start = new(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
+    internal static readonly DateTimeOffset Start = new(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
 
     // Explicit (not the defaults), so that the scenarios do not change when a default does.
-    private static readonly PrintEventDetectorOptions Options = new()
+    internal static readonly PrintEventDetectorOptions Options = new()
     {
         RemainingTimeThreshold = TimeSpan.FromMinutes(10),
         OfflineDelay = TimeSpan.FromSeconds(60),
@@ -366,22 +366,6 @@ public sealed class PrintEventDetectorTests
     }
 
     [Fact]
-    public void NoEventsAreAllocatedWithoutChange()
-    {
-        PrintEventDetector detector = new(Options);
-        detector.Process(Snapshot(PrinterState.Printing, Start, Job("a", remainingMinutes: 30)));
-        PrinterSnapshot same = Snapshot(PrinterState.Printing, Start + Step, Job("a", remainingMinutes: 29));
-        detector.Process(same);
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        IReadOnlyList<PrintEvent> events = detector.Process(same);
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        Assert.Empty(events);
-        Assert.Equal(0, allocated);
-    }
-
-    [Fact]
     public void NullSnapshotIsRejected()
     {
         PrintEventDetector detector = new(Options);
@@ -451,7 +435,7 @@ public sealed class PrintEventDetectorTests
         return Snapshot(state, timestamp, job);
     }
 
-    private static PrintJob Job(string name, double? remainingMinutes = null, bool withId = true) => new()
+    internal static PrintJob Job(string name, double? remainingMinutes = null, bool withId = true) => new()
     {
         Id = withId ? name[0] : null,
         FileName = name + ".bgcode",
@@ -459,6 +443,6 @@ public sealed class PrintEventDetectorTests
         Remaining = remainingMinutes is { } minutes ? TimeSpan.FromMinutes(minutes) : null,
     };
 
-    private static PrinterSnapshot Snapshot(PrinterState state, DateTimeOffset timestamp, PrintJob? job = null, string printerId = PrinterId) =>
+    internal static PrinterSnapshot Snapshot(PrinterState state, DateTimeOffset timestamp, PrintJob? job = null, string printerId = PrinterId) =>
         new() { PrinterId = printerId, State = state, Timestamp = timestamp, Job = job };
 }

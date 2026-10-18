@@ -8,15 +8,14 @@ using PrusaTrayDiagnostic.Core.Secrets;
 namespace PrusaTrayDiagnostic.PrusaLink.Api;
 
 /// <summary>
-/// HTTP Digest authentication as implemented by Buddy firmware: RFC 2069 (MD5, no qop), fixed user "maker".
+/// HTTP Digest authentication as implemented by Buddy firmware: RFC 2069 (MD5, no qop).
 /// A nonce stays valid for 300 s and may be reused, so one challenge round-trip is needed only every few minutes
 /// (the built-in .NET handler would pay it on every request). Authorization values are cached per URI, so a
 /// steady-state request allocates nothing for authentication. Thread-safe.
+/// <paramref name="userName"/> must be valid per <see cref="Core.Printers.PrinterUserName"/> (it is echoed in a quoted header).
 /// </summary>
-internal sealed class DigestAuthenticator(ISecretStore secretStore, string secretKey)
+internal sealed class DigestAuthenticator(ISecretStore secretStore, string secretKey, string userName)
 {
-    private const string UserName = "maker";
-
     private Session? _session;
 
     /// <summary>Authorization header value for a GET of <paramref name="pathAndQuery"/>, or null before the first challenge.</summary>
@@ -32,14 +31,14 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
         Challenge? challenge = FindDigestChallenge(challenges);
         if (challenge is null)
         {
-            return new ChallengeResult("The printer requires an unsupported authentication method.", PasswordReloaded: false);
+            return new ChallengeResult("The printer requires an unsupported authentication method.", PasswordReloaded: false, PrusaLinkFailure.UnsupportedAuthentication);
         }
 
         Session? current = Volatile.Read(ref _session);
         if (challenge.Value.Stale && current is not null && current.Realm == challenge.Value.Realm)
         {
             // Only the nonce expired; the password was accepted.
-            Volatile.Write(ref _session, new Session(challenge.Value.Realm, challenge.Value.Nonce, current.Ha1));
+            Volatile.Write(ref _session, new Session(userName, challenge.Value.Realm, challenge.Value.Nonce, current.Ha1));
             return new ChallengeResult(null, PasswordReloaded: false);
         }
 
@@ -48,11 +47,11 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
         if (string.IsNullOrEmpty(password))
         {
             Volatile.Write(ref _session, null);
-            return new ChallengeResult("No PrusaLink password is configured for this printer.", PasswordReloaded: true);
+            return new ChallengeResult("No PrusaLink password is configured for this printer.", PasswordReloaded: true, PrusaLinkFailure.PasswordMissing);
         }
 
-        string ha1 = Md5Hex($"{UserName}:{challenge.Value.Realm}:{password}");
-        Volatile.Write(ref _session, new Session(challenge.Value.Realm, challenge.Value.Nonce, ha1));
+        string ha1 = Md5Hex($"{userName}:{challenge.Value.Realm}:{password}");
+        Volatile.Write(ref _session, new Session(userName, challenge.Value.Realm, challenge.Value.Nonce, ha1));
         return new ChallengeResult(null, PasswordReloaded: true);
     }
 
@@ -135,7 +134,7 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
 
     private readonly record struct Challenge(string Realm, string Nonce, bool Stale);
 
-    private sealed class Session(string realm, string nonce, string ha1)
+    private sealed class Session(string userName, string realm, string nonce, string ha1)
     {
         public string Realm { get; } = realm;
 
@@ -147,14 +146,15 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
         public string CreateAuthorization(string uri)
         {
             string response = Md5Hex($"{Ha1}:{nonce}:{Md5Hex($"GET:{uri}")}");
-            return $"Digest username=\"{UserName}\", realm=\"{Realm}\", nonce=\"{nonce}\", uri=\"{uri}\", response=\"{response}\"";
+            return $"Digest username=\"{userName}\", realm=\"{Realm}\", nonce=\"{nonce}\", uri=\"{uri}\", response=\"{response}\"";
         }
     }
 }
 
 /// <param name="Error">Why the challenge cannot be answered; null when the request should be retried.</param>
 /// <param name="PasswordReloaded">The password was read from the secret store (false when only the nonce was renewed).</param>
-internal readonly record struct ChallengeResult(string? Error, bool PasswordReloaded);
+/// <param name="Reason">Machine-readable <paramref name="Error"/>; <see cref="PrusaLinkFailure.None"/> when there is none.</param>
+internal readonly record struct ChallengeResult(string? Error, bool PasswordReloaded, PrusaLinkFailure Reason = PrusaLinkFailure.None);
 
 /// <summary>Parser of the comma-separated <c>name=value</c> / <c>name="value"</c> list of a Digest challenge.</summary>
 internal static class DigestParameters
