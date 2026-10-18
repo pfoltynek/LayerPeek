@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Tray;
+using PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -10,7 +11,7 @@ using static PrusaTrayDiagnostic.App.Tests.Settings.SettingsTestData;
 
 namespace PrusaTrayDiagnostic.App.Tests.Settings;
 
-public sealed class SettingsEditorStoreTests
+public sealed class SettingsEditorStoreTests : IAsyncDisposable
 {
     private static readonly PasswordPolicy Supported = new(IsSupported: true, MaxBytes: 2560);
 
@@ -18,6 +19,7 @@ public sealed class SettingsEditorStoreTests
     private readonly FakeSecretStore _secrets;
     private readonly MemorySettingsStore _settings;
     private readonly RecordingApplier _applier;
+    private readonly FakeWebGateway _gateway = new();
     private readonly ListLogger<SettingsEditorStore> _logger = new();
 
     public SettingsEditorStoreTests()
@@ -28,6 +30,8 @@ public sealed class SettingsEditorStoreTests
     }
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
+
+    public ValueTask DisposeAsync() => _gateway.DisposeAsync();
 
     [Fact]
     public async Task LoadReturnsSettingsStatusAndWarnings()
@@ -83,7 +87,7 @@ public sealed class SettingsEditorStoreTests
     [Fact]
     public async Task UnavailableSettingsStoreLoadsDefaultsAsUnreadable()
     {
-        SettingsEditorStore store = new(() => throw new InvalidOperationException("no app data folder"), _secrets, Supported, _applier, _logger);
+        SettingsEditorStore store = new(() => throw new InvalidOperationException("no app data folder"), _secrets, Supported, _applier, _gateway, _logger);
 
         SettingsEditorData data = await store.LoadAsync(Ct);
 
@@ -300,7 +304,7 @@ public sealed class SettingsEditorStoreTests
     [Fact]
     public async Task FailingApplierDoesNotTurnASaveIntoAFailure()
     {
-        SettingsEditorStore store = new(() => _settings, _secrets, Supported, new ThrowingApplier(), _logger);
+        SettingsEditorStore store = new(() => _settings, _secrets, Supported, new ThrowingApplier(), _gateway, _logger);
 
         SettingsSaveResult result = await store.SaveAsync(Change(AppSettings.Default, new AppSettings { PollingInterval = TimeSpan.FromSeconds(9) }));
 
@@ -311,7 +315,7 @@ public sealed class SettingsEditorStoreTests
     [Fact]
     public async Task UnavailableSettingsStoreFailsTheSave()
     {
-        SettingsEditorStore store = new(() => throw new InvalidOperationException("no app data folder"), _secrets, Supported, _applier, _logger);
+        SettingsEditorStore store = new(() => throw new InvalidOperationException("no app data folder"), _secrets, Supported, _applier, _gateway, _logger);
         AppSettings updated = new() { Printers = [LinkPrinter("new", "New")] };
 
         SettingsSaveResult result = await store.SaveAsync(Change(AppSettings.Default, updated, ("new", "pw")));
@@ -361,7 +365,7 @@ public sealed class SettingsEditorStoreTests
         AppSettings updated = new() { Printers = [LinkPrinter("a", "Alpha")] };
         _secrets.Seed("b", "pb");
         _applier.OldRunEnded = new TaskCompletionSource().Task;
-        SettingsEditorStore store = new(() => _settings, _secrets, Supported, _applier, _logger, applyWaitTimeout: TimeSpan.FromMilliseconds(50));
+        SettingsEditorStore store = new(() => _settings, _secrets, Supported, _applier, _gateway, _logger, applyWaitTimeout: TimeSpan.FromMilliseconds(50));
 
         SettingsSaveResult result = await store.SaveAsync(Change(original, updated)).WaitAsync(TestTimeouts.Wait, Ct);
 
@@ -375,7 +379,7 @@ public sealed class SettingsEditorStoreTests
         AppSettings original = new() { Printers = [LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta")] };
         _secrets.Seed("a", "old-a");
         ThrowingOnSetStore secrets = new(_secrets, SecretKeys.ForPrinter("b"));
-        SettingsEditorStore store = new(() => _settings, secrets, Supported, _applier, _logger);
+        SettingsEditorStore store = new(() => _settings, secrets, Supported, _applier, _gateway, _logger);
 
         SettingsSaveResult result = await store.SaveAsync(Change(original, original, ("a", "new-a"), ("b", "new-b")));
 
@@ -400,6 +404,114 @@ public sealed class SettingsEditorStoreTests
         Assert.True(save.IsCompletedSuccessfully);
     }
 
+    [Fact]
+    public async Task SaveStopsWebProxiesOfRemovedAndChangedPrinters()
+    {
+        AppSettings original = new()
+        {
+            Printers =
+            [
+                LinkPrinter("pw", "New password"),
+                LinkPrinter("addr", "Moved"),
+                LinkPrinter("user", "Other user"),
+                LinkPrinter("gone", "Removed"),
+                LinkPrinter("name", "Renamed"),
+                LinkPrinter("same", "Same"),
+                LinkPrinter("kind", "Now cloud"),
+            ],
+        };
+        AppSettings updated = new()
+        {
+            Printers =
+            [
+                LinkPrinter("pw", "New password"),
+                LinkPrinter("ADDR", "Moved", address: "192.168.1.99"),
+                LinkPrinter("user", "Other user", userName: "admin"),
+                LinkPrinter("name", "Renamed again"),
+                LinkPrinter("same", "Same"),
+                CloudPrinter("kind", "Now cloud"),
+                LinkPrinter("added", "Added"),
+            ],
+        };
+
+        SettingsSaveResult result = await Create().SaveAsync(Change(original, updated, ("pw", "new-pw"), ("added", "pa")));
+
+        Assert.Equal(SettingsSaveStatus.Saved, result.Status);
+        // A rename or an untouched printer keeps its open browser tab working; a new printer has no proxy yet.
+        Assert.Equal(["addr", "gone", "kind", "pw", "user"], _gateway.Stopped.Order(StringComparer.OrdinalIgnoreCase));
+        Assert.Equal(0, _gateway.StopAllCount);
+    }
+
+    [Fact]
+    public async Task WebProxyOfRemovedPrinterStopsBeforeItsPasswordIsDeleted()
+    {
+        AppSettings original = new() { Printers = [LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta")] };
+        AppSettings updated = new() { Printers = [LinkPrinter("a", "Alpha")] };
+        FakeWebGateway gateway = new(_log);
+        SettingsEditorStore store = new(() => _settings, _secrets, Supported, _applier, gateway, _logger);
+
+        SettingsSaveResult result = await store.SaveAsync(Change(original, updated));
+
+        Assert.Equal(SettingsSaveStatus.Saved, result.Status);
+        Assert.True(_log.IndexOf("save settings") < _log.IndexOf("stop web b"));
+        Assert.True(_log.IndexOf("stop web b") < _log.IndexOf("delete printer/b"));
+    }
+
+    [Fact]
+    public async Task FailedSaveStopsNoWebProxy()
+    {
+        AppSettings original = new() { Printers = [LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta")] };
+        AppSettings updated = new() { Printers = [LinkPrinter("a", "Alpha", address: "192.168.1.99")] };
+        _settings.SaveFailure = new IOException("disk full");
+
+        SettingsSaveResult result = await Create().SaveAsync(Change(original, updated, ("a", "new-a")));
+
+        // The old settings and passwords stay in force, so the running proxies are still right.
+        Assert.Equal(SettingsSaveStatus.SettingsNotSaved, result.Status);
+        Assert.Empty(_gateway.Stopped);
+    }
+
+    [Fact]
+    public async Task NotificationOnlyChangeStopsNoWebProxy()
+    {
+        AppSettings original = new() { Printers = [LinkPrinter("a", "Alpha")] };
+        AppSettings updated = original with { PollingInterval = TimeSpan.FromSeconds(9) };
+
+        await Create().SaveAsync(Change(original, updated));
+
+        Assert.Empty(_gateway.Stopped);
+    }
+
+    [Fact]
+    public async Task FailingWebProxyStopDoesNotFailTheSave()
+    {
+        AppSettings original = new() { Printers = [LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta")] };
+        AppSettings updated = new() { Printers = [LinkPrinter("a", "Alpha")] };
+        _secrets.Seed("b", "pb");
+        _gateway.StopFailure = new InvalidOperationException("boom");
+
+        SettingsSaveResult result = await Create().SaveAsync(Change(original, updated));
+
+        Assert.Equal(SettingsSaveStatus.Saved, result.Status);
+        Assert.False(_secrets.Secrets.ContainsKey(SecretKeys.ForPrinter("b")));
+        Assert.Contains(_logger.Entries, static entry => entry.Level == LogLevel.Error && entry.Exception is InvalidOperationException);
+    }
+
+    [Fact]
+    public async Task HangingWebProxyStopDoesNotBlockTheSave()
+    {
+        AppSettings original = new() { Printers = [LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta")] };
+        AppSettings updated = new() { Printers = [LinkPrinter("a", "Alpha")] };
+        _gateway.StopGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SettingsEditorStore store = new(() => _settings, _secrets, Supported, _applier, _gateway, _logger, applyWaitTimeout: TimeSpan.FromMilliseconds(50));
+
+        SettingsSaveResult result = await store.SaveAsync(Change(original, updated)).WaitAsync(TestTimeouts.Wait, Ct);
+
+        // The gateway stops the proxy anyway once the wait is cancelled; the save only stops waiting.
+        Assert.Equal(SettingsSaveStatus.Saved, result.Status);
+        Assert.Equal(["b"], _gateway.Stopped);
+    }
+
     private static async Task WaitUntilAsync(Func<bool> condition)
     {
         using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
@@ -411,7 +523,7 @@ public sealed class SettingsEditorStoreTests
     }
 
     private SettingsEditorStore Create(PasswordPolicy? policy = null) =>
-        new(() => _settings, _secrets, policy ?? Supported, _applier, _logger);
+        new(() => _settings, _secrets, policy ?? Supported, _applier, _gateway, _logger);
 
     private static SettingsLoadResult Loaded(params PrinterDefinition[] printers) =>
         new() { Settings = new AppSettings { Printers = printers }, Status = SettingsLoadStatus.Loaded };

@@ -11,6 +11,7 @@ using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Icons;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
 
 namespace PrusaTrayDiagnostic.App.Composition;
 
@@ -25,6 +26,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     /// <summary>A save writes a few small items in milliseconds; quitting must still stay within the overall limit.</summary>
     private static readonly TimeSpan PendingSaveTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long quitting waits for requests in progress through the local web proxies (T-028).</summary>
+    private static readonly TimeSpan WebProxyStopTimeout = TimeSpan.FromSeconds(1);
 
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<TrayHost> _logger;
@@ -155,7 +159,8 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _iconSet?.Dispose();
 
         await WaitForPendingSaveAsync().ConfigureAwait(true);
-        await _session.StopAsync(timeout).ConfigureAwait(true);
+        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
+        await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
         try
         {
             // The session was stopped above, so disposing it (via the container) does not wait again.
@@ -195,6 +200,24 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Stops the local web proxies, waiting at most <see cref="WebProxyStopTimeout"/> for requests in progress (e.g. an
+    /// upload); after that they are stopped without waiting. Disposing the container afterwards finds none running.
+    /// Never faults.
+    /// </summary>
+    private async Task StopWebProxiesAsync()
+    {
+        try
+        {
+            using CancellationTokenSource timeout = new(WebProxyStopTimeout);
+            await _services.GetRequiredService<IPrinterWebGateway>().StopAllAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogWebProxyStopFailed(ex);
+        }
+    }
+
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         if (Volatile.Read(ref _stopped) != 0)
@@ -212,6 +235,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for a settings save failed while quitting.")]
     private partial void LogPendingSaveFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Stopping the web proxies failed while quitting.")]
+    private partial void LogWebProxyStopFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Releasing services failed while stopping.")]
     private partial void LogDisposeFailed(Exception exception);

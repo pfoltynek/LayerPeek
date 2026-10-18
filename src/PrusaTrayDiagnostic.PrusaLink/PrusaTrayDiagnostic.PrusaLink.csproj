@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.Http" />
+    <!--
+      Kestrel for the local web proxy (T-028) and Microsoft.Extensions.Http/Logging/DependencyInjection come from the
+      shared ASP.NET Core framework (no NuGet package; explicit Microsoft.Extensions.* package references would be NU1510).
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PrusaTrayDiagnostic.PrusaLink.Tests" />

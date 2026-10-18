@@ -124,8 +124,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
                 return;
             }
 
-            // Credentials are sent only when the entry still shows the current address of its printer: an entry from a
-            // previous configuration (printer moved) opens its address without them.
+            // The printer is logged in (proxy) only when the entry still shows the current address of its printer: an entry
+            // from a previous configuration (printer moved) opens its plain address.
             if (entry.PrinterId is { } id
                 && _slots is not null
                 && _slotById.TryGetValue(id, out int index)
@@ -137,8 +137,9 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             cancellationToken = _disposing.Token;
         }
 
-        // The opener reads the password now (not when the menu was built), the launcher validates the address again and
-        // runs off the UI thread; neither throws, failures are logged without credentials.
+        // The opener asks the web gateway now (not when the menu was built: it checks the login and may start the local
+        // proxy), the launcher validates the address again; both run off the UI thread, neither throws, and failures are
+        // logged without the access token.
         _ = _webOpener.OpenAsync(uri, printer, cancellationToken);
     }
 
@@ -181,7 +182,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             _disposed = true;
         }
 
-        // A browser start still waiting for the password is dropped (e.g. when quitting).
+        // A browser start still waiting for the web gateway is dropped (e.g. when quitting).
         _disposing.Cancel();
         _disposing.Dispose();
     }

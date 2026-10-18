@@ -2,61 +2,71 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.Core.Printers;
-using PrusaTrayDiagnostic.Core.Secrets;
+using PrusaTrayDiagnostic.Core.Web;
 
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
-/// Opens the web interface of a printer from the tray menu (T-028). A PrusaLink printer with a stored password is
-/// opened logged in (<c>http://user:password@host/</c>); the password is read from <see cref="ISecretStore"/> only when
-/// the user clicks, so it is never kept in the menu. Without a password, when the secret store fails, for Prusa Connect
-/// or for an unknown printer the plain address is opened as before. Neither the password nor the address with
-/// credentials is ever logged.
+/// Opens the web interface of a printer from the tray menu (T-028). For a known printer it asks
+/// <see cref="IPrinterWebGateway"/>: a PrusaLink printer whose stored password the printer accepts is opened through the
+/// local proxy, logged in, without the password ever reaching the browser. Otherwise (no password, rejected password,
+/// offline printer, proxy unavailable, Prusa Connect, unknown printer) the plain address is opened, as the user decided
+/// (no extra notification). The proxy address contains a secret token: it is never logged, only the fallback reason is.
 /// </summary>
 internal sealed partial class PrinterWebOpener
 {
-    private readonly ISecretStore _secrets;
+    private readonly IPrinterWebGateway _gateway;
     private readonly IUrlLauncher _launcher;
     private readonly ILogger _logger;
 
-    public PrinterWebOpener(ISecretStore secrets, IUrlLauncher launcher, ILogger logger)
+    public PrinterWebOpener(IPrinterWebGateway gateway, IUrlLauncher launcher, ILogger logger)
     {
-        ArgumentNullException.ThrowIfNull(secrets);
+        ArgumentNullException.ThrowIfNull(gateway);
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(logger);
-        _secrets = secrets;
+        _gateway = gateway;
         _launcher = launcher;
         _logger = logger;
     }
 
-    /// <summary>Opens <paramref name="webUri"/>; never throws. Cancelled before launching: opens nothing.</summary>
-    /// <param name="webUri">The validated address of the menu entry (<see cref="PrinterWebAddress.For"/>).</param>
+    /// <summary>The gateway asked for every known printer (composition tests).</summary>
+    internal IPrinterWebGateway Gateway => _gateway;
+
+    /// <summary>Opens the web interface; never throws. Cancelled before launching: opens nothing.</summary>
+    /// <param name="webUri">The validated plain address of the menu entry (<see cref="PrinterWebAddress.For"/>).</param>
     /// <param name="printer">
-    /// The printer the address belongs to, or <see langword="null"/> when it is not known (never sends credentials).
+    /// The printer the address belongs to, or <see langword="null"/> when it is not known (then the plain address is
+    /// opened and the gateway is not asked).
     /// </param>
     /// <returns><see langword="true"/> when the browser was started.</returns>
     public async Task<bool> OpenAsync(Uri webUri, PrinterDefinition? printer, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(webUri);
-        if (printer is { ConnectionType: ConnectionType.PrusaLink })
+        Uri plain = webUri;
+        if (printer is not null)
         {
-            string? password;
+            PrinterWebAccess access;
             try
             {
-                // Called from the menu click on the UI thread: the OS credential store (CredRead, Keychain) may block.
-                string key = SecretKeys.ForPrinter(printer.Id);
-                password = await Task.Run(() => _secrets.GetAsync(key, cancellationToken), cancellationToken).ConfigureAwait(false);
+                // Called from the menu click on the UI thread: the gateway may block on the OS credential store
+                // (CredRead, Keychain) before its first await, and checks the login with the printer.
+                access = await Task.Run(() => _gateway.OpenAsync(printer, cancellationToken), cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 return false;
             }
+            catch (ObjectDisposedException)
+            {
+                // The app is quitting (the container disposed the gateway): opening a browser now would be surprising.
+                return false;
+            }
             catch (Exception ex)
             {
-                // Secret store unavailable (locked keychain, no backend...): the browser asks for the login instead.
-                // The exception comes from the store, which never puts the secret into its messages.
-                LogPasswordUnavailable(ex, webUri.Host);
-                password = null;
+                // The gateway reports expected failures as results; anything else must not break the menu. Neither the
+                // exception nor its message is logged: they could carry an address with the access token.
+                LogGatewayFailed(printer.Id, ex.GetType().Name);
+                return await OpenPlainAsync(webUri, cancellationToken).ConfigureAwait(false);
             }
 
             if (cancellationToken.IsCancellationRequested)
@@ -64,20 +74,31 @@ internal sealed partial class PrinterWebOpener
                 return false;
             }
 
-            if (!string.IsNullOrEmpty(password))
+            if (access is { IsProxied: true, Address: { } proxyAddress })
             {
-                // Only the address without credentials is logged.
-                LogOpeningLoggedIn(webUri.AbsoluteUri);
-                return await _launcher.OpenWithCredentialsAsync(webUri, printer.UserName, password, cancellationToken).ConfigureAwait(false);
+                return await _launcher.OpenSecretAsync(proxyAddress, cancellationToken).ConfigureAwait(false);
             }
+
+            if (access.Fallback != PrinterWebFallback.NotSupported)
+            {
+                // Prusa Connect simply has no proxy; every other reason means the browser asks for the login itself.
+                LogOpeningPlain(printer.Id, access.Fallback);
+            }
+
+            plain = access.Address ?? webUri;
         }
 
-        return !cancellationToken.IsCancellationRequested && await _launcher.OpenAsync(webUri).ConfigureAwait(false);
+        return await OpenPlainAsync(plain, cancellationToken).ConfigureAwait(false);
     }
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The stored password for {Host} could not be read; opening its web interface without logging in.")]
-    private partial void LogPasswordUnavailable(Exception exception, string host);
+    private async Task<bool> OpenPlainAsync(Uri plain, CancellationToken cancellationToken)
+    {
+        return !cancellationToken.IsCancellationRequested && await _launcher.OpenAsync(plain).ConfigureAwait(false);
+    }
 
-    [LoggerMessage(Level = LogLevel.Debug, Message = "Opening the web interface {Address} logged in with the stored credentials.")]
-    private partial void LogOpeningLoggedIn(string address);
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Opening printer '{PrinterId}' logged in failed unexpectedly ({ExceptionType}); opening its plain address.")]
+    private partial void LogGatewayFailed(string printerId, string exceptionType);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Printer '{PrinterId}' is opened without logging in ({Reason}).")]
+    private partial void LogOpeningPlain(string printerId, PrinterWebFallback reason);
 }

@@ -23,8 +23,8 @@ public enum UrlLaunchPlatform
 /// <summary>
 /// Opens addresses with the OS default browser through <see cref="Process"/> (no reflection, Native AOT safe).
 /// Only addresses accepted by <see cref="PrinterWebAddress.IsSafeToLaunch"/> are started, and on macOS/Linux the
-/// address is passed as a single argument (no shell), so a crafted printer address cannot run anything else. Addresses
-/// with credentials (T-028) are built here from a safe base address, and they never reach the log.
+/// address is passed as a single argument (no shell), so a crafted printer address cannot run anything else. Secret
+/// addresses (the local web proxy with its access token, T-028) never reach the log.
 /// </summary>
 internal sealed partial class ProcessUrlLauncher : IUrlLauncher
 {
@@ -58,18 +58,16 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
 
         ProcessStartInfo info = CreateStartInfo(uri.AbsoluteUri, _platform);
         // Starting a process (ShellExecuteEx on Windows) can take a moment: never on the UI thread.
-        return Task.Run(() => Start(info, uri.Host, containsCredentials: false));
+        return Task.Run(() => Start(info, uri.Host, secret: false));
     }
 
-    public Task<bool> OpenWithCredentialsAsync(Uri baseUri, string userName, string password, CancellationToken cancellationToken)
+    public Task<bool> OpenSecretAsync(Uri uri, CancellationToken cancellationToken)
     {
-        ArgumentNullException.ThrowIfNull(baseUri);
-        ArgumentException.ThrowIfNullOrEmpty(userName);
-        ArgumentException.ThrowIfNullOrEmpty(password);
-        // The same check as for plain addresses: userinfo may only come from the stored credentials, never from the address.
-        if (!PrinterWebAddress.IsSafeToLaunch(baseUri))
+        ArgumentNullException.ThrowIfNull(uri);
+        if (!PrinterWebAddress.IsSafeToLaunch(uri))
         {
-            LogRejected(baseUri.IsAbsoluteUri ? baseUri.Scheme : "relative");
+            // Only the scheme: the rest of the address may be the secret.
+            LogRejected(uri.IsAbsoluteUri ? uri.Scheme : "relative");
             return Task.FromResult(false);
         }
 
@@ -78,8 +76,8 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
             return Task.FromResult(false);
         }
 
-        ProcessStartInfo info = CreateStartInfo(PrinterWebAddress.WithCredentials(baseUri, userName, password), _platform);
-        return Task.Run(() => !cancellationToken.IsCancellationRequested && Start(info, baseUri.Host, containsCredentials: true), CancellationToken.None);
+        ProcessStartInfo info = CreateStartInfo(uri.AbsoluteUri, _platform);
+        return Task.Run(() => !cancellationToken.IsCancellationRequested && Start(info, uri.Host, secret: true), CancellationToken.None);
     }
 
     /// <param name="address">Already escaped address, passed to the OS as is.</param>
@@ -100,7 +98,7 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
         : OperatingSystem.IsMacOS() ? UrlLaunchPlatform.MacOS
         : UrlLaunchPlatform.Linux;
 
-    private bool Start(ProcessStartInfo info, string host, bool containsCredentials)
+    private bool Start(ProcessStartInfo info, string host, bool secret)
     {
         try
         {
@@ -110,11 +108,11 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
         catch (Exception ex)
         {
             // No browser registered, blocked by policy... The menu stays usable; the address host helps diagnose.
-            if (containsCredentials)
+            if (secret)
             {
-                // Process.Start puts the file name (on Windows the whole address, password included) into the exception
+                // Process.Start puts the file name (on Windows the whole address, access token included) into the exception
                 // message, so neither the exception nor its message may reach the log.
-                LogLaunchWithCredentialsFailed(host, ex.GetType().Name, ex is Win32Exception win32 ? win32.NativeErrorCode : ex.HResult);
+                LogSecretLaunchFailed(host, ex.GetType().Name, ex is Win32Exception win32 ? win32.NativeErrorCode : ex.HResult);
             }
             else
             {
@@ -131,6 +129,6 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
     [LoggerMessage(Level = LogLevel.Error, Message = "Opening the web interface of {Host} in the browser failed.")]
     private partial void LogLaunchFailed(Exception exception, string host);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "Opening the web interface of {Host} logged in failed ({ExceptionType}, error {ErrorCode}).")]
-    private partial void LogLaunchWithCredentialsFailed(string host, string exceptionType, int errorCode);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Opening the logged-in web interface on {Host} failed ({ExceptionType}, error {ErrorCode}).")]
+    private partial void LogSecretLaunchFailed(string host, string exceptionType, int errorCode);
 }

@@ -49,8 +49,10 @@ Automaticky testovat skutečné Avalonia UI (XAML, kompilované bindingy, ovlád
     - (d) počkat na `Avalonia.Headless.XUnit` s podporou xUnit v3 4.x.
   - Oba balíčky jsou jen testovací, takže je požadavek na AOT netýká. Licence MIT.
   - **Doporučení architekta:** (c). Zachová xUnit 4.0.2 a pravidla centrální správy balíčků. Před implementací ověřit příčinu visícího `Dispose` (např. volat ho přes `Dispatch`, nebo nechat relaci žít do konce procesu).
+  - **Rozhodnuto 2026-10-18:** (c) samotný **`Avalonia.Headless`** s vlastní `HeadlessUnitTestSession`, **jedna relace na testovací sestavení**, bez snižování `xunit.v3`. Před implementací nejdřív zjistit příčinu visícího `Dispose`.
 - **Q2 – Kam testy umístit.** Do stávajícího `PrusaTrayDiagnostic.App.Tests` (sdílí fakes, `MenuFakes.cs`), nebo do nového `PrusaTrayDiagnostic.App.UiTests` (izolace headless platformy od ostatních testů)?
   - **Doporučení architekta:** nový projekt `tests/PrusaTrayDiagnostic.App.UiTests`. Sdílené fakes přesunout do `tests/Shared`.
+  - **Rozhodnuto 2026-10-18:** nový projekt **`tests/PrusaTrayDiagnostic.App.UiTests`**.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

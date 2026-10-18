@@ -49,8 +49,10 @@ Automaticky ověřit chybu, kterou nezachytily jednotkové testy první verze T-
   - Balíček `Microsoft.Playwright` (nupkg 213 MB) přidá do výstupu testů složku `.playwright` s ovladačem Node.js (`win32_x64`), asi 103 MB. Licence MIT. Testovací balíček je z požadavku na AOT vyjmutý a do produkční aplikace se nedostane.
   - Dokumentace: https://playwright.dev/dotnet/docs/browsers (Edge přes `Channel`, „new headless“ chování se může lišit od headless shellu), https://playwright.dev/dotnet/docs/test-runners.
   - **Doporučení architekta:** `Microsoft.Playwright` 1.63.0 bez `Microsoft.Playwright.Xunit.v3`, s vlastní xUnit v3 fixture.
+  - **Rozhodnuto 2026-10-18:** samotný **`Microsoft.Playwright` 1.63.0** s vlastní xUnit v3 fixture, bez `Microsoft.Playwright.Xunit.v3`.
 - **Q2 – Spouštění E2E testů.** Mají běžet v rámci běžného `dotnet test` celého řešení (přidá desítky sekund a 100+ MB výstupu), nebo jen na vyžádání, např. samostatný projekt mimo výchozí běh nebo filtr přes trait?
   - **Doporučení architekta:** samostatný projekt v řešení, běží v `dotnet test`, bez Edge se přeskočí. CI (T-016, odloženo) na runnerech Windows Edge má.
+  - **Rozhodnuto 2026-10-18:** **samostatný testovací projekt** v řešení, běží v běžném `dotnet test`. Když Edge chybí, testy se samy přeskočí (`Assert.Skip`).
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

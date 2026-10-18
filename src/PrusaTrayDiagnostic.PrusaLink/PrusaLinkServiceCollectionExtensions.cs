@@ -1,12 +1,18 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+
+using PrusaTrayDiagnostic.Core.Secrets;
+using PrusaTrayDiagnostic.Core.Web;
+using PrusaTrayDiagnostic.PrusaLink.WebProxy;
 
 namespace PrusaTrayDiagnostic.PrusaLink;
 
 public static class PrusaLinkServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="PrusaLinkClientFactory"/> and its HTTP configuration. Requires an
+    /// Registers <see cref="PrusaLinkClientFactory"/>, the web gateway (<see cref="IPrinterWebGateway"/>, T-028) and their
+    /// HTTP configurations. Requires an
     /// <see cref="Core.Secrets.ISecretStore"/> registration (platform specific, done by the app).
     /// </summary>
     public static IServiceCollection AddPrusaLink(this IServiceCollection services)
@@ -42,8 +48,33 @@ public static class PrusaLinkServiceCollectionExtensions
             // Per-request logging is not needed and costs allocations on every poll.
             .RemoveAllLoggers();
 
+        // Web proxy towards the printer (T-028): bodies are streamed (uploads of hundreds of MB), so there is no total
+        // timeout; a browser that gives up cancels the request.
+        services.AddHttpClient(PrusaLinkWebGateway.HttpClientName, static client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler
+            {
+                // The firmware serves at most 3 requests at once and monitoring uses one; further browser requests queue.
+                MaxConnectionsPerServer = 2,
+                PooledConnectionIdleTimeout = TimeSpan.FromSeconds(50),
+                PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+                ConnectTimeout = TimeSpan.FromSeconds(5),
+                // Redirects, cookies and compression are the browser's business: everything passes through unchanged.
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                UseProxy = false,
+                AutomaticDecompression = System.Net.DecompressionMethods.None,
+            })
+            .SetHandlerLifetime(Timeout.InfiniteTimeSpan)
+            .RemoveAllLoggers();
+
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<PrusaLinkClientFactory>();
+        services.TryAddSingleton(static sp => new PrusaLinkWebGateway(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ISecretStore>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILoggerFactory>()));
+        services.TryAddSingleton<IPrinterWebGateway>(static sp => sp.GetRequiredService<PrusaLinkWebGateway>());
         return services;
     }
 }
