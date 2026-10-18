@@ -40,7 +40,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         _printer = printer;
         _timeProvider = timeProvider;
         _logger = logger;
-        _authenticator = new DigestAuthenticator(secretStore, SecretKeys.ForPrinter(printer.Id), printer.UserName);
+        _authenticator = new DigestAuthenticator(secretStore, SecretKeys.ForPrinter(printer.Id), printer.UserName, timeProvider);
         _uris = PrusaLinkAddress.TryCreateBaseUri(printer.Address, out Uri? baseUri) ? new ApiUris(baseUri) : null;
     }
 
@@ -265,7 +265,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         using HttpRequestMessage request = new(HttpMethod.Get, uri);
         // Firmware answers errors as JSON only when application/json is the first accepted type.
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        if (_authenticator.GetAuthorization(uri.PathAndQuery) is { } authorization)
+        if (_authenticator.GetAuthorization(HttpMethod.Get, uri.PathAndQuery) is { } authorization)
         {
             request.Headers.TryAddWithoutValidation("Authorization", authorization);
         }

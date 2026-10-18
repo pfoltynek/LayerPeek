@@ -1,5 +1,9 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.Web;
 
 namespace PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 
@@ -8,6 +12,7 @@ internal sealed class FakeUrlLauncher : IUrlLauncher
 {
     private readonly Lock _lock = new();
     private readonly List<Uri> _opened = [];
+    private readonly List<Uri> _openedSecret = [];
 
     public bool Result { get; set; } = true;
 
@@ -22,6 +27,18 @@ internal sealed class FakeUrlLauncher : IUrlLauncher
         }
     }
 
+    /// <summary>Addresses that carry a secret (proxy addresses with their token, T-028), in call order.</summary>
+    public IReadOnlyList<Uri> OpenedSecret
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _openedSecret];
+            }
+        }
+    }
+
     public Task<bool> OpenAsync(Uri uri)
     {
         lock (_lock)
@@ -31,6 +48,56 @@ internal sealed class FakeUrlLauncher : IUrlLauncher
 
         return Task.FromResult(Result);
     }
+
+    public Task<bool> OpenSecretAsync(Uri uri, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromResult(false);
+        }
+
+        lock (_lock)
+        {
+            _openedSecret.Add(uri);
+        }
+
+        return Task.FromResult(Result);
+    }
+
+    /// <summary>
+    /// Waits until <paramref name="count"/> addresses were opened in total (plain or secret): the web opener asks the
+    /// gateway off the calling thread, so the launcher is reached asynchronously.
+    /// </summary>
+    public async Task WaitForOpenedAsync(int count)
+    {
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(10));
+        while (OpenedCount < count)
+        {
+            await Task.Delay(5, timeout.Token);
+        }
+    }
+
+    private int OpenedCount
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _opened.Count + _openedSecret.Count;
+            }
+        }
+    }
+}
+
+/// <summary>
+/// Creates the web opener used by the tray menu with in-memory fakes (no proxy, no OS credential store). Without a gateway
+/// it behaves like a printer without a stored password: the plain address is opened.
+/// </summary>
+internal static class TestWebOpener
+{
+    public static PrinterWebOpener Create(FakeUrlLauncher launcher, IPrinterWebGateway? gateway = null, ILogger? logger = null) =>
+        new(gateway ?? FakeWebGateway.WithoutPassword(), launcher, logger ?? NullLogger.Instance);
 }
 
 /// <summary>Keeps the menu as a list of entries and logs every operation, like the NativeMenu adapter would apply them.</summary>

@@ -40,6 +40,17 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
     /// <summary>Awaited at the start of every request, e.g. to make requests overlap.</summary>
     public Func<Task>? BeforeRequest { get; set; }
 
+    /// <summary>
+    /// Paths served without login (the firmware asks for Digest only on the API, not on the web pages and scripts).
+    /// </summary>
+    public Func<string, bool>? IsPublicPath { get; set; }
+
+    /// <summary>
+    /// Answers authorized requests (after the digest check) instead of the static routes, e.g. to stream bodies. Such
+    /// requests are recorded with status 100 (Continue) before the handler runs.
+    /// </summary>
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Handler { get; set; }
+
     /// <summary>Replaces the whole response, e.g. to throw or delay.</summary>
     public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Override { get; set; }
 
@@ -77,7 +88,8 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
 
         string uri = request.RequestUri!.PathAndQuery;
         string? authorization = request.Headers.Authorization?.ToString();
-        if (Authenticate(request.Method.Method, uri, authorization) is { } challenge)
+        bool isPublic = IsPublicPath?.Invoke(request.RequestUri.AbsolutePath) ?? false;
+        if (!isPublic && Authenticate(request.Method.Method, uri, authorization) is { } challenge)
         {
             Record(request, HttpStatusCode.Unauthorized);
             HttpResponseMessage unauthorized = new(HttpStatusCode.Unauthorized)
@@ -86,6 +98,12 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
             };
             unauthorized.Headers.TryAddWithoutValidation("WWW-Authenticate", challenge);
             return unauthorized;
+        }
+
+        if (Handler is not null)
+        {
+            Record(request, HttpStatusCode.Continue);
+            return await Handler(request, cancellationToken);
         }
 
         (HttpStatusCode status, string? body) = _routes.TryGetValue(request.RequestUri.AbsolutePath, out var route)

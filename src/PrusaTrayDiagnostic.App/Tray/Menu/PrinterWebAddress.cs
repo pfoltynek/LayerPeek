@@ -38,6 +38,19 @@ internal static class PrinterWebAddress
         return uri.IsAbsoluteUri
             && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
             && !string.IsNullOrEmpty(uri.Host)
-            && uri.UserInfo.Length == 0;
+            && uri.UserInfo.Length == 0
+            && !HasUserInfoDelimiter(uri);
+    }
+
+    /// <summary>
+    /// <see cref="Uri.UserInfo"/> is empty for <c>http://@host/</c>, yet the address keeps the <c>@</c>: a browser
+    /// may still treat it as an address with (empty) credentials, so such an address is not plain either.
+    /// </summary>
+    private static bool HasUserInfoDelimiter(Uri uri)
+    {
+        // Only called for http(s), whose absolute form always starts with "scheme://".
+        ReadOnlySpan<char> afterScheme = uri.AbsoluteUri.AsSpan(uri.Scheme.Length + "://".Length);
+        int end = afterScheme.IndexOfAny('/', '?', '#');
+        return (end < 0 ? afterScheme : afterScheme[..end]).Contains('@');
     }
 }

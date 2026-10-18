@@ -36,7 +36,7 @@ public sealed class TrayAllocationTests : IDisposable
     [Fact]
     public void SteadyPollingOfManyPrintersAllocatesNothingForTheMenu()
     {
-        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, new FakeUrlLauncher(), TrayMenuOptions.Default);
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(new FakeUrlLauncher()), TrayMenuOptions.Default);
         PrinterDefinition[] printers = Printers();
         viewModel.SetPrinters(printers);
 

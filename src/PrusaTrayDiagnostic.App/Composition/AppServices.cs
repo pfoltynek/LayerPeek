@@ -16,6 +16,7 @@ using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
 using PrusaTrayDiagnostic.PrusaLink;
 
 namespace PrusaTrayDiagnostic.App.Composition;
@@ -66,10 +67,16 @@ internal static class AppServices
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.Default);
+        // Opens PrusaLink logged in through the local web proxy registered by AddPrusaLink (T-028); the proxy starts on the
+        // first click, and disposing the container (quit) stops it.
+        services.AddSingleton(static sp => new PrinterWebOpener(
+            sp.GetRequiredService<IPrinterWebGateway>(),
+            sp.GetRequiredService<IUrlLauncher>(),
+            sp.GetRequiredService<ILogger<PrinterWebOpener>>()));
         services.AddSingleton(static sp => new TrayMenuViewModel(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<IUiDispatcher>(),
-            sp.GetRequiredService<IUrlLauncher>(),
+            sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<TrayMenuOptions>()));
         services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
         services.AddSingleton(sp => CreateNotificationService(sp, windows));
@@ -99,7 +106,8 @@ internal static class AppServices
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>()));
 
-        // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store.
+        // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
+        // web proxies of printers whose login changed are stopped (T-028).
         services.AddSingleton<ISettingsApplier>(static sp => sp.GetRequiredService<MonitoringSession>());
         services.AddSingleton(static sp => PasswordPolicy.For(sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<ISettingsEditorStore>(static sp => new SettingsEditorStore(
@@ -107,6 +115,7 @@ internal static class AppServices
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<PasswordPolicy>(),
             sp.GetRequiredService<ISettingsApplier>(),
+            sp.GetRequiredService<IPrinterWebGateway>(),
             sp.GetRequiredService<ILogger<SettingsEditorStore>>()));
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),

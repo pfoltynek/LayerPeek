@@ -10,6 +10,7 @@ using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.History;
@@ -17,6 +18,8 @@ using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
+using PrusaTrayDiagnostic.Core.Web;
+using PrusaTrayDiagnostic.PrusaLink.WebProxy;
 
 namespace PrusaTrayDiagnostic.App.Tests.Composition;
 
@@ -159,6 +162,22 @@ public sealed class AppServicesTests
         Assert.NotSame(first, second);
         Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
         Assert.True(first.IsLoading);
+    }
+
+    [Fact]
+    public async Task WebGatewayIsTheSharedPrusaLinkProxyAndStopsWithTheContainer()
+    {
+        ServiceProvider services = AppServices.Create();
+        IPrinterWebGateway gateway = services.GetRequiredService<IPrinterWebGateway>();
+
+        Assert.IsType<PrusaLinkWebGateway>(gateway);
+        Assert.Same(gateway, services.GetRequiredService<PrusaLinkWebGateway>());
+        Assert.Same(gateway, services.GetRequiredService<PrinterWebOpener>().Gateway);
+
+        // Quitting disposes the container asynchronously (TrayHost.StopAsync); the gateway then refuses new proxies.
+        await services.DisposeAsync().AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        PrinterDefinition printer = new() { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.10" };
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => gateway.OpenAsync(printer, TestContext.Current.CancellationToken));
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory
