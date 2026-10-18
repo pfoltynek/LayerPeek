@@ -55,6 +55,9 @@ src/
   PrusaTrayDiagnostic.App           Avalonia tray app, composition root, platform specifics
 tests/
   <Project>.Tests                   one xUnit v3 project per src library
+  PrusaTrayDiagnostic.E2E.Tests     cross-cutting browser E2E tests (Playwright + installed Edge, skipped without Edge)
+  PrusaTrayDiagnostic.App.UiTests   cross-cutting Avalonia headless UI tests (T-031)
+  Shared/                           test helpers shared by several test projects (linked files, no copies)
 docs/                               architecture & API notes (Czech)
 tasks/                              task backlog (Czech), see tasks/README.md
 .claude/agents/                     subagent definitions

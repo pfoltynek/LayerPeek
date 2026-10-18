@@ -5,7 +5,7 @@ status: todo
 owner: core-dev
 priority: P1
 platform: macos
-depends_on: [T-002]
+depends_on: [T-002, T-030]
 ---
 
 ## Cíl
@@ -37,6 +37,7 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
 - [ ] Zprávy výjimek ani logy neobsahují tajný údaj
 - [ ] Lokální Native AOT publish `osx-arm64` bez trim/AOT varování z kódu projektu
 - [ ] Windows build a testy beze změny chování (`WindowsCredentialSecretStore` se nemění)
+- [ ] Otevření webu PrusaLink přes lokální proxy (T-028) funguje na macOS: E2E testy z T-030 (`tests/PrusaTrayDiagnostic.E2E.Tests`) na macOS s nainstalovaným Edge projdou, bez Edge se korektně přeskočí a nic po sobě nenechají. `OwnProcesses.UnixCommandLine` zrychlit na jedno volání `ps -axww -o pid=,command=` (rozhodnuto uživatelem 2026-10-18).
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
