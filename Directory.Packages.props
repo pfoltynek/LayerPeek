@@ -6,6 +6,11 @@
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
   <ItemGroup Label="Tests">
+    <!-- Headless Avalonia platform for the UI tests (T-031); MIT, test-only (never referenced by src/), same version as Avalonia. -->
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.4" />
+    <!-- Snapshot tests (T-031), test-only: Skia rendering and the bundled Inter font (package MIT, font SIL OFL 1.1). -->
+    <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
+    <PackageVersion Include="Avalonia.Skia" Version="12.1.4" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <!-- Browser tests only (T-030); MIT, not AOT relevant: never referenced by src/. -->
     <PackageVersion Include="Microsoft.Playwright" Version="1.63.0" />

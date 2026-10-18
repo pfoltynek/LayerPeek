@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- Same as the app: the views under test keep compiled bindings. -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Headless UI tests (T-031): the plain Avalonia.Headless platform with an own xUnit v3 assembly fixture
+      (Infrastructure/HeadlessSession.cs). Avalonia.Headless.XUnit is not used: 12.1.4 is built against
+      xunit.v3.extensibility.core 3.2.2 and fails test discovery with xunit.v3 4.x. Skia renders the snapshot tests,
+      Inter is the only font they use (no installed system font). All test-only, not AOT relevant.
+    -->
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Reference images of the snapshot tests live in the source tree (updated with PTD_UPDATE_SNAPSHOTS=1). -->
+    <AssemblyMetadata Include="SnapshotDirectory" Value="$(MSBuildProjectDirectory)$([System.IO.Path]::DirectorySeparatorChar)Snapshots" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <!-- The fakes of the view model tests, linked (no copy that could diverge). -->
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Settings\SettingsFakes.cs" Link="Shared\SettingsFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\TrayFakes.cs" Link="Shared\TrayFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\MenuFakes.cs" Link="Shared\MenuFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\FakeWebGateway.cs" Link="Shared\FakeWebGateway.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PrusaTrayDiagnostic.App\PrusaTrayDiagnostic.App.csproj" />
+  </ItemGroup>
+</Project>

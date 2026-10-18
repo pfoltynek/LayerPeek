@@ -17,6 +17,7 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PrusaTrayDiagnostic.App.Tests" />
+    <InternalsVisibleTo Include="PrusaTrayDiagnostic.App.UiTests" />
   </ItemGroup>
   <PropertyGroup>
     <!-- English strings live in the main assembly; other languages in satellite assemblies (compiled into the AOT binary). -->
