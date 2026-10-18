@@ -1,7 +1,7 @@
 ---
 id: T-013
 title: Více tiskáren
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
