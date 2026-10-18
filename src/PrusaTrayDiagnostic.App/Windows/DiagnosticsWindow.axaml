@@ -1,0 +1,175 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PrusaTrayDiagnostic.App.Diagnostics"
+        xmlns:chart="using:PrusaTrayDiagnostic.App.Diagnostics.Chart"
+        xmlns:res="using:PrusaTrayDiagnostic.App.Resources"
+        x:Class="PrusaTrayDiagnostic.App.Windows.DiagnosticsWindow"
+        x:DataType="vm:DiagnosticsViewModel"
+        Title="{x:Static res:Strings.DiagnosticsTitle}"
+        Icon="/Assets/tray-idle.png"
+        Width="560"
+        Height="760"
+        MinWidth="420"
+        MinHeight="420"
+        WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <ResourceDictionary>
+      <!-- Chart colours per theme; the chart and its legend follow a theme change through DynamicResource. -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#D9480F" />
+          <SolidColorBrush x:Key="ChartBedBrush" Color="#1864AB" />
+          <SolidColorBrush x:Key="ChartAxisBrush" Color="#616161" />
+          <SolidColorBrush x:Key="ChartGridBrush" Color="#E6E6E6" />
+          <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#FF8A4C" />
+          <SolidColorBrush x:Key="ChartBedBrush" Color="#4DABF7" />
+          <SolidColorBrush x:Key="ChartAxisBrush" Color="#ADADAD" />
+          <SolidColorBrush x:Key="ChartGridBrush" Color="#3A3A3A" />
+          <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,16,0,6" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Opacity" Value="0.75" />
+      <Setter Property="Margin" Value="0,2,16,2" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="Margin" Value="0,2,16,2" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <Button DockPanel.Dock="Bottom"
+            HorizontalAlignment="Right"
+            Margin="0,12,0,0"
+            Content="{x:Static res:Strings.DiagnosticsClose}"
+            IsCancel="True"
+            Click="OnCloseClicked" />
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel>
+        <!-- Printer: a selector when several printers are configured, otherwise just the name. -->
+        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasPrinterSelector}" Margin="0,0,0,8">
+          <TextBlock Text="{x:Static res:Strings.DiagnosticsPrinter}" VerticalAlignment="Center" Margin="0,0,12,0" />
+          <ComboBox Grid.Column="1"
+                    HorizontalAlignment="Stretch"
+                    ItemsSource="{Binding Printers}"
+                    SelectedItem="{Binding SelectedPrinter}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:PrinterChoice">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+        <TextBlock Text="{Binding SelectedPrinter.Name, FallbackValue={x:Null}}"
+                   IsVisible="{Binding !HasPrinterSelector}"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Margin="0,0,0,8" />
+
+        <Border IsVisible="{Binding HasNotice}"
+                Background="{DynamicResource NoticeBrush}"
+                CornerRadius="4"
+                Padding="10,6"
+                Margin="0,0,0,8">
+          <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
+        </Border>
+
+        <StackPanel IsVisible="{Binding HasPrinter}">
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock Classes="label" Text="{x:Static res:Strings.DiagnosticsState}" />
+            <TextBlock Classes="value" Grid.Column="1" Text="{Binding StateText}" FontWeight="SemiBold" />
+            <TextBlock Classes="label" Grid.Row="1" Text="{x:Static res:Strings.DiagnosticsDetail}" IsVisible="{Binding HasDetail}" />
+            <TextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding DetailText}" IsVisible="{Binding HasDetail}" />
+            <TextBlock Classes="label" Grid.Row="2" Text="{x:Static res:Strings.DiagnosticsLastUpdate}" />
+            <TextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding LastUpdateText}" />
+          </Grid>
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.DiagnosticsTemperatures}" />
+          <Grid ColumnDefinitions="Auto,Auto,Auto" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock Classes="label" Grid.Column="1" Text="{x:Static res:Strings.DiagnosticsActual}" />
+            <TextBlock Classes="label" Grid.Column="2" Text="{x:Static res:Strings.DiagnosticsTarget}" />
+            <TextBlock Classes="label" Grid.Row="1" Text="{x:Static res:Strings.DiagnosticsNozzle}" />
+            <TextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding NozzleActualText}" FontWeight="SemiBold" />
+            <TextBlock Classes="value" Grid.Row="1" Grid.Column="2" Text="{Binding NozzleTargetText}" />
+            <TextBlock Classes="label" Grid.Row="2" Text="{x:Static res:Strings.DiagnosticsBed}" />
+            <TextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding BedActualText}" FontWeight="SemiBold" />
+            <TextBlock Classes="value" Grid.Row="2" Grid.Column="2" Text="{Binding BedTargetText}" />
+          </Grid>
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.DiagnosticsMotionAndFans}" />
+          <Grid ColumnDefinitions="Auto,*,Auto,*" RowDefinitions="Auto,Auto,Auto">
+            <TextBlock Classes="label" Text="{x:Static res:Strings.DiagnosticsHotendFan}" />
+            <TextBlock Classes="value" Grid.Column="1" Text="{Binding HotendFanText}" />
+            <TextBlock Classes="label" Grid.Column="2" Text="{x:Static res:Strings.DiagnosticsSpeed}" />
+            <TextBlock Classes="value" Grid.Column="3" Text="{Binding SpeedText}" />
+            <TextBlock Classes="label" Grid.Row="1" Text="{x:Static res:Strings.DiagnosticsPrintFan}" />
+            <TextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding PrintFanText}" />
+            <TextBlock Classes="label" Grid.Row="1" Grid.Column="2" Text="{x:Static res:Strings.DiagnosticsFlow}" />
+            <TextBlock Classes="value" Grid.Row="1" Grid.Column="3" Text="{Binding FlowText}" />
+            <TextBlock Classes="label" Grid.Row="2" Grid.Column="2" Text="{x:Static res:Strings.DiagnosticsAxisZ}" />
+            <TextBlock Classes="value" Grid.Row="2" Grid.Column="3" Text="{Binding AxisZText}" />
+          </Grid>
+
+          <Grid ColumnDefinitions="*,Auto" Margin="0,16,0,6">
+            <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Text="{x:Static res:Strings.DiagnosticsChart}" />
+            <ComboBox Grid.Column="1"
+                      MinWidth="96"
+                      ItemsSource="{Binding TimeWindows}"
+                      SelectedItem="{Binding SelectedTimeWindow}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:ChartWindowOption">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </Grid>
+          <WrapPanel Margin="0,0,0,4">
+            <Rectangle Width="18" Height="3" Fill="{DynamicResource ChartNozzleBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock Text="{x:Static res:Strings.DiagnosticsNozzle}" Margin="0,0,16,0" />
+            <Rectangle Width="18" Height="3" Fill="{DynamicResource ChartBedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock Text="{x:Static res:Strings.DiagnosticsBed}" Margin="0,0,16,0" />
+            <TextBlock Text="{x:Static res:Strings.DiagnosticsChartTargetLegend}" Opacity="0.75" />
+          </WrapPanel>
+          <chart:TemperatureChart Height="240"
+                                  History="{Binding History}"
+                                  PrinterId="{Binding ChartPrinterId}"
+                                  TimeWindow="{Binding SelectedTimeWindow.Window}"
+                                  Clock="{Binding Clock}"
+                                  NozzleBrush="{DynamicResource ChartNozzleBrush}"
+                                  BedBrush="{DynamicResource ChartBedBrush}"
+                                  AxisBrush="{DynamicResource ChartAxisBrush}"
+                                  GridBrush="{DynamicResource ChartGridBrush}"
+                                  NoDataText="{x:Static res:Strings.DiagnosticsChartNoData}" />
+
+          <TextBlock Classes="section" Text="{x:Static res:Strings.DiagnosticsPrinterInfo}" />
+          <TextBlock Text="{Binding InfoStatusText}" IsVisible="{Binding HasInfoStatus}" Opacity="0.75" Margin="0,0,0,4" TextWrapping="Wrap" />
+          <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+            <TextBlock Classes="label" Text="{x:Static res:Strings.DiagnosticsFirmware}" />
+            <TextBlock Classes="value" Grid.Column="1" Text="{Binding FirmwareText}" />
+            <TextBlock Classes="label" Grid.Row="1" Text="{x:Static res:Strings.DiagnosticsModel}" />
+            <TextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding ModelText}" />
+            <TextBlock Classes="label" Grid.Row="2" Text="{x:Static res:Strings.DiagnosticsHostname}" />
+            <TextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding HostnameText}" />
+            <TextBlock Classes="label" Grid.Row="3" Text="{x:Static res:Strings.DiagnosticsNozzleDiameter}" />
+            <TextBlock Classes="value" Grid.Row="3" Grid.Column="1" Text="{Binding NozzleDiameterText}" />
+            <TextBlock Classes="label" Grid.Row="4" Text="{x:Static res:Strings.DiagnosticsMmu}" />
+            <TextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding MmuText}" />
+          </Grid>
+        </StackPanel>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

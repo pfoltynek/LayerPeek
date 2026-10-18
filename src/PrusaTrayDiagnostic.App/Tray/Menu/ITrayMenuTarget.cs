@@ -41,5 +41,8 @@ internal interface ITrayAppCommands
 {
     void ShowAbout();
 
+    /// <summary>Opens the diagnostics window, or activates it when it is already open.</summary>
+    void ShowDiagnostics();
+
     void Quit();
 }

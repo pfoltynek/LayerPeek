@@ -47,7 +47,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         Assert.Collection(
             _viewModel.FixedItems,
             item => AssertCommand(item, TrayMenuCommand.Settings, "Settings…", enabled: false),
-            item => AssertCommand(item, TrayMenuCommand.Diagnostics, "Diagnostics…", enabled: false),
+            item => AssertCommand(item, TrayMenuCommand.Diagnostics, "Diagnostics…", enabled: true),
             item => Assert.True(item.IsSeparator),
             item => AssertCommand(item, TrayMenuCommand.About, "About", enabled: true),
             item => AssertCommand(item, TrayMenuCommand.Quit, "Quit", enabled: true));
