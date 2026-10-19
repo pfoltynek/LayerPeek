@@ -16,9 +16,11 @@ public static class CameraWindowDefaultPlacement
     public const double MarginDip = 16;
 
     /// <summary>
-    /// The monitor for a camera window: the one matching <paramref name="monitor"/> (name and resolution, see
-    /// <see cref="CameraMonitorId.Matches"/>; the first match in list order), otherwise the primary one (the first screen
-    /// when none is flagged primary). <see langword="null"/> when there are no screens.
+    /// The monitor for a camera window (T-035 Q4): the first screen matching <paramref name="monitor"/> exactly (name and
+    /// resolution, <see cref="CameraMonitorId.Matches"/>), else the first screen with the same name
+    /// (<see cref="CameraMonitorId.MatchesName"/>), else the primary one (the first screen when none is flagged primary)
+    /// with <see cref="CameraScreenSelection.PreferredMonitorMissing"/>. "First" is list order.
+    /// <see langword="null"/> when there are no screens.
     /// </summary>
     public static CameraScreenSelection? SelectScreen(CameraMonitorId? monitor, IReadOnlyList<CameraScreen> screens)
     {
@@ -30,12 +32,23 @@ public static class CameraWindowDefaultPlacement
 
         if (monitor is not null)
         {
+            CameraScreen? sameName = null;
             foreach (CameraScreen screen in screens)
             {
                 if (monitor.Matches(screen))
                 {
                     return new CameraScreenSelection(screen, PreferredMonitorMissing: false);
                 }
+
+                if (sameName is null && monitor.MatchesName(screen))
+                {
+                    sameName = screen;
+                }
+            }
+
+            if (sameName is not null)
+            {
+                return new CameraScreenSelection(sameName, PreferredMonitorMissing: false);
             }
         }
 
@@ -50,6 +63,26 @@ public static class CameraWindowDefaultPlacement
         }
 
         return new CameraScreenSelection(primary, PreferredMonitorMissing: monitor is not null);
+    }
+
+    /// <summary>
+    /// Whether the saved <paramref name="monitor"/> is connected: some screen has its name, whatever its resolution
+    /// (<see cref="CameraMonitorId.MatchesName"/>). The settings show it as "not connected" otherwise; it is the inverse of
+    /// <see cref="CameraScreenSelection.PreferredMonitorMissing"/> for a non-empty screen list.
+    /// </summary>
+    public static bool IsConnected(CameraMonitorId monitor, IReadOnlyList<CameraScreen> screens)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        ArgumentNullException.ThrowIfNull(screens);
+        foreach (CameraScreen screen in screens)
+        {
+            if (monitor.MatchesName(screen))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

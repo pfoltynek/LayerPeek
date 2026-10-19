@@ -2,8 +2,9 @@ namespace PrusaTrayDiagnostic.Core.Cameras;
 
 /// <summary>
 /// The monitor chosen for a camera window (T-035): the name the OS reports for it (<see cref="CameraScreen.DisplayName"/>)
-/// and its resolution in pixels (size of <see cref="CameraScreen.Bounds"/>). A screen matches only when both are equal,
-/// the name compared ordinally (see <see cref="Matches"/> and <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
+/// and its resolution in pixels (size of <see cref="CameraScreen.Bounds"/>). An exact match (<see cref="Matches"/>) is
+/// preferred, a screen with the same name and another resolution (<see cref="MatchesName"/>) comes next; names are
+/// compared ordinally (see <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
 /// </summary>
 public sealed record CameraMonitorId
 {
@@ -59,12 +60,14 @@ public sealed record CameraMonitorId
         return new CameraMonitorId(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height);
     }
 
-    /// <summary>Whether <paramref name="screen"/> is this monitor: same name (ordinal) and same resolution.</summary>
-    public bool Matches(CameraScreen screen)
+    /// <summary>Exact match: same name (ordinal) and same resolution.</summary>
+    public bool Matches(CameraScreen screen) =>
+        MatchesName(screen) && Width == screen.Bounds.Width && Height == screen.Bounds.Height;
+
+    /// <summary>Same name (ordinal), any resolution: the monitor counts as connected (its resolution may have changed or it was rotated).</summary>
+    public bool MatchesName(CameraScreen screen)
     {
         ArgumentNullException.ThrowIfNull(screen);
-        return string.Equals(DisplayName, screen.DisplayName, StringComparison.Ordinal)
-            && Width == screen.Bounds.Width
-            && Height == screen.Bounds.Height;
+        return string.Equals(DisplayName, screen.DisplayName, StringComparison.Ordinal);
     }
 }

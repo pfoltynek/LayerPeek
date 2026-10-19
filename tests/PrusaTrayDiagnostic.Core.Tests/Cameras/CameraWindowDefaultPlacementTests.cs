@@ -136,14 +136,74 @@ public class CameraWindowDefaultPlacementTests
     }
 
     [Fact]
-    public void SameNameWithOtherResolutionIsMissing()
+    public void SameNameWithOtherResolutionIsUsed()
     {
-        CameraWindowDefaults defaults = new() { Monitor = new CameraMonitorId("DISPLAY2", 1920, 1080) };
+        // Q4 (2026-10-19): a monitor whose resolution changed (or that was rotated) is still the chosen one.
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(new CameraMonitorId("DISPLAY2", 1440, 2560), [Primary, Right])!;
 
-        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(defaults.Monitor, [Primary, Right])!;
+        Assert.Same(Right, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+    }
 
-        Assert.Same(Primary, selection.Screen);
-        Assert.True(selection.PreferredMonitorMissing);
+    [Fact]
+    public void SameNameWithOtherResolutionIsPlacedOnThatMonitor()
+    {
+        CameraWindowDefaults defaults = new()
+        {
+            Monitor = new CameraMonitorId("DISPLAY2", 1920, 1080),
+            Normal = new CameraWindowLayout(new CameraWindowSize(960, 540), CameraWindowCorner.TopLeft),
+        };
+
+        CameraWindowTarget target = Compute(defaults, CameraWindowMode.Normal, Primary, Right);
+
+        Assert.Same(Right, target.Screen);
+        Assert.False(target.PreferredMonitorMissing);
+        Assert.Equal(new PixelBounds(1944, 24, 1440, 810), target.Bounds);
+    }
+
+    [Fact]
+    public void SameNameMonitorsPreferExactResolution()
+    {
+        CameraScreen twinSmall = new("DELL", new PixelBounds(1920, 0, 1920, 1080), new PixelBounds(1920, 0, 1920, 1040), 1.0, IsPrimary: false);
+        CameraScreen twinLarge = new("DELL", new PixelBounds(3840, 0, 2560, 1440), new PixelBounds(3840, 0, 2560, 1400), 1.0, IsPrimary: false);
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(new CameraMonitorId("DELL", 2560, 1440), [Primary, twinSmall, twinLarge])!;
+
+        Assert.Same(twinLarge, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+    }
+
+    [Fact]
+    public void SameNameMonitorsWithoutExactResolutionUseTheFirstByOrder()
+    {
+        CameraScreen twinSmall = new("DELL", new PixelBounds(1920, 0, 1920, 1080), new PixelBounds(1920, 0, 1920, 1040), 1.0, IsPrimary: false);
+        CameraScreen twinLarge = new("DELL", new PixelBounds(3840, 0, 2560, 1440), new PixelBounds(3840, 0, 2560, 1400), 1.0, IsPrimary: false);
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(new CameraMonitorId("DELL", 3840, 2160), [Primary, twinLarge, twinSmall])!;
+
+        Assert.Same(twinLarge, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+    }
+
+    [Fact]
+    public void ConnectedMeansAScreenWithTheSameName()
+    {
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(new CameraMonitorId("DISPLAY2", 2560, 1440), [Primary, Right]));
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(new CameraMonitorId("DISPLAY2", 1920, 1080), [Primary, Right]));
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(new CameraMonitorId("display2", 2560, 1440), [Primary, Right]));
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(new CameraMonitorId("DISPLAY7", 2560, 1440), [Primary, Right]));
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(new CameraMonitorId("DISPLAY2", 2560, 1440), []));
+    }
+
+    [Fact]
+    public void MonitorIdMatchesNameAndResolutionSeparately()
+    {
+        CameraMonitorId rotated = new("DISPLAY2", 1440, 2560);
+
+        Assert.True(rotated.MatchesName(Right));
+        Assert.False(rotated.Matches(Right));
+        Assert.True(CameraMonitorId.FromScreen(Right).Matches(Right));
+        Assert.False(rotated.MatchesName(Primary));
     }
 
     [Fact]
