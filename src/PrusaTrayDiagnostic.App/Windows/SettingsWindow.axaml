@@ -7,10 +7,16 @@
         Title="{Binding [SettingsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
         Icon="/Assets/tray-idle.png"
         Width="780"
-        Height="680"
+        Height="508"
         MinWidth="640"
-        MinHeight="480"
+        MinHeight="400"
         WindowStartupLocation="CenterScreen">
+  <!--
+    Layout of T-033: the window (client 780 × 508 DIP, plus a title bar of about 32) fits an 800 × 600 screen at 100 %
+    without scrolling, in every language and with every validation message and test result. SettingsWindowPlacement
+    shrinks it to a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case and for the
+    notice bar at the top. Sizes and spacing follow the approved design in the task (T-033, "Návrh UI").
+  -->
   <Window.Resources>
     <ResourceDictionary>
       <ResourceDictionary.ThemeDictionaries>
@@ -30,13 +36,13 @@
 
   <Window.Styles>
     <Style Selector="TextBlock.label">
-      <Setter Property="Margin" Value="0,10,0,4" />
+      <Setter Property="Margin" Value="0,0,0,4" />
     </Style>
     <Style Selector="TextBlock.hint">
       <Setter Property="Opacity" Value="0.7" />
       <Setter Property="FontSize" Value="12" />
       <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="Margin" Value="0,2,0,0" />
+      <Setter Property="Margin" Value="0,4,0,0" />
     </Style>
     <Style Selector="TextBlock.error">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
@@ -48,6 +54,15 @@
       <Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Margin" Value="0,16,0,4" />
     </Style>
+    <Style Selector="TextBlock.marker">
+      <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="FontWeight" Value="Bold" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+    </Style>
+    <!-- Test results: running / cancelled in the normal text colour, success green, failure red. -->
+    <Style Selector="TextBlock.result">
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
     <Style Selector="TextBlock.result.success">
       <Setter Property="Foreground" Value="{DynamicResource SettingsSuccessBrush}" />
     </Style>
@@ -57,11 +72,313 @@
     <Style Selector="TextBlock.status.isError">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
     </Style>
+    <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
+    <Style Selector="TabControl.main, TabControl.sub">
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="TabControl.main > TabItem">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="MinHeight" Value="36" />
+      <Setter Property="Padding" Value="12,0" />
+    </Style>
+    <Style Selector="TabControl.sub > TabItem">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="10,0" />
+    </Style>
   </Window.Styles>
 
-  <DockPanel Margin="16">
+  <!-- Declared in reading order, which is also the Tab order: notice, tabs with their content, then Save / Cancel. -->
+  <Grid Margin="16,8,16,12" RowDefinitions="Auto,Auto,*,Auto">
+    <Border Background="{DynamicResource NoticeBrush}"
+            CornerRadius="4"
+            Padding="10,6"
+            Margin="0,0,0,8"
+            IsVisible="{Binding HasNotice}">
+      <TextBlock AutomationProperties.AutomationId="SettingsNotice" Text="{Binding Notice}" TextWrapping="Wrap" />
+    </Border>
+    <TextBlock Grid.Row="1" Text="{Binding [SettingsLoading], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding IsLoading}" Margin="0,0,0,8" />
+
+    <TabControl x:Name="MainTabs"
+                Grid.Row="2"
+                Classes="main"
+                AutomationProperties.AutomationId="SettingsTabs"
+                SelectedIndex="{Binding SelectedTabIndex}"
+                IsEnabled="{Binding IsEditable}">
+      <!-- Printers: list on the left, sub-tabs of the selected printer on the right. -->
+      <TabItem AutomationProperties.AutomationId="SettingsTabPrinters" Header="{Binding [SettingsTabPrinters], Source={x:Static loc:LocalizedStrings.Instance}}">
+        <Grid ColumnDefinitions="184,16,*" Margin="0,8,0,0">
+          <Grid RowDefinitions="*,Auto">
+            <ListBox AutomationProperties.AutomationId="SettingsPrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding SelectedPrinter}">
+              <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                  <Grid ColumnDefinitions="Auto,*">
+                    <TextBlock Classes="marker" Text="!" IsVisible="{Binding ShowsErrorMarker}" />
+                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </DataTemplate>
+              </ListBox.ItemTemplate>
+            </ListBox>
+            <StackPanel Grid.Row="1" Spacing="8" Margin="0,8,0,0">
+              <Button AutomationProperties.AutomationId="SettingsAddPrinter"
+                      HorizontalAlignment="Stretch"
+                      Content="{Binding [SettingsAddPrinter], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      Command="{Binding AddPrinterCommand}" />
+              <Button AutomationProperties.AutomationId="SettingsRemovePrinter"
+                      HorizontalAlignment="Stretch"
+                      Content="{Binding [SettingsRemovePrinter], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      Command="{Binding RemovePrinterCommand}" />
+            </StackPanel>
+          </Grid>
+
+          <TextBlock Grid.Column="2"
+                     Text="{Binding [SettingsNoPrinters], Source={x:Static loc:LocalizedStrings.Instance}}"
+                     IsVisible="{Binding HasNoPrinters}"
+                     TextWrapping="Wrap"
+                     Opacity="0.75" />
+
+          <!-- The selected sub-tab belongs to the window, so it stays when another printer is selected. -->
+          <TabControl x:Name="PrinterTabs"
+                      Grid.Column="2"
+                      Classes="sub"
+                      AutomationProperties.AutomationId="SettingsPrinterTabs"
+                      SelectedIndex="{Binding SelectedPrinterTabIndex}"
+                      IsVisible="{Binding HasSelectedPrinter}">
+            <!-- Printer: name, connection, address, user name, password, test. -->
+            <TabItem AutomationProperties.AutomationId="PrinterTabConnection"
+                     AutomationProperties.Name="{Binding SelectedPrinter.ConnectionTabName, FallbackValue={x:Null}}">
+              <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock AutomationProperties.AutomationId="PrinterTabConnectionMarker" Classes="marker" Text="!" IsVisible="{Binding SelectedPrinter.ShowsConnectionErrorMarker, FallbackValue=False}" />
+                  <TextBlock Text="{Binding [SettingsPrinterTabConnection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </StackPanel>
+              </TabItem.Header>
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+                <ContentControl Content="{Binding SelectedPrinter}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                      <StackPanel>
+                        <!-- Name and connection side by side; the name error spans both (the connection never has one). -->
+                        <Grid ColumnDefinitions="*,16,320" RowDefinitions="Auto,Auto,Auto">
+                          <TextBlock Classes="label" Text="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          <TextBox Grid.Row="1"
+                                   AutomationProperties.AutomationId="PrinterName"
+                                   AutomationProperties.Name="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                   Text="{Binding Name}"
+                                   MaxLength="200" />
+                          <TextBlock Grid.Row="2" Grid.ColumnSpan="3" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          <TextBlock Grid.Column="2" Classes="label" Text="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          <ComboBox Grid.Column="2"
+                                    Grid.Row="1"
+                                    AutomationProperties.AutomationId="PrinterConnectionType"
+                                    AutomationProperties.Name="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    ItemsSource="{Binding ConnectionTypes}"
+                                    SelectedItem="{Binding SelectedConnectionType}"
+                                    HorizontalAlignment="Stretch">
+                            <ComboBox.Styles>
+                              <Style Selector="ComboBoxItem" x:DataType="vm:ConnectionTypeOption">
+                                <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
+                              </Style>
+                            </ComboBox.Styles>
+                            <ComboBox.ItemTemplate>
+                              <DataTemplate x:DataType="vm:ConnectionTypeOption">
+                                <TextBlock Text="{Binding Text}" />
+                              </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                          </ComboBox>
+                        </Grid>
+
+                        <!-- An error replaces the hint of its field while it is shown (T-033). -->
+                        <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                        <TextBox AutomationProperties.AutomationId="PrinterAddress"
+                                 AutomationProperties.Name="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                 Text="{Binding Address}"
+                                 PlaceholderText="192.168.1.20" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterAddressHint" Classes="hint" Text="{Binding [SettingsAddressHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsAddressHint}" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterAddressError" Classes="error" Text="{Binding AddressError}" IsVisible="{Binding AddressError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                        <Grid ColumnDefinitions="*,16,*" Margin="0,8,0,0">
+                          <StackPanel>
+                            <TextBlock AutomationProperties.AutomationId="PrinterUserNameLabel" Classes="label" Text="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <TextBox AutomationProperties.AutomationId="PrinterUserName"
+                                     AutomationProperties.Name="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     Text="{Binding UserName}"
+                                     MaxLength="200"
+                                     IsEnabled="{Binding IsPrusaLink}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterUserNameHint" Classes="hint" Text="{Binding UserNameHint}" IsVisible="{Binding ShowsUserNameHint}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterUserNameError" Classes="error" Text="{Binding UserNameError}" IsVisible="{Binding UserNameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="2">
+                            <TextBlock Classes="label" Text="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <TextBox AutomationProperties.AutomationId="PrinterPassword"
+                                     AutomationProperties.Name="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     Text="{Binding Password}"
+                                     PasswordChar="●"
+                                     PlaceholderText="{Binding PasswordWatermark}"
+                                     IsEnabled="{Binding IsPasswordEnabled}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterPasswordHint" Classes="hint" Text="{Binding PasswordHint}" IsVisible="{Binding ShowsPasswordHint}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterPasswordError" Classes="error" Text="{Binding PasswordError}" IsVisible="{Binding PasswordError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          </StackPanel>
+                        </Grid>
+
+                        <!-- The result wraps right of the buttons. -->
+                        <Grid ColumnDefinitions="Auto,*" Margin="0,12,0,0">
+                          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Top">
+                            <Button AutomationProperties.AutomationId="PrinterTestConnection" Content="{Binding [SettingsTestConnection], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding TestConnectionCommand}" />
+                            <Button AutomationProperties.AutomationId="PrinterCancelTest" Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelTestCommand}" IsVisible="{Binding IsTesting}" />
+                            <ProgressBar IsIndeterminate="True" Width="48" MinWidth="48" VerticalAlignment="Center" IsVisible="{Binding IsTesting}" />
+                          </StackPanel>
+                          <TextBlock Grid.Column="1"
+                                     AutomationProperties.AutomationId="PrinterTestResult"
+                                     Classes="result"
+                                     Classes.success="{Binding TestSucceeded}"
+                                     Classes.failure="{Binding TestFailed}"
+                                     Text="{Binding TestResultText}"
+                                     IsVisible="{Binding HasTestResult}"
+                                     VerticalAlignment="Top"
+                                     Margin="12,6,0,0" />
+                        </Grid>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+              </ScrollViewer>
+            </TabItem>
+
+            <!-- Camera (T-014): RTSP stream shown from the tray menu. The preview (T-034) comes later. -->
+            <TabItem AutomationProperties.AutomationId="PrinterTabCamera"
+                     AutomationProperties.Name="{Binding SelectedPrinter.CameraTabName, FallbackValue={x:Null}}">
+              <TabItem.Header>
+                <StackPanel Orientation="Horizontal">
+                  <TextBlock AutomationProperties.AutomationId="PrinterTabCameraMarker" Classes="marker" Text="!" IsVisible="{Binding SelectedPrinter.ShowsCameraErrorMarker, FallbackValue=False}" />
+                  <TextBlock Text="{Binding [SettingsCamera], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </StackPanel>
+              </TabItem.Header>
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+                <ContentControl Content="{Binding SelectedPrinter}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                      <StackPanel>
+                        <Border Background="{DynamicResource NoticeBrush}"
+                                CornerRadius="4"
+                                Padding="10,6"
+                                Margin="0,0,0,8"
+                                IsVisible="{Binding CameraCredentialsRemoved}">
+                          <TextBlock AutomationProperties.AutomationId="PrinterCameraCredentialsRemoved" FontSize="12" Text="{Binding [SettingsCameraCredentialsRemoved], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+                        </Border>
+                        <CheckBox AutomationProperties.AutomationId="PrinterCameraEnabled" Content="{Binding [SettingsCameraEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding CameraEnabled}" />
+                        <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                        <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
+                                 Text="{Binding CameraUrl}"
+                                 PlaceholderText="rtsp://192.168.0.227/live"
+                                 AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlHint" Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsCameraUrlHint}" />
+                        <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                        <StackPanel Spacing="8" Margin="0,12,0,0">
+                          <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button AutomationProperties.AutomationId="PrinterCameraTest" Content="{Binding [SettingsCameraTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding TestCameraCommand}" />
+                            <Button AutomationProperties.AutomationId="PrinterCameraCancelTest" Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelCameraTestCommand}" IsVisible="{Binding IsTestingCamera}" />
+                            <ProgressBar IsIndeterminate="True" Width="48" MinWidth="48" VerticalAlignment="Center" IsVisible="{Binding IsTestingCamera}" />
+                          </StackPanel>
+                          <TextBlock AutomationProperties.AutomationId="PrinterCameraTestResult"
+                                     Classes="result"
+                                     Classes.success="{Binding CameraTestSucceeded}"
+                                     Classes.failure="{Binding CameraTestFailed}"
+                                     Text="{Binding CameraTestResultText}"
+                                     IsVisible="{Binding HasCameraTestResult}" />
+                        </StackPanel>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+              </ScrollViewer>
+            </TabItem>
+          </TabControl>
+        </Grid>
+      </TabItem>
+
+      <!-- General: polling interval and language, notifications in two columns. -->
+      <TabItem AutomationProperties.AutomationId="SettingsTabGeneral" Header="{Binding [SettingsTabGeneral], Source={x:Static loc:LocalizedStrings.Instance}}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+          <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto">
+            <StackPanel>
+              <TextBlock Classes="label" Text="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+              <NumericUpDown AutomationProperties.AutomationId="SettingsPollingInterval"
+                             AutomationProperties.Name="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             Value="{Binding PollingIntervalSeconds}"
+                             Minimum="{x:Static vm:SettingsViewModel.MinPollingIntervalSeconds}"
+                             Maximum="{x:Static vm:SettingsViewModel.MaxPollingIntervalSeconds}"
+                             Increment="1"
+                             FormatString="0.###"
+                             Width="160"
+                             HorizontalAlignment="Left" />
+              <TextBlock AutomationProperties.AutomationId="SettingsPollingIntervalHint" Classes="hint" Text="{Binding [SettingsPollingIntervalHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsPollingIntervalHint}" />
+              <TextBlock AutomationProperties.AutomationId="SettingsPollingIntervalError" Classes="error" Text="{Binding PollingIntervalError}" IsVisible="{Binding PollingIntervalError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+            <StackPanel Grid.Column="2">
+              <TextBlock Classes="label" Text="{Binding [SettingsLanguage], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <ComboBox AutomationProperties.AutomationId="SettingsLanguage"
+                        AutomationProperties.Name="{Binding [SettingsLanguage], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ItemsSource="{Binding LanguageOptions}"
+                        SelectedItem="{Binding SelectedLanguage}"
+                        MinWidth="260">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="loc:LanguageOption">
+                    <TextBlock Text="{Binding Text}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Classes="hint" Text="{Binding [SettingsLanguageHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            </StackPanel>
+
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <CheckBox Grid.Row="2" AutomationProperties.AutomationId="SettingsNotificationsEnabled" Content="{Binding [SettingsNotificationsEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotificationsEnabled}" />
+            <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="Auto,12,*" IsEnabled="{Binding NotificationsEnabled}">
+              <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsSound], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <ComboBox Grid.Column="2"
+                        AutomationProperties.AutomationId="SettingsSound"
+                        AutomationProperties.Name="{Binding [SettingsSound], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ItemsSource="{Binding SoundOptions}"
+                        SelectedItem="{Binding SelectedSound}"
+                        HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:SoundOption">
+                    <TextBlock Text="{Binding Text}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <StackPanel Grid.Row="3" Margin="28,0,0,0" IsEnabled="{Binding NotificationsEnabled}">
+              <CheckBox Content="{Binding [SettingsNotifyPrintStarted], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStarted}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintFinished], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintFinished}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintPaused], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintPaused}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintResumed], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintResumed}" />
+              <CheckBox Content="{Binding [SettingsNotifyPrintStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStopped}" />
+            </StackPanel>
+            <StackPanel Grid.Row="3" Grid.Column="2" IsEnabled="{Binding NotificationsEnabled}">
+              <CheckBox Content="{Binding [SettingsNotifyError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyError}" />
+              <CheckBox Content="{Binding [SettingsNotifyAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyAttention}" />
+              <CheckBox Content="{Binding [SettingsNotifyOffline], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyOffline}" />
+              <TextBlock Classes="label" Margin="0,8,0,4" TextWrapping="Wrap" Text="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <NumericUpDown AutomationProperties.AutomationId="SettingsRemainingTime"
+                             AutomationProperties.Name="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             Value="{Binding RemainingTimeMinutes}"
+                             Minimum="0"
+                             Maximum="{x:Static vm:SettingsViewModel.MaxRemainingTimeMinutes}"
+                             Increment="1"
+                             FormatString="0"
+                             Width="160"
+                             HorizontalAlignment="Left" />
+              <TextBlock AutomationProperties.AutomationId="SettingsRemainingTimeError" Classes="error" Text="{Binding RemainingTimeError}" IsVisible="{Binding RemainingTimeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+          </Grid>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+
     <!-- Save / Cancel and the outcome of the last save attempt. -->
-    <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
       <TextBlock AutomationProperties.AutomationId="SettingsStatus"
                  Classes="status"
                  Classes.isError="{Binding StatusIsError}"
@@ -85,202 +402,5 @@
               Command="{Binding CancelCommand}"
               IsCancel="True" />
     </Grid>
-
-    <Border DockPanel.Dock="Top"
-            Background="{DynamicResource NoticeBrush}"
-            CornerRadius="4"
-            Padding="10,6"
-            Margin="0,0,0,8"
-            IsVisible="{Binding HasNotice}">
-      <TextBlock Text="{Binding Notice}" TextWrapping="Wrap" />
-    </Border>
-    <TextBlock DockPanel.Dock="Top" Text="{Binding [SettingsLoading], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding IsLoading}" Margin="0,0,0,8" />
-
-    <TabControl AutomationProperties.AutomationId="SettingsTabs" SelectedIndex="{Binding SelectedTabIndex}" IsEnabled="{Binding IsEditable}">
-      <!-- Printers: list on the left, form of the selected printer on the right. -->
-      <TabItem Header="{Binding [SettingsTabPrinters], Source={x:Static loc:LocalizedStrings.Instance}}">
-        <Grid ColumnDefinitions="220,16,*" Margin="0,8,0,0">
-          <DockPanel>
-            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
-              <Button AutomationProperties.AutomationId="SettingsAddPrinter" Content="{Binding [SettingsAddPrinter], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding AddPrinterCommand}" />
-              <Button AutomationProperties.AutomationId="SettingsRemovePrinter" Content="{Binding [SettingsRemovePrinter], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding RemovePrinterCommand}" />
-            </StackPanel>
-            <ListBox AutomationProperties.AutomationId="SettingsPrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding SelectedPrinter}">
-              <ListBox.ItemTemplate>
-                <DataTemplate x:DataType="vm:PrinterEditorViewModel">
-                  <Grid ColumnDefinitions="Auto,*">
-                    <TextBlock Text="!"
-                               FontWeight="Bold"
-                               Margin="0,0,6,0"
-                               Foreground="{DynamicResource SettingsErrorBrush}"
-                               IsVisible="{Binding ShowsErrorMarker}" />
-                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
-                  </Grid>
-                </DataTemplate>
-              </ListBox.ItemTemplate>
-            </ListBox>
-          </DockPanel>
-
-          <TextBlock Grid.Column="2"
-                     Text="{Binding [SettingsNoPrinters], Source={x:Static loc:LocalizedStrings.Instance}}"
-                     IsVisible="{Binding HasNoPrinters}"
-                     TextWrapping="Wrap"
-                     Opacity="0.75" />
-
-          <ScrollViewer Grid.Column="2" HorizontalScrollBarVisibility="Disabled" IsVisible="{Binding HasSelectedPrinter}">
-            <ContentControl Content="{Binding SelectedPrinter}" Margin="0,0,12,0">
-              <ContentControl.ContentTemplate>
-                <DataTemplate x:DataType="vm:PrinterEditorViewModel">
-                  <StackPanel>
-                    <TextBlock Classes="label" Text="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}" Margin="0,0,0,4" />
-                    <TextBox AutomationProperties.AutomationId="PrinterName" Text="{Binding Name}" MaxLength="200" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                    <TextBlock Classes="label" Text="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <ComboBox AutomationProperties.AutomationId="PrinterConnectionType" ItemsSource="{Binding ConnectionTypes}" SelectedItem="{Binding SelectedConnectionType}" HorizontalAlignment="Stretch">
-                      <ComboBox.Styles>
-                        <Style Selector="ComboBoxItem" x:DataType="vm:ConnectionTypeOption">
-                          <Setter Property="IsEnabled" Value="{Binding IsEnabled}" />
-                        </Style>
-                      </ComboBox.Styles>
-                      <ComboBox.ItemTemplate>
-                        <DataTemplate x:DataType="vm:ConnectionTypeOption">
-                          <TextBlock Text="{Binding Text}" />
-                        </DataTemplate>
-                      </ComboBox.ItemTemplate>
-                    </ComboBox>
-
-                    <TextBlock Classes="label" Text="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <TextBox AutomationProperties.AutomationId="PrinterAddress" Text="{Binding Address}" PlaceholderText="192.168.1.20" />
-                    <TextBlock Classes="hint" Text="{Binding [SettingsAddressHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding IsPrusaLink}" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterAddressError" Classes="error" Text="{Binding AddressError}" IsVisible="{Binding AddressError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                    <TextBlock AutomationProperties.AutomationId="PrinterUserNameLabel" Classes="label" Text="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <TextBox AutomationProperties.AutomationId="PrinterUserName" Text="{Binding UserName}" MaxLength="200" IsEnabled="{Binding IsPrusaLink}" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterUserNameHint" Classes="hint" Text="{Binding UserNameHint}" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterUserNameError" Classes="error" Text="{Binding UserNameError}" IsVisible="{Binding UserNameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                    <TextBlock Classes="label" Text="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <TextBox AutomationProperties.AutomationId="PrinterPassword"
-                             Text="{Binding Password}"
-                             PasswordChar="●"
-                             PlaceholderText="{Binding PasswordWatermark}"
-                             IsEnabled="{Binding IsPasswordEnabled}" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterPasswordHint" Classes="hint" Text="{Binding PasswordHint}" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterPasswordError" Classes="error" Text="{Binding PasswordError}" IsVisible="{Binding PasswordError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
-                      <Button AutomationProperties.AutomationId="PrinterTestConnection" Content="{Binding [SettingsTestConnection], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding TestConnectionCommand}" />
-                      <Button Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelTestCommand}" IsVisible="{Binding IsTesting}" />
-                      <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" IsVisible="{Binding IsTesting}" />
-                    </StackPanel>
-                    <TextBlock AutomationProperties.AutomationId="PrinterTestResult"
-                               Classes="result"
-                               Classes.success="{Binding TestSucceeded}"
-                               Classes.failure="{Binding TestFailed}"
-                               Text="{Binding TestResultText}"
-                               IsVisible="{Binding HasTestResult}"
-                               TextWrapping="Wrap"
-                               Margin="0,8,0,0" />
-
-                    <!-- Camera (T-014): RTSP stream shown from the tray menu. -->
-                    <TextBlock AutomationProperties.AutomationId="PrinterCameraSection" Classes="section" Text="{Binding [SettingsCamera], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <Border Background="{DynamicResource NoticeBrush}"
-                            CornerRadius="4"
-                            Padding="10,6"
-                            Margin="0,0,0,6"
-                            IsVisible="{Binding CameraCredentialsRemoved}">
-                      <TextBlock AutomationProperties.AutomationId="PrinterCameraCredentialsRemoved" Text="{Binding [SettingsCameraCredentialsRemoved], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
-                    </Border>
-                    <CheckBox AutomationProperties.AutomationId="PrinterCameraEnabled" Content="{Binding [SettingsCameraEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding CameraEnabled}" />
-                    <TextBlock Classes="label" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
-                             Text="{Binding CameraUrl}"
-                             PlaceholderText="rtsp://192.168.0.227/live"
-                             AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <TextBlock Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                    <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
-                      <Button AutomationProperties.AutomationId="PrinterCameraTest" Content="{Binding [SettingsCameraTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding TestCameraCommand}" />
-                      <Button AutomationProperties.AutomationId="PrinterCameraCancelTest" Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelCameraTestCommand}" IsVisible="{Binding IsTestingCamera}" />
-                      <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" IsVisible="{Binding IsTestingCamera}" />
-                    </StackPanel>
-                    <TextBlock AutomationProperties.AutomationId="PrinterCameraTestResult"
-                               Classes="result"
-                               Classes.success="{Binding CameraTestSucceeded}"
-                               Classes.failure="{Binding CameraTestFailed}"
-                               Text="{Binding CameraTestResultText}"
-                               IsVisible="{Binding HasCameraTestResult}"
-                               TextWrapping="Wrap"
-                               Margin="0,8,0,16" />
-                  </StackPanel>
-                </DataTemplate>
-              </ContentControl.ContentTemplate>
-            </ContentControl>
-          </ScrollViewer>
-        </Grid>
-      </TabItem>
-
-      <!-- General: polling interval and notifications. -->
-      <TabItem Header="{Binding [SettingsTabGeneral], Source={x:Static loc:LocalizedStrings.Instance}}">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-          <StackPanel Margin="0,8,12,0">
-            <TextBlock Classes="label" Text="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}" Margin="0,0,0,4" />
-            <NumericUpDown Value="{Binding PollingIntervalSeconds}"
-                           Minimum="{x:Static vm:SettingsViewModel.MinPollingIntervalSeconds}"
-                           Maximum="{x:Static vm:SettingsViewModel.MaxPollingIntervalSeconds}"
-                           Increment="1"
-                           FormatString="0.###"
-                           Width="160"
-                           HorizontalAlignment="Left" />
-            <TextBlock Classes="hint" Text="{Binding [SettingsPollingIntervalHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
-            <TextBlock Classes="error" Text="{Binding PollingIntervalError}" IsVisible="{Binding PollingIntervalError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-            <TextBlock Classes="label" Text="{Binding [SettingsLanguage], Source={x:Static loc:LocalizedStrings.Instance}}" />
-            <ComboBox AutomationProperties.AutomationId="SettingsLanguage" ItemsSource="{Binding LanguageOptions}" SelectedItem="{Binding SelectedLanguage}" MinWidth="260">
-              <ComboBox.ItemTemplate>
-                <DataTemplate x:DataType="loc:LanguageOption">
-                  <TextBlock Text="{Binding Text}" />
-                </DataTemplate>
-              </ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Classes="hint" Text="{Binding [SettingsLanguageHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
-
-            <TextBlock Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
-            <CheckBox Content="{Binding [SettingsNotificationsEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotificationsEnabled}" />
-            <StackPanel Margin="28,0,0,0" IsEnabled="{Binding NotificationsEnabled}">
-              <CheckBox Content="{Binding [SettingsNotifyPrintStarted], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStarted}" />
-              <CheckBox Content="{Binding [SettingsNotifyPrintFinished], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintFinished}" />
-              <CheckBox Content="{Binding [SettingsNotifyPrintPaused], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintPaused}" />
-              <CheckBox Content="{Binding [SettingsNotifyPrintResumed], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintResumed}" />
-              <CheckBox Content="{Binding [SettingsNotifyPrintStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStopped}" />
-              <CheckBox Content="{Binding [SettingsNotifyError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyError}" />
-              <CheckBox Content="{Binding [SettingsNotifyAttention], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyAttention}" />
-              <CheckBox Content="{Binding [SettingsNotifyOffline], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyOffline}" />
-
-              <TextBlock Classes="label" Text="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}" />
-              <NumericUpDown Value="{Binding RemainingTimeMinutes}"
-                             Minimum="0"
-                             Maximum="{x:Static vm:SettingsViewModel.MaxRemainingTimeMinutes}"
-                             Increment="1"
-                             FormatString="0"
-                             Width="160"
-                             HorizontalAlignment="Left" />
-              <TextBlock Classes="error" Text="{Binding RemainingTimeError}" IsVisible="{Binding RemainingTimeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-              <TextBlock Classes="label" Text="{Binding [SettingsSound], Source={x:Static loc:LocalizedStrings.Instance}}" />
-              <ComboBox ItemsSource="{Binding SoundOptions}" SelectedItem="{Binding SelectedSound}" MinWidth="260">
-                <ComboBox.ItemTemplate>
-                  <DataTemplate x:DataType="vm:SoundOption">
-                    <TextBlock Text="{Binding Text}" />
-                  </DataTemplate>
-                </ComboBox.ItemTemplate>
-              </ComboBox>
-            </StackPanel>
-          </StackPanel>
-        </ScrollViewer>
-      </TabItem>
-    </TabControl>
-  </DockPanel>
+  </Grid>
 </Window>

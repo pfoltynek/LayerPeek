@@ -41,12 +41,13 @@ internal sealed class SettingsWindowHarness
         UiTestScope scope,
         ISettingsEditorStore store,
         IConnectionTester? tester = null,
-        PasswordPolicy? policy = null)
+        PasswordPolicy? policy = null,
+        ICameraTester? cameraTester = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue);
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester());
         scope.Defer(viewModel);
         SettingsWindow window = scope.Track(new SettingsWindow { DataContext = viewModel });
         SettingsWindowHarness harness = new(window, viewModel, slot);

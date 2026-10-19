@@ -912,7 +912,8 @@ public sealed class SettingsViewModelTests : IDisposable
         await printer.TestConnectionCommand.ExecuteAsync(null);
 
         Assert.Empty(_tester.Calls);
-        Assert.Equal("The user name must not contain a colon (:).", printer.TestResultText);
+        Assert.Equal("Some values are not valid. Fix the highlighted fields.", printer.TestResultText);
+        Assert.Equal("The user name must not contain a colon (:).", printer.UserNameError);
         Assert.True(printer.TestFailed);
     }
 
@@ -1024,7 +1025,9 @@ public sealed class SettingsViewModelTests : IDisposable
         await printer.TestConnectionCommand.ExecuteAsync(null);
 
         Assert.Empty(_tester.Calls);
-        Assert.Equal(AddressInvalid, printer.TestResultText);
+        // The long explanation is at the field only (T-033, Q2).
+        Assert.Equal("Some values are not valid. Fix the highlighted fields.", printer.TestResultText);
+        Assert.Equal(AddressInvalid, printer.AddressError);
         Assert.True(printer.TestFailed);
     }
 

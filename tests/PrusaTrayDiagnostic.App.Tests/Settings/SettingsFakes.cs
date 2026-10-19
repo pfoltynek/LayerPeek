@@ -224,6 +224,43 @@ internal sealed class FakeConnectionTester : IConnectionTester
     }
 }
 
+/// <summary>Camera tester driven by the test: an immediate result, an exception, or waiting until cancelled.</summary>
+internal sealed class FakeCameraTester : ICameraTester
+{
+    public TimeSpan Timeout => TimeSpan.FromSeconds(15);
+
+    public List<Uri> Calls { get; } = [];
+
+    public CameraTestResult? Immediate { get; set; }
+
+    public Exception? Throw { get; set; }
+
+    public CancellationToken LastToken { get; private set; }
+
+    public Task<CameraTestResult> TestAsync(Uri streamUri, CancellationToken cancellationToken)
+    {
+        Calls.Add(streamUri);
+        LastToken = cancellationToken;
+        if (Throw is not null)
+        {
+            return Task.FromException<CameraTestResult>(Throw);
+        }
+
+        if (Immediate is not null)
+        {
+            return Task.FromResult(Immediate);
+        }
+
+        return WaitForCancellationAsync(cancellationToken);
+    }
+
+    private static async Task<CameraTestResult> WaitForCancellationAsync(CancellationToken cancellationToken)
+    {
+        await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
+        return new CameraTestResult(CameraTestOutcome.Failed);
+    }
+}
+
 internal static class SettingsTestData
 {
     public static PrinterDefinition LinkPrinter(string id, string name, string address = "192.168.1.20", string userName = PrinterUserName.Default) =>
