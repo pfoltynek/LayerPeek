@@ -22,12 +22,24 @@ public sealed class CameraWindowStateStoreTests : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        foreach (JsonCameraWindowStateStore store in _stores)
+        List<int> unfinished = [];
+        try
         {
-            Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait), "A camera window state save did not finish.");
+            for (int i = 0; i < _stores.Count; i++)
+            {
+                if (!await _stores[i].WaitForPendingSaveAsync(TestTimeouts.Wait))
+                {
+                    unfinished.Add(i);
+                }
+            }
+        }
+        finally
+        {
+            // Deleted even when a save timed out; a later write stays in the reserved folder, removed at the end of the run.
+            TestDirectories.Delete(_directory);
         }
 
-        TestDirectories.Delete(_directory);
+        Assert.True(unfinished.Count == 0, $"Camera window state saves did not finish (stores {string.Join(", ", unfinished)}).");
     }
 
     private JsonCameraWindowStateStore Create()

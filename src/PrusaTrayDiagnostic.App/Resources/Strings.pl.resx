@@ -672,4 +672,13 @@
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Nie znaleziono treści licencji FFmpeg (FFmpeg-LICENSE.txt) obok aplikacji. GNU LGPL 3.0 jest opublikowana pod adresem https://www.gnu.org/licenses/lgpl-3.0.html.</value>
   </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>Współdzielony framework ASP.NET Core (serwer WWW Kestrel, Microsoft.Extensions; wkompilowany w aplikację)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>Środowisko uruchomieniowe .NET (Native AOT, wkompilowane w aplikację)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (tylko Linux)</value>
+  </data>
 </root>

@@ -29,7 +29,8 @@ public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAw
         FormatTexts();
     }
 
-    public string Name => _component.Name;
+    /// <summary>The product name, with its translated description where it has one (<see cref="ThirdPartyComponent.DisplayNameKey"/>).</summary>
+    public string Name { get; private set; } = string.Empty;
 
     public string VersionText { get; private set; } = string.Empty;
 
@@ -56,10 +57,11 @@ public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAw
         private set => SetProperty(ref _fullText, value);
     }
 
-    /// <summary>UI thread: the language changed; the version, licence and a "text unavailable" notice are formatted again.</summary>
+    /// <summary>UI thread: the language changed; the name, version, licence and a "text unavailable" notice are formatted again.</summary>
     public void RefreshTexts()
     {
         FormatTexts();
+        OnPropertyChanged(nameof(Name));
         OnPropertyChanged(nameof(VersionText));
         OnPropertyChanged(nameof(LicenseText));
         if (_textUnavailable)
@@ -70,6 +72,7 @@ public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAw
 
     private void FormatTexts()
     {
+        Name = _component.DisplayNameKey is { } key ? Strings.ResourceManager.GetString(key, Strings.Culture) ?? _component.Name : _component.Name;
         VersionText = Format(Strings.LicensesVersion, _component.Version ?? RuntimeInformation.FrameworkDescription);
         LicenseText = Format(Strings.LicensesLicense, _component.License);
     }

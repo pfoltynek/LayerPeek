@@ -84,6 +84,7 @@ public sealed class LicensesWindowUiTests(HeadlessSession session)
             Assert.True(Ui.ShowsText(licences, "Licence\u00A0: LGPL-3.0-or-later"));
             Assert.True(Ui.ShowsText(licences, "Version 12.1.4"));
             Assert.True(Ui.ShowsText(licences, "Licence\u00A0: MIT"));
+            Assert.True(Ui.ShowsText(licences, "Tmds.DBus.Protocol (Linux uniquement)"));
             Assert.StartsWith("FFmpeg est distribué sous licence GNU LGPL", viewModel.FFmpegNote, StringComparison.Ordinal);
             Assert.True(licences.IsVisible);
         });

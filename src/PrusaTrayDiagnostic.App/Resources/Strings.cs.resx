@@ -672,4 +672,13 @@
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Text licence FFmpeg (FFmpeg-LICENSE.txt) nebyl vedle aplikace nalezen. GNU LGPL 3.0 je zveřejněná na https://www.gnu.org/licenses/lgpl-3.0.html.</value>
   </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>Sdílený framework ASP.NET Core (webový server Kestrel, Microsoft.Extensions; zkompilováno do aplikace)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>Běhové prostředí .NET (Native AOT, zkompilováno do aplikace)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (jen Linux)</value>
+  </data>
 </root>

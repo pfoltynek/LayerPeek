@@ -168,6 +168,23 @@ public sealed partial class ThirdPartyLicensesTests
     }
 
     [Fact]
+    public void TranslatedComponentNamesKeepTheProductNameInEveryLanguage()
+    {
+        // User decision 2026-10-19: descriptions are translated, product names stay; licence texts stay English.
+        List<ThirdPartyComponent> described = [.. ThirdPartyLicenses.All.Where(static c => c.DisplayNameKey is not null)];
+        Assert.Equal(3, described.Count);
+        foreach (ThirdPartyComponent component in described)
+        {
+            foreach (string code in Core.Settings.AppLanguages.Supported)
+            {
+                string? text = Resources.Strings.ResourceManager.GetString(component.DisplayNameKey!, System.Globalization.CultureInfo.GetCultureInfo(code));
+                Assert.False(string.IsNullOrWhiteSpace(text), $"{component.DisplayNameKey} ({code})");
+                Assert.Contains(component.Name, text, StringComparison.Ordinal);
+            }
+        }
+    }
+
+    [Fact]
     public void ShownVersionIsTheVersionOfEveryPackageOfTheComponent()
     {
         foreach (ThirdPartyComponent component in ThirdPartyLicenses.All.Where(static c => c.Version is not null))

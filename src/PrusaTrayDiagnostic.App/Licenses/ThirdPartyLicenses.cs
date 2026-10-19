@@ -1,5 +1,7 @@
 using System.Text;
 
+using PrusaTrayDiagnostic.App.Resources;
+
 namespace PrusaTrayDiagnostic.App.Licenses;
 
 /// <summary>A NuGet package covered by a <see cref="ThirdPartyComponent"/>.</summary>
@@ -12,13 +14,19 @@ internal sealed record PackageRef(string Id, string? Version);
 /// </summary>
 /// <param name="Version">Shown version; <see langword="null"/> for the .NET runtime and shared frameworks (read at run time).</param>
 /// <param name="TextResources">Embedded resource names of the licence and notice texts, in display order.</param>
+/// <param name="DisplayNameKey">
+/// Key of the shown name in <c>Strings</c> when <paramref name="Name"/> needs a description (user decision 2026-10-19:
+/// descriptions are translated, product names and licence texts are not); every translation contains
+/// <paramref name="Name"/>. <see langword="null"/>: <paramref name="Name"/> is shown as it is.
+/// </param>
 internal sealed record ThirdPartyComponent(
     string Name,
     string? Version,
     string License,
     Uri ProjectUri,
     IReadOnlyList<PackageRef> Packages,
-    IReadOnlyList<string> TextResources);
+    IReadOnlyList<string> TextResources,
+    string? DisplayNameKey = null);
 
 /// <summary>
 /// The single source of truth for licences of everything the app ships (T-014, user decision 2026-10-18). Every package
@@ -106,7 +114,7 @@ internal static class ThirdPartyLicenses
         // proxy) also brings the Microsoft.Extensions libraries the app uses (DI, logging, HTTP). It is not a NuGet package
         // of the dependency graph but a runtime pack compiled into the executable; its version is that of the .NET runtime.
         new(
-            "ASP.NET Core shared framework (Kestrel web server, Microsoft.Extensions; compiled into the application)",
+            "ASP.NET Core",
             null,
             "MIT",
             new Uri("https://github.com/dotnet/aspnetcore"),
@@ -114,9 +122,10 @@ internal static class ThirdPartyLicenses
                 new("Microsoft.AspNetCore.App.Runtime.win-x64", null),
                 new("Microsoft.AspNetCore.App.Runtime.osx-arm64", null),
             ],
-            [ResourcePrefix + "aspnetcore-license.txt", ResourcePrefix + "aspnetcore-third-party-notices.txt"]),
+            [ResourcePrefix + "aspnetcore-license.txt", ResourcePrefix + "aspnetcore-third-party-notices.txt"],
+            nameof(Strings.LicensesComponentAspNetCore)),
         new(
-            ".NET runtime (Native AOT, compiled into the application)",
+            ".NET",
             null,
             "MIT",
             new Uri("https://github.com/dotnet/dotnet"),
@@ -125,7 +134,8 @@ internal static class ThirdPartyLicenses
                 new("runtime.win-x64.Microsoft.DotNet.ILCompiler", null),
                 new("runtime.osx-arm64.Microsoft.DotNet.ILCompiler", null),
             ],
-            [ResourcePrefix + "mit-microsoft.txt", ResourcePrefix + "dotnet-third-party-notices.txt"]),
+            [ResourcePrefix + "mit-microsoft.txt", ResourcePrefix + "dotnet-third-party-notices.txt"],
+            nameof(Strings.LicensesComponentDotNet)),
         new(
             "FFmpeg.AutoGen",
             "9.0.1.1",
@@ -141,12 +151,13 @@ internal static class ThirdPartyLicenses
             [new("MicroCom.Runtime", "0.11.6")],
             [ResourcePrefix + "mit-microcom.txt"]),
         new(
-            "Tmds.DBus.Protocol (Linux only)",
+            "Tmds.DBus.Protocol",
             "0.94.1",
             "MIT",
             new Uri("https://github.com/tmds/Tmds.DBus"),
             [new("Tmds.DBus.Protocol", "0.94.1")],
-            [ResourcePrefix + "mit-tmds.txt"]),
+            [ResourcePrefix + "mit-tmds.txt"],
+            nameof(Strings.LicensesComponentTmdsDBus)),
     ];
 
     /// <summary>

@@ -136,9 +136,10 @@ public sealed class MonitoringSessionCameraTests : IAsyncDisposable
             """
             {
               "version": 1,
+              "language": "de",
               "futureSetting": { "keep": true },
               "printers": [
-                { "id": "a", "name": "Alpha", "connectionType": "PrusaLink", "address": "192.168.0.226",
+                { "id": "a", "name": "Alpha", "connectionType": "PrusaLink", "address": "192.168.0.226", "userName": "workshop",
                   "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@192.168.0.227/live" } },
                 { "id": "A", "name": "Duplicate", "connectionType": "PrusaLink", "address": "192.168.0.230" }
               ]
@@ -158,6 +159,11 @@ public sealed class MonitoringSessionCameraTests : IAsyncDisposable
         // The skipped entry (duplicate id) and the unknown value are still there: nothing but the address was written.
         Assert.Contains("Duplicate", content, StringComparison.Ordinal);
         Assert.Contains("futureSetting", content, StringComparison.Ordinal);
+        // Values of other features (T-027 user name, T-029 language) survive the scrub, in the file and in what was loaded.
+        Assert.Contains("\"userName\": \"workshop\"", content, StringComparison.Ordinal);
+        Assert.Contains("\"language\": \"de\"", content, StringComparison.Ordinal);
+        Assert.Equal("workshop", printers[0].UserName);
+        Assert.Equal("de", _session.CurrentSettings?.Language);
         Assert.Equal(0, store.Saves);
         Assert.Single(printers);
         Assert.Equal(["a"], _removed.PrinterIds);

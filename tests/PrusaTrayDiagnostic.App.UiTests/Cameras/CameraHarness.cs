@@ -60,8 +60,10 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <summary>Opens the window and waits until the generated frame is drawn and the status overlay is gone.</summary>
     public async Task<(CameraWindow Window, FakeCameraFeed Feed)> OpenStreamingAsync(int width, int height, uint bgra, string printerId = "a")
     {
+        // Counted before opening: the stream may create its feed on the thread pool before Open returns.
+        int feeds = Factory.Feeds.Count;
         CameraWindow window = Open(printerId);
-        FakeCameraFeed feed = await Factory.WaitForFeedAsync(Factory.Feeds.Count + 1);
+        FakeCameraFeed feed = await Factory.WaitForFeedAsync(feeds + 1);
         feed.SendColor(width, height, bgra);
         CameraViewModel viewModel = (CameraViewModel)window.DataContext!;
         await Ui.UntilAsync(() => viewModel.HasFrame && !viewModel.IsStatusVisible, "frame shown");

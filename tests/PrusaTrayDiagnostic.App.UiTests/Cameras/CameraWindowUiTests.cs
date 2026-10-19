@@ -20,7 +20,8 @@ namespace PrusaTrayDiagnostic.App.UiTests.Cameras;
 
 /// <summary>The camera window (T-014) rendered headless with Skia: real XAML, bindings, input and drawing; fake stream.</summary>
 public sealed class CameraWindowUiTests(HeadlessSession session)
-{    private const uint Red = 0xFFFF0000;
+{
+    private const uint Red = 0xFFFF0000;
 
     private static CameraViewModel ViewModel(CameraWindow window) => (CameraViewModel)window.DataContext!;
 

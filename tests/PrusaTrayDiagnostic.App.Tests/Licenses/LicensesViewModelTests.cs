@@ -214,6 +214,29 @@ public sealed class LicensesViewModelTests : IDisposable
     }
 
     [Fact]
+    public void ComponentDescriptionsAreTranslatedAndProductNamesStay()
+    {
+        LicensesViewModel viewModel = Create();
+        Assert.Contains(viewModel.Components, static c => c.Name == ".NET runtime (Native AOT, compiled into the application)");
+        Assert.Contains(viewModel.Components, static c => c.Name == "Tmds.DBus.Protocol (Linux only)");
+        List<string?> changes = [];
+        LicenseItemViewModel tmds = viewModel.Components.Single(static c => c.Name.StartsWith("Tmds.DBus.Protocol", StringComparison.Ordinal));
+        tmds.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        using (new CultureScope("de-DE"))
+        {
+            viewModel.RefreshTexts();
+        }
+
+        Assert.Contains(viewModel.Components, static c => c.Name == ".NET-Laufzeit (Native AOT, in die Anwendung kompiliert)");
+        Assert.Contains(viewModel.Components, static c => c.Name.StartsWith("Gemeinsames Framework ASP.NET Core (Webserver Kestrel", StringComparison.Ordinal));
+        Assert.Equal("Tmds.DBus.Protocol (nur Linux)", tmds.Name);
+        Assert.Contains(nameof(LicenseItemViewModel.Name), changes);
+        // Product names without a description are never translated.
+        Assert.Equal("Avalonia", viewModel.Components[0].Name);
+    }
+
+    [Fact]
     public void AboutRefreshAlsoSwitchesItsLicencesWindow()
     {
         AboutViewModel about = new(_launcher, typeof(AboutViewModel).Assembly);

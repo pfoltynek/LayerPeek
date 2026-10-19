@@ -684,4 +684,13 @@
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>The FFmpeg licence text (FFmpeg-LICENSE.txt) was not found next to the application. The GNU LGPL 3.0 is published at https://www.gnu.org/licenses/lgpl-3.0.html.</value>
   </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>ASP.NET Core shared framework (Kestrel web server, Microsoft.Extensions; compiled into the application)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>.NET runtime (Native AOT, compiled into the application)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (Linux only)</value>
+  </data>
 </root>

@@ -93,6 +93,8 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 - **Zrcadlo archivu FFmpeg (2026-10-18):** žádné. Když stažení selže, build skončí srozumitelnou chybou s návodem: aktualizovat `PtdFFmpegUrl` + SHA256, nebo předvyplnit cache / `PtdFFmpegCacheRoot`.
 - **Odstranění přihlašovacích údajů ze souboru při startu (2026-10-18):** smí se změnit **jen** text adresy kamery (a `enabled` na `false` u dotčené kamery). Nic jiného se nepřepisuje: neznámé hodnoty, přeskočené tiskárny, komentáře ani formátování. Řeší Core (`ISettingsStore.RemoveCameraCredentialsAsync`), ne uložení celého nastavení.
 - **Headless UI testy po merge s develop (2026-10-19):** mění rozhodnutí „Automatické ověření UI“ výše. UI testy kamery a licencí (22) se přesunuly do projektu `tests/PrusaTrayDiagnostic.App.UiTests` z T-031 a používají jeho infrastrukturu (holý `Avalonia.Headless`, vlastní `HeadlessSession` na xunit.v3 4.x, `UiTestScope`). Balíček `Avalonia.Headless.XUnit` a `VersionOverride` na `xunit.v3.mtp-v2` 3.2.2 se odstranily, všechny testovací projekty jsou na stejné verzi xunit.v3.
+- **Názvy komponent v okně licencí (2026-10-19):** popisné části názvů se překládají (např. „zkompilováno do aplikace“, „webový server Kestrel“, „jen Linux“). Názvy produktů (Avalonia, FFmpeg, ASP.NET Core, .NET…) zůstávají. Texty licencí zůstávají anglicky, jsou to právní texty.
+- **Verze ASP.NET Core v okně licencí (2026-10-19):** položka sdíleného frameworku ASP.NET Core zobrazuje verzi běhového prostředí .NET. Uživatel to přijal.
 - **Odstranění údajů i z „poškozeného“ souboru (2026-10-18):** platí pro každý syntakticky platný JSON soubor nastavení, i když ho `LoadAsync` kvůli chybnému typu hodnoty hlásí jako `Corrupted`. „Neparsovatelný“ dál znamená jen syntakticky neplatný JSON (včetně neplatného UTF-8). Upozornění v UI se týká jen načtených tiskáren (řeší ui-dev).
 
 ## Otevřené otázky
@@ -311,3 +313,22 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
   - `dotnet test` celé solution 5× po sobě: 2497 testů, 0 selhání, 1 dřívější skip. Po každém běhu v `%TEMP%` nic nezůstalo.
   - `dotnet publish -c Release -r win-x64`: 0 varování. Ve výstupu jsou DLL FFmpeg a `FFmpeg-LICENSE.txt`, `aspnetcorev2_inprocess.dll` tam není.
   - AOT exe i `dotnet run` se spustí a běží (15 s, resp. 35 s, pak ukončeno).
+
+### Review merge – opravy (ui-dev) – 2026-10-19
+- **Přeložené názvy komponent (rozhodnutí 2026-10-19):** `ThirdPartyComponent` má nepřekládaný název produktu (`Name`: „ASP.NET Core“, „.NET“, „Tmds.DBus.Protocol“) a nepovinný klíč zobrazovaného názvu (`DisplayNameKey`).
+  - Nové texty `LicensesComponentAspNetCore`, `LicensesComponentDotNet` a `LicensesComponentTmdsDBus` jsou ve všech 8 jazycích (konvence T-029, ve francouzštině nezlomitelná mezera před `;`).
+  - Okno licencí je při přepnutí jazyka zformátuje znovu (`LicenseItemViewModel.Name`).
+  - Test hlídá, že každý překlad obsahuje název produktu.
+  - Testy přepnutí jazyka: App.Tests (de) a UI test (fr).
+- **Úklid testů úložiště stavu oken:** `DisposeAsync` počká na všechna uložení a složku smaže ve `finally`, i když některé čekání vyprší. Chybu ohlásí až potom.
+- **Test čištění údajů při startu:** soubor obsahuje i `userName` (T-027) a `language` (T-029). Test ověřuje, že obojí zůstane v souboru i v načteném nastavení.
+- **Nestabilní UI test kamery (nalezeno při ověření):** `CameraWindowUiTests.WideWindowGetsSideBands` jednou selhal v běhu celé solution po 10 s (`TimeoutException`).
+  - Příčina: `CameraHarness.OpenStreamingAsync` četl počet feedů až po otevření okna. Když stream vytvořil feed na thread poolu dřív, test čekal na další feed, který nikdy nepřišel.
+  - Ověřeno dočasně vloženou prodlevou: test pak selže přesně stejně.
+  - Oprava: počet se čte před otevřením okna. Týká se všech testů, které tuto metodu používají.
+- Formátování složené závorky v `CameraWindowUiTests`.
+- **Ověřeno (Windows 11):**
+  - `dotnet build` celé solution: 0 varování.
+  - `dotnet test` celé solution 2× po sobě: 2499 testů, 0 selhání, 1 dřívější skip. V `%TEMP%` nic nezůstalo.
+  - Dalších 12 samostatných běhů App.UiTests bez chyby.
+  - `dotnet publish -c Release -r win-x64`: 0 varování, DLL FFmpeg a licence ve výstupu.
