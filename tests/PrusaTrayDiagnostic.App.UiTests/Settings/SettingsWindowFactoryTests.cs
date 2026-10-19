@@ -49,7 +49,7 @@ public sealed class SettingsWindowFactoryTests(HeadlessSession session)
             Assert.NotNull(created);
             Assert.False(created.IsVisible);
             Assert.Null(created.PlatformImpl);
-            Assert.True(closed <= 1);
+            Assert.Equal(1, closed);
             return Task.CompletedTask;
         });
 }
