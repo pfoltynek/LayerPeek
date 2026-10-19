@@ -108,6 +108,7 @@ Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (forma
 | `architect` | breaks down work, maintains `tasks/` and `docs/architecture.md`, reviews design boundaries |
 | `core-dev` | Core domain, monitoring service, PrusaLink and Prusa Connect clients, FFmpeg camera feed |
 | `ui-dev` | Avalonia tray app, menus, notifications, auxiliary windows, Windows/macOS specifics |
+| `ui-designer` | window layouts, visual hierarchy, sizing for small/high-DPI screens and long translations, icons/artwork; Windows and macOS design guidelines; design spec + layout-only XAML |
 | `qa-reviewer` | tests, code review, local AOT publish checks |
 
 ## Conventions

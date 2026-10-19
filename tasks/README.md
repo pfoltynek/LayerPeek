@@ -15,7 +15,7 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 Šablona: [_TEMPLATE.md](_TEMPLATE.md).
 
 - `id` – `T-XXX`, nové ID = nejvyšší existující + 1
-- `owner` – agent: `architect`, `core-dev`, `ui-dev`, `qa-reviewer`
+- `owner` – agent: `architect`, `core-dev`, `ui-designer`, `ui-dev`, `qa-reviewer`
 - `priority` – `P1` (MVP), `P2`, `P3`
 - `platform` – kde se úkol implementuje a ověřuje:
   - `all` – nezávislé na platformě (Core, klienti PrusaLink/Prusa Connect, sdílené Avalonia UI fungující na obou OS); implementuje se a ověřuje na OS, na kterém se právě vyvíjí
@@ -60,13 +60,19 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) (hotovo) | all | ui-dev | P1 | T-002, T-003 |
 | T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
 | T-024 | Logování do souboru | all | core-dev | P2 | T-007 |
-| T-025 | Ikona aplikace | all | ui-dev | P2 | T-007 |
+| T-025 | Ikona aplikace (exe, okna, tray) | all | ui-designer + ui-dev | P2 | T-007 |
 | T-027 | PrusaLink – uživatelské jméno v nastavení (hotovo) | all | core-dev + ui-dev | P2 | T-003, T-015 |
 | T-028 | Otevření webu PrusaLink s přihlášením (lokální proxy) (hotovo) | all | core-dev + ui-dev | P2 | T-027 |
 | T-029 | Jazyk aplikace a další překlady (de, es, fr, it, pl, sk) (hotovo) | all | ui-dev | P2 | T-015 |
 | T-030 | E2E testy webu přes proxy (Playwright + Edge) (hotovo) | all | qa-reviewer | P2 | T-028 |
 | T-031 | Headless UI testy Avalonie (okno nastavení, tray menu) (hotovo) | all | qa-reviewer | P2 | T-015, T-028 |
 | T-032 | Zámky a úklid testů zvlášť pro každý worktree (hotovo) | all | qa-reviewer | P3 | T-030, T-031 |
+| T-033 | Okno nastavení bez posuvníku a podzáložky tiskárny (Tiskárna / Kamera) | all | ui-designer + ui-dev | P2 | T-014 |
+| T-034 | Náhled obrazu kamery na záložce Kamera v nastavení | all | ui-dev | P2 | T-033 |
+| T-035 | Výchozí velikost, monitor a umístění okna kamery | all | core-dev + ui-dev | P2 | T-033 |
+| T-036 | Nastavení obsahu překryvu v okně kamery | all | core-dev + ui-dev | P2 | T-033 |
+| T-037 | Okno kamery vždy navrchu (volba v nastavení) | all | core-dev + ui-dev | P2 | T-033 |
+| T-039 | Obrázek tiskárny (podle modelu nebo vlastní) | all | core-dev + ui-designer + ui-dev | P3 | T-025, T-033 |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 
@@ -86,3 +92,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019 |
 | T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
 | T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |
+| T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ | macos | ui-dev | P3 | T-026, T-035, T-037 |
