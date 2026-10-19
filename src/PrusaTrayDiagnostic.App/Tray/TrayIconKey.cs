@@ -6,7 +6,7 @@ namespace PrusaTrayDiagnostic.App.Tray;
 /// </summary>
 internal readonly record struct TrayIconKey
 {
-    /// <summary>Granularity of the progress shown in the icon, in percent (one step is ~1 px of the arc at 32 px).</summary>
+    /// <summary>Granularity of the progress shown in the icon, in percent (one step is about 2 px of the three layers at 16 px).</summary>
     public const int ProgressStep = 5;
 
     private TrayIconKey(TrayStatus status, int progress)
@@ -24,7 +24,7 @@ internal readonly record struct TrayIconKey
     public static TrayIconKey For(TrayStatus status, double? progressPercent) =>
         new(status, ShowsProgress(status) ? Quantize(progressPercent) : 0);
 
-    /// <summary>The icon shows a progress arc (printing or paused).</summary>
+    /// <summary>The icon shows progress in its layers (printing or paused).</summary>
     public bool HasProgress => ShowsProgress(Status);
 
     private static bool ShowsProgress(TrayStatus status) => status is TrayStatus.Printing or TrayStatus.Paused;

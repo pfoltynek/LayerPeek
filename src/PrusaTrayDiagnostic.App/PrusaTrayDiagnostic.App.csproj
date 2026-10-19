@@ -11,6 +11,8 @@
     -->
     <UseOptimizedPublish>false</UseOptimizedPublish>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Exe icon (Explorer, the Start menu shortcut and therefore the toasts); the same file is the window icon (AppIcon.cs). -->
+    <ApplicationIcon>Assets\AppIcon\app-icon.ico</ApplicationIcon>
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
     <!-- Required by [LibraryImport] interop with pointer types (Platform/*). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -24,7 +26,8 @@
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
-    <AvaloniaResource Include="Assets\**" />
+    <!-- The SVG sources (app icon, tray design references) and the 1024 px macOS master are not needed at runtime. -->
+    <AvaloniaResource Include="Assets\**" Exclude="Assets\**\*.svg;Assets\**\*-1024.png" />
   </ItemGroup>
   <ItemGroup>
     <!-- Third-party licence texts (About window), read by exact name: see Licenses/ThirdPartyLicenses.cs. -->

@@ -37,6 +37,12 @@ public static class SnapshotAssert
     /// </summary>
     internal const int MaxDifferentPixels = 10;
 
+    /// <summary>
+    /// Limit for bitmaps of 16–32 px (tray icons): a single changed pixel of a 16 px icon is visible, so only one
+    /// isolated anti-aliasing pixel (badge disc edge) may differ on another machine.
+    /// </summary>
+    internal const int MaxDifferentIconPixels = 1;
+
     /// <summary>The verdict of <see cref="Matches"/> for a count of pixels beyond the channel tolerance.</summary>
     internal static bool IsWithinTolerance(int differentPixels) => differentPixels <= MaxDifferentPixels;
 
@@ -77,10 +83,27 @@ public static class SnapshotAssert
             Assert.Fail($"Snapshot '{name}': the rendered frame is not stable (animation, caret or pending layout).");
         }
 
+        CompareWithReference(actual, name, MaxDifferentPixels);
+    }
+
+    /// <summary>
+    /// Asserts that <paramref name="bitmap"/> (e.g. a rendered tray icon) looks like the reference image
+    /// <paramref name="name"/>.png; <paramref name="name"/> may contain a sub folder ("TrayIcons/idle-16"). Icons are tiny,
+    /// so at most <see cref="MaxDifferentIconPixels"/> pixels may differ.
+    /// </summary>
+    public static void Matches(Bitmap bitmap, string name)
+    {
+        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        CompareWithReference(Image.FromAnyBitmap(bitmap), name, MaxDifferentIconPixels);
+    }
+
+    private static void CompareWithReference(Image actual, string name, int maxDifferentPixels)
+    {
         string reference = Path.Combine(ReferenceDirectory, name + ".png");
         if (IsUpdating)
         {
-            Directory.CreateDirectory(ReferenceDirectory);
+            Directory.CreateDirectory(Path.GetDirectoryName(reference)!);
             actual.Save(reference);
             return;
         }
@@ -99,11 +122,11 @@ public static class SnapshotAssert
 
         byte[] diff = new byte[actual.Pixels.Length];
         int different = CountDifferentPixels(expected, actual, ChannelTolerance, diff);
-        if (!IsWithinTolerance(different))
+        if (different > maxDifferentPixels)
         {
             string actualPath = WriteFailure(name, actual, new Image(actual.Width, actual.Height, diff));
             Assert.Fail(
-                $"Snapshot '{name}': {different} pixels differ from '{reference}' (allowed {MaxDifferentPixels}). Actual and diff images: '{actualPath}' and its .diff.png in '{FailureDirectory}'. "
+                $"Snapshot '{name}': {different} pixels differ from '{reference}' (allowed {maxDifferentPixels}). Actual and diff images: '{actualPath}' and its .diff.png in '{FailureDirectory}'. "
                 + $"If the change is intended, update the references with {UpdateVariable}=1.");
         }
     }
@@ -225,9 +248,11 @@ public static class SnapshotAssert
     private static string WriteFailure(string name, Image actual, Image? diff)
     {
         Directory.CreateDirectory(FailureDirectory);
-        string actualPath = Path.Combine(FailureDirectory, name + ".actual.png");
+        // Names with a sub folder ("TrayIcons/idle-16") are written flat.
+        string fileName = name.Replace('/', '-').Replace('\\', '-');
+        string actualPath = Path.Combine(FailureDirectory, fileName + ".actual.png");
         actual.Save(actualPath);
-        diff?.Save(Path.Combine(FailureDirectory, name + ".diff.png"));
+        diff?.Save(Path.Combine(FailureDirectory, fileName + ".diff.png"));
         return actualPath;
     }
 
@@ -243,8 +268,23 @@ public static class SnapshotAssert
         public static Image Load(string path)
         {
             using FileStream stream = File.OpenRead(path);
-            using WriteableBitmap bitmap = WriteableBitmap.Decode(stream);
-            return From(bitmap);
+            using Bitmap decoded = new(stream);
+            return FromAnyBitmap(decoded);
+        }
+
+        /// <summary>
+        /// Straight-alpha BGRA copy of any bitmap. Rendered icons are semi-transparent, so the alpha format must match the
+        /// one <see cref="Save"/> declares; for opaque window frames this is the plain copy of the pixels.
+        /// </summary>
+        public static Image FromAnyBitmap(Bitmap source)
+        {
+            using WriteableBitmap copy = new(source.PixelSize, new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Unpremul);
+            using (ILockedFramebuffer buffer = copy.Lock())
+            {
+                source.CopyPixels(buffer);
+            }
+
+            return From(copy);
         }
 
         public static Image From(WriteableBitmap bitmap)

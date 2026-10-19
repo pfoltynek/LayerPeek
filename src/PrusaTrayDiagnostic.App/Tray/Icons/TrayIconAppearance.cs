@@ -2,20 +2,50 @@ using Avalonia.Media;
 
 namespace PrusaTrayDiagnostic.App.Tray.Icons;
 
-internal enum TrayIconShape
+/// <summary>State badge in the top-right corner; each has its own symbol, so the state never relies on colour alone.</summary>
+internal enum TrayBadge
 {
-    /// <summary>Filled circle.</summary>
-    Dot,
+    /// <summary>No badge (idle; printing, where the filling layers are the cue).</summary>
+    None,
 
-    /// <summary>Small dot inside a ring that fills clockwise from the top with the progress (printing, paused).</summary>
-    ProgressRing,
+    /// <summary>Three dots.</summary>
+    Busy,
 
-    /// <summary>Hollow ring with a diagonal stroke ("no data").</summary>
-    CrossedRing,
+    /// <summary>Two bars (❚❚).</summary>
+    Paused,
+
+    /// <summary>Check mark (✓).</summary>
+    Finished,
+
+    /// <summary>Exclamation mark (!).</summary>
+    Attention,
+
+    /// <summary>Cross (×).</summary>
+    Error,
+
+    /// <summary>Minus (−).</summary>
+    Offline,
 }
 
-/// <summary>Platform-independent description of one icon; drawn by <see cref="TrayIconRenderer"/>.</summary>
-/// <param name="Fill">Main colour (dot, progress arc, ring).</param>
-/// <param name="Outline">Darker edge that keeps the icon visible on light and dark taskbars.</param>
-/// <param name="ProgressSweepDegrees">Arc length for <see cref="TrayIconShape.ProgressRing"/> (0–360), otherwise 0.</param>
-internal readonly record struct TrayIconAppearance(TrayIconShape Shape, Color Fill, Color Outline, double ProgressSweepDegrees);
+/// <param name="Fill">Disc colour.</param>
+/// <param name="Outline">Darker ring that keeps the badge visible on light and dark taskbars.</param>
+/// <param name="Symbol">Colour of the symbol inside the disc.</param>
+internal readonly record struct TrayBadgeColors(Color Fill, Color Outline, Color Symbol);
+
+/// <summary>
+/// Platform-independent description of one tray icon of design B "Layers" (T-025): a hotend above three layers (bars)
+/// that fill left to right, bottom layer first, plus an optional state badge. Drawn by <see cref="TrayIconRenderer"/>.
+/// </summary>
+/// <param name="Hotend">Colour of the hotend glyph.</param>
+/// <param name="Track">Colour of the unfilled part of the layers (semi-transparent, so it suits light and dark taskbars).</param>
+/// <param name="Fill">Colour of the filled part of the layers.</param>
+/// <param name="FilledFraction">Filled part of all three layers together (0–1).</param>
+/// <param name="Badge">State badge; <see cref="TrayBadge.None"/> draws none and ignores <paramref name="BadgeColors"/>.</param>
+/// <param name="BadgeColors">Colours of the badge.</param>
+internal readonly record struct TrayIconAppearance(
+    Color Hotend,
+    Color Track,
+    Color Fill,
+    double FilledFraction,
+    TrayBadge Badge,
+    TrayBadgeColors BadgeColors);
