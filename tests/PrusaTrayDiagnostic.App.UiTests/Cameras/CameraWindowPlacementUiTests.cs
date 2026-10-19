@@ -27,12 +27,11 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
 
     private static CameraViewModel ViewModel(CameraWindow window) => (CameraViewModel)window.DataContext!;
 
-    /// <summary>Where the window should be: <paramref name="layout"/> placed on <paramref name="screen"/> by the Core rules.</summary>
+    /// <summary>Where the window should be: <paramref name="layout"/> placed on <paramref name="screen"/> with the chrome assumed before showing.</summary>
     private static (PixelPoint Position, Size Size) Expected(CameraWindowLayout layout, CameraScreen screen, CameraWindowMode mode)
     {
-        Size frame = CameraWindowPlanner.AssumedFrame(mode);
-        CameraWindowTarget target = CameraWindowDefaultPlacement.Place(layout, screen, frame.Width, frame.Height);
-        return (new PixelPoint(target.Bounds.X, target.Bounds.Y), new Size(target.ClientWidth, target.ClientHeight));
+        CameraWindowPlacement placement = CameraWindowPlanner.Place(layout, screen, CameraWindowPlanner.AssumedChrome(mode));
+        return (new PixelPoint(placement.X, placement.Y), new Size(placement.Width, placement.Height));
     }
 
     private static CameraScreen ScreenAt(FakeScreenCatalog screens, int x) => screens.GetScreens().Single(screen => screen.Bounds.X == x);
@@ -61,8 +60,9 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
 
             Assert.True(ViewModel(window).IsNormal);
             Assert.Equal(WindowDecorations.Full, window.WindowDecorations);
-            // 150 %: the 16 DIP margin is 24 px from the work area (-1920, 200).
-            Assert.Equal(new PixelPoint(-1896, 224), window.Position);
+            // 150 %: the visible window is 24 px (16 DIP) from the work area (-1920, 200); the position is moved out by the invisible border.
+            int invisibleLeft = (int)Math.Round(CameraWindowPlanner.AssumedNormalChrome.InvisibleBorders.Left * 1.5, MidpointRounding.AwayFromZero);
+            Assert.Equal(new PixelPoint(-1896 - invisibleLeft, 224), window.Position);
             AssertPlaced(window, Expected(defaults.Normal, ScreenAt(screens, -1920), CameraWindowMode.Normal));
         });
 

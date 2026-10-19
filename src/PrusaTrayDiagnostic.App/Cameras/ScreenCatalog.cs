@@ -32,7 +32,8 @@ internal sealed class EmptyScreenCatalog : IScreenCatalog
 /// The monitors Avalonia reports for a window (<see cref="TopLevel.Screens"/>; usable before the window is shown).
 /// </summary>
 /// <remarks>
-/// Names: on Windows the name comes from Windows itself (<see cref="MonitorNameNative"/>: the friendly name such as
+/// Names: on Windows the name and the device path of the physical monitor come from Windows itself
+/// (<see cref="MonitorNameNative"/>: the friendly name such as
 /// "DELL U2719D", else the GDI device name <c>\\.\DISPLAY1</c>), because Avalonia 12.1.4 reports an empty
 /// <c>DisplayName</c> there; Avalonia's name is used when that fails. Other platforms use Avalonia's <c>DisplayName</c>
 /// (macOS: the localized monitor name, not verified). A monitor without any name is still listed (empty name): the
@@ -73,18 +74,20 @@ internal sealed class AvaloniaScreenCatalog(TopLevel topLevel) : IScreenCatalog
             return null;
         }
 
-        return new CameraScreen(NameOf(screen), bounds, ToBounds(screen.WorkingArea), screen.Scaling, screen.IsPrimary);
+        (string name, string? devicePath) = IdentityOf(screen);
+        return new CameraScreen(name, bounds, ToBounds(screen.WorkingArea), screen.Scaling, screen.IsPrimary, devicePath);
     }
 
-    private static string NameOf(Screen screen)
+    /// <summary>The name and (Windows only) the device path of the physical monitor (T-035 Q8).</summary>
+    private static (string Name, string? DevicePath) IdentityOf(Screen screen)
     {
         if (OperatingSystem.IsWindows() && screen.TryGetPlatformHandle() is { Handle: var handle and not 0 })
         {
             try
             {
-                if (MonitorNameNative.GetName(handle) is { } name)
+                if (MonitorNameNative.GetIdentity(handle) is { } identity)
                 {
-                    return name;
+                    return (identity.Name, identity.DevicePath);
                 }
             }
             catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
@@ -93,7 +96,7 @@ internal sealed class AvaloniaScreenCatalog(TopLevel topLevel) : IScreenCatalog
             }
         }
 
-        return screen.DisplayName ?? string.Empty;
+        return (screen.DisplayName ?? string.Empty, null);
     }
 
     private static PixelBounds ToBounds(PixelRect rect) => new(rect.X, rect.Y, rect.Width, rect.Height);

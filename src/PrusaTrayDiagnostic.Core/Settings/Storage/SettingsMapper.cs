@@ -324,7 +324,7 @@ internal static class SettingsMapper
             RememberLastPlacement = window.RememberLastPlacement,
             StartMode = FormatStartMode(window.StartMode),
             Monitor = window.Monitor is { } monitor
-                ? new CameraMonitorDocument { DisplayName = monitor.DisplayName, Width = monitor.Width, Height = monitor.Height }
+                ? new CameraMonitorDocument { DisplayName = monitor.DisplayName, Width = monitor.Width, Height = monitor.Height, DevicePath = monitor.DevicePath }
                 : null,
             Normal = ToDocument(window.Normal),
             Mini = ToDocument(window.Mini),
@@ -381,7 +381,15 @@ internal static class SettingsMapper
             && TryGetWholeNumber(document.Height, out int height)
             && CameraMonitorId.IsValid(document.DisplayName, width, height))
         {
-            return new CameraMonitorId(document.DisplayName!, width, height);
+            string? devicePath = document.DevicePath;
+            if (devicePath is not null && !CameraMonitorId.IsValidDevicePath(devicePath))
+            {
+                // The name and resolution still identify the monitor (as in files written before the path was stored).
+                warnings.Add($"{subject}: invalid monitor device path; the monitor is matched by its name.");
+                devicePath = null;
+            }
+
+            return new CameraMonitorId(document.DisplayName!, width, height, devicePath);
         }
 
         warnings.Add($"{subject}: invalid monitor; the primary monitor is used.");

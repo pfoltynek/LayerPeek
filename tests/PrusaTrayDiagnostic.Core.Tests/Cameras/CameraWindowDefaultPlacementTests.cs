@@ -407,6 +407,107 @@ public class CameraWindowDefaultPlacementTests
         Assert.True(default(PixelBounds).IsEmpty);
     }
 
+    // ---- Device path (T-035 Q8): two identical monitors told apart ----
+
+    private const string PathA = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160000#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+    private const string PathB = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160002#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+
+    private static readonly CameraScreen DellA = new("DELL U2719D", new PixelBounds(0, 0, 2560, 1440), new PixelBounds(0, 0, 2560, 1392), 1.0, IsPrimary: true, DevicePath: PathA);
+    private static readonly CameraScreen DellB = new("DELL U2719D", new PixelBounds(2560, 0, 2560, 1440), new PixelBounds(2560, 0, 2560, 1392), 1.0, IsPrimary: false, DevicePath: PathB);
+
+    [Fact]
+    public void IdenticalMonitorsAreToldApartByTheirDevicePath()
+    {
+        CameraMonitorId second = CameraMonitorId.FromScreen(DellB);
+
+        Assert.Equal(PathB, second.DevicePath);
+        Assert.NotEqual(CameraMonitorId.FromScreen(DellA), second);
+        Assert.Same(DellB, CameraWindowDefaultPlacement.SelectScreen(second, [DellA, DellB])!.Screen);
+        Assert.Same(DellA, CameraWindowDefaultPlacement.SelectScreen(CameraMonitorId.FromScreen(DellA), [DellA, DellB])!.Screen);
+    }
+
+    [Fact]
+    public void DevicePathWinsOverNameAndResolution()
+    {
+        // The monitor with the path was rotated, its twin still has the stored resolution.
+        CameraScreen rotatedB = new("DELL U2719D", new PixelBounds(2560, 0, 1440, 2560), new PixelBounds(2560, 0, 1440, 2512), 1.0, IsPrimary: false, DevicePath: PathB);
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB), [DellA, rotatedB])!;
+
+        Assert.Same(rotatedB, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+    }
+
+    [Fact]
+    public void ChangedDevicePathFallsBackToNameAndResolution()
+    {
+        // Plugged into another connector: the stored path is gone, the exact name and resolution still match.
+        CameraScreen moved = new("DELL U2719D", new PixelBounds(2560, 0, 1920, 1080), new PixelBounds(2560, 0, 1920, 1040), 1.0, IsPrimary: false, DevicePath: PathB.Replace("UID160002", "UID160004", StringComparison.Ordinal));
+        CameraMonitorId stored = new("DELL U2719D", 1920, 1080, PathB);
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [DellA, moved])!;
+
+        Assert.Same(moved, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [DellA, moved]));
+    }
+
+    [Fact]
+    public void DevicePathAloneMeansConnected()
+    {
+        // Renamed by a driver update, same connector.
+        CameraScreen renamed = new("DELL U2719D (DisplayPort)", DellB.Bounds, DellB.WorkingArea, 1.0, IsPrimary: false, DevicePath: PathB);
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB);
+
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [renamed]));
+        Assert.Same(renamed, CameraWindowDefaultPlacement.SelectScreen(stored, [DellA, renamed])!.Screen);
+    }
+
+    [Fact]
+    public void OldMonitorWithoutDevicePathStillMatchesByNameAndResolution()
+    {
+        CameraMonitorId old = new("DELL U2719D", 2560, 1440);
+
+        Assert.False(old.MatchesDevicePath(DellB));
+        Assert.Same(DellA, CameraWindowDefaultPlacement.SelectScreen(old, [DellA, DellB])!.Screen);
+    }
+
+    [Fact]
+    public void ScreenWithoutDevicePathNeverMatchesByPath()
+    {
+        CameraScreen noPath = DellB with { DevicePath = null };
+
+        Assert.False(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB).MatchesDevicePath(noPath));
+        Assert.Null(CameraMonitorId.FromScreen(noPath).DevicePath);
+        Assert.True(new CameraMonitorId("X", 1, 1, PathB.ToUpperInvariant()).MatchesDevicePath(DellB));
+    }
+
+    [Fact]
+    public void UnstorableDevicePathOfAScreenIsLeftOut()
+    {
+        CameraScreen odd = DellB with { DevicePath = "bad\u0001path" };
+
+        Assert.Null(CameraMonitorId.FromScreen(odd).DevicePath);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("a\u0007b")]
+    public void InvalidDevicePathIsRejected(string path)
+    {
+        Assert.False(CameraMonitorId.IsValidDevicePath(path));
+        Assert.Throws<ArgumentException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, path));
+    }
+
+    [Fact]
+    public void DevicePathLengthIsLimited()
+    {
+        Assert.True(CameraMonitorId.IsValidDevicePath(new string('p', CameraMonitorId.MaxDevicePathLength)));
+        Assert.False(CameraMonitorId.IsValidDevicePath(new string('p', CameraMonitorId.MaxDevicePathLength + 1)));
+        Assert.False(CameraMonitorId.IsValidDevicePath(null));
+    }
+
     private static CameraScreen[] AllScreens() => [Primary, Right, Left, Above];
 
     private static CameraWindowTarget Compute(CameraWindowDefaults defaults, CameraWindowMode mode, params CameraScreen[] screens) =>

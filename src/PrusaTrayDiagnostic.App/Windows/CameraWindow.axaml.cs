@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
 using PrusaTrayDiagnostic.App.Cameras;
+using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.Core.Cameras;
 
 namespace PrusaTrayDiagnostic.App.Windows;
@@ -32,8 +33,8 @@ public sealed partial class CameraWindow : Window
     private IScreenCatalog? _screens;
     private CameraViewModel? _viewModel;
 
-    // The normal window was placed from the defaults with the assumed frame: corrected with the real frame after opening.
-    private CameraWindowLayout? _placedWithAssumedFrame;
+    // The normal window was placed from the defaults with the assumed chrome: corrected with the real one after opening.
+    private CameraWindowLayout? _placedWithAssumedChrome;
     private CameraWindowMode _appliedMode = CameraWindowMode.Normal;
 
     // The last mode with a window of its own (normal or mini): where full screen returns to.
@@ -160,7 +161,7 @@ public sealed partial class CameraWindow : Window
         RememberPlacement();
         // The monitor the window is on before anything changes (T-035 Q5: a mode switch stays on it).
         PixelBounds current = CurrentBounds();
-        _placedWithAssumedFrame = null;
+        _placedWithAssumedChrome = null;
         _applyingMode = true;
         try
         {
@@ -253,7 +254,7 @@ public sealed partial class CameraWindow : Window
             layoutMode,
             remembered,
             ScreenCatalog.GetScreens(),
-            CameraWindowPlanner.AssumedFrame(layoutMode));
+            CameraWindowPlanner.AssumedChrome(layoutMode));
         if (placement is not { } chosen)
         {
             Width = layout.Size.Width;
@@ -265,34 +266,28 @@ public sealed partial class CameraWindow : Window
         Place(chosen);
         if (!mini && remembered != chosen)
         {
-            _placedWithAssumedFrame = layout;
+            _placedWithAssumedChrome = layout;
         }
     }
 
     /// <summary>
-    /// After opening, with the real frame: a normal window placed from the defaults with a different assumed frame is
-    /// placed again on its monitor (a corner keeps its margin).
+    /// After opening, with the real chrome (frame and, on Windows, the invisible borders): a normal window placed from the
+    /// defaults with a different assumed chrome is placed again on its monitor, once (a corner keeps its visible margin).
     /// </summary>
     private void CorrectFrame()
     {
-        if (_placedWithAssumedFrame is not { } layout || WindowState != WindowState.Normal)
+        if (_placedWithAssumedChrome is not { } layout || WindowState != WindowState.Normal)
         {
             return;
         }
 
-        _placedWithAssumedFrame = null;
-        if (CameraWindowPlanner.FrameOf(FrameSize, ClientSize) is not { } frame)
+        _placedWithAssumedChrome = null;
+        if (MeasuredChrome() is not { } chrome || chrome.IsCloseTo(CameraWindowPlanner.AssumedNormalChrome))
         {
             return;
         }
 
-        Size assumed = CameraWindowPlanner.AssumedNormalFrame;
-        if (Math.Abs(frame.Width - assumed.Width) < 0.5 && Math.Abs(frame.Height - assumed.Height) < 0.5)
-        {
-            return;
-        }
-
-        if (CameraWindowPlanner.OnCurrentScreen(layout, CurrentBounds(), ScreenCatalog.GetScreens(), frame) is { } placement)
+        if (CameraWindowPlanner.OnCurrentScreen(layout, CurrentBounds(), ScreenCatalog.GetScreens(), chrome) is { } placement)
         {
             Place(placement);
         }
@@ -303,14 +298,36 @@ public sealed partial class CameraWindow : Window
     /// window is.
     /// </summary>
     private CameraWindowPlacement FromDefaults(CameraWindowLayout layout, CameraWindowMode mode, PixelBounds window) =>
-        CameraWindowPlanner.OnCurrentScreen(layout, window, ScreenCatalog.GetScreens(), FrameFor(mode))
+        CameraWindowPlanner.OnCurrentScreen(layout, window, ScreenCatalog.GetScreens(), ChromeFor(mode))
             ?? new CameraWindowPlacement(Position.X, Position.Y, layout.Size.Width, layout.Size.Height);
 
-    /// <summary>The frame of the window in <paramref name="mode"/>: measured while it has one, else assumed.</summary>
-    private Size FrameFor(CameraWindowMode mode) =>
-        mode == CameraWindowMode.Mini ? default
-        : _opened && WindowDecorations == WindowDecorations.Full && CameraWindowPlanner.FrameOf(FrameSize, ClientSize) is { } measured ? measured
-        : CameraWindowPlanner.AssumedNormalFrame;
+    /// <summary>The chrome of the window in <paramref name="mode"/>: measured while it has a frame, else assumed.</summary>
+    private WindowChrome ChromeFor(CameraWindowMode mode) =>
+        mode == CameraWindowMode.Mini ? WindowChrome.None
+        : _opened && WindowDecorations == WindowDecorations.Full && MeasuredChrome() is { } measured ? measured
+        : CameraWindowPlanner.AssumedNormalChrome;
+
+    /// <summary>
+    /// The real chrome of the shown window: the frame from <c>FrameSize</c>, the invisible borders from the window manager
+    /// (Windows only; elsewhere none). <see langword="null"/> while the frame is not known.
+    /// </summary>
+    private WindowChrome? MeasuredChrome()
+    {
+        if (CameraWindowPlanner.FrameOf(FrameSize, ClientSize) is not { } frame)
+        {
+            return null;
+        }
+
+        Thickness invisible = default;
+        if (OperatingSystem.IsWindows()
+            && TryGetPlatformHandle() is { HandleDescriptor: "HWND", Handle: var hwnd }
+            && WindowFrameNative.TryGetBounds(hwnd) is { } bounds)
+        {
+            invisible = CameraWindowPlanner.InvisibleBordersOf(bounds.Window, bounds.Visible, DesktopScaling);
+        }
+
+        return new WindowChrome(frame, invisible);
+    }
 
     /// <summary>The window in screen pixels (client size scaled; enough to find its monitor).</summary>
     private PixelBounds CurrentBounds()
@@ -341,7 +358,7 @@ public sealed partial class CameraWindow : Window
         }
 
         CameraWindowMode layoutMode = _appliedMode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
-        if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, screens, FrameFor(layoutMode)) is { } placement)
+        if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, screens, ChromeFor(layoutMode)) is { } placement)
         {
             Place(placement);
         }

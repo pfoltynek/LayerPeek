@@ -4,13 +4,20 @@ using System.Runtime.Versioning;
 namespace PrusaTrayDiagnostic.App.Platform.Windows;
 
 /// <summary>
-/// Names of monitors (T-035): the friendly name Windows shows in the display settings (from the monitor's EDID, e.g.
-/// "DELL U2719D") through the display configuration API, else the GDI device name (<c>\\.\DISPLAY1</c>).
+/// What Windows reports for a monitor (T-035): <paramref name="Name"/> is the friendly name of the display settings (from
+/// the monitor's EDID, e.g. "DELL U2719D"), else the GDI device name (<c>\.\DISPLAY1</c>); <paramref name="DevicePath"/>
+/// identifies the physical monitor on its connector (<c>monitorDevicePath</c>), <see langword="null"/> when unknown.
+/// </summary>
+internal readonly record struct MonitorIdentity(string Name, string? DevicePath);
+
+/// <summary>
+/// Names and device paths of monitors (T-035) through the display configuration API.
 /// </summary>
 /// <remarks>
-/// Avalonia 12.1.4 implements the same lookup (<c>WinScreen.GetDisplayName</c>), but on Windows 11 it reports an empty
+/// Avalonia 12.1.4 implements the name lookup (<c>WinScreen.GetDisplayName</c>), but on Windows 11 it reports an empty
 /// <c>Screen.DisplayName</c> for monitors that do have a friendly name (verified 2026-10-19 with two DELL U2719D), so the
-/// app asks Windows itself. Blittable structures only (<c>[LibraryImport]</c>, Native AOT).
+/// app asks Windows itself; Avalonia has no device path at all. Blittable structures only (<c>[LibraryImport]</c>,
+/// Native AOT). Fixed buffers are read up to their first NUL, never beyond their capacity.
 /// </remarks>
 [SupportedOSPlatform("windows")]
 internal static unsafe partial class MonitorNameNative
@@ -30,10 +37,10 @@ internal static unsafe partial class MonitorNameNative
     private const int TargetInfoOffset = 20;
 
     /// <summary>
-    /// The friendly name of the monitor <paramref name="monitor"/> (<c>HMONITOR</c>), else its GDI device name;
-    /// <see langword="null"/> when Windows reports neither.
+    /// The identity of the monitor <paramref name="monitor"/> (<c>HMONITOR</c>); <see langword="null"/> when Windows reports
+    /// no name for it.
     /// </summary>
-    public static string? GetName(nint monitor)
+    public static MonitorIdentity? GetIdentity(nint monitor)
     {
         MonitorInfoEx info = default;
         info.Size = (uint)sizeof(MonitorInfoEx);
@@ -42,22 +49,23 @@ internal static unsafe partial class MonitorNameNative
             return null;
         }
 
-        string device = new(info.Device);
-        string? friendly = GetFriendlyName(device);
-        return !string.IsNullOrWhiteSpace(friendly) ? friendly
+        string device = Text(info.Device, 32);
+        (string? friendly, string? devicePath) = GetTarget(device);
+        string? name = !string.IsNullOrWhiteSpace(friendly) ? friendly
             : !string.IsNullOrWhiteSpace(device) ? device
             : null;
+        return name is null ? null : new MonitorIdentity(name, string.IsNullOrWhiteSpace(devicePath) ? null : devicePath);
     }
 
-    /// <summary>The friendly name of the active display path whose source is the GDI device <paramref name="device"/>.</summary>
-    private static string? GetFriendlyName(string device)
+    /// <summary>The friendly name and device path of the active display path whose source is the GDI device <paramref name="device"/>.</summary>
+    private static (string? FriendlyName, string? DevicePath) GetTarget(string device)
     {
         // The configuration may change between the two calls (a monitor plugged in): retry a few times.
         for (int attempt = 0; attempt < 3; attempt++)
         {
             if (GetDisplayConfigBufferSizes(QdcOnlyActivePaths, out uint pathCount, out uint modeCount) != ErrorSuccess || pathCount == 0 || pathCount > 1024 || modeCount > 4096)
             {
-                return null;
+                return default;
             }
 
             byte[] paths = new byte[pathCount * PathInfoSize];
@@ -73,7 +81,7 @@ internal static unsafe partial class MonitorNameNative
 
                 if (result != ErrorSuccess)
                 {
-                    return null;
+                    return default;
                 }
 
                 for (int i = 0; i < pathCount; i++)
@@ -81,21 +89,31 @@ internal static unsafe partial class MonitorNameNative
                     byte* path = pathBuffer + (i * PathInfoSize);
                     SourceDeviceName source = default;
                     source.Header = Header(DisplayConfigDeviceInfoGetSourceName, (uint)sizeof(SourceDeviceName), path);
-                    if (DisplayConfigGetDeviceInfo(&source.Header) != ErrorSuccess || !string.Equals(new string(source.GdiDeviceName), device, StringComparison.OrdinalIgnoreCase))
+                    if (DisplayConfigGetDeviceInfo(&source.Header) != ErrorSuccess || !string.Equals(Text(source.GdiDeviceName, 32), device, StringComparison.OrdinalIgnoreCase))
                     {
                         continue;
                     }
 
                     TargetDeviceName target = default;
                     target.Header = Header(DisplayConfigDeviceInfoGetTargetName, (uint)sizeof(TargetDeviceName), path + TargetInfoOffset);
-                    return DisplayConfigGetDeviceInfo(&target.Header) == ErrorSuccess ? new string(target.MonitorFriendlyDeviceName) : null;
+                    return DisplayConfigGetDeviceInfo(&target.Header) == ErrorSuccess
+                        ? (Text(target.MonitorFriendlyDeviceName, 64), Text(target.MonitorDevicePath, 128))
+                        : default;
                 }
 
-                return null;
+                return default;
             }
         }
 
-        return null;
+        return default;
+    }
+
+    /// <summary>A fixed UTF-16 buffer of <paramref name="capacity"/> characters up to its first NUL.</summary>
+    private static string Text(char* buffer, int capacity)
+    {
+        ReadOnlySpan<char> text = new(buffer, capacity);
+        int end = text.IndexOf('\0');
+        return new string(end < 0 ? text : text[..end]);
     }
 
     /// <summary>A request header for the adapter and id at the start of a <c>DISPLAYCONFIG_PATH_SOURCE_INFO</c> / <c>_TARGET_INFO</c>.</summary>

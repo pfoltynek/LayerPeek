@@ -229,6 +229,67 @@ public class SettingsMapperCameraWindowTests
         Assert.DoesNotContain("SECRET", warning, StringComparison.Ordinal);
     }
 
+    // ---- Device path (T-035 Q8) ----
+
+    private const string DellPath = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160002#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+
+    [Fact]
+    public void MonitorDevicePathRoundTrips()
+    {
+        CameraWindowDefaults window = Customized with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath) };
+
+        AppSettings loaded = RoundTrip(WithWindow(window), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(window, Assert.Single(loaded.Printers).Camera.Window);
+        Assert.Equal(DellPath, loaded.Printers[0].Camera.Window.Monitor!.DevicePath);
+    }
+
+    [Fact]
+    public void MonitorDevicePathIsWrittenOnlyWhenKnown()
+    {
+        string withPath = Write(WithWindow(Customized with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath) }));
+        string withoutPath = Write(WithWindow(Customized));
+
+        using JsonDocument json = JsonDocument.Parse(withPath);
+        Assert.Equal(DellPath, json.RootElement.GetProperty("printers")[0].GetProperty("camera").GetProperty("window").GetProperty("monitor").GetProperty("devicePath").GetString());
+        Assert.DoesNotContain("devicePath", withoutPath, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void OlderMonitorWithoutDevicePathIsLoaded()
+    {
+        AppSettings settings = Load(PrinterJson(""", "camera": { "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440 } } }"""), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440), Assert.Single(settings.Printers).Camera.Window.Monitor);
+    }
+
+    [Theory]
+    [InlineData("\"\"")]
+    [InlineData("\"   \"")]
+    [InlineData("\"SECRET\\u0007PATH\"")]
+    public void InvalidDevicePathKeepsTheMonitorWithAWarning(string path)
+    {
+        AppSettings settings = Load(PrinterJson($$""", "camera": { "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": {{path}} } } }"""), out List<string> warnings);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440), Assert.Single(settings.Printers).Camera.Window.Monitor);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("device path", warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("SECRET", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TooLongDevicePathKeepsTheMonitorWithAWarning()
+    {
+        string path = new('p', CameraMonitorId.MaxDevicePathLength + 1);
+
+        AppSettings settings = Load(PrinterJson($$""", "camera": { "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{path}}" } } }"""), out List<string> warnings);
+
+        Assert.Null(Assert.Single(settings.Printers).Camera.Window.Monitor!.DevicePath);
+        Assert.DoesNotContain(path, Assert.Single(warnings), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TooLongMonitorNameMeansPrimaryWithWarning()
     {

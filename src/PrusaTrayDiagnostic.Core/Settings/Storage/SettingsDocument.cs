@@ -109,6 +109,10 @@ internal sealed class CameraMonitorDocument
     public double? Width { get; set; }
 
     public double? Height { get; set; }
+
+    /// <summary>Path of the physical monitor (Windows, T-035 Q8); missing in older files and on other platforms.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DevicePath { get; set; }
 }
 
 internal sealed class CameraWindowLayoutDocument

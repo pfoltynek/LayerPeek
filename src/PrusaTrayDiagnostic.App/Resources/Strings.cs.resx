@@ -721,16 +721,13 @@
     <value>Monitor</value>
   </data>
   <data name="SettingsCameraWindowMonitorPrimary" xml:space="preserve">
-    <value>Hlavní monitor</value>
+    <value>Primární monitor</value>
   </data>
   <data name="SettingsCameraWindowMonitorNumbered" xml:space="preserve">
     <value>Monitor {0} – {1} ({2}&#xA0;×&#xA0;{3})</value>
   </data>
   <data name="SettingsCameraWindowMonitorNumberedUnnamed" xml:space="preserve">
     <value>Monitor {0} ({1}&#xA0;×&#xA0;{2})</value>
-  </data>
-  <data name="SettingsCameraWindowMonitorSaved" xml:space="preserve">
-    <value>{0} ({1}&#xA0;×&#xA0;{2})</value>
   </data>
   <data name="SettingsCameraWindowMonitorNotConnected" xml:space="preserve">
     <value>{0} ({1}&#xA0;×&#xA0;{2}) – nepřipojený</value>

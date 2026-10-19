@@ -729,9 +729,6 @@
   <data name="SettingsCameraWindowMonitorNumberedUnnamed" xml:space="preserve">
     <value>Bildschirm {0} ({1}&#xA0;×&#xA0;{2})</value>
   </data>
-  <data name="SettingsCameraWindowMonitorSaved" xml:space="preserve">
-    <value>{0} ({1}&#xA0;×&#xA0;{2})</value>
-  </data>
   <data name="SettingsCameraWindowMonitorNotConnected" xml:space="preserve">
     <value>{0} ({1}&#xA0;×&#xA0;{2}) – nicht angeschlossen</value>
   </data>

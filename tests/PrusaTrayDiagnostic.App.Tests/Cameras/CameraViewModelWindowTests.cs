@@ -120,6 +120,34 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
     }
 
     [Fact]
+    public void RememberOffKeepsTheStoredPlacementsAndRemembersOnlyTheMode()
+    {
+        // User decision 2026-10-19: with "remember" off, closing must not overwrite the placements remembered earlier.
+        _states.Set("mk4", Remembered);
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { RememberLastPlacement = false });
+        Assert.True(viewModel.IsMini);
+
+        // The user moved the window and switched to the normal window (without showing the mini preview again).
+        viewModel.RememberPlacement(CameraWindowMode.Mini, new CameraWindowPlacement(5, 6, 330, 190));
+        viewModel.ShowNormalCommand.Execute(null);
+        viewModel.RememberPlacement(CameraWindowMode.Normal, new CameraWindowPlacement(7, 8, 800, 450));
+        viewModel.Dispose();
+
+        Assert.Equal(Remembered with { Mode = CameraWindowMode.Normal }, _states.Get("mk4"));
+    }
+
+    [Fact]
+    public void RememberOffWithNothingStoredRemembersOnlyTheMode()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { RememberLastPlacement = false, StartMode = CameraWindowStartMode.Mini });
+        viewModel.RememberPlacement(CameraWindowMode.Mini, new CameraWindowPlacement(5, 6, 330, 190));
+
+        viewModel.Dispose();
+
+        Assert.Equal(new CameraWindowState(CameraWindowMode.Mini, null, null), _states.Get("mk4"));
+    }
+
+    [Fact]
     public void StateRemovedWhileTheWindowIsOpenIsNotWrittenBack()
     {
         // The settings changed the defaults: they must apply the next time the window opens (T-035).

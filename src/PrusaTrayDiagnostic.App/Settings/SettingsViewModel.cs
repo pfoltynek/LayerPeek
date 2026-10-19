@@ -69,6 +69,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     private readonly ISettingsEditorStore _store;
     private readonly ICameraWindowStateStore? _cameraWindowStates;
+    private readonly IScreenCatalog _screens;
+    private IReadOnlyList<CameraScreen>? _screenList;
     private readonly Func<string> _newId;
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -141,7 +143,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         CameraTester = cameraTester ?? new CameraSnapshotTester(UnavailableCameraFeedFactory.Instance, TimeProvider.System, NullLogger<CameraSnapshotTester>.Instance);
         CameraPreviewRenderer = cameraPreviewRenderer ?? BitmapCameraPreviewRenderer.Instance;
         Logger = logger ?? NullLogger<SettingsViewModel>.Instance;
-        Screens = screens ?? EmptyScreenCatalog.Instance;
+        _screens = screens ?? EmptyScreenCatalog.Instance;
         _cameraWindowStates = cameraWindowStates;
         StartModeOptions =
         [
@@ -459,8 +461,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Position choices of the camera window (shared by all printers).</summary>
     internal IReadOnlyList<CameraCornerOption> CornerOptions { get; }
 
-    /// <summary>The monitors offered for the camera window.</summary>
-    internal IScreenCatalog Screens { get; }
+    /// <summary>
+    /// The monitors offered for the camera window, read once per settings window (T-035 Q10: no live refresh) and shared by
+    /// all printers.
+    /// </summary>
+    internal IReadOnlyList<CameraScreen> ScreenList => _screenList ??= _screens.GetScreens();
 
     internal bool IsDisposed => _disposed;
 

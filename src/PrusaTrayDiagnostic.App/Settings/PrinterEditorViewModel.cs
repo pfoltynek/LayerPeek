@@ -116,7 +116,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _savedWindow = camera.Window;
         _rememberLastPlacement = _savedWindow.RememberLastPlacement;
         _startMode = owner.StartModeOptions.First(option => option.Value == _savedWindow.StartMode);
-        _monitorOptions = CreateMonitorOptions(_savedWindow.Monitor, owner.Screens.GetScreens());
+        _monitorOptions = CreateMonitorOptions(_savedWindow.Monitor, owner.ScreenList);
         _monitor = _monitorOptions.First(option => option.Value == _savedWindow.Monitor);
         _normalSizeText = CameraWindowSizeText.Format(_savedWindow.Normal.Size);
         _normalCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Normal.Corner);
@@ -487,7 +487,6 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
     }
 
-
     public IReadOnlyList<CameraCornerOption> CornerOptions => _owner.CornerOptions;
 
     /// <summary>Size of the normal window as typed ("960 × 540", also "960x540"); validated while the camera is on.</summary>
@@ -675,38 +674,40 @@ public sealed class PrinterEditorViewModel : ObservableObject
     }
 
     /// <summary>
-    /// "Primary monitor", then every connected monitor that can be stored (a name and a resolution; two identical ones
-    /// cannot be told apart and appear once), numbered in the order of the catalog, then the saved monitor when it is not
-    /// one of them.
+    /// "Primary monitor", then every connected monitor numbered in the order of the catalog, then the saved monitor when
+    /// no connected one matches it ("not connected"). The connected monitor the saved one resolves to (device path, name
+    /// and resolution, or name: <see cref="CameraWindowDefaultPlacement.SelectScreen"/>) carries the saved value, so that an
+    /// untouched choice is saved unchanged. Identical monitors are separate entries when they have device paths (Windows,
+    /// T-035 Q8); without paths (other platforms) they cannot be told apart and appear once. A monitor without a name cannot
+    /// be stored and is not offered.
     /// </summary>
     private static CameraMonitorOption[] CreateMonitorOptions(CameraMonitorId? saved, IReadOnlyList<CameraScreen> screens)
     {
         List<CameraMonitorOption> options = [new CameraMonitorOption(null, isConnected: true, static () => Strings.SettingsCameraWindowMonitorPrimary)];
+        CameraScreen? savedScreen = saved is not null && CameraWindowDefaultPlacement.SelectScreen(saved, screens) is { PreferredMonitorMissing: false } selection
+            ? selection.Screen
+            : null;
         for (int i = 0; i < screens.Count; i++)
         {
             CameraScreen screen = screens[i];
-            if (!CameraMonitorId.IsValid(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height))
-            {
-                continue;
-            }
-
-            CameraMonitorId id = CameraMonitorId.FromScreen(screen);
-            if (options.Exists(option => option.Value == id))
+            CameraMonitorId? id = ReferenceEquals(screen, savedScreen) ? saved
+                : CameraMonitorId.IsValid(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height) ? CameraMonitorId.FromScreen(screen)
+                : null;
+            if (id is null || options.Exists(option => option.Value == id))
             {
                 continue;
             }
 
             int number = i + 1;
-            options.Add(new CameraMonitorOption(id, isConnected: true, () => IsFriendlyName(id.DisplayName)
-                ? Format(Strings.SettingsCameraWindowMonitorNumbered, number, id.DisplayName, id.Width, id.Height)
-                : Format(Strings.SettingsCameraWindowMonitorNumberedUnnamed, number, id.Width, id.Height)));
+            options.Add(new CameraMonitorOption(id, isConnected: true, () => IsFriendlyName(screen.DisplayName)
+                ? Format(Strings.SettingsCameraWindowMonitorNumbered, number, screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height)
+                : Format(Strings.SettingsCameraWindowMonitorNumberedUnnamed, number, screen.Bounds.Width, screen.Bounds.Height)));
         }
 
         if (saved is not null && !options.Exists(option => option.Value == saved))
         {
-            bool connected = CameraWindowDefaultPlacement.IsConnected(saved, screens);
-            options.Add(new CameraMonitorOption(saved, connected, () => Format(
-                connected ? Strings.SettingsCameraWindowMonitorSaved : Strings.SettingsCameraWindowMonitorNotConnected,
+            options.Add(new CameraMonitorOption(saved, isConnected: false, () => Format(
+                Strings.SettingsCameraWindowMonitorNotConnected,
                 IsFriendlyName(saved.DisplayName) ? saved.DisplayName : Strings.SettingsCameraWindowMonitorGeneric,
                 saved.Width,
                 saved.Height)));

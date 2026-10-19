@@ -44,6 +44,11 @@ public sealed class CameraWindowSettingsTests : IDisposable
     private static CameraSettings Camera(bool enabled = true, CameraWindowDefaults? window = null) =>
         new(enabled, StreamUri) { Window = window ?? CameraWindowDefaults.Default };
 
+    /// <summary>Two DELL U2719D side by side in the same resolution, told apart only by their Windows device paths.</summary>
+    private static FakeScreenCatalog TwoIdenticalDells() => new(
+        Screen("DELL U2719D", 0, 0, 2560, 1440, primary: true, devicePath: DellPathA),
+        Screen("DELL U2719D", 2560, 0, 2560, 1440, devicePath: DellPathB));
+
     private async Task<SettingsViewModel> LoadAsync(IScreenCatalog? screens, params PrinterDefinition[] printers)
     {
         _store.Data = new SettingsEditorData(new AppSettings { Printers = printers }, SettingsLoadStatus.Loaded, [], Ids());
@@ -378,7 +383,7 @@ public sealed class CameraWindowSettingsTests : IDisposable
             ],
             printer.MonitorOptions.Select(static option => option.Text));
         Assert.All(printer.MonitorOptions, static option => Assert.True(option.IsConnected));
-        Assert.Equal(new CameraMonitorId("DELL U2719D", 1440, 2560), printer.MonitorOptions[3].Value);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 1440, 2560, DellPathB), printer.MonitorOptions[3].Value);
     }
 
     [Fact]
@@ -394,13 +399,81 @@ public sealed class CameraWindowSettingsTests : IDisposable
     }
 
     [Fact]
-    public async Task IdenticalMonitorsAreOfferedOnce()
+    public async Task IdenticalMonitorsWithoutDevicePathsAreOfferedOnce()
     {
+        // Other platforms: name and resolution are all there is (T-035 Q4).
         FakeScreenCatalog screens = new(Screen("DELL U2719D", 0, 0, 2560, 1440, primary: true), Screen("DELL U2719D", 2560, 0, 2560, 1440));
 
         PrinterEditorViewModel printer = await LoadOneAsync(Camera(), screens);
 
         Assert.Equal(2, printer.MonitorOptions.Count);
+    }
+
+    [Fact]
+    public async Task IdenticalMonitorsWithDevicePathsAreTwoEntries()
+    {
+        // Windows (T-035 Q8): the device path tells two identical monitors apart.
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera(), TwoIdenticalDells());
+
+        Assert.Equal(
+            ["Primary monitor", "Monitor 1 – DELL U2719D (2560 × 1440)", "Monitor 2 – DELL U2719D (2560 × 1440)"],
+            printer.MonitorOptions.Select(static option => option.Text));
+        Assert.Equal(DellPathA, printer.MonitorOptions[1].Value!.DevicePath);
+        Assert.Equal(DellPathB, printer.MonitorOptions[2].Value!.DevicePath);
+    }
+
+    [Fact]
+    public async Task SecondOfTwoIdenticalMonitorsIsSavedAndSelectedAgain()
+    {
+        SettingsViewModel vm = await LoadAsync(TwoIdenticalDells(), Printer("a", "Alpha", Camera()));
+        vm.Printers[0].SelectedMonitor = vm.Printers[0].MonitorOptions[2];
+        AppSettings saved = await SaveAsync(vm);
+        CameraMonitorId stored = saved.Printers[0].Camera.Window.Monitor!;
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathB), stored);
+        vm.Dispose();
+
+        PrinterEditorViewModel reopened = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = stored }), TwoIdenticalDells());
+
+        Assert.Same(reopened.MonitorOptions[2], reopened.SelectedMonitor);
+        Assert.Equal(3, reopened.MonitorOptions.Count);
+    }
+
+    [Fact]
+    public async Task SavedMonitorWhoseDevicePathChangedFallsBackToNameAndResolution()
+    {
+        // Plugged into another connector: the stored path is gone; the first monitor with the same name and resolution.
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, DellPathB.Replace("UID160002", "UID160009", StringComparison.Ordinal));
+
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = stored }), TwoIdenticalDells());
+
+        Assert.Same(printer.MonitorOptions[1], printer.SelectedMonitor);
+        Assert.Equal(stored, printer.SelectedMonitor.Value);
+        Assert.Equal(3, printer.MonitorOptions.Count);
+    }
+
+    [Fact]
+    public async Task OldSavedMonitorWithoutDevicePathIsTheFirstMatchingMonitor()
+    {
+        CameraMonitorId old = new("DELL U2719D", 2560, 1440);
+
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = old }), TwoIdenticalDells());
+
+        Assert.Same(printer.MonitorOptions[1], printer.SelectedMonitor);
+        Assert.Equal(old, printer.SelectedMonitor.Value);
+        Assert.Equal(DellPathB, printer.MonitorOptions[2].Value!.DevicePath);
+    }
+
+    [Fact]
+    public async Task ScreensAreReadOncePerSettingsWindow()
+    {
+        // T-035 Q10: read when the settings open, shared by all printers, not refreshed.
+        FakeScreenCatalog screens = ThreeMonitors();
+        SettingsViewModel vm = await LoadAsync(screens, Printer("a", "Alpha", Camera()), Printer("bb", "Beta", Camera()));
+        vm.AddPrinterCommand.Execute(null);
+        vm.RefreshTexts();
+
+        Assert.Equal(1, screens.Reads);
+        Assert.Equal(4, vm.Printers[2].MonitorOptions.Count);
     }
 
     [Fact]
@@ -439,14 +512,17 @@ public sealed class CameraWindowSettingsTests : IDisposable
     }
 
     [Fact]
-    public async Task SavedMonitorWithAnotherResolutionCountsAsConnected()
+    public async Task SavedMonitorWithAnotherResolutionIsTheConnectedMonitorWithItsName()
     {
-        // T-035 Q4: the same name with another resolution (rotated, resolution changed) is the same monitor.
+        // T-035 Q4: the same name with another resolution (rotated, resolution changed) is the same monitor; the entry of
+        // that monitor carries the saved value, so that an untouched choice is saved unchanged.
         CameraMonitorId rotated = new("LG HDR 4K", 1080, 1920);
 
         PrinterEditorViewModel printer = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = rotated }), ThreeMonitors());
 
-        Assert.Equal("LG HDR 4K (1080\u00A0×\u00A01920)", printer.SelectedMonitor.Text);
+        Assert.Equal(4, printer.MonitorOptions.Count);
+        Assert.Same(printer.MonitorOptions[1], printer.SelectedMonitor);
+        Assert.Equal("Monitor 1 – LG HDR 4K (1920 × 1080)", printer.SelectedMonitor.Text);
         Assert.True(printer.SelectedMonitor.IsConnected);
         Assert.Equal(rotated, printer.SelectedMonitor.Value);
     }
@@ -483,7 +559,7 @@ public sealed class CameraWindowSettingsTests : IDisposable
             Assert.Equal("Jako minule", selectedMode.Text);
             Assert.Contains(nameof(CameraStartModeOption.Text), changed);
             Assert.Equal("Vpravo dole", printer.SelectedMiniCorner.Text);
-            Assert.Equal("Hlavní monitor", printer.MonitorOptions[0].Text);
+            Assert.Equal("Primární monitor", printer.MonitorOptions[0].Text);
             Assert.Equal("Monitor 1 – LG HDR 4K (1920\u00A0×\u00A01080)", printer.MonitorOptions[1].Text);
             Assert.Equal("BenQ PD2700U (3840\u00A0×\u00A02160) – nepřipojený", printer.SelectedMonitor.Text);
             Assert.Equal("Zadejte šířku 160–16384 a výšku 90–16384.", printer.MiniSizeError);

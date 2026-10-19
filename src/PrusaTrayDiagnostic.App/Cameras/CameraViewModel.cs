@@ -391,9 +391,21 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _printers.Changed -= OnPrintersChanged;
         StopStream();
         _sink = null;
-        if (_stateStore.GetRemoveCount(PrinterId) == _stateRemoveCount)
+        if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
+        {
+            return;
+        }
+
+        if (_defaults.RememberLastPlacement)
         {
             _stateStore.Set(PrinterId, new CameraWindowState(_mode, _normalPlacement, _miniPlacement));
+        }
+        else
+        {
+            // "Remember" is off (T-035, user decision 2026-10-19): only the mode is remembered (for "same as last time",
+            // Q2); the placements remembered earlier stay as they were, for when "remember" is turned on again.
+            CameraWindowState stored = _stateStore.Get(PrinterId);
+            _stateStore.Set(PrinterId, stored with { Mode = _mode });
         }
     }
 

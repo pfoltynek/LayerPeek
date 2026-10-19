@@ -5,24 +5,53 @@ using PrusaTrayDiagnostic.Core.Cameras;
 namespace PrusaTrayDiagnostic.App.Cameras;
 
 /// <summary>
+/// The frame around the client area of a window, in device-independent units: <paramref name="Frame"/> is the whole
+/// window minus the client area (what Avalonia's <c>FrameSize</c> adds), <paramref name="InvisibleBorders"/> the part of
+/// it the user does not see, per side (the resize borders of Windows 10/11). Placement keeps the <em>visible</em> window
+/// inside the work area with the margin (T-035 Q9).
+/// </summary>
+internal readonly record struct WindowChrome(Size Frame, Thickness InvisibleBorders)
+{
+    /// <summary>No frame at all (the borderless mini preview).</summary>
+    public static WindowChrome None => default;
+
+    /// <summary>The visible part of the frame (title bar and the thin visible border).</summary>
+    public Size VisibleFrame => new(
+        Math.Max(Frame.Width - InvisibleBorders.Left - InvisibleBorders.Right, 0),
+        Math.Max(Frame.Height - InvisibleBorders.Top - InvisibleBorders.Bottom, 0));
+
+    /// <summary>Whether <paramref name="other"/> differs by less than half a DIP everywhere (no correction needed).</summary>
+    public bool IsCloseTo(WindowChrome other) =>
+        Close(Frame.Width, other.Frame.Width) && Close(Frame.Height, other.Frame.Height)
+        && Close(InvisibleBorders.Left, other.InvisibleBorders.Left) && Close(InvisibleBorders.Top, other.InvisibleBorders.Top)
+        && Close(InvisibleBorders.Right, other.InvisibleBorders.Right) && Close(InvisibleBorders.Bottom, other.InvisibleBorders.Bottom);
+
+    private static bool Close(double a, double b) => Math.Abs(a - b) < 0.5;
+}
+
+/// <summary>
 /// Where the camera window goes when it opens or switches modes (T-035), as pure functions over the monitors of an
 /// <see cref="IScreenCatalog"/>: a remembered placement while it is reachable, otherwise the defaults of the printer
 /// (<see cref="CameraWindowDefaultPlacement"/>). Positions are screen pixels, sizes device-independent units.
 /// </summary>
 /// <remarks>
 /// The frame: Avalonia's <c>Position</c> is the top left corner of the whole window and <c>Width</c> / <c>Height</c> the
-/// client area, so the frame is part of the outer rectangle the defaults are placed with. On Windows 11 the frame of a
-/// normal window is 16 × 39 DIP (measured 2026-10-19: client 400 × 300, <c>FrameSize</c> 416 × 339; 8 DIP on the left,
-/// right and bottom are the invisible resize borders, so the visible gap to the work area edge is about 8 DIP more than
-/// the 16 DIP margin). The mini preview has no frame.
+/// client area. On Windows 11 (measured 2026-10-19 at 100 %: client 400 × 300, <c>FrameSize</c> 416 × 339,
+/// <c>DWMWA_EXTENDED_FRAME_BOUNDS</c> 7 px inside on the left, right and bottom) the frame of a normal window is 16 × 39
+/// DIP, of which 7 / 0 / 7 / 7 DIP are invisible resize borders. The defaults place the <em>visible</em> window (client +
+/// visible frame) with the 16 DIP margin and the position is moved out by the invisible left and top borders, so that the
+/// visible gap is exactly the margin (Q9). This chrome is assumed before the window is shown; the window measures the real
+/// one once after opening and corrects the placement once. The mini preview has no frame.
 /// </remarks>
 internal static class CameraWindowPlanner
 {
-    /// <summary>Frame of the normal window assumed until the real one is measured after opening (see remarks).</summary>
-    public static Size AssumedNormalFrame { get; } = OperatingSystem.IsWindows() ? new Size(16, 39) : new Size(0, 32);
+    /// <summary>Chrome of the normal window assumed until the real one is measured after opening (see remarks).</summary>
+    public static WindowChrome AssumedNormalChrome { get; } = OperatingSystem.IsWindows()
+        ? new WindowChrome(new Size(16, 39), new Thickness(7, 0, 7, 7))
+        : new WindowChrome(new Size(0, 32), default);
 
-    /// <summary>The frame of a window in <paramref name="mode"/> before it is shown.</summary>
-    public static Size AssumedFrame(CameraWindowMode mode) => mode == CameraWindowMode.Mini ? default : AssumedNormalFrame;
+    /// <summary>The chrome of a window in <paramref name="mode"/> before it is shown.</summary>
+    public static WindowChrome AssumedChrome(CameraWindowMode mode) => mode == CameraWindowMode.Mini ? WindowChrome.None : AssumedNormalChrome;
 
     /// <summary>
     /// Where the window opens in <paramref name="mode"/> (normal window or mini preview; full screen opens the normal
@@ -35,7 +64,7 @@ internal static class CameraWindowPlanner
         CameraWindowMode mode,
         CameraWindowPlacement? remembered,
         IReadOnlyList<CameraScreen> screens,
-        Size frame)
+        WindowChrome chrome)
     {
         ArgumentNullException.ThrowIfNull(defaults);
         ArgumentNullException.ThrowIfNull(screens);
@@ -44,9 +73,9 @@ internal static class CameraWindowPlanner
             return placement;
         }
 
-        CameraWindowMode layout = mode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
-        return CameraWindowDefaultPlacement.Compute(defaults, layout, screens, frame.Width, frame.Height) is { } target
-            ? ToPlacement(target)
+        CameraWindowLayout layout = mode == CameraWindowMode.Mini ? defaults.Mini : defaults.Normal;
+        return CameraWindowDefaultPlacement.SelectScreen(defaults.Monitor, screens) is { } selection
+            ? Place(layout, selection.Screen, chrome)
             : null;
     }
 
@@ -54,12 +83,46 @@ internal static class CameraWindowPlanner
     /// <paramref name="layout"/> on the monitor the window is on now (T-035 Q5: switching modes in an open window, e.g. to
     /// the mini preview that has no remembered placement). <see langword="null"/> without screens.
     /// </summary>
-    public static CameraWindowPlacement? OnCurrentScreen(CameraWindowLayout layout, PixelBounds window, IReadOnlyList<CameraScreen> screens, Size frame)
+    public static CameraWindowPlacement? OnCurrentScreen(CameraWindowLayout layout, PixelBounds window, IReadOnlyList<CameraScreen> screens, WindowChrome chrome)
     {
         ArgumentNullException.ThrowIfNull(layout);
-        return ScreenOf(window, screens) is { } screen
-            ? ToPlacement(CameraWindowDefaultPlacement.Place(layout, screen, frame.Width, frame.Height))
-            : null;
+        return ScreenOf(window, screens) is { } screen ? Place(layout, screen, chrome) : null;
+    }
+
+    /// <summary>
+    /// <paramref name="layout"/> on <paramref name="screen"/> so that the visible window (client area + visible frame) keeps
+    /// the margin from the work area; the returned position is the corner of the whole window, i.e. moved left and up by
+    /// the invisible borders (pixels of the monitor's scaling, rounded half away from zero like Core).
+    /// </summary>
+    public static CameraWindowPlacement Place(CameraWindowLayout layout, CameraScreen screen, WindowChrome chrome)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(screen);
+        Size visible = chrome.VisibleFrame;
+        CameraWindowTarget target = CameraWindowDefaultPlacement.Place(layout, screen, visible.Width, visible.Height);
+        return new CameraWindowPlacement(
+            target.Bounds.X - ToOffset(chrome.InvisibleBorders.Left, screen.Scaling),
+            target.Bounds.Y - ToOffset(chrome.InvisibleBorders.Top, screen.Scaling),
+            target.ClientWidth,
+            target.ClientHeight);
+    }
+
+    /// <summary>
+    /// The invisible borders (DIP) from the whole window rectangle and the visible one (Windows: <c>GetWindowRect</c> and
+    /// <c>DWMWA_EXTENDED_FRAME_BOUNDS</c>, both in pixels); a side where the visible rectangle is not inside counts as 0.
+    /// </summary>
+    public static Thickness InvisibleBordersOf(PixelRect window, PixelRect visible, double scaling)
+    {
+        if (!double.IsFinite(scaling) || scaling <= 0)
+        {
+            scaling = 1.0;
+        }
+
+        return new Thickness(
+            Math.Max(visible.X - window.X, 0) / scaling,
+            Math.Max(visible.Y - window.Y, 0) / scaling,
+            Math.Max(window.Right - visible.Right, 0) / scaling,
+            Math.Max(window.Bottom - visible.Bottom, 0) / scaling);
     }
 
     /// <summary>
@@ -112,9 +175,6 @@ internal static class CameraWindowPlanner
             ? new Size(frame.Width - clientSize.Width, frame.Height - clientSize.Height)
             : null;
 
-    private static CameraWindowPlacement ToPlacement(CameraWindowTarget target) =>
-        new(target.Bounds.X, target.Bounds.Y, target.ClientWidth, target.ClientHeight);
-
     private static long Overlap(PixelBounds a, PixelBounds b)
     {
         long width = (long)Math.Min(a.Right, b.Right) - Math.Max(a.X, b.X);
@@ -122,7 +182,9 @@ internal static class CameraWindowPlanner
         return width > 0 && height > 0 ? width * height : 0;
     }
 
-    private static int ToPixels(double dip, double scaling) => (int)Math.Clamp(Math.Round(dip * scaling), 1, int.MaxValue / 4);
+    private static int ToOffset(double dip, double scaling) => (int)Math.Round(dip * scaling, MidpointRounding.AwayFromZero);
+
+    private static int ToPixels(double dip, double scaling) => (int)Math.Clamp(Math.Round(dip * scaling, MidpointRounding.AwayFromZero), 1, int.MaxValue / 4);
 
     private static PixelRect ToRect(PixelBounds bounds) => new(bounds.X, bounds.Y, bounds.Width, bounds.Height);
 }

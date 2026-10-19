@@ -3,7 +3,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 
-using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Settings;
@@ -121,20 +120,10 @@ public partial class App : Application, ITrayAppCommands
         _settingsWindow.ShowOrActivate(() =>
         {
             // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
-            // The window first: its screens are the monitors offered for the camera window (T-035).
-            SettingsWindow window = new();
-            SettingsViewModel viewModel = host.CreateSettingsViewModel(new AvaloniaScreenCatalog(window));
-            try
-            {
-                created = viewModel;
-                window.DataContext = viewModel;
-                return (new AvaloniaAuxiliaryWindow(window), viewModel);
-            }
-            catch
-            {
-                viewModel.Dispose();
-                throw;
-            }
+            // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
+            (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(static () => new SettingsWindow(), host.CreateSettingsViewModel);
+            created = viewModel;
+            return (new AvaloniaAuxiliaryWindow(window), viewModel);
         });
 
         // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.

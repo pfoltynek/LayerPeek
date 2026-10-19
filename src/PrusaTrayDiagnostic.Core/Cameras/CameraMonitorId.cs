@@ -1,22 +1,29 @@
 namespace PrusaTrayDiagnostic.Core.Cameras;
 
 /// <summary>
-/// The monitor chosen for a camera window (T-035): the name the OS reports for it (<see cref="CameraScreen.DisplayName"/>)
-/// and its resolution in pixels (size of <see cref="CameraScreen.Bounds"/>). An exact match (<see cref="Matches"/>) is
-/// preferred, a screen with the same name and another resolution (<see cref="MatchesName"/>) comes next; names are
-/// compared ordinally (see <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
+/// The monitor chosen for a camera window (T-035): the name the OS reports for it (<see cref="CameraScreen.DisplayName"/>),
+/// its resolution in pixels (size of <see cref="CameraScreen.Bounds"/>) and, where the platform has one, the path of the
+/// physical monitor (<see cref="DevicePath"/>, Q8), which tells two identical monitors apart. Matching order (see
+/// <see cref="CameraWindowDefaultPlacement.SelectScreen"/>): the same device path, then the same name and resolution
+/// (<see cref="Matches"/>), then the same name (<see cref="MatchesName"/>); names are compared ordinally.
 /// </summary>
 public sealed record CameraMonitorId
 {
     /// <summary>Longest accepted name (real names are short; anything longer comes from a damaged file).</summary>
     public const int MaxDisplayNameLength = 256;
 
+    /// <summary>Longest accepted device path (Windows uses at most 128 characters).</summary>
+    public const int MaxDevicePathLength = 256;
+
     /// <summary>Largest accepted width or height in pixels.</summary>
     public const int MaxResolution = 65535;
 
     /// <exception cref="ArgumentNullException"><paramref name="displayName"/> is <see langword="null"/>.</exception>
-    /// <exception cref="ArgumentException">The values are not valid (see <see cref="IsValid"/>); the message never contains the name.</exception>
-    public CameraMonitorId(string displayName, int width, int height)
+    /// <exception cref="ArgumentException">
+    /// The values are not valid (see <see cref="IsValid"/> and <see cref="IsValidDevicePath"/>); the message never contains
+    /// the name or the path.
+    /// </exception>
+    public CameraMonitorId(string displayName, int width, int height, string? devicePath = null)
     {
         ArgumentNullException.ThrowIfNull(displayName);
         if (!IsValid(displayName, width, height))
@@ -26,9 +33,17 @@ public sealed record CameraMonitorId
                 nameof(displayName));
         }
 
+        if (devicePath is not null && !IsValidDevicePath(devicePath))
+        {
+            throw new ArgumentException(
+                $"Invalid monitor device path: it must have 1–{MaxDevicePathLength} characters without control characters.",
+                nameof(devicePath));
+        }
+
         DisplayName = displayName;
         Width = width;
         Height = height;
+        DevicePath = devicePath;
     }
 
     /// <summary>Name reported by the OS, kept exactly (not trimmed).</summary>
@@ -41,23 +56,43 @@ public sealed record CameraMonitorId
     public int Height { get; }
 
     /// <summary>
+    /// The path of the physical monitor (Windows); <see langword="null"/> on other platforms and in settings written before
+    /// it was stored. It changes when the monitor is plugged into another connector; matching then falls back to the name.
+    /// </summary>
+    public string? DevicePath { get; }
+
+    /// <summary>
     /// Not only white space, at most <see cref="MaxDisplayNameLength"/> characters, no control characters; resolution
     /// 1–<see cref="MaxResolution"/> pixels.
     /// </summary>
     public static bool IsValid(string? displayName, int width, int height) =>
-        !string.IsNullOrWhiteSpace(displayName)
-        && displayName.Length <= MaxDisplayNameLength
-        && !displayName.AsSpan().ContainsAnyInRange('\0', '\u001F')
-        && !displayName.AsSpan().ContainsAnyInRange('\u007F', '\u009F')
+        IsValidText(displayName, MaxDisplayNameLength)
         && width is >= 1 and <= MaxResolution
         && height is >= 1 and <= MaxResolution;
 
-    /// <summary>Identifies <paramref name="screen"/> (e.g. when the user picks it in the settings).</summary>
+    /// <summary>Same rules as the name: not only white space, at most <see cref="MaxDevicePathLength"/> characters, no control characters.</summary>
+    public static bool IsValidDevicePath(string? devicePath) => IsValidText(devicePath, MaxDevicePathLength);
+
+    /// <summary>
+    /// Identifies <paramref name="screen"/> (e.g. when the user picks it in the settings). A device path that cannot be
+    /// stored is left out (the name and resolution still identify the monitor).
+    /// </summary>
     /// <exception cref="ArgumentException">The screen name or resolution cannot be stored (see <see cref="IsValid"/>).</exception>
     public static CameraMonitorId FromScreen(CameraScreen screen)
     {
         ArgumentNullException.ThrowIfNull(screen);
-        return new CameraMonitorId(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height);
+        return new CameraMonitorId(
+            screen.DisplayName,
+            screen.Bounds.Width,
+            screen.Bounds.Height,
+            IsValidDevicePath(screen.DevicePath) ? screen.DevicePath : null);
+    }
+
+    /// <summary>The same physical monitor: both have a device path and it is the same (case-insensitive, like Windows paths).</summary>
+    public bool MatchesDevicePath(CameraScreen screen)
+    {
+        ArgumentNullException.ThrowIfNull(screen);
+        return DevicePath is not null && string.Equals(DevicePath, screen.DevicePath, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>Exact match: same name (ordinal) and same resolution.</summary>
@@ -70,4 +105,10 @@ public sealed record CameraMonitorId
         ArgumentNullException.ThrowIfNull(screen);
         return string.Equals(DisplayName, screen.DisplayName, StringComparison.Ordinal);
     }
+
+    private static bool IsValidText(string? text, int maxLength) =>
+        !string.IsNullOrWhiteSpace(text)
+        && text.Length <= maxLength
+        && !text.AsSpan().ContainsAnyInRange('\0', '\u001F')
+        && !text.AsSpan().ContainsAnyInRange('\u007F', '\u009F');
 }
