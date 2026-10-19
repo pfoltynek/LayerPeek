@@ -546,4 +546,139 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Stav tlačiarne sa zmenil</value>
   </data>
+  <data name="SettingsCamera" xml:space="preserve">
+    <value>Kamera</value>
+  </data>
+  <data name="SettingsCameraEnabled" xml:space="preserve">
+    <value>Používať kameru (položka Kamera… v ponuke oznamovacej oblasti)</value>
+  </data>
+  <data name="SettingsCameraUrl" xml:space="preserve">
+    <value>Adresa RTSP streamu</value>
+  </data>
+  <data name="SettingsCameraUrlHint" xml:space="preserve">
+    <value>Napríklad rtsp://192.168.0.227/live (kamera Prusa Buddy3D); predvolený port je 554. Nezadávajte používateľské meno ani heslo.</value>
+  </data>
+  <data name="SettingsCameraCredentialsRemoved" xml:space="preserve">
+    <value>Z uloženej adresy kamery bolo odstránené používateľské meno a heslo, pretože nesmú byť uložené v súbore nastavení. Skontrolujte adresu a kameru znova zapnite.</value>
+  </data>
+  <data name="SettingsCameraTest" xml:space="preserve">
+    <value>Otestovať kameru</value>
+  </data>
+  <data name="SettingsCameraTesting" xml:space="preserve">
+    <value>Čaká sa na obraz z kamery…</value>
+  </data>
+  <data name="SettingsCameraTestSuccess" xml:space="preserve">
+    <value>Kamera funguje ({0} × {1} px).</value>
+  </data>
+  <data name="SettingsCameraTestTimeout" xml:space="preserve">
+    <value>Z kamery neprišiel obraz do {0} s.</value>
+  </data>
+  <data name="SettingsCameraTestFailed" xml:space="preserve">
+    <value>Stream kamery sa nepodarilo otvoriť: {0}</value>
+  </data>
+  <data name="SettingsCameraTestFailedUnknown" xml:space="preserve">
+    <value>Stream kamery sa nepodarilo otvoriť.</value>
+  </data>
+  <data name="SettingsCameraErrorMissing" xml:space="preserve">
+    <value>Zadajte adresu streamu, napr. rtsp://192.168.0.227/live.</value>
+  </data>
+  <data name="SettingsCameraErrorInvalid" xml:space="preserve">
+    <value>Adresa nie je platná. Použite tvar rtsp://adresa/cesta.</value>
+  </data>
+  <data name="SettingsCameraErrorScheme" xml:space="preserve">
+    <value>Podporované sú iba adresy rtsp://.</value>
+  </data>
+  <data name="SettingsCameraErrorHost" xml:space="preserve">
+    <value>V adrese chýba názov alebo IP adresa kamery.</value>
+  </data>
+  <data name="SettingsCameraErrorCredentials" xml:space="preserve">
+    <value>Adresa nesmie obsahovať používateľské meno, heslo ani znak @.</value>
+  </data>
+  <data name="MenuCamera" xml:space="preserve">
+    <value>Kamera…</value>
+  </data>
+  <data name="CameraTitle" xml:space="preserve">
+    <value>{0} – kamera</value>
+  </data>
+  <data name="CameraConnecting" xml:space="preserve">
+    <value>Pripája sa ku kamere…</value>
+  </data>
+  <data name="CameraNoSignal" xml:space="preserve">
+    <value>Bez signálu</value>
+  </data>
+  <data name="CameraError" xml:space="preserve">
+    <value>Chyba kamery</value>
+  </data>
+  <data name="CameraFullScreen" xml:space="preserve">
+    <value>Celá obrazovka (F11)</value>
+  </data>
+  <data name="CameraExitFullScreen" xml:space="preserve">
+    <value>Ukončiť celú obrazovku (Esc)</value>
+  </data>
+  <data name="CameraMini" xml:space="preserve">
+    <value>Malý náhľad vždy navrchu</value>
+  </data>
+  <data name="CameraNormal" xml:space="preserve">
+    <value>Späť do normálneho okna (dvojklik)</value>
+  </data>
+  <data name="CameraImageHint" xml:space="preserve">
+    <value>Obraz z kamery. Dvojklik prepína celú obrazovku; F11 celá obrazovka, Esc späť.</value>
+  </data>
+  <data name="AboutThirdPartyLicenses" xml:space="preserve">
+    <value>Licencie tretích strán…</value>
+  </data>
+  <data name="LicensesTitle" xml:space="preserve">
+    <value>Licencie tretích strán</value>
+  </data>
+  <data name="LicensesIntro" xml:space="preserve">
+    <value>Prusa Tray Diagnostic používa nasledujúce open-source komponenty. Úplné znenie licencie zobrazíte rozbalením položky.</value>
+  </data>
+  <data name="LicensesVersion" xml:space="preserve">
+    <value>Verzia {0}</value>
+  </data>
+  <data name="LicensesLicense" xml:space="preserve">
+    <value>Licencia: {0}</value>
+  </data>
+  <data name="LicensesProject" xml:space="preserve">
+    <value>Stránka projektu</value>
+  </data>
+  <data name="LicensesShowText" xml:space="preserve">
+    <value>Text licencie</value>
+  </data>
+  <data name="LicensesTextUnavailable" xml:space="preserve">
+    <value>Text licencie nie je k dispozícii.</value>
+  </data>
+  <data name="LicensesFFmpegHeader" xml:space="preserve">
+    <value>FFmpeg (dekódovanie videa z kamery)</value>
+  </data>
+  <data name="LicensesFFmpegLoading" xml:space="preserve">
+    <value>Zisťujú sa knižnice FFmpeg…</value>
+  </data>
+  <data name="LicensesFFmpegMissing" xml:space="preserve">
+    <value>Knižnice FFmpeg sa vedľa aplikácie nenašli, kamera preto nefunguje.</value>
+  </data>
+  <data name="LicensesFFmpegNote" xml:space="preserve">
+    <value>FFmpeg je licencovaný pod GNU LGPL verzie 3 alebo novšej. Aplikácia používa neupravený LGPL build od BtbN a linkuje ho dynamicky: knižnice DLL avcodec, avformat, avutil, swscale a swresample vedľa aplikácie možno nahradiť kompatibilným buildom FFmpeg (rovnaké verzie knižníc, napr. avcodec-63).</value>
+  </data>
+  <data name="LicensesFFmpegSource" xml:space="preserve">
+    <value>Zdrojový kód FFmpeg</value>
+  </data>
+  <data name="LicensesFFmpegBuild" xml:space="preserve">
+    <value>Použitý build FFmpeg (vydanie BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
+    <value>Konfigurácia a skripty buildu (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
+    <value>Text licencie FFmpeg (FFmpeg-LICENSE.txt) sa vedľa aplikácie nenašiel. GNU LGPL 3.0 je zverejnená na https://www.gnu.org/licenses/lgpl-3.0.html.</value>
+  </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>Zdieľaný framework ASP.NET Core (webový server Kestrel, Microsoft.Extensions; skompilované do aplikácie)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>Behové prostredie .NET (Native AOT, skompilované do aplikácie)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (iba Linux)</value>
+  </data>
 </root>

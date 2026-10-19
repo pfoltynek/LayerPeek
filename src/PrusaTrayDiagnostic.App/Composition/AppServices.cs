@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Localization;
@@ -10,6 +11,8 @@ using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Camera.FFmpeg;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.History;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
@@ -33,10 +36,22 @@ internal static class AppServices
     /// Logger factory owned by the caller. Registered as an instance, so disposing the container does not dispose it:
     /// quitting still logs after the container is gone. <see langword="null"/>: the container creates its own.
     /// </param>
-    public static ServiceProvider Create(ILoggerFactory? loggerFactory = null) => Create(loggerFactory, OperatingSystem.IsWindows());
+    /// <param name="cameraFeedFactory">Video decoder for tests; <see langword="null"/>: the app's (see <see cref="CreateCameraFeedFactory"/>).</param>
+    /// <param name="cameraWindowStateStore">
+    /// Where camera windows are remembered, for tests; <see langword="null"/>: <c>camera-windows.json</c> in the user data folder.
+    /// </param>
+    public static ServiceProvider Create(
+        ILoggerFactory? loggerFactory = null,
+        Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
+        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
-    internal static ServiceProvider Create(ILoggerFactory? loggerFactory, bool windows)
+    internal static ServiceProvider Create(
+        ILoggerFactory? loggerFactory,
+        bool windows,
+        Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
+        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null)
     {
         ServiceCollection services = new();
 
@@ -91,6 +106,8 @@ internal static class AppServices
         // Diagnostics window (T-011): the printers of the current run, and printer/firmware information on demand.
         services.AddSingleton(static _ => new MonitoredPrinters());
         services.AddSingleton<IPrinterInfoSource>(static sp => new PrinterInfoSource(sp.GetRequiredService<PrusaLinkClientFactory>()));
+        // Cameras (T-014): printers whose camera address lost its credentials at startup, for the settings window.
+        services.AddSingleton(static _ => new RemovedCameraCredentials());
         services.AddSingleton(static sp => new MonitoringSession(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -104,7 +121,8 @@ internal static class AppServices
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
             ],
-            sp.GetRequiredService<ILogger<MonitoringSession>>()));
+            sp.GetRequiredService<ILogger<MonitoringSession>>(),
+            sp.GetRequiredService<RemovedCameraCredentials>()));
 
         // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
         // web proxies of printers whose login changed are stopped (T-028).
@@ -116,12 +134,15 @@ internal static class AppServices
             sp.GetRequiredService<PasswordPolicy>(),
             sp.GetRequiredService<ISettingsApplier>(),
             sp.GetRequiredService<IPrinterWebGateway>(),
-            sp.GetRequiredService<ILogger<SettingsEditorStore>>()));
+            sp.GetRequiredService<ILogger<SettingsEditorStore>>(),
+            removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>()));
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
+
+        AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
@@ -148,6 +169,89 @@ internal static class AppServices
             argument => _ = router.ActivateAsync(argument),
             UiLanguage.CurrentTextCulture,
             services.GetRequiredService<ILogger<ToastNotificationService>>());
+    }
+
+    /// <summary>
+    /// The video decoder of the camera windows and of the camera test (T-014): FFmpeg. This is the only place that chooses
+    /// it. Creating it loads nothing; missing native libraries surface as a camera error, the rest of the app works.
+    /// </summary>
+    private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory =
+        static _ => new FFmpegCameraFeedFactory();
+
+    /// <summary>Camera windows and the camera test of the settings window (T-014), on top of <paramref name="cameraFeedFactory"/>.</summary>
+    private static void AddCameras(
+        ServiceCollection services,
+        Func<IServiceProvider, ICameraFeedFactory> cameraFeedFactory,
+        Func<IServiceProvider, ICameraWindowStateStore> cameraWindowStateStore)
+    {
+        services.AddSingleton(cameraFeedFactory);
+        // User decision (T-014): 15 s to connect, 10 s without a frame, 5 s between attempts, no backoff.
+        services.AddSingleton(static _ => new CameraFeedOptions
+        {
+            ConnectTimeout = TimeSpan.FromSeconds(15),
+            FrameTimeout = TimeSpan.FromSeconds(10),
+            ReconnectDelay = TimeSpan.FromSeconds(5),
+        });
+        // Stateless: every camera window enumerates its own connection.
+        services.AddSingleton(static sp => new ReconnectingCameraFeed(
+            sp.GetRequiredService<ICameraFeedFactory>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<ReconnectingCameraFeed>>(),
+            sp.GetRequiredService<CameraFeedOptions>()));
+        services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
+            sp.GetRequiredService<ICameraFeedFactory>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
+        // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
+        services.AddSingleton(cameraWindowStateStore);
+    }
+
+    private static ICameraWindowStateStore CreateCameraWindowStateStore(IServiceProvider services)
+    {
+        try
+        {
+            return JsonCameraWindowStateStore.CreateDefault(services.GetRequiredService<ILogger<JsonCameraWindowStateStore>>());
+        }
+        catch (InvalidOperationException)
+        {
+            // No per-user data folder: camera windows are remembered for this run only.
+            return new MemoryCameraWindowStateStore();
+        }
+    }
+
+    /// <summary>
+    /// A new view model for the camera window of <paramref name="printerId"/>; <see langword="null"/> when the printer is
+    /// not monitored or has no enabled camera. The caller disposes it when the window closes. Call on the UI thread.
+    /// </summary>
+    public static CameraViewModel? CreateCameraViewModel(IServiceProvider services, string printerId)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        if (services.GetRequiredService<MonitoredPrinters>().Current.Printers is not { } printers)
+        {
+            return null;
+        }
+
+        foreach (PrinterDefinition printer in printers)
+        {
+            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+            {
+                return CameraTarget.From(printer) is { } target
+                    ? new CameraViewModel(
+                        target,
+                        services.GetRequiredService<ReconnectingCameraFeed>(),
+                        services.GetRequiredService<IPrinterMonitor>(),
+                        services.GetRequiredService<MonitoredPrinters>(),
+                        services.GetRequiredService<IUiDispatcher>(),
+                        services.GetRequiredService<ICameraWindowStateStore>(),
+                        services.GetRequiredService<TimeProvider>(),
+                        services.GetRequiredService<CameraFeedOptions>(),
+                        services.GetRequiredService<ILogger<CameraViewModel>>())
+                    : null;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -178,7 +282,8 @@ internal static class AppServices
         return new SettingsViewModel(
             services.GetRequiredService<ISettingsEditorStore>(),
             services.GetRequiredService<IConnectionTester>(),
-            services.GetRequiredService<PasswordPolicy>());
+            services.GetRequiredService<PasswordPolicy>(),
+            cameraTester: services.GetRequiredService<ICameraTester>());
     }
 
     private static ISecretStore CreateSecretStore() =>

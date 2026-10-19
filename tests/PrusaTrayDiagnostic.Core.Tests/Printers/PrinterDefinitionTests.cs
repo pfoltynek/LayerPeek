@@ -1,3 +1,4 @@
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 
 namespace PrusaTrayDiagnostic.Core.Tests.Printers;
@@ -92,6 +93,27 @@ public class PrinterDefinitionTests
     {
         Assert.NotEqual(Create(), Create() with { UserName = "workshop" });
         Assert.Equal(Create() with { UserName = "workshop" }, Create() with { UserName = " workshop" });
+    }
+
+    [Fact]
+    public void CameraDefaultsToDisabled()
+    {
+        Assert.Equal(CameraSettings.Disabled, Create().Camera);
+    }
+
+    [Fact]
+    public void NullCameraIsRejected()
+    {
+        Assert.Throws<ArgumentNullException>(() => Create() with { Camera = null! });
+    }
+
+    [Fact]
+    public void EqualityIncludesCamera()
+    {
+        PrinterDefinition withCamera = Create() with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) };
+
+        Assert.NotEqual(Create(), withCamera);
+        Assert.Equal(withCamera, Create() with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) });
     }
 
     private static PrinterDefinition Create(

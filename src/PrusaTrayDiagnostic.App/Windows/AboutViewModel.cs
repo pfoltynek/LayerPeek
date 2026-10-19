@@ -4,6 +4,7 @@ using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using PrusaTrayDiagnostic.App.Licenses;
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
@@ -25,6 +26,9 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     private readonly IUrlLauncher _launcher;
     private readonly string _version;
+
+    // The licences window opened from this one (at most one is open; a closed one is harmless to refresh).
+    private LicensesViewModel? _licenses;
 
     internal AboutViewModel(IUrlLauncher launcher)
         : this(launcher, typeof(AboutViewModel).Assembly)
@@ -60,12 +64,24 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     public string CloseText { get; private set; } = string.Empty;
 
-    /// <summary>UI thread: the language changed; every text is formatted again.</summary>
+    /// <summary>UI thread: the language changed; every text is formatted again, also in the licences window.</summary>
     public void RefreshTexts()
     {
         FormatTexts();
         OnPropertyChanged(string.Empty);
+        _licenses?.RefreshTexts();
     }
+
+    public string ThirdPartyLicensesText { get; private set; } = string.Empty;
+
+    /// <summary>The user wants the third-party licences; the window opens (or activates) the licences window.</summary>
+    public event EventHandler? LicensesRequested;
+
+    /// <summary>Content of a new licences window (T-014); it follows language switches of this window (<see cref="RefreshTexts"/>).</summary>
+    internal LicensesViewModel CreateLicensesViewModel() => _licenses = new(_launcher);
+
+    [RelayCommand]
+    private void ShowLicenses() => LicensesRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary><see cref="AssemblyCopyrightAttribute"/> of <paramref name="assembly"/>, or <see cref="DefaultCopyright"/>.</summary>
     internal static string ProductCopyright(Assembly assembly)
@@ -100,6 +116,7 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
         LicenseText = Format(Strings.AboutLicense, LicenseName);
         RepositoryText = Strings.AboutRepository;
         CloseText = Strings.AboutClose;
+        ThirdPartyLicensesText = Strings.AboutThirdPartyLicenses;
     }
 
     private static string Format(string format, object? arg0) =>

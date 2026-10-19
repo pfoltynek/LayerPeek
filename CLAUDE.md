@@ -52,6 +52,7 @@ src/
   PrusaTrayDiagnostic.Core          domain model, abstractions (IPrinterClient...), monitoring, events — no UI, no HTTP specifics
   PrusaTrayDiagnostic.PrusaLink     PrusaLink REST client (implements Core abstractions)
   PrusaTrayDiagnostic.PrusaConnect  Prusa Connect cloud client (implements Core abstractions)
+  PrusaTrayDiagnostic.Camera.FFmpeg RTSP/H.264 camera feed via FFmpeg (implements ICameraFeedFactory); native LGPL FFmpeg DLLs from build/FFmpeg.targets
   PrusaTrayDiagnostic.App           Avalonia tray app, composition root, platform specifics
 tests/
   <Project>.Tests                   one xUnit v3 project per src library
@@ -63,7 +64,7 @@ tasks/                              task backlog (Czech), see tasks/README.md
 .claude/agents/                     subagent definitions
 ```
 
-Dependency direction: `App -> PrusaLink, PrusaConnect -> Core`. Core must never reference Avalonia or concrete HTTP clients.
+Dependency direction: `App -> PrusaLink, PrusaConnect, Camera.FFmpeg -> Core`. Core must never reference Avalonia, concrete HTTP clients or FFmpeg.
 
 ## Commands
 
@@ -105,7 +106,7 @@ Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (forma
 | Agent | Responsibility |
 |---|---|
 | `architect` | breaks down work, maintains `tasks/` and `docs/architecture.md`, reviews design boundaries |
-| `core-dev` | Core domain, monitoring service, PrusaLink and Prusa Connect clients |
+| `core-dev` | Core domain, monitoring service, PrusaLink and Prusa Connect clients, FFmpeg camera feed |
 | `ui-dev` | Avalonia tray app, menus, notifications, auxiliary windows, Windows/macOS specifics |
 | `qa-reviewer` | tests, code review, local AOT publish checks |
 

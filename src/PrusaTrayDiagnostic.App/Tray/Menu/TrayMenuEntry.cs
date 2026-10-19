@@ -16,6 +16,9 @@ public enum TrayMenuCommand
 
     /// <summary>Diagnostics window (T-011), preselected on <see cref="TrayMenuEntry.PrinterId"/> when set.</summary>
     Diagnostics,
+
+    /// <summary>Camera window of <see cref="TrayMenuEntry.PrinterId"/> (T-014).</summary>
+    Camera,
     About,
     Quit,
 }

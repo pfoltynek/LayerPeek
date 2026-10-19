@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "pollingIntervalSeconds": 7,
+  "notifications": {
+    "enabled": true,
+    "printStarted": false,
+    "printFinished": true,
+    "printPaused": true,
+    "printResumed": true,
+    "printStopped": true,
+    "error": true,
+    "attention": true,
+    "offline": false,
+    "remainingTimeMinutes": 15,
+    "sound": "ImportantOnly"
+  },
+  "printers": [
+    {
+      "id": "3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c",
+      "name": "Workshop MK4",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.226"
+    },
+    {
+      "id": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "name": "Core One",
+      "connectionType": "PrusaLink",
+      "address": "http://192.168.0.227"
+    }
+  ]
+}

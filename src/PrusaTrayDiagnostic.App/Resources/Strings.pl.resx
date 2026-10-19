@@ -546,4 +546,139 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Stan drukarki się zmienił</value>
   </data>
+  <data name="SettingsCamera" xml:space="preserve">
+    <value>Kamera</value>
+  </data>
+  <data name="SettingsCameraEnabled" xml:space="preserve">
+    <value>Używaj kamery (pozycja Kamera… w menu obszaru powiadomień)</value>
+  </data>
+  <data name="SettingsCameraUrl" xml:space="preserve">
+    <value>Adres strumienia RTSP</value>
+  </data>
+  <data name="SettingsCameraUrlHint" xml:space="preserve">
+    <value>Na przykład rtsp://192.168.0.227/live (kamera Prusa Buddy3D); domyślny port to 554. Nie podawaj nazwy użytkownika ani hasła.</value>
+  </data>
+  <data name="SettingsCameraCredentialsRemoved" xml:space="preserve">
+    <value>Nazwa użytkownika i hasło zostały usunięte z zapisanego adresu kamery, ponieważ nie mogą być przechowywane w pliku ustawień. Sprawdź adres i ponownie włącz kamerę.</value>
+  </data>
+  <data name="SettingsCameraTest" xml:space="preserve">
+    <value>Testuj kamerę</value>
+  </data>
+  <data name="SettingsCameraTesting" xml:space="preserve">
+    <value>Oczekiwanie na obraz z kamery…</value>
+  </data>
+  <data name="SettingsCameraTestSuccess" xml:space="preserve">
+    <value>Kamera działa ({0} × {1} px).</value>
+  </data>
+  <data name="SettingsCameraTestTimeout" xml:space="preserve">
+    <value>Z kamery nie dotarł obraz w ciągu {0} s.</value>
+  </data>
+  <data name="SettingsCameraTestFailed" xml:space="preserve">
+    <value>Nie udało się otworzyć strumienia kamery: {0}</value>
+  </data>
+  <data name="SettingsCameraTestFailedUnknown" xml:space="preserve">
+    <value>Nie udało się otworzyć strumienia kamery.</value>
+  </data>
+  <data name="SettingsCameraErrorMissing" xml:space="preserve">
+    <value>Wpisz adres strumienia, np. rtsp://192.168.0.227/live.</value>
+  </data>
+  <data name="SettingsCameraErrorInvalid" xml:space="preserve">
+    <value>Adres jest nieprawidłowy. Użyj formatu rtsp://adres/ścieżka.</value>
+  </data>
+  <data name="SettingsCameraErrorScheme" xml:space="preserve">
+    <value>Obsługiwane są tylko adresy rtsp://.</value>
+  </data>
+  <data name="SettingsCameraErrorHost" xml:space="preserve">
+    <value>W adresie brakuje nazwy hosta lub adresu IP.</value>
+  </data>
+  <data name="SettingsCameraErrorCredentials" xml:space="preserve">
+    <value>Adres nie może zawierać nazwy użytkownika, hasła ani znaku @.</value>
+  </data>
+  <data name="MenuCamera" xml:space="preserve">
+    <value>Kamera…</value>
+  </data>
+  <data name="CameraTitle" xml:space="preserve">
+    <value>{0} – kamera</value>
+  </data>
+  <data name="CameraConnecting" xml:space="preserve">
+    <value>Łączenie z kamerą…</value>
+  </data>
+  <data name="CameraNoSignal" xml:space="preserve">
+    <value>Brak sygnału</value>
+  </data>
+  <data name="CameraError" xml:space="preserve">
+    <value>Błąd kamery</value>
+  </data>
+  <data name="CameraFullScreen" xml:space="preserve">
+    <value>Pełny ekran (F11)</value>
+  </data>
+  <data name="CameraExitFullScreen" xml:space="preserve">
+    <value>Zamknij pełny ekran (Esc)</value>
+  </data>
+  <data name="CameraMini" xml:space="preserve">
+    <value>Mały podgląd, zawsze na wierzchu</value>
+  </data>
+  <data name="CameraNormal" xml:space="preserve">
+    <value>Powrót do zwykłego okna (dwukrotne kliknięcie)</value>
+  </data>
+  <data name="CameraImageHint" xml:space="preserve">
+    <value>Obraz z kamery. Dwukrotne kliknięcie przełącza pełny ekran; F11 pełny ekran, Esc powrót.</value>
+  </data>
+  <data name="AboutThirdPartyLicenses" xml:space="preserve">
+    <value>Licencje stron trzecich…</value>
+  </data>
+  <data name="LicensesTitle" xml:space="preserve">
+    <value>Licencje stron trzecich</value>
+  </data>
+  <data name="LicensesIntro" xml:space="preserve">
+    <value>Prusa Tray Diagnostic korzysta z następujących komponentów open source. Rozwiń pozycję, aby przeczytać pełną treść licencji.</value>
+  </data>
+  <data name="LicensesVersion" xml:space="preserve">
+    <value>Wersja {0}</value>
+  </data>
+  <data name="LicensesLicense" xml:space="preserve">
+    <value>Licencja: {0}</value>
+  </data>
+  <data name="LicensesProject" xml:space="preserve">
+    <value>Strona projektu</value>
+  </data>
+  <data name="LicensesShowText" xml:space="preserve">
+    <value>Treść licencji</value>
+  </data>
+  <data name="LicensesTextUnavailable" xml:space="preserve">
+    <value>Treść licencji jest niedostępna.</value>
+  </data>
+  <data name="LicensesFFmpegHeader" xml:space="preserve">
+    <value>FFmpeg (dekodowanie wideo z kamery)</value>
+  </data>
+  <data name="LicensesFFmpegLoading" xml:space="preserve">
+    <value>Wykrywanie bibliotek FFmpeg…</value>
+  </data>
+  <data name="LicensesFFmpegMissing" xml:space="preserve">
+    <value>Nie znaleziono bibliotek FFmpeg obok aplikacji, więc kamera nie działa.</value>
+  </data>
+  <data name="LicensesFFmpegNote" xml:space="preserve">
+    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanej kompilacji LGPL od BtbN i łączy ją dynamicznie: biblioteki DLL avcodec, avformat, avutil, swscale i swresample obok aplikacji można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. avcodec-63).</value>
+  </data>
+  <data name="LicensesFFmpegSource" xml:space="preserve">
+    <value>Kod źródłowy FFmpeg</value>
+  </data>
+  <data name="LicensesFFmpegBuild" xml:space="preserve">
+    <value>Użyta kompilacja FFmpeg (wydanie BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
+    <value>Konfiguracja i skrypty kompilacji (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
+    <value>Nie znaleziono treści licencji FFmpeg (FFmpeg-LICENSE.txt) obok aplikacji. GNU LGPL 3.0 jest opublikowana pod adresem https://www.gnu.org/licenses/lgpl-3.0.html.</value>
+  </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>Współdzielony framework ASP.NET Core (serwer WWW Kestrel, Microsoft.Extensions; wkompilowany w aplikację)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>Środowisko uruchomieniowe .NET (Native AOT, wkompilowane w aplikację)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (tylko Linux)</value>
+  </data>
 </root>

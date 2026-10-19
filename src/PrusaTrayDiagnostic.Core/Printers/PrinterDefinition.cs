@@ -1,3 +1,5 @@
+using PrusaTrayDiagnostic.Core.Cameras;
+
 namespace PrusaTrayDiagnostic.Core.Printers;
 
 /// <summary>
@@ -65,6 +67,17 @@ public sealed record PrinterDefinition
             field = value.Trim();
         }
     } = PrinterUserName.Default;
+
+    /// <summary>Camera of the printer; <see cref="CameraSettings.Disabled"/> when none is configured.</summary>
+    public CameraSettings Camera
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = CameraSettings.Disabled;
 
     private static string RequireText(string value)
     {

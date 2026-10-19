@@ -63,7 +63,86 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
+    public async Task<IReadOnlyList<string>> RemoveCameraCredentialsAsync(CancellationToken cancellationToken)
+    {
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            byte[]? content;
+            try
+            {
+                content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // Such a file is not loaded either; whatever is in it, it is not ours to change.
+                return [];
+            }
+
+            if (content is null)
+            {
+                return [];
+            }
+
+            List<string> changed = [];
+            byte[]? cleaned;
+            try
+            {
+                cleaned = CameraCredentialScrubber.Scrub(content, changed);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not syntactically valid JSON, or (InvalidOperationException) invalid UTF-8 in a string the scrubber
+                // has to read: a property name, a printer id or a camera address. Invalid bytes in other values are
+                // copied through unchanged.
+                return [];
+            }
+
+            if (cleaned is null)
+            {
+                return [];
+            }
+
+            await WriteAtomicallyAsync(cleaned, cancellationToken).ConfigureAwait(false);
+            return changed;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public void Dispose() => _gate.Dispose();
+
+    /// <summary>
+    /// The file content, or <see langword="null"/> when there is no file or it is too large. Opened like
+    /// <see cref="LoadCoreAsync"/>, and the size is checked on the open stream, so it cannot change in between.
+    /// </summary>
+    private async Task<byte[]?> ReadAllBytesAsync(CancellationToken cancellationToken)
+    {
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, BufferSize, useAsync: true);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return null;
+        }
+
+        await using (stream.ConfigureAwait(false))
+        {
+            long length = stream.Length;
+            if (length > MaxFileSizeBytes)
+            {
+                return null;
+            }
+
+            byte[] content = new byte[length];
+            await stream.ReadExactlyAsync(content, cancellationToken).ConfigureAwait(false);
+            return content;
+        }
+    }
 
     private async Task<SettingsLoadResult> LoadCoreAsync(CancellationToken cancellationToken)
     {
@@ -115,7 +194,15 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings };
     }
 
-    private async Task SaveCoreAsync(SettingsDocument document, CancellationToken cancellationToken)
+    private Task SaveCoreAsync(SettingsDocument document, CancellationToken cancellationToken) =>
+        WriteAtomicallyAsync(
+            (stream, token) => JsonSerializer.SerializeAsync(stream, document, SettingsJsonContext.Default.SettingsDocument, token),
+            cancellationToken);
+
+    private Task WriteAtomicallyAsync(byte[] content, CancellationToken cancellationToken) =>
+        WriteAtomicallyAsync((stream, token) => stream.WriteAsync(content, token).AsTask(), cancellationToken);
+
+    private async Task WriteAtomicallyAsync(Func<Stream, CancellationToken, Task> write, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_directory);
 
@@ -126,8 +213,7 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
             FileStream stream = new(tempPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, BufferSize, useAsync: true);
             await using (stream.ConfigureAwait(false))
             {
-                await JsonSerializer.SerializeAsync(stream, document, SettingsJsonContext.Default.SettingsDocument, cancellationToken)
-                    .ConfigureAwait(false);
+                await write(stream, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
                 // Data must be on disk before the rename, otherwise a crash could leave an empty settings file.
                 stream.Flush(flushToDisk: true);

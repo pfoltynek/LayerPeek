@@ -26,6 +26,7 @@ PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macO
 
 - **Core** nezná Avalonii ani konkrétní HTTP API. Obsahuje doménu, rozhraní a logiku (polling, detekce událostí).
 - **PrusaLink / PrusaConnect** implementují `IPrinterClient`; DTO (tvar JSON) jsou oddělené od doménových modelů.
+- **Camera.FFmpeg** (T-014) implementuje `ICameraFeedFactory` z `Core/Cameras`: RTSP/H.264 přes FFmpeg (FFmpeg.AutoGen, P/Invoke) a převod snímků na BGRA. Závisí jen na Core (`App -> Camera.FFmpeg -> Core`). Nativní knihovny FFmpeg (LGPL build BtbN, připnutá URL + SHA256) stahuje a ověřuje `build/FFmpeg.targets` při buildu, zatím jen pro `win-x64` (macOS: T-026). Znovupřipojení, timeouty a stav připojení řeší `Core/Cameras/ReconnectingCameraFeed`; App jen vykresluje snímky do `WriteableBitmap` (okno kamery, malý náhled).
 - **App** je composition root: registruje služby, implementuje platformní rozhraní, zobrazuje stav. UI pouze odebírá snapshoty z monitorovací služby.
 
 ## Tok dat

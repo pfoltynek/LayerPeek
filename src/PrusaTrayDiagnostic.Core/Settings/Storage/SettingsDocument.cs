@@ -64,6 +64,17 @@ internal sealed class PrinterDocument
 
     /// <summary>PrusaLink user name; missing in files written before it was configurable (then <see cref="Printers.PrinterUserName.Default"/>).</summary>
     public string? UserName { get; set; }
+
+    /// <summary>Missing in files written before cameras existed: the camera is disabled.</summary>
+    public CameraDocument? Camera { get; set; }
+}
+
+internal sealed class CameraDocument
+{
+    public bool? Enabled { get; set; }
+
+    /// <summary>Absolute <c>rtsp://</c> URL without credentials; invalid values disable the camera.</summary>
+    public string? StreamUrl { get; set; }
 }
 
 [JsonSourceGenerationOptions(

@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 using PrusaTrayDiagnostic.Core.Settings.Storage;
@@ -274,6 +275,137 @@ public class SettingsMapperTests
 
         Assert.InRange(Assert.Single(warnings).Length, 1, 200);
     }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(""", "camera": null""")]
+    [InlineData(""", "camera": { }""")]
+    [InlineData(""", "camera": { "enabled": false }""")]
+    [InlineData(""", "camera": { "enabled": null, "streamUrl": null }""")]
+    public void MissingCameraValuesMeanDisabledCamera(string camera)
+    {
+        AppSettings settings = Load(PrinterJson(camera), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(CameraSettings.Disabled, Assert.Single(settings.Printers).Camera);
+    }
+
+    [Theory]
+    [InlineData(true, "rtsp://192.168.0.227/live")]
+    [InlineData(false, "rtsp://192.168.0.227:8554/live")]
+    [InlineData(false, null)]
+    public void CameraRoundTrips(bool enabled, string? url)
+    {
+        AppSettings settings = WithCamera(new CameraSettings(enabled, url is null ? null : new Uri(url)));
+
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Fact]
+    public void CameraIsWrittenAsEnabledFlagAndUrl()
+    {
+        AppSettings settings = WithCamera(new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")));
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+
+        Assert.Contains("\"enabled\": true", json, StringComparison.Ordinal);
+        Assert.Contains("\"streamUrl\": \"rtsp://192.168.0.227/live\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void CameraUrlIsTrimmedOnLoad()
+    {
+        AppSettings settings = Load(PrinterJson(""", "camera": { "enabled": true, "streamUrl": " rtsp://192.168.0.227/live " }"""), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal("rtsp://192.168.0.227/live", Assert.Single(settings.Printers).Camera.StreamUri!.OriginalString);
+    }
+
+    [Theory]
+    [InlineData(true, "http://192.168.0.227/live")]
+    [InlineData(true, "not an address")]
+    [InlineData(true, "rtsp:live")]
+    [InlineData(false, "rtsps://192.168.0.227/live")]
+    public void InvalidCameraUrlDisablesCameraKeepsUrlAndWarns(bool enabled, string url)
+    {
+        string camera = $$""", "camera": { "enabled": {{(enabled ? "true" : "false")}}, "streamUrl": "{{url}}" }""";
+
+        AppSettings settings = Load(PrinterJson(camera), out List<string> warnings);
+
+        PrinterDefinition printer = Assert.Single(settings.Printers);
+        Assert.False(printer.Camera.Enabled);
+        Assert.Null(printer.Camera.StreamUri);
+        Assert.Equal(url, printer.Camera.InvalidStreamUrl);
+        Assert.NotEqual(CameraUrlProblem.None, printer.Camera.StreamUrlProblem);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("camera", warning, StringComparison.OrdinalIgnoreCase);
+        // Warnings are shown in the UI; the address may contain credentials and is never echoed.
+        Assert.DoesNotContain("secret", warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("192.168.0.227", warning, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("http://192.168.0.227/live")]
+    [InlineData("  not an address  ")]
+    public void InvalidCameraUrlIsWrittenBackUnchanged(string url)
+    {
+        AppSettings settings = WithCamera(CameraSettings.FromInvalidStreamUrl(url));
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Equal(url, JsonSerializer.Deserialize(json, SettingsJsonContext.Default.SettingsDocument)!.Printers![0]!.Camera!.StreamUrl);
+        Assert.Contains("\"enabled\": false", json, StringComparison.Ordinal);
+        Assert.Equal(settings, loaded);
+        // Still invalid after the round trip, so it is reported again.
+        Assert.Single(warnings);
+    }
+
+    [Theory]
+    [InlineData("rtsp://admin:secret@192.168.0.227/live", "rtsp://192.168.0.227/live", null)]
+    [InlineData("http://admin:secret@192.168.0.227/live", null, "http://192.168.0.227/live")]
+    [InlineData("rtsp://admin:se cret@[broken/live", null, "rtsp://[broken/live")]
+    // Only credentials: nothing is left, but the flag must survive (the camera becomes CameraSettings.Disabled).
+    [InlineData("admin:secret@", null, null)]
+    [InlineData("rtsp://admin:1234/x@192.168.0.227/live", "rtsp://192.168.0.227/live", null)]
+    public void CredentialsAreRemovedFromStoredCameraUrl(string url, string? expectedUri, string? expectedInvalid)
+    {
+        AppSettings settings = Load(PrinterJson($$""", "camera": { "enabled": true, "streamUrl": "{{url}}" }"""), out List<string> warnings);
+
+        CameraSettings camera = Assert.Single(settings.Printers).Camera;
+        Assert.True(camera.CredentialsRemoved);
+        Assert.False(camera.Enabled);
+        Assert.Equal(expectedUri, camera.StreamUri?.OriginalString);
+        Assert.Equal(expectedInvalid, camera.InvalidStreamUrl);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("credentials", warning, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("secret", warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("192.168.0.227", warning, StringComparison.Ordinal);
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        Assert.DoesNotContain("secret", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("admin", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void EnabledCameraWithoutUrlIsDisabledWithWarning()
+    {
+        AppSettings settings = Load(PrinterJson(""", "camera": { "enabled": true }"""), out List<string> warnings);
+
+        Assert.Equal(CameraSettings.Disabled, Assert.Single(settings.Printers).Camera);
+        Assert.Contains("camera", Assert.Single(warnings), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string PrinterJson(string camera) =>
+        $$"""{ "printers": [ { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "192.168.0.226"{{camera}} } ] }""";
+
+    private static AppSettings WithCamera(CameraSettings camera) => new()
+    {
+        Printers = [new PrinterDefinition { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = camera }],
+    };
 
     private static AppSettings RoundTrip(AppSettings settings, out List<string> warnings)
     {

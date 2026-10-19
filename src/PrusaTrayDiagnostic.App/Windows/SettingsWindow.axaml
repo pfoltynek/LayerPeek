@@ -182,6 +182,38 @@
                                IsVisible="{Binding HasTestResult}"
                                TextWrapping="Wrap"
                                Margin="0,8,0,0" />
+
+                    <!-- Camera (T-014): RTSP stream shown from the tray menu. -->
+                    <TextBlock AutomationProperties.AutomationId="PrinterCameraSection" Classes="section" Text="{Binding [SettingsCamera], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                    <Border Background="{DynamicResource NoticeBrush}"
+                            CornerRadius="4"
+                            Padding="10,6"
+                            Margin="0,0,0,6"
+                            IsVisible="{Binding CameraCredentialsRemoved}">
+                      <TextBlock AutomationProperties.AutomationId="PrinterCameraCredentialsRemoved" Text="{Binding [SettingsCameraCredentialsRemoved], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+                    </Border>
+                    <CheckBox AutomationProperties.AutomationId="PrinterCameraEnabled" Content="{Binding [SettingsCameraEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding CameraEnabled}" />
+                    <TextBlock Classes="label" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                    <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
+                             Text="{Binding CameraUrl}"
+                             PlaceholderText="rtsp://192.168.0.227/live"
+                             AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                    <TextBlock Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                    <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,16,0,0">
+                      <Button AutomationProperties.AutomationId="PrinterCameraTest" Content="{Binding [SettingsCameraTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding TestCameraCommand}" />
+                      <Button AutomationProperties.AutomationId="PrinterCameraCancelTest" Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelCameraTestCommand}" IsVisible="{Binding IsTestingCamera}" />
+                      <ProgressBar IsIndeterminate="True" Width="80" VerticalAlignment="Center" IsVisible="{Binding IsTestingCamera}" />
+                    </StackPanel>
+                    <TextBlock AutomationProperties.AutomationId="PrinterCameraTestResult"
+                               Classes="result"
+                               Classes.success="{Binding CameraTestSucceeded}"
+                               Classes.failure="{Binding CameraTestFailed}"
+                               Text="{Binding CameraTestResultText}"
+                               IsVisible="{Binding HasCameraTestResult}"
+                               TextWrapping="Wrap"
+                               Margin="0,8,0,16" />
                   </StackPanel>
                 </DataTemplate>
               </ContentControl.ContentTemplate>

@@ -3,8 +3,12 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+
+using PrusaTrayDiagnostic.App.Tests.Tray;
 
 namespace PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 
@@ -89,6 +93,67 @@ public static class Ui
         window.KeyPressQwerty(PhysicalKey.Backspace, RawInputModifiers.None);
         window.KeyReleaseQwerty(PhysicalKey.Backspace, RawInputModifiers.None);
         window.Settle();
+    }
+
+    /// <summary>
+    /// Runs dispatcher jobs and polls <paramref name="condition"/> until it holds (camera tests, T-014). Only for work that
+    /// runs on the thread pool (the fake stream, the camera test); UI work is settled with <see cref="Settle"/> instead.
+    /// </summary>
+    public static async Task UntilAsync(Func<bool> condition, string description)
+    {
+        DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
+        while (true)
+        {
+            Dispatcher.UIThread.RunJobs();
+            if (condition())
+            {
+                return;
+            }
+
+            if (DateTime.UtcNow > deadline)
+            {
+                Assert.Fail($"Timed out waiting for: {description}");
+            }
+
+            await Task.Delay(10);
+        }
+    }
+
+    /// <summary>Texts of the visible text blocks under <paramref name="root"/>.</summary>
+    public static List<string> VisibleTexts(Visual root) =>
+        [.. root.GetVisualDescendants().OfType<TextBlock>().Where(static t => t.IsEffectivelyVisible && t.Text is not null).Select(static t => t.Text!)];
+
+    public static bool ShowsText(Visual root, string text) => VisibleTexts(root).Contains(text);
+
+    /// <summary>The first control of type <typeparamref name="T"/> under <paramref name="root"/> that matches.</summary>
+    public static T Find<T>(Visual root, Func<T, bool> predicate)
+        where T : Visual =>
+        root.GetVisualDescendants().OfType<T>().FirstOrDefault(predicate)
+            ?? throw new InvalidOperationException($"No {typeof(T).Name} matches.");
+
+    /// <summary>The pixel at (<paramref name="x"/>, <paramref name="y"/>) of a captured frame (BGRA or RGBA, read per format).</summary>
+    public static unsafe (byte R, byte G, byte B) Pixel(WriteableBitmap frame, int x, int y)
+    {
+        ArgumentNullException.ThrowIfNull(frame);
+        using ILockedFramebuffer buffer = frame.Lock();
+        byte* row = (byte*)buffer.Address + ((long)y * buffer.RowBytes) + (x * 4);
+        return buffer.Format == PixelFormat.Rgba8888 ? (row[0], row[1], row[2]) : (row[2], row[1], row[0]);
+    }
+
+    /// <summary>A left click (down + up) at <paramref name="point"/> in client coordinates, without moving the mouse first.</summary>
+    public static void Click(TopLevel topLevel, Point point)
+    {
+        ArgumentNullException.ThrowIfNull(topLevel);
+        topLevel.MouseDown(point, MouseButton.Left);
+        topLevel.MouseUp(point, MouseButton.Left);
+    }
+
+    /// <summary>The centre of <paramref name="control"/> in the coordinates of <paramref name="window"/>.</summary>
+    public static Point CentreOf(Control control, Visual window)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        return control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)
+            ?? throw new InvalidOperationException("The control is not in the window.");
     }
 
     private static void Focus(Window window, TextBox box)

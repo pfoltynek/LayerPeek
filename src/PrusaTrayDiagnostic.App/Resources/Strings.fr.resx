@@ -546,4 +546,139 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>L'état de l'imprimante a changé</value>
   </data>
+  <data name="SettingsCamera" xml:space="preserve">
+    <value>Caméra</value>
+  </data>
+  <data name="SettingsCameraEnabled" xml:space="preserve">
+    <value>Utiliser la caméra (élément Caméra… du menu de la zone de notification)</value>
+  </data>
+  <data name="SettingsCameraUrl" xml:space="preserve">
+    <value>Adresse du flux RTSP</value>
+  </data>
+  <data name="SettingsCameraUrlHint" xml:space="preserve">
+    <value>Par exemple rtsp://192.168.0.227/live (caméra Prusa Buddy3D) ; le port par défaut est 554. N'indiquez ni nom d'utilisateur ni mot de passe.</value>
+  </data>
+  <data name="SettingsCameraCredentialsRemoved" xml:space="preserve">
+    <value>Le nom d'utilisateur et le mot de passe ont été supprimés de l'adresse enregistrée de la caméra, car ils ne doivent pas être stockés dans le fichier de paramètres. Vérifiez l'adresse et réactivez la caméra.</value>
+  </data>
+  <data name="SettingsCameraTest" xml:space="preserve">
+    <value>Tester la caméra</value>
+  </data>
+  <data name="SettingsCameraTesting" xml:space="preserve">
+    <value>En attente d'une image de la caméra…</value>
+  </data>
+  <data name="SettingsCameraTestSuccess" xml:space="preserve">
+    <value>La caméra fonctionne ({0} × {1} px).</value>
+  </data>
+  <data name="SettingsCameraTestTimeout" xml:space="preserve">
+    <value>Aucune image n'est arrivée de la caméra en {0} s.</value>
+  </data>
+  <data name="SettingsCameraTestFailed" xml:space="preserve">
+    <value>Impossible d'ouvrir le flux de la caméra : {0}</value>
+  </data>
+  <data name="SettingsCameraTestFailedUnknown" xml:space="preserve">
+    <value>Impossible d'ouvrir le flux de la caméra.</value>
+  </data>
+  <data name="SettingsCameraErrorMissing" xml:space="preserve">
+    <value>Saisissez l'adresse du flux, par exemple rtsp://192.168.0.227/live.</value>
+  </data>
+  <data name="SettingsCameraErrorInvalid" xml:space="preserve">
+    <value>L'adresse n'est pas valide. Utilisez la forme rtsp://adresse/chemin.</value>
+  </data>
+  <data name="SettingsCameraErrorScheme" xml:space="preserve">
+    <value>Seules les adresses rtsp:// sont prises en charge.</value>
+  </data>
+  <data name="SettingsCameraErrorHost" xml:space="preserve">
+    <value>Il manque le nom d'hôte ou l'adresse IP dans l'adresse.</value>
+  </data>
+  <data name="SettingsCameraErrorCredentials" xml:space="preserve">
+    <value>L'adresse ne doit contenir ni nom d'utilisateur, ni mot de passe, ni le caractère @.</value>
+  </data>
+  <data name="MenuCamera" xml:space="preserve">
+    <value>Caméra…</value>
+  </data>
+  <data name="CameraTitle" xml:space="preserve">
+    <value>{0} – caméra</value>
+  </data>
+  <data name="CameraConnecting" xml:space="preserve">
+    <value>Connexion à la caméra…</value>
+  </data>
+  <data name="CameraNoSignal" xml:space="preserve">
+    <value>Pas de signal</value>
+  </data>
+  <data name="CameraError" xml:space="preserve">
+    <value>Erreur de la caméra</value>
+  </data>
+  <data name="CameraFullScreen" xml:space="preserve">
+    <value>Plein écran (F11)</value>
+  </data>
+  <data name="CameraExitFullScreen" xml:space="preserve">
+    <value>Quitter le plein écran (Échap)</value>
+  </data>
+  <data name="CameraMini" xml:space="preserve">
+    <value>Petit aperçu, toujours au premier plan</value>
+  </data>
+  <data name="CameraNormal" xml:space="preserve">
+    <value>Revenir à la fenêtre normale (double-clic)</value>
+  </data>
+  <data name="CameraImageHint" xml:space="preserve">
+    <value>Image de la caméra. Un double-clic bascule le plein écran ; F11 plein écran, Échap retour.</value>
+  </data>
+  <data name="AboutThirdPartyLicenses" xml:space="preserve">
+    <value>Licences tierces…</value>
+  </data>
+  <data name="LicensesTitle" xml:space="preserve">
+    <value>Licences tierces</value>
+  </data>
+  <data name="LicensesIntro" xml:space="preserve">
+    <value>Prusa Tray Diagnostic utilise les composants open source suivants. Développez une entrée pour lire sa licence complète.</value>
+  </data>
+  <data name="LicensesVersion" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="LicensesLicense" xml:space="preserve">
+    <value>Licence : {0}</value>
+  </data>
+  <data name="LicensesProject" xml:space="preserve">
+    <value>Page du projet</value>
+  </data>
+  <data name="LicensesShowText" xml:space="preserve">
+    <value>Texte de la licence</value>
+  </data>
+  <data name="LicensesTextUnavailable" xml:space="preserve">
+    <value>Le texte de la licence n'est pas disponible.</value>
+  </data>
+  <data name="LicensesFFmpegHeader" xml:space="preserve">
+    <value>FFmpeg (décodage vidéo de la caméra)</value>
+  </data>
+  <data name="LicensesFFmpegLoading" xml:space="preserve">
+    <value>Détection des bibliothèques FFmpeg…</value>
+  </data>
+  <data name="LicensesFFmpegMissing" xml:space="preserve">
+    <value>Les bibliothèques FFmpeg sont introuvables à côté de l'application ; la caméra ne fonctionne pas.</value>
+  </data>
+  <data name="LicensesFFmpegNote" xml:space="preserve">
+    <value>FFmpeg est distribué sous licence GNU LGPL version 3 ou ultérieure. L'application utilise une compilation LGPL non modifiée de BtbN et la lie dynamiquement : les DLL avcodec, avformat, avutil, swscale et swresample situées à côté de l'application peuvent être remplacées par une compilation FFmpeg compatible (mêmes versions des bibliothèques, par exemple avcodec-63).</value>
+  </data>
+  <data name="LicensesFFmpegSource" xml:space="preserve">
+    <value>Code source de FFmpeg</value>
+  </data>
+  <data name="LicensesFFmpegBuild" xml:space="preserve">
+    <value>Compilation FFmpeg utilisée (version BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
+    <value>Configuration et scripts de compilation (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
+    <value>Le texte de la licence FFmpeg (FFmpeg-LICENSE.txt) est introuvable à côté de l'application. La GNU LGPL 3.0 est publiée sur https://www.gnu.org/licenses/lgpl-3.0.html.</value>
+  </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>Framework partagé ASP.NET Core (serveur web Kestrel, Microsoft.Extensions ; compilé dans l'application)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>Environnement d'exécution .NET (Native AOT, compilé dans l'application)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (Linux uniquement)</value>
+  </data>
 </root>

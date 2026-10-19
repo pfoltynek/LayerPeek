@@ -4,6 +4,8 @@
     <IsPackable>false</IsPackable>
     <!-- Same as the app: the views under test keep compiled bindings. -->
     <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Reading pixels of captured frames (camera window tests, T-014). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <!--
@@ -15,6 +17,7 @@
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Headless" />
     <PackageReference Include="Avalonia.Skia" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
@@ -29,6 +32,7 @@
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\TrayFakes.cs" Link="Shared\TrayFakes.cs" />
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\MenuFakes.cs" Link="Shared\MenuFakes.cs" />
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\FakeWebGateway.cs" Link="Shared\FakeWebGateway.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Cameras\CameraFakes.cs" Link="Shared\CameraFakes.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

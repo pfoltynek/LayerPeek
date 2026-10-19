@@ -1,3 +1,4 @@
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 
 namespace PrusaTrayDiagnostic.Core.Settings.Storage;
@@ -39,6 +40,11 @@ internal static class SettingsMapper
                 ConnectionType = FormatConnectionType(printer.ConnectionType),
                 Address = printer.Address,
                 UserName = printer.UserName,
+                Camera = new CameraDocument
+                {
+                    Enabled = printer.Camera.Enabled,
+                    StreamUrl = printer.Camera.StreamUri?.OriginalString ?? printer.Camera.InvalidStreamUrl,
+                },
             })],
         };
     }
@@ -195,7 +201,10 @@ internal static class SettingsMapper
 
             if (problem is null)
             {
-                printers.Add(printer!);
+                // Only for accepted entries, so that a skipped printer does not also produce a camera warning.
+                CameraSettings camera = ToCamera(documents[i]!.Camera, printer!.Id, warnings);
+                // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
+                printers.Add(ReferenceEquals(camera, CameraSettings.Disabled) ? printer : printer with { Camera = camera });
             }
             else
             {
@@ -258,6 +267,41 @@ internal static class SettingsMapper
         // The value is not echoed: it may contain control characters.
         warnings.Add($"Printer entry {index + 1}: invalid user name ({error}); '{PrinterUserName.Default}' is used.");
         return PrinterUserName.Default;
+    }
+
+    /// <summary>
+    /// A missing section means no camera. An invalid address disables the camera but is kept unchanged (by the user's
+    /// decision, for correction in the settings window); it is never echoed in the warning because it may contain credentials.
+    /// </summary>
+    private static CameraSettings ToCamera(CameraDocument? document, string printerId, List<string> warnings)
+    {
+        if (document is null)
+        {
+            return CameraSettings.Disabled;
+        }
+
+        bool enabled = document.Enabled ?? false;
+        if (string.IsNullOrWhiteSpace(document.StreamUrl))
+        {
+            if (enabled)
+            {
+                warnings.Add($"Camera of printer '{Shorten(printerId)}' disabled: {CameraSettings.Describe(CameraUrlProblem.Missing)}.");
+            }
+
+            return CameraSettings.Disabled;
+        }
+
+        CameraSettings camera = CameraSettings.FromStoredStreamUrl(enabled, document.StreamUrl);
+        if (camera.CredentialsRemoved)
+        {
+            warnings.Add($"Credentials were removed from the camera address of printer '{Shorten(printerId)}'; the camera is disabled until the address is reviewed.");
+        }
+        else if (camera.InvalidStreamUrl is not null)
+        {
+            warnings.Add($"Camera of printer '{Shorten(printerId)}' disabled until its address is corrected: {CameraSettings.Describe(camera.StreamUrlProblem)}.");
+        }
+
+        return camera;
     }
 
     // Warnings are shown in the UI; a garbage file must not be able to push huge strings there.

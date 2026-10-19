@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
@@ -13,11 +14,14 @@ using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Camera.FFmpeg;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.History;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
+using PrusaTrayDiagnostic.Core.Settings;
 using PrusaTrayDiagnostic.Core.Web;
 using PrusaTrayDiagnostic.PrusaLink.WebProxy;
 
@@ -162,6 +166,55 @@ public sealed class AppServicesTests
         Assert.NotSame(first, second);
         Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
         Assert.True(first.IsLoading);
+    }
+
+    [Fact]
+    public async Task CameraServicesUseFFmpegWithTheDecidedTimingWithoutTouchingUserData()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.IsType<FFmpegCameraFeedFactory>(services.GetRequiredService<ICameraFeedFactory>());
+        CameraFeedOptions options = services.GetRequiredService<CameraFeedOptions>();
+        Assert.Equal((TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(5)), (options.ConnectTimeout, options.FrameTimeout, options.ReconnectDelay));
+        Assert.Same(services.GetRequiredService<ReconnectingCameraFeed>(), services.GetRequiredService<ReconnectingCameraFeed>());
+        Assert.Equal(TimeSpan.FromSeconds(15), Assert.IsType<CameraSnapshotTester>(services.GetRequiredService<ICameraTester>()).Timeout);
+        // Only the type: resolving it touches no files (nothing is loaded or saved in this test).
+        Assert.IsType<JsonCameraWindowStateStore>(services.GetRequiredService<ICameraWindowStateStore>());
+        Assert.Same(services.GetRequiredService<RemovedCameraCredentials>(), services.GetRequiredService<RemovedCameraCredentials>());
+    }
+
+    [Fact]
+    public async Task CameraWindowNeedsAMonitoredPrinterWithAnEnabledCamera()
+    {
+        MemoryCameraWindowStateStore states = new();
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: _ => states);
+        Assert.Same(states, services.GetRequiredService<ICameraWindowStateStore>());
+        IMonitoringObserver printers = services.GetRequiredService<MonitoredPrinters>();
+
+        // Before monitoring started nothing is known.
+        Assert.Null(AppServices.CreateCameraViewModel(services, "a"));
+
+        printers.ApplySettings(new AppSettings
+        {
+            Printers =
+            [
+                new PrinterDefinition { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) },
+                new PrinterDefinition { Id = "b", Name = "Beta", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.228" },
+            ],
+        });
+
+        Assert.Null(AppServices.CreateCameraViewModel(services, "b"));
+        Assert.Null(AppServices.CreateCameraViewModel(services, "missing"));
+        using CameraViewModel? camera = AppServices.CreateCameraViewModel(services, "A");
+        Assert.NotNull(camera);
+        Assert.Equal("a", camera.PrinterId);
+        Assert.Contains("Alpha", camera.Title, StringComparison.Ordinal);
+        // The window state goes to the memory store, never to the user data folder.
+        camera.ShowMiniCommand.Execute(null);
+        camera.Dispose();
+        Assert.Equal(CameraWindowMode.Mini, states.Get("a").Mode);
     }
 
     [Fact]

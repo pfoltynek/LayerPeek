@@ -5,8 +5,14 @@
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
   </ItemGroup>
+  <ItemGroup Label="Camera">
+    <!-- MIT; [DllImport] bindings, verified for Native AOT (T-014). Native FFmpeg DLLs: build/FFmpeg.targets. -->
+    <PackageVersion Include="FFmpeg.AutoGen.Abstractions" Version="9.0.1.1" />
+    <PackageVersion Include="FFmpeg.AutoGen.Bindings.DynamicallyLinked" Version="9.0.1.1" />
+  </ItemGroup>
   <ItemGroup Label="Tests">
-    <!-- Headless Avalonia platform for the UI tests (T-031); MIT, test-only (never referenced by src/), same version as Avalonia. -->
+    <!-- Headless Avalonia platform for the UI tests (T-031; also the camera and licence window tests of T-014, on the same
+         xunit.v3 as every test project, no Avalonia.Headless.XUnit); MIT, test-only (never referenced by src/), same version as Avalonia. -->
     <PackageVersion Include="Avalonia.Headless" Version="12.1.4" />
     <!-- Snapshot tests (T-031), test-only: Skia rendering and the bundled Inter font (package MIT, font SIL OFL 1.1). -->
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />

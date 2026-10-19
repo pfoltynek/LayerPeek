@@ -24,6 +24,9 @@ public partial class App : Application, ITrayAppCommands
     private readonly AuxiliaryWindowSlot _aboutWindow = new();
     private readonly AuxiliaryWindowSlot _diagnosticsWindow = new();
     private readonly AuxiliaryWindowSlot _settingsWindow = new();
+
+    // One camera window per printer (T-014), created once the host runs; windows of different printers may be open together.
+    private CameraWindows? _cameraWindows;
     private TrayHost? _host;
     private QuitCoordinator? _quit;
 
@@ -71,6 +74,7 @@ public partial class App : Application, ITrayAppCommands
         _settingsWindow.RefreshTexts();
         _diagnosticsWindow.RefreshTexts();
         _aboutWindow.RefreshTexts();
+        _cameraWindows?.RefreshTexts();
     }
 
     void ITrayAppCommands.ShowDiagnostics(string? printerId)
@@ -133,6 +137,17 @@ public partial class App : Application, ITrayAppCommands
         _ = created?.LoadAsync();
     }
 
+    void ITrayAppCommands.ShowCamera(string printerId)
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        _cameraWindows ??= new CameraWindows(host.CreateCameraViewModel);
+        _cameraWindows.Show(printerId);
+    }
+
     void ITrayAppCommands.ShowAbout()
     {
         if (_host is not { } host || _quit is { IsQuitting: true })
@@ -159,6 +174,9 @@ public partial class App : Application, ITrayAppCommands
         // model unsubscribes from the monitor before the services are released.
         _settingsWindow.Shutdown();
         _diagnosticsWindow.Shutdown();
+        // Stops the streams; the window state is saved and awaited by the host below.
+        _cameraWindows?.Shutdown();
+
         _aboutWindow.Shutdown();
         return _host?.StopAsync(timeout) ?? Task.CompletedTask;
     }

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
@@ -92,7 +93,11 @@ internal sealed partial class TrayHost : IAsyncDisposable
         {
             ILogger<MonitoringSession> sessionLogger = services.GetRequiredService<ILogger<MonitoringSession>>();
             AppSettings initialSettings = await Task.Run(
-                () => MonitoringSession.LoadSettingsAsync(services.GetRequiredService<ISettingsStore>, sessionLogger, CancellationToken.None),
+                () => MonitoringSession.LoadSettingsAsync(
+                    services.GetRequiredService<ISettingsStore>,
+                    sessionLogger,
+                    CancellationToken.None,
+                    services.GetRequiredService<RemovedCameraCredentials>()),
                 CancellationToken.None).ConfigureAwait(true);
 
             // Before the tray view models (resolved below) format their first texts.
@@ -121,6 +126,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
                 toasts.Start();
             }
 
+            // Remembered camera windows are read in the background, long before a camera window opens; never throws.
+            _ = services.GetRequiredService<ICameraWindowStateStore>().LoadAsync(CancellationToken.None);
+
             return new TrayHost(loggerFactory, services, session, iconSet, iconPresenter, menuPresenter);
         }
         catch
@@ -146,6 +154,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
     public SettingsViewModel CreateSettingsViewModel() => AppServices.CreateSettingsViewModel(_services);
 
+    /// <summary>
+    /// A view model for a new camera window of <paramref name="printerId"/>, or <see langword="null"/> when it has no enabled
+    /// camera; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
+    /// </summary>
+    public CameraViewModel? CreateCameraViewModel(string printerId) => AppServices.CreateCameraViewModel(_services, printerId);
+
     /// <summary>Creates loggers for UI objects outside the container; valid until <see cref="ReleaseLogging"/>.</summary>
     public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
 
@@ -167,6 +181,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _iconSet?.Dispose();
 
         await WaitForPendingSaveAsync().ConfigureAwait(true);
+        await WaitForCameraWindowStateAsync().ConfigureAwait(true);
         // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
         await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
         try
@@ -207,6 +222,28 @@ internal sealed partial class TrayHost : IAsyncDisposable
             LogPendingSaveFailed(ex);
         }
     }
+
+    /// <summary>Camera windows closed by quitting save where they were; a tiny file, written within the same limit as settings.</summary>
+    private async Task WaitForCameraWindowStateAsync()
+    {
+        try
+        {
+            if (!await _services.GetRequiredService<ICameraWindowStateStore>().WaitForPendingSaveAsync(PendingSaveTimeout).ConfigureAwait(true))
+            {
+                LogCameraWindowStateTimedOut(PendingSaveTimeout);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogCameraWindowStateFailed(ex);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Saving the camera window state did not finish within {Timeout} while quitting.")]
+    private partial void LogCameraWindowStateTimedOut(TimeSpan timeout);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for the camera window state to be saved failed while quitting.")]
+    private partial void LogCameraWindowStateFailed(Exception exception);
 
     /// <summary>
     /// Stops the local web proxies, waiting at most <see cref="WebProxyStopTimeout"/> for requests in progress (e.g. an

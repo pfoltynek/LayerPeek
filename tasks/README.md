@@ -56,7 +56,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-011 | Teploty a diagnostika (hotovo) | all | ui-dev | P2 | T-006 |
 | T-012 | Historie telemetrie (hotovo) | all | core-dev | P3 | T-006 |
 | T-013 | Více tiskáren (hotovo) | all | ui-dev | P2 | T-007, T-002 |
-| T-014 | Snímek z kamery | all | core-dev + ui-dev | P3 | T-003, T-005 |
+| T-014 | Kamera – živý stream a snímek | all | core-dev + ui-dev | P3 | T-003, T-015 |
 | T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) (hotovo) | all | ui-dev | P1 | T-002, T-003 |
 | T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
 | T-024 | Logování do souboru | all | core-dev | P2 | T-007 |
@@ -85,3 +85,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015 |
 | T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019 |
 | T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
+| T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |
