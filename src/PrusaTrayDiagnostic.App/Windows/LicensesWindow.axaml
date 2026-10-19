@@ -4,7 +4,6 @@
         x:Class="PrusaTrayDiagnostic.App.Windows.LicensesWindow"
         x:DataType="vm:LicensesViewModel"
         Title="{Binding Title}"
-        Icon="/Assets/tray-idle.png"
         Width="640"
         Height="600"
         MinWidth="420"

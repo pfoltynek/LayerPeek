@@ -5,7 +5,6 @@
         x:Class="PrusaTrayDiagnostic.App.Windows.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="{Binding [SettingsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
-        Icon="/Assets/tray-idle.png"
         Width="780"
         Height="680"
         MinWidth="640"

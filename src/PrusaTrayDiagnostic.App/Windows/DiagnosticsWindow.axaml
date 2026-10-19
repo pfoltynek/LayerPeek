@@ -6,7 +6,6 @@
         x:Class="PrusaTrayDiagnostic.App.Windows.DiagnosticsWindow"
         x:DataType="vm:DiagnosticsViewModel"
         Title="{Binding [DiagnosticsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
-        Icon="/Assets/tray-idle.png"
         Width="560"
         Height="760"
         MinWidth="420"
