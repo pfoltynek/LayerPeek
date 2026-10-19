@@ -15,13 +15,24 @@ public sealed class AppIconUiTests(HeadlessSession session)
     private static readonly int[] RequiredSizes = [256, 64, 48, 32, 24, 20, 16];
 
     [Fact]
-    public Task EveryAssetIsAnAvaloniaResourceThatLoads() =>
+    public Task OnlyExpectedAssetsAreBundled() =>
         session.RunAsync(_ =>
         {
-            // The SVG sources and the macOS master stay out of the binary; the old tray-idle.png is gone.
-            Uri[] assets = [.. AssetLoader.GetAssets(new Uri("avares://PrusaTrayDiagnostic/Assets/"), null)];
+            // Exact list: a new asset must be added here. The SVG sources and the macOS master stay out of the binary;
+            // the old tray-idle.png is gone.
+            Uri[] expected = [AppIcon.AssetUri];
 
-            Assert.Equal([AppIcon.AssetUri], assets);
+            Assert.Equal(expected, BundledAssets());
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task EveryAssetLoads() =>
+        session.RunAsync(_ =>
+        {
+            Uri[] assets = BundledAssets();
+
+            Assert.NotEmpty(assets);
             foreach (Uri asset in assets)
             {
                 using Stream stream = AssetLoader.Open(asset);
@@ -78,6 +89,9 @@ public sealed class AppIconUiTests(HeadlessSession session)
             Assert.Same(AppIcon.Window, tray.Icon);
             return Task.CompletedTask;
         });
+
+    private static Uri[] BundledAssets() =>
+        [.. AssetLoader.GetAssets(new Uri("avares://PrusaTrayDiagnostic/Assets/"), null)];
 
     private static byte[] ReadAppIcon()
     {

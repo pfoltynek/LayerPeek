@@ -184,7 +184,7 @@ public sealed class TrayIconRendererTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task HotendIsOrangeExceptOffline() =>
+    public Task HotendIsOrangeExceptPrintingAndOffline() =>
         session.RunAsync(_ =>
         {
             foreach (int size in TrayIconLayout.Sizes)
@@ -192,9 +192,33 @@ public sealed class TrayIconRendererTests(HeadlessSession session)
                 PixelRect block = TrayIconLayout.For(size).Block;
                 foreach (TrayStatus status in Enum.GetValues<TrayStatus>())
                 {
-                    Color expected = status == TrayStatus.Offline ? ColorTrayIconPalette.Grey : ColorTrayIconPalette.Orange;
+                    Color expected = status switch
+                    {
+                        TrayStatus.Offline => ColorTrayIconPalette.Grey,
+                        TrayStatus.Printing => ColorTrayIconPalette.GetAppearance(TrayIconKey.For(status, 0)).Fill,
+                        _ => ColorTrayIconPalette.Orange,
+                    };
                     Color actual = Pixels(status, 0, size)[block.X + (block.Width / 2), block.Y + (block.Height / 2)];
                     Assert.True(IconPixels.Same(expected, actual), $"{status} at {size} px: hotend {actual}.");
+                }
+            }
+
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task PrintingWithoutVisibleProgressDiffersFromIdle() =>
+        session.RunAsync(_ =>
+        {
+            // 0-4 % fills no pixel and printing has no badge: the blue hotend alone tells it from idle (2026-10-19).
+            foreach (int size in TrayIconLayout.Sizes)
+            {
+                foreach (int progress in (int[])[0, 4])
+                {
+                    IconPixels idle = Pixels(TrayStatus.Idle, 0, size);
+                    IconPixels printing = Pixels(TrayStatus.Printing, progress, size);
+                    int different = idle.All().Count(p => !IconPixels.Same(p.Color, printing[p.X, p.Y]));
+                    Assert.True(different > 0, $"Printing {progress} % looks like idle at {size} px.");
                 }
             }
 

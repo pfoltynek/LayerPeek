@@ -4,8 +4,8 @@ namespace PrusaTrayDiagnostic.App.Tray.Icons;
 
 /// <summary>
 /// Coloured, trademark-free icon look (Windows notification area), design B "Layers" approved 2026-10-19 (T-025): an
-/// orange hotend above three layers. Printing fills the layers in blue, paused in yellow; finished turns them green,
-/// error red. Every other state keeps grey layers and shows a badge with a symbol. State colours are those of T-007.
+/// orange hotend above three layers. Printing fills the layers in blue (and turns the hotend blue), paused in yellow;
+/// finished turns them green, error red. Every other state keeps grey layers and shows a badge with a symbol. State colours are those of T-007.
 /// </summary>
 internal static class ColorTrayIconPalette
 {
@@ -40,7 +40,9 @@ internal static class ColorTrayIconPalette
 
     public static TrayIconAppearance GetAppearance(TrayIconKey key) => key.Status switch
     {
-        TrayStatus.Printing => Layers(Blue, key.Progress / 100.0, TrayBadge.None, default),
+        // The hotend turns blue while printing (decided 2026-10-19): with no badge and no filled pixel at 0-4 % it would
+        // look like idle. Only printing: paused keeps the orange hotend and is told apart by its yellow and its badge.
+        TrayStatus.Printing => Layers(Blue, key.Progress / 100.0, TrayBadge.None, default) with { Hotend = Blue },
         TrayStatus.Paused => Layers(Yellow, key.Progress / 100.0, TrayBadge.Paused, new(Yellow, YellowOutline, Dark)),
         TrayStatus.Finished => Layers(Green, 1, TrayBadge.Finished, new(Green, GreenOutline, White)),
         TrayStatus.Error => Layers(Red, 1, TrayBadge.Error, new(Red, RedOutline, White)),

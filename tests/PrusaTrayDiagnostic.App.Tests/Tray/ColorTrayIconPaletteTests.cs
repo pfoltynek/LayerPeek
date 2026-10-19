@@ -21,13 +21,25 @@ public sealed class ColorTrayIconPaletteTests
     [Theory]
     [InlineData(TrayStatus.Idle)]
     [InlineData(TrayStatus.Busy)]
-    [InlineData(TrayStatus.Printing)]
     [InlineData(TrayStatus.Paused)]
     [InlineData(TrayStatus.Finished)]
     [InlineData(TrayStatus.Attention)]
     [InlineData(TrayStatus.Error)]
-    public void HotendIsOrangeWhileThereIsData(TrayStatus status) =>
+    public void HotendIsOrangeWhileThereIsDataAndNotPrinting(TrayStatus status) =>
         Assert.Equal(ColorTrayIconPalette.Orange, Appearance(status).Hotend);
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(50)]
+    public void HotendIsPrintingBlueWhilePrinting(double progress)
+    {
+        TrayIconAppearance printing = Appearance(TrayStatus.Printing, progress);
+
+        // Decided 2026-10-19: distinguishes printing at 0-4 % (no filled pixel yet) from idle without a badge.
+        Assert.Equal(Color.Parse("#1E88E5"), printing.Hotend);
+        Assert.Equal(printing.Fill, printing.Hotend);
+        Assert.NotEqual(Appearance(TrayStatus.Idle), printing with { FilledFraction = 0 });
+    }
 
     [Fact]
     public void OfflineIsGreyWithFainterLayersAndMinusBadge()
