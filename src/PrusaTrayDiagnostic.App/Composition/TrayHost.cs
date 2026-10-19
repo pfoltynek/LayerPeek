@@ -288,5 +288,5 @@ internal sealed partial class TrayHost : IAsyncDisposable
     private partial void LogDisposeFailed(Exception exception);
 
     // macOS menu bar template icons follow in T-018; until then every OS uses the coloured set.
-    private static ColorTrayIconSet CreateIconSet() => new();
+    private static ColorTrayIconSet CreateIconSet() => new(multiSize: OperatingSystem.IsWindows());
 }

@@ -5,7 +5,6 @@
         x:Class="PrusaTrayDiagnostic.App.Windows.CameraWindow"
         x:DataType="vm:CameraViewModel"
         Title="{Binding Title}"
-        Icon="/Assets/tray-idle.png"
         Width="960"
         Height="540"
         MinWidth="160"
