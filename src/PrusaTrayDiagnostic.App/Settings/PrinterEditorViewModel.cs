@@ -1,5 +1,7 @@
 using System.Globalization;
 
+using Avalonia.Media;
+
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
@@ -62,6 +64,9 @@ public sealed class PrinterEditorViewModel : ObservableObject
     // What produced the camera test result, so that a language switch formats it again.
     private Func<string>? _cameraTestResultSource;
     private TestResultKind _cameraTestResultKind;
+
+    // Snapshot of the last successful camera test (T-034); owned here (a bitmap is disposed when it is replaced or cleared).
+    private IImage? _cameraPreview;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
@@ -395,6 +400,15 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public bool CameraTestFailed => _cameraTestResultKind == TestResultKind.Failure;
 
+    /// <summary>
+    /// The image of the last successful camera test (T-034), or <see langword="null"/>. Set only by the Test button; cleared
+    /// when the address changes, when a new test starts (so a failed, timed-out or cancelled test leaves none) and when the
+    /// printer is removed or the window closes. A language switch, turning the camera off or saving keeps it.
+    /// </summary>
+    public IImage? CameraPreview => _cameraPreview;
+
+    public bool HasCameraPreview => _cameraPreview is not null;
+
     /// <summary>The field holds a password that will be saved.</summary>
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
@@ -511,12 +525,16 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPasswordPresentationChanged();
     }
 
-    /// <summary>The printer was removed or the window closed: stops running tests and forgets a typed password.</summary>
+    /// <summary>
+    /// The printer was removed or the window closed: stops running tests, forgets a typed password and releases the camera
+    /// preview.
+    /// </summary>
     internal void Detach()
     {
         _test?.Cancel();
         _cameraTest?.Cancel();
         ForgetPassword();
+        SetCameraPreview(null);
     }
 
     private void ForgetPassword()
@@ -608,6 +626,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
             return;
         }
 
+        // A new test replaces the old snapshot; until (unless) it succeeds there is none.
+        SetCameraPreview(null);
         if (!CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
             // Never open an address that could not be saved. The explanation is at the field (shown now), so the result only
@@ -630,11 +650,14 @@ public sealed class PrinterEditorViewModel : ObservableObject
             if (!test.IsCancellationRequested)
             {
                 bool success = result.Outcome == CameraTestOutcome.Success;
-                SetCameraTestResult(() => Describe(result), success ? TestResultKind.Success : TestResultKind.Failure);
+                // The text source lives as long as the result is shown: it must not keep the image's pixels alive.
+                CameraTestResult described = result with { Image = null };
+                SetCameraTestResult(() => Describe(described), success ? TestResultKind.Success : TestResultKind.Failure);
                 if (success)
                 {
                     // The address works without the removed credentials: the notice did its job.
                     CameraCredentialsRemoved = false;
+                    ShowCameraPreview(result.Image);
                 }
             }
             else if (_cameraTestCancelledByUser)
@@ -676,11 +699,63 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
     }
 
-    /// <summary>The tested address changed: a running test is stopped and an old result no longer applies.</summary>
+    /// <summary>The tested address changed: a running test is stopped and an old result and snapshot no longer apply.</summary>
     private void InvalidateCameraTest()
     {
         _cameraTest?.Cancel();
         SetCameraTestResult(null, TestResultKind.None);
+        SetCameraPreview(null);
+    }
+
+    /// <summary>UI thread: draws the snapshot of a successful test (once per result); without one nothing is shown.</summary>
+    private void ShowCameraPreview(CameraImage? image)
+    {
+        if (image is null)
+        {
+            return;
+        }
+
+        IImage preview;
+        try
+        {
+            preview = _owner.CameraPreviewRenderer.Render(image);
+        }
+        catch (Exception ex)
+        {
+            // The test still succeeded; only its picture is missing (a command handler must never throw into the UI).
+            // The renderer never sees the address, so its exception cannot contain it.
+            try
+            {
+                SettingsLog.CameraPreviewNotDrawn(_owner.Logger, ex, ex.GetType().Name, ex.Message);
+            }
+            catch (Exception)
+            {
+                // A logger that is gone (e.g. during quit) must not break the window either.
+            }
+
+            return;
+        }
+
+        SetCameraPreview(preview);
+    }
+
+    /// <summary>Replaces the shown snapshot; the old one is disposed after the view stopped showing it.</summary>
+    private void SetCameraPreview(IImage? preview)
+    {
+        IImage? old = _cameraPreview;
+        if (ReferenceEquals(old, preview))
+        {
+            return;
+        }
+
+        _cameraPreview = preview;
+        OnPropertyChanged(nameof(CameraPreview));
+        if ((old is null) != (preview is null))
+        {
+            OnPropertyChanged(nameof(HasCameraPreview));
+        }
+
+        (old as IDisposable)?.Dispose();
     }
 
     private string Describe(CameraTestResult result) => result.Outcome switch

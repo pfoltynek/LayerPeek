@@ -76,6 +76,41 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task CameraSubTabWithTheSnapshotOfASuccessfulTest() =>
+        session.RunAsync(static async scope =>
+        {
+            // 16:9 like the Buddy3D camera, four colours so that the orientation and scaling are visible.
+            CameraImage image = TestCameraImages.Quadrants(1920, 1080, 0xFFE05A1E, 0xFF2E7D32, 0xFF1565C0, 0xFFF9A825);
+            FakeCameraTester cameraTester = new() { Immediate = new CameraTestResult(CameraTestOutcome.Success, 1920, 1080, Image: image) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }),
+                cameraTester: cameraTester);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            await ui.ViewModel.SelectedPrinter!.TestCameraCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-preview");
+        });
+
+    [Fact]
+    public Task CameraSubTabWithA4By3SnapshotInGerman() =>
+        session.RunAsync(static async scope =>
+        {
+            // A 4:3 image gets black bands at the sides; German has a long success text next to the preview.
+            new UiLanguage().Apply("de");
+            CameraImage image = TestCameraImages.Quadrants(640, 480, 0xFFE05A1E, 0xFF2E7D32, 0xFF1565C0, 0xFFF9A825);
+            FakeCameraTester cameraTester = new() { Immediate = new CameraTestResult(CameraTestOutcome.Success, 640, 480, Image: image) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }),
+                cameraTester: cameraTester);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            await ui.ViewModel.SelectedPrinter!.TestCameraCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-preview-4x3-de");
+        });
+
+    [Fact]
     public Task CameraSubTabWithTheCredentialsNoticeAndAnError() =>
         session.RunAsync(static async scope =>
         {

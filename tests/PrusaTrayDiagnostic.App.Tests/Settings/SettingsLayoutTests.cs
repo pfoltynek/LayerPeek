@@ -440,7 +440,7 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.False(printer.TestFailed);
         Assert.True(printer.CameraTestSucceeded);
         Assert.False(printer.CameraTestFailed);
-        Assert.Equal("The camera works (1920 × 1080 px).", printer.CameraTestResultText);
+        Assert.Equal("The camera works (1920\u00A0×\u00A01080\u00A0px).", printer.CameraTestResultText);
     }
 
     [Fact]

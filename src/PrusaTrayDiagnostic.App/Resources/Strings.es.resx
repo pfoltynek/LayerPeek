@@ -574,7 +574,10 @@
     <value>Esperando una imagen de la cámara…</value>
   </data>
   <data name="SettingsCameraTestSuccess" xml:space="preserve">
-    <value>La cámara funciona ({0} × {1} px).</value>
+    <value>La cámara funciona ({0}&#xA0;×&#xA0;{1}&#xA0;px).</value>
+  </data>
+  <data name="SettingsCameraPreview" xml:space="preserve">
+    <value>Imagen de la cámara de la prueba</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
     <value>No llegó ninguna imagen de la cámara en {0} s.</value>

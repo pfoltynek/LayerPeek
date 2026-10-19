@@ -283,7 +283,8 @@ internal static class AppServices
             services.GetRequiredService<ISettingsEditorStore>(),
             services.GetRequiredService<IConnectionTester>(),
             services.GetRequiredService<PasswordPolicy>(),
-            cameraTester: services.GetRequiredService<ICameraTester>());
+            cameraTester: services.GetRequiredService<ICameraTester>(),
+            logger: services.GetRequiredService<ILogger<SettingsViewModel>>());
     }
 
     private static ISecretStore CreateSecretStore() =>
