@@ -40,6 +40,23 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Longer names would be cut in the tray menu anyway (<c>TrayMenuFormatter</c> limit).</summary>
     public const int MaxNameLength = 100;
 
+    /// <summary>Main tabs (<see cref="SelectedTabIndex"/>).</summary>
+    public const int PrintersTab = 0;
+
+    /// <inheritdoc cref="PrintersTab"/>
+    public const int GeneralTab = 1;
+
+    /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
+    public const int ConnectionPrinterTab = 0;
+
+    /// <summary>Sub-tab of the selected printer: camera fields.</summary>
+    public const int CameraPrinterTab = 1;
+
+    /// <summary>How many sub-tabs a printer has (T-035 and T-036 add more).</summary>
+    public const int PrinterTabCount = 2;
+
+    private const int TabCount = 2;
+
     private const int MaxIdAttempts = 100;
 
     private static readonly decimal MinPollingSeconds = (decimal)AppSettings.MinPollingInterval.TotalSeconds;
@@ -63,6 +80,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     private bool _isDirty;
     private PrinterEditorViewModel? _selectedPrinter;
     private int _selectedTabIndex;
+    private int _selectedPrinterTabIndex;
     private string? _notice;
     private string? _statusText;
 
@@ -199,12 +217,39 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         private set => SetProperty(ref _statusIsError, value);
     }
 
-    /// <summary>0 = printers, 1 = general; switched by a failed save to the part with the error.</summary>
+    /// <summary><see cref="PrintersTab"/> or <see cref="GeneralTab"/>; switched by a failed save to the part with the error.</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
-        set => SetProperty(ref _selectedTabIndex, value);
+        set
+        {
+            // A tab control may write -1 while its items change.
+            if (value is >= 0 and < TabCount)
+            {
+                SetProperty(ref _selectedTabIndex, value);
+            }
+        }
     }
+
+    /// <summary>
+    /// Sub-tab of the printer form (<see cref="ConnectionPrinterTab"/>, <see cref="CameraPrinterTab"/>). Belongs to the
+    /// window, not to a printer: selecting another printer keeps it (Camera stays Camera). A failed save switches it to the
+    /// first sub-tab with an error.
+    /// </summary>
+    public int SelectedPrinterTabIndex
+    {
+        get => _selectedPrinterTabIndex;
+        set
+        {
+            if (value is >= 0 and < PrinterTabCount)
+            {
+                SetProperty(ref _selectedPrinterTabIndex, value);
+            }
+        }
+    }
+
+    /// <summary>The hint under the polling interval gives way to its error (T-033).</summary>
+    public bool ShowsPollingIntervalHint => _pollingIntervalError is null;
 
     public static decimal MinPollingIntervalSeconds => MinPollingSeconds;
 
@@ -219,7 +264,13 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     public string? PollingIntervalError
     {
         get => _pollingIntervalError;
-        private set => SetProperty(ref _pollingIntervalError, value);
+        private set
+        {
+            if (SetProperty(ref _pollingIntervalError, value))
+            {
+                OnPropertyChanged(nameof(ShowsPollingIntervalHint));
+            }
+        }
     }
 
     /// <summary>Master switch; the per-event switches apply only when it is on.</summary>
@@ -440,6 +491,33 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         }
     }
 
+    /// <summary>Ctrl+Tab / Ctrl+Shift+Tab: the next or previous main tab, wrapping around. False when nothing can be switched.</summary>
+    public bool SelectAdjacentTab(bool forward)
+    {
+        if (!IsEditable)
+        {
+            return false;
+        }
+
+        SelectedTabIndex = Adjacent(_selectedTabIndex, TabCount, forward);
+        return true;
+    }
+
+    /// <summary>
+    /// Ctrl+PageDown / Ctrl+PageUp: the next or previous sub-tab of the printer form, wrapping around. Only while the form
+    /// is shown (Printers tab with a selected printer); false otherwise.
+    /// </summary>
+    public bool SelectAdjacentPrinterTab(bool forward)
+    {
+        if (!IsEditable || _selectedTabIndex != PrintersTab || _selectedPrinter is null)
+        {
+            return false;
+        }
+
+        SelectedPrinterTabIndex = Adjacent(_selectedPrinterTabIndex, PrinterTabCount, forward);
+        return true;
+    }
+
     internal ConnectionTypeOption[] ConnectionTypesFor(ConnectionType current) =>
         current == ConnectionType.PrusaConnect
             ? [_prusaLinkOption, _prusaConnectExistingOption]
@@ -593,15 +671,17 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         ValidateGeneral();
         if (FirstInvalidPrinter() is { } invalid)
         {
+            // The first printer with an error, then its first sub-tab with an error (in the order of the sub-tabs).
             SelectedPrinter = invalid;
-            SelectedTabIndex = 0;
+            SelectedTabIndex = PrintersTab;
+            SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab : CameraPrinterTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
 
         if (_pollingIntervalError is not null || _remainingTimeError is not null || !TryBuildSettings(out AppSettings? updated))
         {
-            SelectedTabIndex = 1;
+            SelectedTabIndex = GeneralTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
@@ -809,6 +889,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     }
 
     private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e) => OnPropertyChanged(nameof(HasNoPrinters));
+
+    private static int Adjacent(int index, int count, bool forward) => (index + (forward ? 1 : count - 1)) % count;
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
 

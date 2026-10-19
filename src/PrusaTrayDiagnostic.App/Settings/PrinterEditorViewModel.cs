@@ -65,7 +65,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
-    /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until saved).</param>
+    /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until answered or saved).</param>
     internal PrinterEditorViewModel(SettingsViewModel owner, string id, PrinterDefinition? saved, bool? hasSavedPassword, bool cameraCredentialsRemoved = false)
     {
         ArgumentNullException.ThrowIfNull(owner);
@@ -147,6 +147,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
             OnPropertyChanged(nameof(IsPrusaLink));
             OnPropertyChanged(nameof(IsPasswordEnabled));
+            OnPropertyChanged(nameof(ShowsAddressHint));
             if (!IsPasswordEnabled)
             {
                 // A disabled field must not keep a typed password around (it would not be saved anyway).
@@ -251,11 +252,41 @@ public sealed class PrinterEditorViewModel : ObservableObject
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors =>
-        _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || _passwordProblem is not null || _cameraBlocksSave;
+    public bool HasErrors => HasConnectionErrors || HasCameraErrors;
+
+    /// <summary>A field of the Printer sub-tab (name, address, user name, password) is invalid (shown or not yet).</summary>
+    public bool HasConnectionErrors =>
+        _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || _passwordProblem is not null;
+
+    /// <summary>The camera cannot be saved as entered (shown or not yet); same rule as for saving.</summary>
+    public bool HasCameraErrors => _cameraBlocksSave;
 
     /// <summary>The list marks the printer as invalid.</summary>
     public bool ShowsErrorMarker => _showErrors && HasErrors;
+
+    /// <summary>The "!" on the Printer sub-tab header; same rule as the list marker.</summary>
+    public bool ShowsConnectionErrorMarker => _showErrors && HasConnectionErrors;
+
+    /// <summary>The "!" on the Camera sub-tab header; same rule as the list marker.</summary>
+    public bool ShowsCameraErrorMarker => _showErrors && HasCameraErrors;
+
+    /// <summary>Accessible name of the Printer sub-tab header: says when it contains errors (the "!" alone is not read out).</summary>
+    public string ConnectionTabName => TabName(Strings.SettingsPrinterTabConnection, ShowsConnectionErrorMarker);
+
+    /// <summary>Accessible name of the Camera sub-tab header.</summary>
+    public string CameraTabName => TabName(Strings.SettingsCamera, ShowsCameraErrorMarker);
+
+    /// <summary>The address hint (PrusaLink only) gives way to the address error (T-033).</summary>
+    public bool ShowsAddressHint => IsPrusaLink && AddressError is null;
+
+    /// <summary>The user name hint gives way to the user name error.</summary>
+    public bool ShowsUserNameHint => UserNameError is null;
+
+    /// <summary>The password hint gives way to the password error.</summary>
+    public bool ShowsPasswordHint => PasswordError is null;
+
+    /// <summary>The camera address hint gives way to the camera address error.</summary>
+    public bool ShowsCameraUrlHint => CameraUrlError is null;
 
     /// <summary>Tests the values in the form (not saved). Disabled while running, so a double click tests once.</summary>
     public IAsyncRelayCommand TestConnectionCommand { get; }
@@ -291,6 +322,12 @@ public sealed class PrinterEditorViewModel : ObservableObject
         {
             if (SetProperty(ref _cameraEnabled, value))
             {
+                if (value)
+                {
+                    // Turning the camera on answers the notice ("check the address and turn the camera on again").
+                    CameraCredentialsRemoved = false;
+                }
+
                 ValidateCamera();
                 RevealErrors();
                 _owner.OnPrinterEdited(nameChanged: false);
@@ -306,6 +343,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         {
             if (SetProperty(ref _cameraUrl, value ?? string.Empty))
             {
+                // Editing the address answers the notice too.
+                CameraCredentialsRemoved = false;
                 InvalidateCameraTest();
                 ValidateCamera();
                 RevealErrors();
@@ -320,7 +359,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
     /// </summary>
     public string? CameraUrlError => _showErrors ? _cameraUrlProblem : null;
 
-    /// <summary>Credentials were removed from the stored address; the camera stays off until the user checks it.</summary>
+    /// <summary>
+    /// Credentials were removed from the stored address; the camera stays off until the user checks it. The notice goes
+    /// away once the user reacts (turns the camera on, edits the address or tests it successfully) or saves (T-033, Q3).
+    /// </summary>
     public bool CameraCredentialsRemoved
     {
         get => _cameraCredentialsRemoved;
@@ -464,6 +506,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
         OnPropertyChanged(nameof(DisplayName));
         OnPropertyChanged(nameof(UserNameHint));
+        OnPropertyChanged(nameof(ConnectionTabName));
+        OnPropertyChanged(nameof(CameraTabName));
         OnPasswordPresentationChanged();
     }
 
@@ -494,10 +538,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
         if (_addressProblem is not null || _userNameProblem is not null)
         {
-            // Never send anything to an address the client would refuse or with a user name the definition would reject;
-            // explain it like the inline error does.
+            // Never send anything to an address the client would refuse or with a user name the definition would reject.
+            // The explanation is at the field (shown now); the result only points there, so it is not repeated (T-033).
             RevealErrors();
-            SetTestResult(() => AddressProblem() ?? UserNameProblem() ?? Strings.SettingsErrorAddressInvalid, TestResultKind.Failure);
+            SetTestResult(static () => Strings.SettingsFixErrors, TestResultKind.Failure);
             return;
         }
 
@@ -566,9 +610,12 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
         if (!CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            // Never open an address that could not be saved; explain it like the inline error does.
+            // Never open an address that could not be saved. The explanation is at the field (shown now), so the result only
+            // points there (T-033); a turned-off camera without an address shows no field error, so the result says it.
             RevealErrors();
-            SetCameraTestResult(() => CameraProblemText(problem), TestResultKind.Failure);
+            SetCameraTestResult(
+                _cameraUrlProblem is not null ? static () => Strings.SettingsFixErrors : () => CameraProblemText(problem),
+                TestResultKind.Failure);
             return;
         }
 
@@ -582,7 +629,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
             CameraTestResult result = await _owner.CameraTester.TestAsync(uri, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
-                SetCameraTestResult(() => Describe(result), result.Outcome == CameraTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+                bool success = result.Outcome == CameraTestOutcome.Success;
+                SetCameraTestResult(() => Describe(result), success ? TestResultKind.Success : TestResultKind.Failure);
+                if (success)
+                {
+                    // The address works without the removed credentials: the notice did its job.
+                    CameraCredentialsRemoved = false;
+                }
             }
             else if (_cameraTestCancelledByUser)
             {
@@ -807,8 +860,21 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(PasswordError));
         OnPropertyChanged(nameof(CameraUrlError));
         OnPropertyChanged(nameof(HasErrors));
+        OnPropertyChanged(nameof(HasConnectionErrors));
+        OnPropertyChanged(nameof(HasCameraErrors));
         OnPropertyChanged(nameof(ShowsErrorMarker));
+        OnPropertyChanged(nameof(ShowsConnectionErrorMarker));
+        OnPropertyChanged(nameof(ShowsCameraErrorMarker));
+        OnPropertyChanged(nameof(ConnectionTabName));
+        OnPropertyChanged(nameof(CameraTabName));
+        OnPropertyChanged(nameof(ShowsAddressHint));
+        OnPropertyChanged(nameof(ShowsUserNameHint));
+        OnPropertyChanged(nameof(ShowsPasswordHint));
+        OnPropertyChanged(nameof(ShowsCameraUrlHint));
     }
+
+    private static string TabName(string name, bool hasErrors) =>
+        hasErrors ? Format(Strings.SettingsTabContainsErrors, name) : name;
 
     private void OnPasswordPresentationChanged()
     {

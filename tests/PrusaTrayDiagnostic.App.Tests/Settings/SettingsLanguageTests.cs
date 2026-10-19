@@ -180,8 +180,9 @@ public sealed class SettingsLanguageTests : IDisposable
         PrinterEditorViewModel printer = vm.Printers[0];
         printer.UserName = new string('u', 1000);
         await printer.TestConnectionCommand.ExecuteAsync(null);
-        string english = Assert.IsType<string>(printer.UserNameError);
-        Assert.Equal(english, printer.TestResultText);
+        Assert.NotNull(printer.UserNameError);
+        // A refused test shows the short text; the explanation is at the field (T-033, Q2).
+        Assert.Equal(Strings.ResourceManager.GetString(nameof(Strings.SettingsFixErrors), CultureInfo.InvariantCulture), printer.TestResultText);
         Assert.Empty(_tester.Calls);
 
         using (new CultureScope("cs-CZ"))
@@ -190,7 +191,7 @@ public sealed class SettingsLanguageTests : IDisposable
 
             string czech = string.Format(CultureInfo.CurrentCulture, Cs(nameof(Strings.SettingsErrorUserNameTooLong)), PrinterUserName.MaxLength);
             Assert.Equal(czech, printer.UserNameError);
-            Assert.Equal(czech, printer.TestResultText);
+            Assert.Equal(Cs(nameof(Strings.SettingsFixErrors)), printer.TestResultText);
             Assert.True(printer.TestFailed);
         }
     }

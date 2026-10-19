@@ -310,6 +310,12 @@
   <data name="SettingsTabGeneral" xml:space="preserve">
     <value>General</value>
   </data>
+  <data name="SettingsPrinterTabConnection" xml:space="preserve">
+    <value>Printer</value>
+  </data>
+  <data name="SettingsTabContainsErrors" xml:space="preserve">
+    <value>{0} – contains errors</value>
+  </data>
   <data name="SettingsAddPrinter" xml:space="preserve">
     <value>Add printer</value>
   </data>

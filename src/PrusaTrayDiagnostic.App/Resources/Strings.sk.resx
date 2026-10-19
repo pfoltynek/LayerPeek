@@ -261,6 +261,12 @@
   <data name="SettingsTabGeneral" xml:space="preserve">
     <value>Všeobecné</value>
   </data>
+  <data name="SettingsPrinterTabConnection" xml:space="preserve">
+    <value>Tlačiareň</value>
+  </data>
+  <data name="SettingsTabContainsErrors" xml:space="preserve">
+    <value>{0} – obsahuje chyby</value>
+  </data>
   <data name="SettingsAddPrinter" xml:space="preserve">
     <value>Pridať tlačiareň</value>
   </data>

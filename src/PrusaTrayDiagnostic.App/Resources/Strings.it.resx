@@ -261,6 +261,12 @@
   <data name="SettingsTabGeneral" xml:space="preserve">
     <value>Generale</value>
   </data>
+  <data name="SettingsPrinterTabConnection" xml:space="preserve">
+    <value>Stampante</value>
+  </data>
+  <data name="SettingsTabContainsErrors" xml:space="preserve">
+    <value>{0} – contiene errori</value>
+  </data>
   <data name="SettingsAddPrinter" xml:space="preserve">
     <value>Aggiungi stampante</value>
   </data>

@@ -277,7 +277,8 @@ public sealed class SettingsWindowTests(HeadlessSession session)
             ui.Click("PrinterTestConnection");
 
             Assert.Empty(tester.Calls);
-            Assert.Equal(Strings.SettingsErrorUserNameColon, ui.ShownText("PrinterTestResult"));
+            // The long explanation is at the field only (T-033, Q2).
+            Assert.Equal(Strings.SettingsFixErrors, ui.ShownText("PrinterTestResult"));
             Assert.Equal(Strings.SettingsErrorUserNameColon, ui.ShownText("PrinterUserNameError"));
             Assert.Contains("failure", ui.Find<TextBlock>("PrinterTestResult").Classes);
         });

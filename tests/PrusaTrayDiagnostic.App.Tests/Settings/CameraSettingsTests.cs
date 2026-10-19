@@ -229,7 +229,9 @@ public sealed class CameraSettingsTests : IDisposable
         Assert.True(vm.Printers[0].CameraCredentialsRemoved);
         Assert.False(vm.Printers[1].CameraCredentialsRemoved);
 
-        vm.Printers[0].CameraEnabled = true;
+        // An edit unrelated to the camera keeps the notice (turning the camera on would remove it, see SettingsLayoutTests).
+        vm.Printers[0].Name = "Renamed";
+        Assert.True(vm.Printers[0].CameraCredentialsRemoved);
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.False(vm.Printers[0].CameraCredentialsRemoved);
@@ -330,7 +332,9 @@ public sealed class CameraSettingsTests : IDisposable
         await printer.TestCameraCommand.ExecuteAsync(null);
 
         Assert.Empty(_cameraTester.Calls);
-        Assert.Equal("Only rtsp:// addresses are supported.", printer.CameraTestResultText);
+        // The explanation is at the field only (T-033, Q2).
+        Assert.Equal("Some values are not valid. Fix the highlighted fields.", printer.CameraTestResultText);
+        Assert.Equal("Only rtsp:// addresses are supported.", printer.CameraUrlError);
         Assert.True(printer.CameraTestFailed);
     }
 
@@ -464,41 +468,5 @@ public sealed class CameraSettingsTests : IDisposable
         Assert.True(printer.IsTestingCamera);
         printer.CancelCameraTestCommand.Execute(null);
         await test.WaitAsync(TestTimeouts.Wait, Ct);
-    }
-
-    private sealed class FakeCameraTester : ICameraTester
-    {
-        public TimeSpan Timeout => TimeSpan.FromSeconds(15);
-
-        public List<Uri> Calls { get; } = [];
-
-        public CameraTestResult? Immediate { get; set; }
-
-        public Exception? Throw { get; set; }
-
-        public CancellationToken LastToken { get; private set; }
-
-        public Task<CameraTestResult> TestAsync(Uri streamUri, CancellationToken cancellationToken)
-        {
-            Calls.Add(streamUri);
-            LastToken = cancellationToken;
-            if (Throw is not null)
-            {
-                return Task.FromException<CameraTestResult>(Throw);
-            }
-
-            if (Immediate is not null)
-            {
-                return Task.FromResult(Immediate);
-            }
-
-            return WaitForCancellationAsync(cancellationToken);
-        }
-
-        private static async Task<CameraTestResult> WaitForCancellationAsync(CancellationToken cancellationToken)
-        {
-            await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
-            return new CameraTestResult(CameraTestOutcome.Failed);
-        }
     }
 }

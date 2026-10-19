@@ -32,8 +32,8 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
                 new FakeConnectionTester(),
                 new PasswordPolicy(IsSupported: true, MaxBytes: 2560),
                 cameraTester: new CameraSnapshotTester(Factory, Time, NullLogger<CameraSnapshotTester>.Instance));
-            // Tall enough that the whole printer form is on screen without scrolling.
-            Window = new SettingsWindow { DataContext = ViewModel, Height = 1400 };
+            // The window keeps its designed size (T-033): the camera fields are on their own sub-tab.
+            Window = new SettingsWindow { DataContext = ViewModel };
         }
 
         public FakeEditorStore Store { get; } = new();
@@ -46,11 +46,15 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
 
         public SettingsWindow Window { get; }
 
+        /// <summary>Shows the window and opens the Camera sub-tab with a click on its header, like the user.</summary>
         public async Task ShowAsync()
         {
             Window.Show();
             await ViewModel.LoadAsync();
-            Dispatcher.UIThread.RunJobs();
+            Window.Settle();
+            Click(Window.Find<TabItem>("PrinterTabCamera"));
+            Window.Settle();
+            Assert.Equal(SettingsViewModel.CameraPrinterTab, ViewModel.SelectedPrinterTabIndex);
         }
 
         public void Click(Control control)
@@ -103,6 +107,26 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             await harness.ShowAsync();
 
             Assert.Contains(Ui.VisibleTexts(harness.Window), static text => text.StartsWith("The user name and password were removed", StringComparison.Ordinal));
+
+            // The notice follows a language switch.
+            Assert.True(new UiLanguage().Apply("sk"));
+            harness.ViewModel.RefreshTexts();
+            harness.Window.Settle();
+            Assert.Contains(Ui.VisibleTexts(harness.Window), static text => text.StartsWith("Z uloženej adresy kamery bolo odstránené", StringComparison.Ordinal));
+        });
+
+    [Fact]
+    public Task RemovedCredentialsNoticeDisappearsWhenTheCameraIsTurnedOn() =>
+        session.RunAsync(async scope =>
+        {
+            using Harness harness = new(Printer(new CameraSettings(enabled: false, CameraHarness.StreamUri)), new HashSet<string>(["a"], StringComparer.OrdinalIgnoreCase));
+            await harness.ShowAsync();
+            Assert.True(harness.Window.IsShown<TextBlock>("PrinterCameraCredentialsRemoved"));
+
+            harness.Click(harness.Window.Find<CheckBox>("PrinterCameraEnabled"));
+
+            Assert.True(harness.ViewModel.SelectedPrinter!.CameraEnabled);
+            Assert.False(harness.Window.IsShown<TextBlock>("PrinterCameraCredentialsRemoved"));
         });
 
     [Fact]
@@ -157,6 +181,8 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             await harness.ShowAsync();
             harness.Window.TypeOver(harness.UrlField, "x");
             Assert.True(Ui.ShowsText(harness.Window, "This is not a valid address. Use the form rtsp://address/path."));
+            // Editing the address answers the notice about the removed credentials (T-033, Q3).
+            Assert.False(harness.Window.IsShown<TextBlock>("PrinterCameraCredentialsRemoved"));
 
             // What the app does after a switch: resources first, then the open window's view model.
             Assert.True(new UiLanguage().Apply("sk"));
@@ -166,7 +192,6 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             Assert.True(Ui.ShowsText(harness.Window, "Kamera"));
             Assert.True(Ui.ShowsText(harness.Window, "Adresa RTSP streamu"));
             Assert.True(Ui.ShowsText(harness.Window, "Adresa nie je platná. Použite tvar rtsp://adresa/cesta."));
-            Assert.Contains(Ui.VisibleTexts(harness.Window), static text => text.StartsWith("Z uloženej adresy kamery bolo odstránené", StringComparison.Ordinal));
             Assert.NotNull(harness.Button("Otestovať kameru"));
             Assert.NotNull(Ui.Find<CheckBox>(harness.Window, static box => box.Content as string == "Používať kameru (položka Kamera… v ponuke oznamovacej oblasti)"));
             // The typed address survives the switch.
