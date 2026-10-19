@@ -89,6 +89,10 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private CameraStatus _status = CameraStatus.Connecting;
     private bool _hasFrame;
     private CameraPrintContent _shownPrintContent;
+
+    // Thread of the ending run (runs never overlap) and the UI thread (cleared by a shown frame): the last failure that
+    // ended a run by itself, as "type: message", so that a repeated one is logged briefly.
+    private string? _lastRunFailure;
     private string? _printStateText;
     private string? _remainingText;
 
@@ -439,7 +443,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         catch (Exception ex)
         {
             // The UI is gone (quitting): nothing to retry.
-            LogStreamFailed(ex);
+            LogRetryNotPosted(ex);
         }
     }
 
@@ -478,7 +482,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         catch (Exception ex) when (ex is not OperationCanceledException || !token.IsCancellationRequested)
         {
             // The feed reports stream failures as statuses; this is only a safety net (e.g. a broken frame).
-            LogStreamFailed(ex);
+            LogRunFailure(ex);
             TryReport(status, new CameraStatus(CameraConnectionState.Error, $"The camera stream failed ({ex.GetType().Name})."));
         }
         catch (OperationCanceledException)
@@ -496,6 +500,24 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
                 // The UI is gone (quitting); the token source holds no unmanaged resources.
                 LogStreamFailed(ex);
             }
+        }
+    }
+
+    /// <summary>
+    /// The full exception once, then a short line while runs keep ending with the same failure (the automatic retry would
+    /// otherwise log the same stack trace every few seconds); a frame shown in between starts over. Like the repeated
+    /// failures of <see cref="ReconnectingCameraFeed"/>. Runs never overlap, so only one thread at a time sets the key.
+    /// </summary>
+    private void LogRunFailure(Exception exception)
+    {
+        string key = string.Concat(exception.GetType().FullName, ": ", exception.Message);
+        if (string.Equals(Interlocked.Exchange(ref _lastRunFailure, key), key, StringComparison.Ordinal))
+        {
+            LogStreamFailedAgain(exception.GetType().Name);
+        }
+        else
+        {
+            LogStreamFailed(exception);
         }
     }
 
@@ -524,6 +546,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         {
             sink.Present(frame);
             HasFrame = true;
+            // A frame was shown: the next failure of a run is a new one (see LogRunFailure).
+            Volatile.Write(ref _lastRunFailure, null);
         }
         catch (Exception ex)
         {
@@ -655,6 +679,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The camera stream of the camera window failed unexpectedly.")]
     private partial void LogStreamFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The camera stream of the camera window failed again ({ExceptionType}).")]
+    private partial void LogStreamFailedAgain(string exceptionType);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The camera stream could not be restarted because the UI is shutting down.")]
+    private partial void LogRetryNotPosted(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Showing a camera image failed.")]
     private partial void LogPresentFailed(Exception exception);

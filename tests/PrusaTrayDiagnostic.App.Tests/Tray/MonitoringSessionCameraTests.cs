@@ -54,7 +54,7 @@ public sealed class MonitoringSessionCameraTests : IAsyncDisposable
         Assert.Equal(new CameraSettings(enabled: false, new Uri("rtsp://192.168.0.227/live")), printers[0].Camera);
         Assert.True(printers[1].Camera.Enabled);
         Assert.Equal(["a"], _removed.PrinterIds);
-        Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Warning && entry.Message.Contains("removed from 1 camera", StringComparison.Ordinal));
+        Assert.Contains(_logger.Entries, static entry => entry.Level == LogLevel.Warning && entry.Message == "Credentials were removed from the camera addresses of 1 printer(s) in the settings file; nothing else was changed.");
         Assert.All(_logger.Entries, entry => Assert.DoesNotContain("secret", entry.Message, StringComparison.Ordinal));
 
         // The next start finds nothing to remove.
@@ -62,6 +62,33 @@ public sealed class MonitoringSessionCameraTests : IAsyncDisposable
         SettingsLoadResult reloaded = await again.LoadAsync(Ct);
         Assert.Empty(reloaded.Warnings);
         Assert.False(reloaded.Settings.Printers[0].Camera.CredentialsRemoved);
+    }
+
+    [Fact]
+    public async Task StartupLoaderRemovesTheCredentialsFromTheFileToo()
+    {
+        // TrayHost loads the settings before the session starts (T-029: the language comes first) with this loader.
+        _file = await SettingsFiles.WithCameraCredentialsAsync(_directory, Ct);
+
+        AppSettings settings = await MonitoringSession.LoadSettingsAsync(() => _file, _logger, Ct, _removed);
+
+        string content = await File.ReadAllTextAsync(_file.FilePath, Ct);
+        Assert.DoesNotContain("secret", content, StringComparison.Ordinal);
+        Assert.Contains("rtsp://192.168.0.227/live", content, StringComparison.Ordinal);
+        Assert.False(settings.Printers[0].Camera.Enabled);
+        Assert.True(settings.Printers[0].Camera.CredentialsRemoved);
+        Assert.Equal(["a"], _removed.PrinterIds);
+    }
+
+    [Fact]
+    public async Task StartupLoaderWithoutTheNoticeTargetStillCleansTheFile()
+    {
+        _file = await SettingsFiles.WithCameraCredentialsAsync(_directory, Ct);
+
+        await MonitoringSession.LoadSettingsAsync(() => _file, _logger, Ct);
+
+        Assert.DoesNotContain("secret", await File.ReadAllTextAsync(_file.FilePath, Ct), StringComparison.Ordinal);
+        Assert.Empty(_removed.PrinterIds);
     }
 
     [Fact]

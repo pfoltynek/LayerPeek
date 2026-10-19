@@ -295,3 +295,19 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
   - `dotnet publish -c Release -r win-x64`: 0 varování.
   - Publikované AOT exe se spustí a běží (15 s, pak ukončeno).
   - Neověřeno: vzhled přeložených textů v okně kamery a licencí na obrazovce (délka popisků), macOS.
+
+### Code review, kolo 3 – App (ui-dev) – 2026-10-19
+- **Zrušený nový pokus, který už je ve frontě UI vlákna:** nový test `RetryAlreadyPostedIsDroppedWhenTheWindowIsMinimizedBeforeItRuns`. Časovač už nový pokus poslal na UI vlákno, ale okno se mezitím minimalizovalo. Nevznikne druhé spojení a stream neběží. Kód se neměnil, `Retry` stav kontroluje už dřív.
+- **Nový pokus, který nejde poslat na UI vlákno:** když se aplikace ukončuje, zaloguje se vlastní varování „The camera stream could not be restarted because the UI is shutting down.“ místo obecné chyby streamu. Test `RetryThatCannotBePostedIsLoggedAsShutdown`.
+- **Opakovaná stejná chyba běhu:** když běh okna končí opakovaně stejnou výjimkou (typ + zpráva), celá výjimka se zaloguje jen poprvé. Další výskyty dostanou krátký řádek „…failed again (typ).“, stejně jako u `ReconnectingCameraFeed`. Zobrazený snímek počítání vynuluje. Test `RunFailingAgainTheSameWayIsLoggedInFullOnlyOnce`.
+- **Log při startu:** text teď odpovídá tomu, co se počítá: „Credentials were removed from the camera addresses of {Count} printer(s) in the settings file; nothing else was changed.“ (počet tiskáren, ne adres).
+- **Nové testy načítání při startu:** odstranění údajů ze souboru přes `MonitoringSession.LoadSettingsAsync` (cesta z `TrayHost` po merge s develop), s cílem pro hlášku i bez něj.
+- **Nestabilní `CameraWindowStateStoreTests.StateSetBeforeLoadingWinsOverTheFile`:** test nečekal na uložení na pozadí, které spustil `Set` u druhého úložiště. Úklid testu pak mazal složku, zatímco do ní uložení ještě mohlo zapisovat. Pravděpodobný výsledek byla `IOException` při mazání, případně se složka po smazání vytvořila znovu.
+  - Třída testů teď eviduje všechna vytvořená úložiště a v `DisposeAsync` počká na jejich uložení (`Assert.True`), teprve pak složku smaže.
+  - Test navíc ověřuje, že se novější stav zapsal do souboru, a ostatní testy kontrolují výsledek čekání.
+  - Přesnou chybu původního selhání jsem neměl k dispozici, příčina je odvozená z kódu. Po opravě prošlo 15 samostatných běhů třídy bez chyby, pak i opakované běhy celé solution (viz níže).
+- **Ověřeno (Windows 11, po merge kola 3 Core z `feature/T-014-camera-snapshot`):**
+  - `dotnet build` celé solution: 0 varování.
+  - `dotnet test` celé solution 5× po sobě: 2497 testů, 0 selhání, 1 dřívější skip. Po každém běhu v `%TEMP%` nic nezůstalo.
+  - `dotnet publish -c Release -r win-x64`: 0 varování. Ve výstupu jsou DLL FFmpeg a `FFmpeg-LICENSE.txt`, `aspnetcorev2_inprocess.dll` tam není.
+  - AOT exe i `dotnet run` se spustí a běží (15 s, resp. 35 s, pak ukončeno).

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
@@ -40,10 +41,10 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     private static PrinterDefinition CameraPrinter(string id = "mk4", string name = "MK4", string url = "rtsp://192.168.0.227/live") =>
         Definition(id, name) with { Camera = new CameraSettings(enabled: true, new Uri(url)) };
 
-    private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null)
+    private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null, ListLogger<CameraViewModel>? logger = null)
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
+        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, (Microsoft.Extensions.Logging.ILogger<CameraViewModel>?)logger ?? NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);
         viewModel.AttachFrameSink(_sink);
         return viewModel;
@@ -661,6 +662,83 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RetryAlreadyPostedIsDroppedWhenTheWindowIsMinimizedBeforeItRuns()
+    {
+        CameraViewModel viewModel = await RunEndedByItselfAsync();
+
+        // The timer fired and posted the retry, but the UI thread has not run it yet.
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
+        viewModel.SetActive(false);
+        _dispatcher.RunAll();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        Assert.Single(_factory.Feeds);
+        Assert.False(viewModel.IsStreaming);
+    }
+
+    [Fact]
+    public async Task RetryThatCannotBePostedIsLoggedAsShutdown()
+    {
+        ListLogger<CameraViewModel> logger = new();
+        FrameFailingDispatcher dispatcher = new(_dispatcher) { FailRetries = true };
+        CameraViewModel viewModel = Create(dispatcher: dispatcher, logger: logger);
+        viewModel.SetActive(true);
+        FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
+        first.Send();
+        await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
+        _dispatcher.RunAll();
+
+        (LogLevel level, string message, Exception? exception) = Assert.Single(logger.Entries, static entry => entry.Message.Contains("restarted", StringComparison.Ordinal));
+        Assert.Equal("The camera stream could not be restarted because the UI is shutting down.", message);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.IsType<InvalidOperationException>(exception);
+        Assert.Single(_factory.Feeds);
+    }
+
+    [Fact]
+    public async Task RunFailingAgainTheSameWayIsLoggedInFullOnlyOnce()
+    {
+        ListLogger<CameraViewModel> logger = new();
+        FrameFailingDispatcher dispatcher = new(_dispatcher);
+        CameraViewModel viewModel = Create(dispatcher: dispatcher, logger: logger);
+        viewModel.SetActive(true);
+
+        // Two runs end by themselves with the same failure (showing the first frame throws), the second one after the retry.
+        for (int run = 1; run <= 2; run++)
+        {
+            FakeCameraFeed feed = await _factory.WaitForFeedAsync(run);
+            feed.Send();
+            await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+            _dispatcher.RunAll();
+            _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
+            _dispatcher.RunAll();
+        }
+
+        // A frame is shown in the third run, then the same failure again: it counts as new.
+        FakeCameraFeed third = await _factory.WaitForFeedAsync(3);
+        dispatcher.FailFrames = false;
+        third.Send(fill: 1);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return _sink.Frames.Count > 0; }, "frame drawn");
+        dispatcher.FailFrames = true;
+        third.Send(fill: 2);
+        await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+
+        List<(LogLevel Level, string Message, Exception? Exception)> failures = [.. logger.Entries.Where(static entry => entry.Message.Contains("failed", StringComparison.Ordinal))];
+        Assert.Collection(
+            failures,
+            full => Assert.Equal((LogLevel.Error, "The camera stream of the camera window failed unexpectedly."), (full.Level, full.Message)),
+            again =>
+            {
+                Assert.Equal((LogLevel.Warning, "The camera stream of the camera window failed again (InvalidOperationException)."), (again.Level, again.Message));
+                Assert.Null(again.Exception);
+            },
+            fullAfterAFrame => Assert.IsType<InvalidOperationException>(fullAfterAFrame.Exception));
+    }
+
+    [Fact]
     public async Task RestartWaitsUntilThePreviousConnectionIsClosed()
     {
         CameraViewModel viewModel = Create();
@@ -703,6 +781,28 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     }
 
     /// <summary>Forwards to an inner dispatcher; the given post (1-based) throws instead.</summary>
+    /// <summary>
+    /// Like a dispatcher that is shutting down, but only for some callbacks of the view model, told apart by their method:
+    /// showing a frame (<see cref="FailFrames"/>) and the automatic retry (<see cref="FailRetries"/>).
+    /// </summary>
+    private sealed class FrameFailingDispatcher(ManualDispatcher inner) : IUiDispatcher
+    {
+        public bool FailFrames { get; set; } = true;
+
+        public bool FailRetries { get; set; }
+
+        public void Post(Action action)
+        {
+            string method = action.Method.Name;
+            if ((FailFrames && method == "PresentFrame") || (FailRetries && method == "Retry"))
+            {
+                throw new InvalidOperationException("The dispatcher is shutting down.");
+            }
+
+            inner.Post(action);
+        }
+    }
+
     private sealed class FaultyDispatcher(ManualDispatcher inner, int failingPost) : IUiDispatcher
     {
         private int _posts;

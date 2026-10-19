@@ -571,7 +571,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     [LoggerMessage(Level = LogLevel.Warning, Message = "Settings: {Warning}")]
     private static partial void LogSettingsWarning(ILogger logger, string warning);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from {Count} camera address(es) in the settings file; nothing else was changed.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from the camera addresses of {Count} printer(s) in the settings file; nothing else was changed.")]
     private static partial void LogCameraCredentialsRemoved(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Credentials could not be removed from camera addresses in the settings file; they stay there until the settings are saved.")]

@@ -5,7 +5,7 @@ using PrusaTrayDiagnostic.App.Tests.Tray;
 
 namespace PrusaTrayDiagnostic.App.Tests.Cameras;
 
-public sealed class CameraWindowStateStoreTests : IDisposable
+public sealed class CameraWindowStateStoreTests : IAsyncDisposable
 {
     private static readonly CameraWindowState Mini = new(
         CameraWindowMode.Mini,
@@ -16,9 +16,26 @@ public sealed class CameraWindowStateStoreTests : IDisposable
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
 
-    public void Dispose() => TestDirectories.Delete(_directory);
+    // Every store of a test: their background saves must end before the folder is deleted, otherwise a late write can
+    // fail the deletion or recreate the folder after it (seen once in a full-solution run).
+    private readonly List<JsonCameraWindowStateStore> _stores = [];
 
-    private JsonCameraWindowStateStore Create() => new(_directory, NullLogger<JsonCameraWindowStateStore>.Instance);
+    public async ValueTask DisposeAsync()
+    {
+        foreach (JsonCameraWindowStateStore store in _stores)
+        {
+            Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait), "A camera window state save did not finish.");
+        }
+
+        TestDirectories.Delete(_directory);
+    }
+
+    private JsonCameraWindowStateStore Create()
+    {
+        JsonCameraWindowStateStore store = new(_directory, NullLogger<JsonCameraWindowStateStore>.Instance);
+        _stores.Add(store);
+        return store;
+    }
 
     private string FilePath => Path.Combine(_directory, JsonCameraWindowStateStore.FileName);
 
@@ -55,7 +72,7 @@ public sealed class CameraWindowStateStoreTests : IDisposable
     {
         JsonCameraWindowStateStore first = Create();
         first.Set("mk4", Mini);
-        await first.WaitForPendingSaveAsync(TestTimeouts.Wait);
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
 
         JsonCameraWindowStateStore second = Create();
         CameraWindowState newer = CameraWindowState.Default with { Mode = CameraWindowMode.FullScreen };
@@ -63,6 +80,11 @@ public sealed class CameraWindowStateStoreTests : IDisposable
         await second.LoadAsync(Ct);
 
         Assert.Equal(newer, second.Get("mk4"));
+        // The save started by Set merges the file and writes the newer state.
+        Assert.True(await second.WaitForPendingSaveAsync(TestTimeouts.Wait));
+        JsonCameraWindowStateStore third = Create();
+        await third.LoadAsync(Ct);
+        Assert.Equal(newer, third.Get("mk4"));
     }
 
     [Fact]
@@ -71,7 +93,7 @@ public sealed class CameraWindowStateStoreTests : IDisposable
         JsonCameraWindowStateStore first = Create();
         first.Set("a", Mini);
         first.Set("b", Mini);
-        await first.WaitForPendingSaveAsync(TestTimeouts.Wait);
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
 
         // Not loaded yet (e.g. a window closed before the background load ran): the save merges the file first.
         JsonCameraWindowStateStore second = Create();
@@ -135,7 +157,7 @@ public sealed class CameraWindowStateStoreTests : IDisposable
             first.Set($"p{i}", Mini);
         }
 
-        await first.WaitForPendingSaveAsync(TestTimeouts.Wait);
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
         JsonCameraWindowStateStore second = Create();
         await second.LoadAsync(Ct);
 
