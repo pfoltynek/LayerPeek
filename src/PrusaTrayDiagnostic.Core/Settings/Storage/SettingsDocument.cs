@@ -75,6 +75,55 @@ internal sealed class CameraDocument
 
     /// <summary>Absolute <c>rtsp://</c> URL without credentials; invalid values disable the camera.</summary>
     public string? StreamUrl { get; set; }
+
+    /// <summary>
+    /// Camera window defaults (T-035); missing in older files and not written while all values are the defaults. Never
+    /// touched by <see cref="CameraCredentialScrubber"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CameraWindowDocument? Window { get; set; }
+}
+
+/// <summary>Every value is optional; missing or invalid values fall back to the defaults (invalid ones with a warning).</summary>
+internal sealed class CameraWindowDocument
+{
+    public bool? RememberLastPlacement { get; set; }
+
+    /// <summary><see cref="Cameras.CameraWindowStartMode"/> name (<c>Last</c>, <c>Normal</c>, <c>Mini</c>, <c>FullScreen</c>).</summary>
+    public string? StartMode { get; set; }
+
+    /// <summary>Missing = the primary monitor.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CameraMonitorDocument? Monitor { get; set; }
+
+    public CameraWindowLayoutDocument? Normal { get; set; }
+
+    public CameraWindowLayoutDocument? Mini { get; set; }
+}
+
+internal sealed class CameraMonitorDocument
+{
+    public string? DisplayName { get; set; }
+
+    /// <summary>Resolution in pixels; whole numbers (read as numbers so that fractions are reported, not fatal).</summary>
+    public double? Width { get; set; }
+
+    public double? Height { get; set; }
+
+    /// <summary>Path of the physical monitor (Windows, T-035 Q8); missing in older files and on other platforms.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DevicePath { get; set; }
+}
+
+internal sealed class CameraWindowLayoutDocument
+{
+    /// <summary>Client size in whole device-independent units.</summary>
+    public double? Width { get; set; }
+
+    public double? Height { get; set; }
+
+    /// <summary><see cref="Cameras.CameraWindowCorner"/> name.</summary>
+    public string? Corner { get; set; }
 }
 
 [JsonSourceGenerationOptions(

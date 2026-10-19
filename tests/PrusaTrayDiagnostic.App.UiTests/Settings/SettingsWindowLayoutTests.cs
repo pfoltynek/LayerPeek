@@ -44,6 +44,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     [
         ("Printer", SettingsViewModel.PrintersTab, SettingsViewModel.ConnectionPrinterTab),
         ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
+        ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
@@ -128,6 +129,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabConnectionMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraMarker"));
+            Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraWindowMarker"));
             List<string> problems = [.. HeadersNotOnOneRow(ui.Window, language), .. CutTexts(ui.Window, language)];
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
@@ -432,6 +434,30 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         });
         yield return ("camera credentials removed + longest failed camera test", static scope => OpenWithCameraTestAsync(scope, LongestCameraFailure(), removedCredentials: true));
 
+        // Camera window (T-035): the longest monitor label is a disconnected monitor (the combo trims a longer name).
+        yield return ("camera window: camera on, size errors", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithCameraWindowAsync(scope, cameraEnabled: true);
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            printer.NormalSizeText = "1 × 1";
+            printer.MiniSizeText = "big";
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            Assert.NotNull(printer.NormalSizeError);
+            Assert.NotNull(printer.MiniSizeError);
+            ui.Window.Settle();
+            return ui;
+        });
+
+        yield return ("camera window: camera off + invalid size", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithCameraWindowAsync(scope, cameraEnabled: false);
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            printer.MiniSizeText = "big";
+            Assert.Null(printer.MiniSizeError);
+            ui.Window.Settle();
+            return ui;
+        });
+
         yield return ("General with errors", static async scope =>
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
@@ -465,6 +491,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             ("\uD800", Strings.SettingsErrorPasswordInvalid));
         printer.CameraEnabled = true;
         printer.CameraUrl = LongestCameraAddressProblem();
+        printer.NormalSizeText = "1 × 1";
+        printer.MiniSizeText = "big";
         if (refusedTest)
         {
             await printer.TestConnectionCommand.ExecuteAsync(null);
@@ -475,8 +503,26 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         Assert.Empty(store.Saves);
         Assert.True(printer.ShowsConnectionErrorMarker);
         Assert.True(printer.ShowsCameraErrorMarker);
+        Assert.True(printer.ShowsCameraWindowErrorMarker);
         ui.Window.Settle();
         return ui;
+    }
+
+    /// <summary>A printer with a saved monitor that is not connected and the longest corner names, on three monitors.</summary>
+    private static Task<SettingsWindowHarness> OpenWithCameraWindowAsync(UiTestScope scope, bool cameraEnabled)
+    {
+        CameraWindowDefaults window = new()
+        {
+            StartMode = CameraWindowStartMode.Last,
+            Monitor = new CameraMonitorId("BenQ PD2700U", 2560, 1440),
+            Normal = new CameraWindowLayout(new CameraWindowSize(1920, 1080), CameraWindowCorner.TopLeft),
+            Mini = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.BottomLeft),
+        };
+        CameraSettings camera = new(cameraEnabled, WorkingCamera.StreamUri) { Window = window };
+        return SettingsWindowHarness.OpenAsync(
+            scope,
+            SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = camera }),
+            screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
     }
 
     private static async Task<SettingsWindowHarness> OpenWithNameErrorAndTestAsync(UiTestScope scope, ConnectionTestResult result)

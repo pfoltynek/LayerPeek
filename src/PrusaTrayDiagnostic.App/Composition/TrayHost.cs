@@ -151,8 +151,11 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>A view model for a new diagnostics window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
     public DiagnosticsViewModel CreateDiagnosticsViewModel(string? initialPrinterId) => AppServices.CreateDiagnosticsViewModel(_services, initialPrinterId);
 
-    /// <summary>A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
-    public SettingsViewModel CreateSettingsViewModel() => AppServices.CreateSettingsViewModel(_services);
+    /// <summary>
+    /// A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
+    /// <paramref name="screens"/>: the monitors offered for the camera window (those of the settings window).
+    /// </summary>
+    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null) => AppServices.CreateSettingsViewModel(_services, screens);
 
     /// <summary>
     /// A view model for a new camera window of <paramref name="printerId"/>, or <see langword="null"/> when it has no enabled

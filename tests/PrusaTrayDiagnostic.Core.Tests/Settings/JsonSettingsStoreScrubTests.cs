@@ -125,6 +125,26 @@ public sealed class JsonSettingsStoreScrubTests : IDisposable
     }
 
     [Fact]
+    public async Task CameraWindowSectionIsLeftByteForByte()
+    {
+        // T-035: camera.window holds the window defaults; it is never touched, even when it contains look-alike values.
+        string window = string.Join(
+            "\r\n",
+            "\"window\" : { /* defaults */ \"rememberLastPlacement\": false, \"startMode\" : \"FullScreen\",",
+            "\t\"monitor\": { \"displayName\": \"\\\\\\\\.\\\\DISPLAY2\", \"width\": 2560, \"height\": 1440 },",
+            "\t\"normal\": { \"width\": 1280, \"height\": 720, \"corner\": \"TopRight\" }, \"mini\": { \"width\": 333, \"height\": 222, \"corner\": \"BottomLeft\", },",
+            "\t\"streamUrl\": \"rtsp://x:y@10.0.0.1/z\", \"enabled\": true }");
+        string original = $$"""{ "printers": [ { "id": "a", "camera": { "enabled": true, {{window}}, "streamUrl": "rtsp://u:p@10.0.0.6/live" } } ] }""";
+
+        (IReadOnlyList<string> changed, string result) = await ScrubAsync(original);
+
+        Assert.Equal(["a"], changed);
+        Assert.Equal(
+            $$"""{ "printers": [ { "id": "a", "camera": { "enabled": false, {{window}}, "streamUrl": "rtsp://10.0.0.6/live" } } ] }""",
+            result);
+    }
+
+    [Fact]
     public async Task CommentsTrailingCommasAndWhitespaceArePreserved()
     {
         string original = string.Join(

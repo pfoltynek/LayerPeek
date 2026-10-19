@@ -17,9 +17,22 @@ namespace PrusaTrayDiagnostic.App.Cameras;
 /// <summary>The printer whose camera a window shows.</summary>
 internal sealed record CameraTarget(string PrinterId, string Name, Uri StreamUri)
 {
+    /// <summary>How the window opens (T-035).</summary>
+    public CameraWindowDefaults Window
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = CameraWindowDefaults.Default;
+
     /// <summary>The printer with an enabled camera, or <see langword="null"/> when it has none.</summary>
     public static CameraTarget? From(PrinterDefinition printer) =>
-        printer is { Camera: { Enabled: true, StreamUri: { } uri } } ? new CameraTarget(printer.Id, printer.Name, uri) : null;
+        printer is { Camera: { Enabled: true, StreamUri: { } uri } camera }
+            ? new CameraTarget(printer.Id, printer.Name, uri) { Window = camera.Window }
+            : null;
 }
 
 /// <summary>Draws camera frames (the window's <c>WriteableBitmap</c>). UI thread only.</summary>
@@ -86,6 +99,11 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private CameraWindowMode _mode;
     private CameraWindowPlacement? _normalPlacement;
     private CameraWindowPlacement? _miniPlacement;
+    private CameraWindowDefaults _defaults;
+
+    // GetRemoveCount of the state store when the window opened: a different value at closing means the settings changed
+    // the defaults meanwhile, so the state is not written back (T-035).
+    private readonly int _stateRemoveCount;
     private CameraStatus _status = CameraStatus.Connecting;
     private bool _hasFrame;
     private CameraPrintContent _shownPrintContent;
@@ -132,10 +150,18 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _applyPrintContent = ApplyPrintContent;
         _applyPrinters = ApplyPrinters;
 
+        // T-035: the remembered state (when the defaults allow it) or the defaults; the window places itself from these.
+        _defaults = target.Window;
+        _stateRemoveCount = stateStore.GetRemoveCount(PrinterId);
         CameraWindowState state = stateStore.Get(PrinterId);
-        _mode = Enum.IsDefined(state.Mode) ? state.Mode : CameraWindowMode.Normal;
-        _normalPlacement = state.Normal;
-        _miniPlacement = state.Mini;
+        CameraWindowOpenPlan plan = CameraWindowOpenPolicy.Decide(
+            _defaults,
+            Enum.IsDefined(state.Mode) ? state.Mode : null,
+            hasRememberedNormal: state.Normal is not null,
+            hasRememberedMini: state.Mini is not null);
+        _mode = plan.Mode;
+        _normalPlacement = plan.UseRememberedNormal ? state.Normal : null;
+        _miniPlacement = plan.UseRememberedMini ? state.Mini : null;
 
         ToggleFullScreenCommand = new RelayCommand(ToggleFullScreen);
         ShowMiniCommand = new RelayCommand(() => Mode = CameraWindowMode.Mini, () => _mode != CameraWindowMode.Mini);
@@ -203,11 +229,17 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     public string FullScreenToolTip => IsFullScreen ? Strings.CameraExitFullScreen : Strings.CameraFullScreen;
 
-    /// <summary>Where the normal window was; <see langword="null"/> = never placed (the window centres itself).</summary>
+    /// <summary>
+    /// Where the normal window was (remembered, or earlier in this window); <see langword="null"/> = the window places it
+    /// from <see cref="Defaults"/>.
+    /// </summary>
     internal CameraWindowPlacement? NormalPlacement => _normalPlacement;
 
-    /// <summary>Where the mini preview was; <see langword="null"/> = never shown.</summary>
+    /// <summary>Where the mini preview was; <see langword="null"/> = the window places it from <see cref="Defaults"/>.</summary>
     internal CameraWindowPlacement? MiniPlacement => _miniPlacement;
+
+    /// <summary>How the window opens (T-035); follows saved settings, which apply to the next placement from defaults.</summary>
+    internal CameraWindowDefaults Defaults => _defaults;
 
     /// <summary>Normal / full screen (F11, double-click); from the mini preview it goes full screen.</summary>
     public IRelayCommand ToggleFullScreenCommand { get; }
@@ -359,7 +391,22 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _printers.Changed -= OnPrintersChanged;
         StopStream();
         _sink = null;
-        _stateStore.Set(PrinterId, new CameraWindowState(_mode, _normalPlacement, _miniPlacement));
+        if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
+        {
+            return;
+        }
+
+        if (_defaults.RememberLastPlacement)
+        {
+            _stateStore.Set(PrinterId, new CameraWindowState(_mode, _normalPlacement, _miniPlacement));
+        }
+        else
+        {
+            // "Remember" is off (T-035, user decision 2026-10-19): only the mode is remembered (for "same as last time",
+            // Q2); the placements remembered earlier stay as they were, for when "remember" is turned on again.
+            CameraWindowState stored = _stateStore.Get(PrinterId);
+            _stateStore.Set(PrinterId, stored with { Mode = _mode });
+        }
     }
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
@@ -661,6 +708,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             _name = target.Name;
             OnPropertyChanged(nameof(Title));
         }
+
+        // The open window does not move (T-035); the new defaults apply to the next placement from defaults.
+        _defaults = target.Window;
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

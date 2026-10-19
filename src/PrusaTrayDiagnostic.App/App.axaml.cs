@@ -120,17 +120,10 @@ public partial class App : Application, ITrayAppCommands
         _settingsWindow.ShowOrActivate(() =>
         {
             // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
-            SettingsViewModel viewModel = host.CreateSettingsViewModel();
-            try
-            {
-                created = viewModel;
-                return (new AvaloniaAuxiliaryWindow(new SettingsWindow { DataContext = viewModel }), viewModel);
-            }
-            catch
-            {
-                viewModel.Dispose();
-                throw;
-            }
+            // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
+            (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(static () => new SettingsWindow(), host.CreateSettingsViewModel);
+            created = viewModel;
+            return (new AvaloniaAuxiliaryWindow(window), viewModel);
         });
 
         // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.

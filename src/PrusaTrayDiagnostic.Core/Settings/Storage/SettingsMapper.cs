@@ -44,6 +44,7 @@ internal static class SettingsMapper
                 {
                     Enabled = printer.Camera.Enabled,
                     StreamUrl = printer.Camera.StreamUri?.OriginalString ?? printer.Camera.InvalidStreamUrl,
+                    Window = ToDocument(printer.Camera.Window),
                 },
             })],
         };
@@ -203,6 +204,12 @@ internal static class SettingsMapper
             {
                 // Only for accepted entries, so that a skipped printer does not also produce a camera warning.
                 CameraSettings camera = ToCamera(documents[i]!.Camera, printer!.Id, warnings);
+                CameraWindowDefaults window = ToCameraWindow(documents[i]!.Camera?.Window, printer.Id, warnings);
+                if (!ReferenceEquals(window, CameraWindowDefaults.Default))
+                {
+                    camera = camera with { Window = window };
+                }
+
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
                 printers.Add(ReferenceEquals(camera, CameraSettings.Disabled) ? printer : printer with { Camera = camera });
             }
@@ -302,6 +309,190 @@ internal static class SettingsMapper
         }
 
         return camera;
+    }
+
+    /// <summary>Not written while everything is the default, so that files stay as they were and follow future defaults.</summary>
+    private static CameraWindowDocument? ToDocument(CameraWindowDefaults window)
+    {
+        if (window == CameraWindowDefaults.Default)
+        {
+            return null;
+        }
+
+        return new CameraWindowDocument
+        {
+            RememberLastPlacement = window.RememberLastPlacement,
+            StartMode = FormatStartMode(window.StartMode),
+            Monitor = window.Monitor is { } monitor
+                ? new CameraMonitorDocument { DisplayName = monitor.DisplayName, Width = monitor.Width, Height = monitor.Height, DevicePath = monitor.DevicePath }
+                : null,
+            Normal = ToDocument(window.Normal),
+            Mini = ToDocument(window.Mini),
+        };
+    }
+
+    private static CameraWindowLayoutDocument ToDocument(CameraWindowLayout layout) => new()
+    {
+        Width = layout.Size.Width,
+        Height = layout.Size.Height,
+        Corner = FormatCorner(layout.Corner),
+    };
+
+    /// <summary>
+    /// A missing section or value means the default. Each invalid value (or monitor / size as a whole) falls back to its
+    /// default with one warning; the values are not echoed (garbage from the file must not reach the UI).
+    /// </summary>
+    private static CameraWindowDefaults ToCameraWindow(CameraWindowDocument? document, string printerId, List<string> warnings)
+    {
+        if (document is null)
+        {
+            return CameraWindowDefaults.Default;
+        }
+
+        CameraWindowDefaults defaults = CameraWindowDefaults.Default;
+        string subject = $"Camera window of printer '{Shorten(printerId)}'";
+        CameraWindowStartMode startMode = defaults.StartMode;
+        if (document.StartMode is not null && !TryParseStartMode(document.StartMode, out startMode))
+        {
+            warnings.Add($"{subject}: unknown start mode; '{FormatStartMode(defaults.StartMode)}' is used.");
+            startMode = defaults.StartMode;
+        }
+
+        CameraWindowDefaults window = new()
+        {
+            RememberLastPlacement = document.RememberLastPlacement ?? defaults.RememberLastPlacement,
+            StartMode = startMode,
+            Monitor = ToMonitor(document.Monitor, subject, warnings),
+            Normal = ToLayout(document.Normal, defaults.Normal, $"{subject}: normal window", warnings),
+            Mini = ToLayout(document.Mini, defaults.Mini, $"{subject}: mini preview", warnings),
+        };
+
+        return window == defaults ? defaults : window;
+    }
+
+    private static CameraMonitorId? ToMonitor(CameraMonitorDocument? document, string subject, List<string> warnings)
+    {
+        if (document is null)
+        {
+            return null;
+        }
+
+        if (TryGetWholeNumber(document.Width, out int width)
+            && TryGetWholeNumber(document.Height, out int height)
+            && CameraMonitorId.IsValid(document.DisplayName, width, height))
+        {
+            string? devicePath = document.DevicePath;
+            if (devicePath is not null && !CameraMonitorId.IsValidDevicePath(devicePath))
+            {
+                // The name and resolution still identify the monitor (as in files written before the path was stored).
+                warnings.Add($"{subject}: invalid monitor device path; the monitor is matched by its name.");
+                devicePath = null;
+            }
+
+            return new CameraMonitorId(document.DisplayName!, width, height, devicePath);
+        }
+
+        warnings.Add($"{subject}: invalid monitor; the primary monitor is used.");
+        return null;
+    }
+
+    private static CameraWindowLayout ToLayout(CameraWindowLayoutDocument? document, CameraWindowLayout fallback, string subject, List<string> warnings)
+    {
+        if (document is null)
+        {
+            return fallback;
+        }
+
+        CameraWindowSize size = fallback.Size;
+        if (document.Width is not null || document.Height is not null)
+        {
+            if (TryGetWholeNumber(document.Width, out int width)
+                && TryGetWholeNumber(document.Height, out int height)
+                && CameraWindowSize.IsValid(width, height))
+            {
+                size = new CameraWindowSize(width, height);
+            }
+            else
+            {
+                warnings.Add(
+                    $"{subject} size is invalid (whole numbers, width {CameraWindowSize.MinWidth}–{CameraWindowSize.MaxSize}, height {CameraWindowSize.MinHeight}–{CameraWindowSize.MaxSize}); {fallback.Size.Width} × {fallback.Size.Height} is used.");
+            }
+        }
+
+        CameraWindowCorner corner = fallback.Corner;
+        if (document.Corner is not null && !TryParseCorner(document.Corner, out corner))
+        {
+            warnings.Add($"{subject} has an unknown position; '{FormatCorner(fallback.Corner)}' is used.");
+            corner = fallback.Corner;
+        }
+
+        CameraWindowLayout layout = new(size, corner);
+        return layout == fallback ? fallback : layout;
+    }
+
+    /// <summary>Whole number that fits an <see cref="int"/>; fractions, non-finite and missing values are rejected.</summary>
+    private static bool TryGetWholeNumber(double? value, out int result)
+    {
+        result = 0;
+        if (value is not { } number || !double.IsFinite(number) || number != Math.Floor(number) || number < int.MinValue || number > int.MaxValue)
+        {
+            return false;
+        }
+
+        result = (int)number;
+        return true;
+    }
+
+    private static string FormatStartMode(CameraWindowStartMode mode) => mode switch
+    {
+        CameraWindowStartMode.Last => nameof(CameraWindowStartMode.Last),
+        CameraWindowStartMode.Normal => nameof(CameraWindowStartMode.Normal),
+        CameraWindowStartMode.Mini => nameof(CameraWindowStartMode.Mini),
+        CameraWindowStartMode.FullScreen => nameof(CameraWindowStartMode.FullScreen),
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown camera window start mode."),
+    };
+
+    private static bool TryParseStartMode(string value, out CameraWindowStartMode mode)
+    {
+        // Explicit names instead of Enum.Parse: numeric strings must not be accepted and the format must stay stable.
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (CameraWindowStartMode candidate in (ReadOnlySpan<CameraWindowStartMode>)[CameraWindowStartMode.Last, CameraWindowStartMode.Normal, CameraWindowStartMode.Mini, CameraWindowStartMode.FullScreen])
+        {
+            if (name.Equals(FormatStartMode(candidate), StringComparison.OrdinalIgnoreCase))
+            {
+                mode = candidate;
+                return true;
+            }
+        }
+
+        mode = default;
+        return false;
+    }
+
+    private static string FormatCorner(CameraWindowCorner corner) => corner switch
+    {
+        CameraWindowCorner.TopLeft => nameof(CameraWindowCorner.TopLeft),
+        CameraWindowCorner.TopRight => nameof(CameraWindowCorner.TopRight),
+        CameraWindowCorner.BottomLeft => nameof(CameraWindowCorner.BottomLeft),
+        CameraWindowCorner.BottomRight => nameof(CameraWindowCorner.BottomRight),
+        CameraWindowCorner.Center => nameof(CameraWindowCorner.Center),
+        _ => throw new ArgumentOutOfRangeException(nameof(corner), corner, "Unknown camera window corner."),
+    };
+
+    private static bool TryParseCorner(string value, out CameraWindowCorner corner)
+    {
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (CameraWindowCorner candidate in (ReadOnlySpan<CameraWindowCorner>)[CameraWindowCorner.TopLeft, CameraWindowCorner.TopRight, CameraWindowCorner.BottomLeft, CameraWindowCorner.BottomRight, CameraWindowCorner.Center])
+        {
+            if (name.Equals(FormatCorner(candidate), StringComparison.OrdinalIgnoreCase))
+            {
+                corner = candidate;
+                return true;
+            }
+        }
+
+        corner = default;
+        return false;
     }
 
     // Warnings are shown in the UI; a garbage file must not be able to push huge strings there.

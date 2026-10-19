@@ -690,4 +690,79 @@
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (jen Linux)</value>
   </data>
+  <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
+    <value>Okno kamery</value>
+  </data>
+  <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
+    <value>Kamera je vypnutá. Nastavení zůstane uložené a použije se, až kameru zapnete (záložka Kamera).</value>
+  </data>
+  <data name="SettingsCameraWindowRemember" xml:space="preserve">
+    <value>Pamatovat poslední pozici a velikost</value>
+  </data>
+  <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
+    <value>Když je zapnuto, hodnoty níže se použijí, jen dokud okno nemá zapamatovanou pozici. Změny se projeví při dalším otevření okna.</value>
+  </data>
+  <data name="SettingsCameraWindowStartMode" xml:space="preserve">
+    <value>Otevřít jako</value>
+  </data>
+  <data name="SettingsCameraWindowStartLast" xml:space="preserve">
+    <value>Jako minule</value>
+  </data>
+  <data name="SettingsCameraWindowStartNormal" xml:space="preserve">
+    <value>Normální okno</value>
+  </data>
+  <data name="SettingsCameraWindowStartMini" xml:space="preserve">
+    <value>Malý náhled</value>
+  </data>
+  <data name="SettingsCameraWindowStartFullScreen" xml:space="preserve">
+    <value>Celá obrazovka</value>
+  </data>
+  <data name="SettingsCameraWindowMonitor" xml:space="preserve">
+    <value>Monitor</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorPrimary" xml:space="preserve">
+    <value>Primární monitor</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNumbered" xml:space="preserve">
+    <value>Monitor {0} – {1} ({2}&#xA0;×&#xA0;{3})</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNumberedUnnamed" xml:space="preserve">
+    <value>Monitor {0} ({1}&#xA0;×&#xA0;{2})</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNotConnected" xml:space="preserve">
+    <value>{0} ({1}&#xA0;×&#xA0;{2}) – nepřipojený</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorGeneric" xml:space="preserve">
+    <value>Monitor</value>
+  </data>
+  <data name="SettingsCameraWindowNormal" xml:space="preserve">
+    <value>Normální okno</value>
+  </data>
+  <data name="SettingsCameraWindowMini" xml:space="preserve">
+    <value>Malý náhled</value>
+  </data>
+  <data name="SettingsCameraWindowSize" xml:space="preserve">
+    <value>Velikost</value>
+  </data>
+  <data name="SettingsCameraWindowPosition" xml:space="preserve">
+    <value>Umístění</value>
+  </data>
+  <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
+    <value>Vlevo nahoře</value>
+  </data>
+  <data name="SettingsCameraWindowCornerTopRight" xml:space="preserve">
+    <value>Vpravo nahoře</value>
+  </data>
+  <data name="SettingsCameraWindowCornerBottomLeft" xml:space="preserve">
+    <value>Vlevo dole</value>
+  </data>
+  <data name="SettingsCameraWindowCornerBottomRight" xml:space="preserve">
+    <value>Vpravo dole</value>
+  </data>
+  <data name="SettingsCameraWindowCornerCenter" xml:space="preserve">
+    <value>Uprostřed</value>
+  </data>
+  <data name="SettingsCameraWindowSizeError" xml:space="preserve">
+    <value>Zadejte šířku {0}–{1} a výšku {2}–{3}.</value>
+  </data>
 </root>

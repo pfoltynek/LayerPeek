@@ -1,17 +1,6 @@
+using PrusaTrayDiagnostic.Core.Cameras;
+
 namespace PrusaTrayDiagnostic.App.Cameras;
-
-/// <summary>How the camera window is shown. Public only because compiled bindings and xUnit theory data need it.</summary>
-public enum CameraWindowMode
-{
-    /// <summary>A regular resizable window with a title bar.</summary>
-    Normal,
-
-    /// <summary>The whole screen.</summary>
-    FullScreen,
-
-    /// <summary>Small borderless preview, always on top of other windows (picture-in-picture).</summary>
-    Mini,
-}
 
 /// <summary>Where a window is: position in screen pixels, size in device-independent units.</summary>
 internal readonly record struct CameraWindowPlacement(int X, int Y, double Width, double Height)

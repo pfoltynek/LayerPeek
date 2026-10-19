@@ -68,6 +68,24 @@ public sealed class PrinterEditorViewModel : ObservableObject
     // Snapshot of the last successful camera test (T-034); owned here (a bitmap is disposed when it is replaced or cleared).
     private IImage? _cameraPreview;
 
+    // Camera window (T-035). _savedWindow: the saved defaults, also the fallback for a size typed invalid while the
+    // camera is off (Q6). The size boxes keep the text as typed.
+    private CameraWindowDefaults _savedWindow;
+    private bool _rememberLastPlacement;
+    private CameraStartModeOption _startMode;
+    private CameraMonitorOption _monitor;
+    private readonly IReadOnlyList<CameraMonitorOption> _monitorOptions;
+
+    // Accessible names of the size and position boxes ("{row} – {column}"), formatted again after a language switch.
+    private string _normalSizeName = string.Empty;
+    private string _normalCornerName = string.Empty;
+    private string _miniSizeName = string.Empty;
+    private string _miniCornerName = string.Empty;
+    private string _normalSizeText;
+    private CameraCornerOption _normalCorner;
+    private string _miniSizeText;
+    private CameraCornerOption _miniCorner;
+
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
     /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until answered or saved).</param>
@@ -95,6 +113,16 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _cameraCredentialsRemoved = cameraCredentialsRemoved || camera.CredentialsRemoved;
         TestCameraCommand = new AsyncRelayCommand(TestCameraAsync, () => !_isTestingCamera && !_owner.IsDisposed);
         CancelCameraTestCommand = new RelayCommand(CancelCameraTest, () => _isTestingCamera);
+        _savedWindow = camera.Window;
+        _rememberLastPlacement = _savedWindow.RememberLastPlacement;
+        _startMode = owner.StartModeOptions.First(option => option.Value == _savedWindow.StartMode);
+        _monitorOptions = CreateMonitorOptions(_savedWindow.Monitor, owner.ScreenList);
+        _monitor = _monitorOptions.First(option => option.Value == _savedWindow.Monitor);
+        _normalSizeText = CameraWindowSizeText.Format(_savedWindow.Normal.Size);
+        _normalCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Normal.Corner);
+        _miniSizeText = CameraWindowSizeText.Format(_savedWindow.Mini.Size);
+        _miniCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Mini.Corner);
+        FormatCellNames();
         ValidateAddress();
         ValidateUserName();
         ValidatePassword();
@@ -257,7 +285,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors => HasConnectionErrors || HasCameraErrors;
+    public bool HasErrors => HasConnectionErrors || HasCameraErrors || HasCameraWindowErrors;
 
     /// <summary>A field of the Printer sub-tab (name, address, user name, password) is invalid (shown or not yet).</summary>
     public bool HasConnectionErrors =>
@@ -334,6 +362,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
                 }
 
                 ValidateCamera();
+                // The window sizes are validated only while the camera is on (T-033 Q9).
+                OnErrorsChanged();
                 RevealErrors();
                 _owner.OnPrinterEdited(nameChanged: false);
             }
@@ -409,6 +439,133 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public bool HasCameraPreview => _cameraPreview is not null;
 
+    // ---- Camera window (T-035): how the camera window opens. Edited only while the camera is on (values are kept). ----
+
+    /// <summary>Use the remembered position and size when there are any (default); off: always the values below.</summary>
+    public bool RememberLastPlacement
+    {
+        get => _rememberLastPlacement;
+        set
+        {
+            if (SetProperty(ref _rememberLastPlacement, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
+    public IReadOnlyList<CameraStartModeOption> StartModeOptions => _owner.StartModeOptions;
+
+    public CameraStartModeOption SelectedStartMode
+    {
+        get => _startMode;
+        set
+        {
+            // A ComboBox may write null while its items change.
+            if (value is not null && SetProperty(ref _startMode, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
+    /// <summary>
+    /// "Primary monitor", the connected monitors ("Monitor 2 – DELL U2719D (1440 × 2560)") and the saved monitor when it
+    /// is not among them ("… – not connected" when no monitor with its name is connected). Read when the printer is loaded.
+    /// </summary>
+    public IReadOnlyList<CameraMonitorOption> MonitorOptions => _monitorOptions;
+
+    public CameraMonitorOption SelectedMonitor
+    {
+        get => _monitor;
+        set
+        {
+            if (value is not null && SetProperty(ref _monitor, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
+    public IReadOnlyList<CameraCornerOption> CornerOptions => _owner.CornerOptions;
+
+    /// <summary>Size of the normal window as typed ("960 × 540", also "960x540"); validated while the camera is on.</summary>
+    public string NormalSizeText
+    {
+        get => _normalSizeText;
+        set
+        {
+            if (SetProperty(ref _normalSizeText, value ?? string.Empty))
+            {
+                OnWindowEdited(sizeChanged: true);
+            }
+        }
+    }
+
+    public CameraCornerOption SelectedNormalCorner
+    {
+        get => _normalCorner;
+        set
+        {
+            if (value is not null && SetProperty(ref _normalCorner, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
+    /// <summary>Size of the mini preview as typed.</summary>
+    public string MiniSizeText
+    {
+        get => _miniSizeText;
+        set
+        {
+            if (SetProperty(ref _miniSizeText, value ?? string.Empty))
+            {
+                OnWindowEdited(sizeChanged: true);
+            }
+        }
+    }
+
+    public CameraCornerOption SelectedMiniCorner
+    {
+        get => _miniCorner;
+        set
+        {
+            if (value is not null && SetProperty(ref _miniCorner, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
+    /// <summary>Why the size of the normal window cannot be used; only while the camera is on (T-033 Q9).</summary>
+    public string? NormalSizeError => _showErrors && IsInvalidSize(_normalSizeText) ? SizeErrorText : null;
+
+    /// <summary>Why the size of the mini preview cannot be used; only while the camera is on.</summary>
+    public string? MiniSizeError => _showErrors && IsInvalidSize(_miniSizeText) ? SizeErrorText : null;
+
+    /// <summary>A size of the camera window sub-tab blocks saving (shown or not yet): only while the camera is on.</summary>
+    public bool HasCameraWindowErrors => IsInvalidSize(_normalSizeText) || IsInvalidSize(_miniSizeText);
+
+    /// <summary>The "!" on the Camera window sub-tab header; same rule as the list marker.</summary>
+    public bool ShowsCameraWindowErrorMarker => _showErrors && HasCameraWindowErrors;
+
+    /// <summary>Accessible name of the Camera window sub-tab header.</summary>
+    public string CameraWindowTabName => TabName(Strings.SettingsPrinterTabCameraWindow, ShowsCameraWindowErrorMarker);
+
+    /// <summary>Accessible names of the size and position boxes: "{row} – {column}".</summary>
+    public string NormalSizeName => _normalSizeName;
+
+    public string NormalCornerName => _normalCornerName;
+
+    public string MiniSizeName => _miniSizeName;
+
+    public string MiniCornerName => _miniCornerName;
+
+    /// <summary>The camera window defaults as entered, to compare with the saved ones (tests and saving).</summary>
+    internal CameraWindowDefaults? CameraWindow => BuildWindow();
+
     /// <summary>The field holds a password that will be saved.</summary>
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
@@ -430,14 +587,18 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private string EffectiveUserName => IsPrusaLink ? _userName : _savedUserName;
 
     /// <summary>
-    /// The camera as entered; <see langword="null"/> when it cannot be saved (an enabled camera without a valid address,
-    /// or credentials in the address, which are never stored). A disabled camera keeps an invalid address unchanged.
+    /// The camera as entered, with its window defaults; <see langword="null"/> when it cannot be saved (an enabled camera
+    /// without a valid address or with an invalid window size, or credentials in the address, which are never stored). A
+    /// disabled camera keeps an invalid address unchanged and its window defaults (T-035).
     /// </summary>
-    private CameraSettings? BuildCamera()
+    private CameraSettings? BuildCamera() => BuildWindow() is { } window ? BuildCamera(window) : null;
+
+    /// <summary>The camera with the address as entered and <paramref name="window"/>; <see langword="null"/> when the address blocks saving.</summary>
+    private CameraSettings? BuildCamera(CameraWindowDefaults window)
     {
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri);
+            return new CameraSettings(_cameraEnabled, uri) { Window = window };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -447,12 +608,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
         if (problem == CameraUrlProblem.Missing)
         {
-            return CameraSettings.Disabled;
+            // No address and the default window: the shared "no camera" value.
+            return window == CameraSettings.Disabled.Window ? CameraSettings.Disabled : CameraSettings.Disabled with { Window = window };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl);
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window };
         }
         catch (ArgumentException)
         {
@@ -460,6 +622,102 @@ public sealed class PrinterEditorViewModel : ObservableObject
             return null;
         }
     }
+
+    /// <summary>
+    /// The camera window defaults as entered; <see langword="null"/> while the camera is on and a size is invalid. While
+    /// the camera is off an invalid size keeps the saved one (T-035 Q6); everything else is taken as entered.
+    /// </summary>
+    private CameraWindowDefaults? BuildWindow()
+    {
+        CameraWindowSize? normal = CameraWindowSizeText.Parse(_normalSizeText);
+        CameraWindowSize? mini = CameraWindowSizeText.Parse(_miniSizeText);
+        if (_cameraEnabled && (normal is null || mini is null))
+        {
+            return null;
+        }
+
+        return _savedWindow with
+        {
+            RememberLastPlacement = _rememberLastPlacement,
+            StartMode = _startMode.Value,
+            Monitor = _monitor.Value,
+            Normal = new CameraWindowLayout(normal ?? _savedWindow.Normal.Size, _normalCorner.Value),
+            Mini = new CameraWindowLayout(mini ?? _savedWindow.Mini.Size, _miniCorner.Value),
+        };
+    }
+
+    private bool IsInvalidSize(string text) => _cameraEnabled && CameraWindowSizeText.Parse(text) is null;
+
+    private static string SizeErrorText =>
+        Format(Strings.SettingsCameraWindowSizeError, CameraWindowSize.MinWidth, CameraWindowSize.MaxSize, CameraWindowSize.MinHeight, CameraWindowSize.MaxSize);
+
+    private static string CellName(string row, string column) => string.Concat(row, " – ", column);
+
+    private void FormatCellNames()
+    {
+        _normalSizeName = CellName(Strings.SettingsCameraWindowNormal, Strings.SettingsCameraWindowSize);
+        _normalCornerName = CellName(Strings.SettingsCameraWindowNormal, Strings.SettingsCameraWindowPosition);
+        _miniSizeName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowSize);
+        _miniCornerName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowPosition);
+    }
+
+    /// <summary>A field of the camera window sub-tab changed.</summary>
+    private void OnWindowEdited(bool sizeChanged = false)
+    {
+        RevealErrors();
+        if (sizeChanged)
+        {
+            OnErrorsChanged();
+        }
+
+        _owner.OnPrinterEdited(nameChanged: false);
+    }
+
+    /// <summary>
+    /// "Primary monitor", then every connected monitor numbered in the order of the catalog, then the saved monitor when
+    /// no connected one matches it ("not connected"). The connected monitor the saved one resolves to (device path, name
+    /// and resolution, or name: <see cref="CameraWindowDefaultPlacement.SelectScreen"/>) carries the saved value, so that an
+    /// untouched choice is saved unchanged. Identical monitors are separate entries when they have device paths (Windows,
+    /// T-035 Q8); without paths (other platforms) they cannot be told apart and appear once. A monitor without a name cannot
+    /// be stored and is not offered.
+    /// </summary>
+    private static CameraMonitorOption[] CreateMonitorOptions(CameraMonitorId? saved, IReadOnlyList<CameraScreen> screens)
+    {
+        List<CameraMonitorOption> options = [new CameraMonitorOption(null, isConnected: true, static () => Strings.SettingsCameraWindowMonitorPrimary)];
+        CameraScreen? savedScreen = saved is not null && CameraWindowDefaultPlacement.SelectScreen(saved, screens) is { PreferredMonitorMissing: false } selection
+            ? selection.Screen
+            : null;
+        for (int i = 0; i < screens.Count; i++)
+        {
+            CameraScreen screen = screens[i];
+            CameraMonitorId? id = ReferenceEquals(screen, savedScreen) ? saved
+                : CameraMonitorId.IsValid(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height) ? CameraMonitorId.FromScreen(screen)
+                : null;
+            if (id is null || options.Exists(option => option.Value == id))
+            {
+                continue;
+            }
+
+            int number = i + 1;
+            options.Add(new CameraMonitorOption(id, isConnected: true, () => IsFriendlyName(screen.DisplayName)
+                ? Format(Strings.SettingsCameraWindowMonitorNumbered, number, screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height)
+                : Format(Strings.SettingsCameraWindowMonitorNumberedUnnamed, number, screen.Bounds.Width, screen.Bounds.Height)));
+        }
+
+        if (saved is not null && !options.Exists(option => option.Value == saved))
+        {
+            options.Add(new CameraMonitorOption(saved, isConnected: false, () => Format(
+                Strings.SettingsCameraWindowMonitorNotConnected,
+                IsFriendlyName(saved.DisplayName) ? saved.DisplayName : Strings.SettingsCameraWindowMonitorGeneric,
+                saved.Width,
+                saved.Height)));
+        }
+
+        return [.. options];
+    }
+
+    /// <summary>A name people recognise (not the Windows device name <c>\\.\DISPLAY1</c> used when there is none).</summary>
+    private static bool IsFriendlyName(string name) => !name.StartsWith(@"\\.\", StringComparison.Ordinal);
 
     internal void SetNameProblem(string? problem)
     {
@@ -493,6 +751,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPasswordPresentationChanged();
         // The user saved after seeing the notice (see RemovedCameraCredentials).
         CameraCredentialsRemoved = false;
+        // The saved window defaults are the new fallback for an invalid size of a turned-off camera (Q6).
+        _savedWindow = BuildWindow() ?? _savedWindow;
     }
 
     /// <summary>
@@ -523,6 +783,21 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ConnectionTabName));
         OnPropertyChanged(nameof(CameraTabName));
         OnPasswordPresentationChanged();
+
+        // Camera window (T-035): the monitor names (the start modes and corners are shared, refreshed by the owner).
+        foreach (CameraMonitorOption option in _monitorOptions)
+        {
+            option.RefreshText();
+        }
+
+        OnPropertyChanged(nameof(NormalSizeError));
+        OnPropertyChanged(nameof(MiniSizeError));
+        OnPropertyChanged(nameof(CameraWindowTabName));
+        FormatCellNames();
+        OnPropertyChanged(nameof(NormalSizeName));
+        OnPropertyChanged(nameof(NormalCornerName));
+        OnPropertyChanged(nameof(MiniSizeName));
+        OnPropertyChanged(nameof(MiniCornerName));
     }
 
     /// <summary>
@@ -789,7 +1064,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     private void ValidateCamera()
     {
-        bool blocks = BuildCamera() is null;
+        // The address only (the window sizes have their own sub-tab and marker).
+        bool blocks = BuildCamera(_savedWindow) is null;
         string? problem = null;
         if (!CameraSettings.TryParseStreamUri(_cameraUrl, out _, out CameraUrlProblem kind))
         {
@@ -942,6 +1218,11 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsCameraErrorMarker));
         OnPropertyChanged(nameof(ConnectionTabName));
         OnPropertyChanged(nameof(CameraTabName));
+        OnPropertyChanged(nameof(NormalSizeError));
+        OnPropertyChanged(nameof(MiniSizeError));
+        OnPropertyChanged(nameof(HasCameraWindowErrors));
+        OnPropertyChanged(nameof(ShowsCameraWindowErrorMarker));
+        OnPropertyChanged(nameof(CameraWindowTabName));
         OnPropertyChanged(nameof(ShowsAddressHint));
         OnPropertyChanged(nameof(ShowsUserNameHint));
         OnPropertyChanged(nameof(ShowsPasswordHint));
@@ -960,4 +1241,9 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
 
     private static string Format(string format, object? arg0, object? arg1) => string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+
+    private static string Format(string format, object? arg0, object? arg1, object? arg2) => string.Format(CultureInfo.CurrentCulture, format, arg0, arg1, arg2);
+
+    private static string Format(string format, object? arg0, object? arg1, object? arg2, object? arg3) =>
+        string.Format(CultureInfo.CurrentCulture, format, [arg0, arg1, arg2, arg3]);
 }

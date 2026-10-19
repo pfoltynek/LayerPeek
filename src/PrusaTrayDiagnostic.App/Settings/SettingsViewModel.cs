@@ -11,6 +11,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 
@@ -53,8 +54,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Sub-tab of the selected printer: camera fields.</summary>
     public const int CameraPrinterTab = 1;
 
-    /// <summary>How many sub-tabs a printer has (T-035 and T-036 add more).</summary>
-    public const int PrinterTabCount = 2;
+    /// <summary>Sub-tab of the selected printer: how the camera window opens (T-035).</summary>
+    public const int CameraWindowPrinterTab = 2;
+
+    /// <summary>How many sub-tabs a printer has (T-036 adds the overlay).</summary>
+    public const int PrinterTabCount = 3;
 
     private const int TabCount = 2;
 
@@ -64,6 +68,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     private static readonly decimal MaxPollingSeconds = (decimal)AppSettings.MaxPollingInterval.TotalSeconds;
 
     private readonly ISettingsEditorStore _store;
+    private readonly ICameraWindowStateStore? _cameraWindowStates;
+    private readonly IScreenCatalog _screens;
+    private IReadOnlyList<CameraScreen>? _screenList;
     private readonly Func<string> _newId;
     private readonly CancellationTokenSource _lifetime = new();
 
@@ -110,6 +117,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <param name="cameraTester">Camera "Test" button; default: none available (every test fails).</param>
     /// <param name="cameraPreviewRenderer">Draws the snapshot of a successful camera test; default: a bitmap (needs Avalonia).</param>
     /// <param name="logger">Problems the window works around (e.g. a camera preview that cannot be drawn); default: none.</param>
+    /// <param name="screens">The monitors offered for the camera window (T-035); default: none (only "Primary monitor").</param>
+    /// <param name="cameraWindowStates">
+    /// Remembered camera windows; a saved change of a printer's window defaults forgets its state there (T-035). Default:
+    /// none (nothing to forget).
+    /// </param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -117,7 +129,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         Func<string>? newId = null,
         ICameraTester? cameraTester = null,
         ICameraPreviewRenderer? cameraPreviewRenderer = null,
-        ILogger<SettingsViewModel>? logger = null)
+        ILogger<SettingsViewModel>? logger = null,
+        IScreenCatalog? screens = null,
+        ICameraWindowStateStore? cameraWindowStates = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -129,6 +143,23 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         CameraTester = cameraTester ?? new CameraSnapshotTester(UnavailableCameraFeedFactory.Instance, TimeProvider.System, NullLogger<CameraSnapshotTester>.Instance);
         CameraPreviewRenderer = cameraPreviewRenderer ?? BitmapCameraPreviewRenderer.Instance;
         Logger = logger ?? NullLogger<SettingsViewModel>.Instance;
+        _screens = screens ?? EmptyScreenCatalog.Instance;
+        _cameraWindowStates = cameraWindowStates;
+        StartModeOptions =
+        [
+            new CameraStartModeOption(CameraWindowStartMode.Last, static () => Strings.SettingsCameraWindowStartLast),
+            new CameraStartModeOption(CameraWindowStartMode.Normal, static () => Strings.SettingsCameraWindowStartNormal),
+            new CameraStartModeOption(CameraWindowStartMode.Mini, static () => Strings.SettingsCameraWindowStartMini),
+            new CameraStartModeOption(CameraWindowStartMode.FullScreen, static () => Strings.SettingsCameraWindowStartFullScreen),
+        ];
+        CornerOptions =
+        [
+            new CameraCornerOption(CameraWindowCorner.TopLeft, static () => Strings.SettingsCameraWindowCornerTopLeft),
+            new CameraCornerOption(CameraWindowCorner.TopRight, static () => Strings.SettingsCameraWindowCornerTopRight),
+            new CameraCornerOption(CameraWindowCorner.BottomLeft, static () => Strings.SettingsCameraWindowCornerBottomLeft),
+            new CameraCornerOption(CameraWindowCorner.BottomRight, static () => Strings.SettingsCameraWindowCornerBottomRight),
+            new CameraCornerOption(CameraWindowCorner.Center, static () => Strings.SettingsCameraWindowCornerCenter),
+        ];
         SoundOptions =
         [
             new SoundOption(NotificationSound.Off, static () => Strings.SettingsSoundOff),
@@ -244,7 +275,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     }
 
     /// <summary>
-    /// Sub-tab of the printer form (<see cref="ConnectionPrinterTab"/>, <see cref="CameraPrinterTab"/>). Belongs to the
+    /// Sub-tab of the printer form (<see cref="ConnectionPrinterTab"/>, <see cref="CameraPrinterTab"/>,
+    /// <see cref="CameraWindowPrinterTab"/>). Belongs to the
     /// window, not to a printer: selecting another printer keeps it (Camera stays Camera). A failed save switches it to the
     /// first sub-tab with an error.
     /// </summary>
@@ -423,6 +455,18 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     internal ILogger Logger { get; }
 
+    /// <summary>"Open as" choices of the camera window (shared by all printers).</summary>
+    internal IReadOnlyList<CameraStartModeOption> StartModeOptions { get; }
+
+    /// <summary>Position choices of the camera window (shared by all printers).</summary>
+    internal IReadOnlyList<CameraCornerOption> CornerOptions { get; }
+
+    /// <summary>
+    /// The monitors offered for the camera window, read once per settings window (T-035 Q10: no live refresh) and shared by
+    /// all printers.
+    /// </summary>
+    internal IReadOnlyList<CameraScreen> ScreenList => _screenList ??= _screens.GetScreens();
+
     internal bool IsDisposed => _disposed;
 
     /// <summary>Cancelled when the window closes.</summary>
@@ -487,7 +531,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             return;
         }
 
-        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption];
+        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption, .. StartModeOptions, .. CornerOptions];
         foreach (LocalizedOption option in options)
         {
             option.RefreshText();
@@ -690,7 +734,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             // The first printer with an error, then its first sub-tab with an error (in the order of the sub-tabs).
             SelectedPrinter = invalid;
             SelectedTabIndex = PrintersTab;
-            SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab : CameraPrinterTab;
+            SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab
+                : invalid.HasCameraErrors ? CameraPrinterTab
+                : CameraWindowPrinterTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
@@ -749,6 +795,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             return;
         }
 
+        ForgetRememberedCameraWindows(_baseline, updated);
         _baseline = updated;
         foreach (PrinterEditorViewModel printer in Printers)
         {
@@ -764,6 +811,28 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
         ShowStatus(null, isError: false);
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// T-035: a printer whose saved window defaults changed (start mode, monitor, size or position; not the "remember"
+    /// switch) forgets its remembered camera window, so that the new defaults apply the next time it opens. An open
+    /// window does not move. New and removed printers have nothing to forget.
+    /// </summary>
+    private void ForgetRememberedCameraWindows(AppSettings saved, AppSettings updated)
+    {
+        if (_cameraWindowStates is not { } states)
+        {
+            return;
+        }
+
+        foreach (PrinterDefinition printer in updated.Printers)
+        {
+            PrinterDefinition? old = saved.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, printer.Id, StringComparison.OrdinalIgnoreCase));
+            if (old is not null && CameraWindowDefaults.RequiresForgettingRememberedState(old.Camera.Window, printer.Camera.Window))
+            {
+                states.Remove(printer.Id);
+            }
+        }
     }
 
     private PrinterEditorViewModel? FirstInvalidPrinter()

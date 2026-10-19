@@ -63,6 +63,17 @@ public sealed record CameraSettings
     /// </summary>
     public bool CredentialsRemoved { get; private init; }
 
+    /// <summary>How the camera window opens (T-035); kept unchanged while the camera is disabled or its address is invalid.</summary>
+    public CameraWindowDefaults Window
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = CameraWindowDefaults.Default;
+
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="streamUrl"/> is empty (no address), valid (use the constructor) or contains credentials
@@ -225,9 +236,10 @@ public sealed record CameraSettings
         other is not null
         && Enabled == other.Enabled
         && string.Equals(StreamUri?.OriginalString, other.StreamUri?.OriginalString, StringComparison.Ordinal)
-        && string.Equals(InvalidStreamUrl, other.InvalidStreamUrl, StringComparison.Ordinal);
+        && string.Equals(InvalidStreamUrl, other.InvalidStreamUrl, StringComparison.Ordinal)
+        && Window == other.Window;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window);
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -236,7 +248,8 @@ public sealed record CameraSettings
             .Append(", StreamUri = ").Append(StreamUri is null ? "null" : UriRedaction.Redact(StreamUri))
             .Append(", InvalidStreamUrl = ").Append(InvalidStreamUrl is null ? "null" : "(hidden)")
             .Append(", StreamUrlProblem = ").Append(StreamUrlProblem)
-            .Append(", CredentialsRemoved = ").Append(CredentialsRemoved);
+            .Append(", CredentialsRemoved = ").Append(CredentialsRemoved)
+            .Append(", Window = ").Append(Window);
         return true;
     }
 }

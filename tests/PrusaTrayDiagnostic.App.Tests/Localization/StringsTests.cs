@@ -33,7 +33,7 @@ public sealed partial class StringsTests
                 Placeholders(neutral[key]).SequenceEqual(Placeholders(text)),
                 $"'{key}' in {culture} has placeholders [{string.Join(", ", Placeholders(text))}] instead of [{string.Join(", ", Placeholders(neutral[key]))}].");
             // A malformed format string (e.g. a stray brace) would only throw when the text is shown.
-            _ = string.Format(CultureInfo.InvariantCulture, text, "a", "b", "c");
+            _ = string.Format(CultureInfo.InvariantCulture, text, "a", "b", "c", "d");
         }
     }
 
@@ -76,7 +76,7 @@ public sealed partial class StringsTests
         foreach ((string key, string text) in Load(CultureInfo.InvariantCulture))
         {
             Assert.False(string.IsNullOrWhiteSpace(text), $"'{key}' is empty.");
-            _ = string.Format(CultureInfo.InvariantCulture, text, "a", "b", "c");
+            _ = string.Format(CultureInfo.InvariantCulture, text, "a", "b", "c", "d");
         }
     }
 

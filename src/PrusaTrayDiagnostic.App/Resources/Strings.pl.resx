@@ -690,4 +690,79 @@
   <data name="LicensesComponentTmdsDBus" xml:space="preserve">
     <value>Tmds.DBus.Protocol (tylko Linux)</value>
   </data>
+  <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
+    <value>Okno kamery</value>
+  </data>
+  <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
+    <value>Kamera jest wyłączona. Ustawienia zostaną zachowane i zaczną obowiązywać po jej włączeniu (karta Kamera).</value>
+  </data>
+  <data name="SettingsCameraWindowRemember" xml:space="preserve">
+    <value>Zapamiętaj ostatnią pozycję i rozmiar</value>
+  </data>
+  <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
+    <value>Gdy włączone, poniższe wartości są używane tylko, dopóki okno nie ma zapamiętanej pozycji. Zmiany obowiązują przy następnym otwarciu okna.</value>
+  </data>
+  <data name="SettingsCameraWindowStartMode" xml:space="preserve">
+    <value>Otwórz jako</value>
+  </data>
+  <data name="SettingsCameraWindowStartLast" xml:space="preserve">
+    <value>Jak ostatnio</value>
+  </data>
+  <data name="SettingsCameraWindowStartNormal" xml:space="preserve">
+    <value>Zwykłe okno</value>
+  </data>
+  <data name="SettingsCameraWindowStartMini" xml:space="preserve">
+    <value>Mały podgląd</value>
+  </data>
+  <data name="SettingsCameraWindowStartFullScreen" xml:space="preserve">
+    <value>Pełny ekran</value>
+  </data>
+  <data name="SettingsCameraWindowMonitor" xml:space="preserve">
+    <value>Monitor</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorPrimary" xml:space="preserve">
+    <value>Monitor główny</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNumbered" xml:space="preserve">
+    <value>Monitor {0} – {1} ({2}&#xA0;×&#xA0;{3})</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNumberedUnnamed" xml:space="preserve">
+    <value>Monitor {0} ({1}&#xA0;×&#xA0;{2})</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNotConnected" xml:space="preserve">
+    <value>{0} ({1}&#xA0;×&#xA0;{2}) – niepodłączony</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorGeneric" xml:space="preserve">
+    <value>Monitor</value>
+  </data>
+  <data name="SettingsCameraWindowNormal" xml:space="preserve">
+    <value>Zwykłe okno</value>
+  </data>
+  <data name="SettingsCameraWindowMini" xml:space="preserve">
+    <value>Mały podgląd</value>
+  </data>
+  <data name="SettingsCameraWindowSize" xml:space="preserve">
+    <value>Rozmiar</value>
+  </data>
+  <data name="SettingsCameraWindowPosition" xml:space="preserve">
+    <value>Położenie</value>
+  </data>
+  <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
+    <value>Lewy górny róg</value>
+  </data>
+  <data name="SettingsCameraWindowCornerTopRight" xml:space="preserve">
+    <value>Prawy górny róg</value>
+  </data>
+  <data name="SettingsCameraWindowCornerBottomLeft" xml:space="preserve">
+    <value>Lewy dolny róg</value>
+  </data>
+  <data name="SettingsCameraWindowCornerBottomRight" xml:space="preserve">
+    <value>Prawy dolny róg</value>
+  </data>
+  <data name="SettingsCameraWindowCornerCenter" xml:space="preserve">
+    <value>Środek</value>
+  </data>
+  <data name="SettingsCameraWindowSizeError" xml:space="preserve">
+    <value>Wpisz szerokość {0}–{1} i wysokość {2}–{3}.</value>
+  </data>
 </root>

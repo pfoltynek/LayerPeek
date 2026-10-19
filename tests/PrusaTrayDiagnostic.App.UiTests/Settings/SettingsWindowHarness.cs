@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Settings;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
@@ -42,12 +43,14 @@ internal sealed class SettingsWindowHarness
         ISettingsEditorStore store,
         IConnectionTester? tester = null,
         PasswordPolicy? policy = null,
-        ICameraTester? cameraTester = null)
+        ICameraTester? cameraTester = null,
+        IScreenCatalog? screens = null,
+        ICameraWindowStateStore? cameraWindowStates = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester());
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates);
         scope.Defer(viewModel);
         SettingsWindow window = scope.Track(new SettingsWindow { DataContext = viewModel });
         SettingsWindowHarness harness = new(window, viewModel, slot);
