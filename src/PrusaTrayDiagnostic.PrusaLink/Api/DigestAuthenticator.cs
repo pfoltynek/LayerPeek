@@ -8,22 +8,41 @@ using PrusaTrayDiagnostic.Core.Secrets;
 namespace PrusaTrayDiagnostic.PrusaLink.Api;
 
 /// <summary>
-/// HTTP Digest authentication as implemented by Buddy firmware: RFC 2069 (MD5, no qop), fixed user "maker".
+/// HTTP Digest authentication as implemented by Buddy firmware: RFC 2069 (MD5, no qop).
 /// A nonce stays valid for 300 s and may be reused, so one challenge round-trip is needed only every few minutes
-/// (the built-in .NET handler would pay it on every request). Authorization values are cached per URI, so a
-/// steady-state request allocates nothing for authentication. Thread-safe.
+/// (the built-in .NET handler would pay it on every request). With <paramref name="cacheGetAuthorizations"/>, GET
+/// authorization values are cached per URI, so a steady-state poll allocates nothing for authentication; callers with
+/// an unbounded set of URIs (the web proxy) pass false. Thread-safe.
+/// <paramref name="userName"/> must be valid per <see cref="Core.Printers.PrinterUserName"/> (it is echoed in a quoted header).
 /// </summary>
-internal sealed class DigestAuthenticator(ISecretStore secretStore, string secretKey)
+internal sealed class DigestAuthenticator(
+    ISecretStore secretStore,
+    string secretKey,
+    string userName,
+    TimeProvider timeProvider,
+    bool cacheGetAuthorizations = true)
 {
-    private const string UserName = "maker";
-
     private Session? _session;
 
-    /// <summary>Authorization header value for a GET of <paramref name="pathAndQuery"/>, or null before the first challenge.</summary>
-    public string? GetAuthorization(string pathAndQuery) =>
-        Volatile.Read(ref _session) is { } session
-            ? session.Authorizations.GetOrAdd(pathAndQuery, static (uri, s) => s.CreateAuthorization(uri), session)
-            : null;
+    /// <summary>
+    /// Authorization header value for a <paramref name="method"/> request of <paramref name="pathAndQuery"/> (exactly the
+    /// request target sent on the wire), or null before the first challenge. The firmware hashes the real method (HA2).
+    /// </summary>
+    public string? GetAuthorization(HttpMethod method, string pathAndQuery)
+    {
+        if (Volatile.Read(ref _session) is not { } session)
+        {
+            return null;
+        }
+
+        return cacheGetAuthorizations && method == HttpMethod.Get
+            ? session.Authorizations.GetOrAdd(pathAndQuery, static (uri, s) => s.CreateAuthorization("GET", uri), session)
+            : session.CreateAuthorization(method.Method, pathAndQuery);
+    }
+
+    /// <summary>Time since the current nonce was received, or null before the first challenge.</summary>
+    public TimeSpan? GetNonceAge() =>
+        Volatile.Read(ref _session) is { } session ? timeProvider.GetElapsedTime(session.ReceivedAt) : null;
 
     /// <summary>Processes a 401 response: on success the request should be retried with the new credentials.</summary>
     /// <exception cref="SecretStoreException">The password could not be read.</exception>
@@ -39,7 +58,7 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
         if (challenge.Value.Stale && current is not null && current.Realm == challenge.Value.Realm)
         {
             // Only the nonce expired; the password was accepted.
-            Volatile.Write(ref _session, new Session(challenge.Value.Realm, challenge.Value.Nonce, current.Ha1));
+            Volatile.Write(ref _session, new Session(userName, challenge.Value.Realm, challenge.Value.Nonce, current.Ha1, timeProvider.GetTimestamp()));
             return new ChallengeResult(null, PasswordReloaded: false);
         }
 
@@ -51,8 +70,8 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
             return new ChallengeResult("No PrusaLink password is configured for this printer.", PasswordReloaded: true, PrusaLinkFailure.PasswordMissing);
         }
 
-        string ha1 = Md5Hex($"{UserName}:{challenge.Value.Realm}:{password}");
-        Volatile.Write(ref _session, new Session(challenge.Value.Realm, challenge.Value.Nonce, ha1));
+        string ha1 = Md5Hex($"{userName}:{challenge.Value.Realm}:{password}");
+        Volatile.Write(ref _session, new Session(userName, challenge.Value.Realm, challenge.Value.Nonce, ha1, timeProvider.GetTimestamp()));
         return new ChallengeResult(null, PasswordReloaded: true);
     }
 
@@ -135,19 +154,22 @@ internal sealed class DigestAuthenticator(ISecretStore secretStore, string secre
 
     private readonly record struct Challenge(string Realm, string Nonce, bool Stale);
 
-    private sealed class Session(string realm, string nonce, string ha1)
+    private sealed class Session(string userName, string realm, string nonce, string ha1, long receivedAt)
     {
         public string Realm { get; } = realm;
 
         public string Ha1 { get; } = ha1;
 
-        /// <summary>Per-URI header values for this nonce; only a handful of API paths are ever used.</summary>
+        /// <summary><see cref="TimeProvider.GetTimestamp"/> when the nonce was received.</summary>
+        public long ReceivedAt { get; } = receivedAt;
+
+        /// <summary>Per-URI GET header values for this nonce; the monitoring client uses only a handful of API paths.</summary>
         public ConcurrentDictionary<string, string> Authorizations { get; } = new(StringComparer.Ordinal);
 
-        public string CreateAuthorization(string uri)
+        public string CreateAuthorization(string method, string uri)
         {
-            string response = Md5Hex($"{Ha1}:{nonce}:{Md5Hex($"GET:{uri}")}");
-            return $"Digest username=\"{UserName}\", realm=\"{Realm}\", nonce=\"{nonce}\", uri=\"{uri}\", response=\"{response}\"";
+            string response = Md5Hex($"{Ha1}:{nonce}:{Md5Hex($"{method}:{uri}")}");
+            return $"Digest username=\"{userName}\", realm=\"{Realm}\", nonce=\"{nonce}\", uri=\"{uri}\", response=\"{response}\"";
         }
     }
 }

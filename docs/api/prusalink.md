@@ -46,8 +46,9 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 ## Autentizace
 
 **HTTP Digest podle RFC 2069:**
-- MD5, **bez `qop`**, uživatel `maker`, realm `Printer API`, heslo z menu tiskárny.
-- Výpočet: `response = MD5(MD5("maker:Printer API:<heslo>"):nonce:MD5("GET:<uri>"))`.
+- MD5, **bez `qop`**, realm `Printer API`, heslo z menu tiskárny.
+- Uživatelské jméno se nastavuje u každé tiskárny (T-027), výchozí je `maker`. Ukládá se v souboru nastavení (není tajné), heslo v `ISecretStore`.
+- Výpočet: `response = MD5(MD5("<uživatel>:Printer API:<heslo>"):nonce:MD5("<METODA>:<uri>"))`. Metoda je skutečná metoda požadavku (`GET`, `PUT`, `DELETE`…), `uri` je přesně cesta a query odeslané v požadavku (`lib/WUI/nhttp/req_parser.cpp`, `check_digest_auth`).
 - Firmware čte z hlavičky `Authorization` jen `nonce` a `response`.
 
 **Nonce:**
@@ -61,6 +62,72 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 - 401 má tělo `{"title": "401: Unauthorized","message":""}`. Chybové odpovědi jsou v JSON jen tehdy, když je `application/json` první v hlavičce `Accept`.
 
 **Reverzní proxy:** adresa smí obsahovat cestu (např. `http://proxy/printers/mk4`). Proxy ale musí cestu předat beze změny, protože firmware počítá Digest z cesty v požadavku. Proxy, která prefix odřízne, se projeví jako „The printer rejected the password.“
+
+## Otevření webu s přihlášením (T-028)
+
+**Stav:** proxy (Core + PrusaLink) i napojení na tray menu v App jsou implementované a uživatel je 2026-10-18 ručně ověřil v Edge se skutečnou tiskárnou (viz `tasks/done/T-028-prusalink-web-login.md`).
+
+**Údaje v adrese (`http://jmeno:heslo@tiskarna/`) nefungují** (ověřeno v Edge 2026-10-18):
+- Úvodní stránka a skripty webu se vracejí bez přihlášení (`200`). Digest výzvu vrací až API.
+- Web (Prusa-Link-Web, https://github.com/prusa3d/Prusa-Link-Web, `src/auth.js`) skládá adresy API z `window.location.pathname` bez koncového `/` (`API_ROOT`) a volá `fetch(`${API_ROOT}/api/...`)`. Nahrávání souborů jde přes `XMLHttpRequest` `PUT ${API_ROOT}/api/v1/files/...` (`src/helpers/upload_request.js`).
+- Chromium odmítne `fetch` na stránce, jejíž adresa obsahuje userinfo. Skript spadne a stránka zůstane prázdná.
+
+**Chování webu důležité pro proxy:**
+- Prostředky webu mají relativní cesty (`webpack.config.js`: `publicPath: ""`) a směrování je přes `#`. Web proto funguje i pod prefixem cesty, např. `/<token>/`.
+- Na `401` web čte `WWW-Authenticate` a podle prvního slova si do `sessionStorage` uloží `authType`. U `Digest` zavolá ověření znovu (`setUpAuth`). Odpověď `401` bez `WWW-Authenticate` skript shodí a opakovaná `401` ho zacyklí. Proxy proto prohlížeči `401` nikdy nevrací.
+- Firmware počítá HA2 ze skutečné metody požadavku: `MD5("<METODA>:<uri>")` (`lib/WUI/nhttp/req_parser.cpp`, `check_digest_auth`). Pro `PUT` a `DELETE` přes proxy tedy nestačí výpočet napevno s `GET`.
+
+### Lokální proxy (`PrusaLink/WebProxy`)
+
+Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWebGateway` spouští pro každou tiskárnu vlastní `PrusaLinkWebProxy` (Kestrel ze sdíleného frameworku ASP.NET Core, bez YARP).
+
+**Otevření (`OpenAsync`):**
+- Prusa Connect vrátí `NotSupported`, neplatná adresa `InvalidAddress`. V obou případech bez adresy.
+- Před otevřením prohlížeče proběhne přihlášený `GET /api/version` (kontrola hesla, limit 5 s).
+- Při chybě se vrátí holá adresa tiskárny s důvodem: `PasswordMissing`, `PasswordUnreadable`, `PasswordRejected`, `AccessDenied`, `UnsupportedAuthentication`, `NotReachable`, `UnexpectedResponse`. Když proxy nejde spustit, důvod je `ProxyUnavailable`.
+- Při úspěchu se vrátí `http://127.0.0.1:<port>/<token>/`. Opakované otevření použije běžící proxy, stejný port i token.
+
+**Životní cyklus:**
+- Proxy se spouští líně, až při prvním otevření. Každá tiskárna má vlastní listener na `127.0.0.1`, port `0` (vybere OS) a vlastní token.
+- Token má 256 náhodných bitů (`RandomNumberGenerator`) v base64url bez `=`.
+- Zastaví se po 10 minutách bez požadavku. Běžící požadavek (např. dlouhé nahrávání) zastavení odkládá.
+- Zastaví se také přes `StopAsync(printerId)` / `StopAllAsync` (po změně nebo odebrání tiskárny, změně hesla) a při `DisposeAsync`/`Dispose` (ukončení aplikace).
+- `OpenAsync` se změněnou adresou nebo jménem nahradí starou proxy novou.
+- Zastavení zruší rozběhnuté požadavky na tiskárnu a uvolní port.
+
+**Mapování a hlavičky:**
+- `/<token>/<zbytek>?<query>` jde na `<adresa tiskárny>/<zbytek>?<query>`. Cesta a query se předávají beze změny, bez kanonikalizace `Uri` (`DangerousDisablePathAndQueryCanonicalization`), protože firmware počítá Digest z přesné cesty.
+- Segmenty `.`/`..` (i `%2e`), `\` a `#` v cestě se odmítnou (`404`).
+- `/<token>` bez lomítka vrátí `302` na `/<token>/`.
+- K tiskárně nejdou hlavičky `Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, `Origin`, `Referer`, `Expect`, `Host` ani hop-by-hop hlavičky (včetně těch jmenovaných v `Connection`).
+- K prohlížeči nejdou `WWW-Authenticate`, `Proxy-Authenticate`, `Set-Cookie` ani hop-by-hop hlavičky.
+- `Location` na tiskárnu se přepíše na `/<token>/...`, cizí adresy a relativní odkazy zůstanou beze změny.
+- Proxy přidá `Referrer-Policy: no-referrer` a `X-Content-Type-Options: nosniff`. U `/api/` přidá `Cache-Control: no-store`.
+
+**Odmítnuté požadavky:**
+- `Host` jiný než přesně `127.0.0.1:<port>` vrátí `421`. Chybějící nebo zdvojený `Host` odmítne už Kestrel (`400`).
+- Chybějící nebo neplatný token vrátí `404` s prázdným tělem, stejně jako jakákoli jiná neznámá cesta.
+- `CONNECT`/`TRACE` vrátí `405`, `Upgrade` (WebSocket) `501`.
+
+**Těla:**
+- Těla se v obou směrech streamují. Limity Kestrelu `MaxRequestBodySize`, `MinRequestBodyDataRate` a `MinResponseDataRate` jsou vypnuté, `HttpClient` proxy nemá celkový timeout (jen `ConnectTimeout` 5 s).
+- Tělo do 64 KB se bufferuje, aby šel požadavek po `401` se `stale=true` jednou zopakovat. Větší nebo chunked tělo se streamuje.
+- Před streamovaným tělem proxy obnoví nonce starší než 240 s (nebo chybějící) levným `GET /api/version`.
+- Odkaz na tiskárnu má vlastní pojmenovaný `HttpClient` `PrusaLink.WebProxy`: `MaxConnectionsPerServer = 2`, nečinné spojení 50 s. Firmware zvládne 3 požadavky a 1 spojení má monitoring. Další požadavky prohlížeče čekají ve frontě.
+
+**Digest a chyby:**
+- Proxy má vlastní instanci `DigestAuthenticator` (bez cache hlaviček podle URI, protože cest k souborům je neomezeně). S monitoringem sdílí jen `ISecretStore`.
+- Heslo se čte až při první výzvě a při odmítnutí.
+- Prohlížeč nikdy nedostane `401`. Při odmítnutém, chybějícím nebo nečitelném hesle, nepodporované autentizaci nebo propadlém nonce u streamovaného těla dostane `403` s JSON ve formátu chyb firmwaru (`{"title":"403: Forbidden","message":"..."}`), které web zobrazí přes `handleError`.
+- Nedostupná tiskárna vrátí `502`, timeout spojení `504`. Obojí je JSON ve stejném formátu.
+
+**Logy:** jen id tiskárny, metoda, cesta za tokenem bez query a stavový kód. Nikdy token, adresa proxy, heslo, HA1 ani hlavičky `Authorization`/`Cookie`. Vlastní logování Kestrelu je vypnuté, protože by obsahovalo URL s tokenem.
+
+**Známá omezení:**
+- V adresním řádku je `127.0.0.1:<port>` místo adresy tiskárny.
+- Záložky a otevřené karty po zastavení proxy (nečinnost, změna nastavení, restart aplikace) přestanou fungovat. Je nutné znovu otevřít web z menu.
+- Adresa s tokenem je v historii prohlížeče a v příkazové řádce procesu prohlížeče. Platí ale jen do zastavení proxy.
+- Klient, který se připojí přesně ve chvíli zavírání listeneru, může zůstat bez odpovědi, dokud nevyprší timeout prohlížeče. Spojení zůstane ve frontě OS a do proxy se nedostane.
 
 ## Spojení a zátěž
 

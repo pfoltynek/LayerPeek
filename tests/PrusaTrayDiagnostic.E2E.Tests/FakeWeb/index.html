@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fake PrusaLink</title>
+  <!-- Relative asset path, like Prusa-Link-Web (webpack publicPath ""). -->
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <h1>Fake PrusaLink</h1>
+  <p>Login: <span id="auth">pending</span></p>
+  <p>Printer: <span id="hostname">-</span></p>
+  <p>State: <span id="state">-</span></p>
+  <p>Error: <span id="error"></span></p>
+  <!-- Prusa-Link-Web links to prusa3d.com; the tests point this link to a local "external" site. -->
+  <a id="external" href="https://help.prusa3d.com/">Help</a>
+</body>
+</html>

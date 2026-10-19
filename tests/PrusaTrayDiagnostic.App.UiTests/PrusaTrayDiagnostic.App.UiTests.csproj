@@ -1,29 +1,38 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!--
-    Headless Avalonia UI tests (T-014): real windows, XAML, compiled bindings and Skia rendering, without a screen.
-    A separate project, because Avalonia.Headless.XUnit 12.1.4 is built against xunit.v3 3.x (it fails on 4.x) and runs
-    every [AvaloniaFact] on one dedicated UI thread; App.Tests stay plain, parallel, Avalonia-free view model tests.
-    xunit.v3 is pinned here only (VersionOverride, user decision 2026-10-18); the MTP v2 flavour keeps the same test
-    platform generation as the other test projects (xunit.v3 4.x = xunit.v3.mtp-v2).
-  -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
-    <!-- Reading pixels of captured frames. -->
+    <!-- Same as the app: the views under test keep compiled bindings. -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <!-- Reading pixels of captured frames (camera window tests, T-014). -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Avalonia.Headless.XUnit" />
+    <!--
+      Headless UI tests (T-031): the plain Avalonia.Headless platform with an own xUnit v3 assembly fixture
+      (Infrastructure/HeadlessSession.cs). Avalonia.Headless.XUnit is not used: 12.1.4 is built against
+      xunit.v3.extensibility.core 3.2.2 and fails test discovery with xunit.v3 4.x. Skia renders the snapshot tests,
+      Inter is the only font they use (no installed system font). All test-only, not AOT relevant.
+    -->
+    <PackageReference Include="Avalonia.Fonts.Inter" />
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
-    <PackageReference Include="xunit.v3.mtp-v2" VersionOverride="3.2.2" />
+    <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="..\Shared\*.cs" Link="Shared\%(Filename)%(Extension)" />
-    <!-- Fakes shared with App.Tests (no network, no camera, no OS credential store). -->
-    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\TrayFakes.cs" Link="Fakes\TrayFakes.cs" />
-    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\MenuFakes.cs" Link="Fakes\MenuFakes.cs" />
-    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Settings\SettingsFakes.cs" Link="Fakes\SettingsFakes.cs" />
-    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Cameras\CameraFakes.cs" Link="Fakes\CameraFakes.cs" />
+    <!-- Reference images of the snapshot tests live in the source tree (updated with PTD_UPDATE_SNAPSHOTS=1). -->
+    <AssemblyMetadata Include="SnapshotDirectory" Value="$(MSBuildProjectDirectory)$([System.IO.Path]::DirectorySeparatorChar)Snapshots" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <!-- The fakes of the view model tests, linked (no copy that could diverge). -->
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Settings\SettingsFakes.cs" Link="Shared\SettingsFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\TrayFakes.cs" Link="Shared\TrayFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\MenuFakes.cs" Link="Shared\MenuFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\FakeWebGateway.cs" Link="Shared\FakeWebGateway.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Cameras\CameraFakes.cs" Link="Shared\CameraFakes.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

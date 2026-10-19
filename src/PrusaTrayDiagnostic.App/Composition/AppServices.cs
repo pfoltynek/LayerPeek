@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -18,6 +19,7 @@ using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
 using PrusaTrayDiagnostic.PrusaLink;
 
 namespace PrusaTrayDiagnostic.App.Composition;
@@ -40,6 +42,14 @@ internal static class AppServices
     /// </param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
+        Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
+        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore);
+
+    /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
+    internal static ServiceProvider Create(
+        ILoggerFactory? loggerFactory,
+        bool windows,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null)
     {
@@ -65,17 +75,26 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<PrinterMonitor>>()));
 
         services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
+        // Language of the texts (T-029): applied at startup before any text exists, then from every saved setting.
+        services.AddSingleton(static _ => new UiLanguage());
+        services.AddSingleton(static sp => new UiLanguageObserver(sp.GetRequiredService<UiLanguage>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.Default);
+        // Opens PrusaLink logged in through the local web proxy registered by AddPrusaLink (T-028); the proxy starts on the
+        // first click, and disposing the container (quit) stops it.
+        services.AddSingleton(static sp => new PrinterWebOpener(
+            sp.GetRequiredService<IPrinterWebGateway>(),
+            sp.GetRequiredService<IUrlLauncher>(),
+            sp.GetRequiredService<ILogger<PrinterWebOpener>>()));
         services.AddSingleton(static sp => new TrayMenuViewModel(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<IUiDispatcher>(),
-            sp.GetRequiredService<IUrlLauncher>(),
+            sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<TrayMenuOptions>()));
-        // Windows toasts (T-010) and macOS notifications (T-020) replace this per OS; until then notifications are silently not sent.
-        services.AddSingleton<INotificationService>(static _ => NullNotificationService.Instance);
+        services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
+        services.AddSingleton(sp => CreateNotificationService(sp, windows));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -93,16 +112,20 @@ internal static class AppServices
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
             [
+                // First: its language switch is posted to the UI thread before the menu and tooltip updates of the same settings.
+                sp.GetRequiredService<UiLanguageObserver>(),
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
+                sp.GetRequiredService<ToastActivationRouter>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>(),
             sp.GetRequiredService<RemovedCameraCredentials>()));
 
-        // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store.
+        // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
+        // web proxies of printers whose login changed are stopped (T-028).
         services.AddSingleton<ISettingsApplier>(static sp => sp.GetRequiredService<MonitoringSession>());
         services.AddSingleton(static sp => PasswordPolicy.For(sp.GetRequiredService<ISecretStore>()));
         services.AddSingleton<ISettingsEditorStore>(static sp => new SettingsEditorStore(
@@ -110,6 +133,7 @@ internal static class AppServices
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<PasswordPolicy>(),
             sp.GetRequiredService<ISettingsApplier>(),
+            sp.GetRequiredService<IPrinterWebGateway>(),
             sp.GetRequiredService<ILogger<SettingsEditorStore>>(),
             removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>()));
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
@@ -121,6 +145,30 @@ internal static class AppServices
         AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+    }
+
+    /// <summary>
+    /// Windows: toasts (T-010). Other OS: notifications are silently not sent until macOS notifications (T-020) exist.
+    /// Creating the toast service starts nothing; <see cref="TrayHost"/> starts it, tests never do.
+    /// </summary>
+    private static INotificationService CreateNotificationService(IServiceProvider services, bool windows)
+    {
+        if (!windows || !OperatingSystem.IsWindows())
+        {
+            return NullNotificationService.Instance;
+        }
+
+        ToastActivationRouter router = services.GetRequiredService<ToastActivationRouter>();
+        WindowsToastPlatform platform = new(
+            new AppShortcutRegistration(new WindowsShortcutStore(), services.GetRequiredService<ILogger<AppShortcutRegistration>>()),
+            AppShortcutRegistration.DefaultShortcutPath,
+            Environment.ProcessPath,
+            services.GetRequiredService<ILogger<WindowsToastPlatform>>());
+        return new ToastNotificationService(
+            platform,
+            argument => _ = router.ActivateAsync(argument),
+            UiLanguage.CurrentTextCulture,
+            services.GetRequiredService<ILogger<ToastNotificationService>>());
     }
 
     /// <summary>

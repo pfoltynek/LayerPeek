@@ -47,6 +47,17 @@
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
   </ItemGroup>
+  <!--
+    The ASP.NET Core shared framework (Kestrel for the local web proxy, T-028) ships the native IIS in-process module
+    aspnetcorev2_inprocess.dll as a runtime pack asset. The app never runs under IIS, so it is left out of the build and
+    publish output (decided by the user 2026-10-18). ResolveRuntimePackAssets also adds it to ReferenceCopyLocalPaths.
+  -->
+  <Target Name="ExcludeAspNetCoreIisModule" AfterTargets="ResolveRuntimePackAssets">
+    <ItemGroup>
+      <RuntimePackAsset Remove="@(RuntimePackAsset)" Condition="'%(Filename)%(Extension)' == 'aspnetcorev2_inprocess.dll'" />
+      <ReferenceCopyLocalPaths Remove="@(ReferenceCopyLocalPaths)" Condition="'%(Filename)%(Extension)' == 'aspnetcorev2_inprocess.dll'" />
+    </ItemGroup>
+  </Target>
   <ItemGroup>
     <ProjectReference Include="..\PrusaTrayDiagnostic.Core\PrusaTrayDiagnostic.Core.csproj" />
     <ProjectReference Include="..\PrusaTrayDiagnostic.PrusaLink\PrusaTrayDiagnostic.PrusaLink.csproj" />

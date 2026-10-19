@@ -145,4 +145,87 @@ public sealed class LicensesViewModelTests : IDisposable
         Assert.Equal("Licence třetích stran", viewModel.Title);
         Assert.Equal("Verze 12.1.4", viewModel.Components[0].VersionText);
     }
+
+    // ---- Language switch (T-029) ----
+
+    [Fact]
+    public async Task RefreshTextsSwitchesTheWindowAndEveryComponentWithoutReadingFFmpegAgain()
+    {
+        int versionReads = 0;
+        LicensesViewModel viewModel = Create(() =>
+        {
+            versionReads++;
+            return "avcodec 63.1.102 (LGPL version 3 or later)";
+        });
+        await viewModel.LoadAsync();
+        LicenseItemViewModel avalonia = viewModel.Components[0];
+        List<string?> changes = [];
+        viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+        List<string?> itemChanges = [];
+        avalonia.PropertyChanged += (_, e) => itemChanges.Add(e.PropertyName);
+
+        using (new CultureScope("de-DE"))
+        {
+            viewModel.RefreshTexts();
+        }
+
+        Assert.Equal("Lizenzen von Drittanbietern", viewModel.Title);
+        Assert.Equal("Lizenz: LGPL-3.0-or-later", viewModel.FFmpegLicenseText);
+        Assert.Equal("Projektseite", viewModel.ProjectText);
+        Assert.Equal("Schließen", viewModel.CloseText);
+        Assert.StartsWith("FFmpeg ist unter der GNU LGPL", viewModel.FFmpegNote, StringComparison.Ordinal);
+        // The loaded version is kept (it is not a text of the app); only the texts around it change.
+        Assert.Equal("avcodec 63.1.102 (LGPL version 3 or later)", viewModel.FFmpegVersionText);
+        Assert.Equal(1, versionReads);
+        Assert.Equal("Version 12.1.4", avalonia.VersionText);
+        Assert.Equal("Lizenz: MIT", avalonia.LicenseText);
+        Assert.Equal([string.Empty], changes);
+        Assert.Contains(nameof(LicenseItemViewModel.LicenseText), itemChanges);
+    }
+
+    [Fact]
+    public async Task RefreshTextsTranslatesTheMissingFFmpegNotices()
+    {
+        LicensesViewModel viewModel = Create(static () => throw new CameraFeedException("FFmpeg is not available."), static () => null);
+        Assert.Equal("Detecting the FFmpeg libraries…", viewModel.FFmpegVersionText);
+        await viewModel.LoadAsync();
+
+        using (new CultureScope("de-DE"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.StartsWith("Die FFmpeg-Bibliotheken wurden", viewModel.FFmpegVersionText, StringComparison.Ordinal);
+            Assert.StartsWith("Der Lizenztext von FFmpeg", viewModel.FFmpegFullText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void RefreshTextsBeforeLoadingTranslatesTheDetectingText()
+    {
+        LicensesViewModel viewModel = Create();
+
+        using (new CultureScope("pl-PL"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal("Wykrywanie bibliotek FFmpeg…", viewModel.FFmpegVersionText);
+            Assert.Null(viewModel.FFmpegFullText);
+        }
+    }
+
+    [Fact]
+    public void AboutRefreshAlsoSwitchesItsLicencesWindow()
+    {
+        AboutViewModel about = new(_launcher, typeof(AboutViewModel).Assembly);
+        LicensesViewModel licences = about.CreateLicensesViewModel();
+
+        using (new CultureScope("fr-FR"))
+        {
+            about.RefreshTexts();
+        }
+
+        Assert.Equal("Licences tierces…", about.ThirdPartyLicensesText);
+        Assert.Equal("Licences tierces", licences.Title);
+        Assert.Equal("Licence\u00A0: MIT", licences.Components[0].LicenseText);
+    }
 }

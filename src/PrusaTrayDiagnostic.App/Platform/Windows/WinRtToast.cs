@@ -1,0 +1,277 @@
+using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.Marshalling;
+using System.Runtime.Versioning;
+
+namespace PrusaTrayDiagnostic.App.Platform.Windows;
+
+/// <summary>
+/// Creates WinRT toast objects. Holds the activation factories (looked up once) and the calling thread's COM
+/// apartment: create, use and dispose it on one thread.
+/// </summary>
+[SupportedOSPlatform("windows")]
+internal sealed class WinRtToastFactory : IDisposable
+{
+    private readonly ComApartment _apartment;
+    private readonly IToastNotificationFactory _toastFactory;
+    private readonly IActivationFactory _xmlDocumentFactory;
+    private bool _disposed;
+
+    private WinRtToastFactory(ComApartment apartment, IToastNotificationFactory toastFactory, IActivationFactory xmlDocumentFactory)
+    {
+        _apartment = apartment;
+        _toastFactory = toastFactory;
+        _xmlDocumentFactory = xmlDocumentFactory;
+    }
+
+    /// <exception cref="Exception">WinRT toasts are not available (e.g. Windows Server Core).</exception>
+    public static WinRtToastFactory Create()
+    {
+        ComApartment apartment = ComApartment.EnterMultithreaded();
+        IToastNotificationFactory? toastFactory = null;
+        try
+        {
+            toastFactory = GetActivationFactory<IToastNotificationFactory>(WinRtClassNames.ToastNotification, WinRtInterfaceIds.ToastNotificationFactory);
+            IActivationFactory xmlDocumentFactory = GetActivationFactory<IActivationFactory>(WinRtClassNames.XmlDocument, WinRtInterfaceIds.ActivationFactory);
+            return new WinRtToastFactory(apartment, toastFactory, xmlDocumentFactory);
+        }
+        catch
+        {
+            ComObjects.Release(toastFactory);
+            apartment.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>A notifier that shows toasts as the app with <paramref name="appUserModelId"/>.</summary>
+    public WinRtToastNotifier CreateNotifier(string appUserModelId)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
+        IToastNotificationManagerStatics manager = GetActivationFactory<IToastNotificationManagerStatics>(WinRtClassNames.ToastNotificationManager, WinRtInterfaceIds.ToastNotificationManagerStatics);
+        try
+        {
+            using HString id = HString.Create(appUserModelId);
+            manager.CreateToastNotifierWithId(id.Handle, out nint notifier);
+            return new WinRtToastNotifier(ComObjects.Wrap<IToastNotifier>(notifier));
+        }
+        finally
+        {
+            ComObjects.Release(manager);
+        }
+    }
+
+    /// <summary>Parses <paramref name="xml"/> (toast schema) into a toast that is not shown yet.</summary>
+    /// <exception cref="Exception">The XML is not well-formed.</exception>
+    public WinRtToast CreateToast(string xml)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(xml);
+        _xmlDocumentFactory.ActivateInstance(out nint instance);
+        IXmlDocumentIO document = ComObjects.Wrap<IXmlDocumentIO>(instance);
+        try
+        {
+            using (HString content = HString.Create(xml))
+            {
+                document.LoadXml(content.Handle);
+            }
+
+            _toastFactory.CreateToastNotification((IXmlDocument)document, out nint toast);
+            return new WinRtToast(ComObjects.Wrap<IToastNotification>(toast));
+        }
+        finally
+        {
+            ComObjects.Release(document);
+        }
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        // Nested finally: a failing release never keeps the thread in the apartment or leaks the other factory.
+        try
+        {
+            ComObjects.Release(_xmlDocumentFactory);
+        }
+        finally
+        {
+            try
+            {
+                ComObjects.Release(_toastFactory);
+            }
+            finally
+            {
+                _apartment.Dispose();
+            }
+        }
+    }
+
+    private static T GetActivationFactory<T>(string className, in Guid interfaceId)
+        where T : class
+    {
+        using HString name = HString.Create(className);
+        Marshal.ThrowExceptionForHR(ComNative.RoGetActivationFactory(name.Handle, in interfaceId, out nint factory));
+        return ComObjects.Wrap<T>(factory);
+    }
+}
+
+/// <summary>Shows toasts as one app (Windows.UI.Notifications.ToastNotifier).</summary>
+[SupportedOSPlatform("windows")]
+internal sealed class WinRtToastNotifier : IDisposable
+{
+    private readonly IToastNotifier _notifier;
+    private bool _disposed;
+
+    internal WinRtToastNotifier(IToastNotifier notifier) => _notifier = notifier;
+
+    public void Show(WinRtToast toast)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(toast);
+        _notifier.Show(toast.Notification);
+    }
+
+    public void Dispose()
+    {
+        if (!_disposed)
+        {
+            _disposed = true;
+            ComObjects.Release(_notifier);
+        }
+    }
+}
+
+/// <summary>One toast (Windows.UI.Notifications.ToastNotification) and its click subscription.</summary>
+[SupportedOSPlatform("windows")]
+internal sealed class WinRtToast : IDisposable
+{
+    private long? _activatedToken;
+    private bool _disposed;
+
+    internal WinRtToast(IToastNotification notification) => Notification = notification;
+
+    internal IToastNotification Notification { get; }
+
+    /// <summary>Calls <paramref name="callback"/> when the user clicks this toast (while the app is running).</summary>
+    public void SubscribeActivated(ToastActivationCallback callback)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(callback);
+        if (_activatedToken is not null)
+        {
+            throw new InvalidOperationException("The toast is already subscribed.");
+        }
+
+        Notification.AddActivated(callback.Pointer, out long token);
+        _activatedToken = token;
+    }
+
+    /// <summary>Unsubscribes and releases the toast object; a toast already on screen stays there.</summary>
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        try
+        {
+            if (_activatedToken is long token)
+            {
+                Notification.RemoveActivated(token);
+            }
+        }
+        catch (Exception)
+        {
+            // The toast object is gone or closed on the OS side (COMException, RO_E_CLOSED as ObjectDisposedException...);
+            // releasing our reference is all that is left.
+        }
+        finally
+        {
+            ComObjects.Release(Notification);
+        }
+    }
+}
+
+/// <summary>
+/// The native click handler (TypedEventHandler&lt;ToastNotification, Object&gt;) for <see cref="WinRtToast"/>:
+/// a source-generated COM object forwarding the toast's launch argument to a managed callback. One instance serves
+/// every toast; it stays alive while a toast references it.
+/// </summary>
+[SupportedOSPlatform("windows")]
+internal sealed class ToastActivationCallback : IDisposable
+{
+    private nint _pointer;
+
+    /// <param name="activated">Called on an OS thread with the launch argument, <see langword="null"/> when unreadable.</param>
+    public ToastActivationCallback(Action<string?> activated)
+    {
+        ArgumentNullException.ThrowIfNull(activated);
+        _pointer = ComObjects.GetInterfacePointer(new ToastActivatedHandler(activated), WinRtInterfaceIds.ToastActivatedHandler);
+    }
+
+    internal nint Pointer
+    {
+        get
+        {
+            nint pointer = _pointer;
+            ObjectDisposedException.ThrowIf(pointer == 0, this);
+            return pointer;
+        }
+    }
+
+    public void Dispose()
+    {
+        nint pointer = Interlocked.Exchange(ref _pointer, 0);
+        if (pointer != 0)
+        {
+            Marshal.Release(pointer);
+        }
+    }
+}
+
+[SupportedOSPlatform("windows")]
+[GeneratedComClass]
+internal sealed partial class ToastActivatedHandler(Action<string?> activated) : IToastActivatedHandler
+{
+    public void Invoke(nint sender, nint args)
+    {
+        // Called by the OS: nothing may escape (the service's callback handles its own failures).
+        string? argument;
+        try
+        {
+            argument = ReadArguments(args);
+        }
+        catch (Exception)
+        {
+            argument = null;
+        }
+
+        activated(argument);
+    }
+
+    /// <summary>The launch argument of a body click; <see langword="null"/> for anything else.</summary>
+    private static string? ReadArguments(nint args)
+    {
+        if (args == 0)
+        {
+            return null;
+        }
+
+        IToastActivatedEventArgs eventArgs = ComObjects.Borrow<IToastActivatedEventArgs>(args);
+        try
+        {
+            eventArgs.GetArguments(out nint value);
+            return HString.MoveToManaged(value);
+        }
+        finally
+        {
+            ComObjects.Release(eventArgs);
+        }
+    }
+}

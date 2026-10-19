@@ -18,7 +18,7 @@ public sealed class TrayMenuCameraTests : IDisposable
     private readonly ListLogger<TrayMenuCameraTests> _logger = new();
     private readonly TrayMenuViewModel _viewModel;
 
-    public TrayMenuCameraTests() => _viewModel = new TrayMenuViewModel(_monitor, _dispatcher, _launcher, TrayMenuOptions.Default);
+    public TrayMenuCameraTests() => _viewModel = new TrayMenuViewModel(_monitor, _dispatcher, TestWebOpener.Create(_launcher), TrayMenuOptions.Default);
 
     public void Dispose()
     {
@@ -45,6 +45,33 @@ public sealed class TrayMenuCameraTests : IDisposable
                 Assert.True(camera.IsEnabled);
                 Assert.Equal("mk4", camera.PrinterId);
             });
+    }
+
+    [Fact]
+    public void LanguageSwitchTranslatesTheCameraItemOfOneAndOfSeveralPrinters()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition())]);
+        _dispatcher.RunAll();
+
+        using (new CultureScope("de-DE"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        TrayMenuEntry single = _viewModel.PrinterItems[1];
+        Assert.Equal((TrayMenuCommand.Camera, "Kamera…"), (single.Command, single.Header));
+
+        _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+        using (new CultureScope("it-IT"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        TrayMenuEntry grouped = _viewModel.PrinterItems[0].Submenu![^1];
+        Assert.Equal((TrayMenuCommand.Camera, "Telecamera…", "a"), (grouped.Command, grouped.Header, grouped.PrinterId));
     }
 
     [Fact]

@@ -1,5 +1,7 @@
 using Avalonia.Controls;
 
+using PrusaTrayDiagnostic.App.Localization;
+
 namespace PrusaTrayDiagnostic.App.Windows;
 
 /// <summary>Thin adapter of an Avalonia <see cref="Window"/> for <see cref="AuxiliaryWindowSlot"/>.</summary>
@@ -21,6 +23,8 @@ internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
     public void Activate() => _window.Activate();
 
     public void Close() => _window.Close();
+
+    public void RefreshTexts() => (_window.DataContext as ILanguageAware)?.RefreshTexts();
 
     private void OnWindowClosed(object? sender, EventArgs e)
     {

@@ -5,6 +5,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Cameras;
@@ -51,7 +52,7 @@ internal interface ICameraFrameSink
 /// </para>
 /// <para>All public members are for the UI thread.</para>
 /// </remarks>
-public sealed partial class CameraViewModel : ObservableObject, IDisposable
+public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILanguageAware
 {
     private readonly ReconnectingCameraFeed _feed;
     private readonly IPrinterMonitor _monitor;
@@ -149,6 +150,27 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
     public string PrinterId { get; }
 
     public string Title => Format(Strings.CameraTitle, _name);
+
+    /// <summary>
+    /// UI thread: the language changed (T-029). The title, button tips, connection state and the print overlay are formatted
+    /// again from what they show; the stream, the mode and the image do not change.
+    /// </summary>
+    public void RefreshTexts()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(FullScreenToolTip));
+        OnPropertyChanged(nameof(StatusText));
+        if (_printStateText is not null)
+        {
+            PrintStateText = _shownPrintContent.StateText();
+            RemainingText = _shownPrintContent.RemainingText();
+        }
+    }
 
     public CameraWindowMode Mode
     {

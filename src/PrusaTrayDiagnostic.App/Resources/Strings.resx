@@ -139,6 +139,45 @@
   <data name="AboutRepository" xml:space="preserve">
     <value>Source code on GitHub</value>
   </data>
+  <data name="NotificationPrintStarted" xml:space="preserve">
+    <value>Print started</value>
+  </data>
+  <data name="NotificationPrintFinished" xml:space="preserve">
+    <value>Print finished</value>
+  </data>
+  <data name="NotificationPrintPaused" xml:space="preserve">
+    <value>Print paused</value>
+  </data>
+  <data name="NotificationPrintResumed" xml:space="preserve">
+    <value>Print resumed</value>
+  </data>
+  <data name="NotificationPrintStopped" xml:space="preserve">
+    <value>Print stopped</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>The printer reports an error</value>
+  </data>
+  <data name="NotificationAttention" xml:space="preserve">
+    <value>The printer needs your attention</value>
+  </data>
+  <data name="NotificationCredentialsRejected" xml:space="preserve">
+    <value>The printer rejected the credentials</value>
+  </data>
+  <data name="NotificationOffline" xml:space="preserve">
+    <value>The printer is offline</value>
+  </data>
+  <data name="NotificationOnline" xml:space="preserve">
+    <value>The printer is back online</value>
+  </data>
+  <data name="NotificationRemainingTime" xml:space="preserve">
+    <value>{0} remaining</value>
+  </data>
+  <data name="NotificationAlmostFinished" xml:space="preserve">
+    <value>The print is about to finish</value>
+  </data>
+  <data name="NotificationStatusChanged" xml:space="preserve">
+    <value>The printer status changed</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostics – Prusa Tray Diagnostic</value>
   </data>
@@ -301,11 +340,20 @@
   <data name="SettingsAddressHint" xml:space="preserve">
     <value>IP address or host name, e.g. 192.168.1.20 or http://prusa-mk4.local</value>
   </data>
+  <data name="SettingsUserName" xml:space="preserve">
+    <value>User name</value>
+  </data>
+  <data name="SettingsUserNameHint" xml:space="preserve">
+    <value>PrusaLink user name from the printer settings. The default is “maker”.</value>
+  </data>
+  <data name="SettingsUserNameNotUsed" xml:space="preserve">
+    <value>Prusa Connect does not use a printer user name.</value>
+  </data>
   <data name="SettingsPassword" xml:space="preserve">
     <value>Password</value>
   </data>
   <data name="SettingsPasswordNewHint" xml:space="preserve">
-    <value>PrusaLink password from the printer settings. The user name “maker” is used automatically.</value>
+    <value>PrusaLink password from the printer settings.</value>
   </data>
   <data name="SettingsPasswordUnchanged" xml:space="preserve">
     <value>Unchanged</value>
@@ -344,7 +392,7 @@
     <value>The secure (https) connection failed. Try the address with http:// or check the printer's certificate.</value>
   </data>
   <data name="SettingsTestPasswordRejected" xml:space="preserve">
-    <value>The printer rejected the password.</value>
+    <value>The printer rejected the user name or password.</value>
   </data>
   <data name="SettingsTestAccessDenied" xml:space="preserve">
     <value>The printer denied access.</value>
@@ -384,6 +432,21 @@
   </data>
   <data name="SettingsErrorAddressInvalid" xml:space="preserve">
     <value>Enter an IP address or host name, optionally with http:// or https://, a port and a path. A user name, password, query (?) or fragment (#) is not allowed.</value>
+  </data>
+  <data name="SettingsErrorUserNameRequired" xml:space="preserve">
+    <value>Enter a user name.</value>
+  </data>
+  <data name="SettingsErrorUserNameTooLong" xml:space="preserve">
+    <value>The user name can have at most {0} characters.</value>
+  </data>
+  <data name="SettingsErrorUserNameControlCharacter" xml:space="preserve">
+    <value>The user name must not contain tabs, line breaks or other control characters.</value>
+  </data>
+  <data name="SettingsErrorUserNameColon" xml:space="preserve">
+    <value>The user name must not contain a colon (:).</value>
+  </data>
+  <data name="SettingsErrorUserNameUnsupported" xml:space="preserve">
+    <value>The user name can contain only letters without diacritics, digits and common symbols, except " and \.</value>
   </data>
   <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
     <value>The password is too long (at most {0} bytes in UTF-8).</value>
@@ -483,6 +546,17 @@
   </data>
   <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
     <value>Settings saved. The password of a removed printer could not be deleted from the system credential store.</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Language</value>
+    <comment>Settings, General tab: language of the application texts.</comment>
+  </data>
+  <data name="SettingsLanguageSystem" xml:space="preserve">
+    <value>System default</value>
+    <comment>Language selection item: use the language of the operating system.</comment>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Changes only the texts. Numbers, dates and times always follow the regional settings of the system.</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Camera</value>

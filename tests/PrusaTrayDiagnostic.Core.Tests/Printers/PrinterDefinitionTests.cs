@@ -49,6 +49,53 @@ public class PrinterDefinitionTests
     }
 
     [Fact]
+    public void UserNameDefaultsToMaker()
+    {
+        Assert.Equal("maker", Create().UserName);
+        Assert.Equal("maker", Create(connectionType: ConnectionType.PrusaConnect).UserName);
+    }
+
+    [Fact]
+    public void UserNameIsTrimmed()
+    {
+        Assert.Equal("workshop", (Create() with { UserName = "  workshop " }).UserName);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("user:name")]
+    [InlineData("user\nname")]
+    [InlineData("user\"name")]
+    public void InvalidUserNameIsRejected(string value)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Create() with { UserName = value });
+    }
+
+    [Fact]
+    public void InvalidUserNameIsNotEchoedInException()
+    {
+        ArgumentException exception = Assert.ThrowsAny<ArgumentException>(() => Create() with { UserName = "john:doe" });
+
+        Assert.DoesNotContain("john", exception.Message, StringComparison.Ordinal);
+        Assert.Contains(nameof(PrinterUserNameError.ContainsColon), exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TooLongUserNameIsRejected()
+    {
+        Assert.Equal(64, (Create() with { UserName = new string('u', PrinterUserName.MaxLength) }).UserName.Length);
+        Assert.ThrowsAny<ArgumentException>(() => Create() with { UserName = new string('u', PrinterUserName.MaxLength + 1) });
+    }
+
+    [Fact]
+    public void UserNameTakesPartInEquality()
+    {
+        Assert.NotEqual(Create(), Create() with { UserName = "workshop" });
+        Assert.Equal(Create() with { UserName = "workshop" }, Create() with { UserName = " workshop" });
+    }
+
+    [Fact]
     public void CameraDefaultsToDisabled()
     {
         Assert.Equal(CameraSettings.Disabled, Create().Camera);

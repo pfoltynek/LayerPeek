@@ -69,6 +69,30 @@ public sealed class AboutViewModelTests
     }
 
     [Fact]
+    public void RefreshTextsSwitchesEveryTextToTheNewLanguage()
+    {
+        using CultureScope english = new("en-US");
+        AboutViewModel viewModel = new(_launcher, AppAssembly);
+        List<string?> changes = [];
+        viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        using (new CultureScope("de-DE"))
+        {
+            viewModel.RefreshTexts();
+        }
+
+        Assert.Equal("Über Prusa Tray Diagnostic", viewModel.Title);
+        Assert.Equal("Version " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
+        Assert.Equal("Dies ist kein offizielles Produkt von Prusa Research.", viewModel.Disclaimer);
+        Assert.Equal("Lizenz: Apache License 2.0", viewModel.LicenseText);
+        Assert.Equal("Quellcode auf GitHub", viewModel.RepositoryText);
+        Assert.Equal("Schließen", viewModel.CloseText);
+        Assert.Equal("Copyright © Petr Foltýnek", viewModel.Copyright);
+        // "Everything changed" for the bindings.
+        Assert.Equal([string.Empty], changes);
+    }
+
+    [Fact]
     public void RepositoryLinkOpensGitHubThroughLauncher()
     {
         AboutViewModel viewModel = new(_launcher, AppAssembly);

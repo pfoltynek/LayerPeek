@@ -72,6 +72,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         _removedCameraCredentials = removedCameraCredentials;
     }
 
+    /// <summary>Receivers of the settings of every run, in notification order.</summary>
+    internal IReadOnlyList<IMonitoringObserver> Observers => _observers;
+
     /// <summary>Settings of the current run, including a notification-only update; <see langword="null"/> before the first run.</summary>
     internal AppSettings? CurrentSettings
     {
@@ -99,8 +102,73 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
     }
 
+    /// <summary>Starts monitoring; the settings are loaded first (on a background thread).</summary>
     /// <exception cref="InvalidOperationException">The session was already started.</exception>
-    public void Start()
+    public void Start() => StartCore(initialSettings: null);
+
+    /// <summary>
+    /// Starts monitoring with settings the caller already loaded (<see cref="LoadSettingsAsync(Func{ISettingsStore}, ILogger, CancellationToken, RemovedCameraCredentials)"/>
+    /// at startup, so that the language is applied before the tray shows any text); settings applied before win.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The session was already started.</exception>
+    public void Start(AppSettings initialSettings)
+    {
+        ArgumentNullException.ThrowIfNull(initialSettings);
+        StartCore(initialSettings);
+    }
+
+    /// <summary>
+    /// Loads the settings like <see cref="Start()"/> does: never throws except for cancellation; problems are logged and
+    /// defaults (or the corrected settings) are returned.
+    /// </summary>
+    /// <param name="settingsStoreFactory">May throw (e.g. no per-user data folder): the defaults are used.</param>
+    /// <param name="removedCameraCredentials">
+    /// Receives the printers whose camera address lost its credentials while loading (the settings window shows it); the
+    /// credentials are removed from the file as well (T-014).
+    /// </param>
+    public static async Task<AppSettings> LoadSettingsAsync(
+        Func<ISettingsStore> settingsStoreFactory,
+        ILogger logger,
+        CancellationToken cancellationToken,
+        RemovedCameraCredentials? removedCameraCredentials = null)
+    {
+        ArgumentNullException.ThrowIfNull(settingsStoreFactory);
+        ArgumentNullException.ThrowIfNull(logger);
+        ISettingsStore store;
+        SettingsLoadResult result;
+        try
+        {
+            store = settingsStoreFactory();
+            result = await store.LoadAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            // File problems come back in the result; this covers a missing data folder and the unexpected.
+            LogSettingsUnavailable(logger, ex);
+            return AppSettings.Default;
+        }
+
+        if (result.Status is SettingsLoadStatus.Corrupted or SettingsLoadStatus.Unreadable)
+        {
+            LogSettingsNotUsed(logger, result.Status, result.ErrorMessage);
+        }
+
+        foreach (string warning in result.Warnings)
+        {
+            LogSettingsWarning(logger, warning);
+        }
+
+        // A corrupted file is cleaned as well when it is valid JSON (user decision): nothing of it is used, but the password
+        // must not stay on disk.
+        if (result.Status is SettingsLoadStatus.Loaded or SettingsLoadStatus.Corrupted)
+        {
+            await RemoveCameraCredentialsFromFileAsync(store, result.Settings, logger, removedCameraCredentials, cancellationToken).ConfigureAwait(false);
+        }
+
+        return result.Settings;
+    }
+
+    private void StartCore(AppSettings? initialSettings)
     {
         if (Interlocked.Exchange(ref _started, 1) != 0)
         {
@@ -117,7 +185,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             _loopActive = true;
             CancellationToken stopToken = _stop.Token;
             // Task.Run: loading the settings does file I/O and must not run on the UI thread.
-            _completion = Task.Run(() => RunLoopAsync(loadSettings: true, stopToken), CancellationToken.None);
+            _completion = initialSettings is null
+                ? Task.Run(() => RunLoopAsync(loadSettings: true, stopToken), CancellationToken.None)
+                : Task.Run(() => RunLoopAsync(loadSettings: false, stopToken, initialSettings), CancellationToken.None);
         }
     }
 
@@ -333,11 +403,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// Runs the monitor until stopped; each <see cref="ApplyAsync"/> ends the current run and starts the next one with the
     /// applied settings. A failed run is reported and ends the loop unless new settings are already waiting.
     /// </summary>
-    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken)
+    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken, AppSettings? initialSettings = null)
     {
         try
         {
-            AppSettings? settings = loadSettings ? await LoadSettingsAsync(stopToken).ConfigureAwait(false) : null;
+            AppSettings? settings = loadSettings ? await LoadSettingsAsync(_settingsStoreFactory, _logger, stopToken, _removedCameraCredentials).ConfigureAwait(false) : initialSettings;
             while (true)
             {
                 CancellationTokenSource run;
@@ -437,42 +507,6 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
     }
 
-    private async Task<AppSettings> LoadSettingsAsync(CancellationToken stopToken)
-    {
-        ISettingsStore store;
-        SettingsLoadResult result;
-        try
-        {
-            store = _settingsStoreFactory();
-            result = await store.LoadAsync(stopToken).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException || !stopToken.IsCancellationRequested)
-        {
-            // File problems come back in the result; this covers a missing data folder and the unexpected.
-            LogSettingsUnavailable(ex);
-            return AppSettings.Default;
-        }
-
-        if (result.Status is SettingsLoadStatus.Corrupted or SettingsLoadStatus.Unreadable)
-        {
-            LogSettingsNotUsed(result.Status, result.ErrorMessage);
-        }
-
-        foreach (string warning in result.Warnings)
-        {
-            LogSettingsWarning(warning);
-        }
-
-        // A corrupted file is cleaned as well when it is valid JSON (user decision): nothing of it is used, but the password
-        // must not stay on disk.
-        if (result.Status is SettingsLoadStatus.Loaded or SettingsLoadStatus.Corrupted)
-        {
-            await RemoveCameraCredentialsFromFileAsync(store, result.Settings, stopToken).ConfigureAwait(false);
-        }
-
-        return result.Settings;
-    }
-
     /// <summary>
     /// Credentials found in camera addresses were removed while loading, but they stay in the file until it is written
     /// again: the store removes them from the file right away (T-014 decisions), changing only those addresses, so that
@@ -480,7 +514,12 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// failure is logged and monitoring goes on (the next start tries again). The settings window is told which cameras
     /// were affected.
     /// </summary>
-    private async Task RemoveCameraCredentialsFromFileAsync(ISettingsStore store, AppSettings settings, CancellationToken stopToken)
+    private static async Task RemoveCameraCredentialsFromFileAsync(
+        ISettingsStore store,
+        AppSettings settings,
+        ILogger logger,
+        RemovedCameraCredentials? removedCameraCredentials,
+        CancellationToken stopToken)
     {
         HashSet<string> affected = new(StringComparer.OrdinalIgnoreCase);
         foreach (PrinterDefinition printer in settings.Printers)
@@ -506,17 +545,17 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
             if (cleaned.Count > 0)
             {
-                LogCameraCredentialsRemoved(cleaned.Count);
+                LogCameraCredentialsRemoved(logger, cleaned.Count);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !stopToken.IsCancellationRequested)
         {
-            LogCameraCredentialsNotRemoved(ex);
+            LogCameraCredentialsNotRemoved(logger, ex);
         }
 
         if (affected.Count > 0)
         {
-            _removedCameraCredentials?.Add(affected);
+            removedCameraCredentials?.Add(affected);
         }
     }
 
@@ -524,19 +563,19 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         camera.StreamUri is not null || camera.InvalidStreamUrl is not null || camera.CredentialsRemoved;
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Settings could not be loaded; defaults are used.")]
-    private partial void LogSettingsUnavailable(Exception exception);
+    private static partial void LogSettingsUnavailable(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Stored settings were not used ({Status}): {ErrorMessage}")]
-    private partial void LogSettingsNotUsed(SettingsLoadStatus status, string? errorMessage);
+    private static partial void LogSettingsNotUsed(ILogger logger, SettingsLoadStatus status, string? errorMessage);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Settings: {Warning}")]
-    private partial void LogSettingsWarning(string warning);
+    private static partial void LogSettingsWarning(ILogger logger, string warning);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from {Count} camera address(es) in the settings file; nothing else was changed.")]
-    private partial void LogCameraCredentialsRemoved(int count);
+    private static partial void LogCameraCredentialsRemoved(ILogger logger, int count);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Credentials could not be removed from camera addresses in the settings file; they stay there until the settings are saved.")]
-    private partial void LogCameraCredentialsNotRemoved(Exception exception);
+    private static partial void LogCameraCredentialsNotRemoved(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Printer monitoring stopped unexpectedly.")]
     private partial void LogMonitoringFailed(Exception exception);

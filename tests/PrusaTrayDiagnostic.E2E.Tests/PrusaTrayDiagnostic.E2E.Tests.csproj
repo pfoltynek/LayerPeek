@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- NtQueryInformationProcess interop (command lines of leftover browser processes) in the cleanup helpers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      Browser tests (T-030): the plain Playwright library with an own xUnit v3 fixture. Microsoft.Playwright.Xunit.v3 is
+      not used because it depends on a VSTest package. The package copies its Node.js driver (~100 MB) into this
+      project's output only; it never downloads a browser (the installed Edge is used through Channel = "msedge").
+    -->
+    <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+    <!-- One firmware imitation for the proxy integration tests and the browser tests (no copy that could diverge). -->
+    <Compile Include="..\PrusaTrayDiagnostic.PrusaLink.Tests\FakePrusaLinkServer.cs" Link="Shared\FakePrusaLinkServer.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\PrusaTrayDiagnostic.PrusaLink.Tests\Fixtures\firmware\*.json" Link="Fixtures\firmware\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="FakeWeb\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PrusaTrayDiagnostic.PrusaLink\PrusaTrayDiagnostic.PrusaLink.csproj" />
+  </ItemGroup>
+</Project>

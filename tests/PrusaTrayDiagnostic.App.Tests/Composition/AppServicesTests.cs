@@ -6,10 +6,12 @@ using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Camera.FFmpeg;
@@ -20,6 +22,8 @@ using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
+using PrusaTrayDiagnostic.PrusaLink.WebProxy;
 
 namespace PrusaTrayDiagnostic.App.Tests.Composition;
 
@@ -55,14 +59,45 @@ public sealed class AppServicesTests
     }
 
     [Fact]
-    public async Task NotificationPipelineIsRegisteredWithNoOpServiceUntilPlatformImplementationsExist()
+    public async Task LanguageIsASingletonStartingWithTheSystemLanguage()
     {
         await using ServiceProvider services = AppServices.Create();
 
-        // Windows toasts follow in T-010, macOS in T-020; until then notifications are silently not sent.
+        UiLanguage language = services.GetRequiredService<UiLanguage>();
+        Assert.Same(language, services.GetRequiredService<UiLanguage>());
+        Assert.Null(language.Code);
+        Assert.Same(services.GetRequiredService<UiLanguageObserver>(), services.GetRequiredService<UiLanguageObserver>());
+    }
+
+    [Fact]
+    public async Task WindowsUsesToastNotifications()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Toast notifications exist only on Windows.");
+        await using ServiceProvider services = AppServices.Create();
+
+        // Resolving creates no thread, no shortcut and no toast: the service starts on TrayHost.Start / first Show.
+        ToastNotificationService toasts = Assert.IsType<ToastNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.Same(toasts, services.GetRequiredService<INotificationService>());
+        AssertNotificationPipeline(services);
+    }
+
+    [Fact]
+    public async Task OtherOperatingSystemsSilentlyDropNotifications()
+    {
+        // macOS notifications follow in T-020; until then notifications are silently not sent.
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: false);
+
         Assert.Same(NullNotificationService.Instance, services.GetRequiredService<INotificationService>());
+        AssertNotificationPipeline(services);
+    }
+
+    private static void AssertNotificationPipeline(ServiceProvider services)
+    {
         Assert.Same(services.GetRequiredService<PrintEventNotifier>(), services.GetRequiredService<PrintEventNotifier>());
         Assert.NotNull(services.GetRequiredService<PrintNotificationObserver>());
+        Assert.Same(services.GetRequiredService<ToastActivationRouter>(), services.GetRequiredService<ToastActivationRouter>());
+        // The router receives the printers of every run, so a click opens the current address.
+        Assert.Contains(services.GetRequiredService<ToastActivationRouter>(), services.GetRequiredService<MonitoringSession>().Observers);
     }
 
     [Fact]
@@ -180,6 +215,22 @@ public sealed class AppServicesTests
         camera.ShowMiniCommand.Execute(null);
         camera.Dispose();
         Assert.Equal(CameraWindowMode.Mini, states.Get("a").Mode);
+    }
+
+    [Fact]
+    public async Task WebGatewayIsTheSharedPrusaLinkProxyAndStopsWithTheContainer()
+    {
+        ServiceProvider services = AppServices.Create();
+        IPrinterWebGateway gateway = services.GetRequiredService<IPrinterWebGateway>();
+
+        Assert.IsType<PrusaLinkWebGateway>(gateway);
+        Assert.Same(gateway, services.GetRequiredService<PrusaLinkWebGateway>());
+        Assert.Same(gateway, services.GetRequiredService<PrinterWebOpener>().Gateway);
+
+        // Quitting disposes the container asynchronously (TrayHost.StopAsync); the gateway then refuses new proxies.
+        await services.DisposeAsync().AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        PrinterDefinition printer = new() { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.10" };
+        await Assert.ThrowsAsync<ObjectDisposedException>(() => gateway.OpenAsync(printer, TestContext.Current.CancellationToken));
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

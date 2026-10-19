@@ -18,6 +18,7 @@ internal static class SettingsMapper
         {
             Version = SettingsDocument.CurrentVersion,
             PollingIntervalSeconds = settings.PollingInterval.TotalSeconds,
+            Language = settings.Language,
             Notifications = new NotificationsDocument
             {
                 Enabled = notifications.Enabled,
@@ -38,6 +39,7 @@ internal static class SettingsMapper
                 Name = printer.Name,
                 ConnectionType = FormatConnectionType(printer.ConnectionType),
                 Address = printer.Address,
+                UserName = printer.UserName,
                 Camera = new CameraDocument
                 {
                     Enabled = printer.Camera.Enabled,
@@ -57,6 +59,7 @@ internal static class SettingsMapper
         return new AppSettings
         {
             PollingInterval = ToPollingInterval(document.PollingIntervalSeconds, warnings),
+            Language = ToLanguage(document.Language, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings),
         };
@@ -84,6 +87,23 @@ internal static class SettingsMapper
 
         // Rounded to whole ticks so that TotalSeconds written by ToDocument reads back as exactly the same interval.
         return TimeSpan.FromTicks((long)Math.Round(clamped * TimeSpan.TicksPerSecond));
+    }
+
+    /// <summary>Missing = follow the system; an unknown code also follows the system, with a warning.</summary>
+    private static string? ToLanguage(string? value, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (AppLanguages.TryNormalize(value, out string? code))
+        {
+            return code;
+        }
+
+        warnings.Add($"Unknown language '{Shorten(value)}'; the system language is used.");
+        return null;
     }
 
     private static NotificationSettings ToNotifications(NotificationsDocument? document, List<string> warnings)
@@ -173,7 +193,7 @@ internal static class SettingsMapper
         HashSet<string> ids = new(documents.Count, StringComparer.OrdinalIgnoreCase);
         for (int i = 0; i < documents.Count; i++)
         {
-            string? problem = TryCreatePrinter(documents[i], out PrinterDefinition? printer);
+            string? problem = TryCreatePrinter(documents[i], i, warnings, out PrinterDefinition? printer);
             if (printer is not null && !ids.Add(printer.Id))
             {
                 problem = $"duplicate id '{Shorten(printer.Id)}'";
@@ -196,7 +216,7 @@ internal static class SettingsMapper
     }
 
     /// <returns><see langword="null"/> on success, otherwise the reason why the entry is invalid.</returns>
-    private static string? TryCreatePrinter(PrinterDocument? document, out PrinterDefinition? printer)
+    private static string? TryCreatePrinter(PrinterDocument? document, int index, List<string> warnings, out PrinterDefinition? printer)
     {
         printer = null;
         if (document is null)
@@ -225,8 +245,28 @@ internal static class SettingsMapper
             Name = string.IsNullOrWhiteSpace(document.Name) ? document.Address : document.Name,
             ConnectionType = connectionType,
             Address = document.Address,
+            UserName = ToUserName(document.UserName, index, warnings),
         };
         return null;
+    }
+
+    private static string ToUserName(string? value, int index, List<string> warnings)
+    {
+        if (value is null)
+        {
+            // Files written before the user name was configurable.
+            return PrinterUserName.Default;
+        }
+
+        PrinterUserNameError error = PrinterUserName.Validate(value);
+        if (error == PrinterUserNameError.None)
+        {
+            return value;
+        }
+
+        // The value is not echoed: it may contain control characters.
+        warnings.Add($"Printer entry {index + 1}: invalid user name ({error}); '{PrinterUserName.Default}' is used.");
+        return PrinterUserName.Default;
     }
 
     /// <summary>

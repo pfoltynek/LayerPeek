@@ -23,6 +23,7 @@ public sealed class PrinterWebAddressTests
     [InlineData("file:///C:/Windows/System32/calc.exe")]
     [InlineData("javascript:alert(1)")]
     [InlineData("http://user:secret@printer")]
+    [InlineData("maker@printer")]
     [InlineData("http://printer/?q=1")]
     [InlineData("http://")]
     [InlineData("not a host")]
@@ -49,6 +50,12 @@ public sealed class PrinterWebAddressTests
     [InlineData("file:///etc/passwd", false)]
     [InlineData("mailto:a@b.c", false)]
     [InlineData("http://user:pw@printer/", false)]
+    [InlineData("http://maker@printer/", false)]
+    [InlineData("http://@printer/", false)]
+    [InlineData("http://[fe80::1]:8080/a@b", true)]
+    // The local web proxy (T-028): no userinfo, the secret token is the first path segment.
+    [InlineData("http://127.0.0.1:50123/Zm9vYmFyU2VjcmV0VG9rZW4xMjM0NTY/", true)]
+    [InlineData("http://@127.0.0.1:50123/token/", false)]
     public void OnlyPlainHttpAddressesAreSafeToLaunch(string uri, bool expected)
     {
         Assert.Equal(expected, PrinterWebAddress.IsSafeToLaunch(new Uri(uri)));

@@ -40,7 +40,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         _printer = printer;
         _timeProvider = timeProvider;
         _logger = logger;
-        _authenticator = new DigestAuthenticator(secretStore, SecretKeys.ForPrinter(printer.Id));
+        _authenticator = new DigestAuthenticator(secretStore, SecretKeys.ForPrinter(printer.Id), printer.UserName, timeProvider);
         _uris = PrusaLinkAddress.TryCreateBaseUri(printer.Address, out Uri? baseUri) ? new ApiUris(baseUri) : null;
     }
 
@@ -265,7 +265,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         using HttpRequestMessage request = new(HttpMethod.Get, uri);
         // Firmware answers errors as JSON only when application/json is the first accepted type.
         request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        if (_authenticator.GetAuthorization(uri.PathAndQuery) is { } authorization)
+        if (_authenticator.GetAuthorization(HttpMethod.Get, uri.PathAndQuery) is { } authorization)
         {
             request.Headers.TryAddWithoutValidation("Authorization", authorization);
         }
@@ -378,7 +378,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         public const string NotReachable = "The printer is not reachable.";
         public const string Timeout = "The printer did not respond in time.";
         public const string SecureConnectionFailed = "The secure (https) connection to the printer failed.";
-        public const string PasswordRejected = "The printer rejected the password.";
+        public const string PasswordRejected = "The printer rejected the user name or password.";
         public const string Forbidden = "The printer denied access (HTTP 403).";
         public const string UnexpectedResponse = "The printer sent an unexpected response.";
         public const string PasswordUnreadable = "The stored password could not be read.";

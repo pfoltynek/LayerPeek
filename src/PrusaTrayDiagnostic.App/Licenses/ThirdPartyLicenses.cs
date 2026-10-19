@@ -3,14 +3,14 @@ using System.Text;
 namespace PrusaTrayDiagnostic.App.Licenses;
 
 /// <summary>A NuGet package covered by a <see cref="ThirdPartyComponent"/>.</summary>
-/// <param name="Version">Exact version; <see langword="null"/> = whatever the SDK brings (the .NET runtime).</param>
+/// <param name="Version">Exact version; <see langword="null"/> = whatever the SDK brings (the .NET runtime and shared frameworks).</param>
 internal sealed record PackageRef(string Id, string? Version);
 
 /// <summary>
 /// A third-party component shipped with the app: its packages, licence (SPDX expression from the package metadata) and
 /// licence texts (embedded resources, see <see cref="ThirdPartyLicenses.ReadText"/>).
 /// </summary>
-/// <param name="Version">Shown version; <see langword="null"/> for the .NET runtime (read at run time).</param>
+/// <param name="Version">Shown version; <see langword="null"/> for the .NET runtime and shared frameworks (read at run time).</param>
 /// <param name="TextResources">Embedded resource names of the licence and notice texts, in display order.</param>
 internal sealed record ThirdPartyComponent(
     string Name,
@@ -23,9 +23,11 @@ internal sealed record ThirdPartyComponent(
 /// <summary>
 /// The single source of truth for licences of everything the app ships (T-014, user decision 2026-10-18). Every package
 /// of the App's dependency graph (<c>project.assets.json</c>) must be listed here with its exact version; a test fails
-/// otherwise, so a new or updated package cannot ship without its licence. Licences were taken from the package
-/// metadata (nuspec <c>license</c> expression or licence file), not guessed. FFmpeg itself (native, LGPL) is described by
-/// <see cref="FFmpeg"/>.
+/// otherwise, so a new or updated package cannot ship without its licence. Shared frameworks compiled into the app
+/// (runtime packs, not packages) are listed by their runtime pack ids and checked against the framework references of
+/// the projects; an entry for a package the app no longer uses fails a test as well. Licences were taken from the
+/// package metadata (nuspec <c>license</c> expression or licence file), not guessed. FFmpeg itself (native, LGPL) is
+/// described by <see cref="FFmpeg"/>.
 /// </summary>
 internal static class ThirdPartyLicenses
 {
@@ -100,21 +102,19 @@ internal static class ThirdPartyLicenses
             new Uri("https://github.com/CommunityToolkit/dotnet"),
             [new("CommunityToolkit.Mvvm", "8.4.2")],
             [ResourcePrefix + "mit-communitytoolkit.txt"]),
+        // The ASP.NET Core shared framework (FrameworkReference of PrusaTrayDiagnostic.PrusaLink, T-028: the Kestrel web
+        // proxy) also brings the Microsoft.Extensions libraries the app uses (DI, logging, HTTP). It is not a NuGet package
+        // of the dependency graph but a runtime pack compiled into the executable; its version is that of the .NET runtime.
         new(
-            "Microsoft.Extensions (DependencyInjection, Logging, Http, Configuration, Options, Diagnostics)",
-            "10.0.13",
+            "ASP.NET Core shared framework (Kestrel web server, Microsoft.Extensions; compiled into the application)",
+            null,
             "MIT",
-            new Uri("https://github.com/dotnet/dotnet"),
+            new Uri("https://github.com/dotnet/aspnetcore"),
             [
-                new("Microsoft.Extensions.Configuration", "10.0.13"),
-                new("Microsoft.Extensions.Configuration.Binder", "10.0.13"),
-                new("Microsoft.Extensions.DependencyInjection", "10.0.13"),
-                new("Microsoft.Extensions.Diagnostics", "10.0.13"),
-                new("Microsoft.Extensions.Http", "10.0.13"),
-                new("Microsoft.Extensions.Logging", "10.0.13"),
-                new("Microsoft.Extensions.Options.ConfigurationExtensions", "10.0.13"),
+                new("Microsoft.AspNetCore.App.Runtime.win-x64", null),
+                new("Microsoft.AspNetCore.App.Runtime.osx-arm64", null),
             ],
-            [ResourcePrefix + "mit-microsoft.txt", ResourcePrefix + "extensions-third-party-notices.txt"]),
+            [ResourcePrefix + "aspnetcore-license.txt", ResourcePrefix + "aspnetcore-third-party-notices.txt"]),
         new(
             ".NET runtime (Native AOT, compiled into the application)",
             null,

@@ -5,11 +5,16 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
+using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Icons;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.Notifications;
+using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
 
 namespace PrusaTrayDiagnostic.App.Composition;
 
@@ -25,6 +30,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>A save writes a few small items in milliseconds; quitting must still stay within the overall limit.</summary>
     private static readonly TimeSpan PendingSaveTimeout = TimeSpan.FromSeconds(1);
 
+    /// <summary>How long quitting waits for requests in progress through the local web proxies (T-028).</summary>
+    private static readonly TimeSpan WebProxyStopTimeout = TimeSpan.FromSeconds(1);
+
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<TrayHost> _logger;
     private readonly ServiceProvider _services;
@@ -32,6 +40,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
     private readonly ITrayIconSet? _iconSet;
     private readonly TrayIconPresenter<WindowIcon>? _iconPresenter;
     private readonly TrayMenuPresenter? _menuPresenter;
+    private readonly UiLanguage _language;
+    private readonly TrayStatusViewModel _status;
+    private readonly TrayMenuViewModel _menu;
     private int _stopped;
 
     private TrayHost(
@@ -49,11 +60,26 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _iconSet = iconSet;
         _iconPresenter = iconPresenter;
         _menuPresenter = menuPresenter;
+        _language = services.GetRequiredService<UiLanguage>();
+        _status = services.GetRequiredService<TrayStatusViewModel>();
+        _menu = services.GetRequiredService<TrayMenuViewModel>();
+        _language.Changed += OnLanguageChanged;
     }
 
+    /// <summary>
+    /// UI thread: the language changed (saved settings, T-029) and the tray (menu, tooltip) already shows the new texts;
+    /// open auxiliary windows have to format theirs again.
+    /// </summary>
+    public event EventHandler? LanguageChanged;
+
+    /// <summary>
+    /// Loads the settings (off the UI thread), applies their language and only then creates the tray objects, so that the
+    /// first menu and tooltip are already in the chosen language; then starts monitoring with the loaded settings. Call on
+    /// the UI thread; the returned task continues there.
+    /// </summary>
     /// <param name="trayIcon">Tray icon to drive; <see langword="null"/> when the platform has none (monitoring still runs).</param>
     /// <param name="commands">Diagnostics / About / Quit handlers of the tray menu.</param>
-    public static TrayHost Start(TrayIcon? trayIcon, ITrayAppCommands commands)
+    public static async Task<TrayHost> StartAsync(TrayIcon? trayIcon, ITrayAppCommands commands)
     {
         ArgumentNullException.ThrowIfNull(commands);
         // Owned here, not by the container: it must outlive the container dispose during quit (see ReleaseLogging).
@@ -65,6 +91,18 @@ internal sealed partial class TrayHost : IAsyncDisposable
         TrayMenuPresenter? menuPresenter = null;
         try
         {
+            ILogger<MonitoringSession> sessionLogger = services.GetRequiredService<ILogger<MonitoringSession>>();
+            AppSettings initialSettings = await Task.Run(
+                () => MonitoringSession.LoadSettingsAsync(
+                    services.GetRequiredService<ISettingsStore>,
+                    sessionLogger,
+                    CancellationToken.None,
+                    services.GetRequiredService<RemovedCameraCredentials>()),
+                CancellationToken.None).ConfigureAwait(true);
+
+            // Before the tray view models (resolved below) format their first texts.
+            services.GetRequiredService<UiLanguage>().Apply(initialSettings.Language);
+
             if (trayIcon is not null)
             {
                 iconSet = CreateIconSet();
@@ -81,9 +119,16 @@ internal sealed partial class TrayHost : IAsyncDisposable
             }
 
             MonitoringSession session = services.GetRequiredService<MonitoringSession>();
-            session.Start();
+            session.Start(initialSettings);
+            // Registers the app for toasts in the background now, not with the first notification (T-010).
+            if (services.GetRequiredService<INotificationService>() is ToastNotificationService toasts)
+            {
+                toasts.Start();
+            }
+
             // Remembered camera windows are read in the background, long before a camera window opens; never throws.
             _ = services.GetRequiredService<ICameraWindowStateStore>().LoadAsync(CancellationToken.None);
+
             return new TrayHost(loggerFactory, services, session, iconSet, iconPresenter, menuPresenter);
         }
         catch
@@ -129,14 +174,16 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
 
         // UI-thread-only objects first, synchronously, before any continuation could move to another thread.
-        // From here on, menu clicks and late monitor updates no longer reach the tray.
+        // From here on, menu clicks, late monitor updates and language switches no longer reach the tray.
+        _language.Changed -= OnLanguageChanged;
         _menuPresenter?.Dispose();
         _iconPresenter?.Dispose();
         _iconSet?.Dispose();
 
         await WaitForPendingSaveAsync().ConfigureAwait(true);
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
-        await _session.StopAsync(timeout).ConfigureAwait(true);
+        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
+        await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
         try
         {
             // The session was stopped above, so disposing it (via the container) does not wait again.
@@ -198,11 +245,44 @@ internal sealed partial class TrayHost : IAsyncDisposable
     [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for the camera window state to be saved failed while quitting.")]
     private partial void LogCameraWindowStateFailed(Exception exception);
 
+    /// <summary>
+    /// Stops the local web proxies, waiting at most <see cref="WebProxyStopTimeout"/> for requests in progress (e.g. an
+    /// upload); after that they are stopped without waiting. Disposing the container afterwards finds none running.
+    /// Never faults.
+    /// </summary>
+    private async Task StopWebProxiesAsync()
+    {
+        try
+        {
+            using CancellationTokenSource timeout = new(WebProxyStopTimeout);
+            await _services.GetRequiredService<IPrinterWebGateway>().StopAllAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            LogWebProxyStopFailed(ex);
+        }
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        if (Volatile.Read(ref _stopped) != 0)
+        {
+            return;
+        }
+
+        _status.RefreshTexts();
+        _menu.RefreshTexts();
+        LanguageChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "A settings save did not finish within {Timeout} while quitting.")]
     private partial void LogPendingSaveTimedOut(TimeSpan timeout);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for a settings save failed while quitting.")]
     private partial void LogPendingSaveFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Stopping the web proxies failed while quitting.")]
+    private partial void LogWebProxyStopFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Releasing services failed while stopping.")]
     private partial void LogDisposeFailed(Exception exception);

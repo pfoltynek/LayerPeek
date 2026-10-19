@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PrusaTrayDiagnostic.App.Cameras"
-        xmlns:res="using:PrusaTrayDiagnostic.App.Resources"
+        xmlns:loc="using:PrusaTrayDiagnostic.App.Localization"
         x:Class="PrusaTrayDiagnostic.App.Windows.CameraWindow"
         x:DataType="vm:CameraViewModel"
         Title="{Binding Title}"
@@ -65,7 +65,7 @@
             PointerPressed="OnSurfacePointerPressed"
             PointerMoved="OnSurfacePointerMoved"
             PointerReleased="OnSurfacePointerReleased"
-            AutomationProperties.Name="{x:Static res:Strings.CameraImageHint}">
+            AutomationProperties.Name="{Binding [CameraImageHint], Source={x:Static loc:LocalizedStrings.Instance}}">
       <Image x:Name="Video" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="MediumQuality" />
     </Border>
 
@@ -115,8 +115,8 @@
       </Button>
       <Button Command="{Binding ShowMiniCommand}"
               IsVisible="{Binding !IsMini}"
-              ToolTip.Tip="{x:Static res:Strings.CameraMini}"
-              AutomationProperties.Name="{x:Static res:Strings.CameraMini}">
+              ToolTip.Tip="{Binding [CameraMini], Source={x:Static loc:LocalizedStrings.Instance}}"
+              AutomationProperties.Name="{Binding [CameraMini], Source={x:Static loc:LocalizedStrings.Instance}}">
         <Grid>
           <Path Classes="icon" Data="M1,2 H15 V14 H1 Z" />
           <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />
@@ -124,8 +124,8 @@
       </Button>
       <Button Command="{Binding ShowNormalCommand}"
               IsVisible="{Binding IsMini}"
-              ToolTip.Tip="{x:Static res:Strings.CameraNormal}"
-              AutomationProperties.Name="{x:Static res:Strings.CameraNormal}">
+              ToolTip.Tip="{Binding [CameraNormal], Source={x:Static loc:LocalizedStrings.Instance}}"
+              AutomationProperties.Name="{Binding [CameraNormal], Source={x:Static loc:LocalizedStrings.Instance}}">
         <Path Classes="icon" Data="M2,3 H14 V13 H2 Z M2,5 H14" />
       </Button>
     </StackPanel>

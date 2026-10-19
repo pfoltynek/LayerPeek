@@ -90,6 +90,83 @@ public sealed partial class ThirdPartyLicensesTests
         }
     }
 
+    /// <summary>Package ids the App restores: its packages and the runtime packs downloaded for its runtime identifier.</summary>
+    private static HashSet<string> AppPackageAndRuntimePackIds()
+    {
+        HashSet<string> ids = new(AppPackages().Select(static package => package.Id), StringComparer.OrdinalIgnoreCase);
+        using JsonDocument document = JsonDocument.Parse(File.ReadAllText(Path.Combine(RepositoryRoot, "src", "PrusaTrayDiagnostic.App", "obj", "project.assets.json")));
+        foreach (JsonProperty framework in document.RootElement.GetProperty("project").GetProperty("frameworks").EnumerateObject())
+        {
+            if (framework.Value.TryGetProperty("downloadDependencies", out JsonElement downloads))
+            {
+                foreach (JsonElement download in downloads.EnumerateArray())
+                {
+                    ids.Add(download.GetProperty("name").GetString()!);
+                }
+            }
+        }
+
+        return ids;
+    }
+
+    /// <summary>Shared frameworks referenced by the source projects (the App gets them transitively), except the base one.</summary>
+    private static SortedSet<string> SharedFrameworksOfTheSources()
+    {
+        SortedSet<string> frameworks = new(StringComparer.OrdinalIgnoreCase);
+        foreach (string project in Directory.EnumerateDirectories(Path.Combine(RepositoryRoot, "src")))
+        {
+            string assets = Path.Combine(project, "obj", "project.assets.json");
+            Assert.True(File.Exists(assets), $"{assets} is missing: restore the solution before running this test.");
+            using JsonDocument document = JsonDocument.Parse(File.ReadAllText(assets));
+            foreach (JsonProperty framework in document.RootElement.GetProperty("project").GetProperty("frameworks").EnumerateObject())
+            {
+                if (framework.Value.TryGetProperty("frameworkReferences", out JsonElement references))
+                {
+                    foreach (JsonProperty reference in references.EnumerateObject())
+                    {
+                        frameworks.Add(reference.Name);
+                    }
+                }
+            }
+        }
+
+        frameworks.Remove("Microsoft.NETCore.App");
+        return frameworks;
+    }
+
+    [Fact]
+    public void EverySharedFrameworkCompiledIntoTheAppHasALicenceEntry()
+    {
+        SortedSet<string> frameworks = SharedFrameworksOfTheSources();
+
+        // T-028: the PrusaLink web proxy runs on Kestrel from the ASP.NET Core shared framework.
+        Assert.Contains("Microsoft.AspNetCore.App", frameworks);
+        foreach (string framework in frameworks)
+        {
+            Assert.True(
+                Find(framework + ".Runtime.win-x64") is not null && Find(framework + ".Runtime.osx-arm64") is not null,
+                $"Add a licence entry for the shared framework {framework} (its runtime packs) in Licenses/ThirdPartyLicenses.cs.");
+        }
+    }
+
+    [Fact]
+    public void NoEntryListsAPackageTheAppNoLongerUses()
+    {
+        HashSet<string> restored = AppPackageAndRuntimePackIds();
+        List<string> stale = [];
+        foreach (PackageRef package in ThirdPartyLicenses.All.SelectMany(static component => component.Packages))
+        {
+            // Entries for the other operating system name the same package with another runtime identifier.
+            string[] candidates = [package.Id, package.Id.Replace("osx-arm64", "win-x64", StringComparison.Ordinal), package.Id.Replace("win-x64", "osx-arm64", StringComparison.Ordinal)];
+            if (!candidates.Any(restored.Contains))
+            {
+                stale.Add(package.Id);
+            }
+        }
+
+        Assert.True(stale.Count == 0, "Remove licence entries of packages the app no longer ships from Licenses/ThirdPartyLicenses.cs: " + string.Join(", ", stale));
+    }
+
     [Fact]
     public void ShownVersionIsTheVersionOfEveryPackageOfTheComponent()
     {

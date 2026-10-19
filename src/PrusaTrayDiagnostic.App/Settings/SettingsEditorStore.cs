@@ -5,6 +5,7 @@ using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
 
 namespace PrusaTrayDiagnostic.App.Settings;
 
@@ -17,7 +18,9 @@ namespace PrusaTrayDiagnostic.App.Settings;
 /// <item>The settings file is written atomically (<see cref="ISettingsStore.SaveAsync"/>).</item>
 /// <item>If step 1 or 2 fails, every password written in step 1 is restored (or deleted when there was none), newest first.</item>
 /// <item>The settings are applied to monitoring; the save waits (at most <see cref="DefaultApplyWaitTimeout"/>) until the
-/// previous monitoring run ended, so that nothing polls a removed printer any more.</item>
+/// previous monitoring run ended, so that nothing polls a removed printer any more. Meanwhile the local web proxies (T-028)
+/// of printers that were removed or whose address, user name, connection type or password changed are stopped (waiting at
+/// most as long), so that an open browser tab never keeps working with the old login.</item>
 /// <item>Passwords of removed printers are deleted. A failure leaves an orphan that nothing references (harmless, reported).</item>
 /// </list>
 /// Any exception in steps 1–2 (documented or not) triggers the rollback; storage failures never escape. Everything runs on
@@ -30,6 +33,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     private readonly ISecretStore _secrets;
     private readonly PasswordPolicy _policy;
     private readonly ISettingsApplier _applier;
+    private readonly IPrinterWebGateway _webGateway;
     private readonly ILogger<SettingsEditorStore> _logger;
     private readonly TimeSpan _applyWaitTimeout;
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
@@ -42,7 +46,10 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     public static readonly TimeSpan DefaultApplyWaitTimeout = TimeSpan.FromSeconds(5);
 
     /// <param name="settingsStore">Resolved on first use; may throw (e.g. no per-user data folder).</param>
-    /// <param name="applyWaitTimeout">Default <see cref="DefaultApplyWaitTimeout"/>; a stuck printer client must not block the save forever.</param>
+    /// <param name="webGateway">Its proxies are stopped for printers whose login changed.</param>
+    /// <param name="applyWaitTimeout">
+    /// Default <see cref="DefaultApplyWaitTimeout"/>; a stuck printer client or proxy must not block the save forever.
+    /// </param>
     /// <param name="removedCameraCredentials">
     /// Cameras whose credentials were removed at startup; reported by loads and cleared by a successful save.
     /// </param>
@@ -51,6 +58,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         ISecretStore secrets,
         PasswordPolicy policy,
         ISettingsApplier applier,
+        IPrinterWebGateway webGateway,
         ILogger<SettingsEditorStore> logger,
         TimeSpan? applyWaitTimeout = null,
         RemovedCameraCredentials? removedCameraCredentials = null)
@@ -59,11 +67,13 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         ArgumentNullException.ThrowIfNull(secrets);
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(applier);
+        ArgumentNullException.ThrowIfNull(webGateway);
         ArgumentNullException.ThrowIfNull(logger);
         _settingsStore = settingsStore;
         _secrets = secrets;
         _policy = policy;
         _applier = applier;
+        _webGateway = webGateway;
         _logger = logger;
         _applyWaitTimeout = applyWaitTimeout ?? DefaultApplyWaitTimeout;
         _removedCameraCredentials = removedCameraCredentials;
@@ -228,6 +238,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
 
         // Step 4: monitoring restarts with the new settings. Waiting for the old run to end means no poll of a removed
         // printer can find its password deleted below (that would be a spurious "password rejected" notification).
+        // The web proxies of changed printers stop at the same time (never faults).
+        Task webProxiesStopped = StopWebProxiesAsync(change);
         try
         {
             Task oldRunEnded = _applier.ApplyAsync(change.Updated, credentialsChanged: change.NewPasswords.Count > 0);
@@ -241,6 +253,9 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         {
             LogApplyFailed(ex);
         }
+
+        // Before the passwords of removed printers go: their proxies must not read them any more.
+        await webProxiesStopped.ConfigureAwait(false);
 
         // Step 5: passwords nothing references any more.
         int undeleted = 0;
@@ -297,6 +312,67 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         return complete;
     }
 
+    /// <summary>
+    /// Stops the local web proxies (T-028) of printers whose login is no longer what the proxy uses: removed printers,
+    /// a changed address, user name or connection type, and a new password. Renamed or untouched printers keep theirs,
+    /// so an open browser tab goes on working. Waits at most the apply timeout; never faults.
+    /// </summary>
+    private async Task StopWebProxiesAsync(SettingsChange change)
+    {
+        List<string> ids = WebLoginChanged(change);
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        // The gateway stops the proxies anyway when the wait is cancelled; the save only stops waiting for them.
+        using CancellationTokenSource timeout = new(_applyWaitTimeout);
+        await Task.WhenAll(ids.Select(id => StopWebProxyAsync(id, timeout.Token))).ConfigureAwait(false);
+    }
+
+    private async Task StopWebProxyAsync(string printerId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _webGateway.StopAsync(printerId, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            LogWebProxyStopTimedOut(printerId, _applyWaitTimeout);
+        }
+        catch (Exception ex)
+        {
+            // E.g. the gateway was disposed because the app is quitting: nothing serves the old login any more anyway.
+            LogWebProxyStopFailed(ex, printerId);
+        }
+    }
+
+    private static List<string> WebLoginChanged(SettingsChange change)
+    {
+        Dictionary<string, PrinterDefinition> updated = new(change.Updated.Printers.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (PrinterDefinition printer in change.Updated.Printers)
+        {
+            updated.TryAdd(printer.Id, printer);
+        }
+
+        HashSet<string> newPasswords = new(change.NewPasswords.Keys, StringComparer.OrdinalIgnoreCase);
+        HashSet<string> ids = new(StringComparer.OrdinalIgnoreCase);
+        // Only printers of the running configuration can have a proxy; a printer added now has none yet.
+        foreach (PrinterDefinition before in change.Original.Printers)
+        {
+            if (newPasswords.Contains(before.Id)
+                || !updated.TryGetValue(before.Id, out PrinterDefinition? after)
+                || after.ConnectionType != before.ConnectionType
+                || !string.Equals(after.Address, before.Address, StringComparison.Ordinal)
+                || !string.Equals(after.UserName, before.UserName, StringComparison.Ordinal))
+            {
+                ids.Add(before.Id);
+            }
+        }
+
+        return [.. ids];
+    }
+
     private static HashSet<string> Ids(AppSettings settings)
     {
         HashSet<string> ids = new(settings.Printers.Count, StringComparer.OrdinalIgnoreCase);
@@ -328,6 +404,12 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Monitoring did not restart within {Timeout}; passwords of removed printers are deleted anyway.")]
     private partial void LogOldRunStillRunning(TimeSpan timeout);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The web proxy of printer '{PrinterId}' did not stop within {Timeout}; it is stopped in the background.")]
+    private partial void LogWebProxyStopTimedOut(string printerId, TimeSpan timeout);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Stopping the web proxy of printer '{PrinterId}' after a settings change failed.")]
+    private partial void LogWebProxyStopFailed(Exception exception, string printerId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The password of removed printer '{PrinterId}' could not be deleted.")]
     private partial void LogPasswordNotDeleted(Exception exception, string printerId);

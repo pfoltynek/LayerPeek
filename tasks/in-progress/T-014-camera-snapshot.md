@@ -92,6 +92,7 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 - **Hláška o odstraněných údajích (2026-10-18):** zobrazí se jen u načtených tiskáren s kamerou, ne u vynechaných položek ani u souboru, který se načetl jako poškozený (`Corrupted`). Z takového souboru, pokud je syntakticky platný, se údaje také odstraní.
 - **Zrcadlo archivu FFmpeg (2026-10-18):** žádné. Když stažení selže, build skončí srozumitelnou chybou s návodem: aktualizovat `PtdFFmpegUrl` + SHA256, nebo předvyplnit cache / `PtdFFmpegCacheRoot`.
 - **Odstranění přihlašovacích údajů ze souboru při startu (2026-10-18):** smí se změnit **jen** text adresy kamery (a `enabled` na `false` u dotčené kamery). Nic jiného se nepřepisuje: neznámé hodnoty, přeskočené tiskárny, komentáře ani formátování. Řeší Core (`ISettingsStore.RemoveCameraCredentialsAsync`), ne uložení celého nastavení.
+- **Headless UI testy po merge s develop (2026-10-19):** mění rozhodnutí „Automatické ověření UI“ výše. UI testy kamery a licencí (22) se přesunuly do projektu `tests/PrusaTrayDiagnostic.App.UiTests` z T-031 a používají jeho infrastrukturu (holý `Avalonia.Headless`, vlastní `HeadlessSession` na xunit.v3 4.x, `UiTestScope`). Balíček `Avalonia.Headless.XUnit` a `VersionOverride` na `xunit.v3.mtp-v2` 3.2.2 se odstranily, všechny testovací projekty jsou na stejné verzi xunit.v3.
 - **Odstranění údajů i z „poškozeného“ souboru (2026-10-18):** platí pro každý syntakticky platný JSON soubor nastavení, i když ho `LoadAsync` kvůli chybnému typu hodnoty hlásí jako `Corrupted`. „Neparsovatelný“ dál znamená jen syntakticky neplatný JSON (včetně neplatného UTF-8). Upozornění v UI se týká jen načtených tiskáren (řeší ui-dev).
 
 ## Otevřené otázky
@@ -239,3 +240,45 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 
   Kompletní cache, kterou mezitím přejmenoval jiný build, tak zůstane nedotčená a vlastní stažení se zahodí. Znovu ověřeno: dva souběžné první buildy, inkrementální build, oprava cache se značkou i bez ní, design-time build, `-r osx-arm64`.
 - **Dokumentace (n5):** `docs/prerequisites.md` uvádí, že ručně vytvořený `verified.sha256` má obsahovat jeden řádek s hodnotou `PtdFFmpegSha256` (build zatím kontroluje jen existenci).
+
+### Merge s develop (2026-10-19)
+- **Konflikty (19 souborů)** jsou vyřešené tak, aby zůstalo chování obou stran: uživatelské jméno PrusaLink (T-027), jazyk aplikace (T-029), webová proxy PrusaLink (T-028), toasty (T-010) i kamera.
+  - `PrinterDefinition`, `SettingsDocument`, `SettingsMapper` mají `UserName` i `Camera`. `PrinterEditorViewModel.ToDefinition()` přenáší obojí.
+  - `SettingsEditorStore` dostává `IPrinterWebGateway` i `RemovedCameraCredentials`.
+  - `AppServices.Create` má přetížení s `windows` (T-010) i s továrnou kamery a úložištěm stavu oken.
+  - `TrayHost` po startu spustí toasty a načte stav oken kamery. Při ukončení počká na uložení stavu oken kamery a pak souběžně zastaví monitoring a webové proxy.
+  - Develop načítá nastavení před startem (`MonitoringSession.LoadSettingsAsync`, statická metoda kvůli jazyku). Odstranění přihlašovacích údajů ze souboru se proto přesunulo do ní (nový nepovinný parametr `RemovedCameraCredentials`). Platí stejně pro start z `TrayHost` i pro `Start()` bez načteného nastavení.
+  - `Strings.resx` a `Strings.cs.resx` jsou sjednocením položek `<data>` podle názvu. Žádný klíč nebyl změněný na obou stranách. Kódování bez BOM zůstalo.
+- **Překlady (T-029):** všech 42 textů kamery (sekce Kamera v nastavení, okno kamery, hláška o odstraněných údajích, okno licencí, O aplikaci, položka „Kamera…“) je přeložených do sk, de, es, fr, it a pl podle konvencí T-029:
+  - zástupné symboly beze změny, výpustka „…“ u položek, které otevírají okno;
+  - ve francouzštině nezlomitelná mezera před `:` a `;`;
+  - formální oslovení jako ve stávajících překladech;
+  - kamera = Kamera / Cámara / Caméra / Telecamera; tray menu = nabídka v oznamovací oblasti, Infobereich, área de notificación, zone de notification, area di notifica, obszar powiadomień.
+  Technický důvod chyby z dekodéru (anglicky) se nepřekládá, přeloží se jen věta kolem něj. Překlady nekontroloval rodilý mluvčí, stejně jako v T-029.
+- **Přepínání jazyka za běhu:** XAML okna kamery a sekce Kamera v nastavení používá `{Binding [Klíč], Source={x:Static loc:LocalizedStrings.Instance}}`. `XamlLocalizationTests` to hlídá.
+  - `CameraViewModel` implementuje `ILanguageAware`: titulek, stav připojení, tooltip a překryv stavu tisku se zformátují znovu ze zobrazeného stavu. Stream ani režim se nemění.
+  - `CameraWindows.RefreshTexts()` volá `App.OnLanguageChanged`.
+  - `LicensesViewModel` a `LicenseItemViewModel` formátují texty ze stavu (verze FFmpeg se znovu nenačítá). `AboutViewModel.RefreshTexts()` obnoví i okno licencí, které z něj bylo otevřené.
+  - `PrinterEditorViewModel.RefreshTexts()` znovu zformátuje chybu adresy kamery a výsledek testu kamery (uložený jako zdroj textu, stejně jako test spojení).
+  - Texty se formátují až při zobrazení. Jazyk textů se čte ze `Strings.Culture`, formát čísel ze systému.
+  - Ovládací prvky sekce Kamera mají `AutomationProperties.AutomationId` (jen atributy).
+- **UI testy (rozhodnutí 2026-10-19):** testy jsou rozdělené do složek `Cameras/`, `Settings/` a `About/`. Těla testů běží přes `HeadlessSession.RunAsync`. Jazyk a kulturu nastavuje relace (en-US), vlastní `TestApplication` a `CultureScope` v harnessu odpadly a testy používají skutečnou třídu `App`. Pomocné metody T-014 (`UntilAsync`, `Pixel`, `ShowsText`…) jsou v `Infrastructure/Ui.cs`.
+  - Dvojklik už nečeká 800 ms (`Task.Delay`). Druhý dvojklik míří na jiný bod, takže začne novou sérii kliknutí.
+  - `UntilAsync` dál krátce čeká v cyklu (10 ms), ale jen na práci na thread poolu (falešný stream, test kamery). UI se ustálí přes `Settle()`.
+  - Snímkové reference okna nastavení (4 PNG) jsou přegenerované, protože pod testem spojení je teď vidět sekce Kamera. Jiný rozdíl v nich není (zkontrolováno vizuálně).
+  - Nové testy přepnutí jazyka: UI 4 (okno kamery de + návrat na systém, O aplikaci + okno licencí fr, sekce Kamera sk), App.Tests 14 (`CameraViewModel`, `LicensesViewModel`, `AboutViewModel`, kamera v `PrinterEditorViewModel`, položka Kamera… v menu).
+- **Zámky a dočasné složky (T-032):**
+  - `App.Tests` `TestDirectories` je `ReservedTempDirectory` `PrusaTrayDiagnostic.App.Tests.Files.<id>`. Úklid po pádu maže i starou složku `%TEMP%\PrusaTrayDiagnostic.App.Tests` pod starým zámkem `PrusaTrayDiagnostic.App.Tests.Files.lock`.
+  - UI testy mají vlastní rezervaci `PrusaTrayDiagnostic.App.UiTests.Files.<id>` (`Infrastructure/UiTestDirectories.cs`, assembly fixture), oddělenou od složky selhání snímků. Starou složku `%TEMP%\PrusaTrayDiagnostic.App.UiTests` z T-014 neuklízí: její zámek patří rezervaci snímků, takže nejde ověřit, že ji nepoužívá starší běh. Starý kód ji maže sám na konci běhu.
+  - Testy FFmpeg a Core kamer dočasné soubory nevytvářejí, nebo už používají `TestDirectories` z Core (T-032). Po celém běhu `dotnet test` v `%TEMP%` nic nezůstalo.
+- **Licence:** T-028 nahradil balíčky `Microsoft.Extensions.*` 10.0.13 sdíleným frameworkem ASP.NET Core 11.0 (Kestrel). Ověřeno přes `project.assets.json` a seznam referencí ILC v AOT publish (`*.ilc.rsp`): do exe se kompiluje runtime pack `Microsoft.AspNetCore.App.Runtime.win-x64` 11.0.0-rc.2.26504.105 (Kestrel i `Microsoft.Extensions.*`). WindowsDesktop se nekompiluje.
+  - Položka „Microsoft.Extensions 10.0.13“ je nahrazená položkou „ASP.NET Core shared framework“: MIT (nuspec), texty `LICENSE.txt` a `THIRD-PARTY-NOTICES.TXT` z runtime packu (win-x64 a osx-arm64 jsou shodné). Verze se zobrazuje jako verze .NET.
+  - `extensions-third-party-notices.txt` je odstraněný.
+  - Nové testy: každý sdílený framework z referencí zdrojových projektů musí mít položku, a žádná položka nesmí uvádět balíček, který aplikace už neobnovuje (zastaralé položky).
+  - `aspnetcorev2_inprocess.dll` ve výstupu AOT publish není a DLL FFmpeg i `FFmpeg-LICENSE.txt` ano, obě úpravy výstupu fungují současně.
+- **Ověřeno (Windows 11):**
+  - `dotnet build` celé solution: 0 varování.
+  - `dotnet test`: 2492 testů, 0 selhání, 1 dřívější skip. App.Tests 1343, App.UiTests 67, Core 784, FFmpeg 36, PrusaLink 245, E2E 16, PrusaConnect 1.
+  - `dotnet publish -c Release -r win-x64`: 0 varování.
+  - Publikované AOT exe se spustí a běží (15 s, pak ukončeno).
+  - Neověřeno: vzhled přeložených textů v okně kamery a licencí na obrazovce (délka popisků), macOS.

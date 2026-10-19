@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -16,7 +17,7 @@ namespace PrusaTrayDiagnostic.App.Tray;
 /// printer and bumps a version when it changed, so the n lines are copied and formatted only after a visible change.
 /// Properties change and <see cref="ObservableObject.PropertyChanged"/> is raised on the UI thread only.
 /// </summary>
-internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource, IMonitoringObserver, IDisposable
+internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource, IMonitoringObserver, IDisposable, ILanguageAware
 {
     private readonly IPrinterMonitor _monitor;
     private readonly IUiDispatcher _dispatcher;
@@ -123,6 +124,33 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
             if (!TryAdvanceLocked(out key, out version, out summary))
             {
                 return;
+            }
+        }
+
+        Publish(key, version, summary);
+    }
+
+    /// <summary>
+    /// The language changed: the tooltip of the current state is formatted again and applied through the usual UI update
+    /// (a result formatted concurrently with the old language is outdated by the new version and dropped). Thread-safe.
+    /// </summary>
+    public void RefreshTexts()
+    {
+        TrayPresentationKey key;
+        long version;
+        ToolTipContent[]? summary = null;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            key = _latestKey;
+            version = ++_keyVersion;
+            if (key.Message == TrayMessage.Summary)
+            {
+                summary = [.. _contents];
             }
         }
 

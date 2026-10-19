@@ -22,6 +22,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private readonly SettingsViewModel _owner;
     private string _name;
     private string _address;
+    private string _userName;
+
+    // The saved user name (default for a new printer); kept for Prusa Connect, which does not use it.
+    private readonly string _savedUserName;
     private string _password = string.Empty;
     private ConnectionTypeOption _connectionType;
     private bool _isNew;
@@ -31,12 +35,16 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private bool _showErrors;
     private string? _nameProblem;
     private string? _addressProblem;
+    private string? _userNameProblem;
     private string? _passwordProblem;
 
     private CancellationTokenSource? _test;
     private bool _testCancelledByUser;
     private bool _isTesting;
     private string? _testResultText;
+
+    // What produced the test result, so that a language switch formats it again.
+    private Func<string>? _testResultSource;
     private TestResultKind _testResultKind;
 
     // Camera (T-014). The address field keeps an invalid address loaded from the file for correction.
@@ -50,6 +58,9 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private bool _cameraTestCancelledByUser;
     private bool _isTestingCamera;
     private string? _cameraTestResultText;
+
+    // What produced the camera test result, so that a language switch formats it again.
+    private Func<string>? _cameraTestResultSource;
     private TestResultKind _cameraTestResultKind;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
@@ -65,6 +76,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _hasSavedPassword = hasSavedPassword;
         _name = saved?.Name ?? string.Empty;
         _address = saved?.Address ?? string.Empty;
+        _savedUserName = saved?.UserName ?? PrinterUserName.Default;
+        _userName = _savedUserName;
         ConnectionType type = saved?.ConnectionType ?? ConnectionType.PrusaLink;
         ConnectionTypes = owner.ConnectionTypesFor(type);
         _connectionType = Array.Find((ConnectionTypeOption[])ConnectionTypes, option => option.Value == type)!;
@@ -78,6 +91,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         TestCameraCommand = new AsyncRelayCommand(TestCameraAsync, () => !_isTestingCamera && !_owner.IsDisposed);
         CancelCameraTestCommand = new RelayCommand(CancelCameraTest, () => _isTestingCamera);
         ValidateAddress();
+        ValidateUserName();
         ValidatePassword();
         ValidateCamera();
     }
@@ -139,10 +153,18 @@ public sealed class PrinterEditorViewModel : ObservableObject
                 ForgetPassword();
             }
 
+            if (!IsPrusaLink)
+            {
+                // Prusa Connect does not use the disabled field, so it shows (and keeps) the saved user name.
+                SetProperty(ref _userName, _savedUserName, nameof(UserName));
+            }
+
+            OnPropertyChanged(nameof(UserNameHint));
             OnPasswordPresentationChanged();
             TestConnectionCommand.NotifyCanExecuteChanged();
             InvalidateTest();
             ValidateAddress();
+            ValidateUserName();
             ValidatePassword();
             RevealErrors();
             _owner.OnPrinterEdited(nameChanged: false);
@@ -165,6 +187,28 @@ public sealed class PrinterEditorViewModel : ObservableObject
             }
         }
     }
+
+    /// <summary>
+    /// PrusaLink user name (not a secret; saved trimmed with the definition). Validated by <see cref="PrinterUserName"/>;
+    /// ignored for Prusa Connect, which keeps the saved one.
+    /// </summary>
+    public string UserName
+    {
+        get => _userName;
+        set
+        {
+            if (SetProperty(ref _userName, value ?? string.Empty))
+            {
+                InvalidateTest();
+                ValidateUserName();
+                RevealErrors();
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>Explanation under the user name field.</summary>
+    public string UserNameHint => IsPrusaLink ? Strings.SettingsUserNameHint : Strings.SettingsUserNameNotUsed;
 
     /// <summary>A new password (not saved yet); empty keeps the saved one. Never logged.</summary>
     public string Password
@@ -202,10 +246,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public string? AddressError => _showErrors ? _addressProblem : null;
 
+    public string? UserNameError => _showErrors ? _userNameProblem : null;
+
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors => _nameProblem is not null || _addressProblem is not null || _passwordProblem is not null || _cameraBlocksSave;
+    public bool HasErrors =>
+        _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || _passwordProblem is not null || _cameraBlocksSave;
 
     /// <summary>The list marks the printer as invalid.</summary>
     public bool ShowsErrorMarker => _showErrors && HasErrors;
@@ -309,11 +356,22 @@ public sealed class PrinterEditorViewModel : ObservableObject
     /// <summary>The field holds a password that will be saved.</summary>
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
-    /// <summary>The definition to save; <see langword="null"/> while the name, address or camera is invalid.</summary>
+    /// <summary>The definition to save; <see langword="null"/> while the name, address, user name or camera is invalid.</summary>
     internal PrinterDefinition? ToDefinition() =>
-        _nameProblem is not null || _addressProblem is not null || BuildCamera() is not { } camera
+        _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || BuildCamera() is not { } camera
             ? null
-            : new PrinterDefinition { Id = Id, Name = _name, ConnectionType = _connectionType.Value, Address = _address, Camera = camera };
+            : new PrinterDefinition
+            {
+                Id = Id,
+                Name = _name,
+                ConnectionType = _connectionType.Value,
+                Address = _address,
+                UserName = EffectiveUserName,
+                Camera = camera,
+            };
+
+    /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
+    private string EffectiveUserName => IsPrusaLink ? _userName : _savedUserName;
 
     /// <summary>
     /// The camera as entered; <see langword="null"/> when it cannot be saved (an enabled camera without a valid address,
@@ -381,6 +439,34 @@ public sealed class PrinterEditorViewModel : ObservableObject
         CameraCredentialsRemoved = false;
     }
 
+    /// <summary>
+    /// UI thread: the language changed. Validation messages, the connection and camera test results, the user name hint
+    /// and the password texts are formatted again (the owner refreshes the name problem); nothing that was typed or tested
+    /// changes.
+    /// </summary>
+    internal void RefreshTexts()
+    {
+        ValidateAddress();
+        ValidateUserName();
+        ValidatePassword();
+        if (_testResultSource is { } source)
+        {
+            _testResultText = source();
+            OnPropertyChanged(nameof(TestResultText));
+        }
+
+        ValidateCamera();
+        if (_cameraTestResultSource is { } cameraSource)
+        {
+            _cameraTestResultText = cameraSource();
+            OnPropertyChanged(nameof(CameraTestResultText));
+        }
+
+        OnPropertyChanged(nameof(DisplayName));
+        OnPropertyChanged(nameof(UserNameHint));
+        OnPasswordPresentationChanged();
+    }
+
     /// <summary>The printer was removed or the window closed: stops running tests and forgets a typed password.</summary>
     internal void Detach()
     {
@@ -406,11 +492,12 @@ public sealed class PrinterEditorViewModel : ObservableObject
             return;
         }
 
-        if (_addressProblem is not null)
+        if (_addressProblem is not null || _userNameProblem is not null)
         {
-            // Never send anything to an address the client would refuse; explain it like the inline error does.
+            // Never send anything to an address the client would refuse or with a user name the definition would reject;
+            // explain it like the inline error does.
             RevealErrors();
-            SetTestResult(_addressProblem, TestResultKind.Failure);
+            SetTestResult(() => AddressProblem() ?? UserNameProblem() ?? Strings.SettingsErrorAddressInvalid, TestResultKind.Failure);
             return;
         }
 
@@ -420,6 +507,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
             Name = _name.Trim() is { Length: > 0 } name ? name : Id,
             ConnectionType = _connectionType.Value,
             Address = _address,
+            UserName = EffectiveUserName,
         };
 
         // Typed password, else the saved one (null); a printer that has none is tested without one.
@@ -431,17 +519,17 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _test = test;
         _testCancelledByUser = false;
         IsTesting = true;
-        SetTestResult(Strings.SettingsTesting, TestResultKind.Running);
+        SetTestResult(static () => Strings.SettingsTesting, TestResultKind.Running);
         try
         {
             ConnectionTestResult result = await _owner.Tester.TestAsync(printer, password, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
-                SetTestResult(Describe(result), result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+                SetTestResult(() => Describe(result), result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
             }
             else if (_testCancelledByUser)
             {
-                SetTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+                SetTestResult(static () => Strings.SettingsTestCancelled, TestResultKind.Information);
             }
         }
         catch (OperationCanceledException) when (test.IsCancellationRequested)
@@ -449,13 +537,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
             // Cancelled by the user; an edit, removal or closing the window already cleared the result.
             if (_testCancelledByUser)
             {
-                SetTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+                SetTestResult(static () => Strings.SettingsTestCancelled, TestResultKind.Information);
             }
         }
         catch (Exception)
         {
             // A command handler must never throw into the UI.
-            SetTestResult(Strings.SettingsTestFailed, TestResultKind.Failure);
+            SetTestResult(static () => Strings.SettingsTestFailed, TestResultKind.Failure);
         }
         finally
         {
@@ -480,7 +568,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         {
             // Never open an address that could not be saved; explain it like the inline error does.
             RevealErrors();
-            SetCameraTestResult(CameraProblemText(problem), TestResultKind.Failure);
+            SetCameraTestResult(() => CameraProblemText(problem), TestResultKind.Failure);
             return;
         }
 
@@ -488,17 +576,17 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _cameraTest = test;
         _cameraTestCancelledByUser = false;
         IsTestingCamera = true;
-        SetCameraTestResult(Strings.SettingsCameraTesting, TestResultKind.Running);
+        SetCameraTestResult(static () => Strings.SettingsCameraTesting, TestResultKind.Running);
         try
         {
             CameraTestResult result = await _owner.CameraTester.TestAsync(uri, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
-                SetCameraTestResult(Describe(result), result.Outcome == CameraTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+                SetCameraTestResult(() => Describe(result), result.Outcome == CameraTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
             }
             else if (_cameraTestCancelledByUser)
             {
-                SetCameraTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+                SetCameraTestResult(static () => Strings.SettingsTestCancelled, TestResultKind.Information);
             }
         }
         catch (OperationCanceledException) when (test.IsCancellationRequested)
@@ -506,13 +594,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
             // Cancelled by the user; an edit, removal or closing the window already cleared the result.
             if (_cameraTestCancelledByUser)
             {
-                SetCameraTestResult(Strings.SettingsTestCancelled, TestResultKind.Information);
+                SetCameraTestResult(static () => Strings.SettingsTestCancelled, TestResultKind.Information);
             }
         }
         catch (Exception)
         {
             // A command handler must never throw into the UI.
-            SetCameraTestResult(Strings.SettingsCameraTestFailedUnknown, TestResultKind.Failure);
+            SetCameraTestResult(static () => Strings.SettingsCameraTestFailedUnknown, TestResultKind.Failure);
         }
         finally
         {
@@ -550,8 +638,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _ => Format(Strings.SettingsCameraTestFailed, result.Reason),
     };
 
-    private void SetCameraTestResult(string? text, TestResultKind kind)
+    private void SetCameraTestResult(Func<string>? source, TestResultKind kind)
     {
+        _cameraTestResultSource = source;
+        string? text = source?.Invoke();
         bool textChanged = _cameraTestResultText != text;
         bool kindChanged = _cameraTestResultKind != kind;
         _cameraTestResultText = text;
@@ -635,8 +725,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _ => Strings.SettingsTestUnexpectedResponse,
     };
 
-    private void SetTestResult(string? text, TestResultKind kind)
+    private void SetTestResult(Func<string>? source, TestResultKind kind)
     {
+        _testResultSource = source;
+        string? text = source?.Invoke();
         bool textChanged = _testResultText != text;
         bool kindChanged = _testResultKind != kind;
         _testResultText = text;
@@ -654,15 +746,40 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
     }
 
+    private string? AddressProblem() =>
+        _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
+        // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
+        : IsPrusaLink && !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
+        : null;
+
     private void ValidateAddress()
     {
-        string? problem = _address.Trim().Length == 0 ? Strings.SettingsErrorAddressRequired
-            // Exactly the rules of the PrusaLink client and the tray menu (credentials, query, fragment, scheme).
-            : IsPrusaLink && !PrusaLinkAddress.TryCreateBaseUri(_address, out _) ? Strings.SettingsErrorAddressInvalid
-            : null;
+        string? problem = AddressProblem();
         if (_addressProblem != problem)
         {
             _addressProblem = problem;
+            OnErrorsChanged();
+        }
+    }
+
+    // The rules live in Core (PrinterUserName); only the wording is decided here.
+    private string? UserNameProblem() =>
+        (IsPrusaLink ? PrinterUserName.Validate(_userName) : PrinterUserNameError.None) switch
+        {
+            PrinterUserNameError.None => null,
+            PrinterUserNameError.Empty => Strings.SettingsErrorUserNameRequired,
+            PrinterUserNameError.TooLong => Format(Strings.SettingsErrorUserNameTooLong, PrinterUserName.MaxLength),
+            PrinterUserNameError.ContainsControlCharacter => Strings.SettingsErrorUserNameControlCharacter,
+            PrinterUserNameError.ContainsColon => Strings.SettingsErrorUserNameColon,
+            _ => Strings.SettingsErrorUserNameUnsupported,
+        };
+
+    private void ValidateUserName()
+    {
+        string? problem = UserNameProblem();
+        if (_userNameProblem != problem)
+        {
+            _userNameProblem = problem;
             OnErrorsChanged();
         }
     }
@@ -686,6 +803,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(NameError));
         OnPropertyChanged(nameof(AddressError));
+        OnPropertyChanged(nameof(UserNameError));
         OnPropertyChanged(nameof(PasswordError));
         OnPropertyChanged(nameof(CameraUrlError));
         OnPropertyChanged(nameof(HasErrors));

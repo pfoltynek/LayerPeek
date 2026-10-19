@@ -30,6 +30,9 @@ public partial class App : Application, ITrayAppCommands
     private TrayHost? _host;
     private QuitCoordinator? _quit;
 
+    // The OS ended the session (desktop Exit) before the host finished starting.
+    private bool _exited;
+
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     public override void OnFrameworkInitializationCompleted()
@@ -37,12 +40,41 @@ public partial class App : Application, ITrayAppCommands
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && !Design.IsDesignMode)
         {
             TrayIcon? trayIcon = TrayIcon.GetIcons(this) is [TrayIcon first, ..] ? first : null;
-            _host = TrayHost.Start(trayIcon, this);
-            _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, _host.CreateLogger<QuitCoordinator>());
             desktop.Exit += OnDesktopExit;
+            StartHost(desktop, trayIcon);
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>
+    /// The settings are loaded before the tray gets its menu (milliseconds, with the static icon from App.axaml
+    /// meanwhile), so that every text starts in the saved language. async void: a startup failure crashes the app as
+    /// before instead of leaving it silently without a menu.
+    /// </summary>
+    private async void StartHost(IClassicDesktopStyleApplicationLifetime desktop, TrayIcon? trayIcon)
+    {
+        TrayHost host = await TrayHost.StartAsync(trayIcon, this).ConfigureAwait(true);
+        if (_exited)
+        {
+            // The OS ended the session while the settings were loading.
+            host.RequestStop();
+            host.ReleaseLogging();
+            return;
+        }
+
+        _host = host;
+        _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
+        host.LanguageChanged += OnLanguageChanged;
+    }
+
+    /// <summary>The tray already switched; open windows format the texts of their view models again.</summary>
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        _settingsWindow.RefreshTexts();
+        _diagnosticsWindow.RefreshTexts();
+        _aboutWindow.RefreshTexts();
+        _cameraWindows?.RefreshTexts();
     }
 
     void ITrayAppCommands.ShowDiagnostics(string? printerId)
@@ -151,6 +183,8 @@ public partial class App : Application, ITrayAppCommands
 
     private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
+        _exited = true;
+
         // Exit initiated by the OS (log off, shutdown): only request the stop, the process ends right after.
         if (_quit is not { IsQuitting: true })
         {

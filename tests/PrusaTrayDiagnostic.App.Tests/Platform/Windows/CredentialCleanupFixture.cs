@@ -6,7 +6,7 @@ using PrusaTrayDiagnostic.Tests.Shared;
 namespace PrusaTrayDiagnostic.App.Tests.Platform.Windows;
 
 /// <summary>
-/// Removes all test credentials before the first test (leftovers of a crashed run) and after the last one.
+/// Removes all test credentials and test shortcut files (<see cref="TestShortcuts"/>) before the first test (leftovers of a crashed run) and after the last one.
 /// Per-test cleanup still happens in the tests; this is the safety net. Concurrent runs of this assembly
 /// are serialized by <see cref="TestRunLock"/>.
 /// </summary>
@@ -42,12 +42,15 @@ public sealed class CredentialCleanupFixture : IAsyncLifetime
         }
     }
 
-    private static Task SweepAsync() =>
-        TestRunLock.RetryAsync("delete test credentials", static () =>
+    private static async Task SweepAsync()
+    {
+        await TestRunLock.RetryAsync("delete test credentials", static () =>
         {
             if (OperatingSystem.IsWindows())
             {
                 TestCredentials.DeleteAll();
             }
         });
+        await TestRunLock.RetryAsync("delete test shortcuts", TestShortcuts.DeleteAll);
+    }
 }

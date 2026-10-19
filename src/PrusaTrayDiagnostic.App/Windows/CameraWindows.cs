@@ -74,6 +74,15 @@ internal sealed class CameraWindows
         return slot.IsOpen;
     }
 
+    /// <summary>The language changed (T-029): every open camera window formats its texts again.</summary>
+    public void RefreshTexts()
+    {
+        foreach (AuxiliaryWindowSlot slot in _slots.Values)
+        {
+            slot.RefreshTexts();
+        }
+    }
+
     /// <summary>Closes every window (stopping its stream) and refuses new ones. Safe to call repeatedly.</summary>
     public void Shutdown()
     {

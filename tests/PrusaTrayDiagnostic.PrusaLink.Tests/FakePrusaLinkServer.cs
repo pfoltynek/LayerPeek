@@ -8,7 +8,7 @@ namespace PrusaTrayDiagnostic.PrusaLink.Tests;
 
 /// <summary>
 /// In-memory imitation of the PrusaLink server in Buddy firmware 6.x: RFC 2069 digest (MD5, no qop) with
-/// realm "Printer API" and user "maker", nonces valid until replaced (stale=true for a replaced nonce),
+/// realm "Printer API" and user <see cref="UserName"/> ("maker" by default), nonces valid until replaced (stale=true for a replaced nonce),
 /// 204 for /api/v1/job without a job. Digest is verified independently of the production implementation.
 /// </summary>
 internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
@@ -23,6 +23,9 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
 
     public string Password { get; set; } = "Rk7mPq2x";
 
+    /// <summary>The only user the server accepts.</summary>
+    public string UserName { get; set; } = "maker";
+
     /// <summary>Scheme of the challenge: "Digest" (firmware default) or e.g. "ApiKey".</summary>
     public string ChallengeScheme { get; set; } = "Digest";
 
@@ -36,6 +39,17 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
 
     /// <summary>Awaited at the start of every request, e.g. to make requests overlap.</summary>
     public Func<Task>? BeforeRequest { get; set; }
+
+    /// <summary>
+    /// Paths served without login (the firmware asks for Digest only on the API, not on the web pages and scripts).
+    /// </summary>
+    public Func<string, bool>? IsPublicPath { get; set; }
+
+    /// <summary>
+    /// Answers authorized requests (after the digest check) instead of the static routes, e.g. to stream bodies. Such
+    /// requests are recorded with status 100 (Continue) before the handler runs.
+    /// </summary>
+    public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Handler { get; set; }
 
     /// <summary>Replaces the whole response, e.g. to throw or delay.</summary>
     public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? Override { get; set; }
@@ -55,8 +69,8 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
         CurrentNonce = NextNonce();
     }
 
-    public static string ExpectedResponse(string password, string nonce, string method, string uri) =>
-        Md5Hex($"{Md5Hex($"maker:{Realm}:{password}")}:{nonce}:{Md5Hex($"{method}:{uri}")}");
+    public static string ExpectedResponse(string password, string nonce, string method, string uri, string userName = "maker") =>
+        Md5Hex($"{Md5Hex($"{userName}:{Realm}:{password}")}:{nonce}:{Md5Hex($"{method}:{uri}")}");
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
@@ -74,7 +88,8 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
 
         string uri = request.RequestUri!.PathAndQuery;
         string? authorization = request.Headers.Authorization?.ToString();
-        if (Authenticate(request.Method.Method, uri, authorization) is { } challenge)
+        bool isPublic = IsPublicPath?.Invoke(request.RequestUri.AbsolutePath) ?? false;
+        if (!isPublic && Authenticate(request.Method.Method, uri, authorization) is { } challenge)
         {
             Record(request, HttpStatusCode.Unauthorized);
             HttpResponseMessage unauthorized = new(HttpStatusCode.Unauthorized)
@@ -83,6 +98,12 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
             };
             unauthorized.Headers.TryAddWithoutValidation("WWW-Authenticate", challenge);
             return unauthorized;
+        }
+
+        if (Handler is not null)
+        {
+            Record(request, HttpStatusCode.Continue);
+            return await Handler(request, cancellationToken);
         }
 
         (HttpStatusCode status, string? body) = _routes.TryGetValue(request.RequestUri.AbsolutePath, out var route)
@@ -110,9 +131,9 @@ internal sealed partial class FakePrusaLinkServer : HttpMessageHandler
         {
             string? nonce = Parameter(authorization, "nonce");
             string? response = Parameter(authorization, "response");
-            if (nonce is not null && response is not null)
+            if (nonce is not null && response is not null && Parameter(authorization, "username") == UserName)
             {
-                bool correctForNonce = response == ExpectedResponse(Password, nonce, method, uri);
+                bool correctForNonce = response == ExpectedResponse(Password, nonce, method, uri, UserName);
                 if (correctForNonce && nonce == CurrentNonce)
                 {
                     return null;

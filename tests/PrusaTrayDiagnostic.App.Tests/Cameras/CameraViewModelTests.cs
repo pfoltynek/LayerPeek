@@ -306,6 +306,66 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.Equal(CameraWindowMode.Normal, _states.Get("b").Mode);
     }
 
+    // ---- Language switch (T-029) ----
+
+    [Fact]
+    public void RefreshTextsFormatsTitleStatusTipAndPrintOverlayInTheNewLanguage()
+    {
+        CameraViewModel viewModel = Create(name: "MK4");
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42.7, TimeSpan.FromMinutes(65))));
+        _dispatcher.RunAll();
+        Assert.Equal("MK4 – Camera", viewModel.Title);
+        List<string?> changes = [];
+        viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        using (new CultureScope("de-DE"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal("MK4 – Kamera", viewModel.Title);
+            Assert.Equal("Verbindung zur Kamera wird hergestellt…", viewModel.StatusText);
+            Assert.Equal("Vollbild (F11)", viewModel.FullScreenToolTip);
+            Assert.StartsWith("Druckt – 42", viewModel.PrintStateText, StringComparison.Ordinal);
+            Assert.StartsWith("Noch ", viewModel.RemainingText, StringComparison.Ordinal);
+        }
+
+        Assert.Contains(nameof(CameraViewModel.Title), changes);
+        Assert.Contains(nameof(CameraViewModel.StatusText), changes);
+        Assert.Contains(nameof(CameraViewModel.FullScreenToolTip), changes);
+        Assert.Contains(nameof(CameraViewModel.PrintStateText), changes);
+        Assert.Contains(nameof(CameraViewModel.RemainingText), changes);
+        // Nothing else changed: no new connection, the mode stays.
+        Assert.True(viewModel.IsNormal);
+        Assert.Empty(_factory.Uris);
+    }
+
+    [Fact]
+    public void RefreshTextsBeforeThePrinterWasPolledKeepsTheOverlayHidden()
+    {
+        CameraViewModel viewModel = Create();
+
+        using (new CultureScope("de-DE"))
+        {
+            viewModel.RefreshTexts();
+        }
+
+        Assert.Null(viewModel.PrintStateText);
+        Assert.False(viewModel.IsPrintOverlayVisible);
+    }
+
+    [Fact]
+    public void RefreshTextsAfterDisposeDoesNothing()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.Dispose();
+        List<string?> changes = [];
+        viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        viewModel.RefreshTexts();
+
+        Assert.Empty(changes);
+    }
+
     // ---- Print overlay ----
 
     [Fact]

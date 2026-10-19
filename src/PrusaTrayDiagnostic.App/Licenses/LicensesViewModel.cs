@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Camera.FFmpeg;
@@ -11,26 +12,28 @@ using PrusaTrayDiagnostic.Camera.FFmpeg;
 namespace PrusaTrayDiagnostic.App.Licenses;
 
 /// <summary>One component in the third-party licences window; its full text is read when the entry is first expanded.</summary>
-public sealed partial class LicenseItemViewModel : ObservableObject
+public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAware
 {
     private readonly ThirdPartyComponent _component;
     private readonly IUrlLauncher _launcher;
     private bool _isExpanded;
     private string? _fullText;
 
+    // The text could not be read: the "unavailable" notice is shown (in the current language).
+    private bool _textUnavailable;
+
     internal LicenseItemViewModel(ThirdPartyComponent component, IUrlLauncher launcher)
     {
         _component = component;
         _launcher = launcher;
-        VersionText = Format(Strings.LicensesVersion, component.Version ?? RuntimeInformation.FrameworkDescription);
-        LicenseText = Format(Strings.LicensesLicense, component.License);
+        FormatTexts();
     }
 
     public string Name => _component.Name;
 
-    public string VersionText { get; }
+    public string VersionText { get; private set; } = string.Empty;
 
-    public string LicenseText { get; }
+    public string LicenseText { get; private set; } = string.Empty;
 
     public string ProjectUrl => _component.ProjectUri.AbsoluteUri;
 
@@ -53,6 +56,24 @@ public sealed partial class LicenseItemViewModel : ObservableObject
         private set => SetProperty(ref _fullText, value);
     }
 
+    /// <summary>UI thread: the language changed; the version, licence and a "text unavailable" notice are formatted again.</summary>
+    public void RefreshTexts()
+    {
+        FormatTexts();
+        OnPropertyChanged(nameof(VersionText));
+        OnPropertyChanged(nameof(LicenseText));
+        if (_textUnavailable)
+        {
+            FullText = Strings.LicensesTextUnavailable;
+        }
+    }
+
+    private void FormatTexts()
+    {
+        VersionText = Format(Strings.LicensesVersion, _component.Version ?? RuntimeInformation.FrameworkDescription);
+        LicenseText = Format(Strings.LicensesLicense, _component.License);
+    }
+
     private string ReadText()
     {
         try
@@ -61,6 +82,7 @@ public sealed partial class LicenseItemViewModel : ObservableObject
         }
         catch (InvalidOperationException)
         {
+            _textUnavailable = true;
             return Strings.LicensesTextUnavailable;
         }
     }
@@ -78,14 +100,17 @@ public sealed partial class LicenseItemViewModel : ObservableObject
 /// The FFmpeg version is read off the UI thread (it loads the native libraries); a missing FFmpeg is shown, not thrown.
 /// UI thread only.
 /// </summary>
-public sealed partial class LicensesViewModel : ObservableObject
+public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
 {
     private readonly IUrlLauncher _launcher;
     private readonly Func<string> _ffmpegVersion;
     private readonly Func<string?> _ffmpegLicenseText;
-    private string _ffmpegVersionText = Strings.LicensesFFmpegLoading;
-    private string? _ffmpegFullText;
     private bool _loadStarted;
+
+    // What LoadAsync found; the texts are formatted from it in the current language (T-029).
+    private bool _loaded;
+    private string? _loadedVersion;
+    private string? _loadedLicenseText;
 
     internal LicensesViewModel(IUrlLauncher launcher)
         : this(launcher, static () => FFmpegCameraFeedFactory.LibraryVersion, ReadShippedFFmpegLicense)
@@ -103,43 +128,70 @@ public sealed partial class LicensesViewModel : ObservableObject
         _ffmpegVersion = ffmpegVersion;
         _ffmpegLicenseText = ffmpegLicenseText;
         Components = [.. ThirdPartyLicenses.All.Select(component => new LicenseItemViewModel(component, launcher))];
+        FormatTexts();
     }
 
-    public string Title { get; } = Strings.LicensesTitle;
+    public string Title { get; private set; } = string.Empty;
 
-    public string Intro { get; } = Strings.LicensesIntro;
+    public string Intro { get; private set; } = string.Empty;
 
-    public string FFmpegHeader { get; } = Strings.LicensesFFmpegHeader;
+    public string FFmpegHeader { get; private set; } = string.Empty;
 
-    public string FFmpegLicenseText { get; } = Format(Strings.LicensesLicense, ThirdPartyLicenses.FFmpeg.License);
+    public string FFmpegLicenseText { get; private set; } = string.Empty;
 
-    public string FFmpegNote { get; } = Strings.LicensesFFmpegNote;
+    public string FFmpegNote { get; private set; } = string.Empty;
 
     /// <summary>Versions of the loaded FFmpeg libraries, "detecting…" before <see cref="LoadAsync"/>, or that FFmpeg is missing.</summary>
-    public string FFmpegVersionText
-    {
-        get => _ffmpegVersionText;
-        private set => SetProperty(ref _ffmpegVersionText, value);
-    }
+    public string FFmpegVersionText =>
+        !_loaded ? Strings.LicensesFFmpegLoading
+        : _loadedVersion ?? Strings.LicensesFFmpegMissing;
 
     /// <summary>The shipped FFmpeg licence (or where to find it); <see langword="null"/> before <see cref="LoadAsync"/>.</summary>
-    public string? FFmpegFullText
+    public string? FFmpegFullText =>
+        !_loaded ? null
+        : _loadedLicenseText ?? Strings.LicensesFFmpegLicenseMissing;
+
+    public string LicenseTextHeader { get; private set; } = string.Empty;
+
+    public string ProjectText { get; private set; } = string.Empty;
+
+    public string FFmpegSourceText { get; private set; } = string.Empty;
+
+    public string FFmpegBuildText { get; private set; } = string.Empty;
+
+    public string FFmpegBuildScriptsText { get; private set; } = string.Empty;
+
+    public string CloseText { get; private set; } = string.Empty;
+
+    /// <summary>
+    /// UI thread: the language changed (T-029); every text of the window and of its components is formatted again (the
+    /// FFmpeg version is not read again).
+    /// </summary>
+    public void RefreshTexts()
     {
-        get => _ffmpegFullText;
-        private set => SetProperty(ref _ffmpegFullText, value);
+        foreach (LicenseItemViewModel component in Components)
+        {
+            component.RefreshTexts();
+        }
+
+        FormatTexts();
+        OnPropertyChanged(string.Empty);
     }
 
-    public string LicenseTextHeader { get; } = Strings.LicensesShowText;
-
-    public string ProjectText { get; } = Strings.LicensesProject;
-
-    public string FFmpegSourceText { get; } = Strings.LicensesFFmpegSource;
-
-    public string FFmpegBuildText { get; } = Strings.LicensesFFmpegBuild;
-
-    public string FFmpegBuildScriptsText { get; } = Strings.LicensesFFmpegBuildScripts;
-
-    public string CloseText { get; } = Strings.AboutClose;
+    private void FormatTexts()
+    {
+        Title = Strings.LicensesTitle;
+        Intro = Strings.LicensesIntro;
+        FFmpegHeader = Strings.LicensesFFmpegHeader;
+        FFmpegLicenseText = Format(Strings.LicensesLicense, ThirdPartyLicenses.FFmpeg.License);
+        FFmpegNote = Strings.LicensesFFmpegNote;
+        LicenseTextHeader = Strings.LicensesShowText;
+        ProjectText = Strings.LicensesProject;
+        FFmpegSourceText = Strings.LicensesFFmpegSource;
+        FFmpegBuildText = Strings.LicensesFFmpegBuild;
+        FFmpegBuildScriptsText = Strings.LicensesFFmpegBuildScripts;
+        CloseText = Strings.AboutClose;
+    }
 
     public IReadOnlyList<LicenseItemViewModel> Components { get; }
 
@@ -165,9 +217,9 @@ public sealed partial class LicensesViewModel : ObservableObject
         }
 
         _loadStarted = true;
-        (string version, string? text) = await Task.Run(() =>
+        (string? version, string? text) = await Task.Run(() =>
         {
-            string version;
+            string? version;
             try
             {
                 version = _ffmpegVersion();
@@ -175,7 +227,7 @@ public sealed partial class LicensesViewModel : ObservableObject
             catch (Exception)
             {
                 // Missing or broken native libraries: the camera reports it too; here it is just information.
-                version = Strings.LicensesFFmpegMissing;
+                version = null;
             }
 
             string? text;
@@ -190,8 +242,11 @@ public sealed partial class LicensesViewModel : ObservableObject
 
             return (version, text);
         }).ConfigureAwait(true);
-        FFmpegVersionText = version;
-        FFmpegFullText = string.IsNullOrWhiteSpace(text) ? Strings.LicensesFFmpegLicenseMissing : text;
+        _loaded = true;
+        _loadedVersion = version;
+        _loadedLicenseText = string.IsNullOrWhiteSpace(text) ? null : text;
+        OnPropertyChanged(nameof(FFmpegVersionText));
+        OnPropertyChanged(nameof(FFmpegFullText));
     }
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);

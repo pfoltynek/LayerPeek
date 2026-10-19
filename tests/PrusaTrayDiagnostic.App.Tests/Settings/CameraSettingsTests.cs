@@ -1,6 +1,7 @@
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Tray;
+using PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -240,7 +241,7 @@ public sealed class CameraSettingsTests : IDisposable
         JsonSettingsStore file = await SettingsFiles.WithCameraCredentialsAsync(_directory, Ct);
         RemovedCameraCredentials atStartup = new();
         atStartup.Add(["b"]);
-        SettingsEditorStore store = new(() => file, new FakeSecretStore(), Supported, new RecordingApplier(), new ListLogger<SettingsEditorStore>(), removedCameraCredentials: atStartup);
+        SettingsEditorStore store = new(() => file, new FakeSecretStore(), Supported, new RecordingApplier(), new FakeWebGateway(), new ListLogger<SettingsEditorStore>(), removedCameraCredentials: atStartup);
 
         SettingsEditorData data = await store.LoadAsync(Ct);
 
@@ -256,7 +257,7 @@ public sealed class CameraSettingsTests : IDisposable
         MemorySettingsStore settings = new();
         RemovedCameraCredentials atStartup = new();
         atStartup.Add(["a"]);
-        SettingsEditorStore store = new(() => settings, new FakeSecretStore(), Supported, new RecordingApplier(), new ListLogger<SettingsEditorStore>(), removedCameraCredentials: atStartup);
+        SettingsEditorStore store = new(() => settings, new FakeSecretStore(), Supported, new RecordingApplier(), new FakeWebGateway(), new ListLogger<SettingsEditorStore>(), removedCameraCredentials: atStartup);
 
         SettingsSaveResult result = await store.SaveAsync(new SettingsChange(AppSettings.Default, AppSettings.Default, new Dictionary<string, string>()));
 
@@ -270,7 +271,7 @@ public sealed class CameraSettingsTests : IDisposable
         MemorySettingsStore settings = new() { SaveFailure = new IOException("disk full") };
         RemovedCameraCredentials atStartup = new();
         atStartup.Add(["a"]);
-        SettingsEditorStore store = new(() => settings, new FakeSecretStore(), Supported, new RecordingApplier(), new ListLogger<SettingsEditorStore>(), removedCameraCredentials: atStartup);
+        SettingsEditorStore store = new(() => settings, new FakeSecretStore(), Supported, new RecordingApplier(), new FakeWebGateway(), new ListLogger<SettingsEditorStore>(), removedCameraCredentials: atStartup);
 
         await store.SaveAsync(new SettingsChange(AppSettings.Default, AppSettings.Default, new Dictionary<string, string>()));
 
@@ -398,6 +399,73 @@ public sealed class CameraSettingsTests : IDisposable
     }
 
     /// <summary>Camera tester driven by the test: answers immediately, throws, or waits for cancellation.</summary>
+    // ---- Language switch (T-029) ----
+
+    [Fact]
+    public async Task RefreshTextsTranslatesTheCameraErrorAndKeepsTheEdits()
+    {
+        SettingsViewModel vm = await LoadAsync(null, LinkPrinter("a", "Alpha"));
+        PrinterEditorViewModel printer = vm.Printers[0];
+        printer.CameraEnabled = true;
+        printer.CameraUrl = "http://192.168.0.227/live";
+        Assert.Equal("Only rtsp:// addresses are supported.", printer.CameraUrlError);
+        List<string?> changes = [];
+        printer.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        using (new CultureScope("de-DE"))
+        {
+            vm.RefreshTexts();
+        }
+
+        Assert.Equal("Es werden nur rtsp://-Adressen unterstützt.", printer.CameraUrlError);
+        Assert.Contains(nameof(PrinterEditorViewModel.CameraUrlError), changes);
+        Assert.Equal("http://192.168.0.227/live", printer.CameraUrl);
+        Assert.True(printer.CameraEnabled);
+        Assert.True(printer.HasErrors);
+    }
+
+    [Theory]
+    [InlineData(CameraTestOutcome.Success, null, "Die Kamera funktioniert (1280 × 720 px).")]
+    [InlineData(CameraTestOutcome.Timeout, null, "Innerhalb von 15 s kam kein Bild von der Kamera.")]
+    // The reason comes from the decoder (technical, English) and is not translated; the sentence around it is.
+    [InlineData(CameraTestOutcome.Failed, "Connection refused.", "Der Kamerastream konnte nicht geöffnet werden: Connection refused.")]
+    [InlineData(CameraTestOutcome.Failed, null, "Der Kamerastream konnte nicht geöffnet werden.")]
+    public async Task RefreshTextsTranslatesTheCameraTestResultWithoutTestingAgain(CameraTestOutcome outcome, string? reason, string expected)
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera("rtsp://192.168.0.227/live"));
+        _cameraTester.Immediate = new CameraTestResult(outcome, 1280, 720, reason);
+        await printer.TestCameraCommand.ExecuteAsync(null);
+        List<string?> changes = [];
+        printer.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
+
+        using (new CultureScope("de-DE"))
+        {
+            _viewModel!.RefreshTexts();
+        }
+
+        Assert.Equal(expected, printer.CameraTestResultText);
+        Assert.Contains(nameof(PrinterEditorViewModel.CameraTestResultText), changes);
+        Assert.Single(_cameraTester.Calls);
+    }
+
+    [Fact]
+    public async Task RefreshTextsTranslatesARunningCameraTest()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera("rtsp://192.168.0.227/live"));
+        Task test = printer.TestCameraCommand.ExecuteAsync(null);
+        Assert.Equal("Waiting for an image from the camera…", printer.CameraTestResultText);
+
+        using (new CultureScope("pl-PL"))
+        {
+            _viewModel!.RefreshTexts();
+        }
+
+        Assert.Equal("Oczekiwanie na obraz z kamery…", printer.CameraTestResultText);
+        Assert.True(printer.IsTestingCamera);
+        printer.CancelCameraTestCommand.Execute(null);
+        await test.WaitAsync(TestTimeouts.Wait, Ct);
+    }
+
     private sealed class FakeCameraTester : ICameraTester
     {
         public TimeSpan Timeout => TimeSpan.FromSeconds(15);
