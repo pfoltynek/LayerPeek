@@ -10,15 +10,18 @@ namespace PrusaTrayDiagnostic.App.Windows;
 internal sealed class CameraWindows
 {
     private readonly Func<string, CameraViewModel?> _createViewModel;
+    private readonly IScreenCatalog? _screens;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
 
     /// <param name="createViewModel">The view model of a new window; <see langword="null"/> when the printer has no enabled camera.</param>
-    public CameraWindows(Func<string, CameraViewModel?> createViewModel)
+    /// <param name="screens">Monitors for tests; <see langword="null"/>: each window asks Avalonia (<see cref="AvaloniaScreenCatalog"/>).</param>
+    public CameraWindows(Func<string, CameraViewModel?> createViewModel, IScreenCatalog? screens = null)
     {
         ArgumentNullException.ThrowIfNull(createViewModel);
         _createViewModel = createViewModel;
+        _screens = screens;
     }
 
     /// <summary>The open windows by printer id (for tests and diagnostics).</summary>
@@ -56,7 +59,8 @@ internal sealed class CameraWindows
             slot.ShowOrActivate(() =>
             {
                 used = true;
-                CameraWindow window = new() { DataContext = created };
+                // The monitors first: the window places itself when it gets its view model.
+                CameraWindow window = _screens is { } screens ? new() { ScreenCatalog = screens, DataContext = created } : new() { DataContext = created };
                 _open[printerId] = window;
                 window.Closed += (_, _) => _open.Remove(printerId);
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.

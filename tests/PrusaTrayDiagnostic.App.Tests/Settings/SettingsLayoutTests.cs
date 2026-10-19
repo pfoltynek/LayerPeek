@@ -247,7 +247,11 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.CameraPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
+        Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
+        Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
         Assert.Equal(SettingsViewModel.CameraPrinterTab, vm.SelectedPrinterTabIndex);
     }

@@ -19,21 +19,21 @@ namespace PrusaTrayDiagnostic.App.Windows;
 /// Frames are drawn into one <see cref="WriteableBitmap"/> (recreated only when the resolution changes) on the UI thread;
 /// the <see cref="Image"/> scales it with the aspect ratio kept. The window applies the view model's mode: normal window,
 /// full screen, or the mini preview (no frame, always on top, moved by dragging the image, resized by its edges). It
-/// reports where the normal window and the mini preview were, so that they come back there next time. Minimizing pauses
-/// the stream.
+/// reports where the normal window and the mini preview were, so that they come back there next time. Without a
+/// remembered placement (or with "remember" off in the settings) it opens with the printer's defaults (T-035: mode,
+/// monitor, size and corner, <see cref="CameraWindowPlanner"/>). Minimizing pauses the stream.
 /// </remarks>
 public sealed partial class CameraWindow : Window
 {
-    private const double DefaultMiniWidth = 320;
-    private const double DefaultMiniHeight = 180;
-    private const double DefaultNormalWidth = 960;
-    private const double DefaultNormalHeight = 540;
-
     /// <summary>Pointer travel (DIP) that turns a press on the mini preview into moving the window.</summary>
     private const double MoveThreshold = 4;
 
     private readonly FrameSink _sink;
+    private IScreenCatalog? _screens;
     private CameraViewModel? _viewModel;
+
+    // The normal window was placed from the defaults with the assumed frame: corrected with the real frame after opening.
+    private CameraWindowLayout? _placedWithAssumedFrame;
     private CameraWindowMode _appliedMode = CameraWindowMode.Normal;
 
     // The last mode with a window of its own (normal or mini): where full screen returns to.
@@ -51,6 +51,16 @@ public sealed partial class CameraWindow : Window
         // DataContext (CameraViewModel) is set by the creator.
     }
 
+    /// <summary>
+    /// The monitors the window is placed on (T-035); default: Avalonia's screens of this window. Set before the
+    /// <c>DataContext</c> (tests use fake monitors).
+    /// </summary>
+    internal IScreenCatalog ScreenCatalog
+    {
+        get => _screens ??= new AvaloniaScreenCatalog(this);
+        init => _screens = value ?? throw new ArgumentNullException(nameof(value));
+    }
+
     protected override void OnDataContextChanged(EventArgs e)
     {
         Detach();
@@ -60,11 +70,9 @@ public sealed partial class CameraWindow : Window
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             _viewModel.CloseRequested += OnCloseRequested;
             _viewModel.AttachFrameSink(_sink);
-            if (!_opened && _viewModel.NormalPlacement is { } placement)
+            if (!_opened)
             {
-                // Before the window is shown, so that it does not jump; OnOpened moves it back if no screen shows it any more.
-                WindowStartupLocation = WindowStartupLocation.Manual;
-                Place(placement);
+                PlaceBeforeShowing(_viewModel);
             }
         }
 
@@ -75,6 +83,7 @@ public sealed partial class CameraWindow : Window
     {
         base.OnOpened(e);
         _opened = true;
+        CorrectFrame();
         EnsureOnScreen();
         if (_viewModel is { } viewModel)
         {
@@ -149,6 +158,9 @@ public sealed partial class CameraWindow : Window
         }
 
         RememberPlacement();
+        // The monitor the window is on before anything changes (T-035 Q5: a mode switch stays on it).
+        PixelBounds current = CurrentBounds();
+        _placedWithAssumedFrame = null;
         _applyingMode = true;
         try
         {
@@ -162,21 +174,22 @@ public sealed partial class CameraWindow : Window
             switch (mode)
             {
                 case CameraWindowMode.FullScreen:
+                    // Full screen on the monitor the window is on.
                     WindowState = WindowState.FullScreen;
                     break;
                 case CameraWindowMode.Mini:
                     WindowState = WindowState.Normal;
                     WindowDecorations = WindowDecorations.None;
                     Topmost = true;
-                    // First time: where the normal window was, at the default size (the corner is an open question).
-                    Place(viewModel.MiniPlacement ?? new CameraWindowPlacement(Position.X, Position.Y, DefaultMiniWidth, DefaultMiniHeight));
+                    // First time: the default size and corner of the mini preview on the monitor the window is on.
+                    Place(viewModel.MiniPlacement ?? FromDefaults(viewModel.Defaults.Mini, CameraWindowMode.Mini, current));
                     _lastWindowedMode = CameraWindowMode.Mini;
                     break;
                 default:
                     WindowState = WindowState.Normal;
                     if (previousWindowed == CameraWindowMode.Mini)
                     {
-                        Place(viewModel.NormalPlacement ?? new CameraWindowPlacement(Position.X, Position.Y, DefaultNormalWidth, DefaultNormalHeight));
+                        Place(viewModel.NormalPlacement ?? FromDefaults(viewModel.Defaults.Normal, CameraWindowMode.Normal, current));
                     }
 
                     _lastWindowedMode = CameraWindowMode.Normal;
@@ -215,29 +228,122 @@ public sealed partial class CameraWindow : Window
     }
 
     /// <summary>
-    /// A remembered position that cannot be reached (another screen layout, the title bar above a screen): the window moves
-    /// to the primary screen.
+    /// Before the window is shown (no visible jump), T-035: the mode chosen by the view model, the remembered placement
+    /// of that mode when it is reachable, else the printer's defaults on the chosen monitor. Full screen places the normal
+    /// window on its monitor first; <see cref="OnOpened"/> then switches. Without screens the window keeps the default size
+    /// and centres itself.
+    /// </summary>
+    private void PlaceBeforeShowing(CameraViewModel viewModel)
+    {
+        bool mini = viewModel.Mode == CameraWindowMode.Mini;
+        if (mini)
+        {
+            // Opened as the mini preview right away, without a normal window first.
+            WindowDecorations = WindowDecorations.None;
+            Topmost = true;
+            _appliedMode = CameraWindowMode.Mini;
+            _lastWindowedMode = CameraWindowMode.Mini;
+        }
+
+        CameraWindowMode layoutMode = mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
+        CameraWindowLayout layout = mini ? viewModel.Defaults.Mini : viewModel.Defaults.Normal;
+        CameraWindowPlacement? remembered = mini ? viewModel.MiniPlacement : viewModel.NormalPlacement;
+        CameraWindowPlacement? placement = CameraWindowPlanner.ForOpening(
+            viewModel.Defaults,
+            layoutMode,
+            remembered,
+            ScreenCatalog.GetScreens(),
+            CameraWindowPlanner.AssumedFrame(layoutMode));
+        if (placement is not { } chosen)
+        {
+            Width = layout.Size.Width;
+            Height = layout.Size.Height;
+            return;
+        }
+
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        Place(chosen);
+        if (!mini && remembered != chosen)
+        {
+            _placedWithAssumedFrame = layout;
+        }
+    }
+
+    /// <summary>
+    /// After opening, with the real frame: a normal window placed from the defaults with a different assumed frame is
+    /// placed again on its monitor (a corner keeps its margin).
+    /// </summary>
+    private void CorrectFrame()
+    {
+        if (_placedWithAssumedFrame is not { } layout || WindowState != WindowState.Normal)
+        {
+            return;
+        }
+
+        _placedWithAssumedFrame = null;
+        if (CameraWindowPlanner.FrameOf(FrameSize, ClientSize) is not { } frame)
+        {
+            return;
+        }
+
+        Size assumed = CameraWindowPlanner.AssumedNormalFrame;
+        if (Math.Abs(frame.Width - assumed.Width) < 0.5 && Math.Abs(frame.Height - assumed.Height) < 0.5)
+        {
+            return;
+        }
+
+        if (CameraWindowPlanner.OnCurrentScreen(layout, CurrentBounds(), ScreenCatalog.GetScreens(), frame) is { } placement)
+        {
+            Place(placement);
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="layout"/> on the monitor of <paramref name="window"/>; without screens the default size where the
+    /// window is.
+    /// </summary>
+    private CameraWindowPlacement FromDefaults(CameraWindowLayout layout, CameraWindowMode mode, PixelBounds window) =>
+        CameraWindowPlanner.OnCurrentScreen(layout, window, ScreenCatalog.GetScreens(), FrameFor(mode))
+            ?? new CameraWindowPlacement(Position.X, Position.Y, layout.Size.Width, layout.Size.Height);
+
+    /// <summary>The frame of the window in <paramref name="mode"/>: measured while it has one, else assumed.</summary>
+    private Size FrameFor(CameraWindowMode mode) =>
+        mode == CameraWindowMode.Mini ? default
+        : _opened && WindowDecorations == WindowDecorations.Full && CameraWindowPlanner.FrameOf(FrameSize, ClientSize) is { } measured ? measured
+        : CameraWindowPlanner.AssumedNormalFrame;
+
+    /// <summary>The window in screen pixels (client size scaled; enough to find its monitor).</summary>
+    private PixelBounds CurrentBounds()
+    {
+        double scaling = _opened ? DesktopScaling : 1.0;
+        return new PixelBounds(
+            Position.X,
+            Position.Y,
+            Math.Max((int)Math.Round(ClientSize.Width * scaling), 1),
+            Math.Max((int)Math.Round(ClientSize.Height * scaling), 1));
+    }
+
+    /// <summary>
+    /// A position that cannot be reached (another screen layout, the title bar above a screen): the window moves to where
+    /// the printer's defaults put it (T-035), keeping its mode.
     /// </summary>
     private void EnsureOnScreen()
     {
-        if (!_opened || WindowState != WindowState.Normal || Screens.ScreenCount == 0)
+        if (!_opened || WindowState != WindowState.Normal || _viewModel is not { } viewModel)
         {
             return;
         }
 
-        double scaling = DesktopScaling;
-        PixelRect bounds = new(Position, PixelSize.FromSize(ClientSize, scaling));
-        if (CameraWindowPlacementRules.IsReachable(bounds, [.. Screens.All.Select(static screen => screen.WorkingArea)]))
+        IReadOnlyList<CameraScreen> screens = ScreenCatalog.GetScreens();
+        if (screens.Count == 0 || CameraWindowPlanner.IsReachable(new CameraWindowPlacement(Position.X, Position.Y, ClientSize.Width, ClientSize.Height), screens))
         {
             return;
         }
 
-        if (Screens.Primary is { } primary)
+        CameraWindowMode layoutMode = _appliedMode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
+        if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, screens, FrameFor(layoutMode)) is { } placement)
         {
-            PixelRect area = primary.WorkingArea;
-            Position = new PixelPoint(
-                area.X + Math.Max((area.Width - bounds.Width) / 2, 0),
-                area.Y + Math.Max((area.Height - bounds.Height) / 2, 0));
+            Place(placement);
         }
     }
 

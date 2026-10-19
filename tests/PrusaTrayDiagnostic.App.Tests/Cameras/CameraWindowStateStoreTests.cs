@@ -210,4 +210,93 @@ public sealed class CameraWindowStateStoreTests : IAsyncDisposable
         Assert.Equal(Mini, store.Get("MK4"));
         Assert.Same(CameraWindowState.Default, store.Get("xl"));
     }
+
+    // ---- Remove (T-035: changed window defaults forget the state of that printer) ----
+
+    [Fact]
+    public async Task RemovedStateIsGoneFromTheFileAndOtherPrintersStay()
+    {
+        JsonCameraWindowStateStore first = Create();
+        first.Set("mk4", Mini);
+        first.Set("xl", Mini);
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        first.Remove("MK4");
+
+        Assert.Same(CameraWindowState.Default, first.Get("mk4"));
+        Assert.Equal(1, first.GetRemoveCount("mk4"));
+        Assert.Equal(0, first.GetRemoveCount("xl"));
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
+        JsonCameraWindowStateStore second = Create();
+        await second.LoadAsync(Ct);
+        Assert.Same(CameraWindowState.Default, second.Get("mk4"));
+        Assert.Equal(Mini, second.Get("xl"));
+        Assert.DoesNotContain("mk4", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task StateRemovedBeforeTheFileIsReadDoesNotComeBack()
+    {
+        JsonCameraWindowStateStore first = Create();
+        first.Set("mk4", Mini);
+        first.Set("xl", Mini);
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        // Not loaded yet (the settings were saved before the background load ran).
+        JsonCameraWindowStateStore second = Create();
+        second.Remove("mk4");
+        await second.LoadAsync(Ct);
+
+        Assert.Same(CameraWindowState.Default, second.Get("mk4"));
+        Assert.Equal(Mini, second.Get("xl"));
+        Assert.True(await second.WaitForPendingSaveAsync(TestTimeouts.Wait));
+        JsonCameraWindowStateStore third = Create();
+        await third.LoadAsync(Ct);
+        Assert.Same(CameraWindowState.Default, third.Get("mk4"));
+        Assert.Equal(Mini, third.Get("xl"));
+    }
+
+    [Fact]
+    public async Task RemovingAnUnknownPrinterAfterLoadingWritesNothing()
+    {
+        JsonCameraWindowStateStore store = Create();
+        await store.LoadAsync(Ct);
+
+        store.Remove("mk4");
+
+        Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait));
+        Assert.False(Directory.Exists(_directory));
+        Assert.Equal(1, store.GetRemoveCount("mk4"));
+    }
+
+    [Fact]
+    public async Task StateSetAfterRemovingIsRememberedAgain()
+    {
+        JsonCameraWindowStateStore store = Create();
+        await store.LoadAsync(Ct);
+        store.Set("mk4", Mini);
+        store.Remove("mk4");
+
+        store.Set("mk4", Mini);
+
+        Assert.Equal(Mini, store.Get("mk4"));
+        Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait));
+        JsonCameraWindowStateStore second = Create();
+        await second.LoadAsync(Ct);
+        Assert.Equal(Mini, second.Get("mk4"));
+    }
+
+    [Fact]
+    public void MemoryStoreRemovesAndCounts()
+    {
+        MemoryCameraWindowStateStore store = new();
+        store.Set("mk4", Mini);
+
+        store.Remove("MK4");
+        store.Remove("mk4");
+
+        Assert.Same(CameraWindowState.Default, store.Get("mk4"));
+        Assert.Equal(2, store.GetRemoveCount("mk4"));
+        Assert.Equal(0, store.GetRemoveCount("xl"));
+    }
 }

@@ -1,5 +1,6 @@
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Tests.Cameras;
 using PrusaTrayDiagnostic.App.Tests.Settings;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 using PrusaTrayDiagnostic.Core.Cameras;
@@ -164,6 +165,57 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             Assert.Empty(store.Saves);
 
             SnapshotAssert.Matches(ui.Window, "settings-errors-fr");
+        });
+
+    [Fact]
+    public Task CameraWindowSubTab() =>
+        session.RunAsync(static async scope =>
+        {
+            // Three monitors; the saved one is connected (Monitor 1 – LG …).
+            CameraWindowDefaults window = new()
+            {
+                StartMode = CameraWindowStartMode.Mini,
+                Monitor = new CameraMonitorId("LG HDR 4K", 1920, 1080),
+                Normal = new CameraWindowLayout(new CameraWindowSize(1280, 720), CameraWindowCorner.TopRight),
+            };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Window = window } }),
+                screens: FakeScreenCatalog.ThreeMonitors());
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraWindowPrinterTab;
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-window");
+        });
+
+    [Fact]
+    public Task CameraWindowSubTabWithSizeErrorsAndADisconnectedMonitorInFrench() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("fr");
+            CameraWindowDefaults window = CameraWindowDefaults.Default with { Monitor = new CameraMonitorId("BenQ PD2700U", 3840, 2160) };
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Window = window } });
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store, screens: FakeScreenCatalog.ThreeMonitors());
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            printer.NormalSizeText = "100 x 50";
+            printer.MiniSizeText = "20000 x 90";
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            Assert.Empty(store.Saves);
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-window-errors-fr");
+        });
+
+    [Fact]
+    public Task CameraWindowSubTabWithTheCameraOffInCzech() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("cs");
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: false, new Uri("rtsp://192.168.0.227/live")) }),
+                screens: FakeScreenCatalog.ThreeMonitors());
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraWindowPrinterTab;
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-window-off-cs");
         });
 
     /// <summary>A new printer with a name, no address and a user name with a colon, after a save attempt.</summary>

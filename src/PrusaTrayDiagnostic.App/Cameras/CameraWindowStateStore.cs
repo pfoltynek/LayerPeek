@@ -20,6 +20,19 @@ internal interface ICameraWindowStateStore
     /// <summary>Remembers <paramref name="state"/> and saves it in the background; never blocks and never throws for file problems.</summary>
     void Set(string printerId, CameraWindowState state);
 
+    /// <summary>
+    /// Forgets the remembered state of the printer (T-035: its window defaults changed in the settings) and saves in the
+    /// background, also when it was only in the file so far. Increments <see cref="GetRemoveCount"/>. Never throws for
+    /// file problems.
+    /// </summary>
+    void Remove(string printerId);
+
+    /// <summary>
+    /// How many times the state of the printer was removed in this run. A camera window keeps the value from when it
+    /// opened and does not write its state back when it changed meanwhile, so that the new defaults apply next time.
+    /// </summary>
+    int GetRemoveCount(string printerId);
+
     /// <summary>Waits at most <paramref name="timeout"/> for background saves; <see langword="true"/> when none is running.</summary>
     Task<bool> WaitForPendingSaveAsync(TimeSpan timeout);
 }
@@ -50,6 +63,9 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
     // Guarded by _gate.
     private readonly Dictionary<string, CameraWindowState> _states = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _order = [];
+
+    // Removed in this run (how often): an entry of the file that is read later must not come back.
+    private readonly Dictionary<string, int> _removed = new(StringComparer.OrdinalIgnoreCase);
     private Task? _loading;
     private Task _pendingSave = Task.CompletedTask;
     private long _saveVersion;
@@ -105,6 +121,36 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
         }
     }
 
+    public void Remove(string printerId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        lock (_gate)
+        {
+            _removed[printerId] = _removed.GetValueOrDefault(printerId) + 1;
+            if (_states.Remove(printerId))
+            {
+                _order.RemoveAll(id => string.Equals(id, printerId, StringComparison.OrdinalIgnoreCase));
+            }
+            else if (_loading is { IsCompletedSuccessfully: true })
+            {
+                // Read already and not there: the file does not have it either.
+                return;
+            }
+
+            long version = ++_saveVersion;
+            _pendingSave = SaveAfterAsync(_pendingSave, version);
+        }
+    }
+
+    public int GetRemoveCount(string printerId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        lock (_gate)
+        {
+            return _removed.GetValueOrDefault(printerId);
+        }
+    }
+
     public async Task<bool> WaitForPendingSaveAsync(TimeSpan timeout)
     {
         Task pending;
@@ -151,11 +197,12 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
 
         lock (_gate)
         {
-            // States set before the file was read are newer than the file: they win and stay the most recent ones.
+            // States set before the file was read are newer than the file: they win and stay the most recent ones. States
+            // removed before it was read stay removed.
             List<string> loaded = [];
             foreach ((string printerId, CameraWindowDocument? window) in windows)
             {
-                if (_states.Count >= MaxEntries || string.IsNullOrWhiteSpace(printerId) || window is null || _states.ContainsKey(printerId))
+                if (_states.Count >= MaxEntries || string.IsNullOrWhiteSpace(printerId) || window is null || _states.ContainsKey(printerId) || _removed.ContainsKey(printerId))
                 {
                     continue;
                 }
@@ -274,6 +321,7 @@ internal sealed class MemoryCameraWindowStateStore : ICameraWindowStateStore
 {
     private readonly Lock _gate = new();
     private readonly Dictionary<string, CameraWindowState> _states = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> _removed = new(StringComparer.OrdinalIgnoreCase);
 
     public Task LoadAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -292,6 +340,24 @@ internal sealed class MemoryCameraWindowStateStore : ICameraWindowStateStore
         lock (_gate)
         {
             _states[printerId] = state;
+        }
+    }
+
+    public void Remove(string printerId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        lock (_gate)
+        {
+            _states.Remove(printerId);
+            _removed[printerId] = _removed.GetValueOrDefault(printerId) + 1;
+        }
+    }
+
+    public int GetRemoveCount(string printerId)
+    {
+        lock (_gate)
+        {
+            return _removed.GetValueOrDefault(printerId);
         }
     }
 

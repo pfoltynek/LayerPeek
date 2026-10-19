@@ -200,7 +200,7 @@ public sealed class AppServicesTests
         {
             Printers =
             [
-                new PrinterDefinition { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) },
+                new PrinterDefinition { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Window = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.FullScreen } } },
                 new PrinterDefinition { Id = "b", Name = "Beta", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.228" },
             ],
         });
@@ -211,6 +211,9 @@ public sealed class AppServicesTests
         Assert.NotNull(camera);
         Assert.Equal("a", camera.PrinterId);
         Assert.Contains("Alpha", camera.Title, StringComparison.Ordinal);
+        // T-035: the window defaults of the printer reach the window.
+        Assert.Equal(CameraWindowStartMode.FullScreen, camera.Defaults.StartMode);
+        Assert.Equal(CameraWindowMode.FullScreen, camera.Mode);
         // The window state goes to the memory store, never to the user data folder.
         camera.ShowMiniCommand.Execute(null);
         camera.Dispose();
