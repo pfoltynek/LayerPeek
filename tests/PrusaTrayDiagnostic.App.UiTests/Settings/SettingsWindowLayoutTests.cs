@@ -110,6 +110,12 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             ui.Window.Settle();
 
             Assert.Contains(CutTexts(ui.Window, "narrow"), static problem => problem.Contains(Strings.SettingsAddPrinter, StringComparison.Ordinal));
+
+            Assert.Empty(HeadersNotOnOneRow(ui.Window, "headers"));
+            ui.Find<TabControl>("SettingsPrinterTabs").Width = 120;
+            ui.Window.Settle();
+
+            Assert.Contains(HeadersNotOnOneRow(ui.Window, "narrow tabs"), static problem => problem.Contains("SettingsPrinterTabs", StringComparison.Ordinal));
         });
 
     [Theory]

@@ -55,6 +55,32 @@ internal static class SettingsWindowPlacement
     }
 
     /// <summary>
+    /// Client size to give the window before it is shown, so that it appears already fitted (no visible jump): the frame
+    /// is not known yet, so <see cref="DefaultChrome"/> is assumed; <c>CenterScreen</c> then centres this size. Without a
+    /// screen (<paramref name="workArea"/> <see langword="null"/>) the window keeps <paramref name="preferredClient"/>.
+    /// </summary>
+    public static Size SizeBeforeShowing(Size preferredClient, Size minClient, PixelRect? workArea, double scaling) =>
+        workArea is { } area ? Fit(preferredClient, minClient, area, scaling, DefaultChrome).ClientSize : preferredClient;
+
+    /// <summary>
+    /// After the window opened, with its real screen and frame: new bounds only when the window as shown
+    /// (<paramref name="shownClient"/>) does not fit (a thicker frame than assumed, another screen than expected);
+    /// <see langword="null"/> otherwise. The window never grows here, which would be a visible jump as well.
+    /// </summary>
+    public static SettingsWindowBounds? CorrectionAfterOpening(Size shownClient, Size preferredClient, Size minClient, PixelRect workArea, double scaling, Thickness chrome)
+    {
+        SettingsWindowBounds fitted = Fit(preferredClient, minClient, workArea, scaling, chrome);
+        if (fitted.ClientSize.Width >= shownClient.Width && fitted.ClientSize.Height >= shownClient.Height)
+        {
+            return null;
+        }
+
+        // Shrink only: a dimension that fits keeps its size as shown.
+        Size target = new(Math.Min(fitted.ClientSize.Width, shownClient.Width), Math.Min(fitted.ClientSize.Height, shownClient.Height));
+        return Fit(target, minClient, workArea, scaling, chrome);
+    }
+
+    /// <summary>
     /// The frame around the client area from the measured window size (DIP): left, right and bottom borders are equal, the
     /// rest of the height is the title bar. <see cref="DefaultChrome"/> while nothing usable is measured (not shown yet,
     /// headless).

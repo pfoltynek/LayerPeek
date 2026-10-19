@@ -16,11 +16,14 @@ namespace PrusaTrayDiagnostic.App.Windows;
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
+    private readonly Size _designedSize;
     private SettingsViewModel? _viewModel;
 
     public SettingsWindow()
     {
         InitializeComponent();
+        _designedSize = new Size(Width, Height);
+        FitBeforeShowing();
         // DataContext (SettingsViewModel) is set by the creator.
         // Tunnelling: before a text box or the focus navigation (Tab) sees the keys.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
@@ -45,7 +48,7 @@ public sealed partial class SettingsWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        FitToScreen();
+        CorrectAfterOpening();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -73,24 +76,42 @@ public sealed partial class SettingsWindow : Window
     }
 
     /// <summary>
-    /// A work area smaller than the window (high scaling, a small screen, a large taskbar): shrink the window to fit and
-    /// centre it again. Otherwise <c>CenterScreen</c> has already placed it and nothing changes.
+    /// Before the window is shown: a work area smaller than the window (high scaling, a small screen, a large taskbar)
+    /// shrinks it, so that it appears already fitted and <c>CenterScreen</c> centres the fitted size (no visible jump).
+    /// The screen is the one <c>CenterScreen</c> picks for a window without an owner (the one under the window's
+    /// position, else the primary); the frame is not known yet, so the assumed title bar is used.
     /// </summary>
-    private void FitToScreen()
+    private void FitBeforeShowing()
+    {
+        if (Screens.ScreenCount == 0)
+        {
+            return;
+        }
+
+        Avalonia.Platform.Screen? screen = Screens.ScreenFromPoint(Position) ?? Screens.Primary;
+        Size size = SettingsWindowPlacement.SizeBeforeShowing(_designedSize, new Size(MinWidth, MinHeight), screen?.WorkingArea, screen?.Scaling ?? 1.0);
+        Width = size.Width;
+        Height = size.Height;
+    }
+
+    /// <summary>
+    /// After opening, with the real screen and the measured frame: only when the window as shown does not fit (a thicker
+    /// frame than assumed, another screen) it shrinks and is centred again; otherwise nothing moves.
+    /// </summary>
+    private void CorrectAfterOpening()
     {
         if (WindowState != WindowState.Normal || (Screens.ScreenFromWindow(this) ?? Screens.Primary) is not { } screen)
         {
             return;
         }
 
-        Size requested = new(Width, Height);
-        SettingsWindowBounds bounds = SettingsWindowPlacement.Fit(
-            requested,
-            new Size(MinWidth, MinHeight),
-            screen.WorkingArea,
-            screen.Scaling,
-            SettingsWindowPlacement.ChromeOf(FrameSize, ClientSize));
-        if (bounds.ClientSize != requested)
+        if (SettingsWindowPlacement.CorrectionAfterOpening(
+                new Size(Width, Height),
+                _designedSize,
+                new Size(MinWidth, MinHeight),
+                screen.WorkingArea,
+                screen.Scaling,
+                SettingsWindowPlacement.ChromeOf(FrameSize, ClientSize)) is { } bounds)
         {
             Width = bounds.ClientSize.Width;
             Height = bounds.ClientSize.Height;

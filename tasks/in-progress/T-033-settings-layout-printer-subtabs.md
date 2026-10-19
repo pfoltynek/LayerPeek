@@ -39,6 +39,7 @@ Okno nastavení se při prvním zobrazení vejde celé bez svislého posuvníku,
   - **Q8 – obrázek tiskárny:** seznam 24, podzáložka Tiskárna 56 (tlačítko s nabídkou), Diagnostika 48, tray 16 – T-039.
   - **Q9 – validace okna kamery:** u vypnuté kamery se velikost okna kamery nevaliduje – T-035.
   - Součástí schválení: položky překryvu seskupené nejdřív údaje tiskárny, pak údaje úlohy (T-036); hlavní záložky 18 px / 36 DIP; před náhledem kamery se nerezervuje zástupné místo (T-034).
+  - **Q10 – odmítnutý test kamery bez chyby u pole (2026-10-19):** vypnutá kamera s prázdnou adresou (pole chybu neukazuje) – výsledek testu dál říká konkrétně „Zadejte adresu streamu, např. rtsp://192.168.0.227/live.“ (`SettingsCameraErrorMissing`), ne `SettingsFixErrors` (ponechat současné chování).
   - **Oprava při implementaci:** **úspěšný** výsledek testu se nesmí zobrazit červeně (prototyp ukazoval „Die Kamera funktioniert“ červeně) – výsledky testu spojení i kamery: úspěch zeleně (`SettingsSuccessBrush`), chyba červeně, probíhající / zrušený test běžnou barvou textu.
 
 ## Rozsah
@@ -239,13 +240,13 @@ Bez Q1 (nápověda i chyba zároveň) se Tiskárna se všemi chybami **nevejde**
 Pořadí tlačítek Zrušit | Uložit (výchozí vpravo); Nastavení se otevírá i přes ⌘,; HIG doporučuje panel nástrojů s ikonami místo záložek a okamžité ukládání – ponecháváme záložky a Uložit/Zrušit kvůli jednotnému chování. Systémové písmo SF Pro má podobnou šířku jako Inter, titulek ≈ 28 pt.
 
 ## Otevřené otázky
-**Q10 – Odmítnutý test kamery bez chyby u pole (drobnost, potvrdit).** Podle Q2 ukáže odmítnutý test jen „Některé hodnoty nejsou platné. Opravte zvýrazněná pole.“ Výjimka: vypnutá kamera s **prázdnou** adresou smí zůstat uložená (pole pak chybu neukazuje), takže by krátký text odkazoval na pole bez zvýraznění. Implementováno: v tomto jediném případě výsledek řekne přímo „Zadejte adresu streamu, např. rtsp://192.168.0.227/live.“ (`SettingsCameraErrorMissing`). Ponechat, nebo i zde zobrazit `SettingsFixErrors`?
+(žádné)
 
 ## Poznámky k implementaci
-Stav 2026-10-19 (ui-dev): implementace hotová, všechna kritéria splněná v headless testech; úkol zůstává `in-progress` kvůli ruční kontrole na skutečném Windows (viz „Zbývá ručně“) a otázce Q10.
+Stav 2026-10-19 (ui-dev): implementace hotová, všechna kritéria splněná v headless testech; úkol zůstává `in-progress` kvůli ruční kontrole na skutečném Windows (viz „Zbývá ručně“).
 
 **Okno (`SettingsWindow.axaml`, `.axaml.cs`, nový `SettingsWindowPlacement.cs`)**
-- Klientská oblast 780×508, `MinWidth/MinHeight` 640×400, `WindowStartupLocation=CenterScreen`. Po otevření (`OnOpened`) se velikost porovná s pracovní plochou obrazovky okna (`Screens.ScreenFromWindow` / `Primary`, DIP podle `Scaling`); když se nevejde, okno se zmenší (každý rozměr zvlášť, ne pod minimum) a znovu vycentruje. Rámeček okna se bere z `FrameSize` (boky a spodek stejně, zbytek titulek), dokud není známý, počítá se titulek 32 DIP. Výpočet je čistá funkce `SettingsWindowPlacement.Fit` / `ChromeOf` (testy bez obrazovky).
+- Klientská oblast 780×508, `MinWidth/MinHeight` 640×400, `WindowStartupLocation=CenterScreen`. **Před zobrazením** (v konstruktoru okna) se velikost přizpůsobí pracovní ploše obrazovky, kterou vybere `CenterScreen` pro okno bez vlastníka (`Screens.ScreenFromPoint(Position)`, jinak `Primary`), s předpokládaným titulkem 32 DIP (`SettingsWindowPlacement.SizeBeforeShowing`); `CenterScreen` pak vycentruje už zmenšené okno, takže neposkočí. Po otevření (`OnOpened`) se jen opraví případ, kdy se okno se skutečně změřeným rámečkem (`FrameSize`: boky a spodek stejně, zbytek titulek) nebo na jiné obrazovce nevejde (`CorrectionAfterOpening`: jen zmenšení + nové vycentrování, nikdy zvětšení). Každý rozměr se zmenšuje zvlášť, ne pod minimum. Vše jsou čisté funkce `SettingsWindowPlacement` (testy bez obrazovky).
 - Kořen je `Grid` (upozornění, „Načítám…“, záložky, Uložit/Zrušit) místo `DockPanel` – prvky jsou deklarované v pořadí čtení, takže **pořadí Tab** je: záhlaví záložek → seznam tiskáren → Přidat → Odebrat → záhlaví podzáložek → pole podzáložky → Uložit → Zrušit. Totéž pod seznamem (`Grid` místo `DockPanel`).
 - Okraje `16,8,16,12`, hlavní záložky 18 px / `MinHeight` 36 / `Padding 12,0` (třída `main`), podzáložky 14 px / 32 / `10,0` (třída `sub`), seznam 184 DIP, Přidat/Odebrat pod sebou přes celou šířku (Q6).
 - Podzáložky: vnořený `TabControl` (`SettingsPrinterTabs`) se `SelectedIndex` → `SettingsViewModel.SelectedPrinterTabIndex`. Obsah každé podzáložky je `ScrollViewer` (záchrana) s `ContentControl` nad `SelectedPrinter`, takže výběr podzáložky patří oknu a při přepnutí tiskárny zůstává. Záhlaví: „!“ (tučně, `SettingsErrorBrush`) + text; `AutomationProperties.Name` = „Tiskárna – obsahuje chyby“ (nový text `SettingsTabContainsErrors`).
@@ -272,4 +273,5 @@ Stav 2026-10-19 (ui-dev): implementace hotová, všechna kritéria splněná v h
 
 **Zbývá ručně (uživatel)**
 - Otevřít Nastavení na skutečném Windows při 100 %, 125 % a 150 % (Segoe UI místo Inter z testů, skutečný titulek a rámeček): okno bez posuvníku, na malé pracovní ploše zmenšené a vycentrované, zkratky a pořadí Tab.
+- Malá pracovní plocha (např. 800×600 se škálováním 125 % nebo vysoký hlavní panel): okno se při otevření **objeví rovnou zmenšené a vycentrované, bez viditelného poskočení**; u více monitorů ověřit, že se otevře na očekávané obrazovce.
 - macOS (T-018) neověřeno: pořadí Zrušit/Uložit, ⌘ místo Ctrl, chování `FrameSize` a pracovní plochy.
