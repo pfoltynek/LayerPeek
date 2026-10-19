@@ -434,6 +434,69 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadFileOfCurrentFormatWithoutCameraWindowUsesWindowDefaults()
+    {
+        // A file written before the camera window defaults existed (T-014 format).
+        Directory.CreateDirectory(_directory);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "settings-v1-camera-without-window.json"), FilePath);
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.Collection(
+            result.Settings.Printers,
+            static printer =>
+            {
+                Assert.Equal(new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")), printer.Camera);
+                Assert.Same(CameraWindowDefaults.Default, printer.Camera.Window);
+            },
+            static printer =>
+            {
+                Assert.Equal(new CameraSettings(enabled: false, new Uri("rtsp://192.168.0.229/live")), printer.Camera);
+                Assert.Same(CameraWindowDefaults.Default, printer.Camera.Window);
+            });
+
+        // Saving it again does not add the section while the defaults are unchanged.
+        await _store.SaveAsync(result.Settings, Ct);
+        Assert.DoesNotContain("\"window\"", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SaveThenLoadRoundTripsCameraWindowDefaults()
+    {
+        CameraWindowDefaults window = new()
+        {
+            RememberLastPlacement = false,
+            StartMode = CameraWindowStartMode.Mini,
+            Monitor = new CameraMonitorId("DISPLAY2", 2560, 1440),
+            Normal = new CameraWindowLayout(new CameraWindowSize(1920, 1080), CameraWindowCorner.TopLeft),
+            Mini = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.TopRight),
+        };
+        AppSettings settings = new()
+        {
+            Printers =
+            [
+                new PrinterDefinition
+                {
+                    Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226",
+                    Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Window = window },
+                },
+                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.230" },
+            ],
+        };
+
+        await _store.SaveAsync(settings, Ct);
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(settings, result.Settings);
+        Assert.Equal(window, result.Settings.Printers[0].Camera.Window);
+        Assert.Contains("\"version\": 1", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task InvalidCameraUrlSurvivesLoadAndSave()
     {
         await WriteSettingsFileAsync("""

@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Cameras;

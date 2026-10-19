@@ -7,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
 using PrusaTrayDiagnostic.App.Cameras;
+using PrusaTrayDiagnostic.Core.Cameras;
 
 namespace PrusaTrayDiagnostic.App.Windows;
 

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Tests.Tray;
+using PrusaTrayDiagnostic.Core.Cameras;
 
 namespace PrusaTrayDiagnostic.App.Tests.Cameras;
 
