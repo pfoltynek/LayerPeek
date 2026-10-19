@@ -92,7 +92,9 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
             }
             catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {
-                // Not syntactically valid JSON (InvalidOperationException: invalid UTF-8 inside a string).
+                // Not syntactically valid JSON, or (InvalidOperationException) invalid UTF-8 in a string the scrubber
+                // has to read: a property name, a printer id or a camera address. Invalid bytes in other values are
+                // copied through unchanged.
                 return [];
             }
 

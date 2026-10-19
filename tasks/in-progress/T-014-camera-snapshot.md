@@ -239,3 +239,16 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 
   Kompletní cache, kterou mezitím přejmenoval jiný build, tak zůstane nedotčená a vlastní stažení se zahodí. Znovu ověřeno: dva souběžné první buildy, inkrementální build, oprava cache se značkou i bez ní, design-time build, `-r osx-arm64`.
 - **Dokumentace (n5):** `docs/prerequisites.md` uvádí, že ručně vytvořený `verified.sha256` má obsahovat jeden řádek s hodnotou `PtdFFmpegSha256` (build zatím kontroluje jen existenci).
+
+### Code review, kolo 3 – Core (core-dev) – 2026-10-19
+- **Test opětovného natažení watchdogu:** `ManualTimer` v `ReconnectingCameraFeedWatchdogTests` si pamatuje čas posledního `Change`. Test `EarlyCallbackFromAnEarlierArmingDoesNotCancel` teď ověří, že předčasný callback timer natáhne přesně na zbývající čas (1 s). Po posunu času a dalším callbacku musí přijít „bez signálu“. Ověřeno, že test bez řádku s natažením selže (10 s místo 1 s).
+- **Atomičnost watchdogu:** záznam o natažení (pokus, čas, timeout, zrušený pokus) se čte i zapisuje pod jedním zámkem (`Lock`, alokovaný jednou). Pod zámkem běží také `Change` timeru, takže `Fire` nikdy neuvidí napůl přepsaný záznam a nezruší novější natažení. `Fire` po zrušení záznam vymaže, aby druhý callback nerušil znovu. `Cancel` běží mimo zámek. Testy alokací dál měří 0 B.
+- **`build/FFmpeg.targets`:** cache se dává na místo jen přejmenováním složek, nikdy se nemaže na místě. Neúplná cílová složka se nejdřív přejmenuje do vlastní pracovní složky a smaže se až tam. Kdyby to mezitím byla kompletní cache souběžného buildu, nahradí ji vlastní, také ověřená. Když `move` vnoří staging do cíle, který se mezitím objevil, vnořená složka (`staged-cache`, v cache se nikdy nevyskytuje) se smaže a vítězná cache zůstane. Rozhoduje závěrečná kontrola kompletnosti. **Ověřeno:**
+  - tři souběžné první buildy
+  - inkrementální build
+  - oprava cache se značkou i bez ní
+  - vynucené vnoření (dočasně vypnuté přejmenování pryč): vnořená složka zmizela a závěrečná kontrola správně selhala
+  - design-time build
+  - `-r osx-arm64`
+- **Test alokací s asynchronním streamem:** v jednom běhu celé solution jednou selhal, samostatně (25×) ani v dalších 3 bězích celé solution ne. Čítač `GetTotalAllocatedBytes` počítá celý proces, takže jde nejspíš o náhodnou alokaci jiného vlákna. Test teď bere minimum z až 8 průchodů (dřív 3) a dál vyžaduje přesně 0 B.
+- **Dokumentace neplatného UTF-8:** `ISettingsStore` a `JsonSettingsStore` uvádějí, že soubor zůstane beze změny jen při neplatném UTF-8 v řetězci, který čištění čte (názvy vlastností, id tiskáren, adresy kamer). Neplatné bajty jinde se zkopírují beze změny.

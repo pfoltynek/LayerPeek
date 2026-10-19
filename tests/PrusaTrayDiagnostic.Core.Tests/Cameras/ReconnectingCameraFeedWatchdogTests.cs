@@ -69,14 +69,24 @@ public sealed class ReconnectingCameraFeedWatchdogTests : IAsyncDisposable
         Task<bool> move = Next();
         await stream.NextReadAsync();
 
-        // Armed for the next read just now; a callback before its deadline belongs to an earlier arming.
+        // Armed for the next read just now; a callback before its deadline belongs to an earlier arming (or the
+        // timer ran early). It must not cancel, but re-arm the timer for the rest of the time.
+        Assert.Equal(Options.FrameTimeout, _time.Watchdog.DueTime);
         _time.Advance(Options.FrameTimeout - TimeSpan.FromSeconds(1));
         _time.Watchdog.Fire();
 
-        stream.PushFrame(2);
-        Assert.True(await move.WaitAsync(TestTimeouts.Wait, Ct));
-        Assert.Equal(2, _frames.Current.Pixels.Span[0]);
+        Assert.Equal(TimeSpan.FromSeconds(1), _time.Watchdog.DueTime);
+        Assert.False(move.IsCompleted);
         Assert.Equal([CameraStatus.Connecting, CameraStatus.Streaming], _status.All);
+
+        // The re-armed timer then ends the read when the real deadline passes.
+        _time.Advance(TimeSpan.FromSeconds(1));
+        _time.Watchdog.Fire();
+
+        Assert.Equal(CameraStatus.Connecting, await _status.NextAsync());
+        Assert.Equal(CameraStatus.Streaming, await _status.NextAsync());
+        Assert.Equal(CameraConnectionState.NoSignal, (await _status.NextAsync()).State);
+        Assert.False(move.IsCompleted);
     }
 
     [Fact]
@@ -154,9 +164,32 @@ public sealed class ReconnectingCameraFeedWatchdogTests : IAsyncDisposable
 
     private sealed class ManualTimer(TimerCallback callback, object? state) : ITimer
     {
+        private readonly Lock _lock = new();
+        private TimeSpan _dueTime = Timeout.InfiniteTimeSpan;
+
+        /// <summary>Due time of the last <see cref="Change"/> (infinite: disarmed).</summary>
+        public TimeSpan DueTime
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _dueTime;
+                }
+            }
+        }
+
         public void Fire() => callback(state);
 
-        public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+        public bool Change(TimeSpan dueTime, TimeSpan period)
+        {
+            lock (_lock)
+            {
+                _dueTime = dueTime;
+            }
+
+            return true;
+        }
 
         public void Dispose()
         {
