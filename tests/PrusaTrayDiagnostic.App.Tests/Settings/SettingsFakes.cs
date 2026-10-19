@@ -1,4 +1,10 @@
+using System.Runtime.InteropServices;
+
+using Avalonia;
+using Avalonia.Media;
+
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -224,7 +230,10 @@ internal sealed class FakeConnectionTester : IConnectionTester
     }
 }
 
-/// <summary>Camera tester driven by the test: an immediate result, an exception, or waiting until cancelled.</summary>
+/// <summary>
+/// Camera tester driven by the test: an immediate result, an exception, a result the test completes later (ignoring
+/// cancellation, like a capture that was already finishing), or waiting until cancelled.
+/// </summary>
 internal sealed class FakeCameraTester : ICameraTester
 {
     public TimeSpan Timeout => TimeSpan.FromSeconds(15);
@@ -232,6 +241,9 @@ internal sealed class FakeCameraTester : ICameraTester
     public List<Uri> Calls { get; } = [];
 
     public CameraTestResult? Immediate { get; set; }
+
+    /// <summary>When set (and <see cref="Immediate"/> is not), the test ends when the test completes this source.</summary>
+    public TaskCompletionSource<CameraTestResult>? Pending { get; set; }
 
     public Exception? Throw { get; set; }
 
@@ -251,6 +263,11 @@ internal sealed class FakeCameraTester : ICameraTester
             return Task.FromResult(Immediate);
         }
 
+        if (Pending is not null)
+        {
+            return Pending.Task;
+        }
+
         return WaitForCancellationAsync(cancellationToken);
     }
 
@@ -258,6 +275,68 @@ internal sealed class FakeCameraTester : ICameraTester
     {
         await Task.Delay(System.Threading.Timeout.InfiniteTimeSpan, cancellationToken);
         return new CameraTestResult(CameraTestOutcome.Failed);
+    }
+}
+
+/// <summary>Camera images for tests (BGRA, colours given as 0xAARRGGBB).</summary>
+internal static class TestCameraImages
+{
+    public static CameraImage Solid(int width, int height, uint argb) => Quadrants(width, height, argb, argb, argb, argb);
+
+    /// <summary>Four colours, one per quarter (left/right half, top/bottom half).</summary>
+    public static CameraImage Quadrants(int width, int height, uint topLeft, uint topRight, uint bottomLeft, uint bottomRight)
+    {
+        uint[] pixels = new uint[width * height];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                bool left = x < width / 2;
+                pixels[(y * width) + x] = y < height / 2 ? (left ? topLeft : topRight) : (left ? bottomLeft : bottomRight);
+            }
+        }
+
+        // Little-endian: 0xAARRGGBB is stored as B, G, R, A.
+        byte[] bytes = MemoryMarshal.AsBytes(pixels.AsSpan()).ToArray();
+        return new CameraFrame(width, height, width * CameraFrame.BytesPerPixel, bytes).ToImage();
+    }
+}
+
+/// <summary>What <see cref="FakePreviewRenderer"/> made of a snapshot; records its disposal.</summary>
+internal sealed class FakePreviewImage(CameraImage source) : IImage, IDisposable
+{
+    public CameraImage Source { get; } = source;
+
+    public int DisposeCount { get; private set; }
+
+    public bool IsDisposed => DisposeCount > 0;
+
+    public Size Size => new(Source.Width, Source.Height);
+
+    public void Draw(DrawingContext context, Rect sourceRect, Rect destRect)
+    {
+    }
+
+    public void Dispose() => DisposeCount++;
+}
+
+/// <summary>Preview renderer without a graphics platform: fake images, or a failure on demand.</summary>
+internal sealed class FakePreviewRenderer : ICameraPreviewRenderer
+{
+    public List<FakePreviewImage> Rendered { get; } = [];
+
+    public Exception? Throw { get; set; }
+
+    public IImage Render(CameraImage image)
+    {
+        if (Throw is not null)
+        {
+            throw Throw;
+        }
+
+        FakePreviewImage preview = new(image);
+        Rendered.Add(preview);
+        return preview;
     }
 }
 

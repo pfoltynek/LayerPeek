@@ -5,7 +5,8 @@ using PrusaTrayDiagnostic.Core.Cameras;
 namespace PrusaTrayDiagnostic.App.Settings;
 
 /// <summary>
-/// Tests a camera with <see cref="CameraSnapshot.CaptureAsync"/>: success once the first image arrived. The capture runs
+/// Tests a camera with <see cref="CameraSnapshot.CaptureAsync"/>: success once the first image arrived (the result carries
+/// that image for the preview, T-034; a failure or timeout carries none). The capture runs
 /// on the thread pool (a decoder may block while connecting) and is abandoned at the timeout or cancellation even if the
 /// decoder does not react to its token in time. The address is logged redacted only.
 /// </summary>
@@ -46,7 +47,7 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
             // A capture abandoned at the timeout may still fail later; its exception must not go unobserved.
             _ = capture.ContinueWith(static task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             CameraImage image = await capture.WaitAsync(token).ConfigureAwait(false);
-            return new CameraTestResult(CameraTestOutcome.Success, image.Width, image.Height);
+            return new CameraTestResult(CameraTestOutcome.Success, image.Width, image.Height, Image: image);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {

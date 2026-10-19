@@ -408,6 +408,28 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
         yield return ("longest failed camera test", static scope => OpenWithCameraTestAsync(scope, LongestCameraFailure(), removedCredentials: false));
         yield return ("successful camera test", static scope => OpenWithCameraTestAsync(scope, new CameraTestResult(CameraTestOutcome.Success, 1920, 1080), removedCredentials: false));
+        yield return ("successful camera test + preview", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithCameraTestAsync(scope, new CameraTestResult(CameraTestOutcome.Success, 1920, 1080, Image: TestCameraImages.Solid(160, 90, 0xFFFF0000)), removedCredentials: false);
+            Assert.True(ui.ViewModel.SelectedPrinter!.HasCameraPreview);
+            return ui;
+        });
+
+        // Credentials removed + preview cannot happen (a successful test answers the notice, T-033 Q3); proven here.
+        yield return ("camera credentials removed + successful camera test + preview", static async scope =>
+        {
+            CameraTestResult success = new(CameraTestOutcome.Success, 1920, 1080, Image: TestCameraImages.Solid(160, 90, 0xFFFF0000));
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) });
+            store.Data = store.Data with { CamerasWithRemovedCredentials = Ids("a") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store, cameraTester: new FakeCameraTester { Immediate = success });
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            Assert.True(printer.CameraCredentialsRemoved);
+            await printer.TestCameraCommand.ExecuteAsync(null);
+            Assert.True(printer.HasCameraPreview);
+            Assert.False(printer.CameraCredentialsRemoved);
+            ui.Window.Settle();
+            return ui;
+        });
         yield return ("camera credentials removed + longest failed camera test", static scope => OpenWithCameraTestAsync(scope, LongestCameraFailure(), removedCredentials: true));
 
         yield return ("General with errors", static async scope =>

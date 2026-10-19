@@ -576,6 +576,9 @@
   <data name="SettingsCameraTestSuccess" xml:space="preserve">
     <value>Die Kamera funktioniert ({0} × {1} px).</value>
   </data>
+  <data name="SettingsCameraPreview" xml:space="preserve">
+    <value>Kamerabild aus dem Test</value>
+  </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
     <value>Innerhalb von {0} s kam kein Bild von der Kamera.</value>
   </data>

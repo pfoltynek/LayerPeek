@@ -1,3 +1,5 @@
+using PrusaTrayDiagnostic.Core.Cameras;
+
 namespace PrusaTrayDiagnostic.App.Settings;
 
 /// <summary>Outcome of <see cref="ICameraTester.TestAsync"/>. Public only because xUnit theory data needs it.</summary>
@@ -19,7 +21,8 @@ public enum CameraTestOutcome
 /// Short technical English reason of a failure (from the decoder, never containing the address); <see langword="null"/>
 /// when unknown.
 /// </param>
-internal sealed record CameraTestResult(CameraTestOutcome Outcome, int Width = 0, int Height = 0, string? Reason = null);
+/// <param name="Image">The first image (success only, T-034): the snapshot shown on the Camera sub-tab.</param>
+internal sealed record CameraTestResult(CameraTestOutcome Outcome, int Width = 0, int Height = 0, string? Reason = null, CameraImage? Image = null);
 
 /// <summary>"Test" button of the camera section in the settings window: opens the stream once and waits for an image.</summary>
 internal interface ICameraTester

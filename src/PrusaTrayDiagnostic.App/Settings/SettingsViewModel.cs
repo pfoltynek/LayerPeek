@@ -107,7 +107,14 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
     /// <param name="cameraTester">Camera "Test" button; default: none available (every test fails).</param>
-    internal SettingsViewModel(ISettingsEditorStore store, IConnectionTester tester, PasswordPolicy policy, Func<string>? newId = null, ICameraTester? cameraTester = null)
+    /// <param name="cameraPreviewRenderer">Draws the snapshot of a successful camera test; default: a bitmap (needs Avalonia).</param>
+    internal SettingsViewModel(
+        ISettingsEditorStore store,
+        IConnectionTester tester,
+        PasswordPolicy policy,
+        Func<string>? newId = null,
+        ICameraTester? cameraTester = null,
+        ICameraPreviewRenderer? cameraPreviewRenderer = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -117,6 +124,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         Policy = policy;
         _newId = newId ?? (static () => Guid.NewGuid().ToString("N"));
         CameraTester = cameraTester ?? new CameraSnapshotTester(UnavailableCameraFeedFactory.Instance, TimeProvider.System, NullLogger<CameraSnapshotTester>.Instance);
+        CameraPreviewRenderer = cameraPreviewRenderer ?? BitmapCameraPreviewRenderer.Instance;
         SoundOptions =
         [
             new SoundOption(NotificationSound.Off, static () => Strings.SettingsSoundOff),
@@ -406,6 +414,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     internal IConnectionTester Tester { get; }
 
     internal ICameraTester CameraTester { get; }
+
+    internal ICameraPreviewRenderer CameraPreviewRenderer { get; }
 
     internal bool IsDisposed => _disposed;
 

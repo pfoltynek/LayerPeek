@@ -35,8 +35,48 @@ public sealed class CameraSnapshotTesterTests
         feed.Send(width: 1280, height: 720);
         CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
 
-        Assert.Equal(new CameraTestResult(CameraTestOutcome.Success, 1280, 720), result);
+        Assert.Equal(CameraTestOutcome.Success, result.Outcome);
+        Assert.Equal((1280, 720), (result.Width, result.Height));
+        Assert.Null(result.Reason);
         await feed.Disposed.WaitAsync(TestTimeouts.Wait, Ct);
+    }
+
+    [Fact]
+    public async Task SuccessCarriesAnOwnedCopyOfTheFirstImage()
+    {
+        Task<CameraTestResult> test = Create().TestAsync(StreamUri, Ct);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+
+        // Red (B, G, R, A in memory); the feed reuses its buffer for the next frame, the image must not change.
+        feed.SendColor(8, 6, 0xFFFF0000);
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+        feed.SendColor(8, 6, 0xFF0000FF);
+
+        CameraImage image = Assert.IsType<CameraImage>(result.Image);
+        Assert.Equal((8, 6, 32), (image.Width, image.Height, image.Stride));
+        Assert.Equal(8 * 6 * 4, image.Pixels.Length);
+        Assert.Equal(new byte[] { 0, 0, 255, 255 }, image.Pixels[..4].ToArray());
+        Assert.Equal(new byte[] { 0, 0, 255, 255 }, image.Pixels[^4..].ToArray());
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, Ct);
+    }
+
+    [Fact]
+    public async Task FailuresCarryNoImage()
+    {
+        Task<CameraTestResult> timedOut = Create().TestAsync(StreamUri, Ct);
+        await _factory.WaitForFeedAsync(1);
+        _time.Advance(TimeSpan.FromSeconds(15));
+        Task<CameraTestResult> failed = Create().TestAsync(StreamUri, Ct);
+        (await _factory.WaitForFeedAsync(2)).Fail(new CameraFeedException("Connection refused."));
+        Task<CameraTestResult> ended = Create().TestAsync(StreamUri, Ct);
+        (await _factory.WaitForFeedAsync(3)).End();
+
+        foreach (Task<CameraTestResult> test in new[] { timedOut, failed, ended })
+        {
+            CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+            Assert.NotEqual(CameraTestOutcome.Success, result.Outcome);
+            Assert.Null(result.Image);
+        }
     }
 
     [Fact]
