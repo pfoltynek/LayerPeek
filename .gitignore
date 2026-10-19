@@ -488,3 +488,6 @@ $RECYCLE.BIN/
 
 # Git worktrees of Claude Code agents
 .claude/worktrees/
+
+# Output of the GSharp resx code generator editor extension (not C#, not part of the build)
+*.Designer.gs
