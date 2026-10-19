@@ -323,23 +323,26 @@ public sealed partial class ReconnectingCameraFeed
     /// re-armed without allocation for every frame.
     /// </summary>
     /// <remarks>
-    /// The timer only wakes the watchdog up; whether a timeout happened is decided from the arming itself: the
-    /// attempt it was armed for and the time it was armed at (<see cref="TimeProvider.GetTimestamp"/>). So a callback
-    /// that was already running when a frame arrived (disarmed meanwhile) or that belongs to an earlier arming (deadline
-    /// not reached yet) changes nothing; an early one re-arms the timer for the rest of the time.
+    /// The timer only wakes the watchdog up; whether a timeout happened is decided from the arming record: the attempt
+    /// it was armed for and the time it was armed at (<see cref="TimeProvider.GetTimestamp"/>). So a callback that was
+    /// already running when a frame arrived (disarmed meanwhile) or that belongs to an earlier arming (deadline not
+    /// reached yet) changes nothing; an early one re-arms the timer for the rest of the time. The record is read and
+    /// written under one lock (allocated once), so <see cref="Fire"/> never sees a half-updated record and never cancels
+    /// for an arming that was replaced meanwhile.
     /// </remarks>
     private sealed class Watchdog : IDisposable
     {
         private readonly TimeProvider _timeProvider;
         private readonly ITimer _timer;
-        private CancellationTokenSource? _attempt;
+        private readonly Lock _lock = new();
 
-        // The current arming: for which attempt, since when and for how long (ticks). _armedFor is written last.
+        // Guarded by _lock.
+        private CancellationTokenSource? _attempt;
         private CancellationTokenSource? _armedFor;
         private long _armedAt;
-        private long _timeoutTicks;
+        private TimeSpan _timeout;
 
-        // The attempt the watchdog cancelled, so that HasFired never applies to a later attempt.
+        // The attempt the watchdog cancelled, so that HasFired never applies to a later attempt. Guarded by _lock.
         private CancellationTokenSource? _firedFor;
 
         public Watchdog(TimeProvider timeProvider)
@@ -349,53 +352,90 @@ public sealed partial class ReconnectingCameraFeed
         }
 
         /// <summary>The current attempt was cancelled because of a timeout.</summary>
-        public bool HasFired => Volatile.Read(ref _attempt) is { } attempt && ReferenceEquals(Volatile.Read(ref _firedFor), attempt);
+        public bool HasFired
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return _attempt is not null && ReferenceEquals(_firedFor, _attempt);
+                }
+            }
+        }
 
-        public void Attach(CancellationTokenSource attempt) => Volatile.Write(ref _attempt, attempt);
+        public void Attach(CancellationTokenSource attempt)
+        {
+            lock (_lock)
+            {
+                _attempt = attempt;
+            }
+        }
 
         public void Detach()
         {
-            Disarm();
-            Volatile.Write(ref _attempt, null);
+            lock (_lock)
+            {
+                DisarmCore();
+                _attempt = null;
+            }
         }
 
         public void Arm(TimeSpan timeout)
         {
-            Volatile.Write(ref _timeoutTicks, timeout.Ticks);
-            Volatile.Write(ref _armedAt, _timeProvider.GetTimestamp());
-            Volatile.Write(ref _armedFor, Volatile.Read(ref _attempt));
-            _timer.Change(timeout, Timeout.InfiniteTimeSpan);
+            lock (_lock)
+            {
+                _timeout = timeout;
+                _armedAt = _timeProvider.GetTimestamp();
+                _armedFor = _attempt;
+                _timer.Change(timeout, Timeout.InfiniteTimeSpan);
+            }
         }
 
         public void Disarm()
         {
-            Volatile.Write(ref _armedFor, null);
-            _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            lock (_lock)
+            {
+                DisarmCore();
+            }
         }
 
         public void Dispose() => _timer.Dispose();
 
+        private void DisarmCore()
+        {
+            _armedFor = null;
+            _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        }
+
         private void Fire()
         {
-            CancellationTokenSource? attempt = Volatile.Read(ref _attempt);
-            if (attempt is null || !ReferenceEquals(Volatile.Read(ref _armedFor), attempt))
+            CancellationTokenSource attempt;
+            lock (_lock)
             {
-                // Disarmed meanwhile (a frame arrived) or armed for another attempt.
-                return;
+                if (_attempt is null || !ReferenceEquals(_armedFor, _attempt))
+                {
+                    // Disarmed meanwhile (a frame arrived) or armed for another attempt.
+                    return;
+                }
+
+                TimeSpan remaining = _timeout - _timeProvider.GetElapsedTime(_armedAt);
+                if (remaining > TimeSpan.Zero)
+                {
+                    // From an earlier arming, or the timer ran a little early: wait for the rest.
+                    _timer.Change(remaining, Timeout.InfiniteTimeSpan);
+                    return;
+                }
+
+                // Marked before cancelling: whoever sees the cancellation must also see why. Disarmed, so that a
+                // second callback cannot cancel again.
+                attempt = _attempt;
+                _firedFor = attempt;
+                _armedFor = null;
             }
 
-            TimeSpan remaining = TimeSpan.FromTicks(Volatile.Read(ref _timeoutTicks)) - _timeProvider.GetElapsedTime(Volatile.Read(ref _armedAt));
-            if (remaining > TimeSpan.Zero)
-            {
-                // From an earlier arming, or the timer ran a little early: wait for the rest.
-                _timer.Change(remaining, Timeout.InfiniteTimeSpan);
-                return;
-            }
-
-            // Marked before cancelling: whoever sees the cancellation must also see why.
-            Volatile.Write(ref _firedFor, attempt);
             try
             {
+                // Outside the lock: cancellation runs the token's callbacks synchronously.
                 attempt.Cancel();
             }
             catch (ObjectDisposedException)

@@ -29,8 +29,9 @@ public interface ISettingsStore
     /// It works on any syntactically valid JSON file, also one that <see cref="LoadAsync"/> reports as
     /// <see cref="SettingsLoadStatus.Corrupted"/> because of a value of the wrong type (T-014 decision): the password
     /// must not stay on disk just because another value is broken. A missing, unreadable or too large file, and one
-    /// that is not syntactically valid JSON (including invalid UTF-8), is left alone. Duplicate properties are all
-    /// cleaned (see the implementation remarks).
+    /// that is not syntactically valid JSON, is left alone; so is a file with invalid UTF-8 in a string the cleanup has
+    /// to read (property names, printer ids and camera addresses). Invalid bytes elsewhere (e.g. in a printer name) are
+    /// copied through unchanged. Duplicate properties are all cleaned (see the implementation remarks).
     /// </para>
     /// </summary>
     /// <returns>

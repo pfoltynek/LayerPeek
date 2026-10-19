@@ -73,7 +73,9 @@
       <!-- Unique per build; the timestamp lets later builds recognise leftovers of crashed builds by their age. -->
       <_PtdFFmpegWorkDir>$(_PtdFFmpegCacheRoot)tmp-$([System.DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))-$([System.Guid]::NewGuid().ToString('N'))\</_PtdFFmpegWorkDir>
       <_PtdFFmpegArchive>$(_PtdFFmpegWorkDir)ffmpeg.zip</_PtdFFmpegArchive>
-      <_PtdFFmpegStaging>$(_PtdFFmpegWorkDir)cache</_PtdFFmpegStaging>
+      <!-- A name that never occurs inside a cache (see the nested-move case below). -->
+      <_PtdFFmpegStagingName>staged-cache</_PtdFFmpegStagingName>
+      <_PtdFFmpegStaging>$(_PtdFFmpegWorkDir)$(_PtdFFmpegStagingName)</_PtdFFmpegStaging>
       <_PtdFFmpegFinal>$(PtdFFmpegCacheDir.TrimEnd('\'))</_PtdFFmpegFinal>
       <!-- Work folders older than this belong to crashed builds (a download takes minutes, not hours). -->
       <_PtdFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_PtdFFmpegStaleBefore>
@@ -119,19 +121,21 @@
       <_PtdFFmpegComplete Condition="Exists('$(_PtdFFmpegMarker)') and Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll')">true</_PtdFFmpegComplete>
     </PropertyGroup>
     <!--
-      An incomplete cache (older layout, manual edit) is replaced: its marker goes first, then the rest. Each step checks
-      the folder again right before it acts, so a complete cache that a concurrent build renames into place meanwhile
-      (atomically, with all files at once) is never touched: its marker is only deleted while files are missing, the
-      folder only removed while it has no marker, and the rename only happens while there is no folder.
+      Putting the cache in place uses only folder renames (atomic on one volume) and never deletes a folder in place:
+      - An incomplete cache (older layout, manual edit) is first renamed away into this build's work folder and deleted
+        from there. Should a concurrent build have renamed its complete cache in just before, that one is moved away
+        instead - harmless, because this build's staging folder (also complete and verified) takes its place.
+      - "move" nests the source inside the target when the target appeared in the meantime (a concurrent build won);
+        then the nested staging folder (a name that never occurs in a cache) is removed again and the winner stays.
+      The final check below accepts whichever complete cache is in place. Windows only for now (macOS, T-026: mv).
     -->
-    <Delete Files="$(_PtdFFmpegMarker)"
-            Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegMarker)') and !(Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll'))" />
-    <RemoveDir Directories="$(_PtdFFmpegFinal)"
-               Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegFinal)') and !Exists('$(_PtdFFmpegMarker)')" />
-    <!-- Renaming a folder on the same volume is atomic. Windows only for now (macOS, T-026: mv). -->
-    <Exec Command="move &quot;$(_PtdFFmpegStaging)&quot; &quot;$(_PtdFFmpegFinal)&quot;"
-          Condition="'$(_PtdFFmpegComplete)' != 'true' and !Exists('$(_PtdFFmpegFinal)')"
+    <Exec Command="move &quot;$(_PtdFFmpegFinal)&quot; &quot;$(_PtdFFmpegWorkDir)replaced&quot;"
+          Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegFinal)')"
           IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <Exec Command="move &quot;$(_PtdFFmpegStaging)&quot; &quot;$(_PtdFFmpegFinal)&quot;"
+          Condition="'$(_PtdFFmpegComplete)' != 'true'"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <RemoveDir Directories="$(_PtdFFmpegFinal)\$(_PtdFFmpegStagingName)" Condition="Exists('$(_PtdFFmpegFinal)\$(_PtdFFmpegStagingName)')" ContinueOnError="true" />
 
     <!-- The rename can lose against a concurrent build; what matters is that a complete cache is in place now. -->
     <PropertyGroup>

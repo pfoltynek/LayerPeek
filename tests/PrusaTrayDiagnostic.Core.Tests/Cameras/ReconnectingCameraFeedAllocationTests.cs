@@ -70,7 +70,9 @@ public sealed class ReconnectingCameraFeedAllocationTests
                     }
 
                     long minimum = long.MaxValue;
-                    for (int pass = 0; pass < 3 && minimum > 0; pass++)
+                    // Process-wide counter: a stray allocation on another thread (e.g. under a full parallel test run)
+                    // does not repeat on every pass, a per-frame allocation would.
+                    for (int pass = 0; pass < 8 && minimum > 0; pass++)
                     {
                         long before = GC.GetTotalAllocatedBytes(precise: true);
                         for (int i = 0; i < PerPass; i++)
