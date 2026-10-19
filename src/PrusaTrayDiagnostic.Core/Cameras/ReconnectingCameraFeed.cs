@@ -322,17 +322,29 @@ public sealed partial class ReconnectingCameraFeed
     /// Cancels the current attempt when the stream does not deliver a frame in time. One timer per enumeration,
     /// re-armed without allocation for every frame.
     /// </summary>
+    /// <remarks>
+    /// The timer only wakes the watchdog up; whether a timeout happened is decided from the arming itself: the
+    /// attempt it was armed for and the time it was armed at (<see cref="TimeProvider.GetTimestamp"/>). So a callback
+    /// that was already running when a frame arrived (disarmed meanwhile) or that belongs to an earlier arming (deadline
+    /// not reached yet) changes nothing; an early one re-arms the timer for the rest of the time.
+    /// </remarks>
     private sealed class Watchdog : IDisposable
     {
+        private readonly TimeProvider _timeProvider;
         private readonly ITimer _timer;
         private CancellationTokenSource? _attempt;
 
-        // The attempt the timer cancelled. Kept per attempt, so that a timer firing just while one attempt ends and the
-        // next one starts can never make the new attempt look timed out.
+        // The current arming: for which attempt, since when and for how long (ticks). _armedFor is written last.
+        private CancellationTokenSource? _armedFor;
+        private long _armedAt;
+        private long _timeoutTicks;
+
+        // The attempt the watchdog cancelled, so that HasFired never applies to a later attempt.
         private CancellationTokenSource? _firedFor;
 
         public Watchdog(TimeProvider timeProvider)
         {
+            _timeProvider = timeProvider;
             _timer = timeProvider.CreateTimer(static state => ((Watchdog)state!).Fire(), this, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         }
 
@@ -347,16 +359,36 @@ public sealed partial class ReconnectingCameraFeed
             Volatile.Write(ref _attempt, null);
         }
 
-        public void Arm(TimeSpan timeout) => _timer.Change(timeout, Timeout.InfiniteTimeSpan);
+        public void Arm(TimeSpan timeout)
+        {
+            Volatile.Write(ref _timeoutTicks, timeout.Ticks);
+            Volatile.Write(ref _armedAt, _timeProvider.GetTimestamp());
+            Volatile.Write(ref _armedFor, Volatile.Read(ref _attempt));
+            _timer.Change(timeout, Timeout.InfiniteTimeSpan);
+        }
 
-        public void Disarm() => _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        public void Disarm()
+        {
+            Volatile.Write(ref _armedFor, null);
+            _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        }
 
         public void Dispose() => _timer.Dispose();
 
         private void Fire()
         {
-            if (Volatile.Read(ref _attempt) is not { } attempt)
+            CancellationTokenSource? attempt = Volatile.Read(ref _attempt);
+            if (attempt is null || !ReferenceEquals(Volatile.Read(ref _armedFor), attempt))
             {
+                // Disarmed meanwhile (a frame arrived) or armed for another attempt.
+                return;
+            }
+
+            TimeSpan remaining = TimeSpan.FromTicks(Volatile.Read(ref _timeoutTicks)) - _timeProvider.GetElapsedTime(Volatile.Read(ref _armedAt));
+            if (remaining > TimeSpan.Zero)
+            {
+                // From an earlier arming, or the timer ran a little early: wait for the rest.
+                _timer.Change(remaining, Timeout.InfiniteTimeSpan);
                 return;
             }
 

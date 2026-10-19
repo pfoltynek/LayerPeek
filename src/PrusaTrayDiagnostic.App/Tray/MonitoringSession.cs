@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -462,7 +463,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             LogSettingsWarning(warning);
         }
 
-        if (result.Status == SettingsLoadStatus.Loaded)
+        // A corrupted file is cleaned as well when it is valid JSON (user decision): nothing of it is used, but the password
+        // must not stay on disk.
+        if (result.Status is SettingsLoadStatus.Loaded or SettingsLoadStatus.Corrupted)
         {
             await RemoveCameraCredentialsFromFileAsync(store, result.Settings, stopToken).ConfigureAwait(false);
         }
@@ -490,9 +493,17 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
         try
         {
-            // Also cleans entries that were not loaded (skipped printers), which the loaded settings cannot tell.
+            // Also cleans entries that were not loaded (skipped printers, a corrupted file). The notice is shown only for
+            // loaded printers with a camera: the settings window cannot show any other.
             IReadOnlyList<string> cleaned = await store.RemoveCameraCredentialsAsync(stopToken).ConfigureAwait(false);
-            affected.UnionWith(cleaned);
+            foreach (string id in cleaned)
+            {
+                if (settings.Printers.Any(printer => string.Equals(printer.Id, id, StringComparison.OrdinalIgnoreCase) && HasCamera(printer.Camera)))
+                {
+                    affected.Add(id);
+                }
+            }
+
             if (cleaned.Count > 0)
             {
                 LogCameraCredentialsRemoved(cleaned.Count);
@@ -509,6 +520,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
     }
 
+    private static bool HasCamera(CameraSettings camera) =>
+        camera.StreamUri is not null || camera.InvalidStreamUrl is not null || camera.CredentialsRemoved;
+
     [LoggerMessage(Level = LogLevel.Error, Message = "Settings could not be loaded; defaults are used.")]
     private partial void LogSettingsUnavailable(Exception exception);
 
@@ -521,7 +535,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from {Count} camera address(es) in the settings file; nothing else was changed.")]
     private partial void LogCameraCredentialsRemoved(int count);
 
-    [LoggerMessage(Level = LogLevel.Error, Message = "The settings file could not be saved after removing credentials from camera addresses; they stay in the file until it is saved.")]
+    [LoggerMessage(Level = LogLevel.Error, Message = "Credentials could not be removed from camera addresses in the settings file; they stay there until the settings are saved.")]
     private partial void LogCameraCredentialsNotRemoved(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Critical, Message = "Printer monitoring stopped unexpectedly.")]

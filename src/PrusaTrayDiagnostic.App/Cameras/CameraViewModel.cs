@@ -39,7 +39,7 @@ internal interface ICameraFrameSink
 /// <para>
 /// Streaming runs only while the window is active (shown and not minimized, <see cref="SetActive"/>), on the thread pool
 /// through <see cref="ReconnectingCameraFeed"/>, which reconnects by itself. Each borrowed frame is copied once into a
-/// reused buffer of a <see cref="CameraFrameExchange"/>; at most one UI callback is queued, and it hands only the newest
+/// reused buffer of a <see cref="CameraFrameExchange"/>; normally at most one UI callback is queued, and it hands only the newest
 /// frame to the <see cref="ICameraFrameSink"/>, so a busy UI drops frames instead of queueing them. Pausing, closing and
 /// disposing cancel the stream, which closes the connection; a new run starts only after the previous one ended, so
 /// there is never more than one connection per window.
@@ -59,6 +59,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
     private readonly IUiDispatcher _dispatcher;
     private readonly ICameraWindowStateStore _stateStore;
     private readonly ILogger<CameraViewModel> _logger;
+    private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _retryDelay;
+    private readonly Action _retry;
     private readonly CameraFrameExchange _exchange = new();
     private readonly Action _presentFrame;
     private readonly Action _applyPrintContent;
@@ -75,6 +78,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
     private string _name;
     private ICameraFrameSink? _sink;
     private CancellationTokenSource? _run;
+    private ITimer? _retryTimer;
     private int _runId;
     private Task _streaming = Task.CompletedTask;
     private bool _active;
@@ -94,6 +98,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         MonitoredPrinters printers,
         IUiDispatcher dispatcher,
         ICameraWindowStateStore stateStore,
+        TimeProvider timeProvider,
+        CameraFeedOptions options,
         ILogger<CameraViewModel> logger)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -110,7 +116,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         _monitor = monitor;
         _printers = printers;
         _dispatcher = dispatcher;
+        ArgumentNullException.ThrowIfNull(timeProvider);
+        ArgumentNullException.ThrowIfNull(options);
         _stateStore = stateStore;
+        _timeProvider = timeProvider;
+        _retryDelay = options.ReconnectDelay;
+        _retry = Retry;
         _logger = logger;
         _presentFrame = PresentFrame;
         _applyPrintContent = ApplyPrintContent;
@@ -350,6 +361,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
 
     private void StopStream()
     {
+        // Minimized, closed or another address: an automatic retry of an ended run is no longer wanted.
+        CancelRetry();
         if (_run is not { } run)
         {
             return;
@@ -372,9 +385,50 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable
         {
             _run = null;
             _runId++;
+            if (_active && !_disposed)
+            {
+                // User decision (T-014): an unexpected internal error is retried after the reconnect delay.
+                ScheduleRetry();
+            }
         }
 
         run.Dispose();
+    }
+
+    private void ScheduleRetry()
+    {
+        CancelRetry();
+        _retryTimer = _timeProvider.CreateTimer(static state => ((CameraViewModel)state!).OnRetryDue(), this, _retryDelay, Timeout.InfiniteTimeSpan);
+    }
+
+    private void CancelRetry()
+    {
+        _retryTimer?.Dispose();
+        _retryTimer = null;
+    }
+
+    // Timer thread.
+    private void OnRetryDue()
+    {
+        try
+        {
+            _dispatcher.Post(_retry);
+        }
+        catch (Exception ex)
+        {
+            // The UI is gone (quitting): nothing to retry.
+            LogStreamFailed(ex);
+        }
+    }
+
+    // UI thread. A retry that was cancelled after it had been posted finds the window paused, closed or streaming again.
+    private void Retry()
+    {
+        CancelRetry();
+        if (_active && !_disposed && _run is null)
+        {
+            StartStream();
+        }
     }
 
     private async Task RunStreamAsync(Task previous, Uri uri, StatusReporter status, CancellationTokenSource run, int runId)

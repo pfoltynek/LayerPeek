@@ -88,8 +88,11 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 - **Licence (2026-10-18):** všechny informace o licencích jsou v okně O aplikaci, vedle licence aplikace (Apache 2.0): tlačítko „Licence třetích stran…“ otevře okno se seznamem. Pro FFmpeg (LGPL-3.0-or-later, build BtbN) je tam verze za běhu, odkaz na zdroj FFmpeg a na přesný připnutý build, poznámka o dynamickém linkování a možnosti DLL vyměnit a plný text licence. Pro ostatní dodávané závislosti je uvedena verze, licence, odkaz na projekt a plný text. Seznam má jediný zdroj pravdy, který hlídá test.
 - **Testy FFmpeg mimo win-x64 (2026-10-18):** testy, které potřebují nativní FFmpeg, se automaticky přeskočí, když FFmpeg nejde načíst a platforma není win-x64 (xunit v3 `Skip`/`SkipUnless` s důvodem). Na Windows x64 chybějící FFmpeg testy **shodí**.
 - **Znak `@` v adrese kamery (2026-10-18):** adresa s `@` kdekoli se odmítne (i `rtsp://admin:1234/x@host`, kde `Uri` žádné přihlašovací údaje nevidí). Při načtení ze souboru se odstraní vše od `schéma://` po **poslední** `@` (`CredentialsRemoved = true`). `UriRedaction` takovou adresu maskuje stejně.
+- **Automatický nový pokus okna kamery (2026-10-18):** když běh streamu skončí sám neočekávanou vnitřní chybou a okno je aktivní, okno to po `ReconnectDelay` (5 s z `CameraFeedOptions`, přes `TimeProvider`) zkusí znovu. Platí to, dokud je okno aktivní a nezavřené. Minimalizace, zavření nebo změna adresy čekající pokus zruší.
+- **Hláška o odstraněných údajích (2026-10-18):** zobrazí se jen u načtených tiskáren s kamerou, ne u vynechaných položek ani u souboru, který se načetl jako poškozený (`Corrupted`). Z takového souboru, pokud je syntakticky platný, se údaje také odstraní.
 - **Zrcadlo archivu FFmpeg (2026-10-18):** žádné. Když stažení selže, build skončí srozumitelnou chybou s návodem: aktualizovat `PtdFFmpegUrl` + SHA256, nebo předvyplnit cache / `PtdFFmpegCacheRoot`.
 - **Odstranění přihlašovacích údajů ze souboru při startu (2026-10-18):** smí se změnit **jen** text adresy kamery (a `enabled` na `false` u dotčené kamery). Nic jiného se nepřepisuje: neznámé hodnoty, přeskočené tiskárny, komentáře ani formátování. Řeší Core (`ISettingsStore.RemoveCameraCredentialsAsync`), ne uložení celého nastavení.
+- **Odstranění údajů i z „poškozeného“ souboru (2026-10-18):** platí pro každý syntakticky platný JSON soubor nastavení, i když ho `LoadAsync` kvůli chybnému typu hodnoty hlásí jako `Corrupted`. „Neparsovatelný“ dál znamená jen syntakticky neplatný JSON (včetně neplatného UTF-8). Upozornění v UI se týká jen načtených tiskáren (řeší ui-dev).
 
 ## Otevřené otázky
 - Přikládat snímek k notifikaci o dokončení/chybě (T-010)?
@@ -188,7 +191,7 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 ### Code review, kolo 1 – opravy v Core a FFmpeg (core-dev) – 2026-10-18
 - **Ztracený příznak `CredentialsRemoved`:** adresa jen s údaji (např. `admin:secret@`) dávala `CameraSettings.Disabled` s příznakem. Mapper ho porovnával přes `==`, kde se příznak nezapočítává, a tak se ztratil. Teď porovnává referenci. Přibyl test v mapperu i v úložišti.
 - **`@` v adrese (rozhodnutí):** `ValidateStreamUri` vrací `CameraUrlProblem.ContainsCredentials` i pro adresu bez user-info, která obsahuje `@` (nová hodnota výčtu nepřibyla, hláška v UI zůstává). Při načtení se odstraňuje vše po poslední `@` celého textu, takže už nevadí ani heslo s `/`, `?` nebo `#`. `UriRedaction.Redact` maskuje i tvar `rtsp://admin:1234/x@host` → `rtsp://***@host`.
-- **Odstranění údajů ze souboru (rozhodnutí):** `ISettingsStore.RemoveCameraCredentialsAsync(CancellationToken)` → `Task<IReadOnlyList<string>>` s id dotčených tiskáren. Má výchozí implementaci (prázdný seznam), aby falešné úložiště v testech App nemusela nic měnit. `JsonSettingsStore` načte surové bajty a `Utf8JsonReader` (AOT-safe) najde v `printers[*].camera` hodnoty `streamUrl`. Názvy vlastností porovnává bez ohledu na velikost písmen jako deserializátor. Nahradí se jen bajty dotčených hodnot: adresa bez údajů a `enabled: true` → `false`. Komentáře, formátování, neznámá pole, přeskočené tiskárny (i ty bez id se vyčistí, jen se nevrátí v seznamu) i nesmyslné hodnoty zůstanou beze změny. Zápis je atomický stejně jako `SaveAsync`. Chybějící, příliš velký, nečitelný nebo neparsovatelný soubor zůstane, jak je. Soubor bez údajů se nepřepisuje.
+- **Odstranění údajů ze souboru (rozhodnutí):** `ISettingsStore.RemoveCameraCredentialsAsync(CancellationToken)` → `Task<IReadOnlyList<string>>` s id dotčených tiskáren. Má výchozí implementaci (prázdný seznam), aby falešné úložiště v testech App nemusela nic měnit. `JsonSettingsStore` načte surové bajty a `Utf8JsonReader` (AOT-safe) najde v `printers[*].camera` hodnoty `streamUrl`. Názvy vlastností porovnává bez ohledu na velikost písmen jako deserializátor. Nahradí se jen bajty dotčených hodnot: adresa bez údajů a `enabled: true` → `false`. Komentáře, formátování, neznámá pole, přeskočené tiskárny (i ty bez id se vyčistí, jen se nevrátí v seznamu) i nesmyslné hodnoty zůstanou beze změny. Zápis je atomický stejně jako `SaveAsync`. Chybějící, příliš velký, nečitelný nebo syntakticky neplatný soubor (i neplatné UTF-8) zůstane, jak je. Soubor s chybným typem hodnoty, který `LoadAsync` hlásí jako `Corrupted`, se vyčistí také (rozhodnutí, kolo 2). Soubor bez údajů se nepřepisuje.
 - **Alokace `ReconnectingCameraFeed`:** s reálným (asynchronně dokončovaným) čtením alokoval ~190 B na snímek: stav metody `AwaitNextAsync`. Ani `PoolingAsyncValueTaskMethodBuilder` nepomohl (box se dál alokoval, ověřeno přes GC AllocationTick). Čtení se proto awaituje přímo v async iterátoru, jehož stavový automat se znovu používá. Nové testy: falešný stream dokončovaný z jiného vlákna (0 B na 256 snímků) a reálná cesta FFmpeg + `ReconnectingCameraFeed` nad fixture (0 B na 50 snímků).
 - **Drobnosti:**
   - Watchdog si pamatuje, kterou aktuální instanci pokusu zrušil (`_firedFor`). Timer, který vyprší zrovna při přechodu na nový pokus, tak nový pokus neoznačí jako „bez signálu“.
@@ -202,3 +205,37 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 - **Testy FFmpeg mimo win-x64 (rozhodnutí):** `[FFmpegFact]`/`[FFmpegTheory]` (`FFmpegTestEnvironment.CanRun`, xunit v3 `Skip` + `SkipUnless`). Na win-x64 běží vždy, jinde jen když FFmpeg jde načíst. Přeskočení ověřeno dočasným vynucením. Testy factory, které FFmpeg nepotřebují, jsou běžné `[Fact]`.
 - **NuGet (kritérium):** dodávané nové balíčky jsou jen `FFmpeg.AutoGen.Abstractions` a `FFmpeg.AutoGen.Bindings.DynamicallyLinked` 9.0.1.1 (ověřeno AOT publishem s 0 varováními). `Avalonia.Headless.XUnit` 12.1.4 a `xunit.v3.mtp-v2` 3.2.2 (`VersionOverride`) používají jen testy a nedodávají se, takže AOT/trim kompatibilita pro ně neplatí.
 - **Testy:** FFmpeg 36 (nově falešná RTSP kamera s fragmentem, alokace přes `ReconnectingCameraFeed`), Core nové testy pro `@`, příznak, `RemoveCameraCredentialsAsync` (5), alokace s asynchronním streamem a logování opakované chyby.
+
+### Code review, kolo 2 – App (ui-dev) – 2026-10-18
+- **Nový pokus po vnitřní chybě:** `CameraViewModel` dostává `TimeProvider` a `CameraFeedOptions`. Když běh skončí sám a okno je aktivní, naplánuje se časovač (`ReconnectDelay`) a po jeho vypršení se na UI vlákně spustí nový běh. Minimalizace, zavření i změna adresy čekající pokus zruší (`StopStream` → `CancelRetry`). Pokus, který se zruší až po odeslání, nic neudělá. Testy: nový pokus po 5 s (ne dřív), zrušení minimalizací, zavřením i změnou adresy (bez druhého spojení).
+- **`CameraFrameExchange`:** komentáře opravené. Po `ResetNotification` mohou být krátce ve frontě dvě zpětná volání, což je neškodné.
+- **Hláška o odstraněných údajích:** je jen pro průnik ID vrácených z Core a načtených tiskáren s kamerou. Čištění souboru běží i pro stav `Corrupted`. Testy: vynechaná položka s heslem se vyčistí bez hlášky, poškozený (ale platný JSON) soubor se vyčistí bez hlášky a ostatní obsah zůstane.
+- **Log:** „Credentials could not be removed from camera addresses in the settings file; they stay there until the settings are saved.“
+- **Pozice okna:** horní okraj (titulek) stačí pokrýt sjednocením pracovních ploch, tedy i přes dva monitory nad sebou nebo vedle sebe (nejméně 48 px souvisle). Mezera mezi monitory pokrytí přeruší. Testy pro monitory nad sebou, mezeru i monitory vedle sebe.
+- **UI testy:** `CameraHarness.DisposeAsync` obnoví kulturu ve `finally` i při timeoutu.
+- **Ověřeno:** `dotnet build` celé solution s 0 varováními, `dotnet test` celé solution (1865 testů, 0 selhání, 1 dřívější skip; App.Tests 1038, App.UiTests 22) a AOT publish win-x64 s 0 varováními.
+
+### Code review, kolo 2 – opravy v Core a FFmpeg (core-dev) – 2026-10-18
+- **Testy escape sekvencí (M1):** původní test „escapes“ žádné escape sekvence neobsahoval, protože nástroj při zápisu souboru převedl `\u…` na znaky. Proto vznikla nová třída `JsonSettingsStoreScrubTests`, kde se zpětné lomítko skládá v kódu (`(char)92`), takže ho nic nemůže převést. Pokrývá:
+  - `@` místo `@` a `s` uvnitř hodnoty, dále `\"`, `\` a `\/`
+  - escapované id i názvy vlastností
+  - zachování UTF-8 BOM (výstup začíná `EF BB BF`)
+  - názvy vlastností velkými písmeny
+  - duplicitní `streamUrl`, `enabled` i `camera`
+  - vnořené objekty v `camera` zůstanou beze změny
+  - komentáře, koncové čárky, tabulátory, CRLF a mezery kolem `:` zůstanou zachované
+  - neplatné UTF-8 → soubor beze změny
+  - soubor s chybným typem hodnoty (`Corrupted`) se vyčistí také (rozhodnutí)
+
+  Starý test je přejmenovaný na `RemovingCameraCredentialsHandlesHiddenCredentials`.
+- **Neplatné UTF-8 (m1):** `GetString` vyhodí `InvalidOperationException`. Ta se teď zachytí stejně jako `JsonException` a soubor zůstane beze změny.
+- **Čtení souboru (m3):** `RemoveCameraCredentialsAsync` čte přes `FileStream` se `FileShare.Read | FileShare.Delete` jako `LoadAsync`. Velikost kontroluje na otevřeném streamu (`ReadExactlyAsync`, bez TOCTOU). Když se soubor mezitím zkrátí, zůstane beze změny.
+- **Watchdog (n1):** rozhoduje podle záznamu o natažení, timer ho jen probouzí. `Arm` uloží pokus, čas natažení (`TimeProvider.GetTimestamp`) a timeout, `Disarm` záznam smaže. Callback zruší pokus jen tehdy, když je natažený pro aktuální pokus a uplynul celý timeout. Pokud přijde dřív (z dřívějšího natažení, nebo timer o chvíli předběhne), timer se natáhne na zbývající čas, takže skutečný timeout se neztratí. Bez alokací (testy alokací prošly). Nové testy `ReconnectingCameraFeedWatchdogTests` s ručně spouštěným timerem: pozdní callback po snímku nic nezruší, dřívější callback před termínem nic nezruší, callback po termínu ohlásí „bez signálu“.
+- **Duplicity (n2):** zdokumentováno v `CameraCredentialScrubber` a `ISettingsStore`. Vyčistí se každá `streamUrl` s `@` ve všech objektech `camera` tiskárny. Každé `enabled: true` v objektu, kde se adresa čistila, se změní na `false`, i když by loader použil jinou (poslední) hodnotu (bezpečná strana). Objekt `camera` s čistými adresami si `enabled` ponechá.
+- **Souběžné buildy (n4):** každý krok nahrazení cache těsně předtím znovu zkontroluje stav složky:
+  - značka se maže, jen když chybí soubory
+  - složka se maže, jen když nemá značku
+  - přejmenování proběhne, jen když cílová složka neexistuje
+
+  Kompletní cache, kterou mezitím přejmenoval jiný build, tak zůstane nedotčená a vlastní stažení se zahodí. Znovu ověřeno: dva souběžné první buildy, inkrementální build, oprava cache se značkou i bez ní, design-time build, `-r osx-arm64`.
+- **Dokumentace (n5):** `docs/prerequisites.md` uvádí, že ručně vytvořený `verified.sha256` má obsahovat jeden řádek s hodnotou `PtdFFmpegSha256` (build zatím kontroluje jen existenci).

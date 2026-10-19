@@ -68,20 +68,19 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            byte[] content;
+            byte[]? content;
             try
             {
-                FileInfo file = new(FilePath);
-                if (!file.Exists || file.Length > MaxFileSizeBytes)
-                {
-                    return [];
-                }
-
-                content = await File.ReadAllBytesAsync(FilePath, cancellationToken).ConfigureAwait(false);
+                content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
             }
-            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException or IOException or UnauthorizedAccessException)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 // Such a file is not loaded either; whatever is in it, it is not ours to change.
+                return [];
+            }
+
+            if (content is null)
+            {
                 return [];
             }
 
@@ -91,8 +90,9 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
             {
                 cleaned = CameraCredentialScrubber.Scrub(content, changed);
             }
-            catch (JsonException)
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {
+                // Not syntactically valid JSON (InvalidOperationException: invalid UTF-8 inside a string).
                 return [];
             }
 
@@ -111,6 +111,36 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
     }
 
     public void Dispose() => _gate.Dispose();
+
+    /// <summary>
+    /// The file content, or <see langword="null"/> when there is no file or it is too large. Opened like
+    /// <see cref="LoadCoreAsync"/>, and the size is checked on the open stream, so it cannot change in between.
+    /// </summary>
+    private async Task<byte[]?> ReadAllBytesAsync(CancellationToken cancellationToken)
+    {
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, BufferSize, useAsync: true);
+        }
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return null;
+        }
+
+        await using (stream.ConfigureAwait(false))
+        {
+            long length = stream.Length;
+            if (length > MaxFileSizeBytes)
+            {
+                return null;
+            }
+
+            byte[] content = new byte[length];
+            await stream.ReadExactlyAsync(content, cancellationToken).ConfigureAwait(false);
+            return content;
+        }
+    }
 
     private async Task<SettingsLoadResult> LoadCoreAsync(CancellationToken cancellationToken)
     {

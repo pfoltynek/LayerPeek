@@ -118,12 +118,19 @@
       <_PtdFFmpegComplete>false</_PtdFFmpegComplete>
       <_PtdFFmpegComplete Condition="Exists('$(_PtdFFmpegMarker)') and Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll')">true</_PtdFFmpegComplete>
     </PropertyGroup>
-    <!-- An incomplete cache (older layout, manual edit) is replaced: its marker goes first, then the rest. -->
-    <Delete Files="$(_PtdFFmpegMarker)" Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegMarker)')" />
-    <RemoveDir Directories="$(_PtdFFmpegFinal)" Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegFinal)')" />
+    <!--
+      An incomplete cache (older layout, manual edit) is replaced: its marker goes first, then the rest. Each step checks
+      the folder again right before it acts, so a complete cache that a concurrent build renames into place meanwhile
+      (atomically, with all files at once) is never touched: its marker is only deleted while files are missing, the
+      folder only removed while it has no marker, and the rename only happens while there is no folder.
+    -->
+    <Delete Files="$(_PtdFFmpegMarker)"
+            Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegMarker)') and !(Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll'))" />
+    <RemoveDir Directories="$(_PtdFFmpegFinal)"
+               Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegFinal)') and !Exists('$(_PtdFFmpegMarker)')" />
     <!-- Renaming a folder on the same volume is atomic. Windows only for now (macOS, T-026: mv). -->
     <Exec Command="move &quot;$(_PtdFFmpegStaging)&quot; &quot;$(_PtdFFmpegFinal)&quot;"
-          Condition="'$(_PtdFFmpegComplete)' != 'true'"
+          Condition="'$(_PtdFFmpegComplete)' != 'true' and !Exists('$(_PtdFFmpegFinal)')"
           IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
 
     <!-- The rename can lose against a concurrent build; what matters is that a complete cache is in place now. -->

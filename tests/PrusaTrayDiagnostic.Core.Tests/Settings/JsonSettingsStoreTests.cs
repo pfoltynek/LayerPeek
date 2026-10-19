@@ -509,9 +509,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task RemovingCameraCredentialsHandlesEscapesAndHiddenCredentials()
+    public async Task RemovingCameraCredentialsHandlesHiddenCredentials()
     {
-        // "@" is "@" and "s" is "s"; Uri would see no user info in "admin:1234/x@host".
+        // Uri sees no user info in "admin:1234/x@host"; a URL with only credentials leaves nothing. (Escapes: JsonSettingsStoreScrubTests.)
         await WriteSettingsFileAsync("""
             { "printers": [
               { "id": "a", "connectionType": "PrusaLink", "address": "h", "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@10.0.0.6/live" } },

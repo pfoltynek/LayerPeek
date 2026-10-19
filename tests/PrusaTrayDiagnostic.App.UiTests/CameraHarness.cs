@@ -70,14 +70,20 @@ internal sealed class CameraHarness : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        Windows.Shutdown();
-        foreach (CameraViewModel viewModel in _created)
+        try
         {
-            viewModel.Dispose();
-            await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait);
+            Windows.Shutdown();
+            foreach (CameraViewModel viewModel in _created)
+            {
+                viewModel.Dispose();
+                await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait);
+            }
         }
-
-        _culture.Dispose();
+        finally
+        {
+            // Restored even when a stream did not end in time: later tests share this UI thread.
+            _culture.Dispose();
+        }
     }
 
     private CameraViewModel? Create(string printerId)
@@ -89,7 +95,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, NullLogger<CameraViewModel>.Instance);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);
         return viewModel;
     }

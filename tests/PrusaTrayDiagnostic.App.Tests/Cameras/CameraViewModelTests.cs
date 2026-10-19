@@ -43,7 +43,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null)
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, NullLogger<CameraViewModel>.Instance);
+        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);
         viewModel.AttachFrameSink(_sink);
         return viewModel;
@@ -524,6 +524,79 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         viewModel.SetActive(false);
         viewModel.SetActive(true);
         await _factory.WaitForFeedAsync(2);
+        Assert.True(viewModel.IsStreaming);
+    }
+
+    /// <summary>A window whose run ended by itself (the third post, the first frame, throws) and shows the error.</summary>
+    private async Task<CameraViewModel> RunEndedByItselfAsync()
+    {
+        CameraViewModel viewModel = Create(dispatcher: new FaultyDispatcher(_dispatcher, failingPost: 3));
+        viewModel.SetActive(true);
+        FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
+        first.Send();
+        await first.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        _dispatcher.RunAll();
+        Assert.False(viewModel.IsStreaming);
+        Assert.Equal("Camera error", viewModel.StatusText);
+        return viewModel;
+    }
+
+    [Fact]
+    public async Task RunEndedByItselfIsRetriedAfterTheReconnectDelay()
+    {
+        CameraViewModel viewModel = await RunEndedByItselfAsync();
+
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay - TimeSpan.FromMilliseconds(100));
+        _dispatcher.RunAll();
+        Assert.Single(_factory.Feeds);
+
+        _time.Advance(TimeSpan.FromMilliseconds(100));
+        _dispatcher.RunAll();
+        await _factory.WaitForFeedAsync(2);
+        Assert.True(viewModel.IsStreaming);
+        Assert.Equal("Connecting to the camera…", viewModel.StatusText);
+    }
+
+    [Fact]
+    public async Task MinimizingCancelsThePendingRetry()
+    {
+        CameraViewModel viewModel = await RunEndedByItselfAsync();
+
+        viewModel.SetActive(false);
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay * 2);
+        _dispatcher.RunAll();
+
+        Assert.Single(_factory.Feeds);
+        Assert.False(viewModel.IsStreaming);
+    }
+
+    [Fact]
+    public async Task ClosingCancelsThePendingRetry()
+    {
+        CameraViewModel viewModel = await RunEndedByItselfAsync();
+
+        viewModel.Dispose();
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay * 2);
+        _dispatcher.RunAll();
+
+        Assert.Single(_factory.Feeds);
+    }
+
+    [Fact]
+    public async Task AddressChangeReplacesThePendingRetry()
+    {
+        CameraViewModel viewModel = await RunEndedByItselfAsync();
+
+        ApplyPrinters(CameraPrinter(url: "rtsp://192.168.0.228/live"));
+        _dispatcher.RunAll();
+        await _factory.WaitForFeedAsync(2);
+        _time.Advance(CameraFeedOptions.Default.ReconnectDelay * 2);
+        _dispatcher.RunAll();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+
+        // The new address started at once; the retry of the old run did not start a second connection.
+        Assert.Equal(2, _factory.Feeds.Count);
         Assert.True(viewModel.IsStreaming);
     }
 

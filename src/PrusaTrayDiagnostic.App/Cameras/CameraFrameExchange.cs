@@ -65,7 +65,9 @@ internal sealed class CameraFrameBuffer
 /// allocating per frame (triple buffering): the stream copies each borrowed frame into its back buffer and swaps it into
 /// the "ready" slot; the UI swaps the ready slot into its front buffer when it gets to it. A frame the UI did not take
 /// before the next one arrived is dropped, so a busy UI never builds a queue (and never adds latency). The stream asks
-/// for a UI notification only when none is pending, so at most one UI callback is queued at any time.
+/// for a UI notification only when none is pending, so normally at most one UI callback is queued. Right after
+/// <see cref="ResetNotification"/> a callback requested by the previous run may still be queued as well, so two can
+/// briefly be queued; that is harmless, the later one finds no new frame and does nothing.
 /// One producer (the streaming loop) and one consumer (the UI thread).
 /// </summary>
 internal sealed class CameraFrameExchange
@@ -111,8 +113,9 @@ internal sealed class CameraFrameExchange
     }
 
     /// <summary>
-    /// Streaming thread, before a new run publishes: forgets a notification that was never delivered (a run that ended
-    /// while its UI callback could not be queued), so that the new run notifies again.
+    /// Streaming thread, before a new run publishes: forgets the pending notification, so that the new run notifies
+    /// again even if the last request of an earlier run was never queued (its run ended because queueing it failed).
+    /// When that request was queued after all, a second callback may briefly be queued too (see the type remarks).
     /// </summary>
     public void ResetNotification()
     {

@@ -9,8 +9,17 @@ namespace PrusaTrayDiagnostic.Core.Settings.Storage;
 /// Removes credentials from the camera addresses of a raw settings file without touching anything else: only the
 /// bytes of each affected <c>printers[*].camera.streamUrl</c> value (and of <c>enabled</c> in the same camera object,
 /// which becomes <c>false</c>) are replaced. Comments, formatting, unknown fields and entries the mapper would skip
-/// stay byte for byte. Property names are matched case-insensitively, like <see cref="SettingsJsonContext"/> reads them.
+/// stay byte for byte. Property names are matched case-insensitively, like <see cref="SettingsJsonContext"/> reads them;
+/// escapes in names and values are decoded first.
 /// </summary>
+/// <remarks>
+/// Duplicates err on the safe side: the loader uses only the last of duplicate properties, but here <b>every</b>
+/// <c>streamUrl</c> with an <c>@</c> in every <c>camera</c> object of a printer is cleaned, and every <c>enabled: true</c>
+/// of a camera object in which an address was cleaned becomes <c>false</c> (also when that address is not the one the
+/// loader would use). A camera object whose addresses are all clean keeps its <c>enabled</c>. Values nested deeper
+/// inside <c>camera</c> are unknown data and stay untouched. The printer id is reported when the last <c>id</c> string
+/// of the entry is known.
+/// </remarks>
 internal static class CameraCredentialScrubber
 {
     private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];

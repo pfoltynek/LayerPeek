@@ -196,6 +196,8 @@ internal static class AppServices
                         services.GetRequiredService<MonitoredPrinters>(),
                         services.GetRequiredService<IUiDispatcher>(),
                         services.GetRequiredService<ICameraWindowStateStore>(),
+                        services.GetRequiredService<TimeProvider>(),
+                        services.GetRequiredService<CameraFeedOptions>(),
                         services.GetRequiredService<ILogger<CameraViewModel>>())
                     : null;
             }

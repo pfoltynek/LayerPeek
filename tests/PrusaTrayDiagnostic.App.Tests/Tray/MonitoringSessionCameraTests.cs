@@ -136,6 +136,66 @@ public sealed class MonitoringSessionCameraTests : IAsyncDisposable
         Assert.Equal(["a"], _removed.PrinterIds);
     }
 
+    [Fact]
+    public async Task NoticeOnlyForLoadedPrintersWithACamera()
+    {
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(
+            Path.Combine(_directory, JsonSettingsStore.FileName),
+            """
+            {
+              "version": 1,
+              "printers": [
+                { "id": "a", "name": "Alpha", "connectionType": "PrusaLink", "address": "192.168.0.226",
+                  "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@192.168.0.227/live" } },
+                { "id": "skipped", "name": "No address", "connectionType": "PrusaLink",
+                  "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@192.168.0.228/live" } }
+              ]
+            }
+            """,
+            Ct);
+        _file = new JsonSettingsStore(_directory);
+        Create(() => _file);
+
+        _session!.Start();
+        await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
+
+        // Both addresses lost the password, but only the loaded printer can show the notice.
+        Assert.DoesNotContain("secret", await File.ReadAllTextAsync(_file.FilePath, Ct), StringComparison.Ordinal);
+        Assert.Equal(["a"], _removed.PrinterIds);
+    }
+
+    [Fact]
+    public async Task CorruptedFileLosesTheCredentialsWithoutANotice()
+    {
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(
+            Path.Combine(_directory, JsonSettingsStore.FileName),
+            """
+            {
+              "version": 1,
+              "pollingIntervalSeconds": "fast",
+              "printers": [
+                { "id": "a", "name": "Alpha", "connectionType": "PrusaLink", "address": "192.168.0.226",
+                  "camera": { "enabled": true, "streamUrl": "rtsp://admin:secret@192.168.0.227/live" } }
+              ]
+            }
+            """,
+            Ct);
+        _file = new JsonSettingsStore(_directory);
+        Create(() => _file);
+
+        _session!.Start();
+        (IReadOnlyList<PrinterDefinition> printers, _) = await _monitor.Started.WaitAsync(TestTimeouts.Wait, Ct);
+
+        // User decision: a syntactically valid but corrupted file is cleaned too; nothing of it was loaded, so no notice.
+        Assert.Empty(printers);
+        string content = await File.ReadAllTextAsync(_file.FilePath, Ct);
+        Assert.DoesNotContain("secret", content, StringComparison.Ordinal);
+        Assert.Contains("\"fast\"", content, StringComparison.Ordinal);
+        Assert.Empty(_removed.PrinterIds);
+    }
+
     private sealed class FailingSaveStore(ISettingsStore inner) : ISettingsStore
     {
         public Task<SettingsLoadResult> LoadAsync(CancellationToken cancellationToken) => inner.LoadAsync(cancellationToken);
