@@ -37,6 +37,31 @@ public sealed partial class StringsTests
         }
     }
 
+    public static TheoryData<string> AllCultures => new(["", .. TranslatedCultures]);
+
+    /// <summary>
+    /// A resolution ("1920 × 1080 px") never wraps (decision 2026-10-19, T-034): non-breaking spaces around "×" and before
+    /// "px" in every text and language.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AllCultures))]
+    public void ResolutionsUseNonBreakingSpaces(string culture)
+    {
+        CultureInfo info = culture.Length == 0 ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo(culture);
+        Dictionary<string, string> texts = Load(info);
+        foreach ((string key, string text) in texts)
+        {
+            Assert.False(text.Contains(" ×", StringComparison.Ordinal) || text.Contains("× ", StringComparison.Ordinal), $"'{key}' in '{culture}' has a breaking space next to '×'.");
+            Assert.False(ResolutionWithBreakingSpace().IsMatch(text), $"'{key}' in '{culture}' has a breaking space before 'px'.");
+        }
+
+        string success = string.Format(info, texts["SettingsCameraTestSuccess"], 1920, 1080);
+        Assert.Contains("1920\u00A0×\u00A01080\u00A0px", success, StringComparison.Ordinal);
+    }
+
+    [GeneratedRegex(@"(\}|\d) px\b")]
+    private static partial Regex ResolutionWithBreakingSpace();
+
     [Fact]
     public void EverySupportedLanguageExceptEnglishHasATranslation()
     {

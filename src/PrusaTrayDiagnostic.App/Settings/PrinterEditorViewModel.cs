@@ -720,9 +720,19 @@ public sealed class PrinterEditorViewModel : ObservableObject
         {
             preview = _owner.CameraPreviewRenderer.Render(image);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
             // The test still succeeded; only its picture is missing (a command handler must never throw into the UI).
+            // The renderer never sees the address, so its exception cannot contain it.
+            try
+            {
+                SettingsLog.CameraPreviewNotDrawn(_owner.Logger, ex, ex.GetType().Name, ex.Message);
+            }
+            catch (Exception)
+            {
+                // A logger that is gone (e.g. during quit) must not break the window either.
+            }
+
             return;
         }
 

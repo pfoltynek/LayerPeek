@@ -298,7 +298,7 @@ public sealed partial class CameraWindow : Window
     /// Copies a frame into the bitmap (one block copy when the row layouts match, which is the usual case) and asks the
     /// image to redraw. Allocates only when the resolution changes.
     /// </summary>
-    private unsafe void Present(CameraFrameBuffer frame)
+    private void Present(CameraFrameBuffer frame)
     {
         // The image owns the bitmap (no field: the window would have to be disposable); it is disposed when the window closes.
         WriteableBitmap? bitmap = Video.Source as WriteableBitmap;
@@ -312,19 +312,7 @@ public sealed partial class CameraWindow : Window
 
         using (ILockedFramebuffer target = bitmap.Lock())
         {
-            ReadOnlySpan<byte> source = frame.Pixels;
-            int rowBytes = frame.Stride;
-            if (target.RowBytes == rowBytes)
-            {
-                source.CopyTo(new Span<byte>((void*)target.Address, rowBytes * frame.Height));
-            }
-            else
-            {
-                for (int row = 0; row < frame.Height; row++)
-                {
-                    source.Slice(row * rowBytes, rowBytes).CopyTo(new Span<byte>((byte*)target.Address + ((long)row * target.RowBytes), rowBytes));
-                }
-            }
+            BgraPixels.CopyTo(frame.Pixels, frame.Stride, frame.Height, target);
         }
 
         Video.InvalidateVisual();

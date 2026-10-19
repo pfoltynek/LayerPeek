@@ -5,6 +5,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Cameras;
@@ -108,13 +109,15 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
     /// <param name="cameraTester">Camera "Test" button; default: none available (every test fails).</param>
     /// <param name="cameraPreviewRenderer">Draws the snapshot of a successful camera test; default: a bitmap (needs Avalonia).</param>
+    /// <param name="logger">Problems the window works around (e.g. a camera preview that cannot be drawn); default: none.</param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
         PasswordPolicy policy,
         Func<string>? newId = null,
         ICameraTester? cameraTester = null,
-        ICameraPreviewRenderer? cameraPreviewRenderer = null)
+        ICameraPreviewRenderer? cameraPreviewRenderer = null,
+        ILogger<SettingsViewModel>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -125,6 +128,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _newId = newId ?? (static () => Guid.NewGuid().ToString("N"));
         CameraTester = cameraTester ?? new CameraSnapshotTester(UnavailableCameraFeedFactory.Instance, TimeProvider.System, NullLogger<CameraSnapshotTester>.Instance);
         CameraPreviewRenderer = cameraPreviewRenderer ?? BitmapCameraPreviewRenderer.Instance;
+        Logger = logger ?? NullLogger<SettingsViewModel>.Instance;
         SoundOptions =
         [
             new SoundOption(NotificationSound.Off, static () => Strings.SettingsSoundOff),
@@ -416,6 +420,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     internal ICameraTester CameraTester { get; }
 
     internal ICameraPreviewRenderer CameraPreviewRenderer { get; }
+
+    internal ILogger Logger { get; }
 
     internal bool IsDisposed => _disposed;
 

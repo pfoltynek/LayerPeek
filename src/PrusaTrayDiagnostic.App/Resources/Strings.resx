@@ -586,7 +586,7 @@
     <value>Waiting for an image from the camera…</value>
   </data>
   <data name="SettingsCameraTestSuccess" xml:space="preserve">
-    <value>The camera works ({0} × {1} px).</value>
+    <value>The camera works ({0}&#xA0;×&#xA0;{1}&#xA0;px).</value>
   </data>
   <data name="SettingsCameraPreview" xml:space="preserve">
     <value>Camera snapshot from the test</value>

@@ -574,7 +574,7 @@
     <value>Čaká sa na obraz z kamery…</value>
   </data>
   <data name="SettingsCameraTestSuccess" xml:space="preserve">
-    <value>Kamera funguje ({0} × {1} px).</value>
+    <value>Kamera funguje ({0}&#xA0;×&#xA0;{1}&#xA0;px).</value>
   </data>
   <data name="SettingsCameraPreview" xml:space="preserve">
     <value>Snímka z testu kamery</value>

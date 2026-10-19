@@ -152,7 +152,7 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             FakeCameraFeed feed = await harness.Factory.WaitForFeedAsync(1);
             feed.Send(width: 1280, height: 720);
 
-            await Ui.UntilAsync(() => Ui.ShowsText(harness.Window, "The camera works (1280 × 720 px)."), "success shown");
+            await Ui.UntilAsync(() => Ui.ShowsText(harness.Window, "The camera works (1280\u00A0×\u00A0720\u00A0px)."), "success shown");
         });
 
     [Fact]
@@ -301,7 +301,7 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             harness.Window.Settle();
 
             Assert.Equal("Snímek z testu kamery", AutomationProperties.GetName(preview));
-            Assert.True(Ui.ShowsText(harness.Window, "Kamera funguje (160 × 90 px)."));
+            Assert.True(Ui.ShowsText(harness.Window, "Kamera funguje (160\u00A0×\u00A090\u00A0px)."));
             Assert.Same(source, preview.Source);
             Point origin = PositionOf(harness.Window.Find<Border>("PrinterCameraPreviewFrame"), harness.Window);
             using WriteableBitmap rendered = harness.Window.CaptureRenderedFrame()!;

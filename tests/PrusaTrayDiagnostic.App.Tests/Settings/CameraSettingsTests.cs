@@ -291,7 +291,7 @@ public sealed class CameraSettingsTests : IDisposable
         await printer.TestCameraCommand.ExecuteAsync(null);
 
         Assert.Equal(new Uri("rtsp://192.168.0.227/live"), Assert.Single(_cameraTester.Calls));
-        Assert.Equal("The camera works (1280 × 720 px).", printer.CameraTestResultText);
+        Assert.Equal("The camera works (1280\u00A0×\u00A0720\u00A0px).", printer.CameraTestResultText);
         Assert.True(printer.CameraTestSucceeded);
         Assert.False(printer.IsTestingCamera);
     }
@@ -429,7 +429,7 @@ public sealed class CameraSettingsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(CameraTestOutcome.Success, null, "Die Kamera funktioniert (1280 × 720 px).")]
+    [InlineData(CameraTestOutcome.Success, null, "Die Kamera funktioniert (1280\u00A0×\u00A0720\u00A0px).")]
     [InlineData(CameraTestOutcome.Timeout, null, "Innerhalb von 15 s kam kein Bild von der Kamera.")]
     // The reason comes from the decoder (technical, English) and is not translated; the sentence around it is.
     [InlineData(CameraTestOutcome.Failed, "Connection refused.", "Der Kamerastream konnte nicht geöffnet werden: Connection refused.")]

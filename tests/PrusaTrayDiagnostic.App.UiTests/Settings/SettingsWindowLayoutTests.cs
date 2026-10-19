@@ -238,7 +238,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             ui.Click("PrinterTabCamera");
             ui.Click("PrinterCameraTest");
-            Assert.Equal("The camera works (1920 × 1080 px).", ui.ShownText("PrinterCameraTestResult"));
+            Assert.Equal("The camera works (1920\u00A0×\u00A01080\u00A0px).", ui.ShownText("PrinterCameraTestResult"));
             Assert.Equal(LightSuccessColor, ForegroundOf(ui.Find<TextBlock>("PrinterCameraTestResult")));
 
             cameraTester.Immediate = new CameraTestResult(CameraTestOutcome.Failed);

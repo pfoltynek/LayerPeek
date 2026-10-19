@@ -3,6 +3,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
+using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.Core.Cameras;
 
 namespace PrusaTrayDiagnostic.App.Settings;
@@ -28,25 +29,15 @@ internal sealed class BitmapCameraPreviewRenderer : ICameraPreviewRenderer
     {
     }
 
-    public unsafe IImage Render(CameraImage image)
+    public IImage Render(CameraImage image)
     {
         ArgumentNullException.ThrowIfNull(image);
         WriteableBitmap bitmap = new(new PixelSize(image.Width, image.Height), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Opaque);
         try
         {
-            using ILockedFramebuffer target = bitmap.Lock();
-            ReadOnlySpan<byte> source = image.Pixels.Span;
-            int rowBytes = image.Stride;
-            if (target.RowBytes == rowBytes)
+            using (ILockedFramebuffer target = bitmap.Lock())
             {
-                source.CopyTo(new Span<byte>((void*)target.Address, rowBytes * image.Height));
-            }
-            else
-            {
-                for (int row = 0; row < image.Height; row++)
-                {
-                    source.Slice(row * rowBytes, rowBytes).CopyTo(new Span<byte>((byte*)target.Address + ((long)row * target.RowBytes), rowBytes));
-                }
+                BgraPixels.CopyTo(image.Pixels.Span, image.Stride, image.Height, target);
             }
 
             return bitmap;

@@ -29,6 +29,7 @@ public sealed class CameraPreviewTests : IDisposable
     private readonly FakeCameraFeedFactory _factory = new();
     private readonly FakeTimeProvider _time = new();
     private readonly FakePreviewRenderer _renderer = new();
+    private readonly ListLogger<SettingsViewModel> _logger = new();
     private SettingsViewModel? _viewModel;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -52,7 +53,8 @@ public sealed class CameraPreviewTests : IDisposable
             new FakeConnectionTester(),
             Supported,
             cameraTester: tester ?? new CameraSnapshotTester(_factory, _time, new ListLogger<CameraSnapshotTester>()),
-            cameraPreviewRenderer: _renderer);
+            cameraPreviewRenderer: _renderer,
+            logger: _logger);
         _viewModel = vm;
         await vm.LoadAsync();
         return vm;
@@ -100,7 +102,7 @@ public sealed class CameraPreviewTests : IDisposable
         Assert.True(printer.HasCameraPreview);
         Assert.Equal((64, 36), (preview.Source.Width, preview.Source.Height));
         Assert.Equal(new byte[] { 0, 0, 255, 255 }, preview.Source.Pixels[..4].ToArray());
-        Assert.Equal("The camera works (64 × 36 px).", printer.CameraTestResultText);
+        Assert.Equal("The camera works (64\u00A0×\u00A036\u00A0px).", printer.CameraTestResultText);
         Assert.Contains(nameof(PrinterEditorViewModel.CameraPreview), changes);
         Assert.Contains(nameof(PrinterEditorViewModel.HasCameraPreview), changes);
         await feed.Disposed.WaitAsync(TestTimeouts.Wait, Ct);
@@ -325,7 +327,7 @@ public sealed class CameraPreviewTests : IDisposable
         using (new CultureScope("de-DE"))
         {
             vm.RefreshTexts();
-            Assert.Equal("Die Kamera funktioniert (64 × 36 px).", printer.CameraTestResultText);
+            Assert.Equal("Die Kamera funktioniert (64\u00A0×\u00A036\u00A0px).", printer.CameraTestResultText);
         }
 
         Assert.Same(preview, printer.CameraPreview);
@@ -373,8 +375,89 @@ public sealed class CameraPreviewTests : IDisposable
 
         await TestWithFrameAsync(printer, 1);
 
-        Assert.Equal("The camera works (64 × 36 px).", printer.CameraTestResultText);
+        Assert.Equal("The camera works (64\u00A0×\u00A036\u00A0px).", printer.CameraTestResultText);
         Assert.True(printer.CameraTestSucceeded);
         AssertNoPreview(printer);
+        // Not silent: the failure is logged with its type and message, never with the address.
+        (Microsoft.Extensions.Logging.LogLevel level, string message, Exception? exception) = Assert.Single(_logger.Entries);
+        Assert.Equal(Microsoft.Extensions.Logging.LogLevel.Warning, level);
+        Assert.Same(_renderer.Throw, exception);
+        Assert.Contains("InvalidOperationException", message, StringComparison.Ordinal);
+        Assert.Contains("No graphics.", message, StringComparison.Ordinal);
+        Assert.DoesNotContain("192.168.0.227", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SuccessfulPreviewLogsNothing()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+
+        await TestWithFrameAsync(printer, 1);
+
+        Assert.True(printer.HasCameraPreview);
+        Assert.Empty(_logger.Entries);
+    }
+
+    // ---- Order: the view stops showing a bitmap before it is disposed ----
+
+    /// <summary>
+    /// Records, for every CameraPreview change, whether <paramref name="watched"/> was already disposed at that moment.
+    /// </summary>
+    private static List<bool> DisposedAtNotification(PrinterEditorViewModel printer, FakePreviewImage watched)
+    {
+        List<bool> states = [];
+        printer.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(PrinterEditorViewModel.CameraPreview))
+            {
+                states.Add(watched.IsDisposed);
+            }
+        };
+        return states;
+    }
+
+    [Fact]
+    public async Task ClearingNotifiesBeforeTheOldBitmapIsDisposed()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        await TestWithFrameAsync(printer, 1);
+        FakePreviewImage old = (FakePreviewImage)printer.CameraPreview!;
+        List<bool> states = DisposedAtNotification(printer, old);
+
+        printer.CameraUrl = "rtsp://192.168.0.228/live";
+
+        Assert.Equal([false], states);
+        Assert.True(old.IsDisposed);
+    }
+
+    [Fact]
+    public async Task ReplacingNotifiesBeforeTheOldBitmapIsDisposed()
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        await TestWithFrameAsync(printer, 1);
+        FakePreviewImage old = (FakePreviewImage)printer.CameraPreview!;
+        List<bool> states = DisposedAtNotification(printer, old);
+
+        await TestWithFrameAsync(printer, 2);
+
+        // Removed when the new test starts (still alive while notified), then the new snapshot arrives.
+        Assert.Equal([false, true], states);
+        Assert.True(old.IsDisposed);
+        Assert.NotSame(old, printer.CameraPreview);
+    }
+
+    [Fact]
+    public async Task ClosingNotifiesBeforeTheBitmapIsDisposed()
+    {
+        SettingsViewModel vm = await LoadAsync();
+        PrinterEditorViewModel printer = vm.Printers[0];
+        await TestWithFrameAsync(printer, 1);
+        FakePreviewImage preview = (FakePreviewImage)printer.CameraPreview!;
+        List<bool> states = DisposedAtNotification(printer, preview);
+
+        vm.Dispose();
+
+        Assert.Equal([false], states);
+        Assert.True(preview.IsDisposed);
     }
 }
