@@ -2,6 +2,12 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <AssemblyName>PrusaTrayDiagnostic</AssemblyName>
+    <!--
+      File description and product name of the exe: the taskbar shows the description as the name of the auxiliary
+      windows' button, whose jump list has no app entry (PreventPinning, T-043).
+    -->
+    <AssemblyTitle>Prusa Tray Diagnostic</AssemblyTitle>
+    <Product>Prusa Tray Diagnostic</Product>
     <PublishAot>true</PublishAot>
     <!--
       The .NET 11 SDK "optimized publish" for Native AOT runs PrepareResources before ResolveReferences.
