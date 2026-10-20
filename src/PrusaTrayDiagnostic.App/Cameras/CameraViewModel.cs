@@ -267,12 +267,15 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <summary>How the window opens (T-035); follows saved settings, which apply to the next placement from defaults.</summary>
     internal CameraWindowDefaults Defaults => _defaults;
 
-    /// <summary>Normal / full screen (F11, double-click); from the mini preview it goes full screen.</summary>
+    /// <summary>
+    /// F11 and the full-screen button: into full screen from the normal window or the mini preview; out of full screen back
+    /// to the mode it was entered from (the normal window when the window opened in full screen).
+    /// </summary>
     public IRelayCommand ToggleFullScreenCommand { get; }
 
     public IRelayCommand ShowMiniCommand { get; }
 
-    /// <summary>Back to the normal window (Esc, the button of the mini preview).</summary>
+    /// <summary>Back to the normal window (the button of the mini preview); Esc is <see cref="EscapeCommand"/>.</summary>
     public IRelayCommand ShowNormalCommand { get; }
 
     /// <summary>Esc: leaves full screen to the mode it was entered from; from the mini preview back to the normal window.</summary>
@@ -363,7 +366,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     internal void AttachFrameSink(ICameraFrameSink? sink) => _sink = sink;
 
     /// <summary>
-    /// Double-click on the image: normal ↔ full screen; from the mini preview back to the normal window.
+    /// Double-click on the image: normal window → full screen; full screen → the mode it was entered from; mini preview →
+    /// normal window.
     /// </summary>
     public void OnImageDoubleClicked() => Mode = _mode switch
     {

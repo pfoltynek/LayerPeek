@@ -208,14 +208,33 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
             Assert.True(window.Topmost);
         });
 
+    // Consecutive double-clicks land on different points so that they are not taken as one longer click series.
+    private static int _doubleClicks;
+
+    /// <summary>A real double-click on the image (two clicks: the window's ClickCount == 2 path).</summary>
+    private static void DoubleClickImage(CameraWindow window)
+    {
+        window.Settle();
+        double offset = (_doubleClicks++ % 4) * 20;
+        Point point = new((window.ClientSize.Width / 2) - 30 + offset, window.ClientSize.Height / 2);
+        Ui.Click(window, point);
+        Ui.Click(window, point);
+        window.Settle();
+    }
+
     [Theory]
-    [InlineData("F11")]
-    [InlineData("Esc")]
-    [InlineData("double-click")]
-    public Task FullScreenEnteredFromTheMiniPreviewReturnsToItWhereItWas(string exit) =>
+    [InlineData("F11", false)]
+    [InlineData("Esc", false)]
+    [InlineData("double-click", false)]
+    [InlineData("system", false)]
+    [InlineData("F11", true)]
+    [InlineData("Esc", true)]
+    [InlineData("double-click", true)]
+    [InlineData("system", true)]
+    public Task FullScreenEnteredFromTheMiniPreviewReturnsToItWhereItWas(string exit, bool mini) =>
         session.RunAsync(async scope =>
         {
-            CameraWindowDefaults defaults = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini };
+            CameraWindowDefaults defaults = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini, TopmostMini = mini };
             await using CameraHarness harness = new(window: defaults);
             CameraWindow window = harness.Open();
             window.Settle();
@@ -240,16 +259,21 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
                 {
                     window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
                 }
+                else if (exit == "double-click")
+                {
+                    DoubleClickImage(window);
+                }
                 else
                 {
-                    viewModel.OnImageDoubleClicked();
+                    // The system ends full screen (e.g. a shell gesture), not the app.
+                    window.WindowState = WindowState.Normal;
                 }
             });
 
             Assert.True(viewModel.IsMini);
             Assert.Equal(WindowState.Normal, window.WindowState);
             Assert.Equal(WindowDecorations.None, window.WindowDecorations);
-            Assert.True(window.Topmost);
+            Assert.Equal(mini, window.Topmost);
             Assert.Equal(position, window.Position);
             Assert.Equal(size, window.ClientSize);
         });

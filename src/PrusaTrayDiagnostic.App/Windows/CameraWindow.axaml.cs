@@ -37,7 +37,8 @@ public sealed partial class CameraWindow : Window
     private CameraWindowLayout? _placedWithAssumedChrome;
     private CameraWindowMode _appliedMode = CameraWindowMode.Normal;
 
-    // The last mode with a window of its own (normal or mini): where full screen returns to.
+    // The last mode with a window of its own (normal or mini), to know whether the normal window must be placed again
+    // when it comes back from the mini preview. Where full screen returns to is decided by the view model.
     private CameraWindowMode _lastWindowedMode = CameraWindowMode.Normal;
     private bool _applyingMode;
     private bool _opened;
