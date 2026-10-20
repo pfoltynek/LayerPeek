@@ -87,7 +87,7 @@ public sealed class SettingsEditorStoreImageTests : IAsyncDisposable
         SettingsSaveResult result = await Create().SaveAsync(new SettingsChange(With(LinkPrinter("a", "A")), updated, NoPasswords(), new Dictionary<string, byte[]> { ["a"] = png }));
 
         Assert.Equal(SettingsSaveStatus.Saved, result.Status);
-        Assert.Equal(0, result.UnsavedImages);
+        Assert.Null(result.UnsavedImages);
         Assert.Equal(png, _images.Images["a"]);
         Assert.Same(png, _shown.Get("a"));
         // Settings first, then the image, then monitoring.
@@ -115,7 +115,7 @@ public sealed class SettingsEditorStoreImageTests : IAsyncDisposable
         SettingsSaveResult result = await Create().SaveAsync(new SettingsChange(AppSettings.Default, With(Custom(LinkPrinter("a", "A"))), NoPasswords(), new Dictionary<string, byte[]> { ["a"] = TestImages.Png() }));
 
         Assert.Equal(SettingsSaveStatus.Saved, result.Status);
-        Assert.Equal(1, result.UnsavedImages);
+        Assert.Equal(["a"], result.UnsavedImages!);
         Assert.Null(_shown.Get("a"));
     }
 
@@ -124,7 +124,7 @@ public sealed class SettingsEditorStoreImageTests : IAsyncDisposable
     {
         SettingsSaveResult result = await Create().SaveAsync(new SettingsChange(AppSettings.Default, With(LinkPrinter("a", "A")), NoPasswords(), new Dictionary<string, byte[]> { ["a"] = TestImages.Png() }));
 
-        Assert.Equal(0, result.UnsavedImages);
+        Assert.Null(result.UnsavedImages);
         Assert.Empty(_images.Operations);
     }
 
@@ -167,7 +167,7 @@ public sealed class SettingsEditorStoreImageTests : IAsyncDisposable
             .SaveAsync(new SettingsChange(AppSettings.Default, With(Custom(LinkPrinter("a", "A"))), NoPasswords(), new Dictionary<string, byte[]> { ["a"] = TestImages.Png() }));
 
         Assert.Equal(SettingsSaveStatus.Saved, result.Status);
-        Assert.Equal(1, result.UnsavedImages);
+        Assert.Equal(["a"], result.UnsavedImages!);
     }
 
     // ---- The latest detected model (window open while monitoring detected it) ----

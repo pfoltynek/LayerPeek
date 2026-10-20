@@ -157,9 +157,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// <summary>
     /// <see cref="LoadSettingsAsync(Func{ISettingsStore}, ILogger, CancellationToken, RemovedCameraCredentials)"/> with how the
     /// settings were loaded: only <see cref="SettingsLoadStatus.Loaded"/> settings are the user's (e.g. for the orphan sweep of
-    /// printer images, T-039); a store that could not be created counts as <see cref="SettingsLoadStatus.Unreadable"/>.
+    /// printer images, T-039), and the ids of every printer entry in the file, also of entries the loader skipped
+    /// (<see cref="SettingsLoadResult.StoredPrinterIds"/>). A store that could not be created counts as
+    /// <see cref="SettingsLoadStatus.Unreadable"/>.
     /// </summary>
-    public static async Task<(AppSettings Settings, SettingsLoadStatus Status)> LoadSettingsWithStatusAsync(
+    public static async Task<(AppSettings Settings, SettingsLoadStatus Status, IReadOnlyList<string> StoredPrinterIds)> LoadSettingsWithStatusAsync(
         Func<ISettingsStore> settingsStoreFactory,
         ILogger logger,
         CancellationToken cancellationToken,
@@ -178,7 +180,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         {
             // File problems come back in the result; this covers a missing data folder and the unexpected.
             LogSettingsUnavailable(logger, ex);
-            return (AppSettings.Default, SettingsLoadStatus.Unreadable);
+            return (AppSettings.Default, SettingsLoadStatus.Unreadable, []);
         }
 
         if (result.Status is SettingsLoadStatus.Corrupted or SettingsLoadStatus.Unreadable)
@@ -198,7 +200,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             await RemoveCameraCredentialsFromFileAsync(store, result.Settings, logger, removedCameraCredentials, cancellationToken).ConfigureAwait(false);
         }
 
-        return (result.Settings, result.Status);
+        return (result.Settings, result.Status, result.StoredPrinterIds);
     }
 
     private void StartCore(AppSettings? initialSettings)
@@ -253,7 +255,14 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             if (!credentialsChanged && _loopActive && _run is { IsCancellationRequested: false } && _pending is null && _current is { } current && KeepsMonitoring(current, settings))
             {
                 // Only notification settings changed: no restart, so the tray keeps the current state (no "connecting").
+                // A model detected after the settings window read the running settings must not get lost (T-039).
+                settings = WithRunningDetectedModels(settings, current, out List<PrinterDefinition> merged);
                 _current = settings;
+                foreach (PrinterDefinition printer in merged)
+                {
+                    QueueModelSaveLocked(new PrinterModelDetected(printer.Id, printer.DetectedModel!.Value));
+                }
+
                 updateOnly = true;
             }
             else
@@ -333,20 +342,41 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             }
 
             _current = updated;
-            Task previous = _modelSaves;
-            _modelSaves = Task.Run(() => SaveDetectedModelAsync(previous, detected), CancellationToken.None);
+            QueueModelSaveLocked(detected);
         }
 
         UpdateObservers(updated);
     }
 
-    /// <summary>After the previous save; never faults (failures are logged, the next detection tries again).</summary>
+    /// <summary>Under <c>_gate</c>: one more background write, after the ones queued before.</summary>
+    private void QueueModelSaveLocked(PrinterModelDetected detected)
+    {
+        Task previous = _modelSaves;
+        _modelSaves = Task.Run(() => SaveDetectedModelAsync(previous, detected), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// After the previous save; never faults (failures are logged, the next detection tries again). Written only while the
+    /// current settings still hold this code for the printer, and only into the entry of the same machine (address and
+    /// connection type of the current settings): settings applied meanwhile may have moved the printer.
+    /// </summary>
     private async Task SaveDetectedModelAsync(Task previous, PrinterModelDetected detected)
     {
         await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        PrinterDefinition? printer;
+        lock (_gate)
+        {
+            printer = _current?.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, detected.PrinterId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (printer is null || printer.DetectedModel != detected.Code)
+        {
+            return;
+        }
+
         try
         {
-            if (await _settingsStoreFactory().SetDetectedModelAsync(detected.PrinterId, detected.Code, CancellationToken.None).ConfigureAwait(false))
+            if (await _settingsStoreFactory().SetDetectedModelAsync(printer.Id, detected.Code, printer.Address, printer.ConnectionType, CancellationToken.None).ConfigureAwait(false))
             {
                 LogModelSaved(detected.PrinterId, detected.Code);
             }
@@ -355,6 +385,32 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         {
             LogModelNotSaved(ex, detected.PrinterId);
         }
+    }
+
+    /// <summary>
+    /// <paramref name="settings"/> (saved in the settings window) with the detected models of the running settings for
+    /// printers on the same machine (id, address, connection type): a model detected after the window took the running
+    /// settings is newer than what the window saved. <paramref name="merged"/>: printers whose model was taken, whose file
+    /// entry still lacks it.
+    /// </summary>
+    private static AppSettings WithRunningDetectedModels(AppSettings settings, AppSettings running, out List<PrinterDefinition> merged)
+    {
+        merged = [];
+        AppSettings result = settings;
+        foreach (PrinterDefinition printer in settings.Printers)
+        {
+            PrinterDefinition? current = running.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, printer.Id, StringComparison.OrdinalIgnoreCase));
+            if (current?.DetectedModel is { } code
+                && code != printer.DetectedModel
+                && current.ConnectionType == printer.ConnectionType
+                && string.Equals(current.Address, printer.Address, StringComparison.OrdinalIgnoreCase))
+            {
+                result = result.WithDetectedModel(printer.Id, code);
+                merged.Add(printer with { DetectedModel = code });
+            }
+        }
+
+        return result;
     }
 
     /// <summary>

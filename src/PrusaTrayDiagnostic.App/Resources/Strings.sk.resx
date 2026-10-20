@@ -882,4 +882,7 @@
   <data name="DiagnosticsPrinterImage" xml:space="preserve">
     <value>Obrázok tlačiarne</value>
   </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Nastavenia sú uložené. Obrázok tlačiarne sa nepodarilo uložiť, tlačiareň preto zobrazuje predchádzajúci obrázok.</value>
+  </data>
 </root>

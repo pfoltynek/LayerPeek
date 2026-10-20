@@ -62,7 +62,7 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
         public void SetToolTip(string? toolTip) => Native.ToolTip = toolTip;
 
         // The bitmap belongs to the icon cache (shared illustrations, custom pictures released when the tray stops).
-        public void SetIcon(PrinterPicture? icon) => Native.Icon = icon is not null && _icons is not null ? _icons.Get(icon) : null;
+        public void SetIcon(PrinterPicture? icon, string? printerId) => Native.Icon = icon is not null && _icons is not null ? _icons.Get(icon, printerId) : null;
 
         public INativeTrayMenu CreateSubmenu()
         {

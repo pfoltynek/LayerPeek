@@ -114,7 +114,7 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             Item.SetToolTip(entry.ToolTip);
             if (entry.Icon is not null)
             {
-                Item.SetIcon(entry.Icon);
+                Item.SetIcon(entry.Icon, entry.PrinterId);
             }
 
             if (entry.Submenu is { } submenu)
@@ -159,7 +159,7 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
 
             if (!Equals(entry.Icon, _entry.Icon))
             {
-                Item.SetIcon(entry.Icon);
+                Item.SetIcon(entry.Icon, entry.PrinterId);
             }
 
             // The view model reuses the submenu list while only the state changes, so a poll skips the children.

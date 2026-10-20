@@ -882,4 +882,7 @@
   <data name="DiagnosticsPrinterImage" xml:space="preserve">
     <value>Obraz drukarki</value>
   </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Ustawienia zostały zapisane. Nie udało się zapisać obrazu drukarki, dlatego drukarka pokazuje swój poprzedni obraz.</value>
+  </data>
 </root>

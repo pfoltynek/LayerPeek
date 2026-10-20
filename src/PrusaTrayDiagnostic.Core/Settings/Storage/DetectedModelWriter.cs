@@ -32,15 +32,22 @@ internal static class DetectedModelWriter
 
     /// <summary>
     /// The content with <paramref name="code"/> as the detected model of <paramref name="printerId"/>, or
-    /// <see langword="null"/> when no entry has that id or every one already has exactly this value.
+    /// <see langword="null"/> when no entry has that id or every one already has exactly this value. Only an entry that still
+    /// describes the machine the code was detected on is changed: its (last) <c>address</c> equals
+    /// <paramref name="expectedAddress"/> (trimmed, case-insensitive) and its <c>connectionType</c> names
+    /// <paramref name="expectedConnectionType"/> (case-insensitive), so that a file changed meanwhile (another address)
+    /// never gets the model of the previous machine.
     /// </summary>
     /// <exception cref="JsonException">The content is not valid JSON.</exception>
     /// <exception cref="InvalidOperationException">Invalid UTF-8 in a property name or printer id.</exception>
-    public static byte[]? Write(byte[] content, string printerId, PrinterModelCode code)
+    public static byte[]? Write(byte[] content, string printerId, PrinterModelCode code, string expectedAddress, ConnectionType expectedConnectionType)
     {
         ArgumentNullException.ThrowIfNull(content);
         ArgumentNullException.ThrowIfNull(printerId);
         string id = printerId.Trim();
+        ArgumentNullException.ThrowIfNull(expectedAddress);
+        string address = expectedAddress.Trim();
+        string connectionType = expectedConnectionType.ToString();
         byte[] value = Encoding.UTF8.GetBytes($"\"{code}\"");
         int offset = content.AsSpan().StartsWith(Utf8Bom) ? Utf8Bom.Length : 0;
         ReadOnlySpan<byte> json = content.AsSpan(offset);
@@ -76,7 +83,10 @@ internal static class DetectedModelWriter
                         printer.OnValue(done.Property, done.Start, end);
                     }
 
-                    if (done.Kind == FrameKind.Printer && done.Id is { } entryId && string.Equals(entryId.Trim(), id, StringComparison.OrdinalIgnoreCase))
+                    if (done.Kind == FrameKind.Printer
+                        && done.Id is { } entryId && string.Equals(entryId.Trim(), id, StringComparison.OrdinalIgnoreCase)
+                        && done.Address is { } entryAddress && string.Equals(entryAddress.Trim(), address, StringComparison.OrdinalIgnoreCase)
+                        && done.ConnectionType is { } entryType && string.Equals(entryType.Trim(), connectionType, StringComparison.OrdinalIgnoreCase))
                     {
                         done.Update(json, value, offset, replacements);
                     }
@@ -89,6 +99,14 @@ internal static class DetectedModelWriter
                         if (reader.TokenType == JsonTokenType.String && Is(property, "id"))
                         {
                             parent.Id = reader.GetString();
+                        }
+                        else if (reader.TokenType == JsonTokenType.String && Is(property, "address"))
+                        {
+                            parent.Address = reader.GetString();
+                        }
+                        else if (reader.TokenType == JsonTokenType.String && Is(property, "connectionType"))
+                        {
+                            parent.ConnectionType = reader.GetString();
                         }
 
                         parent.OnValue(property, checked((int)reader.TokenStartIndex), checked((int)reader.BytesConsumed));
@@ -157,6 +175,12 @@ internal static class DetectedModelWriter
 
         /// <summary>The last <c>id</c> string of the printer entry (the loader uses the last of duplicates too).</summary>
         public string? Id { get; set; }
+
+        /// <summary>The last <c>address</c> string of the printer entry.</summary>
+        public string? Address { get; set; }
+
+        /// <summary>The last <c>connectionType</c> string of the printer entry.</summary>
+        public string? ConnectionType { get; set; }
 
         public int FirstPropertyStart { get; set; } = -1;
 

@@ -99,11 +99,25 @@ public sealed class CustomPrinterImagesTests
         _store.Seed("gone", TestImages.Png(2));
         AppSettings settings = AppSettings.Default with { Printers = [Custom("a"), LinkPrinter("b", "B")] };
 
-        await PrinterImageStartup.RunAsync(() => _store, _images, settings, SettingsLoadStatus.Loaded, new ListLogger<CustomPrinterImages>(), Ct);
+        await PrinterImageStartup.RunAsync(() => _store, _images, settings, SettingsLoadStatus.Loaded, [], new ListLogger<CustomPrinterImages>(), Ct);
 
         Assert.Equal(["orphans a,b", "read a"], _store.Operations);
         Assert.False(_store.Images.ContainsKey("gone"));
         Assert.NotNull(_images.Get("a"));
+    }
+
+    [Fact]
+    public async Task StartupKeepsImagesOfEntriesTheLoaderSkipped()
+    {
+        // "skipped" is in settings.json but invalid (e.g. unknown connection type): its image waits for the user's fix.
+        _store.Seed("a", TestImages.Png());
+        _store.Seed("skipped", TestImages.Png(2));
+        _store.Seed("gone", TestImages.Png(3));
+        AppSettings settings = AppSettings.Default with { Printers = [Custom("a")] };
+
+        await PrinterImageStartup.RunAsync(() => _store, _images, settings, SettingsLoadStatus.Loaded, ["a", "skipped"], new ListLogger<CustomPrinterImages>(), Ct);
+
+        Assert.Equal(["a", "skipped"], _store.Images.Keys.Order(StringComparer.Ordinal));
     }
 
     [Theory]
@@ -115,7 +129,7 @@ public sealed class CustomPrinterImagesTests
         // The defaults of a failed load have no printers: a sweep would delete every image.
         _store.Seed("a", TestImages.Png());
 
-        await PrinterImageStartup.RunAsync(() => _store, _images, AppSettings.Default, status, new ListLogger<CustomPrinterImages>(), Ct);
+        await PrinterImageStartup.RunAsync(() => _store, _images, AppSettings.Default, status, ["a"], new ListLogger<CustomPrinterImages>(), Ct);
 
         Assert.DoesNotContain(_store.Operations, static operation => operation.StartsWith("orphans", StringComparison.Ordinal));
         Assert.True(_store.Images.ContainsKey("a"));
@@ -126,7 +140,7 @@ public sealed class CustomPrinterImagesTests
     {
         ListLogger<CustomPrinterImages> logger = new();
 
-        await PrinterImageStartup.RunAsync(() => throw new InvalidOperationException("no folder"), _images, AppSettings.Default, SettingsLoadStatus.Loaded, logger, Ct);
+        await PrinterImageStartup.RunAsync(() => throw new InvalidOperationException("no folder"), _images, AppSettings.Default, SettingsLoadStatus.Loaded, [], logger, Ct);
 
         Assert.Contains(logger.Entries, static entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Warning);
     }
@@ -137,7 +151,7 @@ public sealed class CustomPrinterImagesTests
         using CancellationTokenSource cancelled = new();
         await cancelled.CancelAsync();
 
-        await PrinterImageStartup.RunAsync(() => _store, _images, AppSettings.Default with { Printers = [Custom("a")] }, SettingsLoadStatus.Loaded, new ListLogger<CustomPrinterImages>(), cancelled.Token);
+        await PrinterImageStartup.RunAsync(() => _store, _images, AppSettings.Default with { Printers = [Custom("a")] }, SettingsLoadStatus.Loaded, [], new ListLogger<CustomPrinterImages>(), cancelled.Token);
 
         Assert.DoesNotContain("read a", _store.Operations);
     }

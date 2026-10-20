@@ -869,7 +869,11 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     }
 
     /// <summary>After a successful save: the saved state is the new baseline, a typed password is now the saved one.</summary>
-    internal void MarkSaved()
+    /// <param name="imageStored">
+    /// The new custom image (if any) was stored; otherwise it stays pending, so that the window stays changed and Save tries
+    /// again (T-039).
+    /// </param>
+    internal void MarkSaved(bool imageStored = true)
     {
         if (HasNewPassword)
         {
@@ -883,7 +887,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         CameraCredentialsRemoved = false;
         // The saved window defaults are the new fallback for an invalid size of a turned-off camera (Q6).
         _savedWindow = BuildWindow() ?? _savedWindow;
-        MarkImageSaved();
+        if (imageStored)
+        {
+            MarkImageSaved();
+        }
     }
 
     /// <summary>

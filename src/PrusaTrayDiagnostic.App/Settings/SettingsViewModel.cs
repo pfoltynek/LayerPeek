@@ -835,21 +835,34 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
         ForgetRememberedCameraWindows(_baseline, updated);
         _baseline = updated;
+        // T-039: a printer whose new image could not be stored keeps it (still unsaved), so that Save tries again; it shows
+        // its previous custom image meanwhile when there is one, otherwise its illustration.
+        bool unsavedImages = false;
+        bool allKeepPreviousImage = true;
         foreach (PrinterEditorViewModel printer in Printers)
         {
-            printer.MarkSaved();
+            bool imageStored = result.UnsavedImages?.Contains(printer.Id) != true || printer.PendingImage is null;
+            if (!imageStored)
+            {
+                unsavedImages = true;
+                allKeepPreviousImage &= printer.HasStoredCustomImage;
+            }
+
+            printer.MarkSaved(imageStored);
         }
 
         UpdateDirty();
-        if (result.UndeletedPasswords > 0)
+        Func<string>? imageNotice = !unsavedImages ? null
+            : allKeepPreviousImage ? static () => Strings.SettingsSavedImageNotStoredPrevious
+            : static () => Strings.SettingsSavedImageNotStored;
+        if (result.UndeletedPasswords > 0 || imageNotice is not null)
         {
-            ShowStatus(static () => Strings.SettingsSavedPasswordsNotDeleted, isError: false);
-            return;
-        }
-
-        if (result.UnsavedImages > 0)
-        {
-            ShowStatus(static () => Strings.SettingsSavedImageNotStored, isError: false);
+            // Both notices when both happened (the window stays open for them).
+            ShowStatus(
+                result.UndeletedPasswords == 0 ? imageNotice
+                : imageNotice is null ? static () => Strings.SettingsSavedPasswordsNotDeleted
+                : () => string.Concat(Strings.SettingsSavedPasswordsNotDeleted, " ", imageNotice()),
+                isError: false);
             return;
         }
 

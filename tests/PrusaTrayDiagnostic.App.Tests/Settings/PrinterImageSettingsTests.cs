@@ -417,13 +417,87 @@ public sealed class PrinterImageSettingsTests : IDisposable
         bool closed = false;
         vm.CloseRequested += (_, _) => closed = true;
         await vm.Printers[0].ChooseCustomImageCommand.ExecuteAsync(null);
-        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved, UnsavedImages: 1);
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved, UnsavedImages: Ids("a"));
 
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.False(closed);
         Assert.Equal(Strings.SettingsSavedImageNotStored, vm.StatusText);
         Assert.False(vm.StatusIsError);
+    }
+
+    [Fact]
+    public async Task ImageThatCouldNotBeStoredStaysPendingSoThatSaveRetries()
+    {
+        SettingsViewModel vm = await LoadAsync(LinkPrinter("a", "Alpha"), LinkPrinter("b", "Beta", "192.168.1.21"));
+        await vm.Printers[0].ChooseCustomImageCommand.ExecuteAsync(null);
+        byte[] first = vm.Printers[0].PendingImage!;
+        _processor.Result = TestImages.Png(8);
+        await vm.Printers[1].ChooseCustomImageCommand.ExecuteAsync(null);
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved, UnsavedImages: Ids("A"));
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        // "a" failed: still pending and the window still changed; "b" was stored.
+        Assert.Same(first, vm.Printers[0].PendingImage);
+        Assert.Null(vm.Printers[1].PendingImage);
+        Assert.True(vm.IsDirty);
+
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved);
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        SettingsChange retry = _store.Saves[1];
+        Assert.Equal(["a"], retry.NewImages!.Keys);
+        Assert.Same(first, retry.NewImages["a"]);
+        Assert.Equal(retry.Original, retry.Updated);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task NoticeSaysThePreviousImageStaysWhenThereIsOne()
+    {
+        SettingsViewModel vm = await LoadAsync(new Dictionary<string, byte[]> { ["a"] = TestImages.Png(3) }, LinkPrinter("a", "Alpha") with { Image = PrinterImageChoice.Custom });
+        await vm.Printers[0].ChooseCustomImageCommand.ExecuteAsync(null);
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved, UnsavedImages: Ids("a"));
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.SettingsSavedImageNotStoredPrevious, vm.StatusText);
+    }
+
+    [Fact]
+    public async Task BothNoticesAreShownWhenAPasswordWasNotDeletedEither()
+    {
+        SettingsViewModel vm = await LoadAsync(LinkPrinter("a", "Alpha"));
+        await vm.Printers[0].ChooseCustomImageCommand.ExecuteAsync(null);
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: 1, UnsavedImages: Ids("a"));
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(Strings.SettingsSavedPasswordsNotDeleted + " " + Strings.SettingsSavedImageNotStored, vm.StatusText);
+        using (new UiCultureScope("cs"))
+        {
+            vm.RefreshTexts();
+            Assert.Equal(Strings.SettingsSavedPasswordsNotDeleted + " " + Strings.SettingsSavedImageNotStored, vm.StatusText);
+            Assert.StartsWith("Nastavení je uloženo.", vm.StatusText, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public async Task CancelledImportShowsTheChoiceThatStillApplies()
+    {
+        // The menu checks the "Custom image…" radio item itself when it is clicked; the view model tells it again.
+        SettingsViewModel vm = await LoadAsync(LinkPrinter("a", "Alpha"));
+        PrinterEditorViewModel printer = vm.Printers[0];
+        List<string> changes = [];
+        printer.PropertyChanged += (_, e) => changes.Add(e.PropertyName!);
+        _picker.Content = null;
+
+        await printer.ChooseCustomImageCommand.ExecuteAsync(null);
+
+        Assert.Contains(nameof(PrinterEditorViewModel.IsCustomImage), changes);
+        Assert.Contains(nameof(PrinterEditorViewModel.IsAutomaticImage), changes);
+        Assert.False(printer.IsCustomImage);
     }
 
     [Fact]

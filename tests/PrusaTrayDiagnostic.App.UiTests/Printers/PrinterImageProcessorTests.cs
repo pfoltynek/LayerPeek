@@ -86,6 +86,22 @@ public sealed class PrinterImageProcessorTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task PngExifOrientationIsApplied() =>
+        session.RunAsync(static async _ =>
+        {
+            // Stored 64 × 32 (left red, right blue) with eXIf orientation 6: shown 32 × 64 with red on top.
+            byte[] source = TestImages.WithPngExif(UiTestImages.Png(64, 32, static (x, _) => x < 32 ? Red : Blue), 6);
+
+            byte[] png = await ConvertAsync(source, PrinterImageFormat.Png);
+
+            (int width, int height, uint[] pixels) = UiTestImages.Read(png);
+            Assert.Equal((32, 64), (width, height));
+            Assert.True(UiTestImages.IsNear(pixels[(8 * 32) + 16], Red, 2));
+            Assert.True(UiTestImages.IsNear(pixels[(56 * 32) + 16], Blue, 2));
+            Assert.True(png.AsSpan().IndexOf("eXIf"u8) < 0);
+        });
+
+    [Fact]
     public Task MetadataIsNotCopied() =>
         session.RunAsync(static async _ =>
         {

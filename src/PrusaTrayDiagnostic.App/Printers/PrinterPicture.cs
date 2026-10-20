@@ -20,6 +20,15 @@ public sealed record PrinterPicture(PrinterImage Image, byte[]? CustomPng)
     public bool IsCustom => CustomPng is not null;
 
     /// <summary>
+    /// What a custom picture falls back to when its bytes cannot be decoded (a damaged file): the automatic image, e.g. the
+    /// illustration of the detected model. Equal to <see cref="Image"/> for an illustration.
+    /// </summary>
+    public PrinterImage Fallback { get; init; } = PrinterImage.Generic;
+
+    /// <summary>The illustration of <see cref="Fallback"/> (for a custom picture) or of <see cref="Image"/>.</summary>
+    public string FallbackIllustrationId => PrinterIllustrations.IdFor(IsCustom ? Fallback : Image);
+
+    /// <summary>
     /// The picture of <paramref name="printer"/>: its custom picture when it uses one and <paramref name="customPng"/> is
     /// there, otherwise its illustration (a missing custom file falls back to the automatic one).
     /// </summary>
@@ -33,7 +42,9 @@ public sealed record PrinterPicture(PrinterImage Image, byte[]? CustomPng)
     public static PrinterPicture For(PrinterImageChoice choice, ConnectionType connectionType, PrinterModelCode? detectedModel, byte[]? customPng)
     {
         PrinterImage image = PrinterImage.Resolve(choice, connectionType, detectedModel, customImageExists: customPng is not null);
-        return image.Kind == PrinterImageKind.Custom ? new PrinterPicture(image, customPng) : FromImage(image);
+        return image.Kind == PrinterImageKind.Custom
+            ? new PrinterPicture(image, customPng) { Fallback = PrinterImage.Resolve(choice, connectionType, detectedModel, customImageExists: false) }
+            : FromImage(image);
     }
 
     /// <summary>An illustration (shared instances, so that equal pictures need no allocation).</summary>

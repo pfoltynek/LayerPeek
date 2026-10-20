@@ -103,7 +103,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         try
         {
             ILogger<MonitoringSession> sessionLogger = services.GetRequiredService<ILogger<MonitoringSession>>();
-            (AppSettings initialSettings, SettingsLoadStatus loadStatus) = await Task.Run(
+            (AppSettings initialSettings, SettingsLoadStatus loadStatus, IReadOnlyList<string> storedPrinterIds) = await Task.Run(
                 () => MonitoringSession.LoadSettingsWithStatusAsync(
                     services.GetRequiredService<ISettingsStore>,
                     sessionLogger,
@@ -149,6 +149,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
                     services.GetRequiredService<CustomPrinterImages>(),
                     initialSettings,
                     loadStatus,
+                    storedPrinterIds,
                     services.GetRequiredService<ILogger<CustomPrinterImages>>(),
                     backgroundWork.Token),
                 CancellationToken.None);

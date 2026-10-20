@@ -28,6 +28,43 @@ internal static class ImageHeaders
     public static bool TryReadSize(ReadOnlySpan<byte> data, PrinterImageFormat format, out int width, out int height) =>
         format == PrinterImageFormat.Png ? TryReadPngSize(data, out width, out height) : TryReadJpegSize(data, out width, out height);
 
+    /// <summary>The EXIF orientation of the image (1–8): JPEG APP1 or PNG <c>eXIf</c> chunk; otherwise <see cref="NormalOrientation"/>.</summary>
+    public static int ReadOrientation(ReadOnlySpan<byte> data, PrinterImageFormat format) =>
+        format == PrinterImageFormat.Jpeg ? ReadJpegOrientation(data) : ReadPngOrientation(data);
+
+    /// <summary>
+    /// The orientation in the <c>eXIf</c> chunk of a PNG (PNG 1.5 extension; it must precede the image data), or
+    /// <see cref="NormalOrientation"/>. The chunk holds TIFF data; a leading "Exif" header written by some tools is accepted.
+    /// </summary>
+    public static int ReadPngOrientation(ReadOnlySpan<byte> data)
+    {
+        int position = 8;
+        while (position + 8 <= data.Length)
+        {
+            uint length = BinaryPrimitives.ReadUInt32BigEndian(data.Slice(position, 4));
+            ReadOnlySpan<byte> type = data.Slice(position + 4, 4);
+            if (type.SequenceEqual("IDAT"u8) || type.SequenceEqual("IEND"u8) || length > (long)data.Length - position - 12)
+            {
+                break;
+            }
+
+            if (type.SequenceEqual("eXIf"u8))
+            {
+                ReadOnlySpan<byte> exif = data.Slice(position + 8, (int)length);
+                if (exif.StartsWith(ExifHeader))
+                {
+                    exif = exif[ExifHeader.Length..];
+                }
+
+                return ReadTiffOrientation(exif) ?? NormalOrientation;
+            }
+
+            position += 12 + (int)length;
+        }
+
+        return NormalOrientation;
+    }
+
     /// <summary>The EXIF orientation of a JPEG (1–8), or <see cref="NormalOrientation"/> when it has none or it is invalid.</summary>
     public static int ReadJpegOrientation(ReadOnlySpan<byte> data)
     {

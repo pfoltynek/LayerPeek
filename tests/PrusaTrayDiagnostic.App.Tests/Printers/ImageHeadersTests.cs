@@ -58,6 +58,29 @@ public sealed class ImageHeadersTests
     }
 
     [Fact]
+    public void PngExifChunkOrientationIsRead()
+    {
+        byte[] png = [.. TestImages.PngHeader(10, 10), 0, 0, 0, 0, .. "IDAT"u8, 0, 0, 0, 0];
+
+        Assert.Equal(6, ImageHeaders.ReadPngOrientation(TestImages.WithPngExif(png, 6)));
+        Assert.Equal(8, ImageHeaders.ReadOrientation(TestImages.WithPngExif(png, 8), PrinterImageFormat.Png));
+        Assert.Equal(1, ImageHeaders.ReadPngOrientation(png));
+    }
+
+    [Fact]
+    public void PngExifAfterTheImageDataOrTruncatedIsIgnored()
+    {
+        byte[] withExif = TestImages.WithPngExif(TestImages.PngHeader(10, 10), 6);
+        byte[] idatFirst = [.. TestImages.PngHeader(10, 10), 0, 0, 0, 0, .. "IDAT"u8, 0, 0, 0, 0, .. withExif.AsSpan(33)];
+
+        Assert.Equal(1, ImageHeaders.ReadPngOrientation(idatFirst));
+        for (int length = 0; length < withExif.Length; length++)
+        {
+            _ = ImageHeaders.ReadPngOrientation(withExif.AsSpan(0, length));
+        }
+    }
+
+    [Fact]
     public void MissingOrInvalidOrientationIsNormal()
     {
         Assert.Equal(1, ImageHeaders.ReadJpegOrientation(TestImages.JpegHeaders(10, 10, orientation: null, littleEndian: true)));

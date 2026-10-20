@@ -267,12 +267,12 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     /// printers, printers switched away from their custom image) are deleted, and the tray and diagnostics window get the
     /// change. Never throws.
     /// </summary>
-    /// <returns>How many new images could not be stored (those printers show their automatic image).</returns>
-    private async Task<int> StoreImagesAsync(SettingsChange change)
+    /// <returns>Ids of the printers whose new image could not be stored; <see langword="null"/> when all were.</returns>
+    private async Task<IReadOnlySet<string>?> StoreImagesAsync(SettingsChange change)
     {
         if (_imageStore is null)
         {
-            return change.NewImages?.Count ?? 0;
+            return AllNewImages(change);
         }
 
         IPrinterImageStore store;
@@ -283,10 +283,10 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         catch (Exception ex)
         {
             LogImageStoreUnavailable(ex);
-            return change.NewImages?.Count ?? 0;
+            return AllNewImages(change);
         }
 
-        int unsaved = 0;
+        HashSet<string>? unsaved = null;
         foreach ((string id, byte[] png) in change.NewImages ?? new Dictionary<string, byte[]>())
         {
             if (Find(change.Updated, id) is not { Image.Mode: PrinterImageMode.Custom })
@@ -301,7 +301,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
             catch (Exception ex)
             {
-                unsaved++;
+                (unsaved ??= new(StringComparer.OrdinalIgnoreCase)).Add(id);
                 LogImageNotSaved(ex, id);
             }
         }
@@ -328,6 +328,9 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
 
         return unsaved;
     }
+
+    private static HashSet<string>? AllNewImages(SettingsChange change) =>
+        change.NewImages is { Count: > 0 } images ? new HashSet<string>(images.Keys, StringComparer.OrdinalIgnoreCase) : null;
 
     /// <summary>Only whether a password exists; the value is dropped right away.</summary>
     private async Task<IReadOnlySet<string>?> FindSavedPasswordsAsync(AppSettings settings, CancellationToken cancellationToken)
@@ -409,7 +412,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         _removedCameraCredentials?.Clear();
 
         // Custom printer images (T-039): only now, so that Cancel or a failed save never touches the stored ones.
-        int unsavedImages = await StoreImagesAsync(change).ConfigureAwait(false);
+        IReadOnlySet<string>? unsavedImages = await StoreImagesAsync(change).ConfigureAwait(false);
 
         // Step 4: monitoring restarts with the new settings. Waiting for the old run to end means no poll of a removed
         // printer can find its password deleted below (that would be a spurious "password rejected" notification).

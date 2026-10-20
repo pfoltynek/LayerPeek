@@ -32,6 +32,9 @@ public sealed class PrinterModelOption : ObservableObject
         get => _isChecked;
         internal set => SetProperty(ref _isChecked, value);
     }
+
+    /// <summary>Raises the change of <see cref="IsChecked"/> even when it stayed (the menu may have toggled its item).</summary>
+    internal void Refresh() => OnPropertyChanged(nameof(IsChecked));
 }
 
 /// <summary>
@@ -126,6 +129,9 @@ public sealed partial class PrinterEditorViewModel
             : null;
 
     internal PrinterImageChoice ImageChoice => _imageChoice;
+
+    /// <summary>A custom image of this printer is stored (loaded with the settings or saved since).</summary>
+    internal bool HasStoredCustomImage => _storedCustomImage is not null;
 
     /// <summary>A custom image imported in this window and not saved yet (only while the custom image is chosen).</summary>
     internal byte[]? PendingImage => _imageChoice.Mode == PrinterImageMode.Custom ? _importedCustomImage : null;
@@ -265,6 +271,20 @@ public sealed partial class PrinterEditorViewModel
         finally
         {
             IsImportingImage = false;
+            // The menu checked "Custom image…" (a radio item) when it was clicked; a cancelled or failed import must show the
+            // choice that still applies.
+            RefreshChoiceChecks();
+        }
+    }
+
+    /// <summary>Tells the menu again which choice is checked (it toggles radio items itself when they are clicked).</summary>
+    private void RefreshChoiceChecks()
+    {
+        OnPropertyChanged(nameof(IsAutomaticImage));
+        OnPropertyChanged(nameof(IsCustomImage));
+        foreach (PrinterModelOption option in _modelOptions)
+        {
+            option.Refresh();
         }
     }
 

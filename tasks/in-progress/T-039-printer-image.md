@@ -31,6 +31,11 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - **Model zjištěný monitoringem (2026-10-20):** ukládá se do `settings.json` na pozadí **jen při změně**; **monitoring se kvůli tomu nerestartuje**; je-li otevřené okno nastavení, převezme při uložení nejnovější `detectedModel`. (Otázka 2.)
 - **Změna adresy nebo typu připojení (2026-10-20):** v editoru smaže `detectedModel` tiskárny do další detekce. (Otázka 5.)
 - **Velikosti (2026-10-20, = T-033 Q8):** seznam tiskáren 24 DIP, podzáložka Tiskárna 56 DIP (tlačítko s nabídkou: Automaticky / výběr modelu / vlastní obrázek… / odebrat vlastní), Diagnostika 48 DIP, ikona položky tray menu 16 DIP (Windows; macOS vynechán podle rozhodnutí výše). (Otázka 1.)
+- **Chyba importu vlastního obrázku (2026-10-20):** zůstává ve **stavovém řádku dole** (pod polem Název se nevejde bez posuvníku).
+- **Prusa Connect (2026-10-20):** první položka nabídky obrázku „Obecná ilustrace“ je v pořádku.
+- **Obrázek, který se nepodaří uložit (2026-10-20):** okno zůstane otevřené s upozorněním; import zůstane neuložený, takže další Uložit to zkusí znovu.
+- **Překlady (2026-10-20):** všech 19 nových textů schváleno.
+- **Úklid osiřelých obrázků (2026-10-20):** nesmí smazat obrázek tiskárny, jejíž položka je v `settings.json`, ale loader ji přeskočil (neplatná adresa, duplicitní id, neznámý typ připojení…); ponechávají se obrázky všech id v souboru.
 
 ## Rozsah
 
@@ -63,10 +68,8 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish `win-x64` bez varování
 
 ## Otevřené otázky
-Otázky 1–5 (velikosti, ukládání modelu z monitoringu, INDX/iX, varianty se stejným vzhledem, změna adresy) rozhodl uživatel 2026-10-20 – viz Rozhodnuto. Nové otázky z implementace (ui-dev, 2026-10-20), implementováno podle návrhu, ke schválení:
-1. **Kde ukázat chybu importu vlastního obrázku:** pod polem Název se nevejde – s ostatními chybami a odmítnutým testem by podzáložka Tiskárna ve fr/de potřebovala posuvník (o 1–30 DIP). Návrh (implementováno): chyba se ukáže ve **stavovém řádku dole** (červeně, vlevo od Uložit/Zrušit) a zmizí s další volbou obrázku. Souhlasíte, nebo jiné místo (např. jen jednořádková zkrácená hláška u tlačítka)?
-2. **Prusa Connect – první položka nabídky obrázku:** automatická detekce u Prusa Connect není, proto se první položka jmenuje „Obecná ilustrace“ (vrátí automatickou volbu = obecná ilustrace) místo „Automaticky podle modelu (…)“. Souhlasíte s textem?
-3. **Nový import, který se nepodaří uložit** (plný disk apod.): nastavení se uloží, okno zůstane otevřené s upozorněním „Nastavení je uloženo. Obrázek tiskárny se nepodařilo uložit, tiskárna proto zobrazuje ilustraci.“ (stejně jako u nesmazaného hesla). Souhlasíte?
+Otázky z implementace (chyba importu, Prusa Connect, neuložený obrázek, překlady) rozhodl uživatel 2026-10-20, viz Rozhodnuto.
+1. **Nový text `SettingsSavedImageNotStoredPrevious`** (revize po review 2026-10-20) ke schválení – znění v 8 jazycích je v poznámkách níže.
 
 ## Poznámky k implementaci
 
@@ -144,7 +147,7 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
     - Vlastní obrázek…
     - Odebrat vlastní obrázek (jen u vlastního).
   - Výběr souboru: `StorageProviderImageFilePicker` (filtr PNG/JPG, přečte max. 5 MB + 1 B, dokud je soubor otevřený – kvůli sandboxu na macOS).
-  - Chyby importu (příliš velký, jiný formát, nejde načíst, nejde otevřít) jsou lokalizované. Zobrazí se ve **stavovém řádku dole** (viz otevřená otázka 1), s další volbou zmizí.
+  - Chyby importu (příliš velký, jiný formát, nejde načíst, nejde otevřít) jsou lokalizované. Zobrazí se ve **stavovém řádku dole** (rozhodnutí 2026-10-20), s další volbou zmizí.
   - Nový import zůstane v paměti (`PrinterEditorViewModel.PendingImage`, okno je „změněné“). Zrušit ho zahodí.
 - **Zjištěný model a volba v editoru:**
   - `PrinterEditorViewModel` přenáší `DetectedModel` a `Image`, takže uložení okna nic neztratí.
@@ -205,3 +208,36 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
   - Nastavení → tlačítko obrázku: nabídka, výběr modelu, vlastní obrázek z telefonu (otočená fotka se zobrazí správně), Uložit / Zrušit.
   - Diagnostika: obrázek v záhlaví.
   - Po uložení se obrázek v tray menu změní bez „Připojování…“.
+
+### Revize po review (ui-dev, 2026-10-20)
+- **Úklid osiřelých obrázků:**
+  - `SettingsLoadResult.StoredPrinterIds` (Core) obsahuje id všech položek `printers` v souboru, i těch, které loader přeskočil.
+  - `MonitoringSession.LoadSettingsWithStatusAsync` je předá `PrinterImageStartup`, který je přidá do množiny ponechaných obrázků.
+  - Obrázek přeskočené tiskárny tak zůstane, dokud ji uživatel neopraví nebo neodebere.
+- **„Vlastní obrázek…“ po zrušeném nebo neúspěšném importu:** Avalonia při kliknutí zaškrtne položku typu radio sama. Editor po importu vždy znovu ohlásí `IsAutomaticImage`, `IsCustomImage` a zaškrtnutí modelů, takže nabídka ukáže platnou volbu. Test v UI kliká skutečným ukazatelem přes obslužnou rutinu menu.
+- **Obrázek, který se nepodaří uložit:**
+  - `SettingsSaveResult.UnsavedImages` je množina id. Okno u těchto tiskáren import ponechá neuložený, zůstane „změněné“ a další Uložit ho zkusí znovu.
+  - Upozornění „…tiskárna proto zobrazuje ilustraci“ se ukáže, jen když tiskárna nemá starší uložený vlastní obrázek. Jinak nový text `SettingsSavedImageNotStoredPrevious` (ke schválení):
+    - en: Settings saved. A printer image could not be stored, so the printer keeps its previous image.
+    - cs: Nastavení je uloženo. Obrázek tiskárny se nepodařilo uložit, tiskárna proto zobrazuje předchozí obrázek.
+    - sk: Nastavenia sú uložené. Obrázok tlačiarne sa nepodarilo uložiť, tlačiareň preto zobrazuje predchádzajúci obrázok.
+    - de: Einstellungen gespeichert. Ein Druckerbild konnte nicht gespeichert werden, der Drucker zeigt daher sein bisheriges Bild.
+    - es: Configuración guardada. No se pudo guardar una imagen de impresora, por lo que la impresora muestra su imagen anterior.
+    - fr: Paramètres enregistrés. Une image d'imprimante n'a pas pu être enregistrée ; l'imprimante affiche donc son image précédente.
+    - it: Impostazioni salvate. Impossibile salvare un'immagine della stampante, quindi la stampante mostra l'immagine precedente.
+    - pl: Ustawienia zostały zapisane. Nie udało się zapisać obrazu drukarki, dlatego drukarka pokazuje swój poprzedni obraz.
+  - Pokud se zároveň nepodařilo smazat heslo, ukážou se obě upozornění za sebou.
+- **Souběh se zjištěným modelem:**
+  - Zápis na pozadí proběhne, jen když aktuální nastavení stále obsahuje tento kód. Zapisuje se jen do položky se stejnou adresou a typem připojení: `SetDetectedModelAsync` je dostane a `DetectedModelWriter` je porovná stejně jako loader.
+  - Aktualizace bez restartu (uložení okna) převezme zjištěný model z běžícího nastavení u tiskáren se stejnou adresou a typem připojení a zapíše ho znovu, protože soubor okna ho neobsahuje.
+- **Poškozený uložený vlastní PNG:**
+  - `PrinterPicture.Fallback` nese automatický obrázek (např. ilustraci zjištěného modelu).
+  - `PrinterImageView` a `PrinterMenuIcons` ho použijí místo obecné ilustrace.
+- **Ikony v tray menu:** `PrinterMenuIcons` drží jednu bitmapu vlastního obrázku na tiskárnu (`INativeTrayMenuItem.SetIcon` dostává id tiskárny). Nahrazenou nebo nepoužívanou bitmapu uvolní.
+- **Orientace v PNG:** chunk `eXIf` (PNG 1.5) se čte stejně jako EXIF v JPEG (`ImageHeaders.ReadPngOrientation`) a aplikuje se na pixely.
+- **`docs/api/prusalink.md`:** řádky `7.10.0` / `8.10.0` uvádějí rozhodnutí (obecná ilustrace); ukládání modelu jen do položky stejného stroje.
+- **Testy:**
+  - Core: `JsonSettingsStoreDetectedModelTests` (jiná adresa / typ připojení, porovnání jako loader, `StoredPrinterIds`).
+  - App.Tests: úklid ponechá přeskočené položky; neuložený obrázek zůstane neuložený a Uložit ho zkusí znovu; text s předchozím obrázkem; obě upozornění; obnovení zaškrtnutí; `Fallback`; zápis se jménem stroje; přeskočení zastaralého zápisu; převzetí modelu při aktualizaci bez restartu; `eXIf`.
+  - UiTests: zrušený import přes skutečné kliknutí; náhradní ilustrace u poškozeného PNG (zobrazení i menu); uvolnění nahrazených bitmap; orientace `eXIf` v procesoru.
+- **Ověření:** `dotnet build` 0 varování, `dotnet test` 2× bez chyby. Aplikaci jsem znovu nespouštěl (podle pokynu nad skutečnými daty uživatele ne).

@@ -49,6 +49,38 @@ internal static class TestImages
     }
 
     /// <summary>An APP1 segment "Exif\0\0" + TIFF header + IFD0 with one entry: Orientation (SHORT) = <paramref name="orientation"/>.</summary>
+    /// <summary>
+    /// <paramref name="png"/> with an <c>eXIf</c> chunk (TIFF data with Orientation = <paramref name="orientation"/>, correct CRC)
+    /// right after IHDR, as PNG 1.5 writers put it.
+    /// </summary>
+    public static byte[] WithPngExif(byte[] png, int orientation)
+    {
+        byte[] tiff = ExifSegment(orientation, littleEndian: false)[(4 + 6)..];
+        byte[] chunk = new byte[12 + tiff.Length];
+        BinaryPrimitives.WriteUInt32BigEndian(chunk, (uint)tiff.Length);
+        "eXIf"u8.CopyTo(chunk.AsSpan(4));
+        tiff.CopyTo(chunk, 8);
+        BinaryPrimitives.WriteUInt32BigEndian(chunk.AsSpan(8 + tiff.Length), Crc32(chunk.AsSpan(4, 4 + tiff.Length)));
+        const int AfterIhdr = 8 + 12 + 13;
+        return [.. png.AsSpan(0, AfterIhdr), .. chunk, .. png.AsSpan(AfterIhdr)];
+    }
+
+    /// <summary>The CRC-32 of PNG chunks (ISO 3309, polynomial 0xEDB88320).</summary>
+    private static uint Crc32(ReadOnlySpan<byte> data)
+    {
+        uint crc = 0xFFFFFFFF;
+        foreach (byte b in data)
+        {
+            crc ^= b;
+            for (int bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) != 0 ? (crc >> 1) ^ 0xEDB88320 : crc >> 1;
+            }
+        }
+
+        return ~crc;
+    }
+
     public static byte[] ExifSegment(int orientation, bool littleEndian)
     {
         byte[] tiff = new byte[8 + 2 + 12 + 4];

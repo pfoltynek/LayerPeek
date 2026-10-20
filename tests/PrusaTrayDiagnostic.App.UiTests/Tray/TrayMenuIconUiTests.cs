@@ -70,6 +70,40 @@ public sealed class TrayMenuIconUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task ReplacedCustomPictureReleasesItsBitmap() =>
+        session.RunAsync(static _ =>
+        {
+            using PrinterMenuIcons icons = new(1.0);
+            PrinterPicture first = Custom(UiTestImages.Png(16, 16, 0xFFFF0000));
+            PrinterPicture second = Custom(UiTestImages.Png(16, 16, 0xFF0000FF));
+
+            Bitmap firstBitmap = icons.Get(first, "a");
+            Assert.Same(firstBitmap, icons.Get(first, "A"));
+            Bitmap secondBitmap = icons.Get(second, "a");
+            icons.Get(Custom(UiTestImages.Png(16, 16, 0xFF00FF00)), "b");
+
+            // One bitmap per printer: the first picture of "a" is gone, "b" has its own.
+            Assert.NotSame(firstBitmap, secondBitmap);
+            Assert.Equal(2, icons.CustomBitmapCount);
+
+            // Back to an illustration: the custom bitmap of "a" goes too.
+            icons.Get(PrinterPicture.Generic, "a");
+            Assert.Equal(1, icons.CustomBitmapCount);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task DamagedCustomPictureShowsTheAutomaticIllustration() =>
+        session.RunAsync(static _ =>
+        {
+            using PrinterMenuIcons icons = new(1.5);
+            PrinterPicture damaged = PrinterPicture.For(PrinterImageChoice.Custom, ConnectionType.PrusaLink, Mk4SCode, [0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
+
+            Assert.Same(PrinterBitmaps.Illustration("mk4", 24), icons.Get(damaged, "a"));
+            return Task.CompletedTask;
+        });
+
+    [Fact]
     public Task WithoutIconsTheItemsHaveNone() =>
         session.RunAsync(static scope =>
         {
@@ -90,7 +124,7 @@ public sealed class TrayMenuIconUiTests(HeadlessSession session)
             // What Avalonia's Win32 tray menu builds from a NativeMenuItem with an icon (NativeMenuBarPresenter): a
             // MenuItem whose Icon is an Image of the bitmap, inside a MenuFlyoutPresenter.
             using PrinterMenuIcons icons = new(2.0);
-            Bitmap bitmap = icons.Get(PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S)));
+            Bitmap bitmap = icons.Get(PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S)), "a");
             MenuItem item = new() { Header = "Alpha: Idle", Icon = new Image { Source = bitmap } };
             Window window = scope.Track(new Window { Width = 300, Height = 200, Content = new MenuFlyoutPresenter { ItemsSource = new[] { item } } });
             window.Show();
@@ -103,6 +137,8 @@ public sealed class TrayMenuIconUiTests(HeadlessSession session)
             Assert.Equal(new PixelSize(32, 32), bitmap.PixelSize);
             return Task.CompletedTask;
         });
+
+    private static PrinterPicture Custom(byte[] png) => PrinterPicture.For(PrinterImageChoice.Custom, ConnectionType.PrusaLink, null, png);
 
     private static (NativeMenu Menu, TrayMenuViewModel ViewModel, PrinterMenuIcons Icons) Create(UiTestScope scope, double scaling, CustomPrinterImages? images = null)
     {

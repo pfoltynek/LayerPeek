@@ -57,6 +57,74 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task WriteNamesTheMachineTheCodeWasDetectedOn()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha") with { Address = "printer.local" });
+
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal([("printer.local", ConnectionType.PrusaLink)], store.Machines);
+    }
+
+    [Fact]
+    public async Task QueuedWriteIsSkippedWhenThePrinterMovedMeanwhile()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"), Definition("b", "Beta") with { Address = "192.168.1.11" });
+        store.Gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        _monitor.RaiseModelDetected("b", CoreOneCode);
+        Assert.True(SpinWait.SpinUntil(() => store.Started >= 1, TestTimeouts.Wait));
+
+        // The settings window moves "b" to another address: monitoring restarts, the queued write of "b" no longer applies.
+        await session.ApplyAsync(
+            AppSettings.Default with { Printers = [Definition("a", "Alpha") with { DetectedModel = Mk4SCode }, Definition("b", "Beta") with { Address = "192.168.1.99" }] },
+            credentialsChanged: false).WaitAsync(TestTimeouts.Wait, Ct);
+        await _monitor.WaitForRunsAsync(2).WaitAsync(TestTimeouts.Wait, Ct);
+        store.Gate.SetResult();
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal([("a", Mk4SCode)], store.DetectedModelSaves);
+        Assert.Equal(1, store.Started);
+    }
+
+    [Fact]
+    public async Task UpdateFromTheWindowKeepsAModelDetectedMeanwhile()
+    {
+        // The window took the running settings before the detection and saves only a new name (no restart).
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        await session.ApplyAsync(AppSettings.Default with { Printers = [Definition("a", "Alpha") with { Image = PrinterImageChoice.ForModel(PrinterModel.Mini) }] }, credentialsChanged: false)
+            .WaitAsync(TestTimeouts.Wait, Ct);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Single(_monitor.Runs);
+        PrinterDefinition current = Assert.Single(session.CurrentSettings!.Printers);
+        Assert.Equal(Mk4SCode, current.DetectedModel);
+        Assert.Equal(PrinterImageChoice.ForModel(PrinterModel.Mini), current.Image);
+        Assert.Equal(Mk4SCode, Assert.Single(_observer.Settings!.Printers).DetectedModel);
+        // The window's file lacks the code: it is written again.
+        Assert.Equal([("a", Mk4SCode), ("a", Mk4SCode)], store.DetectedModelSaves);
+    }
+
+    [Fact]
+    public async Task UpdateOfAnotherMachineDoesNotTakeTheModel()
+    {
+        (MonitoringSession session, _) = await StartAsync(Definition("a", "Alpha"), Definition("b", "Beta") with { Address = "192.168.1.11" });
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        // Another address restarts monitoring; the new run starts without the old machine's model.
+        await session.ApplyAsync(AppSettings.Default with { Printers = [Definition("a", "Alpha") with { Address = "192.168.1.99" }, Definition("b", "Beta") with { Address = "192.168.1.11" }] }, credentialsChanged: false)
+            .WaitAsync(TestTimeouts.Wait, Ct);
+        await _monitor.WaitForRunsAsync(2).WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Null(session.CurrentSettings!.Printers[0].DetectedModel);
+    }
+
+    [Fact]
     public async Task SameModelSavesNothing()
     {
         (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha") with { DetectedModel = Mk4SCode });
@@ -181,21 +249,23 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
     public async Task LoadReportsItsStatus(SettingsLoadStatus status)
     {
         AppSettings settings = AppSettings.Default with { Printers = [Definition("a", "Alpha")] };
-        FakeSettingsStore store = new(_ => Task.FromResult(new SettingsLoadResult { Settings = settings, Status = status }));
+        FakeSettingsStore store = new(_ => Task.FromResult(new SettingsLoadResult { Settings = settings, Status = status, StoredPrinterIds = ["a", "skipped"] }));
 
-        (AppSettings loaded, SettingsLoadStatus reported) = await MonitoringSession.LoadSettingsWithStatusAsync(() => store, _logger, Ct);
+        (AppSettings loaded, SettingsLoadStatus reported, IReadOnlyList<string> storedIds) = await MonitoringSession.LoadSettingsWithStatusAsync(() => store, _logger, Ct);
 
         Assert.Same(settings, loaded);
         Assert.Equal(status, reported);
+        Assert.Equal(["a", "skipped"], storedIds);
     }
 
     [Fact]
     public async Task UnavailableStoreLoadsAsUnreadable()
     {
-        (AppSettings loaded, SettingsLoadStatus status) = await MonitoringSession.LoadSettingsWithStatusAsync(() => throw new InvalidOperationException("no folder"), _logger, Ct);
+        (AppSettings loaded, SettingsLoadStatus status, IReadOnlyList<string> storedIds) = await MonitoringSession.LoadSettingsWithStatusAsync(() => throw new InvalidOperationException("no folder"), _logger, Ct);
 
         Assert.Same(AppSettings.Default, loaded);
         Assert.Equal(SettingsLoadStatus.Unreadable, status);
+        Assert.Empty(storedIds);
     }
 
     /// <summary>Settings store that records detected-model saves; a save can wait for <see cref="Gate"/> or fail.</summary>
@@ -203,6 +273,7 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
     {
         private readonly Lock _lock = new();
         private readonly List<(string, PrinterModelCode)> _saves = [];
+        private readonly List<(string, ConnectionType)> _machines = [];
         private int _started;
 
         public TaskCompletionSource? Gate { get; set; }
@@ -210,6 +281,18 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
         public Exception? Failure { get; set; }
 
         public int Started => Volatile.Read(ref _started);
+
+        /// <summary>Address and connection type each save expected, in save order.</summary>
+        public IReadOnlyList<(string, ConnectionType)> Machines
+        {
+            get
+            {
+                lock (_lock)
+                {
+                    return [.. _machines];
+                }
+            }
+        }
 
         public IReadOnlyList<(string, PrinterModelCode)> DetectedModelSaves
         {
@@ -227,7 +310,7 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
 
         public Task SaveAsync(AppSettings settings1, CancellationToken cancellationToken) => throw new NotSupportedException("Only the detected model is saved.");
 
-        public async Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, CancellationToken cancellationToken)
+        public async Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, string expectedAddress, ConnectionType expectedConnectionType, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _started);
             if (Gate is { } gate)
@@ -243,6 +326,7 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
             lock (_lock)
             {
                 _saves.Add((printerId, code));
+                _machines.Add((expectedAddress, expectedConnectionType));
             }
 
             return true;

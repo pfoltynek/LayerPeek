@@ -54,8 +54,11 @@ public enum SettingsSaveStatus
 /// After a failure, a password written before it could not be restored (the stored password may differ from before).
 /// </param>
 /// <param name="UndeletedPasswords">Saved, but this many passwords of removed printers could not be deleted.</param>
-/// <param name="UnsavedImages">Saved, but this many new custom printer images could not be stored (T-039).</param>
-internal sealed record SettingsSaveResult(SettingsSaveStatus Status, bool RollbackIncomplete = false, int UndeletedPasswords = 0, int UnsavedImages = 0);
+/// <param name="UnsavedImages">
+/// Saved, but the new custom images of these printers (ids, case-insensitive) could not be stored (T-039); the window keeps
+/// them so that the next Save tries again. <see langword="null"/> = none.
+/// </param>
+internal sealed record SettingsSaveResult(SettingsSaveStatus Status, bool RollbackIncomplete = false, int UndeletedPasswords = 0, IReadOnlySet<string>? UnsavedImages = null);
 
 /// <summary>Loads and saves what the settings window edits: <see cref="AppSettings"/> and printer passwords.</summary>
 internal interface ISettingsEditorStore

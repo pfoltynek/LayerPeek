@@ -94,14 +94,17 @@ public sealed class PrinterImageViewTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task DamagedCustomPictureShowsTheGenericIllustration() =>
+    public Task DamagedCustomPictureShowsTheAutomaticIllustration() =>
         session.RunAsync(static scope =>
         {
-            PrinterPicture picture = new(new PrinterImage(PrinterImageKind.Custom, PrinterModel.Unknown), [0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
+            // The printer would show the detected MK4S without its custom picture.
+            PrinterPicture picture = PrinterPicture.For(Core.Printers.PrinterImageChoice.Custom, ConnectionType.PrusaLink, new PrinterModelCode(1, 4, 1), [0x89, 0x50, 0x4E, 0x47, 1, 2, 3]);
+            Assert.True(picture.IsCustom);
 
             (_, PrinterImageView view) = Show(scope, 24, picture);
 
             Assert.Equal(24, view.LastIllustrationPixelSize);
+            Assert.Equal("mk4", view.LastIllustrationId);
             return Task.CompletedTask;
         });
 

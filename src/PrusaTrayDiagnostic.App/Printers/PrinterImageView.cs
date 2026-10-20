@@ -34,11 +34,15 @@ public sealed class PrinterImageView : Control
     /// <summary>Pixel size of the illustration drawn last (0 for a custom picture or nothing); for tests.</summary>
     internal int LastIllustrationPixelSize { get; private set; }
 
+    /// <summary>Id of the illustration drawn last (<see langword="null"/> for a custom picture or nothing); for tests.</summary>
+    internal string? LastIllustrationId { get; private set; }
+
     public override void Render(DrawingContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
         base.Render(context);
         LastIllustrationPixelSize = 0;
+        LastIllustrationId = null;
         Rect bounds = new(Bounds.Size);
         if (Picture is not { } picture || bounds.Width <= 0 || bounds.Height <= 0)
         {
@@ -51,8 +55,9 @@ public sealed class PrinterImageView : Control
         {
             double scaling = TopLevel.GetTopLevel(this)?.RenderScaling ?? 1;
             int pixelSize = PrinterIllustrations.SelectPixelSize(side, scaling);
-            bitmap = PrinterBitmaps.Illustration(picture.CustomPng is null ? picture.IllustrationId : PrinterIllustrations.Generic, pixelSize);
+            bitmap = PrinterBitmaps.Illustration(picture.FallbackIllustrationId, pixelSize);
             LastIllustrationPixelSize = pixelSize;
+            LastIllustrationId = picture.FallbackIllustrationId;
         }
 
         Rect destination = PrinterBitmaps.Fit(bitmap.Size, bounds);

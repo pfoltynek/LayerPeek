@@ -91,6 +91,39 @@ public sealed class SettingsWindowImageUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task CancelledCustomImageLeavesTheAutomaticChoiceChecked() =>
+        session.RunAsync(static async scope =>
+        {
+            // A real click (pointer down/up handled by the menu's interaction handler), then the user cancels the dialog.
+            FakeImagePicker picker = new() { Content = null };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha") with { DetectedModel = Mk4SCode }), imagePicker: picker);
+            MenuFlyout menu = OpenMenu(ui);
+            MenuItem custom = menu.Items.OfType<MenuItem>().Single(static item => (string?)item.Header == Strings.SettingsImageCustom);
+            MenuItem automatic = menu.Items.OfType<MenuItem>().First();
+            Assert.False(custom.IsChecked);
+
+            ClickWithThePointer(custom);
+            if (ui.ViewModel.SelectedPrinter!.ChooseCustomImageCommand.ExecutionTask is { } running)
+            {
+                await running;
+            }
+
+            Dispatcher.UIThread.RunJobs();
+            ui.Window.Settle();
+
+            Assert.Equal(1, picker.Calls);
+            Assert.False(menu.IsOpen);
+            Assert.False(custom.IsChecked);
+            Assert.True(ui.ViewModel.SelectedPrinter!.IsAutomaticImage, $"choice {ui.ViewModel.SelectedPrinter.ImageChoice.Mode} {ui.ViewModel.SelectedPrinter.ImageChoice.Model}, printer {ui.ViewModel.SelectedPrinter.Name}");
+            Assert.True(ui.ViewModel.SelectedPrinter!.IsAutomaticImage);
+
+            // Open again: still the same.
+            menu = OpenMenu(ui);
+            Assert.False(menu.Items.OfType<MenuItem>().Single(static item => (string?)item.Header == Strings.SettingsImageCustom).IsChecked);
+            Assert.True(menu.Items.OfType<MenuItem>().First().IsChecked);
+        });
+
+    [Fact]
     public Task CustomImageIsImportedThroughTheFileDialog() =>
         session.RunAsync(static async scope =>
         {
@@ -146,6 +179,16 @@ public sealed class SettingsWindowImageUiTests(HeadlessSession session)
         MenuFlyout menu = Assert.IsType<MenuFlyout>(button.Flyout);
         Assert.True(menu.IsOpen);
         return menu;
+    }
+
+    /// <summary>A left click on the centre of <paramref name="item"/> in the top level that shows the open menu.</summary>
+    private static void ClickWithThePointer(MenuItem item)
+    {
+        TopLevel topLevel = TopLevel.GetTopLevel(item) ?? throw new InvalidOperationException("The menu item is not shown.");
+        topLevel.UpdateLayout();
+        Point centre = item.TranslatePoint(new Point(item.Bounds.Width / 2, item.Bounds.Height / 2), topLevel)!.Value;
+        Ui.Click(topLevel, centre);
+        Dispatcher.UIThread.RunJobs();
     }
 
     /// <summary>What a click on a menu item raises (its command runs on the click event).</summary>

@@ -894,4 +894,7 @@
   <data name="DiagnosticsPrinterImage" xml:space="preserve">
     <value>Printer image</value>
   </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Settings saved. A printer image could not be stored, so the printer keeps its previous image.</value>
+  </data>
 </root>

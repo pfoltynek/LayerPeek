@@ -30,8 +30,8 @@ internal interface INativeTrayMenuItem
 
     void SetToolTip(string? toolTip);
 
-    /// <summary>The picture shown left of the text (printer items, T-039); <see langword="null"/> = none.</summary>
-    void SetIcon(PrinterPicture? icon);
+    /// <summary>The picture of printer <paramref name="printerId"/> shown left of the text (T-039); <see langword="null"/> = none.</summary>
+    void SetIcon(PrinterPicture? icon, string? printerId);
 
     /// <summary>
     /// Gives the item a submenu (called at most once, right after creation, before the item is inserted); its items are

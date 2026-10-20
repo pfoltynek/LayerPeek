@@ -49,6 +49,20 @@ public sealed class PrinterPictureTests
     }
 
     [Fact]
+    public void CustomPictureKnowsItsAutomaticFallback()
+    {
+        // A damaged stored PNG shows what the printer would show without it (here the detected MK4S), not the generic one.
+        PrinterDefinition printer = LinkPrinter("a", "A") with { DetectedModel = Mk4SCode, Image = PrinterImageChoice.Custom };
+
+        PrinterPicture picture = PrinterPicture.For(printer, TestImages.Png());
+
+        Assert.Equal(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S), picture.Fallback);
+        Assert.Equal("mk4", picture.FallbackIllustrationId);
+        Assert.Equal("generic", PrinterPicture.For(LinkPrinter("b", "B") with { Image = PrinterImageChoice.Custom }, TestImages.Png()).FallbackIllustrationId);
+        Assert.Equal("mini", PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mini)).FallbackIllustrationId);
+    }
+
+    [Fact]
     public void MissingCustomFileFallsBackToTheAutomaticImage()
     {
         PrinterDefinition printer = LinkPrinter("a", "A") with { DetectedModel = Mk4SCode, Image = PrinterImageChoice.Custom };

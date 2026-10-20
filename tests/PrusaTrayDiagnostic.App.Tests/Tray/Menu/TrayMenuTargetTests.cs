@@ -350,9 +350,12 @@ public sealed class TrayMenuTargetTests
 
         public PrinterPicture? Icon { get; private set; }
 
-        public void SetIcon(PrinterPicture? icon)
+        public string? IconPrinterId { get; private set; }
+
+        public void SetIcon(PrinterPicture? icon, string? printerId)
         {
             Icon = icon;
+            IconPrinterId = printerId;
             Writes.Add("icon=" + icon?.IllustrationId);
         }
 

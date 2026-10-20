@@ -59,9 +59,9 @@ Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3`
 | `5.1.0` | `xl_dev_kit`, XL | 6.5.1 | `Xl` (ve firmwaru „works like standard XL“) |
 | `7.1.0` | `coreone`, COREONE | 6.5.1 | `CoreOne` |
 | `7.2.0` | `coreone_oak`, COREONEOAK | 6.6.0 | `Unknown` (nevydaná varianta, ve firmwaru „dead code“) |
-| `7.10.0` | `coreone_indx`, COREONEINDX | 6.6.0 | `Unknown` (viz otevřená otázka v T-039) |
+| `7.10.0` | `coreone_indx`, COREONEINDX | 6.6.0 | `Unknown` (obecná ilustrace, rozhodnutí T-039 2026-10-20) |
 | `8.1.0` | `coreonel`, COREONEL | 6.5.1 | `CoreOneL` |
-| `8.10.0` | `coreonel_indx`, COREONEL-INDX | 6.6.0 | `Unknown` (viz otevřená otázka v T-039) |
+| `8.10.0` | `coreonel_indx`, COREONEL-INDX | 6.6.0 | `Unknown` (obecná ilustrace, rozhodnutí T-039 2026-10-20) |
 | cokoli jiného | – | – | `Unknown` (kód se ale uloží, novější verze aplikace ho může znát) |
 
 **Co kód nerozliší:**
@@ -78,7 +78,7 @@ Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3`
 - Klient: `PrusaLinkClient.DetectModelAsync` (jen `/api/version`) a `PrusaLinkPrinterInfo.ModelCode` (test spojení).
 - Monitor se zeptá jednou za běh, po prvním úspěšném dotazu na stav, a vyvolá `IPrinterMonitor.ModelDetected`. Selhaný dotaz zkusí znovu po dalším úspěšném dotazu na stav, nejvýš 3× za běh. Firmware bez pole `printer` se už znovu neptá.
 - Uložený kód je `printers[*].detectedModel` v `settings.json`.
-- Kód zjištěný monitoringem uloží App (`MonitoringSession`) na pozadí, jen když se změnil. Do souboru zapíše jen tuto hodnotu (`ISettingsStore.SetDetectedModelAsync`, zbytek souboru zůstane bajt po bajtu) a monitoring nerestartuje. Test spojení v okně nastavení kód uloží spolu s nastavením. Nová adresa nebo typ připojení v editoru kód zahodí do další detekce (T-039).
+- Kód zjištěný monitoringem uloží App (`MonitoringSession`) na pozadí, jen když se změnil. Do souboru zapíše jen tuto hodnotu, a jen do položky se stejnou adresou a typem připojení, pro které byl kód zjištěn (`ISettingsStore.SetDetectedModelAsync`, zbytek souboru zůstane bajt po bajtu). Monitoring kvůli tomu nerestartuje. Test spojení v okně nastavení kód uloží spolu s nastavením. Nová adresa nebo typ připojení v editoru kód zahodí do další detekce (T-039).
 
 ## Stavy (`printer.state`)
 

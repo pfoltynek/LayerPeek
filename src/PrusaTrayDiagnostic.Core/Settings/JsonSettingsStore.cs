@@ -113,9 +113,10 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
-    public async Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, CancellationToken cancellationToken)
+    public async Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, string expectedAddress, ConnectionType expectedConnectionType, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        ArgumentNullException.ThrowIfNull(expectedAddress);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -137,7 +138,7 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
             byte[]? updated;
             try
             {
-                updated = DetectedModelWriter.Write(content, printerId, code);
+                updated = DetectedModelWriter.Write(content, printerId, code, expectedAddress, expectedConnectionType);
             }
             catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {
@@ -238,7 +239,8 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
 
         List<string> warnings = [];
         AppSettings settings = SettingsMapper.ToSettings(document, warnings);
-        return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings };
+        string[] storedIds = [.. (document.Printers ?? []).Select(static entry => entry?.Id?.Trim()).OfType<string>().Where(static id => id.Length > 0)];
+        return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings, StoredPrinterIds = storedIds };
     }
 
     private Task SaveCoreAsync(SettingsDocument document, CancellationToken cancellationToken) =>

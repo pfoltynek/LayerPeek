@@ -13,7 +13,7 @@ namespace PrusaTrayDiagnostic.App.Printers;
 /// Native AOT safe). Runs on the thread pool. The pixel size is read from the header first: an image whose pixels would
 /// not fit in memory is refused before decoding, and a large JPEG is decoded already scaled down (Skia decodes JPEG at
 /// 1/2, 1/4 or 1/8 directly). The longer side ends at most at the limit, smaller images keep their size (never enlarged),
-/// the JPEG EXIF orientation is applied to the pixels, and the result is a new PNG: no metadata of the source (EXIF, GPS,
+/// the EXIF orientation (JPEG APP1, PNG eXIf) is applied to the pixels, and the result is a new PNG: no metadata of the source (EXIF, GPS,
 /// ICC profile) is copied. Needs the Avalonia platform (the app, or a headless session in tests).
 /// </summary>
 internal sealed class AvaloniaPrinterImageProcessor : IPrinterImageProcessor
@@ -45,7 +45,7 @@ internal sealed class AvaloniaPrinterImageProcessor : IPrinterImageProcessor
             throw new PrinterImageDecodeException("The image has too many pixels.");
         }
 
-        int orientation = format == PrinterImageFormat.Jpeg ? ImageHeaders.ReadJpegOrientation(source.Span) : ImageHeaders.NormalOrientation;
+        int orientation = ImageHeaders.ReadOrientation(source.Span, format);
         try
         {
             using Bitmap decoded = Decode(source, format, width, height, maxPixelSize);

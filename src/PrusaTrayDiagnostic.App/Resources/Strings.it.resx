@@ -882,4 +882,7 @@
   <data name="DiagnosticsPrinterImage" xml:space="preserve">
     <value>Immagine della stampante</value>
   </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Impostazioni salvate. Impossibile salvare un'immagine della stampante, quindi la stampante mostra l'immagine precedente.</value>
+  </data>
 </root>
