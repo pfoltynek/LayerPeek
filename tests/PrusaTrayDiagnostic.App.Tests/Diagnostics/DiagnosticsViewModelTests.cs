@@ -661,6 +661,66 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void InfoValuesReplaceTheStatusTextOnlyOnceLoaded()
+    {
+        // T-041: the footer shows either the status text or the label/value pairs, never both.
+        Configure(Definition("a", "Alpha"), Definition("b", "Beta"));
+        DiagnosticsViewModel viewModel = Create();
+        List<string?> changes = Track(viewModel);
+        Assert.True(viewModel.HasInfoStatus);
+        Assert.False(viewModel.HasInfoValues);
+
+        _info.Requests[0].Completion.SetResult(new PrusaLinkInfoResult(PrinterState.Idle, null, CoreOneInfo));
+        _dispatcher.RunAll();
+
+        Assert.False(viewModel.HasInfoStatus);
+        Assert.True(viewModel.HasInfoValues);
+        Assert.Contains(nameof(DiagnosticsViewModel.HasInfoValues), changes);
+
+        // Another printer: its information is loading, so only the status is shown again.
+        changes.Clear();
+        viewModel.SelectedPrinter = viewModel.Printers[1];
+
+        Assert.Equal("Loading…", viewModel.InfoStatusText);
+        Assert.False(viewModel.HasInfoValues);
+        Assert.Contains(nameof(DiagnosticsViewModel.HasInfoValues), changes);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedOrUnsupportedInfoShowsOnlyTheStatusText(bool prusaConnect)
+    {
+        Configure(prusaConnect ? Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "printer-uuid" } : Definition());
+        DiagnosticsViewModel viewModel = Create();
+
+        _info.Requests[0].Completion.SetResult(prusaConnect ? null : Failed(PrinterState.Offline));
+        _dispatcher.RunAll();
+
+        Assert.True(viewModel.HasInfoStatus);
+        Assert.False(viewModel.HasInfoValues);
+    }
+
+    [Fact]
+    public void WithoutAPrinterNeitherInfoValuesNorStatusAreShown()
+    {
+        Configure(Definition());
+        DiagnosticsViewModel viewModel = Create();
+        _info.Requests[0].Completion.SetResult(new PrusaLinkInfoResult(PrinterState.Idle, null, CoreOneInfo));
+        _dispatcher.RunAll();
+        Assert.True(viewModel.HasInfoValues);
+        List<string?> changes = Track(viewModel);
+
+        Configure();
+        _dispatcher.RunAll();
+
+        Assert.False(viewModel.HasPrinter);
+        Assert.False(viewModel.HasInfoStatus);
+        Assert.False(viewModel.HasInfoValues);
+        Assert.Contains(nameof(DiagnosticsViewModel.HasInfoValues), changes);
+    }
+
+    [Fact]
     public void InfoIsNotAvailableForPrusaConnect()
     {
         Configure(Definition() with { ConnectionType = ConnectionType.PrusaConnect, Address = "printer-uuid" });

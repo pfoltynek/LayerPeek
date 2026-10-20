@@ -74,6 +74,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-037 | Okno kamery vždy navrchu (volba v nastavení) | all | core-dev + ui-dev | P2 | T-033 |
 | T-039 | Obrázek tiskárny (podle modelu nebo vlastní) | all | core-dev + ui-designer + ui-dev | P3 | T-025, T-033 |
 | T-040 | Úpravy okna nastavení a okna kamery po ručním testu | all | ui-dev | P2 | T-033, T-035, T-037 |
+| T-041 | Okno Diagnostika ve velikosti nastavení bez scrollbaru | all | ui-designer + ui-dev | P2 | T-011, T-033 |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 
