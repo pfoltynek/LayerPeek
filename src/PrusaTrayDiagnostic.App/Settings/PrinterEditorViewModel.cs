@@ -90,6 +90,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private string _miniSizeText;
     private CameraCornerOption _miniCorner;
 
+    // Print overlay (T-036): the corner and one row per item (in display order).
+    private CameraOverlayCornerOption _overlayCorner;
+    private readonly CameraOverlayItemRow[] _overlayRows;
+
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
     /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until answered or saved).</param>
@@ -128,6 +132,14 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _miniCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Mini.Corner);
         _topmostNormal = _savedWindow.TopmostNormal;
         _topmostMini = _savedWindow.TopmostMini;
+        CameraOverlayOptions overlay = camera.Overlay;
+        _overlayCorner = owner.OverlayCornerOptions.First(option => option.Value == overlay.Corner);
+        _overlayRows = [.. CameraOverlayOptions.Items.Select(item => new CameraOverlayItemRow(
+            item,
+            OverlayItemText(item),
+            isNormal: (overlay.Normal & item) != 0,
+            isMini: (overlay.Mini & item) != 0,
+            OnOverlayEdited))];
         FormatCellNames();
         ValidateAddress();
         ValidateUserName();
@@ -603,6 +615,32 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public string MiniTopmostName => _miniTopmostName;
 
+    // ---- Print overlay (T-036): what the camera window shows over the image. Edited only while the camera is on. ----
+
+    public IReadOnlyList<CameraOverlayCornerOption> OverlayCornerOptions => _owner.OverlayCornerOptions;
+
+    /// <summary>Corner of the overlay in every mode.</summary>
+    public CameraOverlayCornerOption SelectedOverlayCorner
+    {
+        get => _overlayCorner;
+        set
+        {
+            if (value is not null && SetProperty(ref _overlayCorner, value))
+            {
+                OnOverlayEdited();
+            }
+        }
+    }
+
+    /// <summary>
+    /// The items in display order (printer data, then job data), each with a check box for the normal window and full
+    /// screen and one for the mini preview.
+    /// </summary>
+    public IReadOnlyList<CameraOverlayItemRow> OverlayRows => _overlayRows;
+
+    /// <summary>The overlay as entered.</summary>
+    internal CameraOverlayOptions CameraOverlay => BuildOverlay();
+
     /// <summary>The camera window defaults as entered, to compare with the saved ones (tests and saving).</summary>
     internal CameraWindowDefaults? CameraWindow => BuildWindow();
 
@@ -633,12 +671,16 @@ public sealed class PrinterEditorViewModel : ObservableObject
     /// </summary>
     private CameraSettings? BuildCamera() => BuildWindow() is { } window ? BuildCamera(window) : null;
 
-    /// <summary>The camera with the address as entered and <paramref name="window"/>; <see langword="null"/> when the address blocks saving.</summary>
+    /// <summary>
+    /// The camera with the address as entered, <paramref name="window"/> and the overlay as entered (T-036);
+    /// <see langword="null"/> when the address blocks saving.
+    /// </summary>
     private CameraSettings? BuildCamera(CameraWindowDefaults window)
     {
+        CameraOverlayOptions overlay = BuildOverlay();
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = overlay };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -648,13 +690,15 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
         if (problem == CameraUrlProblem.Missing)
         {
-            // No address and the default window: the shared "no camera" value.
-            return window == CameraSettings.Disabled.Window ? CameraSettings.Disabled : CameraSettings.Disabled with { Window = window };
+            // No address and the default window and overlay: the shared "no camera" value.
+            return window == CameraSettings.Disabled.Window && overlay == CameraSettings.Disabled.Overlay
+                ? CameraSettings.Disabled
+                : CameraSettings.Disabled with { Window = window, Overlay = overlay };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = overlay };
         }
         catch (ArgumentException)
         {
@@ -686,6 +730,42 @@ public sealed class PrinterEditorViewModel : ObservableObject
             TopmostNormal = _topmostNormal,
             TopmostMini = _topmostMini,
         };
+    }
+
+    /// <summary>The overlay as entered; nothing to validate. Equal to the shared default when nothing differs from it.</summary>
+    private CameraOverlayOptions BuildOverlay()
+    {
+        CameraOverlayItems normal = CameraOverlayItems.None;
+        CameraOverlayItems mini = CameraOverlayItems.None;
+        foreach (CameraOverlayItemRow row in _overlayRows)
+        {
+            normal |= row.IsNormal ? row.Item : CameraOverlayItems.None;
+            mini |= row.IsMini ? row.Item : CameraOverlayItems.None;
+        }
+
+        CameraOverlayOptions overlay = new() { Corner = _overlayCorner.Value, Normal = normal, Mini = mini };
+        return overlay == CameraOverlayOptions.Default ? CameraOverlayOptions.Default : overlay;
+    }
+
+    private static Func<string> OverlayItemText(CameraOverlayItems item) => item switch
+    {
+        CameraOverlayItems.PrinterName => static () => Strings.SettingsOverlayItemPrinterName,
+        CameraOverlayItems.State => static () => Strings.SettingsOverlayItemState,
+        CameraOverlayItems.NozzleTemperature => static () => Strings.SettingsOverlayItemNozzleTemperature,
+        CameraOverlayItems.BedTemperature => static () => Strings.SettingsOverlayItemBedTemperature,
+        CameraOverlayItems.Progress => static () => Strings.SettingsOverlayItemProgress,
+        CameraOverlayItems.RemainingTime => static () => Strings.SettingsOverlayItemRemainingTime,
+        CameraOverlayItems.FinishTime => static () => Strings.SettingsOverlayItemFinishTime,
+        CameraOverlayItems.PrintTime => static () => Strings.SettingsOverlayItemPrintTime,
+        CameraOverlayItems.FileName => static () => Strings.SettingsOverlayItemFileName,
+        _ => throw new ArgumentOutOfRangeException(nameof(item), item, "Unknown camera overlay item."),
+    };
+
+    /// <summary>A field of the overlay sub-tab changed.</summary>
+    private void OnOverlayEdited()
+    {
+        RevealErrors();
+        _owner.OnPrinterEdited(nameChanged: false);
     }
 
     private bool IsInvalidSize(string text) => _cameraEnabled && CameraWindowSizeText.Parse(text) is null;
@@ -844,6 +924,12 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(MiniCornerName));
         OnPropertyChanged(nameof(NormalTopmostName));
         OnPropertyChanged(nameof(MiniTopmostName));
+
+        // Overlay (T-036): the item names and the accessible names of their check boxes (the corners are shared).
+        foreach (CameraOverlayItemRow row in _overlayRows)
+        {
+            row.RefreshTexts();
+        }
     }
 
     /// <summary>

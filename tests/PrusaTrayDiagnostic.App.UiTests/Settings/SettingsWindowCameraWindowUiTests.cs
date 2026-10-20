@@ -250,8 +250,14 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.Equal("PrinterTabCameraWindow", FocusedId(ui.Window));
 
             Press(ui, PhysicalKey.PageDown);
+            Assert.True(ui.Find<TabItem>("PrinterTabOverlay").IsSelected);
+            Assert.Equal("PrinterTabOverlay", FocusedId(ui.Window));
+
+            Press(ui, PhysicalKey.PageDown);
             Assert.True(ui.Find<TabItem>("PrinterTabConnection").IsSelected);
 
+            Press(ui, PhysicalKey.PageUp);
+            Assert.True(ui.Find<TabItem>("PrinterTabOverlay").IsSelected);
             Press(ui, PhysicalKey.PageUp);
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
         });

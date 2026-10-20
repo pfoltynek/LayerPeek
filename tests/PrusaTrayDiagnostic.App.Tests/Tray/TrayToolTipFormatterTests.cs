@@ -26,7 +26,7 @@ public sealed class TrayToolTipFormatterTests
 
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Printing, Job(45.6, OneHour23)), otherPrinterCount: 0);
 
-        Assert.Equal("MK4\nTiskne – 45 %\nZbývá 1 h 23 min\nbenchy.bgcode", text);
+        Assert.Equal("MK4\nTiskne – 45\u00A0%\nZbývá 1 h 23 min\nbenchy.bgcode", text);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public sealed class TrayToolTipFormatterTests
             Content(state: null, name: "Gamma"),
         ]);
 
-        Assert.Equal("Gamma: Připojování…\nBeta: Pozastaveno – 10 %\nAlpha: Tiskne – 45 %, zbývá 1 h 23 min", text);
+        Assert.Equal("Gamma: Připojování…\nBeta: Pozastaveno – 10\u00A0%\nAlpha: Tiskne – 45\u00A0%, zbývá 1 h 23 min", text);
     }
 
     [Fact]
@@ -296,7 +296,7 @@ public sealed class TrayToolTipFormatterTests
         string text = TrayToolTipFormatter.FormatSummary(printers);
 
         Assert.True(text.Length <= TrayToolTipFormatter.MaxLength, $"Length {text.Length}");
-        Assert.StartsWith("Tiskárna 1: Tiskne – 1 %\n", text, StringComparison.Ordinal);
+        Assert.StartsWith("Tiskárna 1: Tiskne – 1\u00A0%\n", text, StringComparison.Ordinal);
         Assert.Matches(@"\nDalší tiskárny: \d+$", text);
     }
 

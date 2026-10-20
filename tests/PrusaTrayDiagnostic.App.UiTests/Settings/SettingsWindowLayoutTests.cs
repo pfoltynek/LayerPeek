@@ -45,6 +45,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Printer", SettingsViewModel.PrintersTab, SettingsViewModel.ConnectionPrinterTab),
         ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
         ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
+        ("Overlay", SettingsViewModel.PrintersTab, SettingsViewModel.OverlayPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
@@ -101,6 +102,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             // The checks above pass only because the layout fits, not because they cannot fail.
             Assert.True(new UiLanguage().Apply("fr"));
             SettingsWindowHarness ui = await OpenWithAllErrorsAsync(scope, SettingsWindowHarness.Supported, refusedTest: true);
+            // At the designed size the four sub-tab headers fit on one row; at the minimum size (640, a fallback) they may wrap.
+            Assert.Empty(HeadersNotOnOneRow(ui.Window, "headers"));
             ui.Window.Width = 640;
             ui.Window.Height = 400;
             ui.Window.Settle();
@@ -112,7 +115,6 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.Contains(CutTexts(ui.Window, "narrow"), static problem => problem.Contains(Strings.SettingsAddPrinter, StringComparison.Ordinal));
 
-            Assert.Empty(HeadersNotOnOneRow(ui.Window, "headers"));
             ui.Find<TabControl>("SettingsPrinterTabs").Width = 120;
             ui.Window.Settle();
 
@@ -130,6 +132,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabConnectionMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraWindowMarker"));
+            // T-036: four headers (Printer | Camera | Camera window | Overlay); Italian is the widest (T-033 design).
+            Assert.Equal(SettingsViewModel.PrinterTabCount, ui.Find<TabControl>("SettingsPrinterTabs").ItemCount);
+            Assert.True(ui.Find<TabItem>("PrinterTabOverlay").IsEffectivelyVisible);
             List<string> problems = [.. HeadersNotOnOneRow(ui.Window, language), .. CutTexts(ui.Window, language)];
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
@@ -487,6 +492,17 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             printer.MiniSizeText = "big";
             Assert.Null(printer.MiniSizeError);
             ui.Window.Settle();
+            return ui;
+        });
+
+        // Overlay (T-036): the camera-off hint above the overlay hint is the tallest content of the sub-tab.
+        yield return ("overlay: camera off, every item in both columns, top right", static async scope =>
+        {
+            CameraOverlayOptions all = new() { Corner = CameraOverlayCorner.TopRight, Normal = CameraOverlayOptions.AllItems, Mini = CameraOverlayOptions.AllItems };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) { Overlay = all } }));
+            Assert.False(ui.ViewModel.SelectedPrinter!.CameraEnabled);
             return ui;
         });
 

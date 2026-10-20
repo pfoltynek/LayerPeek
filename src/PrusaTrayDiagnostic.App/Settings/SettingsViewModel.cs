@@ -57,8 +57,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Sub-tab of the selected printer: how the camera window opens (T-035).</summary>
     public const int CameraWindowPrinterTab = 2;
 
-    /// <summary>How many sub-tabs a printer has (T-036 adds the overlay).</summary>
-    public const int PrinterTabCount = 3;
+    /// <summary>Sub-tab of the selected printer: what the print overlay of the camera window shows (T-036).</summary>
+    public const int OverlayPrinterTab = 3;
+
+    /// <summary>How many sub-tabs a printer has.</summary>
+    public const int PrinterTabCount = 4;
 
     private const int TabCount = 2;
 
@@ -159,6 +162,13 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             new CameraCornerOption(CameraWindowCorner.BottomLeft, static () => Strings.SettingsCameraWindowCornerBottomLeft),
             new CameraCornerOption(CameraWindowCorner.BottomRight, static () => Strings.SettingsCameraWindowCornerBottomRight),
             new CameraCornerOption(CameraWindowCorner.Center, static () => Strings.SettingsCameraWindowCornerCenter),
+        ];
+        OverlayCornerOptions =
+        [
+            new CameraOverlayCornerOption(CameraOverlayCorner.TopLeft, static () => Strings.SettingsCameraWindowCornerTopLeft),
+            new CameraOverlayCornerOption(CameraOverlayCorner.TopRight, static () => Strings.SettingsCameraWindowCornerTopRight),
+            new CameraOverlayCornerOption(CameraOverlayCorner.BottomLeft, static () => Strings.SettingsCameraWindowCornerBottomLeft),
+            new CameraOverlayCornerOption(CameraOverlayCorner.BottomRight, static () => Strings.SettingsCameraWindowCornerBottomRight),
         ];
         SoundOptions =
         [
@@ -276,7 +286,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     /// <summary>
     /// Sub-tab of the printer form (<see cref="ConnectionPrinterTab"/>, <see cref="CameraPrinterTab"/>,
-    /// <see cref="CameraWindowPrinterTab"/>). Belongs to the
+    /// <see cref="CameraWindowPrinterTab"/>, <see cref="OverlayPrinterTab"/>). Belongs to the
     /// window, not to a printer: selecting another printer keeps it (Camera stays Camera). A failed save switches it to the
     /// first sub-tab with an error.
     /// </summary>
@@ -461,6 +471,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Position choices of the camera window (shared by all printers).</summary>
     internal IReadOnlyList<CameraCornerOption> CornerOptions { get; }
 
+    /// <summary>Corner choices of the print overlay (T-036, shared by all printers).</summary>
+    internal IReadOnlyList<CameraOverlayCornerOption> OverlayCornerOptions { get; }
+
     /// <summary>
     /// The monitors offered for the camera window, read once per settings window (T-035 Q10: no live refresh) and shared by
     /// all printers.
@@ -531,7 +544,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             return;
         }
 
-        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption, .. StartModeOptions, .. CornerOptions];
+        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption, .. StartModeOptions, .. CornerOptions, .. OverlayCornerOptions];
         foreach (LocalizedOption option in options)
         {
             option.RefreshText();

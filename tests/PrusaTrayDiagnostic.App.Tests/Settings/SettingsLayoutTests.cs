@@ -249,11 +249,27 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
+        Assert.Equal(SettingsViewModel.OverlayPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.True(vm.SelectAdjacentPrinterTab(forward: true));
         Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
-        Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.Equal(SettingsViewModel.OverlayPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.SelectAdjacentPrinterTab(forward: false));
-        Assert.Equal(SettingsViewModel.CameraPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.Equal(SettingsViewModel.CameraWindowPrinterTab, vm.SelectedPrinterTabIndex);
+    }
+
+    [Fact]
+    public async Task OverlaySubTabIsTheFourthAndCanBeSelected()
+    {
+        SettingsViewModel vm = await LoadAsync(LinkPrinter("a", "Alpha"));
+
+        vm.SelectedPrinterTabIndex = SettingsViewModel.OverlayPrinterTab;
+
+        Assert.Equal(3, SettingsViewModel.OverlayPrinterTab);
+        Assert.Equal(4, SettingsViewModel.PrinterTabCount);
+        Assert.Equal(SettingsViewModel.OverlayPrinterTab, vm.SelectedPrinterTabIndex);
+        vm.SelectedPrinterTabIndex = SettingsViewModel.PrinterTabCount;
+        Assert.Equal(SettingsViewModel.OverlayPrinterTab, vm.SelectedPrinterTabIndex);
     }
 
     [Fact]

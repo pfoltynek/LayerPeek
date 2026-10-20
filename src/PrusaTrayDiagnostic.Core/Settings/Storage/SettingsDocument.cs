@@ -82,6 +82,29 @@ internal sealed class CameraDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CameraWindowDocument? Window { get; set; }
+
+    /// <summary>
+    /// Print overlay of the camera window (T-036); missing in older files and not written while all values are the
+    /// defaults. Never touched by <see cref="CameraCredentialScrubber"/>.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CameraOverlayDocument? Overlay { get; set; }
+}
+
+/// <summary>Every value is optional; missing values mean the defaults, unknown ones are ignored with a warning.</summary>
+internal sealed class CameraOverlayDocument
+{
+    /// <summary><see cref="Cameras.CameraOverlayCorner"/> name.</summary>
+    public string? Corner { get; set; }
+
+    /// <summary>
+    /// <see cref="Cameras.CameraOverlayItems"/> names of the normal window and full screen (e.g. <c>["State", "Progress"]</c>);
+    /// an empty list shows nothing, a missing one the default items.
+    /// </summary>
+    public List<string?>? Normal { get; set; }
+
+    /// <summary>Item names of the mini preview, like <see cref="Normal"/>.</summary>
+    public List<string?>? Mini { get; set; }
 }
 
 /// <summary>Every value is optional; missing or invalid values fall back to the defaults (invalid ones with a warning).</summary>

@@ -188,6 +188,38 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task OverlaySubTab() =>
+        session.RunAsync(static async scope =>
+        {
+            CameraOverlayOptions overlay = new()
+            {
+                Corner = CameraOverlayCorner.TopRight,
+                Normal = CameraOverlayItems.PrinterName | CameraOverlayItems.State | CameraOverlayItems.NozzleTemperature | CameraOverlayItems.Progress | CameraOverlayItems.FinishTime,
+                Mini = CameraOverlayItems.Progress | CameraOverlayItems.RemainingTime,
+            };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Overlay = overlay } }));
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.OverlayPrinterTab;
+
+            SnapshotAssert.Matches(ui.Window, "settings-overlay");
+        });
+
+    [Fact]
+    public Task OverlaySubTabWithTheCameraOffInItalian() =>
+        session.RunAsync(static async scope =>
+        {
+            // Italian has the widest sub-tab headers (T-033 design); the camera-off hint is the tallest content.
+            new UiLanguage().Apply("it");
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: false, new Uri("rtsp://192.168.0.227/live")) }));
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.OverlayPrinterTab;
+
+            SnapshotAssert.Matches(ui.Window, "settings-overlay-off-it");
+        });
+
+    [Fact]
     public Task CameraWindowSubTabWithSizeErrorsAndADisconnectedMonitorInFrench() =>
         session.RunAsync(static async scope =>
         {

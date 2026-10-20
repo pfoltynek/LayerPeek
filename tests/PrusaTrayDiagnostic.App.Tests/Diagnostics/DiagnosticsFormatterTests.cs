@@ -13,11 +13,11 @@ public sealed class DiagnosticsFormatterTests
     private static readonly TimeZoneInfo Prague = TimeZoneInfo.CreateCustomTimeZone("Test+2", TimeSpan.FromHours(2), "Test+2", "Test+2");
 
     [Theory]
-    [InlineData("en-US", 215.34, "215.3 °C")]
-    [InlineData("en-US", 215.36, "215.4 °C")]
-    [InlineData("en-US", 24, "24.0 °C")]
-    [InlineData("cs-CZ", 215.34, "215,3 °C")]
-    [InlineData("en-US", -3.2, "-3.2 °C")]
+    [InlineData("en-US", 215.34, "215.3\u00A0°C")]
+    [InlineData("en-US", 215.36, "215.4\u00A0°C")]
+    [InlineData("en-US", 24, "24.0\u00A0°C")]
+    [InlineData("cs-CZ", 215.34, "215,3\u00A0°C")]
+    [InlineData("en-US", -3.2, "-3.2\u00A0°C")]
     public void TemperatureHasOneDecimalInTheUiCulture(string culture, double value, string expected)
     {
         using CultureScope scope = new(culture);
@@ -40,10 +40,10 @@ public sealed class DiagnosticsFormatterTests
     }
 
     [Theory]
-    [InlineData("en-US", 215, "215 °C")]
+    [InlineData("en-US", 215, "215\u00A0°C")]
     [InlineData("en-US", 0, "Off")]
     [InlineData("cs-CZ", 0, "Vypnuto")]
-    [InlineData("cs-CZ", 60, "60 °C")]
+    [InlineData("cs-CZ", 60, "60\u00A0°C")]
     public void TargetZeroMeansTheHeaterIsOff(string culture, double value, string expected)
     {
         using CultureScope scope = new(culture);
@@ -162,14 +162,14 @@ public sealed class DiagnosticsFormatterTests
     {
         using (new CultureScope("en-US"))
         {
-            Assert.Equal("250 °C", DiagnosticsFormatter.AxisTemperature(250));
-            Assert.Equal("0 °C", DiagnosticsFormatter.AxisTemperature(0));
+            Assert.Equal("250\u00A0°C", DiagnosticsFormatter.AxisTemperature(250));
+            Assert.Equal("0\u00A0°C", DiagnosticsFormatter.AxisTemperature(0));
         }
 
         using (new CultureScope("cs-CZ"))
         {
             string separator = CultureInfo.GetCultureInfo("cs-CZ").NumberFormat.NumberGroupSeparator;
-            Assert.Equal($"1{separator}000 °C", DiagnosticsFormatter.AxisTemperature(1000));
+            Assert.Equal($"1{separator}000\u00A0°C", DiagnosticsFormatter.AxisTemperature(1000));
         }
     }
 

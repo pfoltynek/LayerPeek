@@ -181,7 +181,7 @@
     <value>Axe Z</value>
   </data>
   <data name="DiagnosticsTemperatureValue" xml:space="preserve">
-    <value>{0} °C</value>
+    <value>{0} °C</value>
   </data>
   <data name="DiagnosticsHeaterOff" xml:space="preserve">
     <value>Éteint</value>
@@ -770,5 +770,59 @@
   </data>
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Saisissez une largeur de {0} à {1} et une hauteur de {2} à {3}.</value>
+  </data>
+  <data name="CameraOverlayLabeledValue" xml:space="preserve">
+    <value>{0} : {1}</value>
+  </data>
+  <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
+    <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayFinishTime" xml:space="preserve">
+    <value>Fin à {0}</value>
+  </data>
+  <data name="CameraOverlayFinishDateTime" xml:space="preserve">
+    <value>Fin le {0} à {1}</value>
+  </data>
+  <data name="CameraOverlayPrintTime" xml:space="preserve">
+    <value>Durée d'impression : {0}</value>
+  </data>
+  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
+    <value>Superposition</value>
+  </data>
+  <data name="SettingsOverlayCorner" xml:space="preserve">
+    <value>Coin de la superposition</value>
+  </data>
+  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
+    <value>Fenêtre normale et plein écran</value>
+  </data>
+  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
+    <value>Nom de l'imprimante</value>
+  </data>
+  <data name="SettingsOverlayItemState" xml:space="preserve">
+    <value>État de l'imprimante</value>
+  </data>
+  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
+    <value>Température de la buse</value>
+  </data>
+  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
+    <value>Température du plateau</value>
+  </data>
+  <data name="SettingsOverlayItemProgress" xml:space="preserve">
+    <value>Progression (%)</value>
+  </data>
+  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
+    <value>Temps restant</value>
+  </data>
+  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
+    <value>Heure de fin</value>
+  </data>
+  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
+    <value>Durée d'impression</value>
+  </data>
+  <data name="SettingsOverlayItemFileName" xml:space="preserve">
+    <value>Nom du fichier</value>
+  </data>
+  <data name="SettingsOverlayHint" xml:space="preserve">
+    <value>Les données de la tâche (progression, durées, nom du fichier) ne s'affichent que pendant une impression. Après l'enregistrement, les modifications s'appliquent aussi aux fenêtres de caméra ouvertes.</value>
   </data>
 </root>

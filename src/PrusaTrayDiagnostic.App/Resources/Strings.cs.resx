@@ -28,7 +28,7 @@
     <value>{0} – {1}</value>
   </data>
   <data name="ToolTipProgress" xml:space="preserve">
-    <value>{0} %</value>
+    <value>{0} %</value>
   </data>
   <data name="ToolTipRemaining" xml:space="preserve">
     <value>Zbývá {0}</value>
@@ -220,7 +220,7 @@
     <value>Osa Z</value>
   </data>
   <data name="DiagnosticsTemperatureValue" xml:space="preserve">
-    <value>{0} °C</value>
+    <value>{0} °C</value>
   </data>
   <data name="DiagnosticsHeaterOff" xml:space="preserve">
     <value>Vypnuto</value>
@@ -770,5 +770,59 @@
   </data>
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Zadejte šířku {0}–{1} a výšku {2}–{3}.</value>
+  </data>
+  <data name="CameraOverlayLabeledValue" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
+    <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayFinishTime" xml:space="preserve">
+    <value>Hotovo v {0}</value>
+  </data>
+  <data name="CameraOverlayFinishDateTime" xml:space="preserve">
+    <value>Hotovo {0} v {1}</value>
+  </data>
+  <data name="CameraOverlayPrintTime" xml:space="preserve">
+    <value>Doba tisku: {0}</value>
+  </data>
+  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
+    <value>Překryv</value>
+  </data>
+  <data name="SettingsOverlayCorner" xml:space="preserve">
+    <value>Roh překryvu</value>
+  </data>
+  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
+    <value>Normální okno a celá obrazovka</value>
+  </data>
+  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
+    <value>Název tiskárny</value>
+  </data>
+  <data name="SettingsOverlayItemState" xml:space="preserve">
+    <value>Stav tiskárny</value>
+  </data>
+  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
+    <value>Teplota trysky</value>
+  </data>
+  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
+    <value>Teplota podložky</value>
+  </data>
+  <data name="SettingsOverlayItemProgress" xml:space="preserve">
+    <value>Průběh (%)</value>
+  </data>
+  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
+    <value>Zbývající čas</value>
+  </data>
+  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
+    <value>Čas dokončení (hodiny)</value>
+  </data>
+  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
+    <value>Doba tisku</value>
+  </data>
+  <data name="SettingsOverlayItemFileName" xml:space="preserve">
+    <value>Název souboru</value>
+  </data>
+  <data name="SettingsOverlayHint" xml:space="preserve">
+    <value>Údaje o úloze (průběh, časy, název souboru) se zobrazují jen během tisku. Změny se po uložení projeví i v otevřených oknech kamery.</value>
   </data>
 </root>

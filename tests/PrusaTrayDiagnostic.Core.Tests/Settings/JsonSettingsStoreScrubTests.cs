@@ -145,6 +145,25 @@ public sealed class JsonSettingsStoreScrubTests : IDisposable
     }
 
     [Fact]
+    public async Task CameraOverlaySectionIsLeftByteForByte()
+    {
+        // T-036: camera.overlay holds the overlay items; it is never touched, even when it contains look-alike values.
+        string overlay = string.Join(
+            "\r\n",
+            "\"overlay\" : { /* items */ \"corner\": \"TopRight\",",
+            "\t\"normal\": [ \"State\", \"rtsp://a:b@10.0.0.1/c\" , ], \"mini\": [],",
+            "\t\"streamUrl\": \"rtsp://x:y@10.0.0.1/z\", \"enabled\": true }");
+        string original = $$"""{ "printers": [ { "id": "a", "camera": { "enabled": true, {{overlay}}, "streamUrl": "rtsp://u:p@10.0.0.6/live" } } ] }""";
+
+        (IReadOnlyList<string> changed, string result) = await ScrubAsync(original);
+
+        Assert.Equal(["a"], changed);
+        Assert.Equal(
+            $$"""{ "printers": [ { "id": "a", "camera": { "enabled": false, {{overlay}}, "streamUrl": "rtsp://10.0.0.6/live" } } ] }""",
+            result);
+    }
+
+    [Fact]
     public async Task CommentsTrailingCommasAndWhitespaceArePreserved()
     {
         string original = string.Join(

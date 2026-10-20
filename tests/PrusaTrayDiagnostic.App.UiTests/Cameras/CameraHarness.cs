@@ -26,12 +26,13 @@ internal sealed class CameraHarness : IAsyncDisposable
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null)
+    /// <param name="overlay">Print overlay of the printers with a camera (T-036); <see langword="null"/>: the defaults.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null)
     {
         States = states ?? new MemoryCameraWindowStateStore();
         ((IMonitoringObserver)Printers).ApplySettings(new AppSettings
         {
-            Printers = [CameraPrinter("a", "Alpha", window), CameraPrinter("b", "Beta", window), TestPrinters.Definition("c", "NoCamera")],
+            Printers = [CameraPrinter("a", "Alpha", window, overlay), CameraPrinter("b", "Beta", window, overlay), TestPrinters.Definition("c", "NoCamera")],
         });
         Windows = new CameraWindows(Create, screens);
     }
@@ -50,8 +51,11 @@ internal sealed class CameraHarness : IAsyncDisposable
 
     public IReadOnlyList<CameraViewModel> Created => _created;
 
-    public static PrinterDefinition CameraPrinter(string id, string name, CameraWindowDefaults? window = null) =>
-        TestPrinters.Definition(id, name) with { Camera = new CameraSettings(enabled: true, StreamUri) { Window = window ?? CameraWindowDefaults.Default } };
+    public static PrinterDefinition CameraPrinter(string id, string name, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null) =>
+        TestPrinters.Definition(id, name) with
+        {
+            Camera = new CameraSettings(enabled: true, StreamUri) { Window = window ?? CameraWindowDefaults.Default, Overlay = overlay ?? CameraOverlayOptions.Default },
+        };
 
     public CameraWindow Open(string printerId = "a")
     {

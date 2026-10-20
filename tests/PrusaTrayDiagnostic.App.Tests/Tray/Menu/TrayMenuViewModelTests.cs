@@ -182,7 +182,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(42), printerId: "b"));
         _dispatcher.RunAll();
 
-        Assert.Equal("Beta: Tiskne – 42 %", _viewModel.PrinterItems[1].Header);
+        Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
         Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
     }
 
@@ -205,7 +205,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         Assert.Equal(
             ["Nastavení…", "Diagnostika…", "O aplikaci", "Ukončit"],
             _viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
-        Assert.Equal("Beta: Tiskne – 42 %", _viewModel.PrinterItems[1].Header);
+        Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
         // The cached submenu is formatted again too.
         Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
         Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[0].Submenu!.Select(item => item.Header));
@@ -375,7 +375,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(42)));
         _dispatcher.RunAll();
 
-        Assert.Equal("MK4: Tiskne – 42 %", Assert.Single(_viewModel.PrinterItems).Header);
+        Assert.Equal("MK4: Tiskne – 42\u00A0%", Assert.Single(_viewModel.PrinterItems).Header);
     }
 
     [Fact]

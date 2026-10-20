@@ -50,6 +50,13 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         return viewModel;
     }
 
+    internal static string? Line(CameraViewModel viewModel, CameraOverlayItems item) =>
+        viewModel.OverlayLines.FirstOrDefault(line => line.Item == item)?.Text;
+
+    private static string? StateLine(CameraViewModel viewModel) => Line(viewModel, CameraOverlayItems.State);
+
+    private static string? RemainingLine(CameraViewModel viewModel) => Line(viewModel, CameraOverlayItems.RemainingTime);
+
     private void ApplyPrinters(params PrinterDefinition[] printers) =>
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = printers });
 
@@ -326,15 +333,14 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             Assert.Equal("MK4 – Kamera", viewModel.Title);
             Assert.Equal("Verbindung zur Kamera wird hergestellt…", viewModel.StatusText);
             Assert.Equal("Vollbild (F11)", viewModel.FullScreenToolTip);
-            Assert.StartsWith("Druckt – 42", viewModel.PrintStateText, StringComparison.Ordinal);
-            Assert.StartsWith("Noch ", viewModel.RemainingText, StringComparison.Ordinal);
+            Assert.StartsWith("Druckt – 42", StateLine(viewModel), StringComparison.Ordinal);
+            Assert.StartsWith("Noch ", RemainingLine(viewModel), StringComparison.Ordinal);
         }
 
         Assert.Contains(nameof(CameraViewModel.Title), changes);
         Assert.Contains(nameof(CameraViewModel.StatusText), changes);
         Assert.Contains(nameof(CameraViewModel.FullScreenToolTip), changes);
-        Assert.Contains(nameof(CameraViewModel.PrintStateText), changes);
-        Assert.Contains(nameof(CameraViewModel.RemainingText), changes);
+        Assert.Contains(nameof(CameraViewModel.OverlayLines), changes);
         // Nothing else changed: no new connection, the mode stays.
         Assert.True(viewModel.IsNormal);
         Assert.Empty(_factory.Uris);
@@ -350,7 +356,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             viewModel.RefreshTexts();
         }
 
-        Assert.Null(viewModel.PrintStateText);
+        Assert.Null(StateLine(viewModel));
         Assert.False(viewModel.IsPrintOverlayVisible);
     }
 
@@ -379,9 +385,9 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         _dispatcher.RunAll();
 
         Assert.True(viewModel.IsPrintOverlayVisible);
-        Assert.Equal("Printing – 42%", viewModel.PrintStateText);
-        Assert.Equal("1 h 5 min remaining", viewModel.RemainingText);
-        Assert.True(viewModel.HasRemaining);
+        Assert.Equal("Printing – 42%", StateLine(viewModel));
+        Assert.Equal("1 h 5 min remaining", RemainingLine(viewModel));
+        Assert.NotNull(RemainingLine(viewModel));
     }
 
     [Theory]
@@ -405,8 +411,8 @@ public sealed class CameraViewModelTests : IAsyncDisposable
 
         Assert.Equal(mode, viewModel.Mode);
         Assert.True(viewModel.IsPrintOverlayVisible);
-        Assert.Equal("Printing – 10%", viewModel.PrintStateText);
-        Assert.Equal("5 min remaining", viewModel.RemainingText);
+        Assert.Equal("Printing – 10%", StateLine(viewModel));
+        Assert.Equal("5 min remaining", RemainingLine(viewModel));
     }
 
     [Fact]
@@ -416,7 +422,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         viewModel.ShowMiniCommand.Execute(null);
 
         Assert.False(viewModel.IsPrintOverlayVisible);
-        Assert.Null(viewModel.PrintStateText);
+        Assert.Null(StateLine(viewModel));
     }
 
     [Fact]
@@ -426,8 +432,8 @@ public sealed class CameraViewModelTests : IAsyncDisposable
 
         CameraViewModel viewModel = Create();
 
-        Assert.Equal("Ready", viewModel.PrintStateText);
-        Assert.False(viewModel.HasRemaining);
+        Assert.Equal("Ready", StateLine(viewModel));
+        Assert.Null(RemainingLine(viewModel));
         // Shown in every mode (user decision 2026-10-18), also in the normal window.
         Assert.True(viewModel.IsPrintOverlayVisible);
     }
@@ -444,7 +450,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         _monitor.Raise(Snapshot(PrinterState.Error, printerId: "other"));
 
         Assert.Equal(posts, _dispatcher.PostCount);
-        Assert.Equal("Printing – 42%", viewModel.PrintStateText);
+        Assert.Equal("Printing – 42%", StateLine(viewModel));
     }
 
     [Fact]
