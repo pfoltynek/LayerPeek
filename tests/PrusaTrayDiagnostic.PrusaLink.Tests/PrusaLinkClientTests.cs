@@ -670,7 +670,7 @@ public sealed class PrusaLinkClientTests : IDisposable
         Assert.Equal("prusa-core-one", info.Hostname);
         Assert.Equal("6.9.2+10123", info.Firmware);
         Assert.Equal("2.0.0", info.ApiVersion);
-        Assert.Equal("7.0.0", info.PrinterModel);
+        Assert.Equal("7.1.0", info.PrinterModel);
         Assert.Equal(0.4, info.NozzleDiameter);
         Assert.True(info.HasMmu);
     }

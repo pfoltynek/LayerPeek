@@ -24,11 +24,15 @@ public enum ConnectionTestOutcome
 }
 
 /// <param name="PrinterModel">Model code reported by the printer ("type.version.subversion"), when known.</param>
+/// <param name="ModelCode">
+/// <paramref name="PrinterModel"/> parsed (T-039); <see langword="null"/> when not reported (firmware before 6.5) or malformed.
+/// </param>
 internal sealed record ConnectionTestResult(
     ConnectionTestOutcome Outcome,
     string? PrinterModel = null,
     string? Firmware = null,
-    string? Hostname = null);
+    string? Hostname = null,
+    PrinterModelCode? ModelCode = null);
 
 /// <summary>Tries the connection to a printer with values that are not saved yet.</summary>
 internal interface IConnectionTester

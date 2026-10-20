@@ -1,4 +1,6 @@
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.Printers;
 
 namespace PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 
@@ -82,6 +84,39 @@ public sealed class TrayMenuTargetTests
         item.Writes.Clear();
         _target.UpdatePrinterItem(0, first with { Header = "MK4: Printing – 1%", IsEnabled = false, ToolTip = "Invalid" });
         Assert.Equal(["enabled=False", "tooltip=Invalid"], item.Writes);
+    }
+
+    [Fact]
+    public void PrinterIconIsSetOnCreationAndOnlyWhenItChanges()
+    {
+        // T-039: the printer picture as the item icon (Windows).
+        PrinterPicture mk4 = PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S));
+        _target.SetFixedItems([]);
+        TrayMenuEntry entry = Printer("MK4: Idle") with { Icon = mk4 };
+
+        _target.InsertPrinterItem(0, entry);
+        FakeNativeItem item = _menu.Items[0];
+        Assert.Same(mk4, item.Icon);
+        Assert.Contains("icon=mk4", item.Writes);
+        item.Writes.Clear();
+
+        _target.UpdatePrinterItem(0, entry with { Header = "MK4: Printing – 1%", Icon = PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S)) });
+        Assert.Equal(["header=MK4: Printing – 1%"], item.Writes);
+
+        _target.UpdatePrinterItem(0, entry with { Icon = PrinterPicture.Generic });
+        Assert.Contains("icon=generic", item.Writes);
+        _target.UpdatePrinterItem(0, entry with { Icon = null });
+        Assert.Null(item.Icon);
+    }
+
+    [Fact]
+    public void ItemsWithoutAnIconNeverSetOne()
+    {
+        _target.SetFixedItems([About]);
+
+        _target.InsertPrinterItem(0, Printer("MK4"));
+
+        Assert.All(_menu.Items, static item => Assert.DoesNotContain(item.Writes, static write => write.StartsWith("icon=", StringComparison.Ordinal)));
     }
 
     [Fact]
@@ -388,6 +423,17 @@ public sealed class TrayMenuTargetTests
         public void SetEnabled(bool enabled) => Writes.Add("enabled=" + enabled);
 
         public void SetToolTip(string? toolTip) => Writes.Add("tooltip=" + toolTip);
+
+        public PrinterPicture? Icon { get; private set; }
+
+        public string? IconPrinterId { get; private set; }
+
+        public void SetIcon(PrinterPicture? icon, string? printerId)
+        {
+            Icon = icon;
+            IconPrinterId = printerId;
+            Writes.Add("icon=" + icon?.IllustrationId);
+        }
 
         public bool? IsChecked { get; private set; }
 

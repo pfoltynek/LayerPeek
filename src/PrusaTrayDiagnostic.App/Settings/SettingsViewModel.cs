@@ -10,8 +10,10 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Cameras;
+using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 
@@ -139,6 +141,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// Places an open camera window again after "Apply" (T-040); default: none (Apply only saves).
     /// </param>
     /// <param name="timeProvider">How long "Saved" stays after Apply (T-040); default: the system clock.</param>
+    /// <param name="imageImporter">Checks and converts custom printer images (T-039); default: Avalonia/Skia (needs the platform).</param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -150,7 +153,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         IScreenCatalog? screens = null,
         ICameraWindowStateStore? cameraWindowStates = null,
         ICameraWindowPlacer? cameraWindowPlacer = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        PrinterImageImporter? imageImporter = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -166,6 +170,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _cameraWindowStates = cameraWindowStates;
         _cameraWindowPlacer = cameraWindowPlacer;
         _timeProvider = timeProvider ?? TimeProvider.System;
+        ImageImporter = imageImporter ?? new PrinterImageImporter(AvaloniaPrinterImageProcessor.Instance);
         StartModeOptions =
         [
             new CameraStartModeOption(CameraWindowStartMode.Last, static () => Strings.SettingsCameraWindowStartLast),
@@ -483,6 +488,15 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     internal ILogger Logger { get; }
 
+    /// <summary>Checks and converts a custom printer image chosen in the window (T-039).</summary>
+    internal PrinterImageImporter ImageImporter { get; }
+
+    /// <summary>
+    /// The file dialog for custom printer images (T-039), set by the window; <see langword="null"/>: no dialog (the "Custom
+    /// image…" item is disabled).
+    /// </summary>
+    internal IImageFilePicker? ImageFilePicker { get; set; }
+
     /// <summary>"Open as" choices of the camera window (shared by all printers).</summary>
     internal IReadOnlyList<CameraStartModeOption> StartModeOptions { get; }
 
@@ -634,7 +648,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             _usedIds.Add(printer.Id);
             bool? hasPassword = data.PrintersWithPassword is { } withPassword ? withPassword.Contains(printer.Id) : null;
             bool cameraCredentialsRemoved = printer.Camera.CredentialsRemoved || data.CamerasWithRemovedCredentials?.Contains(printer.Id) == true;
-            Printers.Add(new PrinterEditorViewModel(this, printer.Id, printer, hasPassword, cameraCredentialsRemoved));
+            byte[]? customImage = data.CustomImages?.GetValueOrDefault(printer.Id);
+            Printers.Add(new PrinterEditorViewModel(this, printer.Id, printer, hasPassword, cameraCredentialsRemoved, customImage));
         }
 
         _pollingIntervalSeconds = (decimal)settings.PollingInterval.TotalSeconds;
@@ -805,7 +820,17 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             }
         }
 
-        if (passwords.Count == 0 && updated.Equals(_baseline))
+        // Custom images imported in the window (T-039), stored by the store only after the settings were saved.
+        Dictionary<string, byte[]> images = new(StringComparer.OrdinalIgnoreCase);
+        foreach (PrinterEditorViewModel printer in Printers)
+        {
+            if (printer.PendingImage is { } png)
+            {
+                images[printer.Id] = png;
+            }
+        }
+
+        if (passwords.Count == 0 && images.Count == 0 && updated.Equals(_baseline))
         {
             // Nothing to write; "Factory settings" with the saved values still forgets the remembered window (T-040).
             ForgetRememberedCameraWindows(_baseline, updated);
@@ -819,7 +844,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         SettingsSaveResult result;
         try
         {
-            result = await _store.SaveAsync(new SettingsChange(_baseline, updated, passwords)).ConfigureAwait(true);
+            result = await _store.SaveAsync(new SettingsChange(_baseline, updated, passwords, images.Count > 0 ? images : null)).ConfigureAwait(true);
         }
         catch (Exception)
         {
@@ -848,13 +873,31 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
         ForgetRememberedCameraWindows(_baseline, updated);
         _baseline = updated;
+        // T-039: a printer whose new image could not be stored keeps it (still unsaved), so that Save tries again; it shows
+        // its previous custom image meanwhile when there is one, otherwise its illustration.
+        bool unsavedImages = false;
+        bool allKeepPreviousImage = true;
         foreach (PrinterEditorViewModel printer in Printers)
         {
-            printer.MarkSaved();
+            bool imageStored = result.UnsavedImages?.Contains(printer.Id) != true || printer.PendingImage is null;
+            if (!imageStored)
+            {
+                unsavedImages = true;
+                allKeepPreviousImage &= printer.HasStoredCustomImage;
+            }
+
+            printer.MarkSaved(imageStored);
         }
 
         UpdateDirty();
-        Completed(applying, updated, result.UndeletedPasswords > 0 ? static () => Strings.SettingsSavedPasswordsNotDeleted : null);
+        Func<string>? imageNotice = !unsavedImages ? null
+            : allKeepPreviousImage ? static () => Strings.SettingsSavedImageNotStoredPrevious
+            : static () => Strings.SettingsSavedImageNotStored;
+        // Both notices when both happened (the window stays open for them).
+        Func<string>? warning = result.UndeletedPasswords == 0 ? imageNotice
+            : imageNotice is null ? static () => Strings.SettingsSavedPasswordsNotDeleted
+            : () => string.Concat(Strings.SettingsSavedPasswordsNotDeleted, " ", imageNotice());
+        Completed(applying, updated, warning);
     }
 
     /// <summary>
@@ -1042,11 +1085,28 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         bool dirty = false;
         foreach (PrinterEditorViewModel printer in Printers)
         {
-            // T-040: "Factory settings" is something to save even when the values equal the saved ones.
-            dirty |= printer.HasNewPassword || printer.ForgetsRememberedCameraWindow;
+            // T-040: "Factory settings" is something to save even when the values equal the saved ones. T-039: an imported
+            // image is unsaved even when the choice stays "custom".
+            dirty |= printer.HasNewPassword || printer.ForgetsRememberedCameraWindow || printer.PendingImage is not null;
         }
 
         IsDirty = dirty || !TryBuildSettings(out AppSettings? current) || !current.Equals(_baseline);
+    }
+
+    /// <summary>
+    /// A custom printer image could not be imported (T-039): the reason goes to the status line, which has room for it in
+    /// every language without making the printer form scroll; <see langword="null"/> clears it when it is still shown.
+    /// </summary>
+    internal void ShowImageError(Func<string>? previous, Func<string>? text)
+    {
+        if (text is not null)
+        {
+            ShowStatus(text, isError: true);
+        }
+        else if (previous is not null && ReferenceEquals(_statusSource, previous))
+        {
+            ShowStatus(null, isError: false);
+        }
     }
 
     /// <summary>"Saved" after Apply, for <see cref="SavedConfirmationDuration"/> (TimeProvider) or until the next edit.</summary>

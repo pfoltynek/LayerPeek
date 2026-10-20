@@ -834,4 +834,64 @@
   <data name="SettingsOverlayHint" xml:space="preserve">
     <value>Dane zadania (postęp, czasy, nazwa pliku) są wyświetlane tylko podczas drukowania. Po zapisaniu zmiany obowiązują także w otwartych oknach kamery.</value>
   </data>
+  <data name="SettingsImageButtonName" xml:space="preserve">
+    <value>Obraz drukarki: {0}</value>
+  </data>
+  <data name="SettingsImageButtonToolTip" xml:space="preserve">
+    <value>Zmień obraz drukarki</value>
+  </data>
+  <data name="SettingsImageAutomatic" xml:space="preserve">
+    <value>Automatycznie według modelu ({0})</value>
+  </data>
+  <data name="SettingsImageNotDetected" xml:space="preserve">
+    <value>jeszcze nie wykryto</value>
+  </data>
+  <data name="SettingsImageGeneric" xml:space="preserve">
+    <value>Ilustracja ogólna</value>
+  </data>
+  <data name="SettingsImageChooseModel" xml:space="preserve">
+    <value>Wybierz model</value>
+  </data>
+  <data name="SettingsImageCustom" xml:space="preserve">
+    <value>Własny obraz…</value>
+  </data>
+  <data name="SettingsImageRemoveCustom" xml:space="preserve">
+    <value>Usuń własny obraz</value>
+  </data>
+  <data name="SettingsImageDescriptionCustom" xml:space="preserve">
+    <value>własny obraz</value>
+  </data>
+  <data name="SettingsImageDescriptionGeneric" xml:space="preserve">
+    <value>ilustracja ogólna</value>
+  </data>
+  <data name="SettingsImageDescriptionDetected" xml:space="preserve">
+    <value>{0} (wykryto)</value>
+  </data>
+  <data name="SettingsImagePickerTitle" xml:space="preserve">
+    <value>Wybierz obraz drukarki</value>
+  </data>
+  <data name="SettingsImagePickerFilter" xml:space="preserve">
+    <value>Obrazy (PNG, JPG)</value>
+  </data>
+  <data name="SettingsImageErrorTooLarge" xml:space="preserve">
+    <value>Obraz jest większy niż {0} MB.</value>
+  </data>
+  <data name="SettingsImageErrorFormat" xml:space="preserve">
+    <value>Można używać tylko obrazów PNG i JPG.</value>
+  </data>
+  <data name="SettingsImageErrorUndecodable" xml:space="preserve">
+    <value>Nie udało się odczytać obrazu. Może być uszkodzony lub mieć zbyt wiele pikseli.</value>
+  </data>
+  <data name="SettingsImageErrorUnreadable" xml:space="preserve">
+    <value>Nie udało się otworzyć pliku.</value>
+  </data>
+  <data name="SettingsSavedImageNotStored" xml:space="preserve">
+    <value>Ustawienia zostały zapisane. Nie udało się zapisać obrazu drukarki, dlatego drukarka pokazuje swoją ilustrację.</value>
+  </data>
+  <data name="DiagnosticsPrinterImage" xml:space="preserve">
+    <value>Obraz drukarki</value>
+  </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Ustawienia zostały zapisane. Nie udało się zapisać obrazu drukarki, dlatego drukarka pokazuje swój poprzedni obraz.</value>
+  </data>
 </root>

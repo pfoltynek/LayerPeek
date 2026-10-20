@@ -112,6 +112,11 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             Item.SetHeader(NativeMenuText.EscapeAccessKeys(entry.Header));
             Item.SetEnabled(entry.IsEnabled);
             Item.SetToolTip(entry.ToolTip);
+            if (entry.Icon is not null)
+            {
+                Item.SetIcon(entry.Icon, entry.PrinterId);
+            }
+
             if (entry.IsChecked is not null)
             {
                 Item.SetChecked(entry.IsChecked);
@@ -155,6 +160,11 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             if (entry.ToolTip != _entry.ToolTip)
             {
                 Item.SetToolTip(entry.ToolTip);
+            }
+
+            if (!Equals(entry.Icon, _entry.Icon))
+            {
+                Item.SetIcon(entry.Icon, entry.PrinterId);
             }
 
             if (entry.IsChecked != _entry.IsChecked)

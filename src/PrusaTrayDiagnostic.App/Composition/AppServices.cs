@@ -8,12 +8,14 @@ using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Camera.FFmpeg;
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.History;
+using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -81,7 +83,11 @@ internal static class AppServices
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
-        services.AddSingleton(static _ => TrayMenuOptions.Default);
+        services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
+        // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
+        // the images in use, in memory for the tray menu and the diagnostics window.
+        services.AddSingleton<IPrinterImageStore>(static _ => FilePrinterImageStore.CreateDefault());
+        services.AddSingleton(static _ => new CustomPrinterImages());
         // Opens PrusaLink logged in through the local web proxy registered by AddPrusaLink (T-028); the proxy starts on the
         // first click, and disposing the container (quit) stops it.
         services.AddSingleton(static sp => new PrinterWebOpener(
@@ -92,7 +98,8 @@ internal static class AppServices
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<IUiDispatcher>(),
             sp.GetRequiredService<PrinterWebOpener>(),
-            sp.GetRequiredService<TrayMenuOptions>()));
+            sp.GetRequiredService<TrayMenuOptions>(),
+            sp.GetRequiredService<CustomPrinterImages>()));
         services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
         services.AddSingleton(sp => CreateNotificationService(sp, windows));
         services.AddSingleton(static sp => new PrintEventNotifier(
@@ -135,7 +142,9 @@ internal static class AppServices
             sp.GetRequiredService<ISettingsApplier>(),
             sp.GetRequiredService<IPrinterWebGateway>(),
             sp.GetRequiredService<ILogger<SettingsEditorStore>>(),
-            removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>()));
+            removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>(),
+            imageStore: sp.GetRequiredService<IPrinterImageStore>,
+            customImages: sp.GetRequiredService<CustomPrinterImages>()));
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
@@ -269,7 +278,8 @@ internal static class AppServices
             services.GetRequiredService<IUiDispatcher>(),
             services.GetRequiredService<IPrinterInfoSource>(),
             services.GetRequiredService<TimeProvider>(),
-            initialPrinterId);
+            initialPrinterId,
+            services.GetRequiredService<CustomPrinterImages>());
     }
 
     /// <summary>

@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:PrusaTrayDiagnostic.App.Settings"
         xmlns:loc="using:PrusaTrayDiagnostic.App.Localization"
+        xmlns:printers="using:PrusaTrayDiagnostic.App.Printers"
         x:Class="PrusaTrayDiagnostic.App.Windows.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="{Binding [SettingsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
@@ -131,9 +132,11 @@
             <ListBox AutomationProperties.AutomationId="SettingsPrinterList" ItemsSource="{Binding Printers}" SelectedItem="{Binding SelectedPrinter}">
               <ListBox.ItemTemplate>
                 <DataTemplate x:DataType="vm:PrinterEditorViewModel">
-                  <Grid ColumnDefinitions="Auto,*">
-                    <TextBlock Classes="marker" Text="!" IsVisible="{Binding ShowsErrorMarker}" />
-                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" TextTrimming="CharacterEllipsis" />
+                  <!-- T-039: the printer image 24 × 24, 8, the "!" (only with an error), the name. The image is decorative here. -->
+                  <Grid ColumnDefinitions="24,8,Auto,*">
+                    <printers:PrinterImageView AutomationProperties.AutomationId="PrinterListImage" Width="24" Height="24" VerticalAlignment="Center" Picture="{Binding Picture}" />
+                    <TextBlock Grid.Column="2" Classes="marker" Text="!" VerticalAlignment="Center" IsVisible="{Binding ShowsErrorMarker}" />
+                    <TextBlock Grid.Column="3" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                   </Grid>
                 </DataTemplate>
               </ListBox.ItemTemplate>
@@ -177,17 +180,80 @@
                   <ContentControl.ContentTemplate>
                     <DataTemplate x:DataType="vm:PrinterEditorViewModel">
                       <StackPanel>
-                        <!-- Name and connection side by side; the name error spans both (the connection never has one). -->
-                        <Grid ColumnDefinitions="*,16,320" RowDefinitions="Auto,Auto,Auto">
-                          <TextBlock Classes="label" Text="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                        <!--
+                          The printer image (T-039): a 56 × 56 button with a menu left of the name and connection, which stand
+                          side by side; the name error spans both (the connection never has one). An image import error is shown in
+                          the status line at the bottom: with every other message shown, the form has no room for another line.
+                        -->
+                        <Grid ColumnDefinitions="56,12,*,16,320" RowDefinitions="Auto,Auto,Auto">
+                          <Button Grid.RowSpan="2"
+                                  AutomationProperties.AutomationId="PrinterImageButton"
+                                  AutomationProperties.Name="{Binding ImageName}"
+                                  ToolTip.Tip="{Binding [SettingsImageButtonToolTip], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                  Width="56"
+                                  Height="56"
+                                  Padding="0"
+                                  VerticalAlignment="Bottom"
+                                  HorizontalContentAlignment="Stretch"
+                                  VerticalContentAlignment="Stretch">
+                            <Grid>
+                              <printers:PrinterImageView AutomationProperties.AutomationId="PrinterImage" Picture="{Binding Picture}" />
+                              <!-- The button opens a menu: a small chevron in the corner, on the button colour. -->
+                              <Border Width="14"
+                                      Height="14"
+                                      CornerRadius="7"
+                                      Margin="0,0,1,1"
+                                      HorizontalAlignment="Right"
+                                      VerticalAlignment="Bottom"
+                                      Background="{DynamicResource ButtonBackground}">
+                                <Path Data="M 0,0 L 4,4 L 8,0"
+                                      Stroke="{DynamicResource ButtonForeground}"
+                                      StrokeThickness="1.5"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                              </Border>
+                            </Grid>
+                            <Button.Flyout>
+                              <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                                <MenuItem AutomationProperties.AutomationId="PrinterImageAutomatic"
+                                          Header="{Binding AutomaticImageText}"
+                                          Command="{Binding UseAutomaticImageCommand}"
+                                          ToggleType="Radio"
+                                          IsChecked="{Binding IsAutomaticImage, Mode=OneWay}" />
+                                <MenuItem AutomationProperties.AutomationId="PrinterImageModels"
+                                          Header="{Binding [SettingsImageChooseModel], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                          ItemsSource="{Binding ModelOptions}">
+                                  <MenuItem.ItemContainerTheme>
+                                    <ControlTheme x:DataType="vm:PrinterModelOption" TargetType="MenuItem" BasedOn="{StaticResource {x:Type MenuItem}}">
+                                      <Setter Property="Header" Value="{Binding Text}" />
+                                      <Setter Property="Command" Value="{Binding Command}" />
+                                      <Setter Property="ToggleType" Value="Radio" />
+                                      <Setter Property="IsChecked" Value="{Binding IsChecked, Mode=OneWay}" />
+                                    </ControlTheme>
+                                  </MenuItem.ItemContainerTheme>
+                                </MenuItem>
+                                <Separator />
+                                <MenuItem AutomationProperties.AutomationId="PrinterImageCustom"
+                                          Header="{Binding [SettingsImageCustom], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                          Command="{Binding ChooseCustomImageCommand}"
+                                          ToggleType="Radio"
+                                          IsChecked="{Binding IsCustomImage, Mode=OneWay}" />
+                                <MenuItem AutomationProperties.AutomationId="PrinterImageRemoveCustom"
+                                          Header="{Binding [SettingsImageRemoveCustom], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                          Command="{Binding RemoveCustomImageCommand}" />
+                              </MenuFlyout>
+                            </Button.Flyout>
+                          </Button>
+                          <TextBlock Grid.Column="2" Classes="label" Text="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}" />
                           <TextBox Grid.Row="1"
+                                   Grid.Column="2"
                                    AutomationProperties.AutomationId="PrinterName"
                                    AutomationProperties.Name="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}"
                                    Text="{Binding Name}"
                                    MaxLength="200" />
-                          <TextBlock Grid.Row="2" Grid.ColumnSpan="3" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                          <TextBlock Grid.Column="2" Classes="label" Text="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                          <ComboBox Grid.Column="2"
+                          <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                          <TextBlock Grid.Column="4" Classes="label" Text="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          <ComboBox Grid.Column="4"
                                     Grid.Row="1"
                                     AutomationProperties.AutomationId="PrinterConnectionType"
                                     AutomationProperties.Name="{Binding [SettingsConnectionType], Source={x:Static loc:LocalizedStrings.Instance}}"

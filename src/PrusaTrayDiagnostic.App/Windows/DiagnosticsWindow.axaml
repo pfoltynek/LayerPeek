@@ -3,6 +3,7 @@
         xmlns:vm="using:PrusaTrayDiagnostic.App.Diagnostics"
         xmlns:chart="using:PrusaTrayDiagnostic.App.Diagnostics.Chart"
         xmlns:loc="using:PrusaTrayDiagnostic.App.Localization"
+        xmlns:printers="using:PrusaTrayDiagnostic.App.Printers"
         x:Class="PrusaTrayDiagnostic.App.Windows.DiagnosticsWindow"
         x:DataType="vm:DiagnosticsViewModel"
         Title="{Binding [DiagnosticsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
@@ -58,25 +59,39 @@
 
     <ScrollViewer HorizontalScrollBarVisibility="Disabled">
       <StackPanel>
-        <!-- Printer: a selector when several printers are configured, otherwise just the name. -->
-        <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasPrinterSelector}" Margin="0,0,0,8">
-          <TextBlock Text="{Binding [DiagnosticsPrinter], Source={x:Static loc:LocalizedStrings.Instance}}" VerticalAlignment="Center" Margin="0,0,12,0" />
-          <ComboBox Grid.Column="1"
-                    HorizontalAlignment="Stretch"
-                    ItemsSource="{Binding Printers}"
-                    SelectedItem="{Binding SelectedPrinter}">
-            <ComboBox.ItemTemplate>
-              <DataTemplate x:DataType="vm:PrinterChoice">
-                <TextBlock Text="{Binding Name}" />
-              </DataTemplate>
-            </ComboBox.ItemTemplate>
-          </ComboBox>
+        <!--
+          Printer: its image (T-039, 48 × 48) left of a selector when several printers are configured, otherwise left of the
+          name.
+        -->
+        <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,8">
+          <printers:PrinterImageView AutomationProperties.AutomationId="DiagnosticsPrinterImage"
+                                     AutomationProperties.Name="{Binding [DiagnosticsPrinterImage], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     Width="48"
+                                     Height="48"
+                                     Margin="0,0,12,0"
+                                     Picture="{Binding Picture}"
+                                     IsVisible="{Binding HasPrinter}" />
+          <StackPanel Grid.Column="1" VerticalAlignment="Center">
+            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding HasPrinterSelector}">
+              <TextBlock Text="{Binding [DiagnosticsPrinter], Source={x:Static loc:LocalizedStrings.Instance}}" VerticalAlignment="Center" Margin="0,0,12,0" />
+              <ComboBox Grid.Column="1"
+                        HorizontalAlignment="Stretch"
+                        ItemsSource="{Binding Printers}"
+                        SelectedItem="{Binding SelectedPrinter}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PrinterChoice">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+            </Grid>
+            <TextBlock Text="{Binding SelectedPrinter.Name, FallbackValue={x:Null}}"
+                       IsVisible="{Binding !HasPrinterSelector}"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       TextWrapping="Wrap" />
+          </StackPanel>
         </Grid>
-        <TextBlock Text="{Binding SelectedPrinter.Name, FallbackValue={x:Null}}"
-                   IsVisible="{Binding !HasPrinterSelector}"
-                   FontSize="18"
-                   FontWeight="SemiBold"
-                   Margin="0,0,0,8" />
 
         <Border IsVisible="{Binding HasNotice}"
                 Background="{DynamicResource NoticeBrush}"

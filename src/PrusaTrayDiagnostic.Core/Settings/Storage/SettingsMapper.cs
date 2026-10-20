@@ -47,6 +47,8 @@ internal static class SettingsMapper
                     Window = ToDocument(printer.Camera.Window),
                     Overlay = ToDocument(printer.Camera.Overlay),
                 },
+                DetectedModel = printer.DetectedModel?.ToString(),
+                Image = ToDocument(printer.Image),
             })],
         };
     }
@@ -218,7 +220,19 @@ internal static class SettingsMapper
                 }
 
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
-                printers.Add(ReferenceEquals(camera, CameraSettings.Disabled) ? printer : printer with { Camera = camera });
+                if (!ReferenceEquals(camera, CameraSettings.Disabled))
+                {
+                    printer = printer with { Camera = camera };
+                }
+
+                PrinterModelCode? detectedModel = ToDetectedModel(documents[i]!.DetectedModel, printer.Id, warnings);
+                PrinterImageChoice image = ToImage(documents[i]!.Image, printer.Id, warnings);
+                if (detectedModel is not null || !ReferenceEquals(image, PrinterImageChoice.Automatic))
+                {
+                    printer = printer with { DetectedModel = detectedModel, Image = image };
+                }
+
+                printers.Add(printer);
             }
             else
             {
@@ -316,6 +330,88 @@ internal static class SettingsMapper
         }
 
         return camera;
+    }
+
+    /// <summary>Missing = never detected; an invalid code is dropped with a warning that does not echo it.</summary>
+    private static PrinterModelCode? ToDetectedModel(string? value, string printerId, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (PrinterModelCode.TryParse(value, out PrinterModelCode code))
+        {
+            return code;
+        }
+
+        warnings.Add($"Printer '{Shorten(printerId)}': invalid detected model code; it is ignored until the model is detected again.");
+        return null;
+    }
+
+    /// <summary>Not written while automatic (the default), so that files stay as they were.</summary>
+    private static PrinterImageDocument? ToDocument(PrinterImageChoice image) => image.Mode switch
+    {
+        PrinterImageMode.Automatic => null,
+        PrinterImageMode.Model => new PrinterImageDocument { Mode = FormatImageMode(image.Mode), Model = PrinterModels.Format(image.Model) },
+        _ => new PrinterImageDocument { Mode = FormatImageMode(image.Mode) },
+    };
+
+    /// <summary>
+    /// A missing section or mode means automatic. An unknown mode, and the model mode without a known model, fall back to
+    /// automatic with one warning that does not echo the value.
+    /// </summary>
+    private static PrinterImageChoice ToImage(PrinterImageDocument? document, string printerId, List<string> warnings)
+    {
+        if (document?.Mode is not { } modeName)
+        {
+            return PrinterImageChoice.Automatic;
+        }
+
+        string subject = $"Image of printer '{Shorten(printerId)}'";
+        if (!TryParseImageMode(modeName, out PrinterImageMode mode))
+        {
+            warnings.Add($"{subject}: unknown mode; the automatic image is used.");
+            return PrinterImageChoice.Automatic;
+        }
+
+        switch (mode)
+        {
+            case PrinterImageMode.Custom:
+                return PrinterImageChoice.Custom;
+            case PrinterImageMode.Model when PrinterModels.TryParse(document.Model, out PrinterModel model) && model != PrinterModel.Unknown:
+                return PrinterImageChoice.ForModel(model);
+            case PrinterImageMode.Model:
+                warnings.Add($"{subject}: unknown model; the automatic image is used.");
+                return PrinterImageChoice.Automatic;
+            default:
+                return PrinterImageChoice.Automatic;
+        }
+    }
+
+    private static string FormatImageMode(PrinterImageMode mode) => mode switch
+    {
+        PrinterImageMode.Automatic => nameof(PrinterImageMode.Automatic),
+        PrinterImageMode.Model => nameof(PrinterImageMode.Model),
+        PrinterImageMode.Custom => nameof(PrinterImageMode.Custom),
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown printer image mode."),
+    };
+
+    private static bool TryParseImageMode(string value, out PrinterImageMode mode)
+    {
+        // Explicit names instead of Enum.Parse: numeric strings must not be accepted and the format must stay stable.
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (PrinterImageMode candidate in (ReadOnlySpan<PrinterImageMode>)[PrinterImageMode.Automatic, PrinterImageMode.Model, PrinterImageMode.Custom])
+        {
+            if (name.Equals(FormatImageMode(candidate), StringComparison.OrdinalIgnoreCase))
+            {
+                mode = candidate;
+                return true;
+            }
+        }
+
+        mode = default;
+        return false;
     }
 
     /// <summary>Not written while everything is the default, so that files stay as they were and follow future defaults.</summary>

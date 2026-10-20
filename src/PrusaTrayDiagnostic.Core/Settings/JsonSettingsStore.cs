@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings.Storage;
 
 namespace PrusaTrayDiagnostic.Core.Settings;
@@ -112,6 +113,53 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
+    public async Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, string expectedAddress, ConnectionType expectedConnectionType, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        ArgumentNullException.ThrowIfNull(expectedAddress);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            byte[]? content;
+            try
+            {
+                content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+
+            if (content is null)
+            {
+                return false;
+            }
+
+            byte[]? updated;
+            try
+            {
+                updated = DetectedModelWriter.Write(content, printerId, code, expectedAddress, expectedConnectionType);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not valid JSON, or invalid UTF-8 in a property name or printer id: not ours to change.
+                return false;
+            }
+
+            if (updated is null)
+            {
+                return false;
+            }
+
+            await WriteAtomicallyAsync(updated, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public void Dispose() => _gate.Dispose();
 
     /// <summary>
@@ -191,7 +239,8 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
 
         List<string> warnings = [];
         AppSettings settings = SettingsMapper.ToSettings(document, warnings);
-        return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings };
+        string[] storedIds = [.. (document.Printers ?? []).Select(static entry => entry?.Id?.Trim()).OfType<string>().Where(static id => id.Length > 0)];
+        return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings, StoredPrinterIds = storedIds };
     }
 
     private Task SaveCoreAsync(SettingsDocument document, CancellationToken cancellationToken) =>

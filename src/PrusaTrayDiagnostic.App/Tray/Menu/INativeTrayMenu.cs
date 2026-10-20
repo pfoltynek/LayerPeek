@@ -1,3 +1,5 @@
+using PrusaTrayDiagnostic.App.Printers;
+
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
@@ -27,6 +29,9 @@ internal interface INativeTrayMenuItem
     void SetEnabled(bool enabled);
 
     void SetToolTip(string? toolTip);
+
+    /// <summary>The picture of printer <paramref name="printerId"/> shown left of the text (T-039); <see langword="null"/> = none.</summary>
+    void SetIcon(PrinterPicture? icon, string? printerId);
 
     /// <summary>
     /// <see langword="null"/>: a plain item; otherwise a check item (check mark when <see langword="true"/>). Native menus

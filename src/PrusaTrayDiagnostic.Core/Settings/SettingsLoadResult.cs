@@ -30,4 +30,11 @@ public sealed record SettingsLoadResult
 
     /// <summary>Invalid parts of the file that were skipped or corrected while loading.</summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
+
+    /// <summary>
+    /// Ids (trimmed) of every printer entry in the file, also of entries that were skipped as invalid (unknown connection
+    /// type, missing address, duplicate id...): data kept for such a printer (e.g. its custom image, T-039) must survive
+    /// until the user fixes or removes the entry. Empty when the file was not <see cref="SettingsLoadStatus.Loaded"/>.
+    /// </summary>
+    public IReadOnlyList<string> StoredPrinterIds { get; init; } = [];
 }

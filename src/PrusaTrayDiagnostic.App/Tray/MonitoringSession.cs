@@ -45,7 +45,12 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     private AppSettings? _current;
     private TaskCompletionSource? _runEnded;
 
-    /// <param name="settingsStoreFactory">Called once on a background thread; may throw (e.g. no per-user data folder).</param>
+    // Guarded by _gate. Background saves of detected models (T-039), one after another.
+    private Task _modelSaves = Task.CompletedTask;
+
+    /// <param name="settingsStoreFactory">
+    /// Called on background threads (loading, saving a detected model); may throw (e.g. no per-user data folder).
+    /// </param>
     /// <param name="removedCameraCredentials">
     /// Receives the printers whose camera address lost its credentials while loading (the settings window shows it).
     /// </param>
@@ -70,13 +75,29 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
         _logger = logger;
         _removedCameraCredentials = removedCameraCredentials;
+        _monitor.ModelDetected += OnModelDetected;
+    }
+
+    /// <summary>
+    /// The background saves of detected models (T-039) queued so far; completes when they are done. Never faults. For tests
+    /// and quitting.
+    /// </summary>
+    internal Task ModelSaves
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return _modelSaves;
+            }
+        }
     }
 
     /// <summary>Receivers of the settings of every run, in notification order.</summary>
     internal IReadOnlyList<IMonitoringObserver> Observers => _observers;
 
     /// <summary>Settings of the current run, including a notification-only update; <see langword="null"/> before the first run.</summary>
-    internal AppSettings? CurrentSettings
+    public AppSettings? CurrentSettings
     {
         get
         {
@@ -130,6 +151,20 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         Func<ISettingsStore> settingsStoreFactory,
         ILogger logger,
         CancellationToken cancellationToken,
+        RemovedCameraCredentials? removedCameraCredentials = null) =>
+        (await LoadSettingsWithStatusAsync(settingsStoreFactory, logger, cancellationToken, removedCameraCredentials).ConfigureAwait(false)).Settings;
+
+    /// <summary>
+    /// <see cref="LoadSettingsAsync(Func{ISettingsStore}, ILogger, CancellationToken, RemovedCameraCredentials)"/> with how the
+    /// settings were loaded: only <see cref="SettingsLoadStatus.Loaded"/> settings are the user's (e.g. for the orphan sweep of
+    /// printer images, T-039), and the ids of every printer entry in the file, also of entries the loader skipped
+    /// (<see cref="SettingsLoadResult.StoredPrinterIds"/>). A store that could not be created counts as
+    /// <see cref="SettingsLoadStatus.Unreadable"/>.
+    /// </summary>
+    public static async Task<(AppSettings Settings, SettingsLoadStatus Status, IReadOnlyList<string> StoredPrinterIds)> LoadSettingsWithStatusAsync(
+        Func<ISettingsStore> settingsStoreFactory,
+        ILogger logger,
+        CancellationToken cancellationToken,
         RemovedCameraCredentials? removedCameraCredentials = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStoreFactory);
@@ -145,7 +180,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         {
             // File problems come back in the result; this covers a missing data folder and the unexpected.
             LogSettingsUnavailable(logger, ex);
-            return AppSettings.Default;
+            return (AppSettings.Default, SettingsLoadStatus.Unreadable, []);
         }
 
         if (result.Status is SettingsLoadStatus.Corrupted or SettingsLoadStatus.Unreadable)
@@ -165,7 +200,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             await RemoveCameraCredentialsFromFileAsync(store, result.Settings, logger, removedCameraCredentials, cancellationToken).ConfigureAwait(false);
         }
 
-        return result.Settings;
+        return (result.Settings, result.Status, result.StoredPrinterIds);
     }
 
     private void StartCore(AppSettings? initialSettings)
@@ -220,7 +255,14 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             if (!credentialsChanged && _loopActive && _run is { IsCancellationRequested: false } && _pending is null && _current is { } current && KeepsMonitoring(current, settings))
             {
                 // Only notification settings changed: no restart, so the tray keeps the current state (no "connecting").
+                // A model detected after the settings window read the running settings must not get lost (T-039).
+                settings = WithRunningDetectedModels(settings, current, out List<PrinterDefinition> merged);
                 _current = settings;
+                foreach (PrinterDefinition printer in merged)
+                {
+                    QueueModelSaveLocked(new PrinterModelDetected(printer.Id, printer.DetectedModel!.Value));
+                }
+
                 updateOnly = true;
             }
             else
@@ -257,8 +299,119 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     }
 
     /// <summary>Same printers (id, name, address, connection type, order) and polling interval: the run can go on.</summary>
+    /// <remarks>
+    /// The detected model and the image choice (T-039) only change what is shown, never what is polled: a change of only
+    /// those does not restart monitoring (a background save of a detected model must not show "Connecting…").
+    /// </remarks>
     private static bool KeepsMonitoring(AppSettings current, AppSettings next) =>
-        current.PollingInterval == next.PollingInterval && current.Printers.SequenceEqual(next.Printers);
+        current.PollingInterval == next.PollingInterval
+        && current.Printers.Count == next.Printers.Count
+        && current.Printers.Select(WhatIsPolled).SequenceEqual(next.Printers.Select(WhatIsPolled));
+
+    private static PrinterDefinition WhatIsPolled(PrinterDefinition printer) =>
+        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic
+            ? printer
+            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic };
+
+    /// <summary>
+    /// Monitor thread: a printer of the current run reported its model (T-039, user decision 2026-10-20). Only a real
+    /// change is saved, in the background and without restarting monitoring: the current settings get the code, observers
+    /// get them as an update (the tray menu shows the new illustration), and the settings file gets only this value
+    /// (<see cref="ISettingsStore.SetDetectedModelAsync"/>, which keeps everything else of the file). A report from a run
+    /// that is being replaced is dropped (its printer may have another address now); the next run detects again.
+    /// </summary>
+    private void OnModelDetected(object? sender, PrinterModelDetected detected)
+    {
+        if (detected is null)
+        {
+            return;
+        }
+
+        AppSettings updated;
+        lock (_gate)
+        {
+            if (_stopping is not null || _disposed || _pending is not null || _run is not { IsCancellationRequested: false } || _current is not { } current)
+            {
+                return;
+            }
+
+            updated = current.WithDetectedModel(detected.PrinterId, detected.Code);
+            if (ReferenceEquals(updated, current))
+            {
+                return;
+            }
+
+            _current = updated;
+            QueueModelSaveLocked(detected);
+        }
+
+        UpdateObservers(updated);
+    }
+
+    /// <summary>Under <c>_gate</c>: one more background write, after the ones queued before.</summary>
+    private void QueueModelSaveLocked(PrinterModelDetected detected)
+    {
+        Task previous = _modelSaves;
+        _modelSaves = Task.Run(() => SaveDetectedModelAsync(previous, detected), CancellationToken.None);
+    }
+
+    /// <summary>
+    /// After the previous save; never faults (failures are logged, the next detection tries again). Written only while the
+    /// current settings still hold this code for the printer, and only into the entry of the same machine (address and
+    /// connection type of the current settings): settings applied meanwhile may have moved the printer.
+    /// </summary>
+    private async Task SaveDetectedModelAsync(Task previous, PrinterModelDetected detected)
+    {
+        await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        PrinterDefinition? printer;
+        lock (_gate)
+        {
+            printer = _current?.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, detected.PrinterId, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (printer is null || printer.DetectedModel != detected.Code)
+        {
+            return;
+        }
+
+        try
+        {
+            if (await _settingsStoreFactory().SetDetectedModelAsync(printer.Id, detected.Code, printer.Address, printer.ConnectionType, CancellationToken.None).ConfigureAwait(false))
+            {
+                LogModelSaved(detected.PrinterId, detected.Code);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogModelNotSaved(ex, detected.PrinterId);
+        }
+    }
+
+    /// <summary>
+    /// <paramref name="settings"/> (saved in the settings window) with the detected models of the running settings for
+    /// printers on the same machine (id, address, connection type): a model detected after the window took the running
+    /// settings is newer than what the window saved. <paramref name="merged"/>: printers whose model was taken, whose file
+    /// entry still lacks it.
+    /// </summary>
+    private static AppSettings WithRunningDetectedModels(AppSettings settings, AppSettings running, out List<PrinterDefinition> merged)
+    {
+        merged = [];
+        AppSettings result = settings;
+        foreach (PrinterDefinition printer in settings.Printers)
+        {
+            PrinterDefinition? current = running.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, printer.Id, StringComparison.OrdinalIgnoreCase));
+            if (current?.DetectedModel is { } code
+                && code != printer.DetectedModel
+                && current.ConnectionType == printer.ConnectionType
+                && string.Equals(current.Address, printer.Address, StringComparison.OrdinalIgnoreCase))
+            {
+                result = result.WithDetectedModel(printer.Id, code);
+                merged.Add(printer with { DetectedModel = code });
+            }
+        }
+
+        return result;
+    }
 
     /// <summary>
     /// Start of a run: observers get its settings, or the newer ones a notification-only update stored meanwhile.
@@ -371,6 +524,8 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             {
                 return;
             }
+
+            _monitor.ModelDetected -= OnModelDetected;
 
             _disposed = true;
             if (_stopping is null)
@@ -588,4 +743,10 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Printer monitoring did not stop within {Timeout}.")]
     private partial void LogStopTimedOut(TimeSpan timeout);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The detected model {Code} of printer '{PrinterId}' was saved.")]
+    private partial void LogModelSaved(string printerId, PrinterModelCode code);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The detected model of printer '{PrinterId}' could not be saved; the next detection tries again.")]
+    private partial void LogModelNotSaved(Exception exception, string printerId);
 }

@@ -11,10 +11,12 @@ using Avalonia.VisualTree;
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Tests.Printers;
 using PrusaTrayDiagnostic.App.Tests.Settings;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 using PrusaTrayDiagnostic.App.Windows;
 using PrusaTrayDiagnostic.Core.Cameras;
+using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 
@@ -313,7 +315,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.Equal(
                 [
-                    "SettingsPrinterList", "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterTabConnection", "PrinterName",
+                    "SettingsPrinterList", "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterTabConnection", "PrinterImageButton", "PrinterName",
                     "PrinterConnectionType", "PrinterAddress", "PrinterUserName", "PrinterPassword", "PrinterTestConnection",
                     "SettingsSave", "SettingsCancel",
                 ],
@@ -506,6 +508,19 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             return ui;
         });
 
+        // T-039: the longest import error of the printer image, in the status line, next to every field error.
+        yield return ("all errors + longest image import error", static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWithAllErrorsAsync(scope, SettingsWindowHarness.Supported, refusedTest: true);
+            ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[0];
+            ui.ViewModel.ImageFilePicker = LongestImageError();
+            await ui.ViewModel.Printers[0].ChooseCustomImageCommand.ExecuteAsync(null);
+            Assert.Equal(ui.ViewModel.Printers[0].ImageError, ui.ViewModel.StatusText);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.PrintersTab;
+            ui.Window.Settle();
+            return ui;
+        });
+
         yield return ("General with errors", static async scope =>
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
@@ -649,6 +664,19 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     private static string Longest(params (string Input, string Message)[] candidates) =>
         candidates.MaxBy(static candidate => candidate.Message.Length).Input;
+
+    /// <summary>A file dialog whose file gives the longest import error of the printer image (T-039) in the current language.</summary>
+    private static FakeImagePicker LongestImageError()
+    {
+        (FakeImagePicker Picker, string Message)[] candidates =
+        [
+            (new FakeImagePicker { Content = new byte[PrinterImageFormats.MaxSourceBytes + 1] }, Format(Strings.SettingsImageErrorTooLarge, PrinterImageFormats.MaxSourceBytes / (1024 * 1024))),
+            (new FakeImagePicker { Content = "GIF89a"u8.ToArray() }, Strings.SettingsImageErrorFormat),
+            (new FakeImagePicker { Content = [.. TestImages.PngHeader(10, 10), .. new byte[64]] }, Strings.SettingsImageErrorUndecodable),
+            (new FakeImagePicker { Throw = new IOException("locked") }, Strings.SettingsImageErrorUnreadable),
+        ];
+        return candidates.MaxBy(static candidate => candidate.Message.Length).Picker;
+    }
 
     private static string Format(string format, object arg) => string.Format(CultureInfo.CurrentCulture, format, arg);
 

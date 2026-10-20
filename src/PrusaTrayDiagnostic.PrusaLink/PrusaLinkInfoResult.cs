@@ -21,4 +21,12 @@ public sealed record PrusaLinkPrinterInfo(
     string? ApiVersion,
     string? PrinterModel,
     double? NozzleDiameter,
-    bool HasMmu);
+    bool HasMmu)
+{
+    /// <summary>
+    /// <see cref="PrinterModel"/> parsed (T-039): <see langword="null"/> when missing (firmware before 6.5) or malformed.
+    /// Map it with <see cref="PrinterModels.FromCode(Core.Printers.PrinterModelCode)"/>; store it with
+    /// <see cref="Core.Settings.AppSettings.WithDetectedModel"/>.
+    /// </summary>
+    public PrinterModelCode? ModelCode => PrinterModelCode.TryParse(PrinterModel, out PrinterModelCode code) ? code : null;
+}

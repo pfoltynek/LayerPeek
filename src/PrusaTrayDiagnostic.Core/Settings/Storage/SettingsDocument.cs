@@ -67,6 +67,28 @@ internal sealed class PrinterDocument
 
     /// <summary>Missing in files written before cameras existed: the camera is disabled.</summary>
     public CameraDocument? Camera { get; set; }
+
+    /// <summary>
+    /// Model code last reported by the printer, "type.version.subversion" (T-039); not written while unknown. An invalid
+    /// value is dropped with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? DetectedModel { get; set; }
+
+    /// <summary>Image choice (T-039); not written while automatic (the default).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PrinterImageDocument? Image { get; set; }
+}
+
+/// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>
+internal sealed class PrinterImageDocument
+{
+    /// <summary><see cref="Printers.PrinterImageMode"/> name (<c>Automatic</c>, <c>Model</c>, <c>Custom</c>).</summary>
+    public string? Mode { get; set; }
+
+    /// <summary><see cref="Printers.PrinterModels.Format"/> name of the chosen model; only for <c>Model</c>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Model { get; set; }
 }
 
 internal sealed class CameraDocument

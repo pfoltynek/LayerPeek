@@ -31,6 +31,26 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task PrinterImagesInTheListAndOnTheButton() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-039: detected, chosen, custom (a 2:1 picture, letterboxed) and generic images; the custom one is selected.
+            byte[] custom = Printers.UiTestImages.Png(64, 32, static (x, _) => x < 32 ? 0xFFFD5000 : 0xFF2B2C33);
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(
+                LinkPrinter("a", "MK4S workshop", address: "192.168.1.30") with { DetectedModel = new Core.Printers.PrinterModelCode(1, 4, 1) },
+                LinkPrinter("b", "Core One L", address: "192.168.1.31") with { Image = Core.Printers.PrinterImageChoice.ForModel(Core.Printers.PrinterModel.CoreOneL) },
+                LinkPrinter("c", "XL 5T", address: "192.168.1.32") with { DetectedModel = new Core.Printers.PrinterModelCode(3, 1, 1) },
+                LinkPrinter("d", "MINI kitchen", address: "192.168.1.33") with { DetectedModel = new Core.Printers.PrinterModelCode(2, 1, 0) },
+                LinkPrinter("e", "Garage printer", address: "192.168.1.34") with { Image = Core.Printers.PrinterImageChoice.Custom },
+                CloudPrinter("f", "Cloud iX"));
+            store.Data = store.Data with { CustomImages = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase) { ["e"] = custom } };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store);
+            ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[4];
+
+            SnapshotAssert.Matches(ui.Window, "settings-printer-images");
+        });
+
+    [Fact]
     public Task PrusaConnectPrinterWithDisabledLoginFields() =>
         session.RunAsync(static async scope =>
         {

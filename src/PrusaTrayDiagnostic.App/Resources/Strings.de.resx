@@ -834,4 +834,64 @@
   <data name="SettingsOverlayHint" xml:space="preserve">
     <value>Auftragsdaten (Fortschritt, Zeiten, Dateiname) werden nur während eines Drucks angezeigt. Änderungen gelten nach dem Speichern auch für geöffnete Kamerafenster.</value>
   </data>
+  <data name="SettingsImageButtonName" xml:space="preserve">
+    <value>Druckerbild: {0}</value>
+  </data>
+  <data name="SettingsImageButtonToolTip" xml:space="preserve">
+    <value>Druckerbild ändern</value>
+  </data>
+  <data name="SettingsImageAutomatic" xml:space="preserve">
+    <value>Automatisch nach Modell ({0})</value>
+  </data>
+  <data name="SettingsImageNotDetected" xml:space="preserve">
+    <value>noch nicht erkannt</value>
+  </data>
+  <data name="SettingsImageGeneric" xml:space="preserve">
+    <value>Allgemeine Abbildung</value>
+  </data>
+  <data name="SettingsImageChooseModel" xml:space="preserve">
+    <value>Modell wählen</value>
+  </data>
+  <data name="SettingsImageCustom" xml:space="preserve">
+    <value>Eigenes Bild…</value>
+  </data>
+  <data name="SettingsImageRemoveCustom" xml:space="preserve">
+    <value>Eigenes Bild entfernen</value>
+  </data>
+  <data name="SettingsImageDescriptionCustom" xml:space="preserve">
+    <value>eigenes Bild</value>
+  </data>
+  <data name="SettingsImageDescriptionGeneric" xml:space="preserve">
+    <value>allgemeine Abbildung</value>
+  </data>
+  <data name="SettingsImageDescriptionDetected" xml:space="preserve">
+    <value>{0} (erkannt)</value>
+  </data>
+  <data name="SettingsImagePickerTitle" xml:space="preserve">
+    <value>Druckerbild auswählen</value>
+  </data>
+  <data name="SettingsImagePickerFilter" xml:space="preserve">
+    <value>Bilder (PNG, JPG)</value>
+  </data>
+  <data name="SettingsImageErrorTooLarge" xml:space="preserve">
+    <value>Das Bild ist größer als {0} MB.</value>
+  </data>
+  <data name="SettingsImageErrorFormat" xml:space="preserve">
+    <value>Nur PNG- und JPG-Bilder können verwendet werden.</value>
+  </data>
+  <data name="SettingsImageErrorUndecodable" xml:space="preserve">
+    <value>Das Bild konnte nicht gelesen werden. Es ist möglicherweise beschädigt oder hat zu viele Pixel.</value>
+  </data>
+  <data name="SettingsImageErrorUnreadable" xml:space="preserve">
+    <value>Die Datei konnte nicht geöffnet werden.</value>
+  </data>
+  <data name="SettingsSavedImageNotStored" xml:space="preserve">
+    <value>Einstellungen gespeichert. Ein Druckerbild konnte nicht gespeichert werden, der Drucker zeigt daher seine Abbildung.</value>
+  </data>
+  <data name="DiagnosticsPrinterImage" xml:space="preserve">
+    <value>Druckerbild</value>
+  </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Einstellungen gespeichert. Ein Druckerbild konnte nicht gespeichert werden, der Drucker zeigt daher sein bisheriges Bild.</value>
+  </data>
 </root>

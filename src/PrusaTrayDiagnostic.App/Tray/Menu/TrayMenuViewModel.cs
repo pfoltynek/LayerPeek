@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Platform;
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Monitoring;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -31,6 +32,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private readonly Action _apply;
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _disposing = new();
+    private readonly CustomPrinterImages? _images;
 
     // UI thread only (after construction). _openCameras: printers whose camera window is open (T-040, checked items).
     private readonly ObservableCollection<TrayMenuEntry> _items;
@@ -45,7 +47,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private bool _applyPending;
     private bool _disposed;
 
-    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, PrinterWebOpener webOpener, TrayMenuOptions options)
+    /// <param name="images">Stored custom printer images for the printer icons (T-039); <see langword="null"/>: illustrations only.</param>
+    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, PrinterWebOpener webOpener, TrayMenuOptions options, CustomPrinterImages? images = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -61,6 +64,11 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _items = [MessageEntry(Strings.ToolTipStarting)];
         PrinterItems = new ReadOnlyObservableCollection<TrayMenuEntry>(_items);
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
+        _images = images;
+        if (_images is not null && options.PrinterIcons)
+        {
+            _images.Changed += OnImagesChanged;
+        }
     }
 
     /// <summary>UI thread only (after construction).</summary>
@@ -77,8 +85,24 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         SetPrinters(settings.Printers);
     }
 
+    /// <summary>
+    /// Settings saved without restarting monitoring (T-039: a detected model or another image): the same printers with new
+    /// definitions. The states they show are kept; only what changed (the icon) is updated.
+    /// </summary>
+    void IMonitoringObserver.UpdateSettings(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        SetPrinters(settings.Printers, keepStates: true);
+    }
+
     /// <summary>Starts showing <paramref name="printers"/> (configuration order); clears a previous failure. Thread-safe.</summary>
-    public void SetPrinters(IReadOnlyList<PrinterDefinition> printers)
+    public void SetPrinters(IReadOnlyList<PrinterDefinition> printers) => SetPrinters(printers, keepStates: false);
+
+    /// <param name="keepStates">
+    /// The run goes on (<see cref="IMonitoringObserver.UpdateSettings"/>): printers keep the state they show (by id) and a
+    /// failure stays reported.
+    /// </param>
+    private void SetPrinters(IReadOnlyList<PrinterDefinition> printers, bool keepStates)
     {
         ArgumentNullException.ThrowIfNull(printers);
         Slot[] slots = new Slot[printers.Count];
@@ -86,18 +110,65 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         for (int i = 0; i < slots.Length; i++)
         {
             PrinterDefinition printer = printers[i] ?? throw new ArgumentException("Printer list must not contain null entries.", nameof(printers));
-            slots[i] = new Slot(printer, PrinterWebAddress.For(printer));
+            slots[i] = new Slot(printer, PrinterWebAddress.For(printer)) { Picture = PictureOf(printer) };
             slotById.TryAdd(printer.Id, i);
         }
 
         lock (_gate)
         {
+            if (keepStates && _slots is not null)
+            {
+                foreach (Slot slot in slots)
+                {
+                    if (_slotById.TryGetValue(slot.Definition.Id, out int old))
+                    {
+                        slot.Content = _slots[old].Content;
+                    }
+                }
+            }
+            else
+            {
+                _monitoringFailed = false;
+            }
+
             // Pending marks refer to the previous printers; the new layout is applied as a whole.
             _dirtySlots.Clear();
             _slots = slots;
             _slotById = slotById;
-            _monitoringFailed = false;
             ScheduleLayoutLocked();
+        }
+    }
+
+    private PrinterPicture? PictureOf(PrinterDefinition printer) =>
+        !_options.PrinterIcons ? null
+        : _images is not null ? _images.PictureOf(printer)
+        : PrinterPicture.For(printer, customPng: null);
+
+    /// <summary>A custom image was saved or removed (any thread): the icons are resolved again.</summary>
+    private void OnImagesChanged(object? sender, EventArgs e)
+    {
+        lock (_gate)
+        {
+            if (_disposed || _slots is null)
+            {
+                return;
+            }
+
+            bool changed = false;
+            foreach (Slot slot in _slots)
+            {
+                PrinterPicture? picture = PictureOf(slot.Definition);
+                if (!Equals(picture, slot.Picture))
+                {
+                    slot.Picture = picture;
+                    changed = true;
+                }
+            }
+
+            if (changed)
+            {
+                ScheduleLayoutLocked();
+            }
         }
     }
 
@@ -207,6 +278,11 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     public void Dispose()
     {
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
+        if (_images is not null)
+        {
+            _images.Changed -= OnImagesChanged;
+        }
+
         lock (_gate)
         {
             if (_disposed)
@@ -249,13 +325,17 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
                 IsEnabled: line.WebUri is not null,
                 TrayMenuFormatter.PrinterToolTip(line.ConnectionType, line.WebUri is not null),
                 line.WebUri,
-                line.Id);
+                line.Id)
+            {
+                Icon = line.Picture,
+            };
         }
 
         // Enabled even when the address is invalid: the submenu still offers diagnostics.
         return new TrayMenuEntry(TrayMenuCommand.None, header, IsEnabled: true, PrinterId: line.Id)
         {
             Submenu = line.Owner.Submenu ??= PrinterSubmenu(line),
+            Icon = line.Picture,
         };
     }
 
@@ -456,7 +536,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         Uri? WebUri,
         PrinterMenuContent Content,
         bool Grouped,
-        bool HasCamera);
+        bool HasCamera,
+        PrinterPicture? Picture);
 
     /// <summary>Mutable per-printer state, guarded by the owner's lock (except <see cref="Submenu"/>).</summary>
     private sealed class Slot(PrinterDefinition definition, Uri? webUri)
@@ -473,7 +554,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         /// <summary>UI thread only: the submenu items, built on first use and reused for this configuration.</summary>
         public TrayMenuEntryList? Submenu { get; set; }
 
+        /// <summary>The icon of the printer item (T-039); <see langword="null"/> without printer icons.</summary>
+        public PrinterPicture? Picture { get; set; }
+
         public PrinterLine ToLine(bool grouped) =>
-            new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, grouped, definition.Camera is { Enabled: true, StreamUri: not null });
+            new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, grouped, definition.Camera is { Enabled: true, StreamUri: not null }, Picture);
     }
 }
