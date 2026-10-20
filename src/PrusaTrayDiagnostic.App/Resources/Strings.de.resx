@@ -771,4 +771,58 @@
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Geben Sie eine Breite von {0}–{1} und eine Höhe von {2}–{3} ein.</value>
   </data>
+  <data name="CameraOverlayLabeledValue" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
+    <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayFinishTime" xml:space="preserve">
+    <value>Fertig um {0}</value>
+  </data>
+  <data name="CameraOverlayFinishDateTime" xml:space="preserve">
+    <value>Fertig am {0} um {1}</value>
+  </data>
+  <data name="CameraOverlayPrintTime" xml:space="preserve">
+    <value>Druckzeit: {0}</value>
+  </data>
+  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
+    <value>Einblendung</value>
+  </data>
+  <data name="SettingsOverlayCorner" xml:space="preserve">
+    <value>Ecke der Einblendung</value>
+  </data>
+  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
+    <value>Normales Fenster und Vollbild</value>
+  </data>
+  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
+    <value>Druckername</value>
+  </data>
+  <data name="SettingsOverlayItemState" xml:space="preserve">
+    <value>Druckerstatus</value>
+  </data>
+  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
+    <value>Düsentemperatur</value>
+  </data>
+  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
+    <value>Heizbetttemperatur</value>
+  </data>
+  <data name="SettingsOverlayItemProgress" xml:space="preserve">
+    <value>Fortschritt (%)</value>
+  </data>
+  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
+    <value>Restzeit</value>
+  </data>
+  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
+    <value>Fertigstellung (Uhrzeit)</value>
+  </data>
+  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
+    <value>Druckzeit</value>
+  </data>
+  <data name="SettingsOverlayItemFileName" xml:space="preserve">
+    <value>Dateiname</value>
+  </data>
+  <data name="SettingsOverlayHint" xml:space="preserve">
+    <value>Auftragsdaten (Fortschritt, Zeiten, Dateiname) werden nur während eines Drucks angezeigt. Änderungen gelten nach dem Speichern auch für geöffnete Kamerafenster.</value>
+  </data>
 </root>

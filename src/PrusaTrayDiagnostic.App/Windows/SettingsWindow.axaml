@@ -71,6 +71,23 @@
     <Style Selector="TextBlock.status.isError">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
     </Style>
+    <!--
+      Overlay table (T-036): column headers over the check boxes, at most 2 lines in 120 DIP (13 px: es "pantalla completa"
+      does not fit 120 DIP at 14 px semi-bold), check boxes centred in their column.
+    -->
+    <Style Selector="TextBlock.columnHeader">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+    <Style Selector="CheckBox.cell">
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="MinWidth" Value="0" />
+    </Style>
     <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
     <Style Selector="TabControl.main, TabControl.sub">
       <Setter Property="Padding" Value="0" />
@@ -461,6 +478,191 @@
                           </Grid>
                         </StackPanel>
                       </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+              </ScrollViewer>
+            </TabItem>
+
+            <!--
+              Overlay (T-036): what the camera window shows over the image and in which corner. Rows: the items, printer data
+              first, then job data; columns: the normal window (also full screen) and the mini preview. The table is disabled
+              (values kept) while the camera is off; the hints on the right stay readable.
+            -->
+            <TabItem AutomationProperties.AutomationId="PrinterTabOverlay">
+              <TabItem.Header>
+                <TextBlock Text="{Binding [SettingsPrinterTabOverlay], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              </TabItem.Header>
+              <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+                <ContentControl Content="{Binding SelectedPrinter}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                      <Grid ColumnDefinitions="Auto,16,*">
+                        <Grid AutomationProperties.AutomationId="PrinterOverlayFields"
+                              IsEnabled="{Binding CameraEnabled}"
+                              ColumnDefinitions="Auto,120,120"
+                              RowDefinitions="Auto,32,32,32,32,32,32,32,32,32">
+                          <StackPanel VerticalAlignment="Bottom" Margin="0,0,0,4">
+                            <TextBlock Classes="label" Text="{Binding [SettingsOverlayCorner], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <ComboBox AutomationProperties.AutomationId="PrinterOverlayCorner"
+                                      AutomationProperties.Name="{Binding [SettingsOverlayCorner], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      ItemsSource="{Binding OverlayCornerOptions}"
+                                      SelectedItem="{Binding SelectedOverlayCorner}"
+                                      HorizontalAlignment="Stretch">
+                              <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:CameraOverlayCornerOption">
+                                  <TextBlock Text="{Binding Text}" />
+                                </DataTemplate>
+                              </ComboBox.ItemTemplate>
+                            </ComboBox>
+                          </StackPanel>
+                          <TextBlock Grid.Column="1"
+                                     AutomationProperties.AutomationId="PrinterOverlayNormalHeader"
+                                     Classes="columnHeader"
+                                     Text="{Binding [SettingsOverlayNormalColumn], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                          <TextBlock Grid.Column="2"
+                                     AutomationProperties.AutomationId="PrinterOverlayMiniHeader"
+                                     Classes="columnHeader"
+                                     Text="{Binding [SettingsCameraWindowMini], Source={x:Static loc:LocalizedStrings.Instance}}" />
+
+                          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="{Binding OverlayRows[0].Text}" />
+                          <CheckBox Grid.Row="1"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayPrinterNameNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[0].NormalName}"
+                                    IsChecked="{Binding OverlayRows[0].IsNormal}" />
+                          <CheckBox Grid.Row="1"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayPrinterNameMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[0].MiniName}"
+                                    IsChecked="{Binding OverlayRows[0].IsMini}" />
+
+                          <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding OverlayRows[1].Text}" />
+                          <CheckBox Grid.Row="2"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayStateNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[1].NormalName}"
+                                    IsChecked="{Binding OverlayRows[1].IsNormal}" />
+                          <CheckBox Grid.Row="2"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayStateMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[1].MiniName}"
+                                    IsChecked="{Binding OverlayRows[1].IsMini}" />
+
+                          <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="{Binding OverlayRows[2].Text}" />
+                          <CheckBox Grid.Row="3"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayNozzleTemperatureNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[2].NormalName}"
+                                    IsChecked="{Binding OverlayRows[2].IsNormal}" />
+                          <CheckBox Grid.Row="3"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayNozzleTemperatureMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[2].MiniName}"
+                                    IsChecked="{Binding OverlayRows[2].IsMini}" />
+
+                          <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="{Binding OverlayRows[3].Text}" />
+                          <CheckBox Grid.Row="4"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayBedTemperatureNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[3].NormalName}"
+                                    IsChecked="{Binding OverlayRows[3].IsNormal}" />
+                          <CheckBox Grid.Row="4"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayBedTemperatureMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[3].MiniName}"
+                                    IsChecked="{Binding OverlayRows[3].IsMini}" />
+
+                          <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="{Binding OverlayRows[4].Text}" />
+                          <CheckBox Grid.Row="5"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayProgressNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[4].NormalName}"
+                                    IsChecked="{Binding OverlayRows[4].IsNormal}" />
+                          <CheckBox Grid.Row="5"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayProgressMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[4].MiniName}"
+                                    IsChecked="{Binding OverlayRows[4].IsMini}" />
+
+                          <TextBlock Grid.Row="6" VerticalAlignment="Center" Text="{Binding OverlayRows[5].Text}" />
+                          <CheckBox Grid.Row="6"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayRemainingTimeNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[5].NormalName}"
+                                    IsChecked="{Binding OverlayRows[5].IsNormal}" />
+                          <CheckBox Grid.Row="6"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayRemainingTimeMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[5].MiniName}"
+                                    IsChecked="{Binding OverlayRows[5].IsMini}" />
+
+                          <TextBlock Grid.Row="7" VerticalAlignment="Center" Text="{Binding OverlayRows[6].Text}" />
+                          <CheckBox Grid.Row="7"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayFinishTimeNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[6].NormalName}"
+                                    IsChecked="{Binding OverlayRows[6].IsNormal}" />
+                          <CheckBox Grid.Row="7"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayFinishTimeMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[6].MiniName}"
+                                    IsChecked="{Binding OverlayRows[6].IsMini}" />
+
+                          <TextBlock Grid.Row="8" VerticalAlignment="Center" Text="{Binding OverlayRows[7].Text}" />
+                          <CheckBox Grid.Row="8"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayPrintTimeNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[7].NormalName}"
+                                    IsChecked="{Binding OverlayRows[7].IsNormal}" />
+                          <CheckBox Grid.Row="8"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayPrintTimeMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[7].MiniName}"
+                                    IsChecked="{Binding OverlayRows[7].IsMini}" />
+
+                          <TextBlock Grid.Row="9" VerticalAlignment="Center" Text="{Binding OverlayRows[8].Text}" />
+                          <CheckBox Grid.Row="9"
+                                    Grid.Column="1"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayFileNameNormal"
+                                    AutomationProperties.Name="{Binding OverlayRows[8].NormalName}"
+                                    IsChecked="{Binding OverlayRows[8].IsNormal}" />
+                          <CheckBox Grid.Row="9"
+                                    Grid.Column="2"
+                                    Classes="cell"
+                                    AutomationProperties.AutomationId="PrinterOverlayFileNameMini"
+                                    AutomationProperties.Name="{Binding OverlayRows[8].MiniName}"
+                                    IsChecked="{Binding OverlayRows[8].IsMini}" />
+                        </Grid>
+                        <StackPanel Grid.Column="2">
+                          <TextBlock AutomationProperties.AutomationId="PrinterOverlayCameraOff"
+                                     Classes="hint"
+                                     Margin="0,0,0,8"
+                                     Text="{Binding [SettingsCameraWindowCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     IsVisible="{Binding !CameraEnabled}" />
+                          <TextBlock AutomationProperties.AutomationId="PrinterOverlayHint"
+                                     Classes="hint"
+                                     Margin="0"
+                                     Text="{Binding [SettingsOverlayHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                        </StackPanel>
+                      </Grid>
                     </DataTemplate>
                   </ContentControl.ContentTemplate>
                 </ContentControl>

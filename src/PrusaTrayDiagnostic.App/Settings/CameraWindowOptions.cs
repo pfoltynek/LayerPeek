@@ -1,6 +1,7 @@
 using System.Globalization;
 
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.Core.Cameras;
 
 namespace PrusaTrayDiagnostic.App.Settings;
@@ -15,6 +16,75 @@ public sealed class CameraStartModeOption(CameraWindowStartMode value, Func<stri
 public sealed class CameraCornerOption(CameraWindowCorner value, Func<string> text) : LocalizedOption(text)
 {
     public CameraWindowCorner Value { get; } = value;
+}
+
+/// <summary>An item of the corner selection of the print overlay (T-036).</summary>
+public sealed class CameraOverlayCornerOption(CameraOverlayCorner value, Func<string> text) : LocalizedOption(text)
+{
+    public CameraOverlayCorner Value { get; } = value;
+}
+
+/// <summary>
+/// One row of the overlay item table (T-036): the item and whether the normal window (and full screen) and the mini
+/// preview show it. UI thread only.
+/// </summary>
+public sealed class CameraOverlayItemRow : LocalizedOption
+{
+    private readonly Action _edited;
+    private bool _isNormal;
+    private bool _isMini;
+
+    internal CameraOverlayItemRow(CameraOverlayItems item, Func<string> text, bool isNormal, bool isMini, Action edited)
+        : base(text)
+    {
+        ArgumentNullException.ThrowIfNull(edited);
+        Item = item;
+        _isNormal = isNormal;
+        _isMini = isMini;
+        _edited = edited;
+    }
+
+    public CameraOverlayItems Item { get; }
+
+    /// <summary>Shown in the normal window and in full screen.</summary>
+    public bool IsNormal
+    {
+        get => _isNormal;
+        set
+        {
+            if (SetProperty(ref _isNormal, value))
+            {
+                _edited();
+            }
+        }
+    }
+
+    /// <summary>Shown in the mini preview.</summary>
+    public bool IsMini
+    {
+        get => _isMini;
+        set
+        {
+            if (SetProperty(ref _isMini, value))
+            {
+                _edited();
+            }
+        }
+    }
+
+    /// <summary>Accessible name of the normal window check box: "{item} – {column}".</summary>
+    public string NormalName => string.Concat(Text, " – ", Strings.SettingsOverlayNormalColumn);
+
+    /// <summary>Accessible name of the mini preview check box.</summary>
+    public string MiniName => string.Concat(Text, " – ", Strings.SettingsCameraWindowMini);
+
+    /// <summary>UI thread: the language changed.</summary>
+    internal void RefreshTexts()
+    {
+        RefreshText();
+        OnPropertyChanged(nameof(NormalName));
+        OnPropertyChanged(nameof(MiniName));
+    }
 }
 
 /// <summary>An item of the monitor selection of the camera window; <see langword="null"/> = the primary monitor (T-035).</summary>

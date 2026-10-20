@@ -45,6 +45,7 @@ internal static class SettingsMapper
                     Enabled = printer.Camera.Enabled,
                     StreamUrl = printer.Camera.StreamUri?.OriginalString ?? printer.Camera.InvalidStreamUrl,
                     Window = ToDocument(printer.Camera.Window),
+                    Overlay = ToDocument(printer.Camera.Overlay),
                 },
             })],
         };
@@ -210,6 +211,12 @@ internal static class SettingsMapper
                     camera = camera with { Window = window };
                 }
 
+                CameraOverlayOptions overlay = ToCameraOverlay(documents[i]!.Camera?.Overlay, printer.Id, warnings);
+                if (!ReferenceEquals(overlay, CameraOverlayOptions.Default))
+                {
+                    camera = camera with { Overlay = overlay };
+                }
+
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
                 printers.Add(ReferenceEquals(camera, CameraSettings.Disabled) ? printer : printer with { Camera = camera });
             }
@@ -372,6 +379,154 @@ internal static class SettingsMapper
         };
 
         return window == defaults ? defaults : window;
+    }
+
+    /// <summary>Not written while everything is the default, so that files stay as they were and follow future defaults.</summary>
+    private static CameraOverlayDocument? ToDocument(CameraOverlayOptions overlay)
+    {
+        if (overlay == CameraOverlayOptions.Default)
+        {
+            return null;
+        }
+
+        return new CameraOverlayDocument
+        {
+            Corner = FormatOverlayCorner(overlay.Corner),
+            Normal = FormatOverlayItems(overlay.Normal),
+            Mini = FormatOverlayItems(overlay.Mini),
+        };
+    }
+
+    /// <summary>
+    /// A missing section or value means the default. An unknown corner falls back to the default corner, unknown item
+    /// names are ignored (the others are kept); one warning per value, without echoing it.
+    /// </summary>
+    private static CameraOverlayOptions ToCameraOverlay(CameraOverlayDocument? document, string printerId, List<string> warnings)
+    {
+        if (document is null)
+        {
+            return CameraOverlayOptions.Default;
+        }
+
+        CameraOverlayOptions defaults = CameraOverlayOptions.Default;
+        string subject = $"Camera overlay of printer '{Shorten(printerId)}'";
+        CameraOverlayCorner corner = defaults.Corner;
+        if (document.Corner is not null && !TryParseOverlayCorner(document.Corner, out corner))
+        {
+            warnings.Add($"{subject}: unknown corner; '{FormatOverlayCorner(defaults.Corner)}' is used.");
+            corner = defaults.Corner;
+        }
+
+        CameraOverlayOptions overlay = new()
+        {
+            Corner = corner,
+            Normal = ToOverlayItems(document.Normal, defaults.Normal, $"{subject}: normal window", warnings),
+            Mini = ToOverlayItems(document.Mini, defaults.Mini, $"{subject}: mini preview", warnings),
+        };
+
+        return overlay == defaults ? defaults : overlay;
+    }
+
+    private static CameraOverlayItems ToOverlayItems(List<string?>? names, CameraOverlayItems fallback, string subject, List<string> warnings)
+    {
+        if (names is null)
+        {
+            return fallback;
+        }
+
+        CameraOverlayItems items = CameraOverlayItems.None;
+        int unknown = 0;
+        foreach (string? name in names)
+        {
+            if (name is not null && TryParseOverlayItem(name, out CameraOverlayItems item))
+            {
+                items |= item;
+            }
+            else
+            {
+                unknown++;
+            }
+        }
+
+        if (unknown > 0)
+        {
+            warnings.Add(unknown == 1
+                ? $"{subject}: 1 unknown item is ignored."
+                : $"{subject}: {unknown} unknown items are ignored.");
+        }
+
+        return items;
+    }
+
+    /// <summary>The names of the set items in display order (<see cref="CameraOverlayOptions.Items"/>).</summary>
+    private static List<string?> FormatOverlayItems(CameraOverlayItems items)
+    {
+        List<string?> names = [];
+        foreach (CameraOverlayItems item in CameraOverlayOptions.Items)
+        {
+            if ((items & item) != 0)
+            {
+                names.Add(FormatOverlayItem(item));
+            }
+        }
+
+        return names;
+    }
+
+    // Explicit names instead of Enum.Parse: numeric strings and combined flags ("State, Progress") must not be accepted.
+    private static string FormatOverlayItem(CameraOverlayItems item) => item switch
+    {
+        CameraOverlayItems.PrinterName => nameof(CameraOverlayItems.PrinterName),
+        CameraOverlayItems.State => nameof(CameraOverlayItems.State),
+        CameraOverlayItems.NozzleTemperature => nameof(CameraOverlayItems.NozzleTemperature),
+        CameraOverlayItems.BedTemperature => nameof(CameraOverlayItems.BedTemperature),
+        CameraOverlayItems.Progress => nameof(CameraOverlayItems.Progress),
+        CameraOverlayItems.RemainingTime => nameof(CameraOverlayItems.RemainingTime),
+        CameraOverlayItems.FinishTime => nameof(CameraOverlayItems.FinishTime),
+        CameraOverlayItems.PrintTime => nameof(CameraOverlayItems.PrintTime),
+        CameraOverlayItems.FileName => nameof(CameraOverlayItems.FileName),
+        _ => throw new ArgumentOutOfRangeException(nameof(item), item, "Unknown camera overlay item."),
+    };
+
+    private static bool TryParseOverlayItem(string value, out CameraOverlayItems item)
+    {
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (CameraOverlayItems candidate in CameraOverlayOptions.Items)
+        {
+            if (name.Equals(FormatOverlayItem(candidate), StringComparison.OrdinalIgnoreCase))
+            {
+                item = candidate;
+                return true;
+            }
+        }
+
+        item = CameraOverlayItems.None;
+        return false;
+    }
+
+    private static string FormatOverlayCorner(CameraOverlayCorner corner) => corner switch
+    {
+        CameraOverlayCorner.TopLeft => nameof(CameraOverlayCorner.TopLeft),
+        CameraOverlayCorner.TopRight => nameof(CameraOverlayCorner.TopRight),
+        CameraOverlayCorner.BottomLeft => nameof(CameraOverlayCorner.BottomLeft),
+        CameraOverlayCorner.BottomRight => nameof(CameraOverlayCorner.BottomRight),
+        _ => throw new ArgumentOutOfRangeException(nameof(corner), corner, "Unknown camera overlay corner."),
+    };
+
+    private static bool TryParseOverlayCorner(string value, out CameraOverlayCorner corner)
+    {
+        ReadOnlySpan<char> name = value.AsSpan().Trim();
+        foreach (CameraOverlayCorner candidate in (ReadOnlySpan<CameraOverlayCorner>)[CameraOverlayCorner.TopLeft, CameraOverlayCorner.TopRight, CameraOverlayCorner.BottomLeft, CameraOverlayCorner.BottomRight])
+        {
+            if (name.Equals(FormatOverlayCorner(candidate), StringComparison.OrdinalIgnoreCase))
+            {
+                corner = candidate;
+                return true;
+            }
+        }
+
+        corner = default;
+        return false;
     }
 
     private static CameraMonitorId? ToMonitor(CameraMonitorDocument? document, string subject, List<string> warnings)

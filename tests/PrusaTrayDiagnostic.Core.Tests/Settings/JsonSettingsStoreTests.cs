@@ -463,6 +463,59 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task LoadFileWrittenBeforeOverlaySettingsUsesOverlayDefaults()
+    {
+        // A file written before the overlay was configurable (T-014 format).
+        Directory.CreateDirectory(_directory);
+        File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "settings-v1-camera-without-window.json"), FilePath);
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.All(result.Settings.Printers, static printer => Assert.Same(CameraOverlayOptions.Default, printer.Camera.Overlay));
+
+        // Saving it again does not add the section while the defaults are unchanged.
+        await _store.SaveAsync(result.Settings, Ct);
+        Assert.DoesNotContain("\"overlay\"", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task SaveThenLoadRoundTripsCameraOverlay()
+    {
+        CameraOverlayOptions overlay = new()
+        {
+            Corner = CameraOverlayCorner.TopRight,
+            Normal = CameraOverlayOptions.AllItems,
+            Mini = CameraOverlayItems.None,
+        };
+        AppSettings settings = new()
+        {
+            Printers =
+            [
+                new PrinterDefinition
+                {
+                    Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226",
+                    Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Overlay = overlay },
+                },
+                new PrinterDefinition { Id = "xl", Name = "XL", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.230" },
+            ],
+        };
+
+        await _store.SaveAsync(settings, Ct);
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Empty(result.Warnings);
+        Assert.Equal(settings, result.Settings);
+        Assert.Equal(overlay, result.Settings.Printers[0].Camera.Overlay);
+        Assert.Same(CameraOverlayOptions.Default, result.Settings.Printers[1].Camera.Overlay);
+        string json = await File.ReadAllTextAsync(FilePath, Ct);
+        Assert.Contains("\"version\": 1", json, StringComparison.Ordinal);
+        Assert.Contains("\"overlay\"", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SaveThenLoadRoundTripsCameraWindowDefaults()
     {
         CameraWindowDefaults window = new()
