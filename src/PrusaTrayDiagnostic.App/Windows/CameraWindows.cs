@@ -1,4 +1,5 @@
 using PrusaTrayDiagnostic.App.Cameras;
+using PrusaTrayDiagnostic.Core.Cameras;
 
 namespace PrusaTrayDiagnostic.App.Windows;
 
@@ -7,7 +8,7 @@ namespace PrusaTrayDiagnostic.App.Windows;
 /// printers may be open at the same time. Each window owns its view model, which is disposed when the window closes
 /// (stopping the stream). After <see cref="Shutdown"/> (quitting) all are closed and none opens. UI thread only.
 /// </summary>
-internal sealed class CameraWindows
+internal sealed class CameraWindows : ICameraWindowPlacer
 {
     private readonly Func<string, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
@@ -23,6 +24,12 @@ internal sealed class CameraWindows
         _createViewModel = createViewModel;
         _screens = screens;
     }
+
+    /// <summary>
+    /// A camera window opened or closed (any way: menu, close button, settings, quitting); UI thread. The tray menu checks
+    /// the printer's "Camera" item while its window is open (T-040).
+    /// </summary>
+    public event EventHandler<CameraWindowOpenChangedEventArgs>? OpenChanged;
 
     /// <summary>The open windows by printer id (for tests and diagnostics).</summary>
     public IReadOnlyDictionary<string, CameraWindow> OpenWindows => _open;
@@ -62,7 +69,15 @@ internal sealed class CameraWindows
                 // The monitors first: the window places itself when it gets its view model.
                 CameraWindow window = _screens is { } screens ? new() { ScreenCatalog = screens, DataContext = created } : new() { DataContext = created };
                 _open[printerId] = window;
-                window.Closed += (_, _) => _open.Remove(printerId);
+                window.Closed += (_, _) =>
+                {
+                    if (_open.TryGetValue(printerId, out CameraWindow? current) && ReferenceEquals(current, window))
+                    {
+                        _open.Remove(printerId);
+                    }
+
+                    OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: false));
+                };
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.
                 return (new AvaloniaAuxiliaryWindow(window), created);
             });
@@ -75,7 +90,42 @@ internal sealed class CameraWindows
             }
         }
 
+        if (used && slot.IsOpen)
+        {
+            OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: true));
+        }
+
         return slot.IsOpen;
+    }
+
+    /// <summary>
+    /// The "Camera" item of the tray menu (T-040): closes the open window of <paramref name="printerId"/> (like its close
+    /// button: the stream stops and its placement is remembered), otherwise opens it like <see cref="Show"/>.
+    /// </summary>
+    /// <returns>Whether a window of the printer is open now.</returns>
+    public bool Toggle(string printerId)
+    {
+        if (!_shutDown && !string.IsNullOrWhiteSpace(printerId) && _open.TryGetValue(printerId, out CameraWindow? open))
+        {
+            open.Close();
+            return _open.ContainsKey(printerId);
+        }
+
+        return Show(printerId);
+    }
+
+    /// <inheritdoc/>
+    public bool ApplySettings(string printerId, CameraWindowDefaults window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        if (_shutDown || string.IsNullOrWhiteSpace(printerId)
+            || !_open.TryGetValue(printerId, out CameraWindow? open) || open.DataContext is not CameraViewModel viewModel)
+        {
+            return false;
+        }
+
+        viewModel.ApplyWindowSettings(window);
+        return true;
     }
 
     /// <summary>The language changed (T-029): every open camera window formats its texts again.</summary>
@@ -98,4 +148,19 @@ internal sealed class CameraWindows
 
         _open.Clear();
     }
+}
+
+/// <summary>The camera window of a printer opened or closed (T-040).</summary>
+internal sealed class CameraWindowOpenChangedEventArgs : EventArgs
+{
+    public CameraWindowOpenChangedEventArgs(string printerId, bool isOpen)
+    {
+        PrinterId = printerId;
+        IsOpen = isOpen;
+    }
+
+    public string PrinterId { get; }
+
+    /// <summary>Open now (otherwise closed).</summary>
+    public bool IsOpen { get; }
 }

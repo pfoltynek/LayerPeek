@@ -71,6 +71,7 @@ public sealed partial class CameraWindow : Window
         {
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
             _viewModel.CloseRequested += OnCloseRequested;
+            _viewModel.PlacementResetRequested += OnPlacementResetRequested;
             _viewModel.AttachFrameSink(_sink);
             if (!_opened)
             {
@@ -138,12 +139,19 @@ public sealed partial class CameraWindow : Window
 
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         _viewModel.CloseRequested -= OnCloseRequested;
+        _viewModel.PlacementResetRequested -= OnPlacementResetRequested;
         _viewModel.AttachFrameSink(null);
         _viewModel = null;
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_viewModel is { IsResettingPlacement: true })
+        {
+            // "Apply" (T-040): the whole placement follows in OnPlacementResetRequested.
+            return;
+        }
+
         if (e.PropertyName == nameof(CameraViewModel.Mode) && _opened && _viewModel is { } viewModel)
         {
             ApplyMode(viewModel.Mode);
@@ -156,6 +164,61 @@ public sealed partial class CameraWindow : Window
     }
 
     private void OnCloseRequested(object? sender, EventArgs e) => Close();
+
+    /// <summary>
+    /// "Apply" in the settings (T-040): the view model's mode at the printer's defaults on their monitor (size, corner,
+    /// always on top), wherever the window is now; full screen places the normal window on that monitor first. A
+    /// minimized window is restored. Before the window is shown it is placed by <see cref="PlaceBeforeShowing"/> anyway.
+    /// </summary>
+    private void OnPlacementResetRequested(object? sender, EventArgs e)
+    {
+        if (!_opened || _viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        CameraWindowMode mode = viewModel.Mode;
+        CameraWindowMode layoutMode = mode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
+        // The chrome before anything changes: measured only while the window shows its frame in the normal state.
+        WindowChrome chrome = layoutMode == CameraWindowMode.Mini ? WindowChrome.None
+            : WindowState == WindowState.Normal && WindowDecorations == WindowDecorations.Full && MeasuredChrome() is { } measured ? measured
+            : CameraWindowPlanner.AssumedNormalChrome;
+        _placedWithAssumedChrome = null;
+        _applyingMode = true;
+        try
+        {
+            WindowState = WindowState.Normal;
+            WindowDecorations = layoutMode == CameraWindowMode.Mini ? WindowDecorations.None : WindowDecorations.Full;
+            ShowInTaskbar = ShowsInTaskbar(mode);
+            Topmost = viewModel.Defaults.IsTopmost(mode);
+            if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, ScreenCatalog.GetScreens(), chrome) is { } placement)
+            {
+                Place(placement);
+            }
+
+            if (mode == CameraWindowMode.FullScreen)
+            {
+                // Full screen on the monitor the normal window was just placed on.
+                WindowState = WindowState.FullScreen;
+            }
+
+            _appliedMode = mode;
+            _lastWindowedMode = layoutMode;
+        }
+        finally
+        {
+            _applyingMode = false;
+        }
+
+        viewModel.SetActive(WindowState != WindowState.Minimized);
+    }
+
+    /// <summary>
+    /// The mini preview has no taskbar button (T-040, Windows); the normal window and full screen have one. On Windows
+    /// Avalonia hides a window from the taskbar by giving it a hidden owner and shows it again by removing that owner
+    /// (hiding and showing the window once, keeping its activation).
+    /// </summary>
+    internal static bool ShowsInTaskbar(CameraWindowMode mode) => mode != CameraWindowMode.Mini;
 
     private void ApplyMode(CameraWindowMode mode)
     {
@@ -172,6 +235,7 @@ public sealed partial class CameraWindow : Window
         try
         {
             CameraWindowMode previousWindowed = _lastWindowedMode;
+            ShowInTaskbar = ShowsInTaskbar(mode);
             if (mode != CameraWindowMode.Mini)
             {
                 // T-037: the option of the normal window; full screen is never on top.
@@ -246,6 +310,7 @@ public sealed partial class CameraWindow : Window
         bool mini = viewModel.Mode == CameraWindowMode.Mini;
         // T-037: the option of the mode it opens in (full screen, switched to after opening, is never on top).
         Topmost = viewModel.IsTopmost;
+        ShowInTaskbar = ShowsInTaskbar(viewModel.Mode);
         if (mini)
         {
             // Opened as the mini preview right away, without a normal window first.

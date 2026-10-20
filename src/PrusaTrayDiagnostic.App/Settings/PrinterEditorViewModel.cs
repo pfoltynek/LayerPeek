@@ -90,6 +90,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private string _miniSizeText;
     private CameraCornerOption _miniCorner;
 
+    // T-040: "Factory settings" was used; the next successful Save / Apply forgets the remembered camera window of this
+    // printer even when the values equal the saved ones.
+    private bool _forgetsRememberedCameraWindow;
+
     // Print overlay (T-036): the corner and one row per item (in display order).
     private CameraOverlayCornerOption _overlayCorner;
     private readonly CameraOverlayItemRow[] _overlayRows;
@@ -132,6 +136,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _miniCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Mini.Corner);
         _topmostNormal = _savedWindow.TopmostNormal;
         _topmostMini = _savedWindow.TopmostMini;
+        ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled);
+        ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled);
         CameraOverlayOptions overlay = camera.Overlay;
         _overlayCorner = owner.OverlayCornerOptions.First(option => option.Value == overlay.Corner);
         _overlayRows = [.. CameraOverlayOptions.Items.Select(item => new CameraOverlayItemRow(
@@ -383,6 +389,9 @@ public sealed class PrinterEditorViewModel : ObservableObject
                 // The window sizes are validated only while the camera is on (T-033 Q9).
                 OnErrorsChanged();
                 RevealErrors();
+                // T-040: the camera window buttons work only while the camera is on, like the fields next to them.
+                ResetCameraWindowCommand.NotifyCanExecuteChanged();
+                ApplyCameraWindowCommand.NotifyCanExecuteChanged();
                 _owner.OnPrinterEdited(nameChanged: false);
             }
         }
@@ -615,6 +624,22 @@ public sealed class PrinterEditorViewModel : ObservableObject
 
     public string MiniTopmostName => _miniTopmostName;
 
+    /// <summary>
+    /// "Factory settings" (T-040): every value of the Camera window sub-tab back to <see cref="CameraWindowDefaults.Default"/>
+    /// (not the overlay); the remembered camera window of this printer is forgotten by the next successful Save or Apply.
+    /// Only while the camera is on.
+    /// </summary>
+    public IRelayCommand ResetCameraWindowCommand { get; }
+
+    /// <summary>
+    /// "Apply" (T-040): saves like Save, keeps the settings window open and places the open camera window of this printer
+    /// again by its saved settings (mode, monitor, size, position, always on top). Only while the camera is on.
+    /// </summary>
+    public IAsyncRelayCommand ApplyCameraWindowCommand { get; }
+
+    /// <summary>"Factory settings" was used since the last save: saving forgets the remembered camera window.</summary>
+    internal bool ForgetsRememberedCameraWindow => _forgetsRememberedCameraWindow;
+
     // ---- Print overlay (T-036): what the camera window shows over the image. Edited only while the camera is on. ----
 
     public IReadOnlyList<CameraOverlayCornerOption> OverlayCornerOptions => _owner.OverlayCornerOptions;
@@ -784,6 +809,31 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _normalTopmostName = CellName(Strings.SettingsCameraWindowNormal, Strings.SettingsCameraWindowTopmost);
         _miniTopmostName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowTopmost);
     }
+
+    /// <summary>"Factory settings" of the Camera window sub-tab (T-040); the overlay sub-tab is not touched.</summary>
+    private void ResetCameraWindow()
+    {
+        if (!_cameraEnabled || _owner.IsDisposed)
+        {
+            return;
+        }
+
+        CameraWindowDefaults defaults = CameraWindowDefaults.Default;
+        SetProperty(ref _rememberLastPlacement, defaults.RememberLastPlacement, nameof(RememberLastPlacement));
+        SetProperty(ref _startMode, _owner.StartModeOptions.First(option => option.Value == defaults.StartMode), nameof(SelectedStartMode));
+        SetProperty(ref _monitor, _monitorOptions.First(option => option.Value == defaults.Monitor), nameof(SelectedMonitor));
+        SetProperty(ref _normalSizeText, CameraWindowSizeText.Format(defaults.Normal.Size), nameof(NormalSizeText));
+        SetProperty(ref _normalCorner, _owner.CornerOptions.First(option => option.Value == defaults.Normal.Corner), nameof(SelectedNormalCorner));
+        SetProperty(ref _miniSizeText, CameraWindowSizeText.Format(defaults.Mini.Size), nameof(MiniSizeText));
+        SetProperty(ref _miniCorner, _owner.CornerOptions.First(option => option.Value == defaults.Mini.Corner), nameof(SelectedMiniCorner));
+        SetProperty(ref _topmostNormal, defaults.TopmostNormal, nameof(TopmostNormal));
+        SetProperty(ref _topmostMini, defaults.TopmostMini, nameof(TopmostMini));
+        _forgetsRememberedCameraWindow = true;
+        OnWindowEdited(sizeChanged: true);
+    }
+
+    /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>
+    internal void OnRememberedCameraWindowForgotten() => _forgetsRememberedCameraWindow = false;
 
     /// <summary>A field of the camera window sub-tab changed.</summary>
     private void OnWindowEdited(bool sizeChanged = false)

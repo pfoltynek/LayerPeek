@@ -277,7 +277,8 @@ internal static class AppServices
     /// <see cref="SettingsViewModel.LoadAsync"/> after showing it (creating it touches no files). Call on the UI thread.
     /// </summary>
     /// <param name="screens">The monitors offered for the camera window (T-035); <see langword="null"/>: none.</param>
-    internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null)
+    /// <param name="cameraWindowPlacer">The open camera windows, placed again by "Apply" (T-040); <see langword="null"/>: none.</param>
+    internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         return new SettingsViewModel(
@@ -287,7 +288,8 @@ internal static class AppServices
             cameraTester: services.GetRequiredService<ICameraTester>(),
             logger: services.GetRequiredService<ILogger<SettingsViewModel>>(),
             screens: screens,
-            cameraWindowStates: services.GetRequiredService<ICameraWindowStateStore>());
+            cameraWindowStates: services.GetRequiredService<ICameraWindowStateStore>(),
+            cameraWindowPlacer: cameraWindowPlacer);
     }
 
     private static ISecretStore CreateSecretStore() =>
