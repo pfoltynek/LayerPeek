@@ -28,6 +28,9 @@ Tray menu vypadá stejně pro jednu i více tiskáren, nabízí u každé tiská
 - **Délka názvu (2026-10-20):** cca 32 znaků.
 - **Klávesové zkratky (2026-10-20):** ano, 8 jazyků, test jedinečnosti.
 - **Tři tečky (2026-10-20):** ponechat; Title Case macOS → T-018.
+- **„Přidat tiskárnu…“ v otevřeném okně (2026-10-20, uživatel):** tiskárnu přidá jen tehdy, když seznam v okně je prázdný, jinak ukáže tu neuloženou – potvrzeno.
+- **Klávesové zkratky a překlady (2026-10-20, uživatel):** všechny zkratky a nové překlady `MenuAddPrinter` (tabulka v poznámkách) schváleny.
+- **Obejití chyby `AccessText` v Avalonii 12 (2026-10-20, uživatel):** neviditelný znak U+2060 v názvu tiskárny s `_` přijat.
 - Návrh a ukázky: scratchpad `tray-menu-design/tray-menu-proposal.md` (ui-designer, 2026-10-20) – shrnuto níže v `## Návrh UI`.
 
 ## Návrh UI
@@ -67,7 +70,7 @@ Ukončit
 - [x] Zkrácení názvu na cca 32 znaků (test)
 - [x] Klávesové zkratky ve všech 8 jazycích, test jedinečnosti
 - [x] Ikony tiskáren na Windows, žádné na macOS (testy)
-- [ ] Ruční ověření na Windows (uživatel)
+- [ ] Ruční ověření na Windows (uživatel), viz seznam níže; mimo jiné Předčítání (Narrator) na řádku tiskárny s `_` v názvu (VoiceOver na macOS ověří T-018)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
 ## Otevřené otázky
@@ -78,6 +81,7 @@ Ukončit
 - **Klik na řádek tiskárny** nic nedělá, jen otevře podmenu (mění chování T-008). Web se otevírá položkou „Otevřít … v prohlížeči“ v podmenu; přihlášení přes proxy (T-028) funguje stejně. Neplatná adresa: řádek zůstává povolený (Diagnostika jde otevřít), zakázaná je jen webová položka s tooltipem „Adresa tiskárny není platná“. Upravené testy T-008/T-013/T-014/T-040, `docs/architecture.md` (bod 8).
 - **Globální „Diagnostika…“** odstraněna z pevných položek. `TrayMenuOptions.DiagnosticsAvailable` dál řídí položku v podmenu.
 - **„Přidat tiskárnu…“** (`TrayMenuCommand.AddPrinter`, klíč `MenuAddPrinter`) je jen při 0 tiskárnách, pod zakázaným textem. Zapojení: presenter → `ITrayAppCommands.AddPrinter()` → `App.ShowSettings(addPrinter: true)` → `SettingsViewModel.AddPrinterFromTray()`. Ta přepne na záložku Tiskárny a podzáložku Tiskárna a spustí stávající `AddPrinterCommand`. Nové okno to udělá hned po načtení nastavení (příznak do konce `Populate`), už otevřené okno hned. Tiskárnu přidá jen tehdy, když okno žádnou nemá: menu nabízí položku, dokud se nová tiskárna neuloží, a opakované kliknutí tak nepřidá další prázdnou tiskárnu (okno jen ukáže tu neuloženou). Položka se řídí `SettingsAvailable`.
+- **Okno nastavení z menu:** logika „otevřít nebo aktivovat, případně přidat tiskárnu“ je v `Settings/SettingsWindowCommand.Show`, `App.ShowSettings` ji jen volá (kvůli testu). Headless test `TrayMenuAddPrinterUiTests` kliká na skutečnou položku „Přidat tiskárnu…“ přes `ITrayAppCommands.AddPrinter()` dvakrát: poprvé vznikne nové okno s novou tiskárnou, podruhé se použije otevřené okno (žádná další tiskárna, přepnutí na záložku Tiskárny). Druhý test: „Nastavení…“ nic nepřidá, následné „Přidat tiskárnu…“ přidá do otevřeného okna.
 - **Zkrácení názvu:** `TrayMenuFormatter.MaxNameLength = 32` včetně „…“ (31 znaků + „…“), stav se nezkracuje. Delší název má celý v tooltipu položky (`NativeMenuItem.ToolTip`; Avalonia uvádí, že ho nemusí podporovat každý nativní poskytovatel – ruční ověření). Dřívější limit 100 znaků na celý nadpis zmizel. Limit 100 znaků v nastavení zůstává.
 - **Klávesové zkratky:** `_` přímo v hodnotách `.resx` (Menu*, nový `MenuAddPrinter`). `TrayMenuEntry.HasAccessKey` odliší texty z prostředků od prostého textu. `NativeMenuText.HeaderOf` texty s klávesou předá beze změny, prostý text escapuje. Test `TrayMenuAccessKeyTests` pro všech 8 jazyků (`AppLanguages.Supported`) hlídá: každá pevná položka a položka podmenu má právě jednu zkratku (písmeno nebo číslice), zkratky jsou na každé úrovni jedinečné (hlavní menu bez tiskáren i s nimi, podmenu PrusaLink i Prusa Connect s kamerou), tiskárny a zprávy žádnou nemají a název s `_` se zobrazí beze změny. Headless test na skutečném `MenuItem`/`AccessText` ověřuje klávesy, které Avalonia zaregistruje.
 - **Chyba Avalonie 12 (zjištěno při implementaci):** `AccessText` zobrazí `__` jako `_`, ale jako klávesovou zkratku zaregistruje znak za **prvním** `_`, tedy u `MK4__dílna` samotné `_` (a při zobrazení zkratek ho podtrhne). Dosavadní escapování (zdvojení `_`) tedy u názvu s podtržítkem zkratku nevylučovalo. `NativeMenuText.EscapeAccessKeys` proto před první `_` vloží skutečnou značku na neviditelném znaku U+2060 WORD JOINER: `MK4_dílna` → `MK4_` + U+2060 + `__dílna`, zobrazí se `MK4_dílna`, zkratka je znak, který nejde napsat. Text bez `_` se nemění. macOS podle kódu Avalonia.Native používá `AccessText.RemoveAccessKeyMarker`, takže v NSMenu bude `MK4` + U+2060 + `_dílna` (neviditelný znak) – neověřeno.
@@ -97,4 +101,10 @@ Ukončit
 
   „Není nastavena žádná tiskárna“ je stávající `ToolTipNoPrinter` (bez zkratky). Tam, kde by se první písmeno opakovalo, je zkratka jinde (en „Add _printer…“ vs. „_About“, es „Añadir _impresora…“ vs. „_Acerca de“, fr „À pr_opos“ vs. „_Paramètres…“, it „I_nformazioni“ vs. „_Impostazioni…“).
 - **Ověřeno (Windows 11):** `dotnet build` 0 varování, `dotnet test` dvakrát zelené, AOT publish win-x64 bez varování. Aplikaci jsem nespouštěl: nastavení se čte ze skutečného `%APPDATA%` (známá složka, proměnnou prostředí nejde přesměrovat) a uživatel má spuštěnou vlastní instanci. Struktura a chování menu jsou ověřené headless testy na skutečném `NativeMenu` aplikace.
-- **Neověřeno / ruční kontrola (uživatel, Windows):** vzhled podmenu u jedné tiskárny, podtržení zkratek a jejich funkce v tray menu (otevření menu klávesnicí, Alt), tooltip celého názvu u zkráceného řádku tiskárny, „Přidat tiskárnu…“ s prázdným nastavením. macOS (zkratky odstraněné z NSMenu, U+2060 v názvu s `_`, žádné ikony) ověří T-018.
+- **Ruční kontrola (uživatel, Windows):**
+  1. Vzhled podmenu u jedné i více tiskáren, ikony tiskáren, žádné ikony u akcí.
+  2. Podtržení zkratek a jejich funkce v tray menu (otevření menu klávesnicí, Alt, písmeno zkratky).
+  3. Tooltip s celým názvem u zkráceného řádku tiskárny.
+  4. „Přidat tiskárnu…“ s prázdným nastavením (okno se otevře na záložce Tiskárny s novou tiskárnou).
+  5. Předčítání (Narrator) na řádku tiskárny s `_` v názvu: přečte název normálně a neviditelný U+2060 nijak neohlásí.
+- **macOS (ověří T-018):** zkratky odstraněné z NSMenu, U+2060 v názvu s `_` (vzhled a VoiceOver), žádné ikony.

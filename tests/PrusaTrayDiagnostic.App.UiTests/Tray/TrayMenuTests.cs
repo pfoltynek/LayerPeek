@@ -264,6 +264,12 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Assert.Equal("D", texts[2].AccessKey);
             Assert.Equal(printer.Header, texts[0].Text);
             Assert.StartsWith("_MK4_dílna: ", NativeMenuText.DisplayTextOf(texts[0].Text!), StringComparison.Ordinal);
+
+            // What AccessText really lays out (markers removed) is what DisplayTextOf predicts, apart from the invisible joiner.
+            Assert.All(texts, static text => Assert.Equal(
+                NativeMenuText.DisplayTextOf(text.Text!),
+                RenderedText(text).Replace(NativeMenuText.NoAccessKey.ToString(), string.Empty, StringComparison.Ordinal)));
+            Assert.Equal("Ukončit", RenderedText(texts[1]));
             return Task.CompletedTask;
         });
 
@@ -280,6 +286,11 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Assert.Equal(0, tray.Commands.QuitCount);
             return Task.CompletedTask;
         });
+
+    /// <summary>The characters <paramref name="text"/> has laid out (and draws), without line ends.</summary>
+    private static string RenderedText(AccessText text) =>
+        string.Concat(text.TextLayout.TextLines.SelectMany(static line => line.TextRuns).Select(static run => run.Text.ToString()))
+            .TrimEnd('\r', '\n', (char)0x2029);
 
     /// <summary>The tray menu of one test, wired like <c>TrayHost.StartAsync</c>.</summary>
     private sealed class TrayMenu

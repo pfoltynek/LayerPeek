@@ -156,7 +156,8 @@ public partial class App : Application, ITrayAppCommands
             },
             owned =>
             {
-                // Already open: switch to the printer whose submenu was used; the general item keeps the current one.
+                // Already open: switch to the printer whose submenu was used (every Diagnostics item belongs to a printer since
+                // T-042; without a printer the window keeps the current one).
                 if (printerId is not null && owned is DiagnosticsViewModel viewModel)
                 {
                     viewModel.ShowPrinter(printerId);
@@ -168,10 +169,7 @@ public partial class App : Application, ITrayAppCommands
 
     void ITrayAppCommands.AddPrinter() => ShowSettings(addPrinter: true);
 
-    /// <param name="addPrinter">
-    /// "Add printer…" (T-042): the window (new or already open) shows the Printers tab with a new printer
-    /// (<see cref="SettingsViewModel.AddPrinterFromTray"/>; a new window adds it once its settings are loaded).
-    /// </param>
+    /// <param name="addPrinter">"Add printer…" (T-042), see <see cref="SettingsWindowCommand.Show"/>.</param>
     private void ShowSettings(bool addPrinter)
     {
         if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
@@ -179,34 +177,14 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
-        SettingsViewModel? created = null;
         // "Apply" places the open camera windows again (T-040).
         CameraWindows cameraWindows = CameraWindowsFor(host);
-        _settingsWindow.ShowOrActivate(
-            () =>
-            {
-                // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
-                // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
-                (IAuxiliaryWindow window, SettingsViewModel viewModel) = windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows));
-                created = viewModel;
-                return (window, viewModel);
-            },
-            owned =>
-            {
-                // Already open: the editing session goes on, with a new printer when it has none yet.
-                if (addPrinter && owned is SettingsViewModel open)
-                {
-                    open.AddPrinterFromTray();
-                }
-            });
 
-        if (addPrinter)
-        {
-            created?.AddPrinterFromTray();
-        }
-
-        // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.
-        _ = created?.LoadAsync();
+        // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
+        SettingsWindowCommand.Show(
+            _settingsWindow,
+            () => windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows)),
+            addPrinter);
     }
 
     void ITrayAppCommands.ToggleCamera(string printerId)
