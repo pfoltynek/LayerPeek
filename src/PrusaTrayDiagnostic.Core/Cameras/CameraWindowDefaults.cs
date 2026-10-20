@@ -65,9 +65,30 @@ public sealed record CameraWindowDefaults
     } = DefaultMini;
 
     /// <summary>
+    /// Whether the normal window stays above other windows (T-037; default <see langword="false"/>). Unlike the other
+    /// values it also applies to an already open window right after saving.
+    /// </summary>
+    public bool TopmostNormal { get; init; }
+
+    /// <summary>Whether the mini preview stays above other windows (T-037; default <see langword="true"/> = T-014 behaviour).</summary>
+    public bool TopmostMini { get; init; } = true;
+
+    /// <summary>
+    /// Whether the window in <paramref name="mode"/> stays above other windows: <see cref="TopmostNormal"/> or
+    /// <see cref="TopmostMini"/>; full screen never (T-037 decision).
+    /// </summary>
+    public bool IsTopmost(CameraWindowMode mode) => mode switch
+    {
+        CameraWindowMode.Normal => TopmostNormal,
+        CameraWindowMode.Mini => TopmostMini,
+        _ => false,
+    };
+
+    /// <summary>
     /// Whether saving <paramref name="updated"/> over <paramref name="saved"/> must forget the remembered state of the
     /// camera window of that printer (T-035 decision: changed defaults clear it, so that they take effect). Counts the
-    /// start mode, the monitor and both layouts; a change of <see cref="RememberLastPlacement"/> alone does not.
+    /// start mode, the monitor and both layouts; a change of <see cref="RememberLastPlacement"/>, <see cref="TopmostNormal"/> or
+    /// <see cref="TopmostMini"/> alone does not (T-035 Q3).
     /// </summary>
     public static bool RequiresForgettingRememberedState(CameraWindowDefaults saved, CameraWindowDefaults updated)
     {

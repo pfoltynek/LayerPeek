@@ -179,4 +179,107 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         Assert.Equal(CameraWindowMode.Mini, viewModel.Mode);
         Assert.Equal(Remembered.Mini, viewModel.MiniPlacement);
     }
+
+    public static TheoryData<bool, bool> TopmostOptions => new() { { false, false }, { false, true }, { true, false }, { true, true } };
+
+    [Theory]
+    [MemberData(nameof(TopmostOptions))]
+    public void TopmostFollowsTheModeAndTheOptions(bool normal, bool mini)
+    {
+        // T-037: normal window and mini preview by their options, full screen never.
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { TopmostNormal = normal, TopmostMini = mini });
+        Assert.True(viewModel.IsNormal);
+        Assert.Equal(normal, viewModel.IsTopmost);
+
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.Equal(mini, viewModel.IsTopmost);
+
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        Assert.True(viewModel.IsFullScreen);
+        Assert.False(viewModel.IsTopmost);
+
+        viewModel.ShowNormalCommand.Execute(null);
+        Assert.Equal(normal, viewModel.IsTopmost);
+
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.Equal(mini, viewModel.IsTopmost);
+    }
+
+    [Theory]
+    [InlineData(CameraWindowStartMode.Normal, false)]
+    [InlineData(CameraWindowStartMode.Mini, true)]
+    [InlineData(CameraWindowStartMode.FullScreen, false)]
+    public void DefaultTopmostIsTodaysBehaviour(CameraWindowStartMode startMode, bool expected) =>
+        Assert.Equal(expected, Create(CameraWindowDefaults.Default with { StartMode = startMode }).IsTopmost);
+
+    [Fact]
+    public void FullScreenIsNeverTopmostEvenWithBothOptions() =>
+        Assert.False(Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.FullScreen, TopmostNormal = true, TopmostMini = true }).IsTopmost);
+
+    [Fact]
+    public void ModeChangeRaisesTopmostChanged()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        viewModel.ShowMiniCommand.Execute(null);
+
+        Assert.Contains(nameof(CameraViewModel.IsTopmost), changed);
+        Assert.True(changed.IndexOf(nameof(CameraViewModel.Mode)) < changed.IndexOf(nameof(CameraViewModel.IsTopmost)));
+    }
+
+    [Fact]
+    public void SavedTopmostOptionAppliesToTheOpenWindowRightAway()
+    {
+        // T-037: unlike the placement defaults, "always on top" changes the open window after saving.
+        _states.Set("mk4", Remembered);
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        Assert.True(viewModel.IsMini);
+        Assert.True(viewModel.IsTopmost);
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostMini = false })] });
+        _dispatcher.RunAll();
+
+        Assert.False(viewModel.IsTopmost);
+        Assert.Equal([nameof(CameraViewModel.IsTopmost)], changed);
+        Assert.Equal(CameraWindowMode.Mini, viewModel.Mode);
+        Assert.Equal(Remembered.Mini, viewModel.MiniPlacement);
+        Assert.Equal(Remembered.Normal, viewModel.NormalPlacement);
+    }
+
+    [Fact]
+    public void SavedOptionOfAnotherModeDoesNotRaiseTopmostChanged()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        Assert.True(viewModel.IsNormal);
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostMini = false })] });
+        _dispatcher.RunAll();
+
+        Assert.False(viewModel.IsTopmost);
+        Assert.DoesNotContain(nameof(CameraViewModel.IsTopmost), changed);
+
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.False(viewModel.IsTopmost);
+    }
+
+    [Fact]
+    public void TopmostChangeKeepsTheRememberedState()
+    {
+        // T-035 Q3: the open window still writes its state back when only "always on top" changed.
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        viewModel.RememberPlacement(CameraWindowMode.Normal, new CameraWindowPlacement(5, 6, 700, 400));
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostNormal = true })] });
+        _dispatcher.RunAll();
+        Assert.True(viewModel.IsTopmost);
+
+        viewModel.Dispose();
+
+        Assert.Equal(new CameraWindowState(CameraWindowMode.Normal, new CameraWindowPlacement(5, 6, 700, 400), null), _states.Get("mk4"));
+    }
 }

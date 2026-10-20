@@ -216,6 +216,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsFullScreen));
             OnPropertyChanged(nameof(IsMini));
             OnPropertyChanged(nameof(FullScreenToolTip));
+            OnPropertyChanged(nameof(IsTopmost));
             ShowMiniCommand.NotifyCanExecuteChanged();
             ShowNormalCommand.NotifyCanExecuteChanged();
         }
@@ -226,6 +227,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     public bool IsFullScreen => _mode == CameraWindowMode.FullScreen;
 
     public bool IsMini => _mode == CameraWindowMode.Mini;
+
+    /// <summary>
+    /// Whether the window stays above other windows in its current mode (T-037): the printer's option for the normal window
+    /// or the mini preview, never in full screen. Changes with the mode and right after saved settings change the option.
+    /// </summary>
+    public bool IsTopmost => _defaults.IsTopmost(_mode);
 
     public string FullScreenToolTip => IsFullScreen ? Strings.CameraExitFullScreen : Strings.CameraFullScreen;
 
@@ -709,8 +716,14 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(Title));
         }
 
-        // The open window does not move (T-035); the new defaults apply to the next placement from defaults.
+        // The open window does not move (T-035); the new defaults apply to the next placement from defaults. Only
+        // "always on top" applies to the open window right away (T-037).
+        bool wasTopmost = IsTopmost;
         _defaults = target.Window;
+        if (IsTopmost != wasTopmost)
+        {
+            OnPropertyChanged(nameof(IsTopmost));
+        }
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

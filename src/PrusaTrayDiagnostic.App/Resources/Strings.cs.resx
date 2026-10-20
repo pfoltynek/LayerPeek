@@ -747,6 +747,9 @@
   <data name="SettingsCameraWindowPosition" xml:space="preserve">
     <value>Umístění</value>
   </data>
+  <data name="SettingsCameraWindowTopmost" xml:space="preserve">
+    <value>Vždy navrchu</value>
+  </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Vlevo nahoře</value>
   </data>

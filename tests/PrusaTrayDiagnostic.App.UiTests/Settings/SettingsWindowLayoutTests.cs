@@ -134,6 +134,38 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
 
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task AlwaysOnTopHeaderFitsItsColumnInAtMostTwoLines(string language) =>
+        session.RunAsync(async scope =>
+        {
+            // T-033 design / T-037: the header of the 88 DIP column wraps to at most 2 lines and no word is cut.
+            Assert.True(new UiLanguage().Apply(language));
+            SettingsWindowHarness ui = await OpenWithCameraWindowAsync(scope, cameraEnabled: true);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraWindowPrinterTab;
+            ui.Window.Settle();
+            TextBlock header = ui.Find<TextBlock>("PrinterCameraWindowTopmostHeader");
+            Assert.True(header.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsCameraWindowTopmost, header.Text);
+
+            Assert.True(header.Bounds.Width <= 88 + 0.01, $"{language}: header is {header.Bounds.Width:0.#} DIP wide.");
+            Assert.True(header.TextLayout.TextLines.Count <= 2, $"{language}: '{header.Text}' has {header.TextLayout.TextLines.Count} lines.");
+            Assert.False(header.TextLayout.TextLines.Any(static line => line.HasCollapsed), $"{language}: '{header.Text}' is trimmed.");
+            foreach (string word in header.Text!.Split(' '))
+            {
+                TextBlock probe = new() { Text = word, FontFamily = header.FontFamily, FontSize = header.FontSize, FontWeight = header.FontWeight };
+                probe.Measure(Size.Infinity);
+                Assert.True(probe.DesiredSize.Width <= 88 + 0.5, $"{language}: '{word}' needs {probe.DesiredSize.Width:0.#} DIP.");
+            }
+
+            foreach (string id in (ReadOnlySpan<string>)["PrinterCameraWindowNormalTopmost", "PrinterCameraWindowMiniTopmost"])
+            {
+                CheckBox box = ui.Find<CheckBox>(id);
+                Assert.True(box.Bounds.Width <= 88 + 0.01, $"{language}: {id} is {box.Bounds.Width:0.#} DIP wide.");
+                Assert.True(box.IsEffectivelyVisible);
+            }
+        });
+
     // ---- Printer sub-tabs ----
 
     [Fact]

@@ -747,6 +747,9 @@
   <data name="SettingsCameraWindowPosition" xml:space="preserve">
     <value>Posizione</value>
   </data>
+  <data name="SettingsCameraWindowTopmost" xml:space="preserve">
+    <value>Sempre in primo piano</value>
+  </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>In alto a sinistra</value>
   </data>

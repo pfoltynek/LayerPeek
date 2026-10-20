@@ -81,6 +81,10 @@ public sealed class PrinterEditorViewModel : ObservableObject
     private string _normalCornerName = string.Empty;
     private string _miniSizeName = string.Empty;
     private string _miniCornerName = string.Empty;
+    private string _normalTopmostName = string.Empty;
+    private string _miniTopmostName = string.Empty;
+    private bool _topmostNormal;
+    private bool _topmostMini;
     private string _normalSizeText;
     private CameraCornerOption _normalCorner;
     private string _miniSizeText;
@@ -122,6 +126,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _normalCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Normal.Corner);
         _miniSizeText = CameraWindowSizeText.Format(_savedWindow.Mini.Size);
         _miniCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Mini.Corner);
+        _topmostNormal = _savedWindow.TopmostNormal;
+        _topmostMini = _savedWindow.TopmostMini;
         FormatCellNames();
         ValidateAddress();
         ValidateUserName();
@@ -539,6 +545,35 @@ public sealed class PrinterEditorViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// The normal camera window stays above other windows (T-037, default off). Applies to open camera windows right after
+    /// saving and does not forget the remembered window (T-035 Q3).
+    /// </summary>
+    public bool TopmostNormal
+    {
+        get => _topmostNormal;
+        set
+        {
+            if (SetProperty(ref _topmostNormal, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
+    /// <summary>The mini preview stays above other windows (T-037, default on).</summary>
+    public bool TopmostMini
+    {
+        get => _topmostMini;
+        set
+        {
+            if (SetProperty(ref _topmostMini, value))
+            {
+                OnWindowEdited();
+            }
+        }
+    }
+
     /// <summary>Why the size of the normal window cannot be used; only while the camera is on (T-033 Q9).</summary>
     public string? NormalSizeError => _showErrors && IsInvalidSize(_normalSizeText) ? SizeErrorText : null;
 
@@ -562,6 +597,11 @@ public sealed class PrinterEditorViewModel : ObservableObject
     public string MiniSizeName => _miniSizeName;
 
     public string MiniCornerName => _miniCornerName;
+
+    /// <summary>Accessible names of the "always on top" check boxes (T-037): "{row} – Always on top".</summary>
+    public string NormalTopmostName => _normalTopmostName;
+
+    public string MiniTopmostName => _miniTopmostName;
 
     /// <summary>The camera window defaults as entered, to compare with the saved ones (tests and saving).</summary>
     internal CameraWindowDefaults? CameraWindow => BuildWindow();
@@ -643,6 +683,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
             Monitor = _monitor.Value,
             Normal = new CameraWindowLayout(normal ?? _savedWindow.Normal.Size, _normalCorner.Value),
             Mini = new CameraWindowLayout(mini ?? _savedWindow.Mini.Size, _miniCorner.Value),
+            TopmostNormal = _topmostNormal,
+            TopmostMini = _topmostMini,
         };
     }
 
@@ -659,6 +701,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _normalCornerName = CellName(Strings.SettingsCameraWindowNormal, Strings.SettingsCameraWindowPosition);
         _miniSizeName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowSize);
         _miniCornerName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowPosition);
+        _normalTopmostName = CellName(Strings.SettingsCameraWindowNormal, Strings.SettingsCameraWindowTopmost);
+        _miniTopmostName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowTopmost);
     }
 
     /// <summary>A field of the camera window sub-tab changed.</summary>
@@ -798,6 +842,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(NormalCornerName));
         OnPropertyChanged(nameof(MiniSizeName));
         OnPropertyChanged(nameof(MiniCornerName));
+        OnPropertyChanged(nameof(NormalTopmostName));
+        OnPropertyChanged(nameof(MiniTopmostName));
     }
 
     /// <summary>
