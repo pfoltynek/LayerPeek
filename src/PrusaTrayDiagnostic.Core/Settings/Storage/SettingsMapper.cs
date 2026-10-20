@@ -328,6 +328,8 @@ internal static class SettingsMapper
                 : null,
             Normal = ToDocument(window.Normal),
             Mini = ToDocument(window.Mini),
+            TopmostNormal = window.TopmostNormal,
+            TopmostMini = window.TopmostMini,
         };
     }
 
@@ -365,6 +367,8 @@ internal static class SettingsMapper
             Monitor = ToMonitor(document.Monitor, subject, warnings),
             Normal = ToLayout(document.Normal, defaults.Normal, $"{subject}: normal window", warnings),
             Mini = ToLayout(document.Mini, defaults.Mini, $"{subject}: mini preview", warnings),
+            TopmostNormal = document.TopmostNormal ?? defaults.TopmostNormal,
+            TopmostMini = document.TopmostMini ?? defaults.TopmostMini,
         };
 
         return window == defaults ? defaults : window;

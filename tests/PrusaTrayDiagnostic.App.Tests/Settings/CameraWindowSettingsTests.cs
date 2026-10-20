@@ -26,6 +26,8 @@ public sealed class CameraWindowSettingsTests : IDisposable
         Monitor = new CameraMonitorId("LG HDR 4K", 1920, 1080),
         Normal = new CameraWindowLayout(new CameraWindowSize(1280, 720), CameraWindowCorner.TopRight),
         Mini = new CameraWindowLayout(new CameraWindowSize(400, 225), CameraWindowCorner.TopLeft),
+        TopmostNormal = true,
+        TopmostMini = false,
     };
 
     private readonly CultureScope _culture = new("en-US");
@@ -81,6 +83,8 @@ public sealed class CameraWindowSettingsTests : IDisposable
         Assert.Equal(CameraWindowCorner.TopRight, printer.SelectedNormalCorner.Value);
         Assert.Equal("400\u00A0×\u00A0225", printer.MiniSizeText);
         Assert.Equal(CameraWindowCorner.TopLeft, printer.SelectedMiniCorner.Value);
+        Assert.True(printer.TopmostNormal);
+        Assert.False(printer.TopmostMini);
         Assert.Null(printer.NormalSizeError);
         Assert.False(printer.HasCameraWindowErrors);
     }
@@ -99,6 +103,10 @@ public sealed class CameraWindowSettingsTests : IDisposable
         Assert.Equal(CameraWindowCorner.Center, printer.SelectedNormalCorner.Value);
         Assert.Equal("320\u00A0×\u00A0180", printer.MiniSizeText);
         Assert.Equal(CameraWindowCorner.BottomRight, printer.SelectedMiniCorner.Value);
+        Assert.False(printer.TopmostNormal);
+        Assert.True(printer.TopmostMini);
+        Assert.Equal("Normal window – Always on top", printer.NormalTopmostName);
+        Assert.Equal("Mini preview – Always on top", printer.MiniTopmostName);
         Assert.Equal(["Same as last time", "Normal window", "Mini preview", "Full screen"], printer.StartModeOptions.Select(static option => option.Text));
         Assert.Equal(["Top left", "Top right", "Bottom left", "Bottom right", "Center"], printer.CornerOptions.Select(static option => option.Text));
     }
@@ -124,6 +132,8 @@ public sealed class CameraWindowSettingsTests : IDisposable
         printer.SelectedNormalCorner = printer.CornerOptions[1];
         printer.MiniSizeText = " 400 X 225 ";
         printer.SelectedMiniCorner = printer.CornerOptions[0];
+        printer.TopmostNormal = true;
+        printer.TopmostMini = false;
         Assert.True(vm.IsDirty);
         AppSettings saved = await SaveAsync(vm);
 
@@ -566,6 +576,8 @@ public sealed class CameraWindowSettingsTests : IDisposable
             Assert.Equal("Okno kamery – obsahuje chyby", printer.CameraWindowTabName);
             Assert.Equal("Malý náhled – Velikost", printer.MiniSizeName);
             Assert.Equal("Normální okno – Umístění", printer.NormalCornerName);
+            Assert.Equal("Normální okno – Vždy navrchu", printer.NormalTopmostName);
+            Assert.Equal("Malý náhled – Vždy navrchu", printer.MiniTopmostName);
         }
 
         // The selection and the typed text stay.
@@ -633,6 +645,72 @@ public sealed class CameraWindowSettingsTests : IDisposable
         Assert.False(saved.Printers[0].Camera.Window.RememberLastPlacement);
         Assert.Equal(remembered, _states.Get("a"));
         Assert.Equal(0, _states.GetRemoveCount("a"));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task TopmostOptionsAloneDoNotForget(bool changeNormal, bool changeMini)
+    {
+        // T-035 Q3: "always on top" (T-037) keeps the remembered window.
+        CameraWindowState remembered = new(CameraWindowMode.Mini, new CameraWindowPlacement(1, 2, 700, 400), null);
+        _states.Set("a", remembered);
+        SettingsViewModel vm = await LoadAsync(null, Printer("a", "Alpha", Camera()));
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        if (changeNormal)
+        {
+            printer.TopmostNormal = true;
+        }
+
+        if (changeMini)
+        {
+            printer.TopmostMini = false;
+        }
+
+        Assert.True(vm.IsDirty);
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(changeNormal, saved.Printers[0].Camera.Window.TopmostNormal);
+        Assert.Equal(!changeMini, saved.Printers[0].Camera.Window.TopmostMini);
+        Assert.Equal(remembered, _states.Get("a"));
+        Assert.Equal(0, _states.GetRemoveCount("a"));
+    }
+
+    [Fact]
+    public async Task TopmostOptionsOfADisabledCameraAreKeptAndSaved()
+    {
+        // Greyed out while the camera is off (values kept); a changed value from before still saves.
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera(enabled: false, window: CameraWindowDefaults.Default with { TopmostNormal = true, TopmostMini = false }));
+
+        Assert.False(printer.CameraEnabled);
+        Assert.True(printer.TopmostNormal);
+        Assert.False(printer.TopmostMini);
+        Assert.Equal(CameraWindowDefaults.Default with { TopmostNormal = true, TopmostMini = false }, printer.CameraWindow);
+
+        printer.CameraEnabled = true;
+        printer.CameraEnabled = false;
+        Assert.True(printer.TopmostNormal);
+        Assert.False(printer.TopmostMini);
+    }
+
+    [Fact]
+    public async Task TopmostChangeRaisesPropertyChangedAndMakesTheSettingsDirty()
+    {
+        SettingsViewModel vm = await LoadAsync(null, Printer("a", "Alpha", Camera()));
+        PrinterEditorViewModel printer = vm.Printers[0];
+        List<string?> changed = [];
+        printer.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        Assert.False(vm.IsDirty);
+
+        printer.TopmostMini = false;
+
+        Assert.Contains(nameof(PrinterEditorViewModel.TopmostMini), changed);
+        Assert.True(vm.IsDirty);
+
+        printer.TopmostMini = true;
+        Assert.False(vm.IsDirty);
     }
 
     [Fact]

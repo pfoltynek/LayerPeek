@@ -17,7 +17,7 @@ using static PrusaTrayDiagnostic.App.Tests.Settings.SettingsTestData;
 
 namespace PrusaTrayDiagnostic.App.UiTests.Settings;
 
-/// <summary>The "Camera window" sub-tab of the real settings window (T-035), on three fake monitors.</summary>
+/// <summary>The "Camera window" sub-tab of the real settings window (T-035, T-037), on three fake monitors.</summary>
 public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
 {
     private static readonly Uri StreamUri = new("rtsp://192.168.0.227/live");
@@ -29,6 +29,8 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
         Monitor = new CameraMonitorId("BenQ PD2700U", 3840, 2160),
         Normal = new CameraWindowLayout(new CameraWindowSize(1280, 720), CameraWindowCorner.TopRight),
         Mini = new CameraWindowLayout(new CameraWindowSize(400, 225), CameraWindowCorner.TopLeft),
+        TopmostNormal = true,
+        TopmostMini = false,
     };
 
     private static PrinterDefinition Printer(bool cameraEnabled = true, CameraWindowDefaults? window = null) =>
@@ -67,6 +69,46 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.Equal("Normal window – Size", AutomationProperties.GetName(ui.Find<ComboBox>("PrinterCameraWindowNormalSize")));
             Assert.Equal("Mini preview – Position", AutomationProperties.GetName(ui.Find<ComboBox>("PrinterCameraWindowMiniCorner")));
             Assert.Equal(4, ui.Find<ComboBox>("PrinterCameraWindowNormalSize").ItemCount);
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsChecked);
+            Assert.False(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost").IsChecked);
+            Assert.Equal("Always on top", ui.ShownText("PrinterCameraWindowTopmostHeader"));
+            Assert.Equal("Normal window – Always on top", AutomationProperties.GetName(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost")));
+            Assert.Equal("Mini preview – Always on top", AutomationProperties.GetName(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost")));
+        });
+
+    [Fact]
+    public Task TopmostCheckBoxesShowTheDefaults() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenAsync(scope, Printer());
+
+            Assert.False(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsChecked);
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost").IsChecked);
+        });
+
+    [Fact]
+    public Task ClickedTopmostCheckBoxesAreSavedWithoutForgettingTheRememberedWindow() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(Printer());
+            MemoryCameraWindowStateStore states = new();
+            CameraWindowState remembered = new(CameraWindowMode.Mini, null, new CameraWindowPlacement(1, 2, 400, 225));
+            states.Set("a", remembered);
+            SettingsWindowHarness ui = await OpenAsync(scope, Printer(), store, states);
+
+            ui.Window.Click(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost"));
+            ui.Window.Click(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost"));
+            ui.Window.Settle();
+            Assert.True(ui.ViewModel.SelectedPrinter!.TopmostNormal);
+            Assert.False(ui.ViewModel.SelectedPrinter.TopmostMini);
+            await ui.SaveAsync();
+
+            CameraWindowDefaults saved = Assert.Single(store.Saves).Updated.Printers[0].Camera.Window;
+            Assert.Equal(CameraWindowDefaults.Default with { TopmostNormal = true, TopmostMini = false }, saved);
+            // T-035 Q3: "always on top" does not forget the remembered window.
+            Assert.Equal(remembered, states.Get("a"));
+            Assert.Equal(0, states.GetRemoveCount("a"));
+            Assert.False(ui.IsOpen);
         });
 
     [Fact]
@@ -96,6 +138,10 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.False(ui.Find<ComboBox>("PrinterCameraWindowStartMode").IsEffectivelyEnabled);
             Assert.False(ui.Find<ComboBox>("PrinterCameraWindowNormalSize").IsEffectivelyEnabled);
             Assert.False(ui.Find<CheckBox>("PrinterCameraWindowRemember").IsEffectivelyEnabled);
+            Assert.False(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsEffectivelyEnabled);
+            Assert.False(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost").IsEffectivelyEnabled);
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsChecked);
+            Assert.False(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost").IsChecked);
             Assert.Equal("1280 × 720", ui.Find<ComboBox>("PrinterCameraWindowNormalSize").Text);
 
             ui.ViewModel.SelectedPrinter!.CameraEnabled = true;
@@ -103,6 +149,10 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
 
             Assert.False(ui.Window.IsShown<TextBlock>("PrinterCameraWindowCameraOff"));
             Assert.True(ui.Find<ComboBox>("PrinterCameraWindowNormalSize").IsEffectivelyEnabled);
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsEffectivelyEnabled);
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost").IsEffectivelyEnabled);
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsChecked);
+            Assert.False(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost").IsChecked);
         });
 
     [Fact]
@@ -166,7 +216,7 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").Focus());
 
             List<string> order = [];
-            for (int i = 0; i < 20 && !order.Contains("SettingsCancel"); i++)
+            for (int i = 0; i < 24 && !order.Contains("SettingsCancel"); i++)
             {
                 ui.Window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
                 ui.Window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
@@ -180,8 +230,9 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.Equal(
                 [
                     "PrinterCameraWindowRemember", "PrinterCameraWindowStartMode", "PrinterCameraWindowMonitor",
-                    "PrinterCameraWindowNormalSize", "PrinterCameraWindowNormalCorner", "PrinterCameraWindowMiniSize",
-                    "PrinterCameraWindowMiniCorner", "SettingsSave", "SettingsCancel",
+                    "PrinterCameraWindowNormalSize", "PrinterCameraWindowNormalCorner", "PrinterCameraWindowNormalTopmost",
+                    "PrinterCameraWindowMiniSize", "PrinterCameraWindowMiniCorner", "PrinterCameraWindowMiniTopmost",
+                    "SettingsSave", "SettingsCancel",
                 ],
                 order);
         });
@@ -225,6 +276,10 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.Equal("Geben Sie eine Breite von 160–16384 und eine Höhe von 90–16384 ein.", ui.ShownText("PrinterCameraWindowMiniSizeError"));
             Assert.Equal("Kamerafenster – enthält Fehler", AutomationProperties.GetName(ui.Find<TabItem>("PrinterTabCameraWindow")));
             Assert.Equal("Mini-Vorschau – Größe", AutomationProperties.GetName(ui.Find<ComboBox>("PrinterCameraWindowMiniSize")));
+            Assert.Equal("Immer im Vordergrund", ui.ShownText("PrinterCameraWindowTopmostHeader"));
+            Assert.Equal("Normales Fenster – Immer im Vordergrund", AutomationProperties.GetName(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost")));
+            Assert.Equal("Mini-Vorschau – Immer im Vordergrund", AutomationProperties.GetName(ui.Find<CheckBox>("PrinterCameraWindowMiniTopmost")));
+            Assert.True(ui.Find<CheckBox>("PrinterCameraWindowNormalTopmost").IsChecked);
             // The typed text stays.
             Assert.Equal("1x1", ui.Find<ComboBox>("PrinterCameraWindowMiniSize").Text);
         });

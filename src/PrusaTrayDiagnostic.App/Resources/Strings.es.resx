@@ -627,6 +627,9 @@
   <data name="CameraMini" xml:space="preserve">
     <value>Vista previa pequeña, siempre encima</value>
   </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Vista previa</value>
+  </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Volver a la ventana normal (doble clic)</value>
   </data>
@@ -746,6 +749,9 @@
   </data>
   <data name="SettingsCameraWindowPosition" xml:space="preserve">
     <value>Posición</value>
+  </data>
+  <data name="SettingsCameraWindowTopmost" xml:space="preserve">
+    <value>Siempre encima</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Arriba a la izquierda</value>

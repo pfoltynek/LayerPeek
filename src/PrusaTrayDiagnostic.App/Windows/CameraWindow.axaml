@@ -11,10 +11,10 @@
         MinHeight="90"
         Background="Black"
         WindowStartupLocation="CenterScreen">
-  <!-- F11 toggles full screen, Esc returns to the normal window (from full screen and from the mini preview). -->
+  <!-- F11 toggles full screen; Esc leaves full screen to the mode it was entered from (normal window or mini preview) and the mini preview to the normal window. -->
   <Window.KeyBindings>
     <KeyBinding Gesture="F11" Command="{Binding ToggleFullScreenCommand}" />
-    <KeyBinding Gesture="Escape" Command="{Binding ShowNormalCommand}" />
+    <KeyBinding Gesture="Escape" Command="{Binding EscapeCommand}" />
   </Window.KeyBindings>
 
   <Window.Styles>
@@ -114,8 +114,8 @@
       </Button>
       <Button Command="{Binding ShowMiniCommand}"
               IsVisible="{Binding !IsMini}"
-              ToolTip.Tip="{Binding [CameraMini], Source={x:Static loc:LocalizedStrings.Instance}}"
-              AutomationProperties.Name="{Binding [CameraMini], Source={x:Static loc:LocalizedStrings.Instance}}">
+              ToolTip.Tip="{Binding MiniToolTip}"
+              AutomationProperties.Name="{Binding MiniToolTip}">
         <Grid>
           <Path Classes="icon" Data="M1,2 H15 V14 H1 Z" />
           <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />

@@ -99,6 +99,12 @@ internal sealed class CameraWindowDocument
     public CameraWindowLayoutDocument? Normal { get; set; }
 
     public CameraWindowLayoutDocument? Mini { get; set; }
+
+    /// <summary>Normal window always on top (T-037); missing in older files = <see langword="false"/>.</summary>
+    public bool? TopmostNormal { get; set; }
+
+    /// <summary>Mini preview always on top (T-037); missing in older files = <see langword="true"/>.</summary>
+    public bool? TopmostMini { get; set; }
 }
 
 internal sealed class CameraMonitorDocument

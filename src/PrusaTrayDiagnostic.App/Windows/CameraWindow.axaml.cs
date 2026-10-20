@@ -37,7 +37,8 @@ public sealed partial class CameraWindow : Window
     private CameraWindowLayout? _placedWithAssumedChrome;
     private CameraWindowMode _appliedMode = CameraWindowMode.Normal;
 
-    // The last mode with a window of its own (normal or mini): where full screen returns to.
+    // The last mode with a window of its own (normal or mini), to know whether the normal window must be placed again
+    // when it comes back from the mini preview. Where full screen returns to is decided by the view model.
     private CameraWindowMode _lastWindowedMode = CameraWindowMode.Normal;
     private bool _applyingMode;
     private bool _opened;
@@ -147,6 +148,11 @@ public sealed partial class CameraWindow : Window
         {
             ApplyMode(viewModel.Mode);
         }
+        else if (e.PropertyName == nameof(CameraViewModel.IsTopmost) && _opened && _viewModel is { } current && !_applyingMode)
+        {
+            // T-037: a saved option changes only the z-order of the open window, never its position or size.
+            Topmost = current.Defaults.IsTopmost(_appliedMode);
+        }
     }
 
     private void OnCloseRequested(object? sender, EventArgs e) => Close();
@@ -168,7 +174,8 @@ public sealed partial class CameraWindow : Window
             CameraWindowMode previousWindowed = _lastWindowedMode;
             if (mode != CameraWindowMode.Mini)
             {
-                Topmost = false;
+                // T-037: the option of the normal window; full screen is never on top.
+                Topmost = viewModel.Defaults.IsTopmost(mode);
                 WindowDecorations = WindowDecorations.Full;
             }
 
@@ -181,7 +188,7 @@ public sealed partial class CameraWindow : Window
                 case CameraWindowMode.Mini:
                     WindowState = WindowState.Normal;
                     WindowDecorations = WindowDecorations.None;
-                    Topmost = true;
+                    Topmost = viewModel.Defaults.IsTopmost(CameraWindowMode.Mini);
                     // First time: the default size and corner of the mini preview on the monitor the window is on.
                     Place(viewModel.MiniPlacement ?? FromDefaults(viewModel.Defaults.Mini, CameraWindowMode.Mini, current));
                     _lastWindowedMode = CameraWindowMode.Mini;
@@ -237,11 +244,12 @@ public sealed partial class CameraWindow : Window
     private void PlaceBeforeShowing(CameraViewModel viewModel)
     {
         bool mini = viewModel.Mode == CameraWindowMode.Mini;
+        // T-037: the option of the mode it opens in (full screen, switched to after opening, is never on top).
+        Topmost = viewModel.IsTopmost;
         if (mini)
         {
             // Opened as the mini preview right away, without a normal window first.
             WindowDecorations = WindowDecorations.None;
-            Topmost = true;
             _appliedMode = CameraWindowMode.Mini;
             _lastWindowedMode = CameraWindowMode.Mini;
         }

@@ -316,7 +316,7 @@
 
             <!--
               Camera window (T-035): how the window opens. The fields are disabled (values kept) while the camera is off.
-              The last column (88) is reserved for "Always on top" (T-037).
+              The last column (88) is "Always on top" (T-037; applies to open camera windows after saving).
             -->
             <TabItem AutomationProperties.AutomationId="PrinterTabCameraWindow"
                      AutomationProperties.Name="{Binding SelectedPrinter.CameraWindowTabName, FallbackValue={x:Null}}">
@@ -372,10 +372,20 @@
                             </ComboBox>
                           </Grid>
 
-                          <!-- Rows: normal window, mini preview; columns: size (editable, presets + "W × H"), position, T-037. -->
+                          <!-- Rows: normal window, mini preview; columns: size (editable, presets + "W × H"), position, always on top (T-037). -->
                           <Grid ColumnDefinitions="Auto,12,140,12,*,12,88" RowDefinitions="Auto,4,Auto,Auto,8,Auto,Auto" Margin="0,12,0,0">
                             <TextBlock Grid.Column="2" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowSize], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBlock Grid.Column="4" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowPosition], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <TextBlock Grid.Column="6"
+                                       AutomationProperties.AutomationId="PrinterCameraWindowTopmostHeader"
+                                       Classes="section"
+                                       VerticalAlignment="Bottom"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxLines="2"
+                                       TextTrimming="CharacterEllipsis"
+                                       Text="{Binding [SettingsCameraWindowTopmost], Source={x:Static loc:LocalizedStrings.Instance}}" />
 
                             <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowNormal], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <ComboBox Grid.Row="2"
@@ -399,6 +409,12 @@
                                 </DataTemplate>
                               </ComboBox.ItemTemplate>
                             </ComboBox>
+                            <CheckBox Grid.Row="2"
+                                      Grid.Column="6"
+                                      AutomationProperties.AutomationId="PrinterCameraWindowNormalTopmost"
+                                      AutomationProperties.Name="{Binding NormalTopmostName}"
+                                      HorizontalAlignment="Center"
+                                      IsChecked="{Binding TopmostNormal}" />
                             <TextBlock Grid.Row="3"
                                        Grid.Column="2"
                                        Grid.ColumnSpan="5"
@@ -429,6 +445,12 @@
                                 </DataTemplate>
                               </ComboBox.ItemTemplate>
                             </ComboBox>
+                            <CheckBox Grid.Row="5"
+                                      Grid.Column="6"
+                                      AutomationProperties.AutomationId="PrinterCameraWindowMiniTopmost"
+                                      AutomationProperties.Name="{Binding MiniTopmostName}"
+                                      HorizontalAlignment="Center"
+                                      IsChecked="{Binding TopmostMini}" />
                             <TextBlock Grid.Row="6"
                                        Grid.Column="2"
                                        Grid.ColumnSpan="5"

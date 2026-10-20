@@ -16,6 +16,8 @@ public class CameraWindowDefaultsTests
         Assert.Equal(CameraWindowCorner.Center, defaults.Normal.Corner);
         Assert.Equal(new CameraWindowSize(320, 180), defaults.Mini.Size);
         Assert.Equal(CameraWindowCorner.BottomRight, defaults.Mini.Corner);
+        Assert.False(defaults.TopmostNormal);
+        Assert.True(defaults.TopmostMini);
         Assert.Equal(CameraWindowDefaults.Default, new CameraWindowDefaults());
     }
 
@@ -127,6 +129,8 @@ public class CameraWindowDefaultsTests
         Assert.Equal(a, b);
         Assert.Equal(a.GetHashCode(), b.GetHashCode());
         Assert.NotEqual(a, a with { Monitor = null });
+        Assert.NotEqual(a, a with { TopmostNormal = !a.TopmostNormal });
+        Assert.NotEqual(a, a with { TopmostMini = !a.TopmostMini });
     }
 
     [Theory]
@@ -194,6 +198,46 @@ public class CameraWindowDefaultsTests
         Assert.False(CameraWindowDefaults.RequiresForgettingRememberedState(saved, saved with { RememberLastPlacement = !saved.RememberLastPlacement }));
     }
 
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void TopmostDependsOnModeAndFullScreenIsNeverTopmost(bool normal, bool mini)
+    {
+        CameraWindowDefaults defaults = new() { TopmostNormal = normal, TopmostMini = mini };
+
+        Assert.Equal(normal, defaults.IsTopmost(CameraWindowMode.Normal));
+        Assert.Equal(mini, defaults.IsTopmost(CameraWindowMode.Mini));
+        Assert.False(defaults.IsTopmost(CameraWindowMode.FullScreen));
+    }
+
+    [Fact]
+    public void DefaultTopmostIsTodaysBehaviour()
+    {
+        Assert.False(CameraWindowDefaults.Default.IsTopmost(CameraWindowMode.Normal));
+        Assert.True(CameraWindowDefaults.Default.IsTopmost(CameraWindowMode.Mini));
+        Assert.False(CameraWindowDefaults.Default.IsTopmost(CameraWindowMode.FullScreen));
+    }
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public void TopmostChangesKeepRememberedState(bool changeNormal, bool changeMini)
+    {
+        // T-035 Q3: the "always on top" options (T-037) never clear camera-windows.json.
+        CameraWindowDefaults saved = Customized();
+        CameraWindowDefaults updated = saved with
+        {
+            TopmostNormal = changeNormal ? !saved.TopmostNormal : saved.TopmostNormal,
+            TopmostMini = changeMini ? !saved.TopmostMini : saved.TopmostMini,
+        };
+
+        Assert.NotEqual(saved, updated);
+        Assert.False(CameraWindowDefaults.RequiresForgettingRememberedState(saved, updated));
+    }
+
     public static TheoryData<string> ChangedValues => ["StartMode", "Monitor", "NoMonitor", "NormalSize", "NormalCorner", "MiniSize", "MiniCorner"];
 
     [Theory]
@@ -223,5 +267,7 @@ public class CameraWindowDefaultsTests
         Monitor = new CameraMonitorId("DISPLAY1", 1920, 1080),
         Normal = new CameraWindowLayout(new CameraWindowSize(1280, 720), CameraWindowCorner.TopLeft),
         Mini = new CameraWindowLayout(new CameraWindowSize(480, 270), CameraWindowCorner.BottomLeft),
+        TopmostNormal = true,
+        TopmostMini = false,
     };
 }

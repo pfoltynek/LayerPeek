@@ -17,6 +17,8 @@ public class SettingsMapperCameraWindowTests
         Monitor = new CameraMonitorId(@"\\.\DISPLAY2", 2560, 1440),
         Normal = new CameraWindowLayout(new CameraWindowSize(1280, 720), CameraWindowCorner.TopRight),
         Mini = new CameraWindowLayout(new CameraWindowSize(333, 222), CameraWindowCorner.BottomLeft),
+        TopmostNormal = true,
+        TopmostMini = false,
     };
 
     [Theory]
@@ -24,7 +26,7 @@ public class SettingsMapperCameraWindowTests
     [InlineData(""", "camera": { "enabled": false }""")]
     [InlineData(""", "camera": { "window": null }""")]
     [InlineData(""", "camera": { "window": { } }""")]
-    [InlineData(""", "camera": { "window": { "rememberLastPlacement": null, "startMode": null, "monitor": null, "normal": null, "mini": null } }""")]
+    [InlineData(""", "camera": { "window": { "rememberLastPlacement": null, "startMode": null, "monitor": null, "normal": null, "mini": null, "topmostNormal": null, "topmostMini": null } }""")]
     [InlineData(""", "camera": { "window": { "normal": { }, "mini": { "width": null, "height": null, "corner": null } } }""")]
     public void MissingWindowValuesMeanDefaults(string camera)
     {
@@ -83,9 +85,70 @@ public class SettingsMapperCameraWindowTests
 
         JsonElement window = json.RootElement.GetProperty("printers")[0].GetProperty("camera").GetProperty("window");
         Assert.Equal(
-            """{"rememberLastPlacement":false,"startMode":"FullScreen","monitor":{"displayName":"\\\\.\\DISPLAY2","width":2560,"height":1440},"normal":{"width":1280,"height":720,"corner":"TopRight"},"mini":{"width":333,"height":222,"corner":"BottomLeft"}}""",
+            """{"rememberLastPlacement":false,"startMode":"FullScreen","monitor":{"displayName":"\\\\.\\DISPLAY2","width":2560,"height":1440},"normal":{"width":1280,"height":720,"corner":"TopRight"},"mini":{"width":333,"height":222,"corner":"BottomLeft"},"topmostNormal":true,"topmostMini":false}""",
             Compact(window));
     }
+
+    [Theory]
+    [InlineData(true, true)]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    public void TopmostOptionsRoundTrip(bool normal, bool mini)
+    {
+        AppSettings settings = WithWindow(CameraWindowDefaults.Default with { TopmostNormal = normal, TopmostMini = mini });
+
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        CameraWindowDefaults window = Assert.Single(loaded.Printers).Camera.Window;
+        Assert.Equal(normal, window.TopmostNormal);
+        Assert.Equal(mini, window.TopmostMini);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Fact]
+    public void ChangedTopmostAloneWritesTheSection()
+    {
+        using JsonDocument json = JsonDocument.Parse(Write(WithWindow(CameraWindowDefaults.Default with { TopmostNormal = true })));
+
+        JsonElement window = json.RootElement.GetProperty("printers")[0].GetProperty("camera").GetProperty("window");
+        Assert.True(window.GetProperty("topmostNormal").GetBoolean());
+        Assert.True(window.GetProperty("topmostMini").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData(""", "camera": { "window": { "topmostNormal": true } }""", true, true)]
+    [InlineData(""", "camera": { "window": { "topmostMini": false } }""", false, false)]
+    [InlineData(""", "camera": { "window": { "topmostNormal": true, "topmostMini": false } }""", true, false)]
+    public void MissingTopmostValueMeansDefault(string camera, bool normal, bool mini)
+    {
+        AppSettings settings = Load(PrinterJson(camera), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        CameraWindowDefaults window = Assert.Single(settings.Printers).Camera.Window;
+        Assert.Equal(normal, window.TopmostNormal);
+        Assert.Equal(mini, window.TopmostMini);
+        Assert.Equal(CameraWindowDefaults.Default.StartMode, window.StartMode);
+        Assert.Equal(CameraWindowDefaults.Default.Normal, window.Normal);
+    }
+
+    [Fact]
+    public void WindowWithoutTopmostValuesKeepsTodaysBehaviour()
+    {
+        // Files written by T-035 (before T-037) have no topmost values: the mini preview stays on top, the normal window not.
+        AppSettings settings = Load(
+            PrinterJson(""", "camera": { "window": { "rememberLastPlacement": false, "startMode": "Mini", "normal": { "width": 1280, "height": 720, "corner": "TopLeft" }, "mini": { "width": 320, "height": 180, "corner": "BottomRight" } } }"""),
+            out List<string> warnings);
+
+        Assert.Empty(warnings);
+        CameraWindowDefaults window = Assert.Single(settings.Printers).Camera.Window;
+        Assert.False(window.TopmostNormal);
+        Assert.True(window.TopmostMini);
+    }
+
+    [Fact]
+    public void WrongJsonTypeOfTopmostFailsLikeOtherValues() =>
+        Assert.ThrowsAny<JsonException>(() => Load(PrinterJson(""", "camera": { "window": { "topmostMini": "yes" } }"""), out _));
 
     [Fact]
     public void PrimaryMonitorIsNotWritten()

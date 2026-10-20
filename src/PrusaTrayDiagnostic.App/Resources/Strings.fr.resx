@@ -627,6 +627,9 @@
   <data name="CameraMini" xml:space="preserve">
     <value>Petit aperçu, toujours au premier plan</value>
   </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Aperçu</value>
+  </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Revenir à la fenêtre normale (double-clic)</value>
   </data>
@@ -746,6 +749,9 @@
   </data>
   <data name="SettingsCameraWindowPosition" xml:space="preserve">
     <value>Position</value>
+  </data>
+  <data name="SettingsCameraWindowTopmost" xml:space="preserve">
+    <value>Toujours au premier plan</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>En haut à gauche</value>

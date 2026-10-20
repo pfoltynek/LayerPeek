@@ -627,6 +627,9 @@
   <data name="CameraMini" xml:space="preserve">
     <value>Mały podgląd, zawsze na wierzchu</value>
   </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Podgląd</value>
+  </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Powrót do zwykłego okna (dwukrotne kliknięcie)</value>
   </data>
@@ -746,6 +749,9 @@
   </data>
   <data name="SettingsCameraWindowPosition" xml:space="preserve">
     <value>Położenie</value>
+  </data>
+  <data name="SettingsCameraWindowTopmost" xml:space="preserve">
+    <value>Zawsze na wierzchu</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Lewy górny róg</value>
