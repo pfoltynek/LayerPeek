@@ -18,6 +18,9 @@ public sealed partial class AboutWindow : Window
         // DataContext (AboutViewModel) is set by the creator.
     }
 
+    /// <summary>Called with the licences window before it is shown (T-043: taskbar properties, recently used windows).</summary>
+    internal Action<Window>? ChildWindowCreated { get; init; }
+
     protected override void OnDataContextChanged(EventArgs e)
     {
         if (_viewModel is not null)
@@ -61,6 +64,7 @@ public sealed partial class AboutWindow : Window
         Licenses.LicensesViewModel viewModel = _viewModel.CreateLicensesViewModel();
         _licenses = new LicensesWindow { DataContext = viewModel };
         _licenses.Closed += (_, _) => _licenses = null;
+        ChildWindowCreated?.Invoke(_licenses);
         _licenses.Show(this);
         // Reads the FFmpeg version off the UI thread; never throws.
         _ = viewModel.LoadAsync();

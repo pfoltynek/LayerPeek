@@ -5,7 +5,10 @@ using Avalonia.Markup.Xaml;
 
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
+using PrusaTrayDiagnostic.App.Platform;
+using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.SingleInstance;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.App.Windows;
@@ -30,8 +33,28 @@ public partial class App : Application, ITrayAppCommands
     private TrayHost? _host;
     private QuitCoordinator? _quit;
 
+    // Commands of later starts of the app and the macOS reopen event (T-043); they wait here until the host runs.
+    private readonly InstanceCommandQueue _instanceCommands;
+
+    // Every auxiliary window passes through it (taskbar properties, most recently used window; T-043). Set with the host.
+    private AuxiliaryWindowTracker? _windowTracker;
+    private InstanceActivation? _activation;
+
     // The OS ended the session (desktop Exit) before the host finished starting.
     private bool _exited;
+
+    /// <summary>Designer and tests: commands of later starts are not received.</summary>
+    public App()
+        : this(new InstanceCommandQueue())
+    {
+    }
+
+    /// <param name="instanceCommands">Filled by the single-instance server of <c>Program.Main</c> (T-043).</param>
+    internal App(InstanceCommandQueue instanceCommands)
+    {
+        ArgumentNullException.ThrowIfNull(instanceCommands);
+        _instanceCommands = instanceCommands;
+    }
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
@@ -41,11 +64,40 @@ public partial class App : Application, ITrayAppCommands
         {
             TrayIcon? trayIcon = TrayIcon.GetIcons(this) is [TrayIcon first, ..] ? first : null;
             desktop.Exit += OnDesktopExit;
+            // macOS: clicking the app (Finder, Dock, Launchpad) while it runs; treated like a second start (T-043).
+            if (this.TryGetFeature<IActivatableLifetime>() is { } activatable)
+            {
+                activatable.Activated += OnLifetimeActivated;
+            }
+
             StartHost(desktop, trayIcon);
         }
 
         base.OnFrameworkInitializationCompleted();
     }
+
+    private void OnLifetimeActivated(object? sender, ActivatedEventArgs e)
+    {
+        if (e.Kind == ActivationKind.Reopen)
+        {
+            _instanceCommands.Post(InstanceCommand.Activate);
+        }
+    }
+
+    /// <summary>UI thread: a later start of the app (or a reopen on macOS) asked for it (T-043).</summary>
+    private void OnInstanceCommand(InstanceCommand command)
+    {
+        if (command == InstanceCommand.Activate && _quit is not { IsQuitting: true })
+        {
+            _activation?.Activate();
+        }
+    }
+
+    /// <summary>Before the window is shown: taskbar properties and the most recently used window (T-043).</summary>
+    private void Track(Window window) => _windowTracker?.Track(window);
+
+    private static IWindowShell CreateWindowShell(TrayHost host) =>
+        OperatingSystem.IsWindows() ? new WindowsWindowShell(host.CreateLogger<WindowsWindowShell>()) : NoWindowShell.Instance;
 
     /// <summary>
     /// The settings are loaded before the tray gets its menu (milliseconds, with the static icon from App.axaml
@@ -63,9 +115,13 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
+        _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host));
+        _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
         host.LanguageChanged += OnLanguageChanged;
+        // Last: starts that came while the settings were loading are handled now.
+        _instanceCommands.Attach(OnInstanceCommand, new AvaloniaUiDispatcher(), host.CreateLogger<InstanceCommandQueue>());
     }
 
     /// <summary>The tray already switched; open windows format the texts of their view models again.</summary>
@@ -91,7 +147,9 @@ public partial class App : Application, ITrayAppCommands
                 DiagnosticsViewModel viewModel = host.CreateDiagnosticsViewModel(printerId);
                 try
                 {
-                    return (new AvaloniaAuxiliaryWindow(new DiagnosticsWindow { DataContext = viewModel }), viewModel);
+                    DiagnosticsWindow window = new() { DataContext = viewModel };
+                    Track(window);
+                    return (new AvaloniaAuxiliaryWindow(window), viewModel);
                 }
                 catch
                 {
@@ -127,6 +185,7 @@ public partial class App : Application, ITrayAppCommands
                 static () => new SettingsWindow(),
                 screens => host.CreateSettingsViewModel(screens, cameraWindows));
             created = viewModel;
+            Track(window);
             return (new AvaloniaAuxiliaryWindow(window), viewModel);
         });
 
@@ -152,7 +211,7 @@ public partial class App : Application, ITrayAppCommands
     {
         if (_cameraWindows is null)
         {
-            _cameraWindows = new CameraWindows(host.CreateCameraViewModel);
+            _cameraWindows = new CameraWindows(host.CreateCameraViewModel, created: Track);
             _cameraWindows.OpenChanged += (_, e) => host.OnCameraWindowOpenChanged(e.PrinterId, e.IsOpen);
         }
 
@@ -166,7 +225,12 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
-        _aboutWindow.ShowOrActivate(() => (new AvaloniaAuxiliaryWindow(new AboutWindow { DataContext = new AboutViewModel(host.UrlLauncher) }), null));
+        _aboutWindow.ShowOrActivate(() =>
+        {
+            AboutWindow window = new() { DataContext = new AboutViewModel(host.UrlLauncher), ChildWindowCreated = Track };
+            Track(window);
+            return (new AvaloniaAuxiliaryWindow(window), null);
+        });
     }
 
     async void ITrayAppCommands.Quit()
@@ -180,6 +244,8 @@ public partial class App : Application, ITrayAppCommands
 
     private Task StopHostAsync(TimeSpan timeout)
     {
+        // Later starts no longer open anything (they still exit: the server runs until the process ends).
+        _instanceCommands.Close();
         // Auxiliary windows go first so that nothing is left on screen while monitoring stops (unsaved settings are
         // discarded, a running connection test is cancelled); the diagnostics view
         // model unsubscribes from the monitor before the services are released.
@@ -195,6 +261,7 @@ public partial class App : Application, ITrayAppCommands
     private void OnDesktopExit(object? sender, ControlledApplicationLifetimeExitEventArgs e)
     {
         _exited = true;
+        _instanceCommands.Close();
 
         // Exit initiated by the OS (log off, shutdown): only request the stop, the process ends right after.
         if (_quit is not { IsQuitting: true })

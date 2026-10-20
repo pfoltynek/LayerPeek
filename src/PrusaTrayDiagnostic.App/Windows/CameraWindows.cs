@@ -13,6 +13,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     private readonly Func<string, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
     private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
+    private readonly Action<CameraWindow>? _created;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
@@ -20,9 +21,15 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     /// <param name="createViewModel">The view model of a new window; <see langword="null"/> when the printer has no enabled camera.</param>
     /// <param name="screens">Monitors for tests; <see langword="null"/>: each window asks Avalonia (<see cref="AvaloniaScreenCatalog"/>).</param>
     /// <param name="measureChrome">Frame measurement for tests (<see cref="CameraWindow.ChromeMeasurement"/>); <see langword="null"/>: the real one.</param>
-    public CameraWindows(Func<string, CameraViewModel?> createViewModel, IScreenCatalog? screens = null, Func<CameraWindow, WindowChrome?>? measureChrome = null)
+    /// <param name="created">Called with each new window before it is shown (T-043: taskbar properties, recently used windows).</param>
+    public CameraWindows(
+        Func<string, CameraViewModel?> createViewModel,
+        IScreenCatalog? screens = null,
+        Func<CameraWindow, WindowChrome?>? measureChrome = null,
+        Action<CameraWindow>? created = null)
     {
         _measureChrome = measureChrome;
+        _created = created;
         ArgumentNullException.ThrowIfNull(createViewModel);
         _createViewModel = createViewModel;
         _screens = screens;
@@ -73,6 +80,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                 CameraWindow window = _screens is { } screens
                     ? new() { ChromeMeasurement = _measureChrome, ScreenCatalog = screens, DataContext = created }
                     : new() { ChromeMeasurement = _measureChrome, DataContext = created };
+                _created?.Invoke(window);
                 _open[printerId] = window;
                 window.Closed += (_, _) =>
                 {
