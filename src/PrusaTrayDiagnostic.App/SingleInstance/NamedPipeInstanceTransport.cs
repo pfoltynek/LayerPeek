@@ -110,19 +110,28 @@ internal sealed class NamedPipeInstanceTransport : IInstanceTransport
                 throw;
             }
 
-            lock (_lock)
+            try
             {
-                if (!_disposed)
+                lock (_lock)
                 {
-                    try
+                    if (!_disposed)
                     {
-                        _waiting = Create();
-                    }
-                    catch (IOException)
-                    {
-                        // Created again by the next accept.
+                        try
+                        {
+                            _waiting = Create();
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            // Created again by the next accept.
+                        }
                     }
                 }
+            }
+            catch
+            {
+                // The connected client would otherwise wait for an ack until its budget runs out.
+                server.Dispose();
+                throw;
             }
 
             return server;
