@@ -703,7 +703,7 @@
     <value>Letzte Position und Größe merken</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Wenn aktiviert, gelten die Werte unten nur, solange keine Position gespeichert ist. Änderungen wirken beim nächsten Öffnen des Fensters.</value>
+    <value>Wenn aktiviert, gelten die Werte unten nur, solange keine Position gespeichert ist. Speichern wirkt beim nächsten Öffnen, Übernehmen sofort.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Öffnen als</value>
@@ -758,6 +758,9 @@
   </data>
   <data name="SettingsCameraWindowApply" xml:space="preserve">
     <value>Übernehmen</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Gespeichert</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Oben links</value>

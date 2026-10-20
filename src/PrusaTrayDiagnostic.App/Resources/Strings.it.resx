@@ -703,7 +703,7 @@
     <value>Ricorda l'ultima posizione e dimensione</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Se attivo, i valori sotto valgono solo finché la finestra non ha una posizione memorizzata. Le modifiche valgono alla prossima apertura.</value>
+    <value>Se attivo, i valori sotto valgono solo finché la finestra non ha una posizione memorizzata. Salva li applica alla prossima apertura, Applica subito.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Apri come</value>
@@ -758,6 +758,9 @@
   </data>
   <data name="SettingsCameraWindowApply" xml:space="preserve">
     <value>Applica</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Salvato</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>In alto a sinistra</value>

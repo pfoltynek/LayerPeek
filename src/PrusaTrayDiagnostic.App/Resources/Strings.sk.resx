@@ -703,7 +703,7 @@
     <value>Pamätať si poslednú polohu a veľkosť</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Keď je zapnuté, hodnoty nižšie sa použijú, len kým okno nemá zapamätanú polohu. Zmeny sa prejavia pri ďalšom otvorení okna.</value>
+    <value>Keď je zapnuté, hodnoty nižšie sa použijú, len kým okno nemá zapamätanú polohu. Uložiť ich použije pri ďalšom otvorení okna, Použiť hneď.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otvoriť ako</value>
@@ -758,6 +758,9 @@
   </data>
   <data name="SettingsCameraWindowApply" xml:space="preserve">
     <value>Použiť</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Uložené</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Vľavo hore</value>

@@ -197,6 +197,7 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
             alpha.Settle();
 
             Assert.True(ui.IsOpen);
+            Assert.Equal("Saved", ui.ShownText("SettingsStatus"));
             Assert.Single(store.Saves);
             Assert.True(ViewModel(alpha).IsMini);
             Assert.Equal(WindowDecorations.None, alpha.WindowDecorations);
@@ -269,6 +270,62 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
             window.Settle();
             Assert.Equal(WindowState.Normal, window.WindowState);
             AssertPlaced(window, Expected(wanted.Normal, ScreenAt(screens, -1920), CameraWindowMode.Normal));
+        });
+
+    [Fact]
+    public Task ApplyRestoresAMinimizedCameraWindowAndItsStream() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeScreenCatalog screens = FakeScreenCatalog.ThreeMonitors();
+            await using CameraHarness cameras = new(screens: screens);
+            CameraWindow window = cameras.Open("a");
+            window.Settle();
+            Assert.True(ViewModel(window).IsStreaming);
+            window.WindowState = WindowState.Minimized;
+            window.Settle();
+            Assert.False(ViewModel(window).IsStreaming);
+
+            SettingsWindowHarness ui = await OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer()), cameras.States, cameras.Windows);
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.True(ViewModel(window).IsStreaming);
+            AssertPlaced(window, Expected(CameraWindowDefaults.DefaultNormal, ScreenAt(screens, 0), CameraWindowMode.Normal));
+        });
+
+    [Fact]
+    public Task ApplyFromTheMiniPreviewCorrectsTheNormalWindowWithTheRealFrame() =>
+        session.RunAsync(static async scope =>
+        {
+            // A frame unlike the assumed one (larger title bar and borders), known only while the window has a frame.
+            WindowChrome real = new(new Size(20, 50), new Thickness(9, 0, 9, 9));
+            FakeScreenCatalog screens = FakeScreenCatalog.ThreeMonitors();
+            await using CameraHarness cameras = new(
+                screens: screens,
+                window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini },
+                measureChrome: window => window.WindowDecorations == WindowDecorations.Full ? real : null);
+            CameraWindow window = cameras.Open("a");
+            window.Settle();
+            Assert.True(ViewModel(window).IsMini);
+
+            CameraWindowDefaults wanted = CameraWindowDefaults.Default with
+            {
+                StartMode = CameraWindowStartMode.Normal,
+                Monitor = Lg,
+                Normal = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.TopLeft),
+            };
+            SettingsWindowHarness ui = await OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer(window: wanted)), cameras.States, cameras.Windows);
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            // Placed with the assumed frame first, then once more with the real one.
+            CameraWindowPlacement corrected = CameraWindowPlanner.Place(wanted.Normal, ScreenAt(screens, -1920), real);
+            Assert.NotEqual(Expected(wanted.Normal, ScreenAt(screens, -1920), CameraWindowMode.Normal).Position, new PixelPoint(corrected.X, corrected.Y));
+            Assert.Equal(new PixelPoint(corrected.X, corrected.Y), window.Position);
+            Assert.Equal(new Size(corrected.Width, corrected.Height), window.ClientSize);
         });
 
     [Fact]

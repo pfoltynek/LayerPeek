@@ -136,8 +136,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         _miniCorner = owner.CornerOptions.First(option => option.Value == _savedWindow.Mini.Corner);
         _topmostNormal = _savedWindow.TopmostNormal;
         _topmostMini = _savedWindow.TopmostMini;
-        ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled);
-        ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled);
+        ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
+        ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
         CameraOverlayOptions overlay = camera.Overlay;
         _overlayCorner = owner.OverlayCornerOptions.First(option => option.Value == overlay.Corner);
         _overlayRows = [.. CameraOverlayOptions.Items.Select(item => new CameraOverlayItemRow(
@@ -813,7 +813,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
     /// <summary>"Factory settings" of the Camera window sub-tab (T-040); the overlay sub-tab is not touched.</summary>
     private void ResetCameraWindow()
     {
-        if (!_cameraEnabled || _owner.IsDisposed)
+        if (!_cameraEnabled || !_owner.IsEditable)
         {
             return;
         }
@@ -830,6 +830,13 @@ public sealed class PrinterEditorViewModel : ObservableObject
         SetProperty(ref _topmostMini, defaults.TopmostMini, nameof(TopmostMini));
         _forgetsRememberedCameraWindow = true;
         OnWindowEdited(sizeChanged: true);
+    }
+
+    /// <summary>The window started or finished loading or saving: the camera window buttons follow (T-040).</summary>
+    internal void OnOwnerEditableChanged()
+    {
+        ResetCameraWindowCommand.NotifyCanExecuteChanged();
+        ApplyCameraWindowCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>

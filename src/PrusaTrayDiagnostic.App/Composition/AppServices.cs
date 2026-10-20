@@ -289,7 +289,8 @@ internal static class AppServices
             logger: services.GetRequiredService<ILogger<SettingsViewModel>>(),
             screens: screens,
             cameraWindowStates: services.GetRequiredService<ICameraWindowStateStore>(),
-            cameraWindowPlacer: cameraWindowPlacer);
+            cameraWindowPlacer: cameraWindowPlacer,
+            timeProvider: services.GetRequiredService<TimeProvider>());
     }
 
     private static ISecretStore CreateSecretStore() =>

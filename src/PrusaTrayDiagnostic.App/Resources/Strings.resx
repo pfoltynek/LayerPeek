@@ -715,7 +715,7 @@
     <value>Remember the last position and size</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>When on, the values below are used only until the window has a remembered position. Changes apply the next time the window opens.</value>
+    <value>When on, the values below are used only until the window has a remembered position. Save applies changes the next time the window opens, Apply right away.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Open as</value>
@@ -770,6 +770,9 @@
   </data>
   <data name="SettingsCameraWindowApply" xml:space="preserve">
     <value>Apply</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Saved</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Top left</value>

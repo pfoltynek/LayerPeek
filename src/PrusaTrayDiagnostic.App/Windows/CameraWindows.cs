@@ -12,14 +12,17 @@ internal sealed class CameraWindows : ICameraWindowPlacer
 {
     private readonly Func<string, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
+    private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
 
     /// <param name="createViewModel">The view model of a new window; <see langword="null"/> when the printer has no enabled camera.</param>
     /// <param name="screens">Monitors for tests; <see langword="null"/>: each window asks Avalonia (<see cref="AvaloniaScreenCatalog"/>).</param>
-    public CameraWindows(Func<string, CameraViewModel?> createViewModel, IScreenCatalog? screens = null)
+    /// <param name="measureChrome">Frame measurement for tests (<see cref="CameraWindow.ChromeMeasurement"/>); <see langword="null"/>: the real one.</param>
+    public CameraWindows(Func<string, CameraViewModel?> createViewModel, IScreenCatalog? screens = null, Func<CameraWindow, WindowChrome?>? measureChrome = null)
     {
+        _measureChrome = measureChrome;
         ArgumentNullException.ThrowIfNull(createViewModel);
         _createViewModel = createViewModel;
         _screens = screens;
@@ -67,7 +70,9 @@ internal sealed class CameraWindows : ICameraWindowPlacer
             {
                 used = true;
                 // The monitors first: the window places itself when it gets its view model.
-                CameraWindow window = _screens is { } screens ? new() { ScreenCatalog = screens, DataContext = created } : new() { DataContext = created };
+                CameraWindow window = _screens is { } screens
+                    ? new() { ChromeMeasurement = _measureChrome, ScreenCatalog = screens, DataContext = created }
+                    : new() { ChromeMeasurement = _measureChrome, DataContext = created };
                 _open[printerId] = window;
                 window.Closed += (_, _) =>
                 {

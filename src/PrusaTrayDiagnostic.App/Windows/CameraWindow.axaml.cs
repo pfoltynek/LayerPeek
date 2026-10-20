@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
+using Avalonia.Threading;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -62,6 +63,12 @@ public sealed partial class CameraWindow : Window
         get => _screens ??= new AvaloniaScreenCatalog(this);
         init => _screens = value ?? throw new ArgumentNullException(nameof(value));
     }
+
+    /// <summary>
+    /// Measures the real chrome of the shown window (frame and invisible borders); default: <c>FrameSize</c> and, on Windows,
+    /// the window manager. Tests supply a fake (headless windows have no frame).
+    /// </summary>
+    internal Func<CameraWindow, WindowChrome?>? ChromeMeasurement { get; init; }
 
     protected override void OnDataContextChanged(EventArgs e)
     {
@@ -180,9 +187,9 @@ public sealed partial class CameraWindow : Window
         CameraWindowMode mode = viewModel.Mode;
         CameraWindowMode layoutMode = mode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
         // The chrome before anything changes: measured only while the window shows its frame in the normal state.
-        WindowChrome chrome = layoutMode == CameraWindowMode.Mini ? WindowChrome.None
-            : WindowState == WindowState.Normal && WindowDecorations == WindowDecorations.Full && MeasuredChrome() is { } measured ? measured
-            : CameraWindowPlanner.AssumedNormalChrome;
+        bool framed = WindowState == WindowState.Normal && WindowDecorations == WindowDecorations.Full;
+        WindowChrome? measured = layoutMode == CameraWindowMode.Normal && framed ? MeasuredChrome() : null;
+        WindowChrome chrome = layoutMode == CameraWindowMode.Mini ? WindowChrome.None : measured ?? CameraWindowPlanner.AssumedNormalChrome;
         _placedWithAssumedChrome = null;
         _applyingMode = true;
         try
@@ -194,6 +201,12 @@ public sealed partial class CameraWindow : Window
             if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, ScreenCatalog.GetScreens(), chrome) is { } placement)
             {
                 Place(placement);
+                if (mode == CameraWindowMode.Normal && measured is null)
+                {
+                    // Placed with the assumed frame (e.g. coming from the borderless mini preview): corrected once with the
+                    // real frame when the window has it (like after opening).
+                    _placedWithAssumedChrome = viewModel.Defaults.Normal;
+                }
             }
 
             if (mode == CameraWindowMode.FullScreen)
@@ -211,6 +224,11 @@ public sealed partial class CameraWindow : Window
         }
 
         viewModel.SetActive(WindowState != WindowState.Minimized);
+        if (_placedWithAssumedChrome is not null)
+        {
+            // After the window manager applied the new frame.
+            Dispatcher.UIThread.Post(CorrectFrame, DispatcherPriority.Background);
+        }
     }
 
     /// <summary>
@@ -344,8 +362,9 @@ public sealed partial class CameraWindow : Window
     }
 
     /// <summary>
-    /// After opening, with the real chrome (frame and, on Windows, the invisible borders): a normal window placed from the
-    /// defaults with a different assumed chrome is placed again on its monitor, once (a corner keeps its visible margin).
+    /// After opening (and after "Apply" placed a frameless window as the normal window, T-040), with the real chrome (frame
+    /// and, on Windows, the invisible borders): a normal window placed from the defaults with a different assumed chrome is
+    /// placed again on its monitor, once (a corner keeps its visible margin).
     /// </summary>
     private void CorrectFrame()
     {
@@ -386,6 +405,11 @@ public sealed partial class CameraWindow : Window
     /// </summary>
     private WindowChrome? MeasuredChrome()
     {
+        if (ChromeMeasurement is { } measure)
+        {
+            return measure(this);
+        }
+
         if (CameraWindowPlanner.FrameOf(FrameSize, ClientSize) is not { } frame)
         {
             return null;

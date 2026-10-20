@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Time.Testing;
+
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Cameras;
@@ -41,6 +43,7 @@ public sealed class CameraWindowActionsTests : IDisposable
     private readonly FakeEditorStore _store = new();
     private readonly MemoryCameraWindowStateStore _states = new();
     private readonly FakeCameraWindowPlacer _placer = new();
+    private readonly FakeTimeProvider _time = new();
     private SettingsViewModel? _viewModel;
 
     public void Dispose()
@@ -65,7 +68,8 @@ public sealed class CameraWindowActionsTests : IDisposable
             cameraTester: new FakeCameraTester(),
             screens: ThreeMonitors(),
             cameraWindowStates: _states,
-            cameraWindowPlacer: _placer);
+            cameraWindowPlacer: _placer,
+            timeProvider: _time);
         _viewModel = vm;
         await vm.LoadAsync();
         return vm;
@@ -232,7 +236,8 @@ public sealed class CameraWindowActionsTests : IDisposable
         Assert.Equal(saved, placed);
         Assert.Equal(0, closed);
         Assert.False(vm.IsDirty);
-        Assert.False(vm.HasStatus);
+        Assert.Equal("Saved", vm.StatusText);
+        Assert.False(vm.StatusIsError);
     }
 
     [Fact]
@@ -371,6 +376,168 @@ public sealed class CameraWindowActionsTests : IDisposable
         Assert.True(changes > 0);
         Assert.True(printer.ResetCameraWindowCommand.CanExecute(null));
         Assert.True(printer.ApplyCameraWindowCommand.CanExecute(null));
+    }
+
+    // ---- "Saved" after Apply (user decision 2026-10-20) ----
+
+    /// <summary>The confirmation is hidden by a continuation of the fake clock; it may run on another thread.</summary>
+    private static async Task UntilNoStatusAsync(SettingsViewModel vm)
+    {
+        for (int i = 0; i < 200 && vm.HasStatus; i++)
+        {
+            await Task.Delay(5, TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task ApplyShowsSavedForAFewSeconds()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        vm.Printers[0].MiniSizeText = "640 x 360";
+
+        await vm.Printers[0].ApplyCameraWindowCommand.ExecuteAsync(null);
+        Assert.Equal("Saved", vm.StatusText);
+
+        _time.Advance(SettingsViewModel.SavedConfirmationDuration - TimeSpan.FromMilliseconds(100));
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+        Assert.Equal("Saved", vm.StatusText);
+
+        _time.Advance(TimeSpan.FromMilliseconds(100));
+        await UntilNoStatusAsync(vm);
+        Assert.False(vm.HasStatus);
+    }
+
+    [Fact]
+    public async Task SavedIsShownInTheAppLanguageAndAlsoWithoutChanges()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+
+        await vm.Printers[0].ApplyCameraWindowCommand.ExecuteAsync(null);
+        Assert.Equal("Saved", vm.StatusText);
+
+        using (new CultureScope("cs-CZ"))
+        {
+            vm.RefreshTexts();
+            Assert.Equal("Uloženo", vm.StatusText);
+        }
+    }
+
+    [Theory]
+    [InlineData("printer")]
+    [InlineData("general")]
+    [InlineData("add")]
+    public async Task AnEditHidesSaved(string edit)
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        await vm.Printers[0].ApplyCameraWindowCommand.ExecuteAsync(null);
+        Assert.True(vm.HasStatus);
+
+        switch (edit)
+        {
+            case "printer":
+                vm.Printers[0].TopmostNormal = true;
+                break;
+            case "general":
+                vm.NotifyError = !vm.NotifyError;
+                break;
+            default:
+                vm.AddPrinterCommand.Execute(null);
+                break;
+        }
+
+        Assert.False(vm.HasStatus);
+    }
+
+    [Fact]
+    public async Task ApplyAgainRestartsTheTime()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        PrinterEditorViewModel printer = vm.Printers[0];
+        await printer.ApplyCameraWindowCommand.ExecuteAsync(null);
+        _time.Advance(TimeSpan.FromSeconds(2));
+
+        printer.MiniSizeText = "640 x 360";
+        await printer.ApplyCameraWindowCommand.ExecuteAsync(null);
+        _time.Advance(TimeSpan.FromSeconds(2));
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        // 4 s after the first Apply, 2 s after the second one.
+        Assert.Equal("Saved", vm.StatusText);
+        _time.Advance(TimeSpan.FromSeconds(1));
+        await UntilNoStatusAsync(vm);
+        Assert.False(vm.HasStatus);
+    }
+
+    [Fact]
+    public async Task SaveNeverShowsSaved()
+    {
+        _store.SaveResult = new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: 1);
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        vm.Printers[0].MiniSizeText = "640 x 360";
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.True(vm.HasStatus);
+        Assert.NotEqual("Saved", vm.StatusText);
+    }
+
+    [Fact]
+    public async Task ClosingTheWindowStopsTheTimer()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        await vm.Printers[0].ApplyCameraWindowCommand.ExecuteAsync(null);
+
+        vm.Dispose();
+        _time.Advance(SettingsViewModel.SavedConfirmationDuration);
+        await Task.Delay(50, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Saved", vm.StatusText);
+    }
+
+    // ---- Not while saving (review 2026-10-20) ----
+
+    [Fact]
+    public async Task ButtonsAreDisabledWhileSaving()
+    {
+        _store.SaveGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        PrinterEditorViewModel printer = vm.Printers[0];
+        int resetChanges = 0;
+        int applyChanges = 0;
+        printer.ResetCameraWindowCommand.CanExecuteChanged += (_, _) => resetChanges++;
+        printer.ApplyCameraWindowCommand.CanExecuteChanged += (_, _) => applyChanges++;
+        printer.MiniSizeText = "640 x 360";
+
+        Task saving = vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsSaving);
+        Assert.False(printer.ResetCameraWindowCommand.CanExecute(null));
+        Assert.False(printer.ApplyCameraWindowCommand.CanExecute(null));
+        Assert.True(resetChanges > 0);
+        Assert.True(applyChanges > 0);
+        printer.ResetCameraWindowCommand.Execute(null);
+        Assert.Equal("640 x 360", printer.MiniSizeText);
+
+        _store.SaveGate.SetResult();
+        await saving;
+        Assert.True(printer.ResetCameraWindowCommand.CanExecute(null));
+        Assert.True(printer.ApplyCameraWindowCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public async Task ButtonsAreDisabledUntilLoaded()
+    {
+        _store.LoadGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _store.Data = new SettingsEditorData(new AppSettings { Printers = [Printer("a", "Alpha")] }, SettingsLoadStatus.Loaded, [], Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowPlacer: _placer, timeProvider: _time);
+        _viewModel = vm;
+        Task loading = vm.LoadAsync();
+        Assert.Empty(vm.Printers);
+
+        _store.LoadGate.SetResult();
+        await loading;
+
+        Assert.True(vm.Printers[0].ApplyCameraWindowCommand.CanExecute(null));
     }
 
     /// <summary>Records what "Apply" asked the camera windows to do.</summary>

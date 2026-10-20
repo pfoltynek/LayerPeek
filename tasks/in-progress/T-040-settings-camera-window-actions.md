@@ -26,6 +26,9 @@ depends_on: [T-033, T-035, T-037]
 - **Hlavní panel (2026-10-20):** skrýt jen malý náhled.
 - **Kamera v nabídce (2026-10-20):** přepínač – zaškrtávací položka „Kamera“ bez „…“; druhý klik okno zavře. Uživatel chtěl „přepínač“, nativní nabídky (Windows i macOS) ale umí jen zaškrtnutí, proto zaškrtávací položka.
 - **Celá obrazovka v malém náhledu (2026-10-20):** tlačítko vedle „zpět na normální okno“, návrat do malého náhledu na stejné místo.
+- **Nápověda „Pamatovat…“ (2026-10-20, dříve Q1):** přeformulovat – Uložit změny použije při dalším otevření okna, Použít hned (všech 8 jazyků; raději zkrátit, než dopustit posuvník).
+- **Potvrzení po Použít (2026-10-20, dříve Q2):** po úspěšném Použít krátce „Uloženo“ (en „Saved“) ve stavovém řádku nastavení, na několik sekund (řízeno `TimeProvider`), další úprava ho skryje.
+- **Překlady T-040 (2026-10-20):** schválené.
 
 ## Akceptační kritéria
 - [x] Okno nastavení nemá tlačítka minimalizace a maximalizace (Windows; macOS ověří T-038/T-018)
@@ -39,11 +42,10 @@ depends_on: [T-033, T-035, T-037]
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
 ## Otevřené otázky
-- Q1: Nápověda pod „Pamatovat poslední pozici a velikost“ říká „Změny se projeví při dalším otevření okna.“ – s tlačítkem Použít to už neplatí úplně (Použít je projeví hned). Upravit text (ve všech 8 jazycích), nebo nechat? Zatím beze změny.
-- Q2: Po úspěšném Použít se nezobrazí žádné potvrzení (okno kamery se jen přesune; když okno kamery otevřené není, nastavení se jen uloží). Chcete krátkou hlášku vedle Uložit (např. „Uloženo“)? Zatím bez hlášky.
+- (žádné – Q1 a Q2 rozhodnuty 2026-10-20, viz Rozhodnuto)
 
 ## Poznámky k implementaci
-Stav 2026-10-20 (ui-dev): implementace hotová, všechna kritéria kromě ruční kontroly splněná; úkol zůstává `in-progress` kvůli ručnímu ověření a otázkám Q1, Q2.
+Stav 2026-10-20 (ui-dev): implementace hotová, všechna kritéria kromě ruční kontroly splněná; úkol zůstává `in-progress` kvůli ručnímu ověření. Doplněno po review 2026-10-20 (viz „Úpravy po review“).
 
 **1. Okno nastavení**
 - `SettingsWindow.axaml`: `CanMinimize="False"`, `CanMaximize="False"`. Velikost okna jde dál měnit (`CanResize` beze změny) – okno má `MinWidth/MinHeight` a při malé pracovní ploše se zmenšuje (T-033), takže tažení okraje dává smysl i bez maximalizace. Na Windows Avalonia odebere `WS_MINIMIZEBOX`/`WS_MAXIMIZEBOX`, v titulku zůstane jen zavřít. macOS neověřeno (T-018).
@@ -86,10 +88,21 @@ Stav 2026-10-20 (ui-dev): implementace hotová, všechna kritéria kromě ručn�
 - Snímky přegenerované a zkontrolované: `settings-camera-window`, `settings-camera-window-errors-fr`, `settings-camera-window-off-cs` (tlačítka, zašedlá u vypnuté kamery), `settings-camera`, `settings-camera-notice`, `settings-camera-preview`, `settings-camera-preview-4x3-de` (text zaškrtávacího pole bez „…“); nový `camera-mini-buttons` (náhled 160×90 s oběma tlačítky po najetí myší).
 - `dotnet build` 0 varování; `dotnet test` 2× po sobě 3455 testů (3454 prošlo, 1 dřívější přeskočený). `dotnet publish -c Release -r win-x64` (AOT) bez varování; AOT exe i `dotnet run` se spustí a běží (25–30 s, pak ukončeno). Nabídku v oznamovací oblasti, okno nastavení ani okno kamery jsem v běžící aplikaci ručně neotevíral.
 
+**Úpravy po review (ui-dev, 2026-10-20)**
+- **Nápověda „Pamatovat…“** (rozhodnutí, dříve Q1) ve všech 8 jazycích, např. cs „Když je zapnuto, hodnoty níže se použijí, jen dokud okno nemá zapamatovanou pozici. Uložit je použije při dalším otevření okna, Použít hned.“, en „… Save applies changes the next time the window opens, Apply right away.“ Ve všech jazycích zůstává na 2 řádcích (layout test bez posuvníku prošel, rezerva beze změny 6 DIP); snímky `settings-camera-window*` přegenerované a zkontrolované.
+- **„Uloženo“ po Použít** (rozhodnutí, dříve Q2): nový text `SettingsSavedConfirmation` (Saved / Uloženo / Uložené / Gespeichert / Guardado / Enregistré / Salvato / Zapisano) ve stavovém řádku vedle Uložit; zobrazí se po každém úspěšném Použít bez varování (i když se nic neukládalo), zmizí po `SavedConfirmationDuration` = 3 s (`Task.Delay` s `TimeProvider`, v aplikaci systémové hodiny z DI) nebo hned při další úpravě (pole tiskárny, záložka Obecné, přidání / odebrání tiskárny). Nové Použít čas obnoví; zavření okna časovač zruší. Uložit „Uloženo“ nikdy neukazuje (zavírá okno, případně ukáže varování). Při změně jazyka se text přeloží.
+- **Oprava rámu po Použít:** když Použít udělá z okna bez rámu (malý náhled, celá obrazovka, minimalizované) normální okno, umístí se s předpokládaným rámem a po zpracování nového rámu (`Dispatcher.Post`, priorita Background) se jednou změří skutečný rám a okno se opraví stejně jako po otevření (`CorrectFrame`). Měření rámu jde v testech podvrhnout (`CameraWindow.ChromeMeasurement`, `CameraWindows(…, measureChrome)`). Na skutečném Windows neověřeno, zda je rám v okamžiku opravy už změřený.
+- **Tlačítka jen mimo ukládání:** `CanExecute` Tovární nastavení a Použít vyžaduje i `SettingsViewModel.IsEditable` (ne během načítání a ukládání); změna se oznamuje (`OnOwnerEditableChanged`).
+- Opravený komentář v `CameraHarness` (`ToggleCamera`).
+- Nové testy: App.Tests `CameraWindowActionsTests` (+9: „Uloženo“ na 3 s s `FakeTimeProvider`, v jazyce aplikace i bez změn, skrytí při 3 druzích úprav, nové Použít obnoví čas, Uložit „Uloženo“ neukáže, zavření okna časovač zruší, tlačítka zakázaná během ukládání s oznámením a po něm povolená, povolená po načtení); UiTests `SettingsWindowCameraWindowActionsUiTests` (+2: Použít obnoví minimalizované okno kamery a jeho stream; Použít z malého náhledu opraví normální okno podle skutečného rámu; „Saved“ ve stavovém řádku).
+- `dotnet build` 0 varování; `dotnet test` 2× po sobě 3467 testů (3466 prošlo, 1 dřívější přeskočený). Kvůli běžící aplikaci z této pracovní kopie (zamčený `bin`) proběhl build a testy s `--artifacts-path` uvnitř pracovní kopie (ignorovaná složka `artifacts/`, po běhu smazaná).
+
 **Zbývá ručně (uživatel, Windows)**
+- Podzáložka Okno kamery ve francouzštině s chybami obou velikostí na skutečném Windows (Segoe UI) – bez posuvníku (rezerva v headless testech jen 6 DIP).
+- „Uloženo“ po Použít zmizí asi po 3 s nebo při další úpravě.
 - Okno nastavení: v titulku jen zavřít; velikost jde měnit tažením okraje.
-- Tovární nastavení + Použít s otevřeným oknem kamery (normální okno, malý náhled, celá obrazovka, 2 monitory): okno se přesune na zvolený monitor do zvoleného rohu a velikosti, vždy navrchu odpovídá volbě, nastavení zůstane otevřené.
-- Malý náhled není na hlavním panelu (ani po přepnutí z normálního okna a zpět), normální okno a celá obrazovka na panelu jsou; zda při přepnutí okno neruší bliknutí a jak se chová Alt+Tab.
-- Nabídka: „Kamera“ má zaškrtnutí, dokud je okno otevřené; druhý klik okno zavře; zaškrtnutí zmizí i po zavření křížkem.
+- Tovární nastavení + Použít s otevřeným oknem kamery (normální okno, malý náhled, celá obrazovka, minimalizované, 2 monitory): okno se přesune na zvolený monitor do zvoleného rohu a velikosti (z malého náhledu do normálního okna i s opravou rámu – viditelný okraj 16 DIP), vždy navrchu odpovídá volbě, nastavení zůstane otevřené.
+- Malý náhled není na hlavním panelu (ani po přepnutí z normálního okna a zpět), normální okno a celá obrazovka na panelu jsou; zda přepnutí `ShowInTaskbar` nezpůsobí rušivé bliknutí a jak se malý náhled chová v Alt+Tab.
+- Nabídka: nativní nabídka skutečně vykreslí zaškrtnutí u „Kamera“, dokud je okno otevřené (a po kliknutí ho sama nepřepne špatně); druhý klik okno zavře; zaškrtnutí zmizí i po zavření křížkem.
 - Malý náhled: po najetí myší dvě tlačítka, Celá obrazovka funguje, Esc vrátí náhled na stejné místo.
 - macOS (T-018): titulek okna nastavení, Dock / `ShowInTaskbar`, zaškrtávací položka v NSMenu – neověřeno.
