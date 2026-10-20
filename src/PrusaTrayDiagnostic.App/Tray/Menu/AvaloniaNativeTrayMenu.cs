@@ -50,6 +50,12 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
 
         public void SetToolTip(string? toolTip) => Native.ToolTip = toolTip;
 
+        public void SetChecked(bool? isChecked)
+        {
+            Native.ToggleType = isChecked is null ? MenuItemToggleType.None : MenuItemToggleType.CheckBox;
+            Native.IsChecked = isChecked == true;
+        }
+
         public INativeTrayMenu CreateSubmenu()
         {
             NativeMenu submenu = new();

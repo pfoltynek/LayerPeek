@@ -67,11 +67,18 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     private const int MaxIdAttempts = 100;
 
+    /// <summary>How long "Saved" stays in the status line after Apply (T-040).</summary>
+    internal static readonly TimeSpan SavedConfirmationDuration = TimeSpan.FromSeconds(3);
+
+    private static readonly Func<string> SavedConfirmation = static () => Strings.SettingsSavedConfirmation;
+
     private static readonly decimal MinPollingSeconds = (decimal)AppSettings.MinPollingInterval.TotalSeconds;
     private static readonly decimal MaxPollingSeconds = (decimal)AppSettings.MaxPollingInterval.TotalSeconds;
 
     private readonly ISettingsEditorStore _store;
     private readonly ICameraWindowStateStore? _cameraWindowStates;
+    private readonly ICameraWindowPlacer? _cameraWindowPlacer;
+    private readonly TimeProvider _timeProvider;
     private readonly IScreenCatalog _screens;
     private IReadOnlyList<CameraScreen>? _screenList;
     private readonly Func<string> _newId;
@@ -98,6 +105,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     // What produced the notice and the status, so that a language switch formats them again.
     private Func<string>? _noticeSource;
     private Func<string>? _statusSource;
+
+    // "Saved" after Apply (T-040): shown for SavedConfirmationDuration; _confirmationVersion tells a stale timer apart.
+    private int _confirmationVersion;
     private bool _statusIsError;
 
     private decimal? _pollingIntervalSeconds;
@@ -125,6 +135,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// Remembered camera windows; a saved change of a printer's window defaults forgets its state there (T-035). Default:
     /// none (nothing to forget).
     /// </param>
+    /// <param name="cameraWindowPlacer">
+    /// Places an open camera window again after "Apply" (T-040); default: none (Apply only saves).
+    /// </param>
+    /// <param name="timeProvider">How long "Saved" stays after Apply (T-040); default: the system clock.</param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -134,7 +148,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         ICameraPreviewRenderer? cameraPreviewRenderer = null,
         ILogger<SettingsViewModel>? logger = null,
         IScreenCatalog? screens = null,
-        ICameraWindowStateStore? cameraWindowStates = null)
+        ICameraWindowStateStore? cameraWindowStates = null,
+        ICameraWindowPlacer? cameraWindowPlacer = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -148,6 +164,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         Logger = logger ?? NullLogger<SettingsViewModel>.Instance;
         _screens = screens ?? EmptyScreenCatalog.Instance;
         _cameraWindowStates = cameraWindowStates;
+        _cameraWindowPlacer = cameraWindowPlacer;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         StartModeOptions =
         [
             new CameraStartModeOption(CameraWindowStartMode.Last, static () => Strings.SettingsCameraWindowStartLast),
@@ -729,7 +747,24 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         UpdateDirty();
     }
 
-    private async Task SaveAsync()
+    private Task SaveAsync() => SaveAsync(applying: null);
+
+    /// <summary>
+    /// "Apply" of the Camera window sub-tab of <paramref name="printer"/> (T-040): saves exactly like Save, but the window
+    /// stays open, and the open camera window of that printer (only that one) is placed again by its saved settings, also
+    /// when nothing had to be saved. Nothing is placed when saving failed or the input has errors.
+    /// </summary>
+    internal Task ApplyAsync(PrinterEditorViewModel printer)
+    {
+        ArgumentNullException.ThrowIfNull(printer);
+        return Printers.Contains(printer) ? SaveAsync(printer) : Task.CompletedTask;
+    }
+
+    /// <param name="applying">
+    /// <see langword="null"/>: Save (closes after success); otherwise Apply for this printer (stays open, places its camera
+    /// window).
+    /// </param>
+    private async Task SaveAsync(PrinterEditorViewModel? applying)
     {
         if (!IsEditable)
         {
@@ -772,7 +807,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
         if (passwords.Count == 0 && updated.Equals(_baseline))
         {
-            CloseRequested?.Invoke(this, EventArgs.Empty);
+            // Nothing to write; "Factory settings" with the saved values still forgets the remembered window (T-040).
+            ForgetRememberedCameraWindows(_baseline, updated);
+            UpdateDirty();
+            Completed(applying, updated, warning: null);
             return;
         }
 
@@ -816,26 +854,56 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         }
 
         UpdateDirty();
-        if (result.UndeletedPasswords > 0)
+        Completed(applying, updated, result.UndeletedPasswords > 0 ? static () => Strings.SettingsSavedPasswordsNotDeleted : null);
+    }
+
+    /// <summary>
+    /// After a successful save (or nothing to save): Save closes the window unless there is a warning to read; Apply keeps
+    /// it open and places the camera window of its printer again (T-040).
+    /// </summary>
+    private void Completed(PrinterEditorViewModel? applying, AppSettings saved, Func<string>? warning)
+    {
+        ShowStatus(warning, isError: false);
+        if (applying is null)
         {
-            ShowStatus(static () => Strings.SettingsSavedPasswordsNotDeleted, isError: false);
+            if (warning is null)
+            {
+                CloseRequested?.Invoke(this, EventArgs.Empty);
+            }
+
             return;
         }
 
-        ShowStatus(null, isError: false);
-        CloseRequested?.Invoke(this, EventArgs.Empty);
+        // Apply keeps the window open: a short "Saved" unless a warning has to stay (user decision 2026-10-20).
+        if (warning is null)
+        {
+            ShowSavedConfirmation();
+        }
+
+        // T-040 (exception to T-035 Q21 for Apply only): the open camera window takes the saved settings right away.
+        PrinterDefinition? printer = saved.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, applying.Id, StringComparison.OrdinalIgnoreCase));
+        if (printer is { Camera.Enabled: true })
+        {
+            _cameraWindowPlacer?.ApplySettings(printer.Id, printer.Camera.Window);
+        }
     }
 
     /// <summary>
     /// T-035: a printer whose saved window defaults changed (start mode, monitor, size or position; not the "remember"
     /// switch) forgets its remembered camera window, so that the new defaults apply the next time it opens. An open
-    /// window does not move. New and removed printers have nothing to forget.
+    /// window does not move. New and removed printers have nothing to forget. T-040: after "Factory settings" the printer
+    /// forgets it in any case.
     /// </summary>
     private void ForgetRememberedCameraWindows(AppSettings saved, AppSettings updated)
     {
-        if (_cameraWindowStates is not { } states)
+        HashSet<string> forget = new(StringComparer.OrdinalIgnoreCase);
+        foreach (PrinterEditorViewModel editor in Printers)
         {
-            return;
+            if (editor.ForgetsRememberedCameraWindow)
+            {
+                forget.Add(editor.Id);
+                editor.OnRememberedCameraWindowForgotten();
+            }
         }
 
         foreach (PrinterDefinition printer in updated.Printers)
@@ -843,7 +911,15 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             PrinterDefinition? old = saved.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, printer.Id, StringComparison.OrdinalIgnoreCase));
             if (old is not null && CameraWindowDefaults.RequiresForgettingRememberedState(old.Camera.Window, printer.Camera.Window))
             {
-                states.Remove(printer.Id);
+                forget.Add(printer.Id);
+            }
+        }
+
+        if (_cameraWindowStates is { } states)
+        {
+            foreach (string id in forget)
+            {
+                states.Remove(id);
             }
         }
     }
@@ -961,17 +1037,56 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             return;
         }
 
+        HideSavedConfirmation();
+
         bool dirty = false;
         foreach (PrinterEditorViewModel printer in Printers)
         {
-            dirty |= printer.HasNewPassword;
+            // T-040: "Factory settings" is something to save even when the values equal the saved ones.
+            dirty |= printer.HasNewPassword || printer.ForgetsRememberedCameraWindow;
         }
 
         IsDirty = dirty || !TryBuildSettings(out AppSettings? current) || !current.Equals(_baseline);
     }
 
+    /// <summary>"Saved" after Apply, for <see cref="SavedConfirmationDuration"/> (TimeProvider) or until the next edit.</summary>
+    private void ShowSavedConfirmation()
+    {
+        ShowStatus(SavedConfirmation, isError: false);
+        _ = HideSavedConfirmationLaterAsync(_confirmationVersion);
+    }
+
+    private async Task HideSavedConfirmationLaterAsync(int version)
+    {
+        try
+        {
+            // Resumes on the UI thread (its synchronization context).
+            await Task.Delay(SavedConfirmationDuration, _timeProvider, LifetimeToken).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // The window closed.
+            return;
+        }
+
+        if (!_disposed && version == _confirmationVersion)
+        {
+            ShowStatus(null, isError: false);
+        }
+    }
+
+    /// <summary>An edit after Apply: "Saved" no longer describes what is shown.</summary>
+    private void HideSavedConfirmation()
+    {
+        if (ReferenceEquals(_statusSource, SavedConfirmation))
+        {
+            ShowStatus(null, isError: false);
+        }
+    }
+
     private void ShowStatus(Func<string>? text, bool isError)
     {
+        _confirmationVersion++;
         _statusSource = text;
         StatusIsError = isError;
         StatusText = text?.Invoke();
@@ -984,6 +1099,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         RemovePrinterCommand.NotifyCanExecuteChanged();
         SaveCommand.NotifyCanExecuteChanged();
         CancelCommand.NotifyCanExecuteChanged();
+        foreach (PrinterEditorViewModel printer in Printers)
+        {
+            printer.OnOwnerEditableChanged();
+        }
     }
 
     private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e) => OnPropertyChanged(nameof(HasNoPrinters));

@@ -216,7 +216,7 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").Focus());
 
             List<string> order = [];
-            for (int i = 0; i < 24 && !order.Contains("SettingsCancel"); i++)
+            for (int i = 0; i < 30 && !order.Contains("SettingsCancel"); i++)
             {
                 ui.Window.KeyPressQwerty(PhysicalKey.Tab, RawInputModifiers.None);
                 ui.Window.KeyReleaseQwerty(PhysicalKey.Tab, RawInputModifiers.None);
@@ -232,6 +232,7 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
                     "PrinterCameraWindowRemember", "PrinterCameraWindowStartMode", "PrinterCameraWindowMonitor",
                     "PrinterCameraWindowNormalSize", "PrinterCameraWindowNormalCorner", "PrinterCameraWindowNormalTopmost",
                     "PrinterCameraWindowMiniSize", "PrinterCameraWindowMiniCorner", "PrinterCameraWindowMiniTopmost",
+                    "PrinterCameraWindowReset", "PrinterCameraWindowApply",
                     "SettingsSave", "SettingsCancel",
                 ],
                 order);

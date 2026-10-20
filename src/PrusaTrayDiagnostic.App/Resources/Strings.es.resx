@@ -556,7 +556,7 @@
     <value>Cámara</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Usar la cámara (elemento Cámara… del menú del área de notificación)</value>
+    <value>Usar la cámara (elemento Cámara del menú del área de notificación)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Dirección de la transmisión RTSP</value>
@@ -604,7 +604,7 @@
     <value>La dirección no debe contener nombre de usuario, contraseña ni el carácter @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Cámara…</value>
+    <value>Cámara</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – cámara</value>
@@ -703,7 +703,7 @@
     <value>Recordar la última posición y tamaño</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Si está activado, los valores siguientes solo se usan mientras la ventana no tenga una posición recordada. Los cambios se aplican la próxima vez que se abra.</value>
+    <value>Si está activado, los valores siguientes solo se usan mientras la ventana no tenga una posición recordada. Guardar los aplica en la próxima apertura; Aplicar, al instante.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Abrir como</value>
@@ -752,6 +752,15 @@
   </data>
   <data name="SettingsCameraWindowTopmost" xml:space="preserve">
     <value>Siempre encima</value>
+  </data>
+  <data name="SettingsCameraWindowReset" xml:space="preserve">
+    <value>Restablecer valores</value>
+  </data>
+  <data name="SettingsCameraWindowApply" xml:space="preserve">
+    <value>Aplicar</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Guardado</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Arriba a la izquierda</value>

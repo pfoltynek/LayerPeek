@@ -14,7 +14,7 @@ using PrusaTrayDiagnostic.Core.Settings;
 namespace PrusaTrayDiagnostic.App.UiTests.Cameras;
 
 /// <summary>
-/// The real camera windows (<see cref="CameraWindows"/>, the path behind <c>ITrayAppCommands.ShowCamera</c>) on fakes:
+/// The real camera windows (<see cref="CameraWindows"/>, the path behind <c>ITrayAppCommands.ToggleCamera</c>) on fakes:
 /// two printers with cameras, a fake decoder and a fake clock. The window state goes to a store the test chooses
 /// (memory by default, a temporary folder for persistence tests). The headless session sets the languages (English).
 /// </summary>
@@ -27,14 +27,15 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
     /// <param name="overlay">Print overlay of the printers with a camera (T-036); <see langword="null"/>: the defaults.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null)
+    /// <param name="measureChrome">Fake frame measurement of the windows (T-040); <see langword="null"/>: the headless one.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null)
     {
         States = states ?? new MemoryCameraWindowStateStore();
         ((IMonitoringObserver)Printers).ApplySettings(new AppSettings
         {
             Printers = [CameraPrinter("a", "Alpha", window, overlay), CameraPrinter("b", "Beta", window, overlay), TestPrinters.Definition("c", "NoCamera")],
         });
-        Windows = new CameraWindows(Create, screens);
+        Windows = new CameraWindows(Create, screens, measureChrome);
     }
 
     public FakeCameraFeedFactory Factory { get; } = new();

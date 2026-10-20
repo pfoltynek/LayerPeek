@@ -45,12 +45,13 @@ internal sealed class SettingsWindowHarness
         PasswordPolicy? policy = null,
         ICameraTester? cameraTester = null,
         IScreenCatalog? screens = null,
-        ICameraWindowStateStore? cameraWindowStates = null)
+        ICameraWindowStateStore? cameraWindowStates = null,
+        ICameraWindowPlacer? cameraWindowPlacer = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates);
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer);
         scope.Defer(viewModel);
         SettingsWindow window = scope.Track(new SettingsWindow { DataContext = viewModel });
         SettingsWindowHarness harness = new(window, viewModel, slot);
@@ -88,6 +89,18 @@ internal sealed class SettingsWindowHarness
     {
         Click("SettingsSave");
         if (ViewModel.SaveCommand.ExecutionTask is { } running)
+        {
+            await running;
+        }
+
+        Window.Settle();
+    }
+
+    /// <summary>Clicks Apply of the Camera window sub-tab (T-040) and waits for it to finish.</summary>
+    public async Task ApplyCameraWindowAsync()
+    {
+        Click("PrinterCameraWindowApply");
+        if (ViewModel.SelectedPrinter?.ApplyCameraWindowCommand.ExecutionTask is { } running)
         {
             await running;
         }

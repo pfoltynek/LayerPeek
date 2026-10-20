@@ -568,7 +568,7 @@
     <value>Camera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Use the camera (Camera… item in the tray menu)</value>
+    <value>Use the camera (Camera item in the tray menu)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>RTSP stream address</value>
@@ -616,7 +616,7 @@
     <value>The address must not contain a user name, a password or the @ character.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Camera…</value>
+    <value>Camera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Camera</value>
@@ -715,7 +715,7 @@
     <value>Remember the last position and size</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>When on, the values below are used only until the window has a remembered position. Changes apply the next time the window opens.</value>
+    <value>When on, the values below are used only until the window has a remembered position. Save applies changes the next time the window opens, Apply right away.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Open as</value>
@@ -764,6 +764,15 @@
   </data>
   <data name="SettingsCameraWindowTopmost" xml:space="preserve">
     <value>Always on top</value>
+  </data>
+  <data name="SettingsCameraWindowReset" xml:space="preserve">
+    <value>Restore defaults</value>
+  </data>
+  <data name="SettingsCameraWindowApply" xml:space="preserve">
+    <value>Apply</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Saved</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Top left</value>

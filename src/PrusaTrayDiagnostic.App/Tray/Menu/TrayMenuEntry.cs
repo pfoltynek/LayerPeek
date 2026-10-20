@@ -17,7 +17,10 @@ public enum TrayMenuCommand
     /// <summary>Diagnostics window (T-011), preselected on <see cref="TrayMenuEntry.PrinterId"/> when set.</summary>
     Diagnostics,
 
-    /// <summary>Camera window of <see cref="TrayMenuEntry.PrinterId"/> (T-014).</summary>
+    /// <summary>
+    /// Camera window of <see cref="TrayMenuEntry.PrinterId"/> (T-014): opens it, or closes it when it is open (T-040, a
+    /// check item).
+    /// </summary>
     Camera,
     About,
     Quit,
@@ -42,6 +45,12 @@ internal sealed record TrayMenuEntry(
     public static TrayMenuEntry Separator { get; } = new(TrayMenuCommand.None, string.Empty, IsEnabled: false) { IsSeparator = true };
 
     public bool IsSeparator { get; private init; }
+
+    /// <summary>
+    /// A check item (T-040: the camera item is checked while the camera window of its printer is open): <see langword="true"/>
+    /// / <see langword="false"/> = checked / not checked; <see langword="null"/> = a plain item without a check mark.
+    /// </summary>
+    public bool? IsChecked { get; init; }
 
     /// <summary>
     /// Items of the submenu this item opens (several printers: one submenu per printer); <see langword="null"/> for a

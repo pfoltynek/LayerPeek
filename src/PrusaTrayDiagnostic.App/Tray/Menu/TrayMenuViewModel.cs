@@ -13,7 +13,8 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
 /// followed by the fixed items. A single printer is a plain item (clicking opens the web interface); with several
 /// printers each one is a submenu ("Open … in the browser", "Diagnostics…" preselected on that printer, T-013, and
-/// "Camera…" when its camera is enabled, T-014; a single printer gets "Camera…" as the next item).
+/// "Camera" when its camera is enabled, T-014; a single printer gets "Camera" as the next item; checked while the camera
+/// window is open, T-040).
 /// Snapshots arrive on background threads. Each one only compares a cheap <see cref="PrinterMenuContent"/> of its
 /// printer under the lock; when nothing visible changed nothing else happens. Changed printers are marked and a single
 /// UI update is posted for a whole burst; it formats only the marked items and replaces only those whose
@@ -31,8 +32,9 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _disposing = new();
 
-    // UI thread only (after construction).
+    // UI thread only (after construction). _openCameras: printers whose camera window is open (T-040, checked items).
     private readonly ObservableCollection<TrayMenuEntry> _items;
+    private readonly HashSet<string> _openCameras = new(StringComparer.OrdinalIgnoreCase);
 
     // Guarded by _gate.
     private Slot[]? _slots;
@@ -170,6 +172,38 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         FixedItemsChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// UI thread: the camera window of <paramref name="printerId"/> opened or closed (by the menu, its close button, the
+    /// settings disabling the camera, removing the printer or quitting). Its "Camera" item is checked while it is open
+    /// (T-040); only that printer's items are formatted again.
+    /// </summary>
+    public void SetCameraWindowOpen(string printerId, bool isOpen)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        if (isOpen ? !_openCameras.Add(printerId) : !_openCameras.Remove(printerId))
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_slots is not null && _slotById.TryGetValue(printerId, out int index))
+            {
+                // The cached submenu holds the old check state.
+                _slots[index].Submenu = null;
+            }
+
+            _layoutChanged = true;
+        }
+
+        Apply();
+    }
+
     public void Dispose()
     {
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
@@ -240,10 +274,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     }
 
     /// <summary>Only for printers with an enabled camera; absent otherwise (T-014).</summary>
-    private static TrayMenuEntry CameraEntry(string printerId) =>
-        new(TrayMenuCommand.Camera, Strings.MenuCamera, IsEnabled: true, PrinterId: printerId);
+    private TrayMenuEntry CameraEntry(string printerId) =>
+        new(TrayMenuCommand.Camera, Strings.MenuCamera, IsEnabled: true, PrinterId: printerId) { IsChecked = _openCameras.Contains(printerId) };
 
-    /// <summary>The printer entries of a new layout: a single printer with a camera gets its "Camera…" entry right after it.</summary>
+    /// <summary>The printer entries of a new layout: a single printer with a camera gets its "Camera" entry right after it.</summary>
     private TrayMenuEntry[] LayoutEntries(List<(int Index, PrinterLine Line)>? lines)
     {
         if (lines is null)
@@ -413,7 +447,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <summary>What one printer item needs; copied out of the lock for formatting.</summary>
     /// <param name="Grouped">Several printers are configured: the printer is a submenu.</param>
-    /// <param name="HasCamera">The printer has an enabled camera: the menu offers "Camera…".</param>
+    /// <param name="HasCamera">The printer has an enabled camera: the menu offers "Camera".</param>
     private readonly record struct PrinterLine(
         Slot Owner,
         string Id,
