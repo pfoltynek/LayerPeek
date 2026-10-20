@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<rect x="16" y="40" width="224" height="20" rx="8" fill="#6B6E78"/>
+<rect x="16" y="40" width="20" height="176" rx="6" fill="#6B6E78"/>
+<rect x="220" y="40" width="20" height="176" rx="6" fill="#6B6E78"/>
+<rect x="44.6" y="62" width="26" height="6" rx="3" fill="#4F525B"/>
+<rect x="45.6" y="68" width="24" height="28" rx="5" fill="#B4B7C0"/>
+<polygon points="52.6,96 62.6,96 59.6,102 55.6,102 " fill="#B4B7C0"/>
+<rect x="79.8" y="62" width="26" height="6" rx="3" fill="#4F525B"/>
+<rect x="80.8" y="68" width="24" height="28" rx="5" fill="#B4B7C0"/>
+<polygon points="87.8,96 97.8,96 94.8,102 90.8,102 " fill="#B4B7C0"/>
+<rect x="115" y="62" width="26" height="6" rx="3" fill="#4F525B"/>
+<rect x="150.2" y="62" width="26" height="6" rx="3" fill="#4F525B"/>
+<rect x="151.2" y="68" width="24" height="28" rx="5" fill="#B4B7C0"/>
+<polygon points="158.2,96 168.2,96 165.2,102 161.2,102 " fill="#B4B7C0"/>
+<rect x="185.4" y="62" width="26" height="6" rx="3" fill="#4F525B"/>
+<rect x="186.4" y="68" width="24" height="28" rx="5" fill="#B4B7C0"/>
+<polygon points="193.4,96 203.4,96 200.4,102 196.4,102 " fill="#B4B7C0"/>
+<rect x="36" y="120" width="184" height="8" fill="#8E919B"/>
+<rect x="110" y="108" width="36" height="24" rx="5" fill="#FD5000"/>
+<rect x="114" y="116" width="28" height="30" rx="5" fill="#B4B7C0"/>
+<polygon points="122,146 134,146 130,154 126,154 " fill="#B4B7C0"/>
+<rect x="96" y="158" width="64" height="8" rx="4" fill="#8E919B"/>
+<rect x="96" y="158" width="35.2" height="8" rx="4" fill="#FD5000"/>
+<rect x="96" y="169" width="64" height="8" rx="4" fill="#FD5000"/>
+<rect x="36" y="180" width="184" height="8" rx="3" fill="#B4B7C0"/>
+<rect x="16" y="194" width="224" height="26" rx="8" fill="#6B6E78"/>
+<rect x="98" y="199" width="44" height="16" rx="3" fill="#1E1F24"/>
+<circle cx="156" cy="207" r="7" fill="#FD5000"/>
+</svg>

@@ -1,5 +1,7 @@
 using System.Collections;
 
+using PrusaTrayDiagnostic.App.Printers;
+
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>What clicking a tray menu item does.</summary>
@@ -48,6 +50,11 @@ internal sealed record TrayMenuEntry(
     /// plain item. An item with a submenu is a header only: clicking it does nothing.
     /// </summary>
     public TrayMenuEntryList? Submenu { get; init; }
+
+    /// <summary>
+    /// The printer's picture shown left of the text (printer items on Windows, T-039); <see langword="null"/> = no icon.
+    /// </summary>
+    public PrinterPicture? Icon { get; init; }
 }
 
 /// <summary>Immutable list of menu entries with value equality, so that <see cref="TrayMenuEntry"/> keeps value semantics.</summary>
@@ -111,8 +118,15 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
 }
 
 /// <summary>Which auxiliary windows exist; their items are shown disabled until the window is implemented.</summary>
-internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsAvailable)
+/// <param name="PrinterIcons">
+/// Printer items show the printer's picture (T-039): on Windows, where Avalonia draws the menu itself. macOS (native
+/// NSMenu) is left out until T-018 verifies it (user decision 2026-10-19).
+/// </param>
+internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsAvailable, bool PrinterIcons = false)
 {
-    /// <summary>Both auxiliary windows exist: settings (T-015) and diagnostics (T-011).</summary>
+    /// <summary>Both auxiliary windows exist: settings (T-015) and diagnostics (T-011); no printer icons.</summary>
     public static TrayMenuOptions Default { get; } = new(SettingsAvailable: true, DiagnosticsAvailable: true);
+
+    /// <summary><see cref="Default"/> with printer icons where the platform shows them (Windows).</summary>
+    public static TrayMenuOptions ForCurrentPlatform { get; } = Default with { PrinterIcons = OperatingSystem.IsWindows() };
 }

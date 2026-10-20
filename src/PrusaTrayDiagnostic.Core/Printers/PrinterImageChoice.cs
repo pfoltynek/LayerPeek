@@ -75,15 +75,25 @@ public readonly record struct PrinterImage(PrinterImageKind Kind, PrinterModel M
     public static PrinterImage Resolve(PrinterDefinition printer, bool customImageExists)
     {
         ArgumentNullException.ThrowIfNull(printer);
-        switch (printer.Image.Mode)
+        return Resolve(printer.Image, printer.ConnectionType, printer.DetectedModel, customImageExists);
+    }
+
+    /// <summary>
+    /// <see cref="Resolve(PrinterDefinition, bool)"/> from the parts that matter, e.g. for a printer being edited whose
+    /// other values are not valid yet.
+    /// </summary>
+    public static PrinterImage Resolve(PrinterImageChoice choice, ConnectionType connectionType, PrinterModelCode? detectedModel, bool customImageExists)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        switch (choice.Mode)
         {
             case PrinterImageMode.Custom when customImageExists:
                 return new PrinterImage(PrinterImageKind.Custom, PrinterModel.Unknown);
             case PrinterImageMode.Model:
-                return new PrinterImage(PrinterImageKind.Model, printer.Image.Model);
+                return new PrinterImage(PrinterImageKind.Model, choice.Model);
         }
 
-        PrinterModel detected = printer.ConnectionType == ConnectionType.PrusaLink && printer.DetectedModel is { } code
+        PrinterModel detected = connectionType == ConnectionType.PrusaLink && detectedModel is { } code
             ? PrinterModels.FromCode(code)
             : PrinterModel.Unknown;
         return detected == PrinterModel.Unknown ? Generic : new PrinterImage(PrinterImageKind.Model, detected);

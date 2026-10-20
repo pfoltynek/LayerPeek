@@ -17,7 +17,7 @@ namespace PrusaTrayDiagnostic.App.Settings;
 /// The id never changes (passwords, history and notification state are keyed by it), so a rename keeps everything.
 /// An empty password field keeps the saved password. UI thread only.
 /// </summary>
-public sealed class PrinterEditorViewModel : ObservableObject
+public sealed partial class PrinterEditorViewModel : ObservableObject
 {
     private const string Unknown = "–";
 
@@ -97,7 +97,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
     /// <param name="cameraCredentialsRemoved">Credentials were removed from the stored camera address (notice shown until answered or saved).</param>
-    internal PrinterEditorViewModel(SettingsViewModel owner, string id, PrinterDefinition? saved, bool? hasSavedPassword, bool cameraCredentialsRemoved = false)
+    /// <param name="storedCustomImage">The stored custom image (PNG) when the printer uses one (T-039).</param>
+    internal PrinterEditorViewModel(SettingsViewModel owner, string id, PrinterDefinition? saved, bool? hasSavedPassword, bool cameraCredentialsRemoved = false, byte[]? storedCustomImage = null)
     {
         ArgumentNullException.ThrowIfNull(owner);
         ArgumentException.ThrowIfNullOrWhiteSpace(id);
@@ -140,6 +141,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
             isNormal: (overlay.Normal & item) != 0,
             isMini: (overlay.Mini & item) != 0,
             OnOverlayEdited))];
+        InitializeImage(saved, storedCustomImage);
         FormatCellNames();
         ValidateAddress();
         ValidateUserName();
@@ -218,6 +220,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
             ValidateAddress();
             ValidateUserName();
             ValidatePassword();
+            OnMachineChanged();
             RevealErrors();
             _owner.OnPrinterEdited(nameChanged: false);
         }
@@ -234,6 +237,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
             {
                 InvalidateTest();
                 ValidateAddress();
+                OnMachineChanged();
                 RevealErrors();
                 _owner.OnPrinterEdited(nameChanged: false);
             }
@@ -659,6 +663,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
                 Address = _address,
                 UserName = EffectiveUserName,
                 Camera = camera,
+                DetectedModel = EffectiveDetectedModel,
+                Image = _imageChoice,
             };
 
     /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
@@ -877,6 +883,7 @@ public sealed class PrinterEditorViewModel : ObservableObject
         CameraCredentialsRemoved = false;
         // The saved window defaults are the new fallback for an invalid size of a turned-off camera (Q6).
         _savedWindow = BuildWindow() ?? _savedWindow;
+        MarkImageSaved();
     }
 
     /// <summary>
@@ -930,6 +937,8 @@ public sealed class PrinterEditorViewModel : ObservableObject
         {
             row.RefreshTexts();
         }
+
+        RefreshImageTexts();
     }
 
     /// <summary>
@@ -995,6 +1004,11 @@ public sealed class PrinterEditorViewModel : ObservableObject
             if (!test.IsCancellationRequested)
             {
                 SetTestResult(() => Describe(result), result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+                if (result.Outcome == ConnectionTestOutcome.Success)
+                {
+                    // T-039: the model of the tested printer (none when its firmware does not report one).
+                    OnModelTested(result.ModelCode, printer);
+                }
             }
             else if (_testCancelledByUser)
             {

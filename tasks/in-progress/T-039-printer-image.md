@@ -27,6 +27,10 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - **Vlastní obrázek (2026-10-19):** PNG/JPG do 5 MB, při importu zmenšit na max. 512 px delší strana a uložit jako PNG; zobrazit celý ve čtvercovém rámečku (letterbox), bez editoru ořezu.
 - **Úložiště a úklid (2026-10-19):** `printer-images/<id tiskárny>.png` vedle `settings.json`; smaže se při odebrání tiskárny (po uložení) a při návratu na automatický obrázek, Zrušit v nastavení zahodí nový import, při startu se smažou osiřelé soubory.
 - **macOS (2026-10-19):** ikony položek tray menu na macOS zatím vynechat, ověří se v T-018.
+- **Ilustrace (2026-10-20):** varianta **A (plochý pohled zepředu, průhledné pozadí)** z návrhu ui-designera. MK4, MK4S, MK3.9, MK3.9S, MK3.5 a MK3.5S sdílí **jednu** ilustraci; XL i XL+ mají vždy vzhled s pěti nástroji (`xl`); Core One L používá ilustraci Core One; Core One INDX, Core One L INDX a iX → obecná ilustrace; neznámý model → obecná ilustrace (motiv aplikace v čárkovaném rámečku). (Otázky 3 a 4.)
+- **Model zjištěný monitoringem (2026-10-20):** ukládá se do `settings.json` na pozadí **jen při změně**; **monitoring se kvůli tomu nerestartuje**; je-li otevřené okno nastavení, převezme při uložení nejnovější `detectedModel`. (Otázka 2.)
+- **Změna adresy nebo typu připojení (2026-10-20):** v editoru smaže `detectedModel` tiskárny do další detekce. (Otázka 5.)
+- **Velikosti (2026-10-20, = T-033 Q8):** seznam tiskáren 24 DIP, podzáložka Tiskárna 56 DIP (tlačítko s nabídkou: Automaticky / výběr modelu / vlastní obrázek… / odebrat vlastní), Diagnostika 48 DIP, ikona položky tray menu 16 DIP (Windows; macOS vynechán podle rozhodnutí výše). (Otázka 1.)
 
 ## Rozsah
 
@@ -52,21 +56,17 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 ## Akceptační kritéria
 - [x] Mapování kódů modelů zdokumentované v `docs/api/prusalink.md` s odkazem na zdroj ve firmwaru
 - [x] Core: převod kódu na model, uložení modelu a volby obrázku, úložiště vlastních obrázků; testy (Core.Tests) včetně neplatných a příliš velkých souborů a úklidu
-- [ ] Vlastní ilustrace pro všechny podporované modely + obecná, schválené uživatelem; jako `AvaloniaResource` (test, že každý model má ilustraci a ta jde načíst)
-- [ ] App.Tests: view model vybere ilustraci podle modelu, vlastní obrázek má přednost, neznámý model → obecná ilustrace podle otázky 2, import a odstranění vlastního obrázku, odstranění tiskárny uklidí její vlastní obrázek (podle otázky 5)
-- [ ] Headless UI testy: obrázek v seznamu tiskáren, na podzáložce Tiskárna a v okně Diagnostika; snímky reference aktualizované; test „bez posuvníku“ z T-033 projde ve všech 8 jazycích
-- [ ] Tray menu: položka tiskárny má ikonu (test presenteru menu / falešného menu); ruční ověření na Windows, že se ikona v menu zobrazí (zapsat do poznámek)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish `win-x64` bez varování
+- [x] Vlastní ilustrace pro všechny podporované modely + obecná, schválené uživatelem; jako `AvaloniaResource` (test, že každý model má ilustraci a ta jde načíst)
+- [x] App.Tests: view model vybere ilustraci podle modelu, vlastní obrázek má přednost, neznámý model → obecná ilustrace podle otázky 2, import a odstranění vlastního obrázku, odstranění tiskárny uklidí její vlastní obrázek (podle otázky 5)
+- [x] Headless UI testy: obrázek v seznamu tiskáren, na podzáložce Tiskárna a v okně Diagnostika; snímky reference aktualizované; test „bez posuvníku“ z T-033 projde ve všech 8 jazycích
+- [ ] Tray menu: položka tiskárny má ikonu (test presenteru menu / falešného menu); ruční ověření na Windows, že se ikona v menu zobrazí (zapsat do poznámek) – testy hotové, **ruční ověření na Windows zbývá (uživatel)**
+- [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish `win-x64` bez varování
 
 ## Otevřené otázky
-1. **Velikost obrázku v jednotlivých místech** (seznam tiskáren, podzáložka, Diagnostika, tray menu) – navrhne ui-designer ke schválení.
-2. **Ukládání modelu zjištěného monitoringem (core-dev, 2026-10-20):** Core model zjistí a ohlásí (`IPrinterMonitor.ModelDetected`), ale `settings.json` sám nepřepisuje. Pravidlo pro App je potřeba potvrdit:
-   - Ukládat na pozadí jen při skutečné změně (`AppSettings.WithDetectedModel` vrátí jinou instanci)?
-   - Restartovat kvůli tomu monitoring? Návrh: ne, změna jen modelu monitoring nerestartuje.
-   - Co když je zrovna otevřené okno nastavení? Návrh: uložit hned; při uložení okna se převezme nejnovější `detectedModel` ze souboru, ne ten z doby otevření okna.
-3. **Core One INDX a Core One L INDX (`7.10.0`, `8.10.0`), iX (`4.1.0`):** teď mají obecnou ilustraci (`Unknown`). Mají dostat ilustraci Core One / Core One L, vlastní ilustraci, nebo zůstat obecné?
-4. **Varianty se stejným vzhledem:** MK3.5/MK3.5S, MK3.9/MK3.9S, MK4/MK4S, XL/XL+, Core One/Core One L. Má mít každý z 11 modelů vlastní ilustraci, nebo mohou varianty sdílet jednu? Výčet je rozlišuje všechny, sloučit jde jen v App.
-5. **Změna adresy nebo typu připojení:** může jít o jinou tiskárnu. Smazat uložený `detectedModel`, aby do další detekce byla obecná ilustrace? Návrh: ano, smazat (dělá editor v App).
+Otázky 1–5 (velikosti, ukládání modelu z monitoringu, INDX/iX, varianty se stejným vzhledem, změna adresy) rozhodl uživatel 2026-10-20 – viz Rozhodnuto. Nové otázky z implementace (ui-dev, 2026-10-20), implementováno podle návrhu, ke schválení:
+1. **Kde ukázat chybu importu vlastního obrázku:** pod polem Název se nevejde – s ostatními chybami a odmítnutým testem by podzáložka Tiskárna ve fr/de potřebovala posuvník (o 1–30 DIP). Návrh (implementováno): chyba se ukáže ve **stavovém řádku dole** (červeně, vlevo od Uložit/Zrušit) a zmizí s další volbou obrázku. Souhlasíte, nebo jiné místo (např. jen jednořádková zkrácená hláška u tlačítka)?
+2. **Prusa Connect – první položka nabídky obrázku:** automatická detekce u Prusa Connect není, proto se první položka jmenuje „Obecná ilustrace“ (vrátí automatickou volbu = obecná ilustrace) místo „Automaticky podle modelu (…)“. Souhlasíte s textem?
+3. **Nový import, který se nepodaří uložit** (plný disk apod.): nastavení se uloží, okno zůstane otevřené s upozorněním „Nastavení je uloženo. Obrázek tiskárny se nepodařilo uložit, tiskárna proto zobrazuje ilustraci.“ (stejně jako u nesmazaného hesla). Souhlasíte?
 
 ## Poznámky k implementaci
 
@@ -111,3 +111,97 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
   - Core.Tests: `PrinterModelCodeTests`, `PrinterModelsTests`, `PrinterImageTests`, `SettingsMapperPrinterImageTests`, `PrinterMonitorModelDetectionTests`, `Images/*` (formáty, názvy souborů, úložiště, import).
   - PrusaLink.Tests: `PrusaLinkModelDetectionTests`.
   - Dočasné soubory jsou pod `TestDirectories`, uklidí se i po pádu.
+
+### App (ui-dev, 2026-10-20)
+Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `in-progress` kvůli ručnímu ověření ikon v tray menu na Windows (viz „Zbývá ručně“).
+
+- **Ilustrace (`Assets/Printers/`):**
+  - Varianta A od ui-designera, id `mk4`, `core-one`, `xl`, `mini`, `generic`.
+  - Předrenderované PNG 16, 20, 24 (zjednodušená kresba), 32, 48, 56, 64, 96, 112, 128, 256 px (podrobná kresba). 96/112/128 jsem dorenderoval designérovým nástrojem; ostatní PNG i SVG jsou bajtově shodné s návrhem.
+  - SVG zdroje (`<id>.svg`, `-24px`, `-20px`, `-16px`) jsou v repozitáři, do binárky nejdou (stejně jako u T-025).
+- **Výběr velikosti podle fyzických pixelů:**
+  - `PrinterIllustrations.SelectPixelSize` vybere nejmenší PNG s dostatkem pixelů (nikdy nezvětšuje), např. 24 DIP: 24/32/48/48 px při 100/125/150/200 %.
+  - Ovládací prvek `PrinterImageView` (seznam, tlačítko, Diagnostika) čte `RenderScaling` okna při každém vykreslení.
+  - Vlastní obrázek vykreslí celý ve čtverci (letterbox), dekóduje se jednou.
+  - Mapování modelů na ilustrace: `PrinterIllustrations.IdFor` podle rozhodnutí 2026-10-20.
+- **Zobrazení (model bez Avalonie):**
+  - `PrinterPicture`: vyřešený obrázek + bajty vlastního PNG.
+  - `CustomPrinterImages`: uložené vlastní obrázky v paměti pro tray a Diagnostiku.
+  - `PrinterImageStartup`: při startu na pozadí smaže osiřelé soubory **jen při stavu načtení `Loaded`** a načte používané obrázky.
+- **Zpracování importu:** `AvaloniaPrinterImageProcessor` (`IPrinterImageProcessor`) běží na thread poolu.
+  - Velikost se nejdřív přečte z hlavičky (`ImageHeaders`: PNG IHDR, JPEG SOF). PNG nad 40 MPx a JPEG nad 400 MPx se odmítnou (chyba „nejde načíst“).
+  - Velký JPEG se dekóduje rovnou zmenšený (Skia 1/2–1/8) na zhruba dvojnásobek cíle, pak se plynule zmenší.
+  - Delší strana max. 512 px, nikdy se nezvětšuje, kratší strana se zaokrouhlí (min. 1 px).
+  - **EXIF orientace JPEG** se aplikuje na pixely (`ImageHeaders.ReadJpegOrientation`, `PixelOrientation`, všech 8 hodnot).
+  - Výstup je nové PNG bez metadat (EXIF, GPS, ICC profil). Chyby dekódování → `PrinterImageDecodeException`.
+  - Bez nového balíčku, jen Avalonia API.
+- **Okno nastavení:**
+  - Seznam: obrázek 24 × 24 · 8 · „!“ · název.
+  - Podzáložka Tiskárna: tlačítko 56 × 56 (`Grid` `56,12,*,16,320`, Název je užší), dole zarovnané s polem Název, malá šipka v rohu. `AutomationProperties.Name` „Obrázek tiskárny: MK4S (zjištěno)“, tooltip „Změnit obrázek tiskárny“.
+  - Nabídka (`MenuFlyout`), zaškrtnutá je aktuální volba:
+    - Automaticky podle modelu (MK4S / zatím nezjištěn); u Prusa Connect „Obecná ilustrace“.
+    - Vybrat model ▸ (`PrinterModels.Selectable`, názvy z `GetProductName`).
+    - Vlastní obrázek…
+    - Odebrat vlastní obrázek (jen u vlastního).
+  - Výběr souboru: `StorageProviderImageFilePicker` (filtr PNG/JPG, přečte max. 5 MB + 1 B, dokud je soubor otevřený – kvůli sandboxu na macOS).
+  - Chyby importu (příliš velký, jiný formát, nejde načíst, nejde otevřít) jsou lokalizované. Zobrazí se ve **stavovém řádku dole** (viz otevřená otázka 1), s další volbou zmizí.
+  - Nový import zůstane v paměti (`PrinterEditorViewModel.PendingImage`, okno je „změněné“). Zrušit ho zahodí.
+- **Zjištěný model a volba v editoru:**
+  - `PrinterEditorViewModel` přenáší `DetectedModel` a `Image`, takže uložení okna nic neztratí.
+  - Zjištěný model patří k adrese a typu připojení, pro které byl zjištěn. Jiná adresa nebo typ ho neuloží; návrat na původní adresu ho vrátí.
+  - Úspěšný test spojení uloží `ModelCode` testované tiskárny (`ConnectionTestResult.ModelCode`). Firmware bez kódu kód smaže. Zapíše se s ostatním nastavením při Uložit.
+- **Uložení (`SettingsEditorStore`):**
+  - Po zapsání `settings.json` uloží nové obrázky (`IPrinterImageStore.SaveAsync`).
+  - `DeleteAsync` volá u odebraných tiskáren a u přepnutí z vlastního obrázku.
+  - Aktualizuje `CustomPrinterImages`, tray a Diagnostika hned ukážou nový obrázek.
+  - Obrázek, který se nepodařilo uložit → `SettingsSaveResult.UnsavedImages` a upozornění. Při neúspěšném uložení nastavení se obrázků nic nedotkne.
+  - Před zápisem převezme **nejnovější model z monitoringu** (`ISettingsApplier.CurrentSettings`) u tiskáren, jejichž model, adresu a typ připojení okno nezměnilo.
+- **Model zjištěný monitoringem (`MonitoringSession`):**
+  - Odebírá `IPrinterMonitor.ModelDetected`. Jen skutečná změna (`AppSettings.WithDetectedModel`) aktualizuje aktuální nastavení a pozorovatele (`UpdateSettings`; tray menu a Diagnostika ukážou ilustraci).
+  - Na pozadí a postupně zapíše **jen tuto hodnotu** novou metodou Core `ISettingsStore.SetDetectedModelAsync` (`DetectedModelWriter`, jako čistič údajů kamery). Zbytek souboru zůstane bajt po bajtu; chybějící vlastnost se doplní za poslední hodnotu s odsazením první.
+  - Hlášení z běhu, který se právě nahrazuje (nová adresa), se zahodí.
+  - Monitoring se nerestartuje: `KeepsMonitoring` nově ignoruje `DetectedModel` a `Image`, takže ani změna obrázku v okně nastavení monitoring nerestartuje.
+  - Při ukončení aplikace se počká na rozepsaný zápis (max. 1 s).
+- **Diagnostika:** obrázek 48 × 48 vlevo od výběru tiskárny / názvu (`DiagnosticsViewModel.Picture`), sleduje změny definice i vlastních obrázků.
+- **Tray menu (Windows):**
+  - `TrayMenuEntry.Icon` u položek tiskáren (jedna tiskárna i záhlaví podmenu). Položky podmenu, Kamera a pevné položky ikonu nemají.
+  - `INativeTrayMenuItem.SetIcon` → `NativeMenuItem.Icon` přes `PrinterMenuIcons`.
+  - Avalonia na Windows kreslí tray menu sama (`MenuFlyoutPresenter`) a ikonu vměstná do 16 × 16 DIP (ověřeno headless testem). Bitmapa má proto 16 DIP pixelů při **systémovém měřítku** (`GetDpiForSystem`, `[LibraryImport]`): 16/20/24/32 px při 100/125/150/200 %.
+  - Menu se otevírá jako nové okno u kurzoru, takže jeho monitor předem neznáme. Na monitoru s jiným měřítkem se bitmapa přeškáluje.
+  - Na macOS ikony nejsou (`TrayMenuOptions.ForCurrentPlatform`).
+  - Změna obrázku nebo modelu za běhu aktualizuje jen ikonu, stav tiskárny zůstane.
+- **Core (malé změny):**
+  - `ISettingsStore.SetDetectedModelAsync` (výchozí implementace nic nezapíše), `JsonSettingsStore` a `Storage/DetectedModelWriter`.
+  - `PrinterImage.Resolve(choice, typ, kód, …)` pro editor.
+  - `docs/api/prusalink.md` doplněn o ukládání.
+- **Texty (8 jazyků):** 19 nových klíčů (`SettingsImage*`, `SettingsSavedImageNotStored`, `DiagnosticsPrinterImage`) podle konvencí T-029 (výpustka „…“, nezlomitelná mezera před MB a ve fr před „:“ a „;“, fr „Mo“).
+- **Testy:**
+  - Core.Tests: `JsonSettingsStoreDetectedModelTests`.
+  - App.Tests:
+    - `Printers/*`: ilustrace a výběr velikosti, `PrinterPicture`, `CustomPrinterImages` a start (úklid jen při `Loaded`), hlavičky a EXIF, orientace.
+    - `Settings/PrinterImageSettingsTests`: přenos a mazání modelu, test spojení, nabídka, import a chyby, Zrušit, odebrání, neuložený obrázek.
+    - `Settings/SettingsEditorStoreImageTests`: uložení a mazání po uložení, převzetí nejnovějšího modelu.
+    - `Tray/MonitoringSessionModelTests`: uložení na pozadí bez restartu, jen při změně, postupně, zahození hlášení nahrazovaného běhu, stav načtení.
+    - `Tray/Menu/TrayMenuIconTests`, `TrayMenuTargetTests` (ikony).
+    - `Diagnostics/DiagnosticsPictureTests`.
+  - UiTests:
+    - `PrinterImageProcessorTests`: PNG/JPEG, zmenšení, nezvětšování, EXIF orientace 1/3/6/8, bez metadat, poškozená data, příliš mnoho pixelů.
+    - `PrinterImageViewTests`: všechny ilustrace ve všech velikostech, pixely podle měřítka 100–200 %, letterbox.
+    - `SettingsWindowImageUiTests`: 24 v seznamu, tlačítko 56, nabídka a výběr modelu, import přes dialog, chyba ve stavovém řádku.
+    - `DiagnosticsWindowImageUiTests`: 48 a snímek.
+    - `TrayMenuIconUiTests`: `NativeMenuItem.Icon` 16/20/24/32 px, vlastní obrázek, bez ikon, ikona v menu Avalonie 16 DIP.
+    - Testy rozložení: pořadí Tab s tlačítkem obrázku, nový stav „všechny chyby + nejdelší chyba importu“ v 8 jazycích bez posuvníku.
+    - `AppIconUiTests`: seznam assetů.
+  - Snímky: přegenerované `settings-*`, nové `settings-printer-images` a `diagnostics-printer-image`; prohlédnuté.
+  - Sdílené falešné objekty: `App.Tests/Printers/ImageFakes.cs` (nalinkované do UiTests).
+- **Ověření (Windows 11, 2026-10-20):**
+  - `dotnet build` 0 varování, 0 chyb.
+  - `dotnet test` 2× bez chyby (3840 testů, 1 přeskočený existující).
+  - `dotnet publish -c Release -r win-x64` bez varování.
+  - Debug i AOT build spuštěné asi 25 s běžely. Obě skutečně zjistily model tiskárny uživatele (`7.1.0`, Core One) a monitoring do `settings.json` doplnil jen `"detectedModel": "7.1.0"`. Soubory uživatele jsem po ověření vrátil ze zálohy do původního stavu.
+- **Na macOS nic neověřeno:** dialog souborů (`AppleUniformTypeIdentifiers`); ikony menu jsou tam vypnuté; AOT pro macOS jen na macOS.
+- **Zbývá ručně (uživatel):**
+  - Tray menu na Windows při 100 % a 150 %: u položky tiskárny je vidět ostrá ilustrace (16 / 24 px), u více tiskáren u záhlaví podmenu.
+  - Nastavení → tlačítko obrázku: nabídka, výběr modelu, vlastní obrázek z telefonu (otočená fotka se zobrazí správně), Uložit / Zrušit.
+  - Diagnostika: obrázek v záhlaví.
+  - Po uložení se obrázek v tray menu změní bez „Připojování…“.

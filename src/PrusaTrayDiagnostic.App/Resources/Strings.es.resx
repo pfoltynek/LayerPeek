@@ -825,4 +825,61 @@
   <data name="SettingsOverlayHint" xml:space="preserve">
     <value>Los datos del trabajo (progreso, tiempos, nombre del archivo) solo se muestran durante una impresión. Al guardar, los cambios se aplican también a las ventanas de la cámara abiertas.</value>
   </data>
+  <data name="SettingsImageButtonName" xml:space="preserve">
+    <value>Imagen de la impresora: {0}</value>
+  </data>
+  <data name="SettingsImageButtonToolTip" xml:space="preserve">
+    <value>Cambiar la imagen de la impresora</value>
+  </data>
+  <data name="SettingsImageAutomatic" xml:space="preserve">
+    <value>Automática según el modelo ({0})</value>
+  </data>
+  <data name="SettingsImageNotDetected" xml:space="preserve">
+    <value>aún no detectado</value>
+  </data>
+  <data name="SettingsImageGeneric" xml:space="preserve">
+    <value>Ilustración genérica</value>
+  </data>
+  <data name="SettingsImageChooseModel" xml:space="preserve">
+    <value>Elegir modelo</value>
+  </data>
+  <data name="SettingsImageCustom" xml:space="preserve">
+    <value>Imagen propia…</value>
+  </data>
+  <data name="SettingsImageRemoveCustom" xml:space="preserve">
+    <value>Quitar la imagen propia</value>
+  </data>
+  <data name="SettingsImageDescriptionCustom" xml:space="preserve">
+    <value>imagen propia</value>
+  </data>
+  <data name="SettingsImageDescriptionGeneric" xml:space="preserve">
+    <value>ilustración genérica</value>
+  </data>
+  <data name="SettingsImageDescriptionDetected" xml:space="preserve">
+    <value>{0} (detectado)</value>
+  </data>
+  <data name="SettingsImagePickerTitle" xml:space="preserve">
+    <value>Elegir una imagen de la impresora</value>
+  </data>
+  <data name="SettingsImagePickerFilter" xml:space="preserve">
+    <value>Imágenes (PNG, JPG)</value>
+  </data>
+  <data name="SettingsImageErrorTooLarge" xml:space="preserve">
+    <value>La imagen ocupa más de {0} MB.</value>
+  </data>
+  <data name="SettingsImageErrorFormat" xml:space="preserve">
+    <value>Solo se pueden usar imágenes PNG y JPG.</value>
+  </data>
+  <data name="SettingsImageErrorUndecodable" xml:space="preserve">
+    <value>No se pudo leer la imagen. Puede estar dañada o tener demasiados píxeles.</value>
+  </data>
+  <data name="SettingsImageErrorUnreadable" xml:space="preserve">
+    <value>No se pudo abrir el archivo.</value>
+  </data>
+  <data name="SettingsSavedImageNotStored" xml:space="preserve">
+    <value>Configuración guardada. No se pudo guardar una imagen de impresora, por lo que la impresora muestra su ilustración.</value>
+  </data>
+  <data name="DiagnosticsPrinterImage" xml:space="preserve">
+    <value>Imagen de la impresora</value>
+  </data>
 </root>

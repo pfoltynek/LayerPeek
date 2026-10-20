@@ -34,6 +34,8 @@
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Tray\Menu\FakeWebGateway.cs" Link="Shared\FakeWebGateway.cs" />
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Cameras\CameraFakes.cs" Link="Shared\CameraFakes.cs" />
     <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Cameras\FakeScreenCatalog.cs" Link="Shared\FakeScreenCatalog.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Printers\ImageFakes.cs" Link="Shared\ImageFakes.cs" />
+    <Compile Include="..\PrusaTrayDiagnostic.App.Tests\Diagnostics\DiagnosticsFakes.cs" Link="Shared\DiagnosticsFakes.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

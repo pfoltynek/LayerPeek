@@ -1,3 +1,5 @@
+using PrusaTrayDiagnostic.Core.Printers;
+
 namespace PrusaTrayDiagnostic.Core.Settings;
 
 /// <summary>
@@ -44,4 +46,20 @@ public interface ISettingsStore
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     Task<IReadOnlyList<string>> RemoveCameraCredentialsAsync(CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<string>>([]);
+
+    /// <summary>
+    /// Sets the detected model of printer <paramref name="printerId"/> (<c>printers[*].detectedModel</c>, T-039) in the stored
+    /// settings and changes <b>nothing else</b>, like <see cref="RemoveCameraCredentialsAsync"/>: the model detected by
+    /// monitoring is saved in the background, without the user, so entries the loader skipped, unknown values and
+    /// formatting must survive. Every entry with that id (trimmed, case-insensitive) gets the code; the write is atomic.
+    /// A missing, unreadable or too large file, one that is not syntactically valid JSON and one without such a printer is
+    /// left alone.
+    /// </summary>
+    /// <returns><see langword="true"/> when the file was written (the code differed or was missing).</returns>
+    /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
+    /// <exception cref="IOException">The settings could not be written.</exception>
+    /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }

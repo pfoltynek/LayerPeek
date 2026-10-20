@@ -112,6 +112,11 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             Item.SetHeader(NativeMenuText.EscapeAccessKeys(entry.Header));
             Item.SetEnabled(entry.IsEnabled);
             Item.SetToolTip(entry.ToolTip);
+            if (entry.Icon is not null)
+            {
+                Item.SetIcon(entry.Icon);
+            }
+
             if (entry.Submenu is { } submenu)
             {
                 INativeTrayMenu native = Item.CreateSubmenu();
@@ -150,6 +155,11 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             if (entry.ToolTip != _entry.ToolTip)
             {
                 Item.SetToolTip(entry.ToolTip);
+            }
+
+            if (!Equals(entry.Icon, _entry.Icon))
+            {
+                Item.SetIcon(entry.Icon);
             }
 
             // The view model reuses the submenu list while only the state changes, so a poll skips the children.

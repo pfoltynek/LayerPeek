@@ -23,6 +23,8 @@ internal static class SettingsWindowFactory
         try
         {
             viewModel = createViewModel(new AvaloniaScreenCatalog(window));
+            // The file dialog of custom printer images (T-039) belongs to this window.
+            viewModel.ImageFilePicker = new StorageProviderImageFilePicker(window);
             window.DataContext = viewModel;
             return (window, viewModel);
         }

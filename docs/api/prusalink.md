@@ -78,6 +78,7 @@ Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3`
 - Klient: `PrusaLinkClient.DetectModelAsync` (jen `/api/version`) a `PrusaLinkPrinterInfo.ModelCode` (test spojení).
 - Monitor se zeptá jednou za běh, po prvním úspěšném dotazu na stav, a vyvolá `IPrinterMonitor.ModelDetected`. Selhaný dotaz zkusí znovu po dalším úspěšném dotazu na stav, nejvýš 3× za běh. Firmware bez pole `printer` se už znovu neptá.
 - Uložený kód je `printers[*].detectedModel` v `settings.json`.
+- Kód zjištěný monitoringem uloží App (`MonitoringSession`) na pozadí, jen když se změnil. Do souboru zapíše jen tuto hodnotu (`ISettingsStore.SetDetectedModelAsync`, zbytek souboru zůstane bajt po bajtu) a monitoring nerestartuje. Test spojení v okně nastavení kód uloží spolu s nastavením. Nová adresa nebo typ připojení v editoru kód zahodí do další detekce (T-039).
 
 ## Stavy (`printer.state`)
 

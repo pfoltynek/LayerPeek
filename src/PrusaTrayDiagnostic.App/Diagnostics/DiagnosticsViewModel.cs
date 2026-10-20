@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.History;
@@ -51,6 +52,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
     private readonly Action _apply;
     private readonly Lock _gate = new();
     private readonly ObservableCollection<PrinterChoice> _printers = [];
+    private readonly CustomPrinterImages? _images;
 
     // Guarded by _gate. _selectedId is also read without it (volatile) to drop other printers' snapshots cheaply.
     private string? _selectedId;
@@ -75,6 +77,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
     private bool _infoRetryUsed;
 
     private PrinterChoice? _selectedPrinter;
+    private PrinterPicture? _picture;
     private bool _hasPrinterSelector;
     private bool _hasPrinter;
     private string? _notice;
@@ -112,7 +115,8 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         IUiDispatcher dispatcher,
         IPrinterInfoSource infoSource,
         TimeProvider clock,
-        string? initialPrinterId = null)
+        string? initialPrinterId = null,
+        CustomPrinterImages? images = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(printers);
@@ -142,6 +146,12 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
         _monitoredPrinters.Changed += OnPrintersChanged;
+        _images = images;
+        if (_images is not null)
+        {
+            _images.Changed += OnImagesChanged;
+        }
+
         SyncPrinters(_monitoredPrinters.Current);
     }
 
@@ -187,6 +197,13 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
 
             Select(value);
         }
+    }
+
+    /// <summary>The picture of the selected printer (T-039, 48 DIP in the header); <see langword="null"/> without a printer.</summary>
+    public PrinterPicture? Picture
+    {
+        get => _picture;
+        private set => SetProperty(ref _picture, value);
     }
 
     /// <summary>More than one printer is configured.</summary>
@@ -435,6 +452,11 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _monitoredPrinters.Changed -= OnPrintersChanged;
+        if (_images is not null)
+        {
+            _images.Changed -= OnImagesChanged;
+        }
+
         _infoCancellation?.Cancel();
         _infoCancellation = null;
     }
@@ -498,6 +520,21 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
             ScheduleApplyLocked();
         }
     }
+
+    /// <summary>Any thread: a custom image was saved or removed in the settings window.</summary>
+    private void OnImagesChanged(object? sender, EventArgs e) => _dispatcher.Post(() =>
+    {
+        if (!IsDisposed())
+        {
+            UpdatePicture();
+        }
+    });
+
+    /// <summary>UI thread: the picture of the selected printer from its definition and its stored custom image.</summary>
+    private void UpdatePicture() =>
+        Picture = _selectedPrinter is { } selected && _definitions.TryGetValue(selected.Id, out PrinterDefinition? definition)
+            ? _images?.PictureOf(definition) ?? PrinterPicture.For(definition, customPng: null)
+            : null;
 
     private void ScheduleApplyLocked()
     {
@@ -613,6 +650,9 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
             // Another machine behind the same id: its information may differ.
             LoadInfo(definition);
         }
+
+        // A detected model or a new image (T-039) changes the picture without restarting anything.
+        UpdatePicture();
     }
 
     /// <summary>Replaces differing items, then adds or removes at the end; returns whether anything changed.</summary>
@@ -671,6 +711,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         }
 
         LoadInfo(choice is not null ? _definitions.GetValueOrDefault(choice.Id) : null);
+        UpdatePicture();
         ShowContent(initial);
     }
 

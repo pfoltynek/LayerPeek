@@ -8,10 +8,13 @@ using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
+using PrusaTrayDiagnostic.App.Platform.Windows;
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Icons;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Settings;
 using PrusaTrayDiagnostic.Core.Web;
@@ -40,6 +43,8 @@ internal sealed partial class TrayHost : IAsyncDisposable
     private readonly ITrayIconSet? _iconSet;
     private readonly TrayIconPresenter<WindowIcon>? _iconPresenter;
     private readonly TrayMenuPresenter? _menuPresenter;
+    private readonly PrinterMenuIcons? _menuIcons;
+    private readonly CancellationTokenSource _backgroundWork;
     private readonly UiLanguage _language;
     private readonly TrayStatusViewModel _status;
     private readonly TrayMenuViewModel _menu;
@@ -51,7 +56,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
         MonitoringSession session,
         ITrayIconSet? iconSet,
         TrayIconPresenter<WindowIcon>? iconPresenter,
-        TrayMenuPresenter? menuPresenter)
+        TrayMenuPresenter? menuPresenter,
+        PrinterMenuIcons? menuIcons,
+        CancellationTokenSource backgroundWork)
     {
         _loggerFactory = loggerFactory;
         _logger = loggerFactory.CreateLogger<TrayHost>();
@@ -60,6 +67,8 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _iconSet = iconSet;
         _iconPresenter = iconPresenter;
         _menuPresenter = menuPresenter;
+        _menuIcons = menuIcons;
+        _backgroundWork = backgroundWork;
         _language = services.GetRequiredService<UiLanguage>();
         _status = services.GetRequiredService<TrayStatusViewModel>();
         _menu = services.GetRequiredService<TrayMenuViewModel>();
@@ -89,11 +98,13 @@ internal sealed partial class TrayHost : IAsyncDisposable
         ColorTrayIconSet? iconSet = null;
         TrayIconPresenter<WindowIcon>? iconPresenter = null;
         TrayMenuPresenter? menuPresenter = null;
+        PrinterMenuIcons? menuIcons = null;
+        CancellationTokenSource backgroundWork = new();
         try
         {
             ILogger<MonitoringSession> sessionLogger = services.GetRequiredService<ILogger<MonitoringSession>>();
-            AppSettings initialSettings = await Task.Run(
-                () => MonitoringSession.LoadSettingsAsync(
+            (AppSettings initialSettings, SettingsLoadStatus loadStatus) = await Task.Run(
+                () => MonitoringSession.LoadSettingsWithStatusAsync(
                     services.GetRequiredService<ISettingsStore>,
                     sessionLogger,
                     CancellationToken.None,
@@ -111,8 +122,10 @@ internal sealed partial class TrayHost : IAsyncDisposable
                     services.GetRequiredService<TrayStatusViewModel>(),
                     iconSet.GetIcon,
                     services.GetRequiredService<ILogger<TrayIconPresenter<WindowIcon>>>());
+                // Printer icons (T-039) only where the platform shows them (Windows), sized for the system scaling.
+                menuIcons = services.GetRequiredService<TrayMenuOptions>().PrinterIcons ? new PrinterMenuIcons(SystemScaling()) : null;
                 menuPresenter = new TrayMenuPresenter(
-                    new TrayMenuTarget(new AvaloniaNativeTrayMenu(trayIcon)),
+                    new TrayMenuTarget(new AvaloniaNativeTrayMenu(trayIcon, menuIcons)),
                     services.GetRequiredService<TrayMenuViewModel>(),
                     commands,
                     services.GetRequiredService<ILogger<TrayMenuPresenter>>());
@@ -129,13 +142,26 @@ internal sealed partial class TrayHost : IAsyncDisposable
             // Remembered camera windows are read in the background, long before a camera window opens; never throws.
             _ = services.GetRequiredService<ICameraWindowStateStore>().LoadAsync(CancellationToken.None);
 
-            return new TrayHost(loggerFactory, services, session, iconSet, iconPresenter, menuPresenter);
+            // Custom printer images (T-039) in the background: orphans go only with really loaded settings; never throws.
+            _ = Task.Run(
+                () => PrinterImageStartup.RunAsync(
+                    services.GetRequiredService<IPrinterImageStore>,
+                    services.GetRequiredService<CustomPrinterImages>(),
+                    initialSettings,
+                    loadStatus,
+                    services.GetRequiredService<ILogger<CustomPrinterImages>>(),
+                    backgroundWork.Token),
+                CancellationToken.None);
+
+            return new TrayHost(loggerFactory, services, session, iconSet, iconPresenter, menuPresenter, menuIcons, backgroundWork);
         }
         catch
         {
             menuPresenter?.Dispose();
+            menuIcons?.Dispose();
             iconPresenter?.Dispose();
             iconSet?.Dispose();
+            backgroundWork.Dispose();
             services.Dispose();
             loggerFactory.Dispose();
             throw;
@@ -180,10 +206,14 @@ internal sealed partial class TrayHost : IAsyncDisposable
         // From here on, menu clicks, late monitor updates and language switches no longer reach the tray.
         _language.Changed -= OnLanguageChanged;
         _menuPresenter?.Dispose();
+        _menuIcons?.Dispose();
         _iconPresenter?.Dispose();
         _iconSet?.Dispose();
+        _backgroundWork.Cancel();
 
         await WaitForPendingSaveAsync().ConfigureAwait(true);
+        // A detected model being written (T-039): a tiny atomic write; an interrupted one keeps the previous file.
+        await _session.ModelSaves.WaitAsync(PendingSaveTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
         // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
         await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
@@ -197,6 +227,8 @@ internal sealed partial class TrayHost : IAsyncDisposable
             // Recorded here, while the (caller-owned) logger factory is certainly alive; quitting goes on.
             LogDisposeFailed(ex);
         }
+
+        _backgroundWork.Dispose();
     }
 
     /// <summary>
@@ -289,6 +321,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Releasing services failed while stopping.")]
     private partial void LogDisposeFailed(Exception exception);
+
+    /// <summary>Scaling for the tray menu icons: the menu opens as a new popup, so its monitor is not known in advance.</summary>
+    private static double SystemScaling() => OperatingSystem.IsWindows() ? SystemDpiNative.GetScaling() : 1.0;
 
     // macOS menu bar template icons follow in T-018; until then every OS uses the coloured set.
     private static ColorTrayIconSet CreateIconSet() => new(multiSize: OperatingSystem.IsWindows());

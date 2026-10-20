@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings.Storage;
 
 namespace PrusaTrayDiagnostic.Core.Settings;
@@ -105,6 +106,52 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
 
             await WriteAtomicallyAsync(cleaned, cancellationToken).ConfigureAwait(false);
             return changed;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            byte[]? content;
+            try
+            {
+                content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return false;
+            }
+
+            if (content is null)
+            {
+                return false;
+            }
+
+            byte[]? updated;
+            try
+            {
+                updated = DetectedModelWriter.Write(content, printerId, code);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not valid JSON, or invalid UTF-8 in a property name or printer id: not ours to change.
+                return false;
+            }
+
+            if (updated is null)
+            {
+                return false;
+            }
+
+            await WriteAtomicallyAsync(updated, cancellationToken).ConfigureAwait(false);
+            return true;
         }
         finally
         {

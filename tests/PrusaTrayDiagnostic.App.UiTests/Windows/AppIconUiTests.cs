@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 
+using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 using PrusaTrayDiagnostic.App.Windows;
 
@@ -19,10 +20,15 @@ public sealed class AppIconUiTests(HeadlessSession session)
         session.RunAsync(_ =>
         {
             // Exact list: a new asset must be added here. The SVG sources and the macOS master stay out of the binary;
-            // the old tray-idle.png is gone.
-            Uri[] expected = [AppIcon.AssetUri];
+            // the old tray-idle.png is gone. T-039: the printer illustrations, one PNG per illustration and size.
+            Uri[] expected =
+            [
+                AppIcon.AssetUri,
+                .. PrinterIllustrations.Ids.SelectMany(static id => PrinterIllustrations.PixelSizes.Select(size => PrinterIllustrations.AssetUri(id, size))),
+            ];
 
-            Assert.Equal(expected, BundledAssets());
+            Assert.Equal(expected.Select(static uri => uri.OriginalString).Order(StringComparer.Ordinal), BundledAssets().Select(static uri => uri.OriginalString).Order(StringComparer.Ordinal));
+            Assert.Equal(56, expected.Length);
             return Task.CompletedTask;
         });
 

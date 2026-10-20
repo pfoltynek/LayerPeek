@@ -1,3 +1,5 @@
+using PrusaTrayDiagnostic.App.Printers;
+
 namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
@@ -27,6 +29,9 @@ internal interface INativeTrayMenuItem
     void SetEnabled(bool enabled);
 
     void SetToolTip(string? toolTip);
+
+    /// <summary>The picture shown left of the text (printer items, T-039); <see langword="null"/> = none.</summary>
+    void SetIcon(PrinterPicture? icon);
 
     /// <summary>
     /// Gives the item a submenu (called at most once, right after creation, before the item is inserted); its items are

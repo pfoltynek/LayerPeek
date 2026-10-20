@@ -64,7 +64,7 @@ internal sealed class PrusaLinkConnectionTester : IConnectionTester
 
         if (result.Info is { } info && result.Failure == PrusaLinkFailure.None)
         {
-            return new ConnectionTestResult(ConnectionTestOutcome.Success, info.PrinterModel, info.Firmware, info.Hostname);
+            return new ConnectionTestResult(ConnectionTestOutcome.Success, info.PrinterModel, info.Firmware, info.Hostname, info.ModelCode);
         }
 
         return new ConnectionTestResult(result.Failure switch

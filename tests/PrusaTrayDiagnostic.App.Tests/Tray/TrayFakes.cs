@@ -101,6 +101,13 @@ internal sealed class FakePrinterMonitor : IPrinterMonitor
 
     public event EventHandler<PrinterSnapshot>? SnapshotUpdated;
 
+    /// <summary>Raised only by <see cref="RaiseModelDetected"/> (T-039).</summary>
+    public event EventHandler<PrinterModelDetected>? ModelDetected;
+
+    public int ModelSubscriberCount => ModelDetected?.GetInvocationList().Length ?? 0;
+
+    public void RaiseModelDetected(string printerId, PrinterModelCode code) => ModelDetected?.Invoke(this, new PrinterModelDetected(printerId, code));
+
     public int SubscriberCount => SnapshotUpdated?.GetInvocationList().Length ?? 0;
 
     private readonly Dictionary<string, PrinterSnapshot> _latest = new(StringComparer.OrdinalIgnoreCase);

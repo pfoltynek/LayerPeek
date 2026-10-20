@@ -2,6 +2,7 @@ using Avalonia.Controls;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Tests.Printers;
 using PrusaTrayDiagnostic.App.Tests.Settings;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 using PrusaTrayDiagnostic.App.Windows;
@@ -45,12 +46,15 @@ internal sealed class SettingsWindowHarness
         PasswordPolicy? policy = null,
         ICameraTester? cameraTester = null,
         IScreenCatalog? screens = null,
-        ICameraWindowStateStore? cameraWindowStates = null)
+        ICameraWindowStateStore? cameraWindowStates = null,
+        IImageFilePicker? imagePicker = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
         SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates);
+        // Like SettingsWindowFactory: the window has a file dialog for custom printer images (T-039); by default the user cancels it.
+        viewModel.ImageFilePicker = imagePicker ?? new FakeImagePicker { Content = null };
         scope.Defer(viewModel);
         SettingsWindow window = scope.Track(new SettingsWindow { DataContext = viewModel });
         SettingsWindowHarness harness = new(window, viewModel, slot);

@@ -1,7 +1,8 @@
 using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Cameras;
-
+using PrusaTrayDiagnostic.App.Printers;
+using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -37,6 +38,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     private readonly ILogger<SettingsEditorStore> _logger;
     private readonly TimeSpan _applyWaitTimeout;
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
+    private readonly Func<IPrinterImageStore>? _imageStore;
+    private readonly CustomPrinterImages? _customImages;
     private readonly Lock _pendingLock = new();
 
     // Guarded by _pendingLock. The last save, awaited when the app quits (an interrupted save could leave an orphan).
@@ -53,6 +56,11 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     /// <param name="removedCameraCredentials">
     /// Cameras whose credentials were removed at startup; reported by loads and cleared by a successful save.
     /// </param>
+    /// <param name="imageStore">
+    /// Custom printer images (T-039): read for the window, written after a save; resolved on first use, may throw.
+    /// <see langword="null"/>: no custom images.
+    /// </param>
+    /// <param name="customImages">The images shown by the tray and the diagnostics window, updated after a save.</param>
     public SettingsEditorStore(
         Func<ISettingsStore> settingsStore,
         ISecretStore secrets,
@@ -61,7 +69,9 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         IPrinterWebGateway webGateway,
         ILogger<SettingsEditorStore> logger,
         TimeSpan? applyWaitTimeout = null,
-        RemovedCameraCredentials? removedCameraCredentials = null)
+        RemovedCameraCredentials? removedCameraCredentials = null,
+        Func<IPrinterImageStore>? imageStore = null,
+        CustomPrinterImages? customImages = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(secrets);
@@ -77,6 +87,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         _logger = logger;
         _applyWaitTimeout = applyWaitTimeout ?? DefaultApplyWaitTimeout;
         _removedCameraCredentials = removedCameraCredentials;
+        _imageStore = imageStore;
+        _customImages = customImages;
     }
 
     public Task<SettingsEditorData> LoadAsync(CancellationToken cancellationToken) =>
@@ -135,7 +147,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         }
 
         IReadOnlySet<string>? withPassword = await FindSavedPasswordsAsync(result.Settings, cancellationToken).ConfigureAwait(false);
-        return new SettingsEditorData(result.Settings, result.Status, result.Warnings, withPassword, CamerasWithRemovedCredentials(result.Settings));
+        IReadOnlyDictionary<string, byte[]>? images = await ReadCustomImagesAsync(result.Settings, cancellationToken).ConfigureAwait(false);
+        return new SettingsEditorData(result.Settings, result.Status, result.Warnings, withPassword, CamerasWithRemovedCredentials(result.Settings), images);
     }
 
     /// <summary>Removed in this load (the startup save failed, or the file changed since) or at startup.</summary>
@@ -156,6 +169,164 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         }
 
         return ids;
+    }
+
+    /// <summary>
+    /// The stored custom images of printers that use one (T-039). A missing, damaged or unreadable file is left out (the
+    /// window then shows the automatic image); <see langword="null"/> when there are none or no image store.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, byte[]>?> ReadCustomImagesAsync(AppSettings settings, CancellationToken cancellationToken)
+    {
+        if (_imageStore is null || !settings.Printers.Any(static printer => printer.Image.Mode == PrinterImageMode.Custom))
+        {
+            return null;
+        }
+
+        Dictionary<string, byte[]> images = new(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            IPrinterImageStore store = _imageStore();
+            foreach (PrinterDefinition printer in settings.Printers)
+            {
+                if (printer.Image.Mode != PrinterImageMode.Custom)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (await store.ReadAsync(printer.Id, cancellationToken).ConfigureAwait(false) is { } png)
+                    {
+                        images[printer.Id] = png;
+                    }
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                {
+                    LogImageNotRead(ex, printer.Id);
+                }
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // No image store (e.g. no per-user data folder): the window shows the illustrations.
+            LogImageNotRead(ex, printerId: "*");
+        }
+
+        return images.Count > 0 ? images : null;
+    }
+
+    /// <summary>
+    /// T-039 (user decision 2026-10-20): the model detected by monitoring is saved in the background while the window may be
+    /// open; the window then saves the latest one. A printer whose detected model, address and connection type the user left
+    /// as loaded gets the model monitoring knows now (for the same address and connection type). A printer whose model the
+    /// window changed (cleared by a new address, set by a connection test) keeps the window's value.
+    /// </summary>
+    private AppSettings WithLatestDetectedModels(SettingsChange change)
+    {
+        if (_applier.CurrentSettings is not { } current)
+        {
+            return change.Updated;
+        }
+
+        AppSettings updated = change.Updated;
+        foreach (PrinterDefinition printer in change.Updated.Printers)
+        {
+            PrinterDefinition? original = Find(change.Original, printer.Id);
+            PrinterDefinition? running = Find(current, printer.Id);
+            if (original is not null
+                && running?.DetectedModel is { } latest
+                && printer.DetectedModel == original.DetectedModel
+                && SameMachine(printer, original)
+                && SameMachine(printer, running))
+            {
+                updated = updated.WithDetectedModel(printer.Id, latest);
+            }
+        }
+
+        return updated;
+
+        static bool SameMachine(PrinterDefinition a, PrinterDefinition b) =>
+            a.ConnectionType == b.ConnectionType && string.Equals(a.Address, b.Address, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static PrinterDefinition? Find(AppSettings settings, string id)
+    {
+        foreach (PrinterDefinition printer in settings.Printers)
+        {
+            if (string.Equals(printer.Id, id, StringComparison.OrdinalIgnoreCase))
+            {
+                return printer;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// After the settings file was written (T-039): new custom images are stored, images nothing uses any more (removed
+    /// printers, printers switched away from their custom image) are deleted, and the tray and diagnostics window get the
+    /// change. Never throws.
+    /// </summary>
+    /// <returns>How many new images could not be stored (those printers show their automatic image).</returns>
+    private async Task<int> StoreImagesAsync(SettingsChange change)
+    {
+        if (_imageStore is null)
+        {
+            return change.NewImages?.Count ?? 0;
+        }
+
+        IPrinterImageStore store;
+        try
+        {
+            store = _imageStore();
+        }
+        catch (Exception ex)
+        {
+            LogImageStoreUnavailable(ex);
+            return change.NewImages?.Count ?? 0;
+        }
+
+        int unsaved = 0;
+        foreach ((string id, byte[] png) in change.NewImages ?? new Dictionary<string, byte[]>())
+        {
+            if (Find(change.Updated, id) is not { Image.Mode: PrinterImageMode.Custom })
+            {
+                continue;
+            }
+
+            try
+            {
+                await store.SaveAsync(id, png, CancellationToken.None).ConfigureAwait(false);
+                _customImages?.Set(id, png);
+            }
+            catch (Exception ex)
+            {
+                unsaved++;
+                LogImageNotSaved(ex, id);
+            }
+        }
+
+        foreach (PrinterDefinition before in change.Original.Printers)
+        {
+            if (before.Image.Mode != PrinterImageMode.Custom || Find(change.Updated, before.Id) is { Image.Mode: PrinterImageMode.Custom })
+            {
+                continue;
+            }
+
+            try
+            {
+                await store.DeleteAsync(before.Id, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                // A removed printer's file goes with the orphan sweep at the next start; an unused one is never shown.
+                LogImageNotDeleted(ex, before.Id);
+            }
+
+            _customImages?.Remove(before.Id);
+        }
+
+        return unsaved;
     }
 
     /// <summary>Only whether a password exists; the value is dropped right away.</summary>
@@ -222,7 +393,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
         }
 
-        // Step 2: the settings file.
+        // Step 2: the settings file, with the latest model detected by monitoring (T-039).
+        change = change with { Updated = WithLatestDetectedModels(change) };
         try
         {
             await _settingsStore().SaveAsync(change.Updated, CancellationToken.None).ConfigureAwait(false);
@@ -235,6 +407,9 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
 
         // The user saved what the window showed, including the notice about removed camera credentials.
         _removedCameraCredentials?.Clear();
+
+        // Custom printer images (T-039): only now, so that Cancel or a failed save never touches the stored ones.
+        int unsavedImages = await StoreImagesAsync(change).ConfigureAwait(false);
 
         // Step 4: monitoring restarts with the new settings. Waiting for the old run to end means no poll of a removed
         // printer can find its password deleted below (that would be a spurious "password rejected" notification).
@@ -280,7 +455,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
         }
 
-        return new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: undeleted);
+        return new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: undeleted, UnsavedImages: unsavedImages);
     }
 
     /// <summary>Step 3: undoes written passwords, newest first. <see langword="false"/> when something could not be undone.</summary>
@@ -383,6 +558,18 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
 
         return ids;
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The custom image of printer '{PrinterId}' could not be read; its illustration is shown.")]
+    private partial void LogImageNotRead(Exception exception, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Custom printer images cannot be stored (no image folder).")]
+    private partial void LogImageStoreUnavailable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "The custom image of printer '{PrinterId}' could not be saved.")]
+    private partial void LogImageNotSaved(Exception exception, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The custom image of printer '{PrinterId}' could not be deleted.")]
+    private partial void LogImageNotDeleted(Exception exception, string printerId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Settings could not be loaded for the settings window; defaults are shown.")]
     private partial void LogLoadFailed(Exception exception);

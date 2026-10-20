@@ -37,6 +37,21 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
         Publish(new MonitoredPrintersState([.. settings.Printers], MonitoringFailed: false));
     }
 
+    /// <summary>
+    /// The same printers with new definitions while the run goes on (T-039: a detected model or another image): windows
+    /// show the new picture; the health stays as it is.
+    /// </summary>
+    void IMonitoringObserver.UpdateSettings(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        lock (_gate)
+        {
+            Volatile.Write(ref _current, _current with { Printers = [.. settings.Printers] });
+        }
+
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
+
     public void ReportMonitoringFailed()
     {
         lock (_gate)

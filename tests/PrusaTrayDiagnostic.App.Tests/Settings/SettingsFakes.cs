@@ -141,6 +141,9 @@ internal sealed class RecordingApplier(List<string>? log = null) : ISettingsAppl
 
     public List<bool> CredentialsChanged { get; } = [];
 
+    /// <summary>What monitoring runs with (T-039: the latest detected models); <see langword="null"/> = unknown.</summary>
+    public AppSettings? CurrentSettings { get; set; }
+
     public Task ApplyAsync(AppSettings settings, bool credentialsChanged)
     {
         log?.Add("apply");
