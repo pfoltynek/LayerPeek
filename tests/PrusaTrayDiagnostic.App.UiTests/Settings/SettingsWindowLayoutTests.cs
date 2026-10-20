@@ -46,7 +46,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
         ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
         ("Overlay", SettingsViewModel.PrintersTab, SettingsViewModel.OverlayPrinterTab),
-        ("General",SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
+        ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
     // ---- Size ----

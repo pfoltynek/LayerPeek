@@ -230,7 +230,7 @@
     <value>Z axis</value>
   </data>
   <data name="DiagnosticsTemperatureValue" xml:space="preserve">
-    <value>{0} °C</value>
+    <value>{0} °C</value>
   </data>
   <data name="DiagnosticsHeaterOff" xml:space="preserve">
     <value>Off</value>
@@ -787,7 +787,7 @@
     <value>{0}: {1}</value>
   </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
-    <value>{0} / {1} °C</value>
+    <value>{0} / {1} °C</value>
   </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Done at {0}</value>

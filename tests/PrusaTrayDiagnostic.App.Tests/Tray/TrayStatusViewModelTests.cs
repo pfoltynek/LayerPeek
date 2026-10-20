@@ -270,7 +270,7 @@ public sealed class TrayStatusViewModelTests : IDisposable
             _dispatcher.RunAll();
         }
 
-        Assert.Equal("MK4\nTiskne – 42 %\nZbývá 10 min\nbenchy.bgcode", _viewModel.ToolTipText);
+        Assert.Equal("MK4\nTiskne – 42\u00A0%\nZbývá 10 min\nbenchy.bgcode", _viewModel.ToolTipText);
         Assert.Equal([nameof(TrayStatusViewModel.ToolTipText)], _changes);
     }
 

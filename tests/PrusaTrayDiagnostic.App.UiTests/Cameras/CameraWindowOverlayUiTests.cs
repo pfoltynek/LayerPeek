@@ -117,7 +117,7 @@ public sealed class CameraWindowOverlayUiTests(HeadlessSession session)
             await using CameraHarness harness = new(window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Normal }, overlay: Selection);
             CameraWindow window = await OpenPrintingAsync(harness);
             CameraViewModel viewModel = ViewModel(window);
-            string[] normal = ["Alpha", "Nozzle: 215 / 215 °C", "Bed: 60 / 60 °C", "Done at 1:05 PM"];
+            string[] normal = ["Alpha", "Nozzle: 215 / 215\u00A0°C", "Bed: 60 / 60\u00A0°C", "Done at 1:05 PM"];
 
             Assert.Equal(normal, OverlayTexts(window));
 
@@ -225,7 +225,7 @@ public sealed class CameraWindowOverlayUiTests(HeadlessSession session)
             Save(harness, Selection, defaults);
             window.Settle();
 
-            Assert.Equal(["Alpha", "Nozzle: 215 / 215 °C", "Bed: 60 / 60 °C", "Done at 1:05 PM"], OverlayTexts(window));
+            Assert.Equal(["Alpha", "Nozzle: 215 / 215\u00A0°C", "Bed: 60 / 60\u00A0°C", "Done at 1:05 PM"], OverlayTexts(window));
             Rect overlay = BoundsInWindow(Overlay(window), window);
             Assert.Equal(window.ClientSize.Width - Margin, overlay.Right, 1);
             Assert.True(overlay.Y > Margin);
@@ -286,8 +286,8 @@ public sealed class CameraWindowOverlayUiTests(HeadlessSession session)
             ViewModel(window).RefreshTexts();
             window.Settle();
 
-            Assert.Contains("Düse: 215 / 215 °C", OverlayTexts(window));
-            Assert.Contains("Heizbett: 60 / 60 °C", OverlayTexts(window));
+            Assert.Contains("Düse: 215 / 215\u00A0°C", OverlayTexts(window));
+            Assert.Contains("Heizbett: 60 / 60\u00A0°C", OverlayTexts(window));
             Assert.Contains("Druckzeit: 2 h 10 min", OverlayTexts(window));
         });
 

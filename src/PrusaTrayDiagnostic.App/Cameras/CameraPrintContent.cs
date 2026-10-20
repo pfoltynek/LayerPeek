@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Resources;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Cameras;
@@ -56,19 +57,19 @@ internal readonly record struct CameraPrintContent(
     /// <summary>Nothing is shown.</summary>
     public bool IsEmpty => this == default;
 
-    /// <summary>The T-014 overlay: state, progress and remaining time.</summary>
-    public static CameraPrintContent From(PrinterSnapshot? snapshot) =>
-        From(snapshot, CameraOverlayOptions.DefaultItems, printerName: null, TimeZoneInfo.Local);
-
     /// <param name="snapshot">The latest snapshot of the printer; <see langword="null"/> before the first poll.</param>
     /// <param name="items">The selected items of the current window mode.</param>
     /// <param name="printerName">The name from the settings (shown when <see cref="CameraOverlayItems.PrinterName"/> is selected).</param>
     /// <param name="zone">Time zone of the finish time (the local one).</param>
-    public static CameraPrintContent From(PrinterSnapshot? snapshot, CameraOverlayItems items, string? printerName, TimeZoneInfo zone)
+    /// <param name="cache">
+    /// Reuses the shortened name and file name while the raw text is unchanged (each poll brings a new string), so that a
+    /// long file name is not shortened again on every poll; <see langword="null"/> = no reuse. Not thread-safe.
+    /// </param>
+    public static CameraPrintContent From(PrinterSnapshot? snapshot, CameraOverlayItems items, string? printerName, TimeZoneInfo zone, CameraOverlayTextCache? cache = null)
     {
         ArgumentNullException.ThrowIfNull(zone);
         string? name = Has(items, CameraOverlayItems.PrinterName) && !string.IsNullOrWhiteSpace(printerName)
-            ? TrayText.Ellipsize(printerName, MaxNameLength)
+            ? cache?.Name(printerName) ?? ShortenName(printerName)
             : null;
         if (snapshot is null)
         {
@@ -109,7 +110,7 @@ internal readonly record struct CameraPrintContent(
             FinishTime = finish,
             FinishesOnAnotherDay = otherDay,
             PrintTimeMinutes = Has(items, CameraOverlayItems.PrintTime) && job.Elapsed is { } elapsed ? ToolTipContent.CeilingMinutes(elapsed) : null,
-            FileName = Has(items, CameraOverlayItems.FileName) && job.FileName is { } fileName ? ShortenFileName(fileName) : null,
+            FileName = Has(items, CameraOverlayItems.FileName) && job.FileName is { } fileName ? cache?.FileName(fileName) ?? ShortenFileName(fileName) : null,
         };
     }
 
@@ -157,7 +158,7 @@ internal readonly record struct CameraPrintContent(
         {
             string time = finish.ToString("t", CultureInfo.CurrentCulture);
             string text = FinishesOnAnotherDay
-                ? Format(Strings.CameraOverlayFinishDateTime, finish.ToString(CultureInfo.CurrentCulture.DateTimeFormat.MonthDayPattern, CultureInfo.CurrentCulture), time)
+                ? Format(Strings.CameraOverlayFinishDateTime, MonthDay(finish), time)
                 : Format(Strings.CameraOverlayFinishTime, time);
             lines.Add(new(CameraOverlayItems.FinishTime, text, IsEmphasized: false));
         }
@@ -223,6 +224,23 @@ internal readonly record struct CameraPrintContent(
         return string.Concat(fileName.AsSpan(0, head), Ellipsis, fileName.AsSpan(tailStart));
     }
 
+    /// <summary>A printer name of at most <see cref="MaxNameLength"/> characters (longer ones end with "…").</summary>
+    internal static string ShortenName(string name) => TrayText.Ellipsize(name, MaxNameLength);
+
+    /// <summary>
+    /// "17. října" / "October 17" (user decision 2026-10-20, T-036 Q3): the words of a date are part of the sentence, so the
+    /// month name <b>and</b> the day–month order come from the app language (<see cref="UiLanguage.CurrentTextCulture"/>);
+    /// only the time next to it follows the region (<c>CurrentCulture</c>). Mixing a region pattern with month names of
+    /// another language would give ungrammatical text (en-US "MMMM d" with Czech genitive names: "října 17").
+    /// </summary>
+    private static string MonthDay(DateTime date)
+    {
+        CultureInfo language = UiLanguage.CurrentTextCulture();
+        // The neutral language ("cs") has no calendar data of its own on every platform; its default region does.
+        CultureInfo culture = language.IsNeutralCulture ? CultureInfo.CreateSpecificCulture(language.Name) : language;
+        return date.ToString(culture.DateTimeFormat.MonthDayPattern, culture);
+    }
+
     private static bool Has(CameraOverlayItems items, CameraOverlayItems item) => (items & item) != 0;
 
     /// <summary>"1 h 5 min"; clamped so that an absurd estimate cannot overflow <see cref="TimeSpan"/>.</summary>
@@ -264,4 +282,31 @@ internal readonly record struct CameraPrintContent(
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
 
     private static string Format(string format, object? arg0, object? arg1) => string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+}
+
+/// <summary>
+/// The last shortened printer name and file name with the raw text they came from (T-036): a poll brings a new string
+/// instance with the same text, which then reuses the shortened one instead of allocating it again. One per camera
+/// window; not thread-safe (the view model uses it under its lock).
+/// </summary>
+internal sealed class CameraOverlayTextCache
+{
+    private (string Raw, string Short)? _name;
+    private (string Raw, string Short)? _fileName;
+
+    public string Name(string raw) => Get(ref _name, raw, CameraPrintContent.ShortenName);
+
+    public string FileName(string raw) => Get(ref _fileName, raw, CameraPrintContent.ShortenFileName);
+
+    private static string Get(ref (string Raw, string Short)? entry, string raw, Func<string, string> shorten)
+    {
+        if (entry is { } last && string.Equals(last.Raw, raw, StringComparison.Ordinal))
+        {
+            return last.Short;
+        }
+
+        string shortened = shorten(raw);
+        entry = (raw, shortened);
+        return shortened;
+    }
 }

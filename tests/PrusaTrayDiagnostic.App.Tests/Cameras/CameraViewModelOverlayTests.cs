@@ -108,11 +108,11 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
         CameraViewModel viewModel = Create(NameAndTemperatures);
         Raise(Printing());
 
-        Assert.Equal(["MK4", "Nozzle: 215 / 215 °C"], Texts(viewModel));
+        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
 
         viewModel.ToggleFullScreenCommand.Execute(null);
         Assert.True(viewModel.IsFullScreen);
-        Assert.Equal(["MK4", "Nozzle: 215 / 215 °C"], Texts(viewModel));
+        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
 
         viewModel.ShowMiniCommand.Execute(null);
         Assert.True(viewModel.IsMini);
@@ -120,7 +120,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
         Assert.Equal(CameraOverlayItems.FileName, viewModel.OverlayItems);
 
         viewModel.ShowNormalCommand.Execute(null);
-        Assert.Equal(["MK4", "Nozzle: 215 / 215 °C"], Texts(viewModel));
+        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
 
         Raise(Printing(nozzle: 190.2));
 
-        Assert.Equal(["MK4", "Nozzle: 190 / 215 °C"], Texts(viewModel));
+        Assert.Equal(["MK4", "Nozzle: 190 / 215\u00A0°C"], Texts(viewModel));
     }
 
     [Fact]
@@ -205,7 +205,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
 
         Save(NameAndTemperatures);
 
-        Assert.Equal(["MK4", "Nozzle: 215 / 215 °C"], Texts(viewModel));
+        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
         Assert.Contains(nameof(CameraViewModel.OverlayLines), changed);
         // The window stays as it is: same mode, stream untouched, nothing to place again.
         Assert.True(viewModel.IsNormal);
@@ -265,7 +265,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
 
         Save(NameAndTemperatures, name: "Workshop MK4");
 
-        Assert.Equal(["Workshop MK4", "Nozzle: 215 / 215 °C"], Texts(viewModel));
+        Assert.Equal(["Workshop MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
         Assert.Equal("Workshop MK4 – Camera", viewModel.Title);
     }
 
@@ -282,7 +282,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
             viewModel.RefreshTexts();
 
             Assert.StartsWith("Tiskne – 42", Texts(viewModel)[1], StringComparison.Ordinal);
-            Assert.Equal("Tryska: 215 / 215 °C", Texts(viewModel)[2]);
+            Assert.Equal("Tryska: 215 / 215\u00A0°C", Texts(viewModel)[2]);
             Assert.Equal("Doba tisku: 2 h 10 min", Texts(viewModel)[6]);
         }
 

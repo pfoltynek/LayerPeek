@@ -28,7 +28,7 @@
     <value>{0} – {1}</value>
   </data>
   <data name="ToolTipProgress" xml:space="preserve">
-    <value>{0} %</value>
+    <value>{0} %</value>
   </data>
   <data name="ToolTipRemaining" xml:space="preserve">
     <value>Zbývá {0}</value>
@@ -220,7 +220,7 @@
     <value>Osa Z</value>
   </data>
   <data name="DiagnosticsTemperatureValue" xml:space="preserve">
-    <value>{0} °C</value>
+    <value>{0} °C</value>
   </data>
   <data name="DiagnosticsHeaterOff" xml:space="preserve">
     <value>Vypnuto</value>
@@ -775,7 +775,7 @@
     <value>{0}: {1}</value>
   </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
-    <value>{0} / {1} °C</value>
+    <value>{0} / {1} °C</value>
   </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Hotovo v {0}</value>

@@ -51,7 +51,6 @@ public sealed class CameraPrintContentTests : IDisposable
                 new CameraOverlayLine(CameraOverlayItems.RemainingTime, "1 h 5 min remaining", IsEmphasized: false),
             ],
             lines);
-        Assert.Equal(CameraPrintContent.From(Printing()), CameraPrintContent.From(Printing(), CameraOverlayOptions.DefaultItems, "MK4", TimeZoneInfo.Local));
     }
 
     [Fact]
@@ -61,8 +60,8 @@ public sealed class CameraPrintContentTests : IDisposable
         [
             "MK4",
             "Printing – 42%",
-            "Nozzle: 215 / 215 °C",
-            "Bed: 60 / 60 °C",
+            "Nozzle: 215 / 215\u00A0°C",
+            "Bed: 60 / 60\u00A0°C",
             "1 h 5 min remaining",
             "Done at 1:05 PM",
             "Print time: 2 h 10 min",
@@ -81,8 +80,8 @@ public sealed class CameraPrintContentTests : IDisposable
     {
         { CameraOverlayItems.PrinterName, "MK4" },
         { CameraOverlayItems.State, "Printing" },
-        { CameraOverlayItems.NozzleTemperature, "Nozzle: 215 / 215 °C" },
-        { CameraOverlayItems.BedTemperature, "Bed: 60 / 60 °C" },
+        { CameraOverlayItems.NozzleTemperature, "Nozzle: 215 / 215\u00A0°C" },
+        { CameraOverlayItems.BedTemperature, "Bed: 60 / 60\u00A0°C" },
         { CameraOverlayItems.Progress, "42%" },
         { CameraOverlayItems.RemainingTime, "1 h 5 min remaining" },
         { CameraOverlayItems.FinishTime, "Done at 1:05 PM" },
@@ -124,7 +123,7 @@ public sealed class CameraPrintContentTests : IDisposable
     {
         Assert.Equal(["MK4"], Texts(null, CameraOverlayOptions.AllItems));
         Assert.True(CameraPrintContent.From(null, CameraOverlayOptions.AllItems & ~CameraOverlayItems.PrinterName, "MK4", Utc).IsEmpty);
-        Assert.True(CameraPrintContent.From(null).IsEmpty);
+        Assert.True(CameraPrintContent.From(null, CameraOverlayOptions.DefaultItems, "MK4", Utc).IsEmpty);
     }
 
     [Theory]
@@ -146,7 +145,7 @@ public sealed class CameraPrintContentTests : IDisposable
 
         string[] texts = Texts(Printing(state), CameraOverlayOptions.AllItems);
 
-        Assert.Equal(["MK4", stateName, "Nozzle: 215 / 215 °C", "Bed: 60 / 60 °C"], texts);
+        Assert.Equal(["MK4", stateName, "Nozzle: 215 / 215\u00A0°C", "Bed: 60 / 60\u00A0°C"], texts);
     }
 
     [Theory]
@@ -188,12 +187,12 @@ public sealed class CameraPrintContentTests : IDisposable
     }
 
     [Theory]
-    [InlineData(25.4, null, "Nozzle: 25 °C")]
-    [InlineData(25.4, 0.0, "Nozzle: 25 °C")]
-    [InlineData(25.4, 0.4, "Nozzle: 25 °C")]
-    [InlineData(170.5, 215.0, "Nozzle: 171 / 215 °C")]
-    [InlineData(-3.6, 0.0, "Nozzle: -4 °C")]
-    [InlineData(25.4, double.NaN, "Nozzle: 25 °C")]
+    [InlineData(25.4, null, "Nozzle: 25\u00A0°C")]
+    [InlineData(25.4, 0.0, "Nozzle: 25\u00A0°C")]
+    [InlineData(25.4, 0.4, "Nozzle: 25\u00A0°C")]
+    [InlineData(170.5, 215.0, "Nozzle: 171 / 215\u00A0°C")]
+    [InlineData(-3.6, 0.0, "Nozzle: -4\u00A0°C")]
+    [InlineData(25.4, double.NaN, "Nozzle: 25\u00A0°C")]
     public void TemperaturesAreWholeDegreesWithTheTargetOnlyWhileHeating(double actual, double? target, string text)
     {
         PrinterSnapshot snapshot = Printing(telemetry: new Telemetry { Nozzle = new Temperature(actual, target) });
@@ -206,7 +205,7 @@ public sealed class CameraPrintContentTests : IDisposable
     {
         PrinterSnapshot snapshot = Snapshot(PrinterState.Idle) with { Telemetry = new Telemetry { Bed = new Temperature(23, 0) } };
 
-        Assert.Equal(["Bed: 23 °C"], Texts(snapshot, CameraOverlayItems.BedTemperature));
+        Assert.Equal(["Bed: 23\u00A0°C"], Texts(snapshot, CameraOverlayItems.BedTemperature));
     }
 
     // ---- Finish time ----
@@ -243,6 +242,71 @@ public sealed class CameraPrintContentTests : IDisposable
         }
     }
 
+    /// <summary>
+    /// User decision 2026-10-20 (T-036 Q3): the words of the date (month name, day–month order) follow the app language,
+    /// the time follows the region.
+    /// </summary>
+    [Theory]
+    [InlineData("en-US", "cs", "Hotovo 17. října v 8:00 AM")]
+    [InlineData("cs-CZ", "en", "Done October 17 at 8:00")]
+    [InlineData("en-US", "de", "Fertig am 17. Oktober um 8:00 AM")]
+    [InlineData("de-DE", "cs", "Hotovo 17. října v 08:00")]
+    [InlineData("cs-CZ", "de", "Fertig am 17. Oktober um 8:00")]
+    [InlineData("de-DE", "en", "Done October 17 at 08:00")]
+    public void DateWordsFollowTheAppLanguageAndTheTimeTheRegion(string region, string language, string expected)
+    {
+        PrinterSnapshot snapshot = Printing(job: new PrintJob { ProgressPercent = 5, Remaining = TimeSpan.FromHours(20) });
+
+        using (new CultureScope(region))
+        using (new UiCultureScope(language))
+        {
+            Assert.Equal([expected], Texts(snapshot, CameraOverlayItems.FinishTime));
+        }
+    }
+
+    [Fact]
+    public void LocalZoneAloneCanMoveTheFinishToTheNextDay()
+    {
+        // 20:00 UTC + 3 h 30 min = 23:30 UTC: the same day in UTC, but 01:30 the next day at UTC+2.
+        PrinterSnapshot snapshot = Printing(job: new PrintJob { ProgressPercent = 5, Remaining = TimeSpan.FromMinutes(210) }) with
+        {
+            Timestamp = new DateTimeOffset(2026, 10, 16, 20, 0, 0, TimeSpan.Zero),
+        };
+        TimeZoneInfo plusTwo = TimeZoneInfo.CreateCustomTimeZone("Test+2", TimeSpan.FromHours(2), "Test+2", "Test+2");
+
+        Assert.Equal(["Done at 11:30 PM"], Texts(snapshot, CameraOverlayItems.FinishTime));
+        Assert.False(CameraPrintContent.From(snapshot, CameraOverlayItems.FinishTime, null, Utc).FinishesOnAnotherDay);
+        Assert.Equal(["Done October 17 at 1:30 AM"], Texts(snapshot, CameraOverlayItems.FinishTime, zone: plusTwo));
+        Assert.True(CameraPrintContent.From(snapshot, CameraOverlayItems.FinishTime, null, plusTwo).FinishesOnAnotherDay);
+    }
+
+    [Fact]
+    public void FinishAcrossADaylightSavingTransitionUsesTheOffsetAtTheFinish()
+    {
+        // Like Central Europe: UTC+1, summer time UTC+2 from the last Sunday of March to the last Sunday of October
+        // (2026-10-25, 03:00 CEST → 02:00 CET, i.e. 01:00 UTC).
+        TimeZoneInfo.AdjustmentRule rule = TimeZoneInfo.AdjustmentRule.CreateAdjustmentRule(
+            DateTime.MinValue.Date,
+            DateTime.MaxValue.Date,
+            TimeSpan.FromHours(1),
+            TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 2, 0, 0), 3, 5, DayOfWeek.Sunday),
+            TimeZoneInfo.TransitionTime.CreateFloatingDateRule(new DateTime(1, 1, 1, 3, 0, 0), 10, 5, DayOfWeek.Sunday));
+        TimeZoneInfo central = TimeZoneInfo.CreateCustomTimeZone("Test CET", TimeSpan.FromHours(1), "Test CET", "Test CET", "Test CEST", [rule]);
+
+        // Started at 22:00 UTC on 24 October = 00:00 CEST on 25 October; 4 h later is 02:00 UTC = 03:00 CET (not 04:00).
+        PrinterSnapshot snapshot = Printing(job: new PrintJob { ProgressPercent = 5, Remaining = TimeSpan.FromHours(4) }) with
+        {
+            Timestamp = new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero),
+        };
+
+        Assert.Equal(["Done at 3:00 AM"], Texts(snapshot, CameraOverlayItems.FinishTime, zone: central));
+        Assert.False(CameraPrintContent.From(snapshot, CameraOverlayItems.FinishTime, null, central).FinishesOnAnotherDay);
+
+        // 21:30 UTC on 24 October = 23:30 CEST: finishing at 01:30 UTC = 02:30 CET is already the next local day.
+        PrinterSnapshot evening = snapshot with { Timestamp = new DateTimeOffset(2026, 10, 24, 21, 30, 0, TimeSpan.Zero) };
+        Assert.Equal(["Done October 25 at 2:30 AM"], Texts(evening, CameraOverlayItems.FinishTime, zone: central));
+    }
+
     [Fact]
     public void FinishTimeOfAnEndlessEstimateDoesNotOverflow()
     {
@@ -259,20 +323,20 @@ public sealed class CameraPrintContentTests : IDisposable
         using (new CultureScope("cs-CZ"))
         {
             Assert.Equal(
-                ["MK4", "Tiskne – 42 %", "Tryska: 215 / 215 °C", "Podložka: 60 / 60 °C", "Zbývá 1 h 5 min", "Hotovo v 13:05", "Doba tisku: 2 h 10 min", "benchy_0.4n_0.2mm_PLA_MK4S_2h10m.bgcode"],
+                ["MK4", "Tiskne – 42\u00A0%", "Tryska: 215 / 215\u00A0°C", "Podložka: 60 / 60\u00A0°C", "Zbývá 1 h 5 min", "Hotovo v 13:05", "Doba tisku: 2 h 10 min", "benchy_0.4n_0.2mm_PLA_MK4S_2h10m.bgcode"],
                 Texts(Printing(), CameraOverlayOptions.AllItems));
         }
 
         using (new CultureScope("de-DE"))
         {
             Assert.Equal(
-                ["Düse: 215 / 215 °C", "Heizbett: 60 / 60 °C", "Fertig um 13:05", "Druckzeit: 2 h 10 min"],
+                ["Düse: 215 / 215\u00A0°C", "Heizbett: 60 / 60\u00A0°C", "Fertig um 13:05", "Druckzeit: 2 h 10 min"],
                 Texts(Printing(), CameraOverlayItems.NozzleTemperature | CameraOverlayItems.BedTemperature | CameraOverlayItems.FinishTime | CameraOverlayItems.PrintTime));
         }
 
         using (new CultureScope("fr-FR"))
         {
-            Assert.Equal(["Buse : 215 / 215 °C"], Texts(Printing(), CameraOverlayItems.NozzleTemperature));
+            Assert.Equal(["Buse : 215 / 215\u00A0°C"], Texts(Printing(), CameraOverlayItems.NozzleTemperature));
         }
     }
 
@@ -291,6 +355,25 @@ public sealed class CameraPrintContentTests : IDisposable
     }
 
     // ---- Long names ----
+
+    [Fact]
+    public void ShortenedNamesAreReusedWhileTheRawNameIsUnchanged()
+    {
+        // Every poll brings a new string instance with the same text: the shortened one is not built again.
+        CameraOverlayTextCache cache = new();
+        PrinterSnapshot Poll(char c) => Printing(job: new PrintJob { FileName = new string(c, 60) + ".bgcode", ProgressPercent = 1 });
+        string? File(char c) => CameraPrintContent.From(Poll(c), CameraOverlayItems.FileName, null, Utc, cache).FileName;
+
+        string? first = File('f');
+        Assert.Same(first, File('f'));
+        string? other = File('g');
+        Assert.NotEqual(first, other);
+        Assert.Equal(CameraPrintContent.ShortenFileName(new string('g', 60) + ".bgcode"), other);
+
+        string? name = CameraPrintContent.From(null, CameraOverlayItems.PrinterName, new string('N', 100), Utc, cache).Name;
+        Assert.Same(name, CameraPrintContent.From(null, CameraOverlayItems.PrinterName, new string('N', 100), Utc, cache).Name);
+        Assert.Same(other, File('g'));
+    }
 
     [Fact]
     public void LongFileNameKeepsItsStartAndEnd()

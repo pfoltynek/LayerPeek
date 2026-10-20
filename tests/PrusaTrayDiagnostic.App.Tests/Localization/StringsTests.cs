@@ -62,6 +62,29 @@ public sealed partial class StringsTests
     [GeneratedRegex(@"(\}|\d) px\b")]
     private static partial Regex ResolutionWithBreakingSpace();
 
+    /// <summary>
+    /// A number and its unit ("42 %", "215 °C", "215 / 215 °C") never break apart: where a language puts a space before
+    /// "%" or "°C", it is a non-breaking one (T-036 review).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AllCultures))]
+    public void UnitsUseNonBreakingSpaces(string culture)
+    {
+        CultureInfo info = culture.Length == 0 ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo(culture);
+        Dictionary<string, string> texts = Load(info);
+        foreach ((string key, string text) in texts)
+        {
+            Assert.False(UnitWithBreakingSpace().IsMatch(text), $"'{key}' in '{culture}' has a breaking space before '%' or '°C'.");
+        }
+
+        Assert.DoesNotContain(' ', string.Format(info, texts["DiagnosticsTemperatureValue"], 215));
+        Assert.EndsWith("215 °C", string.Format(info, texts["CameraOverlayTemperatureWithTarget"], 210, 215), StringComparison.Ordinal);
+        Assert.DoesNotContain(' ', string.Format(info, texts["ToolTipProgress"], 42));
+    }
+
+    [GeneratedRegex(@"(\}|\d) (%|°C)")]
+    private static partial Regex UnitWithBreakingSpace();
+
     [Fact]
     public void EverySupportedLanguageExceptEnglishHasATranslation()
     {

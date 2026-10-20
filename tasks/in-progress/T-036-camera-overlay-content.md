@@ -24,6 +24,12 @@ Uživatel si na podzáložce Kamera vybere, které informace se zobrazují přes
 - **Uložení (2026-10-19):** u tiskárny v `settings.json`, `printers[*].camera.overlay`, nepovinná pole, `version: 1`.
 - **Vzhled (2026-10-19):** nastavuje se jen roh překryvu (4 rohy, výchozí vlevo dole). Překryv stavu připojení kamery zůstává vždy zapnutý a nenastavuje se.
 - **Kdy se projeví (2026-10-19):** v otevřených oknech hned po uložení nastavení.
+- **Q1 – překlady (2026-10-20):** všechny nové texty schválené, včetně zkráceného italského „Angolo sovrimpressione“.
+- **Q2 – teplota (2026-10-20):** „Tryska: 215 / 215 °C“, cíl jen při zapnutém topení (jinak „Tryska: 25 °C“).
+- **Q3 – čas dokončení jiný den (2026-10-20):** formát „Hotovo 17. října v 8:00“ zůstává, ale slova data (název měsíce) se řídí **jazykem aplikace**, čísla a čas regionálním nastavením.
+- **Q4 – samotný průběh (2026-10-20):** samostatný tučný řádek „42 %“ zůstává.
+- **Q5 – záhlaví sloupců (2026-10-20):** 13 px zůstává.
+- **Záhlaví podzáložek (2026-10-20):** v jedné řadě stačí ve výchozí šířce 780; při záchranné šířce 640 se smějí zalomit.
 
 ## Rozsah
 
@@ -48,14 +54,10 @@ Uživatel si na podzáložce Kamera vybere, které informace se zobrazují přes
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- **Q1 – nové překlady (2026-10-20):** schválit texty ve všech 8 jazycích (seznam v Poznámkách, oddíl „Texty“). Italský „Roh překryvu“ je zkrácený na „Angolo sovrimpressione“ (s „Angolo della sovrimpressione“ by sloupec nápovědy zúžil pod 100 DIP).
-- **Q2 – formát teploty (2026-10-20):** navrženo „Tryska: 215 / 215 °C“ (celé stupně, popisek z okna Diagnostika); při vypnutém topení (cíl 0 nebo neznámý) jen „Tryska: 25 °C“. Ponechat, nebo jinak (např. „25 / vyp.“)?
-- **Q3 – čas dokončení jiný den (2026-10-20):** když tisk skončí jiný den, ukazuje se „Hotovo 17. října v 8:00“ (měsíc a den podle regionálního nastavení). Ponechat?
-- **Q4 – samotný průběh (2026-10-20):** když je zapnutý průběh bez stavu tiskárny, ukazuje se samostatný řádek „42 %“ (tučně, místo řádku stavu). Ponechat, nebo s popiskem („Průběh: 42 %“)?
-- **Q5 – záhlaví sloupců (2026-10-20):** záhlaví „Normální okno a celá obrazovka“ / „Malý náhled“ mají písmo 13 px (návrh: 14 px), protože es „pantalla completa“ se při 14 px tučně do 120 DIP nevejde a záhlaví by mělo 3 řádky. Alternativa: 14 px a 3 řádky v es (obsah se pořád vejde bez posuvníku).
+- (žádné – Q1–Q5 rozhodnuté 2026-10-20, viz Rozhodnuto)
 
 ## Poznámky k implementaci
-Stav 2026-10-20 (ui-dev): implementace hotová, kritéria splněná v headless testech; úkol zůstává `in-progress` kvůli otázkám Q1–Q5 a ruční kontrole (viz „Zbývá ručně“).
+Stav 2026-10-20 (ui-dev): implementace hotová, kritéria splněná v headless testech; úkol zůstává `in-progress` kvůli ruční kontrole (viz „Zbývá ručně“). Otázky Q1–Q5 rozhodnuté 2026-10-20; úpravy po revizi viz „Po revizi“.
 
 **Core**
 - `Core/Cameras/CameraOverlayItems` (`[Flags]`: `PrinterName`, `State`, `NozzleTemperature`, `BedTemperature`, `Progress`, `RemainingTime`, `FinishTime`, `PrintTime`, `FileName`), `CameraOverlayCorner` (4 rohy), `CameraOverlayOptions` (`Normal`, `Mini`, `Corner`; konstanty `AllItems`, `JobItems`, `DefaultItems` = stav + průběh + zbývající čas, `DefaultCorner` = vlevo dole; `Items` = pořadí zobrazení, nejdřív údaje tiskárny; `ItemsFor(mode)` – celá obrazovka používá `Normal`). Neznámé příznaky / roh → `ArgumentOutOfRangeException`. `CameraSettings.Overlay` (výchozí sdílená instance, součást rovnosti, `ToString`).
@@ -95,6 +97,13 @@ Stav 2026-10-20 (ui-dev): implementace hotová, kritéria splněná v headless t
 - UiTests: `Cameras/CameraWindowOverlayUiTests` (přesné řádky v normálním okně, na celé obrazovce a v malém náhledu; poloha ve všech 4 rozích ve všech režimech, nepřekrývá tlačítka; uložení změní otevřené okno bez posunu – normální okno i malý náhled; jiná tiskárna; jazyk; snímky), `Settings/SettingsWindowOverlayUiTests` (výchozí hodnoty, pořadí řádků, uložení kliknutím, vypnutá kamera, pořadí Tab, tabulka ve všech 8 jazycích – záhlaví max. 2 řádky, pole ve sloupcích, nápověda ≥ 100 DIP –, přepnutí jazyka); `SettingsWindowLayoutTests` – podzáložka Překryv ve všech 8 jazycích × všech stavech + nový stav „vypnutá kamera, všechny položky“, 4 záhlaví v jedné řadě se značkami; Ctrl+PageDown přes 4 podzáložky.
 - Snímky (vizuálně zkontrolované): nové `settings-overlay`, `settings-overlay-off-it`, `camera-overlay-default`, `camera-overlay-all-top-right`, `camera-overlay-mini`; přegenerované všechny `settings-*` (čtvrté záhlaví podzáložek).
 - `dotnet build` 0 varování; `dotnet test` 2× zeleně (3363 testů, 1 přeskočený E2E bez Edge); `dotnet publish -c Release -r win-x64` (AOT) bez varování; publikovaná aplikace se spustí a běží (okna jsem ručně neotevíral).
+
+**Po revizi (2026-10-20)**
+- Čas dokončení jiný den (Q3): název měsíce **i pořadí den–měsíc** se berou z jazyka aplikace (`UiLanguage.CurrentTextCulture()`, u neutrální kultury její výchozí region, např. `cs` → `cs-CZ`), čas („t“) z regionálního nastavení (`CurrentCulture`). Pořadí patří k jazyku: vzor en-US „MMMM d“ s českými názvy by dal „října 17“. Příklady (region / jazyk): en-US / cs „Hotovo 17. října v 8:00 AM“; cs-CZ / en „Done October 17 at 8:00“; en-US / de „Fertig am 17. Oktober um 8:00 AM“; de-DE / cs „Hotovo 17. října v 08:00“.
+- Nové testy: časové pásmo s letním časem a dokončení přes přechod (CEST → CET: 22:00 UTC + 4 h = 03:00 CET, ne 04:00) a případ, kdy jen místní pásmo (UTC+2) posune 23:30 UTC na další den.
+- Zkrácený název tiskárny a souboru se znovu použije, dokud se původní text nezmění (`CameraOverlayTextCache`, jeden na okno, pod zámkem view modelu) – žádná alokace při každém dotazu.
+- Odstraněné nepoužívané přetížení `CameraPrintContent.From(PrinterSnapshot?)`.
+- Nezlomitelná mezera před „%“ a „°C“: `ToolTipProgress` (cs), `DiagnosticsTemperatureValue` a `CameraOverlayTemperatureWithTarget` ve všech jazycích; nový test `StringsTests.UnitsUseNonBreakingSpaces` (žádná běžná mezera mezi číslem / `{n}` a „%“ / „°C“ v žádném textu). Snímky přegenerované – beze změny (nezlomitelná mezera má stejnou šířku).
 
 **Zbývá ručně (uživatel)**
 - Windows (Segoe UI, 100/125/150 %): podzáložka Překryv bez posuvníku, záhlaví podzáložek v jedné řadě (hlavně italština), čitelnost nápovědy.

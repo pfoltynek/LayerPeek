@@ -103,7 +103,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         Assert.Equal("b", viewModel.SelectedPrinter?.Id);
         Assert.Equal("b", viewModel.ChartPrinterId);
-        Assert.Equal("120.0 °C", viewModel.NozzleActualText);
+        Assert.Equal("120.0\u00A0°C", viewModel.NozzleActualText);
         Assert.Equal("b", Assert.Single(_info.Requests).Printer.Id);
     }
 
@@ -139,7 +139,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         viewModel.ShowPrinter("b");
 
         Assert.Equal("b", viewModel.SelectedPrinter?.Id);
-        Assert.Equal("130.0 °C", viewModel.NozzleActualText);
+        Assert.Equal("130.0\u00A0°C", viewModel.NozzleActualText);
         Assert.Equal(["a", "b"], _info.Requests.Select(request => request.Printer.Id));
     }
 
@@ -231,7 +231,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         DiagnosticsViewModel viewModel = Create();
 
         Assert.Equal("Printing", viewModel.StateText);
-        Assert.Equal("215.3 °C", viewModel.NozzleActualText);
+        Assert.Equal("215.3\u00A0°C", viewModel.NozzleActualText);
         Assert.Equal(0, _dispatcher.PostCount);
     }
 
@@ -247,10 +247,10 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal("Printing", viewModel.StateText);
-        Assert.Equal("215.3 °C", viewModel.NozzleActualText);
-        Assert.Equal("215 °C", viewModel.NozzleTargetText);
-        Assert.Equal("60.0 °C", viewModel.BedActualText);
-        Assert.Equal("60 °C", viewModel.BedTargetText);
+        Assert.Equal("215.3\u00A0°C", viewModel.NozzleActualText);
+        Assert.Equal("215\u00A0°C", viewModel.NozzleTargetText);
+        Assert.Equal("60.0\u00A0°C", viewModel.BedActualText);
+        Assert.Equal("60\u00A0°C", viewModel.BedTargetText);
         Assert.Equal("7,200 RPM", viewModel.HotendFanText);
         Assert.Equal("3,000 RPM", viewModel.PrintFanText);
         Assert.Equal("100%", viewModel.SpeedText);
@@ -270,7 +270,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         DiagnosticsViewModel viewModel = Create();
 
         Assert.Equal("Tiskne", viewModel.StateText);
-        Assert.Equal("215,3 °C", viewModel.NozzleActualText);
+        Assert.Equal("215,3\u00A0°C", viewModel.NozzleActualText);
         Assert.Equal("14:00:00", viewModel.LastUpdateText);
     }
 
@@ -294,7 +294,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         }
 
         // Only the texts: numbers keep the (en-US) format of the system, no new information request.
-        Assert.Equal("215.3 °C", viewModel.NozzleActualText);
+        Assert.Equal("215.3\u00A0°C", viewModel.NozzleActualText);
         Assert.Equal("0.40 mm", viewModel.NozzleDiameterText);
         Assert.Same(window, viewModel.SelectedTimeWindow);
         Assert.Equal(requests, _info.Requests.Count);
@@ -374,7 +374,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         Assert.Equal(1, _dispatcher.PostCount);
         _dispatcher.RunAll();
-        Assert.Equal("205.0 °C", viewModel.NozzleActualText);
+        Assert.Equal("205.0\u00A0°C", viewModel.NozzleActualText);
     }
 
     [Fact]
@@ -430,7 +430,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         _monitor.Raise(Printing(printerId: "MK4"));
         _dispatcher.RunAll();
 
-        Assert.Equal("215.3 °C", viewModel.NozzleActualText);
+        Assert.Equal("215.3\u00A0°C", viewModel.NozzleActualText);
     }
 
     [Fact]
@@ -465,7 +465,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         Assert.Equal(Missing, viewModel.NozzleActualText);
         Assert.Equal(Missing, viewModel.NozzleTargetText);
-        Assert.Equal("24.5 °C", viewModel.BedActualText);
+        Assert.Equal("24.5\u00A0°C", viewModel.BedActualText);
         Assert.Equal("Off", viewModel.BedTargetText);
         Assert.Equal(Missing, viewModel.HotendFanText);
     }
@@ -479,14 +479,14 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         viewModel.SelectedPrinter = viewModel.Printers[1];
 
-        Assert.Equal("100.0 °C", viewModel.NozzleActualText);
+        Assert.Equal("100.0\u00A0°C", viewModel.NozzleActualText);
         Assert.Equal("b", viewModel.ChartPrinterId);
 
         _monitor.Raise(Printing(nozzle: 300, printerId: "a", second: 1));
         Assert.Equal(0, _dispatcher.PostCount);
         _monitor.Raise(Printing(nozzle: 110, printerId: "b", second: 1));
         _dispatcher.RunAll();
-        Assert.Equal("110.0 °C", viewModel.NozzleActualText);
+        Assert.Equal("110.0\u00A0°C", viewModel.NozzleActualText);
     }
 
     [Fact]
@@ -577,7 +577,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         Assert.Equal("Monitoring stopped due to an error", viewModel.Notice);
         Assert.True(viewModel.HasPrinter);
-        Assert.Equal("215.3 °C", viewModel.NozzleActualText);
+        Assert.Equal("215.3\u00A0°C", viewModel.NozzleActualText);
 
         Configure(Definition());
         _dispatcher.RunAll();

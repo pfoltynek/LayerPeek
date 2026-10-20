@@ -102,6 +102,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private PrinterSnapshot? _snapshot;
     private CameraOverlayItems _overlayItems;
     private string _overlayName;
+    private readonly CameraOverlayTextCache _textCache = new();
 
     // UI thread only.
     private Uri _streamUri;
@@ -199,8 +200,14 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
         _printers.Changed += OnPrintersChanged;
-        _snapshot = _monitor.TryGetSnapshot(PrinterId, out PrinterSnapshot? snapshot) ? snapshot : null;
-        _printContent = CameraPrintContent.From(_snapshot, _overlayItems, _overlayName, _timeProvider.LocalTimeZone);
+        PrinterSnapshot? current = _monitor.TryGetSnapshot(PrinterId, out PrinterSnapshot? snapshot) ? snapshot : null;
+        lock (_gate)
+        {
+            // A snapshot delivered meanwhile by the monitor thread is at least as new; the text cache needs the lock too.
+            _snapshot ??= current;
+            _printContent = CameraPrintContent.From(_snapshot, _overlayItems, _overlayName, _timeProvider.LocalTimeZone, _textCache);
+        }
+
         ApplyPrintContent();
     }
 
@@ -711,7 +718,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
             _snapshot = snapshot;
             // Only the selected items are compared, so that e.g. a fluctuating temperature that is not shown costs nothing.
-            CameraPrintContent content = CameraPrintContent.From(snapshot, _overlayItems, _overlayName, zone);
+            CameraPrintContent content = CameraPrintContent.From(snapshot, _overlayItems, _overlayName, zone, _textCache);
             if (_printContent == content)
             {
                 return;
@@ -770,7 +777,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
             _overlayItems = items;
             _overlayName = _name;
-            _printContent = CameraPrintContent.From(_snapshot, items, _overlayName, zone);
+            _printContent = CameraPrintContent.From(_snapshot, items, _overlayName, zone, _textCache);
         }
 
         ApplyPrintContent();
