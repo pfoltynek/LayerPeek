@@ -556,7 +556,7 @@
     <value>Kamera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Používat kameru (položka Kamera… v nabídce v oznamovací oblasti)</value>
+    <value>Používat kameru (položka Kamera v nabídce v oznamovací oblasti)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Adresa RTSP streamu</value>
@@ -604,7 +604,7 @@
     <value>Adresa nesmí obsahovat uživatelské jméno, heslo ani znak @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Kamera…</value>
+    <value>Kamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>
@@ -703,7 +703,7 @@
     <value>Pamatovat poslední pozici a velikost</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Když je zapnuto, hodnoty níže se použijí, jen dokud okno nemá zapamatovanou pozici. Změny se projeví při dalším otevření okna.</value>
+    <value>Když je zapnuto, hodnoty níže se použijí, jen dokud okno nemá zapamatovanou pozici. Uložit je použije při dalším otevření okna, Použít hned.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otevřít jako</value>
@@ -752,6 +752,15 @@
   </data>
   <data name="SettingsCameraWindowTopmost" xml:space="preserve">
     <value>Vždy navrchu</value>
+  </data>
+  <data name="SettingsCameraWindowReset" xml:space="preserve">
+    <value>Tovární nastavení</value>
+  </data>
+  <data name="SettingsCameraWindowApply" xml:space="preserve">
+    <value>Použít</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Uloženo</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Vlevo nahoře</value>

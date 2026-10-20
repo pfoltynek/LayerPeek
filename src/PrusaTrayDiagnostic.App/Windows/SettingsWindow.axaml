@@ -10,12 +10,15 @@
         Height="508"
         MinWidth="640"
         MinHeight="400"
+        CanMinimize="False"
+        CanMaximize="False"
         WindowStartupLocation="CenterScreen">
   <!--
     Layout of T-033: the window (client 780 × 508 DIP, plus a title bar of about 32) fits an 800 × 600 screen at 100 %
     without scrolling, in every language and with every validation message and test result. SettingsWindowPlacement
     shrinks it to a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case and for the
     notice bar at the top. Sizes and spacing follow the approved design in the task (T-033, "Návrh UI").
+    T-040: only the close button in the title bar (no minimize, no maximize); the window stays resizable.
   -->
   <Window.Resources>
     <ResourceDictionary>
@@ -455,8 +458,11 @@
                             </ComboBox>
                           </Grid>
 
-                          <!-- Rows: normal window, mini preview; columns: size (editable, presets + "W × H"), position, always on top (T-037). -->
-                          <Grid ColumnDefinitions="Auto,12,140,12,*,12,88" RowDefinitions="Auto,4,Auto,Auto,8,Auto,Auto" Margin="0,12,0,0">
+                          <!--
+                            Rows: normal window, mini preview; columns: size (editable, presets + "W × H"), position, always on top (T-037).
+                            No top margin of its own (T-040): the section headers bring 16 DIP, which keeps room for the buttons below.
+                          -->
+                          <Grid ColumnDefinitions="Auto,12,140,12,*,12,88" RowDefinitions="Auto,4,Auto,Auto,8,Auto,Auto">
                             <TextBlock Grid.Column="2" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowSize], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBlock Grid.Column="4" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowPosition], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBlock Grid.Column="6"
@@ -542,6 +548,17 @@
                                        Text="{Binding MiniSizeError}"
                                        IsVisible="{Binding MiniSizeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
                           </Grid>
+
+                          <!-- T-040: values of this sub-tab back to the defaults; Apply = Save + place the open camera window again. -->
+                          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
+                            <Button AutomationProperties.AutomationId="PrinterCameraWindowReset"
+                                    Content="{Binding [SettingsCameraWindowReset], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    Command="{Binding ResetCameraWindowCommand}" />
+                            <Button AutomationProperties.AutomationId="PrinterCameraWindowApply"
+                                    MinWidth="96"
+                                    Content="{Binding [SettingsCameraWindowApply], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    Command="{Binding ApplyCameraWindowCommand}" />
+                          </StackPanel>
                         </StackPanel>
                       </StackPanel>
                     </DataTemplate>

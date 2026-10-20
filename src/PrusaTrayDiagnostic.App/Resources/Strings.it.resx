@@ -556,7 +556,7 @@
     <value>Telecamera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Usa la telecamera (voce Telecamera… nel menu dell'area di notifica)</value>
+    <value>Usa la telecamera (voce Telecamera nel menu dell'area di notifica)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Indirizzo dello stream RTSP</value>
@@ -604,7 +604,7 @@
     <value>L'indirizzo non deve contenere nome utente, password né il carattere @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Telecamera…</value>
+    <value>Telecamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – telecamera</value>
@@ -703,7 +703,7 @@
     <value>Ricorda l'ultima posizione e dimensione</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Se attivo, i valori sotto valgono solo finché la finestra non ha una posizione memorizzata. Le modifiche valgono alla prossima apertura.</value>
+    <value>Se attivo, i valori sotto valgono solo finché la finestra non ha una posizione memorizzata. Salva li applica alla prossima apertura, Applica subito.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Apri come</value>
@@ -752,6 +752,15 @@
   </data>
   <data name="SettingsCameraWindowTopmost" xml:space="preserve">
     <value>Sempre in primo piano</value>
+  </data>
+  <data name="SettingsCameraWindowReset" xml:space="preserve">
+    <value>Ripristina predefiniti</value>
+  </data>
+  <data name="SettingsCameraWindowApply" xml:space="preserve">
+    <value>Applica</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Salvato</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>In alto a sinistra</value>

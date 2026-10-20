@@ -124,8 +124,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private CameraOverlayOptions _overlay;
 
     // GetRemoveCount of the state store when the window opened: a different value at closing means the settings changed
-    // the defaults meanwhile, so the state is not written back (T-035).
-    private readonly int _stateRemoveCount;
+    // the defaults meanwhile, so the state is not written back (T-035). "Apply" in the settings (T-040) places the window
+    // by the new settings and takes the current count, so that the window is remembered again from then on.
+    private int _stateRemoveCount;
     private CameraStatus _status = CameraStatus.Connecting;
     private bool _hasFrame;
     private CameraPrintContent _shownPrintContent;
@@ -213,6 +214,18 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     /// <summary>The settings no longer have this camera (disabled, printer removed): the window should close.</summary>
     public event EventHandler? CloseRequested;
+
+    /// <summary>
+    /// "Apply" in the settings (T-040, <see cref="ApplyWindowSettings"/>): the window places itself again in
+    /// <see cref="Mode"/> by <see cref="Defaults"/> (monitor, size, corner, always on top), ignoring where it was.
+    /// </summary>
+    internal event EventHandler? PlacementResetRequested;
+
+    /// <summary>
+    /// While <see cref="ApplyWindowSettings"/> switches the mode: the window must not place the new mode itself (the
+    /// placement follows in <see cref="PlacementResetRequested"/>).
+    /// </summary>
+    internal bool IsResettingPlacement { get; private set; }
 
     public string PrinterId { get; }
 
@@ -431,6 +444,46 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         {
             _miniPlacement = placement;
         }
+    }
+
+    /// <summary>
+    /// "Apply" in the settings window (T-040; an exception to T-035 Q21, which Save keeps): the open window takes
+    /// <paramref name="defaults"/> right away. The mode follows the start mode ("same as last time" keeps the current
+    /// one); the placements remembered in this window are dropped, so the window is placed by the defaults on their
+    /// monitor (<see cref="PlacementResetRequested"/>) and later mode switches use the defaults too. From now on the window
+    /// is remembered again when it closes (the settings forgot the old state just before).
+    /// </summary>
+    internal void ApplyWindowSettings(CameraWindowDefaults defaults)
+    {
+        ArgumentNullException.ThrowIfNull(defaults);
+        if (_disposed)
+        {
+            return;
+        }
+
+        SetDefaults(defaults);
+        _normalPlacement = null;
+        _miniPlacement = null;
+        _stateRemoveCount = _stateStore.GetRemoveCount(PrinterId);
+        CameraWindowMode mode = defaults.StartMode switch
+        {
+            CameraWindowStartMode.Normal => CameraWindowMode.Normal,
+            CameraWindowStartMode.Mini => CameraWindowMode.Mini,
+            CameraWindowStartMode.FullScreen => CameraWindowMode.FullScreen,
+            _ => _mode,
+        };
+
+        IsResettingPlacement = true;
+        try
+        {
+            Mode = mode;
+        }
+        finally
+        {
+            IsResettingPlacement = false;
+        }
+
+        PlacementResetRequested?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>
@@ -817,18 +870,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         // The open window does not move (T-035); the new defaults apply to the next placement from defaults. Only
         // "always on top" applies to the open window right away (T-037).
-        bool wasTopmost = IsTopmost;
-        bool wasTopmostMini = _defaults.TopmostMini;
-        _defaults = target.Window;
-        if (IsTopmost != wasTopmost)
-        {
-            OnPropertyChanged(nameof(IsTopmost));
-        }
-
-        if (_defaults.TopmostMini != wasTopmostMini)
-        {
-            OnPropertyChanged(nameof(MiniToolTip));
-        }
+        SetDefaults(target.Window);
 
         // The overlay (T-036) applies to the open window right away, in place.
         CameraOverlayCorner previousCorner = _overlay.Corner;
@@ -854,6 +896,23 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             {
                 StartStream();
             }
+        }
+    }
+
+    /// <summary>New window defaults; "always on top" and the mini preview tip are announced when they change.</summary>
+    private void SetDefaults(CameraWindowDefaults defaults)
+    {
+        bool wasTopmost = IsTopmost;
+        bool wasTopmostMini = _defaults.TopmostMini;
+        _defaults = defaults;
+        if (IsTopmost != wasTopmost)
+        {
+            OnPropertyChanged(nameof(IsTopmost));
+        }
+
+        if (_defaults.TopmostMini != wasTopmostMini)
+        {
+            OnPropertyChanged(nameof(MiniToolTip));
         }
     }
 

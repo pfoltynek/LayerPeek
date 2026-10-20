@@ -34,6 +34,12 @@ internal interface INativeTrayMenuItem
     void SetIcon(PrinterPicture? icon, string? printerId);
 
     /// <summary>
+    /// <see langword="null"/>: a plain item; otherwise a check item (check mark when <see langword="true"/>). Native menus
+    /// have no switch, so a toggle is a check item (T-040).
+    /// </summary>
+    void SetChecked(bool? isChecked);
+
+    /// <summary>
     /// Gives the item a submenu (called at most once, right after creation, before the item is inserted); its items are
     /// created by the returned menu.
     /// </summary>

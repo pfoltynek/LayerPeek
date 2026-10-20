@@ -180,15 +180,29 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     /// <summary>
     /// A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
-    /// <paramref name="screens"/>: the monitors offered for the camera window (those of the settings window).
+    /// <paramref name="screens"/>: the monitors offered for the camera window (those of the settings window);
+    /// <paramref name="cameraWindowPlacer"/>: the open camera windows, placed again by "Apply" (T-040).
     /// </summary>
-    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null) => AppServices.CreateSettingsViewModel(_services, screens);
+    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null) =>
+        AppServices.CreateSettingsViewModel(_services, screens, cameraWindowPlacer);
 
     /// <summary>
     /// A view model for a new camera window of <paramref name="printerId"/>, or <see langword="null"/> when it has no enabled
     /// camera; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
     /// </summary>
     public CameraViewModel? CreateCameraViewModel(string printerId) => AppServices.CreateCameraViewModel(_services, printerId);
+
+    /// <summary>
+    /// UI thread: a camera window opened or closed; the tray menu checks its "Camera" item while it is open (T-040).
+    /// Ignored once stopping started.
+    /// </summary>
+    internal void OnCameraWindowOpenChanged(string printerId, bool isOpen)
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<TrayMenuViewModel>().SetCameraWindowOpen(printerId, isOpen);
+        }
+    }
 
     /// <summary>Creates loggers for UI objects outside the container; valid until <see cref="ReleaseLogging"/>.</summary>
     public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();

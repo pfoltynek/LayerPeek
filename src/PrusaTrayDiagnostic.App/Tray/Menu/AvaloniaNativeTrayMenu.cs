@@ -64,6 +64,12 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
         // The bitmap belongs to the icon cache (shared illustrations, custom pictures released when the tray stops).
         public void SetIcon(PrinterPicture? icon, string? printerId) => Native.Icon = icon is not null && _icons is not null ? _icons.Get(icon, printerId) : null;
 
+        public void SetChecked(bool? isChecked)
+        {
+            Native.ToggleType = isChecked is null ? MenuItemToggleType.None : MenuItemToggleType.CheckBox;
+            Native.IsChecked = isChecked == true;
+        }
+
         public INativeTrayMenu CreateSubmenu()
         {
             NativeMenu submenu = new();

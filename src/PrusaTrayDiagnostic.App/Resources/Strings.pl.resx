@@ -556,7 +556,7 @@
     <value>Kamera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Używaj kamery (pozycja Kamera… w menu obszaru powiadomień)</value>
+    <value>Używaj kamery (pozycja Kamera w menu obszaru powiadomień)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Adres strumienia RTSP</value>
@@ -604,7 +604,7 @@
     <value>Adres nie może zawierać nazwy użytkownika, hasła ani znaku @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Kamera…</value>
+    <value>Kamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>
@@ -703,7 +703,7 @@
     <value>Zapamiętaj ostatnią pozycję i rozmiar</value>
   </data>
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
-    <value>Gdy włączone, poniższe wartości są używane tylko, dopóki okno nie ma zapamiętanej pozycji. Zmiany obowiązują przy następnym otwarciu okna.</value>
+    <value>Gdy włączone, poniższe wartości są używane tylko, dopóki okno nie ma zapamiętanej pozycji. Zapisz stosuje je przy następnym otwarciu, Zastosuj od razu.</value>
   </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otwórz jako</value>
@@ -752,6 +752,15 @@
   </data>
   <data name="SettingsCameraWindowTopmost" xml:space="preserve">
     <value>Zawsze na wierzchu</value>
+  </data>
+  <data name="SettingsCameraWindowReset" xml:space="preserve">
+    <value>Przywróć domyślne</value>
+  </data>
+  <data name="SettingsCameraWindowApply" xml:space="preserve">
+    <value>Zastosuj</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Zapisano</value>
   </data>
   <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
     <value>Lewy górny róg</value>

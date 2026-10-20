@@ -6,7 +6,7 @@ using static PrusaTrayDiagnostic.App.Tests.Tray.TestPrinters;
 
 namespace PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 
-/// <summary>"Camera…" items of the tray menu (T-014).</summary>
+/// <summary>"Camera" items of the tray menu (T-014).</summary>
 public sealed class TrayMenuCameraTests : IDisposable
 {
     private readonly CultureScope _culture = new("en-US");
@@ -41,7 +41,7 @@ public sealed class TrayMenuCameraTests : IDisposable
             camera =>
             {
                 Assert.Equal(TrayMenuCommand.Camera, camera.Command);
-                Assert.Equal("Camera…", camera.Header);
+                Assert.Equal("Camera", camera.Header);
                 Assert.True(camera.IsEnabled);
                 Assert.Equal("mk4", camera.PrinterId);
             });
@@ -60,7 +60,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         }
 
         TrayMenuEntry single = _viewModel.PrinterItems[1];
-        Assert.Equal((TrayMenuCommand.Camera, "Kamera…"), (single.Command, single.Header));
+        Assert.Equal((TrayMenuCommand.Camera, "Kamera"), (single.Command, single.Header));
 
         _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), Definition("b", "Beta")]);
         _dispatcher.RunAll();
@@ -71,7 +71,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         }
 
         TrayMenuEntry grouped = _viewModel.PrinterItems[0].Submenu![^1];
-        Assert.Equal((TrayMenuCommand.Camera, "Telecamera…", "a"), (grouped.Command, grouped.Header, grouped.PrinterId));
+        Assert.Equal((TrayMenuCommand.Camera, "Telecamera", "a"), (grouped.Command, grouped.Header, grouped.PrinterId));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(10)));
         _dispatcher.RunAll();
 
-        Assert.Equal(["MK4: Printing – 10%", "Camera…"], _viewModel.PrinterItems.Select(item => item.Header));
+        Assert.Equal(["MK4: Printing – 10%", "Camera"], _viewModel.PrinterItems.Select(item => item.Header));
     }
 
     [Fact]
@@ -149,8 +149,129 @@ public sealed class TrayMenuCameraTests : IDisposable
     {
         using TrayMenuPresenter presenter = new(_target, _viewModel, _commands, _logger);
 
-        _target.Click(new TrayMenuEntry(TrayMenuCommand.Camera, "Camera…", IsEnabled: true));
+        _target.Click(new TrayMenuEntry(TrayMenuCommand.Camera, "Camera", IsEnabled: true));
 
         Assert.Empty(_commands.CameraRequests);
+    }
+
+    // ---- Check item (T-040) ----
+
+    [Fact]
+    public void CameraItemIsAnUncheckedCheckItemWhileTheWindowIsClosed()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition())]);
+        _dispatcher.RunAll();
+
+        Assert.False(_viewModel.PrinterItems[1].IsChecked);
+        Assert.Null(_viewModel.PrinterItems[0].IsChecked);
+    }
+
+    [Fact]
+    public void OpenWindowChecksTheSinglePrinterCameraItemUntilItCloses()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition())]);
+        _dispatcher.RunAll();
+
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+        Assert.True(_viewModel.PrinterItems[1].IsChecked);
+        Assert.Equal("Camera", _viewModel.PrinterItems[1].Header);
+
+        _viewModel.SetCameraWindowOpen("MK4", isOpen: false);
+        Assert.False(_viewModel.PrinterItems[1].IsChecked);
+    }
+
+    [Fact]
+    public void OpenWindowChecksOnlyTheItemOfItsPrinter()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), WithCamera(Definition("b", "Beta"))]);
+        _dispatcher.RunAll();
+        TrayMenuEntryList betaSubmenu = _viewModel.PrinterItems[1].Submenu!;
+
+        _viewModel.SetCameraWindowOpen("a", isOpen: true);
+
+        Assert.True(_viewModel.PrinterItems[0].Submenu![^1].IsChecked);
+        Assert.False(_viewModel.PrinterItems[1].Submenu![^1].IsChecked);
+        // The other printer's item is untouched.
+        Assert.Same(betaSubmenu, _viewModel.PrinterItems[1].Submenu);
+    }
+
+    [Fact]
+    public void CheckStateSurvivesStateUpdatesLanguageSwitchesAndSettings()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), WithCamera(Definition("b", "Beta"))]);
+        _dispatcher.RunAll();
+        _viewModel.SetCameraWindowOpen("b", isOpen: true);
+
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(10), printerId: "b"));
+        _dispatcher.RunAll();
+        Assert.True(_viewModel.PrinterItems[1].Submenu![^1].IsChecked);
+
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        Assert.True(_viewModel.PrinterItems[1].Submenu![^1].IsChecked);
+
+        // Another printer removed: the remaining single printer keeps its open window checked.
+        _viewModel.SetPrinters([WithCamera(Definition("b", "Beta"))]);
+        _dispatcher.RunAll();
+        Assert.True(_viewModel.PrinterItems[1].IsChecked);
+    }
+
+    [Fact]
+    public void RepeatedReportsChangeNothing()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition())]);
+        _dispatcher.RunAll();
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+        int changes = 0;
+        ((System.Collections.Specialized.INotifyCollectionChanged)_viewModel.PrinterItems).CollectionChanged += (_, _) => changes++;
+
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+        _viewModel.SetCameraWindowOpen("other", isOpen: false);
+
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public void WindowOfAPrinterWithoutCameraItemChangesNothingVisible()
+    {
+        _viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+        TrayMenuEntry before = Assert.Single(_viewModel.PrinterItems);
+
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+
+        Assert.Equal(before, Assert.Single(_viewModel.PrinterItems));
+    }
+
+    [Fact]
+    public void PresenterShowsTheCheckMarkAndClicksToggle()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition())]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = new(_target, _viewModel, _commands, _logger);
+        Assert.False(_target.Printers[1].IsChecked);
+
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+        Assert.True(_target.Printers[1].IsChecked);
+        _target.Click(_target.Printers[1]);
+
+        // The click asks to toggle: the app closes the open window (its close reports back, unchecking the item).
+        Assert.Equal(["mk4"], _commands.CameraRequests);
+    }
+
+    [Fact]
+    public void DisposedViewModelIgnoresWindowReports()
+    {
+        _viewModel.SetPrinters([WithCamera(Definition())]);
+        _dispatcher.RunAll();
+        _viewModel.Dispose();
+
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+
+        Assert.False(_viewModel.PrinterItems[1].IsChecked);
     }
 }

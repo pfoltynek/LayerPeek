@@ -117,11 +117,15 @@ public partial class App : Application, ITrayAppCommands
         }
 
         SettingsViewModel? created = null;
+        // "Apply" places the open camera windows again (T-040).
+        CameraWindows cameraWindows = CameraWindowsFor(host);
         _settingsWindow.ShowOrActivate(() =>
         {
             // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
             // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
-            (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(static () => new SettingsWindow(), host.CreateSettingsViewModel);
+            (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(
+                static () => new SettingsWindow(),
+                screens => host.CreateSettingsViewModel(screens, cameraWindows));
             created = viewModel;
             return (new AvaloniaAuxiliaryWindow(window), viewModel);
         });
@@ -130,15 +134,29 @@ public partial class App : Application, ITrayAppCommands
         _ = created?.LoadAsync();
     }
 
-    void ITrayAppCommands.ShowCamera(string printerId)
+    void ITrayAppCommands.ToggleCamera(string printerId)
     {
         if (_host is not { } host || _quit is { IsQuitting: true })
         {
             return;
         }
 
-        _cameraWindows ??= new CameraWindows(host.CreateCameraViewModel);
-        _cameraWindows.Show(printerId);
+        CameraWindowsFor(host).Toggle(printerId);
+    }
+
+    /// <summary>
+    /// The camera windows, created on first use; the tray menu follows which of them are open (T-040: checked "Camera"
+    /// items).
+    /// </summary>
+    private CameraWindows CameraWindowsFor(TrayHost host)
+    {
+        if (_cameraWindows is null)
+        {
+            _cameraWindows = new CameraWindows(host.CreateCameraViewModel);
+            _cameraWindows.OpenChanged += (_, e) => host.OnCameraWindowOpenChanged(e.PrinterId, e.IsOpen);
+        }
+
+        return _cameraWindows;
     }
 
     void ITrayAppCommands.ShowAbout()
