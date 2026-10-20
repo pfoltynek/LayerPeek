@@ -108,17 +108,17 @@ public sealed partial class StringsTests
     {
         using (new UiCultureScope("cs-CZ"))
         {
-            Assert.Equal("Ukončit", Strings.MenuQuit);
+            Assert.Equal("U_končit", Strings.MenuQuit);
         }
 
         using (new UiCultureScope("en-GB"))
         {
-            Assert.Equal("Quit", Strings.MenuQuit);
+            Assert.Equal("_Quit", Strings.MenuQuit);
         }
 
         using (new UiCultureScope("ja-JP"))
         {
-            Assert.Equal("Quit", Strings.MenuQuit);
+            Assert.Equal("_Quit", Strings.MenuQuit);
         }
     }
 
@@ -133,7 +133,7 @@ public sealed partial class StringsTests
     {
         string expected = Strings.ResourceManager.GetString(nameof(Strings.MenuQuit), CultureInfo.GetCultureInfo(language))!;
 
-        Assert.NotEqual("Quit", expected);
+        Assert.NotEqual("_Quit", expected);
         Assert.Equal(expected, Strings.ResourceManager.GetString(nameof(Strings.MenuQuit), CultureInfo.GetCultureInfo(regional)));
     }
 
@@ -142,7 +142,7 @@ public sealed partial class StringsTests
     {
         using (new UiCultureScope("cs-CZ"))
         {
-            Assert.Equal("Ukončit", LocalizedStrings.Instance[nameof(Strings.MenuQuit)]);
+            Assert.Equal("U_končit", LocalizedStrings.Instance[nameof(Strings.MenuQuit)]);
         }
 
         // A typo must be visible instead of an empty label.

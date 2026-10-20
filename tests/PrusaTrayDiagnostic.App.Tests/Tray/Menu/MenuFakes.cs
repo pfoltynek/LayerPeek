@@ -207,6 +207,11 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public void ShowSettings() => SettingsCount++;
 
+    /// <summary>"Add printer…" clicks (T-042).</summary>
+    public int AddPrinterCount { get; private set; }
+
+    public void AddPrinter() => AddPrinterCount++;
+
     /// <summary>Printer ids of camera item clicks (open or close, T-040) in order.</summary>
     public List<string> CameraRequests { get; } = [];
 

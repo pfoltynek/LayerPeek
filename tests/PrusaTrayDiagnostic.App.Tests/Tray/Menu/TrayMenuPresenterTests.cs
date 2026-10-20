@@ -63,20 +63,65 @@ public sealed class TrayMenuPresenterTests : IDisposable
         _viewModel.SetPrinters([]);
         _dispatcher.RunAll();
         Assert.Equal(_viewModel.PrinterItems, _target.Printers);
-        Assert.Equal("No printer configured", Assert.Single(_target.Printers).Header);
+        Assert.Equal(["No printer configured", "Add _printer…"], _target.Printers.Select(static item => item.Header));
     }
 
     [Fact]
-    public async Task ClickOnPrinterOpensItsWebInterface()
+    public async Task SinglePrinterOpensItsWebInterfaceFromItsSubmenuOnly()
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = Create();
 
+        // T-042: the printer item only opens its submenu (T-008 opened the web interface).
         _target.Click(_target.Printers[0]);
+        Assert.Empty(_launcher.Opened);
+
+        _target.Click(Child(0, TrayMenuCommand.OpenWeb));
         await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
+        Assert.Empty(_logger.Entries);
+    }
+
+    [Fact]
+    public void SinglePrinterDiagnosticsPreselectsThePrinter()
+    {
+        _viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+
+        Assert.Equal(["mk4"], _commands.DiagnosticsRequests);
+    }
+
+    [Fact]
+    public void ClickOnAddPrinterRunsTheAppCommand()
+    {
+        _viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = Create();
+
+        _target.Click(_target.Printers.Single(static item => item.Command == TrayMenuCommand.AddPrinter));
+        // The message next to it does nothing.
+        _target.Click(_target.Printers[0]);
+
+        Assert.Equal(1, _commands.AddPrinterCount);
+        Assert.Equal(0, _commands.SettingsCount);
+    }
+
+    [Fact]
+    public void DisabledAddPrinterDoesNothing()
+    {
+        using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher), TrayMenuOptions.Default with { SettingsAvailable = false });
+        viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
+        using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
+
+        _target.Click(_target.Printers.Single(static item => item.Command == TrayMenuCommand.AddPrinter));
+
+        Assert.Equal(0, _commands.AddPrinterCount);
     }
 
     [Fact]
@@ -98,7 +143,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = Create();
 
-        _target.Click(_target.Printers[0]);
+        _target.Click(Child(0, TrayMenuCommand.OpenWeb));
         _target.Click(Fixed(TrayMenuCommand.Settings) with { IsEnabled = false });
 
         Assert.Empty(_launcher.Opened);
@@ -120,15 +165,12 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     [Fact]
-    public void ClickOnDiagnosticsOpensTheDiagnosticsWindow()
+    public void MainMenuHasNoGeneralDiagnostics()
     {
         using TrayMenuPresenter presenter = Create();
 
-        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
-
-        Assert.Equal(1, _commands.DiagnosticsCount);
-        Assert.Equal([null], _commands.DiagnosticsRequests);
-        Assert.Equal(0, _commands.AboutCount);
+        // T-042: diagnostics are in every printer submenu only.
+        Assert.DoesNotContain(_target.Fixed, static item => item.Command == TrayMenuCommand.Diagnostics);
     }
 
     [Fact]
@@ -195,11 +237,13 @@ public sealed class TrayMenuPresenterTests : IDisposable
     public void DisabledDiagnosticsItemDoesNothing()
     {
         using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher), TrayMenuOptions.Default with { DiagnosticsAvailable = false });
+        viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
         using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
 
-        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
+        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
 
-        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        Assert.False(Child(0, TrayMenuCommand.Diagnostics).IsEnabled);
         Assert.Equal(0, _commands.DiagnosticsCount);
     }
 
@@ -249,7 +293,7 @@ public sealed class TrayMenuPresenterTests : IDisposable
         Assert.Equal(["update 0", "update 1", "fixed", "insert 0", "insert 1"], _target.Operations);
         Assert.Equal(_viewModel.FixedItems, _target.Fixed);
         Assert.Equal(_viewModel.PrinterItems, _target.Printers);
-        Assert.Equal("Ukončit", Fixed(TrayMenuCommand.Quit).Header);
+        Assert.Equal("U_končit", Fixed(TrayMenuCommand.Quit).Header);
         Assert.Equal("Alpha: Připojování…", _target.Printers[0].Header);
 
         // Clicks act on the rebuilt items.

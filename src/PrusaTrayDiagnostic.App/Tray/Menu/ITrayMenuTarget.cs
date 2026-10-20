@@ -4,8 +4,7 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// The platform menu the presenter writes to (Avalonia <c>NativeMenu</c> in the app, a fake in tests).
-/// Layout: printer items first (each with its submenu when there are several printers), then a separator, then the
-/// fixed items. UI thread only.
+/// Layout: printer items first (each with its submenu, T-042), then a separator, then the fixed items. UI thread only.
 /// </summary>
 internal interface ITrayMenuTarget
 {
@@ -34,9 +33,9 @@ internal interface ITrayMenuSource
     event EventHandler? FixedItemsChanged;
 
     /// <summary>
-    /// One entry per configured printer (a submenu header when there are several printers), or a single disabled status
-    /// message ("Starting…", "No printer configured"...). A single printer with an enabled camera is followed by its
-    /// "Camera" check item (with several printers it is in the printer's submenu).
+    /// One submenu header per configured printer (its items: web interface, diagnostics, camera; T-042), or a disabled
+    /// status message ("Starting…", "Monitoring stopped…"); without printers "No printer configured" followed by
+    /// "Add printer…".
     /// </summary>
     ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
@@ -57,6 +56,12 @@ internal interface ITrayAppCommands
 
     /// <summary>Opens the settings window, or activates it when it is already open.</summary>
     void ShowSettings();
+
+    /// <summary>
+    /// "Add printer…" (T-042, shown while no printer is configured): opens the settings window (or activates it) on the
+    /// Printers tab and adds a new printer to it.
+    /// </summary>
+    void AddPrinter();
 
     /// <summary>
     /// The "Camera" check item (T-040): opens the camera window of <paramref name="printerId"/>, or closes it when it is

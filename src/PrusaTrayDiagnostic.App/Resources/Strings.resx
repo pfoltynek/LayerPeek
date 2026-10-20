@@ -13,8 +13,8 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MenuQuit" xml:space="preserve">
-    <value>Quit</value>
-    <comment>Tray menu item that exits the application.</comment>
+    <value>_Quit</value>
+    <comment>Tray menu item that exits the application. "_" marks the access key (unique within the main menu, see TrayMenuAccessKeyTests).</comment>
   </data>
   <data name="ToolTipStarting" xml:space="preserve">
     <value>Starting…</value>
@@ -101,19 +101,28 @@
     <value>{0}: {1}</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
-    <value>Settings…</value>
+    <value>_Settings…</value>
+    <comment>Tray menu item. "_" marks the access key (unique within the main menu).</comment>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>Diagnostics…</value>
+    <value>_Diagnostics…</value>
+    <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
   <data name="MenuAbout" xml:space="preserve">
-    <value>About</value>
+    <value>_About</value>
+    <comment>Tray menu item. "_" marks the access key (unique within the main menu).</comment>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>Add _printer…</value>
+    <comment>Tray menu item shown when no printer is configured: opens the settings and adds a printer. "_" marks the access key (unique within the main menu).</comment>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>Open PrusaLink in the browser</value>
+    <value>_Open PrusaLink in the browser</value>
+    <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>Open Prusa Connect in the browser</value>
+    <value>_Open Prusa Connect in the browser</value>
+    <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>The printer address is not valid</value>
@@ -616,7 +625,8 @@
     <value>The address must not contain a user name, a password or the @ character.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Camera</value>
+    <value>_Camera</value>
+    <comment>Check item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Camera</value>

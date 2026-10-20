@@ -109,7 +109,15 @@ public partial class App : Application, ITrayAppCommands
             });
     }
 
-    void ITrayAppCommands.ShowSettings()
+    void ITrayAppCommands.ShowSettings() => ShowSettings(addPrinter: false);
+
+    void ITrayAppCommands.AddPrinter() => ShowSettings(addPrinter: true);
+
+    /// <param name="addPrinter">
+    /// "Add printer…" (T-042): the window (new or already open) shows the Printers tab with a new printer
+    /// (<see cref="SettingsViewModel.AddPrinterFromTray"/>; a new window adds it once its settings are loaded).
+    /// </param>
+    private void ShowSettings(bool addPrinter)
     {
         if (_host is not { } host || _quit is { IsQuitting: true })
         {
@@ -119,16 +127,30 @@ public partial class App : Application, ITrayAppCommands
         SettingsViewModel? created = null;
         // "Apply" places the open camera windows again (T-040).
         CameraWindows cameraWindows = CameraWindowsFor(host);
-        _settingsWindow.ShowOrActivate(() =>
+        _settingsWindow.ShowOrActivate(
+            () =>
+            {
+                // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
+                // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
+                (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(
+                    static () => new SettingsWindow(),
+                    screens => host.CreateSettingsViewModel(screens, cameraWindows));
+                created = viewModel;
+                return (new AvaloniaAuxiliaryWindow(window), viewModel);
+            },
+            owned =>
+            {
+                // Already open: the editing session goes on, with a new printer when it has none yet.
+                if (addPrinter && owned is SettingsViewModel open)
+                {
+                    open.AddPrinterFromTray();
+                }
+            });
+
+        if (addPrinter)
         {
-            // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
-            // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
-            (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(
-                static () => new SettingsWindow(),
-                screens => host.CreateSettingsViewModel(screens, cameraWindows));
-            created = viewModel;
-            return (new AvaloniaAuxiliaryWindow(window), viewModel);
-        });
+            created?.AddPrinterFromTray();
+        }
 
         // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.
         _ = created?.LoadAsync();

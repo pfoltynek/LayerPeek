@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MenuQuit" xml:space="preserve">
-    <value>Beenden</value>
+    <value>_Beenden</value>
   </data>
   <data name="ToolTipStarting" xml:space="preserve">
     <value>Wird gestartet…</value>
@@ -91,19 +91,22 @@
     <value>{0}: {1}</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
-    <value>Einstellungen…</value>
+    <value>_Einstellungen…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>Diagnose…</value>
+    <value>_Diagnose…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
-    <value>Über</value>
+    <value>_Über</value>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>_Drucker hinzufügen…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>PrusaLink im Browser öffnen</value>
+    <value>_PrusaLink im Browser öffnen</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>Prusa Connect im Browser öffnen</value>
+    <value>_Prusa Connect im Browser öffnen</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Die Druckeradresse ist ungültig</value>
@@ -604,7 +607,7 @@
     <value>Die Adresse darf weder Benutzername noch Passwort noch das Zeichen @ enthalten.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Kamera</value>
+    <value>_Kamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Kamera</value>

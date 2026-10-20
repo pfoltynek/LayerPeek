@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MenuQuit" xml:space="preserve">
-    <value>Ukončit</value>
+    <value>U_končit</value>
   </data>
   <data name="ToolTipStarting" xml:space="preserve">
     <value>Spouštění…</value>
@@ -91,19 +91,22 @@
     <value>{0}: {1}</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
-    <value>Nastavení…</value>
+    <value>_Nastavení…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>Diagnostika…</value>
+    <value>_Diagnostika…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
-    <value>O aplikaci</value>
+    <value>_O aplikaci</value>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>_Přidat tiskárnu…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>Otevřít PrusaLink v prohlížeči</value>
+    <value>_Otevřít PrusaLink v prohlížeči</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>Otevřít Prusa Connect v prohlížeči</value>
+    <value>_Otevřít Prusa Connect v prohlížeči</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adresa tiskárny není platná</value>
@@ -604,7 +607,7 @@
     <value>Adresa nesmí obsahovat uživatelské jméno, heslo ani znak @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Kamera</value>
+    <value>_Kamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>

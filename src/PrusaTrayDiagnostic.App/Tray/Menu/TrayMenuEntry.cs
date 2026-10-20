@@ -7,7 +7,7 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 /// <summary>What clicking a tray menu item does.</summary>
 public enum TrayMenuCommand
 {
-    /// <summary>Informational item, separator or the header of a submenu.</summary>
+    /// <summary>Informational item, separator or the header of a submenu (every printer item, T-042).</summary>
     None,
 
     /// <summary>Opens <see cref="TrayMenuEntry.WebUri"/> (PrusaLink / Prusa Connect) in the browser.</summary>
@@ -15,6 +15,11 @@ public enum TrayMenuCommand
 
     /// <summary>Settings window (T-015).</summary>
     Settings,
+
+    /// <summary>
+    /// No printer is configured (T-042): opens the settings window on the Printers tab and adds a new printer there.
+    /// </summary>
+    AddPrinter,
 
     /// <summary>Diagnostics window (T-011), preselected on <see cref="TrayMenuEntry.PrinterId"/> when set.</summary>
     Diagnostics,
@@ -32,7 +37,10 @@ public enum TrayMenuCommand
 /// One tray menu item as the user sees it. Immutable with value equality (including <see cref="Submenu"/>), so that an
 /// update reaches the platform menu only when something visible (or the click target) changed.
 /// </summary>
-/// <param name="Header">Display text, not escaped (the platform adapter handles access-key markers).</param>
+/// <param name="Header">
+/// Display text. Plain text (printer names, states, messages) unless <see cref="HasAccessKey"/>: the platform adapter
+/// escapes it so that an "_" in a printer name never becomes an access key.
+/// </param>
 /// <param name="ToolTip">Hint shown on hover where the platform supports it.</param>
 /// <param name="WebUri">Address opened by <see cref="TrayMenuCommand.OpenWeb"/>; already validated as http(s).</param>
 /// <param name="PrinterId">The printer the item belongs to (printer items and their submenu items).</param>
@@ -49,14 +57,20 @@ internal sealed record TrayMenuEntry(
     public bool IsSeparator { get; private init; }
 
     /// <summary>
+    /// <see cref="Header"/> is a menu text with an access-key marker ("_Settings…", T-042): fixed items and printer submenu
+    /// items, from the resources. Shown as is; <see langword="false"/> = plain text, escaped by the adapter.
+    /// </summary>
+    public bool HasAccessKey { get; init; }
+
+    /// <summary>
     /// A check item (T-040: the camera item is checked while the camera window of its printer is open): <see langword="true"/>
     /// / <see langword="false"/> = checked / not checked; <see langword="null"/> = a plain item without a check mark.
     /// </summary>
     public bool? IsChecked { get; init; }
 
     /// <summary>
-    /// Items of the submenu this item opens (several printers: one submenu per printer); <see langword="null"/> for a
-    /// plain item. An item with a submenu is a header only: clicking it does nothing.
+    /// Items of the submenu this item opens (every printer has one, T-042); <see langword="null"/> for a plain item. An item
+    /// with a submenu is a header only: clicking it does nothing.
     /// </summary>
     public TrayMenuEntryList? Submenu { get; init; }
 
@@ -126,7 +140,10 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
 }
 
-/// <summary>Which auxiliary windows exist; their items are shown disabled until the window is implemented.</summary>
+/// <summary>
+/// Which auxiliary windows exist; their items are shown disabled until the window is implemented ("Add printer…" follows
+/// the settings window).
+/// </summary>
 /// <param name="PrinterIcons">
 /// Printer items show the printer's picture (T-039): on Windows, where Avalonia draws the menu itself. macOS (native
 /// NSMenu) is left out until T-018 verifies it (user decision 2026-10-19).

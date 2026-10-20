@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MenuQuit" xml:space="preserve">
-    <value>Zakończ</value>
+    <value>_Zakończ</value>
   </data>
   <data name="ToolTipStarting" xml:space="preserve">
     <value>Uruchamianie…</value>
@@ -91,19 +91,22 @@
     <value>{0}: {1}</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
-    <value>Ustawienia…</value>
+    <value>_Ustawienia…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>Diagnostyka…</value>
+    <value>_Diagnostyka…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
-    <value>O programie</value>
+    <value>_O programie</value>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>_Dodaj drukarkę…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>Otwórz PrusaLink w przeglądarce</value>
+    <value>_Otwórz PrusaLink w przeglądarce</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>Otwórz Prusa Connect w przeglądarce</value>
+    <value>_Otwórz Prusa Connect w przeglądarce</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adres drukarki jest nieprawidłowy</value>
@@ -604,7 +607,7 @@
     <value>Adres nie może zawierać nazwy użytkownika, hasła ani znaku @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Kamera</value>
+    <value>_Kamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>

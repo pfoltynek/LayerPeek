@@ -7,8 +7,9 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// Mirrors an <see cref="ITrayMenuSource"/> onto a platform menu item by item (a changed printer updates only its own
-/// item) and routes clicks: "open web" items to the web interface, diagnostics (with the printer of its submenu), settings and the
-/// other fixed items to <see cref="ITrayAppCommands"/>; submenu headers do nothing.
+/// item) and routes clicks: "open web" items to the web interface; diagnostics and camera (with the printer of their
+/// submenu), "Add printer…", settings and the other fixed items to <see cref="ITrayAppCommands"/>; printer items
+/// (submenu headers) do nothing.
 /// UI thread only.
 /// </summary>
 internal sealed partial class TrayMenuPresenter : IDisposable
@@ -129,6 +130,9 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                     break;
                 case TrayMenuCommand.Settings:
                     _commands.ShowSettings();
+                    break;
+                case TrayMenuCommand.AddPrinter:
+                    _commands.AddPrinter();
                     break;
                 case TrayMenuCommand.About:
                     _commands.ShowAbout();
