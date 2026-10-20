@@ -29,9 +29,11 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
     private readonly ManualDispatcher _dispatcher = new();
     private readonly MemoryCameraWindowStateStore _states = new();
     private readonly List<CameraViewModel> _created = [];
+    private readonly CultureScope _culture = new("en-US");
 
     public async ValueTask DisposeAsync()
     {
+        _culture.Dispose();
         foreach (CameraViewModel viewModel in _created)
         {
             viewModel.Dispose();
@@ -244,7 +246,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         _dispatcher.RunAll();
 
         Assert.False(viewModel.IsTopmost);
-        Assert.Equal([nameof(CameraViewModel.IsTopmost)], changed);
+        Assert.Equal([nameof(CameraViewModel.IsTopmost), nameof(CameraViewModel.MiniToolTip)], changed);
         Assert.Equal(CameraWindowMode.Mini, viewModel.Mode);
         Assert.Equal(Remembered.Mini, viewModel.MiniPlacement);
         Assert.Equal(Remembered.Normal, viewModel.NormalPlacement);
@@ -266,6 +268,65 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
 
         viewModel.ShowMiniCommand.Execute(null);
         Assert.False(viewModel.IsTopmost);
+    }
+
+    [Theory]
+    [InlineData(true, "Mini preview, always on top")]
+    [InlineData(false, "Mini preview")]
+    public void MiniToolTipFollowsTheMiniOption(bool topmostMini, string expected)
+    {
+        // User decision 2026-10-20 (T-037 Q1): "always on top" only while the mini preview really is.
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { TopmostMini = topmostMini, TopmostNormal = !topmostMini });
+
+        Assert.Equal(expected, viewModel.MiniToolTip);
+    }
+
+    [Fact]
+    public void SavedMiniOptionChangesTheToolTipOfTheOpenWindow()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        Assert.True(viewModel.IsNormal);
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostMini = false })] });
+        _dispatcher.RunAll();
+
+        Assert.Equal("Mini preview", viewModel.MiniToolTip);
+        Assert.Equal([nameof(CameraViewModel.MiniToolTip)], changed);
+
+        // Only the normal window option changed: the tooltip stays and is not announced.
+        changed.Clear();
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostMini = false, TopmostNormal = true })] });
+        _dispatcher.RunAll();
+
+        Assert.Equal("Mini preview", viewModel.MiniToolTip);
+        Assert.DoesNotContain(nameof(CameraViewModel.MiniToolTip), changed);
+
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default)] });
+        _dispatcher.RunAll();
+
+        Assert.Equal("Mini preview, always on top", viewModel.MiniToolTip);
+        Assert.Contains(nameof(CameraViewModel.MiniToolTip), changed);
+    }
+
+    [Theory]
+    [InlineData(true, "Malý náhled vždy navrchu")]
+    [InlineData(false, "Malý náhled")]
+    public void MiniToolTipFollowsALanguageSwitch(bool topmostMini, string expected)
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { TopmostMini = topmostMini });
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        using (new CultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+
+            Assert.Equal(expected, viewModel.MiniToolTip);
+        }
+
+        Assert.Contains(nameof(CameraViewModel.MiniToolTip), changed);
     }
 
     [Fact]

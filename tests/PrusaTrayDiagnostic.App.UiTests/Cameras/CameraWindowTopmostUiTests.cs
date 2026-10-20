@@ -1,8 +1,12 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
+
+using PrusaTrayDiagnostic.App.Localization;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Tests.Cameras;
@@ -64,10 +68,15 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
             Assert.Equal(WindowState.FullScreen, window.WindowState);
             Assert.False(window.Topmost);
 
-            // Esc from full screen returns to the mini preview it came from.
+            // Esc leaves full screen to the normal window (T-014), even when full screen was entered from the mini preview.
             Run(window, () => window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null));
             Assert.Equal(WindowState.Normal, window.WindowState);
-            Assert.Equal(viewModel.IsMini ? mini : normal, window.Topmost);
+            Assert.True(viewModel.IsNormal);
+            Assert.Equal(normal, window.Topmost);
+
+            Run(window, () => viewModel.ShowMiniCommand.Execute(null));
+            Assert.True(viewModel.IsMini);
+            Assert.Equal(mini, window.Topmost);
 
             Run(window, () => viewModel.ShowNormalCommand.Execute(null));
             Assert.True(viewModel.IsNormal);
@@ -201,6 +210,47 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
             Run(window, () => window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null));
             Assert.Equal(WindowState.Normal, window.WindowState);
             Assert.True(window.Topmost);
+        });
+
+    private static Button? MiniButton(CameraWindow window, string toolTip) =>
+        window.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => ToolTip.GetTip(button) as string == toolTip);
+
+    [Fact]
+    public Task MiniButtonToolTipFollowsTheSavedOptionAndTheLanguage() =>
+        session.RunAsync(async scope =>
+        {
+            // User decision 2026-10-20 (T-037 Q1).
+            CameraWindowDefaults defaults = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Normal };
+            await using CameraHarness harness = new(window: defaults);
+            CameraWindow window = harness.Open();
+            window.Settle();
+            Button button = Assert.IsType<Button>(MiniButton(window, "Mini preview, always on top"));
+            Assert.Equal("Mini preview, always on top", AutomationProperties.GetName(button));
+
+            Save(harness, defaults with { TopmostMini = false });
+            window.Settle();
+
+            Assert.Equal("Mini preview", ToolTip.GetTip(button));
+            Assert.Equal("Mini preview", AutomationProperties.GetName(button));
+
+            UiLanguage language = new();
+            try
+            {
+                Assert.True(language.Apply("cs"));
+                harness.Windows.RefreshTexts();
+                window.Settle();
+                Assert.Equal("Malý náhled", ToolTip.GetTip(button));
+
+                Save(harness, defaults);
+                window.Settle();
+                Assert.Equal("Malý náhled vždy navrchu", ToolTip.GetTip(button));
+                Assert.Equal("Malý náhled vždy navrchu", AutomationProperties.GetName(button));
+            }
+            finally
+            {
+                language.Apply(null);
+                harness.Windows.RefreshTexts();
+            }
         });
 
     [Fact]

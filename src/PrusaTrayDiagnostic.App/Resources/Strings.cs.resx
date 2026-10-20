@@ -627,6 +627,9 @@
   <data name="CameraMini" xml:space="preserve">
     <value>Malý náhled vždy navrchu</value>
   </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Malý náhled</value>
+  </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Zpět do normálního okna (dvojklik)</value>
   </data>

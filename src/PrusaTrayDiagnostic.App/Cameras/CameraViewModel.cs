@@ -194,6 +194,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(FullScreenToolTip));
+        OnPropertyChanged(nameof(MiniToolTip));
         OnPropertyChanged(nameof(StatusText));
         if (_printStateText is not null)
         {
@@ -235,6 +236,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     public bool IsTopmost => _defaults.IsTopmost(_mode);
 
     public string FullScreenToolTip => IsFullScreen ? Strings.CameraExitFullScreen : Strings.CameraFullScreen;
+
+    /// <summary>
+    /// Tip (and accessible name) of the mini preview button: says "always on top" only while the printer's option for the
+    /// mini preview is on (user decision 2026-10-20, T-037 Q1).
+    /// </summary>
+    public string MiniToolTip => _defaults.TopmostMini ? Strings.CameraMini : Strings.CameraMiniPlain;
 
     /// <summary>
     /// Where the normal window was (remembered, or earlier in this window); <see langword="null"/> = the window places it
@@ -719,10 +726,16 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // The open window does not move (T-035); the new defaults apply to the next placement from defaults. Only
         // "always on top" applies to the open window right away (T-037).
         bool wasTopmost = IsTopmost;
+        bool wasTopmostMini = _defaults.TopmostMini;
         _defaults = target.Window;
         if (IsTopmost != wasTopmost)
         {
             OnPropertyChanged(nameof(IsTopmost));
+        }
+
+        if (_defaults.TopmostMini != wasTopmostMini)
+        {
+            OnPropertyChanged(nameof(MiniToolTip));
         }
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))

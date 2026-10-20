@@ -627,6 +627,9 @@
   <data name="CameraMini" xml:space="preserve">
     <value>Mały podgląd, zawsze na wierzchu</value>
   </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Mały podgląd</value>
+  </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Powrót do zwykłego okna (dwukrotne kliknięcie)</value>
   </data>

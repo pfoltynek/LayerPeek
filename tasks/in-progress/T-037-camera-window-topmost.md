@@ -19,6 +19,7 @@ U každé tiskárny jde nastavit, jestli normální okno kamery a malý náhled 
 - **Volby (2026-10-19):** dvě volby – **normální okno** (výchozí vypnuto) a **malý náhled** (výchozí zapnuto). Celá obrazovka není nikdy `Topmost`.
 - **Tlačítko „připnout“ v okně kamery (2026-10-19):** ne.
 - **Kdy se projeví (2026-10-19):** v otevřených oknech hned po uložení nastavení.
+- **Q1 – popisek tlačítka malého náhledu (2026-10-20):** tip (a název pro čtečky) tlačítka malého náhledu v okně kamery se řídí volbou: se zapnutou volbou „Vždy navrchu“ u malého náhledu „Malý náhled vždy navrchu“ (dosavadní text), jinak jen „Malý náhled“. Mění se v otevřeném okně po uložení nastavení i při změně jazyka. Překlady „Vždy navrchu“ uživatel schválil.
 - **UI (2026-10-19):** volby jsou v nastavení součástí jedné sekce **„Okno kamery“** společně s T-035. Úkoly zůstávají oddělené.
 
 ## Rozsah
@@ -35,7 +36,7 @@ U každé tiskárny jde nastavit, jestli normální okno kamery a malý náhled 
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- **Q1 – popisek tlačítka malého náhledu:** tlačítko v okně kamery má tip „Malý náhled vždy navrchu“ (en „Mini preview, always on top“, klíč `CameraMiniPreview`). Když uživatel volbu „Vždy navrchu“ u malého náhledu vypne, tip neodpovídá. Možnosti: (a) tip podle volby – „Malý náhled“ / „Malý náhled vždy navrchu“, (b) vždy jen „Malý náhled“, (c) nechat beze změny. Zatím beze změny (texty UI jsou rozhodnutí uživatele).
+- (žádné – Q1 rozhodnuto 2026-10-20, viz Rozhodnuto)
 
 ## Poznámky k implementaci
 
@@ -49,14 +50,15 @@ U každé tiskárny jde nastavit, jestli normální okno kamery a malý náhled 
 - `CameraWindow`: `Topmost` se nastaví před zobrazením podle počátečního režimu (celá obrazovka `false`), při přepnutí režimu podle volby nového režimu a při změně `IsTopmost` po uložení se změní **jen** `Topmost` – pozice, velikost, rámeček ani režim se nemění (na Windows Avalonia volá `SetWindowPos` s `SWP_NOMOVE | SWP_NOSIZE`).
 - Okno nastavení, podzáložka Okno kamery: záhlaví „Vždy navrchu“ ve vyhrazeném sloupci 88 DIP (SemiBold, zalomení na max. 2 řádky, na střed) a dvě zaškrtávací pole v řádcích Normální okno / Malý náhled (`AutomationId` `PrinterCameraWindowNormalTopmost`, `PrinterCameraWindowMiniTopmost`, záhlaví `PrinterCameraWindowTopmostHeader`). `AutomationProperties.Name` „{řádek} – Vždy navrchu“, při změně jazyka se obnoví. Pořadí Tab: velikost → umístění → vždy navrchu v každém řádku. U vypnuté kamery zašedlá (celá sekce `IsEnabled=CameraEnabled`), hodnoty se zachovají a uloží.
 - Nový text `SettingsCameraWindowTopmost` v 8 jazycích: Always on top / Vždy navrchu / Vždy navrchu (sk) / Immer im Vordergrund / Siempre encima / Toujours au premier plan / Sempre in primo piano / Zawsze na wierzchu.
+- Q1: `CameraViewModel.MiniToolTip` = `CameraMini` („Malý náhled vždy navrchu“) při zapnutém `TopmostMini`, jinak nový text `CameraMiniPlain` (Mini preview / Malý náhled / Malý náhľad / Kleine Vorschau / Vista previa pequeña / Petit aperçu / Anteprima piccola / Mały podgląd); tlačítko ho používá jako `ToolTip.Tip` i `AutomationProperties.Name`. Oznamuje se po uložení (jen když se `TopmostMini` změnil) a při `RefreshTexts`.
 - Nové balíčky žádné.
 
 ### Testy
 - Core.Tests: `CameraWindowDefaultsTests` (výchozí hodnoty, `IsTopmost` pro všechny kombinace, rovnost, nemazání stavu), `SettingsMapperCameraWindowTests` (round-trip, zápis jen změněné volby, chybějící hodnoty = výchozí, soubor z T-035 bez voleb, špatný typ, přesný tvar JSON).
 - App.Tests: `CameraViewModelWindowTests` (+7: `IsTopmost` ve všech režimech a kombinacích i tam a zpět, celá obrazovka nikdy, pořadí oznámení, uložená volba se projeví v otevřeném okně bez změny režimu a pozic, volba jiného režimu bez oznámení, stav se po změně volby dál zapisuje), `CameraWindowSettingsTests` (načtení, výchozí hodnoty, názvy pro čtečky vč. češtiny, uložení, volby samy nemažou stav, vypnutá kamera, `IsDirty`).
-- UiTests: nový `Cameras/CameraWindowTopmostUiTests` (14: `Window.Topmost` ve všech režimech pro 4 kombinace voleb včetně přepínání tam a zpět a Esc, počáteční režimy, výchozí chování, změna po uložení u normálního okna i náhledu bez posunu a změny velikosti, celá obrazovka zůstane `false` a po Esc platí nová volba, změna jen u okna dané tiskárny); `SettingsWindowCameraWindowUiTests` (hodnoty, výchozí hodnoty, zašedlá pole, klik + uložení bez smazání stavu, pořadí Tab, změna jazyka); `SettingsWindowLayoutTests` – nový test, že záhlaví „Vždy navrchu“ má ve všech 8 jazycích nejvýš 2 řádky, není oříznuté a žádné slovo není širší než 88 DIP; test „bez posuvníku“ prošel ve všech 8 jazycích.
+- UiTests: nový `Cameras/CameraWindowTopmostUiTests` (15: `Window.Topmost` ve všech režimech pro 4 kombinace voleb včetně přepínání tam a zpět a Esc, počáteční režimy, výchozí chování, změna po uložení u normálního okna i náhledu bez posunu a změny velikosti, celá obrazovka zůstane `false` a po Esc platí nová volba, změna jen u okna dané tiskárny, tip tlačítka malého náhledu po uložení a po změně jazyka); App.Tests `CameraViewModelWindowTests` navíc tip podle volby, po uložení a při změně jazyka; `SettingsWindowCameraWindowUiTests` (hodnoty, výchozí hodnoty, zašedlá pole, klik + uložení bez smazání stavu, pořadí Tab, změna jazyka); `SettingsWindowLayoutTests` – nový test, že záhlaví „Vždy navrchu“ má ve všech 8 jazycích nejvýš 2 řádky, není oříznuté a žádné slovo není širší než 88 DIP; test „bez posuvníku“ prošel ve všech 8 jazycích.
 - Snímky přegenerované a zkontrolované: `settings-camera-window`, `settings-camera-window-errors-fr` („Toujours au / premier plan“), `settings-camera-window-off-cs` (zašedlá pole).
-- `dotnet build` 0 varování; `dotnet test` 2× po sobě 3154 testů (3153 prošlo, 1 dřívější přeskočený). `dotnet publish -c Release -r win-x64` (AOT) bez varování; AOT exe se spustí a běží (25 s, pak ukončeno). Okno nastavení ani okno kamery jsem v běžící aplikaci ručně neotevíral.
+- `dotnet build` 0 varování; `dotnet test` 2× po sobě 3160 testů (3159 prošlo, 1 dřívější přeskočený). `dotnet publish -c Release -r win-x64` (AOT) bez varování; AOT exe se spustí a běží (25 s, pak ukončeno). Okno nastavení ani okno kamery jsem v běžící aplikaci ručně neotevíral.
 
 ### Zbývá ručně (uživatel)
 - Windows: normální okno se zapnutou volbou zůstane nad jinou aplikací, po vypnutí volby a uložení ne (v otevřeném okně bez zavření); malý náhled obdobně; celá obrazovka nikdy navrchu. Skutečný z-order headless testy neověří.

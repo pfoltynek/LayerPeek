@@ -627,6 +627,9 @@
   <data name="CameraMini" xml:space="preserve">
     <value>Anteprima piccola, sempre in primo piano</value>
   </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Anteprima piccola</value>
+  </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Torna alla finestra normale (doppio clic)</value>
   </data>
