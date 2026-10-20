@@ -19,11 +19,65 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 |---|---|---|
 | `GET /api/v1/status` | každý polling | stav, teploty, osa Z, rychlost/průtok, ventilátory; objekt `job` (id, progress %, `time_remaining` s, `time_printing` s) jen při tisku/pauze |
 | `GET /api/v1/job` | jen při změně `job.id` | název souboru (`file.display_name`); **204 No Content**, když úloha neběží (i ve stavu FINISHED/STOPPED) |
-| `GET /api/version` | test spojení | `api`, `hostname`; `firmware` a `printer` až od 6.5 |
+| `GET /api/version` | test spojení; jednou za běh monitoringu (model, T-039) | `api`, `hostname`; `firmware` a `printer` až od 6.5 |
 | `GET /api/v1/info` | test spojení | `mmu` (bool), `nozzle_diameter`, `hostname`, `serial` |
 
 - Kamery (`/api/v1/cameras`) Buddy nemá a vrací 404.
 - **MMU:** jedinou informací o MMU je `info.mmu`. Stav slotů API neposkytuje.
+
+## Model tiskárny (`/api/version`, pole `printer`, T-039)
+
+**Formát:** `"printer": "<type>.<version>.<subversion>"`, např. `"1.4.1"`. Firmware ho skládá přes `JSON_FIELD_STR_FORMAT("printer", "%i.%i.%i", …)` z `PrinterModelInfo::current().version` (`lib/WUI/link_content/basic_gets.cpp`, funkce `get_version`). Pole existuje **od firmwaru 6.5** (v tagu `v6.4.2` chybí spolu s `firmware`, v `v6.5.1` už je).
+
+**Rozšířený typ tiskárny:** `PrinterModelInfo::current()` (`src/common/printer_model.cpp`) vrací u firmwaru s rozšířeným typem (`include/common/extended_printer_type.hpp`) model nastavený v tiskárně, ne model sestavení firmwaru:
+- firmware MK4: MK4, MK4S, MK3.9, MK3.9S;
+- firmware MK3.5: MK3.5, MK3.5S;
+- firmware XL: XL, XL+ (od 6.8; ve 6.10 se typ zjišťuje automaticky podle hardwaru, starší verze jsme v tomto ohledu nekontrolovali).
+
+Kód proto rozliší i varianty se stejným firmwarem.
+
+**Zdroj tabulky:** Prusa-Firmware-Buddy, `include/common/printer_model_data.hpp` (pole `printer_model_info`, položka `.version`):
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/v6.10.3/include/common/printer_model_data.hpp
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/v6.5.1/include/common/printer_model_data.hpp
+
+Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3` a na `master` (commit `1ce23f33`, 2026-08-27). Kódy se mezi verzemi neměnily, jen přibývaly modely.
+
+| Kód | Model ve firmwaru (`PrinterModel::`, `id_str`) | Od tagu | `PrinterModel` v aplikaci |
+|---|---|---|---|
+| `1.3.0` | `mk3`, MK3 | – | `Unknown` (8bitový firmware bez PrusaLink Buddy) |
+| `1.3.1` | `mk3s`, MK3S | – | `Unknown` (8bitový firmware bez PrusaLink Buddy) |
+| `1.3.5` | `mk3_5`, MK3.5 | 6.5.1 | `Mk35` |
+| `1.3.6` | `mk3_5s`, MK3.5S | 6.5.1 | `Mk35S` |
+| `1.3.9` | `mk3_9`, MK3.9 | 6.5.1 | `Mk39` |
+| `1.3.10` | `mk3_9s`, MK3.9S | 6.5.1 | `Mk39S` |
+| `1.4.0` | `mk4`, MK4 | 6.5.1 | `Mk4` |
+| `1.4.1` | `mk4s`, MK4S | 6.5.1 | `Mk4S` |
+| `2.1.0` | `mini`, MINI | 6.5.1 | `Mini` (MINI i MINI+) |
+| `3.1.0` | `xl`, XL | 6.5.1 | `Xl` |
+| `3.1.1` | `xls`, XLP (na displeji „XL+“) | 6.8.0 | `XlPlus` |
+| `4.1.0` | `ix`, iX | 6.5.1 | `Unknown` (průmyslová tiskárna, bez ilustrace) |
+| `5.1.0` | `xl_dev_kit`, XL | 6.5.1 | `Xl` (ve firmwaru „works like standard XL“) |
+| `7.1.0` | `coreone`, COREONE | 6.5.1 | `CoreOne` |
+| `7.2.0` | `coreone_oak`, COREONEOAK | 6.6.0 | `Unknown` (nevydaná varianta, ve firmwaru „dead code“) |
+| `7.10.0` | `coreone_indx`, COREONEINDX | 6.6.0 | `Unknown` (viz otevřená otázka v T-039) |
+| `8.1.0` | `coreonel`, COREONEL | 6.5.1 | `CoreOneL` |
+| `8.10.0` | `coreonel_indx`, COREONEL-INDX | 6.6.0 | `Unknown` (viz otevřená otázka v T-039) |
+| cokoli jiného | – | – | `Unknown` (kód se ale uloží, novější verze aplikace ho může znát) |
+
+**Co kód nerozliší:**
+- MINI a MINI+ mají stejný firmware i kód `2.1.0`.
+- XL s jedním a s více nástroji má stejný kód `3.1.0`. Počet nástrojů z `/api/version` ani `/api/v1/info` nezjistíme; jiný zdroj jsme neověřovali.
+- MMU kód nemění (MMU varianty ve firmwaru mají jen jiný G-code kód). MMU hlásí `info.mmu`.
+
+**Neověřeno na skutečné tiskárně:** nahrané odpovědi (`Fixtures/recorded/`) zatím nemáme. Tabulka vychází jen ze zdrojového kódu. Starší fixture `version.json` měla vymyšlený kód `7.0.0`, opraveno na `7.1.0` (Core One).
+
+**Prusa Connect:** vrací `printer_model` a `printer_type_name` (viz [prusa-connect.md](prusa-connect.md)). Automatickou detekci u Prusa Connect podle rozhodnutí T-039 neděláme, takže hodnoty jsme neověřovali.
+
+**V aplikaci:**
+- Převod je `Core/Printers/PrinterModels.FromCode`, kód je `PrinterModelCode`.
+- Klient: `PrusaLinkClient.DetectModelAsync` (jen `/api/version`) a `PrusaLinkPrinterInfo.ModelCode` (test spojení).
+- Monitor se zeptá jednou za běh, po prvním úspěšném dotazu na stav, a vyvolá `IPrinterMonitor.ModelDetected`. Selhaný dotaz zkusí znovu po dalším úspěšném dotazu na stav, nejvýš 3× za běh. Firmware bez pole `printer` se už znovu neptá.
+- Uložený kód je `printers[*].detectedModel` v `settings.json`.
 
 ## Stavy (`printer.state`)
 

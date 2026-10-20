@@ -1,7 +1,7 @@
 ---
 id: T-039
 title: Obrázek tiskárny (podle modelu nebo vlastní)
-status: todo
+status: in-progress
 owner: core-dev + ui-designer + ui-dev
 priority: P3
 platform: all
@@ -50,8 +50,8 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - Bez nového NuGet balíčku (dekódování obrázků přes Avalonia/Skia); případný balíček jen po ověření AOT a souhlasu uživatele.
 
 ## Akceptační kritéria
-- [ ] Mapování kódů modelů zdokumentované v `docs/api/prusalink.md` s odkazem na zdroj ve firmwaru
-- [ ] Core: převod kódu na model, uložení modelu a volby obrázku, úložiště vlastních obrázků; testy (Core.Tests) včetně neplatných a příliš velkých souborů a úklidu
+- [x] Mapování kódů modelů zdokumentované v `docs/api/prusalink.md` s odkazem na zdroj ve firmwaru
+- [x] Core: převod kódu na model, uložení modelu a volby obrázku, úložiště vlastních obrázků; testy (Core.Tests) včetně neplatných a příliš velkých souborů a úklidu
 - [ ] Vlastní ilustrace pro všechny podporované modely + obecná, schválené uživatelem; jako `AvaloniaResource` (test, že každý model má ilustraci a ta jde načíst)
 - [ ] App.Tests: view model vybere ilustraci podle modelu, vlastní obrázek má přednost, neznámý model → obecná ilustrace podle otázky 2, import a odstranění vlastního obrázku, odstranění tiskárny uklidí její vlastní obrázek (podle otázky 5)
 - [ ] Headless UI testy: obrázek v seznamu tiskáren, na podzáložce Tiskárna a v okně Diagnostika; snímky reference aktualizované; test „bez posuvníku“ z T-033 projde ve všech 8 jazycích
@@ -60,6 +60,54 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 
 ## Otevřené otázky
 1. **Velikost obrázku v jednotlivých místech** (seznam tiskáren, podzáložka, Diagnostika, tray menu) – navrhne ui-designer ke schválení.
+2. **Ukládání modelu zjištěného monitoringem (core-dev, 2026-10-20):** Core model zjistí a ohlásí (`IPrinterMonitor.ModelDetected`), ale `settings.json` sám nepřepisuje. Pravidlo pro App je potřeba potvrdit:
+   - Ukládat na pozadí jen při skutečné změně (`AppSettings.WithDetectedModel` vrátí jinou instanci)?
+   - Restartovat kvůli tomu monitoring? Návrh: ne, změna jen modelu monitoring nerestartuje.
+   - Co když je zrovna otevřené okno nastavení? Návrh: uložit hned; při uložení okna se převezme nejnovější `detectedModel` ze souboru, ne ten z doby otevření okna.
+3. **Core One INDX a Core One L INDX (`7.10.0`, `8.10.0`), iX (`4.1.0`):** teď mají obecnou ilustraci (`Unknown`). Mají dostat ilustraci Core One / Core One L, vlastní ilustraci, nebo zůstat obecné?
+4. **Varianty se stejným vzhledem:** MK3.5/MK3.5S, MK3.9/MK3.9S, MK4/MK4S, XL/XL+, Core One/Core One L. Má mít každý z 11 modelů vlastní ilustraci, nebo mohou varianty sdílet jednu? Výčet je rozlišuje všechny, sloučit jde jen v App.
+5. **Změna adresy nebo typu připojení:** může jít o jinou tiskárnu. Smazat uložený `detectedModel`, aby do další detekce byla obecná ilustrace? Návrh: ano, smazat (dělá editor v App).
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+
+### Core (core-dev, 2026-10-20)
+- **Mapování kódů** je v `docs/api/prusalink.md`, oddíl „Model tiskárny“. Zdrojem je Prusa-Firmware-Buddy `include/common/printer_model_data.hpp` (ověřeno v tazích v6.5.1–v6.10.3 a na `master`). Kód `7.0.0` z původních fixtures a příkladů ve firmwaru neexistuje, Core One je `7.1.0`. Opravena fixture `version.json` a test v PrusaLink.Tests. Texty v App testech (`"7.0.0"` jako zobrazený řetězec) jsem neměnil.
+- **Model:**
+  - `Core/Printers/PrinterModel` (výčet: `Unknown`, `Mini`, `Mk35`, `Mk35S`, `Mk39`, `Mk39S`, `Mk4`, `Mk4S`, `Xl`, `XlPlus`, `CoreOne`, `CoreOneL`);
+  - `PrinterModelCode` (kód `type.version.subversion`, přísné `TryParse`);
+  - `PrinterModels` (`FromCode`, `Selectable`, `Format`/`TryParse` pro soubor, `GetProductName` pro zobrazení, např. „Core One L“).
+- **Volba obrázku:**
+  - `PrinterImageChoice` (`Automatic` | `ForModel(model)` | `Custom`) jako `PrinterDefinition.Image`; zjištěný kód je v `PrinterDefinition.DetectedModel`.
+  - `PrinterImage.Resolve(printer, customImageExists)` vrátí, co zobrazit (`Generic` / `Model` / `Custom`):
+    - Prusa Connect bez ruční volby → obecná ilustrace;
+    - chybějící vlastní soubor → automatický obrázek.
+- **`settings.json`:**
+  - Nepovinná pole `printers[*].detectedModel` (např. `"1.4.1"`) a `printers[*].image` (`{ "mode": "Model", "model": "Mk4S" }` nebo `{ "mode": "Custom" }`). Automatický obrázek a nezjištěný model se nezapisují.
+  - `version` zůstává 1.
+  - Neplatné hodnoty: varování bez opakování hodnoty a výchozí hodnota. Hodnota špatného JSON typu dál znamená poškozený soubor, stejně jako u ostatních polí.
+  - Dobře utvořený, ale neznámý kód se zachová, novější verze aplikace ho může znát.
+  - Čistič přihlašovacích údajů kamery nová pole nemění (test).
+- **Detekce:**
+  - `IPrinterModelSource` je volitelné rozhraní klienta, implementuje ho `PrusaLinkClient.DetectModelAsync`: jen `GET /api/version`, bez dalšího pollingu.
+  - `PrinterMonitor` se zeptá jednou za běh, po prvním úspěšném dotazu na stav (snímek se zveřejní dřív), v rámci timeoutu dotazu a nikdy souběžně s pollingem. Selhání zkusí znovu nejvýš 3× za běh.
+  - Výsledek je událost `IPrinterMonitor.ModelDetected` (výchozí prázdná implementace v rozhraní, takže falešné monitory v App se měnit nemusely).
+  - `AppSettings.WithDetectedModel(id, kód)` vrátí tutéž instanci, když se nic nemění.
+  - Pro test spojení je `PrusaLinkPrinterInfo.ModelCode`.
+  - Ukládání do souboru z monitoringu čeká na otázku 2.
+- **Vlastní obrázky (`Core/Images`):**
+  - `PrinterImageFormats` (podpis PNG/JPEG, limity 5 MB / 512 px / 2 MB uloženého PNG).
+  - `IPrinterImageProcessor`: dekódování a zmenšení implementuje App přes Avalonia/Skia, chyba = `PrinterImageDecodeException`.
+  - `PrinterImageImporter`: kontrola velikosti a podpisu, převod, kontrola výsledku. Nic nezapisuje a nic neloguje.
+  - `IPrinterImageStore` / `FilePrinterImageStore`: `printer-images/` vedle `settings.json`, atomický zápis, `ReadAsync` vrací jen platné PNG, `DeleteAsync`, `RemoveOrphansAsync`.
+  - Název souboru je odvozený z id (`PrinterImageFileNames`): bezpečné id malými písmeny, jinak `h_<hash>.png`. Cesta tak nemůže opustit složku a nevznikne kolize ani rezervované jméno Windows.
+- **Pro App (ui-dev):**
+  - `PrinterEditorViewModel` musí `DetectedModel` a `Image` přenášet, jinak je uložení okna smaže.
+  - Nový import držet v paměti (PNG z `PrinterImageImporter`) a uložit přes `SaveAsync` až po uložení nastavení. Zrušit = zahodit.
+  - `DeleteAsync` volat po uloženém odebrání tiskárny nebo přepnutí z vlastního obrázku.
+  - `RemoveOrphansAsync` volat při startu jen s nastavením ve stavu `Loaded`. Po neúspěšném načtení by smazal všechny obrázky.
+  - Letterbox do čtverce je věc zobrazení (`Stretch="Uniform"`). Uložený PNG má původní poměr stran.
+- **AOT:** bez nových balíčků, bez reflexe. `Enum.IsDefined<T>` je generické (AOT bezpečné), JSON jen přes `SettingsJsonContext`.
+- **Testy:**
+  - Core.Tests: `PrinterModelCodeTests`, `PrinterModelsTests`, `PrinterImageTests`, `SettingsMapperPrinterImageTests`, `PrinterMonitorModelDetectionTests`, `Images/*` (formáty, názvy souborů, úložiště, import).
+  - PrusaLink.Tests: `PrusaLinkModelDetectionTests`.
+  - Dočasné soubory jsou pod `TestDirectories`, uklidí se i po pádu.

@@ -79,6 +79,24 @@ public sealed record PrinterDefinition
         }
     } = CameraSettings.Disabled;
 
+    /// <summary>
+    /// Model code last reported by the printer (PrusaLink <c>/api/version</c>, firmware 6.5+), kept so that the image is
+    /// right while the printer is offline; <see langword="null"/> when never detected. Updated through
+    /// <see cref="Settings.AppSettings.WithDetectedModel"/>; shown through <see cref="PrinterImage.Resolve"/>.
+    /// </summary>
+    public PrinterModelCode? DetectedModel { get; init; }
+
+    /// <summary>The user's choice of the printer image (T-039); <see cref="PrinterImageChoice.Automatic"/> by default.</summary>
+    public PrinterImageChoice Image
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = PrinterImageChoice.Automatic;
+
     private static string RequireText(string value)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(value);

@@ -65,6 +65,33 @@ public sealed record AppSettings
         init => field = CopyValidated(value);
     } = ReadOnlyCollection<PrinterDefinition>.Empty;
 
+    /// <summary>
+    /// These settings with <paramref name="code"/> as the detected model of printer <paramref name="printerId"/>
+    /// (case-insensitive); the same instance when the printer is not configured or already has that code, so that callers
+    /// save only real changes. Nothing else changes (the image choice stays as the user set it).
+    /// </summary>
+    public AppSettings WithDetectedModel(string printerId, PrinterModelCode code)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        for (int i = 0; i < Printers.Count; i++)
+        {
+            PrinterDefinition printer = Printers[i];
+            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (printer.DetectedModel == code)
+                {
+                    return this;
+                }
+
+                PrinterDefinition[] printers = [.. Printers];
+                printers[i] = printer with { DetectedModel = code };
+                return this with { Printers = printers };
+            }
+        }
+
+        return this;
+    }
+
     // Value equality including the printer list (the synthesized one would compare the list by reference).
     public bool Equals(AppSettings? other) =>
         other is not null

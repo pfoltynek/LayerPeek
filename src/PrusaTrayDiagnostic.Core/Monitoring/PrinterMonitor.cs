@@ -25,8 +25,15 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
     private readonly PrinterMonitorOptions _options;
     private readonly Lock _handlersLock = new();
 
+    /// <summary>
+    /// How often one run asks a printer for its model when asking fails (offline right after a successful poll, timeout);
+    /// a definitive answer ends the asking at once.
+    /// </summary>
+    internal const int MaxModelDetectionAttempts = 3;
+
     // Copy-on-write so that publishing needs neither a lock nor an allocation.
     private EventHandler<PrinterSnapshot>[] _handlers = [];
+    private EventHandler<PrinterModelDetected>[] _modelHandlers = [];
     private SnapshotTable _snapshots = SnapshotTable.Empty;
     private int _running;
 
@@ -66,6 +73,37 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
                     if (index >= 0)
                     {
                         _handlers = [.. _handlers.AsSpan(0, index), .. _handlers.AsSpan(index + 1)];
+                    }
+                }
+            }
+        }
+    }
+
+    /// <inheritdoc/>
+    /// <remarks>Each handler is isolated: an exception in one is logged and the others still run.</remarks>
+    public event EventHandler<PrinterModelDetected>? ModelDetected
+    {
+        add
+        {
+            if (value is not null)
+            {
+                lock (_handlersLock)
+                {
+                    _modelHandlers = [.. _modelHandlers, value];
+                }
+            }
+        }
+
+        remove
+        {
+            if (value is not null)
+            {
+                lock (_handlersLock)
+                {
+                    int index = Array.LastIndexOf(_modelHandlers, value);
+                    if (index >= 0)
+                    {
+                        _modelHandlers = [.. _modelHandlers.AsSpan(0, index), .. _modelHandlers.AsSpan(index + 1)];
                     }
                 }
             }
@@ -135,6 +173,21 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
         }
     }
 
+    private void PublishModel(PrinterModelDetected detected)
+    {
+        foreach (EventHandler<PrinterModelDetected> handler in Volatile.Read(ref _modelHandlers))
+        {
+            try
+            {
+                handler(this, detected);
+            }
+            catch (Exception ex)
+            {
+                LogModelSubscriberFailed(ex, detected.PrinterId);
+            }
+        }
+    }
+
     private static async Task WaitForCancellationAsync(CancellationToken cancellationToken)
     {
         try
@@ -161,6 +214,12 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
     [LoggerMessage(Level = LogLevel.Error, Message = "A SnapshotUpdated handler failed for printer '{PrinterId}'.")]
     private partial void LogSubscriberFailed(Exception exception, string printerId);
 
+    [LoggerMessage(Level = LogLevel.Error, Message = "A ModelDetected handler failed for printer '{PrinterId}'.")]
+    private partial void LogModelSubscriberFailed(Exception exception, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Asking printer '{PrinterId}' for its model failed.")]
+    private partial void LogModelDetectionFailed(Exception exception, string printerId);
+
     [LoggerMessage(Level = LogLevel.Critical, Message = "Monitoring of printer '{PrinterId}' stopped because of an internal error.")]
     private partial void LogLoopCrashed(Exception exception, string printerId);
 
@@ -181,8 +240,11 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
         private static readonly TimeSpan AbandonGracePeriod = TimeSpan.FromMilliseconds(100);
 
         private IPrinterClient? _client;
-        private Task<PrinterSnapshot>? _abandonedPoll;
+
+        // A poll or model request that ignored its timeout; the client is not called again until it finishes.
+        private Task? _abandonedPoll;
         private int _consecutiveFailures;
+        private int _modelAttemptsLeft = MaxModelDetectionAttempts;
 
         public PrinterPollLoop(PrinterMonitor monitor, PrinterDefinition printer, int slot, SnapshotTable table, TimeSpan interval)
         {
@@ -214,6 +276,12 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
                     // Reschedule before publishing, so that observers always see the next poll already planned.
                     timer = Reschedule(timer, snapshot.State.IsReachable());
                     _monitor.Publish(_table, _slot, snapshot);
+
+                    // After the snapshot is out: asking for the model must never delay the state shown to the user.
+                    if (_modelAttemptsLeft > 0 && snapshot.State.IsReachable() && _client is IPrinterModelSource modelSource)
+                    {
+                        await DetectModelAsync(modelSource, timeout, stopToken).ConfigureAwait(false);
+                    }
 
                     if (!await timer.WaitForNextTickAsync(stopToken).ConfigureAwait(false))
                     {
@@ -307,10 +375,63 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
         }
 
         /// <summary>
+        /// Asks the client for the model within the poll timeout. A definitive answer (a code, or none reported) ends the
+        /// asking for this run; a failure leaves another attempt for the next successful poll, up to
+        /// <see cref="MaxModelDetectionAttempts"/>. Never throws except for the stop of the run.
+        /// </summary>
+        private async Task DetectModelAsync(IPrinterModelSource source, PollTimeout timeout, CancellationToken stopToken)
+        {
+            if (_abandonedPoll is { IsCompleted: false })
+            {
+                return;
+            }
+
+            _modelAttemptsLeft--;
+            CancellationToken requestToken = timeout.Start();
+            Task<PrinterModelDetection>? request = null;
+            try
+            {
+                request = source.DetectModelAsync(requestToken);
+                PrinterModelDetection detection = await request.WaitAsync(requestToken).ConfigureAwait(false);
+                if (detection.Status == PrinterModelDetectionStatus.Failed)
+                {
+                    return;
+                }
+
+                _modelAttemptsLeft = 0;
+                if (detection is { Status: PrinterModelDetectionStatus.Detected, Code: { } code } && !stopToken.IsCancellationRequested)
+                {
+                    _monitor.PublishModel(new PrinterModelDetected(_printer.Id, code));
+                }
+            }
+            catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
+            {
+                if (request is { IsCompleted: false })
+                {
+                    LogLateFault(request);
+                }
+
+                throw;
+            }
+            catch (OperationCanceledException) when (requestToken.IsCancellationRequested)
+            {
+                await AbandonIfStillRunningAsync(request).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _monitor.LogModelDetectionFailed(ex, _printer.Id);
+            }
+            finally
+            {
+                timeout.Stop();
+            }
+        }
+
+        /// <summary>
         /// A client that honours cancellation finishes right after the timeout; only one that does not finish within
         /// a short grace period (real time: it covers thread scheduling, not printer behaviour) is treated as ignoring it.
         /// </summary>
-        private async Task AbandonIfStillRunningAsync(Task<PrinterSnapshot>? poll)
+        private async Task AbandonIfStillRunningAsync(Task? poll)
         {
             if (poll is null || poll.IsCompleted)
             {
@@ -318,7 +439,7 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
             }
 
             // Waits for completion only; the poll's own outcome (cancelled or faulted) and the grace timeout are irrelevant here.
-            await ((Task)poll).WaitAsync(AbandonGracePeriod).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            await poll.WaitAsync(AbandonGracePeriod).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
             if (!poll.IsCompleted)
             {
                 _abandonedPoll = poll;
@@ -327,7 +448,7 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
         }
 
         /// <summary>Observes a late failure, so that it is logged instead of becoming an unobserved task exception.</summary>
-        private void LogLateFault(Task<PrinterSnapshot> poll) =>
+        private void LogLateFault(Task poll) =>
             _ = poll.ContinueWith(
                 static (task, state) =>
                 {

@@ -16,6 +16,19 @@ public interface IPrinterMonitor
     event EventHandler<PrinterSnapshot>? SnapshotUpdated;
 
     /// <summary>
+    /// Raised when a printer whose client is an <see cref="IPrinterModelSource"/> reported its model code: at most once per
+    /// printer and run, after its first successful poll (T-039: detection at monitoring start). Raised for every report,
+    /// also when the code equals the stored one; compare with <see cref="PrinterDefinition.DetectedModel"/> (e.g. via
+    /// <see cref="Settings.AppSettings.WithDetectedModel"/>) before saving. Same threading rules as
+    /// <see cref="SnapshotUpdated"/>. Monitors without detection never raise it.
+    /// </summary>
+    event EventHandler<PrinterModelDetected>? ModelDetected
+    {
+        add { }
+        remove { }
+    }
+
+    /// <summary>
     /// Latest snapshot of each printer of the current (or, after it ended, the last) run that was polled at least once,
     /// in configuration order.
     /// </summary>

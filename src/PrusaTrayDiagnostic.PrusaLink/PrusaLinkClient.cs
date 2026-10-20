@@ -14,9 +14,11 @@ namespace PrusaTrayDiagnostic.PrusaLink;
 /// <summary>
 /// <see cref="IPrinterClient"/> for the PrusaLink API built into Buddy firmware 6.x (Core One, MK4/S, MK3.9, XL, MINI).
 /// A poll costs one request (<c>/api/v1/status</c>); job details are fetched only when the job changes.
-/// Calls on one instance must not overlap (see <see cref="IPrinterClient"/>); <see cref="GetInfoAsync"/> may run concurrently.
+/// The model (<see cref="DetectModelAsync"/>, one <c>/api/version</c>) is asked by the monitor once per run, not per poll.
+/// Calls on one instance must not overlap (see <see cref="IPrinterClient"/>; this includes <see cref="DetectModelAsync"/>);
+/// <see cref="GetInfoAsync"/> may run concurrently.
 /// </summary>
-public sealed partial class PrusaLinkClient : IPrinterClient
+public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSource
 {
     private readonly HttpClient _httpClient;
     private readonly PrinterDefinition _printer;
@@ -119,6 +121,37 @@ public sealed partial class PrusaLinkClient : IPrinterClient
         catch (Exception ex) when (ToFailure(ex, cancellationToken) is { } failure)
         {
             return InfoFailure(failure);
+        }
+    }
+
+    /// <summary>
+    /// One <c>GET /api/version</c> for the <c>printer</c> code (T-039). Firmware before 6.5 omits the field
+    /// (<see cref="PrinterModelDetectionStatus.NotReported"/>, as is a malformed code); failures are
+    /// <see cref="PrinterModelDetectionStatus.Failed"/>. Must not overlap <see cref="GetSnapshotAsync"/> (the monitor calls
+    /// both from the same loop).
+    /// </summary>
+    public async Task<PrinterModelDetection> DetectModelAsync(CancellationToken cancellationToken)
+    {
+        if (_uris is null)
+        {
+            return PrinterModelDetection.Failed;
+        }
+
+        try
+        {
+            ApiResult<VersionResponse> version = await GetAsync(_uris.Version, PrusaLinkJsonContext.Default.VersionResponse, cancellationToken).ConfigureAwait(false);
+            if (version.Failure is not null || version.Value is not { } value)
+            {
+                return PrinterModelDetection.Failed;
+            }
+
+            return PrinterModelCode.TryParse(value.Printer, out PrinterModelCode code)
+                ? PrinterModelDetection.Detected(code)
+                : PrinterModelDetection.NotReported;
+        }
+        catch (Exception ex) when (ToFailure(ex, cancellationToken) is not null)
+        {
+            return PrinterModelDetection.Failed;
         }
     }
 
