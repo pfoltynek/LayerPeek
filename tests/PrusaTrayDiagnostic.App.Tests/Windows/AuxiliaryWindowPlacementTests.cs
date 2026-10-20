@@ -4,8 +4,8 @@ using PrusaTrayDiagnostic.App.Windows;
 
 namespace PrusaTrayDiagnostic.App.Tests.Windows;
 
-/// <summary>Default size of the settings window and how it is fitted into the work area of the screen (T-033).</summary>
-public sealed class SettingsWindowPlacementTests
+/// <summary>Default size of the settings and diagnostics windows and how it is fitted into the work area of the screen (T-033, T-041).</summary>
+public sealed class AuxiliaryWindowPlacementTests
 {
     /// <summary>Title bar assumed by the design (Windows 11 at 100 %).</summary>
     private const double TitleBar = 32;
@@ -16,19 +16,19 @@ public sealed class SettingsWindowPlacementTests
     public void DefaultSizeWithTheTitleBarFitsTheSmallestSupportedScreen()
     {
         // 800 × 600 at 100 % leaves about 800 × 560 for windows; the window must take at most 780 × 540 of it.
-        Size client = SettingsWindowPlacement.DefaultClientSize;
+        Size client = AuxiliaryWindowPlacement.DefaultClientSize;
 
         Assert.True(client.Width <= 780, $"Width {client.Width}");
         Assert.True(client.Height + TitleBar <= 540, $"Height {client.Height} + {TitleBar}");
         Assert.Equal(new Size(780, 508), client);
-        Assert.Equal(new Size(640, 400), SettingsWindowPlacement.MinClientSize);
-        Assert.Equal(TitleBar, SettingsWindowPlacement.DefaultChrome.Top);
+        Assert.Equal(new Size(640, 400), AuxiliaryWindowPlacement.MinClientSize);
+        Assert.Equal(TitleBar, AuxiliaryWindowPlacement.DefaultChrome.Top);
     }
 
     [Fact]
     public void DefaultSizeIsKeptAndCentredOnTheSmallestSupportedScreen()
     {
-        SettingsWindowBounds bounds = Fit(new PixelRect(0, 0, 800, 560), scaling: 1.0);
+        AuxiliaryWindowBounds bounds = Fit(new PixelRect(0, 0, 800, 560), scaling: 1.0);
 
         Assert.Equal(new Size(780, 508), bounds.ClientSize);
         Assert.Equal(new PixelPoint(10, 10), bounds.Position);
@@ -38,7 +38,7 @@ public sealed class SettingsWindowPlacementTests
     public void LargeScaledScreenKeepsTheDefaultSizeAndCentresInPixels()
     {
         // 1920 × 1080 at 150 % with a 48 px taskbar: 1280 × 688 DIP.
-        SettingsWindowBounds bounds = Fit(new PixelRect(0, 0, 1920, 1032), scaling: 1.5);
+        AuxiliaryWindowBounds bounds = Fit(new PixelRect(0, 0, 1920, 1032), scaling: 1.5);
 
         Assert.Equal(new Size(780, 508), bounds.ClientSize);
         // Outer window 780 × 540 DIP = 1170 × 810 px.
@@ -49,7 +49,7 @@ public sealed class SettingsWindowPlacementTests
     public void SmallerWorkAreaShrinksTheWindowToFitIncludingTheTitleBar()
     {
         // A work area of 700 × 448 DIP (875 × 560 px at 125 %) on a second monitor right of the first.
-        SettingsWindowBounds bounds = Fit(new PixelRect(1920, 100, 875, 560), scaling: 1.25);
+        AuxiliaryWindowBounds bounds = Fit(new PixelRect(1920, 100, 875, 560), scaling: 1.25);
 
         Assert.Equal(new Size(700, 416), bounds.ClientSize);
         Assert.Equal(new PixelPoint(1920, 100), bounds.Position);
@@ -58,7 +58,7 @@ public sealed class SettingsWindowPlacementTests
     [Fact]
     public void OnlyTheDimensionThatDoesNotFitShrinks()
     {
-        SettingsWindowBounds bounds = Fit(new PixelRect(0, 0, 1600, 500), scaling: 1.0);
+        AuxiliaryWindowBounds bounds = Fit(new PixelRect(0, 0, 1600, 500), scaling: 1.0);
 
         Assert.Equal(new Size(780, 468), bounds.ClientSize);
         Assert.Equal(new PixelPoint(410, 0), bounds.Position);
@@ -67,7 +67,7 @@ public sealed class SettingsWindowPlacementTests
     [Fact]
     public void WindowNeverGetsSmallerThanItsMinimumAndStartsAtTheTopLeftOfTheWorkArea()
     {
-        SettingsWindowBounds bounds = Fit(new PixelRect(-600, 20, 600, 380), scaling: 1.0);
+        AuxiliaryWindowBounds bounds = Fit(new PixelRect(-600, 20, 600, 380), scaling: 1.0);
 
         Assert.Equal(new Size(640, 400), bounds.ClientSize);
         // Larger than the work area: its title bar stays reachable at the top left.
@@ -78,9 +78,9 @@ public sealed class SettingsWindowPlacementTests
     public void MeasuredWindowFrameIsPartOfTheFit()
     {
         // Borders of 8 DIP left, right and bottom (invisible resize borders on Windows 10) and a 31 DIP title bar.
-        SettingsWindowBounds bounds = SettingsWindowPlacement.Fit(
-            SettingsWindowPlacement.DefaultClientSize,
-            SettingsWindowPlacement.MinClientSize,
+        AuxiliaryWindowBounds bounds = AuxiliaryWindowPlacement.Fit(
+            AuxiliaryWindowPlacement.DefaultClientSize,
+            AuxiliaryWindowPlacement.MinClientSize,
             new PixelRect(0, 0, 790, 560),
             scaling: 1.0,
             new Thickness(8, 31, 8, 8));
@@ -95,7 +95,7 @@ public sealed class SettingsWindowPlacementTests
     [InlineData(-1.0)]
     public void InvalidScalingCountsAsOne(double scaling)
     {
-        SettingsWindowBounds bounds = Fit(new PixelRect(0, 0, 800, 560), scaling);
+        AuxiliaryWindowBounds bounds = Fit(new PixelRect(0, 0, 800, 560), scaling);
 
         Assert.Equal(new Size(780, 508), bounds.ClientSize);
         Assert.Equal(new PixelPoint(10, 10), bounds.Position);
@@ -104,7 +104,7 @@ public sealed class SettingsWindowPlacementTests
     [Fact]
     public void FrameMeasuredFromTheWindowSplitsTheBordersEvenly()
     {
-        Thickness chrome = SettingsWindowPlacement.ChromeOf(new Size(796, 547), new Size(780, 508));
+        Thickness chrome = AuxiliaryWindowPlacement.ChromeOf(new Size(796, 547), new Size(780, 508));
 
         Assert.Equal(new Thickness(8, 31, 8, 8), chrome);
     }
@@ -112,9 +112,9 @@ public sealed class SettingsWindowPlacementTests
     [Fact]
     public void UnknownFrameFallsBackToTheAssumedTitleBar()
     {
-        Assert.Equal(SettingsWindowPlacement.DefaultChrome, SettingsWindowPlacement.ChromeOf(null, new Size(780, 508)));
+        Assert.Equal(AuxiliaryWindowPlacement.DefaultChrome, AuxiliaryWindowPlacement.ChromeOf(null, new Size(780, 508)));
         // A frame not larger than the client area (headless, not shown yet) tells nothing either.
-        Assert.Equal(SettingsWindowPlacement.DefaultChrome, SettingsWindowPlacement.ChromeOf(new Size(780, 508), new Size(780, 508)));
+        Assert.Equal(AuxiliaryWindowPlacement.DefaultChrome, AuxiliaryWindowPlacement.ChromeOf(new Size(780, 508), new Size(780, 508)));
     }
 
     // ---- Before the window is shown (no measured frame yet), and the correction after it opened ----
@@ -123,9 +123,9 @@ public sealed class SettingsWindowPlacementTests
     public void BeforeShowingTheWindowIsFittedWithTheAssumedTitleBar()
     {
         // 700 × 448 DIP of work area: the window must already be small enough when it appears (no visible jump).
-        Size client = SettingsWindowPlacement.SizeBeforeShowing(
-            SettingsWindowPlacement.DefaultClientSize,
-            SettingsWindowPlacement.MinClientSize,
+        Size client = AuxiliaryWindowPlacement.SizeBeforeShowing(
+            AuxiliaryWindowPlacement.DefaultClientSize,
+            AuxiliaryWindowPlacement.MinClientSize,
             new PixelRect(0, 0, 875, 560),
             scaling: 1.25);
 
@@ -135,21 +135,21 @@ public sealed class SettingsWindowPlacementTests
     [Fact]
     public void BeforeShowingOnALargeScreenTheDesignedSizeIsKept()
     {
-        Size client = SettingsWindowPlacement.SizeBeforeShowing(
-            SettingsWindowPlacement.DefaultClientSize,
-            SettingsWindowPlacement.MinClientSize,
+        Size client = AuxiliaryWindowPlacement.SizeBeforeShowing(
+            AuxiliaryWindowPlacement.DefaultClientSize,
+            AuxiliaryWindowPlacement.MinClientSize,
             new PixelRect(0, 0, 1920, 1032),
             scaling: 1.5);
 
-        Assert.Equal(SettingsWindowPlacement.DefaultClientSize, client);
+        Assert.Equal(AuxiliaryWindowPlacement.DefaultClientSize, client);
     }
 
     [Fact]
     public void BeforeShowingWithoutAScreenTheDesignedSizeIsKept()
     {
-        Size client = SettingsWindowPlacement.SizeBeforeShowing(SettingsWindowPlacement.DefaultClientSize, SettingsWindowPlacement.MinClientSize, workArea: null, scaling: 1.0);
+        Size client = AuxiliaryWindowPlacement.SizeBeforeShowing(AuxiliaryWindowPlacement.DefaultClientSize, AuxiliaryWindowPlacement.MinClientSize, workArea: null, scaling: 1.0);
 
-        Assert.Equal(SettingsWindowPlacement.DefaultClientSize, client);
+        Assert.Equal(AuxiliaryWindowPlacement.DefaultClientSize, client);
     }
 
     [Fact]
@@ -159,16 +159,16 @@ public sealed class SettingsWindowPlacementTests
         PixelRect workArea = new(0, 0, 800, 560);
 
         // Windows 11: the frame matches the assumption, nothing moves.
-        Assert.Null(SettingsWindowPlacement.CorrectionAfterOpening(shown, SettingsWindowPlacement.DefaultClientSize, SettingsWindowPlacement.MinClientSize, workArea, 1.0, new Thickness(0, 32, 0, 0)));
+        Assert.Null(AuxiliaryWindowPlacement.CorrectionAfterOpening(shown, AuxiliaryWindowPlacement.DefaultClientSize, AuxiliaryWindowPlacement.MinClientSize, workArea, 1.0, new Thickness(0, 32, 0, 0)));
         // A slightly thinner frame would allow a larger window, but the window does not grow (that would be a jump too).
-        Assert.Null(SettingsWindowPlacement.CorrectionAfterOpening(shown, SettingsWindowPlacement.DefaultClientSize, SettingsWindowPlacement.MinClientSize, workArea, 1.0, new Thickness(0, 30, 0, 0)));
+        Assert.Null(AuxiliaryWindowPlacement.CorrectionAfterOpening(shown, AuxiliaryWindowPlacement.DefaultClientSize, AuxiliaryWindowPlacement.MinClientSize, workArea, 1.0, new Thickness(0, 30, 0, 0)));
 
         // A thicker frame than assumed (borders of 8): the window would not fit, so it shrinks and is centred again.
-        SettingsWindowBounds? corrected = SettingsWindowPlacement.CorrectionAfterOpening(
-            shown, SettingsWindowPlacement.DefaultClientSize, SettingsWindowPlacement.MinClientSize, workArea, 1.0, new Thickness(12, 31, 12, 12));
-        Assert.Equal(new SettingsWindowBounds(new Size(776, 508), new PixelPoint(0, 4)), corrected);
+        AuxiliaryWindowBounds? corrected = AuxiliaryWindowPlacement.CorrectionAfterOpening(
+            shown, AuxiliaryWindowPlacement.DefaultClientSize, AuxiliaryWindowPlacement.MinClientSize, workArea, 1.0, new Thickness(12, 31, 12, 12));
+        Assert.Equal(new AuxiliaryWindowBounds(new Size(776, 508), new PixelPoint(0, 4)), corrected);
     }
 
-    private static SettingsWindowBounds Fit(PixelRect workArea, double scaling) =>
-        SettingsWindowPlacement.Fit(SettingsWindowPlacement.DefaultClientSize, SettingsWindowPlacement.MinClientSize, workArea, scaling, Chrome);
+    private static AuxiliaryWindowBounds Fit(PixelRect workArea, double scaling) =>
+        AuxiliaryWindowPlacement.Fit(AuxiliaryWindowPlacement.DefaultClientSize, AuxiliaryWindowPlacement.MinClientSize, workArea, scaling, Chrome);
 }

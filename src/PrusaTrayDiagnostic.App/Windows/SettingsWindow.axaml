@@ -15,7 +15,7 @@
         WindowStartupLocation="CenterScreen">
   <!--
     Layout of T-033: the window (client 780 × 508 DIP, plus a title bar of about 32) fits an 800 × 600 screen at 100 %
-    without scrolling, in every language and with every validation message and test result. SettingsWindowPlacement
+    without scrolling, in every language and with every validation message and test result. AuxiliaryWindowPlacement
     shrinks it to a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case and for the
     notice bar at the top. Sizes and spacing follow the approved design in the task (T-033, "Návrh UI").
     T-040: only the close button in the title bar (no minimize, no maximize); the window stays resizable.
