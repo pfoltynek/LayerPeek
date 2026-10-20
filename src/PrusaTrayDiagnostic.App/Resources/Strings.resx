@@ -640,7 +640,7 @@
     <value>Mini preview, always on top</value>
   </data>
   <data name="CameraMiniPlain" xml:space="preserve">
-    <value>Mini preview</value>
+    <value>Preview</value>
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Back to the normal window (double-click)</value>

@@ -628,7 +628,7 @@
     <value>Malý náhled vždy navrchu</value>
   </data>
   <data name="CameraMiniPlain" xml:space="preserve">
-    <value>Malý náhled</value>
+    <value>Náhled</value>
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Zpět do normálního okna (dvojklik)</value>

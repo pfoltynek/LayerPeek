@@ -68,13 +68,9 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
             Assert.Equal(WindowState.FullScreen, window.WindowState);
             Assert.False(window.Topmost);
 
-            // Esc leaves full screen to the normal window (T-014), even when full screen was entered from the mini preview.
+            // Esc leaves full screen to the mode it was entered from (user decision 2026-10-20): the mini preview.
             Run(window, () => window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null));
             Assert.Equal(WindowState.Normal, window.WindowState);
-            Assert.True(viewModel.IsNormal);
-            Assert.Equal(normal, window.Topmost);
-
-            Run(window, () => viewModel.ShowMiniCommand.Execute(null));
             Assert.True(viewModel.IsMini);
             Assert.Equal(mini, window.Topmost);
 
@@ -212,6 +208,67 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
             Assert.True(window.Topmost);
         });
 
+    [Theory]
+    [InlineData("F11")]
+    [InlineData("Esc")]
+    [InlineData("double-click")]
+    public Task FullScreenEnteredFromTheMiniPreviewReturnsToItWhereItWas(string exit) =>
+        session.RunAsync(async scope =>
+        {
+            CameraWindowDefaults defaults = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini };
+            await using CameraHarness harness = new(window: defaults);
+            CameraWindow window = harness.Open();
+            window.Settle();
+            CameraViewModel viewModel = ViewModel(window);
+            window.Position = new PixelPoint(210, 120);
+            window.Width = 400;
+            window.Height = 225;
+            window.Settle();
+            PixelPoint position = window.Position;
+            Size size = window.ClientSize;
+
+            Run(window, () => window.KeyPress(Key.F11, RawInputModifiers.None, PhysicalKey.F11, null));
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+
+            Run(window, () =>
+            {
+                if (exit == "F11")
+                {
+                    window.KeyPress(Key.F11, RawInputModifiers.None, PhysicalKey.F11, null);
+                }
+                else if (exit == "Esc")
+                {
+                    window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
+                }
+                else
+                {
+                    viewModel.OnImageDoubleClicked();
+                }
+            });
+
+            Assert.True(viewModel.IsMini);
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.Equal(WindowDecorations.None, window.WindowDecorations);
+            Assert.True(window.Topmost);
+            Assert.Equal(position, window.Position);
+            Assert.Equal(size, window.ClientSize);
+        });
+
+    [Fact]
+    public Task FullScreenAtStartLeavesToTheNormalWindow() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.FullScreen });
+            CameraWindow window = harness.Open();
+            window.Settle();
+
+            Run(window, () => window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null));
+
+            Assert.True(ViewModel(window).IsNormal);
+            Assert.Equal(WindowDecorations.Full, window.WindowDecorations);
+            Assert.False(window.Topmost);
+        });
+
     private static Button? MiniButton(CameraWindow window, string toolTip) =>
         window.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => ToolTip.GetTip(button) as string == toolTip);
 
@@ -230,8 +287,8 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
             Save(harness, defaults with { TopmostMini = false });
             window.Settle();
 
-            Assert.Equal("Mini preview", ToolTip.GetTip(button));
-            Assert.Equal("Mini preview", AutomationProperties.GetName(button));
+            Assert.Equal("Preview", ToolTip.GetTip(button));
+            Assert.Equal("Preview", AutomationProperties.GetName(button));
 
             UiLanguage language = new();
             try
@@ -239,7 +296,7 @@ public sealed class CameraWindowTopmostUiTests(HeadlessSession session)
                 Assert.True(language.Apply("cs"));
                 harness.Windows.RefreshTexts();
                 window.Settle();
-                Assert.Equal("Malý náhled", ToolTip.GetTip(button));
+                Assert.Equal("Náhled", ToolTip.GetTip(button));
 
                 Save(harness, defaults);
                 window.Settle();

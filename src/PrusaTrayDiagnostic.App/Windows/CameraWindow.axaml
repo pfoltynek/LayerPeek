@@ -14,7 +14,7 @@
   <!-- F11 toggles full screen, Esc returns to the normal window (from full screen and from the mini preview). -->
   <Window.KeyBindings>
     <KeyBinding Gesture="F11" Command="{Binding ToggleFullScreenCommand}" />
-    <KeyBinding Gesture="Escape" Command="{Binding ShowNormalCommand}" />
+    <KeyBinding Gesture="Escape" Command="{Binding EscapeCommand}" />
   </Window.KeyBindings>
 
   <Window.Styles>

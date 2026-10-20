@@ -272,7 +272,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
 
     [Theory]
     [InlineData(true, "Mini preview, always on top")]
-    [InlineData(false, "Mini preview")]
+    [InlineData(false, "Preview")]
     public void MiniToolTipFollowsTheMiniOption(bool topmostMini, string expected)
     {
         // User decision 2026-10-20 (T-037 Q1): "always on top" only while the mini preview really is.
@@ -292,7 +292,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostMini = false })] });
         _dispatcher.RunAll();
 
-        Assert.Equal("Mini preview", viewModel.MiniToolTip);
+        Assert.Equal("Preview", viewModel.MiniToolTip);
         Assert.Equal([nameof(CameraViewModel.MiniToolTip)], changed);
 
         // Only the normal window option changed: the tooltip stays and is not announced.
@@ -300,7 +300,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default with { TopmostMini = false, TopmostNormal = true })] });
         _dispatcher.RunAll();
 
-        Assert.Equal("Mini preview", viewModel.MiniToolTip);
+        Assert.Equal("Preview", viewModel.MiniToolTip);
         Assert.DoesNotContain(nameof(CameraViewModel.MiniToolTip), changed);
 
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(CameraWindowDefaults.Default)] });
@@ -312,7 +312,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
 
     [Theory]
     [InlineData(true, "Malý náhled vždy navrchu")]
-    [InlineData(false, "Malý náhled")]
+    [InlineData(false, "Náhled")]
     public void MiniToolTipFollowsALanguageSwitch(bool topmostMini, string expected)
     {
         CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { TopmostMini = topmostMini });
@@ -327,6 +327,114 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         }
 
         Assert.Contains(nameof(CameraViewModel.MiniToolTip), changed);
+    }
+
+    // ---- Leaving full screen returns to where it was entered from (user decision 2026-10-20) ----
+
+    public static TheoryData<string> FullScreenExits => ["F11", "Esc", "double-click", "system"];
+
+    private static void LeaveFullScreen(CameraViewModel viewModel, string exit)
+    {
+        Assert.True(viewModel.IsFullScreen);
+        switch (exit)
+        {
+            case "F11":
+                viewModel.ToggleFullScreenCommand.Execute(null);
+                break;
+            case "Esc":
+                Assert.True(viewModel.EscapeCommand.CanExecute(null));
+                viewModel.EscapeCommand.Execute(null);
+                break;
+            case "double-click":
+                viewModel.OnImageDoubleClicked();
+                break;
+            default:
+                viewModel.OnWindowFullScreenChanged(false);
+                break;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(FullScreenExits))]
+    public void FullScreenEnteredFromTheMiniPreviewReturnsToIt(string exit)
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini, TopmostMini = true });
+        viewModel.RememberPlacement(CameraWindowMode.Mini, new CameraWindowPlacement(50, 60, 330, 190));
+
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        Assert.False(viewModel.IsTopmost);
+        LeaveFullScreen(viewModel, exit);
+
+        Assert.True(viewModel.IsMini);
+        Assert.True(viewModel.IsTopmost);
+        Assert.Equal(new CameraWindowPlacement(50, 60, 330, 190), viewModel.MiniPlacement);
+    }
+
+    [Theory]
+    [MemberData(nameof(FullScreenExits))]
+    public void FullScreenEnteredFromTheNormalWindowReturnsToIt(string exit)
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Normal });
+
+        // Also after an earlier round trip through the mini preview: only the mode it was entered from counts.
+        viewModel.ShowMiniCommand.Execute(null);
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        LeaveFullScreen(viewModel, exit);
+        viewModel.ShowNormalCommand.Execute(null);
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        LeaveFullScreen(viewModel, exit);
+
+        Assert.True(viewModel.IsNormal);
+    }
+
+    [Theory]
+    [MemberData(nameof(FullScreenExits))]
+    public void FullScreenAtStartLeavesToTheNormalWindow(string exit)
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.FullScreen });
+
+        LeaveFullScreen(viewModel, exit);
+
+        Assert.True(viewModel.IsNormal);
+    }
+
+    [Fact]
+    public void RememberedFullScreenLeavesToTheNormalWindow()
+    {
+        // The remembered mode is full screen (closed in full screen, entered from the mini preview): the origin is not
+        // remembered, so the reopened window leaves full screen to the normal window like a full-screen start.
+        _states.Set("mk4", Remembered with { Mode = CameraWindowMode.FullScreen });
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        Assert.True(viewModel.IsFullScreen);
+
+        viewModel.EscapeCommand.Execute(null);
+
+        Assert.True(viewModel.IsNormal);
+    }
+
+    [Fact]
+    public void EscapeFromTheMiniPreviewGoesToTheNormalWindowAndDoesNothingThere()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+
+        viewModel.EscapeCommand.Execute(null);
+        Assert.True(viewModel.IsNormal);
+
+        Assert.False(viewModel.EscapeCommand.CanExecute(null));
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        Assert.True(viewModel.EscapeCommand.CanExecute(null));
+    }
+
+    [Fact]
+    public void ClosingInFullScreenEnteredFromTheMiniPreviewKeepsItsPlacement()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+        viewModel.RememberPlacement(CameraWindowMode.Mini, new CameraWindowPlacement(50, 60, 330, 190));
+        viewModel.ToggleFullScreenCommand.Execute(null);
+
+        viewModel.Dispose();
+
+        Assert.Equal(new CameraWindowState(CameraWindowMode.FullScreen, null, new CameraWindowPlacement(50, 60, 330, 190)), _states.Get("mk4"));
     }
 
     [Fact]

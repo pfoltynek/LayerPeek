@@ -628,7 +628,7 @@
     <value>Vista previa pequeña, siempre encima</value>
   </data>
   <data name="CameraMiniPlain" xml:space="preserve">
-    <value>Vista previa pequeña</value>
+    <value>Vista previa</value>
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Volver a la ventana normal (doble clic)</value>

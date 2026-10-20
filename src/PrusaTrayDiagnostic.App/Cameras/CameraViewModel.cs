@@ -97,6 +97,10 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private Task _streaming = Task.CompletedTask;
     private bool _active;
     private CameraWindowMode _mode;
+
+    // Where full screen returns to (user decision 2026-10-20): the mode it was entered from; the normal window when the
+    // window opened in full screen.
+    private CameraWindowMode _fullScreenOrigin = CameraWindowMode.Normal;
     private CameraWindowPlacement? _normalPlacement;
     private CameraWindowPlacement? _miniPlacement;
     private CameraWindowDefaults _defaults;
@@ -166,6 +170,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         ToggleFullScreenCommand = new RelayCommand(ToggleFullScreen);
         ShowMiniCommand = new RelayCommand(() => Mode = CameraWindowMode.Mini, () => _mode != CameraWindowMode.Mini);
         ShowNormalCommand = new RelayCommand(() => Mode = CameraWindowMode.Normal, () => _mode != CameraWindowMode.Normal);
+        EscapeCommand = new RelayCommand(Escape, () => _mode != CameraWindowMode.Normal);
 
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
@@ -208,9 +213,15 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         get => _mode;
         private set
         {
+            CameraWindowMode previous = _mode;
             if (_disposed || !SetProperty(ref _mode, value))
             {
                 return;
+            }
+
+            if (value == CameraWindowMode.FullScreen)
+            {
+                _fullScreenOrigin = previous == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
             }
 
             OnPropertyChanged(nameof(IsNormal));
@@ -220,6 +231,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsTopmost));
             ShowMiniCommand.NotifyCanExecuteChanged();
             ShowNormalCommand.NotifyCanExecuteChanged();
+            EscapeCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -262,6 +274,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     /// <summary>Back to the normal window (Esc, the button of the mini preview).</summary>
     public IRelayCommand ShowNormalCommand { get; }
+
+    /// <summary>Esc: leaves full screen to the mode it was entered from; from the mini preview back to the normal window.</summary>
+    public IRelayCommand EscapeCommand { get; }
 
     /// <summary>Connecting, no signal or an error: the overlay over the (last) image is shown.</summary>
     public bool IsStatusVisible => _status.State != CameraConnectionState.Streaming;
@@ -350,8 +365,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <summary>
     /// Double-click on the image: normal ↔ full screen; from the mini preview back to the normal window.
     /// </summary>
-    public void OnImageDoubleClicked() =>
-        Mode = _mode == CameraWindowMode.Normal ? CameraWindowMode.FullScreen : CameraWindowMode.Normal;
+    public void OnImageDoubleClicked() => Mode = _mode switch
+    {
+        CameraWindowMode.Normal => CameraWindowMode.FullScreen,
+        CameraWindowMode.FullScreen => _fullScreenOrigin,
+        _ => CameraWindowMode.Normal,
+    };
 
     /// <summary>
     /// Where the window was while it showed <paramref name="mode"/> (the window reports it before leaving a mode and
@@ -385,7 +404,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         }
         else if (!isFullScreen && _mode == CameraWindowMode.FullScreen)
         {
-            Mode = CameraWindowMode.Normal;
+            Mode = _fullScreenOrigin;
         }
     }
 
@@ -425,7 +444,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
 
-    private void ToggleFullScreen() => Mode = _mode == CameraWindowMode.FullScreen ? CameraWindowMode.Normal : CameraWindowMode.FullScreen;
+    private void ToggleFullScreen() => Mode = _mode == CameraWindowMode.FullScreen ? _fullScreenOrigin : CameraWindowMode.FullScreen;
+
+    private void Escape() => Mode = _mode == CameraWindowMode.FullScreen ? _fullScreenOrigin : CameraWindowMode.Normal;
 
     private void StartStream()
     {
