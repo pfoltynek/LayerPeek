@@ -35,6 +35,7 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - **Prusa Connect (2026-10-20):** první položka nabídky obrázku „Obecná ilustrace“ je v pořádku.
 - **Obrázek, který se nepodaří uložit (2026-10-20):** okno zůstane otevřené s upozorněním; import zůstane neuložený, takže další Uložit to zkusí znovu.
 - **Překlady (2026-10-20):** všech 19 nových textů schváleno.
+- **Text `SettingsSavedImageNotStoredPrevious` (2026-10-20):** schválen ve všech 8 jazycích (revize po review).
 - **Úklid osiřelých obrázků (2026-10-20):** nesmí smazat obrázek tiskárny, jejíž položka je v `settings.json`, ale loader ji přeskočil (neplatná adresa, duplicitní id, neznámý typ připojení…); ponechávají se obrázky všech id v souboru.
 
 ## Rozsah
@@ -69,7 +70,6 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 
 ## Otevřené otázky
 Otázky z implementace (chyba importu, Prusa Connect, neuložený obrázek, překlady) rozhodl uživatel 2026-10-20, viz Rozhodnuto.
-1. **Nový text `SettingsSavedImageNotStoredPrevious`** (revize po review 2026-10-20) ke schválení – znění v 8 jazycích je v poznámkách níže.
 
 ## Poznámky k implementaci
 
@@ -217,7 +217,7 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
 - **„Vlastní obrázek…“ po zrušeném nebo neúspěšném importu:** Avalonia při kliknutí zaškrtne položku typu radio sama. Editor po importu vždy znovu ohlásí `IsAutomaticImage`, `IsCustomImage` a zaškrtnutí modelů, takže nabídka ukáže platnou volbu. Test v UI kliká skutečným ukazatelem přes obslužnou rutinu menu.
 - **Obrázek, který se nepodaří uložit:**
   - `SettingsSaveResult.UnsavedImages` je množina id. Okno u těchto tiskáren import ponechá neuložený, zůstane „změněné“ a další Uložit ho zkusí znovu.
-  - Upozornění „…tiskárna proto zobrazuje ilustraci“ se ukáže, jen když tiskárna nemá starší uložený vlastní obrázek. Jinak nový text `SettingsSavedImageNotStoredPrevious` (ke schválení):
+  - Upozornění „…tiskárna proto zobrazuje ilustraci“ se ukáže, jen když tiskárna nemá starší uložený vlastní obrázek. Jinak nový text `SettingsSavedImageNotStoredPrevious` (schválen 2026-10-20):
     - en: Settings saved. A printer image could not be stored, so the printer keeps its previous image.
     - cs: Nastavení je uloženo. Obrázek tiskárny se nepodařilo uložit, tiskárna proto zobrazuje předchozí obrázek.
     - sk: Nastavenia sú uložené. Obrázok tlačiarne sa nepodarilo uložiť, tlačiareň preto zobrazuje predchádzajúci obrázok.
@@ -241,3 +241,8 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
   - App.Tests: úklid ponechá přeskočené položky; neuložený obrázek zůstane neuložený a Uložit ho zkusí znovu; text s předchozím obrázkem; obě upozornění; obnovení zaškrtnutí; `Fallback`; zápis se jménem stroje; přeskočení zastaralého zápisu; převzetí modelu při aktualizaci bez restartu; `eXIf`.
   - UiTests: zrušený import přes skutečné kliknutí; náhradní ilustrace u poškozeného PNG (zobrazení i menu); uvolnění nahrazených bitmap; orientace `eXIf` v procesoru.
 - **Ověření:** `dotnet build` 0 varování, `dotnet test` 2× bez chyby. Aplikaci jsem znovu nespouštěl (podle pokynu nad skutečnými daty uživatele ne).
+- **Nestabilní UI test `CancelledCustomImageLeavesTheAutomaticChoiceChecked` (příčina):**
+  - Test kontroloval zaškrtnutí položek nabídky až po jejím zavření. Zavřený `MenuFlyout` své položky odpojí: přijdou o `DataContext` a jejich vazby `IsChecked` se vrátí na výchozí `false` (ověřeno sondou).
+  - `Assert.True(automatic.IsChecked)` proto selhal vždy. Při přidání ladicí hlášky se omylem přepsal (sed na jiném řádku), takže pak test „procházel“ a selhání vypadalo jako náhodné.
+  - Oprava: stav se čte až po znovuotevření nabídky, jak ho vidí uživatel (s ověřením, že položky mají `DataContext` tiskárny). Čeká se na skutečné dokončení příkazu (`ExecutionTask`), ne na čas.
+  - Zátěžově: třída 35× samostatně a celé UiTests 12× bez chyby.

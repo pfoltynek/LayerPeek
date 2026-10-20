@@ -113,14 +113,14 @@ public sealed class SettingsWindowImageUiTests(HeadlessSession session)
 
             Assert.Equal(1, picker.Calls);
             Assert.False(menu.IsOpen);
-            Assert.False(custom.IsChecked);
-            Assert.True(ui.ViewModel.SelectedPrinter!.IsAutomaticImage, $"choice {ui.ViewModel.SelectedPrinter.ImageChoice.Mode} {ui.ViewModel.SelectedPrinter.ImageChoice.Model}, printer {ui.ViewModel.SelectedPrinter.Name}");
             Assert.True(ui.ViewModel.SelectedPrinter!.IsAutomaticImage);
 
-            // Open again: still the same.
+            // Only an open menu shows its state: a closed flyout detaches its items, which then lose the data context and their
+            // bindings fall back to unchecked. So the check marks are read after opening the menu again, as the user sees them.
             menu = OpenMenu(ui);
-            Assert.False(menu.Items.OfType<MenuItem>().Single(static item => (string?)item.Header == Strings.SettingsImageCustom).IsChecked);
-            Assert.True(menu.Items.OfType<MenuItem>().First().IsChecked);
+            Assert.Same(ui.ViewModel.SelectedPrinter, custom.DataContext);
+            Assert.False(custom.IsChecked);
+            Assert.True(automatic.IsChecked);
         });
 
     [Fact]
