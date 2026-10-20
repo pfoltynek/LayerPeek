@@ -8,17 +8,36 @@ namespace PrusaTrayDiagnostic.App.Windows;
 internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
 {
     private readonly Window _window;
+    private IDisposable? _tracking;
 
-    public AvaloniaAuxiliaryWindow(Window window)
+    /// <param name="track">
+    /// Tracks the window before it is shown (T-043, <see cref="AuxiliaryWindowTracker.Track"/>); the result untracks it
+    /// again when showing fails. Closing the window untracks it on its own.
+    /// </param>
+    public AvaloniaAuxiliaryWindow(Window window, Func<Window, IDisposable>? track = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         _window = window;
         _window.Closed += OnWindowClosed;
+        _tracking = track?.Invoke(window);
     }
 
     public event EventHandler? Closed;
 
-    public void Show() => _window.Show();
+    public void Show()
+    {
+        try
+        {
+            _window.Show();
+        }
+        catch
+        {
+            // Never shown: a second start must not try to bring it to the front.
+            _tracking?.Dispose();
+            _tracking = null;
+            throw;
+        }
+    }
 
     public void Activate() => _window.Activate();
 
@@ -29,6 +48,7 @@ internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
     private void OnWindowClosed(object? sender, EventArgs e)
     {
         _window.Closed -= OnWindowClosed;
+        _tracking = null;
         Closed?.Invoke(this, EventArgs.Empty);
     }
 }

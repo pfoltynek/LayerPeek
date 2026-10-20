@@ -93,11 +93,12 @@ internal sealed partial class InstanceCommandServer : IAsyncDisposable, IDisposa
     private async Task HandleAsync(Stream client, CancellationToken cancellationToken)
     {
         byte[] buffer = new byte[InstanceProtocol.MaxMessageLength + 1];
+        // Reading the command and answering it share one limit: a client that stops reading cannot hold the server.
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(ReadTimeout);
         int length = 0;
         try
         {
-            using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(ReadTimeout);
             while (length < buffer.Length)
             {
                 int read = await client.ReadAsync(buffer.AsMemory(length), timeout.Token).ConfigureAwait(false);
@@ -138,9 +139,28 @@ internal sealed partial class InstanceCommandServer : IAsyncDisposable, IDisposa
         }
         catch (Exception ex)
         {
+            // Not acknowledged: the client tries again within its budget.
             LogDeliveryFailed(command, ex);
+            return;
+        }
+
+        try
+        {
+            await client.WriteAsync(new[] { InstanceProtocol.Acknowledgement }, timeout.Token).ConfigureAwait(false);
+            await client.FlushAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The client is gone or stopped reading; the command was handed over anyway.
+            LogAcknowledgeFailed(ex);
+        }
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
+        {
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Acknowledging the command of another start of the app failed.")]
+    private partial void LogAcknowledgeFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Accepting a connection from another start of the app failed.")]
     private partial void LogAcceptFailed(Exception exception);

@@ -20,7 +20,7 @@ internal sealed class FakeInstanceTransport : IInstanceTransport
     public Func<IDisposable?> DefaultLock { get; set; } = static () => null;
 
     /// <summary>Result of every connection attempt once the queued ones are used.</summary>
-    public Func<TimeSpan, Stream> DefaultConnect { get; set; } = static _ => new MemoryStream();
+    public Func<TimeSpan, Stream> DefaultConnect { get; set; } = static _ => new RecordingStream();
 
     /// <summary>Thrown by <see cref="Listen"/> when set.</summary>
     public Exception? ListenFailure { get; set; }
@@ -64,12 +64,35 @@ internal sealed class FakeInstanceTransport : IInstanceTransport
     }
 }
 
-/// <summary>Records what was written, also after it was disposed.</summary>
+/// <summary>
+/// The client's end of a connection: records what was written (also after it was disposed) and reads the running
+/// instance's acknowledgement (unless <see cref="Acknowledges"/> is off: the other side closed without one).
+/// </summary>
 internal sealed class RecordingStream : MemoryStream
 {
+    private bool _acknowledged;
+
+    public bool Acknowledges { get; init; } = true;
+
     public byte[] Written { get; private set; } = [];
 
     public bool Disposed { get; private set; }
+
+    public override int Read(Span<byte> buffer) => throw new InvalidOperationException("Only asynchronous reads can be cancelled.");
+
+    public override int Read(byte[] buffer, int offset, int count) => throw new InvalidOperationException("Only asynchronous reads can be cancelled.");
+
+    public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        if (!Acknowledges || _acknowledged || buffer.Length == 0)
+        {
+            return ValueTask.FromResult(0);
+        }
+
+        _acknowledged = true;
+        buffer.Span[0] = (byte)'\n';
+        return ValueTask.FromResult(1);
+    }
 
     protected override void Dispose(bool disposing)
     {
@@ -81,6 +104,79 @@ internal sealed class RecordingStream : MemoryStream
 
         base.Dispose(disposing);
     }
+}
+
+/// <summary>
+/// A connection whose writes never complete until cancelled (the other side never reads); a real wait would take the
+/// time until the cancellation fires, so the fake clock is advanced by up to 10 s in small steps until it does.
+/// </summary>
+internal sealed class StalledStream(Microsoft.Extensions.Time.Testing.FakeTimeProvider time) : MemoryStream
+{
+    public TimeSpan WaitedFor { get; private set; }
+
+    public bool Disposed { get; private set; }
+
+    public override void Write(ReadOnlySpan<byte> buffer) => throw new InvalidOperationException("Only asynchronous writes can be cancelled.");
+
+    public override void Write(byte[] buffer, int offset, int count) => throw new InvalidOperationException("Only asynchronous writes can be cancelled.");
+
+    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        TimeSpan step = TimeSpan.FromMilliseconds(100);
+        while (!cancellationToken.IsCancellationRequested && WaitedFor < TimeSpan.FromSeconds(10))
+        {
+            time.Advance(step);
+            WaitedFor += step;
+        }
+
+        await Task.Delay(Timeout.Infinite, cancellationToken);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        Disposed = true;
+        base.Dispose(disposing);
+    }
+}
+
+/// <summary>The server's end of a connection: reads the client's message, records the reply.</summary>
+internal sealed class FakeClient(byte[] message) : Stream
+{
+    private readonly MemoryStream _input = new(message);
+    private readonly MemoryStream _output = new();
+
+    public FakeClient(string message)
+        : this(System.Text.Encoding.ASCII.GetBytes(message))
+    {
+    }
+
+    public byte[] Reply => _output.ToArray();
+
+    public override bool CanRead => true;
+
+    public override bool CanSeek => false;
+
+    public override bool CanWrite => true;
+
+    public override long Length => throw new NotSupportedException();
+
+    public override long Position
+    {
+        get => throw new NotSupportedException();
+        set => throw new NotSupportedException();
+    }
+
+    public override void Flush()
+    {
+    }
+
+    public override int Read(byte[] buffer, int offset, int count) => _input.Read(buffer, offset, count);
+
+    public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+
+    public override void SetLength(long value) => throw new NotSupportedException();
+
+    public override void Write(byte[] buffer, int offset, int count) => _output.Write(buffer, offset, count);
 }
 
 /// <summary>A lock that records its release.</summary>

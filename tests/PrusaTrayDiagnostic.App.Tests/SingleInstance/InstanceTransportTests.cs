@@ -125,6 +125,29 @@ public abstract class InstanceTransportTests : IAsyncDisposable
         Assert.Equal(InstanceRole.Primary, Guard().Start(InstanceCommand.Activate, static _ => { }));
     }
 
+    /// <summary>A guard on a fake clock that records its pauses.</summary>
+    private protected sealed class FakeClockGuard
+    {
+        private readonly Microsoft.Extensions.Time.Testing.FakeTimeProvider _time = new();
+        private readonly DateTimeOffset _start;
+
+        public FakeClockGuard(IInstanceTransport transport)
+        {
+            _start = _time.GetUtcNow();
+            Guard = new SingleInstanceGuard(transport, new ListLogger<SingleInstanceGuard>(), _time, delay =>
+            {
+                Sleeps.Add(delay);
+                _time.Advance(delay);
+            });
+        }
+
+        public SingleInstanceGuard Guard { get; }
+
+        public List<TimeSpan> Sleeps { get; } = [];
+
+        public TimeSpan Elapsed => _time.GetUtcNow() - _start;
+    }
+
     private SingleInstanceGuard Guard()
     {
         SingleInstanceGuard guard = new(CreateTransport(), new ListLogger<SingleInstanceGuard>(), forwardTimeout: TimeSpan.FromSeconds(5));
@@ -154,6 +177,53 @@ public sealed class NamedPipeInstanceTransportTests : InstanceTransportTests
     }
 
     [Fact]
+    public async Task SecondStartGivesUpWhenTheRunningInstanceNeverReads()
+    {
+        // A pipe without buffers whose server accepts but never reads: the write would block forever.
+        (_, string pipeName) = InstanceTransports.WindowsNames(CurrentSid, CurrentSession, _suffix);
+        using IDisposable instanceLock = CreateTransport().TryAcquireLock()!;
+        await using System.IO.Pipes.NamedPipeServerStream stalled = new(
+            pipeName,
+            System.IO.Pipes.PipeDirection.InOut,
+            1,
+            System.IO.Pipes.PipeTransmissionMode.Byte,
+            System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly,
+            0,
+            0);
+        Task connected = stalled.WaitForConnectionAsync(TestContext.Current.CancellationToken);
+        SingleInstanceGuard second = new(CreateTransport(), new ListLogger<SingleInstanceGuard>(), forwardTimeout: TimeSpan.FromSeconds(2));
+        Stopwatch watch = Stopwatch.StartNew();
+
+        InstanceRole role = await Task.Run(() => second.Start(InstanceCommand.Activate, static _ => { }), TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.Equal(InstanceRole.NotForwarded, role);
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(4), $"Took {watch.Elapsed}.");
+        Assert.True(connected.IsCompletedSuccessfully);
+        second.Dispose();
+    }
+
+    [Fact]
+    public async Task ListeningPipeTakesACommandBeforeAnybodyReadsIt()
+    {
+        // The running instance may be busy with another client: a later start's small write must not wait for it.
+        IInstanceTransport transport = CreateTransport();
+        using IDisposable instanceLock = transport.TryAcquireLock()!;
+        using IInstanceListener listener = transport.Listen();
+        (_, string pipeName) = InstanceTransports.WindowsNames(CurrentSid, CurrentSession, _suffix);
+        await using System.IO.Pipes.NamedPipeClientStream client = new(
+            ".",
+            pipeName,
+            System.IO.Pipes.PipeDirection.InOut,
+            System.IO.Pipes.PipeOptions.Asynchronous | System.IO.Pipes.PipeOptions.CurrentUserOnly);
+        await client.ConnectAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        await client.WriteAsync(InstanceProtocol.Encode(InstanceCommand.Activate), TestContext.Current.CancellationToken)
+            .AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public void ProductionNamesCarryTheUserAndSession()
     {
         (string mutexName, string pipeName) = InstanceTransports.WindowsNames(CurrentSid, CurrentSession, string.Empty);
@@ -178,7 +248,7 @@ public sealed class NamedPipeInstanceTransportTests : InstanceTransportTests
             System.Security.AccessControl.AccessControlType.Allow));
         using System.IO.Pipes.NamedPipeServerStream server = System.IO.Pipes.NamedPipeServerStreamAcl.Create(
             pipeName,
-            System.IO.Pipes.PipeDirection.In,
+            System.IO.Pipes.PipeDirection.InOut,
             1,
             System.IO.Pipes.PipeTransmissionMode.Byte,
             System.IO.Pipes.PipeOptions.Asynchronous,
@@ -223,6 +293,39 @@ public sealed class UnixSocketInstanceTransportTests : InstanceTransportTests
 
     private protected override IInstanceTransport CreateTransport() =>
         new UnixSocketInstanceTransport(Path.Combine(_directory, "instance.lock"), _socketPath);
+
+    [Fact]
+    public void LockFileThatCannotBeOpenedIsNotAnotherInstance()
+    {
+        // Access denied (here: the lock path is a folder) is no lock contention: the app runs unguarded at once.
+        string lockPath = Path.Combine(_directory, "instance.lock");
+        Directory.CreateDirectory(lockPath);
+        FakeClockGuard guard = new(new UnixSocketInstanceTransport(lockPath, _socketPath));
+
+        InstanceRole role = guard.Guard.Start(InstanceCommand.Activate, static _ => { });
+
+        Assert.Equal(InstanceRole.Primary, role);
+        Assert.Null(guard.Guard.Server);
+        Assert.Empty(guard.Sleeps);
+        Assert.Throws<InstanceLockUnavailableException>(() => new UnixSocketInstanceTransport(lockPath, _socketPath).TryAcquireLock());
+    }
+
+    [Fact]
+    public void DataFolderThatCannotBeCreatedIsNotAnotherInstance()
+    {
+        // Another IO error (here: a file is in the way of the folder) is no lock contention either: no 5 s retrying.
+        Directory.CreateDirectory(_directory);
+        string blocker = Path.Combine(_directory, "file");
+        File.WriteAllText(blocker, string.Empty);
+        UnixSocketInstanceTransport transport = new(Path.Combine(blocker, "instance.lock"), _socketPath);
+        FakeClockGuard guard = new(transport);
+
+        InstanceRole role = guard.Guard.Start(InstanceCommand.Activate, static _ => { });
+
+        Assert.Equal(InstanceRole.Primary, role);
+        Assert.Null(guard.Guard.Server);
+        Assert.Equal(TimeSpan.Zero, guard.Elapsed);
+    }
 
     [Fact]
     public void StaleSocketFileOfACrashedInstanceIsReplaced()

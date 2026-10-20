@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.Core.Cameras;
 
@@ -13,7 +15,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     private readonly Func<string, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
     private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
-    private readonly Action<CameraWindow>? _created;
+    private readonly Func<Window, IDisposable>? _track;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
@@ -21,15 +23,15 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     /// <param name="createViewModel">The view model of a new window; <see langword="null"/> when the printer has no enabled camera.</param>
     /// <param name="screens">Monitors for tests; <see langword="null"/>: each window asks Avalonia (<see cref="AvaloniaScreenCatalog"/>).</param>
     /// <param name="measureChrome">Frame measurement for tests (<see cref="CameraWindow.ChromeMeasurement"/>); <see langword="null"/>: the real one.</param>
-    /// <param name="created">Called with each new window before it is shown (T-043: taskbar properties, recently used windows).</param>
+    /// <param name="track">Tracks each new window before it is shown (T-043: taskbar properties, recently used windows).</param>
     public CameraWindows(
         Func<string, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
-        Action<CameraWindow>? created = null)
+        Func<Window, IDisposable>? track = null)
     {
         _measureChrome = measureChrome;
-        _created = created;
+        _track = track;
         ArgumentNullException.ThrowIfNull(createViewModel);
         _createViewModel = createViewModel;
         _screens = screens;
@@ -80,7 +82,6 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                 CameraWindow window = _screens is { } screens
                     ? new() { ChromeMeasurement = _measureChrome, ScreenCatalog = screens, DataContext = created }
                     : new() { ChromeMeasurement = _measureChrome, DataContext = created };
-                _created?.Invoke(window);
                 _open[printerId] = window;
                 window.Closed += (_, _) =>
                 {
@@ -92,7 +93,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                     OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: false));
                 };
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.
-                return (new AvaloniaAuxiliaryWindow(window), created);
+                return (new AvaloniaAuxiliaryWindow(window, _track), created);
             });
         }
         finally

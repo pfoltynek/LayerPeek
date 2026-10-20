@@ -38,6 +38,7 @@ public partial class App : Application, ITrayAppCommands
 
     // Every auxiliary window passes through it (taskbar properties, most recently used window; T-043). Set with the host.
     private AuxiliaryWindowTracker? _windowTracker;
+    private AuxiliaryWindowFactory? _windows;
     private InstanceActivation? _activation;
 
     // The OS ended the session (desktop Exit) before the host finished starting.
@@ -93,9 +94,6 @@ public partial class App : Application, ITrayAppCommands
         }
     }
 
-    /// <summary>Before the window is shown: taskbar properties and the most recently used window (T-043).</summary>
-    private void Track(Window window) => _windowTracker?.Track(window);
-
     private static IWindowShell CreateWindowShell(TrayHost host) =>
         OperatingSystem.IsWindows() ? new WindowsWindowShell(host.CreateLogger<WindowsWindowShell>()) : NoWindowShell.Instance;
 
@@ -116,6 +114,7 @@ public partial class App : Application, ITrayAppCommands
         }
 
         _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host));
+        _windows = new AuxiliaryWindowFactory(_windowTracker.Track);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
@@ -135,7 +134,7 @@ public partial class App : Application, ITrayAppCommands
 
     void ITrayAppCommands.ShowDiagnostics(string? printerId)
     {
-        if (_host is not { } host || _quit is { IsQuitting: true })
+        if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
         {
             return;
         }
@@ -147,9 +146,7 @@ public partial class App : Application, ITrayAppCommands
                 DiagnosticsViewModel viewModel = host.CreateDiagnosticsViewModel(printerId);
                 try
                 {
-                    DiagnosticsWindow window = new() { DataContext = viewModel };
-                    Track(window);
-                    return (new AvaloniaAuxiliaryWindow(window), viewModel);
+                    return (windows.Diagnostics(viewModel), viewModel);
                 }
                 catch
                 {
@@ -169,7 +166,7 @@ public partial class App : Application, ITrayAppCommands
 
     void ITrayAppCommands.ShowSettings()
     {
-        if (_host is not { } host || _quit is { IsQuitting: true })
+        if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
         {
             return;
         }
@@ -181,12 +178,9 @@ public partial class App : Application, ITrayAppCommands
         {
             // One editing session per window: the slot disposes the view model (cancelling a running test) when it closes.
             // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
-            (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(
-                static () => new SettingsWindow(),
-                screens => host.CreateSettingsViewModel(screens, cameraWindows));
+            (IAuxiliaryWindow window, SettingsViewModel viewModel) = windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows));
             created = viewModel;
-            Track(window);
-            return (new AvaloniaAuxiliaryWindow(window), viewModel);
+            return (window, viewModel);
         });
 
         // Loads after the window is shown (reading the file and the credential store runs off the UI thread); never throws.
@@ -211,7 +205,7 @@ public partial class App : Application, ITrayAppCommands
     {
         if (_cameraWindows is null)
         {
-            _cameraWindows = new CameraWindows(host.CreateCameraViewModel, created: Track);
+            _cameraWindows = (_windows ?? new AuxiliaryWindowFactory(null)).CameraWindows(host.CreateCameraViewModel);
             _cameraWindows.OpenChanged += (_, e) => host.OnCameraWindowOpenChanged(e.PrinterId, e.IsOpen);
         }
 
@@ -220,17 +214,12 @@ public partial class App : Application, ITrayAppCommands
 
     void ITrayAppCommands.ShowAbout()
     {
-        if (_host is not { } host || _quit is { IsQuitting: true })
+        if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
         {
             return;
         }
 
-        _aboutWindow.ShowOrActivate(() =>
-        {
-            AboutWindow window = new() { DataContext = new AboutViewModel(host.UrlLauncher), ChildWindowCreated = Track };
-            Track(window);
-            return (new AvaloniaAuxiliaryWindow(window), null);
-        });
+        _aboutWindow.ShowOrActivate(() => (windows.About(new AboutViewModel(host.UrlLauncher)), null));
     }
 
     async void ITrayAppCommands.Quit()

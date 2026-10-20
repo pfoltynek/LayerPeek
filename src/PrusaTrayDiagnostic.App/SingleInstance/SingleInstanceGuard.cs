@@ -112,9 +112,15 @@ internal sealed partial class SingleInstanceGuard : IDisposable
 
             try
             {
-                Send(command, remaining < ConnectAttemptTimeout ? remaining : ConnectAttemptTimeout);
+                Send(command, remaining);
                 LogForwarded(command);
                 return InstanceRole.Forwarded;
+            }
+            catch (OperationCanceledException ex)
+            {
+                // Connected, but the running instance did not take the command within the budget (it hangs).
+                LogForwardTimedOut(_forwardTimeout, ex);
+                return InstanceRole.NotForwarded;
             }
             catch (UnauthorizedAccessException ex)
             {
@@ -172,11 +178,39 @@ internal sealed partial class SingleInstanceGuard : IDisposable
         return InstanceRole.Primary;
     }
 
-    private void Send(InstanceCommand command, TimeSpan timeout)
+    /// <summary>
+    /// Connects (at most <see cref="ConnectAttemptTimeout"/>), writes the command and waits for its acknowledgement within
+    /// what is left of <paramref name="budget"/>. Both are asynchronous and cancelled at the end of the budget, so a running
+    /// instance that accepts but never reads or answers cannot keep this start waiting.
+    /// </summary>
+    /// <exception cref="OperationCanceledException">The command was not acknowledged within the budget.</exception>
+    private void Send(InstanceCommand command, TimeSpan budget)
     {
-        using Stream stream = _transport.Connect(timeout);
-        stream.Write(InstanceProtocol.Encode(command));
-        stream.Flush();
+        long attempt = _time.GetTimestamp();
+        using Stream stream = _transport.Connect(budget < ConnectAttemptTimeout ? budget : ConnectAttemptTimeout);
+        TimeSpan left = budget - _time.GetElapsedTime(attempt);
+        if (left <= TimeSpan.Zero)
+        {
+            throw new OperationCanceledException("The forward budget was spent while connecting.");
+        }
+
+        using CancellationTokenSource cancel = new(left, _time);
+        // Blocking once, in Main before Avalonia starts: there is no synchronization context to deadlock on, and the
+        // cancellation bounds the wait.
+        ExchangeAsync(stream, InstanceProtocol.Encode(command), cancel.Token).GetAwaiter().GetResult();
+    }
+
+    /// <summary>Writes the command and waits for the acknowledgement (the connection must stay open until it is read).</summary>
+    /// <exception cref="IOException">The running instance closed the connection without acknowledging.</exception>
+    private static async Task ExchangeAsync(Stream stream, byte[] message, CancellationToken cancellationToken)
+    {
+        await stream.WriteAsync(message, cancellationToken).ConfigureAwait(false);
+        await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+        byte[] reply = new byte[1];
+        if (await stream.ReadAsync(reply, cancellationToken).ConfigureAwait(false) != 1 || reply[0] != InstanceProtocol.Acknowledgement)
+        {
+            throw new IOException("The running instance closed the connection without taking the command.");
+        }
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The app already runs; sent {Command} to it.")]

@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Sockets;
 
 namespace PrusaTrayDiagnostic.App.SingleInstance;
@@ -25,22 +26,51 @@ internal sealed class UnixSocketInstanceTransport : IInstanceTransport
         _socketPath = socketPath;
     }
 
+    /// <exception cref="InstanceLockUnavailableException">
+    /// The lock file cannot be used at all (no rights, the folder cannot be created...): not another instance.
+    /// </exception>
     public IDisposable? TryAcquireLock()
     {
-        if (Path.GetDirectoryName(_lockPath) is { Length: > 0 } directory)
-        {
-            Directory.CreateDirectory(directory);
-        }
-
         try
         {
+            if (Path.GetDirectoryName(_lockPath) is { Length: > 0 } directory)
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             return new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
         }
-        catch (IOException)
+        catch (IOException ex) when (IsLockContention(ex))
         {
-            // Locked by the running instance (a sharing violation on Windows, EWOULDBLOCK of flock on Unix).
+            // Locked by the running instance.
             return null;
         }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            throw new InstanceLockUnavailableException($"The instance lock file '{_lockPath}' cannot be used.", ex);
+        }
+    }
+
+    /// <summary>
+    /// Whether opening the lock file failed only because another process holds it: a sharing or lock violation on
+    /// Windows; on Unix .NET reports the failed <c>flock</c> as an <see cref="IOException"/> carrying the raw errno
+    /// EWOULDBLOCK (35 on macOS, 11 on Linux).
+    /// </summary>
+    internal static bool IsLockContention(IOException exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        const int ErrorSharingViolation = unchecked((int)0x80070020);
+        const int ErrorLockViolation = unchecked((int)0x80070021);
+        const int MacWouldBlock = 35;
+        const int LinuxWouldBlock = 11;
+        if (exception is FileNotFoundException or DirectoryNotFoundException or PathTooLongException)
+        {
+            return false;
+        }
+
+        return OperatingSystem.IsWindows()
+            ? exception.HResult is ErrorSharingViolation or ErrorLockViolation
+            : exception.HResult == (OperatingSystem.IsMacOS() ? MacWouldBlock : LinuxWouldBlock);
     }
 
     public IInstanceListener Listen()
@@ -68,7 +98,7 @@ internal sealed class UnixSocketInstanceTransport : IInstanceTransport
 
     public Stream Connect(TimeSpan timeout)
     {
-        DateTime deadline = DateTime.UtcNow + timeout;
+        long start = Stopwatch.GetTimestamp();
         while (true)
         {
             Socket socket = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
@@ -86,7 +116,7 @@ internal sealed class UnixSocketInstanceTransport : IInstanceTransport
                 }
 
                 // No socket file yet, or nobody listening on it yet (the running instance is still starting).
-                if (DateTime.UtcNow >= deadline)
+                if (Stopwatch.GetElapsedTime(start) >= timeout)
                 {
                     throw new TimeoutException("The running instance did not listen in time.", ex);
                 }

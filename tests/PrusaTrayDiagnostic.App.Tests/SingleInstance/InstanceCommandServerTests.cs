@@ -34,6 +34,21 @@ public sealed class InstanceCommandServerTests : IAsyncDisposable
         Assert.Equal(InstanceCommand.Activate, await _received.NextAsync(WaitTimeout));
     }
 
+    [Fact]
+    public async Task ValidCommandIsAcknowledgedAfterItWasHandedOver()
+    {
+        FakeClient valid = Client("activate\n");
+        FakeClient unknown = Client("quit\n");
+        _listener.AddClient(unknown);
+        _listener.AddClient(valid);
+
+        await _received.NextAsync(WaitTimeout);
+        await UntilAsync(() => valid.Reply.Length > 0);
+
+        Assert.Equal("\n"u8.ToArray(), valid.Reply);
+        Assert.Empty(unknown.Reply);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("ACTIVATE\n")]
@@ -111,7 +126,18 @@ public sealed class InstanceCommandServerTests : IAsyncDisposable
         Assert.True(_listener.Disposed);
     }
 
-    private static MemoryStream Client(string message) => new(Encoding.ASCII.GetBytes(message));
+    private static FakeClient Client(string message) => new(message);
+
+    /// <summary>Waits until <paramref name="condition"/> holds (the reply follows the hand-over on the server's task).</summary>
+    private static async Task UntilAsync(Func<bool> condition)
+    {
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        timeout.CancelAfter(WaitTimeout);
+        while (!condition())
+        {
+            await Task.Delay(10, timeout.Token);
+        }
+    }
 
     /// <summary>A client that connects and never writes.</summary>
     private sealed class SilentStream : MemoryStream

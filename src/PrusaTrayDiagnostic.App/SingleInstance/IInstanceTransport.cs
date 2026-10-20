@@ -11,6 +11,10 @@ internal interface IInstanceTransport
     /// <exception cref="UnauthorizedAccessException">
     /// The lock exists but this process may not open it (e.g. created by an elevated instance): another instance runs.
     /// </exception>
+    /// <exception cref="IOException">
+    /// The lock cannot be used for another reason (<see cref="InstanceLockUnavailableException"/>, a name taken by another
+    /// kind of object...): the app runs without the guard.
+    /// </exception>
     IDisposable? TryAcquireLock();
 
     /// <summary>Starts listening for commands; call while holding the lock. The channel exists when this returns.</summary>
@@ -28,4 +32,25 @@ internal interface IInstanceListener : IDisposable
 {
     /// <summary>Waits for the next client and returns its connection (the caller disposes it).</summary>
     Task<Stream> AcceptAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>
+/// The instance lock cannot be used at all (e.g. no rights to its file or folder), which says nothing about another
+/// instance: the app then runs without the guard instead of waiting for an instance that does not exist.
+/// </summary>
+internal sealed class InstanceLockUnavailableException : IOException
+{
+    public InstanceLockUnavailableException()
+    {
+    }
+
+    public InstanceLockUnavailableException(string message)
+        : base(message)
+    {
+    }
+
+    public InstanceLockUnavailableException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
 }

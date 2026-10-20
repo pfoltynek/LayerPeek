@@ -190,7 +190,7 @@ public sealed class SingleInstanceGuardTests : IAsyncDisposable
         _transport.QueueLock(static () => new FakeLock());
         _guard.Start(InstanceCommand.Activate, _received.Add);
 
-        _transport.Listener!.AddClient(new MemoryStream("activate\n"u8.ToArray()));
+        _transport.Listener!.AddClient(new FakeClient("activate\n"));
 
         Assert.Equal(InstanceCommand.Activate, await _received.NextAsync(WaitTimeout));
     }
@@ -207,6 +207,42 @@ public sealed class SingleInstanceGuardTests : IAsyncDisposable
         Assert.True(_transport.Listener!.Disposed);
         Assert.Equal(1, instanceLock.DisposeCount);
         Assert.Null(_guard.Server);
+    }
+
+    [Fact]
+    public void CommandWithoutAcknowledgementIsSentAgain()
+    {
+        // The connection closed before the running instance took the command (e.g. it was still accepting).
+        RecordingStream lost = new() { Acknowledges = false };
+        _transport.QueueConnect(_ => lost);
+        _transport.QueueConnect(_ => new RecordingStream());
+
+        InstanceRole role = _guard.Start(InstanceCommand.Activate, _received.Add);
+
+        Assert.Equal(InstanceRole.Forwarded, role);
+        Assert.Equal(2, _transport.Sent.Count);
+        Assert.True(lost.Disposed);
+        Assert.Equal([SingleInstanceGuard.RetryDelay], _sleeps);
+    }
+
+    [Fact]
+    public void WriteToAnInstanceThatNeverReadsEndsWithinTheBudget()
+    {
+        // Connected after 2 s of the 5 s budget; the running instance accepts but never reads (its buffer is full).
+        StalledStream stalled = new(_time);
+        _transport.QueueConnect(TimeoutAfter);
+        _transport.QueueConnect(TimeoutAfter);
+        _transport.QueueConnect(_ => stalled);
+
+        InstanceRole role = _guard.Start(InstanceCommand.Activate, _received.Add);
+
+        Assert.Equal(InstanceRole.NotForwarded, role);
+        Assert.Equal(TimeSpan.FromSeconds(3), stalled.WaitedFor);
+        Assert.Equal(SingleInstanceGuard.DefaultForwardTimeout, _time.GetUtcNow() - _start);
+        Assert.True(stalled.Disposed);
+        Assert.Contains(_logger.Entries, entry => entry.Level == LogLevel.Warning && entry.Exception is OperationCanceledException);
+        // The budget is spent: no further attempt.
+        Assert.Equal(3, _transport.Calls.Count(call => call == "connect"));
     }
 
     [Fact]

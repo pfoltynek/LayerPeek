@@ -15,6 +15,15 @@ namespace PrusaTrayDiagnostic.App.SingleInstance;
 [SupportedOSPlatform("windows")]
 internal sealed class NamedPipeInstanceTransport : IInstanceTransport
 {
+    /// <summary>
+    /// Room for a few commands in the pipe: a later start's write completes even while the server handles another client
+    /// (with no buffer a write waits until the server reads).
+    /// </summary>
+    internal const int InputBufferSize = 256;
+
+    /// <summary>Room for the acknowledgement.</summary>
+    private const int OutputBufferSize = 16;
+
     private readonly string _mutexName;
     private readonly string _pipeName;
 
@@ -45,7 +54,7 @@ internal sealed class NamedPipeInstanceTransport : IInstanceTransport
 
     public Stream Connect(TimeSpan timeout)
     {
-        NamedPipeClientStream client = new(".", _pipeName, PipeDirection.Out, PipeOptions.CurrentUserOnly);
+        NamedPipeClientStream client = new(".", _pipeName, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         try
         {
             client.Connect(timeout);
@@ -134,9 +143,11 @@ internal sealed class NamedPipeInstanceTransport : IInstanceTransport
 
         private NamedPipeServerStream Create() => new(
             _pipeName,
-            PipeDirection.In,
+            PipeDirection.InOut,
             NamedPipeServerStream.MaxAllowedServerInstances,
             PipeTransmissionMode.Byte,
-            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly,
+            InputBufferSize,
+            OutputBufferSize);
     }
 }

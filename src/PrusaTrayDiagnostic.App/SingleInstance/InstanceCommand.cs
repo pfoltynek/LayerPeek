@@ -10,13 +10,20 @@ internal enum InstanceCommand
 }
 
 /// <summary>
-/// The wire format between a second start and the running instance: one ASCII command word ended by a line feed. The
-/// client sends it and closes the connection; there is no reply (a tiny write never blocks on a pipe or socket buffer).
+/// The wire format between a second start and the running instance: one ASCII command word ended by a line feed, which
+/// the server acknowledges with a line feed once the command is handed over. The client keeps the connection open until
+/// then: closing right after writing could lose the command (a pipe instance the server has not accepted yet is closed
+/// with its data). The server's pipe has an input buffer (<see cref="NamedPipeInstanceTransport.InputBufferSize"/>), so
+/// the write normally completes at once; should the running instance hang without reading or answering, the client gives
+/// up at the end of its time budget (<see cref="SingleInstanceGuard"/>).
 /// </summary>
 internal static class InstanceProtocol
 {
     /// <summary>Longest message the server reads; anything longer is ignored.</summary>
     public const int MaxMessageLength = 64;
+
+    /// <summary>The reply to a command that was handed over.</summary>
+    public const byte Acknowledgement = (byte)'\n';
 
     private const string ActivateText = "activate";
 
