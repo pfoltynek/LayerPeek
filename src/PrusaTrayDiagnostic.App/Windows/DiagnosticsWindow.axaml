@@ -93,6 +93,8 @@
           Margin="0,12,0,0">
       <StackPanel AutomationProperties.AutomationId="DiagnosticsPrinterInfo"
                   AutomationProperties.Name="{Binding [DiagnosticsPrinterInfo], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  AutomationProperties.AccessibilityView="Control"
+                  AutomationProperties.ControlTypeOverride="Group"
                   VerticalAlignment="Center"
                   IsVisible="{Binding HasPrinter}">
         <TextBlock AutomationProperties.AutomationId="DiagnosticsInfoStatus"
@@ -181,13 +183,18 @@
               <Run Text=" " />
               <Run Text="{Binding StateText}" FontWeight="SemiBold" />
             </TextBlock>
-            <TextBlock AutomationProperties.AutomationId="DiagnosticsDetail"
-                       AutomationProperties.Name="{Binding [DiagnosticsDetail], Source={x:Static loc:LocalizedStrings.Instance}}"
-                       Text="{Binding DetailText}"
-                       IsVisible="{Binding HasDetail}"
-                       FontSize="12"
-                       Opacity="0.75"
-                       TextWrapping="Wrap" />
+            <!-- No visible label; screen readers get a "Detail" group around the text (a text block reports only its text). -->
+            <Border AutomationProperties.AutomationId="DiagnosticsDetailGroup"
+                    AutomationProperties.Name="{Binding [DiagnosticsDetail], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    AutomationProperties.AccessibilityView="Control"
+                    AutomationProperties.ControlTypeOverride="Group"
+                    IsVisible="{Binding HasDetail}">
+              <TextBlock AutomationProperties.AutomationId="DiagnosticsDetail"
+                         Text="{Binding DetailText}"
+                         FontSize="12"
+                         Opacity="0.75"
+                         TextWrapping="Wrap" />
+            </Border>
           </StackPanel>
           <StackPanel Grid.Column="4" VerticalAlignment="Top" HorizontalAlignment="Right">
             <TextBlock Text="{Binding [DiagnosticsLastUpdate], Source={x:Static loc:LocalizedStrings.Instance}}"

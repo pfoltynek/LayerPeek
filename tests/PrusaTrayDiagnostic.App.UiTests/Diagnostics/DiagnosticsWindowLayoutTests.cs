@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
@@ -205,9 +206,6 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             ComboBox selector = several.Find<ComboBox>("DiagnosticsPrinterSelector");
             Assert.True(selector.IsEffectivelyVisible);
             Assert.False(several.Window.IsShown<TextBlock>("DiagnosticsPrinterName"));
-            Assert.Equal(Strings.DiagnosticsPrinter, AutomationProperties.GetName(selector));
-            Assert.Equal(Strings.DiagnosticsChart, AutomationProperties.GetName(several.Find<ComboBox>("DiagnosticsChartRange")));
-            Assert.Equal(Strings.DiagnosticsPrinterInfo, AutomationProperties.GetName(several.Find<Control>("DiagnosticsPrinterInfo")));
             // The selector sits in the header row of the 48 DIP image, where the name would be.
             Assert.True(selector.Bounds.Height <= 48);
             return Task.CompletedTask;
@@ -242,6 +240,36 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             DiagnosticsWindowHarness offline = OpenOffline(scope);
             Assert.True(offline.Window.IsShown<TextBlock>("DiagnosticsDetail"));
             Assert.Equal(LongestDetail, offline.Find<TextBlock>("DiagnosticsDetail").Text);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task ScreenReadersGetTheNamesOfTheSelectorsDetailAndPrinterInformation() =>
+        session.RunAsync(static scope =>
+        {
+            // Through the automation peers, i.e. what UI Automation really reports (an attached name alone is not enough:
+            // a text block reports its text, a panel has no peer of its own).
+            DiagnosticsWindowHarness ui = OpenWorst(scope, loadedInfo: true);
+
+            AutomationPeer selector = PeerOf(ui.Find<ComboBox>("DiagnosticsPrinterSelector"));
+            Assert.Equal(Strings.DiagnosticsPrinter, selector.GetName());
+            Assert.Equal(Strings.DiagnosticsChart, PeerOf(ui.Find<ComboBox>("DiagnosticsChartRange")).GetName());
+
+            AutomationPeer detailGroup = PeerOf(ui.Find<Control>("DiagnosticsDetailGroup"));
+            Assert.True(detailGroup.IsControlElement());
+            Assert.Equal(AutomationControlType.Group, detailGroup.GetAutomationControlType());
+            Assert.Equal(Strings.DiagnosticsDetail, detailGroup.GetName());
+            AutomationPeer detail = PeerOf(ui.Find<TextBlock>("DiagnosticsDetail"));
+            Assert.Equal(LongestDetail, detail.GetName());
+            Assert.Same(detailGroup, detail.GetParent());
+
+            AutomationPeer info = PeerOf(ui.Find<Control>("DiagnosticsPrinterInfo"));
+            Assert.True(info.IsControlElement());
+            Assert.Equal(AutomationControlType.Group, info.GetAutomationControlType());
+            Assert.Equal(Strings.DiagnosticsPrinterInfo, info.GetName());
+            // The pairs are inside the group (through peers of panels that UI Automation skips).
+            Assert.Contains(Descendants(info), static peer => peer.GetName() == Strings.DiagnosticsFirmware);
+            Assert.Contains(Descendants(info), static peer => peer.GetName() == LongestInfo.Firmware);
             return Task.CompletedTask;
         });
 
@@ -538,6 +566,11 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             yield return $"{context}: the chart ends at {chartBottom:0.#} DIP, the footer starts at {footerTop:0.#} (gap {FooterGap} expected).";
         }
     }
+
+    private static AutomationPeer PeerOf(Control control) => ControlAutomationPeer.CreatePeerForElement(control);
+
+    private static IEnumerable<AutomationPeer> Descendants(AutomationPeer peer) =>
+        peer.GetChildren().SelectMany(static child => (IEnumerable<AutomationPeer>)[child, .. Descendants(child)]);
 
     private static string? ShownText(Window window, string automationId) =>
         window.IsShown<TextBlock>(automationId) ? window.Find<TextBlock>(automationId).Text : null;
