@@ -1,4 +1,3 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -11,19 +10,18 @@ namespace PrusaTrayDiagnostic.App.Windows;
 /// Settings window (T-015). Closing it (Save, Cancel or the title bar button) never quits the app
 /// (<c>ShutdownMode.OnExplicitShutdown</c>); unsaved edits are discarded. Its view model is disposed by
 /// <see cref="AuxiliaryWindowSlot"/> when it closes. Opens at its designed size, shrunk to the work area of its screen
-/// (<see cref="SettingsWindowPlacement"/>, T-033). Ctrl+Tab / Ctrl+Shift+Tab switch the main tabs, Ctrl+PageDown /
+/// (<see cref="AuxiliaryWindowPlacement"/>, T-033). Ctrl+Tab / Ctrl+Shift+Tab switch the main tabs, Ctrl+PageDown /
 /// Ctrl+PageUp the sub-tabs of the printer form.
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
-    private readonly Size _designedSize;
+    private readonly WorkAreaFitter _fitter;
     private SettingsViewModel? _viewModel;
 
     public SettingsWindow()
     {
         InitializeComponent();
-        _designedSize = new Size(Width, Height);
-        FitBeforeShowing();
+        _fitter = new WorkAreaFitter(this);
         // DataContext (SettingsViewModel) is set by the creator.
         // Tunnelling: before a text box or the focus navigation (Tab) sees the keys.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
@@ -48,7 +46,7 @@ public sealed partial class SettingsWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
-        CorrectAfterOpening();
+        _fitter.CorrectAfterOpening();
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)
@@ -73,50 +71,6 @@ public sealed partial class SettingsWindow : Window
         }
 
         base.OnClosed(e);
-    }
-
-    /// <summary>
-    /// Before the window is shown: a work area smaller than the window (high scaling, a small screen, a large taskbar)
-    /// shrinks it, so that it appears already fitted and <c>CenterScreen</c> centres the fitted size (no visible jump).
-    /// The screen is the one <c>CenterScreen</c> picks for a window without an owner (the one under the window's
-    /// position, else the primary); the frame is not known yet, so the assumed title bar is used.
-    /// </summary>
-    private void FitBeforeShowing()
-    {
-        if (Screens.ScreenCount == 0)
-        {
-            return;
-        }
-
-        Avalonia.Platform.Screen? screen = Screens.ScreenFromPoint(Position) ?? Screens.Primary;
-        Size size = SettingsWindowPlacement.SizeBeforeShowing(_designedSize, new Size(MinWidth, MinHeight), screen?.WorkingArea, screen?.Scaling ?? 1.0);
-        Width = size.Width;
-        Height = size.Height;
-    }
-
-    /// <summary>
-    /// After opening, with the real screen and the measured frame: only when the window as shown does not fit (a thicker
-    /// frame than assumed, another screen) it shrinks and is centred again; otherwise nothing moves.
-    /// </summary>
-    private void CorrectAfterOpening()
-    {
-        if (WindowState != WindowState.Normal || (Screens.ScreenFromWindow(this) ?? Screens.Primary) is not { } screen)
-        {
-            return;
-        }
-
-        if (SettingsWindowPlacement.CorrectionAfterOpening(
-                new Size(Width, Height),
-                _designedSize,
-                new Size(MinWidth, MinHeight),
-                screen.WorkingArea,
-                screen.Scaling,
-                SettingsWindowPlacement.ChromeOf(FrameSize, ClientSize)) is { } bounds)
-        {
-            Width = bounds.ClientSize.Width;
-            Height = bounds.ClientSize.Height;
-            Position = bounds.Position;
-        }
     }
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)

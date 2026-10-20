@@ -62,8 +62,8 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(new Size(780, 508), ui.Window.ClientSize);
             Assert.True(ui.Window.ClientSize.Width <= 780);
             Assert.True(ui.Window.ClientSize.Height + TitleBar <= 540);
-            Assert.Equal(SettingsWindowPlacement.DefaultClientSize, new Size(ui.Window.Width, ui.Window.Height));
-            Assert.Equal(SettingsWindowPlacement.MinClientSize, new Size(ui.Window.MinWidth, ui.Window.MinHeight));
+            Assert.Equal(AuxiliaryWindowPlacement.DefaultClientSize, new Size(ui.Window.Width, ui.Window.Height));
+            Assert.Equal(AuxiliaryWindowPlacement.MinClientSize, new Size(ui.Window.MinWidth, ui.Window.MinHeight));
         });
 
     // ---- No scroll bar, headers on one row, nothing cut (every language × state × view) ----

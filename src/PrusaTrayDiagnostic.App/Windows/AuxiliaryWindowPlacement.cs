@@ -2,24 +2,25 @@ using Avalonia;
 
 namespace PrusaTrayDiagnostic.App.Windows;
 
-/// <summary>Where the settings window opens: its client size (DIP) and the top left corner of the whole window (pixels).</summary>
-internal readonly record struct SettingsWindowBounds(Size ClientSize, PixelPoint Position);
+/// <summary>Where an auxiliary window opens: its client size (DIP) and the top left corner of the whole window (pixels).</summary>
+internal readonly record struct AuxiliaryWindowBounds(Size ClientSize, PixelPoint Position);
 
 /// <summary>
-/// Size of the settings window (T-033). The default fits the smallest supported screen (800 × 600 at 100 %: about
-/// 800 × 560 DIP of work area, so at most 780 × 540 including the title bar); on a smaller work area (higher scaling, a
-/// large taskbar) the window shrinks to fit, never below its minimum, and is centred. The content scrolls when it does
-/// not fit. Pure functions, testable without a screen.
+/// Size of the settings (T-033) and diagnostics (T-041) windows, which share their designed and minimum size. The
+/// default fits the smallest supported screen (800 × 600 at 100 %: about 800 × 560 DIP of work area, so at most
+/// 780 × 540 including the title bar); on a smaller work area (higher scaling, a large taskbar) the window shrinks to
+/// fit, never below its minimum, and is centred. The content scrolls when it does not fit. Pure functions, testable
+/// without a screen; <see cref="WorkAreaFitter"/> applies them to a window.
 /// </summary>
-internal static class SettingsWindowPlacement
+internal static class AuxiliaryWindowPlacement
 {
     /// <summary>Title bar height assumed while the real frame is unknown (Windows 11 at 100 %).</summary>
     public const double TitleBarHeight = 32;
 
-    /// <summary>Client size of the window as designed (matches <c>Width</c> / <c>Height</c> in SettingsWindow.axaml).</summary>
+    /// <summary>Client size of the windows as designed (matches <c>Width</c> / <c>Height</c> in SettingsWindow.axaml and DiagnosticsWindow.axaml).</summary>
     public static readonly Size DefaultClientSize = new(780, 508);
 
-    /// <summary>Minimum client size (matches <c>MinWidth</c> / <c>MinHeight</c> in SettingsWindow.axaml).</summary>
+    /// <summary>Minimum client size (matches <c>MinWidth</c> / <c>MinHeight</c> in SettingsWindow.axaml and DiagnosticsWindow.axaml).</summary>
     public static readonly Size MinClientSize = new(640, 400);
 
     /// <summary>Window frame around the client area while the real one is unknown: only the title bar.</summary>
@@ -31,7 +32,7 @@ internal static class SettingsWindowPlacement
     /// <paramref name="minClient"/>. The whole window is centred; a window larger than the work area starts at its top
     /// left corner, so that the title bar stays reachable.
     /// </summary>
-    public static SettingsWindowBounds Fit(Size preferredClient, Size minClient, PixelRect workArea, double scaling, Thickness chrome)
+    public static AuxiliaryWindowBounds Fit(Size preferredClient, Size minClient, PixelRect workArea, double scaling, Thickness chrome)
     {
         if (!double.IsFinite(scaling) || scaling <= 0)
         {
@@ -51,7 +52,7 @@ internal static class SettingsWindowPlacement
         PixelPoint position = new(
             workArea.X + (int)Math.Floor(Math.Max(0, (workArea.Width - outerWidth) / 2)),
             workArea.Y + (int)Math.Floor(Math.Max(0, (workArea.Height - outerHeight) / 2)));
-        return new SettingsWindowBounds(client, position);
+        return new AuxiliaryWindowBounds(client, position);
     }
 
     /// <summary>
@@ -67,9 +68,9 @@ internal static class SettingsWindowPlacement
     /// (<paramref name="shownClient"/>) does not fit (a thicker frame than assumed, another screen than expected);
     /// <see langword="null"/> otherwise. The window never grows here, which would be a visible jump as well.
     /// </summary>
-    public static SettingsWindowBounds? CorrectionAfterOpening(Size shownClient, Size preferredClient, Size minClient, PixelRect workArea, double scaling, Thickness chrome)
+    public static AuxiliaryWindowBounds? CorrectionAfterOpening(Size shownClient, Size preferredClient, Size minClient, PixelRect workArea, double scaling, Thickness chrome)
     {
-        SettingsWindowBounds fitted = Fit(preferredClient, minClient, workArea, scaling, chrome);
+        AuxiliaryWindowBounds fitted = Fit(preferredClient, minClient, workArea, scaling, chrome);
         if (fitted.ClientSize.Width >= shownClient.Width && fitted.ClientSize.Height >= shownClient.Height)
         {
             return null;

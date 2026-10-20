@@ -217,7 +217,13 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
     public bool HasPrinter
     {
         get => _hasPrinter;
-        private set => SetProperty(ref _hasPrinter, value);
+        private set
+        {
+            if (SetProperty(ref _hasPrinter, value))
+            {
+                OnPropertyChanged(nameof(HasInfoValues));
+            }
+        }
     }
 
     /// <summary>"Starting…", "No printer configured" or "Monitoring stopped due to an error"; <see langword="null"/> otherwise.</summary>
@@ -325,11 +331,18 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
             if (SetProperty(ref _infoStatusText, value))
             {
                 OnPropertyChanged(nameof(HasInfoStatus));
+                OnPropertyChanged(nameof(HasInfoValues));
             }
         }
     }
 
     public bool HasInfoStatus => _infoStatusText is not null;
+
+    /// <summary>
+    /// The information of the selected printer is loaded: its label/value pairs are shown instead of the status text
+    /// (T-041, footer of the window).
+    /// </summary>
+    public bool HasInfoValues => _hasPrinter && _infoStatusText is null;
 
     public string FirmwareText
     {
