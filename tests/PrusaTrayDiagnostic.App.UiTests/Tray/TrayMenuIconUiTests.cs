@@ -86,9 +86,61 @@ public sealed class TrayMenuIconUiTests(HeadlessSession session)
             Assert.NotSame(firstBitmap, secondBitmap);
             Assert.Equal(2, icons.CustomBitmapCount);
 
-            // Back to an illustration: the custom bitmap of "a" goes too.
-            icons.Get(PrinterPicture.Generic, "a");
+            // Kept while an item uses it, freed with the last release; a release of the replaced picture changes nothing.
+            icons.Acquire("a", second.CustomPng!);
+            icons.Acquire("a", second.CustomPng!);
+            icons.Release("a", first.CustomPng!);
+            icons.Release("a", second.CustomPng!);
+            Assert.Equal(2, icons.CustomBitmapCount);
+            icons.Release("a", second.CustomPng!);
             Assert.Equal(1, icons.CustomBitmapCount);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task CustomBitmapsOfRemovedPrintersAreReleased() =>
+        session.RunAsync(static scope =>
+        {
+            CustomPrinterImages images = new();
+            images.Set("a", UiTestImages.Png(16, 16, 0xFFFF0000));
+            images.Set("b", UiTestImages.Png(16, 16, 0xFF0000FF));
+            (NativeMenu menu, TrayMenuViewModel viewModel, PrinterMenuIcons icons) = Create(scope, 1.0, images);
+            PrinterDefinition a = TestPrinters.Definition("a", "Alpha") with { Image = PrinterImageChoice.Custom };
+            PrinterDefinition b = TestPrinters.Definition("b", "Beta") with { Image = PrinterImageChoice.Custom };
+            viewModel.SetPrinters([a, b]);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(2, icons.CustomBitmapCount);
+
+            // "a" removed: its item goes and with it its bitmap.
+            viewModel.SetPrinters([b]);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, icons.CustomBitmapCount);
+            Assert.NotNull(menu.Items.OfType<NativeMenuItem>().First().Icon);
+
+            // "b" back to its illustration: no custom bitmap is kept.
+            viewModel.SetPrinters([b with { Image = PrinterImageChoice.Automatic }]);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, icons.CustomBitmapCount);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task ItemWithoutIconReleasesItsCustomBitmap() =>
+        session.RunAsync(static scope =>
+        {
+            TrayIcon tray = Assert.Single(TrayIcon.GetIcons(Application.Current!)!);
+            using PrinterMenuIcons icons = new(1.0);
+            AvaloniaNativeTrayMenu menu = new(tray, icons);
+            INativeTrayMenuItem item = menu.CreateItem(static () => { });
+            item.SetIcon(Custom(UiTestImages.Png(16, 16, 0xFFFF0000)), "a");
+            Assert.Equal(1, icons.CustomBitmapCount);
+
+            item.SetIcon(null, "a");
+
+            Assert.Equal(0, icons.CustomBitmapCount);
+            item.SetIcon(Custom(UiTestImages.Png(16, 16, 0xFFFF0000)), "a");
+            item.Detach();
+            Assert.Equal(0, icons.CustomBitmapCount);
             return Task.CompletedTask;
         });
 

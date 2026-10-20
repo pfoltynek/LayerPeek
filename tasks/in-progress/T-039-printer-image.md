@@ -233,7 +233,7 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
 - **Poškozený uložený vlastní PNG:**
   - `PrinterPicture.Fallback` nese automatický obrázek (např. ilustraci zjištěného modelu).
   - `PrinterImageView` a `PrinterMenuIcons` ho použijí místo obecné ilustrace.
-- **Ikony v tray menu:** `PrinterMenuIcons` drží jednu bitmapu vlastního obrázku na tiskárnu (`INativeTrayMenuItem.SetIcon` dostává id tiskárny). Nahrazenou nebo nepoužívanou bitmapu uvolní.
+- **Ikony v tray menu:** `PrinterMenuIcons` drží jednu bitmapu vlastního obrázku na tiskárnu (`INativeTrayMenuItem.SetIcon` dostává id tiskárny) a počítá položky, které ji používají (`Acquire` / `Release`; při přestavbě menu ji krátce sdílí stará a nová položka). Uvolní se, když ji nepoužívá žádná položka: tiskárna odebraná z menu (`Detach`), ikona bez vlastního obrázku nebo `SetIcon(null)`, nový obrázek tiskárny. Testy: `TrayMenuIconUiTests`.
 - **Orientace v PNG:** chunk `eXIf` (PNG 1.5) se čte stejně jako EXIF v JPEG (`ImageHeaders.ReadPngOrientation`) a aplikuje se na pixely.
 - **`docs/api/prusalink.md`:** řádky `7.10.0` / `8.10.0` uvádějí rozhodnutí (obecná ilustrace); ukládání modelu jen do položky stejného stroje.
 - **Testy:**
@@ -244,5 +244,5 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
 - **Nestabilní UI test `CancelledCustomImageLeavesTheAutomaticChoiceChecked` (příčina):**
   - Test kontroloval zaškrtnutí položek nabídky až po jejím zavření. Zavřený `MenuFlyout` své položky odpojí: přijdou o `DataContext` a jejich vazby `IsChecked` se vrátí na výchozí `false` (ověřeno sondou).
   - `Assert.True(automatic.IsChecked)` proto selhal vždy. Při přidání ladicí hlášky se omylem přepsal (sed na jiném řádku), takže pak test „procházel“ a selhání vypadalo jako náhodné.
-  - Oprava: stav se čte až po znovuotevření nabídky, jak ho vidí uživatel (s ověřením, že položky mají `DataContext` tiskárny). Čeká se na skutečné dokončení příkazu (`ExecutionTask`), ne na čas.
+  - Oprava: položka „Vlastní obrázek…“ má v testu `StaysOpenOnClick`, takže nabídka po kliknutí zůstane otevřená a zaškrtnutí se čte, dokud mají položky `DataContext` tiskárny. Tak test opravu hlídá: bez `RefreshChoiceChecks()` selže (ověřeno dočasným odebráním volání). Pak se čte ještě jednou po znovuotevření. Čeká se na skutečné dokončení příkazu (`ExecutionTask`), ne na čas.
   - Zátěžově: třída 35× samostatně a celé UiTests 12× bez chyby.

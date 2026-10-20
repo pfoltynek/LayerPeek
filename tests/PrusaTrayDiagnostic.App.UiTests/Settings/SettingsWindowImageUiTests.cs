@@ -101,6 +101,9 @@ public sealed class SettingsWindowImageUiTests(HeadlessSession session)
             MenuItem custom = menu.Items.OfType<MenuItem>().Single(static item => (string?)item.Header == Strings.SettingsImageCustom);
             MenuItem automatic = menu.Items.OfType<MenuItem>().First();
             Assert.False(custom.IsChecked);
+            // Kept open after the click, so that its check marks can be read: a closed flyout detaches its items, which then
+            // lose their data context and fall back to unchecked (and reopening binds them again in any case).
+            custom.StaysOpenOnClick = true;
 
             ClickWithThePointer(custom);
             if (ui.ViewModel.SelectedPrinter!.ChooseCustomImageCommand.ExecutionTask is { } running)
@@ -112,11 +115,17 @@ public sealed class SettingsWindowImageUiTests(HeadlessSession session)
             ui.Window.Settle();
 
             Assert.Equal(1, picker.Calls);
-            Assert.False(menu.IsOpen);
             Assert.True(ui.ViewModel.SelectedPrinter!.IsAutomaticImage);
 
-            // Only an open menu shows its state: a closed flyout detaches its items, which then lose the data context and their
-            // bindings fall back to unchecked. So the check marks are read after opening the menu again, as the user sees them.
+            // The menu checked the radio item itself when it was clicked; the view model must have told it the real choice.
+            Assert.True(menu.IsOpen);
+            Assert.Same(ui.ViewModel.SelectedPrinter, custom.DataContext);
+            Assert.False(custom.IsChecked);
+            Assert.True(automatic.IsChecked);
+
+            // Opened again: the same.
+            menu.Hide();
+            ui.Window.Settle();
             menu = OpenMenu(ui);
             Assert.Same(ui.ViewModel.SelectedPrinter, custom.DataContext);
             Assert.False(custom.IsChecked);
