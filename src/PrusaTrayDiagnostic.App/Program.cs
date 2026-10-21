@@ -2,6 +2,7 @@ using Avalonia;
 
 using Microsoft.Extensions.Logging;
 
+using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.SingleInstance;
 
@@ -28,17 +29,38 @@ internal static class Program
             dllSearchError = NativeLibrarySearch.Restrict();
         }
 
-        // The guard runs before anything else: a later start only passes "activate" on and exits (T-043).
-        // No log providers yet (file logging follows in T-024), like the loggers of the app itself.
-        using ILoggerFactory startupLogging = LoggerFactory.Create(static _ => { });
+#if DEBUG
+        // Test mode (T-044): its own data folder and, required, its own instance names, so that a test start never
+        // forwards to (or blocks) the user's running instance.
+        AppEnvironment environment;
+        try
+        {
+            environment = AppEnvironment.FromProcess();
+        }
+        catch (ArgumentException)
+        {
+            return AppEnvironment.InvalidTestModeExitCode;
+        }
+
+        if (environment.IsIsolated && InstanceTransports.NameSuffix.Length == 0)
+        {
+            return AppEnvironment.InvalidTestModeExitCode;
+        }
+#else
+        AppEnvironment environment = AppEnvironment.Production;
+#endif
+
+        // Logged like the app itself (no providers until T-024; the test log file in the test mode).
+        using ILoggerFactory startupLogging = environment.CreateLoggerFactory();
         if (OperatingSystem.IsWindows() && dllSearchError != 0)
         {
             // The app still works with the standard search order; only the hardening is missing.
             NativeLibrarySearch.LogRestrictionFailed(startupLogging.CreateLogger(typeof(Program)), dllSearchError);
         }
 
+        // The guard runs before the app starts: a later start only passes "activate" on and exits (T-043).
         InstanceCommandQueue instanceCommands = new();
-        using SingleInstanceGuard? guard = InstanceTransports.TryCreateForCurrentPlatform(InstanceTransports.NameSuffix) is { } transport
+        using SingleInstanceGuard? guard = InstanceTransports.TryCreateForCurrentPlatform(InstanceTransports.NameSuffix, environment) is { } transport
             ? new SingleInstanceGuard(transport, startupLogging.CreateLogger<SingleInstanceGuard>())
             : null;
         if (guard is not null && guard.Start(InstanceCommand.Activate, instanceCommands.Post) != InstanceRole.Primary)
@@ -57,10 +79,12 @@ internal static class Program
         if (OperatingSystem.IsWindows())
         {
             // Before any window exists, so that windows and toasts share the identity of the Start menu shortcut (T-010).
-            WindowsAppIdentity.ApplyToCurrentProcess();
+            // Only the identity of this process: nothing is registered. The test mode has its own id (T-044), so test windows
+            // never group with the user's instance on the taskbar.
+            WindowsAppIdentity.ApplyToCurrentProcess(environment.AppUserModelId);
         }
 
-        return BuildAvaloniaApp(instanceCommands).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+        return BuildAvaloniaApp(instanceCommands, environment).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
     }
 
     /// <summary>Designer entry point.</summary>
@@ -69,8 +93,8 @@ internal static class Program
             .UsePlatformDetect()
             .LogToTrace();
 
-    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands) =>
-        AppBuilder.Configure(() => new App(instanceCommands))
+    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment) =>
+        AppBuilder.Configure(() => new App(instanceCommands, environment))
             .UsePlatformDetect()
             .LogToTrace();
 }

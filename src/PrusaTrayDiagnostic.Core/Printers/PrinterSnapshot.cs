@@ -32,6 +32,9 @@ public sealed record PrinterSnapshot
     /// <summary>Optional human-readable detail, e.g. why the printer is offline. Never contains secrets.</summary>
     public string? StatusMessage { get; init; }
 
+    /// <summary>Why no data is available, for a translated text; <see cref="PrinterProblem.None"/> when unknown or not applicable.</summary>
+    public PrinterProblem Problem { get; init; }
+
     /// <summary>
     /// Expected end of the job (<see cref="Timestamp"/> + <see cref="PrintJob.EstimatedRemaining"/>) while it is running,
     /// paused or waiting for the user mid-print (<see cref="PrinterState.Attention"/> with a job);
@@ -45,8 +48,8 @@ public sealed record PrinterSnapshot
             : null;
 
     /// <summary>Creates a snapshot for a printer that could not provide data (offline, unauthorized...).</summary>
-    public static PrinterSnapshot Unavailable(string printerId, PrinterState state, DateTimeOffset timestamp, string? statusMessage = null) =>
-        new() { PrinterId = printerId, State = state, Timestamp = timestamp, StatusMessage = statusMessage };
+    public static PrinterSnapshot Unavailable(string printerId, PrinterState state, DateTimeOffset timestamp, string? statusMessage = null, PrinterProblem problem = PrinterProblem.None) =>
+        new() { PrinterId = printerId, State = state, Timestamp = timestamp, StatusMessage = statusMessage, Problem = problem };
 
     // DateTimeOffset addition overflows when either the UTC or the local clock time exceeds DateTime.MaxValue.
     private static long MaxAddableTicks(DateTimeOffset timestamp) =>

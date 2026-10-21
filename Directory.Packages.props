@@ -17,6 +17,10 @@
     <!-- Snapshot tests (T-031), test-only: Skia rendering and the bundled Inter font (package MIT, font SIL OFL 1.1). -->
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.4" />
     <PackageVersion Include="Avalonia.Skia" Version="12.1.4" />
+    <!-- UI Automation of the real app exe in the on-demand Windows end-to-end tests (T-044); MIT, test-only (never referenced
+         by src/), not AOT relevant (the tests run on the JIT with built-in COM interop of the UIA3 interop assembly). -->
+    <PackageVersion Include="FlaUI.Core" Version="5.0.0" />
+    <PackageVersion Include="FlaUI.UIA3" Version="5.0.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.11.0" />
     <!-- Browser tests only (T-030); MIT, not AOT relevant: never referenced by src/. -->
     <PackageVersion Include="Microsoft.Playwright" Version="1.63.0" />

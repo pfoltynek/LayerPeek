@@ -50,7 +50,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
     {
         if (_uris is null)
         {
-            return Unavailable(PrinterState.Unknown, Messages.InvalidAddress);
+            return Unavailable(PrinterState.Unknown, Messages.InvalidAddress, PrusaLinkFailure.InvalidAddress);
         }
 
         try
@@ -58,12 +58,12 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
             ApiResult<StatusResponse> status = await GetAsync(_uris.Status, PrusaLinkJsonContext.Default.StatusResponse, cancellationToken).ConfigureAwait(false);
             if (status.Failure is { } failure)
             {
-                return Unavailable(failure.State, failure.Message);
+                return Unavailable(failure.State, failure.Message, failure.Reason);
             }
 
             if (status.Value?.Printer is not { } printer)
             {
-                return Unavailable(PrinterState.Unknown, Messages.UnexpectedResponse);
+                return Unavailable(PrinterState.Unknown, Messages.UnexpectedResponse, PrusaLinkFailure.UnexpectedResponse);
             }
 
             PrinterState state = PrusaLinkStates.Parse(printer.State);
@@ -79,7 +79,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
         }
         catch (Exception ex) when (ToFailure(ex, cancellationToken) is { } failure)
         {
-            return Unavailable(failure.State, failure.Message);
+            return Unavailable(failure.State, failure.Message, failure.Reason);
         }
     }
 
@@ -346,8 +346,24 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
     private static PrusaLinkInfoResult InfoFailure(Failure failure) =>
         new(failure.State, failure.Message, null) { Failure = failure.Reason };
 
-    private PrinterSnapshot Unavailable(PrinterState state, string message) =>
-        PrinterSnapshot.Unavailable(_printer.Id, state, _timeProvider.GetUtcNow(), message);
+    private PrinterSnapshot Unavailable(PrinterState state, string message, PrusaLinkFailure reason) =>
+        PrinterSnapshot.Unavailable(_printer.Id, state, _timeProvider.GetUtcNow(), message, ToProblem(reason));
+
+    /// <summary>The reason as a UI-independent problem, for a translated text (T-044).</summary>
+    internal static PrinterProblem ToProblem(PrusaLinkFailure reason) => reason switch
+    {
+        PrusaLinkFailure.InvalidAddress => PrinterProblem.InvalidAddress,
+        PrusaLinkFailure.NotReachable => PrinterProblem.NotReachable,
+        PrusaLinkFailure.Timeout => PrinterProblem.Timeout,
+        PrusaLinkFailure.SecureConnectionFailed => PrinterProblem.SecureConnectionFailed,
+        PrusaLinkFailure.PasswordRejected => PrinterProblem.PasswordRejected,
+        PrusaLinkFailure.AccessDenied => PrinterProblem.AccessDenied,
+        PrusaLinkFailure.PasswordMissing => PrinterProblem.PasswordMissing,
+        PrusaLinkFailure.PasswordUnreadable => PrinterProblem.PasswordUnreadable,
+        PrusaLinkFailure.UnsupportedAuthentication => PrinterProblem.UnsupportedAuthentication,
+        PrusaLinkFailure.UnexpectedResponse => PrinterProblem.UnexpectedResponse,
+        _ => PrinterProblem.None,
+    };
 
     private static Telemetry CreateTelemetry(StatusPrinter printer) => new()
     {

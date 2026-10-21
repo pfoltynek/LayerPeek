@@ -249,6 +249,18 @@
   <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
     <value>Nedá sa načítať: {0}</value>
   </data>
+  <data name="DiagnosticsProblemInvalidAddress" xml:space="preserve">
+    <value>Adresa tlačiarne nie je platná.</value>
+  </data>
+  <data name="DiagnosticsProblemNotReachable" xml:space="preserve">
+    <value>Tlačiareň nie je dostupná.</value>
+  </data>
+  <data name="DiagnosticsProblemPasswordMissing" xml:space="preserve">
+    <value>Tlačiareň vyžaduje heslo (Nastavenia).</value>
+  </data>
+  <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
+    <value>Zabezpečené (https) spojenie s tlačiarňou zlyhalo.</value>
+  </data>
   <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
     <value>Pre Prusa Connect nie je k dispozícii</value>
   </data>
@@ -700,7 +712,7 @@
     <value>Okno kamery</value>
   </data>
   <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
-    <value>Kamera je vypnutá. Nastavenia zostanú uložené a použijú sa, keď kameru zapnete (záložka Kamera).</value>
+    <value>Kamera je vypnutá – nastavenia sa použijú po jej zapnutí.</value>
   </data>
   <data name="SettingsCameraWindowRemember" xml:space="preserve">
     <value>Pamätať si poslednú polohu a veľkosť</value>

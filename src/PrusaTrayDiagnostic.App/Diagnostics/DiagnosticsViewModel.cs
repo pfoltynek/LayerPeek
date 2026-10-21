@@ -723,7 +723,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
             initial = _content;
         }
 
-        LoadInfo(choice is not null ? _definitions.GetValueOrDefault(choice.Id) : null);
+        LoadInfo(choice is not null ? _definitions.GetValueOrDefault(choice.Id) : null, knownState: initial?.State);
         UpdatePicture();
         ShowContent(initial);
     }
@@ -765,7 +765,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         }
 
         StateText = TrayText.StateName(content.State);
-        DetailText = content.Message;
+        DetailText = DiagnosticsFormatter.Problem(content.Problem) ?? content.Message;
         LastUpdateText = DiagnosticsFormatter.Timestamp(content.Timestamp, Clock.GetUtcNow(), Clock.LocalTimeZone);
         NozzleActualText = DiagnosticsFormatter.Temperature(content.NozzleActual);
         NozzleTargetText = DiagnosticsFormatter.TargetTemperature(content.NozzleTarget);
@@ -780,7 +780,11 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
 
     /// <summary>UI thread: cancels a pending request and asks for the information of <paramref name="printer"/>.</summary>
     /// <param name="isRetry">Another attempt for the same printer; otherwise the retry allowance starts anew.</param>
-    private void LoadInfo(PrinterDefinition? printer, bool isRetry = false)
+    /// <param name="knownState">
+    /// The state of the latest snapshot: an offline (not reachable) printer is not asked at all (T-044: a refused connection
+    /// can take seconds on Windows); the failure is shown at once and the information is read on the next reachable snapshot.
+    /// </param>
+    private void LoadInfo(PrinterDefinition? printer, bool isRetry = false, PrinterState? knownState = null)
     {
         // Cancelled, not disposed: the request may still observe the token while it unwinds.
         _infoCancellation?.Cancel();
@@ -792,6 +796,13 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         {
             _infoStatus = InfoStatus.None;
             SetInfoStatus(null);
+            return;
+        }
+
+        if (knownState == PrinterState.Offline)
+        {
+            _infoStatus = InfoStatus.Failed;
+            SetInfoStatus(static () => DiagnosticsFormatter.InfoUnavailable(PrinterState.Offline));
             return;
         }
 

@@ -77,6 +77,25 @@ internal static class DiagnosticsFormatter
 
     public static string YesNo(bool value) => value ? Strings.DiagnosticsYes : Strings.DiagnosticsNo;
 
+    /// <summary>
+    /// The translated reason why a printer gives no data (T-044), or <see langword="null"/> for
+    /// <see cref="PrinterProblem.None"/> (the window then shows the technical status message).
+    /// </summary>
+    public static string? Problem(PrinterProblem problem) => problem switch
+    {
+        PrinterProblem.InvalidAddress => Strings.DiagnosticsProblemInvalidAddress,
+        PrinterProblem.NotReachable => Strings.DiagnosticsProblemNotReachable,
+        PrinterProblem.Timeout => Strings.SettingsTestTimeout,
+        PrinterProblem.SecureConnectionFailed => Strings.DiagnosticsProblemSecureConnection,
+        PrinterProblem.PasswordRejected => Strings.SettingsTestPasswordRejected,
+        PrinterProblem.AccessDenied => Strings.SettingsTestAccessDenied,
+        PrinterProblem.PasswordMissing => Strings.DiagnosticsProblemPasswordMissing,
+        PrinterProblem.PasswordUnreadable => Strings.SettingsTestPasswordUnavailable,
+        PrinterProblem.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
+        PrinterProblem.UnexpectedResponse => Strings.SettingsTestUnexpectedResponse,
+        _ => null,
+    };
+
     /// <summary>Why printer information could not be read, e.g. "Could not be read: Offline".</summary>
     public static string InfoUnavailable(PrinterState state) => Unit(Strings.DiagnosticsInfoUnavailable, TrayText.StateName(state));
 

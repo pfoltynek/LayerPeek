@@ -734,6 +734,36 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void OfflinePrinterIsNotAskedForItsInformationUntilItIsReachable()
+    {
+        // T-044: a refused connection can take seconds on Windows; an offline printer shows the failure at once.
+        Configure(Definition());
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.NotReachable));
+
+        DiagnosticsViewModel viewModel = Create();
+
+        Assert.Empty(_info.Requests);
+        Assert.Equal("Could not be read: Offline", viewModel.InfoStatusText);
+
+        _monitor.Raise(Printing(second: 10));
+        _dispatcher.RunAll();
+        Assert.Single(_info.Requests);
+        Assert.Equal("Loading…", viewModel.InfoStatusText);
+    }
+
+    [Fact]
+    public void KnownProblemIsShownTranslatedInsteadOfTheTechnicalMessage()
+    {
+        Configure(Definition());
+        DiagnosticsViewModel viewModel = Create();
+
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Unauthorized, Now, "technical text", PrinterProblem.PasswordMissing));
+        _dispatcher.RunAll();
+
+        Assert.Equal("The printer requires a password (Settings).", viewModel.DetailText);
+    }
+
+    [Fact]
     public void FailedInfoShowsTheReasonAndIsRetriedWhenThePrinterBecomesReachable()
     {
         Configure(Definition());

@@ -37,6 +37,16 @@ public sealed partial class StringsTests
         }
     }
 
+    /// <summary>French typography: a non-breaking space (U+00A0), never a breaking one, before ":", ";", "?" and "!".</summary>
+    [Fact]
+    public void FrenchPunctuationFollowsANonBreakingSpace()
+    {
+        foreach ((string key, string text) in Load(CultureInfo.GetCultureInfo("fr")))
+        {
+            Assert.False(Regex.IsMatch(text, @" [:;?!]"), $"'{key}' in 'fr' has a breaking space before ':', ';', '?' or '!'.");
+        }
+    }
+
     public static TheoryData<string> AllCultures => new(["", .. TranslatedCultures]);
 
     /// <summary>
