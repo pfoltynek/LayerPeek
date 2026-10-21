@@ -1,7 +1,7 @@
 ---
 id: T-040
 title: Úpravy okna nastavení a okna kamery po ručním testu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -39,13 +39,15 @@ depends_on: [T-033, T-035, T-037]
 - [x] Položka Kamera je zaškrtávací, otevírá i zavírá okno a zaškrtnutí sleduje okno i při zavření jinak (testy ViewModelu nabídky, presenteru/cíle a headless)
 - [x] Malý náhled má tlačítko Celá obrazovka, obě tlačítka se vejdou do 160×90 bez překrytí, návrat na stejné místo (headless testy, snímek)
 - [x] Nové texty ve všech 8 jazycích, okno se stále vejde bez scrollbaru (layout test všech jazyků), snapshoty aktualizované
-- [ ] Ruční ověření na Windows (uživatel)
+- [x] Ruční ověření na Windows (uživatel, 2026-10-21)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
 ## Otevřené otázky
 - (žádné – Q1 a Q2 rozhodnuty 2026-10-20, viz Rozhodnuto)
 
 ## Poznámky k implementaci
+Stav 2026-10-21: uživatel ručně ověřil na Windows všechny body (včetně tlačítek režimů a fokusu z bodu 6) – úkol hotový; macOS ověří T-038/T-018.
+
 Stav 2026-10-20 (ui-dev): implementace hotová, všechna kritéria kromě ruční kontroly splněná; úkol zůstává `in-progress` kvůli ručnímu ověření. Doplněno po review 2026-10-20 (viz „Úpravy po review“).
 
 **1. Okno nastavení**
