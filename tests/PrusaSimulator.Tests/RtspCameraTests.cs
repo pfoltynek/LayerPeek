@@ -292,6 +292,62 @@ public sealed class RtspCameraTests
     }
 
     [Fact(Timeout = TimingTestTimeout)]
+    public async Task DescribeAnnouncesH264ByDefault()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, TestContext.Current.CancellationToken);
+
+        RtspResponse describe = await client.RequestAsync("DESCRIBE", camera.StreamUri.ToString(), "Accept: application/sdp\r\n", TestContext.Current.CancellationToken);
+
+        Assert.Contains("a=rtpmap:96 H264/90000\r\n", describe.Body, StringComparison.Ordinal);
+        Assert.Contains("a=fmtp:96 packetization-mode=1\r\n", describe.Body, StringComparison.Ordinal);
+    }
+
+    [Fact(Timeout = TimingTestTimeout)]
+    public async Task DescribeAnnouncesTheConfiguredEncoding()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D, RtpMap = "H265/90000" });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, TestContext.Current.CancellationToken);
+
+        RtspResponse describe = await client.RequestAsync("DESCRIBE", camera.StreamUri.ToString(), "Accept: application/sdp\r\n", TestContext.Current.CancellationToken);
+
+        Assert.Contains("a=rtpmap:96 H265/90000\r\n", describe.Body, StringComparison.Ordinal);
+        // The H.264 format parameters do not belong to another encoding.
+        Assert.DoesNotContain("a=fmtp:", describe.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("H264/90000\r\na=evil")]
+    public void InvalidRtpMapIsRejected(string rtpMap)
+    {
+        Assert.Throws<ArgumentException>(() => new RtspCameraOptions { Clip = Buddy3D, RtpMap = rtpMap });
+    }
+
+    [Fact(Timeout = TimingTestTimeout)]
+    public async Task DescribeAnnouncesTheConfiguredMediaType()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D, Media = "audio", RtpMap = "PCMU/8000" });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, TestContext.Current.CancellationToken);
+
+        RtspResponse describe = await client.RequestAsync("DESCRIBE", camera.StreamUri.ToString(), "Accept: application/sdp\r\n", TestContext.Current.CancellationToken);
+
+        Assert.Contains("m=audio 0 RTP/AVP 96\r\n", describe.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("m=video", describe.Body, StringComparison.Ordinal);
+        Assert.Contains("a=rtpmap:96 PCMU/8000\r\n", describe.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("audio video")]
+    [InlineData("audio\r\nm=video")]
+    public void InvalidMediaIsRejected(string media)
+    {
+        Assert.Throws<ArgumentException>(() => new RtspCameraOptions { Clip = Buddy3D, Media = media });
+    }
+
+    [Fact(Timeout = TimingTestTimeout)]
     public async Task TeardownEndsTheSession()
     {
         await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });

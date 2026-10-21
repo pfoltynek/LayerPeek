@@ -31,6 +31,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     /// <summary>Row and buffer alignment for the converted image (SIMD friendly for swscale).</summary>
     private const int Alignment = 64;
 
+    /// <summary>Name of FFmpeg's native H.264 decoder, the only one allowed (<c>codec_whitelist</c>).</summary>
+    private const string H264Decoder = "h264";
+
+    /// <summary>The stream's codec or container is not one the feed accepts (only H.264).</summary>
+    private const string UnsupportedFormat = "The video format of the stream is not supported.";
+
     /// <summary>Computed once: FFmpeg.AutoGen's <c>ffmpeg.AVERROR(int)</c> allocates on every call.</summary>
     private static readonly int ErrorAgain = ffmpeg.AVERROR(ffmpeg.EAGAIN);
 
@@ -97,8 +103,18 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         AVDictionary* options = null;
         try
         {
+            // The stream is untrusted (whoever controls the camera or the network controls it): FFmpeg may only use the
+            // protocols, demuxers and decoders this feed needs, so that a flaw in any other part of the library is not
+            // reachable from the network (security review M1, T-050).
             if (_isNetwork)
             {
+                // RTSP is the demuxer (it parses the session description itself, no nested sdp/rtp demuxer); its only
+                // I/O protocol is tcp, because rtsp_transport=tcp carries RTP interleaved on the RTSP connection
+                // (no rtp/udp). "rtsp" itself is checked when the camera redirects to another rtsp:// address
+                // (verified by test: without it the redirect fails). Anything else, e.g. a redirect to rtsps (tls),
+                // fails as a connection error.
+                ffmpeg.av_dict_set(&options, "protocol_whitelist", "rtsp,tcp", 0);
+                ffmpeg.av_dict_set(&options, "format_whitelist", "rtsp", 0);
                 // TCP interleaved: no UDP ports to open, works through firewalls, no packet loss.
                 ffmpeg.av_dict_set(&options, "rtsp_transport", "tcp", 0);
                 // Socket I/O timeout in microseconds; a backstop, callers usually cancel earlier.
@@ -107,6 +123,15 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 // Low latency (decided in T-014): hand packets over as they arrive instead of buffering them.
                 ffmpeg.av_dict_set(&options, "fflags", "nobuffer", 0);
             }
+            else
+            {
+                // Local recordings (tests and diagnostics only): raw H.264 files.
+                ffmpeg.av_dict_set(&options, "protocol_whitelist", "file", 0);
+                ffmpeg.av_dict_set(&options, "format_whitelist", "h264", 0);
+            }
+
+            // Decoders that probing (avformat_find_stream_info) may open.
+            ffmpeg.av_dict_set(&options, "codec_whitelist", H264Decoder, 0);
 
             // Frees the context and sets it to null on failure.
             int result = ffmpeg.avformat_open_input(&format, _url, null, &options);
@@ -118,22 +143,19 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             ffmpeg.av_dict_free(&options);
         }
 
-        AVCodec* decoder = null;
-        int stream = ffmpeg.AVERROR_STREAM_NOT_FOUND;
-        if (_isNetwork)
+        if (!_isNetwork)
         {
-            // The RTSP session description (SDP) already names the codec and usually carries SPS/PPS as extradata;
-            // that is all the decoder needs. avformat_find_stream_info would decode about a second of video first
-            // and then hand it over as a backlog, which delays the live picture permanently (measured: ~1.2 s).
-            stream = ffmpeg.av_find_best_stream(_format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, &decoder, 0);
+            // Files: probe the content (robust, but buffers; irrelevant for a recording).
+            Check(ffmpeg.avformat_find_stream_info(_format, null), OpenStage);
         }
 
-        if (stream < 0)
-        {
-            // Files, and streams whose description is not enough: probe the content (robust, but buffers).
-            Check(ffmpeg.avformat_find_stream_info(_format, null), OpenStage);
-            stream = ffmpeg.av_find_best_stream(_format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, &decoder, 0);
-        }
+        // The RTSP session description (SDP) already fixes the streams and names the codec, and usually carries SPS/PPS
+        // as extradata; that is all the decoder needs. Network streams are never probed: avformat_find_stream_info
+        // would decode about a second of video first and hand it over as a backlog, which delays the live picture
+        // permanently (measured: ~1.2 s), and it cannot find a stream the description does not announce - it would
+        // only feed the untrusted payload to other depacketizers and parsers. Without asking for a decoder: the stream
+        // is chosen by its type, its codec is checked below.
+        int stream = ffmpeg.av_find_best_stream(_format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
 
         if (stream == ffmpeg.AVERROR_STREAM_NOT_FOUND)
         {
@@ -141,12 +163,17 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             throw new CameraFeedException("The stream contains no video.");
         }
 
-        if (stream == ffmpeg.AVERROR_DECODER_NOT_FOUND)
+        Check(stream, OpenStage);
+        // Only H.264 (what the Buddy3D sends) is decoded, always by FFmpeg's own decoder; any other codec is refused
+        // before a decoder sees a single byte of it.
+        AVCodec* decoder = _format->streams[stream]->codecpar->codec_id == AVCodecID.AV_CODEC_ID_H264
+            ? ffmpeg.avcodec_find_decoder(AVCodecID.AV_CODEC_ID_H264)
+            : null;
+        if (decoder is null)
         {
-            throw new CameraFeedException("The video format of the stream is not supported.");
+            throw new CameraFeedException(UnsupportedFormat);
         }
 
-        Check(stream, OpenStage);
         _streamIndex = stream;
         for (int i = 0; i < _format->nb_streams; i++)
         {
@@ -171,7 +198,16 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         _codec->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
         _codec->thread_count = 1;
 
-        Check(ffmpeg.avcodec_open2(_codec, decoder, null), DecoderStage);
+        AVDictionary* decoderOptions = null;
+        try
+        {
+            ffmpeg.av_dict_set(&decoderOptions, "codec_whitelist", H264Decoder, 0);
+            Check(ffmpeg.avcodec_open2(_codec, decoder, &decoderOptions), DecoderStage);
+        }
+        finally
+        {
+            ffmpeg.av_dict_free(&decoderOptions);
+        }
     }
 
     /// <summary>
