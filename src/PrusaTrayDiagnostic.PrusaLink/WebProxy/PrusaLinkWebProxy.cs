@@ -47,6 +47,7 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
     private WebApplication? _app;
     private ITimer? _idleTimer;
     private string _expectedHost = string.Empty;
+    private string _expectedOrigin = string.Empty;
     private ProxyLocation? _location;
     private Task? _stopTask;
     private int _activeRequests;
@@ -183,6 +184,7 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
         string bound = app.Services.GetRequiredService<IServer>().Features.GetRequiredFeature<IServerAddressesFeature>().Addresses.Single();
         Port = new Uri(bound).Port;
         _expectedHost = string.Create(CultureInfo.InvariantCulture, $"127.0.0.1:{Port}");
+        _expectedOrigin = "http://" + _expectedHost;
         string prefix = "/" + _token.Value + "/";
         _location = new ProxyLocation(_printerBase, prefix);
         Address = new Uri("http://" + _expectedHost + prefix);
@@ -313,6 +315,8 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
         HttpResponse response = context.Response;
         response.Headers[ProxyHeaders.ReferrerPolicy] = "no-referrer";
         response.Headers[ProxyHeaders.ContentTypeOptions] = "nosniff";
+        // Other pages (also other ports on 127.0.0.1) cannot embed or read anything of the proxy as no-cors content.
+        response.Headers[ProxyHeaders.ResourcePolicy] = "same-origin";
 
         // DNS rebinding: only the exact loopback authority of this listener is accepted.
         StringValues host = context.Request.Headers.Host;
@@ -330,6 +334,15 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
             return;
         }
 
+        // Only after the token check, so that a rejection never tells whether a token is valid. Not an activity: the
+        // request is not forwarded and does not postpone the idle stop.
+        if (ForeignWriteReason(context.Request) is { } reason)
+        {
+            LogForeignWriteRejected(context.Request.Method, reason, _printer.Id);
+            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ProxyErrors.ForeignPage).ConfigureAwait(false);
+            return;
+        }
+
         Interlocked.Increment(ref _activeRequests);
         Touch();
         try
@@ -341,6 +354,38 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
             Touch();
             Interlocked.Decrement(ref _activeRequests);
         }
+    }
+
+    /// <summary>
+    /// Why a request that may change something on the printer comes from another web page (security finding L1), or
+    /// null. A page that learned the token could otherwise send blind <c>POST</c>/<c>PUT</c>/<c>DELETE</c> requests the
+    /// proxy would log in. Browsers mark every such request with <c>Sec-Fetch-Site</c> and <c>Origin</c>; another port on
+    /// 127.0.0.1 is <c>same-site</c>, not <c>same-origin</c>. A request with neither header is not from a browser page.
+    /// The PrusaLink web uses fetch/XMLHttpRequest, which send its exact origin; an HTML form under
+    /// <c>Referrer-Policy: no-referrer</c> would send <c>Origin: null</c> and be refused.
+    /// </summary>
+    private string? ForeignWriteReason(HttpRequest request)
+    {
+        string method = request.Method;
+        if (HttpMethods.IsGet(method) || HttpMethods.IsHead(method) || HttpMethods.IsOptions(method))
+        {
+            return null;
+        }
+
+        IHeaderDictionary headers = request.Headers;
+        if (headers.TryGetValue(ProxyHeaders.SecFetchSite, out StringValues site)
+            && (site.Count != 1 || site[0] is not ("same-origin" or "none")))
+        {
+            return ProxyHeaders.SecFetchSite;
+        }
+
+        if (headers.TryGetValue(ProxyHeaders.Origin, out StringValues origin)
+            && (origin.Count != 1 || !string.Equals(origin[0], _expectedOrigin, StringComparison.Ordinal)))
+        {
+            return ProxyHeaders.Origin;
+        }
+
+        return null;
     }
 
     /// <summary>Splits <c>/&lt;token&gt;&lt;rest&gt;</c>; false when the token is missing or wrong.</summary>
@@ -756,6 +801,9 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Web proxy: {Method} {Path} answered {StatusCode} (printer '{PrinterId}').")]
     private partial void LogRequest(string method, string path, int statusCode, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Web proxy: a {Method} request from another web page was rejected (header {Header}) (printer '{PrinterId}').")]
+    private partial void LogForeignWriteRejected(string method, string header, string printerId);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Web proxy: {Method} {Path} was aborted because the proxy stopped (printer '{PrinterId}').")]
     private partial void LogAbortedByStop(string method, string path, string printerId);

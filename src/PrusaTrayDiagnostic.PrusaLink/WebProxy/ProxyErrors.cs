@@ -25,6 +25,9 @@ internal static class ProxyErrors
     public static readonly byte[] LoginExpired =
         """{"title":"403: Forbidden","message":"The login to the printer expired while the request was sent. Please try again."}"""u8.ToArray();
 
+    public static readonly byte[] ForeignPage =
+        """{"title":"403: Forbidden","message":"PrusaTrayDiagnostic does not forward changes requested by another web page."}"""u8.ToArray();
+
     public static readonly byte[] NotReachable =
         """{"title":"502: Bad Gateway","message":"The printer is not reachable."}"""u8.ToArray();
 

@@ -157,12 +157,19 @@ Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWe
 - K tiskárně nejdou hlavičky `Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, `Origin`, `Referer`, `Expect`, `Host` ani hop-by-hop hlavičky (včetně těch jmenovaných v `Connection`).
 - K prohlížeči nejdou `WWW-Authenticate`, `Proxy-Authenticate`, `Set-Cookie` ani hop-by-hop hlavičky.
 - `Location` na tiskárnu se přepíše na `/<token>/...`, cizí adresy a relativní odkazy zůstanou beze změny.
-- Proxy přidá `Referrer-Policy: no-referrer` a `X-Content-Type-Options: nosniff`. U `/api/` přidá `Cache-Control: no-store`.
+- Proxy přidá `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` a `Cross-Origin-Resource-Policy: same-origin` (cizí stránky nemohou obsah proxy vkládat ani načítat v režimu `no-cors`; stejnojmenné hlavičky tiskárny se zahodí). U `/api/` přidá `Cache-Control: no-store`.
 
 **Odmítnuté požadavky:**
 - `Host` jiný než přesně `127.0.0.1:<port>` vrátí `421`. Chybějící nebo zdvojený `Host` odmítne už Kestrel (`400`).
 - Chybějící nebo neplatný token vrátí `404` s prázdným tělem, stejně jako jakákoli jiná neznámá cesta.
 - `CONNECT`/`TRACE` vrátí `405`, `Upgrade` (WebSocket) `501`.
+- Zápisové požadavky z cizí stránky (T-051, nález L1) vrátí `403` s JSON chybou a na tiskárnu nedorazí. Týká se všech metod kromě `GET`, `HEAD` a `OPTIONS`, a to když:
+  - `Sec-Fetch-Site` je přítomná a není přesně `same-origin` ani `none` (jiný port na `127.0.0.1` je pro prohlížeč `same-site`), **nebo**
+  - `Origin` je přítomná a není přesně `http://127.0.0.1:<port>` této proxy (i `Origin: null`).
+  - Opakovaná hlavička (více hodnot) se také odmítne. Požadavek bez obou hlaviček (klient mimo prohlížeč, který stejně musí znát token) projde.
+  - Kontrola běží až po kontrole `Host` a tokenu, takže neplatný token dál vrací `404` a odmítnutí neprozradí platnost tokenu.
+  - Odmítnutí se loguje (Warning) jen s metodou a názvem hlavičky, bez tokenu, cesty a hodnoty hlavičky. Neprodlužuje nečinnost proxy.
+  - Web PrusaLink posílá své požadavky přes `fetch`/`XMLHttpRequest` se `same-origin` a vlastním `Origin`, takže funguje beze změny.
 
 **Těla:**
 - Těla se v obou směrech streamují. Limity Kestrelu `MaxRequestBodySize`, `MinRequestBodyDataRate` a `MinResponseDataRate` jsou vypnuté, `HttpClient` proxy nemá celkový timeout (jen `ConnectTimeout` 5 s).
@@ -183,6 +190,7 @@ Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWe
 - Záložky a otevřené karty po zastavení proxy (nečinnost, změna nastavení, restart aplikace) přestanou fungovat. Je nutné znovu otevřít web z menu.
 - Adresa s tokenem je v historii prohlížeče a v příkazové řádce procesu prohlížeče. Platí ale jen do zastavení proxy.
 - Klient, který se připojí přesně ve chvíli zavírání listeneru, může zůstat bez odpovědi, dokud nevyprší timeout prohlížeče. Spojení zůstane ve frontě OS a do proxy se nedostane.
+- Klasický HTML formulář s metodou `POST` by i ze stránky proxy poslal kvůli `Referrer-Policy: no-referrer` hlavičku `Origin: null` a proxy by ho odmítla (`403`, ověřeno v Edge). Prusa-Link-Web formuláře neodesílá, vše posílá přes `fetch`/`XMLHttpRequest`.
 
 ## Spojení a zátěž
 
