@@ -33,6 +33,7 @@ Na tento úkol navazují T-046 (neošetřené výjimky), T-047 (přepínač Debu
   - Platí dál: kontejner DI factory nevlastní ani neuvolňuje. Monitoring může po pokynu k zastavení ještě chvíli logovat, proto provider po uvolnění nesmí házet výjimky. Pozdní zprávy tiše zahodí.
 - **Tajné údaje:** nikdy nelogovat hesla, API klíče ani tokeny. Provider nic nemaskuje; odpovědnost mají volající (jako dnes, např. `IUrlLauncher.OpenSecretAsync`, `UriRedaction`). V rámci úkolu projít existující `[LoggerMessage]` a ověřit, že žádný nezapisuje tajný údaj ani adresu proxy s tokenem. Pozor i na texty výjimek, které se teď nově dostanou do souboru celé.
 - **`TestModeLogProvider` (T-044):** buď ho nahradí nový provider (soubor v `logs` testovací složky), nebo zůstane vedle něj. Rozhodne implementátor, podmínka: E2E testy T-044 dál fungují a dál po sobě nic nenechají.
+- **Varování z T-052:** `Program.Main` volá jako první příkaz `NativeLibrarySearch.Restrict()` (omezené hledání DLL) a při selhání zapisuje varování přes `NativeLibrarySearch.LogRestrictionFailed`. Dnes jde do `startupLogging` bez providera, takže se ztratí. Nová factory musí varování zapsat do souboru. `Restrict()` přitom zůstává **prvním** příkazem `Main` (před vytvořením factory, protože ta může načítat nativní knihovny); výsledek se uloží a varování se zaloguje, až factory existuje.
 - **Dokumentace:** oddíl „Logování“ v `docs/architecture.md` (umístění, formát, rotace, dvě instance, životnost).
 
 ## Akceptační kritéria
@@ -42,6 +43,7 @@ Na tento úkol navazují T-046 (neošetřené výjimky), T-047 (přepínač Debu
 - [ ] Minimální úroveň jde přepnout za běhu (API pro T-047), testy
 - [ ] Testy provideru: formát, rotace, dva nezávislí zapisovatelé do jednoho souboru (žádné ztracené ani prolnuté řádky), souběžný zápis z více vláken, přetečení fronty, flush při ukončení, zápis po uvolnění nehází; testy po sobě nic nenechají (per-worktree složky z T-032), ani po pádu
 - [ ] Revize existujících log zpráv: žádné tajné údaje (výsledek v Poznámkách k implementaci)
+- [ ] Varování T-052 o selhání `NativeLibrarySearch.Restrict()` (omezení hledání DLL) se dostane do souboru s logem; `Restrict()` zůstává prvním příkazem `Program.Main` a varování se zaloguje až po vytvoření logger factory
 - [ ] `docs/architecture.md` doplněna (oddíl Logování)
 - [ ] Žádný nový NuGet balíček; `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
