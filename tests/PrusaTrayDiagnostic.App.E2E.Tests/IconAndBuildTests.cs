@@ -21,6 +21,7 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         AppSwitches.DataDirectoryVariable,
         AppSwitches.SuffixVariable,
         AppSwitches.ForwardOnlyVariable,
+        AppSwitches.NativeLibraryProbeVariable,
         AppSwitches.SecretsFileName,
         AppSwitches.LogFileName,
     ];

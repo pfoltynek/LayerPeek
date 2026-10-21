@@ -26,8 +26,8 @@ public sealed class ProcessUrlLauncherTests
     }
 
     [Theory]
-    [InlineData(UrlLaunchPlatform.MacOS, "open")]
-    [InlineData(UrlLaunchPlatform.Linux, "xdg-open")]
+    [InlineData(UrlLaunchPlatform.MacOS, "/usr/bin/open")]
+    [InlineData(UrlLaunchPlatform.Linux, "/usr/bin/xdg-open")]
     public async Task UnixPassesAddressAsSingleArgument(UrlLaunchPlatform platform, string tool)
     {
         bool opened = await Create(platform).OpenAsync(new Uri("https://printer.local:8443/a b/"));
@@ -37,6 +37,18 @@ public sealed class ProcessUrlLauncherTests
         Assert.Equal(tool, info.FileName);
         Assert.False(info.UseShellExecute);
         Assert.Equal(["https://printer.local:8443/a%20b/"], info.ArgumentList);
+        Assert.Equal(string.Empty, info.Arguments);
+    }
+
+    [Fact]
+    public void MacOSStartsOpenByAbsolutePathWithAddressAsOnlyArgument()
+    {
+        // Never looked up through PATH: a planted "open" would receive the proxy address with its token (L4).
+        ProcessStartInfo info = ProcessUrlLauncher.CreateStartInfo(ProxyAddress.AbsoluteUri, UrlLaunchPlatform.MacOS);
+
+        Assert.Equal("/usr/bin/open", info.FileName);
+        Assert.False(info.UseShellExecute);
+        Assert.Equal([ProxyAddress.AbsoluteUri], info.ArgumentList);
         Assert.Equal(string.Empty, info.Arguments);
     }
 
@@ -97,8 +109,8 @@ public sealed class ProcessUrlLauncherTests
     }
 
     [Theory]
-    [InlineData(UrlLaunchPlatform.MacOS, "open")]
-    [InlineData(UrlLaunchPlatform.Linux, "xdg-open")]
+    [InlineData(UrlLaunchPlatform.MacOS, "/usr/bin/open")]
+    [InlineData(UrlLaunchPlatform.Linux, "/usr/bin/xdg-open")]
     public async Task UnixPassesSecretAddressAsSingleArgument(UrlLaunchPlatform platform, string tool)
     {
         bool opened = await Create(platform).OpenSecretAsync(ProxyAddress, Ct);

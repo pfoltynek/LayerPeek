@@ -14,10 +14,18 @@ internal sealed class LoopbackServer : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private readonly Task _acceptLoop;
     private readonly List<TcpClient> _clients = [];
+    private readonly string? _redirectTo;
     private int _connections;
 
-    public LoopbackServer(LoopbackBehavior behavior)
+    /// <param name="redirectTo">Target address of <see cref="LoopbackBehavior.Redirect"/>; ignored otherwise.</param>
+    public LoopbackServer(LoopbackBehavior behavior, string? redirectTo = null)
     {
+        if (behavior == LoopbackBehavior.Redirect && string.IsNullOrEmpty(redirectTo))
+        {
+            throw new ArgumentException("A redirect needs a target address.", nameof(redirectTo));
+        }
+
+        _redirectTo = redirectTo;
         _listener = new TcpListener(IPAddress.Loopback, 0);
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
@@ -76,19 +84,27 @@ internal sealed class LoopbackServer : IAsyncDisposable
                     client.Dispose();
                     break;
                 case LoopbackBehavior.Unauthorized:
-                    lock (_clients)
-                    {
-                        _clients.Add(client);
-                    }
-
-                    _ = AnswerUnauthorizedAsync(client, _stop.Token);
+                    Answer(client, "401 Unauthorized", "WWW-Authenticate: Basic realm=\"camera\"\r\n");
+                    break;
+                case LoopbackBehavior.Redirect:
+                    Answer(client, "302 Moved Temporarily", $"Location: {_redirectTo}\r\n");
                     break;
             }
         }
     }
 
-    /// <summary>Answers every RTSP request with 401, like a camera that requires a login.</summary>
-    private static async Task AnswerUnauthorizedAsync(TcpClient client, CancellationToken cancellationToken)
+    private void Answer(TcpClient client, string status, string headers)
+    {
+        lock (_clients)
+        {
+            _clients.Add(client);
+        }
+
+        _ = AnswerAsync(client, status, headers, _stop.Token);
+    }
+
+    /// <summary>Answers every RTSP request with the same <paramref name="status"/> and <paramref name="headers"/>.</summary>
+    private static async Task AnswerAsync(TcpClient client, string status, string headers, CancellationToken cancellationToken)
     {
         try
         {
@@ -121,7 +137,7 @@ internal sealed class LoopbackServer : IAsyncDisposable
                     }
                 }
 
-                string response = $"RTSP/1.0 401 Unauthorized\r\nCSeq: {cseq}\r\nWWW-Authenticate: Basic realm=\"camera\"\r\nContent-Length: 0\r\n\r\n";
+                string response = $"RTSP/1.0 {status}\r\nCSeq: {cseq}\r\n{headers}Content-Length: 0\r\n\r\n";
                 await stream.WriteAsync(Encoding.ASCII.GetBytes(response), cancellationToken);
             }
         }
@@ -140,8 +156,11 @@ internal enum LoopbackBehavior
     /// <summary>Accepts and closes the connection at once.</summary>
     CloseImmediately,
 
-    /// <summary>Answers every RTSP request with <c>401 Unauthorized</c>.</summary>
+    /// <summary>Answers every RTSP request with <c>401 Unauthorized</c>, like a camera that requires a login.</summary>
     Unauthorized,
+
+    /// <summary>Answers every RTSP request with <c>302 Moved Temporarily</c> to the given address.</summary>
+    Redirect,
 }
 
 /// <summary>

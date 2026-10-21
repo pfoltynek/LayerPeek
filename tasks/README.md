@@ -59,7 +59,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-014 | Kamera – živý stream a snímek | all | core-dev + ui-dev | P3 | T-003, T-015 |
 | T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) (hotovo) | all | ui-dev | P1 | T-002, T-003 |
 | T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
-| T-024 | Logování do souboru | all | core-dev | P2 | T-007 |
+| T-024 | Logování do souboru | all | core-dev | P2 | T-007, T-043, T-044 |
 | T-025 | Ikona aplikace (exe, okna, tray) | all | ui-designer + ui-dev | P2 | T-007 |
 | T-027 | PrusaLink – uživatelské jméno v nastavení (hotovo) | all | core-dev + ui-dev | P2 | T-003, T-015 |
 | T-028 | Otevření webu PrusaLink s přihlášením (lokální proxy) (hotovo) | all | core-dev + ui-dev | P2 | T-027 |
@@ -78,6 +78,12 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-042 | Jednotné tray menu (podmenu pro každou tiskárnu) | all | ui-dev | P2 | T-039, T-040 |
 | T-043 | Jediná instance aplikace a jump list oken na hlavním panelu | all | ui-dev | P1 | T-010 |
 | T-045 | Simulátor tiskárny (PrusaLink) a kamery (RTSP) pro vývoj a testy | all | core-dev | P2 | T-003, T-014 |
+| T-046 | Zápis neošetřených výjimek do logu | all | core-dev | P2 | T-024 |
+| T-047 | Nastavení „Podrobné logování (Debug)“ | all | core-dev + ui-designer + ui-dev | P2 | T-024, T-040 |
+| T-048 | Podpora – otevření složky s logy a uložení diagnostického balíčku (ZIP) | all | core-dev + ui-designer + ui-dev | P2 | T-024, T-041 |
+| T-049 | Podpora – kopírování informací do schránky | all | ui-dev | P3 | T-048 |
+| T-050 | Bezpečnost – FFmpeg přijímá jen RTSP/TCP a H.264 (M1) | all | core-dev | P2 | T-014 |
+| T-051 | Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1) | all | core-dev | P3 | T-028, T-030 |
 | T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) | all | qa-reviewer | P2 | – |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055) | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
@@ -90,6 +96,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-056 | Velopack – ověření použitelnosti pro instalátor a aktualizace (spike) | windows | ui-dev | P2 | – |
 | T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) | windows | core-dev | P2 | – |
 | T-017 | Balení a distribuce, autostart – Windows | windows | ui-dev | P2 | T-008, T-055, T-056 |
+| T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
+| T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
 
 ### macOS (`macos`) – jen na Macu, později
@@ -102,3 +110,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
 | T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |
 | T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ | macos | ui-dev | P3 | T-026, T-035, T-037 |
+| T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) | macos | ui-dev | P3 | T-043, T-052 |

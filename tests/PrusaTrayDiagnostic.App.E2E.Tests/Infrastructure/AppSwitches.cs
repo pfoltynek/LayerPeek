@@ -16,6 +16,9 @@ internal static class AppSwitches
     /// <summary>A start that would become the primary instance exits with 3 (T-043).</summary>
     public const string ForwardOnlyVariable = "PRUSATRAYDIAGNOSTIC_INSTANCE_FORWARD_ONLY";
 
+    /// <summary>Native library search probe of T-052.</summary>
+    public const string NativeLibraryProbeVariable = "PRUSATRAYDIAGNOSTIC_NATIVE_LIBRARY_PROBE";
+
     /// <summary>Base of the instance names.</summary>
     public const string BaseName = "PrusaTrayDiagnostic";
 

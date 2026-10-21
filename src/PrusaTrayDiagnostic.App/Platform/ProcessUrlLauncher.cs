@@ -13,10 +13,10 @@ public enum UrlLaunchPlatform
     /// <summary>Shell execute of the URL (<c>ShellExecuteEx</c>), which opens the registered browser.</summary>
     Windows,
 
-    /// <summary><c>open &lt;url&gt;</c>.</summary>
+    /// <summary><c>/usr/bin/open &lt;url&gt;</c>.</summary>
     MacOS,
 
-    /// <summary><c>xdg-open &lt;url&gt;</c> (not a supported platform, kept so that the app degrades gracefully).</summary>
+    /// <summary><c>/usr/bin/xdg-open &lt;url&gt;</c> (not a supported platform, kept so that the app degrades gracefully).</summary>
     Linux,
 }
 
@@ -88,7 +88,9 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
             return new ProcessStartInfo(address) { UseShellExecute = true };
         }
 
-        ProcessStartInfo info = new(platform == UrlLaunchPlatform.MacOS ? "open" : "xdg-open") { UseShellExecute = false };
+        // By absolute path, never looked up through PATH: a planted tool of the same name would receive the address, for the
+        // local web proxy including its access token (T-052, finding L4).
+        ProcessStartInfo info = new(platform == UrlLaunchPlatform.MacOS ? "/usr/bin/open" : "/usr/bin/xdg-open") { UseShellExecute = false };
         info.ArgumentList.Add(address);
         return info;
     }
