@@ -4,8 +4,8 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT.
-> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64`, `osx-arm64` (rozhodnuto 2026-10-21).
-> - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně. Skripty pro vydání a jejich prerekvizity (např. `gh` CLI) dodá T-055.
+> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64` (až po T-057), `osx-arm64` (rozhodnuto 2026-10-21).
+> - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
 ## Společné (obě platformy)
 
@@ -35,7 +35,7 @@ Projekt `PrusaTrayDiagnostic.Camera.FFmpeg` potřebuje nativní DLL FFmpeg (LGPL
 |---|---|
 | **Build Tools for Visual Studio 2026** (nebo Visual Studio 2022/2026) | bezplatné, plné IDE není nutné |
 | Workload **Desktop development with C++** | obsahuje MSVC překladač/linker (komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) a Windows SDK |
-| *(volitelně)* **C++ ARM64 build tools** | jen pro publish na `win-arm64` |
+| *(volitelně)* komponenta **MSVC ARM64 build tools** (`Microsoft.VisualStudio.Component.VC.Tools.ARM64`) | jen pro publish na `win-arm64` (viz „ARM64 build tools“ níže) |
 
 Komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64` se samostatně nestahuje, je součástí workloadu *Desktop development with C++* v instalátoru Visual Studia.
 
@@ -62,6 +62,32 @@ dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64
 
 První příkaz musí vypsat název instalace, druhý vytvoří `PrusaTrayDiagnostic.exe` v `src/PrusaTrayDiagnostic.App/bin/Release/net11.0/win-x64/publish/`.
 
+### ARM64 build tools (jen pro `win-arm64`)
+
+Publish `win-arm64` (i na x64 Windows) potřebuje navíc komponentu **MSVC ARM64 build tools** `Microsoft.VisualStudio.Component.VC.Tools.ARM64`. `win-arm64` se zatím nevydává (čeká na T-057), komponenta je potřeba jen pro `pwsh scripts/release-build.ps1 -Runtime win-arm64`.
+
+Nová instalace Build Tools rovnou s ARM64:
+
+```powershell
+winget install --id Microsoft.VisualStudio.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended --passive --wait"
+```
+
+Doplnění do existující instalace (Build Tools nebo Visual Studio). **Spusť v PowerShellu jako správce**: s `--passive` instalátor bez zvýšených oprávnění hned skončí s kódem 5007 („Commands with --quiet or --passive should be run elevated“).
+
+```powershell
+$vs = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+$path = & "$vs\vswhere.exe" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
+& "$vs\setup.exe" modify --installPath $path --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --passive --norestart
+```
+
+Nebo ručně: *Visual Studio Installer → Upravit → Jednotlivé komponenty →* „MSVC … ARM64/ARM64EC build tools (nejnovější)“.
+
+Ověření (musí vypsat název instalace):
+
+```powershell
+& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property displayName
+```
+
 ## macOS
 
 | Co | Poznámka |
@@ -79,6 +105,37 @@ dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # Apple Sil
 
 Podporuje se jen Apple Silicon (`osx-arm64`), Intel Macy (`osx-x64`) ani universal binary se nevydávají (rozhodnuto 2026-10-21). Vydání má jen ad-hoc podpis bez Apple Developer ID a notarizace (T-019).
 
+## Vydání (GitHub CLI)
+
+Pro nahrání vydání na GitHub (`scripts/release-upload.ps1`, `scripts/release-publish.ps1`, postup v [release.md](release.md)) je potřeba **GitHub CLI** `gh`, přihlášené k účtu s právem zápisu do repozitáře. Samotné sestavení (`scripts/release-build.ps1`) ho nepotřebuje.
+
+```powershell
+winget install --id GitHub.cli     # Windows
+```
+
+```bash
+brew install gh                    # macOS
+```
+
+Přihlášení (jednou na každém stroji, token uloží `gh` do systémového úložiště klíčů):
+
+```bash
+gh auth login        # GitHub.com, HTTPS, přihlášení přes prohlížeč
+gh auth status       # ověření
+```
+
+Pro `.tar.gz` na macOS stačí systémový `tar`. Na Windows skripty používají systémový `C:\Windows\System32\tar.exe`, ne `tar` z Git for Windows.
+
+## Pester (testy skriptů)
+
+Testy skriptů pro vydání (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`) potřebují **PowerShell 7.2+** a **Pester 5 nebo novější** (licence Apache-2.0). Windows PowerShell má předinstalovaný Pester 3.4, ten nestačí. Instalace pro aktuálního uživatele (bez práv správce):
+
+```powershell
+pwsh -NoProfile -Command "Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0 -Force -SkipPublisherCheck"
+```
+
+`-SkipPublisherCheck` je potřeba jen na Windows, kde starý Pester 3.4 má jiný podpis. Ověření: `pwsh -NoProfile -Command "Get-Module -ListAvailable Pester"` musí ukázat verzi 5 nebo vyšší. Bez `pwsh` nebo Pesteru 5+ se test `ReleaseScriptPesterTestsPass` v `dotnet test` přeskočí, neselže.
+
 ## AOT smoke test
 
 `dotnet build` a `dotnet test` běží přes JIT, takže neodhalí chyby, které se projeví až v nativní AOT binárce. Po změnách v buildu, balíčcích nebo XAML proto spusť:
@@ -88,7 +145,7 @@ pwsh scripts/aot-smoke.ps1                         # RID podle aktuálního OS/a
 pwsh scripts/aot-smoke.ps1 -Runtime win-arm64 -Seconds 15   # jen na ARM64 Windows
 ```
 
-Skript publikuje aplikaci (Release) do dočasné složky mimo repozitář, spustí ji a ověří, že po `-Seconds` sekundách (výchozí 10) stále běží. Pak proces ukončí a dočasnou složku smaže (i při chybě). Při neúspěchu vrací nenulový exit code a vypíše výstup aplikace. Vyžaduje PowerShell 7 a nativní toolchain popsaný výše.
+Skript publikuje aplikaci (Release) do dočasné složky mimo repozitář, spustí ji a ověří, že po `-Seconds` sekundách (výchozí 10) stále běží. S parametrem `-PublishDir <složka>` místo publikování ověří už hotovou publish složku a nechá ji beze změny (používá `scripts/release-build.ps1`). Pak proces ukončí a dočasnou složku smaže (i při chybě). Při neúspěchu vrací nenulový exit code a vypíše výstup aplikace. Vyžaduje PowerShell 7.2+ a nativní toolchain popsaný výše.
 
 ### Proč `UseOptimizedPublish=false`
 
@@ -103,3 +160,5 @@ V `src/PrusaTrayDiagnostic.App/PrusaTrayDiagnostic.App.csproj` je nastaveno `<Us
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
 | `FFmpeg archive SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
+| `release-build.ps1`: `The MSVC component Microsoft.VisualStudio.Component.VC.Tools.ARM64 … is not installed` | chybí ARM64 build tools (viz „ARM64 build tools“) |
+| `release-upload.ps1`: `GitHub CLI (gh) is not installed` / `is not logged in` | viz „Vydání (GitHub CLI)“ |

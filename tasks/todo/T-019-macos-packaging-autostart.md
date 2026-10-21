@@ -43,6 +43,7 @@ Rozhodnutí uživatele (2026-10-21):
 ## Akceptační kritéria
 - [ ] Postup sestavení `.app`, `.dmg` a `.tar.gz` lokálně na macOS zdokumentovaný v `docs/release.md` (z T-055)
 - [ ] Skript T-055 na Macu vytvoří `.dmg`, `.tar.gz` a `SHA256SUMS-macos.txt` a přidá je do existujícího GitHub vydání pro tag (ověřeno)
+- [ ] `tar -tzf` na `.tar.gz` z Macu neobsahuje položky AppleDouble `._*` (skript T-055 balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, na Windows to nejde ověřit) ani `.dSYM` / `.pdb` (ladicí symboly se nevydávají, rozhodnutí 2026-10-21)
 - [ ] `codesign --verify --deep --strict` na `.app` projde (ad-hoc podpis)
 - [ ] Aplikace běží bez ikony v Docku, ikona je jen v menu baru
 - [ ] Okno Nastavení (T-015) otevřené z menu se zobrazí v popředí a dostane fokus
