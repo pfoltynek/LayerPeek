@@ -5,14 +5,19 @@
 
 .DESCRIPTION
     The separate, explicit last step of a release (docs/release.md). Runs the same git checks as
-    scripts/release-upload.ps1 (clean tree, HEAD tagged vX.Y.Z matching Directory.Build.props, tag on origin, HEAD
-    contained in origin/main) and refuses unless:
+    scripts/release-upload.ps1 (clean tree, HEAD tagged vX.Y.Z matching Directory.Build.props, tag on origin or the -Repo remote, HEAD
+    contained in its main branch) and refuses unless:
       - the release exists and is still a draft,
       - the checksum file of every OS (SHA256SUMS-windows.txt, SHA256SUMS-macos.txt) is uploaded,
       - every file listed in the checksum files is uploaded with the listed SHA256 and no other file is,
       - no file of a runtime that must not be released (win-arm64 until T-057) is uploaded.
     The checksum files are downloaded into a temporary folder that is always deleted. Versions 0.x stay marked as
     pre-releases.
+
+.PARAMETER Repo
+    GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another
+    repository (e.g. a trial repository, docs/release.md) needs its own git remote; the tag and main branch checks then
+    use that remote, so the checks and the release always concern the same repository.
 
 .PARAMETER DryRun
     Runs every check and prints what would be published; changes nothing on GitHub.
@@ -23,9 +28,11 @@
 .EXAMPLE
     pwsh scripts/release-publish.ps1 -DryRun
     pwsh scripts/release-publish.ps1
+    pwsh scripts/release-publish.ps1 -Repo pfoltynek/PrusaTrayDiagnostic-release-trial -AllowIncomplete
 #>
 [CmdletBinding()]
 param(
+    [string] $Repo,
     [switch] $DryRun,
     [switch] $AllowIncomplete
 )
@@ -37,9 +44,9 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
 $downloadDir = $null
 
 try {
-    $preflight = Get-ReleasePreflight -RepoRoot $repoRoot
+    $preflight = Get-ReleasePreflight -RepoRoot $repoRoot -Repository $Repo
     $tag = $preflight.Tag
-    Write-Host "Release $tag of $($preflight.Repository ?? '?'), HEAD $($preflight.GitState.Head)"
+    Write-Host "Release $tag of $($preflight.Repository ?? '?') (git remote $($preflight.Remote ?? '?')), HEAD $($preflight.GitState.Head)"
     if ($preflight.Problems.Count -gt 0) {
         Write-Problems -Problems $preflight.Problems -Action 'Publish'
         exit 1

@@ -10,8 +10,8 @@
 
     Refuses (and lists every reason) when:
       - the working tree is not clean (untracked files included),
-      - HEAD has no tag vX.Y.Z matching <Version> in Directory.Build.props, the tag is not on origin or points to
-        another commit there, or HEAD is not contained in origin/main,
+      - HEAD has no tag vX.Y.Z matching <Version> in Directory.Build.props, the tag is not on origin (or the -Repo remote) or points to
+        another commit there, or HEAD is not contained in its main branch,
       - CHANGELOG.md has no dated, non-empty section for the version,
       - the build output is missing, from another commit or version, from a dirty tree, contains a runtime that must
         not be uploaded (win-arm64 until T-057), or does not match its checksum file,
@@ -19,7 +19,12 @@
       - the release is already published, or a file with the same name but different content is already uploaded
         (replace it only with -Force).
     Files already uploaded with identical content are skipped, so a re-run after a failed upload is safe.
-    Reads origin with git ls-remote only: nothing is fetched or pushed.
+    Reads the remote with git ls-remote only: nothing is fetched or pushed.
+
+.PARAMETER Repo
+    GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another
+    repository (e.g. a trial repository, docs/release.md) needs its own git remote; the tag and main branch checks then
+    use that remote, so the checks and the release always concern the same repository.
 
 .PARAMETER DryRun
     Runs every check and prints what would be created or uploaded; changes nothing on GitHub.
@@ -30,9 +35,11 @@
 .EXAMPLE
     pwsh scripts/release-upload.ps1 -DryRun
     pwsh scripts/release-upload.ps1
+    pwsh scripts/release-upload.ps1 -Repo pfoltynek/PrusaTrayDiagnostic-release-trial -DryRun
 #>
 [CmdletBinding()]
 param(
+    [string] $Repo,
     [switch] $DryRun,
     [switch] $Force
 )
@@ -44,11 +51,11 @@ $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
 $notesFile = $null
 
 try {
-    $preflight = Get-ReleasePreflight -RepoRoot $repoRoot
+    $preflight = Get-ReleasePreflight -RepoRoot $repoRoot -Repository $Repo
     $version = $preflight.Version
     $tag = $preflight.Tag
     $problems = $preflight.Problems
-    Write-Host "Release $tag of $($preflight.Repository ?? '?'), HEAD $($preflight.GitState.Head)"
+    Write-Host "Release $tag of $($preflight.Repository ?? '?') (git remote $($preflight.Remote ?? '?')), HEAD $($preflight.GitState.Head)"
 
     $notes = $null
     try { $notes = Get-ChangelogSection -Path (Join-Path $repoRoot 'CHANGELOG.md') -Version $version }

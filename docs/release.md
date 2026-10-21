@@ -7,7 +7,7 @@ Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Win
 | `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, `SHA256SUMS-<os>.txt` | ne |
 | `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS) | ano (kromě `-DryRun`) |
 | `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
-| `scripts/ReleaseTools/Test-ReleaseTools.ps1` | samokontrola logiky skriptů bez sítě (viz níže) | ne |
+| `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže) | ne |
 
 Všechny skripty jsou pro PowerShell 7 a běží na Windows i macOS. Prerekvizity (MSVC / Xcode Command Line Tools, `gh` CLI) jsou v [prerequisites.md](prerequisites.md).
 
@@ -101,6 +101,7 @@ artifacts/release/<verze>/
 ```
 
 - Archiv: `PrusaTrayDiagnostic-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, zachová spustitelný bit).
+- **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
 - Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu.
 - Build zastaví jakékoli varování (`-warnaserror` u `dotnet build` i `dotnet publish`, tedy i trim/AOT varování z ILC). Testy běží v konfiguraci Release.
 - Na Windows skript ověří, že *Product version* exe odpovídá `<Version>`.
@@ -184,7 +185,7 @@ Poznámky pro navazující kroky:
 
 ## Povolení `win-arm64` (po T-057)
 
-Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/ReleaseTools/ReleaseTools.psm1`. Po dokončení T-057 nastav u `win-arm64` `Default = $true` a `Uploadable = $true` a uprav samokontrolu (`Test-ReleaseTools.ps1`, test „win-arm64 must not be uploaded until T-057“). Do té doby:
+Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/ReleaseTools/ReleaseTools.psm1`. Po dokončení T-057 nastav u `win-arm64` `Default = $true` a `Uploadable = $true` a uprav samokontrolu (`ReleaseTools.Tests.ps1`, test „never uploads win-arm64 until T-057“). Do té doby:
 
 ```powershell
 pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64   # sestaví a zabalí i win-arm64, jen pro lokální ověření
@@ -192,10 +193,62 @@ pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64   # sestaví a zabal�
 
 `release-upload.ps1` takový výstup odmítne celý (součty by obsahovaly i `win-arm64`), před nahráním je potřeba sestavit znovu bez `win-arm64`. Publish `win-arm64` potřebuje komponentu MSVC ARM64 (viz [prerequisites.md](prerequisites.md)). Smoke test `win-arm64` na x64 stroji neproběhne.
 
-## Samokontrola skriptů
+## Testy skriptů (Pester)
+
+Rozhodovací logika skriptů má testy v Pesteru 5+ (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`, instalace v [prerequisites.md](prerequisites.md)):
 
 ```powershell
-pwsh scripts/ReleaseTools/Test-ReleaseTools.ps1
+Invoke-Pester scripts/ReleaseTools/ReleaseTools.Tests.ps1 -Output Detailed
 ```
 
-Ověří bez sítě a bez GitHubu rozhodovací logiku: čtení verze, tag, sekci `CHANGELOG.md`, výběr RID (včetně odmítnutí `osx-arm64` na Windows), všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na `origin`, commit mimo `main`, nedostupný `origin`), kontrolu značky sestavení, kontrolní součty, archivy, plán nahrání a kontroly před zveřejněním. Dočasnou složku po sobě smaže i po chybě. Volání `dotnet`, `gh` a samotné skripty `release-*.ps1` netestuje, ty se ověřují ručně (`-DryRun`).
+Spouští je i `dotnet test`: projekt `tests/PrusaTrayDiagnostic.Scripts.Tests` (test `ReleaseScriptPesterTestsPass`) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
+
+Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání a kontroly před zveřejněním. Volání `dotnet` a `gh` a samotné skripty `release-*.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+
+## Zkušební vydání (testovací repozitář)
+
+Celý postup s GitHubem (koncept, nahrání, opakování, zveřejnění) se ověřuje v **dočasném samostatném repozitáři**, ne v hlavním (rozhodnuto 2026-10-21). Upload a publish mají parametr `-Repo <owner/název>`: skript si najde git remote, který na tento repozitář ukazuje, a **stejný remote** použije pro kontrolu tagu a větve `main`. Kontroly i vydání se tak vždy týkají jednoho repozitáře; bez `-Repo` je to `origin`. Když žádný remote na repozitář neukazuje (nebo ukazuje víc), skript to odmítne s příkazem `git remote add`.
+
+Postup (`<owner>` = tvůj účet, název např. `PrusaTrayDiagnostic-release-trial`):
+
+1. Testovací repozitář (soukromý) a samostatný klon, aby se lokální tagy hlavního repozitáře nemíchaly se zkušebními:
+
+   ```powershell
+   gh repo create <owner>/PrusaTrayDiagnostic-release-trial --private
+   git clone https://github.com/pfoltynek/PrusaTrayDiagnostic.git $env:TEMP\ptd-trial
+   cd $env:TEMP\ptd-trial
+   git switch feature/T-055-release-scripts     # nebo commit, který se má vyzkoušet
+   git remote add trial https://github.com/<owner>/PrusaTrayDiagnostic-release-trial.git
+   ```
+
+2. Commit pro zkoušku: v `CHANGELOG.md` dej sekci verze datum (`## [0.1.0] - 2026-10-21`), commitni, pošli ho jako `main` testovacího repozitáře a otaguj:
+
+   ```powershell
+   git commit -am "Trial release notes"
+   git push trial HEAD:refs/heads/main
+   git tag -a v0.1.0 -m "Trial release 0.1.0"
+   git push trial v0.1.0
+   ```
+
+3. Sestavení a koncept:
+
+   ```powershell
+   pwsh scripts/release-build.ps1
+   pwsh scripts/release-upload.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -DryRun
+   pwsh scripts/release-upload.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial
+   ```
+
+   Kontrola: na GitHubu je koncept `v0.1.0` označený jako předběžný, s poznámkami z `CHANGELOG.md`, se zipem a `SHA256SUMS-windows.txt`.
+
+4. Opakování: druhé spuštění `release-upload.ps1` musí soubory přeskočit („skip, identical file already uploaded“). Po novém `release-build.ps1` musí nahrání odmítnout jiný obsah a s `-Force` ho přepsat. Přidání souborů druhého OS se ověří během na Macu (T-019) stejným postupem.
+
+5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -DryRun` bez `-AllowIncomplete` musí odmítnout chybějící `SHA256SUMS-macos.txt`. Pak `pwsh scripts/release-publish.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -AllowIncomplete` a kontrola na GitHubu (zveřejněné, stále předběžné).
+
+6. Úklid:
+
+   ```powershell
+   gh repo delete <owner>/PrusaTrayDiagnostic-release-trial --yes   # potřebuje oprávnění: gh auth refresh -s delete_repo
+   cd ..; Remove-Item -Recurse -Force $env:TEMP\ptd-trial
+   ```
+
+Hlavní repozitář se při zkoušce nemění (žádný tag, žádné vydání, `origin` se jen čte při klonování).

@@ -5,8 +5,8 @@
     build marker, archives, checksums and the GitHub upload plan.
 
 .DESCRIPTION
-    Pure functions (no git, gh or dotnet calls) take plain values and return values or problem lists, so that
-    scripts/ReleaseTools/Test-ReleaseTools.ps1 can check them without a test framework. Functions that query git or gh
+    Pure functions (no git, gh or dotnet calls) take plain values and return values or problem lists, so that the
+    Pester tests (scripts/ReleaseTools/ReleaseTools.Tests.ps1) can check them. Functions that query git or gh
     only collect facts; the decisions are made by the pure functions.
 #>
 Set-StrictMode -Version Latest
@@ -221,9 +221,13 @@ function Get-ReleaseGitState {
     $remoteTagCommit = $null
     $remoteMain = $null
     $onMain = $null
-    # One read-only query of origin; nothing is fetched, so no local ref changes.
-    $lsRemote = Invoke-Git $RepoRoot @('ls-remote', $Remote, "refs/heads/$MainBranch", "refs/tags/$Tag", "refs/tags/$Tag^{}")
-    if ($lsRemote.ExitCode -ne 0) {
+    # One read-only query of the remote; nothing is fetched, so no local ref changes. Without a remote (it could not be
+    # resolved; the caller reports why) only the local facts are collected.
+    $lsRemote = if ($Remote) { Invoke-Git $RepoRoot @('ls-remote', $Remote, "refs/heads/$MainBranch", "refs/tags/$Tag", "refs/tags/$Tag^{}") } else { $null }
+    if (-not $Remote) {
+        $remoteErrors.Add('The tag and the main branch were not checked: there is no remote to check them on.')
+    }
+    elseif ($lsRemote.ExitCode -ne 0) {
         $remoteErrors.Add("git ls-remote $Remote failed: $($lsRemote.Error)")
     }
     else {
@@ -383,19 +387,58 @@ function Get-TarCommand {
     'tar'
 }
 
+function Test-ArchiveExcluded {
+    <#
+    .SYNOPSIS
+        True for debug symbols, which are never released (decided 2026-10-21): *.pdb files and everything inside a
+        *.dSYM bundle. RelativePath uses / or \ as separator.
+    #>
+    param([Parameter(Mandatory)] [string] $RelativePath)
+    $segments = @($RelativePath -split '[\\/]' | Where-Object { $_ })
+    [bool](($segments | Where-Object { $_ -like '*.dSYM' }) -or ($segments.Count -gt 0 -and $segments[-1] -like '*.pdb'))
+}
+
+function Get-ArchiveFiles {
+    <# .SYNOPSIS Relative paths ('/'-separated, sorted) of the files of a publish folder that go into the archive. #>
+    param([Parameter(Mandatory)] [string] $SourceDirectory)
+    $root = (Resolve-Path -LiteralPath $SourceDirectory).ProviderPath
+    @(Get-ChildItem -LiteralPath $root -Recurse -Force -File |
+        ForEach-Object { [System.IO.Path]::GetRelativePath($root, $_.FullName) -replace '\\', '/' } |
+        Where-Object { -not (Test-ArchiveExcluded $_) } |
+        Sort-Object -CaseSensitive)
+}
+
 function New-ReleaseArchive {
-    <# .SYNOPSIS Archives the content of a publish folder (without the folder itself): .zip or .tar.gz by file name. #>
+    <#
+    .SYNOPSIS
+        Archives the content of a publish folder (without the folder itself) except debug symbols
+        (Test-ArchiveExcluded): .zip or .tar.gz by file name.
+    #>
     param([Parameter(Mandatory)] [string] $SourceDirectory, [Parameter(Mandatory)] [string] $Destination)
     if (Test-Path -LiteralPath $Destination) { throw "Archive already exists: $Destination" }
-    if (-not (Get-ChildItem -LiteralPath $SourceDirectory -Force | Select-Object -First 1)) { throw "Nothing to archive in $SourceDirectory" }
+    $root = (Resolve-Path -LiteralPath $SourceDirectory).ProviderPath
+    $files = @(Get-ArchiveFiles $root)
+    if ($files.Count -eq 0) { throw "Nothing to archive in $SourceDirectory" }
     if ($Destination.EndsWith('.zip', [StringComparison]::OrdinalIgnoreCase)) {
         Add-Type -AssemblyName System.IO.Compression.FileSystem
-        [System.IO.Compression.ZipFile]::CreateFromDirectory($SourceDirectory, $Destination, [System.IO.Compression.CompressionLevel]::Optimal, $false)
+        $zip = [System.IO.Compression.ZipFile]::Open($Destination, [System.IO.Compression.ZipArchiveMode]::Create)
+        try {
+            foreach ($file in $files) {
+                $null = [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zip, (Join-Path $root $file), $file, [System.IO.Compression.CompressionLevel]::Optimal)
+            }
+        }
+        finally { $zip.Dispose() }
     }
     elseif ($Destination.EndsWith('.tar.gz', [StringComparison]::OrdinalIgnoreCase)) {
-        # tar keeps the Unix permissions (the executable bit of the macOS binary).
-        & (Get-TarCommand) -czf $Destination -C $SourceDirectory .
-        if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." }
+        # tar keeps the Unix permissions (the executable bit of the macOS binary). The file list goes through a
+        # temporary file (-T), so that exactly the files of Get-ArchiveFiles are archived.
+        $list = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-tar-list-$([guid]::NewGuid().ToString('N')).txt"
+        try {
+            [System.IO.File]::WriteAllText($list, (($files | ForEach-Object { "./$_" }) -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
+            & (Get-TarCommand) -czf $Destination -C $root -T $list
+            if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." }
+        }
+        finally { Remove-Item -LiteralPath $list -Force -ErrorAction SilentlyContinue }
     }
     else {
         throw "Unsupported archive type: $Destination"
@@ -559,34 +602,70 @@ function Get-PublishProblems {
     $problems.ToArray()
 }
 
+function Get-GitRemotes {
+    <# .SYNOPSIS Ordered dictionary remote name -> fetch URL of a repository. #>
+    param([Parameter(Mandatory)] [string] $RepoRoot)
+    $names = Invoke-Git $RepoRoot @('remote')
+    if ($names.ExitCode -ne 0) { throw "git remote failed: $($names.Error)" }
+    $remotes = [ordered]@{}
+    foreach ($name in @($names.Output | Where-Object { $_ })) {
+        $url = Invoke-Git $RepoRoot @('remote', 'get-url', $name)
+        if ($url.ExitCode -eq 0) { $remotes[$name] = $url.Output | Select-Object -First 1 }
+    }
+    $remotes
+}
+
+function Resolve-ReleaseRemote {
+    <#
+    .SYNOPSIS
+        Pure choice of the git remote whose tag and main branch are checked, and of the GitHub repository the release
+        goes to. Without -Repository: remote 'origin' and its repository. With -Repository owner/name (e.g. a trial
+        repository): the single remote pointing to that GitHub repository, so that the git checks and the release always
+        concern the same repository. Returns Remote, Repository and Problem ($null = OK).
+    #>
+    param([Parameter(Mandatory)] [System.Collections.IDictionary] $Remotes, [string] $Repository)
+    function Result($remote, $repo, $problem) { [pscustomobject]@{ Remote = $remote; Repository = $repo; Problem = $problem } }
+    if (-not $Repository) {
+        if (-not $Remotes.Contains('origin')) { return Result $null $null 'Remote origin is not configured.' }
+        $repo = Get-GitHubRepository $Remotes['origin']
+        if (-not $repo) { return Result $null $null 'Remote origin is not a GitHub repository.' }
+        return Result 'origin' $repo $null
+    }
+    if ($Repository -notmatch '^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$') { return Result $null $null "-Repo '$Repository' is not in the form owner/name." }
+    $matching = @($Remotes.Keys | Where-Object { (Get-GitHubRepository $Remotes[$_]) -eq $Repository })
+    if ($matching.Count -eq 0) {
+        return Result $null $Repository "No git remote points to github.com/$Repository. Add one, e.g.: git remote add trial https://github.com/$Repository.git"
+    }
+    if ($matching.Count -gt 1) {
+        return Result $null $Repository "Several git remotes point to github.com/$($Repository): $($matching -join ', '). Keep one."
+    }
+    Result $matching[0] (Get-GitHubRepository $Remotes[$matching[0]]) $null
+}
+
 function Get-ReleasePreflight {
     <#
     .SYNOPSIS
         Checks shared by release-upload.ps1 and release-publish.ps1: version source, git state of HEAD (clean, tagged,
-        tag on origin, contained in origin/main), GitHub CLI and the GitHub repository of origin. Reads only.
-        Returns Version, Tag, Repository, GitState and Problems (empty = OK).
+        tag on the remote, contained in its main branch), GitHub CLI and the GitHub repository. The remote is origin,
+        or with -Repository the remote of that repository (Resolve-ReleaseRemote). Reads only.
+        Returns Version, Tag, Repository, Remote, GitState and Problems (empty = OK).
     #>
-    param([Parameter(Mandatory)] [string] $RepoRoot)
+    param([Parameter(Mandatory)] [string] $RepoRoot, [string] $Repository)
     $problems = [System.Collections.Generic.List[string]]::new()
     $version = Get-SourceVersion (Join-Path $RepoRoot 'Directory.Build.props')
     $tag = ConvertTo-ReleaseTag $version
 
-    $state = Get-ReleaseGitState -RepoRoot $RepoRoot -Tag $tag
+    $target = Resolve-ReleaseRemote -Remotes (Get-GitRemotes $RepoRoot) -Repository $Repository
+    if ($target.Problem) { $problems.Add($target.Problem) }
+    $state = Get-ReleaseGitState -RepoRoot $RepoRoot -Tag $tag -Remote $target.Remote
     foreach ($problem in @(Get-ReleaseGitProblems -State $state -Version $version)) { $problems.Add($problem) }
-
-    $repository = $null
-    $remoteUrl = Invoke-Git $RepoRoot @('remote', 'get-url', 'origin')
-    if ($remoteUrl.ExitCode -ne 0) { $problems.Add("Remote origin is not configured: $($remoteUrl.Error)") }
-    else {
-        $repository = Get-GitHubRepository ($remoteUrl.Output | Select-Object -First 1)
-        if (-not $repository) { $problems.Add('Remote origin is not a GitHub repository.') }
-    }
     foreach ($problem in @(Get-GhProblems)) { $problems.Add($problem) }
 
     [pscustomobject]@{
         Version    = $version
         Tag        = $tag
-        Repository = $repository
+        Repository = $target.Repository
+        Remote     = $target.Remote
         GitState   = $state
         Problems   = $problems
     }

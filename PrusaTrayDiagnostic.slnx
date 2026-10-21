@@ -14,6 +14,7 @@
     <Project Path="tests/PrusaTrayDiagnostic.E2E.Tests/PrusaTrayDiagnostic.E2E.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.PrusaConnect.Tests/PrusaTrayDiagnostic.PrusaConnect.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.PrusaLink.Tests/PrusaTrayDiagnostic.PrusaLink.Tests.csproj" />
+    <Project Path="tests/PrusaTrayDiagnostic.Scripts.Tests/PrusaTrayDiagnostic.Scripts.Tests.csproj" />
     <Project Path="tests/PrusaSimulator.Tests/PrusaSimulator.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

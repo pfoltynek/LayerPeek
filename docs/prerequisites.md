@@ -72,7 +72,7 @@ Nová instalace Build Tools rovnou s ARM64:
 winget install --id Microsoft.VisualStudio.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended --passive --wait"
 ```
 
-Doplnění do existující instalace (Build Tools nebo Visual Studio):
+Doplnění do existující instalace (Build Tools nebo Visual Studio). **Spusť v PowerShellu jako správce**: s `--passive` instalátor bez zvýšených oprávnění hned skončí s kódem 5007 („Commands with --quiet or --passive should be run elevated“).
 
 ```powershell
 $vs = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
@@ -125,6 +125,16 @@ gh auth status       # ověření
 ```
 
 Pro `.tar.gz` na macOS stačí systémový `tar`. Na Windows skripty používají systémový `C:\Windows\System32\tar.exe`, ne `tar` z Git for Windows.
+
+## Pester (testy skriptů)
+
+Testy skriptů pro vydání (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`) potřebují **PowerShell 7** a **Pester 5 nebo novější** (licence Apache-2.0). Windows PowerShell má předinstalovaný Pester 3.4, ten nestačí. Instalace pro aktuálního uživatele (bez práv správce):
+
+```powershell
+pwsh -NoProfile -Command "Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0 -Force -SkipPublisherCheck"
+```
+
+`-SkipPublisherCheck` je potřeba jen na Windows, kde starý Pester 3.4 má jiný podpis. Ověření: `pwsh -NoProfile -Command "Get-Module -ListAvailable Pester"` musí ukázat verzi 5 nebo vyšší. Bez `pwsh` nebo Pesteru 5+ se test `ReleaseScriptPesterTestsPass` v `dotnet test` přeskočí, neselže.
 
 ## AOT smoke test
 

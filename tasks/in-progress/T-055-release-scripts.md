@@ -66,10 +66,11 @@ Rozhodnutí uživatele (2026-10-21):
 - ~~Poznámky k vydání~~ → ručně psaný `CHANGELOG.md` v kořeni repozitáře (podle pozdější změny `CLAUDE.md` anglicky). Skript z něj vezme sekci pro danou verzi a bez ní vydání odmítne (rozhodnuto 2026-10-21).
 - ~~Verze~~ → `<Version>0.1.0</Version>` v kořenovém `Directory.Build.props` jako jediný zdroj (rozhodnuto 2026-10-21).
 - ~~`win-arm64`~~ → ve výchozím stavu vypnutý a nahrání jeho souborů zablokované, dokud není hotový T-057 (rozhodnuto 2026-10-21).
-- **Symboly v archivu:** publish složka obsahuje `.pdb` (≈230 MB), zip má ≈120 MB. Vynechat je z archivu (případně nahrát zvlášť), nebo nechat?
-- **Automatická samokontrola skriptů:** přidat Pester, nebo xUnit test, který spustí `pwsh scripts/ReleaseTools/Test-ReleaseTools.ps1`? Zatím se spouští ručně.
-- **Zkušební vydání:** s pravidlem „jen z `main`“ jde jen přes skutečný tag na `main` (koncept `v0.1.0`, pak smazat i s tagem), nebo přes dočasný testovací repozitář. Kterou cestu?
-- **`-AllowIncomplete`:** ponechat možnost zveřejnit vydání bez souborů některého OS (např. jen Windows, dokud není T-019)?
+- ~~Symboly v archivu~~ → ladicí symboly (`*.pdb`, `*.dSYM`) se z archivů úplně vynechají a nikam se nenahrávají, platí i pro macOS (rozhodnuto 2026-10-21).
+- ~~Automatická samokontrola skriptů~~ → obojí: testy v Pesteru 5+ a xUnit v3 test, který je spustí přes `pwsh` a bez `pwsh` / Pesteru 5+ se přeskočí (rozhodnuto 2026-10-21). Pester má licenci Apache-2.0 (kompatibilní s GPL-3.0-only), je to vývojový nástroj mimo build a neinstaluje se přes NuGet.
+- ~~Zkušební vydání~~ → v dočasném samostatném testovacím repozitáři; upload a publish dostaly parametr `-Repo <owner/název>` (výchozí repozitář `origin`). Zkoušku provede hlavní agent s uživatelem, postup je v `docs/release.md` (rozhodnuto 2026-10-21).
+- ~~`-AllowIncomplete`~~ → ponechat jako výslovný přepínač, výchozí stav vyžaduje soubory Windows i macOS (rozhodnuto 2026-10-21).
+- ~~MSVC ARM64 na tomto stroji~~ → uživatel instalaci schválil (2026-10-21). Instalátor ale potřebuje zvýšená oprávnění (viz poznámky), komponentu musí doinstalovat uživatel jako správce.
 
 ## Poznámky k implementaci
 Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (build i testy zelené), zbývá ověření s GitHubem (zkušební vydání), `win-arm64` (chybí MSVC ARM64) a Mac (T-019). Viz „Neověřeno“.
@@ -79,29 +80,29 @@ Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (bui
 - `scripts/release-upload.ps1` – kontroly + vytvoření konceptu (`--draft --verify-tag`, `--prerelease` pro 0.x, poznámky z `CHANGELOG.md`) nebo nahrání do existujícího konceptu. Idempotentní: stejný soubor (podle `digest` z GitHubu) přeskočí, jiný obsah jen s `-Force` (`--clobber`). Do zveřejněného vydání nenahrává. `-DryRun`.
 - `scripts/release-publish.ps1` – samostatný krok zveřejnění konceptu (rozhodnutí 2026-10-21). Kontroluje úplnost (součty obou OS, SHA256 každého souboru proti `digest`, žádný soubor navíc ani `win-arm64`). `-AllowIncomplete`, `-DryRun`.
 - `scripts/ReleaseTools/ReleaseTools.psm1` – sdílená logika; rozhodování jsou čisté funkce (verze, tag, changelog, RID, problémy gitu, značka buildu, plán nahrání, kontrola před zveřejněním). Konfigurace RID na jednom místě (`$script:ReleaseRuntimes`). Složka se nejmenuje `scripts/release/`, protože `.gitignore` ignoruje `[Rr]elease/`.
-- `scripts/ReleaseTools/Test-ReleaseTools.ps1` – samokontrola bez testovacího frameworku (56 testů), bez sítě a bez `gh`; git kontroly v dočasném repozitáři s lokálním bare „origin“ a izolovanou konfigurací gitu. Dočasnou složku smaže i po chybě.
+- `scripts/ReleaseTools/ReleaseTools.Tests.ps1` – testy v Pesteru 5+ (87 testů; nahradily původní samokontrolu bez frameworku), bez sítě a bez `gh`; git kontroly v dočasných repozitářích s lokálním bare „origin“ a „trial“ a izolovanou konfigurací gitu. Dočasnou složku smaže v `AfterAll`; v `dotnet test` dostanou složku vyhrazenou pro worktree, kterou xUnit smaže i po pádu.
+- `tests/PrusaTrayDiagnostic.Scripts.Tests` (nový projekt, ve `.slnx`) – xUnit v3 test `ReleaseScriptPesterTestsPass` spustí `pwsh -NoProfile -NonInteractive -Command` s `Invoke-Pester` a selže při jakékoli chybě Pesteru (nebo nule prošlých testů). Bez `pwsh` nebo Pesteru 5+ `Assert.Skip` s důvodem a návodem. Časový limit 5 min, pak se zabije celý strom procesu. Dočasné soubory přes `ReservedTempDirectory` (T-032, úklid i po pádu). Samostatný projekt proto, že skripty nepatří k žádné knihovně v `src/` a E2E projekt by test zbytečně svázal s Playwrightem.
+- Archivy bez ladicích symbolů: `Test-ArchiveExcluded` / `Get-ArchiveFiles` vynechají `*.pdb` a obsah `*.dSYM`; zip se skládá po souborech, `tar` dostane seznam souborů (`-T`). Zip `win-x64` ze skutečné publish složky: 10 souborů bez `.pdb`, ≈70 MB místo ≈120 MB.
+- `-Repo <owner/název>` u `release-upload.ps1` a `release-publish.ps1`: `Resolve-ReleaseRemote` najde jediný git remote ukazující na ten repozitář a stejný remote použije pro kontrolu tagu a `main` (bez `-Repo` `origin`). Žádný nebo víc remote → odmítnutí s návodem. Postup zkušebního vydání v `docs/release.md`.
 - `scripts/aot-smoke.ps1` – nový parametr `-PublishDir` (ověří hotovou složku, nemaže ji, logy aplikace do samostatné dočasné složky); příklad `osx-x64` nahrazen `osx-arm64`.
 - `Directory.Build.props` – `<Version>0.1.0</Version>`. Test `AboutViewModelTests.VersionComesFromDirectoryBuildProps` hlídá, že verze v okně O aplikaci pochází odtud.
 - `CHANGELOG.md` – po sloučení s `develop` platí anglická verze z `develop` (Keep a Changelog, sekce `## [0.1.0] - unreleased`). Skript vyžaduje platné datum `YYYY-MM-DD`, takže `unreleased` vydání zablokuje, dokud se nedoplní datum. Samokontrola ověřuje i skutečný `CHANGELOG.md`.
-- `docs/release.md` (nový, včetně návazností T-017 / T-058 / T-059 / T-060), `docs/prerequisites.md` (`gh`, MSVC ARM64 + vswhere, `-PublishDir`), `README.md` + `README.cz.md` (sekce o vydání).
+- `docs/release.md` (nový, včetně návazností T-017 / T-058 / T-059 / T-060), `docs/prerequisites.md` (`gh`, MSVC ARM64 + vswhere a nutnost práv správce, Pester, `-PublishDir`), `README.md` + `README.cz.md` (sekce o vydání).
 
 **Ověřeno (Windows 11 x64, 2026-10-21)**
 - `pwsh scripts/release-build.ps1`: build 0 varování, `dotnet test -c Release` 4239 testů (4238 prošlo, 1 přeskočený), AOT publish `win-x64` bez varování (jen 2 známé hlášky ILC z Avalonia DComposition, nejsou to varování), Product version exe `0.1.0+cbbc1a0…`, smoke test prošel, `PrusaTrayDiagnostic-0.1.0-win-x64.zip` (≈120 MB) a `SHA256SUMS-windows.txt`. SHA256 ze souboru součtů = `Get-FileHash` zipu. Zip obsahuje obsah publish složky bez nadřazené složky a bez logů smoke testu.
 - První pokus smoke testu selhal, protože během běhu jiná instance aplikace (jiný worktree / spike T-056) přepsala sdílený zástupce ve Start menu; opakovaný běh prošel.
 - Odmítnutí: `-Runtime osx-arm64` → „cannot be built on windows: Native AOT does not compile across operating systems“; `osx-x64` → „Unknown runtime“; `-Runtime win-x64,win-arm64` → před buildem „MSVC component …ARM64 … is not installed“ (předchozí výstup zůstal).
 - `release-upload.ps1 -DryRun` a `release-publish.ps1 -DryRun` na této větvi: odmítnuto se všemi důvody najednou (špinavý strom, chybí tag `v0.1.0`, tag není na `origin`, commit není v `origin/main`, CHANGELOG bez data, build ze špinavého stromu), exit 1; lokální refy beze změny (`git show-ref` před/po), na GitHubu nic.
-- Samokontrola `Test-ReleaseTools.ps1`: 56/56, mimo jiné tag jiné verze, tag jen lokálně, tag přesunutý na `origin`, tagovaný commit mimo `main`, nestažený `origin/main`, nedostupný `origin`, build jiného commitu / se `win-arm64` / se souborem navíc, plán nahrání (nový / stejný / jiný / `-Force`), kontroly před zveřejněním.
+- Původní samokontrola (před převodem na Pester): 56/56, mimo jiné tag jiné verze, tag jen lokálně, tag přesunutý na `origin`, tagovaný commit mimo `main`, nestažený `origin/main`, nedostupný `origin`, build jiného commitu / se `win-arm64` / se souborem navíc, plán nahrání (nový / stejný / jiný / `-Force`), kontroly před zveřejněním.
 
 - Po sloučení s `develop` (oprava zaseknutí `PrusaSimulator.Tests` 88da6dc): `dotnet build` (Debug) 0 varování, 0 chyb; celý `dotnet test` (Debug) 4309 testů, 4308 prošlo, 1 přeskočený (1 min 4 s). Samokontrola 57/57. Před sloučením se `PrusaSimulator.Tests` v Debug po 101 testech zasekával (chyba v `develop`, ne v tomto úkolu).
 
-**Neověřeno**
-- Skutečné vytvoření konceptu, nahrání druhým během a zveřejnění na GitHubu (zkušební vydání) – zadání zakazovalo zápis na GitHub. Tím ani `--prerelease` na GitHubu a výpis plánu v `-DryRun` v platném stavu (vyžaduje tagovaný commit na `main`). `gh release view/upload/download` nad konceptem podle tagu je chování `gh` (hledá i koncepty), lokálně neověřeno.
-- `win-arm64` sestavení a balení: na stroji chybí komponenta `Microsoft.VisualStudio.Component.VC.Tools.ARM64`.
-- macOS běh (`.tar.gz`, `SHA256SUMS-macos.txt`, `xcrun` kontrola) – v rámci T-019 na Macu. Vytvoření `.tar.gz` přes systémový `tar` ověřuje samokontrola (na Windows `System32\tar.exe`).
-- Samokontrola není součástí `dotnet test` (Pester se nepřidával, viz otázky).
+- Po rozhodnutích uživatele (symboly, `-Repo`, Pester + xUnit): Pester 87/87 (`Invoke-Pester`, nic nezůstalo v %TEMP%); xUnit `ReleaseScriptPesterTestsPass` prošel; ruční kontrola, že selhaný Pester test vrátí exit 1. `dotnet build` (Debug) 0 varování, 0 chyb; celý `dotnet test` (Debug) 4310 testů, 4309 prošlo, 1 přeskočený.
+- Pester 6.2.0 nainstalovaný pro aktuálního uživatele (`Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0`).
 
-**Další otevřené body pro uživatele** (bez rozhodnutí se neimplementovaly)
-- Archiv obsahuje celou publish složku včetně `.pdb` (≈230 MB nezabalených, zip ≈120 MB). Vynechat symboly z archivu (příp. nahrát zvlášť)?
-- Má se samokontrola skriptů spouštět automaticky (Pester, nebo xUnit test, který spustí `pwsh`)? Zatím jen ručně.
-- Zkušební vydání podle kritéria: s pravidlem „jen z `main`“ jde jen přes skutečný tag na `main` (např. `v0.1.0` jako koncept a pak ho smazat i s tagem), nebo dočasně jiný testovací repozitář. Jakou cestu zvolit?
-- `-AllowIncomplete` u zveřejnění (vydání jen s Windows soubory, dokud není Mac) – ponechat?
+**Neověřeno**
+- Zkušební vydání v testovacím repozitáři (koncept, `--prerelease`, nahrání, opakování, `-Force`, zveřejnění, `gh` nad konceptem podle tagu) – provede hlavní agent s uživatelem podle `docs/release.md`.
+- `win-arm64` sestavení a balení: instalace `Microsoft.VisualStudio.Component.VC.Tools.ARM64` přes `setup.exe modify … --passive --norestart` skončila kódem 5007 (potřebuje zvýšená oprávnění, proces neběžel jako správce). Uživatel ji musí spustit v PowerShellu jako správce (příkaz v `docs/prerequisites.md`), pak ověřit `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64`. Balíček `win-arm64` zatím nebude obsahovat DLL FFmpeg (T-057).
+- macOS běh (`.tar.gz`, `SHA256SUMS-macos.txt`, `xcrun`, vynechání `.dSYM` na skutečném buildu) – v rámci T-019 na Macu. Archiv `.tar.gz` a vynechání `.dSYM` ověřují Pester testy (na Windows přes `System32\tar.exe`).
+- `release-build.ps1` po změně archivace znovu celý nespuštěn (archiv bez symbolů ověřen nad publish složkou z předchozího buildu).
