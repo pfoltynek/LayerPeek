@@ -93,6 +93,12 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
     /// <summary>The token, for tests only.</summary>
     internal string TokenForTests => _token.Value;
 
+    /// <summary>
+    /// Proxied requests still being handled. The browser gets the response before the handler's <c>finally</c> runs, so
+    /// tests wait for 0 before moving a fake clock (otherwise the idle check sees a running request).
+    /// </summary>
+    internal int ActiveRequestsForTests => Volatile.Read(ref _activeRequests);
+
     /// <summary>Whether this proxy was started for the same printer settings (otherwise it must be replaced).</summary>
     public bool Serves(PrinterDefinition printer) =>
         string.Equals(printer.Id, _printer.Id, StringComparison.OrdinalIgnoreCase)
