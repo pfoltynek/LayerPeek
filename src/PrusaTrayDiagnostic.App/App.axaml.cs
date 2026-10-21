@@ -41,20 +41,26 @@ public partial class App : Application, ITrayAppCommands
     private AuxiliaryWindowFactory? _windows;
     private InstanceActivation? _activation;
 
+    // Data folder and isolation of this run (T-044: the test mode of Debug builds).
+    private readonly AppEnvironment _environment;
+
     // The OS ended the session (desktop Exit) before the host finished starting.
     private bool _exited;
 
     /// <summary>Designer and tests: commands of later starts are not received.</summary>
     public App()
-        : this(new InstanceCommandQueue())
+        : this(new InstanceCommandQueue(), AppEnvironment.Production)
     {
     }
 
     /// <param name="instanceCommands">Filled by the single-instance server of <c>Program.Main</c> (T-043).</param>
-    internal App(InstanceCommandQueue instanceCommands)
+    /// <param name="environment">Data folder and isolation of this run (T-044).</param>
+    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(instanceCommands);
+        ArgumentNullException.ThrowIfNull(environment);
         _instanceCommands = instanceCommands;
+        _environment = environment;
     }
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -88,10 +94,42 @@ public partial class App : Application, ITrayAppCommands
     /// <summary>UI thread: a later start of the app (or a reopen on macOS) asked for it (T-043).</summary>
     private void OnInstanceCommand(InstanceCommand command)
     {
-        if (command == InstanceCommand.Activate && _quit is not { IsQuitting: true })
+        if (_quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        if (command == InstanceCommand.Activate)
         {
             _activation?.Activate();
+            return;
         }
+
+#if DEBUG
+        // Test commands of the end-to-end tests (T-044), only in the isolated test mode.
+        if (_environment.IsIsolated)
+        {
+            ITrayAppCommands commands = this;
+            switch (command.Kind)
+            {
+                case InstanceCommandKind.Settings:
+                    commands.ShowSettings();
+                    break;
+                case InstanceCommandKind.Diagnostics:
+                    commands.ShowDiagnostics(command.Argument);
+                    break;
+                case InstanceCommandKind.About:
+                    commands.ShowAbout();
+                    break;
+                case InstanceCommandKind.Camera when command.Argument is { } printerId:
+                    commands.ToggleCamera(printerId);
+                    break;
+                case InstanceCommandKind.Quit:
+                    commands.Quit();
+                    break;
+            }
+        }
+#endif
     }
 
     private static IWindowShell CreateWindowShell(TrayHost host) =>
@@ -104,7 +142,7 @@ public partial class App : Application, ITrayAppCommands
     /// </summary>
     private async void StartHost(IClassicDesktopStyleApplicationLifetime desktop, TrayIcon? trayIcon)
     {
-        TrayHost host = await TrayHost.StartAsync(trayIcon, this).ConfigureAwait(true);
+        TrayHost host = await TrayHost.StartAsync(trayIcon, this, _environment).ConfigureAwait(true);
         if (_exited)
         {
             // The OS ended the session while the settings were loading.

@@ -88,12 +88,14 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// </summary>
     /// <param name="trayIcon">Tray icon to drive; <see langword="null"/> when the platform has none (monitoring still runs).</param>
     /// <param name="commands">Diagnostics / About / Quit handlers of the tray menu.</param>
-    public static async Task<TrayHost> StartAsync(TrayIcon? trayIcon, ITrayAppCommands commands)
+    /// <param name="environment">Data folder and isolation of this run (T-044).</param>
+    public static async Task<TrayHost> StartAsync(TrayIcon? trayIcon, ITrayAppCommands commands, AppEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(environment);
         // Owned here, not by the container: it must outlive the container dispose during quit (see ReleaseLogging).
-        ILoggerFactory loggerFactory = LoggerFactory.Create(static _ => { });
-        ServiceProvider services = AppServices.Create(loggerFactory);
+        ILoggerFactory loggerFactory = environment.CreateLoggerFactory();
+        ServiceProvider services = AppServices.Create(loggerFactory, environment: environment);
         // Concrete type here; the field is ITrayIconSet so that T-018 can select the macOS set by OS.
         ColorTrayIconSet? iconSet = null;
         TrayIconPresenter<WindowIcon>? iconPresenter = null;

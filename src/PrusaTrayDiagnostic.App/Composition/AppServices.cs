@@ -40,21 +40,25 @@ internal static class AppServices
     /// </param>
     /// <param name="cameraFeedFactory">Video decoder for tests; <see langword="null"/>: the app's (see <see cref="CreateCameraFeedFactory"/>).</param>
     /// <param name="cameraWindowStateStore">
-    /// Where camera windows are remembered, for tests; <see langword="null"/>: <c>camera-windows.json</c> in the user data folder.
+    /// Where camera windows are remembered, for tests; <see langword="null"/>: <c>camera-windows.json</c> in the data folder.
     /// </param>
+    /// <param name="environment">Data folder and isolation (T-044); <see langword="null"/>: <see cref="AppEnvironment.Production"/>.</param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
-        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null) =>
-        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore);
+        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
+        AppEnvironment? environment = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
     internal static ServiceProvider Create(
         ILoggerFactory? loggerFactory,
         bool windows,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
-        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null)
+        Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
+        AppEnvironment? environment = null)
     {
+        AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
 
         // No logging provider yet: messages are discarded until a diagnostics/log task adds one.
@@ -65,9 +69,11 @@ internal static class AppServices
         }
 
         services.AddSingleton(TimeProvider.System);
-        services.AddSingleton<ISecretStore>(static _ => CreateSecretStore());
+        // Every file of the app lies in the data folder of the environment (T-044: the test folder in test mode).
+        services.AddSingleton(env);
+        services.AddSingleton<ISecretStore>(_ => CreateSecretStore(env));
         // Created on first use (by the monitoring session on a background thread), so building the provider touches no files.
-        services.AddSingleton<ISettingsStore>(static _ => JsonSettingsStore.CreateDefault());
+        services.AddSingleton<ISettingsStore>(_ => new JsonSettingsStore(env.DataDirectory()));
 
         services.AddPrusaLink();
         services.AddSingleton<IPrinterClientFactory>(static sp => new PrinterClientFactory(sp.GetRequiredService<PrusaLinkClientFactory>()));
@@ -86,7 +92,7 @@ internal static class AppServices
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
         // the images in use, in memory for the tray menu and the diagnostics window.
-        services.AddSingleton<IPrinterImageStore>(static _ => FilePrinterImageStore.CreateDefault());
+        services.AddSingleton<IPrinterImageStore>(_ => new FilePrinterImageStore(env.DataDirectory()));
         services.AddSingleton(static _ => new CustomPrinterImages());
         // Opens PrusaLink logged in through the local web proxy registered by AddPrusaLink (T-028); the proxy starts on the
         // first click, and disposing the container (quit) stops it.
@@ -101,7 +107,8 @@ internal static class AppServices
             sp.GetRequiredService<TrayMenuOptions>(),
             sp.GetRequiredService<CustomPrinterImages>()));
         services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
-        services.AddSingleton(sp => CreateNotificationService(sp, windows));
+        // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written.
+        services.AddSingleton(sp => env.IsIsolated ? NullNotificationService.Instance : CreateNotificationService(sp, windows));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -219,7 +226,9 @@ internal static class AppServices
     {
         try
         {
-            return JsonCameraWindowStateStore.CreateDefault(services.GetRequiredService<ILogger<JsonCameraWindowStateStore>>());
+            return new JsonCameraWindowStateStore(
+                services.GetRequiredService<AppEnvironment>().DataDirectory(),
+                services.GetRequiredService<ILogger<JsonCameraWindowStateStore>>());
         }
         catch (InvalidOperationException)
         {
@@ -303,9 +312,19 @@ internal static class AppServices
             timeProvider: services.GetRequiredService<TimeProvider>());
     }
 
-    private static ISecretStore CreateSecretStore() =>
-        OperatingSystem.IsWindows()
+    private static ISecretStore CreateSecretStore(AppEnvironment environment)
+    {
+#if DEBUG
+        if (environment.IsIsolated)
+        {
+            // Test mode (T-044): never the user's Credential Manager.
+            return new TestModeSecretStore(environment.DataDirectory());
+        }
+#endif
+
+        return OperatingSystem.IsWindows()
             ? new WindowsCredentialSecretStore()
             // macOS Keychain store follows in T-021; until then passwords are unavailable but the app runs.
             : new UnsupportedSecretStore();
+    }
 }

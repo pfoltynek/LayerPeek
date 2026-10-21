@@ -4,7 +4,6 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.Core.Cameras;
-using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Cameras;
 
@@ -80,11 +79,6 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
     }
 
     public string FilePath { get; }
-
-    /// <summary>In the per-user application data folder (see <see cref="AppDataPaths"/>).</summary>
-    /// <exception cref="InvalidOperationException">The OS does not provide a per-user data folder.</exception>
-    public static JsonCameraWindowStateStore CreateDefault(ILogger<JsonCameraWindowStateStore> logger) =>
-        new(AppDataPaths.GetDefaultDirectory(), logger);
 
     public Task LoadAsync(CancellationToken cancellationToken)
     {

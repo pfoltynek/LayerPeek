@@ -52,6 +52,14 @@ internal sealed record PasswordPolicy(bool IsSupported, int MaxBytes)
             return new PasswordPolicy(IsSupported: true, WindowsCredentialSecretStore.MaxSecretBytes);
         }
 
+#if DEBUG
+        if (store is TestModeSecretStore)
+        {
+            // The end-to-end tests (T-044) see the settings window like on Windows.
+            return new PasswordPolicy(IsSupported: true, TestModeSecretStore.MaxSecretBytes);
+        }
+#endif
+
         throw new NotSupportedException($"No password policy is known for {store.GetType().Name}.");
     }
 

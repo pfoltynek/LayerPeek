@@ -38,7 +38,7 @@ public sealed class InstanceCommandServerTests : IAsyncDisposable
     public async Task ValidCommandIsAcknowledgedAfterItWasHandedOver()
     {
         FakeClient valid = Client("activate\n");
-        FakeClient unknown = Client("quit\n");
+        FakeClient unknown = Client("exit\n");
         _listener.AddClient(unknown);
         _listener.AddClient(valid);
 
@@ -52,7 +52,7 @@ public sealed class InstanceCommandServerTests : IAsyncDisposable
     [Theory]
     [InlineData("")]
     [InlineData("ACTIVATE\n")]
-    [InlineData("quit\n")]
+    [InlineData("exit\n")]
     public async Task UnknownCommandIsIgnoredAndTheServerGoesOn(string message)
     {
         _listener.AddClient(Client(message));

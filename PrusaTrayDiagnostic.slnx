@@ -8,6 +8,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/PrusaTrayDiagnostic.App.Tests/PrusaTrayDiagnostic.App.Tests.csproj" />
+    <Project Path="tests/PrusaTrayDiagnostic.App.E2E.Tests/PrusaTrayDiagnostic.App.E2E.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.App.UiTests/PrusaTrayDiagnostic.App.UiTests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.Camera.FFmpeg.Tests/PrusaTrayDiagnostic.Camera.FFmpeg.Tests.csproj" />
     <Project Path="tests/PrusaTrayDiagnostic.Core.Tests/PrusaTrayDiagnostic.Core.Tests.csproj" />

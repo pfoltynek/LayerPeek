@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Security.Principal;
 using System.Text;
 
-using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.App.Composition;
 
 namespace PrusaTrayDiagnostic.App.SingleInstance;
 
@@ -50,11 +50,12 @@ internal static class InstanceTransports
     /// <see cref="ForCurrentPlatform"/>, or <see langword="null"/> when the user's SID or data folder is unavailable (the
     /// app then runs unguarded rather than not at all).
     /// </summary>
-    public static IInstanceTransport? TryCreateForCurrentPlatform(string suffix)
+    /// <param name="environment">Where the macOS lock file lives (the test data folder in test mode); <see langword="null"/>: the user data folder.</param>
+    public static IInstanceTransport? TryCreateForCurrentPlatform(string suffix, AppEnvironment? environment = null)
     {
         try
         {
-            return ForCurrentPlatform(suffix);
+            return ForCurrentPlatform(suffix, environment);
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.Security.SecurityException or UnauthorizedAccessException)
         {
@@ -63,7 +64,8 @@ internal static class InstanceTransports
     }
 
     /// <summary>The transport of the current OS for the current user and session.</summary>
-    public static IInstanceTransport ForCurrentPlatform(string suffix)
+    /// <param name="environment">Where the macOS lock file lives; <see langword="null"/>: the user data folder.</param>
+    public static IInstanceTransport ForCurrentPlatform(string suffix, AppEnvironment? environment = null)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -74,7 +76,7 @@ internal static class InstanceTransports
             return new NamedPipeInstanceTransport(mutexName, pipeName);
         }
 
-        (string lockPath, string socketPath) = UnixPaths(AppDataPaths.GetDefaultDirectory(), Path.GetTempPath(), suffix);
+        (string lockPath, string socketPath) = UnixPaths((environment ?? AppEnvironment.Production).DataDirectory(), Path.GetTempPath(), suffix);
         return new UnixSocketInstanceTransport(lockPath, socketPath);
     }
 

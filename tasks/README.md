@@ -86,6 +86,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 |---|---|---|---|---|---|
 | T-010 | Systémové notifikace – Windows | windows | ui-dev | P1 | T-009 |
 | T-017 | Balení a distribuce, autostart – Windows | windows | ui-dev | P2 | T-008 |
+| T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
 
 ### macOS (`macos`) – jen na Macu, později
 

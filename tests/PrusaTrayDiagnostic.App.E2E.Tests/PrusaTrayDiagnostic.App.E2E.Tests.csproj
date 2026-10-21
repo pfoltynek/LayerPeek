@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Windows only (T-044): UI Automation, Win32 window styles and the taskbar property store of the real exe. -->
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <!-- PROPVARIANT and window style interop. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <!--
+      End-to-end tests of the real PrusaTrayDiagnostic.exe (Debug build, isolated test mode) through UI Automation.
+      They run only on demand (tools/run-e2e.ps1 sets PTD_E2E=1); a normal `dotnet test` skips every test. The app is
+      not referenced: the tests start the exe built in src/PrusaTrayDiagnostic.App/bin/Debug.
+    -->
+    <PackageReference Include="FlaUI.Core" />
+    <PackageReference Include="FlaUI.UIA3" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Simulated PrusaLink printer and Buddy3D RTSP camera (T-045), shared with the developer tool. -->
+    <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>
