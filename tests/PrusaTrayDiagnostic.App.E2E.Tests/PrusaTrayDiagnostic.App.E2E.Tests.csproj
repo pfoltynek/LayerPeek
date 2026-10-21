@@ -7,6 +7,16 @@
     <!-- PROPVARIANT and window style interop. -->
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <PropertyGroup Condition="!$([MSBuild]::IsOSPlatform('Windows'))">
+    <!--
+      macOS (and Linux): the solution still restores and builds (Windows targeting packs, no NETSDK1100), but the project
+      is not a test application there, so `dotnet test` of the solution skips it. Not yet verified on a Mac (first macOS
+      task, see T-044).
+    -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <IsTestProject>false</IsTestProject>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+  </PropertyGroup>
   <ItemGroup>
     <!--
       End-to-end tests of the real PrusaTrayDiagnostic.exe (Debug build, isolated test mode) through UI Automation.

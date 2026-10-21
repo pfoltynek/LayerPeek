@@ -712,7 +712,7 @@
     <value>Fenêtre de la caméra</value>
   </data>
   <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
-    <value>La caméra est désactivée : ces réglages s'appliqueront à son activation.</value>
+    <value>La caméra est désactivée : ces réglages s'appliqueront à son activation.</value>
   </data>
   <data name="SettingsCameraWindowRemember" xml:space="preserve">
     <value>Mémoriser la dernière position et la dernière taille</value>

@@ -56,7 +56,7 @@ internal sealed class AppInstance : IAsyncDisposable
     public UIA3Automation Automation => _automation;
 
     /// <summary>Starts the app with <paramref name="settingsJson"/> and optional seeded secrets (key, secret).</summary>
-    /// <param name="name">Label of the run: its log is kept as <c>log-    public static async Task<AppInstance> StartAsync(E2EFixture fixture, string settingsJson, IReadOnlyDictionary<string, string>? secrets = null)lt;name    public static async Task<AppInstance> StartAsync(E2EFixture fixture, string settingsJson, IReadOnlyDictionary<string, string>? secrets = null)gt;.txt</c> in the results folder.</param>
+    /// <param name="name">Label of the run: its log is kept as <c>log-&lt;name&gt;.txt</c> in the results folder.</param>
     public static async Task<AppInstance> StartAsync(E2EFixture fixture, string name, string settingsJson, IReadOnlyDictionary<string, string>? secrets = null)
     {
         string run = Path.Combine(E2EFixture.Root, "run-" + Guid.NewGuid().ToString("N")[..12]);

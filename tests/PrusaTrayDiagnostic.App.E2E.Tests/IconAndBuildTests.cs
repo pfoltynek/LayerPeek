@@ -7,7 +7,7 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests;
 
 /// <summary>
 /// The app icon on the exe and on the windows (T-025), and the absence of every test switch from Release builds (T-043,
-/// T-044): the Release assembly and, when it was published, the Native AOT exe.
+/// T-044): the Release assembly and, when it was published in this run (newer than the Release build), the Native AOT exe.
 /// </summary>
 public sealed class IconAndBuildTests(E2EFixture fixture)
 {
@@ -68,7 +68,10 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         string release = Path.Combine(AppProject, "bin", "Release", "net11.0", "PrusaTrayDiagnostic.dll");
         string published = Path.Combine(AppProject, "bin", "Release", "net11.0", "win-x64", "publish", "PrusaTrayDiagnostic.exe");
         Assert.True(File.Exists(release), $"No Release build at '{release}' (tools/run-e2e.ps1 builds it).");
-        foreach (string binary in new[] { release, published }.Where(File.Exists))
+        // A published exe counts only when it is not older than the Release build (published by this run, -PublishAot); an
+        // older one was built from other sources and proves nothing about these.
+        bool freshPublish = File.Exists(published) && File.GetLastWriteTimeUtc(published) >= File.GetLastWriteTimeUtc(release);
+        foreach (string binary in freshPublish ? [release, published] : new[] { release })
         {
             Assert.All(Switches, name => Assert.False(E2EFixture.BinaryContains(binary, name), $"'{binary}' contains the test switch '{name}'."));
         }

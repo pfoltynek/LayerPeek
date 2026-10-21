@@ -60,16 +60,28 @@ public sealed class TrayMenuTests(E2EFixture fixture)
     private static async Task<AutomationElement> OpenMenuAsync(AppInstance app, string? screenshot = null)
     {
         List<nint> before = app.Windows();
-        (AutomationElement icon, bool openedOverflow) = await NotificationArea.FindTestIconAsync(app.Automation.GetDesktop());
-        icon.RightClick();
+        (IReadOnlyList<AutomationElement> icons, bool openedOverflow) = await NotificationArea.FindTestIconsAsync(app.Automation.GetDesktop());
         AutomationElement? menu = null;
         try
         {
-            await Wait.UntilAsync(
-                () => (menu = app.Windows().Where(hwnd => !before.Contains(hwnd)).Select(app.Element)
-                    .FirstOrDefault(window => window.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem)) is not null)) is not null,
-                TimeSpan.FromSeconds(10),
-                "the tray menu");
+            // Several matches: icons of killed test instances can linger; only the live one opens a menu of this app.
+            for (int i = 0; i < icons.Count; i++)
+            {
+                icons[i].RightClick();
+                try
+                {
+                    await Wait.UntilAsync(
+                        () => (menu = app.Windows().Where(hwnd => !before.Contains(hwnd)).Select(app.Element)
+                            .FirstOrDefault(window => window.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem)) is not null)) is not null,
+                        TimeSpan.FromSeconds(icons.Count == 1 ? 10 : 3),
+                        "the tray menu");
+                    break;
+                }
+                catch (TimeoutException) when (i < icons.Count - 1)
+                {
+                    // A ghost icon: try the next one.
+                }
+            }
         }
         finally
         {
