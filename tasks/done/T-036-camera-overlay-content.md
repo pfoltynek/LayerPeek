@@ -1,7 +1,7 @@
 ---
 id: T-036
 title: Nastavení obsahu překryvu v okně kamery
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P2
 platform: all
@@ -109,3 +109,5 @@ Stav 2026-10-20 (ui-dev): implementace hotová, kritéria splněná v headless t
 - Windows (Segoe UI, 100/125/150 %): podzáložka Překryv bez posuvníku, záhlaví podzáložek v jedné řadě (hlavně italština), čitelnost nápovědy.
 - Okno kamery se skutečným obrazem: čitelnost překryvu ve všech rozích, vpravo nahoře pod tlačítky, malý náhled s dlouhým názvem souboru; po uložení nastavení se otevřené okno změní a nepohne se.
 - macOS (T-018) neověřeno.
+
+**Uzavřeno 2026-10-21:** všechna akceptační kritéria jsou splněná. Úkol se uzavírá na rozhodnutí uživatele. Ruční kontroly uvedené výše zůstávají jako doporučení a ověří se při ruční kontrole navazujících úkolů.

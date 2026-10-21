@@ -1,7 +1,7 @@
 ---
 id: T-045
 title: Simulátor tiskárny (PrusaLink) a kamery (RTSP) pro vývoj a testy
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -35,7 +35,7 @@ Aplikaci jde vyzkoušet bez skutečné tiskárny a kamery. Samostatný nástroj 
 - [x] Testy simulátoru (klient PrusaLink a FFmpeg feed proti simulátoru, smyčka, scénáře); testy po sobě nic nenechají
 - [x] Dokumentace spuštění
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish aplikace win-x64 bez varování (simulátor se nepublikuje s aplikací)
-- [ ] Ověřeno E2E testy (T-044) nebo ručně v GUI proti simulátoru
+- [x] Ověřeno E2E testy (T-044) nebo ručně v GUI proti simulátoru
 
 ## Otevřené otázky
 - (žádné)
@@ -59,3 +59,5 @@ Aplikaci jde vyzkoušet bez skutečné tiskárny a kamery. Samostatný nástroj 
   - README: řádek s nástrojem.
 - **Testy**: nový projekt `tests/PrusaSimulator.Tests` (113 testů) a `SimulatedCameraTests` v testech FFmpeg (3). Používají porty od systému (`0`), falešné hodiny a v pracovním stromu nic nenechávají.
 - **Ověření**: `dotnet build` 0 varování. `dotnet test` dvakrát po sobě 4219 testů, 0 chyb (1 přeskočený je původní test v PrusaLink.Tests). `dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64` (AOT) 0 varování.
+
+**Uzavřeno 2026-10-21:** poslední kritérium splnily E2E testy z T-044 (sloučené do `develop`). Běží proti simulátoru (`SimulatedPrinter`, `RtspCamera`) a pokrývají připojení, Diagnostiku, okno kamery s živým obrazem i offline tiskárny.
