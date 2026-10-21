@@ -16,7 +16,7 @@ There is no main window — UI lives in the system tray (Windows) / menu bar (ma
 | `.claude/agents/*.md`, this file, prompts between agents | English |
 | Code identifiers, code comments, commit messages | English |
 | `tasks/**`, `docs/**`, `README.md` | **Czech** |
-| UI strings | to be decided (see open questions in tasks) — do not localize until decided |
+| UI strings | localized via `Strings.*.resx` (T-029); every new string goes into all languages |
 
 ## Decision rule
 
