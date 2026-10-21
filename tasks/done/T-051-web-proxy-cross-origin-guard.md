@@ -1,7 +1,7 @@
 ---
 id: T-051
 title: Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1)
-status: in-progress
+status: done
 owner: core-dev
 priority: P3
 platform: all
@@ -28,7 +28,7 @@ Zabránit tomu, aby cizí webová stránka v prohlížeči uživatele ovládala 
 ## Akceptační kritéria
 - [x] Zápisové požadavky s cizím `Sec-Fetch-Site` nebo `Origin` končí `403` a na tiskárnu nedorazí; `GET`/`HEAD` a požadavky bez těchto hlaviček beze změny (jednotkové testy)
 - [x] E2E testy T-030 (Playwright + Edge) procházejí; doplněný E2E test zápisové akce z webu PrusaLink přes proxy (např. nahrání souboru na falešnou tiskárnu) a test cizí stránky na jiném portu `127.0.0.1`, jejíž `fetch`/formulář `POST` proxy odmítne
-- [ ] Ruční ověření uživatelem se skutečnou tiskárnou: web PrusaLink přes proxy umí nahrát soubor a ovládat tisk
+- [x] Ruční ověření uživatelem se skutečnou tiskárnou: web PrusaLink přes proxy umí nahrát soubor a ovládat tisk
 - [x] `docs/api/prusalink.md` doplněno
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
@@ -54,3 +54,4 @@ Zabránit tomu, aby cizí webová stránka v prohlížeči uživatele ovládala 
 - Ověřeno v Edge: klasický HTML formulář `POST` ze stránky proxy pošle kvůli `Referrer-Policy: no-referrer` hlavičku `Origin: null` se `Sec-Fetch-Site: same-origin`. Podle rozhodnutí z 2026-10-21 (viz níže) projde; E2E test `ClassicFormPostOfTheProxiedPageReachesThePrinter`.
 - AOT publish win-x64 proběhl bez varování. Žádný nový NuGet balíček.
 - Zbývá ruční ověření se skutečnou tiskárnou (třetí kritérium, nezaškrtnuto): nahrání souboru a ovládání tisku přes web PrusaLink v proxy.
+- **Ruční ověření 2026-10-21 (uživatel, Windows 11, Debug z `develop`, skutečná tiskárna):** web PrusaLink otevřený z tray menu přes proxy se načetl bez dotazu na heslo. Nahrání souboru, spuštění, pozastavení, obnovení a zastavení tisku i smazání souboru proběhly bez chyby (žádné `403`). Úkol se uzavírá.
