@@ -211,7 +211,7 @@ try {
         Assert-Throws { Get-ChangelogSection (Join-Path $tempRoot 'missing.md') '0.1.0' } 'Changelog not found'
     }
     Test 'refuses a section without a valid date' {
-        foreach ($heading in '## [0.1.0]', '## [0.1.0] - RRRR-MM-DD', '## [0.1.0] - 2026-13-01') {
+        foreach ($heading in '## [0.1.0]', '## [0.1.0] - unreleased', '## [0.1.0] - Unreleased', '## [0.1.0] - RRRR-MM-DD', '## [0.1.0] - 2026-13-01') {
             $path = New-TempFile "c4/$([guid]::NewGuid().ToString('N')).md" "$heading`n`n- Text.`n"
             Assert-Throws { Get-ChangelogSection $path '0.1.0' } 'has no release date'
         }
@@ -223,6 +223,19 @@ try {
     Test 'refuses a duplicated section' {
         $path = New-TempFile 'c6/CHANGELOG.md' "## [0.1.0] - 2026-10-21`n- a`n## [0.1.0] - 2026-10-22`n- b`n"
         Assert-Throws { Get-ChangelogSection $path '0.1.0' } '2 sections'
+    }
+    Test 'the real CHANGELOG.md: a placeholder date is refused, a dated section yields the notes without link definitions' {
+        $real = Join-Path $PSScriptRoot '..' '..' 'CHANGELOG.md'
+        $version = Get-SourceVersion (Join-Path $PSScriptRoot '..' '..' 'Directory.Build.props')
+        $content = [System.IO.File]::ReadAllText($real)
+        $heading = "## [$version] - "
+        Assert-True ($content.Contains($heading)) "CHANGELOG.md has no section for $version"
+        if ($content -match "(?m)^## \[$([regex]::Escape($version))\] - unreleased\s*$") {
+            Assert-Throws { Get-ChangelogSection $real $version } 'has no release date.*unreleased'
+        }
+        $dated = $content -replace "(?m)^## \[$([regex]::Escape($version))\] - .*$", "## [$version] - 2026-10-21"
+        $notes = Get-ChangelogSection (New-TempFile 'c8/CHANGELOG.md' $dated) $version
+        Assert-True ($notes.Length -gt 0 -and $notes -notmatch '(?m)^\[(Unreleased|\d+\.\d+\.\d+)\]:') 'notes must not contain link reference definitions'
     }
     Test 'the version dots are not regex wildcards' {
         $path = New-TempFile 'c7/CHANGELOG.md' "## [0x1x0] - 2026-10-21`n- a`n"

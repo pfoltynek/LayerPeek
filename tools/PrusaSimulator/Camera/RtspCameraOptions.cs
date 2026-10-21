@@ -8,8 +8,50 @@ public sealed record RtspCameraOptions
     /// <summary>Frame rate of the Buddy3D recording.</summary>
     public const double DefaultFramesPerSecond = 25;
 
+    /// <summary>The default <see cref="RtpMap"/>: H.264 with the RTP video clock.</summary>
+    public const string H264RtpMap = "H264/90000";
+
     /// <summary>The clip to play: raw H.264, Annex B (see <see cref="H264Clip"/>).</summary>
     public required H264Clip Clip { get; init; }
+
+    /// <summary>
+    /// Encoding announced in the session description (<c>a=rtpmap:96 …</c>, encoding name and clock rate). H.264 like the
+    /// Buddy3D by default; tests announce another codec (e.g. <c>H265/90000</c>) to check that a client rejects it. The
+    /// payload stays the H.264 clip either way.
+    /// </summary>
+    public string RtpMap
+    {
+        get;
+        init
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            if (value.AsSpan().ContainsAny('\r', '\n'))
+            {
+                throw new ArgumentException("The encoding must be a single SDP value.", nameof(value));
+            }
+
+            field = value;
+        }
+    } = H264RtpMap;
+
+    /// <summary>
+    /// Media type of the announced track (<c>m=… 0 RTP/AVP 96</c>). <c>video</c> by default; tests announce e.g.
+    /// <c>audio</c> to check that a client rejects a stream without video. The payload stays the H.264 clip either way.
+    /// </summary>
+    public string Media
+    {
+        get;
+        init
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            if (value.AsSpan().ContainsAnyExceptInRange('a', 'z'))
+            {
+                throw new ArgumentException("The media type must be a single lowercase SDP token.", nameof(value));
+            }
+
+            field = value;
+        }
+    } = "video";
 
     /// <summary>Address to listen on; loopback by default (use <see cref="IPAddress.Any"/> for the local network).</summary>
     public IPAddress Address { get; init; } = IPAddress.Loopback;

@@ -151,7 +151,7 @@ function Get-ChangelogSection {
     $date = if ($Matches.ContainsKey('date')) { $Matches.date } else { '' }
     $parsed = [datetime]::MinValue
     if (-not ($date -match '^\d{4}-\d{2}-\d{2}$' -and [datetime]::TryParseExact($date, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed))) {
-        throw "Section [$Version] in $Path has no release date: expected '## [$Version] - YYYY-MM-DD', found '$($lines[$starts[0]])'."
+        throw "Section [$Version] in $Path has no release date: expected '## [$Version] - YYYY-MM-DD', found '$($lines[$starts[0]])'. Replace a placeholder such as 'unreleased' with the release date."
     }
 
     $body = [System.Collections.Generic.List[string]]::new()

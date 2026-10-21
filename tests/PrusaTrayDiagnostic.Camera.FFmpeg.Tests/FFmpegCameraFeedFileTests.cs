@@ -269,6 +269,18 @@ public sealed class FFmpegCameraFeedFileTests
     }
 
     [FFmpegFact]
+    public async Task FileInAnotherContainerIsNotOpened()
+    {
+        // A valid WAV file: without the format whitelist FFmpeg would open it and report that it has no video.
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.SilenceWav);
+
+        CameraFeedException error = await Assert.ThrowsAsync<CameraFeedException>(() => TestFixtures.CountFramesAsync(feed, Ct));
+
+        Assert.StartsWith("Opening the video failed", error.Message, StringComparison.Ordinal);
+        Assert.False(feed.HoldsNativeResources);
+    }
+
+    [FFmpegFact]
     public async Task EnumerationDoesNotBlockTheCallersThread()
     {
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);

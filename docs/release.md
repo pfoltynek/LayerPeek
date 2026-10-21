@@ -17,7 +17,7 @@ Všechny skripty jsou pro PowerShell 7 a běží na Windows i macOS. Prerekvizit
 - Verze: jediný zdroj je `<Version>` v kořenovém `Directory.Build.props` (tvar `X.Y.Z`). Odtud ji má exe, okno O aplikaci, názvy souborů i tag `vX.Y.Z`.
 - Vydává se jen z `main`: tagovaný commit musí být obsažený v `origin/main`.
 - První nahrání vytvoří **koncept** (`--draft`). Verze `0.x` jsou na GitHubu označené jako předběžné (`--prerelease`).
-- Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/), česky).
+- Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), anglicky podle `CLAUDE.md`).
 - Bez placeného podpisu: Windows soubory jsou nepodepsané, podpis macOS řeší T-019.
 
 ## Postup
@@ -31,7 +31,7 @@ git switch -c release/X.Y.Z
 ```
 
 - V `Directory.Build.props` nastav `<Version>X.Y.Z</Version>`.
-- V `CHANGELOG.md` přejmenuj `## [Unreleased]` na `## [X.Y.Z] - RRRR-MM-DD` se skutečným datem a nad ni přidej novou prázdnou `## [Unreleased]`. Skript vydání odmítne sekci bez data, prázdnou sekci i chybějící sekci.
+- V `CHANGELOG.md` dej sekci verze skutečné datum vydání: `## [X.Y.Z] - YYYY-MM-DD` (zástupné `- unreleased` nahraď datem; změny z `## [Unreleased]` přesuň do ní a `## [Unreleased]` nech prázdnou nahoře). Skript vydání odmítne sekci bez platného data (i `unreleased`), prázdnou sekci i chybějící sekci.
 - Commit, případné opravy jen stabilizační.
 
 Volitelně ověř balení ještě před tagem: `pwsh scripts/release-build.ps1` jde spustit na libovolném commitu (výstup se ale nahraje jen z tagovaného commitu).
@@ -170,6 +170,17 @@ Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám 
 ```
 
 T-019 přidá krok pro macOS (`.app` + `.dmg`) a případně změní vstup archivu z publish složky na `.app` bundle. Build, publish a smoke test se tím nemění.
+
+Poznámky pro navazující kroky:
+
+- **Názvy souborů musí být v rámci jednoho běhu jedinečné** (všechny kroky zapisují do jednoho `dist/`, skript duplicitu odmítne). Velopack (T-017, `docs/velopack.md`) pojmenovává soubory podle kanálu (`releases.<RID>.json`, `RELEASES-<RID>`), ale `Setup.exe` / `Portable.zip` je potřeba při více RID přejmenovat (např. `PrusaTrayDiagnostic-<verze>-<RID>-Setup.exe`).
+- **Poznámky k vydání** pro krok (např. `vpk --releaseNotes`) vrací `Get-ChangelogSection` z `scripts/ReleaseTools/ReleaseTools.psm1`; krok je zapíše do dočasného souboru a ten po sobě smaže.
+- Podpis a notarizace macOS (T-060) nahradí ad-hoc podpis v balicím kroku T-019.
+
+## Navazující úkoly
+
+- **T-058 (kontrola aktualizací):** vydání `0.x` jsou předběžná (`--prerelease`) a `release-publish.ps1` to při zveřejnění zachová, takže je `GET /releases/latest` nevrátí. Koncepty nejsou bez přihlášení vidět vůbec.
+- **T-059 (winget):** odeslání manifestu (`wingetcreate update …`) navazuje až na zveřejnění (`release-publish.ps1`). Postup sem doplní T-059.
 
 ## Povolení `win-arm64` (po T-057)
 

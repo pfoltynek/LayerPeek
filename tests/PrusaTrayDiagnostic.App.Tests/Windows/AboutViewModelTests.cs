@@ -62,7 +62,7 @@ public sealed class AboutViewModelTests
         Assert.Equal("About Prusa Tray Diagnostic", viewModel.Title);
         Assert.Equal("Version " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
         Assert.Equal("This is not an official Prusa Research product.", viewModel.Disclaimer);
-        Assert.Equal("License: Apache License 2.0", viewModel.LicenseText);
+        Assert.Equal("License: GNU General Public License v3.0 only", viewModel.LicenseText);
         Assert.Equal("Copyright © Petr Foltýnek", viewModel.Copyright);
         Assert.Equal("Source code on GitHub", viewModel.RepositoryText);
     }
@@ -77,7 +77,7 @@ public sealed class AboutViewModelTests
         Assert.Equal("O aplikaci Prusa Tray Diagnostic", viewModel.Title);
         Assert.Equal("Verze " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
         Assert.Equal("Nejde o oficiální produkt společnosti Prusa Research.", viewModel.Disclaimer);
-        Assert.Equal("Licence: Apache License 2.0", viewModel.LicenseText);
+        Assert.Equal("Licence: GNU General Public License v3.0 only", viewModel.LicenseText);
         Assert.Equal("Zdrojový kód na GitHubu", viewModel.RepositoryText);
         Assert.Equal("Zavřít", viewModel.CloseText);
     }
@@ -98,7 +98,7 @@ public sealed class AboutViewModelTests
         Assert.Equal("Über Prusa Tray Diagnostic", viewModel.Title);
         Assert.Equal("Version " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
         Assert.Equal("Dies ist kein offizielles Produkt von Prusa Research.", viewModel.Disclaimer);
-        Assert.Equal("Lizenz: Apache License 2.0", viewModel.LicenseText);
+        Assert.Equal("Lizenz: GNU General Public License v3.0 only", viewModel.LicenseText);
         Assert.Equal("Quellcode auf GitHub", viewModel.RepositoryText);
         Assert.Equal("Schließen", viewModel.CloseText);
         Assert.Equal("Copyright © Petr Foltýnek", viewModel.Copyright);

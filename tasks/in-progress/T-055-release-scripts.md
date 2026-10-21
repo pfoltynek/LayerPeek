@@ -54,7 +54,7 @@ Rozhodnutí uživatele (2026-10-21):
 - [x] Bod rozšíření pro instalátory je popsaný v `docs/release.md` (jak T-017 / T-019 přidají krok).
 - [x] `docs/release.md` a `docs/prerequisites.md` aktuální (česky).
 - [x] Běh na macOS (`osx-arm64`, `.tar.gz`, `SHA256SUMS-macos.txt`, přidání do existujícího vydání) se ověřuje na Macu v rámci T-019; zde stačí, že skript na Windows RID `osx-arm64` srozumitelně odmítne.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 - ~~Zdroj verze~~ → `<Version>` v kořenovém `Directory.Build.props`, skript ověří shodu s tagem `vX.Y.Z`. První verze `0.1.0` (rozhodnuto 2026-10-21).
@@ -63,7 +63,7 @@ Rozhodnutí uživatele (2026-10-21):
 - ~~Z jaké větve vydávat~~ → jen z `main`: skript odmítne tagovaný commit, který není obsažený v `origin/main` (rozhodnuto 2026-10-21).
 - ~~Koncept vs. hned zveřejněné vydání~~ → první běh vytvoří vydání jako koncept (`--draft`), běhy na Windows i na Macu nahrávají do konceptu a zveřejnění je samostatný výslovný krok, aby nikdo neviděl vydání s polovinou souborů. Verze `0.x` jsou `--prerelease` (rozhodnuto 2026-10-21).
 - ~~Mají se verze `0.x` označovat jako předběžné?~~ → ano, `--prerelease` (rozhodnuto 2026-10-21).
-- ~~Poznámky k vydání~~ → ručně psaný `CHANGELOG.md` v kořeni repozitáře (česky). Skript z něj vezme sekci pro danou verzi a bez ní vydání odmítne (rozhodnuto 2026-10-21).
+- ~~Poznámky k vydání~~ → ručně psaný `CHANGELOG.md` v kořeni repozitáře (podle pozdější změny `CLAUDE.md` anglicky). Skript z něj vezme sekci pro danou verzi a bez ní vydání odmítne (rozhodnuto 2026-10-21).
 - ~~Verze~~ → `<Version>0.1.0</Version>` v kořenovém `Directory.Build.props` jako jediný zdroj (rozhodnuto 2026-10-21).
 - ~~`win-arm64`~~ → ve výchozím stavu vypnutý a nahrání jeho souborů zablokované, dokud není hotový T-057 (rozhodnuto 2026-10-21).
 - **Symboly v archivu:** publish složka obsahuje `.pdb` (≈230 MB), zip má ≈120 MB. Vynechat je z archivu (případně nahrát zvlášť), nebo nechat?
@@ -72,7 +72,7 @@ Rozhodnutí uživatele (2026-10-21):
 - **`-AllowIncomplete`:** ponechat možnost zveřejnit vydání bez souborů některého OS (např. jen Windows, dokud není T-019)?
 
 ## Poznámky k implementaci
-Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně, zbývá ověření s GitHubem (zkušební vydání), `win-arm64` (chybí MSVC ARM64) a Mac (T-019). Viz „Neověřeno“.
+Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (build i testy zelené), zbývá ověření s GitHubem (zkušební vydání), `win-arm64` (chybí MSVC ARM64) a Mac (T-019). Viz „Neověřeno“.
 
 **Soubory**
 - `scripts/release-build.ps1` – build (`-warnaserror`) + `dotnet test` (Release), AOT publish pro každý RID, kontrola *Product version* exe (Windows), smoke test nativního RID nad hotovou publish složkou (ověří, že ji nezměnil), balicí kroky, `SHA256SUMS-<os>.txt`, značka `build-info.json`. Výstup `artifacts/release/<verze>/` (gitignored), každý běh ho nejdřív smaže. Chybějící MSVC komponentu ohlásí před buildem.
@@ -82,8 +82,8 @@ Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně, zb�
 - `scripts/ReleaseTools/Test-ReleaseTools.ps1` – samokontrola bez testovacího frameworku (56 testů), bez sítě a bez `gh`; git kontroly v dočasném repozitáři s lokálním bare „origin“ a izolovanou konfigurací gitu. Dočasnou složku smaže i po chybě.
 - `scripts/aot-smoke.ps1` – nový parametr `-PublishDir` (ověří hotovou složku, nemaže ji, logy aplikace do samostatné dočasné složky); příklad `osx-x64` nahrazen `osx-arm64`.
 - `Directory.Build.props` – `<Version>0.1.0</Version>`. Test `AboutViewModelTests.VersionComesFromDirectoryBuildProps` hlídá, že verze v okně O aplikaci pochází odtud.
-- `CHANGELOG.md` (Keep a Changelog 1.1.0, česky) – sekce `[Unreleased]` a kostra `[0.1.0] - RRRR-MM-DD`. Skript vyžaduje platné datum `YYYY-MM-DD`, takže zástupné datum vydání zablokuje, dokud ho uživatel nevyplní a text nezkontroluje.
-- `docs/release.md` (nový), `docs/prerequisites.md` (`gh`, MSVC ARM64 + vswhere, `-PublishDir`), `README.md` (odkaz).
+- `CHANGELOG.md` – po sloučení s `develop` platí anglická verze z `develop` (Keep a Changelog, sekce `## [0.1.0] - unreleased`). Skript vyžaduje platné datum `YYYY-MM-DD`, takže `unreleased` vydání zablokuje, dokud se nedoplní datum. Samokontrola ověřuje i skutečný `CHANGELOG.md`.
+- `docs/release.md` (nový, včetně návazností T-017 / T-058 / T-059 / T-060), `docs/prerequisites.md` (`gh`, MSVC ARM64 + vswhere, `-PublishDir`), `README.md` + `README.cz.md` (sekce o vydání).
 
 **Ověřeno (Windows 11 x64, 2026-10-21)**
 - `pwsh scripts/release-build.ps1`: build 0 varování, `dotnet test -c Release` 4239 testů (4238 prošlo, 1 přeskočený), AOT publish `win-x64` bez varování (jen 2 známé hlášky ILC z Avalonia DComposition, nejsou to varování), Product version exe `0.1.0+cbbc1a0…`, smoke test prošel, `PrusaTrayDiagnostic-0.1.0-win-x64.zip` (≈120 MB) a `SHA256SUMS-windows.txt`. SHA256 ze souboru součtů = `Get-FileHash` zipu. Zip obsahuje obsah publish složky bez nadřazené složky a bez logů smoke testu.
@@ -92,7 +92,7 @@ Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně, zb�
 - `release-upload.ps1 -DryRun` a `release-publish.ps1 -DryRun` na této větvi: odmítnuto se všemi důvody najednou (špinavý strom, chybí tag `v0.1.0`, tag není na `origin`, commit není v `origin/main`, CHANGELOG bez data, build ze špinavého stromu), exit 1; lokální refy beze změny (`git show-ref` před/po), na GitHubu nic.
 - Samokontrola `Test-ReleaseTools.ps1`: 56/56, mimo jiné tag jiné verze, tag jen lokálně, tag přesunutý na `origin`, tagovaný commit mimo `main`, nestažený `origin/main`, nedostupný `origin`, build jiného commitu / se `win-arm64` / se souborem navíc, plán nahrání (nový / stejný / jiný / `-Force`), kontroly před zveřejněním.
 
-- `dotnet build` (Debug): 0 varování, 0 chyb. `dotnet test` (Debug): Core.Tests 1290 a App.Tests 2119 (včetně nového testu verze) prošly, ale **`PrusaSimulator.Tests` se po 101 úspěšných testech zasekne** (32 min v celém běhu; samostatně s `--timeout 10m` znovu 101/101 úspěšných a pak přerušeno, exit 3). V Release běhu `release-build.ps1` prošlo všech 4239 testů včetně simulátoru za ~1 min. Změny tohoto úkolu simulátor nemění (souvislost s `<Version>` nenalezena); příčina nezjištěna, možná souběh s ostatními worktree. Proto kritérium „`dotnet build` a `dotnet test`“ zůstává nezaškrtnuté.
+- Po sloučení s `develop` (oprava zaseknutí `PrusaSimulator.Tests` 88da6dc): `dotnet build` (Debug) 0 varování, 0 chyb; celý `dotnet test` (Debug) 4309 testů, 4308 prošlo, 1 přeskočený (1 min 4 s). Samokontrola 57/57. Před sloučením se `PrusaSimulator.Tests` v Debug po 101 testech zasekával (chyba v `develop`, ne v tomto úkolu).
 
 **Neověřeno**
 - Skutečné vytvoření konceptu, nahrání druhým během a zveřejnění na GitHubu (zkušební vydání) – zadání zakazovalo zápis na GitHub. Tím ani `--prerelease` na GitHubu a výpis plánu v `-DryRun` v platném stavu (vyžaduje tagovaný commit na `main`). `gh release view/upload/download` nad konceptem podle tagu je chování `gh` (hledá i koncepty), lokálně neověřeno.
