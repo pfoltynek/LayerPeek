@@ -96,6 +96,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-010 | Systémové notifikace – Windows | windows | ui-dev | P1 | T-009 |
 | T-056 | Velopack – ověření použitelnosti pro instalátor a aktualizace (spike) | windows | ui-dev | P2 | – |
 | T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) | windows | core-dev | P2 | – |
+| T-063 | win-arm64 – ověření sestavení, balení a instalátoru Velopack (MSVC ARM64, zařízení ARM64) | windows | qa-reviewer | P2 | T-055, T-056 |
 | T-017 | Balení a distribuce, autostart – Windows | windows | ui-dev | P2 | T-008, T-055, T-056 |
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |

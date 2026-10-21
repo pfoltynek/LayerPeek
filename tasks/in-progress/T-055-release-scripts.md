@@ -44,7 +44,7 @@ Rozhodnutí uživatele (2026-10-21):
 
 ## Akceptační kritéria
 - [x] Na Windows skript ve výchozím nastavení vytvoří pro `win-x64` publish složku, `.zip` a `SHA256SUMS-windows.txt`. Součty odpovídají souborům (ověřeno `Get-FileHash`).
-- [ ] `win-arm64` je ve výchozím stavu vypnutý a skript jeho soubory nenahraje. Po výslovném zapnutí ho sestaví a zabalí stejně jako `win-x64` (ověřeno lokálně, bez nahrání).
+- [ ] `win-arm64` je ve výchozím stavu vypnutý a skript jeho soubory nenahraje. *(Pokrývají Pester testy „builds win-x64 … by default (win-arm64 off until T-057)“, „never uploads win-arm64 until T-057“ a „refuses a build containing win-arm64 until T-057“; ke kontrole a odškrtnutí.)* Druhá část kritéria – „po výslovném zapnutí ho sestaví a zabalí stejně jako `win-x64`“ (potřebuje MSVC ARM64) – **přesunuta do T-063** (na žádost uživatele 2026-10-21).
 - [x] AOT publish Windows RID bez trim/AOT varování z kódu projektu. Smoke test nativního RID prošel.
 - [x] `<Version>0.1.0</Version>` je v kořenovém `Directory.Build.props`. Verze ve výstupních souborech, ve vlastnostech exe a v okně O aplikaci je stejná a pochází odtud.
 - [ ] Vydání verze `0.x` je na GitHubu označené jako předběžné.
@@ -73,7 +73,7 @@ Rozhodnutí uživatele (2026-10-21):
 - ~~MSVC ARM64 na tomto stroji~~ → uživatel instalaci schválil (2026-10-21). Instalátor ale potřebuje zvýšená oprávnění (viz poznámky), komponentu musí doinstalovat uživatel jako správce.
 
 ## Poznámky k implementaci
-Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (build i testy zelené), zbývá ověření s GitHubem (zkušební vydání), `win-arm64` (chybí MSVC ARM64) a Mac (T-019). Viz „Neověřeno“.
+Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (build i testy zelené), zbývá ověření s GitHubem (zkušební vydání v testovacím repozitáři). `win-arm64` (MSVC ARM64) je přesunutý do T-063 a běh na Macu do T-019 (rozdělení na žádost uživatele 2026-10-21), na Mac ani ARM64 tento úkol nečeká. Viz „Neověřeno“.
 
 **Soubory**
 - `scripts/release-build.ps1` – build (`-warnaserror`) + `dotnet test` (Release), AOT publish pro každý RID, kontrola *Product version* exe (Windows), smoke test nativního RID nad hotovou publish složkou (ověří, že ji nezměnil), balicí kroky, `SHA256SUMS-<os>.txt`, značka `build-info.json`. Výstup `artifacts/release/<verze>/` (gitignored), každý běh ho nejdřív smaže. Chybějící MSVC komponentu ohlásí před buildem.
@@ -109,5 +109,5 @@ Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (bui
 
 **Neověřeno**
 - Zkušební vydání v testovacím repozitáři (koncept, `--prerelease`, nahrání, opakování, `-Force`, zveřejnění, `gh` nad konceptem podle tagu) – provede hlavní agent s uživatelem podle `docs/release.md`.
-- `win-arm64` sestavení a balení: instalace `Microsoft.VisualStudio.Component.VC.Tools.ARM64` přes `setup.exe modify … --passive --norestart` skončila kódem 5007 (potřebuje zvýšená oprávnění, proces neběžel jako správce). Uživatel ji musí spustit v PowerShellu jako správce (příkaz v `docs/prerequisites.md`), pak ověřit `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64`. Balíček `win-arm64` zatím nebude obsahovat DLL FFmpeg (T-057).
-- macOS běh (`.tar.gz`, `SHA256SUMS-macos.txt`, `xcrun`, vynechání `.dSYM` na skutečném buildu) – v rámci T-019 na Macu. Archiv `.tar.gz` a vynechání `.dSYM` ověřují Pester testy (na Windows přes `System32\tar.exe`).
+- `win-arm64` sestavení a balení → **přesunuto do T-063** (2026-10-21). Kontext: instalace `Microsoft.VisualStudio.Component.VC.Tools.ARM64` přes `setup.exe modify … --passive --norestart` skončila kódem 5007 (potřebuje zvýšená oprávnění, proces neběžel jako správce). Uživatel ji musí spustit v PowerShellu jako správce (příkaz v `docs/prerequisites.md`), pak ověřit `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64`. Balíček `win-arm64` zatím nebude obsahovat DLL FFmpeg (T-057).
+- macOS běh (`.tar.gz`, `SHA256SUMS-macos.txt`, `xcrun`, vynechání `.dSYM` na skutečném buildu, přidání do existujícího konceptu) → **přesunuto do T-019** (rozsah „Běh skriptů z T-055 na Macu“ a kritéria, 2026-10-21). Archiv `.tar.gz` a vynechání `.dSYM` ověřují Pester testy (na Windows přes `System32\tar.exe`).

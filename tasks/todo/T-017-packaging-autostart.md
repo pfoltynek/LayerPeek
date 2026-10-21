@@ -58,6 +58,6 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
   - `.zip` z T-055, `Portable.zip` Velopacku, nebo oba?
   - hledat předběžná vydání i po verzi 1.0?
   - je přijatelný log Velopacku, který zůstane po odinstalaci v `%LocalAppData%\velopack`?
-- SmartScreen u nepodepsaného `Setup.exe` staženého z GitHubu T-056 pokusem neověřil (potřebuje ruční kliknutí). Ověřit při prvním vydání a popsat v `docs/release.md`.
+- SmartScreen u nepodepsaného `Setup.exe` se značkou Mark-of-the-Web ověřil T-056 ručně (2026-10-21): „Systém Windows ochránil váš počítač“ → „Další informace“ → „Neznámý vydavatel“, „Přesto spustit“ (`docs/velopack.md`, bod 9). Neověřené zůstává skutečné stažení z GitHubu prohlížečem (SmartScreen v Edge při stahování). Ověřit při prvním vydání a obojí popsat v `docs/release.md`.
 
 ## Poznámky k implementaci
