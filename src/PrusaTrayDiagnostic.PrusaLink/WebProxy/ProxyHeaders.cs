@@ -21,7 +21,7 @@ internal static class ProxyHeaders
     /// </summary>
     private static readonly HashSet<string> RequestExcluded = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Host", "Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", "Origin", "Referer", "Expect", "Content-Length",
+        "Host", "Authorization", "Proxy-Authorization", "Cookie", "X-Api-Key", Origin, "Referer", "Expect", "Content-Length",
     };
 
     /// <summary>
@@ -31,12 +31,19 @@ internal static class ProxyHeaders
     private static readonly HashSet<string> ResponseExcluded = new(StringComparer.OrdinalIgnoreCase)
     {
         "WWW-Authenticate", "Proxy-Authenticate", "Set-Cookie", "Set-Cookie2", "Content-Length", "Location",
-        ReferrerPolicy, ContentTypeOptions,
+        ReferrerPolicy, ContentTypeOptions, ResourcePolicy,
     };
 
     public const string ReferrerPolicy = "Referrer-Policy";
 
     public const string ContentTypeOptions = "X-Content-Type-Options";
+
+    public const string ResourcePolicy = "Cross-Origin-Resource-Policy";
+
+    /// <summary>Fetch metadata of the browser: where the request comes from relative to the proxy page.</summary>
+    public const string SecFetchSite = "Sec-Fetch-Site";
+
+    public const string Origin = "Origin";
 
     /// <summary>Copies the browser's headers that may reach the printer (content headers onto the content, if any).</summary>
     public static void CopyRequestHeaders(IHeaderDictionary source, HttpRequestMessage target)
