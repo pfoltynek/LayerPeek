@@ -63,6 +63,9 @@ public class WebProxyOriginGuardTests
     [InlineData("POST", "same-origin", null)]
     [InlineData("DELETE", null, OwnOrigin)]
     [InlineData("POST", "none", OwnOrigin)]
+    // Decision 2026-10-21: a form of the proxy page itself (Origin: null under Referrer-Policy: no-referrer).
+    [InlineData("POST", "same-origin", "null")]
+    [InlineData("DELETE", "same-origin", "null")]
     [InlineData("POST", null, null)]
     [InlineData("PUT", null, null)]
     [InlineData("DELETE", null, null)]

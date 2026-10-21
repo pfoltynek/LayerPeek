@@ -32,6 +32,9 @@ Zabránit tomu, aby cizí webová stránka v prohlížeči uživatele ovládala 
 - [x] `docs/api/prusalink.md` doplněno
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
+## Rozhodnuto
+- 2026-10-21 (uživatel, po review): zápisový požadavek se `Sec-Fetch-Site: same-origin` a zároveň `Origin: null` se povolí (úzká varianta). `Origin: null` se `Sec-Fetch-Site: none` nebo bez `Sec-Fetch-Site` se dál odmítá (přísná varianta pro prohlížeče bez Fetch Metadata), stejně jako `same-origin` s cizím `Origin`.
+
 ## Otevřené otázky
 - (žádné)
 
@@ -39,15 +42,15 @@ Zabránit tomu, aby cizí webová stránka v prohlížeči uživatele ovládala 
 - Kontrola původu je v `PrusaLinkWebProxy.ForeignWriteReason` a běží v `HandleAsync` hned po kontrole `Host` a tokenu. Neplatný token proto dál vrací prázdnou `404` a chybný `Host` `421`.
 - Metody `GET`, `HEAD` a `OPTIONS` se nekontrolují. U ostatních vede k odmítnutí:
   - `Sec-Fetch-Site`, která není přesně `same-origin` nebo `none`. Porovnává se přesně, takže i prázdná hodnota, velká písmena nebo seznam hodnot znamenají odmítnutí.
-  - `Origin`, který není přesně `http://127.0.0.1:<port>`. Patří sem i `null`, prázdná hodnota, `https`, `localhost` a lomítko na konci.
+  - `Origin`, který není přesně `http://127.0.0.1:<port>`. Patří sem prázdná hodnota, `https`, `localhost`, lomítko na konci a `null`, pokud `Sec-Fetch-Site` není `same-origin` (viz Rozhodnuto).
   - Opakovaná hlavička.
 - Odmítnutí vrací `403` s JSON chybou ve formátu firmwaru (`ProxyErrors.ForeignPage`) a tělo požadavku se nečte. Do logu jde Warning jen s metodou a názvem hlavičky, bez tokenu, cesty a hodnoty hlavičky. Odmítnutý požadavek se nepočítá jako aktivita, takže neodkládá zastavení proxy po nečinnosti.
 - `Cross-Origin-Resource-Policy: same-origin` je zapnutá u všech odpovědí proxy, stejnojmennou hlavičku tiskárny proxy zahodí. E2E testy T-030 s ní procházejí. V Edge navíc zablokuje i neprůhlednou odpověď na slepý `no-cors` `POST` z cizí stránky (`ERR_BLOCKED_BY_RESPONSE.NotSameOrigin`).
-- Jednotkové testy jsou v `tests/PrusaTrayDiagnostic.PrusaLink.Tests/WebProxy/WebProxyOriginGuardTests.cs` (41 případů). Bez implementace jich 26 selže.
+- Jednotkové testy jsou v `tests/PrusaTrayDiagnostic.PrusaLink.Tests/WebProxy/WebProxyOriginGuardTests.cs` (43 případů). Bez implementace jich 26 selže.
 - E2E testy jsou v `tests/PrusaTrayDiagnostic.E2E.Tests/ProxyOriginGuardTests.cs`:
   - Akce webu přes proxy dorazí na tiskárnu: spuštění a smazání souboru, pauza, pokračování, zastavení úlohy a nahrání souboru. Falešná tiskárna (`FakePrinterSite.Commands`) a falešný web (`window.apiCall`) je umí.
   - Cizí stránka na jiném portu `127.0.0.1` neprojde: `no-cors` `fetch` `POST`, formulář `POST` do iframe (`403`), `DELETE` (zastaví ho preflight) ani načtení obsahu v režimu `no-cors` (CORP). Na tiskárnu nedorazí žádný zápis.
   - Test cizí stránky bez implementace selže.
-- Ověřeno v Edge: klasický HTML formulář `POST` i ze stránky proxy pošle kvůli `Referrer-Policy: no-referrer` hlavičku `Origin: null`, takže by byl odmítnut. Prusa-Link-Web podle vyhledávání v kódu na GitHubu (`<form`, `.submit(`) formuláře neodesílá. Zapsáno do „Známá omezení“ v `docs/api/prusalink.md`.
+- Ověřeno v Edge: klasický HTML formulář `POST` ze stránky proxy pošle kvůli `Referrer-Policy: no-referrer` hlavičku `Origin: null` se `Sec-Fetch-Site: same-origin`. Podle rozhodnutí z 2026-10-21 (viz níže) projde; E2E test `ClassicFormPostOfTheProxiedPageReachesThePrinter`.
 - AOT publish win-x64 proběhl bez varování. Žádný nový NuGet balíček.
 - Zbývá ruční ověření se skutečnou tiskárnou (třetí kritérium, nezaškrtnuto): nahrání souboru a ovládání tisku přes web PrusaLink v proxy.

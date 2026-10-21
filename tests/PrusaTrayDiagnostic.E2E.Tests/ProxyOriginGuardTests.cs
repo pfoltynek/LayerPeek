@@ -44,6 +44,44 @@ public sealed class ProxyOriginGuardTests(EdgeFixture edge)
     }
 
     [Fact(Timeout = Timeout)]
+    public async Task ClassicFormPostOfTheProxiedPageReachesThePrinter()
+    {
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        await using BrowserSession browser = await edge.NewSessionAsync();
+        await using PrinterRig rig = await PrinterRig.StartAsync(cancellationToken);
+        Uri address = await rig.OpenProxyAsync(cancellationToken);
+        IPage page = await browser.OpenAsync(address);
+        string startPrint = new Uri(address, "api/v1/files/usb/form.gcode").ToString();
+
+        // Under Referrer-Policy: no-referrer the browser sends Origin: null with Sec-Fetch-Site: same-origin
+        // (decision 2026-10-21: allowed). The printer answers 204, so the page stays where it is.
+        IResponse form = await page.RunAndWaitForResponseAsync(
+            () => page.EvaluateAsync(
+                """
+                url => {
+                  const form = document.createElement("form");
+                  form.method = "POST";
+                  form.action = url;
+                  document.body.appendChild(form);
+                  form.submit();
+                }
+                """,
+                startPrint),
+            response => response.Url == startPrint && response.Request.Method == "POST");
+
+        Assert.Equal("null", await form.Request.HeaderValueAsync("origin"));
+        Assert.Equal("same-origin", await form.Request.HeaderValueAsync("sec-fetch-site"));
+        Assert.Equal(204, form.Status);
+        Assert.Equal(["POST /api/v1/files/usb/form.gcode"], rig.Printer.Commands);
+        // A navigation answered 204 is cancelled by the browser, which reports it as aborted; nothing else failed.
+        Assert.Equal($"POST {startPrint}: net::ERR_ABORTED", Assert.Single(browser.FailedRequests));
+        Assert.DoesNotContain(browser.Responses, static r => r.Status == 401 || r.WwwAuthenticate is not null);
+        Assert.Empty(browser.Dialogs);
+        Assert.Empty(browser.ScriptErrors);
+        browser.AssertOnlyLoopback();
+    }
+
+    [Fact(Timeout = Timeout)]
     public async Task ForeignPageOnAnotherLoopbackPortCannotWriteThroughTheProxy()
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;

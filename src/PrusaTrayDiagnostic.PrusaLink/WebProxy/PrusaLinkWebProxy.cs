@@ -361,8 +361,10 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
     /// null. A page that learned the token could otherwise send blind <c>POST</c>/<c>PUT</c>/<c>DELETE</c> requests the
     /// proxy would log in. Browsers mark every such request with <c>Sec-Fetch-Site</c> and <c>Origin</c>; another port on
     /// 127.0.0.1 is <c>same-site</c>, not <c>same-origin</c>. A request with neither header is not from a browser page.
-    /// The PrusaLink web uses fetch/XMLHttpRequest, which send its exact origin; an HTML form under
-    /// <c>Referrer-Policy: no-referrer</c> would send <c>Origin: null</c> and be refused.
+    /// The proxy page's own requests carry <c>Sec-Fetch-Site: same-origin</c> and either the real <c>Origin</c> (fetch
+    /// and XMLHttpRequest in the default <c>cors</c> mode) or, because of <c>Referrer-Policy: no-referrer</c>,
+    /// <c>Origin: null</c> (HTML forms, fetch in <c>same-origin</c>/<c>no-cors</c> mode, sendBeacon). <c>Origin: null</c>
+    /// is accepted only together with <c>same-origin</c> (decided 2026-10-21); without Fetch Metadata it is refused.
     /// </summary>
     private string? ForeignWriteReason(HttpRequest request)
     {
@@ -373,14 +375,20 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
         }
 
         IHeaderDictionary headers = request.Headers;
-        if (headers.TryGetValue(ProxyHeaders.SecFetchSite, out StringValues site)
-            && (site.Count != 1 || site[0] is not ("same-origin" or "none")))
+        bool sameOrigin = false;
+        if (headers.TryGetValue(ProxyHeaders.SecFetchSite, out StringValues site))
         {
-            return ProxyHeaders.SecFetchSite;
+            if (site.Count != 1 || site[0] is not ("same-origin" or "none"))
+            {
+                return ProxyHeaders.SecFetchSite;
+            }
+
+            sameOrigin = site[0] == "same-origin";
         }
 
         if (headers.TryGetValue(ProxyHeaders.Origin, out StringValues origin)
-            && (origin.Count != 1 || !string.Equals(origin[0], _expectedOrigin, StringComparison.Ordinal)))
+            && (origin.Count != 1
+                || !(string.Equals(origin[0], _expectedOrigin, StringComparison.Ordinal) || (sameOrigin && origin[0] == "null"))))
         {
             return ProxyHeaders.Origin;
         }
