@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Xml.Linq;
 
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tests.Tray.Menu;
@@ -20,6 +21,19 @@ public sealed class AboutViewModelTests
 
         Assert.DoesNotContain("+", version, StringComparison.Ordinal);
         Assert.NotEmpty(version);
+    }
+
+    [Fact]
+    public void VersionComesFromDirectoryBuildProps()
+    {
+        // <Version> in the root Directory.Build.props is the single version source (T-055): exe, About window, release tag.
+        using CultureScope english = new("en-US");
+        XDocument props = XDocument.Load(Path.Combine(RepositoryRoot(), "Directory.Build.props"));
+        string expected = Assert.Single(props.Descendants("Version")).Value.Trim();
+
+        Assert.Matches(@"^\d+\.\d+\.\d+$", expected);
+        Assert.Equal(expected, AboutViewModel.ProductVersion(AppAssembly));
+        Assert.Equal("Version " + expected, new AboutViewModel(_launcher, AppAssembly).VersionText);
     }
 
     [Fact]
@@ -100,5 +114,18 @@ public sealed class AboutViewModelTests
         viewModel.OpenRepositoryCommand.Execute(null);
 
         Assert.Equal([new Uri("https://github.com/pfoltynek/PrusaTrayDiagnostic")], _launcher.Opened);
+    }
+
+    private static string RepositoryRoot()
+    {
+        for (DirectoryInfo? directory = new(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "PrusaTrayDiagnostic.slnx")))
+            {
+                return directory.FullName;
+            }
+        }
+
+        throw new InvalidOperationException("Repository root not found.");
     }
 }

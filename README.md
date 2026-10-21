@@ -40,6 +40,8 @@ dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64     # na Window
 dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # na macOS
 ```
 
+Vydání (archivy, kontrolní součty, GitHub Releases): [docs/release.md](docs/release.md), změny po verzích: [CHANGELOG.md](CHANGELOG.md).
+
 ## Vývoj s agenty
 
 V Claude Code např.:

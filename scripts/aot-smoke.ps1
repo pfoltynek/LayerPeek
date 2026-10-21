@@ -6,7 +6,8 @@
 .DESCRIPTION
     Catches failures that only show up in the AOT-published binary (e.g. missing compiled XAML),
     which dotnet build / dotnet test cannot detect. Publishes to a temporary directory outside the
-    repository; the process and the directory are always cleaned up.
+    repository; the process and the directory are always cleaned up. With -PublishDir it checks an existing publish
+    folder instead (used by scripts/release-build.ps1) and leaves that folder as it is.
     On Windows it also checks that the app created its Start menu shortcut for notifications (T-010)
     and restores the previous shortcut (or removes it) afterwards.
     The app runs with the real user settings, so it may show real toasts (e.g. a printer error found at
@@ -15,18 +16,24 @@
     are never removed) and a warning is printed. Refuses to run while PrusaTrayDiagnostic is already running.
 
 .PARAMETER Runtime
-    Runtime identifier (win-x64, win-arm64, osx-arm64, osx-x64). Defaults to the current OS/architecture.
+    Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture.
+
+.PARAMETER PublishDir
+    Existing Native AOT publish folder to check instead of publishing. The folder is not modified or deleted
+    (the app's output is captured in a separate temporary folder).
 
 .PARAMETER Seconds
     How long the app must stay alive after start. Default 10.
 
 .EXAMPLE
     pwsh scripts/aot-smoke.ps1
-    pwsh scripts/aot-smoke.ps1 -Runtime osx-x64 -Seconds 15
+    pwsh scripts/aot-smoke.ps1 -Runtime osx-arm64 -Seconds 15
+    pwsh scripts/aot-smoke.ps1 -PublishDir artifacts/release/0.1.0/publish/win-x64
 #>
 [CmdletBinding()]
 param(
     [string] $Runtime,
+    [string] $PublishDir,
     [ValidateRange(1, 600)] [int] $Seconds = 10
 )
 
@@ -46,7 +53,19 @@ if (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue) {
 }
 
 $project = Join-Path $PSScriptRoot '..' 'src' 'PrusaTrayDiagnostic.App'
-$publishDir = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-aot-smoke-$([guid]::NewGuid().ToString('N'))"
+# The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.
+$ownsPublishDir = -not $PublishDir
+$publishDir = if ($ownsPublishDir) {
+    Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-aot-smoke-$([guid]::NewGuid().ToString('N'))"
+}
+elseif (Test-Path -LiteralPath $PublishDir -PathType Container) {
+    (Resolve-Path -LiteralPath $PublishDir).ProviderPath
+}
+else {
+    Write-Host "AOT smoke check NOT RUN: publish folder not found: $PublishDir" -ForegroundColor Red
+    exit 1
+}
+$logDir = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-aot-smoke-log-$([guid]::NewGuid().ToString('N'))"
 $exeName = if ($Runtime.StartsWith('win')) { 'PrusaTrayDiagnostic.exe' } else { 'PrusaTrayDiagnostic' }
 $process = $null
 # The app creates its Start menu shortcut for notifications (T-010) pointing to the temporary exe: restore the previous state afterwards.
@@ -75,15 +94,22 @@ function Clear-ToastHistory {
 $toastsBefore = if ($IsWindows) { Get-ToastHistoryCount } else { $null }
 
 try {
-    Write-Host "Publishing $Runtime to $publishDir ..."
-    dotnet publish $project -c Release -r $Runtime -o $publishDir
-    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
+    if ($ownsPublishDir) {
+        Write-Host "Publishing $Runtime to $publishDir ..."
+        dotnet publish $project -c Release -r $Runtime -o $publishDir
+        if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
+    }
+    else {
+        Write-Host "Checking the existing publish folder $publishDir ..."
+    }
 
     $exe = Join-Path $publishDir $exeName
     if (-not (Test-Path $exe)) { throw "Published executable not found: $exe" }
 
-    $stdout = Join-Path $publishDir 'smoke-stdout.txt'
-    $stderr = Join-Path $publishDir 'smoke-stderr.txt'
+    # Outside the publish folder, so that an existing (release) publish folder stays unchanged.
+    $null = New-Item -ItemType Directory -Path $logDir
+    $stdout = Join-Path $logDir 'smoke-stdout.txt'
+    $stderr = Join-Path $logDir 'smoke-stderr.txt'
     Write-Host "Starting $exeName, expecting it to run for $Seconds s ..."
     $process = Start-Process -FilePath $exe -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
@@ -111,8 +137,11 @@ finally {
         $process.Kill($true)
         $process.WaitForExit()
     }
-    if (Test-Path $publishDir) {
+    if ($ownsPublishDir -and (Test-Path $publishDir)) {
         Remove-Item $publishDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path $logDir) {
+        Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     # Shortcut first: it must be restored even when the toast cleanup below fails.
     if ($shortcut) {
