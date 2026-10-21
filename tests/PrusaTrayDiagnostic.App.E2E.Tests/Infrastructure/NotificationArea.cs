@@ -1,3 +1,4 @@
+using FlaUI.Core;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
@@ -14,6 +15,8 @@ internal static class NotificationArea
 {
     public const string TestToolTipPrefix = "[E2E]";
 
+    private const string TaskbarClass = "Shell_TrayWnd";
+
     private const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
 
     /// <summary>Automation id of the system buttons of the tray (the overflow chevron, input indicator, clock…).</summary>
@@ -27,16 +30,15 @@ internal static class NotificationArea
     /// opening the overflow flyout when none is on the taskbar. <c>OpenedOverflow</c> tells whether the flyout was opened
     /// (close it with <see cref="CloseOverflow"/>).
     /// </summary>
-    public static async Task<(IReadOnlyList<AutomationElement> Icons, bool OpenedOverflow)> FindTestIconsAsync(AutomationElement desktop)
+    public static async Task<(IReadOnlyList<AutomationElement> Icons, bool OpenedOverflow)> FindTestIconsAsync(AutomationBase automation, Action<string>? trace = null)
     {
-        AutomationElement taskbar = desktop.FindFirstChild(cf => cf.ByClassName("Shell_TrayWnd"))
-            ?? throw new InvalidOperationException("No taskbar (Shell_TrayWnd).");
+        AutomationElement taskbar = Taskbar(automation);
         List<AutomationElement> icons = [];
         bool opened = false;
         await Wait.UntilAsync(
             () =>
             {
-                icons = [.. FindIcons(taskbar), .. desktop.FindFirstChild(cf => cf.ByClassName(OverflowClass)) is { } overflow ? FindIcons(overflow) : []];
+                icons = [.. FindIcons(taskbar), .. Overflow(automation) is { } overflow ? FindIcons(overflow) : []];
                 if (icons.Count > 0)
                 {
                     return true;
@@ -44,6 +46,7 @@ internal static class NotificationArea
 
                 if (!opened && OverflowChevron(taskbar) is { } chevron)
                 {
+                    trace?.Invoke("No test icon on the taskbar: opening the overflow flyout.");
                     chevron.Patterns.Invoke.Pattern.Invoke();
                     opened = true;
                 }
@@ -52,7 +55,85 @@ internal static class NotificationArea
             },
             TimeSpan.FromSeconds(10),
             $"the tray icon with '{TestToolTipPrefix}'");
+        if (trace is not null)
+        {
+            foreach (AutomationElement icon in icons)
+            {
+                trace($"Test icon: {Describe(icon)}");
+            }
+        }
+
         return (icons, opened);
+    }
+
+    /// <summary>
+    /// The taskbar. Top-level windows are found through Win32, not as children of the UI Automation desktop: listing those
+    /// asks the provider of every top-level window of every process, and one busy window (a loaded machine, the app's own
+    /// camera window) fails the whole search with <c>UIA_E_TIMEOUT</c> (0x80131505, T-062).
+    /// </summary>
+    public static AutomationElement Taskbar(AutomationBase automation)
+    {
+        nint hwnd = Native.FindWindow(TaskbarClass, null);
+        return hwnd != 0 ? automation.FromHandle(hwnd) : throw new InvalidOperationException($"No taskbar ({TaskbarClass}).");
+    }
+
+    /// <summary>The overflow flyout while it is shown, or <see langword="null"/> (see <see cref="Taskbar"/>).</summary>
+    public static AutomationElement? Overflow(AutomationBase automation)
+    {
+        nint hwnd = Native.FindWindow(OverflowClass, null);
+        return hwnd != 0 && Native.IsWindowVisible(hwnd) ? automation.FromHandle(hwnd) : null;
+    }
+
+    /// <summary>Every application icon of the taskbar and the shown overflow flyout, for a failure report.</summary>
+    public static IEnumerable<string> DescribeAll(AutomationBase automation)
+    {
+        foreach (AutomationElement icon in Taskbar(automation).FindAllDescendants(cf => cf.ByAutomationId(NotifyIconId)))
+        {
+            yield return $"taskbar: {Describe(icon)}";
+        }
+
+        if (Overflow(automation) is { } overflow)
+        {
+            foreach (AutomationElement icon in overflow.FindAllDescendants(cf => cf.ByAutomationId(NotifyIconId)))
+            {
+                yield return $"overflow: {Describe(icon)}";
+            }
+        }
+    }
+
+    /// <summary>
+    /// Right-clicks the icon with the real mouse. The pointer jumps onto the icon instead of FlaUI's animated move: no
+    /// other icon is hovered on the way, and the pointer is ours for milliseconds instead of a few hundred. The real
+    /// mouse is shared with the person at the computer, so a pointer moved meanwhile fails with that reason, not with a
+    /// menu timeout later (T-062).
+    /// </summary>
+    public static void RightClick(AutomationElement icon)
+    {
+        System.Drawing.Rectangle bounds = icon.BoundingRectangle;
+        System.Drawing.Point center = new(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2));
+        Mouse.Position = center;
+        Mouse.Click(MouseButton.Right);
+        Native.GetCursorPos(out Native.Point cursor);
+        if (!bounds.Contains(cursor.X, cursor.Y))
+        {
+            throw new InvalidOperationException(
+                $"The mouse pointer left the tray icon {bounds} right after the click (it is at {cursor.X},{cursor.Y}): someone used the mouse during the end-to-end run.");
+        }
+    }
+
+    /// <summary>One icon for a failure report: tooltip, screen rectangle, off-screen flag and its window.</summary>
+    public static string Describe(AutomationElement icon)
+    {
+        try
+        {
+            return $"'{icon.Properties.Name.ValueOrDefault}' bounds={icon.Properties.BoundingRectangle.ValueOrDefault} "
+                + $"offscreen={icon.Properties.IsOffscreen.ValueOrDefault} hwnd=0x{icon.Properties.NativeWindowHandle.ValueOrDefault:X}";
+        }
+        // Report only: a vanished icon (COMException, FlaUI's ElementNotAvailableException) must not fail the caller.
+        catch (Exception ex)
+        {
+            return $"(not readable: {ex.GetType().Name} 0x{ex.HResult:X8} {ex.Message})";
+        }
     }
 
     /// <summary>Closes the overflow flyout (Escape) when the tests opened it.</summary>
