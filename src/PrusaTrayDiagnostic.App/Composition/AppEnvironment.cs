@@ -37,6 +37,21 @@ internal sealed class AppEnvironment
     public string DataDirectory() => _dataDirectory ?? AppDataPaths.GetDefaultDirectory();
 
     /// <summary>
+    /// The AppUserModelID of the process and its windows on Windows: <c>PrusaTrayDiagnostic</c> (T-010, T-043), in the test
+    /// mode <c>PrusaTrayDiagnostic.E2E</c>, so that test windows never group with the user's instance on the taskbar.
+    /// </summary>
+    public string AppUserModelId => IsIsolated ? TestAppUserModelId : ProductionAppUserModelId;
+
+    /// <summary>Before the tray tooltip: empty, in the test mode <c>[E2E] </c> so the tests find their own tray icon (T-044).</summary>
+    public string TrayToolTipPrefix => IsIsolated ? "[E2E] " : string.Empty;
+
+    /// <summary>Same value as <c>WindowsAppIdentity.AppUserModelId</c> (a unit test keeps them equal).</summary>
+    internal const string ProductionAppUserModelId = "PrusaTrayDiagnostic";
+
+    /// <summary>The AppUserModelID of the test mode (never used by Release builds).</summary>
+    internal const string TestAppUserModelId = "PrusaTrayDiagnostic.E2E";
+
+    /// <summary>
     /// The logger factory of the app: no providers yet (file logging follows in T-024); in the test mode of Debug builds the
     /// messages go to a file in the test data folder.
     /// </summary>

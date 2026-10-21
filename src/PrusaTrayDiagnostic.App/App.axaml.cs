@@ -132,8 +132,8 @@ public partial class App : Application, ITrayAppCommands
 #endif
     }
 
-    private static IWindowShell CreateWindowShell(TrayHost host) =>
-        OperatingSystem.IsWindows() ? new WindowsWindowShell(host.CreateLogger<WindowsWindowShell>()) : NoWindowShell.Instance;
+    private IWindowShell CreateWindowShell(TrayHost host) =>
+        OperatingSystem.IsWindows() ? new WindowsWindowShell(host.CreateLogger<WindowsWindowShell>(), _environment.AppUserModelId) : NoWindowShell.Instance;
 
     /// <summary>
     /// The settings are loaded before the tray gets its menu (milliseconds, with the static icon from App.axaml

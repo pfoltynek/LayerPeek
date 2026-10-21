@@ -20,7 +20,8 @@ internal static class WindowsAppIdentity
     /// Sets the id of this process. Call at startup, before any window is created; failures are ignored (only the
     /// taskbar grouping of auxiliary windows would differ, toasts use the id explicitly).
     /// </summary>
-    public static void ApplyToCurrentProcess() => _ = ComNative.SetCurrentProcessExplicitAppUserModelID(AppUserModelId);
+    /// <param name="appUserModelId">The id of the process: <see cref="AppUserModelId"/>, or the test id (T-044).</param>
+    public static void ApplyToCurrentProcess(string appUserModelId = AppUserModelId) => _ = ComNative.SetCurrentProcessExplicitAppUserModelID(appUserModelId);
 }
 
 /// <summary>

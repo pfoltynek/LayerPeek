@@ -79,9 +79,9 @@ internal static class Program
         if (OperatingSystem.IsWindows())
         {
             // Before any window exists, so that windows and toasts share the identity of the Start menu shortcut (T-010).
-            // Only the identity of this process: nothing is registered (the test mode keeps it, so that its windows carry
-            // the AppUserModelID the end-to-end tests read back).
-            WindowsAppIdentity.ApplyToCurrentProcess();
+            // Only the identity of this process: nothing is registered. The test mode has its own id (T-044), so test windows
+            // never group with the user's instance on the taskbar.
+            WindowsAppIdentity.ApplyToCurrentProcess(environment.AppUserModelId);
         }
 
         return BuildAvaloniaApp(instanceCommands, environment).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);

@@ -120,7 +120,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
             {
                 iconSet = CreateIconSet();
                 iconPresenter = new TrayIconPresenter<WindowIcon>(
-                    new AvaloniaTrayIconTarget(trayIcon),
+                    new AvaloniaTrayIconTarget(trayIcon, environment.TrayToolTipPrefix),
                     services.GetRequiredService<TrayStatusViewModel>(),
                     iconSet.GetIcon,
                     services.GetRequiredService<ILogger<TrayIconPresenter<WindowIcon>>>());

@@ -31,6 +31,16 @@ public sealed class AppEnvironmentTests
         Assert.Equal(AppDataPaths.GetDefaultDirectory(), AppEnvironment.Production.DataDirectory());
     }
 
+    [Fact]
+    public void ProductionKeepsTheAppUserModelIdOfTheStartMenuShortcut()
+    {
+        Assert.Equal("PrusaTrayDiagnostic", AppEnvironment.Production.AppUserModelId);
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Equal(PrusaTrayDiagnostic.App.Platform.Windows.WindowsAppIdentity.AppUserModelId, AppEnvironment.Production.AppUserModelId);
+        }
+    }
+
 #if DEBUG
     [Fact]
     public void WithoutTheVariableTheProcessRunsInProduction()
@@ -51,6 +61,8 @@ public sealed class AppEnvironmentTests
 
         Assert.True(environment.IsIsolated);
         Assert.Equal(Path.GetFullPath(folder), environment.DataDirectory());
+        // Test windows never group with the user's instance on the taskbar.
+        Assert.Equal("PrusaTrayDiagnostic.E2E", environment.AppUserModelId);
         // Nothing is created up front.
         Assert.False(Directory.Exists(folder));
     }

@@ -12,11 +12,15 @@ namespace PrusaTrayDiagnostic.App.Platform.Windows;
 internal sealed partial class WindowsWindowShell : IWindowShell
 {
     private readonly ILogger<WindowsWindowShell> _logger;
+    private readonly string _appUserModelId;
 
-    public WindowsWindowShell(ILogger<WindowsWindowShell> logger)
+    /// <param name="appUserModelId">The id of the windows: <see cref="WindowsAppIdentity.AppUserModelId"/>, or the test id (T-044).</param>
+    public WindowsWindowShell(ILogger<WindowsWindowShell> logger, string appUserModelId = WindowsAppIdentity.AppUserModelId)
     {
         ArgumentNullException.ThrowIfNull(logger);
         _logger = logger;
+        ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
+        _appUserModelId = appUserModelId;
     }
 
     public void Prepare(nint handle)
@@ -28,7 +32,7 @@ internal sealed partial class WindowsWindowShell : IWindowShell
 
         try
         {
-            TaskbarWindowProperties.ApplyToWindow(handle, WindowsAppIdentity.AppUserModelId);
+            TaskbarWindowProperties.ApplyToWindow(handle, _appUserModelId);
         }
         catch (Exception ex)
         {

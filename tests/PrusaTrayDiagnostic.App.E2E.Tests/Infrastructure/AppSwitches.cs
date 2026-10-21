@@ -25,8 +25,8 @@ internal static class AppSwitches
     /// <summary>Marker argument of every app process these tests start (ignored by the app).</summary>
     public const string MarkerArgument = "--ptd-e2e-run=";
 
-    /// <summary>AppUserModelID of the app (T-010).</summary>
-    public const string AppUserModelId = "PrusaTrayDiagnostic";
+    /// <summary>AppUserModelID of the app in the test mode (T-044); production uses "PrusaTrayDiagnostic".</summary>
+    public const string AppUserModelId = "PrusaTrayDiagnostic.E2E";
 
     /// <summary>Secrets file of the test mode: key, tab, secret per line.</summary>
     public const string SecretsFileName = "test-secrets.txt";
