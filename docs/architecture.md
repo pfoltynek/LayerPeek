@@ -67,7 +67,7 @@ Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podr
 | Ikona | oznamovací oblast, barevná ikona kreslená za běhu (`ITrayIconSet`) – T-007 | menu bar, doporučená monochromatická „template“ ikona – T-018 |
 | Notifikace | toast přes vlastní WinRT interop, AppUserModelID přes zástupce ve Start menu uživatele – T-010 | User Notifications (vyžaduje .app bundle) – T-020 |
 | Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` – T-019 |
-| Autostart, balení | registry `Run` / Startup, instalátor (preferovaný Velopack, ověřuje T-056) + `.zip`, bez podpisu – T-017 | Login Items, `.app` bundle, `.dmg` + `.tar.gz`, ad-hoc podpis – T-019 |
+| Autostart, balení | registry `Run` / Startup, instalátor Velopack (doporučený s podmínkami, `docs/velopack.md`, T-056) + `.zip`, bez podpisu – T-017 | Login Items, `.app` bundle, `.dmg` + `.tar.gz`, ad-hoc podpis – T-019 |
 | Vydání | lokálně skripty T-055, RID `win-x64` a `win-arm64` (FFmpeg ARM64: T-057), nahrání do GitHub Releases | lokálně skripty T-055, RID `osx-arm64`, přidání do stejného GitHub vydání |
 | Tajné údaje | Credential Manager (`[LibraryImport]`, roaming s profilem) – T-002 (hotovo) | Keychain (`Security.framework` přes `[LibraryImport]`) – T-021 |
 

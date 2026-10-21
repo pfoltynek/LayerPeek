@@ -96,7 +96,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | ID | Název | Platforma | Owner | Priorita | Závisí na |
 |---|---|---|---|---|---|
 | T-018 | macOS – ikona a menu v menu baru | macos | ui-dev | P1 | T-007, T-008 |
-| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015, T-055 |
+| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015, T-055, T-056 |
 | T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019 |
 | T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
 | T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |

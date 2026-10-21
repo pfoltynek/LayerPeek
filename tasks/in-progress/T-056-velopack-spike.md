@@ -1,7 +1,7 @@
 ---
 id: T-056
 title: Velopack – ověření použitelnosti pro instalátor a aktualizace (spike)
-status: todo
+status: in-progress
 owner: ui-dev
 priority: P2
 platform: windows
@@ -42,18 +42,32 @@ Primární zdroje (výchozí body, doplnit konkrétní odkazy):
 - https://www.nuget.org/packages/Velopack
 
 ## Akceptační kritéria
-- [ ] `docs/velopack.md` (česky) obsahuje ke každému bodu rozsahu výsledek, způsob ověření (pokus / dokumentace) a odkaz na zdroj
-- [ ] Jasné doporučení: Velopack pro Windows ano / ne / s podmínkami, a zvlášť pro macOS (T-019)
-- [ ] Nový NuGet balíček ověřený na AOT/trim kompatibilitu podle `CLAUDE.md` (výsledek pokusu, ne jen tvrzení dokumentace)
-- [ ] Pokusné změny nejsou v `develop`. Pokusné instalace jsou odinstalované a po pokusech nezůstaly zástupci, klíče v registru, historie toastů ani soubory v `%LocalAppData%` (zapsáno, jak se ověřilo)
-- [ ] Rozsah a závislosti T-017 a T-019 upravené podle výsledku. Nové otázky jsou v `## Otevřené otázky` tohoto úkolu a T-017 / T-019
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (repozitář beze změny kódu)
+- [x] `docs/velopack.md` (česky) obsahuje ke každému bodu rozsahu výsledek, způsob ověření (pokus / dokumentace) a odkaz na zdroj
+- [x] Jasné doporučení: Velopack pro Windows ano / ne / s podmínkami, a zvlášť pro macOS (T-019)
+- [x] Nový NuGet balíček ověřený na AOT/trim kompatibilitu podle `CLAUDE.md` (výsledek pokusu, ne jen tvrzení dokumentace)
+- [x] Pokusné změny nejsou v `develop`. Pokusné instalace jsou odinstalované a po pokusech nezůstaly zástupci, klíče v registru, historie toastů ani soubory v `%LocalAppData%` (zapsáno, jak se ověřilo). Vývojový zástupce ve Start menu po obnovení ze zálohy zmizel, pravděpodobně kvůli souběžnému `aot-smoke.ps1` jiného agenta. Aplikace ho při příštím startu vytvoří znovu (viz `docs/velopack.md`, „Pokusy a úklid“).
+- [x] Rozsah a závislosti T-017 a T-019 upravené podle výsledku. Nové otázky jsou v `## Otevřené otázky` tohoto úkolu a T-017 / T-019
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (repozitář beze změny kódu; 4239 testů prošlo, 1 přeskočený z dřívějška, 0 selhalo)
 
 ## Otevřené otázky
 - ~~Aktualizace ze soukromého repozitáře~~ → cíl jsou aktualizace z veřejných GitHub Releases bez tokenu v aplikaci. Repozitář bude později veřejný, do té doby se aktualizace přes token neřeší (rozhodnuto 2026-10-21).
-- **WiX jako náhrada:** pokud Velopack nevyhoví, uživatel chce o WiX nejdřív diskutovat. Spike WiX nevybírá.
-- **Data při odinstalaci:** má odinstalace smazat i nastavení aplikace, logy a uložená hesla (Credential Manager), nebo je ponechat pro případnou opětovnou instalaci?
-- **Zástupce na ploše:** Velopack ho vytváří ve výchozím stavu. Chceš ho, nebo jen zástupce ve Start menu?
+- ~~WiX jako náhrada~~ → Velopack pro Windows přijatý (T-017), WiX se nepoužije (rozhodnuto 2026-10-21).
+- ~~Data při odinstalaci~~ → odinstalace ponechá nastavení (`%APPDATA%\PrusaTrayDiagnostic`) i hesla v Credential Manager. Uklidí jen systémové registrace: klíč notifikací, COM aktivátor, autostart a historii toastů (rozhodnuto 2026-10-21).
+- ~~Zástupce na ploše~~ → jen zástupce ve Start menu, na ploše ne (`--shortcuts StartMenuRoot`, rozhodnuto 2026-10-21).
+- ~~Skrytá volba `--aumid`~~ → závislost na skryté volbě `vpk pack --aumid` je přijatelná (rozhodnuto 2026-10-21).
+- ~~Delta aktualizace~~ → zatím bez delt (`--delta None`, každá aktualizace asi 76 MB). Vrátit se k tomu, až bude repozitář veřejný (rozhodnuto 2026-10-21).
+- **Přenosný `.zip`:** Velopack vytváří vlastní `Portable.zip` (přenosná verze, která se umí aktualizovat). T-055 vytváří `.zip` publish složky (bez aktualizací). Nabízet jen `.zip` z T-055 (`--noPortable`), jen `Portable.zip` Velopacku, nebo oba?
+- **Předběžná vydání v aktualizacích:** verze `0.x` jsou na GitHubu předběžné, takže aplikace musí hledat i předběžná vydání (`GithubSource(prerelease: true)`), jinak aktualizaci nenajde. Má to platit i po verzi 1.0 (např. volba v nastavení), nebo se pak přepne na stabilní vydání?
+- **Log Velopacku po odinstalaci:** `Update.exe` si vede log v `%LocalAppData%\velopack\velopack_PrusaTrayDiagnostic.log` a odinstalace ho nesmaže (hook to nevyřeší, log se zapisuje i po něm). Je to přijatelné?
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- Výsledek je v `docs/velopack.md`. **Velopack pro Windows ano, s podmínkami. Pro macOS rozhodne pokus v T-019.**
+- Pokusy (Windows 11 x64, .NET SDK 11 rc.2, `Velopack`/`vpk` 1.2.161) proběhly v kopii repozitáře v `%TEMP%`. Instalace pro jednoho uživatele, hooky, dvě aktualizace (delta), GitHub bez tokenu (soukromý i veřejný repozitář), odinstalace ve dvou variantách zástupců. V repozitáři není změna kódu ani balíčků. Úklid je ověřený (`docs/velopack.md`, „Pokusy a úklid“).
+- Ověřeno pokusem: AOT publish bez varování (bod 1), balení (2), cesta exe po aktualizaci (3), zástupce, AUMID a zachování `ToastActivatorCLSID` při aktualizaci (4), pořadí hooků proti jediné instanci a úklid v hooku (5), `GithubSource` bez tokenu (7), názvy souborů pro kanál `win-arm64` a nativní ARM64 `Setup.exe` (8), nepodepsané aktualizace (9).
+- **Neověřeno:**
+  - AOT publish a spuštění `win-arm64` (chybí MSVC ARM64 tools, FFmpeg řeší T-057, chybí zařízení);
+  - SmartScreen u staženého `Setup.exe` (potřebuje ruční kliknutí, ověřit při prvním vydání);
+  - celý bod 10 macOS (jen dokumentace, ověří T-019 na Macu);
+  - historie toastů v hooku (aplikace na ni zatím nemá interop, je to práce pro T-017).
+- Úkol zůstává rozpracovaný kvůli neověřeným bodům a otevřeným otázkám.
+- Pro T-024: logy nesmí jít do `%LocalAppData%\PrusaTrayDiagnostic`, protože tu složku spravuje Velopack (odinstalace ji smaže a neprázdná složka vyvolá při instalaci dialog „přepsat“).
