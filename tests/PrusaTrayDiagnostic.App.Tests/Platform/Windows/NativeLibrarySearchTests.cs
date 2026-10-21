@@ -19,6 +19,8 @@ public sealed class NativeLibrarySearchTests : IDisposable
 {
     private static readonly TimeSpan ExitTimeout = TimeSpan.FromSeconds(30);
 
+    private static readonly TimeSpan KillTimeout = TimeSpan.FromSeconds(5);
+
     /// <summary>A library with exactly one non-system dependency, which the dependency test renames.</summary>
     private const string DependentLibrary = "swscale-10.dll";
 
@@ -95,13 +97,6 @@ public sealed class NativeLibrarySearchTests : IDisposable
         Assert.Equal(NativeLibrarySearch.ProbeResult.LoadedUnrestricted | NativeLibrarySearch.ProbeResult.LoadedRestricted, result);
     }
 
-    [Fact]
-    public void RestrictionSearchesOnlyTheApplicationFolderAndSystem32()
-    {
-        // LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32: no PATH, no current or user directories.
-        Assert.Equal(0x0000_0200u | 0x0000_0800u, NativeLibrarySearch.RestrictedDirectories);
-    }
-
     private static void SkipUnlessProbeAvailable()
     {
         // The probe switch exists only in Debug builds of the app.
@@ -155,6 +150,9 @@ public sealed class NativeLibrarySearchTests : IDisposable
             if (!child.HasExited)
             {
                 child.Kill(entireProcessTree: true);
+                // Until it is gone the child still maps the planted DLLs, and Dispose could not delete them (which
+                // would hide the real failure behind an IOException).
+                child.WaitForExit(KillTimeout);
             }
         }
 

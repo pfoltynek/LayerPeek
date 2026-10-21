@@ -16,28 +16,18 @@ internal static partial class NativeLibrarySearch
 {
     private const uint LoadLibrarySearchApplicationDir = 0x0000_0200;
     private const uint LoadLibrarySearchSystem32 = 0x0000_0800;
-    private const int ErrorProcNotFound = 127;
 
     /// <summary>The directories searched once <see cref="Restrict"/> succeeded.</summary>
-    public const uint RestrictedDirectories = LoadLibrarySearchApplicationDir | LoadLibrarySearchSystem32;
+    private const uint RestrictedDirectories = LoadLibrarySearchApplicationDir | LoadLibrarySearchSystem32;
 
     /// <summary>
     /// Applies the restriction to the whole process for its lifetime (it cannot be undone). Call first thing in
     /// <c>Main</c>, before anything loads a native library.
     /// </summary>
     /// <returns>0 on success, otherwise the Win32 error code (the process keeps the standard search order).</returns>
-    public static int Restrict()
-    {
-        try
-        {
-            return SetDefaultDllDirectories(RestrictedDirectories) ? 0 : Marshal.GetLastPInvokeError();
-        }
-        catch (EntryPointNotFoundException)
-        {
-            // Windows 7 without KB2533623; .NET does not run there, kept so that startup never fails on it.
-            return ErrorProcNotFound;
-        }
-    }
+    public static int Restrict() =>
+        // Exists on every Windows version .NET runs on (Windows 8+, Windows 7 only with KB2533623).
+        SetDefaultDllDirectories(RestrictedDirectories) ? 0 : Marshal.GetLastPInvokeError();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Restricting the DLL search to the application folder and System32 failed (error {ErrorCode}); the standard search order stays in effect.")]
     public static partial void LogRestrictionFailed(ILogger logger, int errorCode);
