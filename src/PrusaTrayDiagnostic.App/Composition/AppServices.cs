@@ -106,7 +106,7 @@ internal static class AppServices
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<TrayMenuOptions>(),
             sp.GetRequiredService<CustomPrinterImages>()));
-        services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<IUrlLauncher>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
+        services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<PrinterWebOpener>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
         // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written.
         services.AddSingleton(sp => env.IsIsolated ? NullNotificationService.Instance : CreateNotificationService(sp, windows));
         services.AddSingleton(static sp => new PrintEventNotifier(
