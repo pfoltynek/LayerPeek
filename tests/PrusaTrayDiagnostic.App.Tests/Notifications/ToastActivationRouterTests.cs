@@ -6,6 +6,7 @@ using PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
+using PrusaTrayDiagnostic.Core.Web;
 
 using static PrusaTrayDiagnostic.App.Tests.Tray.TestPrinters;
 
@@ -14,12 +15,27 @@ namespace PrusaTrayDiagnostic.App.Tests.Notifications;
 public sealed class ToastActivationRouterTests
 {
     private readonly FakeUrlLauncher _launcher = new();
+    private readonly FakeWebGateway _gateway = FakeWebGateway.WithoutPassword();
     private readonly ListLogger<ToastActivationRouter> _logger = new();
     private readonly ToastActivationRouter _router;
 
     public ToastActivationRouterTests()
     {
-        _router = new ToastActivationRouter(_launcher, _logger);
+        _router = new ToastActivationRouter(TestWebOpener.Create(_launcher, _gateway), _logger);
+    }
+
+    [Fact]
+    public async Task ClickOpensPrinterLoggedInLikeTheTrayMenu()
+    {
+        _gateway.Open = static (_, _) => Task.FromResult(PrinterWebAccess.Proxied(FakeWebGateway.ProxyAddress));
+        Apply(Definition(), Definition(id: "xl", name: "XL") with { Address = "192.168.1.20" });
+
+        bool opened = await _router.ActivateAsync(ToastLaunchArgument.ForPrinter("xl"));
+
+        Assert.True(opened);
+        Assert.Equal("xl", Assert.Single(_gateway.Opened).Id);
+        Assert.Equal([FakeWebGateway.ProxyAddress], _launcher.OpenedSecret);
+        Assert.Empty(_launcher.Opened);
     }
 
     [Fact]
@@ -162,7 +178,7 @@ public sealed class ToastActivationRouterTests
     public void NullArgumentsAreRejected()
     {
         Assert.Throws<ArgumentNullException>(() => new ToastActivationRouter(null!, _logger));
-        Assert.Throws<ArgumentNullException>(() => new ToastActivationRouter(_launcher, null!));
+        Assert.Throws<ArgumentNullException>(() => new ToastActivationRouter(TestWebOpener.Create(_launcher), null!));
         Assert.Throws<ArgumentNullException>(() => ((IMonitoringObserver)_router).ApplySettings(null!));
     }
 
