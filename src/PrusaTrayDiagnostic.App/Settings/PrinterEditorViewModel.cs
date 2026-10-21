@@ -636,8 +636,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     public IRelayCommand ResetCameraWindowCommand { get; }
 
     /// <summary>
-    /// "Apply" (T-040): saves like Save, keeps the settings window open and places the open camera window of this printer
-    /// again by its saved settings (mode, monitor, size, position, always on top). Only while the camera is on.
+    /// "Apply" (T-040): saves like Save, keeps the settings window open and places the camera window of this printer by its
+    /// saved settings (mode, monitor, size, position, always on top), opening it when it was closed. Only while the camera
+    /// is on.
     /// </summary>
     public IAsyncRelayCommand ApplyCameraWindowCommand { get; }
 

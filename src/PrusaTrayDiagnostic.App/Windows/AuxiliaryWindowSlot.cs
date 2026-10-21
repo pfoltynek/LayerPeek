@@ -35,7 +35,11 @@ internal sealed class AuxiliaryWindowSlot
     /// Called with what the open window owns before it is activated again (e.g. to show another printer); not called
     /// for a new window.
     /// </param>
-    public void ShowOrActivate(Func<(IAuxiliaryWindow Window, IDisposable? Owned)> create, Action<IDisposable?>? reuse = null)
+    /// <param name="activate">
+    /// <see langword="false"/>: the window is only shown, the active window keeps the focus (T-040: Apply in the settings);
+    /// the window itself must not activate on showing either (Avalonia <c>ShowActivated</c>).
+    /// </param>
+    public void ShowOrActivate(Func<(IAuxiliaryWindow Window, IDisposable? Owned)> create, Action<IDisposable?>? reuse = null, bool activate = true)
     {
         ArgumentNullException.ThrowIfNull(create);
         if (_shutDown)
@@ -46,7 +50,11 @@ internal sealed class AuxiliaryWindowSlot
         if (_window is not null)
         {
             reuse?.Invoke(_owned);
-            _window.Activate();
+            if (activate)
+            {
+                _window.Activate();
+            }
+
             return;
         }
 
@@ -57,7 +65,10 @@ internal sealed class AuxiliaryWindowSlot
         try
         {
             window.Show();
-            window.Activate();
+            if (activate)
+            {
+                window.Activate();
+            }
         }
         catch
         {

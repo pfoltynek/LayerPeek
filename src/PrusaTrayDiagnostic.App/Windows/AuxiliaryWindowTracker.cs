@@ -25,13 +25,17 @@ internal sealed class AuxiliaryWindowTracker
 
     public RecentWindows Recent { get; } = new();
 
-    /// <summary>Call before the window is shown (its native handle exists from its creation).</summary>
+    /// <summary>
+    /// Call before the window is shown (its native handle exists from its creation), with <c>ShowActivated</c> already set:
+    /// a window shown without activation counts as used only once it is activated (T-040).
+    /// </summary>
     /// <returns>Untracks the window again, e.g. when showing it failed (closing it untracks it too).</returns>
     public IDisposable Track(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
         AvaloniaRecentWindow tracked = new(window, _shell, _handleOf(window));
-        Recent.Track(tracked);
+        // Shown without the focus (T-040: Apply opens the camera window): used only once activated.
+        Recent.Track(tracked, used: window.ShowActivated);
         return tracked;
     }
 

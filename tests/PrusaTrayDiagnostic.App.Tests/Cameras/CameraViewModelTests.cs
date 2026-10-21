@@ -226,7 +226,6 @@ public sealed class CameraViewModelTests : IAsyncDisposable
 
         viewModel.ToggleFullScreenCommand.Execute(null);
         Assert.True(viewModel.IsFullScreen);
-        Assert.Equal("Exit full screen (Esc)", viewModel.FullScreenToolTip);
 
         viewModel.ShowNormalCommand.Execute(null);
         Assert.True(viewModel.IsNormal);
@@ -241,6 +240,84 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.False(viewModel.ShowMiniCommand.CanExecute(null));
         viewModel.OnImageDoubleClicked();
         Assert.True(viewModel.IsNormal);
+    }
+
+    [Fact]
+    public void EveryModeOffersTheOtherTwo()
+    {
+        CameraViewModel viewModel = Create();
+        AssertOffers(viewModel, fullScreen: true, normal: false, mini: true);
+
+        viewModel.ShowFullScreenCommand.Execute(null);
+        Assert.True(viewModel.IsFullScreen);
+        AssertOffers(viewModel, fullScreen: false, normal: true, mini: true);
+
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.True(viewModel.IsMini);
+        AssertOffers(viewModel, fullScreen: true, normal: true, mini: false);
+
+        static void AssertOffers(CameraViewModel viewModel, bool fullScreen, bool normal, bool mini)
+        {
+            Assert.Equal(fullScreen, viewModel.ShowFullScreenCommand.CanExecute(null));
+            Assert.Equal(normal, viewModel.ShowNormalCommand.CanExecute(null));
+            Assert.Equal(mini, viewModel.ShowMiniCommand.CanExecute(null));
+        }
+    }
+
+    [Fact]
+    public void FullScreenEnteredFromTheMiniPreviewGoesStraightToTheNormalWindow()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.ShowMiniCommand.Execute(null);
+        viewModel.ShowFullScreenCommand.Execute(null);
+
+        viewModel.ShowNormalCommand.Execute(null);
+
+        Assert.True(viewModel.IsNormal);
+        // Full screen entered again from the normal window returns there.
+        viewModel.ShowFullScreenCommand.Execute(null);
+        viewModel.EscapeCommand.Execute(null);
+        Assert.True(viewModel.IsNormal);
+    }
+
+    [Fact]
+    public void FullScreenEnteredFromTheNormalWindowGoesStraightToTheMiniPreview()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.ShowFullScreenCommand.Execute(null);
+
+        viewModel.ShowMiniCommand.Execute(null);
+
+        Assert.True(viewModel.IsMini);
+        // Full screen entered again from the mini preview returns there.
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        Assert.True(viewModel.IsMini);
+    }
+
+    [Fact]
+    public void NormalWindowTipMentionsTheDoubleClickOnlyWhereItLeadsThere()
+    {
+        CameraViewModel viewModel = Create();
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        viewModel.ShowFullScreenCommand.Execute(null);
+        Assert.Equal("Back to the normal window (double-click)", viewModel.NormalToolTip);
+
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.Equal("Back to the normal window (double-click)", viewModel.NormalToolTip);
+
+        // Full screen from the mini preview: a double-click (and Esc) goes back to the mini preview.
+        changed.Clear();
+        viewModel.ShowFullScreenCommand.Execute(null);
+        Assert.Equal("Normal window", viewModel.NormalToolTip);
+        Assert.Contains(nameof(CameraViewModel.NormalToolTip), changed);
+
+        changed.Clear();
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.Equal("Back to the normal window (double-click)", viewModel.NormalToolTip);
+        Assert.Contains(nameof(CameraViewModel.NormalToolTip), changed);
     }
 
     [Fact]
@@ -332,14 +409,14 @@ public sealed class CameraViewModelTests : IAsyncDisposable
 
             Assert.Equal("MK4 – Kamera", viewModel.Title);
             Assert.Equal("Verbindung zur Kamera wird hergestellt…", viewModel.StatusText);
-            Assert.Equal("Vollbild (F11)", viewModel.FullScreenToolTip);
+            Assert.Equal("Zurück zum normalen Fenster (Doppelklick)", viewModel.NormalToolTip);
             Assert.StartsWith("Druckt – 42", StateLine(viewModel), StringComparison.Ordinal);
             Assert.StartsWith("Noch ", RemainingLine(viewModel), StringComparison.Ordinal);
         }
 
         Assert.Contains(nameof(CameraViewModel.Title), changes);
         Assert.Contains(nameof(CameraViewModel.StatusText), changes);
-        Assert.Contains(nameof(CameraViewModel.FullScreenToolTip), changes);
+        Assert.Contains(nameof(CameraViewModel.NormalToolTip), changes);
         Assert.Contains(nameof(CameraViewModel.OverlayLines), changes);
         // Nothing else changed: no new connection, the mode stays.
         Assert.True(viewModel.IsNormal);

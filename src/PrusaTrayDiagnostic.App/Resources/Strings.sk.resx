@@ -636,9 +636,6 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Celá obrazovka (F11)</value>
   </data>
-  <data name="CameraExitFullScreen" xml:space="preserve">
-    <value>Ukončiť celú obrazovku (Esc)</value>
-  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Malý náhľad vždy navrchu</value>
   </data>
@@ -647,6 +644,9 @@
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Späť do normálneho okna (dvojklik)</value>
+  </data>
+  <data name="CameraNormalPlain" xml:space="preserve">
+    <value>Normálne okno</value>
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Obraz z kamery. Dvojklik prepína celú obrazovku; F11 celá obrazovka, Esc späť.</value>

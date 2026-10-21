@@ -802,8 +802,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     /// <summary>
     /// "Apply" of the Camera window sub-tab of <paramref name="printer"/> (T-040): saves exactly like Save, but the window
-    /// stays open, and the open camera window of that printer (only that one) is placed again by its saved settings, also
-    /// when nothing had to be saved. Nothing is placed when saving failed or the input has errors.
+    /// stays open, and the camera window of that printer (only that one) is placed again by its saved settings, or opens
+    /// placed by them when it was closed, also when nothing had to be saved. Nothing happens when saving failed or the input
+    /// has errors.
     /// </summary>
     internal Task ApplyAsync(PrinterEditorViewModel printer)
     {
@@ -959,11 +960,12 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             ShowSavedConfirmation();
         }
 
-        // T-040 (exception to T-035 Q21 for Apply only): the open camera window takes the saved settings right away.
+        // T-040 (exception to T-035 Q21 for Apply only): the camera window takes the saved settings right away; a closed one
+        // opens (user decision 2026-10-21).
         PrinterDefinition? printer = saved.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, applying.Id, StringComparison.OrdinalIgnoreCase));
         if (printer is { Camera.Enabled: true })
         {
-            _cameraWindowPlacer?.ApplySettings(printer.Id, printer.Camera.Window);
+            _cameraWindowPlacer?.ApplySettings(printer);
         }
     }
 
