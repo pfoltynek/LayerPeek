@@ -1,7 +1,7 @@
 ---
 id: T-044
 title: End-to-end testy skutečné aplikace na Windows (UI Automation)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
