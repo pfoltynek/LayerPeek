@@ -636,9 +636,6 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Schermo intero (F11)</value>
   </data>
-  <data name="CameraExitFullScreen" xml:space="preserve">
-    <value>Esci da schermo intero (Esc)</value>
-  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Anteprima piccola, sempre in primo piano</value>
   </data>
@@ -647,6 +644,9 @@
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Torna alla finestra normale (doppio clic)</value>
+  </data>
+  <data name="CameraNormalPlain" xml:space="preserve">
+    <value>Finestra normale</value>
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Immagine della telecamera. Il doppio clic attiva o disattiva lo schermo intero; F11 schermo intero, Esc indietro.</value>

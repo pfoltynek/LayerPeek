@@ -72,9 +72,16 @@ Stav 2026-10-20 (ui-dev): implementace hotová, všechna kritéria kromě ručn�
 - Vykreslení zaškrtnutí nativní nabídkou (Win32 nabídka Avalonie, NSMenu) headless testy neověří – ruční kontrola.
 
 **5. Celá obrazovka v malém náhledu**
-- `CameraWindow.axaml`: tlačítko celé obrazovky je vidět ve všech režimech (v malém náhledu vlevo od „zpět na normální okno“), stejný styl, zobrazení při najetí / fokusu, tip i jméno pro čtečky ze stávajícího `FullScreenToolTip` („Celá obrazovka (F11)“ / „Ukončit celou obrazovku (Esc)“ – žádný nový text). Nové `AutomationId`: `CameraWindowButtons`, `CameraFullScreenButton`, `CameraMiniButton`, `CameraNormalButton`.
+- (Nahrazeno v bodě 6.) `CameraWindow.axaml`: tlačítko celé obrazovky je vidět ve všech režimech (v malém náhledu vlevo od „zpět na normální okno“), stejný styl, zobrazení při najetí / fokusu, tip i jméno pro čtečky ze stávajícího `FullScreenToolTip` („Celá obrazovka (F11)“ / „Ukončit celou obrazovku (Esc)“ – žádný nový text). Nové `AutomationId`: `CameraWindowButtons`, `CameraFullScreenButton`, `CameraMiniButton`, `CameraNormalButton`.
 - Rozměry: 2 × 30 DIP + 4 mezi + okraj 6 = 70 DIP ze 160 → při 160×90 se nepřekrývají; okraje překryvu (vlevo nahoře 74 DIP vpravo volných, vpravo nahoře od 40 DIP) už se dvěma tlačítky počítaly, beze změny.
 - Odchod z celé obrazovky do malého náhledu na stejné místo zajišťuje logika T-037 (výchozí režim celé obrazovky, zapamatování pozice před přechodem).
+
+**6. Tlačítka režimů ve všech stavech (doplněno 2026-10-21)**
+- Na celé obrazovce chybělo tlačítko normálního okna (byla jen „Ukončit celou obrazovku“ a malý náhled; z celé obrazovky otevřené z malého náhledu se do normálního okna přímo dostat nedalo). **Rozhodnutí uživatele 2026-10-21:** každý režim ukazuje vždy tlačítka dvou ostatních režimů ve stálém pořadí – normální okno [celá obrazovka][malý náhled], malý náhled [celá obrazovka][normální okno], celá obrazovka [normální okno][malý náhled]. Tlačítko „Ukončit celou obrazovku“ zmizelo; F11, Esc a dvojklik dál vrací do režimu, ze kterého se na celou obrazovku přišlo.
+- `CameraViewModel`: nový `ShowFullScreenCommand` (`CanExecute` mimo celou obrazovku); `ToggleFullScreenCommand` zůstává jen pro F11. `FullScreenToolTip` nahradil `NormalToolTip`: „Zpět do normálního okna (dvojklik)“, na celé obrazovce otevřené z malého náhledu jen „Normální okno“ (dvojklik tam vede do malého náhledu).
+- `CameraWindow.axaml`: každé tlačítko je skryté ve svém režimu (`!IsFullScreen`, `!IsNormal`, `!IsMini`), pořadí celá obrazovka – normální okno – malý náhled; tip celé obrazovky přímo z `LocalizedStrings`. Vždy dvě tlačítka → okraje překryvu tisku beze změny.
+- Texty: nový `CameraNormalPlain` v 8 jazycích (Normal window / Normální okno / Normálne okno / Normales Fenster / Ventana normal / Fenêtre normale / Finestra normale / Zwykłe okno), nepoužívaný `CameraExitFullScreen` odstraněn.
+- E2E: okno kamery se pozná podle tlačítka malého náhledu nebo normálního okna (tlačítko celé obrazovky na celé obrazovce není); `FakeCameraWindowModesPlacementAndApply` prochází celá obrazovka → malý náhled (stejné místo) a malý náhled → celá obrazovka → normální okno.
 
 **Nové texty (8 jazyků)**
 - `SettingsCameraWindowReset`: Restore defaults / Tovární nastavení / Výrobné nastavenia / Standard wiederherstellen / Restablecer valores / Valeurs par défaut / Ripristina predefiniti / Przywróć domyślne

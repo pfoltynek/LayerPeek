@@ -136,7 +136,8 @@ internal sealed class AppInstance : IAsyncDisposable
         AutomationElement element = Element(hwnd);
         kind = element.FindFirstDescendant(cf => cf.ByAutomationId("SettingsTabs")) is not null ? AppWindowKind.Settings
             : element.FindFirstDescendant(cf => cf.ByAutomationId("DiagnosticsClose")) is not null ? AppWindowKind.Diagnostics
-            : element.FindFirstDescendant(cf => cf.ByAutomationId("CameraFullScreenButton")) is not null ? AppWindowKind.Camera
+            // Every camera mode shows the mini preview or the normal window button (full screen shows both).
+            : element.FindFirstDescendant(cf => cf.ByAutomationId("CameraMiniButton").Or(cf.ByAutomationId("CameraNormalButton"))) is not null ? AppWindowKind.Camera
             : AppWindowKind.Other;
         if (kind != AppWindowKind.Other)
         {

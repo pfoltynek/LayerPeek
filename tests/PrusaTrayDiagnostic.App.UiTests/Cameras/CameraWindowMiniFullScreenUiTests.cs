@@ -83,7 +83,6 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
             Assert.True(ViewModel(window).IsFullScreen);
             Assert.Equal(WindowState.FullScreen, window.WindowState);
             Assert.True(window.ShowInTaskbar);
-            Assert.Equal("Exit full screen (Esc)", ToolTip.GetTip(window.Find<Button>("CameraFullScreenButton")));
 
             window.KeyPress(Key.Escape, RawInputModifiers.None, PhysicalKey.Escape, null);
             window.Settle();
@@ -97,17 +96,111 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task FullScreenButtonOfTheNormalWindowIsUnchanged() =>
+    public Task EveryModeShowsTheButtonsOfTheOtherTwoInTheSameOrder() =>
         session.RunAsync(async scope =>
         {
             await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors());
             CameraWindow window = harness.Open();
             window.Settle();
+            CameraViewModel viewModel = ViewModel(window);
 
-            Assert.True(window.Find<Button>("CameraFullScreenButton").IsEffectivelyVisible);
-            Assert.True(window.Find<Button>("CameraMiniButton").IsEffectivelyVisible);
-            Assert.False(window.Find<Button>("CameraNormalButton").IsVisible);
+            AssertButtons(window, "CameraFullScreenButton", "CameraMiniButton");
+
+            viewModel.ShowFullScreenCommand.Execute(null);
+            window.Settle();
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            AssertButtons(window, "CameraNormalButton", "CameraMiniButton");
+            Assert.Equal("Back to the normal window (double-click)", ToolTip.GetTip(window.Find<Button>("CameraNormalButton")));
+
+            viewModel.ShowMiniCommand.Execute(null);
+            window.Settle();
+            AssertButtons(window, "CameraFullScreenButton", "CameraNormalButton");
+
+            // Full screen entered from the mini preview: the double-click leads back to the mini preview, not to the normal window.
+            viewModel.ShowFullScreenCommand.Execute(null);
+            window.Settle();
+            AssertButtons(window, "CameraNormalButton", "CameraMiniButton");
+            Button normal = window.Find<Button>("CameraNormalButton");
+            Assert.Equal("Normal window", ToolTip.GetTip(normal));
+            Assert.Equal("Normal window", AutomationProperties.GetName(normal));
         });
+
+    [Fact]
+    public Task NormalButtonInFullScreenFromTheMiniPreviewOpensTheNormalWindow() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: MiniFirst);
+            CameraWindow window = harness.Open();
+            window.Settle();
+            // On the rotated monitor right of the primary one (x 2560 … 4000).
+            window.Position = new PixelPoint(3000, 1500);
+            window.Settle();
+            Ui.Click(window, Ui.CentreOf(window.Find<Button>("CameraFullScreenButton"), window));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+
+            Ui.Click(window, Ui.CentreOf(window.Find<Button>("CameraNormalButton"), window));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            Assert.True(ViewModel(window).IsNormal);
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.Equal(WindowDecorations.Full, window.WindowDecorations);
+            Assert.True(window.ShowInTaskbar);
+            Assert.False(window.Topmost);
+            // The normal window by the defaults (never shown before): 960 × 540, on the monitor of the full screen (T-035 Q5).
+            Assert.Equal(new Size(960, 540), window.ClientSize);
+            Assert.InRange(window.Position.X, 2560, 4000 - 960);
+            AssertButtons(window, "CameraFullScreenButton", "CameraMiniButton");
+        });
+
+    [Fact]
+    public Task MiniButtonInFullScreenFromTheNormalWindowOpensTheMiniPreviewWhereItWas() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors());
+            CameraWindow window = harness.Open();
+            window.Settle();
+            CameraViewModel viewModel = ViewModel(window);
+            viewModel.ShowMiniCommand.Execute(null);
+            window.Settle();
+            window.Position = new PixelPoint(1500, 800);
+            window.Settle();
+            PixelPoint miniPosition = window.Position;
+            Size miniSize = window.ClientSize;
+            viewModel.ShowNormalCommand.Execute(null);
+            window.Settle();
+            Ui.Click(window, Ui.CentreOf(window.Find<Button>("CameraFullScreenButton"), window));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+
+            Ui.Click(window, Ui.CentreOf(window.Find<Button>("CameraMiniButton"), window));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            Assert.True(viewModel.IsMini);
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.Equal(WindowDecorations.None, window.WindowDecorations);
+            Assert.False(window.ShowInTaskbar);
+            Assert.True(window.Topmost);
+            Assert.Equal(miniPosition, window.Position);
+            Assert.Equal(miniSize, window.ClientSize);
+        });
+
+    /// <summary>Exactly <paramref name="left"/> and <paramref name="right"/> are shown, side by side in the top right corner.</summary>
+    private static void AssertButtons(CameraWindow window, string left, string right)
+    {
+        string[] shown = [.. window.Find<StackPanel>("CameraWindowButtons").Children
+            .Where(static button => button.IsVisible)
+            .Select(static button => AutomationProperties.GetAutomationId(button) ?? "")];
+        Assert.Equal([left, right], shown);
+        Rect first = BoundsIn(window.Find<Button>(left), window);
+        Rect second = BoundsIn(window.Find<Button>(right), window);
+        Assert.True(first.Right <= second.Left);
+        Assert.Equal(window.ClientSize.Width - 6, second.Right, 0.5);
+    }
 
     [Fact]
     public Task SnapshotOfTheSmallestMiniPreviewWithItsButtons() =>

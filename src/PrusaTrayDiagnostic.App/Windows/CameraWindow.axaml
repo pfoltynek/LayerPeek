@@ -53,7 +53,7 @@
     </Style>
     <!--
       Print overlay (T-036): in the corner chosen in the settings, 6 DIP from the edges. The window buttons (top right, two
-      of 30 DIP with 4 between in every mode, also in the mini preview since T-040) never cover it: in the top right corner
+      of 30 DIP with 4 between in every mode: the buttons of the other two modes) never cover it: in the top right corner
       it starts below them (6 + 30 + 4); in the top left corner it keeps their width free on the right (6 + 30 + 4 + 30 + 4)
       and wraps instead, which matters in the narrow mini preview.
     -->
@@ -141,12 +141,23 @@
                 Margin="6"
                 HorizontalAlignment="Right"
                 VerticalAlignment="Top">
-      <!-- Full screen in every mode (T-040: also in the mini preview, left of "back to the normal window"). -->
+      <!--
+        Every mode shows the buttons of the other two, always in this order: normal window [full screen][mini preview],
+        mini preview [full screen][normal window], full screen [normal window][mini preview].
+      -->
       <Button AutomationProperties.AutomationId="CameraFullScreenButton"
-              Command="{Binding ToggleFullScreenCommand}"
-              ToolTip.Tip="{Binding FullScreenToolTip}"
-              AutomationProperties.Name="{Binding FullScreenToolTip}">
+              Command="{Binding ShowFullScreenCommand}"
+              IsVisible="{Binding !IsFullScreen}"
+              ToolTip.Tip="{Binding [CameraFullScreen], Source={x:Static loc:LocalizedStrings.Instance}}"
+              AutomationProperties.Name="{Binding [CameraFullScreen], Source={x:Static loc:LocalizedStrings.Instance}}">
         <Path Classes="icon" Data="M1,5 V1 H5 M11,1 H15 V5 M15,11 V15 H11 M5,15 H1 V11" />
+      </Button>
+      <Button AutomationProperties.AutomationId="CameraNormalButton"
+              Command="{Binding ShowNormalCommand}"
+              IsVisible="{Binding !IsNormal}"
+              ToolTip.Tip="{Binding NormalToolTip}"
+              AutomationProperties.Name="{Binding NormalToolTip}">
+        <Path Classes="icon" Data="M2,3 H14 V13 H2 Z M2,5 H14" />
       </Button>
       <Button AutomationProperties.AutomationId="CameraMiniButton"
               Command="{Binding ShowMiniCommand}"
@@ -157,13 +168,6 @@
           <Path Classes="icon" Data="M1,2 H15 V14 H1 Z" />
           <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />
         </Grid>
-      </Button>
-      <Button AutomationProperties.AutomationId="CameraNormalButton"
-              Command="{Binding ShowNormalCommand}"
-              IsVisible="{Binding IsMini}"
-              ToolTip.Tip="{Binding [CameraNormal], Source={x:Static loc:LocalizedStrings.Instance}}"
-              AutomationProperties.Name="{Binding [CameraNormal], Source={x:Static loc:LocalizedStrings.Instance}}">
-        <Path Classes="icon" Data="M2,3 H14 V13 H2 Z M2,5 H14" />
       </Button>
     </StackPanel>
 
