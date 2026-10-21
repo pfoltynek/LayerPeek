@@ -7,14 +7,17 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 /// address). Layout: printer items, separator, fixed items; the printer index therefore equals the menu index.
 /// A printer item (always a submenu, T-042) keeps its submenu items and updates them in place too; only a change of
 /// structure (status message ↔ printer, another number of submenu items, e.g. a camera enabled) replaces the platform
-/// item at the same index. Plain texts are escaped, resource texts keep their access keys
-/// (<see cref="NativeMenuText.HeaderOf"/>). Free of Avalonia so that it is testable; UI thread only.
+/// item at the same index. A fixed item is updated in place too ("Diagnostics…" enabled or disabled, 2026-10-21); the
+/// whole menu is built again only by <see cref="SetFixedItems"/> (language switch). Plain texts are escaped, resource
+/// texts keep their access keys (<see cref="NativeMenuText.HeaderOf"/>). Free of Avalonia so that it is testable; UI
+/// thread only.
 /// </summary>
 internal sealed class TrayMenuTarget : ITrayMenuTarget
 {
     private readonly INativeTrayMenu _menu;
     private readonly List<Slot> _printerSlots = [];
-    private readonly List<Slot> _fixedSlots = [];
+    // Indexed like the list given to SetFixedItems: null for a separator.
+    private readonly List<Slot?> _fixedSlots = [];
 
     public TrayMenuTarget(INativeTrayMenu menu)
     {
@@ -32,9 +35,9 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             slot.Detach();
         }
 
-        foreach (Slot slot in _fixedSlots)
+        foreach (Slot? slot in _fixedSlots)
         {
-            slot.Detach();
+            slot?.Detach();
         }
 
         _printerSlots.Clear();
@@ -47,6 +50,7 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
         {
             if (entry.IsSeparator)
             {
+                _fixedSlots.Add(null);
                 _menu.AddSeparator();
                 continue;
             }
@@ -55,6 +59,18 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             _fixedSlots.Add(slot);
             _menu.Add(slot.Item);
         }
+    }
+
+    public void UpdateFixedItem(int index, TrayMenuEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual((uint)index, (uint)_fixedSlots.Count, nameof(index));
+        if (entry.IsSeparator || _fixedSlots[index] is not { } slot || !slot.HasSameStructure(entry))
+        {
+            throw new ArgumentException("Only a plain fixed item can be updated in place, with a plain item.", nameof(entry));
+        }
+
+        slot.Update(entry);
     }
 
     public void InsertPrinterItem(int index, TrayMenuEntry entry)

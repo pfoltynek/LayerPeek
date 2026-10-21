@@ -43,7 +43,6 @@ public sealed class TrayMenuCameraTests : IDisposable
         Assert.Collection(
             printer.Submenu!,
             web => Assert.Equal(TrayMenuCommand.OpenWeb, web.Command),
-            diagnostics => Assert.Equal(TrayMenuCommand.Diagnostics, diagnostics.Command),
             camera =>
             {
                 Assert.Equal(TrayMenuCommand.Camera, camera.Command);
@@ -124,7 +123,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
-        Assert.Equal(2, Assert.Single(_viewModel.PrinterItems).Submenu!.Count);
+        Assert.Equal(TrayMenuCommand.OpenWeb, Assert.Single(Assert.Single(_viewModel.PrinterItems).Submenu!).Command);
     }
 
     [Fact]

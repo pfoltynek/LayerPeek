@@ -12,15 +12,19 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
-/// followed by the fixed items (settings, about, quit). Every printer is a submenu, also when it is the only one (T-042):
-/// "Open … in the browser", "Diagnostics…" preselected on that printer (T-013) and "Camera" when its camera is enabled
-/// (T-014; checked while the camera window is open, T-040). Without printers the menu says so and offers
-/// "Add printer…". Fixed and submenu items carry access keys from the resources; printer items have none.
+/// followed by the fixed items (diagnostics, settings, about, quit). Every printer is a submenu, also when it is the only
+/// one (T-042): "Open … in the browser" and "Camera" when its camera is enabled (T-014; checked while the camera window
+/// is open, T-040). "Diagnostics…" is a single main menu item (user decision 2026-10-21: the window has its own printer
+/// combo), enabled only while the menu shows printers (not while starting, after a monitoring failure or without
+/// printers). Without printers the menu says so and offers "Add printer…". Fixed and submenu items carry access keys
+/// from the resources; printer items have none.
 /// Snapshots arrive on background threads. Each one only compares a cheap <see cref="PrinterMenuContent"/> of its
 /// printer under the lock; when nothing visible changed nothing else happens. Changed printers are marked and a single
 /// UI update is posted for a whole burst; it formats only the marked items and replaces only those whose
-/// <see cref="TrayMenuEntry"/> really differs, so the platform menu is never rebuilt on a poll.
-/// <see cref="PrinterItems"/> changes on the UI thread only.
+/// <see cref="TrayMenuEntry"/> really differs, so the platform menu is never rebuilt on a poll. The fixed items are
+/// replaced as a whole (and the platform menu rebuilt) only on a language switch; enabling or disabling "Diagnostics…"
+/// changes that one entry (<see cref="FixedItemChanged"/>), updated in place so that an open menu stays as it is.
+/// <see cref="PrinterItems"/> and <see cref="FixedItems"/> change on the UI thread only.
 /// </summary>
 internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, IDisposable, ILanguageAware
 {
@@ -37,6 +41,9 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     // UI thread only (after construction). _openCameras: printers whose camera window is open (T-040, checked items).
     private readonly ObservableCollection<TrayMenuEntry> _items;
     private readonly HashSet<string> _openCameras = new(StringComparer.OrdinalIgnoreCase);
+
+    // UI thread only: "Diagnostics…" is enabled (the window exists and the menu shows printer items).
+    private bool _diagnosticsEnabled;
 
     // Guarded by _gate.
     private Slot[]? _slots;
@@ -74,7 +81,18 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// <summary>UI thread only (after construction).</summary>
     public IReadOnlyList<TrayMenuEntry> FixedItems { get; private set; }
 
+    /// <summary>
+    /// <see cref="FixedItems"/> was replaced as a whole: once per language switch, never otherwise. Raised on the UI thread
+    /// after <see cref="PrinterItems"/> is up to date.
+    /// </summary>
     public event EventHandler? FixedItemsChanged;
+
+    /// <summary>
+    /// The entry at the given index of <see cref="FixedItems"/> changed: "Diagnostics…" got enabled or disabled (printers
+    /// shown ↔ starting, monitoring failed or no printer); never on a poll. Raised on the UI thread after
+    /// <see cref="PrinterItems"/> is up to date.
+    /// </summary>
+    public event EventHandler<int>? FixedItemChanged;
 
     public ReadOnlyObservableCollection<TrayMenuEntry> PrinterItems { get; }
 
@@ -238,7 +256,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             _layoutChanged = true;
         }
 
-        Apply();
+        // A pending flip of "Diagnostics…" is applied here too; the menu is still rebuilt only once.
+        Apply(notifyFixedItems: false);
         FixedItems = CreateFixedItems();
         FixedItemsChanged?.Invoke(this, EventArgs.Empty);
     }
@@ -298,13 +317,22 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _disposing.Dispose();
     }
 
+    /// <summary>Index of "Diagnostics…" in <see cref="FixedItems"/>.</summary>
+    private const int DiagnosticsIndex = 0;
+
+    /// <summary>UI thread.</summary>
     private TrayMenuEntry[] CreateFixedItems() =>
     [
+        DiagnosticsEntry(),
         new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, _options.SettingsAvailable) { HasAccessKey = true },
         TrayMenuEntry.Separator,
         new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true) { HasAccessKey = true },
         new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true) { HasAccessKey = true },
     ];
+
+    /// <summary>UI thread. "Diagnostics…" has no printer: the window has its own printer combo (2026-10-21).</summary>
+    private TrayMenuEntry DiagnosticsEntry() =>
+        new(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _diagnosticsEnabled) { HasAccessKey = true };
 
     private static TrayMenuEntry MessageEntry(string text) => new(TrayMenuCommand.None, text, IsEnabled: false);
 
@@ -321,7 +349,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// the submenu (T-042; before, a single printer opened its web interface).
     /// </summary>
     private TrayMenuEntry PrinterEntry(PrinterLine line) =>
-        // Enabled even when the address is invalid: the submenu still offers diagnostics.
+        // Enabled even when the address is invalid: the submenu shows the disabled web item with the reason.
         new(TrayMenuCommand.None, TrayMenuFormatter.PrinterHeader(line.Name, line.Content), IsEnabled: true, TrayMenuFormatter.PrinterToolTip(line.Name), PrinterId: line.Id)
         {
             Submenu = line.Owner.Submenu ??= PrinterSubmenu(line),
@@ -341,8 +369,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         {
             HasAccessKey = true,
         };
-        TrayMenuEntry diagnostics = new(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _diagnosticsAvailable, PrinterId: line.Id) { HasAccessKey = true };
-        return new TrayMenuEntryList(line.HasCamera ? [web, diagnostics, CameraEntry(line.Id)] : [web, diagnostics]);
+        // "Diagnostics…" is in the main menu (2026-10-21), not here.
+        return new TrayMenuEntryList(line.HasCamera ? [web, CameraEntry(line.Id)] : [web]);
     }
 
     /// <summary>Only for printers with an enabled camera; absent otherwise (T-014).</summary>
@@ -409,7 +437,13 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     }
 
     /// <summary>UI thread. Copies what changed under the lock, formats and applies it outside.</summary>
-    private void Apply()
+    private void Apply() => Apply(notifyFixedItems: true);
+
+    /// <param name="notifyFixedItems">
+    /// Raise <see cref="FixedItemChanged"/> when "Diagnostics…" flips; <see langword="false"/> when the caller replaces
+    /// the fixed items and rebuilds the menu anyway (language switch).
+    /// </param>
+    private void Apply(bool notifyFixedItems)
     {
         string? message;
         bool noPrinters;
@@ -482,6 +516,20 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
                 {
                     _items[index] = entry;
                 }
+            }
+        }
+
+        // After the printer items, so that a handler sees the menu as it is now.
+        bool diagnosticsEnabled = _diagnosticsAvailable && message is null && !noPrinters;
+        if (diagnosticsEnabled != _diagnosticsEnabled)
+        {
+            _diagnosticsEnabled = diagnosticsEnabled;
+            TrayMenuEntry[] items = [.. FixedItems];
+            items[DiagnosticsIndex] = DiagnosticsEntry();
+            FixedItems = items;
+            if (notifyFixedItems)
+            {
+                FixedItemChanged?.Invoke(this, DiagnosticsIndex);
             }
         }
     }

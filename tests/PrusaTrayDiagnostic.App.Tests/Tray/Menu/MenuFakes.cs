@@ -148,6 +148,21 @@ internal sealed class FakeMenuTarget : ITrayMenuTarget
         Printers.Clear();
     }
 
+    /// <summary>Thrown by the next <see cref="UpdateFixedItem"/> (an item that no longer matches), then cleared.</summary>
+    public Exception? ThrowOnUpdateFixedItem { get; set; }
+
+    public void UpdateFixedItem(int index, TrayMenuEntry entry)
+    {
+        if (ThrowOnUpdateFixedItem is { } exception)
+        {
+            ThrowOnUpdateFixedItem = null;
+            throw exception;
+        }
+
+        Operations.Add($"update fixed {index}");
+        Fixed[index] = entry;
+    }
+
     public void InsertPrinterItem(int index, TrayMenuEntry entry)
     {
         Operations.Add($"insert {index}");

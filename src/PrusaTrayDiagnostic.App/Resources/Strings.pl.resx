@@ -94,7 +94,7 @@
     <value>_Ustawienia…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>_Diagnostyka…</value>
+    <value>D_iagnostyka…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
     <value>_O programie</value>

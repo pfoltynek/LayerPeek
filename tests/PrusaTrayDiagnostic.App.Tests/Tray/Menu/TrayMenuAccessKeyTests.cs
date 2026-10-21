@@ -34,7 +34,9 @@ public sealed class TrayMenuAccessKeyTests
 
         IReadOnlyList<TrayMenuEntry> level = menu.MainLevel();
 
-        Assert.Equal([TrayMenuCommand.None, TrayMenuCommand.AddPrinter, TrayMenuCommand.Settings, TrayMenuCommand.About, TrayMenuCommand.Quit], level.Select(static item => item.Command));
+        Assert.Equal([TrayMenuCommand.None, TrayMenuCommand.AddPrinter, TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.About, TrayMenuCommand.Quit], level.Select(static item => item.Command));
+        // The disabled "Diagnostics…" is still shown next to "Add printer…", so its key must not collide.
+        Assert.False(level.Single(static item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
         AssertUniqueAccessKeys(level.Where(static item => item.Command != TrayMenuCommand.None), language);
         AssertNoAccessKey(level[0]);
     }
@@ -48,6 +50,10 @@ public sealed class TrayMenuAccessKeyTests
 
         IReadOnlyList<TrayMenuEntry> level = menu.MainLevel();
 
+        Assert.Equal(
+            [TrayMenuCommand.None, TrayMenuCommand.None, TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.About, TrayMenuCommand.Quit],
+            level.Select(static item => item.Command));
+        Assert.True(level.Single(static item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
         AssertUniqueAccessKeys(level.Where(static item => item.Command != TrayMenuCommand.None), language);
         // The names show unchanged: their "_" are escaped, not taken as access keys.
         Assert.Equal(["_Lab_MK4", "XL__2"], level.Where(static item => item.Submenu is not null).Select(static item => NamePart(item)));
@@ -69,7 +75,7 @@ public sealed class TrayMenuAccessKeyTests
         }
 
         // Both web items ("Open PrusaLink…", "Open Prusa Connect…") share a submenu with the same items.
-        Assert.Equal([3, 3, 2], menu.MainLevel().Where(static item => item.Submenu is not null).Select(static item => item.Submenu!.Count));
+        Assert.Equal([2, 2, 1], menu.MainLevel().Where(static item => item.Submenu is not null).Select(static item => item.Submenu!.Count));
     }
 
     [Theory]
@@ -82,7 +88,7 @@ public sealed class TrayMenuAccessKeyTests
         // T-042: "…" stays on Settings, Diagnostics and Add printer (they open a window).
         Assert.EndsWith("…", menu.ViewModel.FixedItems.Single(static item => item.Command == TrayMenuCommand.Settings).Header, StringComparison.Ordinal);
         Assert.EndsWith("…", menu.MainLevel().Single(static item => item.Command == TrayMenuCommand.AddPrinter).Header, StringComparison.Ordinal);
-        Assert.EndsWith("…", Resources.Strings.MenuDiagnostics, StringComparison.Ordinal);
+        Assert.EndsWith("…", menu.ViewModel.FixedItems.Single(static item => item.Command == TrayMenuCommand.Diagnostics).Header, StringComparison.Ordinal);
     }
 
     private static PrinterDefinition WithCamera(PrinterDefinition printer) => printer with { Camera = new CameraSettings(enabled: true, StreamUri) };

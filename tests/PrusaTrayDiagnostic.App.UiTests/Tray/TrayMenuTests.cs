@@ -32,12 +32,15 @@ public sealed class TrayMenuTests(HeadlessSession session)
         {
             TrayMenu tray = TrayMenu.Create(scope);
 
-            // No general "Diagnostics…" (T-042).
+            // "Diagnostics…" above "Settings…" (2026-10-21), disabled until printers are shown.
             Assert.Equal(
-                [Strings.ToolTipStarting, "-", Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                [Strings.ToolTipStarting, "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
                 tray.Headers());
             Assert.False(tray.Item(0).IsEnabled);
-            Assert.All(tray.Menu.Items.OfType<NativeMenuItem>().Where(static item => item is not NativeMenuItemSeparator).Skip(1), static item => Assert.True(item.IsEnabled));
+            Assert.False(tray.ItemWithHeader(Strings.MenuDiagnostics).IsEnabled);
+            Assert.All(
+                tray.Menu.Items.OfType<NativeMenuItem>().Where(static item => item is not NativeMenuItemSeparator && item.Header != Strings.MenuDiagnostics).Skip(1),
+                static item => Assert.True(item.IsEnabled));
             return Task.CompletedTask;
         });
 
@@ -51,9 +54,10 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Dispatcher.UIThread.RunJobs();
 
             Assert.Equal(
-                [Strings.ToolTipNoPrinter, Strings.MenuAddPrinter, "-", Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                [Strings.ToolTipNoPrinter, Strings.MenuAddPrinter, "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
                 tray.Headers());
             Assert.False(tray.Item(0).IsEnabled);
+            Assert.False(tray.ItemWithHeader(Strings.MenuDiagnostics).IsEnabled);
             Assert.True(tray.Item(1).IsEnabled);
             Assert.Null(tray.Item(1).Menu);
 
@@ -65,8 +69,9 @@ public sealed class TrayMenuTests(HeadlessSession session)
             // A printer saved: the item goes away.
             tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4")]);
             Dispatcher.UIThread.RunJobs();
-            Assert.Equal(6, tray.Menu.Items.Count);
+            Assert.Equal(7, tray.Menu.Items.Count);
             Assert.DoesNotContain(Strings.MenuAddPrinter, tray.Headers());
+            Assert.True(tray.ItemWithHeader(Strings.MenuDiagnostics).IsEnabled);
             return Task.CompletedTask;
         });
 
@@ -88,7 +93,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             // Like several printers (T-042): a submenu with the printer's actions, resource texts with their access keys.
             NativeMenu submenu = Assert.IsType<NativeMenu>(printer.Menu);
             Assert.Equal(
-                [Strings.MenuOpenPrusaLink, Strings.MenuDiagnostics],
+                [Strings.MenuOpenPrusaLink],
                 submenu.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
             Assert.IsType<NativeMenuItemSeparator>(tray.Menu.Items[1]);
 
@@ -112,7 +117,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4"), TestPrinters.Definition("xl", "XL")]);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(7, tray.Menu.Items.Count);
+            Assert.Equal(8, tray.Menu.Items.Count);
             Assert.IsType<NativeMenuItemSeparator>(tray.Menu.Items[2]);
             foreach ((int index, string name) in new[] { (0, "MK4"), (1, "XL") })
             {
@@ -120,7 +125,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
                 Assert.StartsWith(name, header.Header, StringComparison.Ordinal);
                 NativeMenu submenu = Assert.IsType<NativeMenu>(header.Menu);
                 Assert.Equal(
-                    [Strings.MenuOpenPrusaLink, Strings.MenuDiagnostics],
+                    [Strings.MenuOpenPrusaLink],
                     submenu.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
             }
 
@@ -128,7 +133,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.SetPrinters([TestPrinters.Definition("xl", "XL")]);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(6, tray.Menu.Items.Count);
+            Assert.Equal(7, tray.Menu.Items.Count);
             Assert.NotNull(tray.Item(0).Menu);
             Assert.StartsWith("XL", tray.Item(0).Header, StringComparison.Ordinal);
             return Task.CompletedTask;
@@ -174,9 +179,55 @@ public sealed class TrayMenuTests(HeadlessSession session)
             // No stored password: the plain address of that printer.
             Assert.Equal(PrinterWebAddress.For(xl), Assert.Single(tray.Launcher.Opened));
 
-            // "Diagnostics…" of the submenu preselects the printer.
-            TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[1]);
-            Assert.Equal(["xl"], tray.Commands.DiagnosticsRequests);
+            // The submenu has no "Diagnostics…" any more (2026-10-21).
+            Assert.Single(submenu.Items);
+        });
+
+    [Fact]
+    public Task DiagnosticsInTheMainMenuFollowsThePrintersAndOpensWithoutAPrinter() =>
+        session.RunAsync(static async scope =>
+        {
+            TrayMenu tray = TrayMenu.Create(scope, FakeWebGateway.WithoutPassword());
+            PrinterDefinition xl = TestPrinters.Definition("xl", "XL") with { Address = "192.168.1.11" };
+
+            // Disabled while starting: a click does nothing.
+            NativeMenuItem diagnostics = tray.ItemWithHeader(Strings.MenuDiagnostics);
+            NativeMenuItem settings = tray.ItemWithHeader(Strings.MenuSettings);
+            object separator = tray.Menu.Items[1];
+            TrayMenu.ClickLikeThePlatform(diagnostics);
+            Assert.Empty(tray.Commands.DiagnosticsRequests);
+
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4"), xl]);
+            Dispatcher.UIThread.RunJobs();
+
+            // The item is enabled in place (2026-10-21): the fixed part is not rebuilt, so an open menu stays open.
+            Assert.Equal(
+                [TrayMenuFormatter.PrinterHeader("MK4", default), TrayMenuFormatter.PrinterHeader("XL", default), "-", Strings.MenuDiagnostics, Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                tray.Headers());
+            Assert.Same(diagnostics, tray.ItemWithHeader(Strings.MenuDiagnostics));
+            Assert.Same(settings, tray.ItemWithHeader(Strings.MenuSettings));
+            Assert.Same(separator, tray.Menu.Items[2]);
+            Assert.True(diagnostics.IsEnabled);
+            TrayMenu.ClickLikeThePlatform(diagnostics);
+            Assert.Equal([null], tray.Commands.DiagnosticsRequests);
+
+            TrayMenu.ClickLikeThePlatform((NativeMenuItem)tray.Item(1).Menu!.Items[0]);
+            await tray.Launcher.WaitForOpenedAsync(1);
+            Assert.Equal(PrinterWebAddress.For(xl), Assert.Single(tray.Launcher.Opened));
+
+            // A poll updates the printer item in place, the fixed part stays.
+            tray.Monitor.Raise(TestPrinters.Snapshot(PrinterState.Printing, TestPrinters.Job(10), printerId: "mk4"));
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(diagnostics, tray.ItemWithHeader(Strings.MenuDiagnostics));
+
+            // Monitoring failed: disabled again.
+            tray.ViewModel.ReportMonitoringFailed();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(diagnostics, tray.ItemWithHeader(Strings.MenuDiagnostics));
+            Assert.False(diagnostics.IsEnabled);
+            TrayMenu.ClickLikeThePlatform(diagnostics);
+            Assert.Single(tray.Commands.DiagnosticsRequests);
+            Assert.Equal([Strings.ToolTipMonitoringFailed, "-"], tray.Headers()[..2]);
         });
 
     [Fact]
@@ -186,6 +237,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             TrayMenu tray = TrayMenu.Create(scope);
 
             TrayMenu.ClickLikeThePlatform(tray.Item(0));
+            TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuDiagnostics));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuSettings));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuAbout));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuQuit));
@@ -213,7 +265,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
 
             Assert.Equal("U_končit", tray.ItemWithHeader(Strings.MenuQuit).Header);
             Assert.Equal(
-                [Strings.MenuOpenPrusaLink, Strings.MenuDiagnostics],
+                [Strings.MenuOpenPrusaLink],
                 tray.Item(0).Menu!.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
             Assert.NotEqual("Open PrusaLink in the browser", Strings.MenuOpenPrusaLink);
             Assert.Equal(TrayMenuFormatter.PrinterHeader("MK4", default), tray.Item(0).Header);
@@ -250,7 +302,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             // What Avalonia's Windows tray menu draws for these headers: menu items in a menu flyout presenter, whose header
             // presenter recognizes access keys (an AccessText).
             NativeMenuItem printer = tray.Item(0);
-            string[] headers = [printer.Header!, tray.ItemWithHeader(Strings.MenuQuit).Header!, ((NativeMenuItem)printer.Menu!.Items[1]).Header!];
+            string[] headers = [printer.Header!, tray.ItemWithHeader(Strings.MenuQuit).Header!, tray.ItemWithHeader(Strings.MenuDiagnostics).Header!];
             MenuItem[] items = [.. headers.Select(static header => new MenuItem { Header = header })];
             Window window = scope.Track(new Window { Width = 400, Height = 300, Content = new MenuFlyoutPresenter { ItemsSource = items } });
             window.Show();
