@@ -86,6 +86,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-051 | Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1) | all | core-dev | P3 | T-028, T-030 |
 | T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) | all | qa-reviewer | P2 | – |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055) | all | qa-reviewer | P3 | – |
+| T-058 | Kontrola nové verze v aplikaci (GitHub Releases) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 
 ### Windows (`windows`)
@@ -99,6 +100,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) (hotovo) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
+| T-059 | Publikace do winget | windows | qa-reviewer | P3 | T-017, T-055 |
 
 ### macOS (`macos`) – jen na Macu, později
 
@@ -111,3 +113,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |
 | T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ | macos | ui-dev | P3 | T-026, T-035, T-037 |
 | T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) | macos | ui-dev | P3 | T-043, T-052 |
+| T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |
