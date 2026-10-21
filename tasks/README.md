@@ -78,7 +78,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-042 | Jednotné tray menu (podmenu pro každou tiskárnu) | all | ui-dev | P2 | T-039, T-040 |
 | T-043 | Jediná instance aplikace a jump list oken na hlavním panelu | all | ui-dev | P1 | T-010 |
 | T-045 | Simulátor tiskárny (PrusaLink) a kamery (RTSP) pro vývoj a testy | all | core-dev | P2 | T-003, T-014 |
-| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** | all | qa-reviewer | P3 | – |
+| T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) | all | qa-reviewer | P2 | – |
+| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055) | all | qa-reviewer | P3 | – |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 
 ### Windows (`windows`)
@@ -86,14 +87,16 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | ID | Název | Platforma | Owner | Priorita | Závisí na |
 |---|---|---|---|---|---|
 | T-010 | Systémové notifikace – Windows | windows | ui-dev | P1 | T-009 |
-| T-017 | Balení a distribuce, autostart – Windows | windows | ui-dev | P2 | T-008 |
+| T-056 | Velopack – ověření použitelnosti pro instalátor a aktualizace (spike) | windows | ui-dev | P2 | – |
+| T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) | windows | core-dev | P2 | – |
+| T-017 | Balení a distribuce, autostart – Windows | windows | ui-dev | P2 | T-008, T-055, T-056 |
 
 ### macOS (`macos`) – jen na Macu, později
 
 | ID | Název | Platforma | Owner | Priorita | Závisí na |
 |---|---|---|---|---|---|
 | T-018 | macOS – ikona a menu v menu baru | macos | ui-dev | P1 | T-007, T-008 |
-| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015 |
+| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015, T-055 |
 | T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019 |
 | T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
 | T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |
