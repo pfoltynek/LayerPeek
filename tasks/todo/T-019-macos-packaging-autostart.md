@@ -5,7 +5,7 @@ status: todo
 owner: ui-dev
 priority: P1
 platform: macos
-depends_on: [T-008, T-015, T-055]
+depends_on: [T-008, T-015, T-055, T-056]
 ---
 
 ## Cíl
@@ -28,6 +28,12 @@ Rozhodnutí uživatele (2026-10-21):
 - Pomocná okna otevřená z menu se u aplikace s `LSUIElement` musí dostat do popředí
 - Autostart po přihlášení (Login Items)
 - Dokumentace pro uživatele: jak spustit aplikaci staženou z internetu s ad-hoc podpisem (Gatekeeper; na macOS 15 a novějším přes Nastavení systému → Soukromí a zabezpečení → „Přesto otevřít“, případně odstranění atributu `com.apple.quarantine`)
+- **Velopack pro macOS (podklad `docs/velopack.md`, bod 10, jen z dokumentace):** nejdřív na Macu ověřit, jestli Velopack jde použít i pro macOS:
+  - `vpk pack` běží jen na Macu a vytvoří `.app` (s updaterem Velopacku), `.pkg` a `Portable.zip`. `.dmg` nevytváří. `.dmg` a `.tar.gz` by se sestavily z `.app` od `vpk`, jinak aktualizace nefungují;
+  - `LSUIElement` a bundle identifikátor přes vlastní `--plist`;
+  - chování s ad-hoc podpisem (Gatekeeper, karanténa po aktualizaci, `codesign --verify`) a aktualizace z GitHub Releases bez tokenu (`--channel osx-arm64`).
+
+  Pokud Velopack na macOS nevyhoví, zůstává plán bez automatických aktualizací (`.app` + `.dmg` + `.tar.gz` vlastními nástroji).
 
 ## Rizika ad-hoc podpisu
 - **Gatekeeper:** stažená aplikace s ad-hoc podpisem (bez notarizace) se po prvním spuštění zablokuje a uživatel ji musí povolit ručně.
@@ -50,6 +56,7 @@ Rozhodnutí uživatele (2026-10-21):
 - ~~Podporovat i Intel Macy (`osx-x64`)~~ → ne, jen Apple Silicon `osx-arm64` (rozhodnuto 2026-10-21).
 - ~~Formát distribuce~~ → `.dmg` + `.tar.gz` (rozhodnuto 2026-10-21).
 - Nástroj pro `.dmg`: `hdiutil` (součást macOS), nebo jiný nástroj? Velopack na macOS vytváří `.pkg`, ne `.dmg` (viz T-056) – pokud by se Velopack používal i pro aktualizace na macOS, je `.pkg` místo `.dmg` přijatelný?
-- Automatické aktualizace – viz rozhodnutí v T-017 a výsledek T-056.
+- Automatické aktualizace – viz rozhodnutí v T-017 a výsledek T-056. T-056 Velopack pro macOS ani nedoporučil, ani nezamítl, protože podpis a notarizaci považuje dokumentace Velopacku za nutné a chování s ad-hoc podpisem nepopisuje. Rozhodne pokus na Macu v tomto úkolu (viz rozsah).
+- Pokud by se Velopack na macOS použil: má se nabízet i `.pkg` od Velopacku, nebo jen `.dmg` + `.tar.gz` sestavené z `.app` od `vpk`?
 
 ## Poznámky k implementaci
