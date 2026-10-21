@@ -1,4 +1,3 @@
-#Requires -Version 7.2
 <#
 .SYNOPSIS
     Publishes the draft GitHub release of the tag vX.Y.Z after the Windows and macOS files are uploaded.
@@ -30,6 +29,7 @@
     pwsh scripts/release-publish.ps1
     pwsh scripts/release-publish.ps1 -Repo pfoltynek/PrusaTrayDiagnostic-release-trial -AllowIncomplete
 #>
+#Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string] $Repo,

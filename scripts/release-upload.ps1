@@ -1,4 +1,3 @@
-#Requires -Version 7.2
 <#
 .SYNOPSIS
     Uploads the release files built by scripts/release-build.ps1 into the DRAFT GitHub release of the tag vX.Y.Z.
@@ -37,6 +36,7 @@
     pwsh scripts/release-upload.ps1
     pwsh scripts/release-upload.ps1 -Repo pfoltynek/PrusaTrayDiagnostic-release-trial -DryRun
 #>
+#Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string] $Repo,

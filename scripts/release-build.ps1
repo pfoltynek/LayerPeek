@@ -1,4 +1,3 @@
-#Requires -Version 7.2
 <#
 .SYNOPSIS
     Builds the release files of this machine's OS: build + tests, Native AOT publish per RID, AOT smoke test,
@@ -30,6 +29,7 @@
     pwsh scripts/release-build.ps1
     pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64
 #>
+#Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string[]] $Runtime,

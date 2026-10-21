@@ -1,4 +1,3 @@
-#Requires -Version 7.2
 <#
 .SYNOPSIS
     Native AOT smoke check: publishes the app, starts the native executable and verifies it keeps running.
@@ -25,16 +24,23 @@
 .PARAMETER Seconds
     How long the app must stay alive after start. Default 10.
 
+.PARAMETER SkipShellIntegration
+    For automated tests of this script only (scripts/ReleaseTools/ReleaseTools.Tests.ps1): skips the running-instance
+    check, the Start menu shortcut check and its backup/restore, and the toast history handling, so that nothing of the
+    real user profile is read or changed. A real smoke check must not use it.
+
 .EXAMPLE
     pwsh scripts/aot-smoke.ps1
     pwsh scripts/aot-smoke.ps1 -Runtime osx-arm64 -Seconds 15
     pwsh scripts/aot-smoke.ps1 -PublishDir artifacts/release/0.1.0/publish/win-x64
 #>
+#Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string] $Runtime,
     [string] $PublishDir,
-    [ValidateRange(1, 600)] [int] $Seconds = 10
+    [ValidateRange(1, 600)] [int] $Seconds = 10,
+    [switch] $SkipShellIntegration
 )
 
 $ErrorActionPreference = 'Stop'
@@ -47,7 +53,7 @@ if (-not $Runtime) {
 
 # A running instance of the app (there is no single-instance guard) would share the Start menu shortcut and the
 # notification history with the smoke run, and its toasts could be cleared below: refuse instead.
-if (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue) {
+if (-not $SkipShellIntegration -and (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue)) {
     Write-Host 'AOT smoke check NOT RUN: PrusaTrayDiagnostic is already running. Quit it and run the check again.' -ForegroundColor Red
     exit 1
 }
@@ -69,7 +75,7 @@ $logDir = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-aot-smoke-log-$
 $exeName = if ($Runtime.StartsWith('win')) { 'PrusaTrayDiagnostic.exe' } else { 'PrusaTrayDiagnostic' }
 $process = $null
 # The app creates its Start menu shortcut for notifications (T-010) pointing to the temporary exe: restore the previous state afterwards.
-$shortcut = if ($IsWindows) { Join-Path ([Environment]::GetFolderPath('Programs')) 'Prusa Tray Diagnostic.lnk' } else { $null }
+$shortcut = if ($IsWindows -and -not $SkipShellIntegration) { Join-Path ([Environment]::GetFolderPath('Programs')) 'Prusa Tray Diagnostic.lnk' } else { $null }
 $shortcutBackup = if ($shortcut -and (Test-Path -LiteralPath $shortcut)) { [System.IO.File]::ReadAllBytes($shortcut) } else { $null }
 # Toasts the app shows during the run (it uses the real settings, so e.g. a printer error at start) stay in the
 # notification center. Windows PowerShell 5.1 is used because pwsh cannot load WinRT types.
@@ -91,7 +97,7 @@ function Clear-ToastHistory {
     powershell.exe -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime]; [Windows.UI.Notifications.ToastNotificationManager]::History.Clear("PrusaTrayDiagnostic")' 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "clearing the notification history failed with exit code $LASTEXITCODE" }
 }
-$toastsBefore = if ($IsWindows) { Get-ToastHistoryCount } else { $null }
+$toastsBefore = if ($IsWindows -and -not $SkipShellIntegration) { Get-ToastHistoryCount } else { $null }
 
 try {
     if ($ownsPublishDir) {
@@ -154,7 +160,7 @@ finally {
     }
     # Toasts are cleared only when the history was known to be empty before the run and no other instance of the app
     # started meanwhile; in every other case they are left alone (the user's own toasts are never removed).
-    if ($process -and $IsWindows) {
+    if ($process -and $IsWindows -and -not $SkipShellIntegration) {
         try {
             if ($toastsBefore -ne 0) {
                 $reason = if ($null -eq $toastsBefore) { 'its previous content could not be read' } else { 'it already held toasts of the app' }

@@ -379,13 +379,12 @@ function Get-ArchiveFileName {
 function Get-TarCommand {
     <#
     .SYNOPSIS
-        bsdtar of the OS. On Windows System32\tar.exe, not a GNU tar of Git for Windows that may come first in PATH
-        (it reads 'C:' in a path as a remote host).
+        bsdtar of the OS, never a GNU tar that may come first in PATH: on Windows System32\tar.exe (Git for Windows' GNU
+        tar reads 'C:' in a path as a remote host), on macOS /usr/bin/tar (a Homebrew gnubin tar does not know
+        --no-mac-metadata).
     #>
-    if ($IsWindows) {
-        $tar = Join-Path $env:SystemRoot 'System32' 'tar.exe'
-        if (Test-Path -LiteralPath $tar) { return $tar }
-    }
+    $tar = if ($IsWindows) { Join-Path $env:SystemRoot 'System32' 'tar.exe' } elseif ($IsMacOS) { '/usr/bin/tar' } else { $null }
+    if ($tar -and (Test-Path -LiteralPath $tar -PathType Leaf)) { return $tar }
     'tar'
 }
 

@@ -1,4 +1,3 @@
-#Requires -Version 7.2
 <#
 .SYNOPSIS
     Pester 5+ tests of the release helpers (scripts/ReleaseTools/ReleaseTools.psm1).
@@ -17,13 +16,15 @@
 .EXAMPLE
     Invoke-Pester scripts/ReleaseTools/ReleaseTools.Tests.ps1 -Output Detailed
 #>
+#Requires -Version 7.2
 
 BeforeAll {
     Import-Module (Join-Path $PSScriptRoot 'ReleaseTools.psm1') -Force
 
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).ProviderPath
     $base = if ($env:PTD_RELEASE_TESTS_TEMP) { $env:PTD_RELEASE_TESTS_TEMP } else { [System.IO.Path]::GetTempPath() }
-    $script:TempRoot = Join-Path $base "prusatray-release-tests-$([guid]::NewGuid().ToString('N'))"
+    # Short name: git repositories live below it (Windows path length limit).
+    $script:TempRoot = Join-Path $base "prusatray-rt-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     $null = New-Item -ItemType Directory -Path $script:TempRoot
 
     # Git environment isolated from the user's configuration (hooks, signing, default branch); restored in AfterAll.
@@ -91,18 +92,18 @@ AfterAll {
 }
 
 Describe 'Version and tag' {
-    It 'reads <Version> from Directory.Build.props' {
+    It 'reads the Version element from Directory.Build.props' {
         $props = New-TempFile 'v1/Directory.Build.props' '<Project><PropertyGroup><Version>0.1.0</Version><Nullable>enable</Nullable></PropertyGroup></Project>'
         Get-SourceVersion $props | Should -BeExactly '0.1.0'
     }
     It 'reads a valid version from the real Directory.Build.props' {
         Test-ReleaseVersion (Get-SourceVersion (Join-Path $script:RepoRoot 'Directory.Build.props')) | Should -BeTrue
     }
-    It 'refuses a missing <Version>' {
+    It 'refuses a missing Version element' {
         $props = New-TempFile 'v2/Directory.Build.props' '<Project><PropertyGroup><Nullable>enable</Nullable></PropertyGroup></Project>'
         Assert-ThrowsMatching { Get-SourceVersion $props } 'exactly one <Version>.*found 0'
     }
-    It 'refuses two <Version> elements' {
+    It 'refuses two Version elements' {
         $props = New-TempFile 'v3/Directory.Build.props' '<Project><PropertyGroup><Version>0.1.0</Version></PropertyGroup><PropertyGroup><Version>0.2.0</Version></PropertyGroup></Project>'
         Assert-ThrowsMatching { Get-SourceVersion $props } 'found 2'
     }
@@ -582,16 +583,27 @@ Describe 'AOT smoke script with an existing publish folder' {
         $script:SmokeScript = Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1'
     }
     It 'finds the executable in a folder with [ ] in its path and leaves the folder in place' {
-        if (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue) {
-            Set-ItResult -Skipped -Because 'a PrusaTrayDiagnostic instance is running, the smoke script refuses to run'
-            return
-        }
+        # -SkipShellIntegration: no running-instance check (other tests may start the real app meanwhile), no Start menu
+        # shortcut and no toast history of the real user profile are read or changed.
         $before = @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name)
-        $output = & ([Environment]::ProcessPath) -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 2>&1 | Out-String
+        $output = & ([Environment]::ProcessPath) -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 -SkipShellIntegration 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 1
         # The stand-in exits at once, so the check fails because the app exited, not because nothing was found.
         $output | Should -Match 'App exited after start'
-        $output | Should -Not -Match 'Published executable not found'
+        $output | Should -Not -Match 'Published executable not found|already running|Toasts|shortcut'
         @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
+    }
+    It 'documents -SkipShellIntegration as a test-only switch' {
+        $help = Get-Help $script:SmokeScript -Parameter SkipShellIntegration
+        "$($help.description.Text)" | Should -Match 'tests'
+    }
+}
+
+Describe 'Script help' {
+    # Comment-based help must come before #Requires, otherwise Get-Help silently ignores it.
+    It 'Get-Help reads the synopsis of <_>' -ForEach 'aot-smoke.ps1', 'release-build.ps1', 'release-upload.ps1', 'release-publish.ps1' {
+        $help = Get-Help (Join-Path $script:RepoRoot 'scripts' $_)
+        "$($help.Synopsis)" | Should -Not -Match '^\s*\S+\.ps1 \['
+        "$($help.Synopsis)".Trim() | Should -Not -BeNullOrEmpty
     }
 }
