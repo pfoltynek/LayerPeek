@@ -39,6 +39,17 @@ public sealed class E2EFixture : IAsyncLifetime
         "PrusaTrayDiagnostic.App.E2E.Tests",
         beforeDelete: static directory => AppProcesses.KillMarkedAsync(directory));
 
+    /// <summary>
+    /// Machine-wide (all worktrees): the tests drive the one shared desktop – the real mouse, the foreground window, the
+    /// notification area. A run of another worktree at the same time activates its windows, which closes this run's tray
+    /// menu (an Avalonia popup closes when deactivated) in the middle of reading it (T-062).
+    /// </summary>
+    private const string DesktopLockName = "PrusaTrayDiagnostic.App.E2E.Desktop";
+
+    /// <summary>Long enough for a full run of another worktree to finish.</summary>
+    private static readonly TimeSpan DesktopLockTimeout = TimeSpan.FromMinutes(30);
+
+    private TestRunLock? _desktopLock;
     private TestRunLock? _runLock;
     private UIA3Automation? _automation;
 
@@ -72,9 +83,10 @@ public sealed class E2EFixture : IAsyncLifetime
 
         // Window rectangles of the app in physical pixels at any scaling.
         Native.SetProcessDpiAwarenessContext(Native.PerMonitorAwareV2);
-        _runLock = await Reserved.AcquireLockAsync(TimeSpan.FromMinutes(2));
         try
         {
+            _desktopLock = await TestRunLock.AcquireAsync(DesktopLockName, DesktopLockTimeout);
+            _runLock = await Reserved.AcquireLockAsync(TimeSpan.FromMinutes(2));
             CheckIsDebugTestBuild(AppPath);
             await Reserved.SweepAsync();
             await Reserved.CreateAsync();
@@ -83,8 +95,7 @@ public sealed class E2EFixture : IAsyncLifetime
         }
         catch
         {
-            _runLock.Dispose();
-            _runLock = null;
+            ReleaseLocks();
             throw;
         }
     }
@@ -109,9 +120,16 @@ public sealed class E2EFixture : IAsyncLifetime
         }
         finally
         {
-            _runLock.Dispose();
-            _runLock = null;
+            ReleaseLocks();
         }
+    }
+
+    private void ReleaseLocks()
+    {
+        _runLock?.Dispose();
+        _runLock = null;
+        _desktopLock?.Dispose();
+        _desktopLock = null;
     }
 
     /// <summary>

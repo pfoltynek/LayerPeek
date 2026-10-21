@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text;
+
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 
@@ -67,22 +71,109 @@ public sealed class TrayMenuTests(E2EFixture fixture)
     /// <summary>Right-clicks the test instance's tray icon and returns the menu (checking its top level).</summary>
     private static async Task<AutomationElement> OpenMenuAsync(AppInstance app, string? screenshot = null)
     {
+        StringBuilder report = new();
+        Stopwatch clock = Stopwatch.StartNew();
+        void Trace(string line) => report.AppendLine(CultureInfo.InvariantCulture, $"{clock.ElapsedMilliseconds,6} ms  {line}");
+        try
+        {
+            return await OpenMenuCoreAsync(app, screenshot, Trace);
+        }
+        catch (Exception ex)
+        {
+            Trace($"Failed: {ex}");
+            throw new InvalidOperationException($"Opening the tray menu failed ({ex.Message}); diagnostics: {SaveMenuDiagnostics(app, report, Trace)}", ex);
+        }
+    }
+
+    /// <summary>
+    /// What the next person needs to analyse a failed menu opening without reproducing it: the trace of the attempt, the
+    /// desktop (notification area, popups), the test icons and the app's windows now, and the app's log.
+    /// </summary>
+    private static string SaveMenuDiagnostics(AppInstance app, StringBuilder report, Action<string> trace)
+    {
+        try
+        {
+            Native.GetCursorPos(out Native.Point cursor);
+            trace($"Now: cursor=({cursor.X},{cursor.Y}) foreground={DescribeWindow(Native.GetForegroundWindow())}");
+            foreach (nint hwnd in app.Windows())
+            {
+                trace($"App window: {DescribeWindow(hwnd)}");
+            }
+
+            foreach (string icon in NotificationArea.DescribeAll(app.Automation))
+            {
+                trace($"Icon now: {icon}");
+            }
+
+            trace($"Screenshot: {Screenshots.SaveScreen("tray-menu-failure-screen")}");
+        }
+        catch (Exception ex)
+        {
+            trace($"Collecting the diagnostics failed: {ex}");
+        }
+
+        // Called while the menu failure is being reported: a failure here must not replace that one.
+        try
+        {
+            report.AppendLine().AppendLine("App log:").AppendLine(app.ReadLog());
+            return Screenshots.SaveText(report.ToString(), "tray-menu-failure");
+        }
+        catch (Exception ex)
+        {
+            return $"(not saved: {ex.Message})";
+        }
+    }
+
+    private static string DescribeWindow(nint hwnd)
+    {
+        Native.GetWindowRect(hwnd, out Native.Rect rect);
+        Native.GetWindowThreadProcessId(hwnd, out uint process);
+        return $"0x{hwnd:X} pid={process} class={Native.ClassName(hwnd)} title='{Native.Title(hwnd)}' rect={rect} visible={Native.IsWindowVisible(hwnd)}";
+    }
+
+    private static async Task<AutomationElement> OpenMenuCoreAsync(AppInstance app, string? screenshot, Action<string> trace)
+    {
         List<nint> before = app.Windows();
-        (IReadOnlyList<AutomationElement> icons, bool openedOverflow) = await NotificationArea.FindTestIconsAsync(app.Automation.GetDesktop());
+        foreach (nint hwnd in before)
+        {
+            trace($"App window before: {DescribeWindow(hwnd)}");
+        }
+
+        (IReadOnlyList<AutomationElement> icons, bool openedOverflow) = await NotificationArea.FindTestIconsAsync(app.Automation, trace);
         AutomationElement? menu = null;
+        HashSet<nint> seen = [];
         try
         {
             // Several matches: icons of killed test instances can linger; only the live one opens a menu of this app.
             for (int i = 0; i < icons.Count; i++)
             {
-                icons[i].RightClick();
+                trace($"Right-click #{i}: {NotificationArea.Describe(icons[i])}");
+                NotificationArea.RightClick(icons[i]);
+                Native.GetCursorPos(out Native.Point cursor);
+                trace($"Clicked at ({cursor.X},{cursor.Y}), foreground={DescribeWindow(Native.GetForegroundWindow())}");
                 try
                 {
                     await Wait.UntilAsync(
-                        () => (menu = app.Windows().Where(hwnd => !before.Contains(hwnd)).Select(app.Element)
-                            .FirstOrDefault(window => window.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem)) is not null)) is not null,
+                        () =>
+                        {
+                            List<nint> now = app.Windows();
+                            foreach (nint hwnd in now.Where(hwnd => !before.Contains(hwnd) && seen.Add(hwnd)))
+                            {
+                                trace($"New window: {DescribeWindow(hwnd)}");
+                            }
+
+                            foreach (nint hwnd in seen.Where(hwnd => !now.Contains(hwnd)).ToArray())
+                            {
+                                trace($"Window gone: 0x{hwnd:X}");
+                                seen.Remove(hwnd);
+                            }
+
+                            return (menu = now.Where(hwnd => !before.Contains(hwnd)).Select(app.Element)
+                                .FirstOrDefault(window => window.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem)) is not null)) is not null;
+                        },
                         TimeSpan.FromSeconds(icons.Count == 1 ? 10 : 3),
                         "the tray menu");
+                    trace($"Menu: 0x{menu!.Properties.NativeWindowHandle.ValueOrDefault:X}");
                     break;
                 }
                 catch (TimeoutException) when (i < icons.Count - 1)
