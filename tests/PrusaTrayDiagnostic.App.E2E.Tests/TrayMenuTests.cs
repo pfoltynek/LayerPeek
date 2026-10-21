@@ -9,8 +9,8 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests;
 /// <summary>
 /// The real tray menu (T-042) from the Windows notification area: the test instance's icon (tooltip prefix <c>[E2E]</c>,
 /// often in the overflow flyout) is right-clicked with the real mouse (the only step that moves it), and the menu, an
-/// Avalonia popup of the app, is read and used through UI Automation: printer submenu, checked Camera toggle, Settings…,
-/// About and Quit with their access keys.
+/// Avalonia popup of the app, is read and used through UI Automation: printer submenu, checked Camera toggle,
+/// Diagnostics… (main menu since 2026-10-21), Settings…, About and Quit with their access keys.
 /// </summary>
 public sealed class TrayMenuTests(E2EFixture fixture)
 {
@@ -37,7 +37,8 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         nint submenu = MenuWindowOf(app, cameraItem);
         // "Open PrusaLink in the browser" is first on screen (see the screenshot) but not reported as a menu item by UI Automation.
         string[] submenuItems = [.. app.Element(submenu).FindAllDescendants(cf => cf.ByControlType(ControlType.MenuItem)).Select(static item => item.Name)];
-        Assert.Equal(["Diagnostics…", "Camera"], submenuItems[^2..]);
+        Assert.Equal("Camera", submenuItems[^1]);
+        Assert.DoesNotContain("Diagnostics…", submenuItems);
         Screenshots.Save(submenu, "tray-menu-2-printer-submenu");
         cameraItem.Patterns.Invoke.Pattern.Invoke();
         nint opened = await app.WaitForWindowAsync(AppWindowKind.Camera, [cameraWindow]);
@@ -49,8 +50,15 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         cameraItem.Patterns.Invoke.Pattern.Invoke();
         await Wait.UntilAsync(() => !Native.IsWindowVisible(opened), TimeSpan.FromSeconds(10), "the camera window to close from the menu");
 
-        // Settings… from the menu opens the settings window.
+        // Diagnostics… of the main menu (2026-10-21, enabled with a printer) opens the diagnostics window.
         AutomationElement menu = await OpenMenuAsync(app);
+        AutomationElement diagnosticsItem = menu.FindAllDescendants(cf => cf.ByControlType(ControlType.MenuItem)).First(item => item.Name == "Diagnostics…");
+        Assert.True(diagnosticsItem.IsEnabled);
+        diagnosticsItem.Patterns.Invoke.Pattern.Invoke();
+        await app.WaitForWindowAsync(AppWindowKind.Diagnostics);
+
+        // Settings… from the menu opens the settings window.
+        menu = await OpenMenuAsync(app);
         AutomationElement settingsItem = menu.FindAllDescendants(cf => cf.ByControlType(ControlType.MenuItem)).First(item => item.Name == "Settings…");
         settingsItem.Patterns.Invoke.Pattern.Invoke();
         await app.WaitForWindowAsync(AppWindowKind.Settings);
@@ -98,10 +106,10 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         }
 
         string[] names = [.. items.Select(static item => item.Name)];
-        Assert.True(names.Length >= 4, $"Menu items: {string.Join(" | ", names)}");
+        Assert.True(names.Length >= 5, $"Menu items: {string.Join(" | ", names)}");
         Assert.StartsWith("Core One", names[0], StringComparison.Ordinal);
-        Assert.Equal(["Settings…", "About", "Quit"], names[^3..]);
-        Assert.Equal(["S", "A", "Q"], items[^3..].Select(static item => item.Properties.AccessKey.ValueOrDefault ?? string.Empty).Select(static key => key.Replace("Alt+", string.Empty, StringComparison.OrdinalIgnoreCase)).ToArray());
+        Assert.Equal(["Diagnostics…", "Settings…", "About", "Quit"], names[^4..]);
+        Assert.Equal(["D", "S", "A", "Q"], items[^4..].Select(static item => item.Properties.AccessKey.ValueOrDefault ?? string.Empty).Select(static key => key.Replace("Alt+", string.Empty, StringComparison.OrdinalIgnoreCase)).ToArray());
         if (screenshot is not null)
         {
             Screenshots.Save(menu.Properties.NativeWindowHandle.ValueOrDefault, screenshot);

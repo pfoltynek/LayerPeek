@@ -85,15 +85,51 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     [Fact]
-    public void SinglePrinterDiagnosticsPreselectsThePrinter()
+    public void ClickOnDiagnosticsOpensTheWindowWithoutAPrinter()
     {
-        _viewModel.SetPrinters([Definition()]);
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = Create();
 
-        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
 
-        Assert.Equal(["mk4"], _commands.DiagnosticsRequests);
+        // The window has its own printer combo; an open window keeps its printer.
+        Assert.Equal([null], _commands.DiagnosticsRequests);
+        Assert.Equal(0, _commands.SettingsCount);
+    }
+
+    [Fact]
+    public void DiagnosticsFlipUpdatesOnlyItsItem()
+    {
+        using TrayMenuPresenter presenter = Create();
+        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        _target.Operations.Clear();
+
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _dispatcher.RunAll();
+
+        // "Starting…" is replaced by the printers and only the "Diagnostics…" item is updated in place: no rebuild, no clear
+        // (user decision 2026-10-21; an open menu stays as it is).
+        Assert.Equal(["update 0", "insert 1", "update fixed 0"], _target.Operations);
+        Assert.Equal(_viewModel.FixedItems, _target.Fixed);
+        Assert.Equal(_viewModel.PrinterItems, _target.Printers);
+        Assert.True(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+
+        // A poll touches its printer only.
+        _target.Operations.Clear();
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42), printerId: "b"));
+        _dispatcher.RunAll();
+        Assert.Equal(["update 1"], _target.Operations);
+
+        // Removing every printer disables it again, the printer part shows "Add printer…".
+        _target.Operations.Clear();
+        _viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
+        Assert.Equal(["update 0", "update 1", "update fixed 0"], _target.Operations);
+        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        Assert.Equal(_viewModel.FixedItems, _target.Fixed);
+        Assert.Equal(_viewModel.PrinterItems, _target.Printers);
+        Assert.Equal(["No printer configured", "Add _printer…"], _target.Printers.Select(static item => item.Header));
     }
 
     [Fact]
@@ -165,12 +201,18 @@ public sealed class TrayMenuPresenterTests : IDisposable
     }
 
     [Fact]
-    public void MainMenuHasNoGeneralDiagnostics()
+    public void MainMenuOffersDiagnosticsAboveSettings()
     {
+        _viewModel.SetPrinters([Definition("a", "Alpha")]);
+        _dispatcher.RunAll();
         using TrayMenuPresenter presenter = Create();
 
-        // T-042: diagnostics are in every printer submenu only.
-        Assert.DoesNotContain(_target.Fixed, static item => item.Command == TrayMenuCommand.Diagnostics);
+        // 2026-10-21: one global "Diagnostics…" in the main menu, none in the printer submenus.
+        Assert.Equal(
+            [TrayMenuCommand.Diagnostics, TrayMenuCommand.Settings, TrayMenuCommand.None, TrayMenuCommand.About, TrayMenuCommand.Quit],
+            _target.Fixed.Select(static item => item.Command));
+        Assert.True(_target.Fixed[2].IsSeparator);
+        Assert.DoesNotContain(_target.Printers[0].Submenu!, static item => item.Command == TrayMenuCommand.Diagnostics);
     }
 
     [Fact]
@@ -180,12 +222,9 @@ public sealed class TrayMenuPresenterTests : IDisposable
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = Create();
 
-        _target.Click(Child(1, TrayMenuCommand.Diagnostics));
-        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
         _target.Click(Child(1, TrayMenuCommand.OpenWeb));
         await _launcher.WaitForOpenedAsync(1);
 
-        Assert.Equal(["b", "a"], _commands.DiagnosticsRequests);
         Assert.Equal([new Uri("http://192.168.1.11/")], _launcher.Opened);
     }
 
@@ -211,10 +250,9 @@ public sealed class TrayMenuPresenterTests : IDisposable
         using TrayMenuPresenter presenter = Create();
 
         _target.Click(Child(0, TrayMenuCommand.OpenWeb));
-        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
 
         Assert.Empty(_launcher.Opened);
-        Assert.Equal(["a"], _commands.DiagnosticsRequests);
+        Assert.Empty(_logger.Entries);
     }
 
     [Fact]
@@ -241,9 +279,24 @@ public sealed class TrayMenuPresenterTests : IDisposable
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
 
-        _target.Click(Child(0, TrayMenuCommand.Diagnostics));
+        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
 
-        Assert.False(Child(0, TrayMenuCommand.Diagnostics).IsEnabled);
+        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        Assert.Equal(0, _commands.DiagnosticsCount);
+    }
+
+    [Fact]
+    public void DiagnosticsWithoutPrintersDoesNothing()
+    {
+        using TrayMenuPresenter presenter = Create();
+
+        // Starting, then no printer configured: disabled in both.
+        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
+        _viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
+        _target.Click(Fixed(TrayMenuCommand.Diagnostics));
+
+        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
         Assert.Equal(0, _commands.DiagnosticsCount);
     }
 
@@ -299,6 +352,67 @@ public sealed class TrayMenuPresenterTests : IDisposable
         // Clicks act on the rebuilt items.
         _target.Click(Fixed(TrayMenuCommand.Quit));
         Assert.Equal(1, _commands.QuitCount);
+    }
+
+    [Fact]
+    public void LanguageSwitchWithPendingDiagnosticsFlipRebuildsTheMenuOnce()
+    {
+        using TrayMenuPresenter presenter = Create();
+        _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
+        _target.Operations.Clear();
+
+        // The posted UI update has not run yet: the language switch applies the printers (and the flip) itself.
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+            _dispatcher.RunAll();
+        }
+
+        Assert.Single(_target.Operations, static operation => operation == "fixed");
+        // The rebuild already shows the enabled item: no separate in-place update.
+        Assert.DoesNotContain(_target.Operations, static operation => operation.StartsWith("update fixed", StringComparison.Ordinal));
+        Assert.Equal(_viewModel.FixedItems, _target.Fixed);
+        Assert.Equal(_viewModel.PrinterItems, _target.Printers);
+        TrayMenuEntry diagnostics = Fixed(TrayMenuCommand.Diagnostics);
+        Assert.True(diagnostics.IsEnabled);
+        Assert.Equal("_Diagnostika…", diagnostics.Header);
+    }
+
+    [Fact]
+    public void PendingDiagnosticsFlipAfterViewModelDisposeTouchesNothing()
+    {
+        using TrayMenuPresenter presenter = Create();
+        _viewModel.SetPrinters([Definition("a", "Alpha")]);
+        // Quitting: the view model goes away before the posted UI update runs.
+        _viewModel.Dispose();
+        _target.Operations.Clear();
+
+        _dispatcher.RunAll();
+
+        Assert.Empty(_target.Operations);
+        Assert.False(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        Assert.False(_viewModel.FixedItems.Single(static item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
+    }
+
+    [Fact]
+    public void FailedDiagnosticsUpdateRebuildsTheMenuAndLogs()
+    {
+        using TrayMenuPresenter presenter = Create();
+        _dispatcher.RunAll();
+        _target.Operations.Clear();
+        _target.ThrowOnUpdateFixedItem = new ArgumentException("Structure changed.");
+
+        _viewModel.SetPrinters([Definition("a", "Alpha")]);
+        _dispatcher.RunAll();
+
+        // The in-place update failed: the whole menu is built again instead of staying stale or crashing the UI thread.
+        Assert.Equal(["update 0", "fixed", "insert 0"], _target.Operations);
+        Assert.Equal(_viewModel.FixedItems, _target.Fixed);
+        Assert.Equal(_viewModel.PrinterItems, _target.Printers);
+        Assert.True(Fixed(TrayMenuCommand.Diagnostics).IsEnabled);
+        (LogLevel level, _, Exception? exception) = Assert.Single(_logger.Entries);
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.IsType<ArgumentException>(exception);
     }
 
     [Fact]

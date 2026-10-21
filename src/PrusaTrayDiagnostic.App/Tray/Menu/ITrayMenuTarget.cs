@@ -11,8 +11,18 @@ internal interface ITrayMenuTarget
     /// <summary>The user clicked an item; the argument is the entry the item currently shows.</summary>
     event EventHandler<TrayMenuEntry>? ItemClicked;
 
-    /// <summary>Sets the fixed part (settings, about, quit...) and removes the printer items; again after a language switch.</summary>
+    /// <summary>
+    /// Sets the fixed part (diagnostics, settings, about, quit...) and removes the printer items; again after a language
+    /// switch only.
+    /// </summary>
     void SetFixedItems(IReadOnlyList<TrayMenuEntry> items);
+
+    /// <summary>
+    /// Changes one fixed item in place (e.g. "Diagnostics…" enabled or disabled), without touching the rest of the menu.
+    /// <paramref name="index"/> is its index in the list given to <see cref="SetFixedItems"/> (separators included); it
+    /// must be a plain item and <paramref name="entry"/> must not be a separator.
+    /// </summary>
+    void UpdateFixedItem(int index, TrayMenuEntry entry);
 
     void InsertPrinterItem(int index, TrayMenuEntry entry);
 
@@ -29,11 +39,21 @@ internal interface ITrayMenuSource
 {
     IReadOnlyList<TrayMenuEntry> FixedItems { get; }
 
-    /// <summary><see cref="FixedItems"/> was replaced (language switch); raised on the UI thread.</summary>
+    /// <summary>
+    /// <see cref="FixedItems"/> was replaced as a whole (language switch only): the menu is built again. Raised on the UI
+    /// thread after <see cref="PrinterItems"/> is up to date.
+    /// </summary>
     event EventHandler? FixedItemsChanged;
 
     /// <summary>
-    /// One submenu header per configured printer (its items: web interface, diagnostics, camera; T-042), or a disabled
+    /// One entry of <see cref="FixedItems"/> changed (its index; "Diagnostics…" enabled or disabled, never on a poll), the
+    /// others are the same: the platform item is updated in place (user decision 2026-10-21). Raised on the UI thread after
+    /// <see cref="PrinterItems"/> is up to date.
+    /// </summary>
+    event EventHandler<int>? FixedItemChanged;
+
+    /// <summary>
+    /// One submenu header per configured printer (its items: web interface and camera; T-042), or a disabled
     /// status message ("Starting…", "Monitoring stopped…"); without printers "No printer configured" followed by
     /// "Add printer…".
     /// </summary>
@@ -50,7 +70,7 @@ internal interface ITrayAppCommands
 
     /// <summary>
     /// Opens the diagnostics window, or activates it when it is already open; shows <paramref name="printerId"/> when set
-    /// (a printer submenu), otherwise keeps the current or default printer.
+    /// (an instance command), otherwise keeps the current or default printer (the main menu item, 2026-10-21).
     /// </summary>
     void ShowDiagnostics(string? printerId);
 

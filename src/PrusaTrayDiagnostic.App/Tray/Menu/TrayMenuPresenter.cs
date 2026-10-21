@@ -7,9 +7,10 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// Mirrors an <see cref="ITrayMenuSource"/> onto a platform menu item by item (a changed printer updates only its own
-/// item) and routes clicks: "open web" items to the web interface; diagnostics and camera (with the printer of their
-/// submenu), "Add printer…", settings and the other fixed items to <see cref="ITrayAppCommands"/>; printer items
-/// (submenu headers) do nothing.
+/// item) and routes clicks: "open web" items to the web interface; camera (with the printer of its submenu),
+/// "Add printer…", diagnostics (main menu, without a printer since 2026-10-21), settings and the other fixed items to
+/// <see cref="ITrayAppCommands"/>; printer items (submenu headers) do nothing. The whole menu is rebuilt only on a language
+/// switch; a changed fixed item ("Diagnostics…" enabled or disabled) is updated in place, so an open menu stays open.
 /// UI thread only.
 /// </summary>
 internal sealed partial class TrayMenuPresenter : IDisposable
@@ -37,6 +38,7 @@ internal sealed partial class TrayMenuPresenter : IDisposable
         InsertAll();
         _printerItems.CollectionChanged += OnPrinterItemsChanged;
         _source.FixedItemsChanged += OnFixedItemsChanged;
+        _source.FixedItemChanged += OnFixedItemChanged;
         _target.ItemClicked += OnItemClicked;
     }
 
@@ -50,10 +52,14 @@ internal sealed partial class TrayMenuPresenter : IDisposable
         _disposed = true;
         _printerItems.CollectionChanged -= OnPrinterItemsChanged;
         _source.FixedItemsChanged -= OnFixedItemsChanged;
+        _source.FixedItemChanged -= OnFixedItemChanged;
         _target.ItemClicked -= OnItemClicked;
     }
 
-    /// <summary>Language switch: the menu is built again (it happens once per switch, never on a poll).</summary>
+    /// <summary>
+    /// Language switch: the menu is built again from both collections (the printer items are already up to date; once per
+    /// switch, never on a poll).
+    /// </summary>
     private void OnFixedItemsChanged(object? sender, EventArgs e)
     {
         if (_disposed)
@@ -63,6 +69,30 @@ internal sealed partial class TrayMenuPresenter : IDisposable
 
         _target.SetFixedItems(_source.FixedItems);
         InsertAll();
+    }
+
+    /// <summary>
+    /// "Diagnostics…" enabled or disabled: only that item changes, in place (user decision 2026-10-21). An item that no
+    /// longer matches the platform menu (a programming error) rebuilds the whole menu instead: raised from a dispatcher job,
+    /// an exception would crash the app.
+    /// </summary>
+    private void OnFixedItemChanged(object? sender, int index)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            _target.UpdateFixedItem(index, _source.FixedItems[index]);
+        }
+        catch (ArgumentException ex)
+        {
+            LogFixedItemUpdateFailed(_logger, ex, index);
+            _target.SetFixedItems(_source.FixedItems);
+            InsertAll();
+        }
     }
 
     private void OnPrinterItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -153,4 +183,7 @@ internal sealed partial class TrayMenuPresenter : IDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Tray menu command {Command} failed.")]
     private static partial void LogCommandFailed(ILogger logger, Exception exception, TrayMenuCommand command);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Tray menu item {Index} could not be updated in place; the menu is rebuilt.")]
+    private static partial void LogFixedItemUpdateFailed(ILogger logger, Exception exception, int index);
 }

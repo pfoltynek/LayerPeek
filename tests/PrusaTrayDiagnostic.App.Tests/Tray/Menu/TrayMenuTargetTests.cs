@@ -28,6 +28,67 @@ public sealed class TrayMenuTargetTests
     }
 
     [Fact]
+    public void UpdateFixedItemChangesOnlyThatItemInPlace()
+    {
+        TrayMenuEntry diagnostics = new(TrayMenuCommand.Diagnostics, "_Diagnostics…", IsEnabled: false) { HasAccessKey = true };
+        _target.SetFixedItems([diagnostics, TrayMenuEntry.Separator, About, Quit]);
+        _target.InsertPrinterItem(0, Printer("A"));
+        List<FakeNativeItem> before = _menu.Items;
+        int structureChanges = _menu.StructureChanges;
+        foreach (FakeNativeItem item in before)
+        {
+            item.Writes.Clear();
+        }
+
+        // The index is the one of the list given to SetFixedItems (separators included).
+        _target.UpdateFixedItem(0, diagnostics with { IsEnabled = true });
+        _target.UpdateFixedItem(3, Quit with { Header = "Exit" });
+
+        Assert.Equal(before, _menu.Items);
+        Assert.Equal(structureChanges, _menu.StructureChanges);
+        Assert.Equal(["A", "---", "_Diagnostics…", "---", "About", "Exit"], _menu.Layout());
+        Assert.Equal(["enabled=True"], before[1].Writes);
+        Assert.Empty(before[0].Writes);
+        Assert.Empty(before[2].Writes);
+        Assert.Equal(["header=Exit"], before[3].Writes);
+
+        // A click acts on the new entry.
+        before[1].Click();
+        Assert.True(Assert.Single(_clicked).IsEnabled);
+    }
+
+    [Fact]
+    public void UpdateFixedItemRejectsSeparatorsAndBadIndexes()
+    {
+        _target.SetFixedItems([About, TrayMenuEntry.Separator, Quit]);
+
+        Assert.Throws<ArgumentException>(() => _target.UpdateFixedItem(1, About));
+        Assert.Throws<ArgumentException>(() => _target.UpdateFixedItem(0, TrayMenuEntry.Separator));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _target.UpdateFixedItem(3, Quit));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _target.UpdateFixedItem(-1, Quit));
+        // A fixed item never becomes a submenu in place.
+        Assert.Throws<ArgumentException>(() => _target.UpdateFixedItem(0, About with { Submenu = new TrayMenuEntryList([Quit]) }));
+        Assert.Equal(["---", "About", "---", "Quit"], _menu.Layout());
+    }
+
+    [Fact]
+    public void UpdateFixedItemAfterARebuildUsesTheNewItems()
+    {
+        _target.SetFixedItems([About, TrayMenuEntry.Separator, Quit]);
+        _target.InsertPrinterItem(0, Printer("A"));
+        FakeNativeItem oldQuit = _menu.Items[^1];
+
+        // Language switch: the fixed part is built again; indexes refer to the new list.
+        _target.SetFixedItems([About with { Header = "Info" }, TrayMenuEntry.Separator, Quit with { Header = "Ende" }]);
+        _target.UpdateFixedItem(2, Quit with { Header = "Beenden" });
+
+        Assert.Equal(["---", "Info", "---", "Beenden"], _menu.Layout());
+        Assert.NotSame(oldQuit, _menu.Items[^1]);
+        _menu.Items[^1].Click();
+        Assert.Equal("Beenden", Assert.Single(_clicked).Header);
+    }
+
+    [Fact]
     public void PrinterIndexIsMenuIndex()
     {
         _target.SetFixedItems([About, Quit]);
@@ -134,13 +195,13 @@ public sealed class TrayMenuTargetTests
     {
         // T-042: fixed and submenu items have access keys, printer names and messages never get one.
         TrayMenuEntry settings = new(TrayMenuCommand.Settings, "_Settings…", IsEnabled: true) { HasAccessKey = true };
-        TrayMenuEntry diagnostics = new(TrayMenuCommand.Diagnostics, "_Diagnostics…", IsEnabled: true, PrinterId: "a") { HasAccessKey = true };
+        TrayMenuEntry camera = new(TrayMenuCommand.Camera, "_Camera", IsEnabled: true, PrinterId: "a") { HasAccessKey = true };
         _target.SetFixedItems([settings]);
 
-        _target.InsertPrinterItem(0, Printer("_Lab_MK4: Idle") with { Submenu = new TrayMenuEntryList([diagnostics]) });
+        _target.InsertPrinterItem(0, Printer("_Lab_MK4: Idle") with { Submenu = new TrayMenuEntryList([camera]) });
 
         Assert.Equal(["_" + NativeMenuText.NoAccessKey + "__Lab__MK4: Idle", "---", "_Settings…"], _menu.Layout());
-        Assert.Equal("_Diagnostics…", Assert.Single(_menu.Items[0].Submenu!.Items).Header);
+        Assert.Equal("_Camera", Assert.Single(_menu.Items[0].Submenu!.Items).Header);
         Assert.Null(NativeMenuText.AccessKeyOf(_menu.Items[0].Header));
         Assert.Equal('S', NativeMenuText.AccessKeyOf(_menu.Items[1].Header));
     }
@@ -197,7 +258,7 @@ public sealed class TrayMenuTargetTests
         Assert.Equal(["A: Idle", "B_" + NativeMenuText.NoAccessKey + "__x: Idle", "---", "Quit"], _menu.Layout());
         FakeNativeItem b = _menu.Items[1];
         Assert.NotNull(b.Submenu);
-        Assert.Equal(["Open b", "Diagnostics…"], b.Submenu.Layout());
+        Assert.Equal(["Open b", "Camera"], b.Submenu.Layout());
         Assert.Null(_menu.Items[^1].Submenu);
     }
 
@@ -214,7 +275,7 @@ public sealed class TrayMenuTargetTests
 
         Assert.Collection(
             _clicked,
-            entry => Assert.Equal((TrayMenuCommand.Diagnostics, "b"), (entry.Command, entry.PrinterId)),
+            entry => Assert.Equal((TrayMenuCommand.Camera, "b"), (entry.Command, entry.PrinterId)),
             entry => Assert.Equal((TrayMenuCommand.OpenWeb, new Uri("http://a/")), (entry.Command, entry.WebUri)));
     }
 
@@ -382,7 +443,7 @@ public sealed class TrayMenuTargetTests
             Submenu = new TrayMenuEntryList(
             [
                 new TrayMenuEntry(TrayMenuCommand.OpenWeb, "Open " + id, IsEnabled: true, WebUri: new Uri($"http://{id}/"), PrinterId: id),
-                new TrayMenuEntry(TrayMenuCommand.Diagnostics, "Diagnostics…", IsEnabled: true, PrinterId: id),
+                new TrayMenuEntry(TrayMenuCommand.Camera, "Camera", IsEnabled: true, PrinterId: id),
             ]),
         };
 
