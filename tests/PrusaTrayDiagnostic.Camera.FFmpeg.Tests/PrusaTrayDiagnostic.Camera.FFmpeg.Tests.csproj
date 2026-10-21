@@ -18,5 +18,7 @@
   <ItemGroup>
     <!-- The FFmpeg DLLs come with this reference (build/FFmpeg.targets). -->
     <ProjectReference Include="..\..\src\PrusaTrayDiagnostic.Camera.FFmpeg\PrusaTrayDiagnostic.Camera.FFmpeg.csproj" />
+    <!-- The simulated Buddy3D camera (T-045), shared with tools/PrusaSimulator instead of a test-only copy. -->
+    <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
   </ItemGroup>
 </Project>
