@@ -451,7 +451,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <paramref name="defaults"/> right away. The mode follows the start mode ("same as last time" keeps the current
     /// one); the placements remembered in this window are dropped, so the window is placed by the defaults on their
     /// monitor (<see cref="PlacementResetRequested"/>) and later mode switches use the defaults too. From now on the window
-    /// is remembered again when it closes (the settings forgot the old state just before).
+    /// is remembered again when it closes (the settings forgot the old state just before). Also called before a closed
+    /// window is shown by Apply: the window then opens placed by the defaults.
     /// </summary>
     internal void ApplyWindowSettings(CameraWindowDefaults defaults)
     {

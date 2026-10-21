@@ -44,6 +44,29 @@ public sealed class AuxiliaryWindowTrackingUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task WindowShownWithoutActivationIsNotTheMostRecentUntilActivated() =>
+        session.RunAsync(static scope =>
+        {
+            // T-040: Apply opens the camera window without the focus; a second start brings back the window in use.
+            AuxiliaryWindowTracker tracker = new(new RecordingShell(), FakeHandles());
+            AuxiliaryWindowSlot settingsSlot = new();
+            AuxiliaryWindowSlot cameraSlot = new();
+            Window settings = scope.Track(new Window());
+            Window camera = scope.Track(new Window { ShowActivated = false });
+            settingsSlot.ShowOrActivate(() => (new AvaloniaAuxiliaryWindow(settings, tracker.Track), null));
+            cameraSlot.ShowOrActivate(() => (new AvaloniaAuxiliaryWindow(camera, tracker.Track), null), activate: false);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(2, tracker.Recent.Count);
+            Assert.Same(settings, ((AvaloniaRecentWindow)tracker.Recent.MostRecent!).Window);
+
+            camera.Activate();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(camera, ((AvaloniaRecentWindow)tracker.Recent.MostRecent!).Window);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
     public Task ClosedWindowIsReleasedWithTheHandleOfItsCreationAndDropsOut() =>
         session.RunAsync(static scope =>
         {

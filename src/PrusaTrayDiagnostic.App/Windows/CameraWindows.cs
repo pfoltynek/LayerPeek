@@ -2,6 +2,7 @@ using Avalonia.Controls;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.Core.Cameras;
+using PrusaTrayDiagnostic.Core.Printers;
 
 namespace PrusaTrayDiagnostic.App.Windows;
 
@@ -12,7 +13,7 @@ namespace PrusaTrayDiagnostic.App.Windows;
 /// </summary>
 internal sealed class CameraWindows : ICameraWindowPlacer
 {
-    private readonly Func<string, CameraViewModel?> _createViewModel;
+    private readonly Func<string, PrinterDefinition?, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
     private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
     private readonly Func<Window, IDisposable>? _track;
@@ -20,12 +21,15 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
 
-    /// <param name="createViewModel">The view model of a new window; <see langword="null"/> when the printer has no enabled camera.</param>
+    /// <param name="createViewModel">
+    /// The view model of a new window for the printer id: from the given saved printer (Apply, T-040), otherwise from the
+    /// monitored settings; <see langword="null"/> when the printer has no enabled camera.
+    /// </param>
     /// <param name="screens">Monitors for tests; <see langword="null"/>: each window asks Avalonia (<see cref="AvaloniaScreenCatalog"/>).</param>
     /// <param name="measureChrome">Frame measurement for tests (<see cref="CameraWindow.ChromeMeasurement"/>); <see langword="null"/>: the real one.</param>
     /// <param name="track">Tracks each new window before it is shown (T-043: taskbar properties, recently used windows).</param>
     public CameraWindows(
-        Func<string, CameraViewModel?> createViewModel,
+        Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
         Func<Window, IDisposable>? track = null)
@@ -48,7 +52,14 @@ internal sealed class CameraWindows : ICameraWindowPlacer
 
     /// <summary>Opens the camera window of <paramref name="printerId"/>, or activates it when it is open.</summary>
     /// <returns>Whether a window of the printer is open now (not when it has no enabled camera, or after <see cref="Shutdown"/>).</returns>
-    public bool Show(string printerId)
+    public bool Show(string printerId) => Show(printerId, saved: null);
+
+    /// <param name="saved">
+    /// Apply (T-040): a new window comes from this saved printer and is placed by its window settings, like an open window
+    /// (<see cref="CameraViewModel.ApplyWindowSettings"/>), and shown without taking the focus from the settings window
+    /// (user decision 2026-10-21); <see langword="null"/>: the monitored settings, activated.
+    /// </param>
+    private bool Show(string printerId, PrinterDefinition? saved)
     {
         if (_shutDown || string.IsNullOrWhiteSpace(printerId))
         {
@@ -61,14 +72,25 @@ internal sealed class CameraWindows : ICameraWindowPlacer
             _slots.Add(printerId, slot);
         }
 
+        // Apply keeps the focus in the settings window. Exception (user decision 2026-10-21): full screen takes it when the
+        // window switches after opening (on Windows Avalonia activates a shown window whose state changes), so that Esc
+        // and F11 reach the camera window that covers the settings.
+        bool activate = saved is null;
         CameraViewModel? created = null;
         if (!slot.IsOpen)
         {
             // Null when the camera was disabled meanwhile (a stale menu item): nothing opens.
-            created = _createViewModel(printerId);
+            created = _createViewModel(printerId, saved);
             if (created is null)
             {
                 return false;
+            }
+
+            if (saved is not null)
+            {
+                // As for an open window, but before the window gets the view model: it is placed from it before it
+                // is shown (no visible jump).
+                created.ApplyWindowSettings(saved.Camera.Window);
             }
         }
 
@@ -80,8 +102,8 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                 used = true;
                 // The monitors first: the window places itself when it gets its view model.
                 CameraWindow window = _screens is { } screens
-                    ? new() { ChromeMeasurement = _measureChrome, ScreenCatalog = screens, DataContext = created }
-                    : new() { ChromeMeasurement = _measureChrome, DataContext = created };
+                    ? new() { ChromeMeasurement = _measureChrome, ScreenCatalog = screens, ShowActivated = activate, DataContext = created }
+                    : new() { ChromeMeasurement = _measureChrome, ShowActivated = activate, DataContext = created };
                 _open[printerId] = window;
                 window.Closed += (_, _) =>
                 {
@@ -94,7 +116,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                 };
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.
                 return (new AvaloniaAuxiliaryWindow(window, _track), created);
-            });
+            }, activate: activate);
         }
         finally
         {
@@ -129,16 +151,25 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     }
 
     /// <inheritdoc/>
-    public bool ApplySettings(string printerId, CameraWindowDefaults window)
+    public bool ApplySettings(PrinterDefinition printer)
     {
-        ArgumentNullException.ThrowIfNull(window);
-        if (_shutDown || string.IsNullOrWhiteSpace(printerId)
-            || !_open.TryGetValue(printerId, out CameraWindow? open) || open.DataContext is not CameraViewModel viewModel)
+        ArgumentNullException.ThrowIfNull(printer);
+        if (_shutDown || !printer.Camera.Enabled)
         {
             return false;
         }
 
-        viewModel.ApplyWindowSettings(window);
+        if (!_open.TryGetValue(printer.Id, out CameraWindow? open))
+        {
+            return Show(printer.Id, printer);
+        }
+
+        if (open.DataContext is not CameraViewModel viewModel)
+        {
+            return false;
+        }
+
+        viewModel.ApplyWindowSettings(printer.Camera.Window);
         return true;
     }
 
