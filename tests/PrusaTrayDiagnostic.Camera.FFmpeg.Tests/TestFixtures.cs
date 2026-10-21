@@ -14,6 +14,9 @@ internal static class TestFixtures
 
     public const int Buddy3DHeight = 720;
 
+    /// <summary>0.1 s of silence as WAV (8 kHz, mono, 16 bit): a valid media file in a container other than raw H.264.</summary>
+    public static Uri SilenceWav { get; } = new Uri(Path.Combine(AppContext.BaseDirectory, "Fixtures", "silence.wav"));
+
     /// <summary>A file that does not exist (nothing is created).</summary>
     public static Uri MissingFile { get; } = new Uri(Path.Combine(AppContext.BaseDirectory, "Fixtures", "does-not-exist.h264"));
 
@@ -27,12 +30,13 @@ internal static class TestFixtures
     /// The simulated Buddy3D camera (tools/PrusaSimulator, T-045) on a free loopback port. By default it plays the fixture
     /// once as fast as the client reads and then closes the connection (T-014 tests count the frames); with
     /// <paramref name="loop"/> and <paramref name="realTime"/> it is a live camera. <paramref name="rtpMap"/> announces
-    /// another encoding in the session description (the payload stays H.264).
+    /// another encoding in the session description, <paramref name="media"/> another media type (the payload stays H.264).
     /// </summary>
-    public static RtspCamera StartCamera(bool loop = false, bool realTime = false, string? rtpMap = null)
+    public static RtspCamera StartCamera(bool loop = false, bool realTime = false, string? rtpMap = null, string? media = null)
     {
         RtspCameraOptions options = new() { Clip = Buddy3DClip, Loop = loop, RealTime = realTime };
-        return new(rtpMap is null ? options : options with { RtpMap = rtpMap });
+        options = rtpMap is null ? options : options with { RtpMap = rtpMap };
+        return new(media is null ? options : options with { Media = media });
     }
 
     public static FFmpegCameraFeed CreateFeed(Uri uri, TimeSpan? ioTimeout = null) =>

@@ -34,6 +34,25 @@ public sealed record RtspCameraOptions
         }
     } = H264RtpMap;
 
+    /// <summary>
+    /// Media type of the announced track (<c>m=… 0 RTP/AVP 96</c>). <c>video</c> by default; tests announce e.g.
+    /// <c>audio</c> to check that a client rejects a stream without video. The payload stays the H.264 clip either way.
+    /// </summary>
+    public string Media
+    {
+        get;
+        init
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(value);
+            if (value.AsSpan().ContainsAnyExceptInRange('a', 'z'))
+            {
+                throw new ArgumentException("The media type must be a single lowercase SDP token.", nameof(value));
+            }
+
+            field = value;
+        }
+    } = "video";
+
     /// <summary>Address to listen on; loopback by default (use <see cref="IPAddress.Any"/> for the local network).</summary>
     public IPAddress Address { get; init; } = IPAddress.Loopback;
 

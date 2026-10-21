@@ -309,6 +309,28 @@ public sealed class RtspCameraTests
     }
 
     [Fact]
+    public async Task DescribeAnnouncesTheConfiguredMediaType()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D, Media = "audio", RtpMap = "PCMU/8000" });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+
+        RtspResponse describe = await client.RequestAsync("DESCRIBE", camera.StreamUri.ToString(), "Accept: application/sdp\r\n", Ct);
+
+        Assert.Contains("m=audio 0 RTP/AVP 96\r\n", describe.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("m=video", describe.Body, StringComparison.Ordinal);
+        Assert.Contains("a=rtpmap:96 PCMU/8000\r\n", describe.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("audio video")]
+    [InlineData("audio\r\nm=video")]
+    public void InvalidMediaIsRejected(string media)
+    {
+        Assert.Throws<ArgumentException>(() => new RtspCameraOptions { Clip = Buddy3D, Media = media });
+    }
+
+    [Fact]
     public async Task TeardownEndsTheSession()
     {
         await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });

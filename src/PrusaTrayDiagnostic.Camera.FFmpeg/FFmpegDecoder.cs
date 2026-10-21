@@ -143,22 +143,19 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             ffmpeg.av_dict_free(&options);
         }
 
-        // Without asking for a decoder: the stream is chosen by its type, its codec is checked below.
-        int stream = ffmpeg.AVERROR_STREAM_NOT_FOUND;
-        if (_isNetwork)
+        if (!_isNetwork)
         {
-            // The RTSP session description (SDP) already names the codec and usually carries SPS/PPS as extradata;
-            // that is all the decoder needs. avformat_find_stream_info would decode about a second of video first
-            // and then hand it over as a backlog, which delays the live picture permanently (measured: ~1.2 s).
-            stream = ffmpeg.av_find_best_stream(_format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
+            // Files: probe the content (robust, but buffers; irrelevant for a recording).
+            Check(ffmpeg.avformat_find_stream_info(_format, null), OpenStage);
         }
 
-        if (stream == ffmpeg.AVERROR_STREAM_NOT_FOUND)
-        {
-            // Files, and streams whose description names no video: probe the content (robust, but buffers).
-            Check(ffmpeg.avformat_find_stream_info(_format, null), OpenStage);
-            stream = ffmpeg.av_find_best_stream(_format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
-        }
+        // The RTSP session description (SDP) already fixes the streams and names the codec, and usually carries SPS/PPS
+        // as extradata; that is all the decoder needs. Network streams are never probed: avformat_find_stream_info
+        // would decode about a second of video first and hand it over as a backlog, which delays the live picture
+        // permanently (measured: ~1.2 s), and it cannot find a stream the description does not announce - it would
+        // only feed the untrusted payload to other depacketizers and parsers. Without asking for a decoder: the stream
+        // is chosen by its type, its codec is checked below.
+        int stream = ffmpeg.av_find_best_stream(_format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
 
         if (stream == ffmpeg.AVERROR_STREAM_NOT_FOUND)
         {

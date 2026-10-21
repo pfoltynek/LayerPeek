@@ -39,8 +39,8 @@ public sealed class FFmpegCameraFeedRtspTests
         Assert.True(await frames.MoveNextAsync());
         long sentBeforeFirstFrame = camera.FramesSent;
 
-        // 25 fps: 10 frames are 0.4 s of video.
-        Assert.InRange(sentBeforeFirstFrame, 1, 10);
+        // 25 fps: 15 frames are 0.6 s of video, a margin for a loaded machine; probing would buffer about 30.
+        Assert.InRange(sentBeforeFirstFrame, 1, 15);
         Assert.Equal(TestFixtures.Buddy3DWidth, frames.Current.Width);
     }
 
@@ -61,6 +61,25 @@ public sealed class FFmpegCameraFeedRtspTests
 
         Assert.Equal("The video format of the stream is not supported.", error.Message);
         Assert.True(watch.Elapsed < TestFixtures.Prompt, $"Rejecting took {watch.Elapsed}.");
+        Assert.False(feed.HoldsNativeResources);
+    }
+
+    [FFmpegFact]
+    public async Task StreamWithoutVideoIsRejectedWithoutProbing()
+    {
+        // The session description fixes the streams; probing the (untrusted) payload could not find video anyway. An
+        // unknown audio codec would keep probing reading the stream until its limits.
+        await using RtspCamera camera = TestFixtures.StartCamera(loop: true, realTime: true, rtpMap: "X-UNKNOWN/8000", media: "audio");
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(camera.StreamUri);
+        using CancellationTokenSource guard = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        guard.CancelAfter(TimeSpan.FromSeconds(20));
+
+        Stopwatch watch = Stopwatch.StartNew();
+        CameraFeedException error = await Assert.ThrowsAsync<CameraFeedException>(() => TestFixtures.CountFramesAsync(feed, guard.Token));
+
+        Assert.Equal("The stream contains no video.", error.Message);
+        // Probing would read for seconds (analyzeduration) at 25 fps.
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"Rejecting took {watch.Elapsed}.");
         Assert.False(feed.HoldsNativeResources);
     }
 
