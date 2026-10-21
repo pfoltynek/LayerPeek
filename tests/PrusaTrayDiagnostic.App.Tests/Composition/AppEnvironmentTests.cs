@@ -192,8 +192,8 @@ public sealed class AppEnvironmentTests
 
     /// <summary>
     /// Guard against a new file location that bypasses <see cref="AppEnvironment"/> (and so the test mode): in the app's
-    /// sources, the per-user folders, the default stores, the Credential Manager and the Start menu shortcut appear only
-    /// where the environment decides about them.
+    /// sources, the per-user folders, the default stores, the Credential Manager, the Start menu shortcut and the registry
+    /// (Explorer's tray icon settings) appear only where the environment decides about them.
     /// </summary>
     [Fact]
     public void EveryPerUserLocationOfTheAppGoesThroughTheEnvironment()
@@ -209,7 +209,9 @@ public sealed class AppEnvironmentTests
             (@"Path\.GetTemp(Path|FileName)", ["SingleInstance/InstanceTransports.cs"]),
             (@"new WindowsCredentialSecretStore\(", ["Composition/AppServices.cs"]),
             (@"new AppShortcutRegistration\(", ["Composition/AppServices.cs"]),
-            (@"Microsoft\.Win32\.Registry|RegistryKey", []),
+            // Explorer's tray icon settings (T-061): created only where the test mode switches the promotion off.
+            (@"Microsoft\.Win32\.Registry|RegistryKey|\bRegistry\.(CurrentUser|LocalMachine|ClassesRoot|Users)\b", ["Platform/Windows/NotifyIconSettingsRegistry.cs"]),
+            (@"new NotifyIconSettingsRegistry\(", ["Composition/TrayHost.cs"]),
         ];
 
         List<string> violations = [];
