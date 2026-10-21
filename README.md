@@ -19,6 +19,7 @@ Plánované funkce: stav a progress tisku v ikoně, systémové notifikace (doko
 | `src/PrusaTrayDiagnostic.PrusaConnect` | klient Prusa Connect |
 | `src/PrusaTrayDiagnostic.App` | Avalonia tray aplikace |
 | `tests/` | unit testy |
+| `tools/PrusaSimulator` | vývojový nástroj: simulované tiskárny PrusaLink a RTSP kamera – viz [docs/simulator.md](docs/simulator.md) |
 | `docs/` | architektura a poznámky k API |
 | `tasks/` | backlog úkolů – viz [tasks/README.md](tasks/README.md) |
 | `.claude/agents/` | Claude Code agenti (architect, core-dev, ui-dev, qa-reviewer) |
@@ -32,6 +33,7 @@ Prerekvizity (včetně nástrojů pro Native AOT na Windows a macOS): [docs/prer
 dotnet build
 dotnet test
 dotnet run --project src/PrusaTrayDiagnostic.App
+dotnet run --project tools/PrusaSimulator         # simulované tiskárny a kamera (docs/simulator.md)
 
 # Native AOT – jeden nativní soubor bez nutnosti instalovat .NET
 dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64     # na Windows

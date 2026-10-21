@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using PrusaTrayDiagnostic.Core.Cameras;
+using PrusaTrayDiagnostic.Simulator.Camera;
 
 namespace PrusaTrayDiagnostic.Camera.FFmpeg.Tests;
 
@@ -13,7 +14,7 @@ public sealed class FFmpegCameraFeedRtspTests
     public async Task StreamsTheRecordingFromAFakeRtspCamera()
     {
         // Exercises the low-latency path: the decoder starts from the session description without probing.
-        await using FakeRtspCamera camera = new(TestFixtures.Buddy3D.LocalPath);
+        await using RtspCamera camera = TestFixtures.StartCamera();
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(camera.StreamUri);
         using CancellationTokenSource guard = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         guard.CancelAfter(TimeSpan.FromSeconds(20));
@@ -28,7 +29,7 @@ public sealed class FFmpegCameraFeedRtspTests
     [FFmpegFact]
     public async Task FragmentIsNotSentToTheCamera()
     {
-        await using FakeRtspCamera camera = new(TestFixtures.Buddy3D.LocalPath);
+        await using RtspCamera camera = TestFixtures.StartCamera();
         await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(new Uri(camera.StreamUri, "#secret"));
         using CancellationTokenSource guard = CancellationTokenSource.CreateLinkedTokenSource(Ct);
         guard.CancelAfter(TimeSpan.FromSeconds(20));
