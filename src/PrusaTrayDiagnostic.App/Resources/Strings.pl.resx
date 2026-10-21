@@ -94,7 +94,7 @@
     <value>_Ustawienia…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>_Diagnostyka…</value>
+    <value>D_iagnostyka…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
     <value>_O programie</value>
@@ -636,9 +636,6 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Pełny ekran (F11)</value>
   </data>
-  <data name="CameraExitFullScreen" xml:space="preserve">
-    <value>Zamknij pełny ekran (Esc)</value>
-  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Mały podgląd, zawsze na wierzchu</value>
   </data>
@@ -647,6 +644,9 @@
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Powrót do zwykłego okna (dwukrotne kliknięcie)</value>
+  </data>
+  <data name="CameraNormalPlain" xml:space="preserve">
+    <value>Zwykłe okno</value>
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Obraz z kamery. Dwukrotne kliknięcie przełącza pełny ekran; F11 pełny ekran, Esc powrót.</value>

@@ -194,8 +194,8 @@ public partial class App : Application, ITrayAppCommands
             },
             owned =>
             {
-                // Already open: switch to the printer whose submenu was used (every Diagnostics item belongs to a printer since
-                // T-042; without a printer the window keeps the current one).
+                // Already open: switch to the requested printer (instance commands). The tray menu item has no printer
+                // (2026-10-21, the window has its own printer combo): the window keeps the current one.
                 if (printerId is not null && owned is DiagnosticsViewModel viewModel)
                 {
                     viewModel.ShowPrinter(printerId);

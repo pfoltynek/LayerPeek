@@ -238,38 +238,43 @@ internal static class AppServices
     }
 
     /// <summary>
-    /// A new view model for the camera window of <paramref name="printerId"/>; <see langword="null"/> when the printer is
-    /// not monitored or has no enabled camera. The caller disposes it when the window closes. Call on the UI thread.
+    /// A new view model for the camera window of <paramref name="printerId"/>: from <paramref name="saved"/> when given
+    /// ("Apply" in the settings, T-040: monitoring gets the saved settings only after it restarted), otherwise from the
+    /// monitored settings; <see langword="null"/> when the printer is not monitored or has no enabled camera. The caller
+    /// disposes it when the window closes. Call on the UI thread.
     /// </summary>
-    public static CameraViewModel? CreateCameraViewModel(IServiceProvider services, string printerId)
+    public static CameraViewModel? CreateCameraViewModel(IServiceProvider services, string printerId, PrinterDefinition? saved = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
-        if (services.GetRequiredService<MonitoredPrinters>().Current.Printers is not { } printers)
+        PrinterDefinition? printer = saved ?? Monitored(services.GetRequiredService<MonitoredPrinters>(), printerId);
+        return printer is not null
+            && string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase)
+            && CameraTarget.From(printer) is { } target
+            ? new CameraViewModel(
+                target,
+                services.GetRequiredService<ReconnectingCameraFeed>(),
+                services.GetRequiredService<IPrinterMonitor>(),
+                services.GetRequiredService<MonitoredPrinters>(),
+                services.GetRequiredService<IUiDispatcher>(),
+                services.GetRequiredService<ICameraWindowStateStore>(),
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<CameraFeedOptions>(),
+                services.GetRequiredService<ILogger<CameraViewModel>>())
+            : null;
+
+        static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
         {
+            foreach (PrinterDefinition printer in monitored.Current.Printers ?? [])
+            {
+                if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return printer;
+                }
+            }
+
             return null;
         }
-
-        foreach (PrinterDefinition printer in printers)
-        {
-            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
-            {
-                return CameraTarget.From(printer) is { } target
-                    ? new CameraViewModel(
-                        target,
-                        services.GetRequiredService<ReconnectingCameraFeed>(),
-                        services.GetRequiredService<IPrinterMonitor>(),
-                        services.GetRequiredService<MonitoredPrinters>(),
-                        services.GetRequiredService<IUiDispatcher>(),
-                        services.GetRequiredService<ICameraWindowStateStore>(),
-                        services.GetRequiredService<TimeProvider>(),
-                        services.GetRequiredService<CameraFeedOptions>(),
-                        services.GetRequiredService<ILogger<CameraViewModel>>())
-                    : null;
-            }
-        }
-
-        return null;
     }
 
     /// <summary>

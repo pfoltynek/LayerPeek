@@ -88,9 +88,9 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
     }
 
-    private CameraViewModel? Create(string printerId)
+    private CameraViewModel? Create(string printerId, PrinterDefinition? saved)
     {
-        PrinterDefinition? printer = Printers.Current.Printers?.FirstOrDefault(p => string.Equals(p.Id, printerId, StringComparison.OrdinalIgnoreCase));
+        PrinterDefinition? printer = saved ?? Printers.Current.Printers?.FirstOrDefault(p => string.Equals(p.Id, printerId, StringComparison.OrdinalIgnoreCase));
         if (printer is null || CameraTarget.From(printer) is not { } target)
         {
             return null;

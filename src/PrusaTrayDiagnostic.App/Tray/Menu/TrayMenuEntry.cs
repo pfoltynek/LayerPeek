@@ -21,7 +21,11 @@ public enum TrayMenuCommand
     /// </summary>
     AddPrinter,
 
-    /// <summary>Diagnostics window (T-011), preselected on <see cref="TrayMenuEntry.PrinterId"/> when set.</summary>
+    /// <summary>
+    /// Diagnostics window (T-011): a single main menu item without a printer (user decision 2026-10-21, the window has its
+    /// own printer combo); an open window keeps its printer. Enabled only while the menu shows printers. Preselects
+    /// <see cref="TrayMenuEntry.PrinterId"/> when an entry sets it.
+    /// </summary>
     Diagnostics,
 
     /// <summary>
@@ -144,6 +148,10 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
 /// Which auxiliary windows exist; their items are shown disabled until the window is implemented ("Add printer…" follows
 /// the settings window).
 /// </summary>
+/// <param name="DiagnosticsAvailable">
+/// The diagnostics window exists. The main menu item "Diagnostics…" is enabled only when it does and the menu shows
+/// printers (2026-10-21).
+/// </param>
 /// <param name="PrinterIcons">
 /// Printer items show the printer's picture (T-039): on Windows, where Avalonia draws the menu itself. macOS (native
 /// NSMenu) is left out until T-018 verifies it (user decision 2026-10-19).

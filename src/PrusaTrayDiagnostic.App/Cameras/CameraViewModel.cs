@@ -189,6 +189,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _miniPlacement = plan.UseRememberedMini ? state.Mini : null;
 
         ToggleFullScreenCommand = new RelayCommand(ToggleFullScreen);
+        ShowFullScreenCommand = new RelayCommand(() => Mode = CameraWindowMode.FullScreen, () => _mode != CameraWindowMode.FullScreen);
         ShowMiniCommand = new RelayCommand(() => Mode = CameraWindowMode.Mini, () => _mode != CameraWindowMode.Mini);
         ShowNormalCommand = new RelayCommand(() => Mode = CameraWindowMode.Normal, () => _mode != CameraWindowMode.Normal);
         EscapeCommand = new RelayCommand(Escape, () => _mode != CameraWindowMode.Normal);
@@ -243,7 +244,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         }
 
         OnPropertyChanged(nameof(Title));
-        OnPropertyChanged(nameof(FullScreenToolTip));
+        OnPropertyChanged(nameof(NormalToolTip));
         OnPropertyChanged(nameof(MiniToolTip));
         OnPropertyChanged(nameof(StatusText));
         if (!_shownPrintContent.IsEmpty)
@@ -271,10 +272,11 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsNormal));
             OnPropertyChanged(nameof(IsFullScreen));
             OnPropertyChanged(nameof(IsMini));
-            OnPropertyChanged(nameof(FullScreenToolTip));
+            OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
             // The mini preview has its own overlay items (T-036).
             UpdateOverlayItems();
+            ShowFullScreenCommand.NotifyCanExecuteChanged();
             ShowMiniCommand.NotifyCanExecuteChanged();
             ShowNormalCommand.NotifyCanExecuteChanged();
             EscapeCommand.NotifyCanExecuteChanged();
@@ -293,7 +295,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// </summary>
     public bool IsTopmost => _defaults.IsTopmost(_mode);
 
-    public string FullScreenToolTip => IsFullScreen ? Strings.CameraExitFullScreen : Strings.CameraFullScreen;
+    /// <summary>
+    /// Tip (and accessible name) of the normal window button: mentions the double-click only where it leads to the normal
+    /// window, i.e. not in full screen entered from the mini preview (the double-click returns there).
+    /// </summary>
+    public string NormalToolTip =>
+        IsFullScreen && _fullScreenOrigin == CameraWindowMode.Mini ? Strings.CameraNormalPlain : Strings.CameraNormal;
 
     /// <summary>
     /// Tip (and accessible name) of the mini preview button: says "always on top" only while the printer's option for the
@@ -314,14 +321,17 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     internal CameraWindowDefaults Defaults => _defaults;
 
     /// <summary>
-    /// F11 and the full-screen button: into full screen from the normal window or the mini preview; out of full screen back
-    /// to the mode it was entered from (the normal window when the window opened in full screen).
+    /// F11: into full screen from the normal window or the mini preview; out of full screen back to the mode it was entered
+    /// from (the normal window when the window opened in full screen).
     /// </summary>
     public IRelayCommand ToggleFullScreenCommand { get; }
 
+    /// <summary>Full screen (a window button; every mode shows the buttons of the other two).</summary>
+    public IRelayCommand ShowFullScreenCommand { get; }
+
     public IRelayCommand ShowMiniCommand { get; }
 
-    /// <summary>Back to the normal window (the button of the mini preview); Esc is <see cref="EscapeCommand"/>.</summary>
+    /// <summary>The normal window (from the mini preview or full screen); Esc is <see cref="EscapeCommand"/>.</summary>
     public IRelayCommand ShowNormalCommand { get; }
 
     /// <summary>Esc: leaves full screen to the mode it was entered from; from the mini preview back to the normal window.</summary>
@@ -451,7 +461,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <paramref name="defaults"/> right away. The mode follows the start mode ("same as last time" keeps the current
     /// one); the placements remembered in this window are dropped, so the window is placed by the defaults on their
     /// monitor (<see cref="PlacementResetRequested"/>) and later mode switches use the defaults too. From now on the window
-    /// is remembered again when it closes (the settings forgot the old state just before).
+    /// is remembered again when it closes (the settings forgot the old state just before). Also called before a closed
+    /// window is shown by Apply: the window then opens placed by the defaults.
     /// </summary>
     internal void ApplyWindowSettings(CameraWindowDefaults defaults)
     {
