@@ -22,7 +22,7 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     internal const string DefaultCopyright = "Copyright © Petr Foltýnek";
 
     /// <summary>License of the project (<c>LICENSE</c> in the repository root); a name, not translated.</summary>
-    public const string LicenseName = "Apache License 2.0";
+    public const string LicenseName = "GNU General Public License v3.0 only";
 
     private readonly IUrlLauncher _launcher;
     private readonly string _version;

@@ -7,6 +7,7 @@ Guidance for Claude Code and all subagents working in this repository.
 **PrusaTrayDiagnostic** is a cross-platform (Windows + macOS) **tray-only** application that monitors Prusa 3D printers.
 Data sources: **PrusaLink** (local REST API on the printer) and **Prusa Connect** (cloud).
 There is no main window — UI lives in the system tray (Windows) / menu bar (macOS); small auxiliary windows (settings, diagnostics) may open from the tray menu.
+License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-compatible license (MIT, BSD, Apache-2.0, LGPL…) — verify and state it in the task notes, like AOT compatibility.
 
 ## Language rules (strict)
 
@@ -15,7 +16,8 @@ There is no main window — UI lives in the system tray (Windows) / menu bar (ma
 | Communication with the user | **Czech** |
 | `.claude/agents/*.md`, this file, prompts between agents | English |
 | Code identifiers, code comments, commit messages | English |
-| `tasks/**`, `docs/**`, `README.md` | **Czech** |
+| `tasks/**`, `docs/**`, `README.cz.md` | **Czech** |
+| `README.md`, `CHANGELOG.md` | English (public open-source front page; keep `README.cz.md` in sync) |
 | UI strings | to be decided (see open questions in tasks) — do not localize until decided |
 
 ## Decision rule
