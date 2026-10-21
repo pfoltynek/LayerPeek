@@ -184,6 +184,23 @@ public sealed class AppServicesTests
     }
 
     [Fact]
+    public async Task CameraWindowOfApplyComesFromTheSavedPrinter()
+    {
+        // T-040: Apply opens the window before monitoring knows the saved printer (or its camera).
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+        PrinterDefinition saved = new() { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) };
+
+        using CameraViewModel? camera = AppServices.CreateCameraViewModel(services, "A", saved);
+
+        Assert.NotNull(camera);
+        Assert.Equal("a", camera.PrinterId);
+        Assert.Null(AppServices.CreateCameraViewModel(services, "a", saved with { Camera = CameraSettings.Disabled }));
+        Assert.Null(AppServices.CreateCameraViewModel(services, "b", saved));
+    }
+
+    [Fact]
     public async Task CameraWindowNeedsAMonitoredPrinterWithAnEnabledCamera()
     {
         MemoryCameraWindowStateStore states = new();
