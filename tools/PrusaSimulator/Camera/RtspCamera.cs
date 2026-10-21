@@ -42,7 +42,7 @@ public sealed class RtspCamera : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(options);
         _options = options;
-        _listener = new TcpListener(options.Address, options.Port);
+        _listener = CreateListener(options.Address, options.Port);
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
         string host = options.Address.Equals(IPAddress.Any) || options.Address.Equals(IPAddress.IPv6Any)
@@ -50,6 +50,21 @@ public sealed class RtspCamera : IAsyncDisposable
             : options.Address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{options.Address}]" : options.Address.ToString();
         StreamUri = new Uri(string.Create(CultureInfo.InvariantCulture, $"rtsp://{host}:{Port}/live"));
         _acceptLoop = AcceptAsync(_stop.Token);
+    }
+
+    /// <summary>
+    /// A listener for <paramref name="address"/>; for <c>::</c> (all IPv6 interfaces) it accepts IPv4 too, so that
+    /// <c>--host ::</c> is reachable as <c>127.0.0.1</c> like the printers (Kestrel does the same).
+    /// </summary>
+    internal static TcpListener CreateListener(IPAddress address, int port)
+    {
+        TcpListener listener = new(address, port);
+        if (address.Equals(IPAddress.IPv6Any))
+        {
+            listener.Server.DualMode = true;
+        }
+
+        return listener;
     }
 
     public int Port { get; }
@@ -208,6 +223,8 @@ public sealed class RtspCamera : IAsyncDisposable
         private readonly string _sessionId;
         private Task? _streaming;
         private byte _rtpChannel;
+        private bool _setUp;
+        private TaskCompletionSource? _paused;
 
         public Session(RtspCamera camera, TcpClient client, int id, CancellationToken stopToken)
         {
@@ -274,12 +291,22 @@ public sealed class RtspCamera : IAsyncDisposable
         {
             byte[] buffer = new byte[MaxRequestBytes];
             int count = 0;
+            // Bytes of an interleaved packet larger than the buffer that are still to be discarded.
+            int skip = 0;
             while (true)
             {
                 int read = await stream.ReadAsync(buffer.AsMemory(count), cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     return;
+                }
+
+                if (skip > 0)
+                {
+                    int dropped = Math.Min(skip, read);
+                    Buffer.BlockCopy(buffer, count + dropped, buffer, count, read - dropped);
+                    skip -= dropped;
+                    read -= dropped;
                 }
 
                 count += read;
@@ -289,12 +316,25 @@ public sealed class RtspCamera : IAsyncDisposable
                     if (buffer[0] == (byte)'$')
                     {
                         // Interleaved binary data from the client (RTCP receiver reports): skipped.
-                        if (count < 4 || count < 4 + BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(2)))
+                        if (count < 4)
                         {
                             break;
                         }
 
-                        consumed = 4 + BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(2));
+                        int packet = 4 + BinaryPrimitives.ReadUInt16BigEndian(buffer.AsSpan(2));
+                        if (count < packet)
+                        {
+                            if (packet > buffer.Length)
+                            {
+                                // Never fits: drop what is here and discard the rest as it arrives.
+                                skip = packet - count;
+                                count = 0;
+                            }
+
+                            break;
+                        }
+
+                        consumed = packet;
                     }
                     else
                     {
@@ -344,48 +384,74 @@ public sealed class RtspCamera : IAsyncDisposable
             _camera.Record(method, lines[0]);
             string cseq = Header(lines, "CSeq") ?? "0";
             string session = string.Create(CultureInfo.InvariantCulture, $"Session: {_sessionId};timeout=60\r\n");
+            string? requestSession = Header(lines, "Session")?.Split(';')[0].Trim();
+            bool needsSession = method is "PLAY" or "PAUSE" or "TEARDOWN";
             string response;
             bool keepOpen = true;
-            switch (method)
+            bool startStreaming = false;
+            if (needsSession && !_setUp)
             {
-                case "OPTIONS":
-                    response = Ok(cseq, "Public: OPTIONS, DESCRIBE, SETUP, PLAY, PAUSE, TEARDOWN, GET_PARAMETER, SET_PARAMETER\r\n");
-                    break;
-                case "DESCRIBE":
-                    response = Describe(cseq, url);
-                    break;
-                case "SETUP":
-                    string transport = Header(lines, "Transport") ?? "";
-                    if (!transport.Contains("TCP", StringComparison.OrdinalIgnoreCase))
-                    {
-                        response = Status(cseq, "461 Unsupported Transport", "");
+                response = Status(cseq, "455 Method Not Valid in This State", "");
+            }
+            else if ((needsSession && requestSession != _sessionId)
+                || (method is "GET_PARAMETER" or "SET_PARAMETER" && requestSession is not null && requestSession != _sessionId))
+            {
+                response = Status(cseq, "454 Session Not Found", "");
+            }
+            else
+            {
+                switch (method)
+                {
+                    case "OPTIONS":
+                        response = Ok(cseq, "Public: OPTIONS, DESCRIBE, SETUP, PLAY, PAUSE, TEARDOWN, GET_PARAMETER, SET_PARAMETER\r\n");
                         break;
-                    }
+                    case "DESCRIBE":
+                        response = Describe(cseq, url);
+                        break;
+                    case "SETUP":
+                        string transport = Header(lines, "Transport") ?? "";
+                        if (!transport.Contains("TCP", StringComparison.OrdinalIgnoreCase))
+                        {
+                            response = Status(cseq, "461 Unsupported Transport", "");
+                            break;
+                        }
 
-                    (byte rtp, byte rtcp) = Interleaved(transport);
-                    _rtpChannel = rtp;
-                    response = Ok(cseq, string.Create(CultureInfo.InvariantCulture, $"Transport: RTP/AVP/TCP;unicast;interleaved={rtp}-{rtcp};ssrc={Ssrc:X8}\r\n") + session);
-                    break;
-                case "PLAY":
-                    response = Ok(cseq, session + "Range: npt=0.000-\r\n" + string.Create(CultureInfo.InvariantCulture, $"RTP-Info: url={url};seq=0;rtptime=0\r\n"));
-                    break;
-                case "TEARDOWN":
-                    response = Ok(cseq, session);
-                    keepOpen = false;
-                    break;
-                case "PAUSE" or "GET_PARAMETER" or "SET_PARAMETER":
-                    response = Ok(cseq, session);
-                    break;
-                default:
-                    response = Status(cseq, "501 Not Implemented", "");
-                    break;
+                        (byte rtp, byte rtcp) = Interleaved(transport);
+                        _rtpChannel = rtp;
+                        _setUp = true;
+                        response = Ok(cseq, string.Create(CultureInfo.InvariantCulture, $"Transport: RTP/AVP/TCP;unicast;interleaved={rtp}-{rtcp};ssrc={Ssrc:X8}\r\n") + session);
+                        break;
+                    case "PLAY":
+                        response = Ok(cseq, session + "Range: npt=0.000-\r\n" + string.Create(CultureInfo.InvariantCulture, $"RTP-Info: url={url};seq=0;rtptime=0\r\n"));
+                        startStreaming = true;
+                        break;
+                    case "PAUSE":
+                        // Frames stop until the next PLAY; the stream then continues live (no catching up).
+                        Interlocked.CompareExchange(ref _paused, new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously), null);
+                        response = Ok(cseq, session);
+                        break;
+                    case "TEARDOWN":
+                        response = Ok(cseq, session);
+                        keepOpen = false;
+                        break;
+                    case "GET_PARAMETER" or "SET_PARAMETER":
+                        response = Ok(cseq, session);
+                        break;
+                    default:
+                        response = Status(cseq, "501 Not Implemented", "");
+                        break;
+                }
             }
 
             await WriteAsync(stream, Encoding.ASCII.GetBytes(response), cancellationToken).ConfigureAwait(false);
-            if (method == "PLAY" && _streaming is null)
+            if (startStreaming)
             {
-                _camera.Log(string.Create(CultureInfo.InvariantCulture, $"camera: client {_id} playing"));
-                _streaming = StreamQuietlyAsync(stream, cancellationToken);
+                Interlocked.Exchange(ref _paused, null)?.TrySetResult();
+                if (_streaming is null)
+                {
+                    _camera.Log(string.Create(CultureInfo.InvariantCulture, $"camera: client {_id} playing"));
+                    _streaming = StreamQuietlyAsync(stream, cancellationToken);
+                }
             }
 
             return keepOpen;
@@ -442,6 +508,14 @@ public sealed class RtspCamera : IAsyncDisposable
                     }
 
                     pacedFrames++;
+                }
+
+                if (Volatile.Read(ref _paused) is { } paused)
+                {
+                    await paused.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+                    // Live again: the pace restarts now, this frame goes out at once.
+                    paceStart = clock.GetTimestamp();
+                    pacedFrames = 1;
                 }
 
                 uint timestamp = unchecked((uint)(long)Math.Round(frameIndex * 90000 * frameSeconds));

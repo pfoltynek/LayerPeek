@@ -240,6 +240,56 @@ public sealed class SimulatedPrinterHttpTests
     }
 
     [Fact]
+    public async Task ControlEndpointsNeedTheLoginWhenRequired()
+    {
+        await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock, controlRequiresLogin: true);
+        using HttpClient client = TestPrinters.CreateHttpClient();
+        Uri paused = new(printer.BaseUri, "_simulator/scenario/paused");
+
+        using HttpResponseMessage anonymous = await client.PostAsync(paused, null, Ct);
+        using HttpResponseMessage anonymousState = await client.GetAsync(new Uri(printer.BaseUri, "_simulator/state"), Ct);
+        using HttpResponseMessage page = await client.GetAsync(printer.BaseUri, Ct);
+        PrinterScenario afterAnonymous = printer.Simulation.Scenario;
+        using HttpRequestMessage withKey = new(HttpMethod.Post, paused);
+        withKey.Headers.Add("X-Api-Key", TestPrinters.Password);
+        using HttpResponseMessage authorized = await client.SendAsync(withKey, Ct);
+        using HttpResponseMessage digestState = await TestPrinters.GetWithDigestAsync(client, new Uri(printer.BaseUri, "_simulator/state"));
+
+        Assert.True(printer.ControlLoginRequired);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymous.StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, anonymousState.StatusCode);
+        Assert.Equal(PrinterScenario.Printing, afterAnonymous);
+        // The status page only reads and stays open, as the firmware's web does.
+        Assert.Equal(HttpStatusCode.OK, page.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, authorized.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, digestState.StatusCode);
+        Assert.Equal(PrinterScenario.Paused, printer.Simulation.Scenario);
+    }
+
+    [Fact]
+    public async Task ControlEndpointsAreOpenOnLoopbackByDefault()
+    {
+        await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);
+
+        Assert.False(printer.ControlLoginRequired);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.1", false)]
+    [InlineData("127.0.0.2", false)]
+    [InlineData("::1", false)]
+    [InlineData("0.0.0.0", true)]
+    [InlineData("::", true)]
+    [InlineData("192.168.1.20", true)]
+    public void ControlLoginIsRequiredBeyondLoopback(string address, bool required)
+    {
+        SimulatedPrinterOptions options = new() { Address = IPAddress.Parse(address) };
+
+        Assert.Equal(required, options.ControlLoginRequired);
+        Assert.False((options with { ControlRequiresLogin = false }).ControlLoginRequired);
+    }
+
+    [Fact]
     public async Task OtherMethodsAreNotAllowed()
     {
         await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);

@@ -1,7 +1,7 @@
 ---
 id: T-045
 title: Simulátor tiskárny (PrusaLink) a kamery (RTSP) pro vývoj a testy
-status: done
+status: in-progress
 owner: core-dev
 priority: P2
 platform: all
@@ -25,6 +25,8 @@ Aplikaci jde vyzkoušet bez skutečné tiskárny a kamery. Samostatný nástroj 
 - **Rozsah (2026-10-21):** kamera i tiskárna.
 - **Video (2026-10-21):** nahraný úsek z Buddy3D ve smyčce (+ volitelně vlastní klip).
 - **Spouštění (2026-10-21):** samostatný nástroj v `tools/`; použijí ho i E2E testy.
+- **Dokončení (2026-10-21):** úkol zůstává rozpracovaný, dokud ho neověří E2E testy (T-044) nebo ruční test v GUI proti simulátoru.
+- **Ovládací endpointy (2026-10-21):** `/_simulator/*` (a cokoli, co mění stav) vyžadují stejný Digest jako API, pokud simulátor poslouchá na jiné než loopback adrese (`--host` jiná než 127.0.0.1 / ::1 / localhost). Na loopbacku zůstávají bez přihlášení.
 
 ## Akceptační kritéria
 - [x] Aplikace se k simulované tiskárně připojí (test spojení, monitoring, Diagnostika, překryv) bez úprav aplikace
@@ -33,6 +35,7 @@ Aplikaci jde vyzkoušet bez skutečné tiskárny a kamery. Samostatný nástroj 
 - [x] Testy simulátoru (klient PrusaLink a FFmpeg feed proti simulátoru, smyčka, scénáře); testy po sobě nic nenechají
 - [x] Dokumentace spuštění
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish aplikace win-x64 bez varování (simulátor se nepublikuje s aplikací)
+- [ ] Ověřeno E2E testy (T-044) nebo ručně v GUI proti simulátoru
 
 ## Otevřené otázky
 - (žádné)
@@ -44,5 +47,15 @@ Aplikaci jde vyzkoušet bez skutečné tiskárny a kamery. Samostatný nástroj 
 - **Modely**: Core One `7.1.0`, MK4S `1.4.1`, XL `3.1.0`, MINI `2.1.0`, každá tiskárna na vlastním portu (`--port` +1, +2…).
 - **Kamera**: `FakeRtspCamera` z T-014 je nahrazená sdílenou `RtspCamera` v simulátoru. Testy FFmpeg na simulátor odkazují (`ProjectReference`), kopie nevznikla. `H264Clip` rozdělí Annex B na snímky a smyčka začíná prvním IDR snímkem. SPS/PPS se tam doplní, pokud je klip má jinde. Čísla sekvence i časová razítka RTP rostou přes hranice smyčky, tempo je 25 fps (`--fps`). Každý klient má vlastní relaci, keep-alive požadavky se vyřizují i během streamu, UDP se odmítá `461`. Kamera umí výpadek (`camera offline`). Výchozí klip `buddy3d.h264` je do výstupu simulátoru jen nalinkovaný z fixture T-014 (`Clips/`), vlastní klip jde zadat přes `--clip`.
 - **„Aplikace se připojí“** se ověřuje testy, GUI se nespouštělo. Klient PrusaLink je registrovaný přes `AddPrusaLink()` jako v aplikaci. Testy pokrývají test spojení (`GetInfoAsync`, kód modelu pro všechny 4 modely), `DetectModelAsync`, snapshoty pro Diagnostiku a překryv (stav, soubor, průběh, zbývající čas, teploty, ventilátory), přechody scénářů, špatné heslo, obnovu nonce, offline a obnovu, timeout. Navíc běží `PrinterMonitor` se dvěma tiskárnami a výpadkem. Okno kamery: přes `ReconnectingCameraFeed` + FFmpeg (stejný řetězec jako okno) projde víc než 2 smyčky na jedno spojení bez „no signal“ a bez mezery nad 500 ms. Dále dva diváci najednou a obnova po výpadku kamery. Vizuální kontrola v GUI je doporučená, ale není nutná.
-- **Testy**: nový projekt `tests/PrusaSimulator.Tests` (89 testů) a `SimulatedCameraTests` v testech FFmpeg (3). Používají porty od systému (`0`), falešné hodiny a v pracovním stromu nic nenechávají.
+- **Úpravy po review (2026-10-21)**:
+  - Ovládací endpointy mimo loopback vyžadují přihlášení (`SimulatedPrinterOptions.ControlRequiresLogin`, automaticky podle `--host`). `--host` přijímá i `localhost`.
+  - Stavová stránka `/` jen čte, a proto zůstává otevřená.
+  - RTSP při `--host ::` poslouchá i na IPv4 (`DualMode`).
+  - Výchozí úloha pozastavené tiskárny bere další číslo úlohy.
+  - Pauza během ohřevu po návratu pokračuje v ohřevu.
+  - Výpadky `flaky` se počítají od přepnutí.
+  - RTSP: `455` bez `SETUP`, `454` pro cizí nebo chybějící relaci, `PAUSE` opravdu pozastaví; přerostlý interleaved paket se přeskočí.
+  - Test tempa snímků běží deterministicky na falešných hodinách.
+  - README: řádek s nástrojem.
+- **Testy**: nový projekt `tests/PrusaSimulator.Tests` (113 testů) a `SimulatedCameraTests` v testech FFmpeg (3). Používají porty od systému (`0`), falešné hodiny a v pracovním stromu nic nenechávají.
 - **Ověření**: `dotnet build` 0 varování. `dotnet test` dvakrát po sobě 4219 testů, 0 chyb (1 přeskočený je původní test v PrusaLink.Tests). `dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64` (AOT) 0 varování.

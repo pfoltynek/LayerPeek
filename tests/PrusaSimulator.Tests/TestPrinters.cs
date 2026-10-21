@@ -26,7 +26,8 @@ internal static partial class TestPrinters
         PrinterScenario scenario = PrinterScenario.Printing,
         SimulatedModel? model = null,
         OfflineMode offlineMode = OfflineMode.Drop,
-        string userName = SimulatedPrinterOptions.DefaultUserName) =>
+        string userName = SimulatedPrinterOptions.DefaultUserName,
+        bool? controlRequiresLogin = null) =>
         SimulatedPrinter.StartAsync(
             new SimulatedPrinterOptions
             {
@@ -38,6 +39,7 @@ internal static partial class TestPrinters
                 Timing = Timing,
                 OfflineMode = offlineMode,
                 TimeProvider = clock,
+                ControlRequiresLogin = controlRequiresLogin,
             },
             TestContext.Current.CancellationToken);
 

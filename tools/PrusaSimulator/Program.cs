@@ -53,6 +53,11 @@ await using (host)
         }
     }
 
+    if (host.Printers.Count > 0 && host.Printers[0].ControlLoginRequired)
+    {
+        Console.WriteLine("Listening beyond this computer: the /_simulator/ control endpoints need the PrusaLink login.");
+    }
+
     Console.WriteLine();
     ConsoleCommands.WriteState(host, Console.Out);
     Console.WriteLine();

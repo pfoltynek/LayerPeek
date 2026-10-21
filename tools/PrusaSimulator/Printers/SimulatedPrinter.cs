@@ -19,8 +19,9 @@ namespace PrusaTrayDiagnostic.Simulator.Printers;
 /// <summary>
 /// One simulated printer: a Kestrel server with the PrusaLink endpoints the app uses (<c>/api/version</c>,
 /// <c>/api/v1/info</c>, <c>/api/v1/status</c>, <c>/api/v1/job</c>), Digest login like the firmware, and a small status
-/// page at <c>/</c> (served without login, as the firmware serves its web). Control endpoints for scripts and tests
-/// (no login, answered also while offline): <c>GET /_simulator/state</c>, <c>POST /_simulator/scenario/{name}</c>,
+/// page at <c>/</c> (read-only, served without login as the firmware serves its web). Control endpoints for scripts and
+/// tests, answered also while offline, without login on loopback and with the PrusaLink login otherwise
+/// (<see cref="SimulatedPrinterOptions.ControlRequiresLogin"/>): <c>GET /_simulator/state</c>, <c>POST /_simulator/scenario/{name}</c>,
 /// <c>POST /_simulator/offline</c>, <c>POST /_simulator/online</c>.
 /// </summary>
 public sealed class SimulatedPrinter : IAsyncDisposable
@@ -54,6 +55,9 @@ public sealed class SimulatedPrinter : IAsyncDisposable
     public string UserName => _options.UserName;
 
     public string Password => _options.Password;
+
+    /// <summary>The control endpoints need the PrusaLink login (listening beyond loopback).</summary>
+    public bool ControlLoginRequired => _options.ControlLoginRequired;
 
     public int Port { get; private set; }
 
@@ -165,13 +169,8 @@ public sealed class SimulatedPrinter : IAsyncDisposable
             return;
         }
 
-        string target = context.Features.GetRequiredFeature<IHttpRequestFeature>().RawTarget;
-        string? authorization = context.Request.Headers.Authorization;
-        string? apiKey = context.Request.Headers["X-Api-Key"];
-        if (_digest.Check(context.Request.Method, target, authorization, apiKey) is { } challenge)
+        if (!await AuthorizeAsync(context).ConfigureAwait(false))
         {
-            context.Response.Headers.WWWAuthenticate = challenge;
-            await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, "401: Unauthorized").ConfigureAwait(false);
             return;
         }
 
@@ -210,6 +209,22 @@ public sealed class SimulatedPrinter : IAsyncDisposable
         }
     }
 
+    /// <summary>Digest (or X-Api-Key) like the firmware; answers 401 with a challenge and returns false when missing or wrong.</summary>
+    private async Task<bool> AuthorizeAsync(HttpContext context)
+    {
+        string target = context.Features.GetRequiredFeature<IHttpRequestFeature>().RawTarget;
+        string? authorization = context.Request.Headers.Authorization;
+        string? apiKey = context.Request.Headers["X-Api-Key"];
+        if (_digest.Check(context.Request.Method, target, authorization, apiKey) is not { } challenge)
+        {
+            return true;
+        }
+
+        context.Response.Headers.WWWAuthenticate = challenge;
+        await WriteErrorAsync(context, StatusCodes.Status401Unauthorized, "401: Unauthorized").ConfigureAwait(false);
+        return false;
+    }
+
     /// <returns>True when the printer came back online meanwhile (hang mode), false when the request should be dropped.</returns>
     private async Task<bool> WaitOnlineAsync(HttpContext context)
     {
@@ -237,6 +252,11 @@ public sealed class SimulatedPrinter : IAsyncDisposable
 
     private async Task HandleControlAsync(HttpContext context, string command)
     {
+        if (_options.ControlLoginRequired && !await AuthorizeAsync(context).ConfigureAwait(false))
+        {
+            return;
+        }
+
         bool post = HttpMethods.IsPost(context.Request.Method);
         if (command == "state" && HttpMethods.IsGet(context.Request.Method))
         {

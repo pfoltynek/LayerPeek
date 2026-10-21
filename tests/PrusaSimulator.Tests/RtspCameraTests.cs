@@ -1,6 +1,7 @@
-using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+
+using Microsoft.Extensions.Time.Testing;
 
 using PrusaTrayDiagnostic.Simulator.Camera;
 
@@ -87,19 +88,110 @@ public sealed class RtspCameraTests
     [Fact]
     public async Task FramesArePacedAtTheFrameRate()
     {
-        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
+        FakeTimeProvider clock = new();
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D, TimeProvider = clock });
         await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
         await client.PlayAsync(Ct);
-        await client.ReadFrameAsync(Ct);
-        Stopwatch watch = Stopwatch.StartNew();
+        Assert.NotNull(await client.ReadFrameAsync(Ct)); // the first frame goes out at once
 
-        for (int i = 0; i < 25; i++)
+        Task<List<RtpPacket>?> second = client.ReadFrameAsync(Ct);
+        clock.Advance(TimeSpan.FromMilliseconds(39));
+        await Task.Delay(100, Ct);
+        Assert.False(second.IsCompleted, "A frame came before its time.");
+        clock.Advance(TimeSpan.FromMilliseconds(1));
+        Assert.NotNull(await second);
+
+        // Exactly one frame per 40 ms (25 fps), nothing in between.
+        for (int i = 0; i < 24; i++)
         {
-            Assert.NotNull(await client.ReadFrameAsync(Ct));
+            Task<List<RtpPacket>?> next = client.ReadFrameAsync(Ct);
+            clock.Advance(TimeSpan.FromMilliseconds(40));
+            Assert.NotNull(await next);
         }
 
-        // 25 frames at 25 fps: one second (generous bounds for a busy test machine).
-        Assert.InRange(watch.Elapsed, TimeSpan.FromMilliseconds(850), TimeSpan.FromMilliseconds(2500));
+        Task<List<RtpPacket>?> early = client.ReadFrameAsync(Ct);
+        await Task.Delay(100, Ct);
+        Assert.False(early.IsCompleted, "More frames than 25 per simulated second.");
+        Assert.Equal(26, camera.FramesSent);
+    }
+
+    [Fact]
+    public async Task PauseStopsTheFramesUntilPlay()
+    {
+        FakeTimeProvider clock = new();
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D, TimeProvider = clock });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+        await client.PlayAsync(Ct);
+        Assert.NotNull(await client.ReadFrameAsync(Ct));
+
+        // The clock stands still, so no frame can come before the answer.
+        RtspResponse paused = await client.RequestAsync("PAUSE", camera.StreamUri.ToString(), $"Session: {client.Session}\r\n", Ct);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Task<List<RtpPacket>?> next = client.ReadFrameAsync(Ct);
+        await Task.Delay(150, Ct);
+        bool sentWhilePaused = next.IsCompleted;
+        await client.SendRequestAsync("PLAY", camera.StreamUri.ToString(), $"Session: {client.Session}\r\n", Ct);
+
+        Assert.StartsWith("RTSP/1.0 200", paused.Head, StringComparison.Ordinal);
+        Assert.False(sentWhilePaused, "A frame was sent while paused.");
+        Assert.NotNull(await next);
+    }
+
+    [Fact]
+    public async Task PlayWithoutSetupIsNotValidInThisState()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+
+        RtspResponse response = await client.RequestAsync("PLAY", camera.StreamUri.ToString(), "Session: 12345678\r\n", Ct);
+
+        Assert.StartsWith("RTSP/1.0 455", response.Head, StringComparison.Ordinal);
+        Assert.Equal(0, camera.FramesSent);
+    }
+
+    [Theory]
+    [InlineData("Session: 0BADF00D\r\n")]
+    [InlineData("")]
+    public async Task PlayWithAnotherOrNoSessionIsNotFound(string sessionHeader)
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+        RtspResponse setup = await client.RequestAsync("SETUP", camera.StreamUri + "/track1", "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n", Ct);
+        Assert.StartsWith("RTSP/1.0 200", setup.Head, StringComparison.Ordinal);
+
+        RtspResponse response = await client.RequestAsync("PLAY", camera.StreamUri.ToString(), sessionHeader, Ct);
+
+        Assert.StartsWith("RTSP/1.0 454", response.Head, StringComparison.Ordinal);
+        Assert.Equal(0, camera.FramesSent);
+    }
+
+    [Fact]
+    public async Task OversizedInterleavedPacketIsSkipped()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+        byte[] packet = new byte[4 + 65535];
+        packet[0] = (byte)'$';
+        packet[1] = 1;
+        packet[2] = 0xFF;
+        packet[3] = 0xFF;
+        packet.AsSpan(4).Fill((byte)'R');
+
+        await client.SendRawAsync(packet, Ct);
+        RtspResponse options = await client.RequestAsync("OPTIONS", camera.StreamUri.ToString(), "", Ct);
+
+        Assert.StartsWith("RTSP/1.0 200", options.Head, StringComparison.Ordinal);
+        Assert.Equal(["OPTIONS"], camera.Requests);
+    }
+
+    [Fact]
+    public void ListenerOnAllIpv6InterfacesAcceptsIpv4Too()
+    {
+        using TcpListener any = RtspCamera.CreateListener(IPAddress.IPv6Any, 0);
+        using TcpListener loopback = RtspCamera.CreateListener(IPAddress.IPv6Loopback, 0);
+
+        Assert.True(any.Server.DualMode);
+        Assert.False(loopback.Server.DualMode);
     }
 
     [Fact]
@@ -191,7 +283,7 @@ public sealed class RtspCameraTests
         await client.ReadFrameAsync(Ct);
 
         // The answer may arrive between RTP packets; the client skips it.
-        await client.SendRequestAsync("TEARDOWN", camera.StreamUri.ToString(), "", Ct);
+        await client.SendRequestAsync("TEARDOWN", camera.StreamUri.ToString(), $"Session: {client.Session}\r\n", Ct);
         while (await client.ReadPacketAsync(Ct) is not null)
         {
         }

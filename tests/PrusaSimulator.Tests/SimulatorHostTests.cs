@@ -139,11 +139,47 @@ public sealed class SimulatorHostTests
     }
 
     [Fact]
-    public async Task MissingClipFailsTheStartWithoutLeavingPortsOpen()
+    public async Task MissingClipFailsTheStart()
     {
         SimulatorOptions options = new() { FirstPort = 0, CameraPort = 0, ClipPath = Path.Combine(AppContext.BaseDirectory, "Clips", "missing.h264") };
 
         await Assert.ThrowsAsync<FileNotFoundException>(() => SimulatorHost.StartAsync(options, Ct));
+    }
+
+    [Fact]
+    public async Task FailedStartReleasesWhatWasAlreadyOpen()
+    {
+        // The printer port is taken; the camera (opened first) must be closed again.
+        using System.Net.Sockets.TcpListener blocker = new(IPAddress.Loopback, 0);
+        blocker.Start();
+        int taken = ((IPEndPoint)blocker.LocalEndpoint).Port;
+        int cameraPort = FreePort();
+        SimulatorOptions options = new() { FirstPort = taken, CameraPort = cameraPort };
+
+        await Assert.ThrowsAsync<IOException>(() => SimulatorHost.StartAsync(options, Ct));
+
+        using System.Net.Sockets.TcpListener camera = new(IPAddress.Loopback, cameraPort);
+        camera.Start();
+        camera.Stop();
+    }
+
+    [Theory]
+    [InlineData("localhost", "127.0.0.1")]
+    [InlineData("::", "::")]
+    [InlineData("::1", "::1")]
+    public void HostAcceptsLocalhostAndIpv6(string value, string expected)
+    {
+        Assert.True(SimulatorOptions.TryParse(["--host", value], out SimulatorOptions options, out string? error), error);
+        Assert.Equal(IPAddress.Parse(expected), options.Address);
+    }
+
+    private static int FreePort()
+    {
+        using System.Net.Sockets.TcpListener probe = new(IPAddress.Loopback, 0);
+        probe.Start();
+        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
+        probe.Stop();
+        return port;
     }
 
     [Fact]

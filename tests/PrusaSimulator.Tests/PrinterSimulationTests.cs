@@ -293,6 +293,65 @@ public sealed class PrinterSimulationTests
     }
 
     [Fact]
+    public void PausedDefaultJobIsTheNextJob()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing);
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        printer.SetScenario(PrinterScenario.Idle);
+
+        printer.SetScenario(PrinterScenario.Paused);
+        SimulatedJob paused = printer.GetStatus().Job!;
+        printer.SetScenario(PrinterScenario.Idle);
+        printer.SetScenario(PrinterScenario.Attention);
+        SimulatedJob attention = printer.GetStatus().Job!;
+
+        Assert.Equal(PrinterSimulation.FirstJobId + 1, paused.Id);
+        Assert.Equal(PrinterSimulation.FileOf(PrinterSimulation.FirstJobId + 1), paused.File);
+        Assert.Equal(PrinterSimulation.FirstJobId + 1, attention.Id);
+    }
+
+    [Fact]
+    public void ResumingAPauseDuringHeatUpContinuesHeating()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing);
+        _clock.Advance(TimeSpan.FromSeconds(30));
+        printer.SetScenario(PrinterScenario.Paused);
+        _clock.Advance(TimeSpan.FromMinutes(5));
+
+        printer.SetScenario(PrinterScenario.Printing);
+        SimulatedJob resumed = printer.GetStatus().Job!;
+        _clock.Advance(TimeSpan.FromSeconds(59));
+        SimulatedJob stillHeating = printer.GetStatus().Job!;
+        _clock.Advance(TimeSpan.FromSeconds(2));
+        SimulatedJob printing = printer.GetStatus().Job!;
+
+        Assert.Equal(PrinterSimulation.FirstJobId, resumed.Id);
+        Assert.Equal(30, resumed.TimePrinting);
+        Assert.Null(resumed.TimeRemaining);
+        Assert.Null(stillHeating.TimeRemaining);
+        Assert.Equal(0, stillHeating.Progress);
+        Assert.NotNull(printing.TimeRemaining);
+    }
+
+    [Fact]
+    public void FlakyOutagesCountFromTheSwitch()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing);
+        _clock.Advance(TimeSpan.FromSeconds(70));
+
+        printer.SetScenario(PrinterScenario.Flaky);
+        bool atSwitch = printer.IsOnline;
+        _clock.Advance(TimeSpan.FromSeconds(59));
+        bool beforeOutage = printer.IsOnline;
+        _clock.Advance(TimeSpan.FromSeconds(2));
+        bool inOutage = printer.IsOnline;
+
+        Assert.True(atSwitch);
+        Assert.True(beforeOutage);
+        Assert.False(inOutage);
+    }
+
+    [Fact]
     public void FilesAreStablePerJob()
     {
         Assert.Equal(PrinterSimulation.FileOf(42), PrinterSimulation.FileOf(46));

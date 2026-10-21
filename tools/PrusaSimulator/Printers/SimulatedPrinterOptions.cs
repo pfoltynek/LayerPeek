@@ -48,6 +48,23 @@ public sealed record SimulatedPrinterOptions
 
     public OfflineMode OfflineMode { get; init; } = OfflineMode.Drop;
 
+    /// <summary>
+    /// Whether the control endpoints (<c>/_simulator/*</c>) need the PrusaLink login. Null (default): only when
+    /// <see cref="Address"/> is not a loopback address (see <see cref="IsLoopbackOnly"/>), so that nobody else in the network
+    /// can switch the printers; on loopback they stay open for scripts and tests.
+    /// </summary>
+    public bool? ControlRequiresLogin { get; init; }
+
+    /// <summary>The effective <see cref="ControlRequiresLogin"/>.</summary>
+    public bool ControlLoginRequired => ControlRequiresLogin ?? !IsLoopbackOnly(Address);
+
+    /// <summary>127.0.0.0/8 and ::1 are reachable only from this computer; 0.0.0.0, :: and real addresses are not.</summary>
+    public static bool IsLoopbackOnly(IPAddress address)
+    {
+        ArgumentNullException.ThrowIfNull(address);
+        return IPAddress.IsLoopback(address);
+    }
+
     /// <summary>Clock of the simulation and of the nonce lifetime.</summary>
     public TimeProvider TimeProvider { get; init; } = TimeProvider.System;
 }

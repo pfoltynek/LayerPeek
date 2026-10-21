@@ -35,7 +35,8 @@ public sealed record SimulatorOptions
           --print-minutes <m>     duration of a simulated print (default 30)
           --user <name>           PrusaLink user (default maker)
           --password <text>       PrusaLink password (default simulator)
-          --host <ip>             address to listen on (default 127.0.0.1; 0.0.0.0 = reachable from the network)
+          --host <ip>             address to listen on (default 127.0.0.1; 0.0.0.0 or :: = reachable from the network,
+                                  then the /_simulator/ control endpoints need the PrusaLink login too)
           --offline-mode <mode>   drop (close the connection, default) or hang (never answer) while offline
           --no-camera             no RTSP camera
           --camera-port <n>       RTSP port (default 8554; 0 = any free port)
@@ -185,7 +186,7 @@ public sealed record SimulatorOptions
                 case "--password" when value.Length > 0:
                     options = options with { Password = value };
                     break;
-                case "--host" when IPAddress.TryParse(value, out IPAddress? address):
+                case "--host" when TryParseHost(value, out IPAddress? address):
                     options = options with { Address = address };
                     break;
                 case "--offline-mode" when Enum.TryParse(value, ignoreCase: true, out OfflineMode mode) && Enum.IsDefined(mode) && !int.TryParse(value, out _):
@@ -214,6 +215,17 @@ public sealed record SimulatorOptions
         }
 
         return true;
+    }
+
+    private static bool TryParseHost(string value, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out IPAddress? address)
+    {
+        if (value.Equals("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            address = IPAddress.Loopback;
+            return true;
+        }
+
+        return IPAddress.TryParse(value, out address);
     }
 
     private static string[] SplitList(string value) => value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);

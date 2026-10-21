@@ -35,7 +35,7 @@ Po spuštění simulátor vypíše, co zadat v aplikaci, například:
 | `--print-minutes <m>` | 30 | délka simulovaného tisku |
 | `--user <jméno>` | `maker` | uživatel PrusaLink |
 | `--password <text>` | `simulator` | heslo PrusaLink (přijímá se i jako `X-Api-Key`) |
-| `--host <ip>` | `127.0.0.1` | adresa, na které simulátor poslouchá; `0.0.0.0` = dostupný i z jiných počítačů v síti |
+| `--host <ip>` | `127.0.0.1` | adresa, na které simulátor poslouchá (i `localhost`); `0.0.0.0` nebo `::` = dostupný i z jiných počítačů v síti, ovládací endpointy pak vyžadují přihlášení (viz níže) |
 | `--offline-mode <drop\|hang>` | `drop` | jak se chová offline tiskárna: `drop` spojení hned zavře, `hang` nikdy neodpoví (klient narazí na timeout) |
 | `--no-camera` | – | bez kamery |
 | `--camera-port <n>` | 8554 | port RTSP kamery (`0` = libovolný volný) |
@@ -64,9 +64,9 @@ Všechny tiskárny hlásí firmware `6.9.2+10123` a trysku 0,4 mm. Aplikace podl
 | `error` | `ERROR`: bez úlohy, tiskárna chladne |
 | `attention` | `ATTENTION` (např. došel filament): úloha zůstane, kde byla (nebo 61 %), teploty se drží |
 | `offline` | tiskárna neodpovídá (pod tím scénář `idle`) |
-| `flaky` | jako `printing`, ale každých 80 s na 20 s přestane odpovídat (skutečný čas, nezrychluje se) |
+| `flaky` | jako `printing`, ale každých 80 s na 20 s přestane odpovídat. Počítá se od přepnutí na `flaky` (60 s odpovídá, 20 s ne) ve skutečném čase, nezrychluje se. |
 
-Teploty se k cíli blíží plynule (ohřev trysky rychlejší než podložky, chladnutí pomalejší) a mírně kolísají jako skutečné čidlo. Při přepnutí scénáře teploty navazují; pozastavení a „vyžaduje pozornost“ zachovají běžící úlohu a návrat na `printing` v ní pokračuje.
+Teploty se k cíli blíží plynule (ohřev trysky rychlejší než podložky, chladnutí pomalejší) a mírně kolísají jako skutečné čidlo. Při přepnutí scénáře teploty navazují; pozastavení a „vyžaduje pozornost“ zachovají běžící úlohu a návrat na `printing` v ní pokračuje přesně tam, kde skončila (i uprostřed ohřevu). Bez běžící úlohy ukazují výchozí úlohu s dalším číslem úlohy.
 
 ## Příkazy za běhu
 
@@ -81,7 +81,11 @@ Napiš do konzole a potvrď Enterem:
 | `camera offline` / `camera online` | kamera odpojí klienty a nepřijímá nová spojení / znovu je přijímá |
 | `help`, `quit` | nápověda, ukončení |
 
-Skripty a testy mohou tiskárnu ovládat i přes HTTP (bez přihlášení, odpovídá i offline): `GET /_simulator/state`, `POST /_simulator/scenario/<scénář>`, `POST /_simulator/offline`, `POST /_simulator/online`.
+Skripty a testy mohou tiskárnu ovládat i přes HTTP (odpovídá i offline): `GET /_simulator/state`, `POST /_simulator/scenario/<scénář>`, `POST /_simulator/offline`, `POST /_simulator/online`.
+
+- Na loopbacku (`127.0.0.1`, `::1`, `localhost`, výchozí) jsou ovládací endpointy bez přihlášení.
+- Při `--host` s jinou adresou (např. `0.0.0.0`) vyžadují stejné přihlášení jako API (Digest nebo `X-Api-Key` s heslem), aby tiskárny nemohl přepínat nikdo jiný v síti.
+- Stránka `/` jen čte, a proto zůstává bez přihlášení (jako web firmwaru). Data pro ni přes API přihlášení vyžadují vždy.
 
 ## Nastavení v aplikaci
 
@@ -99,7 +103,7 @@ Pro víc tiskáren opakuj kroky 1–6 s dalšími adresami (`:8081`, `:8082`…)
 - **PrusaLink API** jako firmware Buddy 6.x (viz `docs/api/prusalink.md`): `GET /api/version`, `/api/v1/info`, `/api/v1/status`, `/api/v1/job` (bez úlohy `204`). Tvar JSON i formát čísel odpovídají fixture z `tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/firmware`. Neznámé cesty API vrací `404`, jiné metody než GET `405` (ovládání tisku se nesimuluje).
 - **Přihlášení**: HTTP Digest podle RFC 2069 (MD5, bez `qop`, realm `Printer API`), nonce platí 300 s, po vypršení přijde `401` se `stale=true`. Chyby jsou v JSON, když je `application/json` první v hlavičce `Accept`.
 - **Web**: stránka `/` bez přihlášení (jako web firmwaru) průběžně ukazuje stav tiskárny. Hodí se pro „Otevřít PrusaLink v prohlížeči“ přes proxy aplikace (T-028).
-- **Kamera** jako Buddy3D: RTSP přes TCP (interleaved), jedna stopa H.264, packetization-mode 1, SPS/PPS v proudu před každým IDR snímkem, UDP odmítne (`461`). Klip se přehrává ve smyčce 25 snímků/s. Každá smyčka začíná SPS + PPS + IDR a čísla sekvence i časová razítka RTP pokračují bez skoku, takže dekodér smyčku nepozná. Více klientů najednou dostává každý vlastní relaci.
+- **Kamera** jako Buddy3D: RTSP přes TCP (interleaved), jedna stopa H.264, packetization-mode 1, SPS/PPS v proudu před každým IDR snímkem, UDP odmítne (`461`). `PLAY`, `PAUSE` a `TEARDOWN` před `SETUP` vrátí `455`, s cizí nebo chybějící relací `454`. `PAUSE` zastaví snímky do dalšího `PLAY`. Klip se přehrává ve smyčce 25 snímků/s. Každá smyčka začíná SPS + PPS + IDR a čísla sekvence i časová razítka RTP pokračují bez skoku, takže dekodér smyčku nepozná. Více klientů najednou dostává každý vlastní relaci.
 
 ## Testy
 

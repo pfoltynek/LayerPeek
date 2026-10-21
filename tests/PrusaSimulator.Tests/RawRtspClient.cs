@@ -13,13 +13,19 @@ internal sealed class RawRtspClient : IAsyncDisposable
 {
     private readonly TcpClient _client;
     private readonly BufferedStream _stream;
+    private readonly NetworkStream _network;
     private readonly Uri _uri;
     private int _cseq;
+
+    /// <summary>Session id from SETUP (after <see cref="PlayAsync"/>).</summary>
+    public string? Session { get; private set; }
 
     private RawRtspClient(TcpClient client, Uri uri)
     {
         _client = client;
-        _stream = new BufferedStream(client.GetStream(), 64 * 1024);
+        _network = client.GetStream();
+        // Buffered for reading only: writes go straight to the socket, so a request can be sent while a read is pending.
+        _stream = new BufferedStream(_network, 64 * 1024);
         _uri = uri;
     }
 
@@ -39,6 +45,7 @@ internal sealed class RawRtspClient : IAsyncDisposable
         RtspResponse setup = await RequestAsync("SETUP", _uri + "/track1", "Transport: RTP/AVP/TCP;unicast;interleaved=0-1\r\n", cancellationToken);
         Assert.StartsWith("RTSP/1.0 200", setup.Head, StringComparison.Ordinal);
         string session = setup.Header("Session")!.Split(';')[0];
+        Session = session;
         Assert.StartsWith("RTSP/1.0 200", (await RequestAsync("PLAY", _uri.ToString(), $"Session: {session}\r\nRange: npt=0.000-\r\n", cancellationToken)).Head, StringComparison.Ordinal);
     }
 
@@ -52,8 +59,12 @@ internal sealed class RawRtspClient : IAsyncDisposable
     public async Task SendRequestAsync(string method, string url, string headers, CancellationToken cancellationToken)
     {
         string request = string.Create(CultureInfo.InvariantCulture, $"{method} {url} RTSP/1.0\r\nCSeq: {++_cseq}\r\n{headers}\r\n");
-        await _stream.WriteAsync(Encoding.ASCII.GetBytes(request), cancellationToken);
-        await _stream.FlushAsync(cancellationToken);
+        await _network.WriteAsync(Encoding.ASCII.GetBytes(request), cancellationToken);
+    }
+
+    public async Task SendRawAsync(byte[] data, CancellationToken cancellationToken)
+    {
+        await _network.WriteAsync(data, cancellationToken);
     }
 
     /// <summary>The next RTP packet (RTSP responses in between are skipped); null when the camera closed the connection.</summary>
@@ -104,8 +115,9 @@ internal sealed class RawRtspClient : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await _stream.DisposeAsync();
+        // Closing the socket first ends a pending read (the buffered stream would wait for it).
         _client.Dispose();
+        await _stream.DisposeAsync();
     }
 
     private async Task<RtspResponse> ReadResponseAsync(CancellationToken cancellationToken, byte? first = null)

@@ -53,14 +53,17 @@ public sealed class PrinterSimulation
         Timing = timing ?? SimulationTiming.Default;
         _timeProvider = timeProvider;
         bool hot = scenario is PrinterScenario.Paused or PrinterScenario.Attention or PrinterScenario.Finished;
+        long started = timeProvider.GetTimestamp();
         _phase = new Phase(
             scenario,
-            timeProvider.GetTimestamp(),
+            started,
             SimOffset: 0,
             StartNozzle: hot ? model.NozzleTarget : Ambient,
             StartBed: hot ? model.BedTarget : Ambient,
             FrozenJob: null,
-            JobId: _nextJobId);
+            JobId: _nextJobId,
+            ResumeAt: null,
+            FlakySince: started);
     }
 
     public SimulatedModel Model { get; }
@@ -110,7 +113,7 @@ public sealed class PrinterSimulation
                 }
 
                 double cycle = (Timing.FlakyOnline + Timing.FlakyOffline).TotalSeconds;
-                double real = _timeProvider.GetElapsedTime(_phase.Started).TotalSeconds;
+                double real = _timeProvider.GetElapsedTime(_phase.FlakySince).TotalSeconds;
                 return cycle <= 0 || real % cycle < Timing.FlakyOnline.TotalSeconds;
             }
         }
@@ -144,13 +147,14 @@ public sealed class PrinterSimulation
                 return;
             }
 
+            long now = _timeProvider.GetTimestamp();
             if (IsPrinting(scenario) && IsPrinting(current.Scenario))
             {
-                _phase = current with { Scenario = scenario };
+                // One print timeline; a flaky printer's outages count from the switch.
+                _phase = current with { Scenario = scenario, FlakySince = now };
                 return;
             }
 
-            long now = _timeProvider.GetTimestamp();
             SimulatedStatus status = Compute(current, now);
             if (IsPrinting(current.Scenario))
             {
@@ -158,14 +162,18 @@ public sealed class PrinterSimulation
             }
 
             SimulatedJob? frozen = status.Job ?? current.FrozenJob;
+            // Where in the print cycle a held job stopped (also during heating), so that printing resumes exactly there.
+            double? resumeAt = IsPrinting(current.Scenario) ? (status.Job is null ? null : CycleTime(current, now)) : current.ResumeAt;
             double offset = 0;
             long jobId = _nextJobId;
             if (IsPrinting(scenario) && frozen is not null && current.Scenario is PrinterScenario.Paused or PrinterScenario.Attention)
             {
                 // Resume the paused job where it stopped.
-                offset = Timing.HeatUp.TotalSeconds + (frozen.Progress / 100 * Timing.Print.TotalSeconds);
+                offset = resumeAt ?? Timing.HeatUp.TotalSeconds + (frozen.Progress / 100 * Timing.Print.TotalSeconds);
                 jobId = frozen.Id;
             }
+
+            bool holds = scenario is PrinterScenario.Paused or PrinterScenario.Attention;
 
             _phase = new Phase(
                 scenario,
@@ -173,8 +181,10 @@ public sealed class PrinterSimulation
                 offset,
                 status.TempNozzle,
                 status.TempBed,
-                scenario is PrinterScenario.Paused or PrinterScenario.Attention ? frozen : null,
-                jobId);
+                holds ? frozen : null,
+                jobId,
+                holds ? resumeAt : null,
+                now);
         }
     }
 
@@ -196,6 +206,12 @@ public sealed class PrinterSimulation
     private double CycleSeconds =>
         Timing.HeatUp.TotalSeconds + Timing.Print.TotalSeconds + Timing.FinishedHold.TotalSeconds + Timing.IdleHold.TotalSeconds;
 
+    private double CycleTime(Phase phase, long now)
+    {
+        double s = SimSeconds(phase, now);
+        return s - (Math.Floor(s / CycleSeconds) * CycleSeconds);
+    }
+
     private long JobIdAt(Phase phase, long now) => phase.JobId + (long)Math.Floor(SimSeconds(phase, now) / CycleSeconds);
 
     private SimulatedStatus Compute(Phase phase, long now)
@@ -208,8 +224,8 @@ public sealed class PrinterSimulation
             PrinterScenario.Idle => Static("IDLE", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = Parked },
             PrinterScenario.Finished => Static("FINISHED", null, phase, sincePhase, 0, 0, Model.MaxZ) with { AxisXY = Parked },
             PrinterScenario.Error => Static("ERROR", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = (0, 0) },
-            PrinterScenario.Paused => Frozen("PAUSED", phase, sincePhase, PausedNozzleTarget, new SimulatedJob(FirstJobId, 52, 2400, 2600, FileOf(FirstJobId))) with { AxisXY = (10, 200) },
-            PrinterScenario.Attention => Frozen("ATTENTION", phase, sincePhase, Model.NozzleTarget, new SimulatedJob(FirstJobId, 61, 1900, 3100, FileOf(FirstJobId))),
+            PrinterScenario.Paused => Frozen("PAUSED", phase, sincePhase, PausedNozzleTarget, new SimulatedJob(phase.JobId, 52, 2400, 2600, FileOf(phase.JobId))) with { AxisXY = (10, 200) },
+            PrinterScenario.Attention => Frozen("ATTENTION", phase, sincePhase, Model.NozzleTarget, new SimulatedJob(phase.JobId, 61, 1900, 3100, FileOf(phase.JobId))),
             _ => throw new InvalidOperationException("Unknown scenario."),
         };
     }
@@ -304,5 +320,7 @@ public sealed class PrinterSimulation
     /// <param name="SimOffset">Simulated seconds already elapsed at the start (resumed print).</param>
     /// <param name="FrozenJob">Job held by a paused / attention printer; null for the default job.</param>
     /// <param name="JobId">Id of the first job printed in this phase.</param>
-    private sealed record Phase(PrinterScenario Scenario, long Started, double SimOffset, double StartNozzle, double StartBed, SimulatedJob? FrozenJob, long JobId);
+    /// <param name="ResumeAt">Paused / attention: simulated position in the print cycle where printing resumes; null for the default job.</param>
+    /// <param name="FlakySince">Real start of the flaky outage cycle (<see cref="TimeProvider.GetTimestamp"/>).</param>
+    private sealed record Phase(PrinterScenario Scenario, long Started, double SimOffset, double StartNozzle, double StartBed, SimulatedJob? FrozenJob, long JobId, double? ResumeAt, long FlakySince);
 }
