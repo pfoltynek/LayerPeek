@@ -328,7 +328,7 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
             if (_abandonedPoll is { IsCompleted: false })
             {
                 // Never call a client concurrently with itself: wait until it finishes the request it ignored the timeout for.
-                return Unavailable(PrinterState.Offline, _timeoutMessage);
+                return Unavailable(PrinterState.Offline, _timeoutMessage, PrinterProblem.Timeout);
             }
 
             _abandonedPoll = null;
@@ -360,7 +360,7 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
             catch (OperationCanceledException) when (pollToken.IsCancellationRequested)
             {
                 await AbandonIfStillRunningAsync(poll).ConfigureAwait(false);
-                return Unavailable(PrinterState.Offline, _timeoutMessage);
+                return Unavailable(PrinterState.Offline, _timeoutMessage, PrinterProblem.Timeout);
             }
             catch (Exception ex)
             {
@@ -480,8 +480,8 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
             _ => snapshot,
         };
 
-        private PrinterSnapshot Unavailable(PrinterState state, string message) =>
-            PrinterSnapshot.Unavailable(_printer.Id, state, _monitor._timeProvider.GetUtcNow(), message);
+        private PrinterSnapshot Unavailable(PrinterState state, string message, PrinterProblem problem = PrinterProblem.None) =>
+            PrinterSnapshot.Unavailable(_printer.Id, state, _monitor._timeProvider.GetUtcNow(), message, problem);
 
         /// <summary>Interval, doubled for every consecutive failure after the first, capped at the maximum delay.</summary>
         private TimeSpan BackoffDelay()

@@ -6,10 +6,12 @@ namespace PrusaTrayDiagnostic.App.Diagnostics;
 /// What the diagnostics window shows of one snapshot, rounded exactly like the display. Cheap to build and to compare on a
 /// monitor thread: equal content means no visible change, so nothing is sent to the UI thread.
 /// </summary>
+/// <param name="Problem">Why there is no data (translated in the window, T-044); the technical <paramref name="Message"/> is the fallback.</param>
 /// <param name="Timestamp">Time of the snapshot, truncated to whole seconds (the window shows seconds).</param>
 internal readonly record struct DiagnosticsContent(
     PrinterState State,
     string? Message,
+    PrinterProblem Problem,
     double? NozzleActual,
     double? NozzleTarget,
     double? BedActual,
@@ -29,6 +31,7 @@ internal readonly record struct DiagnosticsContent(
         return new DiagnosticsContent(
             snapshot.State,
             string.IsNullOrWhiteSpace(snapshot.StatusMessage) ? null : snapshot.StatusMessage,
+            snapshot.Problem,
             DiagnosticsFormatter.Round(telemetry?.Nozzle?.Actual, DiagnosticsFormatter.TemperatureDecimals),
             DiagnosticsFormatter.Round(telemetry?.Nozzle?.Target, DiagnosticsFormatter.TargetDecimals),
             DiagnosticsFormatter.Round(telemetry?.Bed?.Actual, DiagnosticsFormatter.TemperatureDecimals),

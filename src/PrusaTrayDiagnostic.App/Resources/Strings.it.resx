@@ -249,6 +249,18 @@
   <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
     <value>Impossibile leggere: {0}</value>
   </data>
+  <data name="DiagnosticsProblemInvalidAddress" xml:space="preserve">
+    <value>L'indirizzo della stampante non è valido.</value>
+  </data>
+  <data name="DiagnosticsProblemNotReachable" xml:space="preserve">
+    <value>La stampante non è raggiungibile.</value>
+  </data>
+  <data name="DiagnosticsProblemPasswordMissing" xml:space="preserve">
+    <value>La stampante richiede una password (Impostazioni).</value>
+  </data>
+  <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
+    <value>La connessione sicura (https) alla stampante non è riuscita.</value>
+  </data>
   <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
     <value>Non disponibile per Prusa Connect</value>
   </data>
@@ -700,7 +712,7 @@
     <value>Finestra della telecamera</value>
   </data>
   <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
-    <value>La telecamera è disattivata. Le impostazioni vengono mantenute e si applicano quando la attivi (scheda Telecamera).</value>
+    <value>La telecamera è disattivata: le impostazioni valgono dopo l'attivazione.</value>
   </data>
   <data name="SettingsCameraWindowRemember" xml:space="preserve">
     <value>Ricorda l'ultima posizione e dimensione</value>

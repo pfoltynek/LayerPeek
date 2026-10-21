@@ -249,6 +249,18 @@
   <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
     <value>No se pudo leer: {0}</value>
   </data>
+  <data name="DiagnosticsProblemInvalidAddress" xml:space="preserve">
+    <value>La dirección de la impresora no es válida.</value>
+  </data>
+  <data name="DiagnosticsProblemNotReachable" xml:space="preserve">
+    <value>La impresora no está accesible.</value>
+  </data>
+  <data name="DiagnosticsProblemPasswordMissing" xml:space="preserve">
+    <value>La impresora requiere una contraseña (Configuración).</value>
+  </data>
+  <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
+    <value>Falló la conexión segura (https) con la impresora.</value>
+  </data>
   <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
     <value>No disponible para Prusa Connect</value>
   </data>
@@ -700,7 +712,7 @@
     <value>Ventana de la cámara</value>
   </data>
   <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
-    <value>La cámara está desactivada. La configuración se conserva y se aplicará cuando la active (pestaña Cámara).</value>
+    <value>La cámara está desactivada: la configuración se aplicará al activarla.</value>
   </data>
   <data name="SettingsCameraWindowRemember" xml:space="preserve">
     <value>Recordar la última posición y tamaño</value>

@@ -304,6 +304,18 @@
   <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
     <value>Could not be read: {0}</value>
   </data>
+  <data name="DiagnosticsProblemInvalidAddress" xml:space="preserve">
+    <value>The printer address is not valid.</value>
+  </data>
+  <data name="DiagnosticsProblemNotReachable" xml:space="preserve">
+    <value>The printer is not reachable.</value>
+  </data>
+  <data name="DiagnosticsProblemPasswordMissing" xml:space="preserve">
+    <value>The printer requires a password (Settings).</value>
+  </data>
+  <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
+    <value>The secure (https) connection to the printer failed.</value>
+  </data>
   <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
     <value>Not available for Prusa Connect</value>
   </data>
@@ -719,7 +731,7 @@
     <value>Camera window</value>
   </data>
   <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
-    <value>The camera is turned off. The settings are kept and apply once it is turned on (Camera tab).</value>
+    <value>The camera is off – these settings apply once it is turned on.</value>
   </data>
   <data name="SettingsCameraWindowRemember" xml:space="preserve">
     <value>Remember the last position and size</value>

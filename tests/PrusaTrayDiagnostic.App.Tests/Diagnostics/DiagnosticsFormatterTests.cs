@@ -2,6 +2,8 @@ using System.Globalization;
 
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Tests.Tray;
+using PrusaTrayDiagnostic.Core.Printers;
+using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Tests.Diagnostics;
 
@@ -186,5 +188,25 @@ public sealed class DiagnosticsFormatterTests
     {
         string designator = new DateTime(2026, 1, 1, 13, 0, 0).ToString("T", CultureInfo.GetCultureInfo(culture));
         return designator[^3].ToString();
+    }
+
+    /// <summary>Every known problem has a translated text in every language (T-044); none keeps the technical message.</summary>
+    [Fact]
+    public void EveryPrinterProblemHasATextInEveryLanguage()
+    {
+        foreach (string language in AppLanguages.Supported)
+        {
+            using CultureScope scope = new(language);
+            foreach (PrinterProblem problem in Enum.GetValues<PrinterProblem>())
+            {
+                string? text = DiagnosticsFormatter.Problem(problem);
+                Assert.True(problem == PrinterProblem.None ? text is null : !string.IsNullOrWhiteSpace(text), $"{language}: {problem}");
+            }
+        }
+
+        using (new CultureScope("cs-CZ"))
+        {
+            Assert.Equal("Tiskárna není dostupná.", DiagnosticsFormatter.Problem(PrinterProblem.NotReachable));
+        }
     }
 }

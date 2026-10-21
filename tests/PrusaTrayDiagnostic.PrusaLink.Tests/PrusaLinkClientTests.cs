@@ -563,6 +563,7 @@ public sealed class PrusaLinkClientTests : IDisposable
 
         Assert.Equal(PrinterState.Offline, snapshot.State);
         Assert.DoesNotContain("192.168.1.20", snapshot.StatusMessage, StringComparison.Ordinal);
+        Assert.Equal(PrinterProblem.NotReachable, snapshot.Problem);
     }
 
     [Fact]
@@ -770,4 +771,16 @@ public sealed class PrusaLinkClientTests : IDisposable
             _secrets,
             _time,
             NullLogger<PrusaLinkClient>.Instance);
+
+    /// <summary>Every failure reaches the UI as a problem it can translate (T-044); only success has none.</summary>
+    [Fact]
+    public void EveryFailureMapsToAProblem()
+    {
+        foreach (PrusaLinkFailure failure in Enum.GetValues<PrusaLinkFailure>())
+        {
+            PrinterProblem problem = PrusaLinkClient.ToProblem(failure);
+            // Same names on both sides, so the mapping cannot silently drift.
+            Assert.Equal(failure.ToString(), problem.ToString());
+        }
+    }
 }
