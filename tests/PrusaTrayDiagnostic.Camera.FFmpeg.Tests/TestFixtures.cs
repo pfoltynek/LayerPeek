@@ -26,10 +26,14 @@ internal static class TestFixtures
     /// <summary>
     /// The simulated Buddy3D camera (tools/PrusaSimulator, T-045) on a free loopback port. By default it plays the fixture
     /// once as fast as the client reads and then closes the connection (T-014 tests count the frames); with
-    /// <paramref name="loop"/> and <paramref name="realTime"/> it is a live camera.
+    /// <paramref name="loop"/> and <paramref name="realTime"/> it is a live camera. <paramref name="rtpMap"/> announces
+    /// another encoding in the session description (the payload stays H.264).
     /// </summary>
-    public static RtspCamera StartCamera(bool loop = false, bool realTime = false) =>
-        new(new RtspCameraOptions { Clip = Buddy3DClip, Loop = loop, RealTime = realTime });
+    public static RtspCamera StartCamera(bool loop = false, bool realTime = false, string? rtpMap = null)
+    {
+        RtspCameraOptions options = new() { Clip = Buddy3DClip, Loop = loop, RealTime = realTime };
+        return new(rtpMap is null ? options : options with { RtpMap = rtpMap });
+    }
 
     public static FFmpegCameraFeed CreateFeed(Uri uri, TimeSpan? ioTimeout = null) =>
         (FFmpegCameraFeed)(ioTimeout is { } timeout ? new FFmpegCameraFeedFactory(timeout) : new FFmpegCameraFeedFactory()).Create(uri);

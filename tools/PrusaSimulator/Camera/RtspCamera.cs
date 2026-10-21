@@ -406,7 +406,7 @@ public sealed class RtspCamera : IAsyncDisposable
                         response = Ok(cseq, "Public: OPTIONS, DESCRIBE, SETUP, PLAY, PAUSE, TEARDOWN, GET_PARAMETER, SET_PARAMETER\r\n");
                         break;
                     case "DESCRIBE":
-                        response = Describe(cseq, url);
+                        response = Describe(cseq, url, _camera._options.RtpMap);
                         break;
                     case "SETUP":
                         string transport = Header(lines, "Transport") ?? "";
@@ -597,8 +597,10 @@ public sealed class RtspCamera : IAsyncDisposable
             output.Write(payload);
         }
 
-        private static string Describe(string cseq, string url)
+        private static string Describe(string cseq, string url, string rtpMap)
         {
+            // The format parameters are H.264 specific; another announced encoding goes without them.
+            string formatParameters = rtpMap == RtspCameraOptions.H264RtpMap ? "a=fmtp:96 packetization-mode=1\r\n" : "";
             string sdp =
                 "v=0\r\n" +
                 "o=- 0 0 IN IP4 127.0.0.1\r\n" +
@@ -606,8 +608,8 @@ public sealed class RtspCamera : IAsyncDisposable
                 "c=IN IP4 0.0.0.0\r\n" +
                 "t=0 0\r\n" +
                 "m=video 0 RTP/AVP 96\r\n" +
-                "a=rtpmap:96 H264/90000\r\n" +
-                "a=fmtp:96 packetization-mode=1\r\n" +
+                $"a=rtpmap:96 {rtpMap}\r\n" +
+                formatParameters +
                 "a=control:track1\r\n";
             string contentBase = url.EndsWith('/') ? url : url + "/";
             return Ok(cseq, string.Create(CultureInfo.InvariantCulture,

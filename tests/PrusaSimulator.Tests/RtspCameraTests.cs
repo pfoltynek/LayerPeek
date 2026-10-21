@@ -275,6 +275,40 @@ public sealed class RtspCameraTests
     }
 
     [Fact]
+    public async Task DescribeAnnouncesH264ByDefault()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+
+        RtspResponse describe = await client.RequestAsync("DESCRIBE", camera.StreamUri.ToString(), "Accept: application/sdp\r\n", Ct);
+
+        Assert.Contains("a=rtpmap:96 H264/90000\r\n", describe.Body, StringComparison.Ordinal);
+        Assert.Contains("a=fmtp:96 packetization-mode=1\r\n", describe.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task DescribeAnnouncesTheConfiguredEncoding()
+    {
+        await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D, RtpMap = "H265/90000" });
+        await using RawRtspClient client = await RawRtspClient.ConnectAsync(camera.StreamUri, Ct);
+
+        RtspResponse describe = await client.RequestAsync("DESCRIBE", camera.StreamUri.ToString(), "Accept: application/sdp\r\n", Ct);
+
+        Assert.Contains("a=rtpmap:96 H265/90000\r\n", describe.Body, StringComparison.Ordinal);
+        // The H.264 format parameters do not belong to another encoding.
+        Assert.DoesNotContain("a=fmtp:", describe.Body, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("H264/90000\r\na=evil")]
+    public void InvalidRtpMapIsRejected(string rtpMap)
+    {
+        Assert.Throws<ArgumentException>(() => new RtspCameraOptions { Clip = Buddy3D, RtpMap = rtpMap });
+    }
+
+    [Fact]
     public async Task TeardownEndsTheSession()
     {
         await using RtspCamera camera = new(new RtspCameraOptions { Clip = Buddy3D });
