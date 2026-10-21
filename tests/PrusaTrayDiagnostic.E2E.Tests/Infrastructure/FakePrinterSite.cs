@@ -14,11 +14,13 @@ namespace PrusaTrayDiagnostic.E2E.Tests.Infrastructure;
 /// The fake printer of the browser tests: a real HTTP server on 127.0.0.1 in front of the shared firmware imitation
 /// <see cref="FakePrusaLinkServer"/> (Buddy Digest: RFC 2069, MD5, no qop, realm "Printer API", stale=true, HA2 with
 /// the real method). Web pages and scripts are public and <c>/api/*</c> needs Digest, like on the firmware. It serves
-/// the fake Prusa-Link-Web from <c>FakeWeb/</c> and accepts G-code uploads, checking every byte.
+/// the fake Prusa-Link-Web from <c>FakeWeb/</c>, accepts G-code uploads (checking every byte) and records file and job
+/// actions.
 /// </summary>
 internal sealed class FakePrinterSite : IAsyncDisposable
 {
     private const string UploadPrefix = "/api/v1/files/usb/";
+    private const string JobPrefix = "/api/v1/job/";
 
     private static readonly string WebDirectory = Path.Combine(AppContext.BaseDirectory, "FakeWeb");
 
@@ -37,6 +39,9 @@ internal sealed class FakePrinterSite : IAsyncDisposable
     public FakePrusaLinkServer Firmware { get; } = new();
 
     public ConcurrentQueue<ReceivedUpload> Uploads { get; } = new();
+
+    /// <summary>File and job actions the printer carried out, as <c>"METHOD /path"</c>.</summary>
+    public ConcurrentQueue<string> Commands { get; } = new();
 
     /// <summary>Completes with the status of the first answer the printer sent for <paramref name="path"/>.</summary>
     public Task<int> AnsweredAsync(string path) => Answer(path).Task;
@@ -130,6 +135,12 @@ internal sealed class FakePrinterSite : IAsyncDisposable
             return new HttpResponseMessage(HttpStatusCode.Created);
         }
 
+        if (IsCommand(request.Method, path))
+        {
+            Commands.Enqueue($"{request.Method} {path}");
+            return new HttpResponseMessage(HttpStatusCode.NoContent);
+        }
+
         if (request.Method != HttpMethod.Get && request.Method != HttpMethod.Head)
         {
             return Json(HttpStatusCode.MethodNotAllowed, """{"title": "405: Method Not Allowed","message":""}""");
@@ -144,6 +155,28 @@ internal sealed class FakePrinterSite : IAsyncDisposable
             "/api/v1/status" => Json(HttpStatusCode.OK, Fixtures.Read("status-idle")),
             _ => Json(HttpStatusCode.NotFound, """{"title": "404: Not Found","message":""}"""),
         };
+    }
+
+    /// <summary>
+    /// File and job actions of the PrusaLink API v1: start (POST) or delete (DELETE) a file, pause or resume (PUT) and
+    /// stop (DELETE) a job.
+    /// </summary>
+    private static bool IsCommand(HttpMethod method, string path)
+    {
+        if (path.StartsWith(UploadPrefix, StringComparison.Ordinal) && path.Length > UploadPrefix.Length)
+        {
+            return method == HttpMethod.Post || method == HttpMethod.Delete;
+        }
+
+        if (!path.StartsWith(JobPrefix, StringComparison.Ordinal) || path.Length == JobPrefix.Length)
+        {
+            return false;
+        }
+
+        string job = path[JobPrefix.Length..];
+        return method == HttpMethod.Delete
+            ? !job.Contains('/', StringComparison.Ordinal)
+            : method == HttpMethod.Put && (job.EndsWith("/pause", StringComparison.Ordinal) || job.EndsWith("/resume", StringComparison.Ordinal));
     }
 
     private static async Task<ReceivedUpload> ReceiveUploadAsync(HttpRequestMessage request, string name, CancellationToken cancellationToken)

@@ -104,6 +104,14 @@ window.uploadGenerated = (name, size) => new Promise((resolve) => {
   request.send(new Blob([data]));
 });
 
+// The web's file and job actions (delete or start a file, pause or stop the job): fetch with the method only.
+// The body is read to the end: an unread response is reported as an aborted request.
+window.apiCall = async (method, endPoint) => {
+  const response = await fetch(`${API_ROOT}${endPoint}`, { method, headers: { Accept: "application/json" } });
+  await response.arrayBuffer();
+  return response.status;
+};
+
 setUpAuth()
   .catch((error) => {
     // E.g. "Request cannot be constructed from a URL that includes credentials" (page opened as http://user:pass@host/).

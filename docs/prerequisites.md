@@ -4,8 +4,8 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT.
-> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `osx-x64` na Apple Silicon Macu).
-> - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně.
+> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64`, `osx-arm64` (rozhodnuto 2026-10-21).
+> - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně. Skripty pro vydání a jejich prerekvizity (např. `gh` CLI) dodá T-055.
 
 ## Společné (obě platformy)
 
@@ -67,8 +67,7 @@ První příkaz musí vypsat název instalace, druhý vytvoří `PrusaTrayDiagno
 | Co | Poznámka |
 |---|---|
 | **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install` |
-| *(volitelně)* plné Xcode | není potřeba pro AOT; hodí se pro podepisování a notarizaci (úkol T-017) |
-| *(později)* Apple Developer ID | podpis a notarizace `.app` pro distribuci (úkol T-017) |
+| *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis (`codesign -s -` je v Command Line Tools) – úkol T-019 |
 
 Ověření:
 
@@ -76,10 +75,9 @@ Ověření:
 xcode-select -p          # musí vypsat cestu, např. /Library/Developer/CommandLineTools
 clang --version
 dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # Apple Silicon
-dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-x64     # Intel (lze i na Apple Silicon)
 ```
 
-Universal binary (arm64 + x64) se spojí nástrojem `lipo` – řeší úkol T-017.
+Podporuje se jen Apple Silicon (`osx-arm64`), Intel Macy (`osx-x64`) ani universal binary se nevydávají (rozhodnuto 2026-10-21). Vydání má jen ad-hoc podpis bez Apple Developer ID a notarizace (T-019).
 
 ## AOT smoke test
 
@@ -87,7 +85,7 @@ Universal binary (arm64 + x64) se spojí nástrojem `lipo` – řeší úkol T-0
 
 ```powershell
 pwsh scripts/aot-smoke.ps1                         # RID podle aktuálního OS/architektury
-pwsh scripts/aot-smoke.ps1 -Runtime osx-x64 -Seconds 15
+pwsh scripts/aot-smoke.ps1 -Runtime win-arm64 -Seconds 15   # jen na ARM64 Windows
 ```
 
 Skript publikuje aplikaci (Release) do dočasné složky mimo repozitář, spustí ji a ověří, že po `-Seconds` sekundách (výchozí 10) stále běží. Pak proces ukončí a dočasnou složku smaže (i při chybě). Při neúspěchu vrací nenulový exit code a vypíše výstup aplikace. Vyžaduje PowerShell 7 a nativní toolchain popsaný výše.

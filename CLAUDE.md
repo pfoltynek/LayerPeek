@@ -18,7 +18,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 | Code identifiers, code comments, commit messages | English |
 | `tasks/**`, `docs/**`, `README.cz.md` | **Czech** |
 | `README.md`, `CHANGELOG.md` | English (public open-source front page; keep `README.cz.md` in sync) |
-| UI strings | to be decided (see open questions in tasks) — do not localize until decided |
+| UI strings | localized via `Strings.*.resx` (T-029); every new string goes into all languages |
 
 ## Decision rule
 
