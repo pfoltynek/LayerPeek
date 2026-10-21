@@ -1,7 +1,7 @@
 ---
 id: T-056
 title: Velopack – ověření použitelnosti pro instalátor a aktualizace (spike)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: windows
@@ -56,9 +56,9 @@ Primární zdroje (výchozí body, doplnit konkrétní odkazy):
 - ~~Zástupce na ploše~~ → jen zástupce ve Start menu, na ploše ne (`--shortcuts StartMenuRoot`, rozhodnuto 2026-10-21).
 - ~~Skrytá volba `--aumid`~~ → závislost na skryté volbě `vpk pack --aumid` je přijatelná (rozhodnuto 2026-10-21).
 - ~~Delta aktualizace~~ → zatím bez delt (`--delta None`, každá aktualizace asi 76 MB). Vrátit se k tomu, až bude repozitář veřejný (rozhodnuto 2026-10-21).
-- **Přenosný `.zip`:** Velopack vytváří vlastní `Portable.zip` (přenosná verze, která se umí aktualizovat). T-055 vytváří `.zip` publish složky (bez aktualizací). Nabízet jen `.zip` z T-055 (`--noPortable`), jen `Portable.zip` Velopacku, nebo oba?
-- **Předběžná vydání v aktualizacích:** verze `0.x` jsou na GitHubu předběžné, takže aplikace musí hledat i předběžná vydání (`GithubSource(prerelease: true)`), jinak aktualizaci nenajde. Má to platit i po verzi 1.0 (např. volba v nastavení), nebo se pak přepne na stabilní vydání?
-- **Log Velopacku po odinstalaci:** `Update.exe` si vede log v `%LocalAppData%\velopack\velopack_PrusaTrayDiagnostic.log` a odinstalace ho nesmaže (hook to nevyřeší, log se zapisuje i po něm). Je to přijatelné?
+- **Přenosný `.zip`** (přesunuto do T-017, 2026-10-21): Velopack vytváří vlastní `Portable.zip` (přenosná verze, která se umí aktualizovat). T-055 vytváří `.zip` publish složky (bez aktualizací). Nabízet jen `.zip` z T-055 (`--noPortable`), jen `Portable.zip` Velopacku, nebo oba?
+- **Předběžná vydání v aktualizacích** (přesunuto do T-017, 2026-10-21): verze `0.x` jsou na GitHubu předběžné, takže aplikace musí hledat i předběžná vydání (`GithubSource(prerelease: true)`), jinak aktualizaci nenajde. Má to platit i po verzi 1.0 (např. volba v nastavení), nebo se pak přepne na stabilní vydání?
+- **Log Velopacku po odinstalaci** (přesunuto do T-017, 2026-10-21; pokus 2026-10-21 potvrdil, že log po odinstalaci zůstává): `Update.exe` si vede log v `%LocalAppData%\velopack\velopack_PrusaTrayDiagnostic.log` a odinstalace ho nesmaže (hook to nevyřeší, log se zapisuje i po něm). Je to přijatelné?
 
 ## Poznámky k implementaci
 - Výsledek je v `docs/velopack.md`. **Velopack pro Windows ano, s podmínkami. Pro macOS rozhodne pokus v T-019.**

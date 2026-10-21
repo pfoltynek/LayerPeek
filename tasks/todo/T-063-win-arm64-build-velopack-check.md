@@ -1,6 +1,6 @@
 ---
 id: T-063
-title: win-arm64 – ověření sestavení, balení a instalátoru Velopack (MSVC ARM64, zařízení ARM64)
+title: win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64)
 status: todo
 owner: qa-reviewer
 priority: P2
@@ -24,11 +24,11 @@ Soustředit na jedno místo všechna neověřená místa kolem `win-arm64`, kter
    - `vpk pack --channel win-arm64 -r win-arm64` nad skutečnou AOT publish složkou `win-arm64` (z bodu 2), parametry podle `docs/velopack.md`, bod 12; zapsat velikost a seznam souborů;
    - soubory `win-x64` a `win-arm64` vedle sebe ve stejné výstupní složce (žádná kolize názvů).
    Pokus probíhá stejně jako v T-056 mimo repozitář (dočasná kopie v `%TEMP%`), pokud mezitím T-017 nepřidal balicí krok Velopack do skriptů. Pak se použije ten.
-4. **Ruční ověření na zařízení ARM64 (převzato z T-055 a T-056):** AOT exe `win-arm64` se spustí (tray ikona, menu, okno nastavení), `Setup.exe` pro `win-arm64` nainstaluje aplikaci bez admin práv, zástupce ve Start menu má AUMID `PrusaTrayDiagnostic`, odinstalace proběhne. Kamera se zde **neověřuje**, to je ruční kritérium T-057. Pokud bude T-057 v tu chvíli hotový, je vhodné obojí ověřit v jednom sezení.
+4. **Ruční ověření na zařízení ARM64** (spuštění exe, instalace a odinstalace `Setup.exe` `win-arm64`) se zde nedělá, je jen v T-057 (rozhodnutí uživatele 2026-10-21). Tento úkol se uzavře po bodech 1–3.
 5. Výsledky zapsat do `docs/velopack.md` (bod 8) a `docs/release.md` („Povolení `win-arm64` (po T-057)“), u T-055 a T-056 jen odkaz sem.
 
 Vztah k dalším úkolům:
-- **T-057** (FFmpeg pro `win-arm64`): nezávislý. Body 1–3 nepotřebují FFmpeg, bod 4 kameru neověřuje. Vydávání `win-arm64` (zapnutí `Default` / `Uploadable` v `$script:ReleaseRuntimes`) zůstává podmíněné T-057, viz T-055.
+- **T-057** (FFmpeg pro `win-arm64`): nezávislý. Body 1–3 nepotřebují FFmpeg. Ruční ověření na zařízení ARM64 (exe, instalátor, kamera) je jen v T-057. Vydávání `win-arm64` (zapnutí `Default` / `Uploadable` v `$script:ReleaseRuntimes`) zůstává podmíněné T-057, viz T-055.
 - **T-017** (Velopack ve skriptech): kritérium „instalátor `win-arm64` vznikne stejným skriptem“ patří dál T-017. Tento úkol ověřuje jen to, co nešlo ověřit ve spiku a ve skriptech T-055.
 
 ## Akceptační kritéria
@@ -37,12 +37,11 @@ Vztah k dalším úkolům:
 - [ ] Výchozí běh skriptu `win-arm64` nesestaví a `release-upload.ps1 -DryRun` výstup se `win-arm64` odmítne (ověřeno, na GitHubu nic nezměněno)
 - [ ] `vpk pack` nad AOT publish `win-arm64` vytvoří balíček kanálu `win-arm64` bez kolize se soubory `win-x64` (výsledek v `docs/velopack.md`, bod 8)
 - [ ] Pokusné instalace a dočasné složky jsou po ověření uklizené (stejně jako v T-056, „Pokusy a úklid“)
-- [ ] **Ručně (zařízení ARM64):** AOT exe `win-arm64` se spustí, `Setup.exe` `win-arm64` nainstaluje a odinstaluje aplikaci bez admin práv. Uživatel zatím zařízení nemá (2026-10-21): po ověření bodů 1–3 úkol zůstává `in-progress`, dokud zařízení nebude k dispozici.
 - [ ] `docs/velopack.md`, `docs/release.md` a `docs/prerequisites.md` aktuální
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- Má se ruční ověření na zařízení ARM64 (kritérium výše) dělat v tomto úkolu, nebo ho úplně přenechat T-057 (který už ruční ověření na ARM64 obsahuje) a tento úkol uzavřít po bodech 1–3?
+- ~~Ruční ověření na zařízení ARM64~~ → jen v T-057, tento úkol se uzavře po bodech 1–3 (rozhodnuto 2026-10-21).
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

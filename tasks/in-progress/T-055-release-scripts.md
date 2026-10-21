@@ -44,7 +44,7 @@ Rozhodnutí uživatele (2026-10-21):
 
 ## Akceptační kritéria
 - [x] Na Windows skript ve výchozím nastavení vytvoří pro `win-x64` publish složku, `.zip` a `SHA256SUMS-windows.txt`. Součty odpovídají souborům (ověřeno `Get-FileHash`).
-- [ ] `win-arm64` je ve výchozím stavu vypnutý a skript jeho soubory nenahraje. *(Pokrývají Pester testy „builds win-x64 … by default (win-arm64 off until T-057)“, „never uploads win-arm64 until T-057“ a „refuses a build containing win-arm64 until T-057“; ke kontrole a odškrtnutí.)* Druhá část kritéria – „po výslovném zapnutí ho sestaví a zabalí stejně jako `win-x64`“ (potřebuje MSVC ARM64) – **přesunuta do T-063** (na žádost uživatele 2026-10-21).
+- [x] `win-arm64` je ve výchozím stavu vypnutý a skript jeho soubory nenahraje. *(Ověřeno Pester testy „builds win-x64 … by default (win-arm64 off until T-057)“, „never uploads win-arm64 until T-057“, „refuses a build containing win-arm64 until T-057“ a „refuses missing, different, unlisted and win-arm64 files“: 4/4 prošly 2026-10-21, odškrtnuto se souhlasem uživatele.)* Druhá část kritéria – „po výslovném zapnutí ho sestaví a zabalí stejně jako `win-x64`“ (potřebuje MSVC ARM64) – **přesunuta do T-063** (na žádost uživatele 2026-10-21).
 - [x] AOT publish Windows RID bez trim/AOT varování z kódu projektu. Smoke test nativního RID prošel.
 - [x] `<Version>0.1.0</Version>` je v kořenovém `Directory.Build.props`. Verze ve výstupních souborech, ve vlastnostech exe a v okně O aplikaci je stejná a pochází odtud.
 - [ ] Vydání verze `0.x` je na GitHubu označené jako předběžné.

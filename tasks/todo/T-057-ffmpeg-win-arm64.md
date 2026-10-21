@@ -32,7 +32,7 @@ Navazuje na kód T-014, který je už sloučený v `develop` (T-014 zůstává v
 - [ ] Build bez RID na x64 stroji se chová stejně jako dnes (beze změny pro vývoj na x64)
 - [ ] Okno licencí a test `ThirdPartyLicenses` pokrývají oba připnuté buildy
 - [ ] AOT publish `win-arm64` bez trim/AOT varování z kódu projektu
-- [ ] **Ručně (ARM64 zařízení):** AOT exe `win-arm64` se spustí, testy FFmpeg projdou a živý stream z kamery Buddy3D se zobrazí. Uživatel zatím ARM64 zařízení nemá (2026-10-21): po implementaci úkol zůstává `in-progress`, dokud zařízení nebude k dispozici a ruční ověření neproběhne.
+- [ ] **Ručně (ARM64 zařízení):** AOT exe `win-arm64` se spustí (tray ikona, menu, okno nastavení), testy FFmpeg projdou a živý stream z kamery Buddy3D se zobrazí. `Setup.exe` `win-arm64` (Velopack) nainstaluje aplikaci bez admin práv, zástupce ve Start menu má AUMID `PrusaTrayDiagnostic` a odinstalace proběhne (převzato z T-063 a T-056, rozhodnutí uživatele 2026-10-21; `Setup.exe` vznikne podle T-063 nebo skriptem z T-017). Uživatel zatím ARM64 zařízení nemá (2026-10-21): po implementaci úkol zůstává `in-progress`, dokud zařízení nebude k dispozici a ruční ověření neproběhne.
 - [ ] `docs/prerequisites.md` aktuální
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 

@@ -108,7 +108,7 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
 ### 8. `win-arm64` (D + částečně P)
 - Každý RID má mít vlastní kanál ([Channels](https://docs.velopack.io/packaging/channels): „every unique os/rid has its own channel“). Pokus `--channel win-arm64 -r win-arm64` (s x64 binárkami, jen kvůli názvům) dal soubory `PrusaTrayDiagnostic-0.1.2-win-arm64-full.nupkg`, `PrusaTrayDiagnostic-win-arm64-Setup.exe`, `PrusaTrayDiagnostic-win-arm64-Portable.zip`, `releases.win-arm64.json`, `assets.win-arm64.json` a `RELEASES-win-arm64`. **Názvy se s `win-x64` nekryjí**, oba RID můžou být ve stejném GitHub vydání. `RELEASES` bez přípony vzniká jen pro výchozí kanál `win`, který nepoužijeme.
 - `Setup.exe` a `Update.exe` pro `win-arm64` jsou nativní ARM64 binárky (hlavička PE `0xAA64`).
-- AOT publish `win-arm64` jsem neověřoval. Na tomto PC chybí MSVC ARM64 build tools a FFmpeg pro ARM64 řeší T-057. Spuštění na ARM64 nejde ověřit, uživatel nemá zařízení. Ověření (AOT publish, `vpk pack` nad skutečným výstupem `win-arm64`, instalace na zařízení ARM64) řeší T-063.
+- AOT publish `win-arm64` jsem neověřoval. Na tomto PC chybí MSVC ARM64 build tools a FFmpeg pro ARM64 řeší T-057. Spuštění na ARM64 nejde ověřit, uživatel nemá zařízení. Ověření AOT publish a `vpk pack` nad skutečným výstupem `win-arm64` řeší T-063, instalaci a spuštění na zařízení ARM64 T-057.
 - Pojmenování: názvy souborů Velopacku jsou pevné. T-055 navrhuje `PrusaTrayDiagnostic-<verze>-<RID>.zip`. `Setup.exe` jde po zabalení přejmenovat (např. `PrusaTrayDiagnostic-<verze>-<RID>-Setup.exe`), protože ho feed nepotřebuje. `*.nupkg` a `releases.*.json` se přejmenovat **nesmí**.
 
 ### 9. Nepodepsané binárky (P částečně, D)
