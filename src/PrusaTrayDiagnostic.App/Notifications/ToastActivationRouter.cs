@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Logging;
 
-using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -10,23 +9,24 @@ namespace PrusaTrayDiagnostic.App.Notifications;
 
 /// <summary>
 /// Handles a click on a notification: launch argument → configured printer → its web interface
-/// (<see cref="PrinterWebAddress"/>, the same rules as the tray menu) → browser. Knows the printers of the current
-/// monitoring run, so an old notification opens the current address and one of a removed printer opens nothing.
-/// Thread-safe: clicks arrive on an OS thread.
+/// (<see cref="PrinterWebAddress"/>, the same rules as the tray menu) → <see cref="PrinterWebOpener"/>, so a PrusaLink
+/// printer with a stored password opens logged in through the local proxy, exactly like from the tray menu (T-028).
+/// Knows the printers of the current monitoring run, so an old notification opens the current address and one of a
+/// removed printer opens nothing. Thread-safe: clicks arrive on an OS thread.
 /// </summary>
 internal sealed partial class ToastActivationRouter : IMonitoringObserver
 {
-    private readonly IUrlLauncher _launcher;
+    private readonly PrinterWebOpener _webOpener;
     private readonly ILogger<ToastActivationRouter> _logger;
 
     // Replaced as a whole, never mutated after publishing.
     private volatile Dictionary<string, PrinterDefinition> _printers = new(StringComparer.OrdinalIgnoreCase);
 
-    public ToastActivationRouter(IUrlLauncher launcher, ILogger<ToastActivationRouter> logger)
+    public ToastActivationRouter(PrinterWebOpener webOpener, ILogger<ToastActivationRouter> logger)
     {
-        ArgumentNullException.ThrowIfNull(launcher);
+        ArgumentNullException.ThrowIfNull(webOpener);
         ArgumentNullException.ThrowIfNull(logger);
-        _launcher = launcher;
+        _webOpener = webOpener;
         _logger = logger;
     }
 
@@ -55,7 +55,8 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver
             return Task.FromResult(false);
         }
 
-        return _launcher.OpenAsync(address);
+        // Never throws; when quitting, the disposed gateway makes it open nothing.
+        return _webOpener.OpenAsync(address, printer, CancellationToken.None);
     }
 
     void IMonitoringObserver.ApplySettings(AppSettings settings)
