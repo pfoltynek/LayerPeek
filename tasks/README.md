@@ -102,6 +102,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) (hotovo) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
 | T-059 | Publikace do winget | windows | qa-reviewer | P3 | T-017, T-055 |
+| T-062 | Stabilizace E2E testu skutečného tray menu (TrayMenuTests) | windows | qa-reviewer | P3 | T-044 |
 
 ### macOS (`macos`) – jen na Macu, později
 

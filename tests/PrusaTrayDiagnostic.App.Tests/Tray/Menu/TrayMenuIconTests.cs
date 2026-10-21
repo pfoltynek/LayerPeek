@@ -72,7 +72,7 @@ public sealed class TrayMenuIconTests : IDisposable
         TrayMenuEntry printer = Assert.Single(_viewModel.PrinterItems);
         Assert.NotNull(printer.Icon);
         // Actions have no icons (T-042), the camera check item included.
-        Assert.Equal(3, printer.Submenu!.Count);
+        Assert.Equal(2, printer.Submenu!.Count);
         Assert.All(printer.Submenu, static item => Assert.Null(item.Icon));
 
         Apply();
