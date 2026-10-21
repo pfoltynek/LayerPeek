@@ -26,7 +26,7 @@ internal static partial class NativeLibrarySearch
     /// </summary>
     /// <returns>0 on success, otherwise the Win32 error code (the process keeps the standard search order).</returns>
     public static int Restrict() =>
-        // Exists on every Windows version .NET runs on (Windows 8+, Windows 7 only with KB2533623).
+        // Exists on every Windows version .NET runs on (Windows 8 and later).
         SetDefaultDllDirectories(RestrictedDirectories) ? 0 : Marshal.GetLastPInvokeError();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Restricting the DLL search to the application folder and System32 failed (error {ErrorCode}); the standard search order stays in effect.")]
