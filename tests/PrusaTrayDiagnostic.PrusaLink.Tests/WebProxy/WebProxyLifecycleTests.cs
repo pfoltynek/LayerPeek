@@ -76,6 +76,7 @@ public class WebProxyLifecycleTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
+        await WaitUntilRequestsFinishedAsync(proxy);
         context.Time.Advance(TimeSpan.FromMinutes(2));
         Assert.Same(proxy, context.Gateway.GetProxyForTests("core-one"));
         Assert.False(proxy.IsStopping);
@@ -125,8 +126,24 @@ public class WebProxyLifecycleTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
 
+        await WaitUntilRequestsFinishedAsync(proxy);
         context.Time.Advance(TimeSpan.FromMinutes(10));
         await proxy.Stopped.WaitAsync(Wait, Ct);
+    }
+
+    /// <summary>
+    /// The browser gets the response before the proxy's request handler finishes (it marks the activity and leaves the
+    /// running-request count in its <c>finally</c>). Moving the fake clock before that would make the idle check see a
+    /// running request and postpone the stop by a whole idle timeout, so wait for the handler first.
+    /// </summary>
+    private static async Task WaitUntilRequestsFinishedAsync(PrusaLinkWebProxy proxy)
+    {
+        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        timeout.CancelAfter(Wait);
+        while (proxy.ActiveRequestsForTests != 0)
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(5), timeout.Token);
+        }
     }
 
     [Fact]
