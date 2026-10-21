@@ -51,7 +51,7 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
 - ~~Odkud automatické aktualizace~~ → z veřejných GitHub Releases bez tokenu v aplikaci (repozitář bude později veřejný, rozhodnuto 2026-10-21). Implementace podle výsledku T-056. Platí i pro macOS (T-019).
 - Má být autostart volitelný v nastavení (T-015), nebo ho řeší jen instalátor?
 - ~~Pokud T-056 Velopack nedoporučí~~ → Velopack přijatý, WiX se nepoužije (rozhodnuto 2026-10-21).
-- Z T-056 (podrobnosti v `## Otevřené otázky` T-056):
+- Z T-056 (uzavřen 2026-10-21, zbylé otázky se rozhodují zde; podrobnosti v `tasks/done/T-056-velopack-spike.md`):
   - ~~zástupce na ploše~~ → jen Start menu, bez plochy (rozhodnuto 2026-10-21);
   - ~~data při odinstalaci~~ → nastavení a hesla se ponechají, uklidí se jen systémové registrace (rozhodnuto 2026-10-21);
   - ~~skrytá volba `vpk pack --aumid`~~ → přijatelná (rozhodnuto 2026-10-21);
@@ -59,6 +59,6 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
   - `.zip` z T-055, `Portable.zip` Velopacku, nebo oba?
   - hledat předběžná vydání i po verzi 1.0?
   - je přijatelný log Velopacku, který zůstane po odinstalaci v `%LocalAppData%\velopack`?
-- SmartScreen u nepodepsaného `Setup.exe` staženého z GitHubu T-056 pokusem neověřil (potřebuje ruční kliknutí). Ověřit při prvním vydání a popsat v `docs/release.md`.
+- SmartScreen u nepodepsaného `Setup.exe` se značkou Mark-of-the-Web ověřil T-056 ručně (2026-10-21): „Systém Windows ochránil váš počítač“ → „Další informace“ → „Neznámý vydavatel“, „Přesto spustit“ (`docs/velopack.md`, bod 9). Neověřené zůstává skutečné stažení z GitHubu prohlížečem (SmartScreen v Edge při stahování). Ověřit při prvním vydání a obojí popsat v `docs/release.md`.
 
 ## Poznámky k implementaci

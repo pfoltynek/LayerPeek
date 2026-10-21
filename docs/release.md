@@ -192,7 +192,7 @@ Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/Relea
 pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64   # sestaví a zabalí i win-arm64, jen pro lokální ověření
 ```
 
-`release-upload.ps1` takový výstup odmítne celý (součty by obsahovaly i `win-arm64`), před nahráním je potřeba sestavit znovu bez `win-arm64`. Publish `win-arm64` potřebuje komponentu MSVC ARM64 (viz [prerequisites.md](prerequisites.md)). Smoke test `win-arm64` na x64 stroji neproběhne.
+`release-upload.ps1` takový výstup odmítne celý (součty by obsahovaly i `win-arm64`), před nahráním je potřeba sestavit znovu bez `win-arm64`. Publish `win-arm64` potřebuje komponentu MSVC ARM64 (viz [prerequisites.md](prerequisites.md)). Smoke test `win-arm64` na x64 stroji neproběhne. Lokální ověření tohoto postupu (a instalátoru Velopack pro `win-arm64`) je úkol T-063.
 
 ## Testy skriptů (Pester)
 

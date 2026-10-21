@@ -35,6 +35,9 @@ Rozhodnutí uživatele (2026-10-21):
 
   Pokud Velopack na macOS nevyhoví, zůstává plán bez automatických aktualizací (`.app` + `.dmg` + `.tar.gz` vlastními nástroji).
 
+  Převzato z T-056 (bod 10 rozsahu spiku, na žádost uživatele 2026-10-21 přesunuto sem, T-056 ho jen odkazuje): výsledek pokusu na Macu zapsat do `docs/velopack.md`, bod 10 (dnes „D, neověřeno“), včetně toho, zda aktualizace stažená Velopackem dostane atribut `com.apple.quarantine`, a zda updater v `/Applications` žádá o oprávnění správce.
+- **Běh skriptů z T-055 na Macu (převzato z T-055, na žádost uživatele 2026-10-21; T-055 ho jen odkazuje):** na Windows ověřené jen Pester testy (`.tar.gz` přes `System32\tar.exe`, vynechání `.dSYM`). Na Macu ověřit skutečný běh `pwsh scripts/release-build.ps1` (výchozí RID `osx-arm64`): kontrola Xcode Command Line Tools přes `xcrun --find clang`, `/usr/bin/tar` s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, vynechání `.dSYM` na skutečném buildu, `SHA256SUMS-macos.txt` (`shasum -a 256 -c`) a `release-upload.ps1` do existujícího konceptu vydání (postup v `docs/release.md`, „Běh na Macu“ a „Zkušební vydání (testovací repozitář)“, krok 4).
+
 ## Rizika ad-hoc podpisu
 - **Gatekeeper:** stažená aplikace s ad-hoc podpisem (bez notarizace) se po prvním spuštění zablokuje a uživatel ji musí povolit ručně.
 - **T-020 (notifikace):** `UNUserNotificationCenter` vyžaduje bundle a podpis. S ad-hoc podpisem nemusí notifikace fungovat nebo může macOS žádat o povolení znovu po každém sestavení. Ověřit v T-020.
@@ -44,6 +47,8 @@ Rozhodnutí uživatele (2026-10-21):
 - [ ] Postup sestavení `.app`, `.dmg` a `.tar.gz` lokálně na macOS zdokumentovaný v `docs/release.md` (z T-055)
 - [ ] Skript T-055 na Macu vytvoří `.dmg`, `.tar.gz` a `SHA256SUMS-macos.txt` a přidá je do existujícího GitHub vydání pro tag (ověřeno)
 - [ ] `tar -tzf` na `.tar.gz` z Macu neobsahuje položky AppleDouble `._*` (skript T-055 balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, na Windows to nejde ověřit) ani `.dSYM` / `.pdb` (ladicí symboly se nevydávají, rozhodnutí 2026-10-21)
+- [ ] Kontrola Xcode Command Line Tools (`xcrun --find clang`) ve skriptu T-055 na Macu projde a `shasum -a 256 -c SHA256SUMS-macos.txt` souhlasí (převzato z T-055)
+- [ ] Výsledek pokusu Velopack na macOS (ad-hoc podpis, Gatekeeper, karanténa po aktualizaci, aktualizace z GitHub Releases bez tokenu) je zapsaný v `docs/velopack.md`, bod 10, s doporučením ano / ne (převzato z T-056)
 - [ ] `codesign --verify --deep --strict` na `.app` projde (ad-hoc podpis)
 - [ ] Aplikace běží bez ikony v Docku, ikona je jen v menu baru
 - [ ] Okno Nastavení (T-015) otevřené z menu se zobrazí v popředí a dostane fokus
