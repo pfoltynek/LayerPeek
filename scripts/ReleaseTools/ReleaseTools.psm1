@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 <#
 .SYNOPSIS
     Shared helpers of the release scripts (T-055): version, tag, changelog, runtime selection, git state checks,
@@ -267,6 +267,7 @@ function Get-ReleaseGitState {
         Remote          = $Remote
         MainBranch      = $MainBranch
         RemoteErrors    = $remoteErrors.ToArray()
+        RemoteQueried   = [bool]($Remote -and $lsRemote.ExitCode -eq 0)
     }
 }
 
@@ -301,7 +302,8 @@ function Get-ReleaseGitProblems {
 
     foreach ($remoteError in @($State.RemoteErrors)) { $problems.Add($remoteError) }
 
-    if (@($State.RemoteErrors).Count -eq 0 -or $State.RemoteTagCommit) {
+    # The tag is judged whenever the remote answered (other remote problems, e.g. a missing main branch, do not hide it).
+    if ($State.RemoteQueried) {
         if (-not $State.RemoteTagCommit) {
             $problems.Add("Tag $tag is not on $($State.Remote). Push it first: git push $($State.Remote) $tag")
         }
@@ -435,8 +437,16 @@ function New-ReleaseArchive {
         $list = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-tar-list-$([guid]::NewGuid().ToString('N')).txt"
         try {
             [System.IO.File]::WriteAllText($list, (($files | ForEach-Object { "./$_" }) -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
-            & (Get-TarCommand) -czf $Destination -C $root -T $list
-            if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." }
+            # macOS bsdtar stores extended attributes by default (--mac-metadata, AppleDouble '._*' entries such as the
+            # quarantine flag); the release archive must hold only the files themselves.
+            $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
+            $savedCopyFile = $env:COPYFILE_DISABLE
+            if ($IsMacOS) { $env:COPYFILE_DISABLE = '1' }
+            try {
+                & (Get-TarCommand) @macArguments -czf $Destination -C $root -T $list
+                if ($LASTEXITCODE -ne 0) { throw "tar failed with exit code $LASTEXITCODE." }
+            }
+            finally { if ($IsMacOS) { $env:COPYFILE_DISABLE = $savedCopyFile } }
         }
         finally { Remove-Item -LiteralPath $list -Force -ErrorAction SilentlyContinue }
     }

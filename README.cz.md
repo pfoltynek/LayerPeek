@@ -139,7 +139,7 @@ AOT nejde kompilovat napříč operačními systémy: binárky pro Windows se se
 
 ### Vydání
 
-Vydání se sestavují lokálně (bez CI) skripty v PowerShell 7: `scripts/release-build.ps1` (build, testy, AOT publish,
+Vydání se sestavují lokálně (bez CI) skripty v PowerShellu 7.2+: `scripts/release-build.ps1` (build, testy, AOT publish,
 smoke test, archivy, kontrolní součty SHA-256), `scripts/release-upload.ps1` (koncept vydání na GitHubu)
 a `scripts/release-publish.ps1`. Verze je v `<Version>` v `Directory.Build.props`, poznámky k vydání
 v [CHANGELOG.md](CHANGELOG.md). Celý postup je v [docs/release.md](docs/release.md).

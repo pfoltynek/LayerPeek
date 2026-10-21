@@ -142,7 +142,7 @@ macOS.
 
 ### Making a release
 
-Releases are built locally (no CI) with PowerShell 7 scripts: `scripts/release-build.ps1` (build, tests, AOT publish,
+Releases are built locally (no CI) with PowerShell 7.2+ scripts: `scripts/release-build.ps1` (build, tests, AOT publish,
 smoke test, archives, SHA-256 checksums), `scripts/release-upload.ps1` (draft GitHub release) and
 `scripts/release-publish.ps1`. The version comes from `<Version>` in `Directory.Build.props` and the release notes
 from [CHANGELOG.md](CHANGELOG.md). See [docs/release.md](docs/release.md) for the full procedure (in Czech).

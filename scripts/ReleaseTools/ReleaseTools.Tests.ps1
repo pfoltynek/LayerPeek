@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 <#
 .SYNOPSIS
     Pester 5+ tests of the release helpers (scripts/ReleaseTools/ReleaseTools.psm1).
@@ -239,7 +239,7 @@ Describe 'Git state checks (pure)' {
         $script:Head = 'a' * 40
         $script:GoodState = [pscustomobject]@{
             Head = $script:Head; StatusLines = @(); HeadTags = @('v0.1.0'); RemoteTagCommit = $script:Head; OnMain = $true
-            Remote = 'origin'; MainBranch = 'main'; RemoteErrors = @()
+            Remote = 'origin'; MainBranch = 'main'; RemoteErrors = @(); RemoteQueried = $true
         }
     }
     It 'accepts a clean, tagged, pushed commit on main' {
@@ -264,7 +264,12 @@ Describe 'Git state checks (pure)' {
         Assert-Problems (Get-ReleaseGitProblems -State (Copy-With $script:GoodState @{ OnMain = $false }) -Version '0.1.0') 'not contained in origin/main'
     }
     It 'reports an unreachable remote instead of a missing tag' {
-        Assert-Problems (Get-ReleaseGitProblems -State (Copy-With $script:GoodState @{ RemoteTagCommit = $null; OnMain = $null; RemoteErrors = @('git ls-remote origin failed: x') }) -Version '0.1.0') 'ls-remote origin failed'
+        Assert-Problems (Get-ReleaseGitProblems -State (Copy-With $script:GoodState @{ RemoteTagCommit = $null; OnMain = $null; RemoteErrors = @('git ls-remote origin failed: x'); RemoteQueried = $false }) -Version '0.1.0') 'ls-remote origin failed'
+    }
+    It 'still reports a missing or moved tag when the remote answered but its main branch is missing' {
+        $noMain = @{ OnMain = $null; RemoteErrors = @('Branch main does not exist on origin.'); RemoteQueried = $true }
+        Assert-Problems (Get-ReleaseGitProblems -State (Copy-With $script:GoodState ($noMain + @{ RemoteTagCommit = $null })) -Version '0.1.0') 'Branch main does not exist', 'Tag v0.1.0 is not on origin'
+        Assert-Problems (Get-ReleaseGitProblems -State (Copy-With $script:GoodState ($noMain + @{ RemoteTagCommit = 'b' * 40 })) -Version '0.1.0') 'Branch main does not exist', 'points to b{40}'
     }
 }
 
@@ -399,7 +404,7 @@ Describe 'Git state checks (throw-away repositories)' {
         if ($LASTEXITCODE -ne 0) { throw 'git init --bare failed' }
         $null = G $script:Work remote add trial $trial
         try {
-            Assert-Problems (Get-ReleaseGitProblems -State (State -Remote trial) -Version '0.1.0') 'Branch main does not exist on trial'
+            Assert-Problems (Get-ReleaseGitProblems -State (State -Remote trial) -Version '0.1.0') 'Branch main does not exist on trial', 'Tag v0.1.0 is not on trial'
             $null = G $script:Work push --quiet trial main v0.1.0
             Assert-Problems (Get-ReleaseGitProblems -State (State -Remote trial) -Version '0.1.0')
         }
@@ -562,5 +567,31 @@ Describe 'Publish checks' {
         $assets[0] = [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('6' * 64)" }
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) `
             'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed', 'P-0.1.0-win-arm64.zip is uploaded but not listed', 'P-0.1.0-win-arm64.zip belongs to win-arm64'
+    }
+}
+
+Describe 'AOT smoke script with an existing publish folder' {
+    BeforeAll {
+        # A publish folder whose path holds wildcard characters ([ ]): it must be addressed literally.
+        $script:SmokeDir = Join-Path $script:TempRoot 'publish [x64]'
+        $null = New-Item -ItemType Directory -Path $script:SmokeDir
+        # A stand-in "app" that exits right away: proves the executable was found and started, without the real app.
+        $exeName = if ($IsWindows) { 'PrusaTrayDiagnostic.exe' } else { 'PrusaTrayDiagnostic' }
+        $standIn = if ($IsWindows) { Join-Path $env:SystemRoot 'System32' 'hostname.exe' } else { '/usr/bin/true' }
+        Copy-Item -LiteralPath $standIn -Destination (Join-Path $script:SmokeDir $exeName)
+        $script:SmokeScript = Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1'
+    }
+    It 'finds the executable in a folder with [ ] in its path and leaves the folder in place' {
+        if (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue) {
+            Set-ItResult -Skipped -Because 'a PrusaTrayDiagnostic instance is running, the smoke script refuses to run'
+            return
+        }
+        $before = @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name)
+        $output = & ([Environment]::ProcessPath) -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 1
+        # The stand-in exits at once, so the check fails because the app exited, not because nothing was found.
+        $output | Should -Match 'App exited after start'
+        $output | Should -Not -Match 'Published executable not found'
+        @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
     }
 }

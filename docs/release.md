@@ -9,7 +9,7 @@ Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Win
 | `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
 | `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže) | ne |
 
-Všechny skripty jsou pro PowerShell 7 a běží na Windows i macOS. Prerekvizity (MSVC / Xcode Command Line Tools, `gh` CLI) jsou v [prerequisites.md](prerequisites.md).
+Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.2`) a běží na Windows i macOS. Režim `-DryRun` u uploadu a publish **čte** stav z GitHubu (`gh auth status`, `gh release view`, u publish i stažení `SHA256SUMS-*.txt` do dočasné složky), ale na GitHubu nic nemění. Prerekvizity (MSVC / Xcode Command Line Tools, `gh` CLI) jsou v [prerequisites.md](prerequisites.md).
 
 ## Rozhodnutí (2026-10-21)
 
@@ -65,7 +65,7 @@ Smoke test spustí publikovanou aplikaci na 10 s s tvými skutečnými nastaven�
 
 ### 4. Běh na Macu
 
-Stejné příkazy na Macu (Apple Silicon). Vznikne `PrusaTrayDiagnostic-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu. Dokud T-019 nedodá `.app` bundle, obsahuje `.tar.gz` publish složku tak, jak je.
+Stejné příkazy na Macu (Apple Silicon), **až když běh na Windows úspěšně skončil** (souběžné běhy nejsou ošetřené). Vznikne `PrusaTrayDiagnostic-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu. Dokud T-019 nedodá `.app` bundle, obsahuje `.tar.gz` publish složku tak, jak je (bez `.dSYM` a `.pdb`). Na macOS se archiv balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, aby neobsahoval položky AppleDouble `._*`; ověřit při T-019 výpisem `tar -tzf`.
 
 ### 5. Kontrola a zveřejnění
 
@@ -142,7 +142,8 @@ Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushuj�
 | nahrání spadlo uprostřed (síť) | spusť `release-upload.ps1` znovu: soubory se stejným obsahem přeskočí, zbytek nahraje |
 | po novém buildu stejného commitu hlásí „different content“ | AOT build nemusí být bajtově stejný. Buď nahraj původní výstup, nebo spusť s `-Force` (přepíše soubory v konceptu, `--clobber`) |
 | v tagovaném commitu je chyba | koncept smaž (`gh release delete vX.Y.Z`), tag smaž (`git push origin :refs/tags/vX.Y.Z`, `git tag -d vX.Y.Z`), oprav to v `release/X.Y.Z` nebo `hotfix/X.Y.Z` a začni krokem 2. Už zveřejněné vydání neměň, vydej novou verzi |
-| oba OS spustily `release-upload.ps1` současně a jeden skončil chybou při vytváření | spusť ho znovu, nahraje do konceptu, který vytvořil ten druhý |
+| druhý OS spustil `release-upload.ps1` dřív, než první doběhl | nedělej to: druhý OS spouštěj až po úspěšném konci prvního běhu. Souběžné vytvoření konceptu ze dvou strojů není ošetřené ani ověřené (viz zkušební vydání). Když se to stane, zkontroluj na GitHubu, že vznikl jen jeden koncept (případný druhý smaž), a spusť upload znovu |
+| nahrání bylo přerušené (pád, Ctrl+C) | spusť `release-upload.ps1` znovu. Nedokončený soubor může na GitHubu zůstat ve stavu `starter` bez `digest`: skript ho bere jako „jiný obsah“ a bez `-Force` ho odmítne, s `-Force` ho přepíše. Chování ověřit při zkušebním vydání |
 | `release-build.ps1` hlásí chybějící komponentu MSVC | viz [prerequisites.md](prerequisites.md) |
 
 ## Bod rozšíření pro instalátory (T-017, T-019)
@@ -241,6 +242,10 @@ Postup (`<owner>` = tvůj účet, název např. `PrusaTrayDiagnostic-release-tri
    Kontrola: na GitHubu je koncept `v0.1.0` označený jako předběžný, s poznámkami z `CHANGELOG.md`, se zipem a `SHA256SUMS-windows.txt`.
 
 4. Opakování: druhé spuštění `release-upload.ps1` musí soubory přeskočit („skip, identical file already uploaded“). Po novém `release-build.ps1` musí nahrání odmítnout jiný obsah a s `-Force` ho přepsat. Přidání souborů druhého OS se ověří během na Macu (T-019) stejným postupem.
+
+   Ověřit také hraniční případy, které zatím ověřené nejsou:
+   - **přerušené nahrání:** během uploadu ukonči skript (Ctrl+C). Zjisti, v jakém stavu soubor na GitHubu zůstal (`gh release view v0.1.0 --repo … --json assets` – `state`, `digest`), že ho další běh bez `-Force` odmítne a s `-Force` přepíše, a že `release-publish.ps1` nedokončený soubor nezveřejní;
+   - **souběžné vytvoření:** dva běhy `release-upload.ps1` spuštěné současně (např. dva klony s různým RID, nebo Windows a Mac) – vznikne jeden koncept, nebo dva? Výsledek zapsat sem a do T-055.
 
 5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -DryRun` bez `-AllowIncomplete` musí odmítnout chybějící `SHA256SUMS-macos.txt`. Pak `pwsh scripts/release-publish.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -AllowIncomplete` a kontrola na GitHubu (zveřejněné, stále předběžné).
 

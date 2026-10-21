@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 <#
 .SYNOPSIS
     Publishes the draft GitHub release of the tag vX.Y.Z after the Windows and macOS files are uploaded.

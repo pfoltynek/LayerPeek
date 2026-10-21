@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 <#
 .SYNOPSIS
     Builds the release files of this machine's OS: build + tests, Native AOT publish per RID, AOT smoke test,

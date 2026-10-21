@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.2
 <#
 .SYNOPSIS
     Native AOT smoke check: publishes the app, starts the native executable and verifies it keeps running.
@@ -104,7 +104,7 @@ try {
     }
 
     $exe = Join-Path $publishDir $exeName
-    if (-not (Test-Path $exe)) { throw "Published executable not found: $exe" }
+    if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Published executable not found: $exe" }
 
     # Outside the publish folder, so that an existing (release) publish folder stays unchanged.
     $null = New-Item -ItemType Directory -Path $logDir
@@ -137,11 +137,11 @@ finally {
         $process.Kill($true)
         $process.WaitForExit()
     }
-    if ($ownsPublishDir -and (Test-Path $publishDir)) {
-        Remove-Item $publishDir -Recurse -Force -ErrorAction SilentlyContinue
+    if ($ownsPublishDir -and (Test-Path -LiteralPath $publishDir)) {
+        Remove-Item -LiteralPath $publishDir -Recurse -Force -ErrorAction SilentlyContinue
     }
-    if (Test-Path $logDir) {
-        Remove-Item $logDir -Recurse -Force -ErrorAction SilentlyContinue
+    if (Test-Path -LiteralPath $logDir) {
+        Remove-Item -LiteralPath $logDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     # Shortcut first: it must be restored even when the toast cleanup below fails.
     if ($shortcut) {
