@@ -1,7 +1,7 @@
 ---
 id: T-034
 title: Náhled obrazu kamery na záložce Kamera v nastavení
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -92,3 +92,5 @@ Při nastavování kamery uživatel po kliknutí na **Otestovat** vidí snímek 
 - macOS neověřeno (kód je multiplatformní, bez platformních rozdílů).
 
 **Ruční kontrola pro uživatele:** Nastavení → tiskárna → Kamera → Otestovat kameru s `rtsp://192.168.0.227/live`: náhled se zobrazí vlevo od tlačítka, změna adresy ho smaže.
+
+**Uzavřeno 2026-10-21:** všechna akceptační kritéria jsou splněná. Úkol se uzavírá na rozhodnutí uživatele. Ruční kontroly uvedené výše zůstávají jako doporučení a ověří se při ruční kontrole navazujících úkolů.

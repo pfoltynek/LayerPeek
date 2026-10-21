@@ -1,7 +1,7 @@
 ---
 id: T-050
 title: Bezpečnost – FFmpeg přijímá jen RTSP/TCP a H.264 (M1)
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -29,7 +29,7 @@ Chyba v kterémkoli méně používaném demuxeru nebo dekodéru LGPL buildu FFm
 ## Akceptační kritéria
 - [x] `avformat_open_input` v síťovém režimu dostává `protocol_whitelist`, `format_whitelist` a `codec_whitelist`; dekodér je vždy H.264 a jiný kodek se odmítne před `avcodec_open2`
 - [x] Test s falešnou RTSP kamerou s jiným kodekem končí stavem „nepodporovaný formát“; test H.264 streamu prochází beze změny
-- [ ] Ověřeno se skutečnou kamerou Buddy3D (`rtsp://192.168.0.227/live`), pokud je dostupná; E2E testy kamery z T-044 procházejí
+- [x] Ověřeno se skutečnou kamerou Buddy3D (`rtsp://192.168.0.227/live`), pokud je dostupná; E2E testy kamery z T-044 procházejí
 - [x] Testy po sobě nic nenechají
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
@@ -56,3 +56,6 @@ Chyba v kterémkoli méně používaném demuxeru nebo dekodéru LGPL buildu FFm
   - Testy používají jen loopback a efemérní porty, vše se uvolní přes `await using`; žádné soubory nevytvářejí.
 - **Neověřeno:** skutečná kamera Buddy3D (`192.168.0.227:554`) nebyla při implementaci dostupná. E2E testy kamery z T-044 v této větvi (z `develop` před sloučením T-044) nejsou, proto je zbývající kritérium nezaškrtnuté – po sloučení T-044 je potřeba je spustit a ověřit se skutečnou kamerou.
 - AOT publish `win-x64` proběhl bez varování; žádný nový NuGet balíček.
+
+- **E2E běh 2026-10-21 (develop po sloučení T-044, s whitelistem):** testy okna kamery se simulovanou kamerou (`CameraWindowTests`, test kamery v Nastavení s náhledem) prošly. Skutečná kamera `rtsp://192.168.0.227/live` neodpověděla do 2 s, takže se test přeskočil. Kritérium zůstává nezaškrtnuté, dokud se nespustí se skutečnou kamerou.
+- **Skutečná kamera 2026-10-21 (druhý běh):** `run-e2e.ps1 -Class '*CameraWindowTests'` na `develop` s whitelistem: 2 z 2 testů prošly, žádný se nepřeskočil. `RealCameraShowsALivePicture` ukázal živý obraz z `rtsp://192.168.0.227/live` v okně kamery a test kamery v Nastavení vrátil náhled (1280 × 720 px). Kritérium je splněné, úkol se uzavírá.

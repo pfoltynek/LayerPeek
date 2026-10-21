@@ -1,7 +1,7 @@
 ---
 id: T-033
 title: Okno nastavení bez posuvníku a podzáložky tiskárny (Tiskárna / Kamera)
-status: in-progress
+status: done
 owner: ui-designer + ui-dev
 priority: P2
 platform: all
@@ -276,3 +276,5 @@ Stav 2026-10-19 (ui-dev): implementace hotová, všechna kritéria splněná v h
 - Otevřít Nastavení na skutečném Windows při 100 %, 125 % a 150 % (Segoe UI místo Inter z testů, skutečný titulek a rámeček): okno bez posuvníku, na malé pracovní ploše zmenšené a vycentrované, zkratky a pořadí Tab.
 - Malá pracovní plocha (např. 800×600 se škálováním 125 % nebo vysoký hlavní panel): okno se při otevření **objeví rovnou zmenšené a vycentrované, bez viditelného poskočení**; u více monitorů ověřit, že se otevře na očekávané obrazovce.
 - macOS (T-018) neověřeno: pořadí Zrušit/Uložit, ⌘ místo Ctrl, chování `FrameSize` a pracovní plochy.
+
+**Uzavřeno 2026-10-21:** všechna akceptační kritéria jsou splněná. Úkol se uzavírá na rozhodnutí uživatele. Ruční kontroly uvedené výše zůstávají jako doporučení a ověří se při ruční kontrole navazujících úkolů.

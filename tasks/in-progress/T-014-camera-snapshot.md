@@ -55,7 +55,7 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 - [x] Současně otevřené náhledy více tiskáren (jeden na tiskárnu)
 - [x] Stav okna se pamatuje mezi spuštěními
 - [x] Po zavření okna se stream ukončí (žádné visící spojení)
-- [ ] Ruční ověření na Windows se skutečnou kamerou Buddy3D (`rtsp://192.168.0.227/live`)
+- [x] Ruční ověření na Windows se skutečnou kamerou Buddy3D (`rtsp://192.168.0.227/live`)
 - [x] Všechny nové NuGet balíčky ověřené jako AOT/trim kompatibilní (uvedeno v poznámkách)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; `dotnet publish -r win-x64` (AOT) projde
 
@@ -332,3 +332,5 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
   - `dotnet test` celé solution 2× po sobě: 2499 testů, 0 selhání, 1 dřívější skip. V `%TEMP%` nic nezůstalo.
   - Dalších 12 samostatných běhů App.UiTests bez chyby.
   - `dotnet publish -c Release -r win-x64`: 0 varování, DLL FFmpeg a licence ve výstupu.
+
+- **Skutečná kamera 2026-10-21:** uživatel uznal jako ověření E2E běh `CameraWindowTests` (T-044) na `develop`. `RealCameraShowsALivePicture` ukázal živý obraz z `rtsp://192.168.0.227/live` v okně kamery a test kamery v Nastavení vrátil náhled (1280 × 720 px). Zbývá ruční ověření režimů okna (celá obrazovka F11 / dvojklik / Esc, malý náhled s překryvem).
