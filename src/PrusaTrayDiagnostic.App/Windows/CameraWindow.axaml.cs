@@ -3,6 +3,7 @@ using System.ComponentModel;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Threading;
@@ -505,6 +506,35 @@ public sealed partial class CameraWindow : Window
     }
 
     private void OnSurfacePointerReleased(object? sender, PointerReleasedEventArgs e) => _pendingMove = null;
+
+    /// <summary>
+    /// A window button pressed from the keyboard hides itself (its mode is now shown): the keyboard focus moves to the
+    /// first remaining button, after the command switched the mode (Click comes before the command). A mouse click leaves
+    /// the focus alone, so that the buttons still fade out when the pointer leaves the window.
+    /// </summary>
+    private void OnWindowButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (e.Source is Button { IsFocused: true } button && button.Classes.Contains(":focus-visible"))
+        {
+            Dispatcher.UIThread.Post(FocusFirstWindowButton);
+        }
+    }
+
+    private void FocusFirstWindowButton()
+    {
+        if (WindowButtons.IsKeyboardFocusWithin)
+        {
+            return;
+        }
+
+        foreach (Control child in WindowButtons.Children)
+        {
+            if (child.IsEffectivelyVisible && child.Focus(NavigationMethod.Tab))
+            {
+                return;
+            }
+        }
+    }
 
     private void OnGripPointerPressed(object? sender, PointerPressedEventArgs e)
     {

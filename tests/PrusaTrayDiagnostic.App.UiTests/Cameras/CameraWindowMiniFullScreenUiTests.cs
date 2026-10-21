@@ -189,6 +189,54 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
             Assert.Equal(miniSize, window.ClientSize);
         });
 
+    [Fact]
+    public Task KeyboardFocusMovesToTheFirstRemainingButtonWhenThePressedOneHides() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors());
+            CameraWindow window = harness.Open();
+            window.Settle();
+            StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
+
+            // Full screen hides its button: the keyboard continues on "normal window", the buttons stay shown.
+            Assert.True(window.Find<Button>("CameraFullScreenButton").Focus(NavigationMethod.Tab));
+            window.KeyPress(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+            window.KeyRelease(Key.Space, RawInputModifiers.None, PhysicalKey.Space, " ");
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            Assert.True(ViewModel(window).IsFullScreen);
+            Assert.Same(window.Find<Button>("CameraNormalButton"), window.FocusManager?.GetFocusedElement());
+            Assert.True(buttons.IsKeyboardFocusWithin);
+
+            // And on: "mini preview" from full screen hides that button too.
+            Assert.True(window.Find<Button>("CameraMiniButton").Focus(NavigationMethod.Tab));
+            // A button clicks on Enter down (Space on release).
+            window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, "\r");
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            Assert.True(ViewModel(window).IsMini);
+            Assert.Same(window.Find<Button>("CameraFullScreenButton"), window.FocusManager?.GetFocusedElement());
+        });
+
+    [Fact]
+    public Task MouseClickDoesNotMoveTheFocusToAnotherButton() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors());
+            CameraWindow window = harness.Open();
+            window.Settle();
+
+            Ui.Click(window, Ui.CentreOf(window.Find<Button>("CameraFullScreenButton"), window));
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            // Focus on a remaining button would keep the buttons shown after the pointer leaves the window.
+            Assert.True(ViewModel(window).IsFullScreen);
+            Assert.False(window.Find<StackPanel>("CameraWindowButtons").IsKeyboardFocusWithin);
+        });
+
     /// <summary>Exactly <paramref name="left"/> and <paramref name="right"/> are shown, side by side in the top right corner.</summary>
     private static void AssertButtons(CameraWindow window, string left, string right)
     {

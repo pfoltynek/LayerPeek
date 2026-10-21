@@ -134,8 +134,10 @@
       </ItemsControl>
     </Border>
 
-    <StackPanel AutomationProperties.AutomationId="CameraWindowButtons"
+    <StackPanel x:Name="WindowButtons"
+                AutomationProperties.AutomationId="CameraWindowButtons"
                 Classes="windowButtons"
+                Button.Click="OnWindowButtonClick"
                 Orientation="Horizontal"
                 Spacing="4"
                 Margin="6"
