@@ -31,6 +31,7 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
   - zástupce ve Start menu se stejným AppUserModelID `PrusaTrayDiagnostic` a názvem „Prusa Tray Diagnostic“ (obojí je finální). Vytváří ho Velopack (`--shortcuts StartMenuRoot --aumid PrusaTrayDiagnostic`). `AppShortcutRegistration` zůstává jako pojistka při startu a v hooku `--veloapp-install` (doporučení T-056, bod 4);
   - COM aktivátor (`ToastActivatorCLSID` v zástupci a registrace v `HKCU\Software\Classes\CLSID`), aby kliknutí na toast fungovalo, i když aplikace neběží (rozhodnutí uživatele: patří sem, ne do T-010). Velopack `ToastActivatorCLSID` nastavit neumí, ale při aktualizaci ho zachová (ověřeno v T-056). Zapisuje ho aplikace při startu a v hooku `--veloapp-install`;
   - odinstalace uklidí jen systémové registrace: zástupce (Velopack sám), klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic`, registraci COM aktivátoru, autostart a historii toastů. Vše kromě zástupce dělá hook `--veloapp-uninstall` (limit 30 s, bez UI). Historie toastů potřebuje nový WinRT interop (`ToastNotificationManager.History.Clear`). Nastavení v `%APPDATA%\PrusaTrayDiagnostic` a hesla v Credential Manager odinstalace **ponechá** (rozhodnuto 2026-10-21).
+- Připnutí tray ikony (T-061, workaround): hook `--veloapp-uninstall` zavolá `TrayIconPromotion.ClearPromotions(Environment.ProcessPath)` (s `NotifyIconSettingsRegistry`). Smaže jen hodnotu `IsPromoted` u záznamů vlastního exe v `HKCU\Control Panel\NotifyIconSettings`, samotné záznamy ponechá (Explorer smazaný záznam za běhu znovu nevytvoří a přeinstalovaná ikona by zůstala v přetečení). Hook `--veloapp-install` nic nedělá, záznam vzniká až po prvním zobrazení ikony a připne ho aplikace sama.
 - Instalační hooky musí proběhnout dřív než kontrola jediné instance (T-043) a bez UI (ověřeno v T-056).
 - Licence Velopacku (MIT) do okna O aplikaci (licence třetích stran).
 - Aplikace nesmí ukládat vlastní soubory do `%LocalAppData%\PrusaTrayDiagnostic` (spravuje ji Velopack), týká se i logů z T-024.
@@ -39,7 +40,7 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
 - [ ] Postup sestavení a vydání pro Windows zdokumentovaný v `docs/release.md` (z T-055), včetně varování SmartScreen u nepodepsané aplikace
 - [ ] Instalátor `win-x64` nainstaluje aplikaci bez admin práv, zástupce má AUMID `PrusaTrayDiagnostic` a `ToastActivatorCLSID` (ověřeno)
 - [ ] Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý (vydává se až po T-057; spuštění na ARM64 zatím nejde ověřit, uživatel nemá zařízení)
-- [ ] Odinstalace nezanechá zástupce, klíč notifikací ani toasty (ověřeno)
+- [ ] Odinstalace nezanechá zástupce, klíč notifikací, toasty ani hodnotu `IsPromoted` z T-061 (ověřeno)
 - [ ] Autostart po přihlášení funguje na Windows (ověřeno)
 - [ ] Nový NuGet balíček (Velopack) je ověřeně AOT/trim kompatibilní (T-056), AOT publish bez varování
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
