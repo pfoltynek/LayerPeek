@@ -1,3 +1,5 @@
+using System.Runtime.Versioning;
+
 using Avalonia.Controls;
 
 using Microsoft.Extensions.DependencyInjection;
@@ -132,6 +134,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
                     services.GetRequiredService<TrayMenuViewModel>(),
                     commands,
                     services.GetRequiredService<ILogger<TrayMenuPresenter>>());
+
+                // The test mode never touches Explorer's settings of the user (T-044).
+                if (OperatingSystem.IsWindows() && !environment.IsIsolated)
+                {
+                    StartTrayIconPromotion(services, backgroundWork.Token);
+                }
             }
 
             MonitoringSession session = services.GetRequiredService<MonitoringSession>();
@@ -340,6 +348,23 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Releasing services failed while stopping.")]
     private partial void LogDisposeFailed(Exception exception);
+
+    /// <summary>
+    /// In the background: shows the new tray icon on the taskbar instead of the overflow, once per executable path
+    /// (T-061, workaround). Never throws; cancelled when quitting.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    private static void StartTrayIconPromotion(ServiceProvider services, CancellationToken cancellationToken)
+    {
+        string? executablePath = Environment.ProcessPath;
+        if (executablePath is null || !TrayIconPromotion.AppliesTo(executablePath))
+        {
+            return;
+        }
+
+        TrayIconPromotion promotion = new(new NotifyIconSettingsRegistry(), services.GetRequiredService<ILogger<TrayIconPromotion>>());
+        _ = Task.Run(() => promotion.PromoteAsync(executablePath, cancellationToken), CancellationToken.None);
+    }
 
     /// <summary>Scaling for the tray menu icons: the menu opens as a new popup, so its monitor is not known in advance.</summary>
     private static double SystemScaling() => OperatingSystem.IsWindows() ? SystemDpiNative.GetScaling() : 1.0;
