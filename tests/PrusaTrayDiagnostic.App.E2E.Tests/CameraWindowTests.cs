@@ -120,6 +120,75 @@ public sealed class CameraWindowTests(E2EFixture fixture)
         await Wait.UntilAsync(() => File.Exists(Path.Combine(app.DataDirectory, "camera-windows.json")), TimeSpan.FromSeconds(10), "camera-windows.json in the test data folder");
     }
 
+    /// <summary>
+    /// "Open as: Mini preview" + Apply (T-040, user report 2026-10-21): a closed camera window opens as the mini preview at
+    /// its default size in the bottom right corner of the chosen monitor (another one when there is one), on top and without
+    /// a taskbar button; an open window switches mode and monitor in one Apply.
+    /// </summary>
+    [Fact]
+    public async Task ApplyOpensAndPlacesTheMiniPreview()
+    {
+        E2EFixture.Require();
+        await using RtspCamera camera = Simulators.StartCamera();
+        await using AppInstance app = await AppInstance.StartAsync(
+            fixture,
+            "camera-apply-mini",
+            TestSettings.Json("en", [new TestPrinter(PrinterId, "Core One", "127.0.0.1:1", Camera: camera.StreamUri)]));
+
+        nint settings = await app.OpenAsync("settings", AppWindowKind.Settings);
+        AutomationElement settingsElement = app.Element(settings);
+        (await Ui.ItemsAsync(settingsElement, "SettingsPrinterList", 1))[0].Patterns.SelectionItem.Pattern.Select();
+        await Ui.SelectAsync(settingsElement, "PrinterTabCameraWindow");
+        Screen? other = Screen.AllScreens.FirstOrDefault(static screen => !screen.Primary);
+        string target = "the primary monitor";
+        if (other is not null)
+        {
+            Regex size = new($@"\b{other.Bounds.Width}\D+{other.Bounds.Height}\b");
+            target = await Ui.SelectComboItemAsync(settingsElement, "PrinterCameraWindowMonitor", (text, index) => index > 0 && size.IsMatch(text), $"the monitor {other.Bounds.Width}×{other.Bounds.Height}");
+        }
+
+        // Start modes in the order of CameraWindowStartMode: same as last time, normal window, mini preview, full screen.
+        await Ui.SelectComboItemAsync(settingsElement, "PrinterCameraWindowStartMode", 2);
+        await Ui.InvokeAsync(settingsElement, "PrinterCameraWindowApply");
+        nint window = await app.WaitForWindowAsync(AppWindowKind.Camera);
+        if (other is not null)
+        {
+            await Wait.UntilAsync(() => Native.MonitorOf(window).Monitor.Left == other.Bounds.Left && Native.MonitorOf(window).Monitor.Top == other.Bounds.Top, TimeSpan.FromSeconds(10), $"the mini preview on '{target}'");
+        }
+
+        await ExpectMiniPreviewAsync(window, other is null ? Primary() : Native.MonitorOf(window), $"closed window, Apply ('{target}')");
+        // Shown without activation: the settings window keeps the focus (user decision 2026-10-21).
+        Assert.NotEqual(window, Native.GetForegroundWindow());
+        await ExpectLivePictureAsync(window, "camera-apply-mini-opened");
+
+        // The open mini preview: normal window on the primary monitor in one Apply (mode and monitor together).
+        await Ui.SelectComboItemAsync(settingsElement, "PrinterCameraWindowMonitor", 0);
+        await Ui.SelectComboItemAsync(settingsElement, "PrinterCameraWindowStartMode", 1);
+        await Ui.InvokeAsync(settingsElement, "PrinterCameraWindowApply");
+        await Wait.UntilAsync(() => ClientDip(window) == (960, 540) && Native.HasTaskbarButton(window), TimeSpan.FromSeconds(10), "the normal window after Apply");
+        await Wait.UntilAsync(() => Native.MonitorOf(window).Monitor.Equals(Primary().Monitor), TimeSpan.FromSeconds(10), "the normal window on the primary monitor");
+        AssertNormalWindow(window, "camera normal after Apply");
+        AssertCentered(window, Primary(), "camera normal after Apply");
+
+        // And the open normal window back to the mini preview.
+        await Ui.SelectComboItemAsync(settingsElement, "PrinterCameraWindowStartMode", 2);
+        await Ui.InvokeAsync(settingsElement, "PrinterCameraWindowApply");
+        await ExpectMiniPreviewAsync(window, Primary(), "open window, Apply (primary monitor)");
+        Screenshots.Save(window, "camera-apply-mini-primary");
+        Assert.Single(app.Windows(), hwnd => app.KindOf(hwnd) == AppWindowKind.Camera && Native.IsWindowVisible(hwnd));
+        await app.CloseWindowAsync(settings);
+    }
+
+    /// <summary>The window is the mini preview: 320×180, in the bottom right corner of <paramref name="monitor"/>, on top, no taskbar button.</summary>
+    private static async Task ExpectMiniPreviewAsync(nint window, Native.MonitorInfo monitor, string context)
+    {
+        await Wait.UntilAsync(() => ClientDip(window) == (320, 180), TimeSpan.FromSeconds(10), $"{context}: 320×180 (now {ClientDip(window)})");
+        await Wait.UntilAsync(() => IsTopmost(window), TimeSpan.FromSeconds(5), $"{context}: on top");
+        await Wait.UntilAsync(() => !Native.HasTaskbarButton(window), TimeSpan.FromSeconds(5), $"{context}: no taskbar button");
+        Assert.True(Native.IsWindowVisible(window), $"{context}: the window is visible.");
+        AssertInCorner(window, monitor, right: true, bottom: true, context);
+    }
+
     [Fact]
     public async Task RealCameraShowsALivePicture()
     {

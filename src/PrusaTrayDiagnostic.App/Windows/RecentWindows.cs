@@ -14,8 +14,8 @@ internal interface IRecentWindow
 
 /// <summary>
 /// The open auxiliary windows (settings, diagnostics, camera windows of all printers, About, licences) ordered by last
-/// use (T-043): a window counts as used when it opens and whenever it is activated; a closed window drops out. UI thread
-/// only.
+/// use (T-043): a window counts as used when it opens and whenever it is activated; a closed window drops out. A window
+/// opened without the focus (T-040: Apply opens the camera window) counts only once it is activated. UI thread only.
 /// </summary>
 internal sealed class RecentWindows
 {
@@ -27,8 +27,12 @@ internal sealed class RecentWindows
     /// <summary>The most recently used open window, or <see langword="null"/> when none is open.</summary>
     public IRecentWindow? MostRecent => _windows.Count > 0 ? _windows[0] : null;
 
-    /// <summary>A window opened: it is the most recently used one until another is used. Tracking twice changes nothing.</summary>
-    public void Track(IRecentWindow window)
+    /// <summary>
+    /// A window opened: it is the most recently used one until another is used; with <paramref name="used"/>
+    /// <see langword="false"/> (shown without the focus) the least recently used one until it is activated. Tracking twice
+    /// changes nothing.
+    /// </summary>
+    public void Track(IRecentWindow window, bool used = true)
     {
         ArgumentNullException.ThrowIfNull(window);
         if (_windows.Contains(window))
@@ -36,7 +40,7 @@ internal sealed class RecentWindows
             return;
         }
 
-        _windows.Insert(0, window);
+        _windows.Insert(used ? 0 : _windows.Count, window);
         window.Activated += OnActivated;
         window.Closed += OnClosed;
     }

@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.Core.Printers;
 
 namespace PrusaTrayDiagnostic.App.Windows;
 
@@ -36,7 +37,7 @@ internal sealed class AuxiliaryWindowFactory
 
     /// <summary>The camera windows of all printers.</summary>
     public CameraWindows CameraWindows(
-        Func<string, CameraViewModel?> createViewModel,
+        Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null) =>
         new(createViewModel, screens, measureChrome, _track);

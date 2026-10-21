@@ -16,6 +16,7 @@ using PrusaTrayDiagnostic.App.Tray.Icons;
 using PrusaTrayDiagnostic.App.Tray.Menu;
 using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Notifications;
+using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
 using PrusaTrayDiagnostic.Core.Web;
 
@@ -183,16 +184,17 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>
     /// A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
     /// <paramref name="screens"/>: the monitors offered for the camera window (those of the settings window);
-    /// <paramref name="cameraWindowPlacer"/>: the open camera windows, placed again by "Apply" (T-040).
+    /// <paramref name="cameraWindowPlacer"/>: the camera windows, opened or placed again by "Apply" (T-040).
     /// </summary>
     internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null) =>
         AppServices.CreateSettingsViewModel(_services, screens, cameraWindowPlacer);
 
     /// <summary>
-    /// A view model for a new camera window of <paramref name="printerId"/>, or <see langword="null"/> when it has no enabled
-    /// camera; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
+    /// A view model for a new camera window of <paramref name="printerId"/> (from <paramref name="saved"/> when given, else
+    /// from the monitored settings), or <see langword="null"/> when it has no enabled camera; the window's owner disposes
+    /// it. Valid until <see cref="StopAsync"/>.
     /// </summary>
-    public CameraViewModel? CreateCameraViewModel(string printerId) => AppServices.CreateCameraViewModel(_services, printerId);
+    public CameraViewModel? CreateCameraViewModel(string printerId, PrinterDefinition? saved) => AppServices.CreateCameraViewModel(_services, printerId, saved);
 
     /// <summary>
     /// UI thread: a camera window opened or closed; the tray menu checks its "Camera" item while it is open (T-040).

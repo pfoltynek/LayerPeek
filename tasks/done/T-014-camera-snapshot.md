@@ -1,7 +1,7 @@
 ---
 id: T-014
 title: Kamera – živý stream a snímek
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P3
 platform: all
@@ -51,7 +51,7 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
 - [x] Znovupřipojení po výpadku a zrušení přes `CancellationToken` pokryté testy (logika v Core; FFmpeg klient zatím chybí)
 - [x] FFmpeg binding a nativní knihovny ověřené pro Native AOT (`dotnet publish -r win-x64` bez varování); licence LGPL a verze FFmpeg zapsané v poznámkách
 - [x] Položka Kamera… v tray menu; nejvýš jedno okno na tiskárnu
-- [ ] Okno: normální režim, celá obrazovka (F11 / dvojklik / Esc), malý náhled vždy nahoře s překryvem stavu tisku
+- [x] Okno: normální režim, celá obrazovka (F11 / dvojklik / Esc), malý náhled vždy nahoře s překryvem stavu tisku
 - [x] Současně otevřené náhledy více tiskáren (jeden na tiskárnu)
 - [x] Stav okna se pamatuje mezi spuštěními
 - [x] Po zavření okna se stream ukončí (žádné visící spojení)
@@ -334,3 +334,4 @@ U každé tiskárny jde v nastavení zadat kameru (RTSP adresu streamu). Z tray 
   - `dotnet publish -c Release -r win-x64`: 0 varování, DLL FFmpeg a licence ve výstupu.
 
 - **Skutečná kamera 2026-10-21:** uživatel uznal jako ověření E2E běh `CameraWindowTests` (T-044) na `develop`. `RealCameraShowsALivePicture` ukázal živý obraz z `rtsp://192.168.0.227/live` v okně kamery a test kamery v Nastavení vrátil náhled (1280 × 720 px). Zbývá ruční ověření režimů okna (celá obrazovka F11 / dvojklik / Esc, malý náhled s překryvem).
+- **Ruční ověření 2026-10-21 (uživatel, Windows 11, Debug z `develop`, skutečná kamera):** otevření z tray menu a aktivace už otevřeného okna, změna velikosti se zachováním poměru stran, celá obrazovka (F11 / Esc, dvojklik, tlačítko), malý náhled bez rámečku vždy nad jinými aplikacemi, přesun a změna velikosti náhledu tažením, překryv stavu tisku, návrat do normálního okna, pamatování režimu, pozice a velikosti po zavření, obnovení streamu po minimalizaci. Vše v pořádku, úkol se uzavírá.

@@ -19,6 +19,18 @@ public sealed class AuxiliaryWindowSlotTests
     }
 
     [Fact]
+    public void WithoutActivationTheWindowIsOnlyShown()
+    {
+        // T-040: Apply in the settings opens the camera window, the settings window keeps the focus.
+        _slot.ShowOrActivate(Create, activate: false);
+        _slot.ShowOrActivate(Create, activate: false);
+
+        FakeWindow window = Assert.Single(_windows);
+        Assert.Equal(["show"], window.Calls);
+        Assert.True(_slot.IsOpen);
+    }
+
+    [Fact]
     public void FurtherRequestsActivateTheOpenWindow()
     {
         _slot.ShowOrActivate(Create);

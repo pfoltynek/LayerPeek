@@ -8,11 +8,13 @@ using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Settings;
 using PrusaTrayDiagnostic.App.Tests.Cameras;
 using PrusaTrayDiagnostic.App.Tests.Settings;
+using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.UiTests.Cameras;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 using PrusaTrayDiagnostic.App.Windows;
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
+using PrusaTrayDiagnostic.Core.Settings;
 
 using static PrusaTrayDiagnostic.App.Tests.Settings.SettingsTestData;
 
@@ -354,7 +356,113 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
         });
 
     [Fact]
-    public Task ApplyWithoutAnOpenCameraWindowOnlySaves() =>
+    public Task ApplyOpensTheClosedCameraWindowOfThatPrinterBySavedSettings() =>
+        session.RunAsync(static async scope =>
+        {
+            // User report 2026-10-21: Apply with the camera window closed showed nothing (user decision: it opens).
+            FakeScreenCatalog screens = FakeScreenCatalog.ThreeMonitors();
+            await using CameraHarness cameras = new(screens: screens);
+            // Remembered normal window: Apply places by the defaults anyway (like an open window).
+            cameras.States.Set("a", new CameraWindowState(CameraWindowMode.Normal, new CameraWindowPlacement(300, 300, 700, 400), null));
+            List<(string PrinterId, bool IsOpen)> changes = [];
+            cameras.Windows.OpenChanged += (_, e) => changes.Add((e.PrinterId, e.IsOpen));
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(Printer(), Printer("b", "Beta"));
+            SettingsWindowHarness ui = await OpenAsync(scope, store, cameras.States, cameras.Windows);
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            printer.SelectedStartMode = printer.StartModeOptions.Single(option => option.Value == CameraWindowStartMode.Mini);
+            printer.SelectedMonitor = printer.MonitorOptions.Single(option => option.Value?.DisplayName == Lg.DisplayName);
+            printer.SelectedMiniCorner = printer.CornerOptions.Single(option => option.Value == CameraWindowCorner.BottomRight);
+            ui.Window.Settle();
+
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.True(ui.IsOpen);
+            Assert.Single(store.Saves);
+            CameraWindow window = Assert.Single(cameras.Windows.OpenWindows).Value;
+            Assert.Equal([("a", true)], changes);
+            window.Settle();
+            Assert.True(window.IsVisible);
+            Assert.True(ViewModel(window).IsMini);
+            Assert.Equal(WindowDecorations.None, window.WindowDecorations);
+            Assert.True(window.Topmost);
+            Assert.False(window.ShowInTaskbar);
+            AssertPlaced(window, Expected(CameraWindowDefaults.DefaultMini, ScreenAt(screens, -1920), CameraWindowMode.Mini));
+            Assert.True(ViewModel(window).IsStreaming);
+            // The settings window keeps the focus (user decision 2026-10-21).
+            Assert.False(window.ShowActivated);
+            Assert.False(window.IsActive);
+            Assert.True(ui.Window.IsActive);
+
+            // A second Apply places the now open window again (and opens no second one).
+            window.Position = new PixelPoint(10, 10);
+            window.Settle();
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Same(window, Assert.Single(cameras.Windows.OpenWindows).Value);
+            AssertPlaced(window, Expected(CameraWindowDefaults.DefaultMini, ScreenAt(screens, -1920), CameraWindowMode.Mini));
+        });
+
+    [Fact]
+    public Task ApplyOpensTheClosedCameraWindowInFullScreenOnTheChosenMonitor() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeScreenCatalog screens = FakeScreenCatalog.ThreeMonitors();
+            await using CameraHarness cameras = new(screens: screens);
+            CameraWindowDefaults wanted = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.FullScreen, Monitor = Lg };
+            SettingsWindowHarness ui = await OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer(window: wanted)), cameras.States, cameras.Windows);
+
+            // Nothing to save: Apply still opens the window.
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+            CameraWindow window = cameras.Windows.OpenWindows["a"];
+            window.Settle();
+
+            Assert.True(ViewModel(window).IsFullScreen);
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            Assert.False(window.Topmost);
+            Assert.True(window.ShowInTaskbar);
+
+            // Esc: the normal window on the chosen monitor (placed there before going full screen).
+            ViewModel(window).EscapeCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            AssertPlaced(window, Expected(wanted.Normal, ScreenAt(screens, -1920), CameraWindowMode.Normal));
+        });
+
+    [Fact]
+    public Task ApplyOpensTheCameraWindowFromTheSavedPrinterBeforeMonitoringHasIt() =>
+        session.RunAsync(static async scope =>
+        {
+            // Monitoring restarts after a save and hands the new settings to the app only later: printer "c" has no camera
+            // there yet, and its camera, name and address come from the saved settings.
+            await using CameraHarness cameras = new(screens: FakeScreenCatalog.ThreeMonitors());
+            Uri newCamera = new("rtsp://192.168.0.228/live");
+            PrinterDefinition saved = LinkPrinter("c", "Gamma") with { Camera = new CameraSettings(enabled: true, newCamera) };
+            SettingsWindowHarness ui = await OpenAsync(scope, SettingsWindowHarness.StoreWith(saved), cameras.States, cameras.Windows);
+
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+
+            CameraWindow window = cameras.Windows.OpenWindows["c"];
+            window.Settle();
+            Assert.Equal("Gamma – Camera", window.Title);
+            await cameras.Factory.WaitForFeedAsync(1);
+            Assert.Equal([newCamera], cameras.Factory.Uris);
+
+            // Monitoring catches up with the saved settings: the window stays open on the same stream.
+            ((IMonitoringObserver)cameras.Printers).ApplySettings(new AppSettings { Printers = [saved] });
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+            Assert.Same(window, cameras.Windows.OpenWindows["c"]);
+            Assert.True(window.IsVisible);
+            Assert.Equal([newCamera], cameras.Factory.Uris);
+        });
+
+    [Fact]
+    public Task SaveDoesNotOpenAClosedCameraWindow() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: FakeScreenCatalog.ThreeMonitors());
@@ -362,10 +470,38 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
             SettingsWindowHarness ui = await OpenAsync(scope, store, cameras.States, cameras.Windows);
             ui.ViewModel.SelectedPrinter!.MiniSizeText = "400 x 225";
 
-            await ui.ApplyCameraWindowAsync();
+            await ui.SaveAsync();
+            Dispatcher.UIThread.RunJobs();
 
             Assert.Single(store.Saves);
-            Assert.True(ui.IsOpen);
             Assert.Empty(cameras.Windows.OpenWindows);
+        });
+
+    [Fact]
+    public Task CameraWindowsOpenNothingForAPrinterWithoutCameraOrAfterShutdown() =>
+        session.RunAsync(static async scope =>
+        {
+            await using CameraHarness cameras = new(screens: FakeScreenCatalog.ThreeMonitors());
+
+            Assert.False(cameras.Windows.ApplySettings(Printer("a", cameraEnabled: false)));
+            Assert.Empty(cameras.Windows.OpenWindows);
+
+            cameras.Windows.Shutdown();
+            Assert.False(cameras.Windows.ApplySettings(Printer("a")));
+            Assert.Empty(cameras.Windows.OpenWindows);
+            Assert.Empty(cameras.Created);
+        });
+
+    [Fact]
+    public Task TheTrayMenuStillActivatesTheCameraWindow() =>
+        session.RunAsync(static async scope =>
+        {
+            await using CameraHarness cameras = new(screens: FakeScreenCatalog.ThreeMonitors());
+
+            CameraWindow window = cameras.Open("a");
+            window.Settle();
+
+            Assert.True(window.ShowActivated);
+            Assert.True(window.IsActive);
         });
 }

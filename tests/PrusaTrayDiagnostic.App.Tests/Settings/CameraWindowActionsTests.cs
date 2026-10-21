@@ -241,6 +241,24 @@ public sealed class CameraWindowActionsTests : IDisposable
     }
 
     [Fact]
+    public async Task ApplyHandsTheSavedPrinterToTheCameraWindows()
+    {
+        // The camera windows may have to open the window (it was closed) before monitoring delivers the saved settings:
+        // they get the whole saved printer, with its new name and camera address.
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        PrinterEditorViewModel printer = vm.Printers[0];
+        printer.Name = "Renamed";
+        printer.CameraUrl = "rtsp://192.168.0.228/live";
+
+        await printer.ApplyCameraWindowCommand.ExecuteAsync(null);
+
+        PrinterDefinition saved = Assert.Single(_store.Saves).Updated.Printers[0];
+        Assert.Same(saved, Assert.Single(_placer.Printers));
+        Assert.Equal("Renamed", saved.Name);
+        Assert.Equal("rtsp://192.168.0.228/live", saved.Camera.StreamUri?.OriginalString);
+    }
+
+    [Fact]
     public async Task ApplyWithoutChangesPlacesTheCameraWindowWithoutSaving()
     {
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha", window: Custom));
@@ -545,12 +563,15 @@ public sealed class CameraWindowActionsTests : IDisposable
     {
         public List<(string PrinterId, CameraWindowDefaults Window)> Calls { get; } = [];
 
+        public List<PrinterDefinition> Printers { get; } = [];
+
         public Action<string>? OnApply { get; set; }
 
-        public bool ApplySettings(string printerId, CameraWindowDefaults window)
+        public bool ApplySettings(PrinterDefinition printer)
         {
-            OnApply?.Invoke(printerId);
-            Calls.Add((printerId, window));
+            OnApply?.Invoke(printer.Id);
+            Calls.Add((printer.Id, printer.Camera.Window));
+            Printers.Add(printer);
             return true;
         }
     }

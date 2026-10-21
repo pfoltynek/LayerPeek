@@ -57,6 +57,35 @@ public sealed class InstanceActivationTests
     }
 
     [Fact]
+    public void AWindowOpenedWithoutFocusCountsOnlyOnceActivated()
+    {
+        // T-040: Apply opens the camera window without taking the focus from the settings window.
+        FakeRecentWindow settings = Open("settings window");
+        FakeRecentWindow camera = new("camera", _calls);
+        _recent.Track(camera, used: false);
+
+        _activation.Activate();
+        camera.RaiseActivated();
+        _activation.Activate();
+        settings.RaiseClosed();
+        camera.RaiseClosed();
+        _activation.Activate();
+
+        Assert.Equal(["settings window front", "camera front", "settings"], _calls);
+    }
+
+    [Fact]
+    public void AnUnusedWindowIsStillBroughtToTheFrontWhenItIsTheOnlyOne()
+    {
+        FakeRecentWindow camera = new("camera", _calls);
+        _recent.Track(camera, used: false);
+
+        _activation.Activate();
+
+        Assert.Equal(["camera front"], _calls);
+    }
+
+    [Fact]
     public void ClosedWindowsDropOut()
     {
         FakeRecentWindow diagnostics = Open("diagnostics");
