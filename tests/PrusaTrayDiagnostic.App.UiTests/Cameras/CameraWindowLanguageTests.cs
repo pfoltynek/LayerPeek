@@ -42,7 +42,7 @@ public sealed class CameraWindowLanguageTests(HeadlessSession session)
             Assert.True(Ui.ShowsText(beta, "Verbindung zur Kamera wird hergestellt…"));
             Assert.Contains(Ui.VisibleTexts(alpha), static text => text.StartsWith("Druckt – 42", StringComparison.Ordinal));
             Assert.Contains(Ui.VisibleTexts(alpha), static text => text.StartsWith("Noch ", StringComparison.Ordinal));
-            // Bound in XAML (LocalizedStrings) and formatted by the view model (FullScreenToolTip).
+            // Bound in XAML (LocalizedStrings) and chosen by the view model (MiniToolTip).
             Button mini = WindowButton(alpha, "Kleine Vorschau, immer im Vordergrund");
             Assert.Equal("Kleine Vorschau, immer im Vordergrund", AutomationProperties.GetName(mini));
             Assert.NotNull(WindowButton(alpha, "Vollbild (F11)"));

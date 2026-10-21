@@ -60,10 +60,14 @@ public sealed class CameraWindowTests(E2EFixture fixture)
         await Task.Delay(500, TestContext.Current.CancellationToken);
         Screenshots.Save(window, "camera-fake-fullscreen");
         await Wait.UntilAsync(() => !IsTopmost(window), TimeSpan.FromSeconds(5), "full screen not on top (never always on top)");
-        await Ui.InvokeAsync(element, "CameraFullScreenButton");
+        // Full screen offers the other two modes (no "exit full screen" button).
+        await Ui.InvokeAsync(element, "CameraMiniButton");
         await Wait.UntilAsync(() => WindowRect(window).Equals(miniRect), TimeSpan.FromSeconds(10), $"the mini preview back at {miniRect}");
         await Wait.UntilAsync(() => IsTopmost(window), TimeSpan.FromSeconds(5), "the mini preview on top again");
 
+        // Full screen from the mini preview straight to the normal window.
+        await Ui.InvokeAsync(element, "CameraFullScreenButton");
+        await Wait.UntilAsync(() => WindowRect(window).Equals(Native.MonitorOf(window).Monitor), TimeSpan.FromSeconds(10), "full screen again");
         await Ui.InvokeAsync(element, "CameraNormalButton");
         await Wait.UntilAsync(() => ClientDip(window) == (960, 540), TimeSpan.FromSeconds(10), "the normal window size");
         AssertNormalWindow(window, "camera normal again");

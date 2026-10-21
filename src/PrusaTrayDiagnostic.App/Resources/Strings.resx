@@ -655,9 +655,6 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Full screen (F11)</value>
   </data>
-  <data name="CameraExitFullScreen" xml:space="preserve">
-    <value>Exit full screen (Esc)</value>
-  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Mini preview, always on top</value>
   </data>
@@ -666,6 +663,9 @@
   </data>
   <data name="CameraNormal" xml:space="preserve">
     <value>Back to the normal window (double-click)</value>
+  </data>
+  <data name="CameraNormalPlain" xml:space="preserve">
+    <value>Normal window</value>
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Camera image. Double-click switches full screen; F11 full screen, Esc back.</value>

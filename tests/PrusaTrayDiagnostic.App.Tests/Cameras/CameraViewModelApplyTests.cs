@@ -174,12 +174,11 @@ public sealed class CameraViewModelApplyTests : IAsyncDisposable
     [Fact]
     public void FullScreenIsAvailableInTheMiniPreviewAndReturnsToIt()
     {
-        // T-040: the mini preview has its own full screen button (the same command as F11).
+        // T-040: the mini preview has its own full screen button; F11 leaves full screen back to it.
         CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
-        Assert.True(viewModel.ToggleFullScreenCommand.CanExecute(null));
-        Assert.Equal("Full screen (F11)", viewModel.FullScreenToolTip);
+        Assert.True(viewModel.ShowFullScreenCommand.CanExecute(null));
 
-        viewModel.ToggleFullScreenCommand.Execute(null);
+        viewModel.ShowFullScreenCommand.Execute(null);
         Assert.True(viewModel.IsFullScreen);
 
         viewModel.ToggleFullScreenCommand.Execute(null);
