@@ -160,6 +160,72 @@ public sealed class SettingsViewModelTests : IDisposable
         Assert.Null(added.AddressError);
     }
 
+    // ---- "Add printer…" from the tray menu (T-042) ----
+
+    [Fact]
+    public async Task AddPrinterFromTrayBeforeLoadingAddsThePrinterOnceLoaded()
+    {
+        _store.LoadGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _store.Data = new SettingsEditorData(AppSettings.Default, SettingsLoadStatus.NotFound, [], Ids());
+        SettingsViewModel vm = Create();
+        vm.SelectedTabIndex = SettingsViewModel.GeneralTab;
+        Task load = vm.LoadAsync();
+
+        vm.AddPrinterFromTray();
+        Assert.Empty(vm.Printers);
+        _store.LoadGate.SetResult();
+        await load.WaitAsync(TestTimeouts.Wait, Ct);
+
+        PrinterEditorViewModel added = Assert.Single(vm.Printers);
+        Assert.Same(added, vm.SelectedPrinter);
+        Assert.True(added.IsNew);
+        Assert.Equal("new1", added.Id);
+        Assert.Equal(SettingsViewModel.PrintersTab, vm.SelectedTabIndex);
+        Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
+        Assert.False(vm.HasNoPrinters);
+        Assert.True(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task AddPrinterFromTrayOnAnOpenWindowShowsThePrintersTab()
+    {
+        SettingsViewModel vm = await LoadAsync(AppSettings.Default);
+        vm.SelectedTabIndex = SettingsViewModel.GeneralTab;
+
+        vm.AddPrinterFromTray();
+        vm.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+        vm.SelectedTabIndex = SettingsViewModel.GeneralTab;
+        // Clicked again before saving: the unsaved printer is shown, no second one is added.
+        vm.AddPrinterFromTray();
+
+        Assert.Single(vm.Printers);
+        Assert.Equal(SettingsViewModel.PrintersTab, vm.SelectedTabIndex);
+        Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
+    }
+
+    [Fact]
+    public async Task AddPrinterFromTrayKeepsExistingPrinters()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] });
+
+        vm.AddPrinterFromTray();
+
+        Assert.Equal(["a"], vm.Printers.Select(static printer => printer.Id));
+        Assert.False(vm.IsDirty);
+        Assert.Equal(SettingsViewModel.PrintersTab, vm.SelectedTabIndex);
+    }
+
+    [Fact]
+    public void AddPrinterFromTrayAfterClosingDoesNothing()
+    {
+        SettingsViewModel vm = Create();
+        vm.Dispose();
+
+        vm.AddPrinterFromTray();
+
+        Assert.Empty(vm.Printers);
+    }
+
     [Fact]
     public async Task DefaultIdsAreUniqueGuids()
     {

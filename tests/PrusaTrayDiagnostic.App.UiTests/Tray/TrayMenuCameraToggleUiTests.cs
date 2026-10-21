@@ -48,11 +48,9 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
 
         public static Wiring Create(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) => new(scope, cameras, printers);
 
-        /// <summary>The camera item of a single printer (right after it) or in the submenu of <paramref name="printerIndex"/>.</summary>
-        public NativeMenuItem CameraItem(int printerIndex = -1) =>
-            printerIndex < 0
-                ? Assert.IsType<NativeMenuItem>(Menu.Items[1])
-                : Assert.IsType<NativeMenuItem>(Assert.IsType<NativeMenuItem>(Menu.Items[printerIndex]).Menu!.Items[^1]);
+        /// <summary>The camera item in the submenu of <paramref name="printerIndex"/> (also of a single printer, T-042).</summary>
+        public NativeMenuItem CameraItem(int printerIndex = 0) =>
+            Assert.IsType<NativeMenuItem>(Assert.IsType<NativeMenuItem>(Menu.Items[printerIndex]).Menu!.Items[^1]);
 
         public static void Click(NativeMenuItem item)
         {
@@ -72,6 +70,10 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         {
         }
 
+        public void AddPrinter()
+        {
+        }
+
         public void ToggleCamera(string printerId) => Cameras.Windows.Toggle(printerId);
 
         public void Quit()
@@ -87,7 +89,7 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             Wiring tray = Wiring.Create(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
             NativeMenuItem camera = tray.CameraItem();
 
-            Assert.Equal("Camera", camera.Header);
+            Assert.Equal("_Camera", camera.Header);
             Assert.Equal(MenuItemToggleType.CheckBox, camera.ToggleType);
             Assert.False(camera.IsChecked);
 
@@ -154,7 +156,7 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             Dispatcher.UIThread.RunJobs();
 
             Assert.False(cameras.Windows.OpenWindows.ContainsKey("a"));
-            Assert.DoesNotContain(Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items, item => item is NativeMenuItem { Header: "Camera" });
+            Assert.DoesNotContain(Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items, item => item is NativeMenuItem { Header: "_Camera" });
             Assert.True(tray.CameraItem(1).IsChecked);
 
             // Removing "b": its window closes too; when it is added again its item starts unchecked.

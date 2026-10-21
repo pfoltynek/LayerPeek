@@ -69,9 +69,15 @@ public sealed class TrayMenuIconTests : IDisposable
 
         Apply(Definition("a", "Alpha") with { Camera = new Core.Cameras.CameraSettings(enabled: true, new Uri("rtsp://10.0.0.5/live")) });
 
-        Assert.Equal(2, _viewModel.PrinterItems.Count);
-        Assert.NotNull(_viewModel.PrinterItems[0].Icon);
-        Assert.Null(_viewModel.PrinterItems[1].Icon);
+        TrayMenuEntry printer = Assert.Single(_viewModel.PrinterItems);
+        Assert.NotNull(printer.Icon);
+        // Actions have no icons (T-042), the camera check item included.
+        Assert.Equal(3, printer.Submenu!.Count);
+        Assert.All(printer.Submenu, static item => Assert.Null(item.Icon));
+
+        Apply();
+        Assert.All(_viewModel.PrinterItems, static item => Assert.Null(item.Icon));
+        Assert.All(_viewModel.FixedItems, static item => Assert.Null(item.Icon));
     }
 
     [Fact]
@@ -82,7 +88,9 @@ public sealed class TrayMenuIconTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Null(viewModel.PrinterItems[0].Icon);
+        Assert.All(viewModel.PrinterItems[0].Submenu!, static item => Assert.Null(item.Icon));
         Assert.False(TrayMenuOptions.Default.PrinterIcons);
+        // Printer icons on Windows only; macOS shows no icons in the menu (T-018 / T-042).
         Assert.Equal(OperatingSystem.IsWindows(), TrayMenuOptions.ForCurrentPlatform.PrinterIcons);
     }
 

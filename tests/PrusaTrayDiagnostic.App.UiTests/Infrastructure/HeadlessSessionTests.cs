@@ -55,7 +55,7 @@ public sealed class HeadlessSessionTests(HeadlessSession session)
         session.RunAsync(static scope =>
         {
             Assert.Null(Strings.Culture);
-            Assert.Equal("Quit", Strings.MenuQuit);
+            Assert.Equal("_Quit", Strings.MenuQuit);
             Assert.Equal(ThemeVariant.Default, Application.Current!.RequestedThemeVariant);
             return Task.CompletedTask;
         });

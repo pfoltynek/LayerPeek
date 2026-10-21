@@ -12,10 +12,10 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 
 /// <summary>
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
-/// followed by the fixed items. A single printer is a plain item (clicking opens the web interface); with several
-/// printers each one is a submenu ("Open … in the browser", "Diagnostics…" preselected on that printer, T-013, and
-/// "Camera" when its camera is enabled, T-014; a single printer gets "Camera" as the next item; checked while the camera
-/// window is open, T-040).
+/// followed by the fixed items (settings, about, quit). Every printer is a submenu, also when it is the only one (T-042):
+/// "Open … in the browser", "Diagnostics…" preselected on that printer (T-013) and "Camera" when its camera is enabled
+/// (T-014; checked while the camera window is open, T-040). Without printers the menu says so and offers
+/// "Add printer…". Fixed and submenu items carry access keys from the resources; printer items have none.
 /// Snapshots arrive on background threads. Each one only compares a cheap <see cref="PrinterMenuContent"/> of its
 /// printer under the lock; when nothing visible changed nothing else happens. Changed printers are marked and a single
 /// UI update is posted for a whole burst; it formats only the marked items and replaces only those whose
@@ -300,78 +300,58 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     private TrayMenuEntry[] CreateFixedItems() =>
     [
-        new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, _options.SettingsAvailable),
-        new TrayMenuEntry(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _options.DiagnosticsAvailable),
+        new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, _options.SettingsAvailable) { HasAccessKey = true },
         TrayMenuEntry.Separator,
-        new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true),
-        new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true),
+        new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true) { HasAccessKey = true },
+        new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true) { HasAccessKey = true },
     ];
 
     private static TrayMenuEntry MessageEntry(string text) => new(TrayMenuCommand.None, text, IsEnabled: false);
 
-    /// <summary>
-    /// UI thread. One printer: a plain item that opens the web interface (as before T-013). Several printers: a submenu
-    /// header "Name: State – 42%" whose items (web interface, diagnostics) are built once per configuration and reused,
-    /// so a state change only formats the header.
-    /// </summary>
-    private TrayMenuEntry PrinterEntry(PrinterLine line)
-    {
-        string header = TrayMenuFormatter.PrinterHeader(line.Name, line.Content);
-        if (!line.Grouped)
-        {
-            return new TrayMenuEntry(
-                TrayMenuCommand.OpenWeb,
-                header,
-                IsEnabled: line.WebUri is not null,
-                TrayMenuFormatter.PrinterToolTip(line.ConnectionType, line.WebUri is not null),
-                line.WebUri,
-                line.Id)
-            {
-                Icon = line.Picture,
-            };
-        }
+    /// <summary>No printer configured: the (disabled) message and "Add printer…" (T-042).</summary>
+    private TrayMenuEntry[] NoPrinterEntries() =>
+    [
+        MessageEntry(Strings.ToolTipNoPrinter),
+        new TrayMenuEntry(TrayMenuCommand.AddPrinter, Strings.MenuAddPrinter, _options.SettingsAvailable) { HasAccessKey = true },
+    ];
 
+    /// <summary>
+    /// UI thread. A submenu header "Name: State – 42%" (the name shortened, the full name in its tooltip) whose items are
+    /// built once per configuration and reused, so a state change only formats the header. Clicking the header only opens
+    /// the submenu (T-042; before, a single printer opened its web interface).
+    /// </summary>
+    private TrayMenuEntry PrinterEntry(PrinterLine line) =>
         // Enabled even when the address is invalid: the submenu still offers diagnostics.
-        return new TrayMenuEntry(TrayMenuCommand.None, header, IsEnabled: true, PrinterId: line.Id)
+        new(TrayMenuCommand.None, TrayMenuFormatter.PrinterHeader(line.Name, line.Content), IsEnabled: true, TrayMenuFormatter.PrinterToolTip(line.Name), PrinterId: line.Id)
         {
             Submenu = line.Owner.Submenu ??= PrinterSubmenu(line),
             Icon = line.Picture,
         };
-    }
 
     private TrayMenuEntryList PrinterSubmenu(PrinterLine line)
     {
         bool canOpenWeb = line.WebUri is not null;
         TrayMenuEntry web = new(
             TrayMenuCommand.OpenWeb,
-            line.ConnectionType == ConnectionType.PrusaConnect ? Strings.MenuOpenPrusaConnect : Strings.MenuOpenPrusaLink,
+            TrayMenuFormatter.OpenWebText(line.ConnectionType),
             canOpenWeb,
             canOpenWeb ? null : Strings.MenuInvalidAddress,
             line.WebUri,
-            line.Id);
-        TrayMenuEntry diagnostics = new(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _diagnosticsAvailable, PrinterId: line.Id);
+            line.Id)
+        {
+            HasAccessKey = true,
+        };
+        TrayMenuEntry diagnostics = new(TrayMenuCommand.Diagnostics, Strings.MenuDiagnostics, _diagnosticsAvailable, PrinterId: line.Id) { HasAccessKey = true };
         return new TrayMenuEntryList(line.HasCamera ? [web, diagnostics, CameraEntry(line.Id)] : [web, diagnostics]);
     }
 
     /// <summary>Only for printers with an enabled camera; absent otherwise (T-014).</summary>
     private TrayMenuEntry CameraEntry(string printerId) =>
-        new(TrayMenuCommand.Camera, Strings.MenuCamera, IsEnabled: true, PrinterId: printerId) { IsChecked = _openCameras.Contains(printerId) };
+        new(TrayMenuCommand.Camera, Strings.MenuCamera, IsEnabled: true, PrinterId: printerId) { IsChecked = _openCameras.Contains(printerId), HasAccessKey = true };
 
-    /// <summary>The printer entries of a new layout: a single printer with a camera gets its "Camera" entry right after it.</summary>
-    private TrayMenuEntry[] LayoutEntries(List<(int Index, PrinterLine Line)>? lines)
-    {
-        if (lines is null)
-        {
-            return [];
-        }
-
-        if (lines is [(_, { Grouped: false, HasCamera: true } single)])
-        {
-            return [PrinterEntry(single), CameraEntry(single.Id)];
-        }
-
-        return [.. lines.Select(line => PrinterEntry(line.Line))];
-    }
+    /// <summary>The printer entries of a new layout, one submenu per printer.</summary>
+    private TrayMenuEntry[] LayoutEntries(List<(int Index, PrinterLine Line)>? lines) =>
+        lines is null ? [] : [.. lines.Select(line => PrinterEntry(line.Line))];
 
     private void OnSnapshotUpdated(object? sender, PrinterSnapshot snapshot)
     {
@@ -432,6 +412,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private void Apply()
     {
         string? message;
+        bool noPrinters;
         bool layoutChanged;
         // Created only when printer items have to be formatted (not for status messages or empty updates).
         List<(int Index, PrinterLine Line)>? lines = null;
@@ -447,24 +428,23 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             _layoutChanged = false;
             message = _monitoringFailed ? Strings.ToolTipMonitoringFailed
                 : _slots is null ? Strings.ToolTipStarting
-                : _slots.Length == 0 ? Strings.ToolTipNoPrinter
                 : null;
+            noPrinters = message is null && _slots is { Length: 0 };
 
-            if (message is null && _slots is not null)
+            if (message is null && !noPrinters && _slots is not null)
             {
-                bool grouped = _slots.Length > 1;
                 if (layoutChanged)
                 {
                     for (int i = 0; i < _slots.Length; i++)
                     {
-                        (lines ??= new(_slots.Length)).Add((i, _slots[i].ToLine(grouped)));
+                        (lines ??= new(_slots.Length)).Add((i, _slots[i].ToLine()));
                     }
                 }
                 else
                 {
                     foreach (int index in _dirtySlots)
                     {
-                        (lines ??= new(_dirtySlots.Count)).Add((index, _slots[index].ToLine(grouped)));
+                        (lines ??= new(_dirtySlots.Count)).Add((index, _slots[index].ToLine()));
                     }
                 }
             }
@@ -483,6 +463,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         if (message is not null)
         {
             Synchronize([MessageEntry(message)]);
+        }
+        else if (noPrinters)
+        {
+            Synchronize(NoPrinterEntries());
         }
         else if (layoutChanged)
         {
@@ -526,7 +510,6 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     }
 
     /// <summary>What one printer item needs; copied out of the lock for formatting.</summary>
-    /// <param name="Grouped">Several printers are configured: the printer is a submenu.</param>
     /// <param name="HasCamera">The printer has an enabled camera: the menu offers "Camera".</param>
     private readonly record struct PrinterLine(
         Slot Owner,
@@ -535,7 +518,6 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         ConnectionType ConnectionType,
         Uri? WebUri,
         PrinterMenuContent Content,
-        bool Grouped,
         bool HasCamera,
         PrinterPicture? Picture);
 
@@ -557,7 +539,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         /// <summary>The icon of the printer item (T-039); <see langword="null"/> without printer icons.</summary>
         public PrinterPicture? Picture { get; set; }
 
-        public PrinterLine ToLine(bool grouped) =>
-            new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, grouped, definition.Camera is { Enabled: true, StreamUri: not null }, Picture);
+        public PrinterLine ToLine() =>
+            new(this, definition.Id, definition.Name, definition.ConnectionType, webUri, Content, definition.Camera is { Enabled: true, StreamUri: not null }, Picture);
     }
 }

@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -17,7 +19,7 @@ using PrusaTrayDiagnostic.Core.Web;
 namespace PrusaTrayDiagnostic.App.UiTests.Tray;
 
 /// <summary>
-/// The tray menu (T-008, T-013, T-028) on the real Avalonia <see cref="NativeMenu"/> of the app's <see cref="TrayIcon"/>
+/// The tray menu (T-008, T-013, T-028, T-042) on the real Avalonia <see cref="NativeMenu"/> of the app's <see cref="TrayIcon"/>
 /// (App.axaml), wired like <c>TrayHost</c> does it: view model → presenter → <see cref="TrayMenuTarget"/> →
 /// <see cref="AvaloniaNativeTrayMenu"/>. The monitor, the web gateway and the browser are fakes. Rendering of the native
 /// menu by the OS stays a manual check.
@@ -30,8 +32,9 @@ public sealed class TrayMenuTests(HeadlessSession session)
         {
             TrayMenu tray = TrayMenu.Create(scope);
 
+            // No general "Diagnostics…" (T-042).
             Assert.Equal(
-                [Strings.ToolTipStarting, "-", Strings.MenuSettings, Strings.MenuDiagnostics, "-", Strings.MenuAbout, Strings.MenuQuit],
+                [Strings.ToolTipStarting, "-", Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
                 tray.Headers());
             Assert.False(tray.Item(0).IsEnabled);
             Assert.All(tray.Menu.Items.OfType<NativeMenuItem>().Where(static item => item is not NativeMenuItemSeparator).Skip(1), static item => Assert.True(item.IsEnabled));
@@ -39,7 +42,36 @@ public sealed class TrayMenuTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task OnePrinterIsAPlainItemWhoseHeaderFollowsItsState() =>
+    public Task NoPrinterShowsTheMessageAndAddPrinter() =>
+        session.RunAsync(static scope =>
+        {
+            TrayMenu tray = TrayMenu.Create(scope);
+
+            tray.ViewModel.SetPrinters([]);
+            Dispatcher.UIThread.RunJobs();
+
+            Assert.Equal(
+                [Strings.ToolTipNoPrinter, Strings.MenuAddPrinter, "-", Strings.MenuSettings, "-", Strings.MenuAbout, Strings.MenuQuit],
+                tray.Headers());
+            Assert.False(tray.Item(0).IsEnabled);
+            Assert.True(tray.Item(1).IsEnabled);
+            Assert.Null(tray.Item(1).Menu);
+
+            TrayMenu.ClickLikeThePlatform(tray.Item(0));
+            TrayMenu.ClickLikeThePlatform(tray.Item(1));
+            Assert.Equal(1, tray.Commands.AddPrinterCount);
+            Assert.Equal(0, tray.Commands.SettingsCount);
+
+            // A printer saved: the item goes away.
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4")]);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(6, tray.Menu.Items.Count);
+            Assert.DoesNotContain(Strings.MenuAddPrinter, tray.Headers());
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task OnePrinterIsASubmenuWhoseHeaderFollowsItsState() =>
         session.RunAsync(static scope =>
         {
             TrayMenu tray = TrayMenu.Create(scope);
@@ -48,19 +80,24 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Dispatcher.UIThread.RunJobs();
 
             NativeMenuItem printer = tray.Item(0);
-            // "_" is an access-key marker in Avalonia menus; the adapter doubles it so that the name shows unchanged.
+            // "_" is an access-key marker in Avalonia menus; the adapter escapes it so that the name shows unchanged.
             Assert.Equal(NativeMenuText.EscapeAccessKeys(TrayMenuFormatter.PrinterHeader("MK4_dílna", default)), printer.Header);
-            Assert.StartsWith("MK4__dílna", printer.Header, StringComparison.Ordinal);
-            Assert.Null(printer.Menu);
+            Assert.StartsWith("MK4_dílna: ", NativeMenuText.DisplayTextOf(printer.Header!), StringComparison.Ordinal);
             Assert.True(printer.IsEnabled);
-            Assert.Equal(Strings.MenuOpenPrusaLink, printer.ToolTip);
+            Assert.Null(printer.ToolTip);
+            // Like several printers (T-042): a submenu with the printer's actions, resource texts with their access keys.
+            NativeMenu submenu = Assert.IsType<NativeMenu>(printer.Menu);
+            Assert.Equal(
+                [Strings.MenuOpenPrusaLink, Strings.MenuDiagnostics],
+                submenu.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
             Assert.IsType<NativeMenuItemSeparator>(tray.Menu.Items[1]);
 
             tray.Monitor.Raise(TestPrinters.Snapshot(PrinterState.Printing, TestPrinters.Job(42.7)));
             Dispatcher.UIThread.RunJobs();
 
-            // Updated in place: the same platform item, a new text.
+            // Updated in place: the same platform item and submenu, a new text.
             Assert.Same(printer, tray.Item(0));
+            Assert.Same(submenu, printer.Menu);
             Assert.Equal(NativeMenuText.EscapeAccessKeys(TrayMenuFormatter.PrinterHeader("MK4_dílna", new PrinterMenuContent(PrinterState.Printing, 42))), printer.Header);
             Assert.Contains("42", printer.Header, StringComparison.Ordinal);
             return Task.CompletedTask;
@@ -75,7 +112,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4"), TestPrinters.Definition("xl", "XL")]);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(8, tray.Menu.Items.Count);
+            Assert.Equal(7, tray.Menu.Items.Count);
             Assert.IsType<NativeMenuItemSeparator>(tray.Menu.Items[2]);
             foreach ((int index, string name) in new[] { (0, "MK4"), (1, "XL") })
             {
@@ -87,18 +124,18 @@ public sealed class TrayMenuTests(HeadlessSession session)
                     submenu.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
             }
 
-            // Back to one printer: the submenu becomes a plain item again.
+            // Back to one printer: still a submenu (T-042).
             tray.ViewModel.SetPrinters([TestPrinters.Definition("xl", "XL")]);
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal(7, tray.Menu.Items.Count);
-            Assert.Null(tray.Item(0).Menu);
+            Assert.Equal(6, tray.Menu.Items.Count);
+            Assert.NotNull(tray.Item(0).Menu);
             Assert.StartsWith("XL", tray.Item(0).Header, StringComparison.Ordinal);
             return Task.CompletedTask;
         });
 
     [Fact]
-    public Task ClickingThePrinterOpensItsWebInterfaceThroughTheGateway() =>
+    public Task ThePrinterItemOnlyOpensItsSubmenuAndItsWebItemUsesTheGateway() =>
         session.RunAsync(static async scope =>
         {
             TrayMenu tray = TrayMenu.Create(scope);
@@ -106,7 +143,12 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.SetPrinters([mk4]);
             Dispatcher.UIThread.RunJobs();
 
+            // T-042: no click-to-web on the printer item any more (T-008).
             TrayMenu.ClickLikeThePlatform(tray.Item(0));
+            Assert.Empty(tray.Gateway.Opened);
+            Assert.Empty(tray.Launcher.OpenedSecret);
+
+            TrayMenu.ClickLikeThePlatform((NativeMenuItem)tray.Item(0).Menu!.Items[0]);
             await tray.Launcher.WaitForOpenedAsync(1);
 
             // The gateway is asked for exactly this printer; the browser gets the logged-in proxy address only.
@@ -145,12 +187,11 @@ public sealed class TrayMenuTests(HeadlessSession session)
 
             TrayMenu.ClickLikeThePlatform(tray.Item(0));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuSettings));
-            TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuDiagnostics));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuAbout));
             TrayMenu.ClickLikeThePlatform(tray.ItemWithHeader(Strings.MenuQuit));
 
             Assert.Equal(1, tray.Commands.SettingsCount);
-            Assert.Equal([null], tray.Commands.DiagnosticsRequests);
+            Assert.Empty(tray.Commands.DiagnosticsRequests);
             Assert.Equal(1, tray.Commands.AboutCount);
             Assert.Equal(1, tray.Commands.QuitCount);
             Assert.Empty(tray.Gateway.Opened);
@@ -170,12 +211,65 @@ public sealed class TrayMenuTests(HeadlessSession session)
             tray.ViewModel.RefreshTexts();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.Equal("Ukončit", tray.ItemWithHeader(Strings.MenuQuit).Header);
+            Assert.Equal("U_končit", tray.ItemWithHeader(Strings.MenuQuit).Header);
             Assert.Equal(
                 [Strings.MenuOpenPrusaLink, Strings.MenuDiagnostics],
                 tray.Item(0).Menu!.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
             Assert.NotEqual("Open PrusaLink in the browser", Strings.MenuOpenPrusaLink);
             Assert.Equal(TrayMenuFormatter.PrinterHeader("MK4", default), tray.Item(0).Header);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task LongNameIsShortenedWithTheFullNameInTheToolTip() =>
+        session.RunAsync(static scope =>
+        {
+            TrayMenu tray = TrayMenu.Create(scope);
+            string name = "Original Prusa MK4S workshop printer no. 2";
+
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", name)]);
+            Dispatcher.UIThread.RunJobs();
+
+            NativeMenuItem printer = tray.Item(0);
+            Assert.Equal(TrayMenuFormatter.PrinterHeader(name, default), printer.Header);
+            Assert.StartsWith(name[..31] + "…", printer.Header, StringComparison.Ordinal);
+            Assert.Equal(name, printer.ToolTip);
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task AvaloniaMenuShowsTheAccessKeysOfTheResourcesAndNoneForPrinterNames() =>
+        session.RunAsync(static scope =>
+        {
+            TrayMenu tray = TrayMenu.Create(scope);
+            new UiLanguage().Apply("cs");
+            tray.ViewModel.RefreshTexts();
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "_MK4_dílna")]);
+            Dispatcher.UIThread.RunJobs();
+
+            // What Avalonia's Windows tray menu draws for these headers: menu items in a menu flyout presenter, whose header
+            // presenter recognizes access keys (an AccessText).
+            NativeMenuItem printer = tray.Item(0);
+            string[] headers = [printer.Header!, tray.ItemWithHeader(Strings.MenuQuit).Header!, ((NativeMenuItem)printer.Menu!.Items[1]).Header!];
+            MenuItem[] items = [.. headers.Select(static header => new MenuItem { Header = header })];
+            Window window = scope.Track(new Window { Width = 400, Height = 300, Content = new MenuFlyoutPresenter { ItemsSource = items } });
+            window.Show();
+            window.Settle();
+
+            AccessText[] texts = [.. items.Select(static item => item.GetVisualDescendants().OfType<AccessText>().Single())];
+            // The printer name: only the invisible word joiner, no key anyone can type (Avalonia 12 takes the character after
+            // the first "_", even of "__").
+            Assert.Equal(NativeMenuText.NoAccessKey.ToString(), texts[0].AccessKey);
+            Assert.Equal("k", texts[1].AccessKey);
+            Assert.Equal("D", texts[2].AccessKey);
+            Assert.Equal(printer.Header, texts[0].Text);
+            Assert.StartsWith("_MK4_dílna: ", NativeMenuText.DisplayTextOf(texts[0].Text!), StringComparison.Ordinal);
+
+            // What AccessText really lays out (markers removed) is what DisplayTextOf predicts, apart from the invisible joiner.
+            Assert.All(texts, static text => Assert.Equal(
+                NativeMenuText.DisplayTextOf(text.Text!),
+                RenderedText(text).Replace(NativeMenuText.NoAccessKey.ToString(), string.Empty, StringComparison.Ordinal)));
+            Assert.Equal("Ukončit", RenderedText(texts[1]));
             return Task.CompletedTask;
         });
 
@@ -192,6 +286,11 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Assert.Equal(0, tray.Commands.QuitCount);
             return Task.CompletedTask;
         });
+
+    /// <summary>The characters <paramref name="text"/> has laid out (and draws), without line ends.</summary>
+    private static string RenderedText(AccessText text) =>
+        string.Concat(text.TextLayout.TextLines.SelectMany(static line => line.TextRuns).Select(static run => run.Text.ToString()))
+            .TrimEnd('\r', '\n', (char)0x2029);
 
     /// <summary>The tray menu of one test, wired like <c>TrayHost.StartAsync</c>.</summary>
     private sealed class TrayMenu

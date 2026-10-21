@@ -5,9 +5,10 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 /// and updated in place; a property is written only when its value changed, so an unchanged printer never touches the
 /// platform menu. Every item remembers the entry it currently shows, so a click acts on the latest state (e.g. a new
 /// address). Layout: printer items, separator, fixed items; the printer index therefore equals the menu index.
-/// A printer item with a submenu (several printers) keeps its submenu items and updates them in place too; only a change
-/// of structure (plain item ↔ submenu, another number of submenu items) replaces the platform item at the same index.
-/// Free of Avalonia so that it is testable; UI thread only.
+/// A printer item (always a submenu, T-042) keeps its submenu items and updates them in place too; only a change of
+/// structure (status message ↔ printer, another number of submenu items, e.g. a camera enabled) replaces the platform
+/// item at the same index. Plain texts are escaped, resource texts keep their access keys
+/// (<see cref="NativeMenuText.HeaderOf"/>). Free of Avalonia so that it is testable; UI thread only.
 /// </summary>
 internal sealed class TrayMenuTarget : ITrayMenuTarget
 {
@@ -109,7 +110,7 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             _owner = owner;
             _entry = entry;
             Item = menu.CreateItem(OnClicked);
-            Item.SetHeader(NativeMenuText.EscapeAccessKeys(entry.Header));
+            Item.SetHeader(NativeMenuText.HeaderOf(entry));
             Item.SetEnabled(entry.IsEnabled);
             Item.SetToolTip(entry.ToolTip);
             if (entry.Icon is not null)
@@ -147,9 +148,9 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
 
         public void Update(TrayMenuEntry entry)
         {
-            if (entry.Header != _entry.Header)
+            if (entry.Header != _entry.Header || entry.HasAccessKey != _entry.HasAccessKey)
             {
-                Item.SetHeader(NativeMenuText.EscapeAccessKeys(entry.Header));
+                Item.SetHeader(NativeMenuText.HeaderOf(entry));
             }
 
             if (entry.IsEnabled != _entry.IsEnabled)

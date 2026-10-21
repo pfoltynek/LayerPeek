@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MenuQuit" xml:space="preserve">
-    <value>Quitter</value>
+    <value>_Quitter</value>
   </data>
   <data name="ToolTipStarting" xml:space="preserve">
     <value>Démarrage…</value>
@@ -91,19 +91,22 @@
     <value>{0} : {1}</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
-    <value>Paramètres…</value>
+    <value>_Paramètres…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>Diagnostic…</value>
+    <value>_Diagnostic…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
-    <value>À propos</value>
+    <value>À pr_opos</value>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>_Ajouter une imprimante…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>Ouvrir PrusaLink dans le navigateur</value>
+    <value>_Ouvrir PrusaLink dans le navigateur</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>Ouvrir Prusa Connect dans le navigateur</value>
+    <value>_Ouvrir Prusa Connect dans le navigateur</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>L'adresse de l'imprimante n'est pas valide</value>
@@ -604,7 +607,7 @@
     <value>L'adresse ne doit contenir ni nom d'utilisateur, ni mot de passe, ni le caractère @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Caméra</value>
+    <value>_Caméra</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – caméra</value>

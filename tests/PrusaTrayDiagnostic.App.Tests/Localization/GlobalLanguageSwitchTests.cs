@@ -35,14 +35,14 @@ public sealed class GlobalLanguageSwitchTests : IDisposable
     }
 
     [Theory]
-    [InlineData("cs", "Ukončit")]
-    [InlineData("sk", "Ukončiť")]
-    [InlineData("de", "Beenden")]
-    [InlineData("es", "Salir")]
-    [InlineData("fr", "Quitter")]
-    [InlineData("it", "Esci")]
-    [InlineData("pl", "Zakończ")]
-    [InlineData("en", "Quit")]
+    [InlineData("cs", "U_končit")]
+    [InlineData("sk", "U_končiť")]
+    [InlineData("de", "_Beenden")]
+    [InlineData("es", "_Salir")]
+    [InlineData("fr", "_Quitter")]
+    [InlineData("it", "_Esci")]
+    [InlineData("pl", "_Zakończ")]
+    [InlineData("en", "_Quit")]
     public async Task ApplySwitchesEveryTextIndependentlyOfTheSystem(string code, string quit)
     {
         UiLanguage language = new();
@@ -65,7 +65,7 @@ public sealed class GlobalLanguageSwitchTests : IDisposable
         Assert.Equal("en-US", CultureInfo.CurrentCulture.Name);
         Assert.Equal("en-US", CultureInfo.CurrentUICulture.Name);
         Assert.Equal("1.5", 1.5.ToString(CultureInfo.CurrentCulture));
-        Assert.Equal("Beenden", Strings.MenuQuit);
+        Assert.Equal("_Beenden", Strings.MenuQuit);
     }
 
     [Fact]
@@ -77,9 +77,9 @@ public sealed class GlobalLanguageSwitchTests : IDisposable
         language.Apply(null);
 
         Assert.Null(Strings.Culture);
-        Assert.Equal("Quit", Strings.MenuQuit);
+        Assert.Equal("_Quit", Strings.MenuQuit);
         CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("de-AT");
-        Assert.Equal("Beenden", Strings.MenuQuit);
+        Assert.Equal("_Beenden", Strings.MenuQuit);
     }
 
     [Fact]

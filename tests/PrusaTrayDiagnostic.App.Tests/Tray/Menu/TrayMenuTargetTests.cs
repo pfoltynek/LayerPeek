@@ -126,7 +126,37 @@ public sealed class TrayMenuTargetTests
 
         _target.InsertPrinterItem(0, Printer("MK4_test"));
 
-        Assert.Equal("MK4__test", _menu.Items[0].Header);
+        Assert.Equal("MK4_" + NativeMenuText.NoAccessKey + "__test", _menu.Items[0].Header);
+    }
+
+    [Fact]
+    public void ResourceTextsKeepTheirAccessKeysAndPlainTextsAreEscaped()
+    {
+        // T-042: fixed and submenu items have access keys, printer names and messages never get one.
+        TrayMenuEntry settings = new(TrayMenuCommand.Settings, "_Settings…", IsEnabled: true) { HasAccessKey = true };
+        TrayMenuEntry diagnostics = new(TrayMenuCommand.Diagnostics, "_Diagnostics…", IsEnabled: true, PrinterId: "a") { HasAccessKey = true };
+        _target.SetFixedItems([settings]);
+
+        _target.InsertPrinterItem(0, Printer("_Lab_MK4: Idle") with { Submenu = new TrayMenuEntryList([diagnostics]) });
+
+        Assert.Equal(["_" + NativeMenuText.NoAccessKey + "__Lab__MK4: Idle", "---", "_Settings…"], _menu.Layout());
+        Assert.Equal("_Diagnostics…", Assert.Single(_menu.Items[0].Submenu!.Items).Header);
+        Assert.Null(NativeMenuText.AccessKeyOf(_menu.Items[0].Header));
+        Assert.Equal('S', NativeMenuText.AccessKeyOf(_menu.Items[1].Header));
+    }
+
+    [Fact]
+    public void SwitchingTheAccessKeyFlagRewritesTheHeader()
+    {
+        _target.SetFixedItems([]);
+        TrayMenuEntry plain = new(TrayMenuCommand.None, "A_B", IsEnabled: false);
+        _target.InsertPrinterItem(0, plain);
+        FakeNativeItem item = _menu.Items[0];
+        item.Writes.Clear();
+
+        _target.UpdatePrinterItem(0, plain with { HasAccessKey = true });
+
+        Assert.Equal(["header=A_B"], item.Writes);
     }
 
     [Fact]
@@ -164,7 +194,7 @@ public sealed class TrayMenuTargetTests
         _target.InsertPrinterItem(0, Parent("A: Idle", "a"));
         _target.InsertPrinterItem(1, Parent("B_x: Idle", "b"));
 
-        Assert.Equal(["A: Idle", "B__x: Idle", "---", "Quit"], _menu.Layout());
+        Assert.Equal(["A: Idle", "B_" + NativeMenuText.NoAccessKey + "__x: Idle", "---", "Quit"], _menu.Layout());
         FakeNativeItem b = _menu.Items[1];
         Assert.NotNull(b.Submenu);
         Assert.Equal(["Open b", "Diagnostics…"], b.Submenu.Layout());

@@ -13,7 +13,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MenuQuit" xml:space="preserve">
-    <value>Esci</value>
+    <value>_Esci</value>
   </data>
   <data name="ToolTipStarting" xml:space="preserve">
     <value>Avvio in corso…</value>
@@ -91,19 +91,22 @@
     <value>{0}: {1}</value>
   </data>
   <data name="MenuSettings" xml:space="preserve">
-    <value>Impostazioni…</value>
+    <value>_Impostazioni…</value>
   </data>
   <data name="MenuDiagnostics" xml:space="preserve">
-    <value>Diagnostica…</value>
+    <value>_Diagnostica…</value>
   </data>
   <data name="MenuAbout" xml:space="preserve">
-    <value>Informazioni</value>
+    <value>I_nformazioni</value>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>_Aggiungi stampante…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>Apri PrusaLink nel browser</value>
+    <value>_Apri PrusaLink nel browser</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>Apri Prusa Connect nel browser</value>
+    <value>_Apri Prusa Connect nel browser</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>L'indirizzo della stampante non è valido</value>
@@ -604,7 +607,7 @@
     <value>L'indirizzo non deve contenere nome utente, password né il carattere @.</value>
   </data>
   <data name="MenuCamera" xml:space="preserve">
-    <value>Telecamera</value>
+    <value>_Telecamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – telecamera</value>

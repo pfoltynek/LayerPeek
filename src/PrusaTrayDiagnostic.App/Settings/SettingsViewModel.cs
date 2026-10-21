@@ -41,7 +41,7 @@ public sealed class ConnectionTypeOption(ConnectionType value, Func<string> text
 /// </summary>
 public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguageAware
 {
-    /// <summary>Longer names would be cut in the tray menu anyway (<c>TrayMenuFormatter</c> limit).</summary>
+    /// <summary>Longest printer name (the tray menu shows at most <c>TrayMenuFormatter.MaxNameLength</c> of it, T-042).</summary>
     public const int MaxNameLength = 100;
 
     /// <summary>Main tabs (<see cref="SelectedTabIndex"/>).</summary>
@@ -98,6 +98,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     private bool _isSaving;
     private bool _disposed;
     private bool _isDirty;
+
+    // "Add printer…" from the tray (T-042) arrived before the settings were loaded.
+    private bool _addPrinterWhenLoaded;
     private PrinterEditorViewModel? _selectedPrinter;
     private int _selectedTabIndex;
     private int _selectedPrinterTabIndex;
@@ -596,6 +599,34 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         }
     }
 
+    /// <summary>
+    /// "Add printer…" of the tray menu (T-042, offered while no printer is configured): shows the Printers tab with the
+    /// connection fields and adds a new printer through <see cref="AddPrinterCommand"/>. Only when the window lists no
+    /// printer yet: a window that is already open with an unsaved printer (the menu still offers the item until it is
+    /// saved) just shows it, so that repeated clicks do not pile up empty printers. Before the settings are loaded it
+    /// happens right after loading. UI thread.
+    /// </summary>
+    public void AddPrinterFromTray()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (!_loaded)
+        {
+            _addPrinterWhenLoaded = true;
+            return;
+        }
+
+        SelectedTabIndex = PrintersTab;
+        SelectedPrinterTabIndex = ConnectionPrinterTab;
+        if (Printers.Count == 0 && AddPrinterCommand.CanExecute(null))
+        {
+            AddPrinterCommand.Execute(null);
+        }
+    }
+
     /// <summary>Ctrl+Tab / Ctrl+Shift+Tab: the next or previous main tab, wrapping around. False when nothing can be switched.</summary>
     public bool SelectAdjacentTab(bool forward)
     {
@@ -683,6 +714,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         SelectedPrinter = Printers.Count > 0 ? Printers[0] : null;
         UpdateDirty();
         OnEditableChanged();
+        if (_addPrinterWhenLoaded)
+        {
+            _addPrinterWhenLoaded = false;
+            AddPrinterFromTray();
+        }
     }
 
     private SoundOption FindSound(NotificationSound sound)

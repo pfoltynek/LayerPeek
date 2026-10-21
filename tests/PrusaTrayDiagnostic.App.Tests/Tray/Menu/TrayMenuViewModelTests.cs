@@ -44,24 +44,29 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void FixedItemsOfferSettingsDiagnosticsAboutAndQuit()
+    public void FixedItemsOfferSettingsAboutAndQuitWithAccessKeys()
     {
+        // No general "Diagnostics…" any more (T-042): every printer submenu has its own.
         Assert.Collection(
             _viewModel.FixedItems,
-            item => AssertCommand(item, TrayMenuCommand.Settings, "Settings…", enabled: true),
-            item => AssertCommand(item, TrayMenuCommand.Diagnostics, "Diagnostics…", enabled: true),
+            item => AssertCommand(item, TrayMenuCommand.Settings, "_Settings…", enabled: true),
             item => Assert.True(item.IsSeparator),
-            item => AssertCommand(item, TrayMenuCommand.About, "About", enabled: true),
-            item => AssertCommand(item, TrayMenuCommand.Quit, "Quit", enabled: true));
+            item => AssertCommand(item, TrayMenuCommand.About, "_About", enabled: true),
+            item => AssertCommand(item, TrayMenuCommand.Quit, "_Quit", enabled: true));
+        Assert.All(_viewModel.FixedItems.Where(static item => !item.IsSeparator), static item => Assert.True(item.HasAccessKey));
     }
 
     [Fact]
     public void UnavailableWindowsAreDisabled()
     {
         using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _gateway), new TrayMenuOptions(SettingsAvailable: false, DiagnosticsAvailable: false));
+        viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
 
         Assert.False(viewModel.FixedItems.Single(item => item.Command == TrayMenuCommand.Settings).IsEnabled);
-        Assert.False(viewModel.FixedItems.Single(item => item.Command == TrayMenuCommand.Diagnostics).IsEnabled);
+        // "Add printer…" opens the settings window.
+        Assert.False(viewModel.PrinterItems.Single(item => item.Command == TrayMenuCommand.AddPrinter).IsEnabled);
+        Assert.DoesNotContain(viewModel.FixedItems, static item => item.Command == TrayMenuCommand.Diagnostics);
     }
 
     [Fact]
@@ -71,7 +76,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         using TrayMenuViewModel viewModel = new(_monitor, _dispatcher, TestWebOpener.Create(_launcher, _gateway), TrayMenuOptions.Default);
 
         Assert.Equal(
-            ["Nastavení…", "Diagnostika…", "O aplikaci", "Ukončit"],
+            ["_Nastavení…", "_O aplikaci", "U_končit"],
             viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
     }
 
@@ -86,14 +91,59 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void NoPrintersShowsNotConfigured()
+    public void NoPrintersShowsNotConfiguredAndOffersAddPrinter()
     {
         _viewModel.SetPrinters([]);
         _dispatcher.RunAll();
 
-        TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
-        Assert.Equal("No printer configured", entry.Header);
-        Assert.False(entry.IsEnabled);
+        Assert.Collection(
+            _viewModel.PrinterItems,
+            message =>
+            {
+                AssertCommand(message, TrayMenuCommand.None, "No printer configured", enabled: false);
+                Assert.False(message.HasAccessKey);
+            },
+            add =>
+            {
+                AssertCommand(add, TrayMenuCommand.AddPrinter, "Add _printer…", enabled: true);
+                Assert.True(add.HasAccessKey);
+                Assert.Null(add.Submenu);
+                Assert.Null(add.PrinterId);
+            });
+    }
+
+    [Fact]
+    public void AddPrinterIsOfferedOnlyWithoutPrinters()
+    {
+        // Starting and a failure show their message only.
+        Assert.DoesNotContain(_viewModel.PrinterItems, static item => item.Command == TrayMenuCommand.AddPrinter);
+
+        _viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
+        Assert.Contains(_viewModel.PrinterItems, static item => item.Command == TrayMenuCommand.AddPrinter);
+
+        _viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+        Assert.DoesNotContain(_viewModel.PrinterItems, static item => item.Command == TrayMenuCommand.AddPrinter);
+
+        _viewModel.SetPrinters([]);
+        _viewModel.ReportMonitoringFailed();
+        _dispatcher.RunAll();
+        Assert.Equal("Monitoring stopped due to an error", Assert.Single(_viewModel.PrinterItems).Header);
+    }
+
+    [Fact]
+    public void AddPrinterFollowsTheLanguage()
+    {
+        _viewModel.SetPrinters([]);
+        _dispatcher.RunAll();
+
+        using (new CultureScope("cs-CZ"))
+        {
+            _viewModel.RefreshTexts();
+        }
+
+        Assert.Equal(["Není nastavena žádná tiskárna", "_Přidat tiskárnu…"], _viewModel.PrinterItems.Select(static item => item.Header));
     }
 
     [Fact]
@@ -107,15 +157,20 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void SinglePrinterIsAFlatItemThatOpensTheWeb()
+    public void SinglePrinterIsASubmenuLikeSeveralPrinters()
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
+        // T-042: the printer item only opens its submenu (before, a single printer item opened the web interface).
         TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
-        Assert.Equal(TrayMenuCommand.OpenWeb, entry.Command);
-        Assert.Null(entry.Submenu);
+        Assert.Equal(TrayMenuCommand.None, entry.Command);
+        Assert.True(entry.IsEnabled);
+        Assert.Null(entry.WebUri);
+        Assert.False(entry.HasAccessKey);
         Assert.Equal("mk4", entry.PrinterId);
+        Assert.Equal([TrayMenuCommand.OpenWeb, TrayMenuCommand.Diagnostics], entry.Submenu!.Select(static item => item.Command));
+        Assert.All(entry.Submenu!, static item => Assert.Equal(("mk4", true), (item.PrinterId, item.HasAccessKey)));
     }
 
     [Fact]
@@ -133,18 +188,18 @@ public sealed class TrayMenuViewModelTests : IDisposable
             alpha.Submenu!,
             item =>
             {
-                AssertCommand(item, TrayMenuCommand.OpenWeb, "Open PrusaLink in the browser", enabled: true);
+                AssertCommand(item, TrayMenuCommand.OpenWeb, "_Open PrusaLink in the browser", enabled: true);
                 Assert.Equal(new Uri("http://192.168.1.10/"), item.WebUri);
                 Assert.Equal("a", item.PrinterId);
             },
             item =>
             {
-                AssertCommand(item, TrayMenuCommand.Diagnostics, "Diagnostics…", enabled: true);
+                AssertCommand(item, TrayMenuCommand.Diagnostics, "_Diagnostics…", enabled: true);
                 Assert.Equal("a", item.PrinterId);
             });
 
         TrayMenuEntry xl = _viewModel.PrinterItems[1];
-        Assert.Equal("Open Prusa Connect in the browser", xl.Submenu![0].Header);
+        Assert.Equal("_Open Prusa Connect in the browser", xl.Submenu![0].Header);
         Assert.Equal(new Uri("https://connect.prusa3d.com/"), xl.Submenu[0].WebUri);
         Assert.Equal("c", xl.Submenu[1].PrinterId);
     }
@@ -183,7 +238,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
-        Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
+        Assert.Equal(["_Otevřít PrusaLink v prohlížeči", "_Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
     }
 
     [Fact]
@@ -203,12 +258,12 @@ public sealed class TrayMenuViewModelTests : IDisposable
         // Applied right away (UI thread), not posted.
         Assert.Equal(1, fixedChanges);
         Assert.Equal(
-            ["Nastavení…", "Diagnostika…", "O aplikaci", "Ukončit"],
+            ["_Nastavení…", "_O aplikaci", "U_končit"],
             _viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
         Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
         // The cached submenu is formatted again too.
-        Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
-        Assert.Equal(["Otevřít PrusaLink v prohlížeči", "Diagnostika…"], _viewModel.PrinterItems[0].Submenu!.Select(item => item.Header));
+        Assert.Equal(["_Otevřít PrusaLink v prohlížeči", "_Diagnostika…"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
+        Assert.Equal(["_Otevřít PrusaLink v prohlížeči", "_Diagnostika…"], _viewModel.PrinterItems[0].Submenu!.Select(item => item.Header));
     }
 
     [Fact]
@@ -253,21 +308,26 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void GoingFromOneToSeveralPrintersSwitchesToSubmenusAndBack()
+    public void AddingASecondPrinterKeepsTheFirstOneAsItIs()
     {
         _viewModel.SetPrinters([Definition("a", "Alpha")]);
         _dispatcher.RunAll();
-        Assert.Null(_viewModel.PrinterItems[0].Submenu);
+        TrayMenuEntry alpha = _viewModel.PrinterItems[0];
+        _changes.Clear();
 
         _viewModel.SetPrinters([Definition("a", "Alpha"), Definition("b", "Beta")]);
         _dispatcher.RunAll();
-        Assert.All(_viewModel.PrinterItems, item => Assert.NotNull(item.Submenu));
 
-        _viewModel.SetPrinters([Definition("b", "Beta")]);
+        // The same structure for one and several printers (T-042): only the new printer is added.
+        NotifyCollectionChangedEventArgs change = Assert.Single(_changes);
+        Assert.Equal((NotifyCollectionChangedAction.Add, 1), (change.Action, change.NewStartingIndex));
+        Assert.Equal(alpha, _viewModel.PrinterItems[0]);
+
+        _changes.Clear();
+        _viewModel.SetPrinters([Definition("a", "Alpha")]);
         _dispatcher.RunAll();
-        TrayMenuEntry single = Assert.Single(_viewModel.PrinterItems);
-        Assert.Null(single.Submenu);
-        Assert.Equal(TrayMenuCommand.OpenWeb, single.Command);
+        change = Assert.Single(_changes);
+        Assert.Equal((NotifyCollectionChangedAction.Remove, 1), (change.Action, change.OldStartingIndex));
     }
 
     [Fact]
@@ -292,10 +352,10 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
-        TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
-        Assert.True(entry.IsEnabled);
-        Assert.Equal(new Uri("http://192.168.1.10/"), entry.WebUri);
-        Assert.Equal("Open PrusaLink in the browser", entry.ToolTip);
+        TrayMenuEntry web = Assert.Single(_viewModel.PrinterItems).Submenu![0];
+        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open PrusaLink in the browser", enabled: true);
+        Assert.Equal(new Uri("http://192.168.1.10/"), web.WebUri);
+        Assert.Null(web.ToolTip);
     }
 
     [Fact]
@@ -304,10 +364,9 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _viewModel.SetPrinters([new PrinterDefinition { Id = "c", Name = "XL", ConnectionType = ConnectionType.PrusaConnect, Address = "0b9d8a2c-uuid" }]);
         _dispatcher.RunAll();
 
-        TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
-        Assert.True(entry.IsEnabled);
-        Assert.Equal(new Uri("https://connect.prusa3d.com/"), entry.WebUri);
-        Assert.Equal("Open Prusa Connect in the browser", entry.ToolTip);
+        TrayMenuEntry web = Assert.Single(_viewModel.PrinterItems).Submenu![0];
+        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open Prusa Connect in the browser", enabled: true);
+        Assert.Equal(new Uri("https://connect.prusa3d.com/"), web.WebUri);
     }
 
     [Fact]
@@ -318,9 +377,14 @@ public sealed class TrayMenuViewModelTests : IDisposable
 
         TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
         Assert.Equal("MK4: Connecting…", entry.Header);
-        Assert.False(entry.IsEnabled);
-        Assert.Null(entry.WebUri);
-        Assert.Equal("The printer address is not valid", entry.ToolTip);
+        // The submenu still offers diagnostics; only its web item is disabled, with the reason.
+        Assert.True(entry.IsEnabled);
+        Assert.Null(entry.ToolTip);
+        TrayMenuEntry web = entry.Submenu![0];
+        Assert.False(web.IsEnabled);
+        Assert.Null(web.WebUri);
+        Assert.Equal("The printer address is not valid", web.ToolTip);
+        Assert.True(entry.Submenu[1].IsEnabled);
     }
 
     [Fact]
@@ -513,15 +577,43 @@ public sealed class TrayMenuViewModelTests : IDisposable
     }
 
     [Fact]
-    public void LongPrinterNameIsShortened()
+    public void LongPrinterNameIsShortenedAndShownInFullInTheToolTip()
     {
-        string name = new('x', 300);
+        string name = new string('x', 40) + "_tail";
+        _viewModel.SetPrinters([Definition(name: name)]);
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42)));
+        _dispatcher.RunAll();
+
+        TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
+        // 31 characters of the name and "…" (T-042: about 32 characters); the state is never shortened.
+        Assert.Equal(new string('x', 31) + "…: Printing – 42%", entry.Header);
+        Assert.Equal(name, entry.ToolTip);
+    }
+
+    [Theory]
+    [InlineData(31)]
+    [InlineData(32)]
+    public void NameThatFitsIsShownWholeWithoutToolTip(int length)
+    {
+        string name = new('n', length);
         _viewModel.SetPrinters([Definition(name: name)]);
         _dispatcher.RunAll();
 
-        string header = Assert.Single(_viewModel.PrinterItems).Header;
-        Assert.True(header.Length <= TrayMenuFormatter.MaxHeaderLength, $"Header has {header.Length} characters.");
-        Assert.EndsWith(": Connecting…", header, StringComparison.Ordinal);
+        TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
+        Assert.Equal(name + ": Connecting…", entry.Header);
+        Assert.Null(entry.ToolTip);
+    }
+
+    [Fact]
+    public void NameOfThirtyThreeCharactersIsShortenedToThirtyTwo()
+    {
+        string name = new('n', 33);
+        _viewModel.SetPrinters([Definition(name: name)]);
+        _dispatcher.RunAll();
+
+        TrayMenuEntry entry = Assert.Single(_viewModel.PrinterItems);
+        Assert.Equal(new string('n', 31) + "…: Connecting…", entry.Header);
+        Assert.Equal(name, entry.ToolTip);
     }
 
     [Fact]
@@ -530,7 +622,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _viewModel.SetPrinters([Definition() with { UserName = "admin" }]);
         _dispatcher.RunAll();
 
-        _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0].Submenu![0]);
         await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal([FakeWebGateway.ProxyAddress], _launcher.OpenedSecret);
@@ -547,7 +639,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
-        _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0].Submenu![0]);
         await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
@@ -574,7 +666,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
-        TrayMenuEntry stale = _viewModel.PrinterItems[0];
+        TrayMenuEntry stale = _viewModel.PrinterItems[0].Submenu![0];
         // The printer moved: the old entry must not open a logged-in proxy for the printer's new definition.
         _viewModel.SetPrinters([Definition() with { Address = "192.168.1.99" }]);
 
@@ -593,7 +685,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
-        _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0].Submenu![0]);
         await _launcher.WaitForOpenedAsync(1);
 
         Assert.Equal([new Uri("http://192.168.1.10/")], _launcher.Opened);
@@ -618,7 +710,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
 
-        viewModel.OpenWeb(viewModel.PrinterItems[0]);
+        viewModel.OpenWeb(viewModel.PrinterItems[0].Submenu![0]);
         CancellationToken openToken = await entered.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         Assert.False(openToken.IsCancellationRequested);
         viewModel.Dispose();
@@ -634,8 +726,13 @@ public sealed class TrayMenuViewModelTests : IDisposable
     public void OpenWebIgnoresEntryWithoutAddress()
     {
         _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
+        _viewModel.SetPrinters([Definition()]);
+        _dispatcher.RunAll();
+        // The printer item itself only opens its submenu.
+        _viewModel.OpenWeb(_viewModel.PrinterItems[0]);
 
         Assert.Empty(_launcher.Opened);
+        Assert.Empty(_launcher.OpenedSecret);
     }
 
     [Fact]
@@ -643,7 +740,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
     {
         _viewModel.SetPrinters([Definition()]);
         _dispatcher.RunAll();
-        TrayMenuEntry entry = _viewModel.PrinterItems[0];
+        TrayMenuEntry entry = _viewModel.PrinterItems[0].Submenu![0];
         _viewModel.Dispose();
 
         _viewModel.OpenWeb(entry);

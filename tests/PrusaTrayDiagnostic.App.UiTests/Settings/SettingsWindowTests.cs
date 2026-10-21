@@ -48,6 +48,25 @@ public sealed class SettingsWindowTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task AddPrinterFromTheTrayShowsTheNewPrinterOnThePrintersTab() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith());
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+
+            // "Add printer…" of the tray menu (T-042) on the open window.
+            ui.ViewModel.AddPrinterFromTray();
+            ui.Window.Settle();
+
+            Assert.Equal(SettingsViewModel.PrintersTab, ui.Find<TabControl>("SettingsTabs").SelectedIndex);
+            Assert.Equal(1, ui.Find<ListBox>("SettingsPrinterList").ItemCount);
+            Assert.True(ui.NameBox.IsEffectivelyVisible);
+            Assert.Equal(string.Empty, ui.NameBox.Text);
+            Assert.Equal("p1", ui.ViewModel.SelectedPrinter!.Id);
+        });
+
+    [Fact]
     public Task TypedValuesAreSavedThroughTheStoreAndTheWindowCloses() =>
         session.RunAsync(static async scope =>
         {
