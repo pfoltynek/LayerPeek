@@ -44,6 +44,6 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
 - Synchronizovat tajné údaje přes iCloud Keychain (`kSecAttrSynchronizable`), nebo jen lokálně? (Na Windows bylo rozhodnuto, že hesla roamují s profilem.)
 - Jakou dostupnost položky zvolit (`kSecAttrAccessible`, např. jen po odemčení zařízení)?
 - Použít stejný limit velikosti tajného údaje jako Windows (2560 B UTF-8) kvůli jednotnému chování, nebo limit Keychainu?
-- Podpis aplikace (T-019) ovlivňuje, zda macOS po novém sestavení zobrazí dialog „povolit přístup do Keychainu“ – je to pro vývojová/ad-hoc sestavení přijatelné?
+- Podpis aplikace (T-019) ovlivňuje, zda macOS po novém sestavení zobrazí dialog „povolit přístup do Keychainu“ – je to pro vývojová/ad-hoc sestavení přijatelné? Rozhodnuto 2026-10-21: i vydání budou mít jen ad-hoc podpis (bez Apple Developer ID), takže se dialog může objevit po každé aktualizaci, nejen ve vývoji. Riziko ověřit v tomto úkolu.
 
 ## Poznámky k implementaci

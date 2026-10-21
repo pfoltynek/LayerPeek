@@ -31,7 +31,7 @@ Zprovoznit na macOS živý stream z kamery (RTSP/H.264, Prusa Buddy3D) z T-014. 
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- Odkud vzít LGPL build FFmpeg pro `osx-arm64` (vlastní sestavení, nebo hotový balíček)? Má se podporovat i `osx-x64` / universal binary?
+- Odkud vzít LGPL build FFmpeg pro `osx-arm64` (vlastní sestavení, nebo hotový balíček)? (`osx-x64` ani universal binary se nepodporuje – rozhodnuto 2026-10-21, viz T-019.)
 - Využít v FFmpeg hardwarové dekódování přes VideoToolbox, nebo stačí softwarové?
 - Vyžaduje macOS pro RTSP v lokální síti oprávnění „Local Network“ (`NSLocalNetworkUsageDescription` v `Info.plist`)?
 

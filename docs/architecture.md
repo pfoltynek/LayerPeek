@@ -28,6 +28,7 @@ PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macO
 - **PrusaLink / PrusaConnect** implementují `IPrinterClient`; DTO (tvar JSON) jsou oddělené od doménových modelů.
 - **Camera.FFmpeg** (T-014) implementuje `ICameraFeedFactory` z `Core/Cameras`: RTSP/H.264 přes FFmpeg (FFmpeg.AutoGen, P/Invoke) a převod snímků na BGRA. Závisí jen na Core (`App -> Camera.FFmpeg -> Core`). Nativní knihovny FFmpeg (LGPL build BtbN, připnutá URL + SHA256) stahuje a ověřuje `build/FFmpeg.targets` při buildu, zatím jen pro `win-x64` (macOS: T-026). Znovupřipojení, timeouty a stav připojení řeší `Core/Cameras/ReconnectingCameraFeed`; App jen vykresluje snímky do `WriteableBitmap` (okno kamery, malý náhled).
 - **App** je composition root: registruje služby, implementuje platformní rozhraní, zobrazuje stav. UI pouze odebírá snapshoty z monitorovací služby.
+- **tools/PrusaSimulator** (T-045) je samostatný vývojový nástroj mimo aplikaci: simulované tiskárny PrusaLink (Kestrel ze sdíleného frameworku ASP.NET Core) a RTSP kamera Buddy3D. Nereferencuje kód aplikace (tvar API napodobuje podle fixture), nepublikuje se s aplikací a neprochází AOT analýzou. Kameru simulátoru používají i testy FFmpeg. Návod: [simulator.md](simulator.md).
 
 ## Tok dat
 
@@ -66,9 +67,10 @@ Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podr
 | Ikona | oznamovací oblast, barevná ikona kreslená za běhu (`ITrayIconSet`) – T-007 | menu bar, doporučená monochromatická „template“ ikona – T-018 |
 | Notifikace | toast přes vlastní WinRT interop, AppUserModelID přes zástupce ve Start menu uživatele – T-010 | User Notifications (vyžaduje .app bundle) – T-020 |
 | Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` – T-019 |
-| Autostart, balení | registry `Run` / Startup, instalátor – T-017 | Login Items, `.app` bundle – T-019 |
+| Autostart, balení | registry `Run` / Startup, instalátor (preferovaný Velopack, ověřuje T-056) + `.zip`, bez podpisu – T-017 | Login Items, `.app` bundle, `.dmg` + `.tar.gz`, ad-hoc podpis – T-019 |
+| Vydání | lokálně skripty T-055, RID `win-x64` a `win-arm64` (FFmpeg ARM64: T-057), nahrání do GitHub Releases | lokálně skripty T-055, RID `osx-arm64`, přidání do stejného GitHub vydání |
 | Tajné údaje | Credential Manager (`[LibraryImport]`, roaming s profilem) – T-002 (hotovo) | Keychain (`Security.framework` přes `[LibraryImport]`) – T-021 |
 
 Výběr platformní implementace (`ISecretStore`, `INotificationService`) probíhá v composition rootu v App podle OS (explicitní registrace kvůli Native AOT); registraci `ISecretStore` zavedl T-007 (`Composition/AppServices`): Windows → `WindowsCredentialSecretStore`, ostatní OS → `UnsupportedSecretStore` (hesla nedostupná, aplikace běží dál), dokud T-021 nedodá Keychain. `INotificationService` (T-010): Windows → `ToastNotificationService`, ostatní OS → `NullNotificationService`, dokud T-020 nedodá macOS notifikace. Úkoly s `platform: macos` se implementují až na Macu a Windows úkoly na nich nezávisí.
 
-Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-010, T-017, T-019, T-020, T-021).
+Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-010, T-017, T-019, T-020, T-021, T-055, T-056).

@@ -59,6 +59,9 @@ tests/
   PrusaTrayDiagnostic.E2E.Tests     cross-cutting browser E2E tests (Playwright + installed Edge, skipped without Edge)
   PrusaTrayDiagnostic.App.UiTests   cross-cutting Avalonia headless UI tests (T-031)
   Shared/                           test helpers shared by several test projects (linked files, no copies)
+  PrusaSimulator.Tests              tests of the developer simulator (tools/PrusaSimulator)
+tools/
+  PrusaSimulator                    dev tool: simulated PrusaLink printers + RTSP camera (docs/simulator.md); not shipped
 docs/                               architecture & API notes (Czech)
 tasks/                              task backlog (Czech), see tasks/README.md
 .claude/agents/                     subagent definitions
@@ -117,4 +120,4 @@ Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (forma
 - `HttpClient` via `IHttpClientFactory`; never `new HttpClient()` per request.
 - Secrets (API keys, passwords, tokens) never in logs, never committed, never in plain-text settings once T-002 decides the secure storage.
 - Platform-specific code isolated behind interfaces in Core, implemented in App (e.g. `INotificationService`).
-- Tests for clients use recorded JSON fixtures (`tests/**/Fixtures/*.json`) and a fake `HttpMessageHandler` — no real network in tests.
+- Tests for clients use recorded JSON fixtures (`tests/**/Fixtures/*.json`) and a fake `HttpMessageHandler` or loopback-only servers (127.0.0.1, e.g. the simulator) — no real network in tests.

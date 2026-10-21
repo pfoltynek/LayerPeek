@@ -30,5 +30,6 @@ Implementace `INotificationService` pro macOS přes User Notifications framework
 ## Otevřené otázky
 - Jaký přístup použít (vlastní interop na Objective-C runtime / `UserNotifications.framework`, nebo AOT kompatibilní knihovna)? Musí být ověřeně AOT/trim kompatibilní.
 - Zvuk u notifikací – platí rozhodnutí z T-010.
+- Riziko: aplikace bude mít jen ad-hoc podpis (rozhodnuto 2026-10-21, T-019). Ověřit, že `UNUserNotificationCenter` s ad-hoc podepsanou `.app` funguje a jestli macOS po každém novém sestavení znovu nežádá o povolení notifikací.
 
 ## Poznámky k implementaci

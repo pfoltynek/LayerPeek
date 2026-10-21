@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Developer tool (T-045): simulated PrusaLink printers and an RTSP camera. Not part of the app and never published with
+    it, so it is not AOT-analysed (tools/ is outside src/Directory.Build.props). Kestrel comes from the shared ASP.NET
+    Core framework, like in the app's web proxy (T-028): no NuGet packages.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>PrusaSimulator</AssemblyName>
+    <RootNamespace>PrusaTrayDiagnostic.Simulator</RootNamespace>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="PrusaSimulator.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The recorded Buddy3D clip of T-014 is the default camera loop; linked, not copied. -->
+    <None Include="..\..\tests\PrusaTrayDiagnostic.Camera.FFmpeg.Tests\Fixtures\buddy3d.h264" Link="Clips\buddy3d.h264" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>
