@@ -29,7 +29,7 @@ public sealed class LicensesWindowUiTests(HeadlessSession session)
             AboutWindow about = scope.Track(new AboutWindow { DataContext = new AboutViewModel(launcher, typeof(AboutViewModel).Assembly) });
             about.Show();
             Dispatcher.UIThread.RunJobs();
-            Assert.True(Ui.ShowsText(about, "License: Apache License 2.0"));
+            Assert.True(Ui.ShowsText(about, "License: GNU General Public License v3.0 only"));
 
             HyperlinkButton open = Ui.Find<HyperlinkButton>(about, static button => button.Content as string == "Third-party licences…");
             Click(about, open);
