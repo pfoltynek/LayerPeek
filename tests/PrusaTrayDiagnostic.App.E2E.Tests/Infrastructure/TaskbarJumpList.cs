@@ -131,7 +131,7 @@ internal static class TaskbarJumpList
         public string[] ListIds() =>
             [.. Element.FindAllDescendants(cf => cf.ByControlType(ControlType.List)).Select(static list => list.Properties.AutomationId.ValueOrDefault ?? string.Empty)];
 
-        /// <summary>The window title (localized, e.g. "Jump List for …"), the owning process and the entries, for the report.</summary>
+        /// <summary>The owning process (no window title: shell windows are not the app's, T-069) and the entries, for the report.</summary>
         public string Describe()
         {
             Native.GetWindowThreadProcessId(Handle, out uint processId);
@@ -147,7 +147,7 @@ internal static class TaskbarJumpList
             }
 
             IEnumerable<string> entries = Entries().Select(static entry => $"'{entry.Properties.Name.ValueOrDefault}' (id '{entry.Properties.AutomationId.ValueOrDefault}')");
-            return $"window '{Native.Title(Handle)}' of {process}, lists [{string.Join(", ", ListIds())}], entries [{string.Join(", ", entries)}]";
+            return $"window of {process}, lists [{string.Join(", ", ListIds())}], entries [{string.Join(", ", entries)}]";
         }
 
         /// <summary>
@@ -234,17 +234,5 @@ internal static class TaskbarJumpList
         }
     }
 
-    private static string SaveScreenArea(Rectangle area, int margin, string name)
-    {
-        area.Inflate(margin, margin);
-        Native.Rect screen = Native.VirtualScreen();
-        area.Intersect(Rectangle.FromLTRB(screen.Left, screen.Top, screen.Right, screen.Bottom));
-        using Bitmap bitmap = new(area.Width, area.Height, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.CopyFromScreen(area.Left, area.Top, 0, 0, area.Size);
-        }
-
-        return Screenshots.Save(bitmap, name);
-    }
+    private static string SaveScreenArea(Rectangle area, int margin, string name) => Screenshots.SaveScreenArea(area, margin, name);
 }

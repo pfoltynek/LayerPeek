@@ -68,7 +68,11 @@ public sealed partial class LogAndSupportTests(E2EFixture fixture)
             await Wait.UntilAsync(() => ExplorerWindows.Shows(logs), TimeSpan.FromSeconds(20), "an Explorer window with the log folder");
             Assert.True(Directory.Exists(logs));
             Assert.Equal(string.Empty, Ui.Text(window, "SupportStatus"));
-            Screenshots.SaveScreen("support-log-folder");
+            // Only the Explorer window of the log folder itself (T-069: never the desktop or a window with the user's tabs).
+            foreach (nint explorer in ExplorerWindows.WindowsShowingOnly(logs))
+            {
+                Screenshots.Save(explorer, "support-log-folder");
+            }
         }
         finally
         {

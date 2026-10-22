@@ -55,18 +55,67 @@ internal static class Screenshots
     }
 
     /// <summary>
-    /// The whole desktop (every monitor) as the user sees it, for failures outside the app's windows (the notification
-    /// area, a popup that vanished); saved as <c>NNN-name.png</c>.
+    /// Largest share of its monitor a screen area may cover (decided by the user 2026-10-22, T-069): the tests capture only
+    /// the element under test (a tray button, the overflow flyout, a menu, a jump list, the taskbar), never the desktop
+    /// with the user's windows.
     /// </summary>
-    public static string SaveScreen(string name)
+    public const double MaxScreenAreaShare = 0.25;
+
+    /// <summary>
+    /// Why <paramref name="area"/> must not be captured from the screen of <paramref name="monitor"/>, or
+    /// <see langword="null"/>: an empty area, or one covering more than <see cref="MaxScreenAreaShare"/> of the monitor
+    /// (the whole screen or most of it).
+    /// </summary>
+    public static string? ScreenAreaRefusal(Rectangle area, Rectangle monitor)
     {
-        Native.Rect screen = Native.VirtualScreen();
-        using Bitmap bitmap = new(screen.Width, screen.Height, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
+        if (area.Width <= 0 || area.Height <= 0)
         {
-            graphics.CopyFromScreen(screen.Left, screen.Top, 0, 0, bitmap.Size);
+            return $"The screen area {area} is empty.";
         }
 
+        Rectangle onMonitor = Rectangle.Intersect(area, monitor);
+        double share = monitor.Width <= 0 || monitor.Height <= 0 ? 1 : (double)onMonitor.Width * onMonitor.Height / ((double)monitor.Width * monitor.Height);
+        return share > MaxScreenAreaShare || area.Contains(monitor)
+            ? $"Refusing to capture {area}: it covers {share:P0} of the monitor {monitor}; only the element under test may be captured, never the desktop."
+            : null;
+    }
+
+    /// <summary>
+    /// The screen pixels of <paramref name="area"/> (grown by <paramref name="margin"/>, cut to the screens) for elements that
+    /// are not windows of the app (the tray button, the overflow flyout, a jump list). Refuses the whole desktop or most of a
+    /// monitor (<see cref="ScreenAreaRefusal"/>).
+    /// </summary>
+    public static Bitmap CaptureScreenArea(Rectangle area, int margin = 0)
+    {
+        area.Inflate(margin, margin);
+        Native.Rect screen = Native.VirtualScreen();
+        area.Intersect(Rectangle.FromLTRB(screen.Left, screen.Top, screen.Right, screen.Bottom));
+        Native.MonitorInfo info = new() { Size = System.Runtime.InteropServices.Marshal.SizeOf<Native.MonitorInfo>() };
+        Native.Point center = new() { X = area.Left + (area.Width / 2), Y = area.Top + (area.Height / 2) };
+        if (!Native.GetMonitorInfo(Native.MonitorFromPoint(center, 2), ref info))
+        {
+            throw new InvalidOperationException("GetMonitorInfo failed.");
+        }
+
+        Rectangle monitor = Rectangle.FromLTRB(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom);
+        if (ScreenAreaRefusal(area, monitor) is { } refusal)
+        {
+            throw new InvalidOperationException(refusal);
+        }
+
+        Bitmap bitmap = new(area.Width, area.Height, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.CopyFromScreen(area.Left, area.Top, 0, 0, area.Size);
+        }
+
+        return bitmap;
+    }
+
+    /// <summary><see cref="CaptureScreenArea"/> saved as <c>NNN-name.png</c>.</summary>
+    public static string SaveScreenArea(Rectangle area, int margin, string name)
+    {
+        using Bitmap bitmap = CaptureScreenArea(area, margin);
         return Save(bitmap, name);
     }
 
