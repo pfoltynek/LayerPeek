@@ -1,7 +1,7 @@
 ---
 id: T-048
 title: Podpora – otevření složky s logy a uložení diagnostického balíčku (ZIP)
-status: in-progress
+status: done
 owner: core-dev + ui-designer + ui-dev
 priority: P2
 platform: all
@@ -28,7 +28,7 @@ Součástí je i uživatelský návod „jak získat logy při hlášení chyby�
 
 ## Akceptační kritéria
 - [x] Návrh ui-designera pro všechny tři akce (vč. umístění akce z T-049) zapsaný v Poznámkách k implementaci; okna bez scrollbaru ve všech 8 jazycích (headless UI testy)
-- [ ] „Otevřít složku s logy“ otevře složku (i když ještě neexistovala); testy tvorby `ProcessStartInfo` pro Windows i macOS; ručně ověřeno na Windows
+- [x] „Otevřít složku s logy“ otevře složku (i když ještě neexistovala); testy tvorby `ProcessStartInfo` pro Windows i macOS; ručně ověřeno na Windows
 - [x] „Uložit diagnostický balíček“ vytvoří ZIP ve zvoleném místě s logy, `info.txt` a redigovaným `settings.json`; zrušený výběr nic nevytvoří
 - [x] Test: balíček sestavený s falešným `ISecretStore` obsahujícím známá hesla, API klíče a přihlašovací údaje kamer a s kamerou s `user:pass@` v adrese neobsahuje v žádném souboru (včetně logů vytvořených během testu) žádný z těchto řetězců
 - [x] Testy `SupportInfo` (anglický text nezávislý na jazyku UI) a redakce nastavení: adresy kamer bez přihlašovacích údajů a dotazové části, adresy tiskáren, názvy a uživatelské jméno PrusaLink zachované; testy po sobě nic nenechají
@@ -62,4 +62,4 @@ Součástí je i uživatelský návod „jak získat logy při hlášení chyby�
 - **Přijaté chování:** při ukončení celé aplikace uprostřed ukládání může zůstat nedokončený ZIP (úloha skončí s procesem).
 - **Testy:** `SupportInfoTests`, `SupportBundleTests` (falešný `ISecretStore`, kamera s `user:pass@` a tokenem, logy vytvořené během testu, smazání po chybě, zamčený log, chybějící složka), `SettingsExportTests`, `ProcessFolderLauncherTests`, `AboutSupportTests` (zrušený dialog nic nevytvoří, stav, jazyk), headless `AboutWindowLayoutTests` (8 jazyků × 5 stavů: stejná velikost, ≤ 780 × 508, stav ≤ 3 řádky, žádný oříznutý text, pořadí Tab, snímky `about-support*.png` s pevnou verzí 1.0.0), App E2E.
 - Žádný nový NuGet balíček (`ZipArchive` je součást BCL a je kompatibilní s AOT). AOT publish win-x64 proběhl bez varování (2026-10-22).
-- **Zbývá ručně (proto úkol zůstává v in-progress):** v Debug nebo AOT buildu na Windows ověřit, že O aplikaci → Otevřít složku s logy otevře Průzkumníka se složkou `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` (i když složka ještě neexistovala), a pro jistotu uložit balíček přes skutečný dialog.
+- **Ruční kontrolu nahradily E2E testy T-064 (2026-10-22):** O aplikaci → Otevřít složku s logy otevře Průzkumníka se složkou, i když předtím neexistovala; balíček se uloží přes skutečný dialog Uložit jako (v testovacím režimu otevřený v testovací složce) a jeho obsah se zkontroluje.

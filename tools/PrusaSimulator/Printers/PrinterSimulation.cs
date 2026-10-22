@@ -221,7 +221,7 @@ public sealed class PrinterSimulation
         return phase.Scenario switch
         {
             PrinterScenario.Printing or PrinterScenario.Flaky => ComputePrinting(phase, s),
-            PrinterScenario.Idle => Static("IDLE", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = Parked },
+            PrinterScenario.Idle or PrinterScenario.Malformed => Static("IDLE", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = Parked },
             PrinterScenario.Finished => Static("FINISHED", null, phase, sincePhase, 0, 0, Model.MaxZ) with { AxisXY = Parked },
             PrinterScenario.Error => Static("ERROR", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = (0, 0) },
             PrinterScenario.Paused => Frozen("PAUSED", phase, sincePhase, PausedNozzleTarget, new SimulatedJob(phase.JobId, 52, 2400, 2600, FileOf(phase.JobId))) with { AxisXY = (10, 200) },

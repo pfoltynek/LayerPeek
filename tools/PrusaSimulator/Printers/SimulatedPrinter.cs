@@ -188,6 +188,10 @@ public sealed class SimulatedPrinter : IAsyncDisposable
             case "/api/v1/info":
                 await WriteJsonAsync(context, PrusaLinkJson.Info(_hostname, _serial)).ConfigureAwait(false);
                 break;
+            case "/api/v1/status" when Simulation.Scenario == PrinterScenario.Malformed:
+                // Cut off in the middle of an object, as a firmware bug or a broken connection might.
+                await WriteJsonAsync(context, MalformedStatus).ConfigureAwait(false);
+                break;
             case "/api/v1/status":
                 await WriteJsonAsync(context, PrusaLinkJson.Status(Simulation.GetStatus())).ConfigureAwait(false);
                 break;
@@ -292,6 +296,9 @@ public sealed class SimulatedPrinter : IAsyncDisposable
 
         await WriteJsonAsync(context, StateJson()).ConfigureAwait(false);
     }
+
+    /// <summary>The status of the <see cref="PrinterScenario.Malformed"/> scenario: valid JSON up to a cut-off value.</summary>
+    internal const string MalformedStatus = "{\"printer\":{\"state\":\"IDLE\",\"temp_nozzle\":";
 
     private string StateJson() => string.Create(
         CultureInfo.InvariantCulture,

@@ -44,6 +44,8 @@ public sealed class AboutSupportTests : IDisposable
 
         Assert.Equal(1, _picker.Calls);
         Assert.StartsWith("PrusaTrayDiagnostic-diagnostics-", _picker.SuggestedName, StringComparison.Ordinal);
+        // Production: where the OS opens the dialog (only the test mode of T-044 sets its data folder).
+        Assert.Null(_picker.StartDirectory);
         Assert.Empty(Directory.GetFiles(_folder));
         Assert.Null(about.SupportStatusText);
     }
@@ -134,6 +136,8 @@ public sealed class AboutSupportTests : IDisposable
 
         Assert.False(about.IsInfoCopied);
         Assert.Equal(2, _clipboard.Texts.Count);
+        // Users get the usual clipboard history; only the test mode keeps copies out of it (T-064).
+        Assert.False(_clipboard.KeptOutOfHistory);
         Assert.Null(about.SupportStatusText);
     }
 
@@ -181,8 +185,11 @@ public sealed class AboutSupportTests : IDisposable
 
         public List<string> Texts { get; } = [];
 
-        public Task SetTextAsync(string text)
+        public bool KeptOutOfHistory { get; private set; }
+
+        public Task SetTextAsync(string text, bool keepOutOfHistory = false)
         {
+            KeptOutOfHistory = keepOutOfHistory;
             if (Fails)
             {
                 throw new InvalidOperationException("The clipboard is busy.");
@@ -201,10 +208,13 @@ public sealed class AboutSupportTests : IDisposable
 
         public string? SuggestedName { get; private set; }
 
-        public Task<IBundleTarget?> PickAsync(string suggestedFileName)
+        public string? StartDirectory { get; private set; }
+
+        public Task<IBundleTarget?> PickAsync(string suggestedFileName, string? startDirectory = null)
         {
             Calls++;
             SuggestedName = suggestedFileName;
+            StartDirectory = startDirectory;
             return Task.FromResult<IBundleTarget?>(Target);
         }
     }

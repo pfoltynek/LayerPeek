@@ -52,3 +52,4 @@ Akce **„Kopírovat info do schránky“** vloží do schránky krátký text p
   - `AboutSupportTests`: zkopírováno na 2 s s `FakeTimeProvider`, opakovaný klik, chyba schránky.
   - Headless `AboutWindowLayoutTests`: skutečné tlačítko a schránka okna; stavy „Zkopírováno“ a „kopírování selhalo“ ve všech 8 jazycích; šířka tlačítka beze změny; snímek `about-support-copied.png`.
 - Žádný nový NuGet balíček; AOT publish win-x64 bez varování (2026-10-22). App E2E zelené; `TrayMenuTests` jednou selhal souběžně s buildem reviewera a samostatně prošel.
+- **E2E (T-064, 2026-10-22):** kopírování ověřené na skutečné aplikaci: obsah schránky, název tlačítka „✓ Copied“ a `LiveSetting=Polite` přes UI Automation (z nich čte Předčítání). Samotné Předčítání automaticky ověřit nejde.

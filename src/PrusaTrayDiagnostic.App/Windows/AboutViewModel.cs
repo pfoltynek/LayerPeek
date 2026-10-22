@@ -194,7 +194,7 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
         IBundleTarget? target;
         try
         {
-            target = await picker.PickAsync(_support.DefaultBundleFileName()).ConfigureAwait(true);
+            target = await picker.PickAsync(_support.DefaultBundleFileName(), _support.BundleStartDirectory).ConfigureAwait(true);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {

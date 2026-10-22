@@ -172,18 +172,27 @@ public sealed class E2EFixture : IAsyncLifetime
         return null;
     }
 
-    /// <summary>The exe must be a Debug build that knows the test mode; anything else would run against the user's data.</summary>
+    /// <summary>
+    /// The exe under test is a Native AOT publish (T-064: <c>tools/run-e2e.ps1 -PublishAot</c> also runs the log tests against
+    /// the Debug AOT exe): one native file, no managed assembly next to it.
+    /// </summary>
+    public static bool IsNativeAot => !File.Exists(Path.ChangeExtension(AppPath, ".dll"));
+
+    /// <summary>
+    /// The exe must be a Debug build that knows the test mode (the managed assembly next to it, or the Native AOT exe
+    /// itself); anything else would run against the user's data.
+    /// </summary>
     private static void CheckIsDebugTestBuild(string exe)
     {
-        string dll = Path.ChangeExtension(exe, ".dll");
-        if (!File.Exists(exe) || !File.Exists(dll))
+        if (!File.Exists(exe))
         {
             throw new InvalidOperationException($"The Debug app is not built: '{exe}'. Run tools/run-e2e.ps1 (it builds it).");
         }
 
-        if (!BinaryContains(dll, AppSwitches.DataDirectoryVariable))
+        string code = IsNativeAot ? exe : Path.ChangeExtension(exe, ".dll");
+        if (!BinaryContains(code, AppSwitches.DataDirectoryVariable))
         {
-            throw new InvalidOperationException($"'{dll}' has no test mode (not a Debug build); refusing to start it.");
+            throw new InvalidOperationException($"'{code}' has no test mode (not a Debug build); refusing to start it.");
         }
     }
 

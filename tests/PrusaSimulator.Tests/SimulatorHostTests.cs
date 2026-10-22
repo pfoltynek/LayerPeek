@@ -27,6 +27,22 @@ public sealed class SimulatorHostTests
     }
 
     [Fact]
+    public void EveryScenarioNameRoundTrips()
+    {
+        // T-064 added "malformed"; "offline" is an idle printer that starts offline.
+        Assert.Contains("malformed", PrinterScenarios.Names);
+        foreach (string name in PrinterScenarios.Names)
+        {
+            Assert.True(PrinterScenarios.TryParse(name, out PrinterScenario scenario, out bool offline), name);
+            Assert.Equal(offline ? "idle" : name, PrinterScenarios.Format(scenario));
+            Assert.Equal(name == PrinterScenarios.OfflineName, offline);
+        }
+
+        Assert.True(SimulatorOptions.TryParse(["--scenario", "malformed"], out SimulatorOptions options, out string? error), error);
+        Assert.Equal((PrinterScenario.Malformed, false), options.ScenarioOf(0));
+    }
+
+    [Fact]
     public void AllOptionsAreParsed()
     {
         Assert.True(SimulatorOptions.TryParse(

@@ -58,6 +58,18 @@ internal sealed partial class SupportActions
     /// <summary>The log folder of the app, or <see langword="null"/> when it logs nowhere.</summary>
     public string? LogDirectory => _log.Directory;
 
+    /// <summary>
+    /// The folder the save dialog of the bundle opens in, <see langword="null"/> (the default): where the OS opens it. The
+    /// test mode (T-044) opens it in its data folder, so that an end-to-end test never saves into the user's folders (T-064).
+    /// </summary>
+    public string? BundleStartDirectory { get; init; }
+
+    /// <summary>
+    /// Copied text stays out of the Windows clipboard history and cloud clipboard: only the test mode (T-064), so that an
+    /// end-to-end test leaves nothing behind; users get the usual history.
+    /// </summary>
+    public bool KeepCopiesOutOfClipboardHistory { get; init; }
+
     /// <summary>The English text about the app, the system and the printers (<see cref="SupportInfo"/>).</summary>
     public async Task<string> BuildInfoAsync(CancellationToken cancellationToken)
     {
@@ -95,7 +107,7 @@ internal sealed partial class SupportActions
         {
             // Back on the caller's (UI) thread for the clipboard.
             string text = await BuildClipboardTextAsync(CancellationToken.None).ConfigureAwait(true);
-            await clipboard.SetTextAsync(text).ConfigureAwait(true);
+            await clipboard.SetTextAsync(text, KeepCopiesOutOfClipboardHistory).ConfigureAwait(true);
             return true;
         }
         catch (Exception ex)

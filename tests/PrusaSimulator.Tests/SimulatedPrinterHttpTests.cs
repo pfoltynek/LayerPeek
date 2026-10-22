@@ -218,6 +218,32 @@ public sealed class SimulatedPrinterHttpTests
     }
 
     [Fact]
+    public async Task MalformedScenarioCutsOffOnlyTheStatus()
+    {
+        // T-064: switched at run time like every scenario; the status is cut-off JSON, version and info stay valid.
+        await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);
+        using HttpClient client = TestPrinters.CreateHttpClient();
+
+        using HttpResponseMessage switched = await client.PostAsync(new Uri(printer.BaseUri, "_simulator/scenario/malformed"), null, Ct);
+        string state = await client.GetStringAsync(new Uri(printer.BaseUri, "_simulator/state"), Ct);
+        using HttpResponseMessage status = await TestPrinters.GetWithDigestAsync(client, new Uri(printer.BaseUri, "api/v1/status"));
+        using HttpResponseMessage info = await TestPrinters.GetWithDigestAsync(client, new Uri(printer.BaseUri, "api/v1/info"));
+        using HttpResponseMessage version = await TestPrinters.GetWithDigestAsync(client, new Uri(printer.BaseUri, "api/version"));
+
+        Assert.Equal(HttpStatusCode.OK, switched.StatusCode);
+        Assert.Contains("\"scenario\":\"malformed\"", state, StringComparison.Ordinal);
+        Assert.Equal(HttpStatusCode.OK, status.StatusCode);
+        string body = await status.Content.ReadAsStringAsync(Ct);
+        Assert.Equal(SimulatedPrinter.MalformedStatus, body);
+        Assert.ThrowsAny<System.Text.Json.JsonException>(() => System.Text.Json.JsonDocument.Parse(body));
+        foreach (HttpResponseMessage valid in new[] { info, version })
+        {
+            Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
+            using System.Text.Json.JsonDocument document = System.Text.Json.JsonDocument.Parse(await valid.Content.ReadAsStringAsync(Ct));
+        }
+    }
+
+    [Fact]
     public async Task ControlEndpointsSwitchScenarioAndOnlineState()
     {
         await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);

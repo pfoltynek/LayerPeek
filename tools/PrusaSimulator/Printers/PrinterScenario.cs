@@ -26,6 +26,12 @@ public enum PrinterScenario
 
     /// <summary>Like <see cref="Printing"/>, but the printer stops responding periodically (by default 20 s of every 80 s).</summary>
     Flaky,
+
+    /// <summary>
+    /// IDLE, but <c>/api/v1/status</c> answers with broken JSON, so that the app logs a malformed response with its stack
+    /// trace (T-064); version, info and the login work as usual.
+    /// </summary>
+    Malformed,
 }
 
 /// <summary>Command line names of <see cref="PrinterScenario"/>; "offline" is an idle printer that does not respond.</summary>
@@ -34,7 +40,7 @@ public static class PrinterScenarios
     public const string OfflineName = "offline";
 
     /// <summary>All names accepted by <see cref="TryParse"/>.</summary>
-    public static IReadOnlyList<string> Names { get; } = ["idle", "printing", "paused", "finished", "error", "attention", OfflineName, "flaky"];
+    public static IReadOnlyList<string> Names { get; } = ["idle", "printing", "paused", "finished", "error", "attention", OfflineName, "flaky", "malformed"];
 
     /// <param name="offline">The name was "offline": the scenario is idle and the printer starts offline.</param>
     public static bool TryParse(string? name, out PrinterScenario scenario, out bool offline)
@@ -63,6 +69,9 @@ public static class PrinterScenarios
             case "FLAKY":
                 scenario = PrinterScenario.Flaky;
                 return true;
+            case "MALFORMED":
+                scenario = PrinterScenario.Malformed;
+                return true;
             case "OFFLINE":
                 scenario = PrinterScenario.Idle;
                 offline = true;
@@ -82,6 +91,7 @@ public static class PrinterScenarios
         PrinterScenario.Error => "error",
         PrinterScenario.Attention => "attention",
         PrinterScenario.Flaky => "flaky",
+        PrinterScenario.Malformed => "malformed",
         _ => throw new ArgumentOutOfRangeException(nameof(scenario), scenario, null),
     };
 }
