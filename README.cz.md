@@ -1,99 +1,189 @@
 <p align="center">
-  <img src="src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.svg" alt="Ikona Prusa Tray Diagnostic" width="96" height="96">
+  <img src="src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.svg" alt="Ikona Prusa Tray Diagnostic" width="112" height="112">
 </p>
 
 <h1 align="center">Prusa Tray Diagnostic</h1>
 
 <p align="center">
-  Přehled o 3D tiskárnách Prusa přímo z oznamovací oblasti.
-  <br>
-  <a href="README.md">English</a> ·
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases">Vydání</a> ·
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/issues">Hlášení chyb</a>
+  <b>Sleduj své tiskárny Prusa živě, přímo z oznamovací oblasti.</b><br>
+  Kamera v reálném čase, průběh tisku a notifikace přes lokální síť. Bez cloudu, bez účtu, bez otevřené záložky v prohlížeči.
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20(planned)-lightgrey.svg" alt="Platforma: Windows, macOS plánováno">
-  <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
+  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><b>Stáhnout</b></a> ·
+  <a href="#rychlý-start">Rychlý start</a> ·
+  <a href="#funkce">Funkce</a> ·
+  <a href="README.md">English</a>
 </p>
+
+<p align="center">
+  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/PrusaTrayDiagnostic?include_prereleases&label=release" alt="Poslední vydání"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platforma: Windows 10/11">
+  <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
+  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/PrusaTrayDiagnostic?style=social" alt="Hvězdičky na GitHubu"></a>
+</p>
+
+<!--
+  SNÍMEK (hlavní): docs/images/camera-overlay.png
+  Okno kamery v normálním režimu během skutečného tisku, překryv s průběhem, teplotami a časem dokončení.
+  Doporučeno 1600×900 px, PNG, bez osobních údajů v názvu souboru a v názvu tiskárny.
+<p align="center">
+  <img src="docs/images/camera-overlay.png" alt="Živé okno kamery s překryvnými údaji o tisku" width="800">
+</p>
+-->
 
 ---
 
-**Prusa Tray Diagnostic** je malá aplikace pro sledování 3D tiskáren Prusa, která žije jen v oznamovací oblasti
-(na macOS v menu baru). Ikona ukazuje stav a průběh tisku, při důležitých událostech přijde systémová notifikace
-a z menu se rychle dostaneš k diagnostice, teplotám a kameře tiskárny. Hlavní okno aplikace nemá, všechno začíná
-u ikony.
+Spustíš devítihodinový tisk a vrátíš se k práci. Drží první vrstva? Nezamotala se cívka? Kolik ještě zbývá?
+Obvykle se jdeš podívat k tiskárně, nebo máš otevřenou záložku v prohlížeči a pořád ji obnovuješ.
 
-S tiskárnami komunikuje přes **PrusaLink**, lokální REST API zabudované ve firmwaru tiskárny. Podpora
-**Prusa Connect** (cloud) je plánovaná.
+**Prusa Tray Diagnostic** ti odpověď dá na jeden pohled. Ikona v oznamovací oblasti ukazuje stav a průběh tisku
+všech tiskáren. Jedním kliknutím otevřeš **živé okno kamery** s průběhem tisku, teplotami a časem dokončení přímo
+v obraze. Když se něco stane, hned přijde **systémová notifikace**: tisk je hotový, tiskárna vyžaduje zásah, chyba,
+tiskárna je offline.
+
+S tiskárnami komunikuje **přímo přes lokální síť** pomocí PrusaLink, API zabudovaného ve firmwaru tiskárny. Nic
+neopouští tvoji síť: žádná cloudová služba, žádný účet, žádná telemetrie.
 
 > [!NOTE]
 > Jde o nezávislý komunitní projekt. **Není** to oficiální produkt společnosti Prusa Research a s Prusa Research a.s.
 > nijak nesouvisí. *Prusa*, *PrusaLink* a *Prusa Connect* jsou ochranné známky svých vlastníků.
 
+## Proč se ti bude líbit
+
+- 🎥 **Živá kamera, ne jednotlivé snímky.** Stream RTSP/H.264 v reálném čase z kamery Prusa Buddy3D (nebo jiné RTSP
+  kamery), dekódovaný lokálně přes FFmpeg. Malé okno vždy navrchu může zůstat v rohu obrazovky, zatímco pracuješ.
+- 🏠 **Jen lokální síť.** Aplikace mluví s tiskárnami ve tvé síti. Funguje, i když nejde internet, a obraz z kamery
+  nikdy neteče přes cizí server.
+- 🔔 **Dozvíš se to, když na tom záleží.** Nativní notifikace Windows při dokončení, pozastavení a zastavení tisku,
+  při chybě, když tiskárna vyžaduje zásah nebo přestane odpovídat, a připomínka pár minut před koncem tisku.
+- 🖨️ **Celá tiskárenská farma v jedné ikoně.** Přidej tolik tiskáren, kolik máš. Společná ikona ukazuje
+  nejdůležitější stav a každá tiskárna má vlastní podmenu.
+- 🪶 **Malá a tichá.** Jeden nativní spustitelný soubor (Native AOT), žádný .NET k instalaci, žádné hlavní okno,
+  žádná služba na pozadí. Prostě žije v oznamovací oblasti.
+- 🔒 **Bezpečná k heslům.** Hesla jsou ve Správci pověření Windows. Webové rozhraní PrusaLink se otevře rovnou
+  přihlášené a heslo se do prohlížeče nikdy nepředává.
+- 🌍 **Mluví tvým jazykem.** Angličtina, čeština, slovenština, němčina, španělština, francouzština, italština
+  a polština.
+- 💚 **Zdarma a open source** pod GPL-3.0. Žádné reklamy, žádné předplatné, žádná „pro“ verze.
+
+## Snímky obrazovky
+
+<!--
+  SNÍMKY: přidej soubory do docs/images/ a odstraň obal tohoto komentáře.
+  Doporučeno: PNG, měřítko zobrazení 100 % nebo 150 %, světlý motiv Windows, žádné skutečné IP adresy ani sériová čísla.
+
+| Menu v oznamovací oblasti | Malé okno kamery |
+|---|---|
+| <img src="docs/images/tray-menu.png" alt="Menu se dvěma tiskárnami" width="380"> | <img src="docs/images/camera-mini.png" alt="Malé okno kamery vždy navrchu" width="380"> |
+
+| Notifikace | Diagnostika |
+|---|---|
+| <img src="docs/images/notification.png" alt="Notifikace o dokončení tisku" width="380"> | <img src="docs/images/diagnostics.png" alt="Okno diagnostiky s grafem teplot" width="380"> |
+-->
+
+*Snímky obrazovky přibudou s prvním vydáním.*
+
 ## Funkce
 
-- **Stav na první pohled.** Ikona ukazuje stav tiskárny (nečinná, tiskne s průběhem, pozastaveno, hotovo, vyžaduje
-  zásah, chyba, offline). Podrobnosti jsou v tooltipu.
-- **Více tiskáren.** Jedna společná ikona ukazuje nejdůležitější stav ze všech tiskáren. Každá tiskárna má v menu
-  vlastní podmenu.
-- **Notifikace** při spuštění, dokončení, pozastavení, obnovení a zastavení tisku, při chybě, když tiskárna vyžaduje
-  zásah nebo je offline, a nastavitelný počet minut před koncem tisku. Zvuk může být vypnutý, jen pro důležité
-  události, nebo pro všechny.
-- **Okno diagnostiky** s informacemi o tiskárně a firmwaru a živým grafem teplot trysky a podložky za posledních
-  24 hodin.
-- **Okno kamery** pro RTSP kamery (například Prusa Buddy3D) s překryvnými údaji o průběhu tisku, teplotách
-  a odhadovaném konci. Má režim celé obrazovky, normální a kompaktní.
-- **Web PrusaLink jedním kliknutím.** Webové rozhraní tiskárny se otevře v prohlížeči rovnou přihlášené. Heslo se do
-  prohlížeče nikdy nepředává.
-- **Bezpečné uložení hesel.** Hesla jsou ve Správci pověření Windows, nikdy v čitelném textu.
-- **Osm jazyků:** angličtina, čeština, slovenština, němčina, španělština, francouzština, italština a polština.
-  Ve výchozím stavu se aplikace řídí jazykem systému.
-- **Nenáročná.** Publikuje se jako jeden nativní spustitelný soubor (Native AOT) a nepotřebuje nainstalovaný .NET.
+### V oznamovací oblasti
 
-## Podporované platformy
+- Ikona ukazuje stav tiskárny: nečinná, tiskne (ikona se s průběhem tisku postupně plní), pozastaveno, hotovo,
+  vyžaduje zásah, chyba, offline. Podrobnosti jsou v tooltipu: průběh, zbývající čas a název souboru.
+- Menu má podmenu pro každou tiskárnu: zobrazení a skrytí kamery, diagnostika, web PrusaLink.
+
+### Okno kamery
+
+- Živý RTSP stream s překryvnými údaji: název tiskárny, stav, průběh, teplota trysky a podložky, zbývající čas, čas
+  dokončení, doba tisku a název souboru. Položky i roh si vybereš sám.
+- Tři režimy: **normální**, **malý náhled** (zůstává nad ostatními okny) a **celá obrazovka** (F11).
+- Pro každou tiskárnu zvlášť: výchozí režim, velikost, umístění, monitor a „vždy navrchu“. Okno si umí pamatovat,
+  kde jsi ho nechal.
+- Po výpadku kamery nebo Wi-Fi se samo znovu připojí.
+
+### Notifikace
+
+- Spuštění, dokončení, pozastavení, obnovení a zastavení tisku, chyba, tiskárna vyžaduje zásah, tiskárna offline.
+- Připomínka „zbývá N minut“, abys byl u tiskárny, až tisk skončí.
+- Zvuk vypnutý, jen pro důležité události, nebo pro všechny.
+
+### Diagnostika
+
+- Model tiskárny a firmware, aktuální stav a čas poslední aktualizace.
+- Teplota trysky a podložky (skutečná a cílová), otáčky ventilátoru hotendu a tiskového ventilátoru, rychlost tisku,
+  průtok a výška osy Z.
+- Živý graf teplot trysky a podložky za posledních 30 minut, 2 hodiny nebo 24 hodin (jen v paměti).
+
+### Řešení problémů v aplikaci
+
+- Okno **O aplikaci** uloží diagnostický balíček (logy, informace o verzi a systému, nastavení bez hesel) nebo
+  zkopíruje krátké hlášení do schránky, takže nahlášení chyby zabere minutu.
+
+## Podporované tiskárny
+
+Každá tiskárna Prusa s **firmwarem Buddy 6.x a PrusaLink**:
+
+| Tiskárna | Stav |
+|---|---|
+| Prusa CORE One | ✅ otestováno (s kamerou Buddy3D) |
+| Original Prusa MK4 / MK4S | 🟡 mělo by fungovat, zatím neotestováno |
+| Original Prusa MK3.9 / MK3.9S, MK3.5 / MK3.5S | 🟡 mělo by fungovat, zatím neotestováno |
+| Original Prusa XL | 🟡 mělo by fungovat, zatím neotestováno |
+| Original Prusa MINI / MINI+ | 🟡 mělo by fungovat, zatím neotestováno |
+| Original Prusa MK3 / MK3S (8bitový firmware) | ❌ tiskárna nemá zabudovaný PrusaLink |
+
+Všechny tiskárny s firmwarem Buddy 6.x mají stejné PrusaLink API. Používáš aplikaci s jiným modelem? Dej prosím
+[vědět](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues), jestli funguje, ať ho můžeme označit jako
+otestovaný.
+
+Kamera je volitelná. I bez ní máš ikonu, notifikace a diagnostiku. Kamera musí poskytovat stream **RTSP H.264**
+dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina IP kamer.
 
 | Platforma | Stav |
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
-| macOS (Apple Silicon) | 🚧 plánováno: tray menu, notifikace, Klíčenka a kamera se připravují |
-| Prusa Connect (cloud) | 🚧 plánováno |
+| Windows na ARM64 | 🚧 plánováno |
+| macOS (Apple Silicon) | 🚧 plánováno: menu bar, notifikace, Klíčenka a kamera se připravují |
 
-## Instalace
+## Rychlý start
+
+### 1. Stažení
+
+Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/PrusaTrayDiagnostic/releases), rozbal ZIP
+kamkoli a spusť `PrusaTrayDiagnostic.exe`.
 
 > [!IMPORTANT]
-> Zatím neexistuje hotové vydání. Plánovaný je instalátor s automatickými aktualizacemi.
-> Do té doby [sestav aplikaci ze zdrojáků](#sestavení-ze-zdrojových-kódů).
+> Verze 0.x jsou **předběžné**. Nastavení se mezi verzemi může změnit a zatím chybí instalátor i automatické
+> aktualizace. Sestavení nejsou podepsaná, takže Windows SmartScreen může zobrazit varování „Neznámý vydavatel“.
+> Klikni na **Další informace → Přesto spustit**, nebo si [aplikaci sestav sám](#sestavení-ze-zdrojových-kódů).
 
-Vydání budou na stránce [Releases](https://github.com/pfoltynek/PrusaTrayDiagnostic/releases). První verze nebudou
-podepsané, takže Windows SmartScreen může zobrazit varování „Neznámý vydavatel“.
-
-## Začínáme
-
-### 1. Zapni PrusaLink na tiskárně
+### 2. Zapni PrusaLink na tiskárně
 
 Na tiskárně otevři **Nastavení → Síť → PrusaLink**. Zkontroluj, že je PrusaLink zapnutý, a poznamenej si
 **uživatelské jméno** (výchozí je `maker`), **heslo** a **IP adresu** tiskárny.
 
-### 2. Přidej tiskárnu
+### 3. Přidej tiskárnu
 
-1. Spusť aplikaci. V oznamovací oblasti se objeví ikona Prusa. Na Windows ji možná budeš muset připnout ze skrytých
-   ikon (`^`).
-2. V menu ikony zvol **Přidat tiskárnu…** (nebo **Nastavení…** → **Tiskárny** → **Přidat tiskárnu**) a vyplň:
+1. V oznamovací oblasti se objeví ikona Prusa. Na Windows ji možná budeš muset připnout ze skrytých ikon (`^`).
+2. V menu ikony zvol **Přidat tiskárnu…** a vyplň:
    - **Název:** libovolné pojmenování.
    - **Adresa:** IP adresa nebo název počítače, např. `192.168.1.20` nebo `http://prusa-mk4.local`.
-   - **Uživatelské jméno** a **Heslo:** údaje z kroku 1.
+   - **Uživatelské jméno** a **Heslo:** údaje z kroku 2.
 3. Klikni na **Otestovat spojení** a pak na **Uložit**.
 
 Ikona hned začne ukazovat stav tiskárny.
 
-### 3. Další nastavení (volitelné)
+### 4. Zapni kameru (volitelné)
 
-- **Kamera:** v nastavení tiskárny zadej adresu RTSP streamu kamery, např. `rtsp://192.168.0.227/live` pro kameru
-  Buddy3D. Uživatelské jméno ani heslo do adresy nepiš. Kameru pak zapneš v podmenu tiskárny v menu ikony.
-- **Notifikace:** vyber události, režim zvuku a upozornění na zbývající minuty tisku.
-- **Obecné:** interval dotazování (jak často se aplikace ptá tiskáren na stav) a jazyk.
+V nastavení tiskárny zadej RTSP adresu kamery, např. `rtsp://192.168.1.21/live` pro kameru Buddy3D. Uživatelské
+jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v podmenu tiskárny zvol **Zobrazit kameru**.
+
+### Další nastavení
+
+- **Notifikace:** které události chceš, režim zvuku a upozornění na zbývající minuty.
+- **Okno kamery a překryv:** výchozí režim, velikost, monitor, vždy navrchu, položky překryvu a roh.
+- **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 
 ### Kde jsou uložená data
 
@@ -103,14 +193,35 @@ Ikona hned začne ukazovat stav tiskárny.
 | Hesla | Správce pověření Windows |
 | Logy | `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` |
 
-Historie teplot je jen v paměti a na disk se nikdy neukládá.
+Historie teplot je jen v paměti a na disk se nikdy neukládá. Aplikace se nepřipojuje nikam jinam než k tiskárnám
+a kamerám, které přidáš.
 
-### Nahlášení problému
+## Plán
 
-Okno **O aplikaci** má skupinu **Nahlášení problému**: uložení diagnostického balíčku (ZIP s logy, informacemi o verzi
-a systému a nastavením bez hesel), zkopírování krátkého hlášení s posledními řádky logu do schránky a otevření složky
-s logy. Podrobné logování jde zapnout v nastavení (záložka Obecné).
-Co balíček obsahuje, popisuje [docs/troubleshooting.md](docs/troubleshooting.md).
+- Instalátor s automatickými aktualizacemi (Velopack), spuštění po startu Windows
+- Aplikace pro menu bar na macOS (Apple Silicon)
+- Windows na ARM64
+- Stav MMU3
+- Prusa Connect (cloud) jako volitelný druhý zdroj pro tiskárny mimo tvoji síť
+
+Máš nápad? [Založ issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues).
+
+## Časté otázky
+
+**Funguje to i mimo domácí síť?**
+Zatím ne. Aplikace mluví s tiskárnami přímo přes lokální síť. Můžeš použít VPN do domácí sítě; volitelná podpora
+Prusa Connect je v plánu.
+
+**Nahrazuje to Prusa Connect nebo web PrusaLink?**
+Ne, doplňuje je. Je to rychlý pohled přímo na ploše. Pro nahrávání souborů a spouštění tisků otevři z menu web
+PrusaLink: přihlásí tě automaticky.
+
+**Umí tiskárnu ovládat (pozastavit, zastavit)?**
+V této verzi ne. Je to záměrně nástroj jen pro sledování: přístup jen pro čtení je bezpečnější u nástroje, který běží
+pořád.
+
+**Nezpomaluje to tiskárnu?**
+Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web PrusaLink.
 
 ## Sestavení ze zdrojových kódů
 
@@ -136,6 +247,8 @@ dotnet test                                       # spustí všechny testy
 dotnet run --project src/PrusaTrayDiagnostic.App  # spustí tray aplikaci
 ```
 
+Nemáš po ruce tiskárnu? V repozitáři je [simulátor](docs/simulator.md) tiskáren PrusaLink a RTSP kamery pro vývoj.
+
 ### Native AOT publish
 
 ```bash
@@ -147,10 +260,9 @@ AOT nejde kompilovat napříč operačními systémy: binárky pro Windows se se
 
 ### Vydání
 
-Vydání se sestavují lokálně (bez CI) skripty v PowerShellu 7.2+: `scripts/release-build.ps1` (build, testy, AOT publish,
-smoke test, archivy, kontrolní součty SHA-256), `scripts/release-upload.ps1` (koncept vydání na GitHubu)
-a `scripts/release-publish.ps1`. Verze je v `<Version>` v `Directory.Build.props`, poznámky k vydání
-v [CHANGELOG.md](CHANGELOG.md). Celý postup je v [docs/release.md](docs/release.md).
+Vydání se sestavují lokálně skripty v PowerShellu 7.2+ ve složce `scripts/` (build, testy, AOT publish, smoke test,
+archivy, kontrolní součty SHA-256, vydání na GitHubu). Verze je v `<Version>` v `Directory.Build.props`, poznámky
+k vydání v [CHANGELOG.md](CHANGELOG.md). Celý postup je v [docs/release.md](docs/release.md).
 
 ### Struktura projektu
 
@@ -169,12 +281,23 @@ v [CHANGELOG.md](CHANGELOG.md). Celý postup je v [docs/release.md](docs/release
 Postaveno na [.NET](https://dotnet.microsoft.com/), [Avalonia UI](https://avaloniaui.net/),
 [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) a [FFmpeg](https://ffmpeg.org/).
 
+### Jak projekt vzniká
+
+Projekt se vyvíjí s pomocí AI: většinu kódu, testů a dokumentace napsal [Claude Code](https://claude.com/claude-code)
+podle zadání autora. Všechna produktová rozhodnutí dělá autor, každá změna prochází automatickými testy (unit,
+headless UI a end-to-end testy proti simulátoru tiskárny) a revizí a aplikace je vyzkoušená na skutečné tiskárně.
+Celý postup je veřejný: backlog úkolů je v `tasks/`, instrukce agentů v `.claude/agents/` a pravidla pro kód
+v [CLAUDE.md](CLAUDE.md).
+
 ## Jak přispět
 
-Příspěvky jsou vítané: hlášení chyb, nápady, překlady i pull requesty.
+Příspěvky jsou vítané: hlášení chyb, nápady, překlady i pull requesty. Podrobnosti jsou
+v [CONTRIBUTING.md](CONTRIBUTING.md) (anglicky).
 
 - **Chyby a nápady:** založ [issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues). Uveď model tiskárny,
-  verzi firmwaru a operační systém.
+  verzi firmwaru a operační systém. Hodně pomůže diagnostický balíček z okna O aplikaci.
+- **Překlady:** texty aplikace jsou v `src/PrusaTrayDiagnostic.App/Resources/Strings.*.resx`. Opravy i nové jazyky
+  jsou velmi vítané.
 - **Pull requesty:** projekt používá Gitflow. Větev založ z `develop` a PR směřuj do `develop`. `dotnet build`
   a `dotnet test` musí projít **bez jediného varování**, protože varování se počítají jako chyby.
 - **Native AOT:** žádná neomezená reflexe, `System.Text.Json` jen přes generované kontexty a každý nový NuGet balíček
@@ -188,6 +311,7 @@ Příspěvky jsou vítané: hlášení chyb, nápady, překlady i pull requesty.
 
 Bezpečnostní chyby prosím nehlas ve veřejných issues. Použij
 [soukromé hlášení zranitelností](https://github.com/pfoltynek/PrusaTrayDiagnostic/security/advisories/new) na GitHubu.
+Viz [SECURITY.md](SECURITY.md) (anglicky).
 
 ## Licence
 
@@ -205,3 +329,9 @@ prodejnosti nebo vhodnosti pro určitý účel.
 Aplikace obsahuje nativní knihovny **FFmpeg** pod licencí LGPL. Jsou linkované dynamicky a dají se vyměnit. Text
 licence FFmpeg je přibalený jako `FFmpeg-LICENSE.txt`. Všechny komponenty třetích stran, jejich verze a plná znění
 licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…**.
+
+---
+
+<p align="center">
+  Ušetřil ti Prusa Tray Diagnostic cestu k tiskárně? Dej mu prosím ⭐. Pomůžeš tím ostatním makerům ho najít.
+</p>
