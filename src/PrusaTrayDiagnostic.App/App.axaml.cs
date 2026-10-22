@@ -137,6 +137,9 @@ public partial class App : Application, ITrayAppCommands
                 case InstanceCommandKind.Quit:
                     commands.Quit();
                     break;
+                case InstanceCommandKind.Crash:
+                    TestCrash.Run(command.Argument);
+                    break;
             }
         }
 #endif
