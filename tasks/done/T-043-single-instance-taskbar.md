@@ -1,7 +1,7 @@
 ---
 id: T-043
 title: Jediná instance aplikace a jump list oken na hlavním panelu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: all
@@ -28,9 +28,9 @@ Aplikace běží v jedné instanci na uživatele a relaci. Druhé spuštění (j
 ## Akceptační kritéria
 - [x] Druhé spuštění nevytvoří druhou instanci; předá příkaz běžící instanci a skončí (testy logiky předání s injektovaným názvem mutexu/roury; integrační test dvou procesů, pokud jde spolehlivě a bez zanechání stavu)
 - [x] Běžící instance po `activate` aktivuje naposledy použité okno, jinak otevře Nastavení (testy)
-- [ ] Pomocná okna mají PreventPinning + AUMID; jump list jen „Zavřít okno“ (test vlastností; ruční ověření) — test vlastností hotový (falešné úložiště i skutečné skryté okno); čeká se na ruční ověření jump listu
+- [x] Pomocná okna mají PreventPinning + AUMID; jump list jen „Zavřít okno“ (test vlastností; ruční ověření) — test vlastností hotový (falešné úložiště i skutečné skryté okno); skutečný jump list ověřen E2E testem T-072 `JumpListOffersOnlyCloseWindow` (Nastavení, Diagnostika, O aplikaci, kamera: jen položka „Zavřít okno“, název tlačítka „Prusa Tray Diagnostic“, položka okno zavře)
 - [x] Testy po sobě nic nenechají (mutexy, roury, soubory)
-- [ ] Ruční ověření na Windows (uživatel): jump list okna kamery, druhé spuštění z jump listu/Startu
+- [x] Ruční ověření na Windows (uživatel): jump list okna kamery, druhé spuštění z jump listu/Startu — nahrazeno E2E testy T-072 (jump list všech pomocných oken; jump list nemá položku spuštění ani připnutí, takže druhé spuštění z jump listu neexistuje; druhé spuštění přes shell se zástupcem s právem popředí i bez něj – blikání `HSHELL_FLASH` – a bez oken). Skutečný klik v nabídce Start a dvojklik v Průzkumníku zůstávají doporučená ruční kontrola (proces z Průzkumníka nemá přepínače testovacího režimu)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
 ## Otevřené otázky
@@ -65,3 +65,4 @@ Aplikace běží v jedné instanci na uživatele a relaci. Druhé spuštění (j
 - **Po review (2026-10-20):** M1 buffer roury + zápis s timeoutem + potvrzení od serveru (test: skutečná roura bez bufferu, server nečte → druhé spuštění skončí do rozpočtu; falešný proud s falešným časem), M2 obnovení vlastníků, M3 headless UI testy (`AuxiliaryWindowTrackingUiTests`: kamera v celé obrazovce minimalizovaná → zpět do celé obrazovky, `Release` s HWND z vytvoření, zavřené okno vypadne, licence z O aplikaci v seznamu, `Track` pro nastavení/diagnostiku/O aplikaci/kameru), N1 rozlišení obsazeného zámku od jiných chyb (test s Unix transportem na Windows: cesta zámku je složka, složku nejde vytvořit), N2 `Stopwatch` místo `DateTime.UtcNow`, N4 odebrání okna, když `Show` selže (test).
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** jump list pomocných oken (jen „Zavřít okno“) a druhé spuštění přes shell s právem popředí i bez něj (blikání přes `HSHELL_FLASH`) ověří E2E testy T-072. Kritéria se zaškrtnou, až testy projdou. Skutečný klik v nabídce Start zůstává doporučená ruční kontrola: proces spuštěný Průzkumníkem nemá přepínače testovacího režimu a běžel by nad daty uživatele (přehled pokrytí v T-065).
+- **Ověřeno E2E testy (2026-10-22, T-072, qa-reviewer):** `TaskbarJumpListTests` a `ShellStartTests` zelené na Windows 11 26300 (jump list v ShellExperienceHost: jediná položka `Close`; druhé spuštění přes `ShellExecuteEx` zástupce: s právem popředí obnoví a aktivuje naposledy použité okno, se zamčeným popředím okno blikne – `HSHELL_FLASH` ~0,4 s po spuštění –, bez oken otevře Nastavení; vždy konec s 0, žádný další proces ani ikona). Tím jsou zbývající kritéria splněná; klik v nabídce Start zůstává doporučená ruční kontrola.

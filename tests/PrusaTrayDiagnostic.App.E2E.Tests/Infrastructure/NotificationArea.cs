@@ -15,7 +15,7 @@ internal static class NotificationArea
 {
     public const string TestToolTipPrefix = "[E2E]";
 
-    private const string TaskbarClass = "Shell_TrayWnd";
+    public const string TaskbarClassName = "Shell_TrayWnd";
 
     private const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
 
@@ -76,8 +76,8 @@ internal static class NotificationArea
     /// </summary>
     public static AutomationElement Taskbar(AutomationBase automation)
     {
-        nint hwnd = Native.FindWindow(TaskbarClass, null);
-        return hwnd != 0 ? automation.FromHandle(hwnd) : throw new InvalidOperationException($"No taskbar ({TaskbarClass}).");
+        nint hwnd = Native.FindWindow(TaskbarClassName, null);
+        return hwnd != 0 ? automation.FromHandle(hwnd) : throw new InvalidOperationException($"No taskbar ({TaskbarClassName}).");
     }
 
     /// <summary>The overflow flyout while it is shown, or <see langword="null"/> (see <see cref="Taskbar"/>).</summary>
