@@ -183,3 +183,5 @@ Stav 2026-10-20 (ui-dev): implementováno podle schváleného návrhu (varianta 
 - `dotnet build` celé řešení 0 varování, `dotnet test` 2× zelené (3980 testů, 1 přeskočený – podmíněný prostředím, mimo T-041), AOT publish win-x64 0 varování.
 - Aplikace se ručně nespouštěla: nejde ji izolovat od skutečného `%APPDATA%` (`Environment.GetFolderPath` proměnnou prostředí ignoruje) a uživateli běží jiná instance. Vzhled ověřují headless testy a snímky (písmo Inter); Segoe UI, skutečné DPI 125/150 % a macOS neověřené – ruční ověření na Windows zůstává na uživateli.
 - macOS: beze změny oproti návrhu (tlačítko Zavřít je tam netypické, lze ho později skrýt bez vlivu na rozložení) – neověřeno (T-018).
+
+- **Automatizace ruční kontroly (2026-10-22, architect):** Segoe UI bez posuvníku v 8 jazycích při 125/150 %, tmavý motiv a Esc/Tab skutečnou klávesnicí ověří E2E testy T-071 (zásahy T-065/T-066; 100 % už pokrývá T-044). Kritérium se zaškrtne, až testy projdou. Celkový dojem zůstává doporučená ruční kontrola (přehled pokrytí v T-065).

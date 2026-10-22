@@ -157,3 +157,5 @@ Vyřešené po implementaci (rozhodnutí uživatele 2026-10-16):
   2. Kliknout na banner (nebo na toast v centru oznámení, dokud aplikace běží) → v prohlížeči se otevře PrusaLink tiskárny.
   3. Volitelně: při výchozím nastavení zvuk u chyby a „vyžaduje pozornost“, ostatní potichu.
   4. Volitelně (T-029): v Nastavení přepnout jazyk (např. Deutsch), uložit a vyvolat událost → toast je v novém jazyce bez restartu aplikace.
+
+- **Automatizace ruční kontroly (2026-10-22, architect):** kliknutí na toast (banner i v centru oznámení) a toast v novém jazyce ověří E2E testy T-068 (toasty testovací instance z T-067, infrastruktura zásahů T-065). Kritérium se zaškrtne, až testy projdou. Slyšitelný zvuk zůstává doporučená ruční kontrola (přehled pokrytí v T-065).

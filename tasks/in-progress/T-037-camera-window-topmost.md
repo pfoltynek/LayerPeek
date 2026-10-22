@@ -65,3 +65,5 @@ U každé tiskárny jde nastavit, jestli normální okno kamery a malý náhled 
 ### Zbývá ručně (uživatel)
 - Windows: normální okno se zapnutou volbou zůstane nad jinou aplikací, po vypnutí volby a uložení ne (v otevřeném okně bez zavření); malý náhled obdobně; celá obrazovka nikdy navrchu. Skutečný z-order headless testy neověří.
 - macOS (T-018): `Topmost` okna kamery – neověřeno.
+
+- **Automatizace ruční kontroly (2026-10-22, architect):** skutečné pořadí oken nad oknem jiného procesu (normální okno, malý náhled, celá obrazovka; změna volby v otevřeném okně) ověří E2E testy T-071. Kritérium se zaškrtne, až testy projdou (přehled pokrytí v T-065).

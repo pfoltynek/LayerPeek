@@ -246,3 +246,5 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
   - `Assert.True(automatic.IsChecked)` proto selhal vždy. Při přidání ladicí hlášky se omylem přepsal (sed na jiném řádku), takže pak test „procházel“ a selhání vypadalo jako náhodné.
   - Oprava: položka „Vlastní obrázek…“ má v testu `StaysOpenOnClick`, takže nabídka po kliknutí zůstane otevřená a zaškrtnutí se čte, dokud mají položky `DataContext` tiskárny. Tak test opravu hlídá: bez `RefreshChoiceChecks()` selže (ověřeno dočasným odebráním volání). Pak se čte ještě jednou po znovuotevření. Čeká se na skutečné dokončení příkazu (`ExecutionTask`), ne na čas.
   - Zátěžově: třída 35× samostatně a celé UiTests 12× bez chyby.
+
+- **Automatizace ruční kontroly (2026-10-22, architect):** ilustrace v tray menu při 100 %, nabídka obrázku s vlastní otočenou fotkou, záhlaví Diagnostiky a změna v menu po uložení ověří E2E testy T-069 (dialog ve složce testu z T-067); 150 % T-070. Kritérium se zaškrtne, až testy projdou. Ostrost při 150 % po novém přihlášení zůstává doporučená ruční kontrola (přehled pokrytí v T-065).
