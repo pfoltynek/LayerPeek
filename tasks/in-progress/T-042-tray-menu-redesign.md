@@ -120,3 +120,5 @@ Ukončit
   6. „Diagnostika…“ v hlavním menu nad „Nastavení…“: zakázaná při „Spouštění…“ a bez tiskárny, povolená s tiskárnou, otevře okno diagnostiky (už otevřené okno si tiskárnu ponechá). Změna stavu (např. uložení první tiskárny nebo dokončení startu při otevřeném menu) otevřené menu nezavře ani nepřestaví, jen položku povolí/zakáže.
   7. Položka kamery v podmenu tiskárny: bez zaškrtnutí, „Zobrazit kameru“ otevře okno, při dalším otevření menu je tam „Skrýt kameru“ a zavře ho; po zavření okna křížkem je tam znovu „Zobrazit kameru“.
 - **macOS (ověří T-018):** zkratky odstraněné z NSMenu, U+2060 v názvu s `_` (vzhled a VoiceOver), žádné ikony, změna textu „Zobrazit kameru“ / „Skrýt kameru“ v NSMenu.
+
+- **Automatizace ruční kontroly (2026-10-22, architect):** body 1–7 ručního seznamu ověří E2E testy T-069 (klávesnice a zkratky, tooltip, „Přidat tiskárnu…“, „Diagnostika…“ při startu s Debug-only zpožděním z T-067, položka kamery, Předčítání přes UIA `Name` podle rozhodnutí uživatele 2026-10-22). Kritérium se zaškrtne, až testy projdou. Skutečný hlas Předčítání zůstává doporučená ruční kontrola (přehled pokrytí v T-065).

@@ -104,6 +104,15 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-059 | Publikace do winget | windows | qa-reviewer | P3 | T-017, T-055 |
 | T-061 | Připnutí tray ikony do viditelné části hlavního panelu (workaround přes `IsPromoted`) (hotovo) | windows | ui-dev | P2 | T-007 |
 | T-062 | Stabilizace E2E testu skutečného tray menu (TrayMenuTests) | windows | qa-reviewer | P3 | T-044 |
+| T-065 | E2E – infrastruktura zásahů do systému (varování, návrat i po pádu) a přehled pokrytí ručních kontrol | windows | qa-reviewer | P2 | T-044, T-064 |
+| T-066 | E2E – zásahy do zobrazení: měřítko monitoru a dočasné vypnutí monitoru | windows | qa-reviewer | P2 | T-065 |
+| T-067 | Testovací režim – volitelné toasty, Správce pověření, záznam adres, zpoždění startu, složka dialogu (jen Debug) | windows | ui-dev | P2 | T-044 |
+| T-068 | E2E – toasty: banner, klik otevře web přes proxy, centrum oznámení, jazyk, ikona | windows | qa-reviewer | P2 | T-065, T-067 |
+| T-069 | E2E – tray menu (klávesnice, tooltip, Přidat tiskárnu, Diagnostika při startu, Předčítání) a obrázky tiskáren | windows | qa-reviewer | P2 | T-065, T-067 |
+| T-070 | E2E – ikony aplikace a tray na světlém/tmavém panelu při 100 % a 150 % | windows | qa-reviewer | P2 | T-065, T-066 |
+| T-071 | E2E – okno kamery na monitorech, vždy navrchu a okna při 125/150 % | windows | qa-reviewer | P2 | T-065, T-066 |
+| T-072 | E2E – jump list oken a druhé spuštění přes shell (popředí, blikání) | windows | qa-reviewer | P2 | T-044 |
+| T-073 | E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření | windows | qa-reviewer | P2 | T-067, T-068, T-069, T-070, T-071, T-072 |
 
 ### macOS (`macos`) – jen na Macu, později
 
