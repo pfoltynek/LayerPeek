@@ -1,0 +1,202 @@
+using System.Diagnostics;
+
+using Microsoft.Win32;
+
+using PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
+
+namespace PrusaTrayDiagnostic.App.E2E.Tests;
+
+/// <summary>
+/// The opt-in toasts of the test mode (T-067) on the real exe: the test app gets its own Start menu shortcut
+/// "Prusa Tray Diagnostic E2E" (app id <c>PrusaTrayDiagnostic.E2E</c>); quitting removes it with the toasts of the test
+/// app, and after a crash the command line mode <c>--ptd-e2e-clear-toasts</c> does, without starting an app. The
+/// production shortcut is never touched. No toast is shown here (no printer); T-068 tests real toasts.
+/// <para>
+/// Only these end-to-end tests touch the shared Start menu and the test app's notifications: runs of all worktrees take
+/// turns on the desktop lock, so a unit test run elsewhere never loses its shortcut to them. Every test removes the test
+/// shortcut in <c>finally</c>, and starts by removing a leftover of a crashed run.
+/// </para>
+/// </summary>
+public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
+{
+    private static readonly TimeSpan ShortcutTimeout = TimeSpan.FromSeconds(20);
+
+    private const string NotificationSettings = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\";
+
+    private static string StartMenu => Environment.GetFolderPath(Environment.SpecialFolder.Programs);
+
+    private static string TestShortcut => Path.Combine(StartMenu, AppSwitches.TestShortcutFileName);
+
+    private static string ProductionShortcut => Path.Combine(StartMenu, AppSwitches.ProductionShortcutFileName);
+
+    [Fact]
+    public async Task TestToastsUseTheirOwnShortcutAndQuitRemovesIt()
+    {
+        E2EFixture.Require();
+        ProductionState production = ProductionState.Read();
+        bool settingsKeyBefore = TestAppSettingsKeyExists();
+        await RemoveLeftoverAsync();
+        try
+        {
+            await using (AppInstance app = await AppInstance.StartAsync(
+                fixture,
+                "test-toasts",
+                TestSettings.Json("en", []),
+                switches: new Dictionary<string, string> { [AppSwitches.TestToastsVariable] = "1" }))
+            {
+                // The toast service registers the test app at startup (T-010), with the test shortcut.
+                await Wait.UntilAsync(() => File.Exists(TestShortcut), ShortcutTimeout, "the Start menu shortcut of the test app");
+                AssertIsTheTestShortcut(TestShortcut);
+
+                await app.QuitAsync();
+                Assert.Equal(0, app.Process.ExitCode);
+                Assert.False(File.Exists(TestShortcut), "Quitting left the shortcut of the test app in the Start menu.");
+                Assert.Contains("the Start menu shortcut of the test app was deleted", app.ReadLog(), StringComparison.Ordinal);
+            }
+
+            production.AssertUnchanged();
+            Assert.Equal(settingsKeyBefore, TestAppSettingsKeyExists());
+        }
+        finally
+        {
+            await RemoveLeftoverAsync();
+        }
+    }
+
+    [Fact]
+    public async Task WithoutTheSwitchTheTestModeCreatesNoShortcut()
+    {
+        E2EFixture.Require();
+        ProductionState production = ProductionState.Read();
+        await RemoveLeftoverAsync();
+        await using AppInstance app = await AppInstance.StartAsync(fixture, "no-test-toasts", TestSettings.Json("en", []));
+        // Long enough for the toast service to have registered itself, had it been on.
+        await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
+
+        Assert.False(File.Exists(TestShortcut));
+        await app.QuitAsync();
+        production.AssertUnchanged();
+    }
+
+    [Fact]
+    public async Task ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp()
+    {
+        E2EFixture.Require();
+        ProductionState production = ProductionState.Read();
+        bool settingsKeyBefore = TestAppSettingsKeyExists();
+        await RemoveLeftoverAsync();
+        try
+        {
+            // A test app with toasts that crashes (killed): its shortcut stays behind.
+            await using (AppInstance app = await AppInstance.StartAsync(
+                fixture,
+                "test-toasts-crash",
+                TestSettings.Json("en", []),
+                switches: new Dictionary<string, string> { [AppSwitches.TestToastsVariable] = "1" }))
+            {
+                await Wait.UntilAsync(() => File.Exists(TestShortcut), ShortcutTimeout, "the Start menu shortcut of the test app");
+                app.Process.Kill(entireProcessTree: true);
+                await app.Process.WaitForExitAsync(TestContext.Current.CancellationToken).WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            }
+
+            Assert.True(File.Exists(TestShortcut), "The killed app removed its shortcut; nothing left to test.");
+
+            (int exitCode, string error, string unusedFolder) = await RunClearToastsAsync();
+
+            Assert.True(exitCode == 0, $"--ptd-e2e-clear-toasts exited with {exitCode}: {error}");
+            Assert.Equal(string.Empty, error);
+            Assert.False(File.Exists(TestShortcut), "The cleanup left the shortcut of the test app.");
+            // No app ran: the test mode switches it got would have created a log in this folder.
+            Assert.False(Directory.Exists(unusedFolder), "The cleanup started the app (it wrote into the test data folder).");
+
+            // Nothing left to remove: still 0.
+            (exitCode, error, _) = await RunClearToastsAsync();
+            Assert.True(exitCode == 0, $"A second cleanup exited with {exitCode}: {error}");
+
+            production.AssertUnchanged();
+            Assert.Equal(settingsKeyBefore, TestAppSettingsKeyExists());
+        }
+        finally
+        {
+            await RemoveLeftoverAsync();
+        }
+    }
+
+    /// <summary>
+    /// Runs the exe in the cleanup mode with complete test mode switches (a data folder that must stay missing, an instance
+    /// suffix, the forward-only switch), so that a regression that starts the app would show and never reach the user's
+    /// instance.
+    /// </summary>
+    private static async Task<(int ExitCode, string Error, string UnusedFolder)> RunClearToastsAsync()
+    {
+        string run = Path.Combine(E2EFixture.Root, "clear-toasts-" + Guid.NewGuid().ToString("N")[..12]);
+        ProcessStartInfo start = AppInstance.StartInfo(run, "e2e-" + Guid.NewGuid().ToString("N")[..12]);
+        start.WorkingDirectory = E2EFixture.Root;
+        start.ArgumentList.Add(AppSwitches.ClearToastsArgument);
+        start.Environment[AppSwitches.ForwardOnlyVariable] = "1";
+        start.RedirectStandardError = true;
+        start.RedirectStandardOutput = true;
+        using Process process = Process.Start(start) ?? throw new InvalidOperationException("The cleanup did not start.");
+        try
+        {
+            Task<string> error = process.StandardError.ReadToEndAsync();
+            Task<string> output = process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            await output;
+            return (process.ExitCode, (await error).Trim(), run);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+    }
+
+    /// <summary>A shortcut of an earlier crashed run (or of a failed assertion above) goes before and after every test.</summary>
+    private static async Task RemoveLeftoverAsync()
+    {
+        if (!File.Exists(TestShortcut))
+        {
+            return;
+        }
+
+        (int exitCode, string error, _) = await RunClearToastsAsync();
+        if (File.Exists(TestShortcut))
+        {
+            // The app's own cleanup failed (reported by the test that needs it); never leave the file.
+            File.Delete(TestShortcut);
+            Assert.Fail($"--ptd-e2e-clear-toasts ({exitCode}: {error}) did not remove '{TestShortcut}'; it was deleted directly.");
+        }
+    }
+
+    /// <summary>The shortcut points to the exe under test and carries the test app id (UTF-16 in the property store).</summary>
+    private static void AssertIsTheTestShortcut(string path)
+    {
+        Assert.True(E2EFixture.BinaryContains(path, Path.GetFileName(E2EFixture.AppPath)), "The test shortcut does not point to the exe under test.");
+        Assert.True(E2EFixture.BinaryContains(path, AppSwitches.AppUserModelId), "The test shortcut lacks the app id of the test app.");
+    }
+
+    /// <summary>Windows' notification settings of the test app (created by Windows after its first toast, T-068).</summary>
+    private static bool TestAppSettingsKeyExists()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(NotificationSettings + AppSwitches.AppUserModelId);
+        return key is not null;
+    }
+
+    /// <summary>
+    /// The production shortcut, byte for byte (or missing). Its notification settings are not compared: the user's own
+    /// instance may show a toast meanwhile, and Windows updates them then.
+    /// </summary>
+    private sealed class ProductionState
+    {
+        private readonly byte[]? _shortcut;
+
+        private ProductionState(byte[]? shortcut) => _shortcut = shortcut;
+
+        public static ProductionState Read() => new(File.Exists(ProductionShortcut) ? File.ReadAllBytes(ProductionShortcut) : null);
+
+        public void AssertUnchanged() => Assert.Equal(_shortcut, Read()._shortcut);
+    }
+}

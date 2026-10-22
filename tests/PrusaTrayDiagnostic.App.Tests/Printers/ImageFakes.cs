@@ -281,9 +281,13 @@ internal sealed class FakeImagePicker : IImageFilePicker
 
     public int Calls { get; private set; }
 
-    public Task<Stream?> PickAsync()
+    /// <summary>The folder the last dialog was asked to open in.</summary>
+    public string? StartDirectory { get; private set; }
+
+    public Task<Stream?> PickAsync(string? startDirectory = null)
     {
         Calls++;
+        StartDirectory = startDirectory;
         if (Throw is not null)
         {
             return Task.FromException<Stream?>(Throw);

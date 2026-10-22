@@ -34,6 +34,33 @@ internal static class AppSwitches
     /// <summary>Text of the Debug-only crash test command (T-046); must not appear in a Release build.</summary>
     public const string CrashTestMessage = "E2E test crash on the UI thread.";
 
+    /// <summary>Real toasts of the test app with its own Start menu shortcut (T-067).</summary>
+    public const string TestToastsVariable = "PRUSATRAYDIAGNOSTIC_TEST_TOASTS";
+
+    /// <summary>The real Credential Manager under this prefix, which must start with <see cref="TestCredentialPrefixRoot"/> (T-067).</summary>
+    public const string TestCredentialPrefixVariable = "PRUSATRAYDIAGNOSTIC_TEST_CREDENTIAL_PREFIX";
+
+    /// <summary>Every credential target of the test mode starts with this (T-067).</summary>
+    public const string TestCredentialPrefixRoot = "PrusaTrayDiagnostic.E2E/";
+
+    /// <summary>Monitoring starts this many milliseconds later, 0 to 60000 (T-067).</summary>
+    public const string TestStartDelayVariable = "PRUSATRAYDIAGNOSTIC_TEST_START_DELAY_MS";
+
+    /// <summary>
+    /// Command line mode of the exe (T-067): removes the toasts of the test app and its Start menu shortcut, starts nothing
+    /// else, exits with 0 (otherwise 1 and the reason on stderr).
+    /// </summary>
+    public const string ClearToastsArgument = "--ptd-e2e-clear-toasts";
+
+    /// <summary>The Start menu shortcut of the test app (T-067); the production one is "Prusa Tray Diagnostic.lnk".</summary>
+    public const string TestShortcutFileName = "Prusa Tray Diagnostic E2E.lnk";
+
+    /// <summary>The production Start menu shortcut (T-010); the tests never change it.</summary>
+    public const string ProductionShortcutFileName = "Prusa Tray Diagnostic.lnk";
+
+    /// <summary>The addresses the test mode would have opened in the browser, one per line, in the data folder (T-067).</summary>
+    public const string OpenedUrlsFileName = "opened-urls.txt";
+
     /// <summary>The current log file of the test mode, relative to the data folder (T-024).</summary>
     public static readonly string LogFile = Path.Combine("logs", "PrusaTrayDiagnostic.log");
 }

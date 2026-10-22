@@ -57,7 +57,13 @@ internal sealed class AppInstance : IAsyncDisposable
 
     /// <summary>Starts the app with <paramref name="settingsJson"/> and optional seeded secrets (key, secret).</summary>
     /// <param name="name">Label of the run: its log is kept as <c>log-&lt;name&gt;.txt</c> in the results folder.</param>
-    public static async Task<AppInstance> StartAsync(E2EFixture fixture, string name, string settingsJson, IReadOnlyDictionary<string, string>? secrets = null)
+    /// <param name="switches">More Debug-only switches of the test mode (T-067), e.g. <see cref="AppSwitches.TestToastsVariable"/>.</param>
+    public static async Task<AppInstance> StartAsync(
+        E2EFixture fixture,
+        string name,
+        string settingsJson,
+        IReadOnlyDictionary<string, string>? secrets = null,
+        IReadOnlyDictionary<string, string>? switches = null)
     {
         string run = Path.Combine(E2EFixture.Root, "run-" + Guid.NewGuid().ToString("N")[..12]);
         string data = Path.Combine(run, "data");
@@ -69,7 +75,13 @@ internal sealed class AppInstance : IAsyncDisposable
         }
 
         string suffix = "e2e-" + Guid.NewGuid().ToString("N")[..12];
-        Process process = Process.Start(StartInfo(run, suffix)) ?? throw new InvalidOperationException("The app did not start.");
+        ProcessStartInfo start = StartInfo(run, suffix);
+        foreach ((string variable, string value) in switches ?? new Dictionary<string, string>())
+        {
+            start.Environment[variable] = value;
+        }
+
+        Process process = Process.Start(start) ?? throw new InvalidOperationException("The app did not start.");
         AppInstance app = new(fixture.Automation, run, suffix, process) { Name = name };
         try
         {
@@ -96,6 +108,10 @@ internal sealed class AppInstance : IAsyncDisposable
         start.Environment[AppSwitches.DataDirectoryVariable] = Path.Combine(runDirectory, "data");
         start.Environment[AppSwitches.SuffixVariable] = suffix;
         start.Environment.Remove(AppSwitches.ForwardOnlyVariable);
+        // Opt-in switches (T-067) only where a test asks for them, never inherited from the shell.
+        start.Environment.Remove(AppSwitches.TestToastsVariable);
+        start.Environment.Remove(AppSwitches.TestCredentialPrefixVariable);
+        start.Environment.Remove(AppSwitches.TestStartDelayVariable);
         return start;
     }
 

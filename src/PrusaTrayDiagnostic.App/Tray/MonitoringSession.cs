@@ -23,6 +23,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     private readonly IMonitoringObserver[] _observers;
     private readonly ILogger<MonitoringSession> _logger;
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
+    private readonly TimeProvider _timeProvider;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
 
@@ -54,12 +55,14 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// <param name="removedCameraCredentials">
     /// Receives the printers whose camera address lost its credentials while loading (the settings window shows it).
     /// </param>
+    /// <param name="timeProvider">Clock of the delayed start (T-067); <see cref="TimeProvider.System"/> by default.</param>
     public MonitoringSession(
         Func<ISettingsStore> settingsStoreFactory,
         IPrinterMonitor monitor,
         IEnumerable<IMonitoringObserver> observers,
         ILogger<MonitoringSession> logger,
-        RemovedCameraCredentials? removedCameraCredentials = null)
+        RemovedCameraCredentials? removedCameraCredentials = null,
+        TimeProvider? timeProvider = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStoreFactory);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -75,6 +78,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
         _logger = logger;
         _removedCameraCredentials = removedCameraCredentials;
+        _timeProvider = timeProvider ?? TimeProvider.System;
         _monitor.ModelDetected += OnModelDetected;
     }
 
@@ -125,17 +129,22 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
     /// <summary>Starts monitoring; the settings are loaded first (on a background thread).</summary>
     /// <exception cref="InvalidOperationException">The session was already started.</exception>
-    public void Start() => StartCore(initialSettings: null);
+    public void Start() => StartCore(initialSettings: null, TimeSpan.Zero);
 
     /// <summary>
     /// Starts monitoring with settings the caller already loaded (<see cref="LoadSettingsAsync(Func{ISettingsStore}, ILogger, CancellationToken, RemovedCameraCredentials)"/>
     /// at startup, so that the language is applied before the tray shows any text); settings applied before win.
     /// </summary>
+    /// <param name="startDelay">
+    /// How much later the first run starts (the Debug test mode, T-067: the tray stays in its "Starting…" state meanwhile);
+    /// settings applied meanwhile are used instead, a stop ends the wait.
+    /// </param>
     /// <exception cref="InvalidOperationException">The session was already started.</exception>
-    public void Start(AppSettings initialSettings)
+    public void Start(AppSettings initialSettings, TimeSpan startDelay = default)
     {
         ArgumentNullException.ThrowIfNull(initialSettings);
-        StartCore(initialSettings);
+        ArgumentOutOfRangeException.ThrowIfLessThan(startDelay, TimeSpan.Zero);
+        StartCore(initialSettings, startDelay);
     }
 
     /// <summary>
@@ -203,7 +212,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         return (result.Settings, result.Status, result.StoredPrinterIds);
     }
 
-    private void StartCore(AppSettings? initialSettings)
+    private void StartCore(AppSettings? initialSettings, TimeSpan startDelay)
     {
         if (Interlocked.Exchange(ref _started, 1) != 0)
         {
@@ -222,7 +231,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             // Task.Run: loading the settings does file I/O and must not run on the UI thread.
             _completion = initialSettings is null
                 ? Task.Run(() => RunLoopAsync(loadSettings: true, stopToken), CancellationToken.None)
-                : Task.Run(() => RunLoopAsync(loadSettings: false, stopToken, initialSettings), CancellationToken.None);
+                : Task.Run(() => RunLoopAsync(loadSettings: false, stopToken, initialSettings, startDelay), CancellationToken.None);
         }
     }
 
@@ -558,10 +567,15 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// Runs the monitor until stopped; each <see cref="ApplyAsync"/> ends the current run and starts the next one with the
     /// applied settings. A failed run is reported and ends the loop unless new settings are already waiting.
     /// </summary>
-    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken, AppSettings? initialSettings = null)
+    private async Task RunLoopAsync(bool loadSettings, CancellationToken stopToken, AppSettings? initialSettings = null, TimeSpan startDelay = default)
     {
         try
         {
+            if (startDelay > TimeSpan.Zero)
+            {
+                await Task.Delay(startDelay, _timeProvider, stopToken).ConfigureAwait(false);
+            }
+
             AppSettings? settings = loadSettings ? await LoadSettingsAsync(_settingsStoreFactory, _logger, stopToken, _removedCameraCredentials).ConfigureAwait(false) : initialSettings;
             while (true)
             {
@@ -600,7 +614,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
         catch (OperationCanceledException) when (stopToken.IsCancellationRequested)
         {
-            // Stopped while loading the settings.
+            // Stopped while loading the settings or before the delayed start.
             lock (_gate)
             {
                 _loopActive = false;

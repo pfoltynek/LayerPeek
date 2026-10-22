@@ -508,6 +508,12 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// </summary>
     internal IImageFilePicker? ImageFilePicker { get; set; }
 
+    /// <summary>
+    /// The folder the image dialog opens in; <see langword="null"/>: where the OS opens it. The test mode (Debug builds) sets
+    /// its data folder (T-067).
+    /// </summary>
+    internal string? ImageStartDirectory { get; init; }
+
     /// <summary>"Open as" choices of the camera window (shared by all printers).</summary>
     internal IReadOnlyList<CameraStartModeOption> StartModeOptions { get; }
 

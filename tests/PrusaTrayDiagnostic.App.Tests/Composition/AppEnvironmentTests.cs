@@ -191,6 +191,10 @@ public sealed class AppEnvironmentTests
     {
         Assert.Null(typeof(AppEnvironment).GetMethod("ForTests", BindingFlags.Public | BindingFlags.Static | BindingFlags.NonPublic));
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("PrusaTrayDiagnostic.App.Platform.TestModeSecretStore"));
+        // T-067: no browser replacement, no toast cleanup of the test app, no switch properties.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("PrusaTrayDiagnostic.App.Platform.RecordingUrlLauncher"));
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("PrusaTrayDiagnostic.App.Platform.Windows.TestToastCleanup"));
+        Assert.Null(typeof(AppEnvironment).GetProperty("TestToasts", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
         Assert.Same(AppEnvironment.Production, AppEnvironment.FromProcess());
     }
 #endif
@@ -209,7 +213,8 @@ public sealed class AppEnvironmentTests
             (@"AppDataPaths\.GetDefaultDirectory", ["Composition/AppEnvironment.cs"]),
             (@"AppDataPaths\.GetDefaultLogDirectory", ["Composition/AppEnvironment.cs"]),
             (@"\.CreateDefault\(", []),
-            // The Start menu folder of the toast shortcut: only reached through toasts, which the test mode switches off.
+            // The Start menu folder of the toast shortcut: only reached through toasts, which the test mode switches off (or, with
+            // the Debug switch of T-067, to the test shortcut of its own).
             // The Windows folder of explorer.exe (T-048): a system folder, not per-user data.
             (@"Environment\.GetFolderPath|SpecialFolder\.", ["Platform/Windows/AppShortcutRegistration.cs", "Platform/FolderLauncher.cs"]),
             // macOS socket fallback next to the instance lock (its name carries the test suffix).

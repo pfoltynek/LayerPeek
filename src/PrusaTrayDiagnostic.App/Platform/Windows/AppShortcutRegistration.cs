@@ -15,6 +15,11 @@ internal interface IShortcutStore
 
     /// <summary>Creates or replaces the shortcut; the AppUserModelID is left out when it is <see langword="null"/>.</summary>
     void Write(string path, AppShortcut shortcut);
+
+    /// <summary>Deletes the file at <paramref name="path"/>.</summary>
+    /// <returns><see langword="false"/> when there was no file.</returns>
+    /// <exception cref="Exception">The file exists but cannot be deleted.</exception>
+    bool Delete(string path);
 }
 
 internal enum ShortcutAction
@@ -52,8 +57,14 @@ internal sealed partial class AppShortcutRegistration
     /// <summary>
     /// <c>%APPDATA%\Microsoft\Windows\Start Menu\Programs\Prusa Tray Diagnostic.lnk</c>: per user, no admin rights.
     /// </summary>
-    public static string DefaultShortcutPath() =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), ShortcutFileName);
+    public static string DefaultShortcutPath() => ShortcutPathFor(ShortcutFileName);
+
+    /// <summary>A shortcut named <paramref name="fileName"/> in the per-user Start menu (the test app has its own, T-067).</summary>
+    public static string ShortcutPathFor(string fileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), fileName);
+    }
 
     public static ShortcutAction Decide(AppShortcut? existing, AppShortcut desired)
     {

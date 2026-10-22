@@ -38,6 +38,9 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     // Monitor.Wait/Pulse need a plain object.
     private readonly object _gate = new();
 
+    // Completed when the thread has ended (or, once disposed, when it never started).
+    private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
     // Guarded by _gate.
     private readonly Queue<PrintNotification> _pending = new();
     private bool _started;
@@ -62,6 +65,17 @@ internal sealed partial class ToastNotificationService : INotificationService, I
         _textCulture = textCulture;
         _logger = logger;
     }
+
+    /// <summary>The OS side (composition tests).</summary>
+    internal IToastPlatform Platform => _platform;
+
+    /// <summary>
+    /// Completes once the thread has ended for good (disposed, or the platform turned out unavailable; right at
+    /// <see cref="Dispose"/> when it never started), so nothing touches the OS (e.g. writes the Start menu shortcut while
+    /// registering) any more. Never faults. The test mode waits for it before removing what its
+    /// toasts left behind (T-067).
+    /// </summary>
+    internal Task Completion => _completion.Task;
 
     /// <summary>
     /// Opens the platform in the background now (on Windows: registers the app identity), so that the first toast is
@@ -104,6 +118,11 @@ internal sealed partial class ToastNotificationService : INotificationService, I
             _disposed = true;
             _pending.Clear();
             Monitor.PulseAll(_gate);
+            if (!_started)
+            {
+                // No thread will ever run (EnsureStarted refuses from now on).
+                _completion.TrySetResult();
+            }
         }
     }
 
@@ -147,6 +166,10 @@ internal sealed partial class ToastNotificationService : INotificationService, I
         {
             // Only a logger that itself fails (e.g. disposed during quit) gets here. An exception escaping a thread
             // would end the process; losing notifications is the lesser evil.
+        }
+        finally
+        {
+            _completion.TrySetResult();
         }
     }
 

@@ -21,9 +21,10 @@ internal sealed class AppEnvironment
     public static AppEnvironment Production { get; } = new(null, isolated: false);
 
     /// <summary>
-    /// Test mode: every file lives in its own data folder, passwords only in memory and no toasts are shown, so that the
-    /// Start menu shortcut and its AppUserModelID registration (T-010) are never written. Always <see langword="false"/> in
-    /// Release builds.
+    /// Test mode: every file lives in its own data folder, passwords only in memory, no toasts are shown (so that the
+    /// Start menu shortcut and its AppUserModelID registration of T-010 are never written) and no browser is started.
+    /// Debug switches (T-067) turn toasts and the Credential Manager on in isolation (test app id, test shortcut, test
+    /// prefix). Always <see langword="false"/> in Release builds.
     /// </summary>
     public bool IsIsolated { get; }
 
@@ -67,11 +68,61 @@ internal sealed class AppEnvironment
     /// </summary>
     public const string DataDirectoryVariable = "PRUSATRAYDIAGNOSTIC_TEST_DATA_DIR";
 
-    /// <summary>Exit code of a test-mode start without an instance name suffix or with a relative data folder.</summary>
+    /// <summary>
+    /// Debug builds only (T-067): <c>1</c> shows real toasts in the test mode, as the test app
+    /// <see cref="TestAppUserModelId"/> with its own Start menu shortcut (never the production ones).
+    /// </summary>
+    public const string TestToastsVariable = "PRUSATRAYDIAGNOSTIC_TEST_TOASTS";
+
+    /// <summary>
+    /// Debug builds only (T-067): the test mode keeps passwords in the real Windows Credential Manager under this target
+    /// prefix, which must start with <see cref="TestCredentialPrefixRoot"/>.
+    /// </summary>
+    public const string TestCredentialPrefixVariable = "PRUSATRAYDIAGNOSTIC_TEST_CREDENTIAL_PREFIX";
+
+    /// <summary>
+    /// Debug builds only (T-067): monitoring starts this many milliseconds (0 to <see cref="MaxTestStartDelayMilliseconds"/>)
+    /// later, so that a test can watch the tray menu in its "Starting…" state.
+    /// </summary>
+    public const string TestStartDelayVariable = "PRUSATRAYDIAGNOSTIC_TEST_START_DELAY_MS";
+
+    /// <summary>
+    /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
+    /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
+    /// the reason on stderr.
+    /// </summary>
+    public const string ClearToastsArgument = "--ptd-e2e-clear-toasts";
+
+    /// <summary>The Start menu shortcut of the test app; also the app name Windows shows in its toasts (T-067).</summary>
+    public const string TestShortcutFileName = "Prusa Tray Diagnostic E2E.lnk";
+
+    /// <summary>Every credential target of the test mode starts with this; the production prefix never does.</summary>
+    public const string TestCredentialPrefixRoot = "PrusaTrayDiagnostic.E2E/";
+
+    /// <summary>The longest start delay of the test mode.</summary>
+    public const int MaxTestStartDelayMilliseconds = 60_000;
+
+    /// <summary>Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch.</summary>
     public const int InvalidTestModeExitCode = 4;
 
+    /// <summary>Test mode with <see cref="TestToastsVariable"/>: real toasts as the test app.</summary>
+    public bool TestToasts { get; private init; }
+
+    /// <summary>Test mode with <see cref="TestCredentialPrefixVariable"/>: the Credential Manager prefix; otherwise <see langword="null"/>.</summary>
+    public string? TestCredentialPrefix { get; private init; }
+
+    /// <summary>Test mode with <see cref="TestStartDelayVariable"/>: how much later monitoring starts.</summary>
+    public TimeSpan TestStartDelay { get; private init; }
+
+    /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
+    public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
+
     /// <summary>The isolated test mode with its data in <paramref name="dataDirectory"/>.</summary>
-    public static AppEnvironment ForTests(string dataDirectory)
+    /// <param name="toasts">Real toasts as the test app (T-067).</param>
+    /// <param name="credentialPrefix">The Credential Manager instead of the in-memory store, under this prefix (T-067).</param>
+    /// <param name="startDelay">How much later monitoring starts (T-067).</param>
+    /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
+    public static AppEnvironment ForTests(string dataDirectory, bool toasts = false, string? credentialPrefix = null, TimeSpan startDelay = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -79,7 +130,77 @@ internal sealed class AppEnvironment
             throw new ArgumentException("The test data folder must be an absolute path.", nameof(dataDirectory));
         }
 
-        return new AppEnvironment(Path.GetFullPath(dataDirectory), isolated: true);
+        if (credentialPrefix is not null && !IsTestCredentialPrefix(credentialPrefix))
+        {
+            throw new ArgumentException($"The credential prefix of the test mode must start with '{TestCredentialPrefixRoot}'.", nameof(credentialPrefix));
+        }
+
+        if (startDelay < TimeSpan.Zero || startDelay > TimeSpan.FromMilliseconds(MaxTestStartDelayMilliseconds))
+        {
+            throw new ArgumentOutOfRangeException(nameof(startDelay), startDelay, "The start delay of the test mode is out of range.");
+        }
+
+        return new AppEnvironment(Path.GetFullPath(dataDirectory), isolated: true)
+        {
+            TestToasts = toasts,
+            TestCredentialPrefix = credentialPrefix,
+            TestStartDelay = startDelay,
+        };
+    }
+
+    /// <summary>
+    /// The environment described by the variables <paramref name="read"/> returns; <see cref="FromProcess"/> reads those
+    /// of the process. Without the data folder the other test switches are ignored (<see cref="IgnoredTestSwitches"/>).
+    /// </summary>
+    /// <exception cref="ArgumentException">Test mode: the data folder is not absolute, or a switch value is invalid.</exception>
+    internal static AppEnvironment FromVariables(Func<string, string?> read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        string? dataDirectory = read(DataDirectoryVariable);
+        string? toasts = read(TestToastsVariable);
+        string? credentialPrefix = read(TestCredentialPrefixVariable);
+        string? startDelay = read(TestStartDelayVariable);
+        if (string.IsNullOrWhiteSpace(dataDirectory))
+        {
+            List<string> ignored = [];
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay) })
+            {
+                if (!string.IsNullOrEmpty(value))
+                {
+                    ignored.Add(name);
+                }
+            }
+
+            return ignored.Count == 0 ? Production : new AppEnvironment(null, isolated: false) { IgnoredTestSwitches = ignored };
+        }
+
+        return ForTests(
+            dataDirectory.Trim(),
+            toasts: toasts == "1",
+            credentialPrefix: string.IsNullOrEmpty(credentialPrefix) ? null : credentialPrefix,
+            startDelay: ParseStartDelay(startDelay));
+    }
+
+    /// <summary>Under the test root, with a name of its own after it; never the production prefix.</summary>
+    private static bool IsTestCredentialPrefix(string prefix) =>
+        prefix.Length > TestCredentialPrefixRoot.Length
+        && prefix.StartsWith(TestCredentialPrefixRoot, StringComparison.Ordinal)
+        && !prefix.Any(char.IsWhiteSpace);
+
+    private static TimeSpan ParseStartDelay(string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int milliseconds)
+            || milliseconds > MaxTestStartDelayMilliseconds)
+        {
+            throw new ArgumentException($"{TestStartDelayVariable} must be a whole number of milliseconds from 0 to {MaxTestStartDelayMilliseconds}.", nameof(value));
+        }
+
+        return TimeSpan.FromMilliseconds(milliseconds);
     }
 #endif
 
@@ -87,12 +208,11 @@ internal sealed class AppEnvironment
     /// The environment of this process: <see cref="Production"/>, or (Debug builds only) the test mode when
     /// <c>PRUSATRAYDIAGNOSTIC_TEST_DATA_DIR</c> is set.
     /// </summary>
-    /// <exception cref="ArgumentException">Debug: the test data folder is not an absolute path.</exception>
+    /// <exception cref="ArgumentException">Debug: the test data folder is not an absolute path, or a test switch is invalid.</exception>
     public static AppEnvironment FromProcess()
     {
 #if DEBUG
-        string? dataDirectory = Environment.GetEnvironmentVariable(DataDirectoryVariable);
-        return string.IsNullOrWhiteSpace(dataDirectory) ? Production : ForTests(dataDirectory.Trim());
+        return FromVariables(Environment.GetEnvironmentVariable);
 #else
         return Production;
 #endif

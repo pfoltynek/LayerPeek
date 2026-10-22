@@ -101,7 +101,14 @@ internal static class AppServices
             env.IsIsolated,
             sp.GetRequiredService<ILogger<DebugLoggingObserver>>()));
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
+#if DEBUG
+        // The test mode never starts a browser: the addresses go to a file of its data folder (T-067).
+        services.AddSingleton<IUrlLauncher>(sp => env.IsIsolated
+            ? new RecordingUrlLauncher(env.DataDirectory(), sp.GetRequiredService<ILogger<RecordingUrlLauncher>>())
+            : new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
+#else
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
+#endif
         // The log folder in Explorer / Finder (T-048).
         services.AddSingleton<IFolderLauncher>(static sp => new ProcessFolderLauncher(sp.GetRequiredService<ILogger<ProcessFolderLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
@@ -123,8 +130,9 @@ internal static class AppServices
             sp.GetRequiredService<TrayMenuOptions>(),
             sp.GetRequiredService<CustomPrinterImages>()));
         services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<PrinterWebOpener>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
-        // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written.
-        services.AddSingleton(sp => env.IsIsolated ? NullNotificationService.Instance : CreateNotificationService(sp, windows));
+        // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written; with the
+        // Debug switch of T-067 toasts of the test app with a shortcut of its own.
+        services.AddSingleton(sp => CreateNotificationService(sp, windows, env));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -153,7 +161,8 @@ internal static class AppServices
                 sp.GetRequiredService<ToastActivationRouter>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>(),
-            sp.GetRequiredService<RemovedCameraCredentials>()));
+            sp.GetRequiredService<RemovedCameraCredentials>(),
+            sp.GetRequiredService<TimeProvider>()));
 
         // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
         // web proxies of printers whose login changed are stopped (T-028).
@@ -182,21 +191,40 @@ internal static class AppServices
 
     /// <summary>
     /// Windows: toasts (T-010). Other OS: notifications are silently not sent until macOS notifications (T-020) exist.
-    /// Creating the toast service starts nothing; <see cref="TrayHost"/> starts it, tests never do.
+    /// Creating the toast service starts nothing; <see cref="TrayHost"/> starts it, tests never do. The test mode shows no
+    /// toasts, or (Debug switch, T-067) those of the test app with its own Start menu shortcut, never the production ones.
     /// </summary>
-    private static INotificationService CreateNotificationService(IServiceProvider services, bool windows)
+    private static INotificationService CreateNotificationService(IServiceProvider services, bool windows, AppEnvironment environment)
     {
         if (!windows || !OperatingSystem.IsWindows())
         {
             return NullNotificationService.Instance;
         }
 
+        string appUserModelId = WindowsAppIdentity.AppUserModelId;
+        Func<string?> shortcutPath = AppShortcutRegistration.DefaultShortcutPath;
+        if (environment.IsIsolated)
+        {
+#if DEBUG
+            if (!environment.TestToasts)
+            {
+                return NullNotificationService.Instance;
+            }
+
+            appUserModelId = AppEnvironment.TestAppUserModelId;
+            shortcutPath = TestToastCleanup.DefaultShortcutPath;
+#else
+            return NullNotificationService.Instance;
+#endif
+        }
+
         ToastActivationRouter router = services.GetRequiredService<ToastActivationRouter>();
         WindowsToastPlatform platform = new(
             new AppShortcutRegistration(new WindowsShortcutStore(), services.GetRequiredService<ILogger<AppShortcutRegistration>>()),
-            AppShortcutRegistration.DefaultShortcutPath,
+            shortcutPath,
             Environment.ProcessPath,
-            services.GetRequiredService<ILogger<WindowsToastPlatform>>());
+            services.GetRequiredService<ILogger<WindowsToastPlatform>>(),
+            appUserModelId);
         return new ToastNotificationService(
             platform,
             argument => _ = router.ActivateAsync(argument),
@@ -322,6 +350,7 @@ internal static class AppServices
     internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+        AppEnvironment environment = services.GetRequiredService<AppEnvironment>();
         return new SettingsViewModel(
             services.GetRequiredService<ISettingsEditorStore>(),
             services.GetRequiredService<IConnectionTester>(),
@@ -331,7 +360,12 @@ internal static class AppServices
             screens: screens,
             cameraWindowStates: services.GetRequiredService<ICameraWindowStateStore>(),
             cameraWindowPlacer: cameraWindowPlacer,
-            timeProvider: services.GetRequiredService<TimeProvider>());
+            timeProvider: services.GetRequiredService<TimeProvider>())
+        {
+            // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
+            // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).
+            ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
+        };
     }
 
     /// <summary>
@@ -360,13 +394,36 @@ internal static class AppServices
         };
     }
 
+#if DEBUG
+    /// <summary>
+    /// Debug builds only (T-067): what quitting removes after a test app with toasts, the toasts of the test app and its
+    /// Start menu shortcut; <see langword="null"/> without test toasts (never in production).
+    /// </summary>
+    internal static TestToastCleanup? CreateTestToastCleanup(IServiceProvider services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        AppEnvironment environment = services.GetRequiredService<AppEnvironment>();
+        return environment.IsIsolated && environment.TestToasts && OperatingSystem.IsWindows()
+            ? new TestToastCleanup(
+                new WinRtToastHistory(),
+                new WindowsShortcutStore(),
+                TestToastCleanup.DefaultShortcutPath(),
+                services.GetRequiredService<ILogger<TestToastCleanup>>())
+            : null;
+    }
+#endif
+
     private static ISecretStore CreateSecretStore(AppEnvironment environment)
     {
 #if DEBUG
         if (environment.IsIsolated)
         {
-            // Test mode (T-044): never the user's Credential Manager.
-            return new TestModeSecretStore(environment.DataDirectory());
+            // Test mode (T-044): never the user's Credential Manager; with the Debug switch of T-067 the Credential Manager
+            // under a test prefix (checked by AppEnvironment), which can never be the production one. Session only (user
+            // decision 2026-10-22): never written to disk nor roamed, so a crashed run leaves nothing past the logon session.
+            return environment.TestCredentialPrefix is { } prefix && OperatingSystem.IsWindows()
+                ? new WindowsCredentialSecretStore(prefix, CredentialManagerNative.CredPersistSession)
+                : new TestModeSecretStore(environment.DataDirectory());
         }
 #endif
 
