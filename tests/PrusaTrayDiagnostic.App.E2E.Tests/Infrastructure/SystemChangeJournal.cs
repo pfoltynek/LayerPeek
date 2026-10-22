@@ -264,19 +264,25 @@ internal sealed class SystemChangeJournal
             }
         }
 
+        List<SystemChangeEntry> entries = [];
         foreach (string file in PendingFiles())
         {
-            SystemChangeEntry entry;
             try
             {
-                entry = Read(file);
+                entries.Add(Read(file));
             }
             catch (Exception ex) when (ex is JsonException or IOException or InvalidOperationException)
             {
                 report.Failed.Add($"'{file}' is not readable ({ex.Message}); restore by hand.");
-                continue;
             }
+        }
 
+        // E.g. a switched-off monitor first: only then can the scale of that monitor go back.
+        foreach (SystemChangeEntry entry in entries
+            .OrderBy(entry => _kinds.TryGetValue(entry.Kind, out ISystemChangeKind? kind) ? kind.RestoreOrder : 0)
+            .ThenBy(static entry => entry.File, StringComparer.Ordinal))
+        {
+            string file = entry.File;
             bool own = entry.Owner == Self;
             if (own && !includeOwn)
             {

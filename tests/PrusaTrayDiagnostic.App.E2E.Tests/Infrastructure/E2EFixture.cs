@@ -90,8 +90,8 @@ public sealed class E2EFixture : IAsyncLifetime
     /// The run-wide tray icon change of a run with confirmed system changes (begun before any app starts, restored after
     /// the last test, T-065): tests promote the test icon with <see cref="TrayIconPromotionExtensions.PromoteAsync"/>;
     /// at its end every entry of the tested exe gets its original <c>IsPromoted</c> back, and entries Explorer created
-    /// during the run are kept without <c>IsPromoted</c> (T-065 Q3). <see langword="null"/> without confirmed system
-    /// changes.
+    /// during the run are kept without <c>IsPromoted</c> (T-065 Q3). <see langword="null"/> unless the warning listed
+    /// <see cref="SystemChangeTraits.TrayPromotion"/> (T-066).
     /// </summary>
     internal SystemChange<TrayIconPromotionState>? TrayIconPromotion { get; private set; }
 
@@ -150,9 +150,11 @@ public sealed class E2EFixture : IAsyncLifetime
             }
 
             _automation = new UIA3Automation();
-            _startState = await SystemStateSnapshot.CaptureAsync(includeDoNotDisturb: SystemChanges.IsConfirmed);
+            // Reading Do Not Disturb opens the notification center: only in a run whose warning listed a change of it.
+            _startState = await SystemStateSnapshot.CaptureAsync(
+                includeDoNotDisturb: SystemChanges.IsConfirmedFor(SystemChangeTraits.DoNotDisturb) || SystemChanges.IsConfirmedFor(SystemChangeTraits.Toasts));
             Screenshots.SaveText(_startState.ToString(), "system-state-start");
-            if (SystemChanges.IsConfirmed)
+            if (SystemChanges.IsConfirmedFor(SystemChangeTraits.TrayPromotion))
             {
                 TrayIconPromotion = await SystemChanges.TrayIconPromotionAsync(AppPath);
             }

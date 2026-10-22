@@ -40,7 +40,7 @@ internal enum TrayIconAction
 /// Explorer removed meanwhile (nothing of it can stay promoted).
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed partial class TrayIconPromotionKind() : SystemChangeKind<TrayIconPromotionState>("TrayIconPromotion", changesSystem: true, SystemChangeJson.Default.TrayIconPromotionState)
+internal sealed partial class TrayIconPromotionKind() : SystemChangeKind<TrayIconPromotionState>("TrayIconPromotion", SystemChangeTraits.TrayPromotion, SystemChangeJson.Default.TrayIconPromotionState)
 {
     public const string SubKey = @"Control Panel\NotifyIconSettings";
     private const string ExecutablePathValue = "ExecutablePath";
