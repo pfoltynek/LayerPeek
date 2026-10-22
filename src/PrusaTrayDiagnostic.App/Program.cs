@@ -1,14 +1,18 @@
+using System.Runtime.InteropServices;
+
 using Avalonia;
 
 using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Composition;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.SingleInstance;
+using PrusaTrayDiagnostic.App.Windows;
 
 namespace PrusaTrayDiagnostic.App;
 
-internal static class Program
+internal static partial class Program
 {
     [STAThread]
     public static int Main(string[] args)
@@ -50,23 +54,31 @@ internal static class Program
         AppEnvironment environment = AppEnvironment.Production;
 #endif
 
-        // Logged like the app itself (no providers until T-024; the test log file in the test mode).
-        using ILoggerFactory startupLogging = environment.CreateLoggerFactory();
+        // One logger factory for the whole process (T-024), disposed last: a second start writes its records into the same
+        // file before it exits, and the app's records are written even when the OS ends the session.
+        using AppLogging logging = AppLogging.Create(environment);
+        ILogger log = logging.Factory.CreateLogger(typeof(Program));
+        string version = AboutViewModel.ProductVersion(typeof(Program).Assembly);
+        LogStarted(log, version, RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture);
         if (OperatingSystem.IsWindows() && dllSearchError != 0)
         {
             // The app still works with the standard search order; only the hardening is missing.
-            NativeLibrarySearch.LogRestrictionFailed(startupLogging.CreateLogger(typeof(Program)), dllSearchError);
+            NativeLibrarySearch.LogRestrictionFailed(log, dllSearchError);
         }
 
         // The guard runs before the app starts: a later start only passes "activate" on and exits (T-043).
         InstanceCommandQueue instanceCommands = new();
         using SingleInstanceGuard? guard = InstanceTransports.TryCreateForCurrentPlatform(InstanceTransports.NameSuffix, environment) is { } transport
-            ? new SingleInstanceGuard(transport, startupLogging.CreateLogger<SingleInstanceGuard>())
+            ? new SingleInstanceGuard(transport, logging.Factory.CreateLogger<SingleInstanceGuard>())
             : null;
         if (guard is not null && guard.Start(InstanceCommand.Activate, instanceCommands.Post) != InstanceRole.Primary)
         {
+            LogNotPrimary(log);
             return 0;
         }
+
+        // Only the primary instance rotates the log files; a later start just appends its few records.
+        logging.EnableRotation();
 
 #if DEBUG
         if (Environment.GetEnvironmentVariable(InstanceTransports.ForwardOnlyVariable) == "1")
@@ -84,8 +96,14 @@ internal static class Program
             WindowsAppIdentity.ApplyToCurrentProcess(environment.AppUserModelId);
         }
 
-        return BuildAvaloniaApp(instanceCommands, environment).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+        return BuildAvaloniaApp(instanceCommands, environment, logging).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Prusa Tray Diagnostic {Version} starting on {OperatingSystem} ({Architecture}).")]
+    private static partial void LogStarted(ILogger logger, string version, string operatingSystem, Architecture architecture);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Another instance is running; this start only passed the activation on and exits.")]
+    private static partial void LogNotPrimary(ILogger logger);
 
     /// <summary>Designer entry point.</summary>
     public static AppBuilder BuildAvaloniaApp() =>
@@ -93,8 +111,8 @@ internal static class Program
             .UsePlatformDetect()
             .LogToTrace();
 
-    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment) =>
-        AppBuilder.Configure(() => new App(instanceCommands, environment))
+    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging) =>
+        AppBuilder.Configure(() => new App(instanceCommands, environment, logging))
             .UsePlatformDetect()
             .LogToTrace();
 }

@@ -114,10 +114,11 @@ internal sealed unsafe class WindowsCredentialSecretStore : ISecretStore
             {
                 return StrictUtf8.GetString(blob);
             }
-            catch (DecoderFallbackException ex)
+            catch (DecoderFallbackException)
             {
-                // Written by something else than this store; do not guess what the secret was.
-                throw new SecretStoreException("The stored credential is not valid UTF-8.", ex);
+                // Written by something else than this store; do not guess what the secret was. Not chained: its message
+                // quotes the offending bytes of the secret, and logged exceptions go to the log file whole (T-024).
+                throw new SecretStoreException("The stored credential is not valid UTF-8.");
             }
             finally
             {

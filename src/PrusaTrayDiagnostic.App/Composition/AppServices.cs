@@ -61,7 +61,7 @@ internal static class AppServices
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
 
-        // No logging provider yet: messages are discarded until a diagnostics/log task adds one.
+        // The factory of the process (T-024: file log) when given; otherwise messages are discarded (tests).
         services.AddLogging();
         if (loggerFactory is not null)
         {
