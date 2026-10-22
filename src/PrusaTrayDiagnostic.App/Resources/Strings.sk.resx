@@ -528,6 +528,12 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Mení iba texty. Čísla, dátumy a časy sa vždy riadia regionálnymi nastaveniami systému.</value>
   </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Podrobné logovanie (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Zapnite len na požiadanie pri riešení chyby. Log porastie rýchlejšie.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Tlač sa začala</value>
   </data>

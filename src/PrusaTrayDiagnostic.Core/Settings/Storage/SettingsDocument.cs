@@ -20,6 +20,9 @@ internal sealed class SettingsDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? Language { get; set; }
 
+    /// <summary>Detailed logging (T-047); missing in files of older versions, which load with <see langword="false"/>.</summary>
+    public bool? DebugLogging { get; set; }
+
     public NotificationsDocument? Notifications { get; set; }
 
     public List<PrinterDocument?>? Printers { get; set; }

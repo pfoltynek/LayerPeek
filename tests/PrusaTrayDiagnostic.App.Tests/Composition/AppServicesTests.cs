@@ -7,6 +7,7 @@ using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -67,6 +68,21 @@ public sealed class AppServicesTests
         Assert.Same(language, services.GetRequiredService<UiLanguage>());
         Assert.Null(language.Code);
         Assert.Same(services.GetRequiredService<UiLanguageObserver>(), services.GetRequiredService<UiLanguageObserver>());
+    }
+
+    [Fact]
+    public async Task SavedDebugLoggingSwitchesTheLevelOfTheProcessLog()
+    {
+        // T-047: TrayHost passes the level of the process log; the observer in the container switches exactly that one.
+        LogLevelSwitch level = new(LogLevel.Information);
+        await using ServiceProvider services = AppServices.Create(logLevel: level);
+
+        DebugLoggingObserver observer = services.GetRequiredService<DebugLoggingObserver>();
+        observer.ApplySettings(new AppSettings { DebugLogging = true });
+
+        Assert.Equal(LogLevel.Debug, level.MinimumLevel);
+        // Saved settings reach it through the monitoring session, like every other observer.
+        Assert.Contains(observer, services.GetRequiredService<MonitoringSession>().Observers);
     }
 
     [Fact]

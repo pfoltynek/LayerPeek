@@ -231,6 +231,33 @@ public class SettingsMapperTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DebugLoggingRoundTrips(bool enabled)
+    {
+        AppSettings settings = new() { DebugLogging = enabled };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains($"\"debugLogging\": {(enabled ? "true" : "false")}", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(enabled, loaded.DebugLogging);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 1, "pollingIntervalSeconds": 5, "printers": [] }""")]
+    [InlineData("""{ "debugLogging": null }""")]
+    public void FileWithoutDebugLoggingLoadsWithItOff(string json)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.False(settings.DebugLogging);
+    }
+
+    [Theory]
     [InlineData("""{ }""")]
     [InlineData("""{ "language": null }""")]
     public void MissingLanguageMeansSystem(string json)

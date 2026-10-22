@@ -585,6 +585,12 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Changes only the texts. Numbers, dates and times always follow the regional settings of the system.</value>
   </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Detailed logging (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Turn on only when asked to while troubleshooting. The log grows faster.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Camera</value>
   </data>

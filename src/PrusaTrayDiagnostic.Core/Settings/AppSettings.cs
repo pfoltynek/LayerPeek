@@ -48,6 +48,13 @@ public sealed record AppSettings
         }
     }
 
+    /// <summary>
+    /// Detailed logging (T-047): the log file takes <c>Debug</c> messages too, applied at load and on every save, without a
+    /// restart.
+    /// Off by default (<c>Information</c>); meant to be turned on only while troubleshooting.
+    /// </summary>
+    public bool DebugLogging { get; init; }
+
     public NotificationSettings Notifications
     {
         get;
@@ -97,10 +104,11 @@ public sealed record AppSettings
         other is not null
         && PollingInterval == other.PollingInterval
         && string.Equals(Language, other.Language, StringComparison.Ordinal)
+        && DebugLogging == other.DebugLogging
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
-    public override int GetHashCode() => HashCode.Combine(PollingInterval, Language, Notifications, Printers.Count);
+    public override int GetHashCode() => HashCode.Combine(PollingInterval, Language, DebugLogging, Notifications, Printers.Count);
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {
