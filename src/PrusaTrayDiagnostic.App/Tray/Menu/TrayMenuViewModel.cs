@@ -13,9 +13,9 @@ namespace PrusaTrayDiagnostic.App.Tray.Menu;
 /// <summary>
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
 /// followed by the fixed items (diagnostics, settings, about, quit). Every printer is a submenu, also when it is the only
-/// one (T-042): "Open … in the browser" and "Camera" when its camera is enabled (T-014; checked while the camera window
-/// is open, T-040). "Diagnostics…" is a single main menu item (user decision 2026-10-21: the window has its own printer
-/// combo), enabled only while the menu shows printers (not while starting, after a monitoring failure or without
+/// one (T-042): "Open PrusaLink" / "Open Prusa Connect" and "Show camera" / "Hide camera" when its camera is enabled
+/// (T-014; the text follows whether the camera window is open, 2026-10-22). "Diagnostics…" is a single main menu item
+/// (user decision 2026-10-21: the window has its own printer combo), enabled only while the menu shows printers (not while starting, after a monitoring failure or without
 /// printers). Without printers the menu says so and offers "Add printer…". Fixed and submenu items carry access keys
 /// from the resources; printer items have none.
 /// Snapshots arrive on background threads. Each one only compares a cheap <see cref="PrinterMenuContent"/> of its
@@ -38,7 +38,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private readonly CancellationTokenSource _disposing = new();
     private readonly CustomPrinterImages? _images;
 
-    // UI thread only (after construction). _openCameras: printers whose camera window is open (T-040, checked items).
+    // UI thread only (after construction). _openCameras: printers whose camera window is open (their camera item reads
+    // "Hide camera").
     private readonly ObservableCollection<TrayMenuEntry> _items;
     private readonly HashSet<string> _openCameras = new(StringComparer.OrdinalIgnoreCase);
 
@@ -264,8 +265,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
     /// <summary>
     /// UI thread: the camera window of <paramref name="printerId"/> opened or closed (by the menu, its close button, the
-    /// settings disabling the camera, removing the printer or quitting). Its "Camera" item is checked while it is open
-    /// (T-040); only that printer's items are formatted again.
+    /// settings disabling the camera, removing the printer or quitting). Its camera item reads "Hide camera" while the
+    /// window is open and "Show camera" while it is closed (2026-10-22); only that printer's items are formatted again.
     /// </summary>
     public void SetCameraWindowOpen(string printerId, bool isOpen)
     {
@@ -284,7 +285,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
             if (_slots is not null && _slotById.TryGetValue(printerId, out int index))
             {
-                // The cached submenu holds the old check state.
+                // The cached submenu holds the old camera item text.
                 _slots[index].Submenu = null;
             }
 
@@ -373,9 +374,15 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         return new TrayMenuEntryList(line.HasCamera ? [web, CameraEntry(line.Id)] : [web]);
     }
 
-    /// <summary>Only for printers with an enabled camera; absent otherwise (T-014).</summary>
+    /// <summary>
+    /// Only for printers with an enabled camera; absent otherwise (T-014). A plain item whose text follows the camera window:
+    /// "Show camera" while it is closed, "Hide camera" while it is open (2026-10-22, replaces the check item of T-040).
+    /// </summary>
     private TrayMenuEntry CameraEntry(string printerId) =>
-        new(TrayMenuCommand.Camera, Strings.MenuCamera, IsEnabled: true, PrinterId: printerId) { IsChecked = _openCameras.Contains(printerId), HasAccessKey = true };
+        new(TrayMenuCommand.Camera, _openCameras.Contains(printerId) ? Strings.MenuHideCamera : Strings.MenuShowCamera, IsEnabled: true, PrinterId: printerId)
+        {
+            HasAccessKey = true,
+        };
 
     /// <summary>The printer entries of a new layout, one submenu per printer.</summary>
     private TrayMenuEntry[] LayoutEntries(List<(int Index, PrinterLine Line)>? lines) =>

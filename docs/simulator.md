@@ -103,7 +103,7 @@ Pro víc tiskáren opakuj kroky 1–6 s dalšími adresami (`:8081`, `:8082`…)
 
 - **PrusaLink API** jako firmware Buddy 6.x (viz `docs/api/prusalink.md`): `GET /api/version`, `/api/v1/info`, `/api/v1/status`, `/api/v1/job` (bez úlohy `204`). Tvar JSON i formát čísel odpovídají fixture z `tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/firmware`. Neznámé cesty API vrací `404`, jiné metody než GET `405` (ovládání tisku se nesimuluje).
 - **Přihlášení**: HTTP Digest podle RFC 2069 (MD5, bez `qop`, realm `Printer API`), nonce platí 300 s, po vypršení přijde `401` se `stale=true`. Chyby jsou v JSON, když je `application/json` první v hlavičce `Accept`.
-- **Web**: stránka `/` bez přihlášení (jako web firmwaru) průběžně ukazuje stav tiskárny. Hodí se pro „Otevřít PrusaLink v prohlížeči“ přes proxy aplikace (T-028).
+- **Web**: stránka `/` bez přihlášení (jako web firmwaru) průběžně ukazuje stav tiskárny. Hodí se pro „Otevřít PrusaLink“ přes proxy aplikace (T-028).
 - **Kamera** jako Buddy3D: RTSP přes TCP (interleaved), jedna stopa H.264, packetization-mode 1, SPS/PPS v proudu před každým IDR snímkem, UDP odmítne (`461`). `PLAY`, `PAUSE` a `TEARDOWN` před `SETUP` vrátí `455`, s cizí nebo chybějící relací `454`. `PAUSE` zastaví snímky do dalšího `PLAY`. Klip se přehrává ve smyčce 25 snímků/s. Každá smyčka začíná SPS + PPS + IDR a čísla sekvence i časová razítka RTP pokračují bez skoku, takže dekodér smyčku nepozná. Více klientů najednou dostává každý vlastní relaci.
 
 ## Testy

@@ -103,10 +103,10 @@
     <value>_Aggiungi stampante…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>_Apri PrusaLink nel browser</value>
+    <value>_Apri PrusaLink</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Apri Prusa Connect nel browser</value>
+    <value>_Apri Prusa Connect</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>L'indirizzo della stampante non è valido</value>
@@ -577,7 +577,7 @@
     <value>Telecamera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Usa la telecamera (voce Telecamera nel menu dell'area di notifica)</value>
+    <value>Usa la telecamera (voce «Mostra telecamera» nel menu dell'area di notifica)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Indirizzo dello stream RTSP</value>
@@ -624,8 +624,11 @@
   <data name="SettingsCameraErrorCredentials" xml:space="preserve">
     <value>L'indirizzo non deve contenere nome utente, password né il carattere @.</value>
   </data>
-  <data name="MenuCamera" xml:space="preserve">
-    <value>_Telecamera</value>
+  <data name="MenuShowCamera" xml:space="preserve">
+    <value>Mostra _telecamera</value>
+  </data>
+  <data name="MenuHideCamera" xml:space="preserve">
+    <value>Nascondi _telecamera</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – telecamera</value>

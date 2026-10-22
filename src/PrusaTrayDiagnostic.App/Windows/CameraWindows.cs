@@ -42,8 +42,8 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     }
 
     /// <summary>
-    /// A camera window opened or closed (any way: menu, close button, settings, quitting); UI thread. The tray menu checks
-    /// the printer's "Camera" item while its window is open (T-040).
+    /// A camera window opened or closed (any way: menu, close button, settings, quitting); UI thread. The tray menu shows
+    /// "Hide camera" for the printer while its window is open (T-040).
     /// </summary>
     public event EventHandler<CameraWindowOpenChangedEventArgs>? OpenChanged;
 
@@ -135,7 +135,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     }
 
     /// <summary>
-    /// The "Camera" item of the tray menu (T-040): closes the open window of <paramref name="printerId"/> (like its close
+    /// The "Show camera" / "Hide camera" item of the tray menu (T-040): closes the open window of <paramref name="printerId"/> (like its close
     /// button: the stream stops and its placement is remembered), otherwise opens it like <see cref="Show"/>.
     /// </summary>
     /// <returns>Whether a window of the printer is open now.</returns>

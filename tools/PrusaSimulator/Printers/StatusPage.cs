@@ -3,7 +3,7 @@ using System.Net;
 namespace PrusaTrayDiagnostic.Simulator.Printers;
 
 /// <summary>
-/// The page at <c>/</c>: a stand-in for the PrusaLink web, e.g. for "Open PrusaLink in browser" through the app's proxy
+/// The page at <c>/</c>: a stand-in for the PrusaLink web, e.g. for "Open PrusaLink" through the app's proxy
 /// (T-028). It polls <c>/api/v1/status</c> with <c>fetch</c>; the proxy adds the login, a browser opened directly asks
 /// for it (Digest).
 /// </summary>

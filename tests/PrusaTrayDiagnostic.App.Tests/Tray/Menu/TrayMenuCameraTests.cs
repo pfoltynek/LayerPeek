@@ -6,7 +6,7 @@ using static PrusaTrayDiagnostic.App.Tests.Tray.TestPrinters;
 
 namespace PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 
-/// <summary>"Camera" items of the tray menu (T-014).</summary>
+/// <summary>Camera items of the tray menu (T-014; "Show camera" / "Hide camera" since 2026-10-22).</summary>
 public sealed class TrayMenuCameraTests : IDisposable
 {
     private readonly CultureScope _culture = new("en-US");
@@ -46,7 +46,7 @@ public sealed class TrayMenuCameraTests : IDisposable
             camera =>
             {
                 Assert.Equal(TrayMenuCommand.Camera, camera.Command);
-                Assert.Equal("_Camera", camera.Header);
+                Assert.Equal("Show _camera", camera.Header);
                 Assert.True(camera.HasAccessKey);
                 Assert.True(camera.IsEnabled);
                 Assert.Equal("mk4", camera.PrinterId);
@@ -66,7 +66,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         }
 
         TrayMenuEntry single = SingleCamera;
-        Assert.Equal((TrayMenuCommand.Camera, "_Kamera"), (single.Command, single.Header));
+        Assert.Equal((TrayMenuCommand.Camera, "_Kamera anzeigen"), (single.Command, single.Header));
 
         _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), Definition("b", "Beta")]);
         _dispatcher.RunAll();
@@ -77,7 +77,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         }
 
         TrayMenuEntry grouped = _viewModel.PrinterItems[0].Submenu![^1];
-        Assert.Equal((TrayMenuCommand.Camera, "_Telecamera", "a"), (grouped.Command, grouped.Header, grouped.PrinterId));
+        Assert.Equal((TrayMenuCommand.Camera, "Mostra _telecamera", "a"), (grouped.Command, grouped.Header, grouped.PrinterId));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class TrayMenuCameraTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal("MK4: Printing – 10%", Assert.Single(_viewModel.PrinterItems).Header);
-        Assert.Equal("_Camera", SingleCamera.Header);
+        Assert.Equal("Show _camera", SingleCamera.Header);
     }
 
     [Fact]
@@ -161,35 +161,33 @@ public sealed class TrayMenuCameraTests : IDisposable
         Assert.Empty(_commands.CameraRequests);
     }
 
-    // ---- Check item (T-040) ----
+    // ---- "Show camera" / "Hide camera" (2026-10-22, replaced the check item of T-040) ----
 
     [Fact]
-    public void CameraItemIsAnUncheckedCheckItemWhileTheWindowIsClosed()
+    public void CameraItemOffersShowCameraWhileTheWindowIsClosed()
     {
         _viewModel.SetPrinters([WithCamera(Definition())]);
         _dispatcher.RunAll();
 
-        Assert.False(SingleCamera.IsChecked);
-        Assert.Null(_viewModel.PrinterItems[0].IsChecked);
-        Assert.All(_viewModel.PrinterItems[0].Submenu!.SkipLast(1), static item => Assert.Null(item.IsChecked));
+        Assert.Equal("Show _camera", SingleCamera.Header);
+        Assert.True(SingleCamera.HasAccessKey);
     }
 
     [Fact]
-    public void OpenWindowChecksTheSinglePrinterCameraItemUntilItCloses()
+    public void OpenWindowSwitchesTheSinglePrinterCameraItemToHideCameraUntilItCloses()
     {
         _viewModel.SetPrinters([WithCamera(Definition())]);
         _dispatcher.RunAll();
 
         _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
-        Assert.True(SingleCamera.IsChecked);
-        Assert.Equal("_Camera", SingleCamera.Header);
+        Assert.Equal((TrayMenuCommand.Camera, "Hide _camera", "mk4"), (SingleCamera.Command, SingleCamera.Header, SingleCamera.PrinterId));
 
         _viewModel.SetCameraWindowOpen("MK4", isOpen: false);
-        Assert.False(SingleCamera.IsChecked);
+        Assert.Equal((TrayMenuCommand.Camera, "Show _camera"), (SingleCamera.Command, SingleCamera.Header));
     }
 
     [Fact]
-    public void OpenWindowChecksOnlyTheItemOfItsPrinter()
+    public void OpenWindowSwitchesOnlyTheItemOfItsPrinter()
     {
         _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), WithCamera(Definition("b", "Beta"))]);
         _dispatcher.RunAll();
@@ -197,14 +195,14 @@ public sealed class TrayMenuCameraTests : IDisposable
 
         _viewModel.SetCameraWindowOpen("a", isOpen: true);
 
-        Assert.True(_viewModel.PrinterItems[0].Submenu![^1].IsChecked);
-        Assert.False(_viewModel.PrinterItems[1].Submenu![^1].IsChecked);
+        Assert.Equal("Hide _camera", _viewModel.PrinterItems[0].Submenu![^1].Header);
+        Assert.Equal("Show _camera", _viewModel.PrinterItems[1].Submenu![^1].Header);
         // The other printer's item is untouched.
         Assert.Same(betaSubmenu, _viewModel.PrinterItems[1].Submenu);
     }
 
     [Fact]
-    public void CheckStateSurvivesStateUpdatesLanguageSwitchesAndSettings()
+    public void HideCameraSurvivesStateUpdatesLanguageSwitchesAndSettings()
     {
         _viewModel.SetPrinters([WithCamera(Definition("a", "Alpha")), WithCamera(Definition("b", "Beta"))]);
         _dispatcher.RunAll();
@@ -212,20 +210,20 @@ public sealed class TrayMenuCameraTests : IDisposable
 
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(10), printerId: "b"));
         _dispatcher.RunAll();
-        Assert.True(_viewModel.PrinterItems[1].Submenu![^1].IsChecked);
+        Assert.Equal("Hide _camera", _viewModel.PrinterItems[1].Submenu![^1].Header);
 
         using (new CultureScope("cs-CZ"))
         {
             _viewModel.RefreshTexts();
             _dispatcher.RunAll();
+            Assert.Equal("Skrýt _kameru", _viewModel.PrinterItems[1].Submenu![^1].Header);
+            Assert.Equal("Zobrazit _kameru", _viewModel.PrinterItems[0].Submenu![^1].Header);
+
+            // Another printer removed: the remaining single printer keeps "Hide camera" for its open window.
+            _viewModel.SetPrinters([WithCamera(Definition("b", "Beta"))]);
+            _dispatcher.RunAll();
+            Assert.Equal("Skrýt _kameru", SingleCamera.Header);
         }
-
-        Assert.True(_viewModel.PrinterItems[1].Submenu![^1].IsChecked);
-
-        // Another printer removed: the remaining single printer keeps its open window checked.
-        _viewModel.SetPrinters([WithCamera(Definition("b", "Beta"))]);
-        _dispatcher.RunAll();
-        Assert.True(SingleCamera.IsChecked);
     }
 
     [Fact]
@@ -256,19 +254,22 @@ public sealed class TrayMenuCameraTests : IDisposable
     }
 
     [Fact]
-    public void PresenterShowsTheCheckMarkAndClicksToggle()
+    public void PresenterSwitchesTheHeaderAndClicksToggle()
     {
         _viewModel.SetPrinters([WithCamera(Definition())]);
         _dispatcher.RunAll();
         using TrayMenuPresenter presenter = new(_target, _viewModel, _commands, _logger);
-        Assert.False(_target.Printers[0].Submenu![^1].IsChecked);
+        Assert.Equal("Show _camera", _target.Printers[0].Submenu![^1].Header);
 
         _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
-        Assert.True(_target.Printers[0].Submenu![^1].IsChecked);
+        Assert.Equal("Hide _camera", _target.Printers[0].Submenu![^1].Header);
         _target.Click(_target.Printers[0].Submenu![^1]);
 
-        // The click asks to toggle: the app closes the open window (its close reports back, unchecking the item).
+        // The click asks to toggle: the app closes the open window (its close reports back, switching to "Show camera").
         Assert.Equal(["mk4"], _commands.CameraRequests);
+
+        _viewModel.SetCameraWindowOpen("mk4", isOpen: false);
+        Assert.Equal("Show _camera", _target.Printers[0].Submenu![^1].Header);
     }
 
     [Fact]
@@ -280,6 +281,6 @@ public sealed class TrayMenuCameraTests : IDisposable
 
         _viewModel.SetCameraWindowOpen("mk4", isOpen: true);
 
-        Assert.False(SingleCamera.IsChecked);
+        Assert.Equal("Show _camera", SingleCamera.Header);
     }
 }

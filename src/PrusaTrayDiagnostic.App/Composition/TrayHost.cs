@@ -215,7 +215,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     public CameraViewModel? CreateCameraViewModel(string printerId, PrinterDefinition? saved) => AppServices.CreateCameraViewModel(_services, printerId, saved);
 
     /// <summary>
-    /// UI thread: a camera window opened or closed; the tray menu checks its "Camera" item while it is open (T-040).
+    /// UI thread: a camera window opened or closed; the tray menu shows "Hide camera" while it is open (T-040).
     /// Ignored once stopping started.
     /// </summary>
     internal void OnCameraWindowOpenChanged(string printerId, bool isOpen)

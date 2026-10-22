@@ -134,11 +134,6 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
                 Item.SetIcon(entry.Icon, entry.PrinterId);
             }
 
-            if (entry.IsChecked is not null)
-            {
-                Item.SetChecked(entry.IsChecked);
-            }
-
             if (entry.Submenu is { } submenu)
             {
                 INativeTrayMenu native = Item.CreateSubmenu();
@@ -184,11 +179,6 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
                 Item.SetIcon(entry.Icon, entry.PrinterId);
             }
 
-            if (entry.IsChecked != _entry.IsChecked)
-            {
-                Item.SetChecked(entry.IsChecked);
-            }
-
             // The view model reuses the submenu list while only the state changes, so a poll skips the children.
             if (_children is not null && entry.Submenu is { } submenu && !ReferenceEquals(submenu, _entry.Submenu))
             {
@@ -222,13 +212,6 @@ internal sealed class TrayMenuTarget : ITrayMenuTarget
             if (!_detached && _entry.Submenu is null)
             {
                 _owner.ItemClicked?.Invoke(_owner, _entry);
-
-                // A platform may flip the check mark of a clicked check item by itself; the entry (updated by the click, e.g.
-                // the camera window opened, or not) decides what it shows (T-040).
-                if (!_detached && _entry.IsChecked is not null)
-                {
-                    Item.SetChecked(_entry.IsChecked);
-                }
             }
         }
     }

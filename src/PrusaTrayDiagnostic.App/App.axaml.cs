@@ -249,8 +249,8 @@ public partial class App : Application, ITrayAppCommands
     }
 
     /// <summary>
-    /// The camera windows, created on first use; the tray menu follows which of them are open (T-040: checked "Camera"
-    /// items).
+    /// The camera windows, created on first use; the tray menu follows which of them are open (T-040: their camera
+    /// items read "Hide camera" while open, 2026-10-22).
     /// </summary>
     private CameraWindows CameraWindowsFor(TrayHost host)
     {

@@ -60,7 +60,7 @@ internal static class TrayMenuFormatter
         return name.Length > MaxNameLength ? name : null;
     }
 
-    /// <summary>"Open PrusaLink in the browser" / "Open Prusa Connect in the browser" (with its access key).</summary>
+    /// <summary>"Open PrusaLink" / "Open Prusa Connect" (with its access key).</summary>
     public static string OpenWebText(ConnectionType connectionType) =>
         connectionType == ConnectionType.PrusaConnect ? Strings.MenuOpenPrusaConnect : Strings.MenuOpenPrusaLink;
 

@@ -29,8 +29,8 @@ public enum TrayMenuCommand
     Diagnostics,
 
     /// <summary>
-    /// Camera window of <see cref="TrayMenuEntry.PrinterId"/> (T-014): opens it, or closes it when it is open (T-040, a
-    /// check item).
+    /// Camera window of <see cref="TrayMenuEntry.PrinterId"/> (T-014): opens it, or closes it when it is open (T-040; a
+    /// plain item "Show camera" / "Hide camera", 2026-10-22).
     /// </summary>
     Camera,
     About,
@@ -65,12 +65,6 @@ internal sealed record TrayMenuEntry(
     /// items, from the resources. Shown as is; <see langword="false"/> = plain text, escaped by the adapter.
     /// </summary>
     public bool HasAccessKey { get; init; }
-
-    /// <summary>
-    /// A check item (T-040: the camera item is checked while the camera window of its printer is open): <see langword="true"/>
-    /// / <see langword="false"/> = checked / not checked; <see langword="null"/> = a plain item without a check mark.
-    /// </summary>
-    public bool? IsChecked { get; init; }
 
     /// <summary>
     /// Items of the submenu this item opens (every printer has one, T-042); <see langword="null"/> for a plain item. An item

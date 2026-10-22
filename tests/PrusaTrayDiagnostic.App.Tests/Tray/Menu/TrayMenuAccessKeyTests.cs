@@ -80,6 +80,44 @@ public sealed class TrayMenuAccessKeyTests
 
     [Theory]
     [MemberData(nameof(Languages))]
+    public void CameraItemKeepsAUniqueAndStableAccessKeyWhenItsWindowOpensAndCloses(string language)
+    {
+        using CultureScope culture = new(language);
+        PrinterDefinition connect = new() { Id = "c", Name = "Connect", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" };
+        using Menu menu = new([WithCamera(Definition("a", "Alpha")), WithCamera(connect)]);
+        TrayMenuEntry[] closed = CameraItems(menu);
+
+        // "Hide camera" in both submenus (one next to the PrusaLink, one next to the Prusa Connect web item).
+        menu.ViewModel.SetCameraWindowOpen("a", isOpen: true);
+        menu.ViewModel.SetCameraWindowOpen("c", isOpen: true);
+
+        foreach (TrayMenuEntry printer in menu.MainLevel().Where(static item => item.Submenu is not null))
+        {
+            AssertUniqueAccessKeys(printer.Submenu!, language);
+        }
+
+        TrayMenuEntry[] open = CameraItems(menu);
+        CultureInfo cultureInfo = CultureInfo.GetCultureInfo(language);
+        Assert.Equal(2, open.Length);
+        for (int i = 0; i < open.Length; i++)
+        {
+            Assert.NotEqual(closed[i].Header, open[i].Header);
+            Assert.Equal(AccessKey(closed[i], cultureInfo), AccessKey(open[i], cultureInfo));
+        }
+    }
+
+    private static TrayMenuEntry[] CameraItems(Menu menu) =>
+    [
+        .. menu.MainLevel()
+            .Where(static item => item.Submenu is not null)
+            .Select(static item => Assert.Single(item.Submenu!, static entry => entry.Command == TrayMenuCommand.Camera)),
+    ];
+
+    private static char? AccessKey(TrayMenuEntry item, CultureInfo culture) =>
+        NativeMenuText.AccessKeyOf(NativeMenuText.HeaderOf(item)) is { } key ? char.ToUpper(key, culture) : null;
+
+    [Theory]
+    [MemberData(nameof(Languages))]
     public void FixedTextsKeepTheirEllipsis(string language)
     {
         using CultureScope culture = new(language);

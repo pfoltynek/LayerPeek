@@ -370,13 +370,13 @@ public sealed class TrayMenuViewModelTests : IDisposable
             alpha.Submenu!,
             item =>
             {
-                AssertCommand(item, TrayMenuCommand.OpenWeb, "_Open PrusaLink in the browser", enabled: true);
+                AssertCommand(item, TrayMenuCommand.OpenWeb, "_Open PrusaLink", enabled: true);
                 Assert.Equal(new Uri("http://192.168.1.10/"), item.WebUri);
                 Assert.Equal("a", item.PrinterId);
             });
 
         TrayMenuEntry xl = _viewModel.PrinterItems[1];
-        Assert.Equal("_Open Prusa Connect in the browser", xl.Submenu![0].Header);
+        Assert.Equal("_Open Prusa Connect", xl.Submenu![0].Header);
         Assert.Equal(new Uri("https://connect.prusa3d.com/"), xl.Submenu[0].WebUri);
         Assert.Equal("c", xl.Submenu[0].PrinterId);
     }
@@ -401,7 +401,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
-        Assert.Equal(["_Otevřít PrusaLink v prohlížeči"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
+        Assert.Equal(["_Otevřít PrusaLink"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
     }
 
     [Fact]
@@ -425,8 +425,8 @@ public sealed class TrayMenuViewModelTests : IDisposable
             _viewModel.FixedItems.Where(item => !item.IsSeparator).Select(item => item.Header));
         Assert.Equal("Beta: Tiskne – 42\u00A0%", _viewModel.PrinterItems[1].Header);
         // The cached submenu is formatted again too.
-        Assert.Equal(["_Otevřít PrusaLink v prohlížeči"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
-        Assert.Equal(["_Otevřít PrusaLink v prohlížeči"], _viewModel.PrinterItems[0].Submenu!.Select(item => item.Header));
+        Assert.Equal(["_Otevřít PrusaLink"], _viewModel.PrinterItems[1].Submenu!.Select(item => item.Header));
+        Assert.Equal(["_Otevřít PrusaLink"], _viewModel.PrinterItems[0].Submenu!.Select(item => item.Header));
     }
 
     [Fact]
@@ -516,7 +516,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         TrayMenuEntry web = Assert.Single(_viewModel.PrinterItems).Submenu![0];
-        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open PrusaLink in the browser", enabled: true);
+        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open PrusaLink", enabled: true);
         Assert.Equal(new Uri("http://192.168.1.10/"), web.WebUri);
         Assert.Null(web.ToolTip);
     }
@@ -528,7 +528,7 @@ public sealed class TrayMenuViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         TrayMenuEntry web = Assert.Single(_viewModel.PrinterItems).Submenu![0];
-        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open Prusa Connect in the browser", enabled: true);
+        AssertCommand(web, TrayMenuCommand.OpenWeb, "_Open Prusa Connect", enabled: true);
         Assert.Equal(new Uri("https://connect.prusa3d.com/"), web.WebUri);
     }
 

@@ -19,12 +19,17 @@ using PrusaTrayDiagnostic.Core.Settings;
 namespace PrusaTrayDiagnostic.App.UiTests.Tray;
 
 /// <summary>
-/// The "Camera" check item of the tray menu (T-040) on the real Avalonia <see cref="NativeMenu"/>, wired to the real camera
-/// windows of <see cref="CameraHarness"/> like the app does it (<c>App.ToggleCamera</c>, <c>CameraWindows.OpenChanged</c>
-/// → <see cref="TrayMenuViewModel.SetCameraWindowOpen"/>). How the OS draws the check mark stays a manual check.
+/// The "Show camera" / "Hide camera" item of the tray menu (T-040; a plain item instead of a check item since 2026-10-22)
+/// on the real Avalonia <see cref="NativeMenu"/>, wired to the real camera windows of <see cref="CameraHarness"/> like the
+/// app does it (<c>App.ToggleCamera</c>, <c>CameraWindows.OpenChanged</c> → <see cref="TrayMenuViewModel.SetCameraWindowOpen"/>).
+/// How the OS menu shows the changed text stays a manual check.
 /// </summary>
 public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
 {
+    // The session runs in English ("system" language on en-US).
+    private const string ShowCamera = "Show _camera";
+    private const string HideCamera = "Hide _camera";
+
     /// <summary>The tray menu of printers "a" and "b" (both with cameras, like the harness) on the app's tray icon.</summary>
     private sealed class Wiring : ITrayAppCommands
     {
@@ -82,24 +87,31 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
     }
 
     [Fact]
-    public Task CameraItemIsACheckItemThatOpensAndClosesTheWindow() =>
+    public Task CameraItemIsAPlainItemThatOpensAndClosesTheWindowAndSwitchesItsText() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
             Wiring tray = Wiring.Create(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
             NativeMenuItem camera = tray.CameraItem();
 
-            Assert.Equal("_Camera", camera.Header);
-            Assert.Equal(MenuItemToggleType.CheckBox, camera.ToggleType);
+            Assert.Equal(ShowCamera, camera.Header);
+            Assert.Equal(MenuItemToggleType.None, camera.ToggleType);
             Assert.False(camera.IsChecked);
 
             Wiring.Click(camera);
             Assert.True(cameras.Windows.OpenWindows.ContainsKey("a"));
-            Assert.True(tray.CameraItem().IsChecked);
+            // The same native item, only its text changed; never a check mark.
+            Assert.Same(camera, tray.CameraItem());
+            Assert.Equal(HideCamera, camera.Header);
+            Assert.Equal(MenuItemToggleType.None, camera.ToggleType);
+            Assert.False(camera.IsChecked);
 
-            Wiring.Click(tray.CameraItem());
+            Wiring.Click(camera);
             Assert.Empty(cameras.Windows.OpenWindows);
-            Assert.False(tray.CameraItem().IsChecked);
+            Assert.Same(camera, tray.CameraItem());
+            Assert.Equal(ShowCamera, camera.Header);
+            Assert.Equal(MenuItemToggleType.None, camera.ToggleType);
+            Assert.False(camera.IsChecked);
         });
 
     [Fact]
@@ -125,7 +137,7 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task CheckMarkFollowsTheWindowClosedByItsCloseButton() =>
+    public Task TextFollowsTheWindowClosedByItsCloseButton() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
@@ -135,41 +147,41 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             cameras.Windows.OpenWindows["a"].Close();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.False(tray.CameraItem().IsChecked);
+            Assert.Equal(ShowCamera, tray.CameraItem().Header);
         });
 
     [Fact]
-    public Task CheckMarkFollowsTheWindowClosedBySettingsThatDisableTheCamera() =>
+    public Task TextFollowsTheWindowClosedBySettingsThatDisableTheCamera() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
             Wiring tray = Wiring.Create(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"), CameraHarness.CameraPrinter("b", "Beta"));
             Wiring.Click(tray.CameraItem(0));
             Wiring.Click(tray.CameraItem(1));
-            Assert.True(tray.CameraItem(0).IsChecked);
-            Assert.True(tray.CameraItem(1).IsChecked);
+            Assert.Equal(HideCamera, tray.CameraItem(0).Header);
+            Assert.Equal(HideCamera, tray.CameraItem(1).Header);
 
-            // The settings disable the camera of "a" and remove nothing else: its window closes, "b" stays open and checked.
+            // The settings disable the camera of "a" and remove nothing else: its window closes, "b" stays open with "Hide camera".
             AppSettings settings = new() { Printers = [TestPrinters.Definition("a", "Alpha"), CameraHarness.CameraPrinter("b", "Beta")] };
             ((IMonitoringObserver)cameras.Printers).ApplySettings(settings);
             tray.ViewModel.SetPrinters(settings.Printers);
             Dispatcher.UIThread.RunJobs();
 
             Assert.False(cameras.Windows.OpenWindows.ContainsKey("a"));
-            Assert.DoesNotContain(Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items, item => item is NativeMenuItem { Header: "_Camera" });
-            Assert.True(tray.CameraItem(1).IsChecked);
+            Assert.DoesNotContain(Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items, item => item is NativeMenuItem { Header: ShowCamera or HideCamera });
+            Assert.Equal(HideCamera, tray.CameraItem(1).Header);
 
-            // Removing "b": its window closes too; when it is added again its item starts unchecked.
+            // Removing "b": its window closes too; when it is added again its item offers "Show camera".
             ((IMonitoringObserver)cameras.Printers).ApplySettings(new AppSettings { Printers = [TestPrinters.Definition("a", "Alpha")] });
             Dispatcher.UIThread.RunJobs();
             Assert.Empty(cameras.Windows.OpenWindows);
             tray.ViewModel.SetPrinters([CameraHarness.CameraPrinter("b", "Beta")]);
             Dispatcher.UIThread.RunJobs();
-            Assert.False(tray.CameraItem().IsChecked);
+            Assert.Equal(ShowCamera, tray.CameraItem().Header);
         });
 
     [Fact]
-    public Task SeveralPrintersKeepTheirOwnCheckMark() =>
+    public Task SeveralPrintersKeepTheirOwnText() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
@@ -177,13 +189,13 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
 
             Wiring.Click(tray.CameraItem(1));
 
-            Assert.False(tray.CameraItem(0).IsChecked);
-            Assert.True(tray.CameraItem(1).IsChecked);
+            Assert.Equal(ShowCamera, tray.CameraItem(0).Header);
+            Assert.Equal(HideCamera, tray.CameraItem(1).Header);
             Assert.Equal(["b"], cameras.Windows.OpenWindows.Keys);
         });
 
     [Fact]
-    public Task QuittingUnchecksEverything() =>
+    public Task QuittingSwitchesTheItemBackToShowCamera() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
@@ -193,7 +205,7 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             cameras.Windows.Shutdown();
             Dispatcher.UIThread.RunJobs();
 
-            Assert.False(tray.CameraItem().IsChecked);
+            Assert.Equal(ShowCamera, tray.CameraItem().Header);
             // After quitting started the item opens nothing.
             Wiring.Click(tray.CameraItem());
             Assert.Empty(cameras.Windows.OpenWindows);

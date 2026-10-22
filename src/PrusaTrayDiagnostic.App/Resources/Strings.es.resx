@@ -103,10 +103,10 @@
     <value>Añadir _impresora…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>_Abrir PrusaLink en el navegador</value>
+    <value>_Abrir PrusaLink</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Abrir Prusa Connect en el navegador</value>
+    <value>_Abrir Prusa Connect</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>La dirección de la impresora no es válida</value>
@@ -577,7 +577,7 @@
     <value>Cámara</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Usar la cámara (elemento Cámara del menú del área de notificación)</value>
+    <value>Usar la cámara (elemento «Mostrar cámara» del menú del área de notificación)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Dirección de la transmisión RTSP</value>
@@ -624,8 +624,11 @@
   <data name="SettingsCameraErrorCredentials" xml:space="preserve">
     <value>La dirección no debe contener nombre de usuario, contraseña ni el carácter @.</value>
   </data>
-  <data name="MenuCamera" xml:space="preserve">
-    <value>_Cámara</value>
+  <data name="MenuShowCamera" xml:space="preserve">
+    <value>Mostrar _cámara</value>
+  </data>
+  <data name="MenuHideCamera" xml:space="preserve">
+    <value>Ocultar _cámara</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – cámara</value>

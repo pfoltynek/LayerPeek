@@ -103,10 +103,10 @@
     <value>_Pridať tlačiareň…</value>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>_Otvoriť PrusaLink v prehliadači</value>
+    <value>_Otvoriť PrusaLink</value>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Otvoriť Prusa Connect v prehliadači</value>
+    <value>_Otvoriť Prusa Connect</value>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
     <value>Adresa tlačiarne nie je platná</value>
@@ -577,7 +577,7 @@
     <value>Kamera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Používať kameru (položka Kamera v ponuke oznamovacej oblasti)</value>
+    <value>Používať kameru (položka „Zobraziť kameru“ v ponuke oznamovacej oblasti)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>Adresa RTSP streamu</value>
@@ -624,8 +624,11 @@
   <data name="SettingsCameraErrorCredentials" xml:space="preserve">
     <value>Adresa nesmie obsahovať používateľské meno, heslo ani znak @.</value>
   </data>
-  <data name="MenuCamera" xml:space="preserve">
-    <value>_Kamera</value>
+  <data name="MenuShowCamera" xml:space="preserve">
+    <value>Zobraziť _kameru</value>
+  </data>
+  <data name="MenuHideCamera" xml:space="preserve">
+    <value>Skryť _kameru</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>
