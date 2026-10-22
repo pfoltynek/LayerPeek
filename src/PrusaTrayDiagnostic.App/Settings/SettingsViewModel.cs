@@ -130,6 +130,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     private string? _remainingTimeError;
     private SoundOption _selectedSound;
     private LanguageOption _selectedLanguage;
+    private bool _debugLogging;
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
     /// <param name="cameraTester">Camera "Test" button; default: none available (every test fails).</param>
@@ -455,6 +456,13 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         }
     }
 
+    /// <summary>Detailed logging (Debug) in the log file (T-047); applied right after saving, without a restart.</summary>
+    public bool DebugLogging
+    {
+        get => _debugLogging;
+        set => SetGeneral(ref _debugLogging, value);
+    }
+
     /// <summary>Passwords can be saved on this OS (false on macOS until T-021).</summary>
     public bool IsPasswordSupported => Policy.IsSupported;
 
@@ -697,6 +705,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _remainingTimeMinutes = notifications.RemainingTimeMinutes;
         _selectedSound = FindSound(notifications.Sound);
         _selectedLanguage = FindLanguage(settings.Language);
+        _debugLogging = settings.DebugLogging;
 
         _noticeSource = data.Status switch
         {
@@ -1043,6 +1052,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             {
                 PollingInterval = TimeSpan.FromSeconds((double)seconds),
                 Language = _selectedLanguage.Code,
+                DebugLogging = _debugLogging,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,

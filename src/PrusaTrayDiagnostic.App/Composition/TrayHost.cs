@@ -101,7 +101,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(logging);
         // Not owned by the container: it outlives the container dispose during quit.
         ILoggerFactory loggerFactory = logging.Factory;
-        ServiceProvider services = AppServices.Create(loggerFactory, environment: environment);
+        ServiceProvider services = AppServices.Create(loggerFactory, environment: environment, logLevel: logging.Level);
         // Concrete type here; the field is ITrayIconSet so that T-018 can select the macOS set by OS.
         ColorTrayIconSet? iconSet = null;
         TrayIconPresenter<WindowIcon>? iconPresenter = null;

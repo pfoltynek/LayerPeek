@@ -19,6 +19,7 @@ internal static class SettingsMapper
             Version = SettingsDocument.CurrentVersion,
             PollingIntervalSeconds = settings.PollingInterval.TotalSeconds,
             Language = settings.Language,
+            DebugLogging = settings.DebugLogging,
             Notifications = new NotificationsDocument
             {
                 Enabled = notifications.Enabled,
@@ -64,6 +65,7 @@ internal static class SettingsMapper
         {
             PollingInterval = ToPollingInterval(document.PollingIntervalSeconds, warnings),
             Language = ToLanguage(document.Language, warnings),
+            DebugLogging = document.DebugLogging ?? false,
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings),
         };

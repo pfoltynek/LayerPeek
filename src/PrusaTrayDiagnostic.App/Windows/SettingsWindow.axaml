@@ -755,10 +755,10 @@
         </Grid>
       </TabItem>
 
-      <!-- General: polling interval and language, notifications in two columns. -->
+      <!-- General: polling interval and language, notifications in two columns, detailed logging. -->
       <TabItem AutomationProperties.AutomationId="SettingsTabGeneral" Header="{Binding [SettingsTabGeneral], Source={x:Static loc:LocalizedStrings.Instance}}">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
-          <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto">
+          <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
             <StackPanel>
               <TextBlock Classes="label" Text="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
               <NumericUpDown AutomationProperties.AutomationId="SettingsPollingInterval"
@@ -829,6 +829,22 @@
                              HorizontalAlignment="Left" />
               <TextBlock AutomationProperties.AutomationId="SettingsRemainingTimeError" Classes="error" Text="{Binding RemainingTimeError}" IsVisible="{Binding RemainingTimeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
             </StackPanel>
+
+            <!-- T-047: detailed logging; its own row below the notifications, the hint to its right (no room for a section heading, T-033 fit). -->
+            <CheckBox Grid.Row="4"
+                      AutomationProperties.AutomationId="SettingsDebugLogging"
+                      AutomationProperties.HelpText="{Binding [SettingsDebugLoggingHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      Margin="0,12,0,0"
+                      VerticalAlignment="Top"
+                      Content="{Binding [SettingsDebugLogging], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      IsChecked="{Binding DebugLogging}" />
+            <TextBlock Grid.Row="4"
+                       Grid.Column="2"
+                       AutomationProperties.AutomationId="SettingsDebugLoggingHint"
+                       Classes="hint"
+                       Margin="0,12,0,0"
+                       VerticalAlignment="Center"
+                       Text="{Binding [SettingsDebugLoggingHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
           </Grid>
         </ScrollViewer>
       </TabItem>

@@ -528,6 +528,12 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Cambia solo i testi. Numeri, date e orari seguono sempre le impostazioni internazionali del sistema.</value>
   </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Registro dettagliato (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Attivalo solo su richiesta durante la risoluzione dei problemi. Il registro cresce più in fretta.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Stampa avviata</value>
   </data>

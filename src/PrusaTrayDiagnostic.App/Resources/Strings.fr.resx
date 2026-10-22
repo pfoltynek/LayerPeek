@@ -528,6 +528,12 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Ne modifie que les textes. Les nombres, les dates et les heures suivent toujours les paramètres régionaux du système.</value>
   </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Journalisation détaillée (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Activez-la uniquement si on vous le demande lors d'un dépannage. Le journal grossit plus vite.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Impression démarrée</value>
   </data>

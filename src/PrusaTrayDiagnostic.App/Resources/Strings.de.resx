@@ -528,6 +528,12 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Ändert nur die Texte. Zahlen, Datum und Uhrzeit richten sich immer nach den Regionaleinstellungen des Systems.</value>
   </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Ausführliche Protokollierung (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Nur auf Anfrage zur Fehlersuche einschalten. Das Protokoll wächst schneller.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Druck gestartet</value>
   </data>

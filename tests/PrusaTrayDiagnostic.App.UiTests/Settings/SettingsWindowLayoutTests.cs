@@ -143,6 +143,24 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     [Theory]
     [MemberData(nameof(Languages))]
+    public Task DebugLoggingHintTakesAtMostTwoLines(string language) =>
+        session.RunAsync(async scope =>
+        {
+            // T-047: the last row of the General tab; a third line would push the tab past its height (T-033 fit).
+            Assert.True(new UiLanguage().Apply(language));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+
+            TextBlock hint = ui.Find<TextBlock>("SettingsDebugLoggingHint");
+            Assert.True(hint.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsDebugLoggingHint, hint.Text);
+            Assert.True(hint.TextLayout.TextLines.Count <= 2, $"{language}: '{hint.Text}' has {hint.TextLayout.TextLines.Count} lines.");
+            Assert.Equal(Strings.SettingsDebugLogging, ui.Find<CheckBox>("SettingsDebugLogging").Content);
+        });
+
+    [Theory]
+    [MemberData(nameof(Languages))]
     public Task AlwaysOnTopHeaderFitsItsColumnInAtMostTwoLines(string language) =>
         session.RunAsync(async scope =>
         {
@@ -347,7 +365,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             List<string> order = TabStops(ui.Window);
 
-            string[] expected = ["SettingsPollingInterval", "SettingsLanguage", "SettingsNotificationsEnabled", "SettingsSound", "SettingsRemainingTime", "SettingsSave", "SettingsCancel"];
+            string[] expected = ["SettingsPollingInterval", "SettingsLanguage", "SettingsNotificationsEnabled", "SettingsSound", "SettingsRemainingTime", "SettingsDebugLogging", "SettingsSave", "SettingsCancel"];
             Assert.Equal(expected, order.Where(id => expected.Contains(id)).Distinct());
         });
 

@@ -121,6 +121,17 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void DebugLoggingIsOffByDefaultAndPartOfEquality()
+    {
+        AppSettings detailed = new() { DebugLogging = true };
+
+        Assert.False(AppSettings.Default.DebugLogging);
+        Assert.NotEqual(new AppSettings(), detailed);
+        Assert.Equal(detailed, new AppSettings { DebugLogging = true });
+        Assert.Equal(detailed.GetHashCode(), new AppSettings { DebugLogging = true }.GetHashCode());
+    }
+
+    [Fact]
     public void EqualityIncludesLanguage()
     {
         AppSettings german = new() { Language = "de" };

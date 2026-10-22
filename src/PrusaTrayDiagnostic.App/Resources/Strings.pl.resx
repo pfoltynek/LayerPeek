@@ -528,6 +528,12 @@
   <data name="SettingsLanguageHint" xml:space="preserve">
     <value>Zmienia tylko teksty. Liczby, daty i godziny zawsze są zgodne z ustawieniami regionalnymi systemu.</value>
   </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Szczegółowe logi (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Włącz tylko na prośbę przy rozwiązywaniu problemu. Plik logu będzie rósł szybciej.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Rozpoczęto drukowanie</value>
   </data>

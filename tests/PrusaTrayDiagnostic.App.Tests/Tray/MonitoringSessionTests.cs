@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -509,6 +511,27 @@ public sealed class MonitoringSessionTests : IAsyncDisposable
         _ = _session.ApplyAsync(saved with { Printers = [Definition("a", "Renamed")] }, credentialsChanged: false);
         await _monitor.WaitForRunsAsync(2).WaitAsync(TestTimeouts.Wait, Ct);
         Assert.Equal(["printers: a", "update", "printers: a"], observer.Calls);
+    }
+
+    [Fact]
+    public async Task DebugLoggingOnlyChangeKeepsTheMonitorRunningAndSwitchesTheLogLevel()
+    {
+        // T-047: a save that changes only detailed logging takes effect at once, without restarting the monitoring.
+        LogLevelSwitch level = new(LogLevel.Information);
+        AppSettings loaded = new() { Printers = [Definition("a", "Alpha")] };
+        _session = new MonitoringSession(
+            () => FakeSettingsStore.Returning(loaded),
+            _monitor,
+            [new DebugLoggingObserver(level, fixedLevel: false, NullLogger<DebugLoggingObserver>.Instance)],
+            _logger);
+        _session.Start();
+        await _monitor.WaitForRunsAsync(1).WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(LogLevel.Information, level.MinimumLevel);
+
+        await _session.ApplyAsync(loaded with { DebugLogging = true }, credentialsChanged: false).WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Single(_monitor.Runs);
+        Assert.Equal(LogLevel.Debug, level.MinimumLevel);
     }
 
     [Fact]

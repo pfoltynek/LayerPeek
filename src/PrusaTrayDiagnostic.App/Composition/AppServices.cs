@@ -5,6 +5,7 @@ using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.History;
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -43,12 +44,17 @@ internal static class AppServices
     /// Where camera windows are remembered, for tests; <see langword="null"/>: <c>camera-windows.json</c> in the data folder.
     /// </param>
     /// <param name="environment">Data folder and isolation (T-044); <see langword="null"/>: <see cref="AppEnvironment.Production"/>.</param>
+    /// <param name="logLevel">
+    /// Minimum level of the file log, set from the settings (T-047); <see langword="null"/>: a level of its own, connected to
+    /// nothing (tests).
+    /// </param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
-        AppEnvironment? environment = null) =>
-        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment);
+        AppEnvironment? environment = null,
+        LogLevelSwitch? logLevel = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
     internal static ServiceProvider Create(
@@ -56,7 +62,8 @@ internal static class AppServices
         bool windows,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
-        AppEnvironment? environment = null)
+        AppEnvironment? environment = null,
+        LogLevelSwitch? logLevel = null)
     {
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
@@ -86,6 +93,11 @@ internal static class AppServices
         // Language of the texts (T-029): applied at startup before any text exists, then from every saved setting.
         services.AddSingleton(static _ => new UiLanguage());
         services.AddSingleton(static sp => new UiLanguageObserver(sp.GetRequiredService<UiLanguage>(), sp.GetRequiredService<IUiDispatcher>()));
+        // Detailed logging (T-047): the saved setting switches the level of the file log; the test mode stays at Debug.
+        services.AddSingleton(sp => new DebugLoggingObserver(
+            logLevel ?? new LogLevelSwitch(LogLevel.Information),
+            env.IsIsolated,
+            sp.GetRequiredService<ILogger<DebugLoggingObserver>>()));
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
@@ -128,6 +140,7 @@ internal static class AppServices
             [
                 // First: its language switch is posted to the UI thread before the menu and tooltip updates of the same settings.
                 sp.GetRequiredService<UiLanguageObserver>(),
+                sp.GetRequiredService<DebugLoggingObserver>(),
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
