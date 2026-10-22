@@ -43,6 +43,12 @@ internal sealed unsafe class WindowsCredentialSecretStore : ISecretStore
         _persist = persist;
     }
 
+    /// <summary>The prefix of every credential target (composition tests).</summary>
+    internal string TargetPrefix => _targetPrefix;
+
+    /// <summary>The CRED_PERSIST_* value every credential is written with (composition tests).</summary>
+    internal uint Persist => _persist;
+
     public Task<string?> GetAsync(string key, CancellationToken cancellationToken)
     {
         string target = ToTarget(key);

@@ -39,26 +39,38 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
 
     /// <param name="shortcutPath">Where the shortcut goes; evaluated on <see cref="Open"/> (thread of the service).</param>
     /// <param name="executablePath">The shortcut's target, normally <see cref="Environment.ProcessPath"/>.</param>
+    /// <param name="appUserModelId">
+    /// The app the toasts belong to: <see cref="WindowsAppIdentity.AppUserModelId"/>, or the test app of the test mode (T-067).
+    /// </param>
     public WindowsToastPlatform(
         AppShortcutRegistration registration,
         Func<string?> shortcutPath,
         string? executablePath,
-        ILogger<WindowsToastPlatform> logger)
+        ILogger<WindowsToastPlatform> logger,
+        string appUserModelId = WindowsAppIdentity.AppUserModelId)
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(shortcutPath);
         ArgumentNullException.ThrowIfNull(logger);
+        ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
         _registration = registration;
         _shortcutPath = shortcutPath;
         _executablePath = executablePath;
         _logger = logger;
+        AppUserModelId = appUserModelId;
     }
+
+    /// <summary>The app the toasts and the shortcut belong to.</summary>
+    internal string AppUserModelId { get; }
+
+    /// <summary>Where the shortcut goes (composition tests).</summary>
+    internal Func<string?> ShortcutPath => _shortcutPath;
 
     public IToastSession Open(Action<string?> activated)
     {
         ArgumentNullException.ThrowIfNull(activated);
         RegisterShortcut();
-        return WindowsToastSession.Open(WindowsAppIdentity.AppUserModelId, activated, LogReleaseFailed);
+        return WindowsToastSession.Open(AppUserModelId, activated, LogReleaseFailed);
     }
 
     private void RegisterShortcut()
@@ -74,7 +86,7 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
                 return;
             }
 
-            _registration.Ensure(shortcutPath, new AppShortcut(_executablePath, WindowsAppIdentity.AppUserModelId));
+            _registration.Ensure(shortcutPath, new AppShortcut(_executablePath, AppUserModelId));
         }
         catch (Exception ex)
         {

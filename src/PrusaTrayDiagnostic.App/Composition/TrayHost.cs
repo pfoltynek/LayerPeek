@@ -55,6 +55,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
     private readonly UiLanguage _language;
     private readonly TrayStatusViewModel _status;
     private readonly TrayMenuViewModel _menu;
+#if DEBUG
+    private readonly TestToastCleanup? _testToastCleanup;
+#endif
     private int _stopped;
 
     private TrayHost(
@@ -81,6 +84,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _language = services.GetRequiredService<UiLanguage>();
         _status = services.GetRequiredService<TrayStatusViewModel>();
         _menu = services.GetRequiredService<TrayMenuViewModel>();
+#if DEBUG
+        _testToastCleanup = AppServices.CreateTestToastCleanup(services);
+#endif
         _language.Changed += OnLanguageChanged;
     }
 
@@ -151,7 +157,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
             }
 
             MonitoringSession session = services.GetRequiredService<MonitoringSession>();
+#if DEBUG
+            // The test mode may delay monitoring (T-067): the tray already exists and shows "Starting…" meanwhile.
+            session.Start(initialSettings, environment.TestStartDelay);
+#else
             session.Start(initialSettings);
+#endif
             // Registers the app for toasts in the background now, not with the first notification (T-010).
             if (services.GetRequiredService<INotificationService>() is ToastNotificationService toasts)
             {
@@ -254,6 +265,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
         // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
         await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
+#if DEBUG
+        // Read before the container goes: the toast thread may still be registering the test app (writing its shortcut).
+        Task toastThreadEnded = _testToastCleanup is not null && _services.GetRequiredService<INotificationService>() is ToastNotificationService toastService
+            ? toastService.Completion
+            : Task.CompletedTask;
+#endif
         try
         {
             // The session was stopped above, so disposing it (via the container) does not wait again.
@@ -265,10 +282,61 @@ internal sealed partial class TrayHost : IAsyncDisposable
             LogDisposeFailed(ex);
         }
 
+#if DEBUG
+        await RunTestToastCleanupAsync(_testToastCleanup, toastThreadEnded, _logger).ConfigureAwait(true);
+#endif
+
         _backgroundWork.Dispose();
     }
 
     public ValueTask DisposeAsync() => new(StopAsync(DefaultStopTimeout));
+
+#if DEBUG
+    /// <summary>
+    /// Debug test mode with toasts (T-067): once the toast thread has ended (released, so it can no longer write the
+    /// shortcut while registering), the toasts of the test app leave the notification center and its Start menu shortcut
+    /// is deleted. Off the UI thread (WinRT, multithreaded apartment), each step within its quit limit; never throws (the
+    /// cleanup logs its own failures). A cleanup that cannot finish here is left to <c>--ptd-e2e-clear-toasts</c>.
+    /// </summary>
+    internal static async Task RunTestToastCleanupAsync(TestToastCleanup? cleanup, Task toastThreadEnded, ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(toastThreadEnded);
+        ArgumentNullException.ThrowIfNull(logger);
+        if (cleanup is null || !OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            await toastThreadEnded.WaitAsync(TestToastThreadTimeout).ConfigureAwait(true);
+        }
+        catch (TimeoutException ex)
+        {
+            // Cleaned up anyway: the hung thread most likely is in an OS call, not about to write the shortcut.
+            LogTestToastThreadStillRunning(logger, ex);
+        }
+
+        try
+        {
+            await Task.Run(cleanup.Run, CancellationToken.None).WaitAsync(TestToastCleanupTimeout).ConfigureAwait(true);
+        }
+        catch (TimeoutException ex)
+        {
+            LogTestToastCleanupFailed(logger, ex);
+        }
+    }
+
+    private static readonly TimeSpan TestToastThreadTimeout = TimeSpan.FromSeconds(2);
+
+    private static readonly TimeSpan TestToastCleanupTimeout = TimeSpan.FromSeconds(1);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Test mode: the toast thread did not end while quitting; removing the toasts and the shortcut of the test app anyway.")]
+    private static partial void LogTestToastThreadStillRunning(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Test mode: removing the toasts and the shortcut of the test app did not finish while quitting.")]
+    private static partial void LogTestToastCleanupFailed(ILogger logger, Exception exception);
+#endif
 
     /// <summary>
     /// A save from the settings window that is still running finishes first (at most <see cref="PendingSaveTimeout"/>), so

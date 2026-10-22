@@ -245,6 +245,27 @@ public sealed class PrinterImageSettingsTests : IDisposable
 
     // ---- Custom image ----
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData(@"C:\Temp\ptd-e2e\data")]
+    public async Task TheImageDialogOpensInTheStartFolderOfTheWindow(string? startDirectory)
+    {
+        // The test mode passes its data folder (T-067); otherwise the OS chooses.
+        _store.Data = new SettingsEditorData(new AppSettings { Printers = [LinkPrinter("a", "Alpha")] }, SettingsLoadStatus.Loaded, [], Ids());
+        SettingsViewModel vm = new(_store, _tester, Supported, cameraTester: new FakeCameraTester(), imageImporter: new PrinterImageImporter(_processor))
+        {
+            ImageFilePicker = _picker,
+            ImageStartDirectory = startDirectory,
+        };
+        _viewModel = vm;
+        await vm.LoadAsync();
+
+        await vm.Printers[0].ChooseCustomImageCommand.ExecuteAsync(null);
+
+        Assert.Equal(1, _picker.Calls);
+        Assert.Equal(startDirectory, _picker.StartDirectory);
+    }
+
     [Fact]
     public async Task ImportedImageIsShownAndSavedOnlyWithTheSettings()
     {

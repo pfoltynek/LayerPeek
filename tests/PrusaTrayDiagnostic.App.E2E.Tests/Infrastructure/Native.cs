@@ -208,6 +208,22 @@ internal static partial class Native
     [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool GetCursorPos(out Point point);
 
+    [LibraryImport("user32.dll")]
+    public static partial nint WindowFromPoint(Point point);
+
+    [LibraryImport("user32.dll")]
+    public static partial nint GetAncestor(nint hwnd, uint flags);
+
+    /// <summary>GA_ROOT: the top-level window of a child window.</summary>
+    public const uint GaRoot = 2;
+
+    /// <summary>The top-level window that a click at <paramref name="point"/> would hit (0 when none).</summary>
+    public static nint TopLevelWindowAt(System.Drawing.Point point)
+    {
+        nint hwnd = WindowFromPoint(new Point { X = point.X, Y = point.Y });
+        return hwnd == 0 ? 0 : GetAncestor(hwnd, GaRoot);
+    }
+
     [LibraryImport("user32.dll", EntryPoint = "FindWindowW", StringMarshalling = StringMarshalling.Utf16)]
     public static partial nint FindWindow(string? className, string? windowName);
 

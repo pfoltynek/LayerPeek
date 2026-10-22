@@ -37,6 +37,34 @@ internal partial interface IToastNotificationManagerStatics : IInspectable
     void CreateToastNotifierWithId(nint applicationId, out nint result);
 }
 
+/// <summary>Windows.UI.Notifications.IToastNotificationManagerStatics2 (the same activation factory).</summary>
+[GeneratedComInterface]
+[Guid("7AB93C52-0E48-4750-BA9D-1A4113981847")]
+internal partial interface IToastNotificationManagerStatics2 : IInspectable
+{
+    void GetHistory(out nint value);
+}
+
+/// <summary>Windows.UI.Notifications.IToastNotificationHistory: the toasts of an app in the notification center.</summary>
+[GeneratedComInterface]
+[Guid("5CADDC63-01D3-4C97-986F-0533483FEE14")]
+internal partial interface IToastNotificationHistory : IInspectable
+{
+    void RemoveGroup(nint group);
+
+    void RemoveGroupWithId(nint group, nint applicationId);
+
+    void RemoveGroupedTagWithId(nint tag, nint group, nint applicationId);
+
+    void RemoveGroupedTag(nint tag, nint group);
+
+    void Remove(nint tag);
+
+    void Clear();
+
+    void ClearWithId(nint applicationId);
+}
+
 /// <summary>Windows.UI.Notifications.IToastNotifier.</summary>
 [GeneratedComInterface]
 [Guid("75927B93-03F3-41EC-91D3-6E5BAC1B38E7")]
@@ -124,6 +152,7 @@ internal static class WinRtInterfaceIds
 {
     public static readonly Guid ActivationFactory = new("00000035-0000-0000-C000-000000000046");
     public static readonly Guid ToastNotificationManagerStatics = new("50AC103F-D235-4598-BBEF-98FE4D1A3AD4");
+    public static readonly Guid ToastNotificationManagerStatics2 = new("7AB93C52-0E48-4750-BA9D-1A4113981847");
     public static readonly Guid ToastNotificationFactory = new("04124B20-82C6-4229-B109-FD9ED4662B53");
     public static readonly Guid ToastActivatedHandler = new("AB54DE2D-97D9-5528-B6AD-105AFE156530");
 }

@@ -14,9 +14,10 @@ internal interface IImageFilePicker
     /// <see cref="PrinterImageFormats.MaxSourceBytes"/> + 1 bytes (enough to tell that it is too large); <see langword="null"/>
     /// when the user cancelled. The caller disposes the stream.
     /// </summary>
+    /// <param name="startDirectory">The folder the dialog opens in; <see langword="null"/>: where the OS opens it.</param>
     /// <exception cref="IOException">The chosen file cannot be read.</exception>
     /// <exception cref="UnauthorizedAccessException">Access to the chosen file was denied.</exception>
-    Task<Stream?> PickAsync();
+    Task<Stream?> PickAsync(string? startDirectory = null);
 }
 
 /// <summary>
@@ -25,8 +26,9 @@ internal interface IImageFilePicker
 /// </summary>
 internal sealed class StorageProviderImageFilePicker(TopLevel owner) : IImageFilePicker
 {
-    public async Task<Stream?> PickAsync()
+    public async Task<Stream?> PickAsync(string? startDirectory = null)
     {
+        using IStorageFolder? start = startDirectory is null ? null : await owner.StorageProvider.TryGetFolderFromPathAsync(startDirectory).ConfigureAwait(true);
         FilePickerFileType images = new(Strings.SettingsImagePickerFilter)
         {
             Patterns = ["*.png", "*.jpg", "*.jpeg"],
@@ -37,6 +39,7 @@ internal sealed class StorageProviderImageFilePicker(TopLevel owner) : IImageFil
         {
             Title = Strings.SettingsImagePickerTitle,
             AllowMultiple = false,
+            SuggestedStartLocation = start,
             FileTypeFilter = [images],
         }).ConfigureAwait(true);
         if (files is not [IStorageFile file, ..])

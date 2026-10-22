@@ -224,7 +224,7 @@ public sealed partial class PrinterEditorViewModel
             Stream? stream;
             try
             {
-                stream = await picker.PickAsync().ConfigureAwait(true);
+                stream = await picker.PickAsync(_owner.ImageStartDirectory).ConfigureAwait(true);
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {

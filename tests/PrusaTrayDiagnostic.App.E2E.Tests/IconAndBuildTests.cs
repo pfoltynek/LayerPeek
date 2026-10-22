@@ -24,6 +24,15 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         AppSwitches.NativeLibraryProbeVariable,
         AppSwitches.SecretsFileName,
         AppSwitches.CrashTestMessage,
+        AppSwitches.TestToastsVariable,
+        AppSwitches.TestCredentialPrefixVariable,
+        AppSwitches.TestCredentialPrefixRoot,
+        AppSwitches.TestStartDelayVariable,
+        AppSwitches.ClearToastsArgument,
+        // The name of the test shortcut, with and without its extension (the app name Windows shows in test toasts).
+        AppSwitches.TestShortcutFileName,
+        Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName),
+        AppSwitches.OpenedUrlsFileName,
     ];
 
     [Fact]

@@ -2,6 +2,8 @@ using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.Marshalling;
 using System.Runtime.Versioning;
 
+using PrusaTrayDiagnostic.App.Notifications;
+
 namespace PrusaTrayDiagnostic.App.Platform.Windows;
 
 /// <summary>
@@ -272,6 +274,42 @@ internal sealed partial class ToastActivatedHandler(Action<string?> activated) :
         finally
         {
             ComObjects.Release(eventArgs);
+        }
+    }
+}
+
+/// <summary>
+/// The notification center history of one app (Windows.UI.Notifications.ToastNotificationHistory). Usable from any
+/// thread except an STA that never initialized COM for it: every call joins the multithreaded apartment for its duration.
+/// </summary>
+[SupportedOSPlatform("windows")]
+internal sealed class WinRtToastHistory : IToastHistory
+{
+    /// <exception cref="Exception">WinRT toasts are not available, or Windows refused to clear the history.</exception>
+    public void Clear(string appUserModelId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(appUserModelId);
+        using ComApartment apartment = ComApartment.EnterMultithreaded();
+        using HString className = HString.Create(WinRtClassNames.ToastNotificationManager);
+        Marshal.ThrowExceptionForHR(ComNative.RoGetActivationFactory(className.Handle, in WinRtInterfaceIds.ToastNotificationManagerStatics2, out nint statics));
+        IToastNotificationManagerStatics2 manager = ComObjects.Wrap<IToastNotificationManagerStatics2>(statics);
+        try
+        {
+            manager.GetHistory(out nint history);
+            IToastNotificationHistory toasts = ComObjects.Wrap<IToastNotificationHistory>(history);
+            try
+            {
+                using HString id = HString.Create(appUserModelId);
+                toasts.ClearWithId(id.Handle);
+            }
+            finally
+            {
+                ComObjects.Release(toasts);
+            }
+        }
+        finally
+        {
+            ComObjects.Release(manager);
         }
     }
 }

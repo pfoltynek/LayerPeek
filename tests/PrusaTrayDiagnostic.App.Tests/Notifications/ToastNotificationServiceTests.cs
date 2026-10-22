@@ -247,6 +247,45 @@ public sealed class ToastNotificationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CompletionWaitsForTheThreadToReleaseTheSession()
+    {
+        // The test mode removes the test shortcut only after this (T-067): nothing may touch the OS afterwards.
+        _platform.Session.Block();
+        Service.Show(Notification(PrintEventKind.PrintStarted));
+        await _platform.Session.WaitUntilShowEnteredAsync();
+
+        Service.Dispose();
+        await Task.Delay(100, TestContext.Current.CancellationToken);
+        Assert.False(Service.Completion.IsCompleted);
+
+        _platform.Session.Release();
+        await Service.Completion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        Assert.True(_platform.Session.Disposed);
+    }
+
+    [Fact]
+    public void CompletionIsPendingWhileRunnableAndCompleteAtDisposeWhenNeverStarted()
+    {
+        Assert.False(Service.Completion.IsCompleted);
+
+        Service.Dispose();
+
+        Assert.True(Service.Completion.IsCompletedSuccessfully);
+        Assert.Equal(0, _platform.OpenCount);
+    }
+
+    [Fact]
+    public async Task CompletionCompletesWhenThePlatformIsUnavailable()
+    {
+        _platform.OpenFailure = new InvalidOperationException("No WinRT");
+
+        Service.Start();
+
+        await Service.Completion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        Assert.True(Service.Completion.IsCompletedSuccessfully);
+    }
+
+    [Fact]
     public async Task ClickIsForwarded()
     {
         Service.Start();
