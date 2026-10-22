@@ -1,7 +1,7 @@
 ---
 id: T-065
 title: E2E – infrastruktura zásahů do systému (varování, návrat i po pádu) a přehled pokrytí ručních kontrol
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
@@ -131,12 +131,12 @@ Tento úkol obsahuje i **přehled pokrytí** (níže): ke každé otevřené ru�
 ## Akceptační kritéria
 - [x] `SystemChangeJournal`: záznam před změnou, návrat v `finally`, úklid při startu fixture i skriptu, hlídací proces, `-RestoreOnly`; staré záznamy se vrátí dřív, než se čte nový původní stav (testy)
 - [x] Simulovaný pád (zabitý podřízený proces se zásahem) vrátí původní stav úklidem i hlídacím procesem (test) – sonda ověřena 2026-10-22 (oba způsoby); varianta s motivem čeká na běh se zásahy
-- [ ] `tools/run-e2e.ps1`: testy se zásahy běží ve výchozím stavu; anglické varování se seznamem zásahů a návodem k ručnímu návratu, odpočet 5 s s možností Ctrl+C, `PTD_E2E_SYSTEM_CHANGES` jen po odpočtu, `-NoSystemChanges` (bez varování, testy se zásahy přeskočené), `-RestoreOnly`, úklid v `finally` (ověřeno ručně, zapsáno do poznámek)
+- [x] `tools/run-e2e.ps1`: testy se zásahy běží ve výchozím stavu; anglické varování se seznamem zásahů a návodem k ručnímu návratu, odpočet 5 s s možností Ctrl+C, `PTD_E2E_SYSTEM_CHANGES` jen po odpočtu, `-NoSystemChanges` (bez varování, testy se zásahy přeskočené), `-RestoreOnly`, úklid v `finally` (ověřeno ručně, zapsáno do poznámek)
 - [x] Pojistka: test se zásahem bez potvrzeného varování se přeskočí a nic nezmění (test); zásah nejde vytvořit mimo `SystemChanges`
-- [ ] Zásahy motiv, propagace tray ikony a Nerušit s návratem a ověřením (samotesty); původní hodnoty včetně „chybí“
-- [ ] Po úspěšném i neúspěšném běhu jsou motiv, Nerušit, `NotifyIconSettings` a složka záznamů jako před během (test na konci běhu porovná snímek stavu ze začátku)
+- [x] Zásahy motiv, propagace tray ikony a Nerušit s návratem a ověřením (samotesty); původní hodnoty včetně „chybí“
+- [x] Po úspěšném i neúspěšném běhu jsou motiv, Nerušit, `NotifyIconSettings` a složka záznamů jako před během (test na konci běhu porovná snímek stavu ze začátku)
 - [x] `docs/troubleshooting.md` a nápověda skriptu aktualizované
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování; `tools/run-e2e.ps1` zelené; nový NuGet balíček žádný (případně licence + poznámka, že E2E projekt se nepublikuje, AOT se ho netýká)
+- [x] `dotnet build` a `dotnet test` bez chyb a varování; `tools/run-e2e.ps1` zelené; nový NuGet balíček žádný (případně licence + poznámka, že E2E projekt se nepublikuje, AOT se ho netýká)
 
 ## Otevřené otázky
 - (Q1 a Q2 rozhodnuty 2026-10-22, viz Rozhodnuto)
@@ -173,3 +173,10 @@ Tento úkol obsahuje i **přehled pokrytí** (níže): ke každé otevřené ru�
 - `dotnet build` 0 varování, 0 chyb; `dotnet test` 4658 testů, 0 selhalo (48 přeskočeno: E2E bez `PTD_E2E` a 2 testy App.Tests, protože běží uživatelova instance aplikace). `tools/run-e2e.ps1 -NoSystemChanges`: 96 testů, 0 selhalo, 9 přeskočeno, „nothing pending“ před i po běhu, konec běhu „Differences from the start: none“. `-RestoreOnly` bez záznamů: kód 0.
 - Mimo rozsah (není z T-065): `LogAndSupportTests.SaveDiagnosticBundleThroughTheRealSaveDialog` ve 2 ze 3 plných běhů selhal na `COMException: Operation timed out` v `Ui.Text` uvnitř `Wait.UntilAsync` (UIA volání do okna aplikace během zavírání dialogu Uložit; `Wait` výjimky UIA neopakuje). Samostatně a ve třetím plném běhu prošel.
 - Zbývá: řízený běh se zásahy s uživatelem (kritéria výše zůstávají nezaškrtnutá).
+
+## Ověření během se zásahy (uživatel, Windows 11 26300, 2026-10-22)
+- **Ctrl+C během odpočtu:** běh skončil bez jakékoli změny, výpis „System changes (after the run): nothing pending“.
+- **`-Class '*SystemChange*'`:** 63 testů, 0 selhalo, 3 přeskočené (podřízené a restore-only vstupy). Motiv světlý (jas panelu 219) → tmavý (34) → původní tmavý; propagace tray ikony `IsPromoted` (chybí) → 1 → (chybí), záznam zůstal; Nerušit vypnuto → zapnuto → vypnuto → původní. Zabité podřízené procesy (sonda i motiv) obnovil úklid při startu i samotný hlídací proces; hlídací proces nechal na pokoji záznamy testu, který ještě běžel. Snímek stavu na konci: „Differences from the start: none“.
+- **Plný výchozí běh `tools/run-e2e.ps1`:** 96 testů, 0 selhalo, 4 přeskočené (skutečná kamera nedostupná + 3 vstupy jen pro podřízené / restore-only běhy), 206 s, „nothing pending“.
+- **Zjištění pro T-068:** `SHQueryUserNotificationState` hlásí po celou dobu `QUNS_ACCEPTS_NOTIFICATIONS (5)` i při zapnutém Nerušit – na Windows 11 režim Nerušit neodráží. Stav Nerušit se proto ověřuje jen přepínačem v centru oznámení.
+- **Přesunuto do T-066:** varování teď vypisuje pevný seznam všech druhů zásahů (i škálování, monitor, toasty, hesla, které zatím žádný test nedělá); T-066 ho zúží na zásahy vybraných testů.
