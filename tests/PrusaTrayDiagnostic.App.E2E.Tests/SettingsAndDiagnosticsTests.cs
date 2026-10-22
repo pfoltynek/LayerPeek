@@ -91,7 +91,7 @@ public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
             await CheckDiagnosticsAsync(diagnostics, diagnosticsElement, $"diagnostics-{language}-{id}");
         }
 
-        Assert.DoesNotContain(" Error ", app.ReadLog(), StringComparison.Ordinal);
+        Assert.DoesNotContain(" ERR ", app.ReadLog(), StringComparison.Ordinal);
         AssertNothingScrolled();
     }
 

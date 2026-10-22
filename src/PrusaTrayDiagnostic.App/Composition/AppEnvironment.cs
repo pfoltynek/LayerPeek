@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.App.Composition;
@@ -52,26 +50,14 @@ internal sealed class AppEnvironment
     internal const string TestAppUserModelId = "PrusaTrayDiagnostic.E2E";
 
     /// <summary>
-    /// The logger factory of the app: no providers yet (file logging follows in T-024); in the test mode of Debug builds the
-    /// messages go to a file in the test data folder.
+    /// The folder of the log files (T-024): the standard log folder of the OS, in the test mode the <c>logs</c> folder in the
+    /// test data folder.
     /// </summary>
-    public ILoggerFactory CreateLoggerFactory()
-    {
-        // Only the test mode (never in Release builds) has a folder to log into.
-        string? testLogDirectory = IsIsolated ? DataDirectory() : null;
-        return LoggerFactory.Create(builder =>
-        {
-#if DEBUG
-            if (testLogDirectory is not null)
-            {
-                builder.SetMinimumLevel(LogLevel.Debug);
-                builder.AddProvider(new TestModeLogProvider(testLogDirectory));
-            }
-#else
-            _ = testLogDirectory;
-#endif
-        });
-    }
+    /// <exception cref="InvalidOperationException">The OS does not provide a per-user folder for logs.</exception>
+    public string LogDirectory() => _dataDirectory is null ? AppDataPaths.GetDefaultLogDirectory() : Path.Combine(_dataDirectory, TestLogFolderName);
+
+    /// <summary>The log folder inside the test data folder.</summary>
+    internal const string TestLogFolderName = "logs";
 
 #if DEBUG
     /// <summary>

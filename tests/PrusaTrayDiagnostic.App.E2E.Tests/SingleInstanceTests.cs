@@ -63,5 +63,10 @@ public sealed class SingleInstanceTests(E2EFixture fixture)
 
         Assert.Equal(0, second.ExitCode);
         Assert.Equal([app.Process.Id], AppProcesses.FindMarked(app.RunDirectory));
+
+        // T-024: the second start wrote its records into the same log file before it exited; the first one keeps writing.
+        string log = app.ReadLog();
+        Assert.Contains($"[pid {second.Id}] PrusaTrayDiagnostic.App.Program: Another instance is running", log, StringComparison.Ordinal);
+        Assert.Contains($"[pid {app.Process.Id}] ", log, StringComparison.Ordinal);
     }
 }

@@ -23,7 +23,6 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         AppSwitches.ForwardOnlyVariable,
         AppSwitches.NativeLibraryProbeVariable,
         AppSwitches.SecretsFileName,
-        AppSwitches.LogFileName,
     ];
 
     [Fact]

@@ -141,6 +141,36 @@ public sealed class WindowsCredentialSecretStoreTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task ForeignNonUtf8CredentialFailsWithoutQuotingItsBytes()
+    {
+        // Written by another program: 0xC3 0x28 is not UTF-8. The decoder's message would quote these bytes, and logged
+        // exceptions go to the log file whole (T-024).
+        WriteRawCredential($"{_prefix}/foreign", [0x41, 0xC3, 0x28, 0x42]);
+
+        SecretStoreException ex = await Assert.ThrowsAsync<SecretStoreException>(() => _store.GetAsync("foreign", Ct));
+
+        Assert.Null(ex.InnerException);
+        Assert.DoesNotContain("C3", ex.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static unsafe void WriteRawCredential(string target, byte[] blob)
+    {
+        fixed (char* targetName = target)
+        fixed (byte* blobPointer = blob)
+        {
+            CredentialManagerNative.Credential credential = new()
+            {
+                Type = CredentialManagerNative.CredTypeGeneric,
+                TargetName = targetName,
+                CredentialBlobSize = (uint)blob.Length,
+                CredentialBlob = blobPointer,
+                Persist = CredentialManagerNative.CredPersistSession,
+            };
+            Assert.True(CredentialManagerNative.CredWrite(&credential, 0));
+        }
+    }
+
+    [Fact]
     public void CancelledTokenIsReportedThroughTask()
     {
         CancellationToken cancelled = new(canceled: true);

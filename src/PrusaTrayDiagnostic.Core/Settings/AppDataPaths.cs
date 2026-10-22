@@ -2,7 +2,8 @@ namespace PrusaTrayDiagnostic.Core.Settings;
 
 /// <summary>
 /// Per-user application data location:
-/// <c>%APPDATA%\PrusaTrayDiagnostic</c> on Windows, <c>~/Library/Application Support/PrusaTrayDiagnostic</c> on macOS.
+/// <c>%APPDATA%\PrusaTrayDiagnostic</c> on Windows, <c>~/Library/Application Support/PrusaTrayDiagnostic</c> on macOS;
+/// logs live elsewhere (<see cref="GetDefaultLogDirectory"/>).
 /// </summary>
 public static class AppDataPaths
 {
@@ -23,4 +24,22 @@ public static class AppDataPaths
 
         return Path.Combine(root, AppFolderName);
     }
+
+    /// <summary>
+    /// The standard per-user log folder of the OS (T-024): <c>%LOCALAPPDATA%\PrusaTrayDiagnostic\logs</c> on Windows (logs
+    /// stay on the machine, never roam), <c>~/Library/Logs/PrusaTrayDiagnostic</c> on macOS (where Console.app looks).
+    /// </summary>
+    /// <exception cref="InvalidOperationException">The OS does not provide a per-user folder for logs.</exception>
+    public static string GetDefaultLogDirectory()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return Path.Combine(FullyQualified(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)), "Library", "Logs", AppFolderName);
+        }
+
+        return Path.Combine(FullyQualified(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)), AppFolderName, "logs");
+    }
+
+    private static string FullyQualified(string root) =>
+        Path.IsPathFullyQualified(root) ? root : throw new InvalidOperationException("The per-user folder for logs is not available.");
 }

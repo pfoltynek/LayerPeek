@@ -5,6 +5,7 @@ using Avalonia.Markup.Xaml;
 
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Diagnostics;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
@@ -22,6 +23,9 @@ public partial class App : Application, ITrayAppCommands
 
     /// <summary>Extra time for releasing services after <see cref="QuitTimeout"/>; then the app exits regardless.</summary>
     private static readonly TimeSpan QuitGrace = TimeSpan.FromSeconds(2);
+
+    /// <summary>Writing the log queue at exit never holds the end of the session up longer (a hanging disk).</summary>
+    private static readonly TimeSpan LogFlushTimeout = TimeSpan.FromSeconds(2);
 
     // One instance each; closing a window never quits the app (ShutdownMode.OnExplicitShutdown).
     private readonly AuxiliaryWindowSlot _aboutWindow = new();
@@ -44,23 +48,29 @@ public partial class App : Application, ITrayAppCommands
     // Data folder and isolation of this run (T-044: the test mode of Debug builds).
     private readonly AppEnvironment _environment;
 
+    // The logging of the process, owned by Program.Main (T-024).
+    private readonly AppLogging _logging;
+
     // The OS ended the session (desktop Exit) before the host finished starting.
     private bool _exited;
 
     /// <summary>Designer and tests: commands of later starts are not received.</summary>
     public App()
-        : this(new InstanceCommandQueue(), AppEnvironment.Production)
+        : this(new InstanceCommandQueue(), AppEnvironment.Production, AppLogging.Disabled())
     {
     }
 
     /// <param name="instanceCommands">Filled by the single-instance server of <c>Program.Main</c> (T-043).</param>
     /// <param name="environment">Data folder and isolation of this run (T-044).</param>
-    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment)
+    /// <param name="logging">The logging of the process; <c>Program.Main</c> disposes it after the app ends (T-024).</param>
+    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging)
     {
         ArgumentNullException.ThrowIfNull(instanceCommands);
         ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(logging);
         _instanceCommands = instanceCommands;
         _environment = environment;
+        _logging = logging;
     }
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
@@ -142,12 +152,12 @@ public partial class App : Application, ITrayAppCommands
     /// </summary>
     private async void StartHost(IClassicDesktopStyleApplicationLifetime desktop, TrayIcon? trayIcon)
     {
-        TrayHost host = await TrayHost.StartAsync(trayIcon, this, _environment).ConfigureAwait(true);
+        TrayHost host = await TrayHost.StartAsync(trayIcon, this, _environment, _logging).ConfigureAwait(true);
         if (_exited)
         {
             // The OS ended the session while the settings were loading.
             host.RequestStop();
-            host.ReleaseLogging();
+            _logging.Flush(LogFlushTimeout);
             return;
         }
 
@@ -296,7 +306,8 @@ public partial class App : Application, ITrayAppCommands
             _host?.RequestStop();
         }
 
-        // Last: quitting may still have logged a stop failure or timeout just before the shutdown.
-        _host?.ReleaseLogging();
+        // Last: quitting may still have logged a stop failure or timeout just before the shutdown. Main may not get to
+        // dispose the logging when the OS ends the session, so the queue is written now.
+        _logging.Flush(LogFlushTimeout);
     }
 }

@@ -31,6 +31,6 @@ internal static class AppSwitches
     /// <summary>Secrets file of the test mode: key, tab, secret per line.</summary>
     public const string SecretsFileName = "test-secrets.txt";
 
-    /// <summary>Log of the test mode in the data folder.</summary>
-    public const string LogFileName = "test-log.txt";
+    /// <summary>The current log file of the test mode, relative to the data folder (T-024).</summary>
+    public static readonly string LogFile = Path.Combine("logs", "PrusaTrayDiagnostic.log");
 }

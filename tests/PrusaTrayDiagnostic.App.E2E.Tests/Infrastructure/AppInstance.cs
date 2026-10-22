@@ -299,7 +299,7 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <summary>The app's test log (what it did, any errors) goes to the results next to the screenshots.</summary>
     private void KeepLog()
     {
-        string log = Path.Combine(DataDirectory, AppSwitches.LogFileName);
+        string log = Path.Combine(DataDirectory, AppSwitches.LogFile);
         if (File.Exists(log))
         {
             File.Copy(log, Path.Combine(E2EFixture.ResultsDirectory, $"log-{Name}.txt"), overwrite: true);
@@ -309,7 +309,7 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <summary>The app's test log so far (for assertion messages).</summary>
     public string ReadLog()
     {
-        string log = Path.Combine(DataDirectory, AppSwitches.LogFileName);
+        string log = Path.Combine(DataDirectory, AppSwitches.LogFile);
         try
         {
             using FileStream stream = new(log, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

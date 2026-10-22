@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Diagnostics;
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
@@ -92,12 +93,14 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <param name="trayIcon">Tray icon to drive; <see langword="null"/> when the platform has none (monitoring still runs).</param>
     /// <param name="commands">Diagnostics / About / Quit handlers of the tray menu.</param>
     /// <param name="environment">Data folder and isolation of this run (T-044).</param>
-    public static async Task<TrayHost> StartAsync(TrayIcon? trayIcon, ITrayAppCommands commands, AppEnvironment environment)
+    /// <param name="logging">The logging of the process (T-024); owned by <c>Program.Main</c>, it outlives the host.</param>
+    public static async Task<TrayHost> StartAsync(TrayIcon? trayIcon, ITrayAppCommands commands, AppEnvironment environment, AppLogging logging)
     {
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(environment);
-        // Owned here, not by the container: it must outlive the container dispose during quit (see ReleaseLogging).
-        ILoggerFactory loggerFactory = environment.CreateLoggerFactory();
+        ArgumentNullException.ThrowIfNull(logging);
+        // Not owned by the container: it outlives the container dispose during quit.
+        ILoggerFactory loggerFactory = logging.Factory;
         ServiceProvider services = AppServices.Create(loggerFactory, environment: environment);
         // Concrete type here; the field is ITrayIconSet so that T-018 can select the macOS set by OS.
         ColorTrayIconSet? iconSet = null;
@@ -175,7 +178,6 @@ internal sealed partial class TrayHost : IAsyncDisposable
             iconSet?.Dispose();
             backgroundWork.Dispose();
             services.Dispose();
-            loggerFactory.Dispose();
             throw;
         }
     }
@@ -216,7 +218,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
     }
 
-    /// <summary>Creates loggers for UI objects outside the container; valid until <see cref="ReleaseLogging"/>.</summary>
+    /// <summary>Creates loggers for UI objects outside the container.</summary>
     public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
 
     /// <summary>
@@ -257,12 +259,6 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
         _backgroundWork.Dispose();
     }
-
-    /// <summary>
-    /// Disposes the logger factory (flushing providers, T-024). Call last, after the application shut down; loggers
-    /// created by <see cref="CreateLogger{T}"/> must not be used afterwards.
-    /// </summary>
-    public void ReleaseLogging() => _loggerFactory.Dispose();
 
     public ValueTask DisposeAsync() => new(StopAsync(DefaultStopTimeout));
 

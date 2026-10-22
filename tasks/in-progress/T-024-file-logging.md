@@ -1,7 +1,7 @@
 ---
 id: T-024
 title: Logování do souboru
-status: todo
+status: in-progress
 owner: core-dev
 priority: P2
 platform: all
@@ -39,15 +39,16 @@ Na tento úkol navazují T-046 (neošetřené výjimky), T-047 (přepínač Debu
 ## Akceptační kritéria
 - [ ] Release build zapisuje logy do `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` (Windows) / `~/Library/Logs/PrusaTrayDiagnostic` (macOS; skutečné ověření v T-019), testovací režim do testovací složky; výchozí úroveň `Information`; rotace 1 MB × 5 souborů funguje
 - [ ] Každý řádek obsahuje čas s posunem, úroveň, PID a kategorii; výjimky celé se stack trace (ověřeno i v AOT publish win-x64 ruční kontrolou souboru)
-- [ ] Druhé spuštění zapíše své řádky do stejného souboru před ukončením `Main`; první instance o žádné řádky nepřijde a soubor nezamkne; rotuje jen primární instance
-- [ ] Minimální úroveň jde přepnout za běhu (API pro T-047), testy
-- [ ] Testy provideru: formát, rotace, dva nezávislí zapisovatelé do jednoho souboru (žádné ztracené ani prolnuté řádky), souběžný zápis z více vláken, přetečení fronty, flush při ukončení, zápis po uvolnění nehází; testy po sobě nic nenechají (per-worktree složky z T-032), ani po pádu
-- [ ] Revize existujících log zpráv: žádné tajné údaje (výsledek v Poznámkách k implementaci)
-- [ ] Varování T-052 o selhání `NativeLibrarySearch.Restrict()` (omezení hledání DLL) se dostane do souboru s logem; `Restrict()` zůstává prvním příkazem `Program.Main` a varování se zaloguje až po vytvoření logger factory
-- [ ] `docs/architecture.md` doplněna (oddíl Logování)
-- [ ] Žádný nový NuGet balíček; `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
+- [x] Druhé spuštění zapíše své řádky do stejného souboru před ukončením `Main`; první instance o žádné řádky nepřijde a soubor nezamkne; rotuje jen primární instance
+- [x] Minimální úroveň jde přepnout za běhu (API pro T-047), testy
+- [x] Testy provideru: formát, rotace, dva nezávislí zapisovatelé do jednoho souboru (žádné ztracené ani prolnuté řádky), souběžný zápis z více vláken, přetečení fronty, flush při ukončení, zápis po uvolnění nehází; testy po sobě nic nenechají (per-worktree složky z T-032), ani po pádu
+- [x] Revize existujících log zpráv: žádné tajné údaje (výsledek v Poznámkách k implementaci)
+- [x] Varování T-052 o selhání `NativeLibrarySearch.Restrict()` (omezení hledání DLL) se dostane do souboru s logem; `Restrict()` zůstává prvním příkazem `Program.Main` a varování se zaloguje až po vytvoření logger factory
+- [x] `docs/architecture.md` doplněna (oddíl Logování)
+- [x] Žádný nový NuGet balíček; `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
 ## Rozhodnuto
+- **Zámek logu pro všechny relace (2026-10-22):** na Windows je mutex souboru v globálním jmenném prostoru (`Global`), protože týž uživatel přihlášený zároveň na konzoli a přes vzdálenou plochu má dvě primární instance a jeden soubor v `%LOCALAPPDATA%`.
 - **Výchozí úroveň (2026-10-21):** `Information`. Podrobné logování (`Debug`) jde zapnout v nastavení (T-047).
 - **Rotace (2026-10-21):** podle velikosti, 1 MB × 5 souborů.
 - **Druhá instance (2026-10-21):** zapisuje do stejného souboru připisováním se sdíleným přístupem, každý řádek nese PID, rotuje jen primární instance.
@@ -57,3 +58,12 @@ Na tento úkol navazují T-046 (neošetřené výjimky), T-047 (přepínač Debu
 - (žádné)
 
 ## Poznámky k implementaci
+- **Provider:** `App/Logging`: `AppLogging` (factory + provider, vlastník `Program.Main`), `FileLogProvider` (omezená fronta 10 000 záznamů, vlastní vlákno na pozadí, ne thread pool, aby zápis fungoval i při vyčerpaném poolu v T-046), `LogFile` (zápis pod pojmenovaným mutexem souboru na skutečný konec přes `RandomAccess`, soubor otevřený na každou dávku se sdílením `ReadWrite | Delete`), `LogLineFormatter`, `LogLevelSwitch`. Místo `Channel<T>` je fronta seznam pod zámkem s `Monitor.Wait`: synchronní `Flush` bez závislosti na thread poolu a jednoduché počítání zapsaných záznamů.
+- **Ztráty:** přetečení fronty i selhání zápisu (plný disk, práva, druhý proces drží zámek déle než 2 s) záznamy zahodí a další úspěšná dávka zapíše `Log messages lost: N (důvod).` Bez zámku se nezapisuje nikdy (hrozilo by přepsání záznamů druhého procesu). Záznam bez konce řádku po přerušeném zápisu dostane `\n`.
+- **Rotace:** aktuální soubor se nejdřív jedním přejmenováním odsune na `PrusaTrayDiagnostic.rotating.log`, pak se posunou starší soubory jen po první mezeru a odsunutý soubor se stane `.1`. Opakovaná nepovedená rotace tak nikdy nepřijde o starší soubory (nález review); přerušenou rotaci dokončí primární instance při prvním zápisu.
+- **`TestModeLogProvider` (T-044) nahrazen:** testovací režim zapisuje stejným providerem do `logs/PrusaTrayDiagnostic.log` v testovací složce (úroveň `Debug`); E2E testy čtou tento soubor (`AppSwitches.LogFile`), kontrola chyb hledá ` ERR `. Release build už název logu obsahuje, proto zmizel ze seznamu přepínačů jen pro Debug.
+- **Životnost:** `AppLogging` vzniká v `Program.Main` hned po `NativeLibrarySearch.Restrict()` (zůstává prvním příkazem) a zaloguje start (verze, OS) i případné varování T-052. Rotaci zapne až primární instance po `SingleInstanceGuard`. `App.OnDesktopExit` jen vyprázdní frontu (`Flush`, 2 s). `AppLogging.Dispose` uvolní jen provider, factory zůstává použitelná (pozdní `CreateLogger` nehází).
+- **Revize tajných údajů (124 `[LoggerMessage]`, žádné jiné logování):** žádná zpráva nezapisuje heslo, klíč, token ani adresu s přihlašovacími údaji (adresy kamer přes `UriRedaction`, cesty proxy bez tokenu a dotazu, logy `HttpClient` a Kestrelu vypnuté, výjimky PrusaLink nesou nejvýš host:port). Jediný nález opraven: `WindowsCredentialSecretStore` při čtení hesla, které není platné UTF-8, řetězil `DecoderFallbackException`, jejíž zpráva cituje bajty hesla. Teď se neřetězí (test `ForeignNonUtf8CredentialFailsWithoutQuotingItsBytes`). Výjimky kamer jsou bezpečné jen díky smlouvě `CameraFeedException` (zpráva bez adresy) – to musí dodržet i budoucí dekodéry.
+- **AOT:** `StackTraceSupport` ani `UseSystemResourceKeys` projekt nemění (výchozí: stack trace s názvy metod, plné zprávy). AOT publish win-x64 bez varování (2026-10-21).
+- **Ověřeno:** `dotnet build` bez varování, všechny testy zelené, App E2E zelené včetně nové kontroly, že druhé spuštění zapíše své řádky do společného logu (`SingleInstanceTests`); `TrayMenuTests` byl tehdy nestabilní (T-062).
+- **Zbývá ručně (proto úkol zůstává v in-progress):** spustit Release/AOT build win-x64 a zkontrolovat soubor v `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` (formát, start, rotace po 1 MB) a že výjimka v logu má stack trace s názvy metod – nejsnáz spolu s ruční kontrolou vynuceného pádu v T-046. macOS ověří T-019.

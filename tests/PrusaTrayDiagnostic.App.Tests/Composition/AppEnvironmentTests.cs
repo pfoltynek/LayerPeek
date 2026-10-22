@@ -6,8 +6,10 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Composition;
+using PrusaTrayDiagnostic.App.Logging;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Tests.Logging;
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Notifications;
@@ -151,21 +153,24 @@ public sealed class AppEnvironmentTests
     }
 
     [Fact]
-    public void TestModeLogsIntoItsFolderAndProductionNowhere()
+    public void TestModeLogsIntoItsFolderAndProductionIntoTheLogFolderOfTheOs()
     {
         string folder = TestDirectories.NewDirectoryPath();
         try
         {
-            using (ILoggerFactory logging = AppEnvironment.ForTests(folder).CreateLoggerFactory())
+            AppEnvironment environment = AppEnvironment.ForTests(folder);
+            Assert.Equal(Path.Combine(environment.DataDirectory(), "logs"), environment.LogDirectory());
+            using (AppLogging logging = AppLogging.Create(environment))
             {
-                logging.CreateLogger("E2E").Log(LogLevel.Information, new EventId(1), "Window opened.", null, static (state, _) => state);
+                Assert.Equal(LogLevel.Debug, logging.Level.MinimumLevel);
+                logging.Factory.CreateLogger("E2E").Write(LogLevel.Debug, "Window opened.");
             }
 
-            string log = File.ReadAllText(Path.Combine(folder, TestModeLogProvider.FileName));
-            Assert.Contains("Information E2E: Window opened.", log, StringComparison.Ordinal);
+            string log = File.ReadAllText(LogFile.PathOf(environment.LogDirectory(), 0));
+            Assert.Contains(" DBG [pid ", log, StringComparison.Ordinal);
+            Assert.Contains("] E2E: Window opened.", log, StringComparison.Ordinal);
 
-            using ILoggerFactory production = AppEnvironment.Production.CreateLoggerFactory();
-            Assert.False(production.CreateLogger("E2E").IsEnabled(LogLevel.Critical));
+            Assert.Equal(AppDataPaths.GetDefaultLogDirectory(), AppEnvironment.Production.LogDirectory());
         }
         finally
         {
@@ -202,6 +207,7 @@ public sealed class AppEnvironmentTests
         (string Pattern, string[] AllowedFiles)[] rules =
         [
             (@"AppDataPaths\.GetDefaultDirectory", ["Composition/AppEnvironment.cs"]),
+            (@"AppDataPaths\.GetDefaultLogDirectory", ["Composition/AppEnvironment.cs"]),
             (@"\.CreateDefault\(", []),
             // The Start menu folder of the toast shortcut: only reached through toasts, which the test mode switches off.
             (@"Environment\.GetFolderPath|SpecialFolder\.", ["Platform/Windows/AppShortcutRegistration.cs"]),
