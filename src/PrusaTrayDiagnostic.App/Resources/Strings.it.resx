@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>Impossibile aprire la cartella dei registri.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Copia informazioni negli appunti</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Versione, sistema, stato delle stampanti e le ultime 200 righe del registro come testo, in inglese.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Copiato</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Impossibile copiare le informazioni negli appunti. Riprova.</value>
+  </data>
 </root>

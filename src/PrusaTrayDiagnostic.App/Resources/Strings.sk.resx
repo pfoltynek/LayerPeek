@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>Priečinok s logmi sa nepodarilo otvoriť.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Kopírovať info do schránky</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Verzia, systém, stavy tlačiarní a posledných 200 riadkov logu ako text, v angličtine.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Skopírované</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Informácie sa nepodarilo skopírovať do schránky. Skúste to znova.</value>
+  </data>
 </root>

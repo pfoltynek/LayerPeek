@@ -31,6 +31,12 @@
     <Style Selector="TextBlock.supportStatus.isError">
       <Setter Property="Foreground" Value="{DynamicResource SupportErrorBrush}" />
     </Style>
+    <Style Selector="Button.copied TextBlock.copyText">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="Button:not(.copied) TextBlock.copiedText">
+      <Setter Property="Opacity" Value="0" />
+    </Style>
   </Window.Styles>
   <!-- Fixed width (T-048 design): a status or a longer translation wraps instead of widening the window. -->
   <StackPanel Margin="24" Spacing="8" Width="400">
@@ -48,12 +54,26 @@
     <!-- T-048/T-049: support actions, one group below the links (buttons: actions, not navigation). -->
     <TextBlock AutomationProperties.AutomationId="SupportHeading" Margin="0,8,0,-4" FontWeight="SemiBold" Text="{Binding SupportHeading}" />
     <!-- One Auto column: the buttons share the width of the widest. -->
-    <Grid Classes="support" ColumnDefinitions="Auto" RowDefinitions="Auto,8,Auto" HorizontalAlignment="Left">
+    <Grid Classes="support" ColumnDefinitions="Auto" RowDefinitions="Auto,8,Auto,8,Auto" HorizontalAlignment="Left">
       <Button AutomationProperties.AutomationId="SupportSaveBundle"
               ToolTip.Tip="{Binding SaveBundleTip}"
               Content="{Binding SaveBundleText}"
               Command="{Binding SaveBundleCommand}" />
+      <!-- T-049: both texts stay in the layout (one hidden), so the width never changes when it says "Copied"; screen readers get
+           the button name instead (CopyButtonName, announced on change). -->
       <Button Grid.Row="2"
+              AutomationProperties.AutomationId="SupportCopyInfo"
+              AutomationProperties.Name="{Binding CopyButtonName}"
+              AutomationProperties.LiveSetting="Polite"
+              ToolTip.Tip="{Binding CopyInfoTip}"
+              Classes.copied="{Binding IsInfoCopied}"
+              Command="{Binding CopyInfoCommand}">
+        <Panel>
+          <TextBlock Classes="copyText" AutomationProperties.AccessibilityView="Raw" Text="{Binding CopyInfoText}" />
+          <TextBlock Classes="copiedText" AutomationProperties.AccessibilityView="Raw" Text="{Binding CopiedText}" />
+        </Panel>
+      </Button>
+      <Button Grid.Row="4"
               AutomationProperties.AutomationId="SupportOpenLogFolder"
               Content="{Binding OpenLogFolderText}"
               Command="{Binding OpenLogFolderCommand}" />

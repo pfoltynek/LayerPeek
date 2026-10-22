@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>Nie udało się otworzyć folderu z logami.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Kopiuj informacje do schowka</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Wersja, system, stan drukarek i ostatnie 200 wierszy logu jako tekst, po angielsku.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Skopiowano</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Nie udało się skopiować informacji do schowka. Spróbuj ponownie.</value>
+  </data>
 </root>

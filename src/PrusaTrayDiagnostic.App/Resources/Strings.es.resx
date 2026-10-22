@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>No se pudo abrir la carpeta de registros.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Copiar información al portapapeles</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Versión, sistema, estado de las impresoras y las últimas 200 líneas del registro como texto, en inglés.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Copiado</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>No se pudo copiar la información al portapapeles. Inténtelo de nuevo.</value>
+  </data>
 </root>

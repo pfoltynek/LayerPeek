@@ -28,6 +28,10 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     private readonly IUrlLauncher _launcher;
     private readonly string _version;
     private readonly SupportActions? _support;
+    private readonly TimeProvider _time;
+
+    // Counts the copies, so that only the newest one ends the "Copied" feedback (a repeated click restarts it).
+    private int _copyGeneration;
 
     // The outcome of the last support action, formatted again after a language switch; null: none shown.
     private Func<string>? _supportStatus;
@@ -41,12 +45,14 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     {
     }
 
-    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly, SupportActions? support = null)
+    /// <param name="time">Clock of the "Copied" feedback (tests); the system clock by default.</param>
+    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly, SupportActions? support = null, TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(assembly);
         _launcher = launcher;
         _support = support;
+        _time = time ?? TimeProvider.System;
         _version = ProductVersion(assembly);
         Copyright = ProductCopyright(assembly);
         FormatTexts();
@@ -79,6 +85,22 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     public string OpenLogFolderText { get; private set; } = string.Empty;
 
+    public string CopyInfoText { get; private set; } = string.Empty;
+
+    public string CopyInfoTip { get; private set; } = string.Empty;
+
+    /// <summary>"✓ Copied", shown on the copy button for <see cref="CopiedFeedback"/> instead of its text (T-049).</summary>
+    public string CopiedText { get; private set; } = string.Empty;
+
+    /// <summary>The info was just copied: the copy button shows <see cref="CopiedText"/>.</summary>
+    public bool IsInfoCopied { get; private set; }
+
+    /// <summary>
+    /// The accessible name of the copy button: what it shows. Its change is announced (live region), the hidden text of the
+    /// button is not exposed at all.
+    /// </summary>
+    public string CopyButtonName => IsInfoCopied ? CopiedText : CopyInfoText;
+
     /// <summary>The outcome of the last support action (saving, saved, an error), or <see langword="null"/>.</summary>
     public string? SupportStatusText { get; private set; }
 
@@ -86,6 +108,12 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     /// <summary>The save dialog of the bundle; set by the window (it owns the dialog).</summary>
     internal IBundleFilePicker? BundlePicker { get; set; }
+
+    /// <summary>The clipboard of the window; set by the window.</summary>
+    internal ISupportClipboard? Clipboard { get; set; }
+
+    /// <summary>How long the copy button says "Copied".</summary>
+    internal static TimeSpan CopiedFeedback { get; } = TimeSpan.FromSeconds(2);
 
     /// <summary>UI thread: the language changed; every text is formatted again, also in the licences window.</summary>
     public void RefreshTexts()
@@ -144,6 +172,9 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
         SaveBundleText = Strings.SupportSaveBundle;
         SaveBundleTip = Strings.SupportSaveBundleTip;
         OpenLogFolderText = Strings.SupportOpenLogFolder;
+        CopyInfoText = Strings.SupportCopyInfo;
+        CopyInfoTip = Strings.SupportCopyInfoTip;
+        CopiedText = "✓ " + Strings.SupportCopied;
         SupportStatusText = _supportStatus?.Invoke();
     }
 
@@ -181,6 +212,56 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
             ShowSupportStatus(static () => Strings.SupportBundleSaving, isError: false);
             bool saved = await _support.SaveBundleAsync(target).ConfigureAwait(true);
             ShowSupportStatus(saved ? static () => Strings.SupportBundleSaved : static () => Strings.SupportBundleFailed, isError: !saved);
+        }
+    }
+
+    /// <summary>
+    /// "Copy info to clipboard" (T-049): the text is built off the UI thread, only the clipboard write runs here. The
+    /// button says "Copied" for <see cref="CopiedFeedback"/>; a failure (logged) goes to the status line.
+    /// </summary>
+    [RelayCommand]
+    private async Task CopyInfoAsync()
+    {
+        if (_support is null || Clipboard is not { } clipboard)
+        {
+            return;
+        }
+
+        int generation = ++_copyGeneration;
+        SetInfoCopied(false);
+        if (!await _support.CopyInfoAsync(clipboard).ConfigureAwait(true))
+        {
+            ShowSupportStatus(static () => Strings.SupportCopyFailed, isError: true);
+            return;
+        }
+
+        if (!SaveBundleCommand.IsRunning)
+        {
+            ShowSupportStatus(null, isError: false);
+        }
+
+        SetInfoCopied(true);
+        // Outside the command, so that the button stays enabled meanwhile (another click copies again and restarts it).
+        _ = EndCopiedFeedbackAsync(generation);
+    }
+
+    private async Task EndCopiedFeedbackAsync(int generation)
+    {
+        await Task.Delay(CopiedFeedback, _time).ConfigureAwait(true);
+        if (generation == _copyGeneration)
+        {
+            SetInfoCopied(false);
+        }
+    }
+
+    /// <summary>Switches the "Copied" feedback of the copy button (also the layout tests).</summary>
+    internal void SetInfoCopied(bool copied)
+    {
+        if (IsInfoCopied != copied)
+        {
+            IsInfoCopied = copied;
+            OnPropertyChanged(nameof(IsInfoCopied));
+            OnPropertyChanged(nameof(CopyButtonName));
         }
     }
 

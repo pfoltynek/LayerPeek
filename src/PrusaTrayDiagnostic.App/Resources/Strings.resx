@@ -964,4 +964,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>The log folder could not be opened.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Copy info to clipboard</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Version, system, printer states and the last 200 log lines as text, in English.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Copied</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>The information could not be copied to the clipboard. Try again.</value>
+  </data>
 </root>

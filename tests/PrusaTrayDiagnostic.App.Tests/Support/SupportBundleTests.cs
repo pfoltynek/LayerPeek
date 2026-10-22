@@ -87,6 +87,35 @@ public sealed class SupportBundleTests : IDisposable
     }
 
     [Fact]
+    public async Task ClipboardTextHoldsNoSecret()
+    {
+        // T-049: the same settings and log as the bundle; the clipboard text must not carry a secret either.
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        Directory.CreateDirectory(DataDirectory);
+        string streamUrl = $"rtsp://{CameraUser}:{CameraPassword}@192.168.0.50/live?token={CameraToken}";
+        await File.WriteAllTextAsync(
+            Path.Combine(DataDirectory, JsonSettingsStore.FileName),
+            "{ \"version\": 1, \"printers\": [ { \"id\": \"mk4\", \"name\": \"Workshop MK4\", \"connectionType\": \"PrusaLink\", "
+            + "\"address\": \"192.168.0.226\", \"camera\": { \"enabled\": true, \"streamUrl\": \"" + streamUrl + "\" } } ] }",
+            ct);
+        using JsonSettingsStore store = new(DataDirectory);
+        AppSettings settings = (await store.LoadAsync(ct)).Settings;
+        FakeSecretStore secrets = new();
+        await secrets.SetAsync(SecretKeys.ForPrinter("mk4"), PrinterPassword, ct);
+        await secrets.SetAsync("prusa-connect", ApiKey, ct);
+        (SupportActions support, ILoggerFactory logging) = CreateSupport(settings);
+        logging.CreateLogger("Camera").Write(LogLevel.Warning, $"Camera stream failed: {UriRedaction.Redact(new Uri(streamUrl))}");
+
+        string text = await support.BuildClipboardTextAsync(ct);
+
+        Assert.Contains("Camera stream failed: rtsp://***@192.168.0.50/live?***", text, StringComparison.Ordinal);
+        foreach (string secret in new[] { PrinterPassword, ApiKey, CameraPassword, CameraUser, CameraToken })
+        {
+            Assert.DoesNotContain(secret, text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public async Task FailedBundleIsDeleted()
     {
         (SupportActions support, _) = CreateSupport(new AppSettings());

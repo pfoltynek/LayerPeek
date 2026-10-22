@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>Složku s logy se nepodařilo otevřít.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Kopírovat info do schránky</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Verze, systém, stavy tiskáren a posledních 200 řádků logu jako text, anglicky.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Zkopírováno</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Informace se nepodařilo zkopírovat do schránky. Zkuste to znovu.</value>
+  </data>
 </root>
