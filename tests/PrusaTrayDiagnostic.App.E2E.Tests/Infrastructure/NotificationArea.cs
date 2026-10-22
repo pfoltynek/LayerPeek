@@ -66,6 +66,9 @@ internal static class NotificationArea
         return (icons, opened);
     }
 
+    /// <summary>Test icons shown directly on the taskbar (not in the overflow flyout), e.g. after a promotion (T-065).</summary>
+    public static IReadOnlyList<AutomationElement> TestIconsOnTaskbar(AutomationBase automation) => [.. FindIcons(Taskbar(automation))];
+
     /// <summary>
     /// The taskbar. Top-level windows are found through Win32, not as children of the UI Automation desktop: listing those
     /// asks the provider of every top-level window of every process, and one busy window (a loaded machine, the app's own
