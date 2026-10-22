@@ -11,8 +11,10 @@ using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Support;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.App.Windows;
 using PrusaTrayDiagnostic.Camera.FFmpeg;
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.History;
@@ -100,6 +102,8 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<DebugLoggingObserver>>()));
         services.AddSingleton(static sp => new TrayStatusViewModel(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<IUiDispatcher>()));
         services.AddSingleton<IUrlLauncher>(static sp => new ProcessUrlLauncher(sp.GetRequiredService<ILogger<ProcessUrlLauncher>>()));
+        // The log folder in Explorer / Finder (T-048).
+        services.AddSingleton<IFolderLauncher>(static sp => new ProcessFolderLauncher(sp.GetRequiredService<ILogger<ProcessFolderLauncher>>()));
         // Settings (T-015) and diagnostics (T-011) windows both exist.
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
@@ -328,6 +332,26 @@ internal static class AppServices
             cameraWindowStates: services.GetRequiredService<ICameraWindowStateStore>(),
             cameraWindowPlacer: cameraWindowPlacer,
             timeProvider: services.GetRequiredService<TimeProvider>());
+    }
+
+    /// <summary>
+    /// The support actions of the About window (T-048, T-049): the settings of the current run (before the first run the
+    /// saved ones), the printer states and the log of the process.
+    /// </summary>
+    internal static SupportActions CreateSupportActions(IServiceProvider services, SupportLog log)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        MonitoringSession session = services.GetRequiredService<MonitoringSession>();
+        Func<ISettingsStore> store = services.GetRequiredService<ISettingsStore>;
+        string version = AboutViewModel.ProductVersion(typeof(AppServices).Assembly);
+        return new SupportActions(
+            log,
+            async cancellationToken => session.CurrentSettings ?? (await store().LoadAsync(cancellationToken).ConfigureAwait(false)).Settings,
+            services.GetRequiredService<IPrinterMonitor>(),
+            services.GetRequiredService<IFolderLauncher>(),
+            language => SupportEnvironment.Current(version, language, static () => FFmpegCameraFeedFactory.LibraryVersion),
+            services.GetRequiredService<TimeProvider>(),
+            services.GetRequiredService<ILogger<SupportActions>>());
     }
 
     private static ISecretStore CreateSecretStore(AppEnvironment environment)

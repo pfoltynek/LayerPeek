@@ -101,8 +101,15 @@ Ikona hned začne ukazovat stav tiskárny.
 |---|---|
 | Nastavení | `%APPDATA%\PrusaTrayDiagnostic\settings.json` |
 | Hesla | Správce pověření Windows |
+| Logy | `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` |
 
 Historie teplot je jen v paměti a na disk se nikdy neukládá.
+
+### Nahlášení problému
+
+Okno **O aplikaci** má skupinu **Nahlášení problému**: uložení diagnostického balíčku (ZIP s logy, informacemi o verzi
+a systému a nastavením bez hesel) a otevření složky s logy. Podrobné logování jde zapnout v nastavení (záložka Obecné).
+Co balíček obsahuje, popisuje [docs/troubleshooting.md](docs/troubleshooting.md).
 
 ## Sestavení ze zdrojových kódů
 

@@ -8,6 +8,7 @@ using PrusaTrayDiagnostic.App.Licenses;
 using PrusaTrayDiagnostic.App.Localization;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
+using PrusaTrayDiagnostic.App.Support;
 using PrusaTrayDiagnostic.App.Tray;
 
 namespace PrusaTrayDiagnostic.App.Windows;
@@ -26,20 +27,26 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     private readonly IUrlLauncher _launcher;
     private readonly string _version;
+    private readonly SupportActions? _support;
+
+    // The outcome of the last support action, formatted again after a language switch; null: none shown.
+    private Func<string>? _supportStatus;
 
     // The licences window opened from this one (at most one is open; a closed one is harmless to refresh).
     private LicensesViewModel? _licenses;
 
-    internal AboutViewModel(IUrlLauncher launcher)
-        : this(launcher, typeof(AboutViewModel).Assembly)
+    /// <param name="support">The support actions (T-048, T-049); <see langword="null"/>: the buttons do nothing (designer, tests).</param>
+    internal AboutViewModel(IUrlLauncher launcher, SupportActions? support = null)
+        : this(launcher, typeof(AboutViewModel).Assembly, support)
     {
     }
 
-    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly)
+    internal AboutViewModel(IUrlLauncher launcher, Assembly assembly, SupportActions? support = null)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(assembly);
         _launcher = launcher;
+        _support = support;
         _version = ProductVersion(assembly);
         Copyright = ProductCopyright(assembly);
         FormatTexts();
@@ -63,6 +70,22 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     public string RepositoryText { get; private set; } = string.Empty;
 
     public string CloseText { get; private set; } = string.Empty;
+
+    public string SupportHeading { get; private set; } = string.Empty;
+
+    public string SaveBundleText { get; private set; } = string.Empty;
+
+    public string SaveBundleTip { get; private set; } = string.Empty;
+
+    public string OpenLogFolderText { get; private set; } = string.Empty;
+
+    /// <summary>The outcome of the last support action (saving, saved, an error), or <see langword="null"/>.</summary>
+    public string? SupportStatusText { get; private set; }
+
+    public bool SupportStatusIsError { get; private set; }
+
+    /// <summary>The save dialog of the bundle; set by the window (it owns the dialog).</summary>
+    internal IBundleFilePicker? BundlePicker { get; set; }
 
     /// <summary>UI thread: the language changed; every text is formatted again, also in the licences window.</summary>
     public void RefreshTexts()
@@ -117,6 +140,79 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
         RepositoryText = Strings.AboutRepository;
         CloseText = Strings.AboutClose;
         ThirdPartyLicensesText = Strings.AboutThirdPartyLicenses;
+        SupportHeading = Strings.SupportHeading;
+        SaveBundleText = Strings.SupportSaveBundle;
+        SaveBundleTip = Strings.SupportSaveBundleTip;
+        OpenLogFolderText = Strings.SupportOpenLogFolder;
+        SupportStatusText = _supportStatus?.Invoke();
+    }
+
+    /// <summary>
+    /// "Save diagnostic bundle…" (T-048): the save dialog, then the ZIP off the UI thread. A cancelled dialog creates
+    /// nothing; a closed window lets the save finish (its outcome is logged). Runs once at a time (the command is disabled
+    /// meanwhile).
+    /// </summary>
+    [RelayCommand]
+    private async Task SaveBundleAsync()
+    {
+        if (_support is null || BundlePicker is not { } picker)
+        {
+            return;
+        }
+
+        IBundleTarget? target;
+        try
+        {
+            target = await picker.PickAsync(_support.DefaultBundleFileName()).ConfigureAwait(true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            ShowSupportStatus(static () => Strings.SupportBundleFailed, isError: true);
+            return;
+        }
+
+        if (target is null)
+        {
+            return;
+        }
+
+        await using (target.ConfigureAwait(true))
+        {
+            ShowSupportStatus(static () => Strings.SupportBundleSaving, isError: false);
+            bool saved = await _support.SaveBundleAsync(target).ConfigureAwait(true);
+            ShowSupportStatus(saved ? static () => Strings.SupportBundleSaved : static () => Strings.SupportBundleFailed, isError: !saved);
+        }
+    }
+
+    /// <summary>"Open log folder" (T-048): Explorer / Finder with the log folder, created when missing.</summary>
+    [RelayCommand]
+    private async Task OpenLogFolderAsync()
+    {
+        if (_support is null)
+        {
+            return;
+        }
+
+        if (!SaveBundleCommand.IsRunning)
+        {
+            // A running save keeps its "Saving…" until its own outcome replaces it.
+            ShowSupportStatus(null, isError: false);
+        }
+
+        if (!await _support.OpenLogFolderAsync().ConfigureAwait(true))
+        {
+            ShowSupportStatus(static () => Strings.SupportLogFolderFailed, isError: true);
+        }
+    }
+
+    /// <summary>Shows the outcome of a support action (localized, formatted again after a language switch); <see langword="null"/> clears it.</summary>
+    internal void ShowSupportStatus(Func<string>? status, bool isError)
+    {
+        _supportStatus = status;
+        SupportStatusText = status?.Invoke();
+        SupportStatusIsError = isError;
+        OnPropertyChanged(nameof(SupportStatusText));
+        OnPropertyChanged(nameof(SupportStatusIsError));
     }
 
     private static string Format(string format, object? arg0) =>

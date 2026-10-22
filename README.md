@@ -103,8 +103,15 @@ The icon starts showing the printer's state immediately.
 |---|---|
 | Settings | `%APPDATA%\PrusaTrayDiagnostic\settings.json` |
 | Passwords | Windows Credential Manager |
+| Logs | `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` |
 
 The temperature history is kept only in memory and is never written to disk.
+
+### Reporting a problem
+
+The **About** window has a **Report a problem** group: save a diagnostic bundle (a ZIP with the logs, version and system
+information and the settings without passwords) or open the log folder. Detailed logging can be turned on in the settings
+(General tab). See [docs/troubleshooting.md](docs/troubleshooting.md) (in Czech) for what the bundle contains.
 
 ## Building from source
 

@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Configuración guardada. No se pudo guardar una imagen de impresora, por lo que la impresora muestra su imagen anterior.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Informar de un problema</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Guardar paquete de diagnóstico…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Un archivo ZIP con los registros, la información de versión y del sistema y la configuración sin contraseñas ni claves.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Abrir carpeta de registros</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Guardar paquete de diagnóstico</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>Archivo ZIP</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Guardando el paquete de diagnóstico…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>El paquete de diagnóstico se ha guardado.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>No se pudo guardar el paquete de diagnóstico. Elija otra carpeta e inténtelo de nuevo.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>No se pudo abrir la carpeta de registros.</value>
+  </data>
 </root>

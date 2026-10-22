@@ -6,8 +6,9 @@ public static class UriRedaction
     private const string Mask = "***";
 
     /// <summary>
-    /// <paramref name="uri"/> with its user info (user name and password) replaced by <c>***</c>; addresses without
-    /// user info are returned unchanged (escaped form).
+    /// <paramref name="uri"/> with its user info (user name and password) replaced by <c>***</c> and its query and
+    /// fragment by <c>?***</c> / <c>#***</c>, which may carry an access token (T-048); addresses without them are returned
+    /// unchanged (escaped form).
     /// </summary>
     public static string Redact(Uri uri)
     {
@@ -17,10 +18,10 @@ public static class UriRedaction
             throw new ArgumentException("Only absolute addresses can be redacted.", nameof(uri));
         }
 
-        // Rebuilt from the components without user info, so that no parsing quirk can let a password through.
-        string redacted = uri.GetComponents(
-            UriComponents.SchemeAndServer | UriComponents.PathAndQuery | UriComponents.Fragment,
-            UriFormat.UriEscaped);
+        // Rebuilt from the components without user info, query and fragment, so that no parsing quirk can let a secret through.
+        string redacted = uri.GetComponents(UriComponents.SchemeAndServer | UriComponents.Path, UriFormat.UriEscaped)
+            + (uri.Query.Length > 0 ? "?" + Mask : string.Empty)
+            + (uri.Fragment.Length > 0 ? "#" + Mask : string.Empty);
         int authority = uri.Scheme.Length + Uri.SchemeDelimiter.Length;
         // An "@" left after removing the user info: e.g. "rtsp://admin:1234/x@host", where Uri sees host "admin" and
         // no user info. Everything up to the last "@" is masked, as when such an address is loaded from the settings.

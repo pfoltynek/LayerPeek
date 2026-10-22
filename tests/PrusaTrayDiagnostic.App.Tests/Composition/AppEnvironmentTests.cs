@@ -210,7 +210,8 @@ public sealed class AppEnvironmentTests
             (@"AppDataPaths\.GetDefaultLogDirectory", ["Composition/AppEnvironment.cs"]),
             (@"\.CreateDefault\(", []),
             // The Start menu folder of the toast shortcut: only reached through toasts, which the test mode switches off.
-            (@"Environment\.GetFolderPath|SpecialFolder\.", ["Platform/Windows/AppShortcutRegistration.cs"]),
+            // The Windows folder of explorer.exe (T-048): a system folder, not per-user data.
+            (@"Environment\.GetFolderPath|SpecialFolder\.", ["Platform/Windows/AppShortcutRegistration.cs", "Platform/FolderLauncher.cs"]),
             // macOS socket fallback next to the instance lock (its name carries the test suffix).
             (@"Path\.GetTemp(Path|FileName)", ["SingleInstance/InstanceTransports.cs"]),
             (@"new WindowsCredentialSecretStore\(", ["Composition/AppServices.cs"]),

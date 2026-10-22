@@ -95,7 +95,7 @@ internal sealed partial class ProcessUrlLauncher : IUrlLauncher
         return info;
     }
 
-    private static UrlLaunchPlatform CurrentPlatform() =>
+    internal static UrlLaunchPlatform CurrentPlatform() =>
         OperatingSystem.IsWindows() ? UrlLaunchPlatform.Windows
         : OperatingSystem.IsMacOS() ? UrlLaunchPlatform.MacOS
         : UrlLaunchPlatform.Linux;

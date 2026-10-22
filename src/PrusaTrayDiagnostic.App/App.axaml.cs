@@ -267,7 +267,7 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
-        _aboutWindow.ShowOrActivate(() => (windows.About(new AboutViewModel(host.UrlLauncher)), null));
+        _aboutWindow.ShowOrActivate(() => (windows.About(host.CreateAboutViewModel()), null));
     }
 
     async void ITrayAppCommands.Quit()
