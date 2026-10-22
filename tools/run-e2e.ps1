@@ -11,7 +11,8 @@
     The started apps run in the isolated test mode: their own data folder in %TEMP% (reserved per worktree, removed after
     the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut.
     The user's running PrusaTrayDiagnostic is never touched. Windows appear on the desktop for a few minutes; do not use
-    the mouse or keyboard meanwhile.
+    the mouse or keyboard meanwhile. Runs of different worktrees share the one desktop, so they take turns: a run waits
+    (up to 30 minutes) while another worktree's run holds the machine-wide lock %TEMP%\PrusaTrayDiagnostic.App.E2E.Desktop.lock.
 
     Screenshots of every checked state and the log of every started app go to the results folder, which is printed at
     the end (replaced by the next run).

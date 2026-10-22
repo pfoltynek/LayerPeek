@@ -322,9 +322,16 @@ internal sealed class AppInstance : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Deletes the run folder, waiting while a file is still held (on a loaded machine the exited app's handles or a
+    /// virus scan of its log can outlast the exit by seconds). A folder still held after that is left to the fixture,
+    /// which deletes <see cref="E2EFixture.Root"/> at the end of the run and fails it if it cannot: throwing here would
+    /// replace the test's own failure with this one (T-062).
+    /// </summary>
     private async Task DeleteRunDirectoryAsync()
     {
-        for (int attempt = 1; ; attempt++)
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        while (true)
         {
             try
             {
@@ -335,8 +342,13 @@ internal sealed class AppInstance : IAsyncDisposable
 
                 return;
             }
-            catch (Exception) when (attempt < 10)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
+                if (DateTime.UtcNow >= deadline)
+                {
+                    return;
+                }
+
                 await Task.Delay(200);
             }
         }

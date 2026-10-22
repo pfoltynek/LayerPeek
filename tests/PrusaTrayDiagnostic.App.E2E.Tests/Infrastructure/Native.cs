@@ -31,6 +31,11 @@ internal static partial class Native
     /// <summary>PrintWindow: also content drawn by DirectComposition / the GPU.</summary>
     public const uint PwRenderFullContent = 2;
 
+    public const int SmXVirtualScreen = 76;
+    public const int SmYVirtualScreen = 77;
+    public const int SmCxVirtualScreen = 78;
+    public const int SmCyVirtualScreen = 79;
+
     [StructLayout(LayoutKind.Sequential)]
     public struct Rect
     {
@@ -198,6 +203,34 @@ internal static partial class Native
 
     [LibraryImport("user32.dll")]
     public static partial nint MonitorFromPoint(Point point, uint flags);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetCursorPos(out Point point);
+
+    [LibraryImport("user32.dll", EntryPoint = "FindWindowW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial nint FindWindow(string? className, string? windowName);
+
+    [LibraryImport("user32.dll", EntryPoint = "GetClassNameW", StringMarshalling = StringMarshalling.Utf16)]
+    public static partial int GetClassName(nint hwnd, [Out] char[] name, int maxCount);
+
+    [LibraryImport("user32.dll")]
+    public static partial int GetSystemMetrics(int index);
+
+    public static string ClassName(nint hwnd)
+    {
+        char[] buffer = new char[256];
+        int length = GetClassName(hwnd, buffer, buffer.Length);
+        return new string(buffer, 0, Math.Max(0, length));
+    }
+
+    /// <summary>The bounds of all monitors together, in physical pixels.</summary>
+    public static Rect VirtualScreen()
+    {
+        int left = GetSystemMetrics(SmXVirtualScreen);
+        int top = GetSystemMetrics(SmYVirtualScreen);
+        return new Rect { Left = left, Top = top, Right = left + GetSystemMetrics(SmCxVirtualScreen), Bottom = top + GetSystemMetrics(SmCyVirtualScreen) };
+    }
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
