@@ -32,6 +32,9 @@ public sealed class InstanceProtocolTests
     [InlineData("about", "About", null)]
     [InlineData("camera:3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c", "Camera", "3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c")]
     [InlineData("quit", "Quit", null)]
+    [InlineData("crash:ui", "Crash", "ui")]
+    [InlineData("crash:background", "Crash", "background")]
+    [InlineData("crash:task", "Crash", "task")]
     public void TestCommandsRoundTripInDebugBuilds(string text, string kind, string? argument)
     {
         Assert.True(InstanceProtocol.TryDecode(Encoding.ASCII.GetBytes(text + "\n"), out InstanceCommand decoded));
@@ -49,6 +52,8 @@ public sealed class InstanceProtocolTests
     [InlineData("settings:x")]
     [InlineData("about:x")]
     [InlineData("quit:x")]
+    [InlineData("crash")]
+    [InlineData("crash:")]
     [InlineData("Settings")]
     [InlineData("diagnostics:é")]
     public void MalformedTestCommandsAreRejected(string text)
@@ -66,6 +71,7 @@ public sealed class InstanceProtocolTests
     [InlineData("settings")]
     [InlineData("camera:x")]
     [InlineData("quit")]
+    [InlineData("crash:ui")]
     public void ReleaseBuildsKnowOnlyActivate(string text)
     {
         Assert.False(InstanceProtocol.TryDecode(Encoding.ASCII.GetBytes(text), out _));

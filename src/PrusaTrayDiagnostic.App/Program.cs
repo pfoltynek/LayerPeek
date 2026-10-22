@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 
 using Avalonia;
+using Avalonia.Threading;
 
 using Microsoft.Extensions.Logging;
 
@@ -57,6 +58,9 @@ internal static partial class Program
         // One logger factory for the whole process (T-024), disposed last: a second start writes its records into the same
         // file before it exits, and the app's records are written even when the OS ends the session.
         using AppLogging logging = AppLogging.Create(environment);
+        // Right after the logging exists: a crash leaves its stack trace in the log (T-046), also in a second start.
+        UnhandledExceptionLogger crashes = new(logging.Factory, logging.Flush);
+        crashes.AttachToProcess();
         ILogger log = logging.Factory.CreateLogger(typeof(Program));
         string version = AboutViewModel.ProductVersion(typeof(Program).Assembly);
         LogStarted(log, version, RuntimeInformation.OSDescription, RuntimeInformation.ProcessArchitecture);
@@ -96,7 +100,7 @@ internal static partial class Program
             WindowsAppIdentity.ApplyToCurrentProcess(environment.AppUserModelId);
         }
 
-        return BuildAvaloniaApp(instanceCommands, environment, logging).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+        return BuildAvaloniaApp(instanceCommands, environment, logging, crashes).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Prusa Tray Diagnostic {Version} starting on {OperatingSystem} ({Architecture}).")]
@@ -111,8 +115,10 @@ internal static partial class Program
             .UsePlatformDetect()
             .LogToTrace();
 
-    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging) =>
+    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, UnhandledExceptionLogger crashes) =>
         AppBuilder.Configure(() => new App(instanceCommands, environment, logging))
             .UsePlatformDetect()
-            .LogToTrace();
+            .LogToTrace()
+            // The UI thread's dispatcher exists once the platform is set up, before the app starts.
+            .AfterSetup(_ => crashes.AttachToDispatcher(Dispatcher.UIThread));
 }

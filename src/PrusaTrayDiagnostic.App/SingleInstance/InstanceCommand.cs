@@ -26,6 +26,9 @@ internal enum InstanceCommandKind
 
     /// <summary>Test mode: like the tray item Quit.</summary>
     Quit,
+
+    /// <summary>Test mode: a deliberate crash (T-046), the argument says where: <c>ui</c>, <c>background</c> or <c>task</c>.</summary>
+    Crash,
 #endif
 }
 
@@ -49,7 +52,7 @@ internal readonly record struct InstanceCommand(InstanceCommandKind Kind, string
 /// up at the end of its time budget (<see cref="SingleInstanceGuard"/>).
 /// <para>
 /// Debug builds also know the test commands of T-044: <c>settings</c>, <c>diagnostics</c>, <c>diagnostics:&lt;id&gt;</c>,
-/// <c>about</c>, <c>camera:&lt;id&gt;</c> and <c>quit</c> (printer ids of ASCII letters, digits, <c>-</c> and <c>_</c>).
+/// <c>about</c>, <c>camera:&lt;id&gt;</c>, <c>quit</c> and <c>crash:&lt;ui|background|task&gt;</c> (T-046) (printer ids of ASCII letters, digits, <c>-</c> and <c>_</c>).
 /// </para>
 /// </summary>
 internal static class InstanceProtocol
@@ -85,6 +88,7 @@ internal static class InstanceProtocol
             InstanceCommandKind.About => "about",
             InstanceCommandKind.Camera => "camera",
             InstanceCommandKind.Quit => "quit",
+            InstanceCommandKind.Crash => "crash",
 #endif
             _ => throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Unknown instance command."),
         };
@@ -135,6 +139,7 @@ internal static class InstanceProtocol
             _ when word.SequenceEqual("about"u8) => InstanceCommandKind.About,
             _ when word.SequenceEqual("camera"u8) => InstanceCommandKind.Camera,
             _ when word.SequenceEqual("quit"u8) => InstanceCommandKind.Quit,
+            _ when word.SequenceEqual("crash"u8) => InstanceCommandKind.Crash,
             _ => null,
         };
         if (kind is not { } found)
@@ -144,8 +149,8 @@ internal static class InstanceProtocol
 
         if (colon < 0)
         {
-            // The camera command needs its printer.
-            if (found == InstanceCommandKind.Camera)
+            // The camera command needs its printer, the crash command its kind.
+            if (found is InstanceCommandKind.Camera or InstanceCommandKind.Crash)
             {
                 return false;
             }
@@ -168,7 +173,7 @@ internal static class InstanceProtocol
     private static bool TakesArgument(InstanceCommandKind kind) => kind switch
     {
 #if DEBUG
-        InstanceCommandKind.Diagnostics or InstanceCommandKind.Camera => true,
+        InstanceCommandKind.Diagnostics or InstanceCommandKind.Camera or InstanceCommandKind.Crash => true,
 #endif
         _ => false,
     };

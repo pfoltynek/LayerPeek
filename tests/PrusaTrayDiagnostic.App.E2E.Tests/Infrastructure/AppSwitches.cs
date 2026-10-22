@@ -31,6 +31,9 @@ internal static class AppSwitches
     /// <summary>Secrets file of the test mode: key, tab, secret per line.</summary>
     public const string SecretsFileName = "test-secrets.txt";
 
+    /// <summary>Text of the Debug-only crash test command (T-046); must not appear in a Release build.</summary>
+    public const string CrashTestMessage = "E2E test crash on the UI thread.";
+
     /// <summary>The current log file of the test mode, relative to the data folder (T-024).</summary>
     public static readonly string LogFile = Path.Combine("logs", "PrusaTrayDiagnostic.log");
 }
