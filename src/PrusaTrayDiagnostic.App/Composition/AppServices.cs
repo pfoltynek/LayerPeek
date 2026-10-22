@@ -344,6 +344,7 @@ internal static class AppServices
         MonitoringSession session = services.GetRequiredService<MonitoringSession>();
         Func<ISettingsStore> store = services.GetRequiredService<ISettingsStore>;
         string version = AboutViewModel.ProductVersion(typeof(AppServices).Assembly);
+        AppEnvironment environment = services.GetRequiredService<AppEnvironment>();
         return new SupportActions(
             log,
             async cancellationToken => session.CurrentSettings ?? (await store().LoadAsync(cancellationToken).ConfigureAwait(false)).Settings,
@@ -351,7 +352,12 @@ internal static class AppServices
             services.GetRequiredService<IFolderLauncher>(),
             language => SupportEnvironment.Current(version, language, static () => FFmpegCameraFeedFactory.LibraryVersion),
             services.GetRequiredService<TimeProvider>(),
-            services.GetRequiredService<ILogger<SupportActions>>());
+            services.GetRequiredService<ILogger<SupportActions>>())
+        {
+            // The test mode (never in Release builds, T-044) leaves nothing in the user's folders or clipboard history (T-064).
+            BundleStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
+            KeepCopiesOutOfClipboardHistory = environment.IsIsolated,
+        };
     }
 
     private static ISecretStore CreateSecretStore(AppEnvironment environment)

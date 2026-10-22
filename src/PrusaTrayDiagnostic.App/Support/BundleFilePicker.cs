@@ -9,7 +9,8 @@ namespace PrusaTrayDiagnostic.App.Support;
 internal interface IBundleFilePicker
 {
     /// <summary>Shows the save dialog (ZIP); <see langword="null"/> when the user cancelled (then nothing is created).</summary>
-    Task<IBundleTarget?> PickAsync(string suggestedFileName);
+    /// <param name="startDirectory">The folder the dialog opens in; <see langword="null"/>: where the OS opens it.</param>
+    Task<IBundleTarget?> PickAsync(string suggestedFileName, string? startDirectory = null);
 }
 
 /// <summary>The chosen file of the bundle; disposing it releases the storage item (not the file).</summary>
@@ -25,8 +26,9 @@ internal interface IBundleTarget : IAsyncDisposable
 /// <summary>The save dialog of the window's <see cref="IStorageProvider"/> (native dialog on Windows and macOS).</summary>
 internal sealed class StorageProviderBundleFilePicker(TopLevel owner) : IBundleFilePicker
 {
-    public async Task<IBundleTarget?> PickAsync(string suggestedFileName)
+    public async Task<IBundleTarget?> PickAsync(string suggestedFileName, string? startDirectory = null)
     {
+        IStorageFolder? start = startDirectory is null ? null : await owner.StorageProvider.TryGetFolderFromPathAsync(startDirectory).ConfigureAwait(true);
         FilePickerFileType zip = new(Strings.SupportBundleFileType)
         {
             Patterns = ["*.zip"],
@@ -37,6 +39,7 @@ internal sealed class StorageProviderBundleFilePicker(TopLevel owner) : IBundleF
         {
             Title = Strings.SupportBundleDialogTitle,
             SuggestedFileName = suggestedFileName,
+            SuggestedStartLocation = start,
             DefaultExtension = "zip",
             FileTypeChoices = [zip],
             ShowOverwritePrompt = true,

@@ -1,7 +1,7 @@
 ---
 id: T-024
 title: Logování do souboru
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -37,8 +37,8 @@ Na tento úkol navazují T-046 (neošetřené výjimky), T-047 (přepínač Debu
 - **Dokumentace:** oddíl „Logování“ v `docs/architecture.md` (umístění, formát, rotace, dvě instance, životnost).
 
 ## Akceptační kritéria
-- [ ] Release build zapisuje logy do `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` (Windows) / `~/Library/Logs/PrusaTrayDiagnostic` (macOS; skutečné ověření v T-019), testovací režim do testovací složky; výchozí úroveň `Information`; rotace 1 MB × 5 souborů funguje
-- [ ] Každý řádek obsahuje čas s posunem, úroveň, PID a kategorii; výjimky celé se stack trace (ověřeno i v AOT publish win-x64 ruční kontrolou souboru)
+- [x] Release build zapisuje logy do `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` (Windows) / `~/Library/Logs/PrusaTrayDiagnostic` (macOS; skutečné ověření v T-019), testovací režim do testovací složky; výchozí úroveň `Information`; rotace 1 MB × 5 souborů funguje
+- [x] Každý řádek obsahuje čas s posunem, úroveň, PID a kategorii; výjimky celé se stack trace (ověřeno i v AOT publish win-x64 ruční kontrolou souboru)
 - [x] Druhé spuštění zapíše své řádky do stejného souboru před ukončením `Main`; první instance o žádné řádky nepřijde a soubor nezamkne; rotuje jen primární instance
 - [x] Minimální úroveň jde přepnout za běhu (API pro T-047), testy
 - [x] Testy provideru: formát, rotace, dva nezávislí zapisovatelé do jednoho souboru (žádné ztracené ani prolnuté řádky), souběžný zápis z více vláken, přetečení fronty, flush při ukončení, zápis po uvolnění nehází; testy po sobě nic nenechají (per-worktree složky z T-032), ani po pádu
@@ -66,4 +66,4 @@ Na tento úkol navazují T-046 (neošetřené výjimky), T-047 (přepínač Debu
 - **Revize tajných údajů (124 `[LoggerMessage]`, žádné jiné logování):** žádná zpráva nezapisuje heslo, klíč, token ani adresu s přihlašovacími údaji (adresy kamer přes `UriRedaction`, cesty proxy bez tokenu a dotazu, logy `HttpClient` a Kestrelu vypnuté, výjimky PrusaLink nesou nejvýš host:port). Jediný nález opraven: `WindowsCredentialSecretStore` při čtení hesla, které není platné UTF-8, řetězil `DecoderFallbackException`, jejíž zpráva cituje bajty hesla. Teď se neřetězí (test `ForeignNonUtf8CredentialFailsWithoutQuotingItsBytes`). Výjimky kamer jsou bezpečné jen díky smlouvě `CameraFeedException` (zpráva bez adresy) – to musí dodržet i budoucí dekodéry.
 - **AOT:** `StackTraceSupport` ani `UseSystemResourceKeys` projekt nemění (výchozí: stack trace s názvy metod, plné zprávy). AOT publish win-x64 bez varování (2026-10-21).
 - **Ověřeno:** `dotnet build` bez varování, všechny testy zelené, App E2E zelené včetně nové kontroly, že druhé spuštění zapíše své řádky do společného logu (`SingleInstanceTests`); `TrayMenuTests` byl tehdy nestabilní (T-062).
-- **Zbývá ručně (proto úkol zůstává v in-progress):** spustit Release/AOT build win-x64 a zkontrolovat soubor v `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` (formát, start, rotace po 1 MB) a že výjimka v logu má stack trace s názvy metod – nejsnáz spolu s ruční kontrolou vynuceného pádu v T-046. macOS ověří T-019.
+- **Ruční kontroly nahradily E2E testy T-064 (2026-10-22, rozhodl uživatel):** formát logu a výjimka se stack trace s názvy metod ověřené na skutečné aplikaci, a to i proti Native AOT exe (konfigurace Debug, testovací režim; `tools/run-e2e.ps1 -PublishAot`). Umístění logu v Release buildu pokrývá unit test cesty (`AppDataPathsTests`), rotaci testy `LogFile`. macOS ověří T-019.

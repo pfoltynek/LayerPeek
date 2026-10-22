@@ -179,6 +179,25 @@ public sealed class AppClientAgainstSimulatorTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task MalformedStatusIsAnUnexpectedResponseAndRecovers()
+    {
+        // T-064: the scenario the end-to-end tests use to get an exception with its stack trace into the app's log.
+        await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);
+        PrusaLinkClient client = await CreateClientAsync(printer);
+
+        printer.Simulation.SetScenario(PrinterScenario.Malformed);
+        PrinterSnapshot malformed = await client.GetSnapshotAsync(Ct);
+        PrusaLinkInfoResult info = await client.GetInfoAsync(Ct);
+        printer.Simulation.SetScenario(PrinterScenario.Idle);
+        PrinterSnapshot recovered = await client.GetSnapshotAsync(Ct);
+
+        Assert.Equal(PrinterProblem.UnexpectedResponse, malformed.Problem);
+        Assert.Equal(PrusaLinkFailure.None, info.Failure);
+        Assert.Equal(PrinterState.Idle, recovered.State);
+        Assert.Equal(PrinterProblem.None, recovered.Problem);
+    }
+
+    [Fact]
     public async Task HangingOfflinePrinterRunsIntoTheClientTimeout()
     {
         await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock, offlineMode: OfflineMode.Hang);

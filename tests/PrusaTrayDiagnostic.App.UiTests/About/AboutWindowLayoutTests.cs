@@ -210,6 +210,18 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
             Assert.Null(viewModel.SupportStatusText);
         });
 
+    [Fact]
+    public Task TextKeptOutOfTheClipboardHistoryIsStillPlainText() =>
+        session.RunAsync(async scope =>
+        {
+            // T-064: the test mode adds the Windows "exclude from history" format; the text itself is unchanged.
+            (AboutWindow window, _) = Open(scope);
+
+            await new TopLevelSupportClipboard(window).SetTextAsync("report", keepOutOfHistory: true);
+
+            Assert.Equal("report", await window.Clipboard!.TryGetTextAsync());
+        });
+
     private sealed class NoFolders : IFolderLauncher
     {
         public Task<bool> OpenAsync(string directory) => Task.FromResult(false);

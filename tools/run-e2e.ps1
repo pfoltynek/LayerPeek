@@ -24,7 +24,9 @@
     Only test methods matching this xUnit filter (e.g. '*NoPrinter*').
 
 .PARAMETER PublishAot
-    Also publish the Native AOT exe (win-x64, needs the C++ build tools) and check it for test switches.
+    Also publish the Native AOT exe (win-x64, needs the C++ build tools) and check it for test switches, and publish the
+    Debug configuration as Native AOT too (it keeps the test mode) and run the log test against it, whatever -Class and
+    -Method select (T-064: stack traces with method names in AOT builds; results in a folder of their own).
 
 .EXAMPLE
     ./tools/run-e2e.ps1
@@ -54,9 +56,12 @@ dotnet build $app -c Debug
 if ($LASTEXITCODE -ne 0) { throw 'Building the Debug app failed.' }
 dotnet build $app -c Release
 if ($LASTEXITCODE -ne 0) { throw 'Building the Release app failed.' }
+$aotDebug = Join-Path $app 'bin/Debug/net11.0/win-x64/publish'
 if ($PublishAot) {
     dotnet publish $app -c Release -r win-x64
     if ($LASTEXITCODE -ne 0) { throw 'The Native AOT publish failed.' }
+    dotnet publish $app -c Debug -r win-x64 -o $aotDebug
+    if ($LASTEXITCODE -ne 0) { throw 'The Native AOT publish of the Debug app failed.' }
 }
 
 dotnet build $tests
@@ -66,16 +71,30 @@ $filters = @()
 if ($Class) { $filters += @('-class', $Class) }
 if ($Method) { $filters += @('-method', $Method) }
 
+$resultsAot = "$results-aot"
+$previousApp = $env:PTD_E2E_APP
 $env:PTD_E2E = '1'
 $env:PTD_E2E_RESULTS = $results
 try {
     dotnet run --project $tests --no-build -- @filters
     $exitCode = $LASTEXITCODE
+    if ($PublishAot -and $exitCode -eq 0) {
+        # The log in a Native AOT build: the log test (whatever -Class/-Method say) against the Debug AOT exe (T-064), with
+        # its own results folder, so that the results of the run above are kept.
+        Write-Host ''
+        Write-Host 'Log test against the Native AOT exe of the Debug app:'
+        $env:PTD_E2E_APP = Join-Path $aotDebug 'PrusaTrayDiagnostic.exe'
+        $env:PTD_E2E_RESULTS = $resultsAot
+        dotnet run --project $tests --no-build -- -class '*LogAndSupportTests' -method '*LogHasRecordsAndAnExceptionWithItsStackTrace*'
+        $exitCode = $LASTEXITCODE
+    }
 }
 finally {
     Remove-Item Env:PTD_E2E, Env:PTD_E2E_RESULTS -ErrorAction SilentlyContinue
+    if ($null -eq $previousApp) { Remove-Item Env:PTD_E2E_APP -ErrorAction SilentlyContinue } else { $env:PTD_E2E_APP = $previousApp }
 }
 
 Write-Host ''
 Write-Host "Screenshots and app logs: $results"
+if ($PublishAot) { Write-Host "Native AOT log test: $resultsAot" }
 exit $exitCode

@@ -65,6 +65,7 @@ Všechny tiskárny hlásí firmware `6.9.2+10123` a trysku 0,4 mm. Aplikace podl
 | `attention` | `ATTENTION` (např. došel filament): úloha zůstane, kde byla (nebo 61 %), teploty se drží |
 | `offline` | tiskárna neodpovídá (pod tím scénář `idle`) |
 | `flaky` | jako `printing`, ale každých 80 s na 20 s přestane odpovídat. Počítá se od přepnutí na `flaky` (60 s odpovídá, 20 s ne) ve skutečném čase, nezrychluje se. |
+| `malformed` | jako `idle`, ale stav (`/api/v1/status`) přijde jako uříznutý JSON. Aplikace zaloguje varování „sent a malformed response“ i s výjimkou a stack trace (T-064: E2E kontrola logu, i v Native AOT). Verze, informace o tiskárně a přihlášení fungují normálně. |
 
 Teploty se k cíli blíží plynule (ohřev trysky rychlejší než podložky, chladnutí pomalejší) a mírně kolísají jako skutečné čidlo. Při přepnutí scénáře teploty navazují; pozastavení a „vyžaduje pozornost“ zachovají běžící úlohu a návrat na `printing` v ní pokračuje přesně tam, kde skončila (i uprostřed ohřevu). Bez běžící úlohy ukazují výchozí úlohu s dalším číslem úlohy.
 
