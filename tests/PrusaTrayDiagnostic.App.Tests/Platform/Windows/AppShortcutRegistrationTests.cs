@@ -124,29 +124,4 @@ public sealed class AppShortcutRegistrationTests
         // Per-user folder (no admin rights), not the all-users CommonPrograms.
         Assert.Equal(Path.Combine(programs, "Prusa Tray Diagnostic.lnk"), path);
     }
-
-    private sealed class InMemoryShortcutStore : IShortcutStore
-    {
-        public Dictionary<string, AppShortcut> Shortcuts { get; } = new(StringComparer.OrdinalIgnoreCase);
-
-        public Exception? ReadFailure { get; set; }
-
-        public Exception? WriteFailure { get; set; }
-
-        public int WriteCount { get; private set; }
-
-        public AppShortcut? Read(string path) =>
-            ReadFailure is not null ? throw ReadFailure : Shortcuts.GetValueOrDefault(path);
-
-        public void Write(string path, AppShortcut shortcut)
-        {
-            if (WriteFailure is not null)
-            {
-                throw WriteFailure;
-            }
-
-            WriteCount++;
-            Shortcuts[path] = shortcut;
-        }
-    }
 }

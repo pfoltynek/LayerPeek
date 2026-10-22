@@ -35,6 +35,19 @@ internal static partial class Program
         }
 
 #if DEBUG
+        if (args.Contains(AppEnvironment.ClearToastsArgument, StringComparer.Ordinal))
+        {
+            // After a crashed test run (T-067, T-068): only the toasts and the shortcut of the test app go, nothing else
+            // starts (no log, no single-instance guard, no Avalonia), so it never meets a running instance.
+            if (!OperatingSystem.IsWindows())
+            {
+                Console.Error.WriteLine("Toasts of the test mode exist on Windows only.");
+                return 1;
+            }
+
+            return TestToastCleanup.RunFromCommandLine(Console.Error);
+        }
+
         // Test mode (T-044): its own data folder and, required, its own instance names, so that a test start never
         // forwards to (or blocks) the user's running instance.
         AppEnvironment environment;
@@ -69,6 +82,14 @@ internal static partial class Program
             // The app still works with the standard search order; only the hardening is missing.
             NativeLibrarySearch.LogRestrictionFailed(log, dllSearchError);
         }
+
+#if DEBUG
+        foreach (string ignored in environment.IgnoredTestSwitches)
+        {
+            // Never a reason to fail: without the test data folder this is a normal start of the developer.
+            LogIgnoredTestSwitch(log, ignored);
+        }
+#endif
 
         // The guard runs before the app starts: a later start only passes "activate" on and exits (T-043).
         InstanceCommandQueue instanceCommands = new();
@@ -108,6 +129,11 @@ internal static partial class Program
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Another instance is running; this start only passed the activation on and exits.")]
     private static partial void LogNotPrimary(ILogger logger);
+
+#if DEBUG
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The test switch {Name} is ignored outside the test mode.")]
+    private static partial void LogIgnoredTestSwitch(ILogger logger, string name);
+#endif
 
     /// <summary>Designer entry point.</summary>
     public static AppBuilder BuildAvaloniaApp() =>

@@ -23,3 +23,11 @@ internal interface IToastSession : IDisposable
     /// <summary>Shows a toast described by <paramref name="toastXml"/> (built by <see cref="ToastContentBuilder"/>).</summary>
     void Show(string toastXml);
 }
+
+/// <summary>The toasts an app left in the notification center (WinRT on Windows), replaceable by a fake in tests.</summary>
+internal interface IToastHistory
+{
+    /// <summary>Removes every toast of <paramref name="appUserModelId"/> from the notification center.</summary>
+    /// <exception cref="Exception">The history is not available or Windows refused.</exception>
+    void Clear(string appUserModelId);
+}

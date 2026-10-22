@@ -99,5 +99,96 @@ public sealed class TestModeGuardTests
             TestDirectories.Delete(folder);
         }
     }
+
+    /// <summary>
+    /// The opt-in switches of T-067 are checked like the data folder: a credential prefix outside
+    /// <c>PrusaTrayDiagnostic.E2E/</c> (the production prefix included) or an invalid start delay ends the start with 4
+    /// before anything is written.
+    /// </summary>
+    [Theory]
+    [InlineData(AppEnvironment.TestCredentialPrefixVariable, "PrusaTrayDiagnostic")]
+    [InlineData(AppEnvironment.TestCredentialPrefixVariable, "PrusaTrayDiagnostic/x")]
+    [InlineData(AppEnvironment.TestCredentialPrefixVariable, "PrusaTrayDiagnostic.E2E/")]
+    [InlineData(AppEnvironment.TestStartDelayVariable, "60001")]
+    [InlineData(AppEnvironment.TestStartDelayVariable, "soon")]
+    public async Task InvalidTestSwitchExitsWithFourBeforeTheInstanceGuard(string variable, string value)
+    {
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            int exitCode = await RunExeAsync(start =>
+            {
+                start.Environment[AppEnvironment.DataDirectoryVariable] = folder;
+                start.Environment[InstanceTransports.SuffixVariable] = "e2e-guard-" + Guid.NewGuid().ToString("N")[..8];
+                start.Environment[variable] = value;
+            });
+
+            Assert.Equal(AppEnvironment.InvalidTestModeExitCode, exitCode);
+            Assert.False(Directory.Exists(folder), "The refused start wrote into the test folder.");
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+
+    /// <summary>A valid test prefix passes the check: the start goes on to the guard (and the forward-only switch ends it with 3).</summary>
+    [Fact]
+    public async Task ValidTestCredentialPrefixPassesTheTestModeCheck()
+    {
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            int exitCode = await RunExeAsync(start =>
+            {
+                start.Environment[AppEnvironment.DataDirectoryVariable] = folder;
+                start.Environment[InstanceTransports.SuffixVariable] = "e2e-guard-" + Guid.NewGuid().ToString("N")[..8];
+                start.Environment[AppEnvironment.TestCredentialPrefixVariable] = "PrusaTrayDiagnostic.E2E/guard-test";
+                start.Environment[AppEnvironment.TestStartDelayVariable] = "60000";
+            });
+
+            Assert.Equal(InstanceTransports.ForwardOnlyExitCode, exitCode);
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+
+    /// <summary>Runs the exe next to the tests with the forward-only switch (never a real app) and returns its exit code.</summary>
+    private static async Task<int> RunExeAsync(Action<ProcessStartInfo> configure)
+    {
+        string exe = Path.Combine(AppContext.BaseDirectory, "PrusaTrayDiagnostic.exe");
+        Assert.SkipUnless(File.Exists(exe), "The app exe is not next to the tests.");
+        Assert.SkipWhen(OtherInstanceRuns(exe), "A PrusaTrayDiagnostic instance (not one of these tests) runs; never risk talking to it.");
+
+        ProcessStartInfo start = new(exe)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = AppContext.BaseDirectory,
+        };
+        foreach (string variable in new[] { AppEnvironment.TestToastsVariable, AppEnvironment.TestCredentialPrefixVariable, AppEnvironment.TestStartDelayVariable })
+        {
+            start.Environment.Remove(variable);
+        }
+
+        configure(start);
+        start.Environment[InstanceTransports.ForwardOnlyVariable] = "1";
+        using Process process = Process.Start(start) ?? throw new InvalidOperationException("The app did not start.");
+        try
+        {
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken).WaitAsync(ExitTimeout, TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+
+        return process.ExitCode;
+    }
 }
 #endif

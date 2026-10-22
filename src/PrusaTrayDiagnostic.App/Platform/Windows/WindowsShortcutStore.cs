@@ -66,6 +66,18 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
         }
     }
 
+    public bool Delete(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        File.Delete(path);
+        return true;
+    }
+
     private static IShellLinkW CreateShellLink()
     {
         Marshal.ThrowExceptionForHR(ComNative.CoCreateInstance(

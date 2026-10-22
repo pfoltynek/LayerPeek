@@ -104,6 +104,7 @@ public sealed class WinRtToastInteropTests
         // The values avoid reflection in the AOT app; here (JIT) reflection checks they did not drift apart.
         Assert.Equal(typeof(IActivationFactory).GUID, WinRtInterfaceIds.ActivationFactory);
         Assert.Equal(typeof(IToastNotificationManagerStatics).GUID, WinRtInterfaceIds.ToastNotificationManagerStatics);
+        Assert.Equal(typeof(IToastNotificationManagerStatics2).GUID, WinRtInterfaceIds.ToastNotificationManagerStatics2);
         Assert.Equal(typeof(IToastNotificationFactory).GUID, WinRtInterfaceIds.ToastNotificationFactory);
         Assert.Equal(typeof(IToastActivatedHandler).GUID, WinRtInterfaceIds.ToastActivatedHandler);
         Assert.Equal(typeof(IShellLinkW).GUID, ShellLinkIds.ShellLinkW);
