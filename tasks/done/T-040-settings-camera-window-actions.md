@@ -26,6 +26,7 @@ depends_on: [T-033, T-035, T-037]
 - **Tovární nastavení (2026-10-20):** jen podzáložka Okno kamery (Překryv ne), včetně zapomenutí zapamatované pozice; projeví se po Uložit/Použít.
 - **Hlavní panel (2026-10-20):** skrýt jen malý náhled.
 - **Kamera v nabídce (2026-10-20):** přepínač – zaškrtávací položka „Kamera“ bez „…“; druhý klik okno zavře. Uživatel chtěl „přepínač“, nativní nabídky (Windows i macOS) ale umí jen zaškrtnutí, proto zaškrtávací položka.
+  - **Nahrazeno (2026-10-22, uživatel):** místo zaškrtávací položky „✓ Kamera“ obyčejná položka bez zaškrtnutí, jejíž text se mění se stavem okna – „Zobrazit kameru“ (okno zavřené) / „Skrýt kameru“ (okno otevřené); klik okno dál otevírá a zavírá. Klíče `MenuShowCamera` a `MenuHideCamera` místo `MenuCamera`, podpora zaškrtávacích položek (`IsChecked`, `SetChecked`, obejití v `TrayMenuTarget`) odstraněna. Podrobnosti v T-042 (Rozhodnuto a Poznámky k implementaci). Bod 4 níže a odpovídající testy popisují stav do 2026-10-22.
 - **Celá obrazovka v malém náhledu (2026-10-20):** tlačítko vedle „zpět na normální okno“, návrat do malého náhledu na stejné místo.
 - **Nápověda „Pamatovat…“ (2026-10-20, dříve Q1):** přeformulovat – Uložit změny použije při dalším otevření okna, Použít hned (všech 8 jazyků; raději zkrátit, než dopustit posuvník).
 - **Potvrzení po Použít (2026-10-20, dříve Q2):** po úspěšném Použít krátce „Uloženo“ (en „Saved“) ve stavovém řádku nastavení, na několik sekund (řízeno `TimeProvider`), další úprava ho skryje.

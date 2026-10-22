@@ -92,12 +92,6 @@ internal sealed class AvaloniaNativeTrayMenu : INativeTrayMenu
             a is null ? b is null
             : b is not null && ReferenceEquals(a.Value.Png, b.Value.Png) && string.Equals(a.Value.PrinterId, b.Value.PrinterId, StringComparison.OrdinalIgnoreCase);
 
-        public void SetChecked(bool? isChecked)
-        {
-            Native.ToggleType = isChecked is null ? MenuItemToggleType.None : MenuItemToggleType.CheckBox;
-            Native.IsChecked = isChecked == true;
-        }
-
         public INativeTrayMenu CreateSubmenu()
         {
             NativeMenu submenu = new();

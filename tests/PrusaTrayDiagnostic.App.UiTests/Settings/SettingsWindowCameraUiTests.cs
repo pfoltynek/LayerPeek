@@ -350,7 +350,7 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             await harness.ShowAsync();
 
             harness.TypeUrl("rtsp://192.168.0.227/live");
-            harness.Click(Ui.Find<CheckBox>(harness.Window, box => box.Content as string == "Use the camera (Camera item in the tray menu)"));
+            harness.Click(Ui.Find<CheckBox>(harness.Window, box => box.Content as string == "Use the camera (\"Show camera\" item in the tray menu)"));
             harness.Click(harness.Button("Save"));
             await Ui.UntilAsync(() => harness.Store.Saves.Count == 1, "saved");
 
@@ -377,7 +377,7 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             Assert.True(Ui.ShowsText(harness.Window, "Adresa RTSP streamu"));
             Assert.True(Ui.ShowsText(harness.Window, "Adresa nie je platná. Použite tvar rtsp://adresa/cesta."));
             Assert.NotNull(harness.Button("Otestovať kameru"));
-            Assert.NotNull(Ui.Find<CheckBox>(harness.Window, static box => box.Content as string == "Používať kameru (položka Kamera v ponuke oznamovacej oblasti)"));
+            Assert.NotNull(Ui.Find<CheckBox>(harness.Window, static box => box.Content as string == "Používať kameru (položka „Zobraziť kameru“ v ponuke oznamovacej oblasti)"));
             // The typed address survives the switch.
             Assert.Equal("x", harness.UrlFieldText);
         });

@@ -358,80 +358,76 @@ public sealed class TrayMenuTargetTests
         Assert.Empty(_clicked);
     }
 
-    // ---- Check items (T-040: the camera item) ----
+    // ---- Camera item: "Show camera" / "Hide camera" (2026-10-22, replaced the check item of T-040) ----
 
-    private static TrayMenuEntry Camera(bool isChecked) =>
-        new(TrayMenuCommand.Camera, "Camera", IsEnabled: true, PrinterId: "mk4") { IsChecked = isChecked };
-
-    [Fact]
-    public void PlainItemsAreNeverCheckItems()
-    {
-        _target.SetFixedItems([About]);
-        _target.InsertPrinterItem(0, Printer("MK4"));
-
-        Assert.All(_menu.Items, item => Assert.Null(item.IsChecked));
-        Assert.All(_menu.Items, item => Assert.DoesNotContain(item.Writes, write => write.StartsWith("checked=", StringComparison.Ordinal)));
-    }
+    private static TrayMenuEntry Camera(bool isOpen) =>
+        new(TrayMenuCommand.Camera, isOpen ? "Hide _camera" : "Show _camera", IsEnabled: true, PrinterId: "mk4") { HasAccessKey = true };
 
     [Fact]
-    public void CheckItemShowsItsStateAndUpdatesOnlyWhenItChanges()
+    public void CameraItemChangesOnlyItsHeaderInPlace()
     {
         _target.SetFixedItems([]);
-        _target.InsertPrinterItem(0, Camera(isChecked: false));
+        _target.InsertPrinterItem(0, Camera(isOpen: false));
         FakeNativeItem item = _menu.Items[0];
-        Assert.False(item.IsChecked);
+        Assert.Equal("Show _camera", item.Header);
         item.Writes.Clear();
 
-        _target.UpdatePrinterItem(0, Camera(isChecked: false));
+        _target.UpdatePrinterItem(0, Camera(isOpen: false));
         Assert.Empty(item.Writes);
 
-        _target.UpdatePrinterItem(0, Camera(isChecked: true));
-        Assert.Equal(["checked=True"], item.Writes);
-        Assert.True(item.IsChecked);
+        _target.UpdatePrinterItem(0, Camera(isOpen: true));
+        Assert.Equal(["header=Hide _camera"], item.Writes);
+        Assert.Same(item, _menu.Items[0]);
+
+        _target.UpdatePrinterItem(0, Camera(isOpen: false));
+        Assert.Equal("Show _camera", item.Header);
     }
 
     [Fact]
-    public void CheckItemInASubmenuFollowsItsEntry()
+    public void CameraItemInASubmenuSwitchesItsHeaderInPlace()
     {
         _target.SetFixedItems([]);
-        TrayMenuEntry header = new(TrayMenuCommand.None, "MK4", IsEnabled: true) { Submenu = new TrayMenuEntryList([Printer("Open"), Camera(isChecked: false)]) };
+        TrayMenuEntry header = new(TrayMenuCommand.None, "MK4", IsEnabled: true) { Submenu = new TrayMenuEntryList([Printer("Open"), Camera(isOpen: false)]) };
         _target.InsertPrinterItem(0, header);
         FakeNativeItem camera = _menu.Items[0].Submenu!.Items[1];
-        Assert.False(camera.IsChecked);
+        Assert.Equal("Show _camera", camera.Header);
+        camera.Writes.Clear();
 
-        _target.UpdatePrinterItem(0, header with { Submenu = new TrayMenuEntryList([Printer("Open"), Camera(isChecked: true)]) });
+        _target.UpdatePrinterItem(0, header with { Submenu = new TrayMenuEntryList([Printer("Open"), Camera(isOpen: true)]) });
 
-        Assert.True(camera.IsChecked);
+        Assert.Equal(["header=Hide _camera"], camera.Writes);
         Assert.Same(camera, _menu.Items[0].Submenu!.Items[1]);
     }
 
     [Fact]
-    public void ClickedCheckItemShowsTheStateOfItsEntryAfterTheClick()
+    public void ClickedCameraItemShowsTheHeaderSetDuringTheClick()
     {
-        // A platform may flip the check mark itself; the entry decides (here the click did not open anything).
         _target.SetFixedItems([]);
-        _target.InsertPrinterItem(0, Camera(isChecked: false));
+        _target.InsertPrinterItem(0, Camera(isOpen: false));
         FakeNativeItem item = _menu.Items[0];
-        item.SetChecked(true);
+        // The click opens the camera window, which switches the item to "Hide camera" before the click returns.
+        _target.ItemClicked += (_, _) => _target.UpdatePrinterItem(0, Camera(isOpen: true));
+        item.Writes.Clear();
 
         item.Click();
 
-        Assert.False(item.IsChecked);
         Assert.Equal(TrayMenuCommand.Camera, Assert.Single(_clicked).Command);
+        Assert.Equal(["header=Hide _camera"], item.Writes);
     }
 
     [Fact]
-    public void ClickedCheckItemShowsTheStateSetDuringTheClick()
+    public void ClickedCameraItemThatOpenedNothingKeepsItsHeader()
     {
         _target.SetFixedItems([]);
-        _target.InsertPrinterItem(0, Camera(isChecked: false));
+        _target.InsertPrinterItem(0, Camera(isOpen: false));
         FakeNativeItem item = _menu.Items[0];
-        // The click opens the camera window, which checks the item before the click returns.
-        _target.ItemClicked += (_, _) => _target.UpdatePrinterItem(0, Camera(isChecked: true));
+        item.Writes.Clear();
 
         item.Click();
 
-        Assert.True(item.IsChecked);
+        Assert.Equal(TrayMenuCommand.Camera, Assert.Single(_clicked).Command);
+        Assert.Empty(item.Writes);
+        Assert.Equal("Show _camera", item.Header);
     }
 
     private static TrayMenuEntry Printer(string header, string? uri = "http://printer/") =>
@@ -524,14 +520,6 @@ public sealed class TrayMenuTargetTests
             Icon = icon;
             IconPrinterId = printerId;
             Writes.Add("icon=" + icon?.IllustrationId);
-        }
-
-        public bool? IsChecked { get; private set; }
-
-        public void SetChecked(bool? isChecked)
-        {
-            IsChecked = isChecked;
-            Writes.Add("checked=" + isChecked);
         }
 
         public void Detach() => Detached = true;

@@ -84,7 +84,7 @@ internal interface ITrayAppCommands
     void AddPrinter();
 
     /// <summary>
-    /// The "Camera" check item (T-040): opens the camera window of <paramref name="printerId"/>, or closes it when it is
+    /// The camera item ("Show camera" / "Hide camera", T-040, 2026-10-22): opens the camera window of <paramref name="printerId"/>, or closes it when it is
     /// open (one window per printer; windows of different printers may be open at the same time).
     /// </summary>
     void ToggleCamera(string printerId);

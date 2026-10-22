@@ -13,7 +13,7 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests;
 /// <summary>
 /// The real tray menu (T-042) from the Windows notification area: the test instance's icon (tooltip prefix <c>[E2E]</c>,
 /// often in the overflow flyout) is right-clicked with the real mouse (the only step that moves it), and the menu, an
-/// Avalonia popup of the app, is read and used through UI Automation: printer submenu, checked Camera toggle,
+/// Avalonia popup of the app, is read and used through UI Automation: printer submenu, "Show camera" / "Hide camera",
 /// Diagnostics… (main menu since 2026-10-21), Settings…, About and Quit with their access keys.
 /// </summary>
 public sealed class TrayMenuTests(E2EFixture fixture)
@@ -34,23 +34,22 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         await app.SendAsync($"camera:{PrinterId}");
         await Wait.UntilAsync(() => !Native.IsWindowVisible(cameraWindow), TimeSpan.FromSeconds(10), "the camera window to close");
 
-        // Open: Camera unchecked, the camera window opens.
+        // Open: "Show camera" (a plain item, no check mark since 2026-10-22), the camera window opens.
         AutomationElement printerItem = await OpenPrinterSubmenuAsync(app, "tray-menu-1");
-        AutomationElement cameraItem = await SubmenuItemAsync(app, printerItem, "Camera");
-        Assert.Equal(ToggleState.Off, ToggleStateOf(cameraItem));
+        AutomationElement cameraItem = await SubmenuItemAsync(app, printerItem, "Show camera");
         nint submenu = MenuWindowOf(app, cameraItem);
-        // "Open PrusaLink in the browser" is first on screen (see the screenshot) but not reported as a menu item by UI Automation.
+        // "Open PrusaLink" is first on screen (see the screenshot) but not reported as a menu item by UI Automation.
         string[] submenuItems = [.. app.Element(submenu).FindAllDescendants(cf => cf.ByControlType(ControlType.MenuItem)).Select(static item => item.Name)];
-        Assert.Equal("Camera", submenuItems[^1]);
+        Assert.Equal("Show camera", submenuItems[^1]);
+        Assert.DoesNotContain("Hide camera", submenuItems);
         Assert.DoesNotContain("Diagnostics…", submenuItems);
         Screenshots.Save(submenu, "tray-menu-2-printer-submenu");
         cameraItem.Patterns.Invoke.Pattern.Invoke();
         nint opened = await app.WaitForWindowAsync(AppWindowKind.Camera, [cameraWindow]);
 
-        // Close: Camera checked now, the window closes.
+        // Close: "Hide camera" now, the window closes.
         printerItem = await OpenPrinterSubmenuAsync(app, "tray-menu-3");
-        cameraItem = await SubmenuItemAsync(app, printerItem, "Camera");
-        Assert.Equal(ToggleState.On, ToggleStateOf(cameraItem));
+        cameraItem = await SubmenuItemAsync(app, printerItem, "Hide camera");
         cameraItem.Patterns.Invoke.Pattern.Invoke();
         await Wait.UntilAsync(() => !Native.IsWindowVisible(opened), TimeSpan.FromSeconds(10), "the camera window to close from the menu");
 
@@ -230,9 +229,6 @@ public sealed class TrayMenuTests(E2EFixture fixture)
             $"the submenu item '{name}'");
         return found!;
     }
-
-    private static ToggleState ToggleStateOf(AutomationElement item) =>
-        item.Patterns.Toggle.IsSupported ? item.Patterns.Toggle.Pattern.ToggleState.ValueOrDefault : ToggleState.Indeterminate;
 
     private static nint MenuWindowOf(AppInstance app, AutomationElement item)
     {

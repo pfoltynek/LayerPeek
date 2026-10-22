@@ -267,7 +267,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
             Assert.Equal(
                 [Strings.MenuOpenPrusaLink],
                 tray.Item(0).Menu!.Items.Cast<NativeMenuItem>().Select(static item => item.Header));
-            Assert.NotEqual("Open PrusaLink in the browser", Strings.MenuOpenPrusaLink);
+            Assert.NotEqual("Open PrusaLink", Strings.MenuOpenPrusaLink);
             Assert.Equal(TrayMenuFormatter.PrinterHeader("MK4", default), tray.Item(0).Header);
             return Task.CompletedTask;
         });

@@ -117,11 +117,11 @@
     <comment>Tray menu item shown when no printer is configured: opens the settings and adds a printer. "_" marks the access key (unique within the main menu).</comment>
   </data>
   <data name="MenuOpenPrusaLink" xml:space="preserve">
-    <value>_Open PrusaLink in the browser</value>
+    <value>_Open PrusaLink</value>
     <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
   <data name="MenuOpenPrusaConnect" xml:space="preserve">
-    <value>_Open Prusa Connect in the browser</value>
+    <value>_Open Prusa Connect</value>
     <comment>Item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
   </data>
   <data name="MenuInvalidAddress" xml:space="preserve">
@@ -595,7 +595,7 @@
     <value>Camera</value>
   </data>
   <data name="SettingsCameraEnabled" xml:space="preserve">
-    <value>Use the camera (Camera item in the tray menu)</value>
+    <value>Use the camera ("Show camera" item in the tray menu)</value>
   </data>
   <data name="SettingsCameraUrl" xml:space="preserve">
     <value>RTSP stream address</value>
@@ -642,9 +642,13 @@
   <data name="SettingsCameraErrorCredentials" xml:space="preserve">
     <value>The address must not contain a user name, a password or the @ character.</value>
   </data>
-  <data name="MenuCamera" xml:space="preserve">
-    <value>_Camera</value>
-    <comment>Check item of a printer submenu. "_" marks the access key (unique within the submenu).</comment>
+  <data name="MenuShowCamera" xml:space="preserve">
+    <value>Show _camera</value>
+    <comment>Item of a printer submenu while its camera window is closed; opens the window. "_" marks the access key: unique within the submenu and on the same noun as MenuHideCamera, so the key stays the same in both states.</comment>
+  </data>
+  <data name="MenuHideCamera" xml:space="preserve">
+    <value>Hide _camera</value>
+    <comment>Item of a printer submenu while its camera window is open; closes the window. "_" marks the access key: unique within the submenu and on the same noun as MenuShowCamera, so the key stays the same in both states.</comment>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Camera</value>
