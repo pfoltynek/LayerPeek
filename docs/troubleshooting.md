@@ -62,3 +62,36 @@ schránky**. Tlačítko na dvě sekundy ukáže „✓ Zkopírováno“ a ve sch
 Celý text má nejvýš asi 64 KB: když je log delší, vynechají se nejstarší řádky, přehled o prostředí zůstane celý. Text
 neobsahuje hesla, klíče ani přihlašovací údaje a dotazovou část adres kamer; řádky logu jsou takové, jaké jsou v souboru.
 Před vložením do veřejného hlášení ho můžete projít.
+
+## Přerušený E2E běh vrátil nastavení jen zčásti
+
+*Pro vývojáře.* E2E testy skutečné aplikace (`tools/run-e2e.ps1`, T-044) mohou dočasně měnit nastavení Windows (T-065):
+motiv, Nerušit, testovací ikonu na hlavním panelu, později i měřítko, druhý monitor a toasty (T-066, T-068). Před každou
+změnou se původní stav zapíše do složky **`%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore`** (jeden soubor `<druh>.json`
+na zásah, s popisem původního stavu a ručním postupem). Záznam se smaže, až když se návrat ověří. Prázdná složka se
+smaže. Vedle ní je během práce se záznamy zámek `PrusaTrayDiagnostic.E2E.Restore.lock`.
+
+Návrat proběhne sám: po testu (i neúspěšném), při startu dalšího běhu, ve `finally` skriptu (i po Ctrl+C) a v hlídacím
+procesu, který počká na konec testovacího procesu (i zabitého) a uklidí po něm. Jeho výpis je v
+`system-changes-watchdog.log` ve složce výsledků (`%TEMP%\PrusaTrayDiagnostic.App.E2E.Results.<id>`).
+
+Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo skript ohlásí „NOT restored“):
+
+1. Spusťte `pwsh tools/run-e2e.ps1 -RestoreOnly`. Vrátí všechny čekající záznamy a vypíše, co vracel. Nic nesestavuje
+   kromě testovacího projektu (jen když chybí) a nic jiného nespouští. Bez záznamů nic nemění. Záznamy testovacího
+   procesu, který ještě běží, nechá být (vrátí je ten proces nebo jeho hlídací proces).
+2. Když návrat selže, záznam zůstane a skript vypíše původní stav. Vraťte ho ručně:
+
+| Zásah | Ruční návrat |
+|---|---|
+| Motiv | Nastavení → Přizpůsobení → Barvy → Zvolit režim (Vlastní: režim Windows / režim aplikací), nebo hodnoty DWORD `SystemUsesLightTheme` a `AppsUseLightTheme` v `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` (chybějící hodnota = světlý). `ColorPrevalence` testy nemění. |
+| Nerušit | Win+N → tlačítko Nerušit (zvonek) nahoře v centru oznámení, nebo Nastavení → Systém → Oznámení → Nerušit. |
+| Testovací ikona na hlavním panelu | Nastavení → Přizpůsobení → Hlavní panel → Další ikony na hlavním panelu (testovací ikonu vypnout), nebo v `HKCU\Control Panel\NotifyIconSettings` u položek testovaného exe vrátit `IsPromoted` na hodnotu ze záznamu (kde chyběla, a u položek vzniklých během běhu, ji smazat). Položky samotné se nemažou (rozhodnutí 2026-10-22). |
+| Měřítko (T-066) | Nastavení → Systém → Obrazovka → Měřítko. |
+| Vypnutý monitor (T-066) | Win+P → Rozšířit. |
+| Testovací sonda | Klíč `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests` (jen samotesty infrastruktury) smazat. |
+
+3. Až je vše vrácené, smažte soubory ve složce `%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore` (jinak je další běh
+   zkusí vrátit znovu a před spuštěním testů skončí chybou).
+
+Spuštění bez zásahů: `pwsh tools/run-e2e.ps1 -NoSystemChanges` (bez varování, testy se zásahy se přeskočí).

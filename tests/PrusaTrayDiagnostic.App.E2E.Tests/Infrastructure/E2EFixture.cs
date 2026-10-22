@@ -23,6 +23,11 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 /// <c>--ptd-e2e-run=&lt;folder&gt;</c>; before a reserved folder is deleted (start sweep after a crash, end of the run),
 /// the app processes marked with it are killed. The user's own instance never carries the marker.
 /// </para>
+/// <para>
+/// System changes (T-065): before anything starts, the journal of <see cref="SystemChanges"/> is restored (changes of a
+/// crashed run) and the touched system state is recorded; after the last test the run-wide tray change and anything a
+/// test left in the journal are restored, and the state must equal the recorded one, or the run fails.
+/// </para>
 /// </summary>
 public sealed class E2EFixture : IAsyncLifetime
 {
@@ -49,12 +54,46 @@ public sealed class E2EFixture : IAsyncLifetime
     /// <summary>Long enough for a full run of another worktree to finish.</summary>
     private static readonly TimeSpan DesktopLockTimeout = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// <c>1</c> in a child test process the self-tests of T-065 start (one test method, e.g. a change that gets killed):
+    /// the parent holds the locks and owns the folders, so the child's fixture does nothing.
+    /// </summary>
+    public const string ChildVariable = "PTD_E2E_CHILD";
+
+    /// <summary>How long the start cleanup waits for a test process that still owns journal entries to end.</summary>
+    private static readonly TimeSpan JournalOwnerWait = TimeSpan.FromSeconds(30);
+
     private TestRunLock? _desktopLock;
     private TestRunLock? _runLock;
     private UIA3Automation? _automation;
+    private SystemStateSnapshot? _startState;
 
     /// <summary>Why the tests do not run, or <see langword="null"/>.</summary>
     public static string? SkipReason { get; } = ComputeSkipReason();
+
+    /// <summary>
+    /// <c>1</c> in the restore process of <c>tools/run-e2e.ps1 -RestoreOnly</c> (also the watchdog's), which runs only
+    /// <see cref="SystemChangeRestore.RestorePendingSystemChanges"/>; it may run while a test run holds every lock.
+    /// </summary>
+    public const string RestoreVariable = "PTD_E2E_RESTORE";
+
+    /// <summary>Whether this process is a child test process of a self-test (see <see cref="ChildVariable"/>).</summary>
+    public static bool IsChildProcess { get; } = Environment.GetEnvironmentVariable(ChildVariable) == "1";
+
+    /// <summary>Whether this process is the restore process (see <see cref="RestoreVariable"/>).</summary>
+    public static bool IsRestoreProcess { get; } = Environment.GetEnvironmentVariable(RestoreVariable) == "1";
+
+    /// <summary>A child or restore process: no locks, no folders, no unit tests.</summary>
+    public static bool IsAuxiliaryProcess => IsChildProcess || IsRestoreProcess;
+
+    /// <summary>
+    /// The run-wide tray icon change of a run with confirmed system changes (begun before any app starts, restored after
+    /// the last test, T-065): tests promote the test icon with <see cref="TrayIconPromotionExtensions.PromoteAsync"/>;
+    /// at its end every entry of the tested exe gets its original <c>IsPromoted</c> back, and entries Explorer created
+    /// during the run are kept without <c>IsPromoted</c> (T-065 Q3). <see langword="null"/> without confirmed system
+    /// changes.
+    /// </summary>
+    internal SystemChange<TrayIconPromotionState>? TrayIconPromotion { get; private set; }
 
     /// <summary>Reserved for this run: data folders of the started apps.</summary>
     public static string Root => Reserved.Path;
@@ -83,19 +122,58 @@ public sealed class E2EFixture : IAsyncLifetime
 
         // Window rectangles of the app in physical pixels at any scaling.
         Native.SetProcessDpiAwarenessContext(Native.PerMonitorAwareV2);
+        if (IsAuxiliaryProcess)
+        {
+            // The parent run holds the locks and owns the folders.
+            return;
+        }
+
         try
         {
             _desktopLock = await TestRunLock.AcquireAsync(DesktopLockName, DesktopLockTimeout);
             _runLock = await Reserved.AcquireLockAsync(TimeSpan.FromMinutes(2));
             CheckIsDebugTestBuild(AppPath);
+
+            // System changes of a crashed run go back before anything starts (T-065, layer 2), under the desktop lock.
+            SystemChangeRestoreReport restored = await SystemChanges.Journal.RestorePendingAsync(includeOwn: false, JournalOwnerWait, CancellationToken.None);
             await Reserved.SweepAsync();
             await Reserved.CreateAsync();
             PrepareResultsDirectory();
+            if (!restored.IsEmpty)
+            {
+                Screenshots.SaveText(restored.ToString(), "system-changes-restored-at-start");
+            }
+
+            if (!restored.Success)
+            {
+                throw new InvalidOperationException($"System changes of an earlier run could not be restored; nothing runs.{Environment.NewLine}{restored}");
+            }
+
             _automation = new UIA3Automation();
+            _startState = await SystemStateSnapshot.CaptureAsync(includeDoNotDisturb: SystemChanges.IsConfirmed);
+            Screenshots.SaveText(_startState.ToString(), "system-state-start");
+            if (SystemChanges.IsConfirmed)
+            {
+                TrayIconPromotion = await SystemChanges.TrayIconPromotionAsync(AppPath);
+            }
         }
-        catch
+        catch (Exception startFailure)
         {
-            ReleaseLocks();
+            try
+            {
+                await RestoreAfterFailedStartAsync();
+            }
+            catch (Exception restoreFailure)
+            {
+                // Both matter: why the start failed, and that the tray change is still in the journal (its watchdog or the
+                // next start restores it).
+                throw new AggregateException("The end-to-end run could not start, and its tray icon change was not restored.", startFailure, restoreFailure);
+            }
+            finally
+            {
+                ReleaseLocks();
+            }
+
             throw;
         }
     }
@@ -107,21 +185,99 @@ public sealed class E2EFixture : IAsyncLifetime
             return;
         }
 
+        List<string> problems = [];
         try
         {
             _automation?.Dispose();
             _automation = null;
             List<string> leaked = await AppProcesses.KillMarkedAsync(Root);
-            await Reserved.DeleteAsync();
             if (leaked.Count != 0)
             {
-                throw new InvalidOperationException($"App processes outlived their tests and were killed: {string.Join(", ", leaked)}.");
+                problems.Add($"App processes outlived their tests and were killed: {string.Join(", ", leaked)}.");
+            }
+
+            try
+            {
+                // After the apps are gone (their tray icons too), before the reserved folder goes.
+                await CheckSystemStateAsync(problems);
+            }
+            finally
+            {
+                await Reserved.DeleteAsync();
+            }
+
+            if (problems.Count != 0)
+            {
+                throw new InvalidOperationException(string.Join(Environment.NewLine, problems));
             }
         }
         finally
         {
             ReleaseLocks();
         }
+    }
+
+    /// <summary>
+    /// End of the run (T-065): restores the run-wide tray change and whatever a test left in the journal (a failure of its
+    /// own restore), then compares the system with the state at the start.
+    /// </summary>
+    private async Task CheckSystemStateAsync(List<string> problems)
+    {
+        if (TrayIconPromotion is { } tray)
+        {
+            TrayIconPromotion = null;
+            try
+            {
+                await tray.DisposeAsync();
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // Any failure (also a TimeoutException of the journal lock): the entry stays, the restore below tries again.
+                problems.Add($"The tray icon entries were not restored: {ex.Message}");
+            }
+        }
+
+        SystemChangeRestoreReport left = await SystemChanges.Journal.RestorePendingAsync(includeOwn: true, JournalOwnerWait, CancellationToken.None);
+        if (!left.IsEmpty)
+        {
+            Screenshots.SaveText(left.ToString(), "system-changes-left-by-tests");
+            problems.Add($"Tests left system changes in the journal (their own restore failed):{Environment.NewLine}{left}");
+        }
+
+        if (_startState is null)
+        {
+            return;
+        }
+
+        SystemStateSnapshot end = await SystemStateSnapshot.CaptureAsync(includeDoNotDisturb: _startState.DoNotDisturb is not null);
+        if (_startState.DoNotDisturb is not null && end.DoNotDisturb is null)
+        {
+            problems.Add($"Do Not Disturb could not be read at the end of the run: {end.DoNotDisturbError}");
+        }
+
+        List<string> notes = [];
+        List<string> differences = _startState.Compare(end, AppPath, notes);
+        Screenshots.SaveText(
+            $"{end}{Environment.NewLine}Differences from the start:{Environment.NewLine}{(differences.Count == 0 ? "  none" : string.Join(Environment.NewLine, differences.Select(static d => "  " + d)))}"
+            + $"{Environment.NewLine}Notes:{Environment.NewLine}{(notes.Count == 0 ? "  none" : string.Join(Environment.NewLine, notes.Select(static n => "  " + n)))}",
+            "system-state-end");
+        if (differences.Count != 0)
+        {
+            problems.Add($"The system is not as before the run (see docs/troubleshooting.md, tools/run-e2e.ps1 -RestoreOnly):{Environment.NewLine}{string.Join(Environment.NewLine, differences)}");
+        }
+    }
+
+    /// <summary>A start that failed after the run-wide tray change began restores it at once.</summary>
+    private async Task RestoreAfterFailedStartAsync()
+    {
+        if (TrayIconPromotion is { } tray)
+        {
+            TrayIconPromotion = null;
+            await tray.DisposeAsync();
+        }
+
+        _automation?.Dispose();
+        _automation = null;
     }
 
     private void ReleaseLocks()
