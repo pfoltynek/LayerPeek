@@ -198,6 +198,9 @@ the printers and cameras you add.
 ## Roadmap
 
 - Installer with automatic updates (Velopack), autostart with Windows
+- `winget install` as soon as the first release is public
+- Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
+  signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
 - macOS menu bar app (Apple Silicon)
 - Windows on ARM64
 - MMU3 status

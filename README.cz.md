@@ -199,6 +199,10 @@ a kamerám, které přidáš.
 ## Plán
 
 - Instalátor s automatickými aktualizacemi (Velopack), spuštění po startu Windows
+- `winget install` hned po zveřejnění prvního vydání
+- Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
+  podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
+  projektu přibudou později.
 - Aplikace pro menu bar na macOS (Apple Silicon)
 - Windows na ARM64
 - Stav MMU3
