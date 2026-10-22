@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 
+using PrusaTrayDiagnostic.App.Support;
+
 namespace PrusaTrayDiagnostic.App.Windows;
 
 /// <summary>
@@ -29,12 +31,15 @@ public sealed partial class AboutWindow : Window
         if (_viewModel is not null)
         {
             _viewModel.LicensesRequested -= OnLicensesRequested;
+            _viewModel.BundlePicker = null;
         }
 
         _viewModel = DataContext as AboutViewModel;
         if (_viewModel is not null)
         {
             _viewModel.LicensesRequested += OnLicensesRequested;
+            // The save dialog of the diagnostic bundle belongs to this window (T-048).
+            _viewModel.BundlePicker = new StorageProviderBundleFilePicker(this);
         }
 
         base.OnDataContextChanged(e);
@@ -45,6 +50,7 @@ public sealed partial class AboutWindow : Window
         if (_viewModel is not null)
         {
             _viewModel.LicensesRequested -= OnLicensesRequested;
+            _viewModel.BundlePicker = null;
             _viewModel = null;
         }
 

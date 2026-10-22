@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Paramètres enregistrés. Une image d'imprimante n'a pas pu être enregistrée ; l'imprimante affiche donc son image précédente.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Signaler un problème</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Enregistrer le paquet de diagnostic…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Un fichier ZIP avec les journaux, les informations de version et du système et les paramètres sans mots de passe ni clés.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Ouvrir le dossier des journaux</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Enregistrer le paquet de diagnostic</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>Archive ZIP</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Enregistrement du paquet de diagnostic…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Le paquet de diagnostic a été enregistré.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Le paquet de diagnostic n'a pas pu être enregistré. Choisissez un autre dossier et réessayez.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Le dossier des journaux n'a pas pu être ouvert.</value>
+  </data>
 </root>

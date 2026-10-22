@@ -12,6 +12,7 @@ using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Support;
 using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Menu;
@@ -83,6 +84,19 @@ public sealed class AppServicesTests
         Assert.Equal(LogLevel.Debug, level.MinimumLevel);
         // Saved settings reach it through the monitoring session, like every other observer.
         Assert.Contains(observer, services.GetRequiredService<MonitoringSession>().Observers);
+    }
+
+    [Fact]
+    public async Task SupportActionsComeFromTheContainerWithoutTouchingUserData()
+    {
+        // T-048: created per About window; nothing is read before an action runs.
+        await using ServiceProvider services = AppServices.Create();
+
+        SupportActions support = AppServices.CreateSupportActions(services, new SupportLog(null, static _ => true));
+
+        Assert.Null(support.LogDirectory);
+        Assert.False(await support.OpenLogFolderAsync());
+        Assert.IsType<ProcessFolderLauncher>(services.GetRequiredService<IFolderLauncher>());
     }
 
     [Fact]

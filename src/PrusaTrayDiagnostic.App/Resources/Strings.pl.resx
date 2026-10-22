@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Ustawienia zostały zapisane. Nie udało się zapisać obrazu drukarki, dlatego drukarka pokazuje swój poprzedni obraz.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Zgłoś problem</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Zapisz pakiet diagnostyczny…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Plik ZIP z logami, informacjami o wersji i systemie oraz ustawieniami bez haseł i kluczy.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Otwórz folder z logami</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Zapisz pakiet diagnostyczny</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>Archiwum ZIP</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Zapisywanie pakietu diagnostycznego…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Pakiet diagnostyczny został zapisany.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Nie udało się zapisać pakietu diagnostycznego. Wybierz inny folder i spróbuj ponownie.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Nie udało się otworzyć folderu z logami.</value>
+  </data>
 </root>

@@ -14,9 +14,11 @@ using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.Printers;
 using PrusaTrayDiagnostic.App.Settings;
+using PrusaTrayDiagnostic.App.Support;
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.App.Tray.Icons;
 using PrusaTrayDiagnostic.App.Tray.Menu;
+using PrusaTrayDiagnostic.App.Windows;
 using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Notifications;
 using PrusaTrayDiagnostic.Core.Printers;
@@ -41,6 +43,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     private static readonly TimeSpan WebProxyStopTimeout = TimeSpan.FromSeconds(1);
 
     private readonly ILoggerFactory _loggerFactory;
+    private readonly SupportLog _supportLog;
     private readonly ILogger<TrayHost> _logger;
     private readonly ServiceProvider _services;
     private readonly MonitoringSession _session;
@@ -56,6 +59,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     private TrayHost(
         ILoggerFactory loggerFactory,
+        SupportLog supportLog,
         ServiceProvider services,
         MonitoringSession session,
         ITrayIconSet? iconSet,
@@ -65,6 +69,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         CancellationTokenSource backgroundWork)
     {
         _loggerFactory = loggerFactory;
+        _supportLog = supportLog;
         _logger = loggerFactory.CreateLogger<TrayHost>();
         _services = services;
         _session = session;
@@ -168,7 +173,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
                     backgroundWork.Token),
                 CancellationToken.None);
 
-            return new TrayHost(loggerFactory, services, session, iconSet, iconPresenter, menuPresenter, menuIcons, backgroundWork);
+            return new TrayHost(loggerFactory, new SupportLog(logging.Directory, logging.Flush), services, session, iconSet, iconPresenter, menuPresenter, menuIcons, backgroundWork);
         }
         catch
         {
@@ -187,6 +192,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     /// <summary>Opens web pages (About window link). Valid until <see cref="StopAsync"/>.</summary>
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
+
+    /// <summary>Content of a new About window with the support actions (T-048). Valid until <see cref="StopAsync"/>.</summary>
+    public AboutViewModel CreateAboutViewModel() => new(UrlLauncher, AppServices.CreateSupportActions(_services, _supportLog));
 
     /// <summary>A view model for a new diagnostics window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
     public DiagnosticsViewModel CreateDiagnosticsViewModel(string? initialPrinterId) => AppServices.CreateDiagnosticsViewModel(_services, initialPrinterId);

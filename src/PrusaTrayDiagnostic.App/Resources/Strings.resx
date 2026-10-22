@@ -934,4 +934,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Settings saved. A printer image could not be stored, so the printer keeps its previous image.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Report a problem</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Save diagnostic bundle…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>A ZIP file with the logs, version and system information and the settings without passwords and keys.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Open log folder</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Save diagnostic bundle</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>ZIP archive</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Saving the diagnostic bundle…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>The diagnostic bundle has been saved.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>The diagnostic bundle could not be saved. Choose another folder and try again.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>The log folder could not be opened.</value>
+  </data>
 </root>

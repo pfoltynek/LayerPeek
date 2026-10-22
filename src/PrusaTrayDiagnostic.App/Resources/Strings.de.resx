@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Einstellungen gespeichert. Ein Druckerbild konnte nicht gespeichert werden, der Drucker zeigt daher sein bisheriges Bild.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Problem melden</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Diagnosepaket speichern…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Eine ZIP-Datei mit den Protokollen, Versions- und Systeminformationen und den Einstellungen ohne Passwörter und Schlüssel.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Protokollordner öffnen</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Diagnosepaket speichern</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>ZIP-Archiv</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Diagnosepaket wird gespeichert…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Das Diagnosepaket wurde gespeichert.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Das Diagnosepaket konnte nicht gespeichert werden. Wählen Sie einen anderen Ordner und versuchen Sie es erneut.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Der Protokollordner konnte nicht geöffnet werden.</value>
+  </data>
 </root>

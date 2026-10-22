@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Nastavenia sú uložené. Obrázok tlačiarne sa nepodarilo uložiť, tlačiareň preto zobrazuje predchádzajúci obrázok.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Nahlásenie problému</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Uložiť diagnostický balík…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Súbor ZIP s logmi, informáciami o verzii a systéme a nastaveniami bez hesiel a kľúčov.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Otvoriť priečinok s logmi</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Uložiť diagnostický balík</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>Archív ZIP</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Ukladám diagnostický balík…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Diagnostický balík bol uložený.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Diagnostický balík sa nepodarilo uložiť. Vyberte iný priečinok a skúste to znova.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Priečinok s logmi sa nepodarilo otvoriť.</value>
+  </data>
 </root>

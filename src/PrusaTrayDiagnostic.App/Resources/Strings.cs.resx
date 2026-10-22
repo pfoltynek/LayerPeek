@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Nastavení je uloženo. Obrázek tiskárny se nepodařilo uložit, tiskárna proto zobrazuje předchozí obrázek.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Nahlášení problému</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Uložit diagnostický balíček…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Soubor ZIP s logy, informacemi o verzi a systému a nastavením bez hesel a klíčů.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Otevřít složku s logy</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Uložit diagnostický balíček</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>Archiv ZIP</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Ukládám diagnostický balíček…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Diagnostický balíček byl uložen.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Diagnostický balíček se nepodařilo uložit. Zvolte jinou složku a zkuste to znovu.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Složku s logy se nepodařilo otevřít.</value>
+  </data>
 </root>

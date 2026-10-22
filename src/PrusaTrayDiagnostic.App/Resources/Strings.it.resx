@@ -915,4 +915,34 @@
   <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
     <value>Impostazioni salvate. Impossibile salvare un'immagine della stampante, quindi la stampante mostra l'immagine precedente.</value>
   </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Segnala un problema</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Salva pacchetto diagnostico…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Un file ZIP con i registri, le informazioni su versione e sistema e le impostazioni senza password né chiavi.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Apri cartella dei registri</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Salva pacchetto diagnostico</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>Archivio ZIP</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Salvataggio del pacchetto diagnostico…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Il pacchetto diagnostico è stato salvato.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Impossibile salvare il pacchetto diagnostico. Scegli un'altra cartella e riprova.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Impossibile aprire la cartella dei registri.</value>
+  </data>
 </root>
