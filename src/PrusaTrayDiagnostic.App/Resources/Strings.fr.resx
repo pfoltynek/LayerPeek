@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>Le dossier des journaux n'a pas pu être ouvert.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Copier les infos dans le presse-papiers</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Version, système, état des imprimantes et les 200 dernières lignes du journal, en texte et en anglais.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Copié</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Les informations n'ont pas pu être copiées dans le presse-papiers. Réessayez.</value>
+  </data>
 </root>

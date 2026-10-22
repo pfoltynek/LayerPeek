@@ -66,6 +66,46 @@ internal sealed partial class SupportActions
     }
 
     /// <summary>
+    /// The text for the clipboard (T-049): <see cref="SupportInfo"/> and the last <see cref="LogTail.DefaultLineCount"/> log
+    /// lines, at most about 64 KB (<see cref="SupportText"/>). The log queue is written first; the files are read off the
+    /// UI thread.
+    /// </summary>
+    public async Task<string> BuildClipboardTextAsync(CancellationToken cancellationToken)
+    {
+        AppSettings settings = await _settings(cancellationToken).ConfigureAwait(false);
+        return await Task.Run(
+            () =>
+            {
+                _log.Flush(FlushTimeout);
+                return SupportText.Compose(BuildInfo(settings), LogTail.Read(_log.Directory));
+            },
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// "Copy info to clipboard" (T-049): builds the text off the UI thread, then writes it into
+    /// <paramref name="clipboard"/>. Call on the UI thread (the clipboard write continues there). Never throws: a clipboard
+    /// held by another program (Windows reports a timeout) or a closed window is logged.
+    /// </summary>
+    /// <returns><see langword="true"/> when the text is in the clipboard.</returns>
+    public async Task<bool> CopyInfoAsync(ISupportClipboard clipboard)
+    {
+        ArgumentNullException.ThrowIfNull(clipboard);
+        try
+        {
+            // Back on the caller's (UI) thread for the clipboard.
+            string text = await BuildClipboardTextAsync(CancellationToken.None).ConfigureAwait(true);
+            await clipboard.SetTextAsync(text).ConfigureAwait(true);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LogCopyFailed(ex);
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Writes the diagnostic bundle into <paramref name="destination"/> (left open): the log queue is written first, so the
     /// bundle holds everything logged so far, including the line of this save.
     /// </summary>
@@ -144,6 +184,9 @@ internal sealed partial class SupportActions
             LogBundleNotDeleted(ex);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Copying the support information to the clipboard failed.")]
+    private partial void LogCopyFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Saving a diagnostic bundle.")]
     private partial void LogSavingBundle();

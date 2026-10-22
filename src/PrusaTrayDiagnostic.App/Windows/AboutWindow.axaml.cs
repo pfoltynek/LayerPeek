@@ -32,6 +32,7 @@ public sealed partial class AboutWindow : Window
         {
             _viewModel.LicensesRequested -= OnLicensesRequested;
             _viewModel.BundlePicker = null;
+            _viewModel.Clipboard = null;
         }
 
         _viewModel = DataContext as AboutViewModel;
@@ -40,6 +41,7 @@ public sealed partial class AboutWindow : Window
             _viewModel.LicensesRequested += OnLicensesRequested;
             // The save dialog of the diagnostic bundle belongs to this window (T-048).
             _viewModel.BundlePicker = new StorageProviderBundleFilePicker(this);
+            _viewModel.Clipboard = new TopLevelSupportClipboard(this);
         }
 
         base.OnDataContextChanged(e);
@@ -51,6 +53,7 @@ public sealed partial class AboutWindow : Window
         {
             _viewModel.LicensesRequested -= OnLicensesRequested;
             _viewModel.BundlePicker = null;
+            _viewModel.Clipboard = null;
             _viewModel = null;
         }
 

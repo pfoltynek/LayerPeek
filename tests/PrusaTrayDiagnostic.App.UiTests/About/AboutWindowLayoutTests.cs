@@ -1,16 +1,24 @@
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Platform;
 using Avalonia.Media;
 using Avalonia.VisualTree;
 
+using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
+
 using PrusaTrayDiagnostic.App.Localization;
+using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
+using PrusaTrayDiagnostic.App.Support;
+using PrusaTrayDiagnostic.App.Tests.Tray;
 using PrusaTrayDiagnostic.App.Tests.Tray.Menu;
 using PrusaTrayDiagnostic.App.UiTests.Infrastructure;
 using PrusaTrayDiagnostic.App.Windows;
@@ -43,6 +51,7 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
         ("saved", static () => Strings.SupportBundleSaved, false),
         ("bundle failed", static () => Strings.SupportBundleFailed, true),
         ("log folder failed", static () => Strings.SupportLogFolderFailed, true),
+        ("copy failed", static () => Strings.SupportCopyFailed, true),
     ];
 
     [Theory]
@@ -57,6 +66,8 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
             foreach ((string name, Func<string>? status, bool isError) in States)
             {
                 viewModel.ShowSupportStatus(status, isError);
+                // T-049: the copy button says "Copied" in every other state, so both texts are measured in every language.
+                viewModel.SetInfoCopied(Array.FindIndex(States, state => state.Name == name) % 2 == 1);
                 window.Settle();
                 string context = $"{language}, {name}";
                 Size size = window.ClientSize;
@@ -120,7 +131,7 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
                 }
             }
 
-            string[] expected = [Strings.AboutRepository, Strings.AboutThirdPartyLicenses, "SupportSaveBundle", "SupportOpenLogFolder", "AboutClose"];
+            string[] expected = [Strings.AboutRepository, Strings.AboutThirdPartyLicenses, "SupportSaveBundle", "SupportCopyInfo", "SupportOpenLogFolder", "AboutClose"];
             int start = order.IndexOf(Strings.AboutRepository);
             Assert.True(start >= 0, string.Join(", ", order));
             Assert.Equal(expected, order.Skip(start).Take(expected.Length));
@@ -138,6 +149,27 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task CopiedFeedbackKeepsTheButtonWidth() =>
+        session.RunAsync(async scope =>
+        {
+            (AboutWindow window, AboutViewModel viewModel) = Open(scope);
+            Button copy = window.Find<Button>("SupportCopyInfo");
+            double width = copy.Bounds.Width;
+
+            viewModel.SetInfoCopied(true);
+            window.Settle();
+
+            Assert.Equal(width, copy.Bounds.Width);
+            TextBlock[] texts = [.. copy.GetVisualDescendants().OfType<TextBlock>()];
+            Assert.Equal(0, Assert.Single(texts, static t => t.Classes.Contains("copyText")).Opacity);
+            TextBlock copied = Assert.Single(texts, static t => t.Classes.Contains("copiedText"));
+            Assert.Equal(1, copied.Opacity);
+            Assert.Equal("✓ Copied", copied.Text);
+            SnapshotAssert.Matches(window, "about-support-copied");
+            await Task.CompletedTask;
+        });
+
+    [Fact]
     public Task LongestErrorInGermanLooksAsDesigned() =>
         session.RunAsync(async scope =>
         {
@@ -149,6 +181,39 @@ public sealed class AboutWindowLayoutTests(HeadlessSession session)
             SnapshotAssert.Matches(window, "about-support-error-de");
             await Task.CompletedTask;
         });
+
+    [Fact]
+    public Task CopyButtonPutsTheSupportTextIntoTheClipboardOfTheWindow() =>
+        session.RunAsync(async scope =>
+        {
+            // T-049: the real button, the real command and the window's own clipboard (headless platform).
+            SupportActions support = new(
+                new SupportLog(null, static _ => true),
+                static _ => Task.FromResult(new AppSettings()),
+                new FakePrinterMonitor(),
+                new NoFolders(),
+                static _ => new SupportEnvironment("1.0.0", "Test OS", Architecture.X64, Architecture.X64, ".NET", NativeAot: false, "en-US", null, "7.1"),
+                TimeProvider.System,
+                NullLogger<SupportActions>.Instance);
+            AboutViewModel viewModel = new(new FakeUrlLauncher(), FixedProduct, support, new FakeTimeProvider());
+            AboutWindow window = scope.Track(new AboutWindow { DataContext = viewModel });
+            window.Show();
+            window.Settle();
+
+            window.Click(window.Find<Button>("SupportCopyInfo"));
+            await Ui.UntilAsync(() => viewModel.IsInfoCopied, "the copy finished");
+
+            string? text = await window.Clipboard!.TryGetTextAsync();
+            Assert.StartsWith("Prusa Tray Diagnostic 1.0.0\n", text, StringComparison.Ordinal);
+            Assert.EndsWith("Last log lines: none\n", text, StringComparison.Ordinal);
+            Assert.Equal("✓ Copied", AutomationProperties.GetName(window.Find<Button>("SupportCopyInfo")));
+            Assert.Null(viewModel.SupportStatusText);
+        });
+
+    private sealed class NoFolders : IFolderLauncher
+    {
+        public Task<bool> OpenAsync(string directory) => Task.FromResult(false);
+    }
 
     private static (AboutWindow Window, AboutViewModel ViewModel) Open(UiTestScope scope)
     {

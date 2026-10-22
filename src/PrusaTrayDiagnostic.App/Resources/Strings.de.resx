@@ -945,4 +945,16 @@
   <data name="SupportLogFolderFailed" xml:space="preserve">
     <value>Der Protokollordner konnte nicht geöffnet werden.</value>
   </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Infos in die Zwischenablage kopieren</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Version, System, Druckerstatus und die letzten 200 Protokollzeilen als Text, auf Englisch.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Kopiert</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Die Informationen konnten nicht in die Zwischenablage kopiert werden. Versuchen Sie es erneut.</value>
+  </data>
 </root>

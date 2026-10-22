@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
 using PrusaTrayDiagnostic.App.Platform;
 using PrusaTrayDiagnostic.App.Resources;
@@ -23,6 +24,8 @@ public sealed class AboutSupportTests : IDisposable
     private readonly string _folder = TestDirectories.NewDirectoryPath();
     private readonly FakeFolders _folders = new();
     private readonly FakePicker _picker = new();
+    private readonly FakeClipboard _clipboard = new();
+    private readonly FakeTimeProvider _time = new();
 
     public AboutSupportTests() => Directory.CreateDirectory(_folder);
 
@@ -102,6 +105,52 @@ public sealed class AboutSupportTests : IDisposable
     }
 
     [Fact]
+    public async Task CopiedInfoSaysCopiedForTwoSeconds()
+    {
+        Directory.CreateDirectory(Path.Combine(_folder, "logs"));
+        const string Record = "2026-10-22 14:03:12.345 +02:00 INF [pid 1] Tray: Started.";
+        File.WriteAllText(Path.Combine(_folder, "logs", "PrusaTrayDiagnostic.log"), Record + "\n");
+        AboutViewModel about = Create();
+
+        await about.CopyInfoCommand.ExecuteAsync(null);
+
+        string text = Assert.Single(_clipboard.Texts);
+        Assert.StartsWith("Prusa Tray Diagnostic 1.2.3\n", text, StringComparison.Ordinal);
+        Assert.EndsWith("Last log lines (1):\n" + Record + "\n", text, StringComparison.Ordinal);
+        Assert.True(about.IsInfoCopied);
+        Assert.True(about.CopyInfoCommand.CanExecute(null));
+        _time.Advance(TimeSpan.FromSeconds(1));
+
+        // Copied again: the feedback starts over.
+        await about.CopyInfoCommand.ExecuteAsync(null);
+        _time.Advance(TimeSpan.FromSeconds(1.5));
+        Assert.True(about.IsInfoCopied);
+        _time.Advance(TimeSpan.FromSeconds(0.5));
+        for (int i = 0; i < 500 && about.IsInfoCopied; i++)
+        {
+            // The end of the feedback continues on the thread pool after the fake clock fired.
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
+        Assert.False(about.IsInfoCopied);
+        Assert.Equal(2, _clipboard.Texts.Count);
+        Assert.Null(about.SupportStatusText);
+    }
+
+    [Fact]
+    public async Task ClipboardFailureIsReported()
+    {
+        AboutViewModel about = Create();
+        _clipboard.Fails = true;
+
+        await about.CopyInfoCommand.ExecuteAsync(null);
+
+        Assert.False(about.IsInfoCopied);
+        Assert.Equal(Strings.SupportCopyFailed, about.SupportStatusText);
+        Assert.True(about.SupportStatusIsError);
+    }
+
+    [Fact]
     public async Task WithoutSupportTheButtonsDoNothing()
     {
         AboutViewModel about = new(new FakeUrlLauncher()) { BundlePicker = _picker };
@@ -123,7 +172,25 @@ public sealed class AboutSupportTests : IDisposable
             static _ => Environment,
             TimeProvider.System,
             NullLogger<SupportActions>.Instance);
-        return new AboutViewModel(new FakeUrlLauncher(), support) { BundlePicker = _picker };
+        return new AboutViewModel(new FakeUrlLauncher(), typeof(AboutViewModel).Assembly, support, _time) { BundlePicker = _picker, Clipboard = _clipboard };
+    }
+
+    private sealed class FakeClipboard : ISupportClipboard
+    {
+        public bool Fails { get; set; }
+
+        public List<string> Texts { get; } = [];
+
+        public Task SetTextAsync(string text)
+        {
+            if (Fails)
+            {
+                throw new InvalidOperationException("The clipboard is busy.");
+            }
+
+            Texts.Add(text);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakePicker : IBundleFilePicker
