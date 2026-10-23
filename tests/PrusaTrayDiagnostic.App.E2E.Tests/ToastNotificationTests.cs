@@ -49,13 +49,13 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         ToastTexts texts = run.Texts(AppStrings.Get("en", "NotificationPrintPaused"));
 
         await run.SetScenarioAsync("paused");
-        ToastMatch banner = await Toasts.WaitForBannerAsync(run.App.Automation, texts, BannerTimeout);
+        ToastMatch banner = await run.WaitForBannerAsync(texts);
         // The pointer on the banner keeps it open (Windows does not dismiss a hovered toast) while it is checked.
         Hover(banner.Anchor);
         report.AppendLine("Banner elements:").AppendLine(banner.Describe());
 
         Assert.True(banner.HasExactly(texts.PrinterName), $"The toast title is not the printer name:{Environment.NewLine}{banner.Describe()}");
-        Assert.True(banner.HasExactly(texts.Body), $"The toast text is not '{texts.Body}':{Environment.NewLine}{banner.Describe()}");
+        Assert.True(banner.HasLine(texts.Body), $"The toast text is not '{texts.Body}':{Environment.NewLine}{banner.Describe()}");
         Rectangle bounds = await Toasts.SettledBoundsAsync(banner);
         using (Bitmap capture = Toasts.Capture(bounds))
         {
@@ -74,7 +74,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             {
                 using Bitmap found = header.Clone(icon.Location, header.PixelFormat);
                 Screenshots.Save(found, "toast-banner-icon");
-                using Bitmap reference = ToastIcon.Reference(icon.Size);
+                using Bitmap reference = ToastIcon.Reference(icon.Size, icon.EntrySize);
                 Screenshots.Save(reference, "toast-banner-icon-reference");
             }
         }
@@ -103,7 +103,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         // The pointer away from where the banner appears: a hovered banner never expires.
         MovePointerAway();
         await run.SetScenarioAsync("error");
-        await Toasts.WaitForBannerAsync(run.App.Automation, texts, BannerTimeout);
+        await run.WaitForBannerAsync(texts);
         await Toasts.WaitForBannerGoneAsync(run.App.Automation, texts, Toasts.BannerLifetime());
 
         string activation = await Toasts.InNotificationCenterAsync(run.App.Automation, async (_, window) =>
@@ -117,7 +117,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
                 Screenshots.Save(capture, "toast-center");
             }
 
-            return await Toasts.ActivateAsync(toast, () => run.OpenedUrls().Count > 0, OpenTimeout);
+            return await Toasts.ActivateAsync(toast, () => run.OpenedUrls().Count > 0, OpenTimeout, mouseOnly: true);
         });
 
         report.AppendLine("Activated by " + activation);
@@ -139,7 +139,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         // English first.
         ToastTexts english = run.Texts(AppStrings.Get("en", "NotificationPrintPaused"));
         await run.SetScenarioAsync("paused");
-        ToastMatch first = await Toasts.WaitForBannerAsync(run.App.Automation, english, BannerTimeout);
+        ToastMatch first = await run.WaitForBannerAsync(english);
         report.AppendLine("English banner:").AppendLine(first.Describe());
         using (Bitmap capture = Toasts.Capture(await Toasts.SettledBoundsAsync(first)))
         {
@@ -156,14 +156,14 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
 
         ToastTexts german = run.Texts(AppStrings.Get("de", "NotificationError"));
         await run.SetScenarioAsync("error");
-        ToastMatch second = await Toasts.WaitForBannerAsync(run.App.Automation, german, BannerTimeout);
+        ToastMatch second = await run.WaitForBannerAsync(german);
         report.AppendLine("German banner:").AppendLine(second.Describe());
         using (Bitmap capture = Toasts.Capture(await Toasts.SettledBoundsAsync(second)))
         {
             Screenshots.Save(capture, "toast-language-de");
         }
 
-        Assert.True(second.HasExactly(german.Body), $"The toast after the language change is not German ('{german.Body}'):{Environment.NewLine}{second.Describe()}");
+        Assert.True(second.HasLine(german.Body), $"The toast after the language change is not German ('{german.Body}'):{Environment.NewLine}{second.Describe()}");
         Assert.False(second.Mentions(AppStrings.Get("en", "NotificationError")), "The toast after the language change is still English.");
         await run.AssertDoNotDisturbStayedOffAsync(report);
         run.AssertProductionUnchanged();
@@ -217,10 +217,11 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             Assert.Contains(settingsFile, SystemChanges.Journal.PendingFiles());
             Assert.True(File.Exists(TestToastsKind.ShortcutPath), "The child's test app did not create its shortcut.");
 
-            child.Process.Kill();
+            // The whole tree: the app the child started holds its output pipe, so the child alone would never report its end.
+            child.Process.Kill(entireProcessTree: true);
             await child.WaitForExitAsync(TimeSpan.FromSeconds(30));
             List<string> killed = await AppProcesses.KillMarkedAsync(E2EFixture.Root);
-            report.AppendLine(CultureInfo.InvariantCulture, $"Killed: the child test process and {string.Join(", ", killed)}");
+            report.AppendLine(CultureInfo.InvariantCulture, $"Killed: the child test process with its app (process tree); left over and killed now: {(killed.Count == 0 ? "none" : string.Join(", ", killed))}");
             Screenshots.SaveText(child.Output, "toast-killed-child");
             Assert.True(File.Exists(TestToastsKind.ShortcutPath), "The killed app removed its shortcut; nothing left to restore.");
 
@@ -337,6 +338,39 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         }
 
         public ToastTexts Texts(string body) => new(PrinterName, body, [".bgcode"]);
+
+        /// <summary>
+        /// The banner of the toast; when it does not come, the failure also says whether the toast reached the
+        /// notification center (a banner suppressed or not found) or not (Windows dropped it), and what the app logged
+        /// about its notifications.
+        /// </summary>
+        public async Task<ToastMatch> WaitForBannerAsync(ToastTexts texts)
+        {
+            try
+            {
+                return await Toasts.WaitForBannerAsync(App.Automation, texts, BannerTimeout);
+            }
+            catch (TimeoutException ex)
+            {
+                string banners = Toasts.Diagnose(App.Automation, texts) ?? "  none";
+                string center = string.Empty;
+                bool inCenter = await Toasts.InNotificationCenterAsync(App.Automation, async (_, window) =>
+                {
+                    bool found = await Toasts.FindInAsync(App.Automation, window, texts, TimeSpan.FromSeconds(5)) is not null;
+                    center = Toasts.Diagnose(App.Automation, texts) ?? "  none";
+                    return found;
+                });
+                IEnumerable<string> logged = App.ReadLog()
+                    .Split('\n')
+                    .Where(static line => line.Contains("notification", StringComparison.OrdinalIgnoreCase) || line.Contains("shortcut", StringComparison.OrdinalIgnoreCase))
+                    .Select(static line => "  " + line.TrimEnd());
+                throw new TimeoutException(
+                    $"{ex.Message}{Environment.NewLine}Elements naming the printer after the timeout:{Environment.NewLine}{banners}{Environment.NewLine}"
+                    + $"The toast is {(inCenter ? "in" : "NOT in")} the notification center; elements naming the printer there:{Environment.NewLine}{center}{Environment.NewLine}"
+                    + $"What the app logged about notifications:{Environment.NewLine}{string.Join(Environment.NewLine, logged)}",
+                    ex);
+            }
+        }
 
         public async Task SetScenarioAsync(string scenario)
         {

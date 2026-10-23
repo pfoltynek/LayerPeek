@@ -144,20 +144,22 @@ public sealed class ToastChangeTests
         ToastTexts texts = new("PTD E2E 1234abcd", "Print paused", [".bgcode"]);
 
         Assert.True(texts.OnlyOurs([
-            ("Text", "PTD E2E 1234abcd"),
-            ("Text", "Print paused"),
-            ("Text", "benchy_0.4n_0.2mm_PLA.bgcode"),
-            ("Text", "Prusa Tray Diagnostic E2E"),
-            ("ListItem", "Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused"),
-            ("Image", "Some icon"),
-            ("Button", "Close"),
-            ("Group", string.Empty),
+            ("Text", "PTD E2E 1234abcd", "Title"),
+            ("Text", "Print paused", ""),
+            ("Text", "benchy_0.4n_0.2mm_PLA.bgcode", ""),
+            ("Text", "Prusa Tray Diagnostic E2E", ""),
+            ("ListItem", "Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused", ""),
+            ("Image", "Some icon", ""),
+            ("Button", "Close", ""),
+            ("Group", string.Empty, ""),
         ]));
         // Another notification, a time stamp or a window title: not ours.
-        Assert.False(texts.OnlyOurs([("Text", "PTD E2E 1234abcd"), ("Text", "New message from Alice")]));
-        Assert.False(texts.OnlyOurs([("Text", "PTD E2E 1234abcd"), ("Text", "10:42")]));
+        Assert.False(texts.OnlyOurs([("Text", "PTD E2E 1234abcd", "Title"), ("Text", "New message from Alice", "")]));
+        Assert.False(texts.OnlyOurs([("Text", "PTD E2E 1234abcd", "Title"), ("Text", "10:42", "TimeStamp")]));
         // A long button name is content (e.g. a notification presented as a button), not a control label.
-        Assert.False(texts.OnlyOurs([("Button", new string('x', ToastTexts.MaxControlLabel + 1))]));
+        Assert.False(texts.OnlyOurs([("Button", new string('x', ToastTexts.MaxControlLabel + 1), "")]));
+        // The buttons of the toast itself (Windows 11 26300) have long localized labels; they are controls by their id.
+        Assert.True(texts.OnlyOurs([.. ToastTexts.ChromeButtonIds.Select(static id => ("Button", new string('x', 60), id))]));
     }
 
     [Fact]
@@ -178,6 +180,20 @@ public sealed class ToastChangeTests
         Assert.True(match.IsMatch, match.ToString());
         Assert.Equal(new Rectangle(11, 7, 24, 24), match.Location);
         Assert.True(match.Score < 0.02, match.ToString());
+    }
+
+    [Fact]
+    public void AppIconIsFoundInARealToastHeader()
+    {
+        // The header of a real banner (Windows 11 26300, 100 %): the icon is 12 px; a 16 px reference differed by 15.8 %
+        // and its dark body on the dark toast left too little contrast for a plain colour comparison.
+        using Bitmap area = new(Path.Combine(AppContext.BaseDirectory, "Fixtures", "toast-header-icon-area-26300-100pct.png"));
+
+        IconMatch? match = ToastIcon.Find(area, ToastIcon.CandidateSizes(1));
+
+        Assert.NotNull(match);
+        Assert.True(match.IsMatch, match.ToString());
+        Assert.Equal(12, match.Size);
     }
 
     [Fact]
@@ -204,9 +220,9 @@ public sealed class ToastChangeTests
     [Fact]
     public void IconSizesFollowTheScale()
     {
-        Assert.Equal([16, 20, 24, 32], ToastIcon.CandidateSizes(1));
-        Assert.Equal([24, 30, 36, 48], ToastIcon.CandidateSizes(1.5));
-        Assert.Equal([20, 25, 30, 40], ToastIcon.CandidateSizes(1.25));
+        Assert.Equal([12, 16, 20, 24, 32], ToastIcon.CandidateSizes(1));
+        Assert.Equal([18, 24, 30, 36, 48], ToastIcon.CandidateSizes(1.5));
+        Assert.Equal([15, 20, 25, 30, 40], ToastIcon.CandidateSizes(1.25));
     }
 
     [Fact]
@@ -220,15 +236,38 @@ public sealed class ToastChangeTests
     }
 
     [Fact]
+    public void TheBodyIsOneWholeLineOfAnElement()
+    {
+        // Windows 11 26300 shows the event text and the file name in one element, one per line.
+        Assert.True(ToastMatch.IsLineOf("Print paused\nbenchy_0.4n_0.2mm_PLA.bgcode", "Print paused"));
+        Assert.True(ToastMatch.IsLineOf("Print paused\r\nbenchy.bgcode", "Print paused"));
+        Assert.True(ToastMatch.IsLineOf("Print paused", "Print paused"));
+        Assert.False(ToastMatch.IsLineOf("Print paused again\nbenchy.bgcode", "Print paused"));
+        Assert.False(ToastMatch.IsLineOf("New notification from Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused", "Print paused"));
+    }
+
+    [Fact]
     public void ARegionWithOtherNotificationsIsNotOneToast()
     {
         ToastTexts texts = new("PTD E2E 1234abcd", "Print paused", [".bgcode"]);
 
         // The toast with its time stamp in the notification center.
-        Assert.True(texts.IsOneToast([("ListItem", "Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused"), ("Text", "PTD E2E 1234abcd"), ("Text", "Print paused"), ("Text", "10:42")]));
+        Assert.True(texts.IsOneToast([("ListItem", "Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused", ""), ("Text", "PTD E2E 1234abcd", "Title"), ("Text", "Print paused", ""), ("Text", "10:42", "TimeStamp")]));
+        // As seen on Windows 11 26300: the toast in the notification center with its own (localized, long) buttons, and the banner.
+        Assert.True(texts.IsOneToast([
+            ("ListItem", "PTD E2E 1234abcd, Print paused", ""),
+            ("Text", "PTD E2E 1234abcd", "Title"),
+            ("Text", "Print paused", ""),
+            ("Button", new string('x', 43), "ExpandButton"),
+            ("Text", "16:57", "TimeStamp"),
+            ("Button", new string('x', 30), "SettingsButton"),
+            ("Button", new string('x', 45), "DismissButton"),
+        ]));
+        // A chrome id does not make a text a control.
+        Assert.False(texts.IsOneToast([("Text", "PTD E2E 1234abcd", "Title"), ("Text", "Print paused", ""), ("Text", "Alice wrote something long here", "DismissButton")]));
         // A container that also holds another app's notification.
-        Assert.False(texts.IsOneToast([("Group", "PTD E2E 1234abcd"), ("Text", "Print paused"), ("Text", "New message from Alice about the meeting")]));
-        Assert.False(texts.IsOneToast([("Group", "PTD E2E 1234abcd"), ("Text", "Print paused"), ("Text", "10:42"), ("Text", "Mail"), ("Text", "Hi")]));
+        Assert.False(texts.IsOneToast([("Group", "PTD E2E 1234abcd", ""), ("Text", "Print paused", ""), ("Text", "New message from Alice about the meeting", "")]));
+        Assert.False(texts.IsOneToast([("Group", "PTD E2E 1234abcd", ""), ("Text", "Print paused", ""), ("Text", "10:42", ""), ("Text", "Mail", ""), ("Text", "Hi", "")]));
     }
 
     [Fact]

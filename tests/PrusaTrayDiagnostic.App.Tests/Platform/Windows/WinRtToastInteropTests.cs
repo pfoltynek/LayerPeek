@@ -35,8 +35,10 @@ public sealed class WinRtToastInteropTests
         {
             using WinRtToastFactory factory = WinRtToastFactory.Create();
             using ToastActivationCallback callback = new(static _ => { });
+            using ToastFailedCallback failed = new(static _ => { });
             using WinRtToast toast = factory.CreateToast(xml);
             toast.SubscribeActivated(callback);
+            toast.SubscribeFailed(failed);
         });
     }
 
@@ -83,13 +85,48 @@ public sealed class WinRtToastInteropTests
         };
         FakeToastNotification notification = new(exception);
         using ToastActivationCallback callback = new(static _ => { });
+        using ToastFailedCallback failed = new(static _ => { });
         WinRtToast toast = new(notification);
         toast.SubscribeActivated(callback);
+        toast.SubscribeFailed(failed);
 
         toast.Dispose();
         toast.Dispose();
 
+        // A failing first unsubscribe does not skip the second one.
         Assert.Equal(1, notification.RemoveCount);
+        Assert.Equal(1, notification.RemoveFailedCount);
+    }
+
+    [Fact]
+    public void ToastCanBeSubscribedToFailuresOnlyOnce()
+    {
+        using ToastFailedCallback failed = new(static _ => { });
+        using WinRtToast toast = new(new FakeToastNotification(new InvalidOperationException("gone")));
+        toast.SubscribeFailed(failed);
+
+        Assert.Throws<InvalidOperationException>(() => toast.SubscribeFailed(failed));
+    }
+
+    [Fact]
+    public void FailureHandlerReportsUnreadableArgumentsAndSwallowsCallbackFailures()
+    {
+        List<int> codes = [];
+        ToastFailedHandler handler = new(codes.Add);
+        handler.Invoke(0, 0);
+        Assert.Equal([ToastFailedHandler.UnknownError], codes);
+
+        ToastFailedHandler throwing = new(static _ => throw new InvalidOperationException("logger gone"));
+        throwing.Invoke(0, 0);
+    }
+
+    [Fact]
+    public void FailedCallbackCanBeDisposedTwice()
+    {
+        ToastFailedCallback callback = new(static _ => { });
+        callback.Dispose();
+        callback.Dispose();
+        Assert.Throws<ObjectDisposedException>(() => callback.Pointer);
     }
 
     [Fact]
@@ -107,6 +144,7 @@ public sealed class WinRtToastInteropTests
         Assert.Equal(typeof(IToastNotificationManagerStatics2).GUID, WinRtInterfaceIds.ToastNotificationManagerStatics2);
         Assert.Equal(typeof(IToastNotificationFactory).GUID, WinRtInterfaceIds.ToastNotificationFactory);
         Assert.Equal(typeof(IToastActivatedHandler).GUID, WinRtInterfaceIds.ToastActivatedHandler);
+        Assert.Equal(typeof(IToastFailedHandler).GUID, WinRtInterfaceIds.ToastFailedHandler);
         Assert.Equal(typeof(IShellLinkW).GUID, ShellLinkIds.ShellLinkW);
     }
 

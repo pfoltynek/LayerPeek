@@ -36,6 +36,10 @@
     <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Recorded captures (only the test toast's own region) for the offline image checks. -->
+    <None Include="Fixtures\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

@@ -70,8 +70,36 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
     {
         ArgumentNullException.ThrowIfNull(activated);
         RegisterShortcut();
-        return WindowsToastSession.Open(AppUserModelId, activated, LogReleaseFailed);
+        WindowsToastSession session = WindowsToastSession.Open(AppUserModelId, activated, LogToastFailed, LogReleaseFailed);
+        LogSetting(session);
+        return session;
     }
+
+    /// <summary>
+    /// Toasts of an app that Windows does not show (switched off in Settings, by policy) are dropped without an error;
+    /// the setting is the only hint, so it goes to the log.
+    /// </summary>
+    private void LogSetting(WindowsToastSession session)
+    {
+        try
+        {
+            ToastNotifierSetting setting = session.Setting;
+            if (setting == ToastNotifierSetting.Enabled)
+            {
+                LogEnabled(AppUserModelId);
+            }
+            else
+            {
+                LogDisabled(AppUserModelId, setting);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogSettingUnreadable(ex, AppUserModelId);
+        }
+    }
+
+    private void LogToastFailed(int errorCode) => LogFailed(AppUserModelId, errorCode);
 
     private void RegisterShortcut()
     {
@@ -100,6 +128,18 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
     [LoggerMessage(Level = LogLevel.Warning, Message = "Creating the Start menu shortcut for notifications failed; Windows may not show them.")]
     private partial void LogShortcutFailed(Exception exception);
 
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Windows shows the notifications of {AppUserModelId}.")]
+    private partial void LogEnabled(string appUserModelId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Windows does not show the notifications of {AppUserModelId}: {Setting}. They can be switched on in Settings > System > Notifications.")]
+    private partial void LogDisabled(string appUserModelId, ToastNotifierSetting setting);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Whether Windows shows the notifications of {AppUserModelId} could not be read.")]
+    private partial void LogSettingUnreadable(Exception exception, string appUserModelId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Windows did not show a notification of {AppUserModelId} (error 0x{ErrorCode:X8}).")]
+    private partial void LogFailed(string appUserModelId, int errorCode);
+
     [LoggerMessage(Level = LogLevel.Warning, Message = "Releasing a toast or the toast notifier failed; the toast itself was shown.")]
     private partial void LogReleaseFailed(Exception exception);
 }
@@ -117,34 +157,52 @@ internal sealed class WindowsToastSession : IToastSession
     private readonly WinRtToastFactory _factory;
     private readonly WinRtToastNotifier _notifier;
     private readonly ToastActivationCallback _callback;
+    private readonly ToastFailedCallback _failedCallback;
     private readonly Action<Exception> _releaseFailed;
     private readonly Queue<WinRtToast> _recent = new(KeptToasts + 1);
     private bool _disposed;
 
-    private WindowsToastSession(WinRtToastFactory factory, WinRtToastNotifier notifier, ToastActivationCallback callback, Action<Exception> releaseFailed)
+    private WindowsToastSession(WinRtToastFactory factory, WinRtToastNotifier notifier, ToastActivationCallback callback, ToastFailedCallback failedCallback, Action<Exception> releaseFailed)
     {
         _factory = factory;
         _notifier = notifier;
         _callback = callback;
+        _failedCallback = failedCallback;
         _releaseFailed = releaseFailed;
     }
 
+    /// <param name="failed">Receives the error code when Windows does not show a toast (on an OS thread).</param>
     /// <param name="releaseFailed">Reports a failure to release a WinRT object; releasing never throws.</param>
-    public static WindowsToastSession Open(string appUserModelId, Action<string?> activated, Action<Exception> releaseFailed)
+    public static WindowsToastSession Open(string appUserModelId, Action<string?> activated, Action<int> failed, Action<Exception> releaseFailed)
     {
+        ArgumentNullException.ThrowIfNull(activated);
+        ArgumentNullException.ThrowIfNull(failed);
+        ArgumentNullException.ThrowIfNull(releaseFailed);
         WinRtToastFactory factory = WinRtToastFactory.Create();
         WinRtToastNotifier? notifier = null;
+        ToastActivationCallback? callback = null;
         try
         {
             notifier = factory.CreateNotifier(appUserModelId);
-            ArgumentNullException.ThrowIfNull(releaseFailed);
-            return new WindowsToastSession(factory, notifier, new ToastActivationCallback(activated), releaseFailed);
+            callback = new ToastActivationCallback(activated);
+            return new WindowsToastSession(factory, notifier, callback, new ToastFailedCallback(failed), releaseFailed);
         }
         catch
         {
+            callback?.Dispose();
             notifier?.Dispose();
             factory.Dispose();
             throw;
+        }
+    }
+
+    /// <summary>Whether Windows shows the toasts of the app (<see cref="WinRtToastNotifier.Setting"/>).</summary>
+    public ToastNotifierSetting Setting
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            return _notifier.Setting;
         }
     }
 
@@ -155,6 +213,7 @@ internal sealed class WindowsToastSession : IToastSession
         try
         {
             toast.SubscribeActivated(_callback);
+            toast.SubscribeFailed(_failedCallback);
             _notifier.Show(toast);
         }
         catch
@@ -180,7 +239,7 @@ internal sealed class WindowsToastSession : IToastSession
 
         _disposed = true;
         // Each independently: one failure must not leak the rest. The factory goes last, it leaves the COM apartment.
-        List<IDisposable> resources = [.. _recent, _notifier, _callback, _factory];
+        List<IDisposable> resources = [.. _recent, _notifier, _callback, _failedCallback, _factory];
         _recent.Clear();
         Disposables.DisposeAll(resources, _releaseFailed);
     }

@@ -9,7 +9,6 @@ using System.Text;
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
 using FlaUI.Core.Input;
-using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
 
 namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
@@ -27,6 +26,12 @@ internal sealed record ToastTexts(string PrinterName, string Body, IReadOnlyList
     /// <summary>Longest name of a button that counts as a control label (close, settings) rather than content.</summary>
     internal const int MaxControlLabel = 40;
 
+    /// <summary>
+    /// Automation ids of the buttons of a toast itself (banner and notification center, Windows 11 26300): their localized
+    /// labels name the action and the app and may be longer than <see cref="MaxControlLabel"/>, but they are controls.
+    /// </summary>
+    internal static IReadOnlyList<string> ChromeButtonIds { get; } = ["SettingsButton", "DismissButton", "ExpandButton"];
+
     /// <summary>Whether a name is one of this toast's texts (or a combination of them, like an item named after the toast).</summary>
     public bool IsOurs(string name) =>
         name.Contains(PrinterName, StringComparison.Ordinal)
@@ -36,16 +41,16 @@ internal sealed record ToastTexts(string PrinterName, string Body, IReadOnlyList
 
     /// <summary>
     /// Whether every named element of a subtree belongs to this toast: a foreign text means the subtree also holds
-    /// something else (another notification, a time stamp, the window). Images and short button labels (close,
-    /// settings) are controls, not content.
+    /// something else (another notification, a time stamp, the window). Images, short button labels and the toast's own
+    /// buttons (<see cref="ChromeButtonIds"/>) are controls, not content.
     /// </summary>
-    public bool OnlyOurs(IEnumerable<(string ControlType, string Name)> elements) =>
+    public bool OnlyOurs(IEnumerable<(string ControlType, string Name, string AutomationId)> elements) =>
         elements.All(element =>
             element.Name.Length == 0
             || IsOurs(element.Name)
             || element.ControlType == nameof(FlaUI.Core.Definitions.ControlType.Image)
             || (element.ControlType is nameof(FlaUI.Core.Definitions.ControlType.Button) or nameof(FlaUI.Core.Definitions.ControlType.SplitButton)
-                && element.Name.Length <= MaxControlLabel));
+                && (element.Name.Length <= MaxControlLabel || ChromeButtonIds.Contains(element.AutomationId, StringComparer.Ordinal))));
 
     /// <summary>Most foreign names a region of one toast may hold (its time stamp in the notification center, "now").</summary>
     internal const int MaxForeignNames = 2;
@@ -59,7 +64,7 @@ internal sealed record ToastTexts(string PrinterName, string Body, IReadOnlyList
     /// A region with more (e.g. a container whose name happens to hold the printer name) may show other apps'
     /// notifications and is never used.
     /// </summary>
-    public bool IsOneToast(IEnumerable<(string ControlType, string Name)> elements)
+    public bool IsOneToast(IEnumerable<(string ControlType, string Name, string AutomationId)> elements)
     {
         List<string> foreign = [.. elements.Where(element => !OnlyOurs([element])).Select(static element => element.Name)];
         return foreign.Count <= MaxForeignNames && foreign.All(static name => name.Length <= MaxForeignName);
@@ -79,7 +84,7 @@ internal sealed record ToastElement(string ControlType, string Name, string Auto
 
 /// <summary>A toast of the test app found on screen (banner or notification center).</summary>
 /// <param name="Anchor">The element naming the printer (the title, or an element whose name holds it).</param>
-/// <param name="Region">The largest ancestor of <paramref name="Anchor"/> with only this toast's texts.</param>
+/// <param name="Region">The anchor or its nearest ancestor that also holds the event text: the toast card (captured).</param>
 /// <param name="Window">The top-level window it is in.</param>
 internal sealed record ToastMatch(AutomationElement Anchor, AutomationElement Region, nint Window, IReadOnlyList<ToastElement> Elements)
 {
@@ -87,6 +92,15 @@ internal sealed record ToastMatch(AutomationElement Anchor, AutomationElement Re
 
     /// <summary>Whether an element is named exactly <paramref name="text"/>.</summary>
     public bool HasExactly(string text) => Elements.Any(element => element.Name == text);
+
+    /// <summary>
+    /// Whether an element has <paramref name="text"/> as one whole line of its name: Windows 11 26300 shows the body
+    /// lines of a toast (event text, file name) in one element, one per line.
+    /// </summary>
+    public bool HasLine(string text) => Elements.Any(element => IsLineOf(element.Name, text));
+
+    internal static bool IsLineOf(string name, string line) =>
+        name.Split('\n').Any(part => string.Equals(part.TrimEnd('\r'), line, StringComparison.Ordinal));
 
     /// <summary>Whether a name of the region contains <paramref name="text"/>.</summary>
     public bool Mentions(string text) => Elements.Any(element => element.Name.Contains(text, StringComparison.Ordinal));
@@ -103,19 +117,16 @@ internal sealed record ToastMatch(AutomationElement Anchor, AutomationElement Re
 [SupportedOSPlatform("windows")]
 internal static class Toasts
 {
-    /// <summary>Processes of the Windows 11 shell that host toast banners and the notification center.</summary>
-    private static readonly string[] ShellProcesses = ["ShellExperienceHost", "ShellHost"];
-
-    /// <summary>The window class of the shell's XAML flyouts.</summary>
-    private const string CoreWindowClass = "Windows.UI.Core.CoreWindow";
-
     private static readonly TimeSpan Poll = TimeSpan.FromMilliseconds(250);
 
     /// <summary>Waits for the banner of the toast; the failure lists the shell windows that appeared meanwhile (process, class; no titles).</summary>
     public static async Task<ToastMatch> WaitForBannerAsync(UIA3Automation automation, ToastTexts texts, TimeSpan timeout)
     {
         HashSet<nint> before = [.. TopLevelWindows(automation).Select(static window => window.Handle)];
+        HashSet<string> appeared = [];
+        string? seen = null;
         DateTime deadline = DateTime.UtcNow + timeout;
+        DateTime nextDiagnosis = DateTime.UtcNow;
         while (true)
         {
             if (FindBanner(automation, texts) is { } banner)
@@ -123,14 +134,25 @@ internal static class Toasts
                 return banner;
             }
 
+            // A banner lives a few seconds: what was there is recorded while waiting (windows that appeared, and once an
+            // element naming the printer that did not count as the banner).
+            foreach ((nint handle, string process, string className, _) in TopLevelWindows(automation).Where(window => !before.Contains(window.Handle)))
+            {
+                appeared.Add($"  {process} class='{className}'");
+            }
+
+            if (seen is null && DateTime.UtcNow >= nextDiagnosis)
+            {
+                seen = Diagnose(automation, texts, shellOnly: true);
+                nextDiagnosis = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+            }
+
             if (DateTime.UtcNow >= deadline)
             {
-                IEnumerable<string> appeared = TopLevelWindows(automation)
-                    .Where(window => !before.Contains(window.Handle))
-                    .Select(static window => $"  {window.Process} class='{window.ClassName}'");
                 throw new TimeoutException(
-                    $"No toast banner with '{texts.PrinterName}' and '{texts.Body}' within {timeout.TotalSeconds:0} s in the windows of {string.Join(", ", ShellProcesses)} or class {CoreWindowClass}. "
-                    + $"Top-level windows that appeared meanwhile (process, class):{Environment.NewLine}{string.Join(Environment.NewLine, appeared)}");
+                    $"No toast banner with '{texts.PrinterName}' and '{texts.Body}' within {timeout.TotalSeconds:0} s in the windows of {string.Join(", ", NotificationCenter.ShellProcesses)} or class {NotificationCenter.CoreWindowClass}. "
+                    + $"Top-level windows that appeared meanwhile (process, class):{Environment.NewLine}{string.Join(Environment.NewLine, appeared)}{Environment.NewLine}"
+                    + $"Elements naming the printer seen while waiting:{Environment.NewLine}{seen ?? "  none"}");
             }
 
             await Task.Delay(Poll);
@@ -173,35 +195,14 @@ internal static class Toasts
     /// </summary>
     public static async Task<T> InNotificationCenterAsync<T>(UIA3Automation automation, Func<AutomationElement, nint, Task<T>> use)
     {
-        nint before = Native.GetForegroundWindow();
-        Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.KEY_N);
-        nint center = 0;
+        (nint center, _) = await NotificationCenter.OpenAsync();
         try
         {
-            await Wait.UntilAsync(
-                () =>
-                {
-                    // Only a window of the shell: anything else that comes to the foreground meanwhile is not the center.
-                    nint foreground = Native.GetForegroundWindow();
-                    if (foreground != 0 && foreground != before && IsShellWindow(foreground))
-                    {
-                        center = foreground;
-                        return true;
-                    }
-
-                    return false;
-                },
-                TimeSpan.FromSeconds(8),
-                "the notification center (Win+N) in the foreground (a window of the shell)");
             return await use(automation.FromHandle(center), center);
         }
         finally
         {
-            if (center != 0 && Native.GetForegroundWindow() == center)
-            {
-                Keyboard.Type(VirtualKeyShort.ESCAPE);
-                await Task.Delay(500);
-            }
+            await NotificationCenter.CloseAsync(center);
         }
     }
 
@@ -246,11 +247,19 @@ internal static class Toasts
     /// control, e.g. its close button), and when that opens nothing, the real mouse on the title, if the toast is still
     /// there. Returns how it was activated; fails when nothing opened.
     /// </summary>
-    public static async Task<string> ActivateAsync(ToastMatch toast, Func<bool> opened, TimeSpan timeout)
+    /// <param name="mouseOnly">
+    /// Only the real mouse: in the notification center of Windows 11 26300, UIA Invoke on the toast's list item closes the
+    /// center without the click a user makes.
+    /// </param>
+    public static async Task<string> ActivateAsync(ToastMatch toast, Func<bool> opened, TimeSpan timeout, bool mouseOnly = false)
     {
         StringBuilder how = new();
-        AutomationElement? invokable = Chain(toast).FirstOrDefault(static element => Safe(() => element.Patterns.Invoke.IsSupported));
-        if (invokable is not null)
+        AutomationElement? invokable = mouseOnly ? null : Chain(toast).FirstOrDefault(static element => Safe(() => element.Patterns.Invoke.IsSupported));
+        if (mouseOnly)
+        {
+            how.Append("mouse only; ");
+        }
+        else if (invokable is not null)
         {
             how.Append(CultureInfo.InvariantCulture, $"UIA Invoke on {Describe(invokable)}");
             try
@@ -287,7 +296,10 @@ internal static class Toasts
         how.Append(CultureInfo.InvariantCulture, $"real mouse click at {center.X},{center.Y} (the title)");
         if (!await OpenedAsync(opened, timeout))
         {
-            throw new TimeoutException($"{how}: nothing opened within {timeout.TotalSeconds:0} s.");
+            // Gone = Windows took the click as an activation of the toast, but the app was not told.
+            bool stillShown = Safe(() => toast.Anchor.Properties.BoundingRectangle.ValueOrDefault) is { Width: > 0, Height: > 0 }
+                && !Safe(() => toast.Anchor.Properties.IsOffscreen.ValueOrDefault);
+            throw new TimeoutException($"{how}: nothing opened within {timeout.TotalSeconds:0} s; the toast is {(stillShown ? "still shown" : "gone")} after the click.");
         }
 
         return how.ToString();
@@ -315,13 +327,40 @@ internal static class Toasts
         }
     }
 
-    /// <summary>Waits until the region stops moving (the banner slides in), then a moment for the fade.</summary>
+    /// <summary>
+    /// Waits until the region has stopped moving for <see cref="SettleTime"/> (the banner and the notification center
+    /// slide in; two reads 100 ms apart may still be equal mid-animation, which once captured a toast clipped to half its
+    /// width), then a moment for the fade.
+    /// </summary>
     public static async Task<Rectangle> SettledBoundsAsync(ToastMatch toast)
     {
-        Rectangle bounds = await Wait.StableAsync(() => Safe(() => toast.Region.Properties.BoundingRectangle.ValueOrDefault), TimeSpan.FromSeconds(5), "the toast to stop moving");
-        await Task.Delay(400);
-        return bounds;
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(10);
+        Rectangle last = Bounds();
+        DateTime since = DateTime.UtcNow;
+        while (DateTime.UtcNow - since < SettleTime || last.Width <= 0 || last.Height <= 0)
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new TimeoutException($"The toast did not stop moving within 10 s (last bounds {last}).");
+            }
+
+            await Task.Delay(Poll);
+            Rectangle now = Bounds();
+            if (now != last)
+            {
+                last = now;
+                since = DateTime.UtcNow;
+            }
+        }
+
+        await Task.Delay(300);
+        return last;
+
+        Rectangle Bounds() => Safe(() => toast.Region.Properties.BoundingRectangle.ValueOrDefault);
     }
+
+    /// <summary>How long the bounds of a toast must stay the same before it is captured.</summary>
+    private static readonly TimeSpan SettleTime = TimeSpan.FromMilliseconds(700);
 
     /// <summary>
     /// Where the app icon of the header should be, in screen pixels: an image element of the toast near its top, otherwise
@@ -365,6 +404,54 @@ internal static class Toasts
         return dpi == 0 ? 1 : dpi / 96.0;
     }
 
+    /// <summary>
+    /// Why a toast was not found, for the failure message: every visible top-level window with an element naming the
+    /// printer, and per such element whether it is on screen, its bounds, and what its ancestors hold (whether they are
+    /// one toast; foreign names only by type, automation id, class and length). No foreign text is ever written.
+    /// </summary>
+    /// <param name="shellOnly">Only the windows of the shell (cheap enough to repeat while a banner may be shown); otherwise every process.</param>
+    /// <returns>The report, or <see langword="null"/> when no window has an element naming the printer.</returns>
+    public static string? Diagnose(UIA3Automation automation, ToastTexts texts, bool shellOnly = false)
+    {
+        StringBuilder report = new();
+        foreach ((nint handle, string process, string className, bool isShell) in TopLevelWindows(automation).Where(window => !shellOnly || window.IsShell))
+        {
+            try
+            {
+                AutomationElement window = automation.FromHandle(handle);
+                List<AutomationElement> anchors = [.. window.FindAllDescendants().Where(element => Name(element).Contains(texts.PrinterName, StringComparison.Ordinal))];
+                if (anchors.Count == 0)
+                {
+                    continue;
+                }
+
+                report.AppendLine(CultureInfo.InvariantCulture, $"  window {process} class='{className}' shell={isShell}: {anchors.Count} element(s) naming the printer");
+                foreach (AutomationElement anchor in anchors.Take(3))
+                {
+                    report.AppendLine(CultureInfo.InvariantCulture,
+                        $"    {Describe(anchor)} offscreen={Safe(() => anchor.Properties.IsOffscreen.ValueOrDefault)} bounds={Safe(() => anchor.Properties.BoundingRectangle.ValueOrDefault)}");
+                    int level = 0;
+                    for (AutomationElement? parent = anchor.Parent; parent is not null && !parent.Equals(window) && level < 8; parent = parent.Parent, level++)
+                    {
+                        List<ToastElement> elements = ElementsOf(parent, texts);
+                        List<string> foreign = [.. elements
+                            .Where(element => !texts.OnlyOurs([(element.ControlType, element.Name, element.AutomationId)]))
+                            .Select(static element => $"{element.ControlType} id='{element.AutomationId}' class='{element.ClassName}' ({element.Name.Length} chars)")];
+                        report.AppendLine(CultureInfo.InvariantCulture,
+                            $"      ancestor {level + 1}: {Describe(parent)}, {elements.Count} elements, body {(elements.Any(element => element.Name.Contains(texts.Body, StringComparison.Ordinal)) ? "found" : "missing")}, "
+                            + $"one toast={texts.IsOneToast(elements.Select(static element => (element.ControlType, element.Name, element.AutomationId)))}, foreign names {foreign.Count}: {string.Join("; ", foreign.Take(8))}");
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is COMException or FlaUI.Core.Exceptions.ElementNotAvailableException)
+            {
+                report.AppendLine(CultureInfo.InvariantCulture, $"  window {process} class='{className}': not readable ({ex.GetType().Name})");
+            }
+        }
+
+        return report.Length == 0 ? null : report.ToString().TrimEnd();
+    }
+
     /// <summary>The toast in one window: an element naming the printer, whose region also holds the event text.</summary>
     private static ToastMatch? TryFind(UIA3Automation automation, nint handle, ToastTexts texts)
     {
@@ -377,10 +464,7 @@ internal static class Toasts
                 && !Safe(() => element.Properties.IsOffscreen.ValueOrDefault)
                 && Safe(() => element.Properties.BoundingRectangle.ValueOrDefault) is { Width: > 0, Height: > 0 }))
             {
-                AutomationElement region = RegionOf(anchor, window, texts);
-                List<ToastElement> elements = ElementsOf(region, texts);
-                if (elements.Any(element => element.Name.Contains(texts.Body, StringComparison.Ordinal))
-                    && texts.IsOneToast(elements.Select(static element => (element.ControlType, element.Name))))
+                if (RegionOf(anchor, window, texts) is ({ } region, { } elements))
                 {
                     return new ToastMatch(anchor, region, handle, elements);
                 }
@@ -394,21 +478,24 @@ internal static class Toasts
         return null;
     }
 
-    /// <summary>The largest ancestor of <paramref name="anchor"/> (below the window) whose names all belong to the toast.</summary>
-    private static AutomationElement RegionOf(AutomationElement anchor, AutomationElement window, ToastTexts texts)
+    /// <summary>
+    /// The toast around <paramref name="anchor"/>: the anchor or its nearest ancestor (below the window) that also holds
+    /// the event text, if that is this one toast and nothing more (<see cref="ToastTexts.IsOneToast"/>). The nearest, not
+    /// the largest: a larger container (the banner's scroll viewer) reaches past the toast's visible card, and a capture
+    /// of it would show the windows behind.
+    /// </summary>
+    private static (AutomationElement Region, List<ToastElement> Elements)? RegionOf(AutomationElement anchor, AutomationElement window, ToastTexts texts)
     {
-        AutomationElement region = anchor;
-        for (AutomationElement? parent = anchor.Parent; parent is not null && !parent.Equals(window); parent = parent.Parent)
+        for (AutomationElement? element = anchor; element is not null && !element.Equals(window); element = element.Parent)
         {
-            if (!texts.OnlyOurs(ElementsOf(parent, texts).Select(static element => (element.ControlType, element.Name))))
+            List<ToastElement> elements = ElementsOf(element, texts);
+            if (elements.Any(item => item.Name.Contains(texts.Body, StringComparison.Ordinal)))
             {
-                break;
+                return texts.IsOneToast(elements.Select(static item => (item.ControlType, item.Name, item.AutomationId))) ? (element, elements) : null;
             }
-
-            region = parent;
         }
 
-        return region;
+        return null;
     }
 
     /// <summary>The anchor and its ancestors up to the region.</summary>
@@ -498,29 +585,9 @@ internal static class Toasts
             }
 
             string className = Safe(() => window.Properties.ClassName.ValueOrDefault) ?? string.Empty;
-            windows.Add((handle, process, className, IsShell(process, className, id)));
+            windows.Add((handle, process, className, NotificationCenter.IsShell(process, className, id)));
         }
 
         return windows;
-    }
-
-    /// <summary>A window of the shell processes, or a XAML flyout window outside Explorer and this process.</summary>
-    private static bool IsShell(string process, string className, int processId) =>
-        ShellProcesses.Contains(process, StringComparer.OrdinalIgnoreCase)
-        || (className == CoreWindowClass && !string.Equals(process, "explorer", StringComparison.OrdinalIgnoreCase) && processId != Environment.ProcessId);
-
-    /// <summary>Whether a window (the foreground one after Win+N) belongs to the shell (see <see cref="IsShell"/>).</summary>
-    private static bool IsShellWindow(nint handle)
-    {
-        Native.GetWindowThreadProcessId(handle, out uint id);
-        try
-        {
-            using Process owner = System.Diagnostics.Process.GetProcessById((int)id);
-            return IsShell(owner.ProcessName, Native.ClassName(handle), (int)id);
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
-        {
-            return false;
-        }
     }
 }
