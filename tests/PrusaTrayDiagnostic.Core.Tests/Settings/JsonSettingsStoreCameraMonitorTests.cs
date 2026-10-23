@@ -1,3 +1,5 @@
+using System.Text;
+
 using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -5,14 +7,24 @@ using PrusaTrayDiagnostic.Core.Settings;
 namespace PrusaTrayDiagnostic.Core.Tests.Settings;
 
 /// <summary>
-/// <see cref="JsonSettingsStore.SetCameraMonitorAsync"/> (user decision 2026-10-23): the saved camera monitor of one
-/// printer gets the device path it was found on, through the normal save, only while the file still has the expected
-/// monitor and loads without warnings.
+/// <see cref="JsonSettingsStore.SetCameraMonitorDevicePathAsync"/> (user decisions 2026-10-23): the saved camera monitor of
+/// one printer gets the device path it was found at, byte for byte like the detected model (only the <c>devicePath</c>
+/// of its monitor changes; comments, formatting and unknown values stay), and only while the file loads without warnings
+/// and still has the expected monitor.
 /// </summary>
 public sealed class JsonSettingsStoreCameraMonitorTests : IDisposable
 {
-    private static readonly CameraMonitorId Saved = new("DELL U2719D", 2560, 1440, "path-b", ["path-a"]);
-    private static readonly CameraMonitorId Moved = Saved.WithDevicePath("path-moved");
+    private const string OldPath = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160002#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+    private const string NewPath = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160004#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+
+    /// <summary><see cref="OldPath"/> and <see cref="NewPath"/> as the settings serializer writes them.</summary>
+    private const string OldPathJson = @"\\\\?\\DISPLAY#DEL415A#5\u0026224edec0\u00260\u0026UID160002#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+    private const string NewPathJson = @"\\\\?\\DISPLAY#DEL415A#5\u0026224edec0\u00260\u0026UID160004#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+
+    private const string Machine = "\"name\": \"MK4\", \"connectionType\": \"PrusaLink\", \"address\": \"192.168.0.226\"";
+    private const string Camera = "\"enabled\": true, \"streamUrl\": \"rtsp://192.168.0.227/live\"";
+
+    private static readonly CameraMonitorId Saved = new("DELL U2719D", 2560, 1440, OldPath, ["path-a"]);
 
     private readonly string _directory = TestDirectories.NewDirectoryPath();
     private readonly JsonSettingsStore _store;
@@ -32,61 +44,123 @@ public sealed class JsonSettingsStoreCameraMonitorTests : IDisposable
         TestDirectories.Delete(_directory);
     }
 
-    private static PrinterDefinition Printer(string id, CameraMonitorId? monitor) => new()
+    private static string Lines(params string[] lines) => string.Join("\n", lines);
+
+    private async Task<(bool Written, string Result)> SetAsync(string original, string printerId, CameraMonitorId expected, string devicePath)
     {
-        Id = id,
-        Name = id.ToUpperInvariant(),
-        ConnectionType = ConnectionType.PrusaLink,
-        Address = "192.168.0.226",
-        Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Window = CameraWindowDefaults.Default with { Monitor = monitor } },
-    };
-
-    private static AppSettings Settings(CameraMonitorId? monitor) => new() { Printers = [Printer("mk4", monitor), Printer("xl", Saved)] };
-
-    [Fact]
-    public async Task MonitorOfThePrinterGetsTheNewPath()
-    {
-        await _store.SaveAsync(Settings(Saved), Ct);
-
-        bool written = await _store.SetCameraMonitorAsync("MK4", Saved, Moved, Ct);
-
-        SettingsLoadResult loaded = await _store.LoadAsync(Ct);
-        Assert.True(written);
-        Assert.Empty(loaded.Warnings);
-        Assert.Equal(Settings(Saved) with { Printers = [Printer("mk4", Moved), Printer("xl", Saved)] }, loaded.Settings);
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(FilePath, original, Ct);
+        bool written = await _store.SetCameraMonitorDevicePathAsync(printerId, expected, devicePath, Ct);
+        return (written, await File.ReadAllTextAsync(FilePath, Ct));
     }
 
     [Fact]
-    public async Task MonitorChangedMeanwhileIsLeftAlone()
+    public async Task OnlyTheDevicePathOfTheMonitorChanges()
     {
-        await _store.SaveAsync(Settings(Saved.WithDevicePath("path-c")), Ct);
-        byte[] before = await File.ReadAllBytesAsync(FilePath, Ct);
+        string original = Lines(
+            "{",
+            "  // my printers",
+            "  \"version\": 1,",
+            "  \"future\": { \"x\": [1, 2] },",
+            "  \"printers\": [",
+            "    {",
+            $"      \"id\": \"mk4\", {Machine},",
+            $"      \"camera\": {{ {Camera}, \"window\": {{ \"monitor\": {{ \"displayName\": \"DELL U2719D\", \"width\": 2560, \"height\": 1440,",
+            $"        \"devicePath\":   \"{OldPathJson}\" /* keep */, \"knownTwinPaths\": [\"path-a\"], \"extra\": true }} }} }}",
+            "    },",
+            $"    {{ \"id\": \"xl\", \"name\": \"XL\", \"connectionType\": \"PrusaLink\", \"address\": \"192.168.0.230\", \"camera\": {{ {Camera}, \"window\": {{ \"monitor\": {{ \"displayName\": \"DELL U2719D\", \"width\": 2560, \"height\": 1440, \"devicePath\": \"{OldPathJson}\", \"knownTwinPaths\": [\"path-a\"] }} }} }} }}",
+            "  ]",
+            "}");
 
-        Assert.False(await _store.SetCameraMonitorAsync("mk4", Saved, Moved, Ct));
-        Assert.Equal(before, await File.ReadAllBytesAsync(FilePath, Ct));
+        (bool written, string result) = await SetAsync(original, "MK4", Saved, NewPath);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace($"\"devicePath\":   \"{OldPathJson}\"", $"\"devicePath\":   \"{NewPathJson}\"", StringComparison.Ordinal), result);
+        SettingsLoadResult loaded = await _store.LoadAsync(Ct);
+        Assert.Equal(Saved.WithDevicePath(NewPath), loaded.Settings.Printers[0].Camera.Window.Monitor);
+        Assert.Equal(Saved, loaded.Settings.Printers[1].Camera.Window.Monitor);
+    }
+
+    [Fact]
+    public async Task OlderMonitorWithoutAPathGetsOneIndentedLikeItsFirstProperty()
+    {
+        string original = Lines(
+            "{ \"printers\": [ {",
+            $"  \"id\": \"mk4\", {Machine}, \"camera\": {{ {Camera}, \"window\": {{",
+            "    \"monitor\": {",
+            "      \"displayName\": \"DELL U2719D\",",
+            "      \"width\": 2560,",
+            "      \"height\": 1440",
+            "    }",
+            "  } } } ] }");
+
+        (bool written, string result) = await SetAsync(original, "mk4", new CameraMonitorId("DELL U2719D", 2560, 1440), NewPath);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace("\"height\": 1440\n", $"\"height\": 1440,\n      \"devicePath\": \"{NewPathJson}\"\n", StringComparison.Ordinal), result);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, NewPath), (await _store.LoadAsync(Ct)).Settings.Printers[0].Camera.Window.Monitor);
+    }
+
+    [Fact]
+    public async Task DuplicateDevicePathsAllChangeWhateverTheirCase()
+    {
+        string original = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "DEVICEPATH": "x", "devicePath": "{{OldPathJson}}" } } } } ] }""";
+
+        (bool written, string result) = await SetAsync(original, "mk4", new CameraMonitorId("DELL U2719D", 2560, 1440, OldPath), NewPath);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace("\"x\"", $"\"{NewPathJson}\"", StringComparison.Ordinal).Replace(OldPathJson, NewPathJson, StringComparison.Ordinal), result);
+    }
+
+    [Fact]
+    public async Task ByteOrderMarkStays()
+    {
+        string json = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{OldPathJson}}" } } } } ] }""";
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllBytesAsync(FilePath, [0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(json)], Ct);
+
+        Assert.True(await _store.SetCameraMonitorDevicePathAsync("mk4", new CameraMonitorId("DELL U2719D", 2560, 1440, OldPath), NewPath, Ct));
+
+        byte[] result = await File.ReadAllBytesAsync(FilePath, Ct);
+        Assert.Equal([0xEF, 0xBB, 0xBF, .. Encoding.UTF8.GetBytes(json.Replace(OldPathJson, NewPathJson, StringComparison.Ordinal))], result);
+    }
+
+    [Theory]
+    [InlineData("mk4", "other-path")]
+    [InlineData("xl", null)]
+    public async Task OtherMonitorOrPrinterIsLeftAlone(string printerId, string? storedPath)
+    {
+        // The monitor changed meanwhile (the user chose another one), or the printer has no such monitor.
+        string original = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{storedPath ?? OldPathJson}}", "knownTwinPaths": ["path-a"] } } } } ] }""";
+
+        (bool written, string result) = await SetAsync(original, printerId, Saved, NewPath);
+
+        Assert.False(written);
+        Assert.Equal(original, result);
     }
 
     [Fact]
     public async Task KnownTwinsArePartOfTheExpectedMonitor()
     {
-        // The user chose the monitor again meanwhile (other twins): that choice wins.
-        await _store.SaveAsync(Settings(new CameraMonitorId("DELL U2719D", 2560, 1440, "path-b")), Ct);
+        string original = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{OldPathJson}}" } } } } ] }""";
 
-        Assert.False(await _store.SetCameraMonitorAsync("mk4", Saved, Moved, Ct));
+        (bool written, string result) = await SetAsync(original, "mk4", Saved, NewPath);
+
+        Assert.False(written);
+        Assert.Equal(original, result);
     }
 
     [Fact]
-    public async Task UnknownPrinterNoFileOrNoChangeWriteNothing()
+    public async Task SamePathOrNoFileWritesNothing()
     {
-        Assert.False(await _store.SetCameraMonitorAsync("mk4", Saved, Moved, Ct));
+        Assert.False(await _store.SetCameraMonitorDevicePathAsync("mk4", Saved, NewPath, Ct));
         Assert.False(File.Exists(FilePath));
 
-        await _store.SaveAsync(Settings(Saved), Ct);
-        byte[] before = await File.ReadAllBytesAsync(FilePath, Ct);
+        string original = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{OldPathJson}}", "knownTwinPaths": ["path-a"] } } } } ] }""";
+        (bool written, string result) = await SetAsync(original, "mk4", Saved, OldPath);
 
-        Assert.False(await _store.SetCameraMonitorAsync("mini", Saved, Moved, Ct));
-        Assert.False(await _store.SetCameraMonitorAsync("mk4", Saved, Saved, Ct));
-        Assert.Equal(before, await File.ReadAllBytesAsync(FilePath, Ct));
+        Assert.False(written);
+        Assert.Equal(original, result);
     }
 
     [Theory]
@@ -95,33 +169,49 @@ public sealed class JsonSettingsStoreCameraMonitorTests : IDisposable
     [InlineData("""{ "printers": [ """)]
     public async Task FileWithWarningsOrErrorsIsLeftAlone(string json)
     {
-        // A save would drop what the loader skipped or corrected; that is the user's call in the settings window.
-        Directory.CreateDirectory(_directory);
-        await File.WriteAllTextAsync(FilePath, json, Ct);
+        // The settings window shows such problems; a background update does not touch the file.
+        (bool written, string result) = await SetAsync(json, "mk4", new CameraMonitorId("DELL U2719D", 2560, 1440, "path-b", ["path-a"]), NewPath);
 
-        Assert.False(await _store.SetCameraMonitorAsync("mk4", Saved, Moved, Ct));
-        Assert.Equal(json, await File.ReadAllTextAsync(FilePath, Ct));
+        Assert.False(written);
+        Assert.Equal(json, result);
+    }
+
+    [Fact]
+    public async Task InvalidPathIsRejected()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _store.SetCameraMonitorDevicePathAsync("mk4", Saved, "bad\u0001path", Ct));
+        await Assert.ThrowsAsync<ArgumentException>(() => _store.SetCameraMonitorDevicePathAsync("mk4", Saved, "path-a", Ct));
     }
 
     [Fact]
     public void WithCameraMonitorChangesOnlyTheExpectedMonitorOfThePrinter()
     {
-        AppSettings settings = Settings(Saved);
+        CameraMonitorId moved = Saved.WithDevicePath(NewPath);
+        AppSettings settings = new() { Printers = [Printer("mk4", Saved), Printer("xl", Saved)] };
 
-        AppSettings changed = settings.WithCameraMonitor("MK4", Saved, Moved);
+        AppSettings changed = settings.WithCameraMonitor("MK4", Saved, moved);
 
-        Assert.Equal(Settings(Saved) with { Printers = [Printer("mk4", Moved), Printer("xl", Saved)] }, changed);
-        Assert.Same(settings, settings.WithCameraMonitor("mini", Saved, Moved));
-        Assert.Same(settings, settings.WithCameraMonitor("mk4", Moved, Saved));
+        Assert.Equal(new AppSettings { Printers = [Printer("mk4", moved), Printer("xl", Saved)] }, changed);
+        Assert.Same(settings, settings.WithCameraMonitor("mini", Saved, moved));
+        Assert.Same(settings, settings.WithCameraMonitor("mk4", moved, Saved));
         Assert.Same(settings, settings.WithCameraMonitor("mk4", Saved, Saved));
-        Assert.Same(changed, changed.WithCameraMonitor("mk4", Saved, Moved));
+        Assert.Same(changed, changed.WithCameraMonitor("mk4", Saved, moved));
     }
 
     [Fact]
     public async Task CancellationIsHonoured()
     {
-        await _store.SaveAsync(Settings(Saved), Ct);
+        await _store.SaveAsync(new AppSettings { Printers = [Printer("mk4", Saved)] }, Ct);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _store.SetCameraMonitorAsync("mk4", Saved, Moved, new CancellationToken(canceled: true)));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _store.SetCameraMonitorDevicePathAsync("mk4", Saved, NewPath, new CancellationToken(canceled: true)));
     }
+
+    private static PrinterDefinition Printer(string id, CameraMonitorId? monitor) => new()
+    {
+        Id = id,
+        Name = id.ToUpperInvariant(),
+        ConnectionType = ConnectionType.PrusaLink,
+        Address = "192.168.0.226",
+        Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Window = CameraWindowDefaults.Default with { Monitor = monitor } },
+    };
 }

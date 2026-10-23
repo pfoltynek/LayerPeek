@@ -177,7 +177,8 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<SettingsEditorStore>>(),
             removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>(),
             imageStore: sp.GetRequiredService<IPrinterImageStore>,
-            customImages: sp.GetRequiredService<CustomPrinterImages>()));
+            customImages: sp.GetRequiredService<CustomPrinterImages>(),
+            monitorPaths: sp.GetRequiredService<ICameraMonitorPathUpdater>()));
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),

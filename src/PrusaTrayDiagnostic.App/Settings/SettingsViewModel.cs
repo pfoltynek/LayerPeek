@@ -684,9 +684,29 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         UpdateDirty();
     }
 
+    /// <summary>
+    /// User decision 2026-10-23: a saved camera monitor connected by its device path gets the connected monitors with its
+    /// name as further known twins (<see cref="CameraMonitorId.WithTwinsFrom"/>). Part of what the window starts with, so it
+    /// is no change of the user (the window is not dirty) and is written with the next save.
+    /// </summary>
+    private AppSettings WithRefreshedTwins(AppSettings settings)
+    {
+        AppSettings refreshed = settings;
+        foreach (PrinterDefinition printer in settings.Printers)
+        {
+            if (printer.Camera.Window.Monitor is { DevicePath: not null } monitor)
+            {
+                // The same instance when nothing is added.
+                refreshed = refreshed.WithCameraMonitor(printer.Id, monitor, monitor.WithTwinsFrom(ScreenList));
+            }
+        }
+
+        return refreshed;
+    }
+
     private void Populate(SettingsEditorData data)
     {
-        AppSettings settings = data.Settings;
+        AppSettings settings = WithRefreshedTwins(data.Settings);
         _baseline = settings;
         foreach (PrinterDefinition printer in settings.Printers)
         {

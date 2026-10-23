@@ -117,6 +117,54 @@ public sealed class CameraMonitorPathUpdaterTests
         Assert.Single(_store.Calls);
     }
 
+    // ---- The latest saved path, for a settings window opened before the update (user decision 2026-10-23) ----
+
+    [Fact]
+    public async Task SavedPathIsKnownAfterTheSaveWhateverTheTwins()
+    {
+        CameraMonitorPathUpdater updater = Create();
+        Assert.Null(updater.SavedDevicePath("mk4", Saved));
+
+        updater.Request("mk4", Saved, Moved);
+        Assert.True(await updater.WaitForPendingAsync(TestTimeouts.Wait));
+
+        Assert.Equal(NewPath, updater.SavedDevicePath("MK4", Saved));
+        // The settings window may have refreshed the twins of the same monitor.
+        Assert.Equal(NewPath, updater.SavedDevicePath("mk4", new CameraMonitorId("DELL U2719D", 2560, 1440, OldPath, ["twin"])));
+        Assert.Null(updater.SavedDevicePath("xl", Saved));
+        Assert.Null(updater.SavedDevicePath("mk4", new CameraMonitorId("DELL U2719D", 1920, 1080, OldPath)));
+        Assert.Null(updater.SavedDevicePath("mk4", Moved));
+    }
+
+    [Fact]
+    public async Task SeveralMovesAreFollowed()
+    {
+        CameraMonitorId movedAgain = Saved.WithDevicePath("third-connector");
+        CameraMonitorPathUpdater updater = Create();
+
+        updater.Request("mk4", Saved, Moved);
+        updater.Request("mk4", Moved, movedAgain);
+        Assert.True(await updater.WaitForPendingAsync(TestTimeouts.Wait));
+
+        Assert.Equal("third-connector", updater.SavedDevicePath("mk4", Saved));
+        Assert.Equal("third-connector", updater.SavedDevicePath("mk4", Moved));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnsavedPathIsNotReported(bool fails)
+    {
+        _store.Result = false;
+        _store.Failure = fails ? new IOException("locked") : null;
+        CameraMonitorPathUpdater updater = Create();
+
+        updater.Request("mk4", Saved, Moved);
+        Assert.True(await updater.WaitForPendingAsync(TestTimeouts.Wait));
+
+        Assert.Null(updater.SavedDevicePath("mk4", Saved));
+    }
+
     [Fact]
     public void InvalidRequestsAreRejected()
     {
@@ -153,12 +201,12 @@ public sealed class CameraMonitorPathUpdaterTests
 
         public Task SaveAsync(AppSettings settings, CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public async Task<bool> SetCameraMonitorAsync(string printerId, CameraMonitorId expected, CameraMonitorId updated, CancellationToken cancellationToken)
+        public async Task<bool> SetCameraMonitorDevicePathAsync(string printerId, CameraMonitorId expected, string devicePath, CancellationToken cancellationToken)
         {
             await Gate.WaitAsync(cancellationToken);
             lock (_lock)
             {
-                _calls.Add((printerId, expected, updated));
+                _calls.Add((printerId, expected, expected.WithDevicePath(devicePath)));
             }
 
             return Failure is { } failure ? throw failure : Result;

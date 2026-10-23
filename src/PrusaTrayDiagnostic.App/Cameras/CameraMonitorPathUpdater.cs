@@ -17,6 +17,14 @@ internal interface ICameraMonitorPathUpdater
     /// storage failures.
     /// </summary>
     void Request(string printerId, CameraMonitorId saved, CameraMonitorId updated);
+
+
+    /// <summary>
+    /// The device path this run saved for <paramref name="monitor"/> of <paramref name="printerId"/> (the same monitor,
+    /// whatever its twins; several moves are followed), or <see langword="null"/>: a settings window opened before the save
+    /// saves that path instead of the one it loaded (user decision 2026-10-23). Thread-safe.
+    /// </summary>
+    string? SavedDevicePath(string printerId, CameraMonitorId monitor);
 }
 
 /// <summary>
@@ -34,6 +42,9 @@ internal sealed partial class CameraMonitorPathUpdater : ICameraMonitorPathUpdat
 
     // Guarded by _gate: the changes requested and not failed (saved, saving or found unnecessary), and the last save.
     private readonly HashSet<Change> _requested = [];
+
+    // Guarded by _gate: the changes written to the file, by printer id (trimmed, upper case), oldest first.
+    private readonly Dictionary<string, List<Change>> _saved = [];
     private Task _pending = Task.CompletedTask;
 
     /// <param name="settingsStore">Resolved on each save; may throw (e.g. no per-user data folder).</param>
@@ -43,6 +54,44 @@ internal sealed partial class CameraMonitorPathUpdater : ICameraMonitorPathUpdat
         ArgumentNullException.ThrowIfNull(logger);
         _settingsStore = settingsStore;
         _logger = logger;
+    }
+
+    public string? SavedDevicePath(string printerId, CameraMonitorId monitor)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        ArgumentNullException.ThrowIfNull(monitor);
+        lock (_gate)
+        {
+            if (!_saved.TryGetValue(printerId.Trim().ToUpperInvariant(), out List<Change>? moves))
+            {
+                return null;
+            }
+
+            // Follows A -> B -> C (the latest move of each monitor); at most one step per saved move, so a cycle ends too.
+            CameraMonitorId current = monitor;
+            string? path = null;
+            for (int step = 0; step < moves.Count; step++)
+            {
+                Change? next = null;
+                foreach (Change move in moves)
+                {
+                    if (move.Saved.HasSameIdentity(current))
+                    {
+                        next = move;
+                    }
+                }
+
+                if (next is not { } found)
+                {
+                    break;
+                }
+
+                path = found.Updated.DevicePath;
+                current = found.Updated;
+            }
+
+            return path;
+        }
     }
 
     public void Request(string printerId, CameraMonitorId saved, CameraMonitorId updated)
@@ -86,8 +135,19 @@ internal sealed partial class CameraMonitorPathUpdater : ICameraMonitorPathUpdat
         await previous.ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         try
         {
-            if (await _settingsStore().SetCameraMonitorAsync(printerId, change.Saved, change.Updated, CancellationToken.None).ConfigureAwait(false))
+            if (await _settingsStore().SetCameraMonitorDevicePathAsync(printerId, change.Saved, change.Updated.DevicePath!, CancellationToken.None).ConfigureAwait(false))
             {
+                lock (_gate)
+                {
+                    if (!_saved.TryGetValue(change.PrinterId, out List<Change>? moves))
+                    {
+                        moves = [];
+                        _saved.Add(change.PrinterId, moves);
+                    }
+
+                    moves.Add(change);
+                }
+
                 LogPathUpdated(printerId);
             }
             else

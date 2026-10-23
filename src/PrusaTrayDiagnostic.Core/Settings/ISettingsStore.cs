@@ -70,11 +70,12 @@ public interface ISettingsStore
         Task.FromResult(false);
 
     /// <summary>
-    /// Sets the camera window monitor of printer <paramref name="printerId"/> (case-insensitive) to <paramref name="updated"/>
-    /// while the stored one still is <paramref name="expected"/> (user decision 2026-10-23: a monitor found on another
-    /// connector keeps its new device path; see <see cref="Cameras.CameraWindowDefaultPlacement.Relocate"/>). Written by the
-    /// normal atomic save, only when the stored settings load without warnings (a save would drop what the loader skipped
-    /// or corrected); a missing or invalid file, another printer or another monitor is left alone.
+    /// Sets the device path of the camera window monitor of printer <paramref name="printerId"/> (case-insensitive) to
+    /// <paramref name="devicePath"/> while the stored monitor still is <paramref name="expected"/> (user decision 2026-10-23: a
+    /// monitor found on another connector keeps its new path; see <see cref="Cameras.CameraWindowDefaultPlacement.Relocate"/>).
+    /// Like <see cref="SetDetectedModelAsync"/> only this value changes, byte for byte (comments, formatting and unknown
+    /// values stay), and only in a file that loads without warnings; a missing or invalid file, another printer or another
+    /// monitor is left alone. The write is atomic.
     /// </summary>
     /// <returns><see langword="true"/> when the file was written.</returns>
     /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
@@ -83,6 +84,7 @@ public interface ISettingsStore
     /// </exception>
     /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
-    Task<bool> SetCameraMonitorAsync(string printerId, Cameras.CameraMonitorId expected, Cameras.CameraMonitorId updated, CancellationToken cancellationToken) =>
+    /// <exception cref="ArgumentException"><paramref name="devicePath"/> is not a valid device path or is a known twin of <paramref name="expected"/>.</exception>
+    Task<bool> SetCameraMonitorDevicePathAsync(string printerId, Cameras.CameraMonitorId expected, string devicePath, CancellationToken cancellationToken) =>
         Task.FromResult(false);
 }

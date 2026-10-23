@@ -688,6 +688,45 @@ public class CameraWindowDefaultPlacementTests
     }
 
     [Fact]
+    public void TwinsAreRefreshedWhenTheMonitorIsFoundByItsPath()
+    {
+        // User decision 2026-10-23: the stored twins plus the connected monitors with the same name, stored ones first.
+        CameraScreen rotatedTwin = new("DELL U2719D", new PixelBounds(5120, 0, 1440, 2560), new PixelBounds(5120, 0, 1440, 2512), 1.0, IsPrimary: false, DevicePath: PathC);
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB, ["old-twin", PathA.ToLowerInvariant()]);
+
+        CameraMonitorId refreshed = stored.WithTwinsFrom([OtherPrimary, DellA, DellB, rotatedTwin]);
+
+        Assert.Equal(["old-twin", PathA.ToLowerInvariant(), PathC], refreshed.KnownTwinPaths);
+        Assert.Equal(PathB, refreshed.DevicePath);
+    }
+
+    [Fact]
+    public void TwinsAreNotRefreshedWithoutTheMonitorConnectedByItsPath()
+    {
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB, ["old-twin"]);
+        CameraMonitorId old = new("DELL U2719D", 2560, 1440);
+
+        // Not connected, connected only through the fallback (another connector), older settings without a path.
+        Assert.Same(stored, stored.WithTwinsFrom([OtherPrimary, DellA]));
+        Assert.Same(stored, stored.WithTwinsFrom([DellA with { DevicePath = PathMoved }]));
+        Assert.Same(old, old.WithTwinsFrom([DellA, DellB]));
+        // Nothing new.
+        CameraMonitorId known = new("DELL U2719D", 2560, 1440, PathB, [PathA]);
+        Assert.Same(known, known.WithTwinsFrom([DellA, DellB, DellA with { DevicePath = PathA.ToUpperInvariant() }]));
+    }
+
+    [Fact]
+    public void RefreshedTwinsAreCappedAndKeepTheStoredOnes()
+    {
+        string[] stored = [.. Enumerable.Range(0, CameraMonitorId.MaxKnownTwinPaths - 1).Select(static i => $"stored-{i}")];
+        CameraMonitorId monitor = new("DELL U2719D", 2560, 1440, PathB, stored);
+
+        CameraMonitorId refreshed = monitor.WithTwinsFrom([DellB, DellA, DellA with { DevicePath = PathC }, DellA with { DevicePath = "bad\u0001path" }]);
+
+        Assert.Equal([.. stored, PathA], refreshed.KnownTwinPaths);
+    }
+
+    [Fact]
     public void WithDevicePathKeepsTheRest()
     {
         CameraMonitorId id = new("DELL U2719D", 2560, 1440, PathB, [PathA]);

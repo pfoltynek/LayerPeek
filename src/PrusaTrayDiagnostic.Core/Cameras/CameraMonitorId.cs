@@ -156,6 +156,42 @@ public sealed record CameraMonitorId
         return new CameraMonitorId(DisplayName, Width, Height, devicePath, _knownTwinPaths);
     }
 
+    /// <summary>
+    /// This monitor with its twins refreshed from <paramref name="connected"/> (user decision 2026-10-23, when the settings
+    /// window saves): only when a connected screen has this monitor's device path, the stored twins are followed by the
+    /// storable paths of the other connected monitors with the same name that are new, up to
+    /// <see cref="MaxKnownTwinPaths"/> (stored ones first), never the monitor's own path. The same instance when nothing is
+    /// added.
+    /// </summary>
+    public CameraMonitorId WithTwinsFrom(IReadOnlyList<CameraScreen> connected)
+    {
+        ArgumentNullException.ThrowIfNull(connected);
+        if (DevicePath is null || _knownTwinPaths.Length == MaxKnownTwinPaths || !connected.Any(MatchesDevicePath))
+        {
+            return this;
+        }
+
+        List<string> twins = [.. _knownTwinPaths];
+        foreach (CameraScreen screen in connected)
+        {
+            if (twins.Count == MaxKnownTwinPaths)
+            {
+                break;
+            }
+
+            if (MatchesName(screen)
+                && screen.DevicePath is { } path
+                && IsValidDevicePath(path)
+                && !string.Equals(path, DevicePath, StringComparison.OrdinalIgnoreCase)
+                && !ContainsPath(CollectionsMarshal.AsSpan(twins), path))
+            {
+                twins.Add(path);
+            }
+        }
+
+        return twins.Count == _knownTwinPaths.Length ? this : new CameraMonitorId(DisplayName, Width, Height, DevicePath, twins);
+    }
+
     /// <summary>The same physical monitor: both have a device path and it is the same (case-insensitive, like Windows paths).</summary>
     public bool MatchesDevicePath(CameraScreen screen)
     {

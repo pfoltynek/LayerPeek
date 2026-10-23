@@ -174,11 +174,12 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
-    public async Task<bool> SetCameraMonitorAsync(string printerId, CameraMonitorId expected, CameraMonitorId updated, CancellationToken cancellationToken)
+    public async Task<bool> SetCameraMonitorDevicePathAsync(string printerId, CameraMonitorId expected, string devicePath, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
         ArgumentNullException.ThrowIfNull(expected);
-        ArgumentNullException.ThrowIfNull(updated);
+        ArgumentNullException.ThrowIfNull(devicePath);
+        CameraMonitorId updated = expected.WithDevicePath(devicePath);
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
@@ -189,20 +190,33 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
                 throw new IOException(loaded.ErrorMessage ?? "The settings file could not be read.");
             }
 
-            // Only a file that loads cleanly is saved again: a save drops what the loader skipped or corrected, which is the
-            // user's call in the settings window, not a background update's.
-            if (loaded.Status != SettingsLoadStatus.Loaded || loaded.Warnings.Count > 0)
+            // Only a file that loads cleanly and still has the expected monitor is changed: problems the loader reported are
+            // the user's to fix in the settings window, and a monitor chosen meanwhile wins.
+            if (loaded.Status != SettingsLoadStatus.Loaded || loaded.Warnings.Count > 0
+                || ReferenceEquals(loaded.Settings.WithCameraMonitor(printerId, expected, updated), loaded.Settings))
             {
                 return false;
             }
 
-            AppSettings changed = loaded.Settings.WithCameraMonitor(printerId, expected, updated);
-            if (ReferenceEquals(changed, loaded.Settings))
+            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            byte[]? written;
+            try
+            {
+                // Byte for byte like the detected model: only the device path of the monitor changes.
+                written = content is null ? null : CameraMonitorPathWriter.Write(content, printerId, devicePath);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Changed into something else since it was loaded: not ours to change.
+                return false;
+            }
+
+            if (written is null)
             {
                 return false;
             }
 
-            await SaveCoreAsync(SettingsMapper.ToDocument(changed), cancellationToken).ConfigureAwait(false);
+            await WriteAtomicallyAsync(written, cancellationToken).ConfigureAwait(false);
             return true;
         }
         finally

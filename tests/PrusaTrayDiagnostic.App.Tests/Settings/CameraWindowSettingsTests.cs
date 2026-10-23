@@ -509,6 +509,38 @@ public sealed class CameraWindowSettingsTests : IDisposable
     }
 
     [Fact]
+    public async Task SaveRefreshesTheTwinsOfAMonitorFoundByItsPath()
+    {
+        // User decision 2026-10-23: the stored twins plus the connected monitors with the same name.
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, DellPathA, ["old-twin"]);
+        SettingsViewModel vm = await LoadAsync(TwoIdenticalDells(), Printer("a", "Alpha", Camera(window: CameraWindowDefaults.Default with { Monitor = stored })));
+
+        // Refreshing alone is no change of the user.
+        Assert.False(vm.IsDirty);
+        Assert.Same(vm.Printers[0].MonitorOptions[1], vm.Printers[0].SelectedMonitor);
+
+        vm.Printers[0].TopmostNormal = !vm.Printers[0].TopmostNormal;
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathA, ["old-twin", DellPathB]), saved.Printers[0].Camera.Window.Monitor);
+        // Same monitor: the remembered camera window stays.
+        Assert.Equal(0, _states.GetRemoveCount("a"));
+    }
+
+    [Fact]
+    public async Task TwinsOfAMonitorNotFoundByItsPathAreNotRefreshed()
+    {
+        // Found only on another connector: which monitors are its twins is not certain.
+        CameraMonitorId stored = new("DELL U2719D", 1440, 2560, DellPathB.Replace("UID160002", "UID160009", StringComparison.Ordinal), ["old-twin"]);
+        SettingsViewModel vm = await LoadAsync(ThreeMonitors(), Printer("a", "Alpha", Camera(window: CameraWindowDefaults.Default with { Monitor = stored })));
+
+        vm.Printers[0].TopmostNormal = !vm.Printers[0].TopmostNormal;
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Equal(stored, saved.Printers[0].Camera.Window.Monitor);
+    }
+
+    [Fact]
     public async Task SwitchedOffMonitorWithAKnownTwinIsNotConnected()
     {
         CameraMonitorId stored = new("DELL U2719D", 2560, 1440, DellPathB, [DellPathA]);

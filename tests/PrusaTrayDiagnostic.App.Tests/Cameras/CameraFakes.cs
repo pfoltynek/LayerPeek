@@ -232,4 +232,20 @@ internal sealed class RecordingMonitorPathUpdater : ICameraMonitorPathUpdater
             _requests.Add((printerId, saved, updated));
         }
     }
+
+    /// <summary>The paths <see cref="SavedDevicePath"/> reports, by printer id (case-insensitive) and saved monitor.</summary>
+    public Dictionary<(string PrinterId, CameraMonitorId Saved), string> SavedPaths { get; } = [];
+
+    public string? SavedDevicePath(string printerId, CameraMonitorId monitor)
+    {
+        foreach (((string id, CameraMonitorId saved), string path) in SavedPaths)
+        {
+            if (string.Equals(id, printerId, StringComparison.OrdinalIgnoreCase) && saved.HasSameIdentity(monitor))
+            {
+                return path;
+            }
+        }
+
+        return null;
+    }
 }
