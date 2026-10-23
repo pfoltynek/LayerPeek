@@ -1,7 +1,7 @@
 ---
 id: T-041
 title: Okno Diagnostika ve velikosti nastavení bez scrollbaru
-status: in-progress
+status: done
 owner: ui-designer + ui-dev
 priority: P2
 platform: all
@@ -32,7 +32,7 @@ Okno je úzké a vysoké (cca 560×790), obsah (stav, teploty, ventilátory a po
 - [x] Okno 780×508 (klient), zmenšení na pracovní plochu, bez minimalizace a maximalizace
 - [x] Bez scrollbaru ve všech 8 jazycích ve všech stavech (offline, tisk, bez teplot, dlouhé hodnoty) – headless test
 - [x] Snapshoty aktualizované a zkontrolované
-- [ ] Ruční ověření na Windows (uživatel)
+- [x] Ruční ověření na Windows (uživatel) – automatizováno E2E testy T-044 (100 %) a T-071 (125/150 %, tmavý motiv, Tab/Esc), 2026-10-23; „celkový dojem“ zůstává doporučená ruční kontrola
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
 
 ## Návrh UI
@@ -186,3 +186,4 @@ Stav 2026-10-20 (ui-dev): implementováno podle schváleného návrhu (varianta 
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** Segoe UI bez posuvníku v 8 jazycích při 125/150 %, tmavý motiv a Esc/Tab skutečnou klávesnicí ověří E2E testy T-071 (zásahy T-065/T-066; 100 % už pokrývá T-044). Kritérium se zaškrtne, až testy projdou. Celkový dojem zůstává doporučená ruční kontrola (přehled pokrytí v T-065).
 - **Stav T-071 (2026-10-22, qa-reviewer):** testy `AuxiliaryWindowScaleAndThemeTests` (125/150 % v 8 jazycích, tmavý motiv s Tab/Esc ze skutečné klávesnice) jsou hotové a čekají na řízený běh se zásahy (`DisplayScale`, `Theme`). Kritérium zatím zůstává nezaškrtnuté.
+- **Výsledek T-071 (2026-10-23, qa-reviewer):** řízené běhy `tools/run-e2e.ps1` se zásahy do systému na tomto počítači (2× DELL U2719D): `DiagnosticsAndSettingsFitAtEveryScale` 2× zelené (primární monitor 125 % a 150 %, 8 jazyků: Diagnostika tiskne / offline / bez tiskáren, 4 podzáložky tiskárny + Obecné + Tiskárny bez tiskáren; nic neroluje, okno má DPI monitoru a velikost 780 × 508 DIP), `DiagnosticsInTheDarkThemeWithTheKeyboard` 2× zelené (tmavý motiv aplikací: Diagnostika i nastavení tmavé, medián jasu klientské oblasti 0; nic neroluje, žádný text mimo okno; Tab skutečnou klávesnicí: Zavřít → výběr tiskárny → rozsah → Zavřít; Esc zavře Diagnostiku). Aplikace se tmavým motivem systému řídí. Po každém běhu „Differences from the start: none“. Kritérium ručního ověření je tím splněné, úloha přesunuta do `done`. Omezení: zkrácení „…“ uvnitř textu UI Automation neprozradí (hlídají headless testy, T-071 Q2).
