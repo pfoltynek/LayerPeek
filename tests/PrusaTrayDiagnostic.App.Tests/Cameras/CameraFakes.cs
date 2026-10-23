@@ -248,4 +248,6 @@ internal sealed class RecordingMonitorPathUpdater : ICameraMonitorPathUpdater
 
         return null;
     }
+
+    public Task<bool> WaitForPendingAsync(TimeSpan timeout) => Task.FromResult(true);
 }

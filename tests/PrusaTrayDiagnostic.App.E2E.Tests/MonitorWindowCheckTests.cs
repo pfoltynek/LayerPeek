@@ -173,7 +173,7 @@ public sealed class MonitorWindowCheckTests
         TestMonitor sameResolutionTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
 
         Assert.Equal(moved, TestMonitors.Matching(saved, ["path-1"], [twin, moved]));
-        // The rotated twin is known: it is no candidate on its own, but it still makes two candidates.
+        // A known twin with the same resolution is never taken, but it still counts as a candidate (two: ambiguous).
         Assert.Null(TestMonitors.Matching(saved, ["path-3"], [sameResolutionTwin]));
         Assert.Null(TestMonitors.Matching(saved, ["path-3"], [sameResolutionTwin, moved]));
         // A twin unknown to the settings (plugged in after the choice) is taken for the moved monitor.

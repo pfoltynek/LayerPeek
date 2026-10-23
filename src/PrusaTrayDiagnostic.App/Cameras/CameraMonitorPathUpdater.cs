@@ -18,18 +18,23 @@ internal interface ICameraMonitorPathUpdater
     /// </summary>
     void Request(string printerId, CameraMonitorId saved, CameraMonitorId updated);
 
-
     /// <summary>
     /// The device path this run saved for <paramref name="monitor"/> of <paramref name="printerId"/> (the same monitor,
     /// whatever its twins; several moves are followed), or <see langword="null"/>: a settings window opened before the save
     /// saves that path instead of the one it loaded (user decision 2026-10-23). Thread-safe.
     /// </summary>
     string? SavedDevicePath(string printerId, CameraMonitorId monitor);
+
+    /// <summary>
+    /// Waits at most <paramref name="timeout"/> for the requested saves (quitting, tests). <see langword="true"/> when none
+    /// is running any more. Never throws.
+    /// </summary>
+    Task<bool> WaitForPendingAsync(TimeSpan timeout);
 }
 
 /// <summary>
-/// <see cref="ICameraMonitorPathUpdater"/> through <see cref="ISettingsStore.SetCameraMonitorAsync"/> (the normal atomic
-/// save with its retries of a file held by another process): silently, once per printer and change, in the background
+/// <see cref="ICameraMonitorPathUpdater"/> through <see cref="ISettingsStore.SetCameraMonitorDevicePathAsync"/> (a byte for
+/// byte, atomic change with the retries of a file held by another process): silently, once per printer and change, in the background
 /// (one save after another), with one Information line when the file was written. A failure is logged as a warning and
 /// does not affect the camera window; the next request of the same change (the next time the window opens) tries again.
 /// Device paths are never logged (T-071 privacy decision).
@@ -112,10 +117,6 @@ internal sealed partial class CameraMonitorPathUpdater : ICameraMonitorPathUpdat
         }
     }
 
-    /// <summary>
-    /// Waits at most <paramref name="timeout"/> for the requested saves (tests, quitting). <see langword="true"/> when none
-    /// is running any more.
-    /// </summary>
     public async Task<bool> WaitForPendingAsync(TimeSpan timeout)
     {
         Task pending;

@@ -262,6 +262,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
         await WaitForPendingSaveAsync().ConfigureAwait(true);
         // A detected model being written (T-039): a tiny atomic write; an interrupted one keeps the previous file.
         await _session.ModelSaves.WaitAsync(PendingSaveTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
+        // A camera monitor path being written (user decision 2026-10-23): the same kind of tiny atomic write, before the
+        // settings store goes with the container. Never throws.
+        await _services.GetRequiredService<ICameraMonitorPathUpdater>().WaitForPendingAsync(PendingSaveTimeout).ConfigureAwait(true);
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
         // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
         await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);

@@ -113,6 +113,43 @@ public sealed class JsonSettingsStoreCameraMonitorTests : IDisposable
     }
 
     [Fact]
+    public async Task OnOneLineThePathIsAddedAfterANestedLastValueAndBeforeAComment()
+    {
+        string original = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "extra": { "devicePath": 1 } /* c */ } } } } ] }""";
+
+        (bool written, string result) = await SetAsync(original, "mk4", new CameraMonitorId("DELL U2719D", 2560, 1440), NewPath);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace("{ \"devicePath\": 1 } /* c */", $"{{ \"devicePath\": 1 }}, \"devicePath\": \"{NewPathJson}\" /* c */", StringComparison.Ordinal), result);
+        SettingsLoadResult loaded = await _store.LoadAsync(Ct);
+        Assert.Empty(loaded.Warnings);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, NewPath), loaded.Settings.Printers[0].Camera.Window.Monitor);
+    }
+
+    [Fact]
+    public async Task NullPathOfAnOlderMonitorIsReplaced()
+    {
+        string original = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "devicePath": null, "width": 2560, "height": 1440 } } } } ] }""";
+
+        (bool written, string result) = await SetAsync(original, "mk4", new CameraMonitorId("DELL U2719D", 2560, 1440), NewPath);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace("\"devicePath\": null", $"\"devicePath\": \"{NewPathJson}\"", StringComparison.Ordinal), result);
+    }
+
+    [Fact]
+    public async Task EscapedNamesAndAnIdAfterTheCameraAreMatched()
+    {
+        // The loader decodes escapes and reads names case-insensitively; the id may come after the camera.
+        string original = $$"""{ "Printers": [ { {{Machine}}, "CAMERA": { {{Camera}}, "window": { "Monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{OldPathJson}}" } } }, "id": "mk4" } ] }""";
+
+        (bool written, string result) = await SetAsync(original, "MK4", new CameraMonitorId("DELL U2719D", 2560, 1440, OldPath), NewPath);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace(OldPathJson, NewPathJson, StringComparison.Ordinal), result);
+    }
+
+    [Fact]
     public async Task ByteOrderMarkStays()
     {
         string json = $$"""{ "printers": [ { "id": "mk4", {{Machine}}, "camera": { {{Camera}}, "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": "{{OldPathJson}}" } } } } ] }""";

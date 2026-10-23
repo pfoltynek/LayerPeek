@@ -183,31 +183,35 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            SettingsLoadResult loaded = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
-            if (loaded.Status == SettingsLoadStatus.Unreadable)
-            {
-                // Also a file still held by another process after the retries: "nothing written" would hide the failure.
-                throw new IOException(loaded.ErrorMessage ?? "The settings file could not be read.");
-            }
-
-            // Only a file that loads cleanly and still has the expected monitor is changed: problems the loader reported are
-            // the user's to fix in the settings window, and a monitor chosen meanwhile wins.
-            if (loaded.Status != SettingsLoadStatus.Loaded || loaded.Warnings.Count > 0
-                || ReferenceEquals(loaded.Settings.WithCameraMonitor(printerId, expected, updated), loaded.Settings))
+            // One read for the check and the change, so that the file cannot change in between (another process, an
+            // editor). A file still held by another process after the retries is thrown: "nothing written" would hide it.
+            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            if (content is null)
             {
                 return false;
             }
 
-            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
             byte[]? written;
             try
             {
+                // Only a file that loads cleanly and still has the expected monitor is changed: problems the loader
+                // reported are the user's to fix in the settings window, and a monitor chosen meanwhile wins.
+                using MemoryStream stream = new(content, writable: false);
+                SettingsDocument? document = JsonSerializer.Deserialize(stream, SettingsJsonContext.Default.SettingsDocument);
+                List<string> warnings = [];
+                AppSettings? settings = document is null ? null : SettingsMapper.ToSettings(document, warnings);
+                if (settings is null || warnings.Count > 0
+                    || ReferenceEquals(settings.WithCameraMonitor(printerId, expected, updated), settings))
+                {
+                    return false;
+                }
+
                 // Byte for byte like the detected model: only the device path of the monitor changes.
-                written = content is null ? null : CameraMonitorPathWriter.Write(content, printerId, devicePath);
+                written = CameraMonitorPathWriter.Write(content, printerId, devicePath);
             }
             catch (Exception ex) when (ex is JsonException or InvalidOperationException)
             {
-                // Changed into something else since it was loaded: not ours to change.
+                // Not valid JSON, or invalid UTF-8 in a property name or printer id: not ours to change.
                 return false;
             }
 
