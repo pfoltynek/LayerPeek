@@ -408,6 +408,6 @@ public sealed class ToastChangeTests
     {
         Assert.Equal("Print paused", AppStrings.Get("en", "NotificationPrintPaused"));
         Assert.Equal("Der Drucker meldet einen Fehler", AppStrings.Get("de", "NotificationError"));
-        Assert.Throws<InvalidOperationException>(() => AppStrings.Get("en", "NoSuchKey"));
+        Assert.Throws<KeyNotFoundException>(() => AppStrings.Get("en", "NoSuchKey"));
     }
 }
