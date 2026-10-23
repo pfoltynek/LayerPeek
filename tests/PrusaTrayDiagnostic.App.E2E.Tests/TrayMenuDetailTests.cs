@@ -235,7 +235,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
             ?? throw new InvalidOperationException("The run-wide tray icon change is missing although the warning listed TrayPromotion.");
         await tray.PromoteAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
         await Wait.UntilAsync(() => NotificationArea.TestIconsOnTaskbar(app.Automation).Count > 0, TimeSpan.FromSeconds(15), "the test icon on the taskbar");
-        Screenshots.SaveScreenArea(NotificationArea.TestIconsOnTaskbar(app.Automation)[0].BoundingRectangle, 8, "menu-keyboard-taskbar-1-button");
+        ScreenArea.Save(NotificationArea.TestIconsOnTaskbar(app.Automation)[0].BoundingRectangle, 8, "menu-keyboard-taskbar-1-button");
 
         TrayMenuWindow menu = await TrayMenu.OpenWithKeyboardAsync(app, requireTaskbar: true);
         Screenshots.Save(menu.Handle, "menu-keyboard-taskbar-2-menu");

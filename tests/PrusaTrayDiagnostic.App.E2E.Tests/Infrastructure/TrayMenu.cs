@@ -582,12 +582,12 @@ internal static class TrayMenu
 
             foreach (AutomationElement icon in NotificationArea.TestIconsOnTaskbar(app.Automation))
             {
-                trace($"Test icon on the taskbar: {Screenshots.SaveScreenArea(icon.BoundingRectangle, 8, $"{name}-failure-tray-button")}");
+                trace($"Test icon on the taskbar: {ScreenArea.Save(icon.BoundingRectangle, 8, $"{name}-failure-tray-button")}");
             }
 
             if (NotificationArea.Overflow(app.Automation) is { } overflow)
             {
-                trace($"Overflow flyout: {Screenshots.SaveScreenArea(overflow.BoundingRectangle, 4, $"{name}-failure-overflow")}");
+                trace($"Overflow flyout: {ScreenArea.Save(overflow.BoundingRectangle, 4, $"{name}-failure-overflow")}");
             }
         }
         catch (Exception ex)

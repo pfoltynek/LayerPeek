@@ -139,7 +139,7 @@ internal sealed partial class ThemeKind() : SystemChangeKind<ThemeState>("Theme"
             throw new InvalidOperationException("No taskbar (Shell_TrayWnd).");
         }
 
-        return Screenshots.CaptureScreenArea(Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom));
+        return ScreenArea.CaptureBitmap(Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom));
     }
 
     /// <summary>Median of the brightness (0..255) of every second pixel.</summary>

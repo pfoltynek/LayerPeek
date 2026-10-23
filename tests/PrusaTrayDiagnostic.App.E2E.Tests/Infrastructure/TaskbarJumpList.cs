@@ -96,7 +96,8 @@ internal static class TaskbarJumpList
         }
     }
 
-    private static bool IsTestButtonAt(AutomationBase automation, Point point)
+    /// <summary>Whether the screen at <paramref name="point"/> is the test app's taskbar button (not a stale rectangle, another button or a window over the taskbar).</summary>
+    internal static bool IsTestButtonAt(AutomationBase automation, Point point)
     {
         nint taskbar = Native.FindWindow(NotificationArea.TaskbarClassName, null);
         if (taskbar == 0 || Native.TopLevelWindowAt(point) != taskbar)
@@ -166,7 +167,7 @@ internal static class TaskbarJumpList
                 area = area.IsEmpty ? bounds : Rectangle.Union(area, bounds);
             }
 
-            return SaveScreenArea(area.IsEmpty ? Element.BoundingRectangle : area, 0, name);
+            return ScreenArea.Save(area.IsEmpty ? Element.BoundingRectangle : area, 0, name);
         }
 
         public bool IsOpen => Native.IsWindowVisible(Handle) && Native.GetForegroundWindow() == Handle;
@@ -218,7 +219,7 @@ internal static class TaskbarJumpList
     /// The taskbar button captured from the screen, with a small margin only: the neighbouring buttons belong to the
     /// user's own windows.
     /// </summary>
-    public static string ScreenshotButton(AutomationElement button, string name) => SaveScreenArea(button.BoundingRectangle, 4, name);
+    public static string ScreenshotButton(AutomationElement button, string name) => ScreenArea.Save(button.BoundingRectangle, 4, name);
 
     private static bool IsShellExperienceHost(nint hwnd)
     {
@@ -233,6 +234,4 @@ internal static class TaskbarJumpList
             return false;
         }
     }
-
-    private static string SaveScreenArea(Rectangle area, int margin, string name) => Screenshots.SaveScreenArea(area, margin, name);
 }

@@ -65,7 +65,7 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - [x] Vlastní ilustrace pro všechny podporované modely + obecná, schválené uživatelem; jako `AvaloniaResource` (test, že každý model má ilustraci a ta jde načíst)
 - [x] App.Tests: view model vybere ilustraci podle modelu, vlastní obrázek má přednost, neznámý model → obecná ilustrace podle otázky 2, import a odstranění vlastního obrázku, odstranění tiskárny uklidí její vlastní obrázek (podle otázky 5)
 - [x] Headless UI testy: obrázek v seznamu tiskáren, na podzáložce Tiskárna a v okně Diagnostika; snímky reference aktualizované; test „bez posuvníku“ z T-033 projde ve všech 8 jazycích
-- [x] Tray menu: položka tiskárny má ikonu (test presenteru menu / falešného menu); ruční ověření na Windows, že se ikona v menu zobrazí (zapsat do poznámek) – 2026-10-22 při 100 % ověřeno E2E testy T-069 (pixelová kontrola proti ilustraci modelu, viz poznámky); 150 % ověří T-070
+- [x] Tray menu: položka tiskárny má ikonu (test presenteru menu / falešného menu); ruční ověření na Windows, že se ikona v menu zobrazí (zapsat do poznámek) – 2026-10-22 při 100 % ověřeno E2E testy T-069 (pixelová kontrola proti ilustraci modelu, viz poznámky); 2026-10-23 při 150 % ověřeno E2E testem T-070 (ostrá 24px ilustrace u aplikace spuštěné při 150 %)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish `win-x64` bez varování
 
 ## Otevřené otázky

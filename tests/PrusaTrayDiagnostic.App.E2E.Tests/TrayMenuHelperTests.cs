@@ -196,7 +196,7 @@ public sealed class TrayMenuHelperTests
     [InlineData(-10, -10, 3000, 1500, false)]
     [InlineData(10, 10, 0, 5, false)]
     public void ScreenAreaGuardAllowsOnlyElementsNotTheDesktop(int x, int y, int width, int height, bool allowed) =>
-        Assert.Equal(allowed, Screenshots.ScreenAreaRefusal(new Rectangle(x, y, width, height), new Rectangle(0, 0, 2560, 1440)) is null);
+        Assert.Equal(allowed, ScreenArea.Refusal(new Rectangle(x, y, width, height), new Rectangle(0, 0, 2560, 1440)) is null);
 
     private static Bitmap Pattern(int size)
     {
