@@ -67,8 +67,8 @@ public sealed class TrayMenuTests(E2EFixture fixture)
         await app.WaitForWindowAsync(AppWindowKind.Settings);
     }
 
-    /// <summary>Right-clicks the test instance's tray icon and returns the menu (checking its top level).</summary>
-    private static async Task<AutomationElement> OpenMenuAsync(AppInstance app, string? screenshot = null)
+    /// <summary>Right-clicks the test instance's tray icon and returns the menu (checking its top level); also used by T-070.</summary>
+    internal static async Task<AutomationElement> OpenMenuAsync(AppInstance app, string? screenshot = null)
     {
         StringBuilder report = new();
         Stopwatch clock = Stopwatch.StartNew();
