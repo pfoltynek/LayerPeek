@@ -148,6 +148,20 @@ public sealed class MonitorWindowCheckTests
     }
 
     [Fact]
+    public void SwitchedOffMonitorMatchesByPathThenNameAndResolutionThenName()
+    {
+        TestMonitor saved = Monitor("DELL U2719D", 2560, 0, 1440, 2560, gdi: @"\\.\DISPLAY2") with { DevicePath = "path-2" };
+        TestMonitor twin = Monitor("DELL U2719D", 0, 0, 2560, 1440) with { DevicePath = "path-1" };
+        TestMonitor rotatedTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
+        TestMonitor other = Monitor("Other", 0, 0, 1920, 1080) with { DevicePath = "path-4" };
+
+        Assert.Equal(saved, TestMonitors.Matching(saved, [twin, saved]));
+        Assert.Equal(rotatedTwin, TestMonitors.Matching(saved, [twin, rotatedTwin]));
+        Assert.Equal(twin, TestMonitors.Matching(saved, [twin, other]));
+        Assert.Null(TestMonitors.Matching(saved, [other]));
+    }
+
+    [Fact]
     public void UnknownTextIsReportedWithItsFile()
     {
         KeyNotFoundException error = Assert.Throws<KeyNotFoundException>(() => AppStrings.Get("fr", "NoSuchText"));
@@ -178,19 +192,33 @@ public sealed class MonitorWindowCheckTests
     }
 
     [Fact]
-    public void WindowThatWasNeverShownHasNoJumps()
+    public void WindowThatWasNeverShownIsReportedAsNotSeen()
     {
         WindowEvent[] events = [Event(WinEventRecorder.EventObjectLocationChange, 0x100, 0)];
 
         Assert.Empty(WinEventRecorder.MovesAfterShow(events, 0x100));
-        Assert.Empty(WinEventRecorder.JumpsAfterShow(events, 0x100));
         Assert.False(WinEventRecorder.WasShown(events, 0x100));
+        Assert.Contains("no EVENT_OBJECT_SHOW", WinEventRecorder.JumpProblem(events, 0x100), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void ChangeNotificationWithTheShownRectangleIsNoJump()
+    public void WindowThatKeepsStillAfterTheShowHasNoJump()
     {
-        // The mini preview: a frame/topmost refresh right after the show reports the same rectangle (T-071 run 2026-10-22).
+        nint camera = 0x100;
+        WindowEvent[] events =
+        [
+            Event(WinEventRecorder.EventObjectLocationChange, camera, 0),
+            Event(WinEventRecorder.EventObjectShow, camera, 10),
+            Event(WinEventRecorder.EventObjectLocationChange, 0x200, 30),
+        ];
+
+        Assert.Null(WinEventRecorder.JumpProblem(events, camera));
+    }
+
+    [Fact]
+    public void ChangeNotificationWithTheShownRectangleIsAJumpToo()
+    {
+        // T-071 Q1 (decided 2026-10-23): strict, a SetWindowPos after the show counts even when it moves nothing.
         nint camera = 0x100;
         WindowEvent[] events =
         [
@@ -199,9 +227,53 @@ public sealed class MonitorWindowCheckTests
             Event(WinEventRecorder.EventObjectLocationChange, camera, 12),
         ];
 
-        Assert.Equal(2, WinEventRecorder.MovesAfterShow(events, camera).Count);
-        WindowEvent jump = Assert.Single(WinEventRecorder.JumpsAfterShow(events, camera));
-        Assert.Equal(12, jump.Rect.Left);
+        string? problem = WinEventRecorder.JumpProblem(events, camera);
+
+        Assert.NotNull(problem);
+        Assert.StartsWith("2 location change(s)", problem, StringComparison.Ordinal);
+        Assert.Equal(1, problem.Split("(same rectangle)").Length - 1);
+    }
+
+    [Fact]
+    public async Task MessageLoopThreadSetsUpAndTearsDownOnItsOwnThread()
+    {
+        int setUpThread = 0;
+        int tearDownThread = 0;
+        string? tornDown = null;
+
+        MessageLoopThread<string> loop = await MessageLoopThread<string>.StartAsync(
+            "E2E loop test",
+            () =>
+            {
+                setUpThread = Environment.CurrentManagedThreadId;
+                return "state";
+            },
+            state =>
+            {
+                tearDownThread = Environment.CurrentManagedThreadId;
+                tornDown = state;
+            });
+        Assert.Equal("state", loop.State);
+        Assert.Null(tornDown);
+        loop.Dispose();
+
+        Assert.Equal("state", tornDown);
+        Assert.Equal(setUpThread, tearDownThread);
+        Assert.NotEqual(Environment.CurrentManagedThreadId, setUpThread);
+    }
+
+    [Fact]
+    public async Task MessageLoopThreadReportsAFailedSetUp()
+    {
+        bool tornDown = false;
+
+        InvalidOperationException error = await Assert.ThrowsAsync<InvalidOperationException>(() => MessageLoopThread<int>.StartAsync(
+            "E2E loop test",
+            static () => throw new InvalidOperationException("no hook"),
+            _ => tornDown = true));
+
+        Assert.Equal("no hook", error.Message);
+        Assert.False(tornDown);
     }
 
     [Fact]
@@ -266,6 +338,24 @@ public sealed class MonitorWindowCheckTests
         Assert.Equal(new Point(2560 + 232, 182), candidates[0]);
         Assert.All(candidates, point => Assert.True(point.X >= cover.Left && point.X < cover.Right && point.Y >= cover.Top && point.Y < cover.Bottom, $"{point} is outside {cover}"));
         Assert.Contains(new Point(2560 + 8, 8), candidates);
+    }
+
+    [Fact]
+    public void ClickPointsStayInTheTitleBarAwayFromTheCaptionButtons()
+    {
+        Native.Rect frame = Rect(800, 400, 976, 760);
+
+        List<Point> points = WindowActivation.ClickPoints(frame, hasCaption: true, scaling: 1.25);
+
+        Assert.Equal([new Point(1288, 410), new Point(1044, 410), new Point(922, 410), new Point(1576, 410)], points);
+    }
+
+    [Fact]
+    public void ClickPointsOfAWindowWithoutCaptionAreInItsMiddleRow()
+    {
+        List<Point> points = WindowActivation.ClickPoints(Rect(0, 0, 320, 180), hasCaption: false, scaling: 1);
+
+        Assert.Equal([new Point(160, 90), new Point(80, 90), new Point(240, 90)], points);
     }
 
     [Theory]

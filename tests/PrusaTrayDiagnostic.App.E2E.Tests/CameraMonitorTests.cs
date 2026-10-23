@@ -3,7 +3,6 @@ using System.Text;
 using System.Text.Json.Nodes;
 
 using FlaUI.Core.AutomationElements;
-using Keyboard = FlaUI.Core.Input.Keyboard;
 using FlaUI.Core.WindowsAPI;
 
 using PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
@@ -85,7 +84,7 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
 
         // Esc with the real keyboard: back to the normal window, on the same monitor, in its placement (centre).
         await WindowActivation.ActivateAsync(window, new System.Drawing.Point(chosen.Bounds.Left + (chosen.Bounds.Width / 2), chosen.Bounds.Top + (chosen.Bounds.Height / 2)));
-        Keyboard.Type(VirtualKeyShort.ESCAPE);
+        WindowActivation.TypeInto(window, VirtualKeyShort.ESCAPE);
         await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == NormalSize && (Native.Style(window) & Native.WsCaption) == Native.WsCaption, WindowTimeout, "the normal window after Esc");
         TestMonitor now = Fresh(chosen);
         await Wait.StableAsync(() => Native.FrameBounds(window), WindowTimeout, "the normal window to settle");
@@ -258,7 +257,9 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
 
     /// <summary>
     /// The chosen second monitor really switched off while the app runs (T-066): the camera opens on the primary monitor
-    /// and the settings show the monitor as "not connected"; when it is back (a new settings window, the list is read once
+    /// and the settings show the monitor as "not connected" – unless a remaining monitor has the same name (two identical
+    /// monitors, as on the development machine): it stands in for the switched-off one by the app's rule (T-035 Q4/Q8,
+    /// <see cref="TestMonitors.Matching"/>), and the camera opens there; when it is back (a new settings window, the list is read once
     /// per window, T-035 Q10) it is connected again and the camera opens on it.
     /// </summary>
     [Fact]
@@ -286,12 +287,23 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
             MonitorOff off = await topology.SwitchOffAsync(second.DevicePath, cancellationToken);
             _report.Append(MonitorDisconnectChanges.Describe(off)).AppendLine("Monitor off:").Append(DisplayConfig.Report());
 
+            // The app's rule (T-035 Q4/Q8): a remaining monitor with the same name (a twin, as here) stands in for the
+            // switched-off one; only without one the monitor is "not connected" and the camera goes to the primary.
+            List<TestMonitor> remaining = TestMonitors.All();
+            TestMonitor? standIn = TestMonitors.Matching(second, remaining);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Saved monitor while off: {(standIn is null ? "not connected" : $"matched by name to {standIn}")}");
             nint window = await CameraWindowSettings.OpenCameraAsync(app);
-            await ExpectNormalWindowOnAsync(window, TestMonitors.Primary(TestMonitors.All()), "monitor off");
-            Screenshots.Save(window, "camera-monitor-off-primary");
+            await ExpectNormalWindowOnAsync(window, standIn ?? TestMonitors.Primary(remaining), "monitor off");
+            Screenshots.Save(window, "camera-monitor-off-fallback");
             await app.CloseWindowAsync(window);
-            List<string> disconnected = [.. TestMonitors.ExpectedChoices("en", TestMonitors.All()), TestMonitors.NotConnectedChoice("en", second.AppName, second.Bounds.Width, second.Bounds.Height)];
-            await ExpectMonitorChoicesAsync(app, disconnected, disconnected.Count - 1, "camera-monitor-off-settings");
+            List<string> offChoices = TestMonitors.ExpectedChoices("en", remaining);
+            if (standIn is null)
+            {
+                offChoices.Add(TestMonitors.NotConnectedChoice("en", second.AppName, second.Bounds.Width, second.Bounds.Height));
+            }
+
+            int offSelected = standIn is null ? offChoices.Count - 1 : TestMonitors.Ordered(remaining).IndexOf(standIn) + 1;
+            await ExpectMonitorChoicesAsync(app, offChoices, offSelected, "camera-monitor-off-settings");
 
             List<string> notBack = await topology.RestoreAndCheckWindowsAsync(off, cancellationToken);
             await Wait.UntilAsync(() => TestMonitors.All().Count == monitors.Count, WindowTimeout, "the monitor to be back");
@@ -325,7 +337,7 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
             label,
             CameraPlacement.Window(monitor.CameraMonitorJson(), mode, normalCorner: corner, miniCorner: corner, normalWidth: NormalSize.Width, normalHeight: NormalSize.Height),
             camera);
-        using WinEventRecorder recorder = WinEventRecorder.Start(app.Process.Id);
+        using WinEventRecorder recorder = await WinEventRecorder.StartAsync(app.Process.Id);
         nint window = await CameraWindowSettings.OpenCameraAsync(app);
         try
         {
@@ -350,7 +362,7 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
         Record(label, on.Equals(now.Bounds) ? null : $"on the monitor {on}, expected {now}");
         Record(label, CameraPlacement.Problem(frame, now.Work, corner, now.Dpi));
         Record(label, CameraWindowSettings.IsTopmost(window) == (mode == "Mini") ? null : $"always on top is {CameraWindowSettings.IsTopmost(window)} (defaults: only the mini preview)");
-        Record(label, JumpProblem(label, events, window));
+        Record(label, WinEventRecorder.JumpProblem(events, window));
         Screenshots.Save(window, label);
     }
 
@@ -428,27 +440,6 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
             ? string.Equals(m.DevicePath, monitor.DevicePath, StringComparison.OrdinalIgnoreCase)
             : string.Equals(m.GdiName, monitor.GdiName, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException($"The monitor {monitor} is no longer active.");
-
-    /// <summary>
-    /// A move or resize of the window after it was first shown (a jump the user sees); notifications that leave the
-    /// rectangle as it was are only noted in the report (see <see cref="WinEventRecorder.JumpsAfterShow"/>).
-    /// </summary>
-    private string? JumpProblem(string label, IReadOnlyList<WindowEvent> events, nint window)
-    {
-        if (!WinEventRecorder.WasShown(events, window))
-        {
-            return "the WinEvent hook saw no EVENT_OBJECT_SHOW of the window";
-        }
-
-        List<WindowEvent> notifications = WinEventRecorder.MovesAfterShow(events, window);
-        List<WindowEvent> jumps = WinEventRecorder.JumpsAfterShow(events, window);
-        if (notifications.Count > jumps.Count)
-        {
-            _report.AppendLine(CultureInfo.InvariantCulture, $"  {label}: {notifications.Count - jumps.Count} LOCATIONCHANGE after SHOW with the unchanged rectangle (no move)");
-        }
-
-        return jumps.Count == 0 ? null : $"the window moved {jumps.Count}× after it was shown: {string.Join(", ", jumps)}";
-    }
 
     private static Native.Rect WindowRect(nint hwnd)
     {

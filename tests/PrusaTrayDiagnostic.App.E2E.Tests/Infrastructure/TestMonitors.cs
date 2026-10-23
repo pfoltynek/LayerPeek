@@ -58,14 +58,6 @@ internal static class TestMonitors
     public static TestMonitor Primary(IReadOnlyList<TestMonitor> monitors) =>
         monitors.FirstOrDefault(static monitor => monitor.Primary) ?? throw new InvalidOperationException("No primary monitor (none at 0,0).");
 
-    /// <summary>The monitor <paramref name="hwnd"/> is on (most of it), from a fresh list.</summary>
-    public static TestMonitor Of(nint hwnd)
-    {
-        Native.Rect bounds = Native.MonitorOf(hwnd).Monitor;
-        return All().FirstOrDefault(monitor => monitor.Bounds.Equals(bounds))
-            ?? throw new InvalidOperationException($"The window's monitor {bounds} is not among the active monitors.");
-    }
-
     /// <summary>Left to right, then top to bottom (<c>AvaloniaScreenCatalog</c> of the app).</summary>
     public static List<TestMonitor> Ordered(IEnumerable<TestMonitor> monitors) =>
         [.. monitors.OrderBy(static monitor => monitor.Bounds.Left).ThenBy(static monitor => monitor.Bounds.Top)];
@@ -88,6 +80,20 @@ internal static class TestMonitors
         }
 
         return choices;
+    }
+
+    /// <summary>
+    /// The connected monitor the app uses for the saved <paramref name="saved"/> (T-035 Q4/Q8,
+    /// <c>CameraWindowDefaultPlacement.SelectScreen</c>): the same device path, else the same name and resolution, else
+    /// the same name (first from the left), else <see langword="null"/> ("not connected", the camera on the primary
+    /// monitor). With two identical monitors a switched-off one therefore matches its twin by name.
+    /// </summary>
+    public static TestMonitor? Matching(TestMonitor saved, IReadOnlyList<TestMonitor> connected)
+    {
+        List<TestMonitor> ordered = Ordered(connected);
+        return ordered.FirstOrDefault(m => saved.DevicePath.Length > 0 && string.Equals(m.DevicePath, saved.DevicePath, StringComparison.OrdinalIgnoreCase))
+            ?? ordered.FirstOrDefault(m => m.AppName == saved.AppName && m.Bounds.Width == saved.Bounds.Width && m.Bounds.Height == saved.Bounds.Height)
+            ?? ordered.FirstOrDefault(m => m.AppName == saved.AppName);
     }
 
     /// <summary>The item of a saved monitor that is not connected ("… – not connected").</summary>

@@ -7,8 +7,8 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 
 /// <summary>
 /// The "other app" of the always-on-top checks (T-071): a plain magenta popup window of the test process – another
-/// process than the app, never a window of the user. Not topmost, no taskbar button, on its own thread with a message
-/// loop; disposing destroys it (it dies with the test process at the latest).
+/// process than the app, never a window of the user. Not topmost, no taskbar button, served by its own
+/// <see cref="MessageLoopThread{T}"/>; disposing destroys it on that thread (it dies with the test process at the latest).
 /// </summary>
 internal sealed partial class CoverWindow : IDisposable
 {
@@ -18,64 +18,33 @@ internal sealed partial class CoverWindow : IDisposable
     private const string ClassName = "PrusaTrayDiagnostic.E2E.CoverWindow";
     private const string Title = "PrusaTrayDiagnostic E2E – cover window";
 
-    private const uint WmClose = 0x0010;
-    private const uint WmDestroy = 0x0002;
     private const uint WsPopup = 0x8000_0000;
     private const uint WsExToolWindow = 0x0000_0080;
     private const int SwShowNoActivate = 4;
     private const int ErrorClassAlreadyExists = 1410;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
+    private const int IdcArrow = 32512;
 
     private static readonly Lock ClassLock = new();
     private static bool _classRegistered;
 
-    private readonly Thread _thread;
+    private readonly MessageLoopThread<nint> _loop;
 
-    private CoverWindow(Thread thread, nint handle)
-    {
-        _thread = thread;
-        Handle = handle;
-    }
+    private CoverWindow(MessageLoopThread<nint> loop) => _loop = loop;
 
-    public nint Handle { get; }
+    public nint Handle => _loop.State;
 
     /// <summary>Creates the window over <paramref name="bounds"/> (physical pixels), shown without activation.</summary>
-    public static unsafe CoverWindow Create(Native.Rect bounds)
+    public static async Task<CoverWindow> CreateAsync(Native.Rect bounds)
     {
         RegisterClass();
-        TaskCompletionSource<nint> created = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Thread thread = new(() =>
-        {
-            nint hwnd;
-            fixed (char* className = ClassName)
-            fixed (char* title = Title)
-            {
-                hwnd = CreateWindowEx(WsExToolWindow, className, title, WsPopup, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0, 0, GetModuleHandle(null), 0);
-            }
-
-            if (hwnd == 0)
-            {
-                created.SetException(new InvalidOperationException($"CreateWindowEx failed ({Marshal.GetLastPInvokeError()})."));
-                return;
-            }
-
-            ShowWindow(hwnd, SwShowNoActivate);
-            created.SetResult(hwnd);
-            Msg message;
-            while (GetMessage(&message, 0, 0, 0) > 0)
-            {
-                TranslateMessage(&message);
-                DispatchMessage(&message);
-            }
-        })
-        {
-            IsBackground = true,
-            Name = "E2E cover window",
-        };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-        return new CoverWindow(thread, created.Task.WaitAsync(TimeSpan.FromSeconds(10)).GetAwaiter().GetResult());
+        MessageLoopThread<nint> loop = await MessageLoopThread<nint>.StartAsync(
+            "E2E cover window",
+            () => CreateShown(bounds),
+            static hwnd => DestroyWindow(hwnd),
+            ApartmentState.STA);
+        return new CoverWindow(loop);
     }
 
     /// <summary>
@@ -103,6 +72,24 @@ internal sealed partial class CoverWindow : IDisposable
         return [new(x, y), new(x, top), new(left, y), new(right, y), new(x, bottom), new(left, top), new(right, top), new(left, bottom), new(right, bottom)];
     }
 
+    /// <summary>Whether <paramref name="upper"/> is above <paramref name="lower"/> in the z-order of the top-level windows.</summary>
+    public static bool IsAbove(nint upper, nint lower)
+    {
+        int upperIndex = -1;
+        int lowerIndex = -1;
+        int index = 0;
+        Native.EnumWindows(
+            (hwnd, _) =>
+            {
+                upperIndex = hwnd == upper ? index : upperIndex;
+                lowerIndex = hwnd == lower ? index : lowerIndex;
+                index++;
+                return upperIndex < 0 || lowerIndex < 0;
+            },
+            0);
+        return upperIndex >= 0 && lowerIndex >= 0 && upperIndex < lowerIndex;
+    }
+
     /// <summary>
     /// Brings the window to the top of the non-topmost windows and activates it like a user switching to another app:
     /// <c>SetWindowPos(HWND_TOP)</c> and <c>SetForegroundWindow</c>; when Windows refuses the foreground to the test
@@ -123,31 +110,24 @@ internal sealed partial class CoverWindow : IDisposable
         await Wait.UntilAsync(() => Native.GetForegroundWindow() == Handle, TimeSpan.FromSeconds(5), "the cover window in the foreground");
     }
 
-    public void Dispose()
-    {
-        if (_thread.IsAlive)
-        {
-            PostMessage(Handle, WmClose, 0, 0);
-            _thread.Join(TimeSpan.FromSeconds(5));
-        }
-    }
+    public void Dispose() => _loop.Dispose();
 
-    /// <summary>Whether <paramref name="upper"/> is above <paramref name="lower"/> in the z-order of the top-level windows.</summary>
-    public static bool IsAbove(nint upper, nint lower)
+    private static unsafe nint CreateShown(Native.Rect bounds)
     {
-        int upperIndex = -1;
-        int lowerIndex = -1;
-        int index = 0;
-        Native.EnumWindows(
-            (hwnd, _) =>
-            {
-                upperIndex = hwnd == upper ? index : upperIndex;
-                lowerIndex = hwnd == lower ? index : lowerIndex;
-                index++;
-                return upperIndex < 0 || lowerIndex < 0;
-            },
-            0);
-        return upperIndex >= 0 && lowerIndex >= 0 && upperIndex < lowerIndex;
+        nint hwnd;
+        fixed (char* className = ClassName)
+        fixed (char* title = Title)
+        {
+            hwnd = CreateWindowEx(WsExToolWindow, className, title, WsPopup, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0, 0, GetModuleHandle(null), 0);
+        }
+
+        if (hwnd == 0)
+        {
+            throw new InvalidOperationException($"CreateWindowEx failed ({Marshal.GetLastPInvokeError()}).");
+        }
+
+        ShowWindow(hwnd, SwShowNoActivate);
+        return hwnd;
     }
 
     private static unsafe void RegisterClass()
@@ -166,7 +146,7 @@ internal sealed partial class CoverWindow : IDisposable
                     Size = (uint)sizeof(WndClassEx),
                     WindowProcedure = (nint)(delegate* unmanaged<nint, uint, nint, nint, nint>)&WindowProcedure,
                     Instance = GetModuleHandle(null),
-                    Cursor = LoadCursor(0, 32512),
+                    Cursor = LoadCursor(0, IdcArrow),
                     // COLORREF 0x00BBGGRR; one brush for the class, released with the test process.
                     Background = CreateSolidBrush((uint)(Color.B << 16 | Color.G << 8 | Color.R)),
                     ClassName = className,
@@ -181,21 +161,9 @@ internal sealed partial class CoverWindow : IDisposable
         }
     }
 
+    /// <summary>Default handling only: the window lives until the test disposes it (destroyed on its own thread).</summary>
     [UnmanagedCallersOnly]
-    private static nint WindowProcedure(nint hwnd, uint message, nint wParam, nint lParam)
-    {
-        switch (message)
-        {
-            case WmClose:
-                DestroyWindow(hwnd);
-                return 0;
-            case WmDestroy:
-                PostQuitMessage(0);
-                return 0;
-            default:
-                return DefWindowProc(hwnd, message, wParam, lParam);
-        }
-    }
+    private static nint WindowProcedure(nint hwnd, uint message, nint wParam, nint lParam) => DefWindowProc(hwnd, message, wParam, lParam);
 
     [StructLayout(LayoutKind.Sequential)]
     private unsafe struct WndClassEx
@@ -214,18 +182,6 @@ internal sealed partial class CoverWindow : IDisposable
         public nint SmallIcon;
     }
 
-    [StructLayout(LayoutKind.Sequential)]
-    private struct Msg
-    {
-        public nint Window;
-        public uint Message;
-        public nint WParam;
-        public nint LParam;
-        public uint Time;
-        public Native.Point Point;
-        public uint Private;
-    }
-
     [LibraryImport("user32.dll", EntryPoint = "RegisterClassExW", SetLastError = true)]
     private static unsafe partial ushort RegisterClassEx(WndClassEx* windowClass);
 
@@ -234,23 +190,6 @@ internal sealed partial class CoverWindow : IDisposable
 
     [LibraryImport("user32.dll", EntryPoint = "DefWindowProcW")]
     private static partial nint DefWindowProc(nint hwnd, uint message, nint wParam, nint lParam);
-
-    [LibraryImport("user32.dll", EntryPoint = "GetMessageW")]
-    private static unsafe partial int GetMessage(Msg* message, nint hwnd, uint filterMin, uint filterMax);
-
-    [LibraryImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static unsafe partial bool TranslateMessage(Msg* message);
-
-    [LibraryImport("user32.dll", EntryPoint = "DispatchMessageW")]
-    private static unsafe partial nint DispatchMessage(Msg* message);
-
-    [LibraryImport("user32.dll", EntryPoint = "PostMessageW")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static partial bool PostMessage(nint hwnd, uint message, nint wParam, nint lParam);
-
-    [LibraryImport("user32.dll")]
-    private static partial void PostQuitMessage(int exitCode);
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]

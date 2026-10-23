@@ -9,7 +9,6 @@ using PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 using PrusaTrayDiagnostic.Simulator.Camera;
 using PrusaTrayDiagnostic.Simulator.Printers;
 
-using Keyboard = FlaUI.Core.Input.Keyboard;
 
 namespace PrusaTrayDiagnostic.App.E2E.Tests;
 
@@ -89,37 +88,46 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
             TestSettings.Json("en", [new TestPrinter(PrintingId, "Core One (printing)", printer.Address()), new TestPrinter(OfflineId, "MK4S", "127.0.0.1:1")]),
             Simulators.Secrets(PrintingId, printer));
 
-        nint diagnostics = await app.OpenAsync($"diagnostics:{PrintingId}", AppWindowKind.Diagnostics);
-        AutomationElement element = app.Element(diagnostics);
-        await Wait.UntilAsync(() => Ui.IsShown(element, "DiagnosticsLastUpdate") && Ui.IsShown(element, "DiagnosticsPrinterSelector"), TimeSpan.FromSeconds(20), "the values and the printer selector");
-        await _layout.CheckAsync(element, diagnostics, "dark-diagnostics");
-        _layout.CheckTextsInside(element, diagnostics, "dark-diagnostics");
-        AssertDarkBackground(diagnostics, "diagnostics");
-
-        await WindowActivation.ActivateAsync(diagnostics);
-        List<string> focused = [];
-        for (int i = 0; i < DiagnosticsTabOrder.Length + 1; i++)
+        try
         {
-            Keyboard.Type(VirtualKeyShort.TAB);
-            await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken);
-            focused.Add(fixture.Automation.FocusedElement()?.Properties.AutomationId.ValueOrDefault ?? "(none)");
+            nint diagnostics = await app.OpenAsync($"diagnostics:{PrintingId}", AppWindowKind.Diagnostics);
+            AutomationElement element = app.Element(diagnostics);
+            await Wait.UntilAsync(() => Ui.IsShown(element, "DiagnosticsLastUpdate") && Ui.IsShown(element, "DiagnosticsPrinterSelector"), TimeSpan.FromSeconds(20), "the values and the printer selector");
+            await _layout.CheckAsync(element, diagnostics, "dark-diagnostics");
+            _layout.CheckTextsInside(element, diagnostics, "dark-diagnostics");
+            AssertDarkBackground(diagnostics, "diagnostics");
+
+            await WindowActivation.ActivateAsync(diagnostics);
+            List<string> focused = [];
+            for (int i = 0; i < DiagnosticsTabOrder.Length + 1; i++)
+            {
+                WindowActivation.TypeInto(diagnostics, VirtualKeyShort.TAB);
+                await Task.Delay(TimeSpan.FromMilliseconds(300), cancellationToken);
+                focused.Add(fixture.Automation.FocusedElement()?.Properties.AutomationId.ValueOrDefault ?? "(none)");
+            }
+
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Tab: {string.Join(" → ", focused)}");
+            Assert.True(WindowActivation.FollowsCycle(focused, DiagnosticsTabOrder), $"Tab focused {string.Join(" → ", focused)}, expected the cycle {string.Join(" → ", DiagnosticsTabOrder)}.");
+            WindowActivation.TypeInto(diagnostics, VirtualKeyShort.ESCAPE);
+            await Wait.UntilAsync(() => !Native.IsWindowVisible(diagnostics), TimeSpan.FromSeconds(10), "Esc to close the diagnostics");
+
+            nint settings = await app.OpenAsync("settings", AppWindowKind.Settings);
+            AutomationElement settingsElement = app.Element(settings);
+            (await Ui.ItemsAsync(settingsElement, "SettingsPrinterList", 2))[0].Patterns.SelectionItem.Pattern.Select();
+            foreach (string tab in PrinterTabs)
+            {
+                await _layout.CheckTabAsync(settingsElement, settings, tab, $"dark-settings-{tab}");
+                _layout.CheckTextsInside(settingsElement, settings, $"dark-settings-{tab}");
+            }
+
+            AssertDarkBackground(settings, "settings");
+            await CameraWindowSettings.CloseAsync(settings, settingsElement, save: false);
+        }
+        finally
+        {
+            Screenshots.SaveText(_report.ToString(), "dark-theme-report");
         }
 
-        Assert.True(WindowActivation.FollowsCycle(focused, DiagnosticsTabOrder), $"Tab focused {string.Join(" → ", focused)}, expected the cycle {string.Join(" → ", DiagnosticsTabOrder)}.");
-        Keyboard.Type(VirtualKeyShort.ESCAPE);
-        await Wait.UntilAsync(() => !Native.IsWindowVisible(diagnostics), TimeSpan.FromSeconds(10), "Esc to close the diagnostics");
-
-        nint settings = await app.OpenAsync("settings", AppWindowKind.Settings);
-        AutomationElement settingsElement = app.Element(settings);
-        (await Ui.ItemsAsync(settingsElement, "SettingsPrinterList", 2))[0].Patterns.SelectionItem.Pattern.Select();
-        foreach (string tab in PrinterTabs)
-        {
-            await _layout.CheckTabAsync(settingsElement, settings, tab, $"dark-settings-{tab}");
-            _layout.CheckTextsInside(settingsElement, settings, $"dark-settings-{tab}");
-        }
-
-        AssertDarkBackground(settings, "settings");
-        await CameraWindowSettings.CloseAsync(settings, settingsElement, save: false);
         _layout.AssertNothingFound();
     }
 
@@ -191,7 +199,6 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
         using Bitmap clientArea = capture.Clone(new Rectangle(client.Left - outer.Left, client.Top - outer.Top, client.Width, client.Height), capture.PixelFormat);
         double brightness = ThemeKind.MedianBrightness(clientArea);
         _report.AppendLine(CultureInfo.InvariantCulture, $"{context}: client {client}, median brightness {brightness:0}");
-        Screenshots.SaveText(_report.ToString(), "dark-theme-report");
         Assert.True(brightness <= ThemeKind.DarkTaskbarMaximum, $"{context}: the window is not dark (median brightness {brightness:0} > {ThemeKind.DarkTaskbarMaximum}).");
     }
 }

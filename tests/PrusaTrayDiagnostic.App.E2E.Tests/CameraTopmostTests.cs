@@ -104,7 +104,7 @@ public sealed class CameraTopmostTests(E2EFixture fixture)
         Native.Rect monitor = Native.MonitorOf(camera).Monitor;
         Native.Rect client = Native.VisibleClientRect(camera);
         Point middle = new(client.Left + (client.Width / 2), client.Top + (client.Height / 2));
-        using CoverWindow cover = CoverWindow.Create(CoverWindow.BoundsFor(frame, monitor, CoverMargin));
+        using CoverWindow cover = await CoverWindow.CreateAsync(CoverWindow.BoundsFor(frame, monitor, CoverMargin));
         await cover.BringToFrontAsync();
         // Let both windows draw before the capture.
         await Task.Delay(TimeSpan.FromMilliseconds(500), TestContext.Current.CancellationToken);

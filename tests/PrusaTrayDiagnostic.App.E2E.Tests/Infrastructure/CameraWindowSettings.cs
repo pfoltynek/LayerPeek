@@ -48,12 +48,22 @@ internal static class CameraWindowSettings
         await Wait.UntilAsync(() => !Native.IsWindowVisible(hwnd), TimeSpan.FromSeconds(10), $"the settings to close ({(save ? "Save" : "Cancel")})");
     }
 
-    /// <summary>The saved <c>camera.window</c> section of the printer in the app's <c>settings.json</c>, or <see langword="null"/>.</summary>
+    /// <summary>
+    /// The saved <c>camera.window</c> section of the printer in the app's <c>settings.json</c>, or <see langword="null"/>
+    /// (also while the app is replacing the file: callers wait for the expected value).
+    /// </summary>
     public static JsonNode? SavedWindow(AppInstance app)
     {
         string file = Path.Combine(app.DataDirectory, "settings.json");
-        using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        return JsonNode.Parse(stream)?["printers"]?[0]?["camera"]?["window"];
+        try
+        {
+            using FileStream stream = new(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return JsonNode.Parse(stream)?["printers"]?[0]?["camera"]?["window"];
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            return null;
+        }
     }
 
     public static bool IsTopmost(nint hwnd) => (Native.ExStyle(hwnd) & Native.WsExTopmost) != 0;
