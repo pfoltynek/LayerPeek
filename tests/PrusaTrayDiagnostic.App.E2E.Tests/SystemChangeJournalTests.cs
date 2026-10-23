@@ -358,6 +358,90 @@ public sealed class SystemChangeJournalTests
     }
 
     [Fact]
+    public async Task SystemChangeOfAKindTheWarningDidNotListIsRefused()
+    {
+        Assert.SkipWhen(SystemChanges.IsConfirmed, $"{SystemChanges.Variable}=1 in this run; the variables cannot be changed safely.");
+        Setup setup = new();
+        FakeKind system = new("System", changesSystem: true);
+        setup.Register(system);
+        string? kinds = Environment.GetEnvironmentVariable(SystemChanges.KindsVariable);
+        try
+        {
+            // A confirmed run whose warning listed other kinds only.
+            Environment.SetEnvironmentVariable(SystemChanges.Variable, "1");
+            Environment.SetEnvironmentVariable(SystemChanges.KindsVariable, $"{SystemChangeTraits.Theme},Systems");
+
+            InvalidOperationException begin = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => SystemChange<FakeState>.BeginAsync(setup.Journal, system, null, TestContext.Current.CancellationToken));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => system.ApplyStateAsync(null, new FakeState("test"), TestContext.Current.CancellationToken));
+
+            Assert.Contains("did not list it", begin.Message, StringComparison.Ordinal);
+            Assert.Empty(system.Calls);
+            Assert.False(Directory.Exists(setup.Journal.Directory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(SystemChanges.Variable, null);
+            Environment.SetEnvironmentVariable(SystemChanges.KindsVariable, kinds);
+        }
+    }
+
+    [Theory]
+    [InlineData("1", "Theme,DisplayScale", "DisplayScale", true)]
+    [InlineData("1", " Theme , MonitorOff ", "MonitorOff", true)]
+    [InlineData("1", "Theme", "DisplayScale", false)]
+    [InlineData("1", "theme", "Theme", false)]
+    [InlineData("1", "ThemeX", "Theme", false)]
+    [InlineData("1", null, "Theme", false)]
+    [InlineData(null, "Theme", "Theme", false)]
+    [InlineData("true", "Theme", "Theme", false)]
+    public void KindIsConfirmedOnlyWhenTheWarningListedIt(string? confirmed, string? kinds, string trait, bool expected) =>
+        Assert.Equal(expected, SystemChanges.IsConfirmedFor(trait, confirmed, kinds));
+
+    [Fact]
+    public void EveryKindThatChangesTheSystemHasAKnownTraitValue()
+    {
+        Assert.All(SystemChanges.Kinds.Values.Where(static kind => kind.ChangesSystem), static kind => Assert.Contains(kind.Trait, SystemChangeTraits.All));
+        Assert.Null(SystemChanges.Probe.Trait);
+        Assert.Equal(SystemChangeTraits.All.Count, SystemChangeTraits.All.Distinct(StringComparer.OrdinalIgnoreCase).Count());
+    }
+
+    [Fact]
+    public void EveryTestThatChangesTheSystemNamesAKnownKind()
+    {
+        List<(string Test, string Value)> traits = [.. typeof(SystemChangeJournalTests).Assembly.GetTypes()
+            .SelectMany(static type => type.GetMethods())
+            .SelectMany(static method => method.GetCustomAttributes(typeof(TraitAttribute), inherit: false).Cast<TraitAttribute>()
+                .Where(static trait => trait.Name == SystemChanges.Trait)
+                .Select(trait => ($"{method.DeclaringType?.Name}.{method.Name}", trait.Value)))];
+
+        Assert.NotEmpty(traits);
+        Assert.All(traits, static trait => Assert.True(SystemChangeTraits.All.Contains(trait.Value, StringComparer.Ordinal), $"{trait.Test}: {trait.Value}"));
+        // Display changes have their self-tests (T-066).
+        Assert.Contains(traits, static trait => trait.Value == SystemChangeTraits.DisplayScale);
+        Assert.Contains(traits, static trait => trait.Value == SystemChangeTraits.MonitorOff);
+    }
+
+    [Fact]
+    public async Task PendingEntriesAreRestoredInTheOrderOfTheirKinds()
+    {
+        Setup setup = new();
+        List<string> calls = [];
+        setup.Kind.SharedCalls = calls;
+        setup.Other.SharedCalls = calls;
+        // "Other" comes after "Fake" by name, but goes first (like a switched-off monitor before the scale).
+        setup.Other.Order = -10;
+        setup.WriteEntry(Dead, "a", "Fake");
+        setup.WriteEntry(Dead, "b", "Other");
+
+        SystemChangeRestoreReport report = await setup.Journal.RestorePendingAsync(includeOwn: false, TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        Assert.Equal(["Other:restore", "Fake:restore"], calls);
+        Assert.Equal(2, report.Restored.Count);
+        Assert.True(report.Success, report.ToString());
+    }
+
+    [Fact]
     public void EverySystemKindNeedsTheWarningAndOnlyTheProbeDoesNot()
     {
         Assert.All(SystemChanges.Kinds.Values.Where(static kind => kind != SystemChanges.Probe), static kind => Assert.True(kind.ChangesSystem, kind.Name));
@@ -446,8 +530,16 @@ public sealed class SystemChangeJournalTests
 internal sealed record FakeState(string? Value);
 
 /// <summary>An in-memory kind that records its calls.</summary>
-internal sealed class FakeKind(string name, bool changesSystem) : SystemChangeKind<FakeState>(name, changesSystem, FakeJson.Default.FakeState)
+internal sealed class FakeKind(string name, bool changesSystem) : SystemChangeKind<FakeState>(name, changesSystem ? name : null, FakeJson.Default.FakeState)
 {
+    /// <summary>See <see cref="ISystemChangeKind.RestoreOrder"/>.</summary>
+    public int Order { get; set; }
+
+    public override int RestoreOrder => Order;
+
+    /// <summary>Shared call log of several kinds (restore order across kinds).</summary>
+    public List<string>? SharedCalls { get; set; }
+
     public string? Current { get; set; }
 
     /// <summary>The restore "works" but the state stays (e.g. Explorer overwrote it).</summary>
@@ -476,6 +568,7 @@ internal sealed class FakeKind(string name, bool changesSystem) : SystemChangeKi
     protected override Task RestoreCoreAsync(string? key, FakeState original, CancellationToken cancellationToken)
     {
         Calls.Add($"restore:{original.Value}");
+        SharedCalls?.Add($"{Name}:restore");
         if (!RestoreIgnored)
         {
             Current = original.Value;

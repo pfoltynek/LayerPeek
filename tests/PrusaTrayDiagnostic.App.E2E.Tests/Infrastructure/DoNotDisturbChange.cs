@@ -31,7 +31,7 @@ internal sealed record DoNotDisturbState(bool Enabled)
 /// </para>
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed partial class DoNotDisturbKind() : SystemChangeKind<DoNotDisturbState>("DoNotDisturb", changesSystem: true, SystemChangeJson.Default.DoNotDisturbState)
+internal sealed partial class DoNotDisturbKind() : SystemChangeKind<DoNotDisturbState>("DoNotDisturb", SystemChangeTraits.DoNotDisturb, SystemChangeJson.Default.DoNotDisturbState)
 {
     /// <summary>Parts of the automation id of the toggle (notification center and Settings), compared ignoring case.</summary>
     private static readonly string[] ToggleIdParts = ["DoNotDisturb", "QuietHours"];
