@@ -30,5 +30,11 @@ First public preview. Windows x64 only, PrusaLink only, builds are not code-sign
 - Single instance: starting the app again doesn't open a second tray icon.
 - Native AOT publishing (single executable, no .NET runtime required).
 
+### Fixed
+
+- Settings, camera window positions and printer images are saved even when another program (antivirus, backup)
+  briefly holds the file. A detected printer model that still can't be saved is tried again every minute, up to five
+  times.
+
 [Unreleased]: https://github.com/pfoltynek/PrusaTrayDiagnostic/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/pfoltynek/PrusaTrayDiagnostic/releases/tag/v0.1.0
