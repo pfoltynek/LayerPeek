@@ -16,6 +16,8 @@ public sealed class RunE2EScriptTests
 {
     private static readonly string Module = Path.Combine(TestWorktree.Root, "tools", "RunE2E.SystemChanges.psm1");
 
+    private static readonly string ResultsModule = Path.Combine(TestWorktree.Root, "tools", "RunE2E.Results.psm1");
+
     [Fact]
     public async Task ScriptKnowsExactlyTheTraitValuesOfTheTests()
     {
@@ -122,6 +124,74 @@ public sealed class RunE2EScriptTests
         Assert.Contains($"Env:{SystemChanges.KindsVariable}", script, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SummaryOfAPassCountsPassedSkippedAndFailedTests()
+    {
+        // The xUnit.net v2 XML report of the runner (-result-xml); errors outside tests (e.g. the run's cleanup) count as failed.
+        string report = WriteInput("""
+            <?xml version="1.0" encoding="utf-8"?>
+            <assemblies timestamp="10/23/2026 20:00:00">
+              <assembly name="PrusaTrayDiagnostic.App.E2E.Tests.dll" total="10" passed="7" failed="1" skipped="2" not-run="0" errors="1" time="12.5" />
+            </assemblies>
+            """);
+
+        string[] lines = await RunJsonAsync(
+            $"Format-TestPassSummary -Name 'Debug exe' -ExitCode 1 -Counts (Get-TestPassCounts -Path '{report}'); "
+            + $"Format-TestPassSummary -Name 'Native AOT exe (Debug)' -ExitCode 0 -Counts (Get-TestPassCounts -Path '{report}')");
+
+        Assert.Equal(
+            [
+                "Debug exe: FAILED (exit code 1) - 7 passed, 2 skipped, 2 failed (of 10)",
+                "Native AOT exe (Debug): green - 7 passed, 2 skipped, 2 failed (of 10)",
+            ],
+            lines);
+    }
+
+    [Fact]
+    public async Task SummaryOfAPassWithoutReportOrRunSaysSo()
+    {
+        string missing = Path.Combine(UnitTestDirectories.Create(), "missing.xml");
+
+        string[] lines = await RunJsonAsync(
+            $"Format-TestPassSummary -Name 'Debug exe' -ExitCode 3 -Counts (Get-TestPassCounts -Path '{missing}'); "
+            + "Format-TestPassSummary -Name 'Native AOT exe (Debug)' -ExitCode $null -Counts $null -NotRunReason 'not run (the Debug pass failed)'");
+
+        Assert.Equal(
+            [
+                "Debug exe: FAILED (exit code 3), no test report (the test process ended without one)",
+                "Native AOT exe (Debug): not run (the Debug pass failed)",
+            ],
+            lines);
+    }
+
+    [Fact]
+    public void ScriptRunsTheWholeSelectionAgainstBothExesWithOneWarning()
+    {
+        string script = File.ReadAllText(Path.Combine(TestWorktree.Root, "tools", "run-e2e.ps1"));
+
+        // T-073: both passes run the same selection (-Class / -Method), the second against the Debug Native AOT exe.
+        Assert.Contains("RunE2E.Results.psm1", script, StringComparison.Ordinal);
+        Assert.Contains("dotnet run --project $tests --no-build -- @filters -result-xml $report", script, StringComparison.Ordinal);
+        Assert.Contains("Invoke-TestPass -Name 'Debug exe' -Results $results", script, StringComparison.Ordinal);
+        Assert.Contains("Invoke-TestPass -Name 'Native AOT exe (Debug)' -Results $resultsAot -App (Join-Path $aotDebug 'PrusaTrayDiagnostic.exe')", script, StringComparison.Ordinal);
+        Assert.DoesNotContain("-method '*LogHasRecordsAndAnExceptionWithItsStackTrace*'", script, StringComparison.Ordinal);
+        // The warning is shown once, before the first pass.
+        Assert.Equal(1, CountOf(script, "Show-SystemChangesWarning -Kinds"));
+        Assert.True(
+            script.IndexOf("Show-SystemChangesWarning -Kinds $systemChanges", StringComparison.Ordinal) < script.IndexOf("Invoke-TestPass -Name 'Debug exe'", StringComparison.Ordinal));
+    }
+
+    private static int CountOf(string text, string value)
+    {
+        int count = 0;
+        for (int index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
+        {
+            count++;
+        }
+
+        return count;
+    }
+
     private static string TestList(params (string Name, string[] Kinds)[] tests) =>
         JsonSerializer.Serialize(tests.Select(static test => new ListedTest(test.Name, new Dictionary<string, string[]> { [SystemChanges.Trait] = test.Kinds, ["Other"] = ["x"] })).ToArray(), ScriptTestJson.Default.ListedTestArray);
 
@@ -150,7 +220,7 @@ public sealed class RunE2EScriptTests
         string script = Path.Combine(UnitTestDirectories.Create(), "test.ps1");
         await File.WriteAllTextAsync(
             script,
-            $"$ErrorActionPreference = 'Stop'{Environment.NewLine}Import-Module -Force -Name '{Module}'{Environment.NewLine}{command}{Environment.NewLine}",
+            $"$ErrorActionPreference = 'Stop'{Environment.NewLine}Import-Module -Force -Name '{Module}'{Environment.NewLine}Import-Module -Force -Name '{ResultsModule}'{Environment.NewLine}{command}{Environment.NewLine}",
             TestContext.Current.CancellationToken);
 
         ProcessStartInfo start = new(pwsh!)

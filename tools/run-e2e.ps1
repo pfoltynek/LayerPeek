@@ -13,7 +13,8 @@
     the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut
     (except the tests that opt in, which are system changes with the warning below: silent toasts of the test app
     PrusaTrayDiagnostic.E2E with its own Start menu shortcut "Prusa Tray Diagnostic E2E" and its own COM toast activator
-    under HKCU\Software\Classes\CLSID, T-067/T-068; all are removed after the test, also after a crash).
+    under HKCU\Software\Classes\CLSID, T-067/T-068; session-only Credential Manager entries PrusaTrayDiagnostic.E2E/...,
+    T-073; all are removed after the test, also after a crash).
     The user's running PrusaTrayDiagnostic is never touched. The crash tests of T-046 end two test apps on purpose:
     Windows records each crash as a ".NET Runtime" error in the Application event log (accepted; a dump or error report
     Windows may keep is removed again). Windows appear on the desktop for a few minutes; do not use the mouse or keyboard
@@ -23,8 +24,8 @@
     System changes (T-065, T-066): tests with the trait SystemChanges temporarily change Windows settings (light/dark
     theme, Do Not Disturb, the test tray icon on the taskbar, the display scale of a monitor, a switched-off second
     monitor, silent toasts of the test app with the notifications of Windows and of the test app switched on when they
-    are off (T-068); later tasks add Credential Manager entries). Each such test carries one trait value per kind of
-    change (SystemChanges=Theme|DoNotDisturb|TrayPromotion|DisplayScale|MonitorOff|Toasts|Credentials|TestProbe; texts in
+    are off (T-068), session-only Credential Manager entries PrusaTrayDiagnostic.E2E/... (T-073)). Each such test
+    carries one trait value per kind of change (SystemChanges=Theme|DoNotDisturb|TrayPromotion|DisplayScale|MonitorOff|Toasts|Credentials|TestProbe; texts in
     tools/RunE2E.SystemChanges.psm1). They run by default: when the selected tests contain one, the script first shows a
     warning listing exactly the kinds the selected tests change and counts down 5 s (Ctrl+C aborts, nothing has changed
     then); only then it sets PTD_E2E_SYSTEM_CHANGES=1 and PTD_E2E_SYSTEM_CHANGE_KINDS=<the listed kinds>. A change of a
@@ -48,9 +49,10 @@
 
 .PARAMETER PublishAot
     Also publish the Native AOT exe (win-x64, needs the C++ build tools) and check it for test switches, and publish the
-    Debug configuration as Native AOT too (it keeps the test mode) and run the log and crash tests against it, whatever
-    -Class and -Method select (T-064, T-046: stack traces with method names in AOT builds; results in a folder of their
-    own). The warning about system changes at the start covers this second pass too.
+    Debug configuration as Native AOT too (it keeps the test mode). After a green pass against the Debug exe, the same
+    selected tests (-Class / -Method) run once more against that Native AOT exe (T-073), with a results folder of their
+    own (<results>-aot); tests that make no sense there are skipped with the reason. The warning about system changes at
+    the start covers both passes. The summary at the end shows both passes with their passed, skipped and failed tests.
 
 .PARAMETER NoSystemChanges
     Do not change any Windows setting: no warning, no countdown; the tests with the trait SystemChanges are skipped.
@@ -97,6 +99,7 @@ $id = [Convert]::ToHexString($hash, 0, 4).ToLowerInvariant()
 $results = Join-Path ([IO.Path]::GetTempPath()) "PrusaTrayDiagnostic.App.E2E.Results.$id"
 $script:logFile = $null
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.SystemChanges.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'RunE2E.Results.psm1') -Force
 
 function Write-Log([string] $Text, [ConsoleColor] $Color = [ConsoleColor]::Gray) {
     Write-Host $Text -ForegroundColor $Color
@@ -223,7 +226,33 @@ if (-not $NoSystemChanges) {
 
 $resultsAot = "$results-aot"
 $previousApp = $env:PTD_E2E_APP
+$passes = [Collections.Generic.List[object]]::new()
 $exitCode = 1
+
+# One pass of the selected tests against one exe, with its own results folder. The runner's report goes to a file
+# outside first (the run empties its results folder at its start) and is kept in the results folder as test-results.xml.
+function Invoke-TestPass([string] $Name, [string] $Results, [string] $App) {
+    $env:PTD_E2E_RESULTS = $Results
+    if ($App) { $env:PTD_E2E_APP = $App }
+    $report = Join-Path ([IO.Path]::GetTempPath()) "PrusaTrayDiagnostic.App.E2E.Report.$id.xml"
+    Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
+    $passExitCode = 1
+    $counts = $null
+    try {
+        dotnet run --project $tests --no-build -- @filters -result-xml $report | Out-Host
+        $passExitCode = $LASTEXITCODE
+        $counts = Get-TestPassCounts -Path $report
+        if ((Test-Path -LiteralPath $report) -and (Test-Path -LiteralPath $Results)) {
+            Copy-Item -LiteralPath $report -Destination (Join-Path $Results 'test-results.xml') -Force
+        }
+    }
+    finally {
+        Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
+        $passes.Add([pscustomobject] @{ Name = $Name; ExitCode = $passExitCode; Counts = $counts; Results = $Results })
+    }
+    return $passExitCode
+}
+
 try {
     if ($NoSystemChanges) {
         Write-Host 'System changes: off (-NoSystemChanges); the tests that change Windows settings are skipped.' -ForegroundColor Cyan
@@ -232,6 +261,7 @@ try {
         Write-Host 'System changes: none of the selected tests changes Windows settings.' -ForegroundColor Cyan
     }
     else {
+        # One warning for both passes: the Native AOT pass of -PublishAot runs the same selection.
         Show-SystemChangesWarning -Kinds $systemChanges
         # Only after the countdown: Ctrl+C above leaves the tests unstarted and the system untouched. The tests refuse
         # any change of a kind the warning did not list.
@@ -240,18 +270,13 @@ try {
     }
 
     $env:PTD_E2E = '1'
-    $env:PTD_E2E_RESULTS = $results
-    dotnet run --project $tests --no-build -- @filters
-    $exitCode = $LASTEXITCODE
+    $exitCode = Invoke-TestPass -Name 'Debug exe' -Results $results
     if ($PublishAot -and $exitCode -eq 0) {
-        # The log in a Native AOT build: the log and crash tests (whatever -Class/-Method say) against the Debug AOT exe
-        # (T-064, T-046), with its own results folder, so that the results of the run above are kept.
+        # The same selection against the Native AOT exe of the Debug configuration (T-073: it keeps the test mode), with
+        # its own results folder, so that the results of the pass above are kept.
         Write-Host ''
-        Write-Host 'Log and crash tests against the Native AOT exe of the Debug app:'
-        $env:PTD_E2E_APP = Join-Path $aotDebug 'PrusaTrayDiagnostic.exe'
-        $env:PTD_E2E_RESULTS = $resultsAot
-        dotnet run --project $tests --no-build -- -method '*LogHasRecordsAndAnExceptionWithItsStackTrace*' -method '*CrashLoggingTests*'
-        $exitCode = $LASTEXITCODE
+        Write-Host 'The selected tests against the Native AOT exe of the Debug app:'
+        $exitCode = Invoke-TestPass -Name 'Native AOT exe (Debug)' -Results $resultsAot -App (Join-Path $aotDebug 'PrusaTrayDiagnostic.exe')
     }
 }
 finally {
@@ -262,6 +287,13 @@ finally {
 }
 
 Write-Host ''
-Write-Host "Screenshots and app logs: $results"
-if ($PublishAot) { Write-Host "Native AOT log test: $resultsAot" }
+Write-Host 'Summary:'
+foreach ($pass in $passes) {
+    $color = if ($pass.ExitCode -eq 0) { [ConsoleColor]::Green } else { [ConsoleColor]::Red }
+    Write-Host "  $(Format-TestPassSummary -Name $pass.Name -ExitCode $pass.ExitCode -Counts $pass.Counts)" -ForegroundColor $color
+    Write-Host "    screenshots, app logs, test-results.xml: $($pass.Results)"
+}
+if ($PublishAot -and $passes.Count -eq 1) {
+    Write-Host "  $(Format-TestPassSummary -Name 'Native AOT exe (Debug)' -ExitCode $null -Counts $null -NotRunReason 'not run (the Debug pass failed)')" -ForegroundColor Red
+}
 exit $exitCode

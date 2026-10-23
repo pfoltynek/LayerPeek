@@ -226,6 +226,15 @@ internal static class TrayMenu
             trace($"App window before: {DescribeWindow(app, hwnd)}");
         }
 
+        // An overflow flyout left shown by an earlier step (e.g. a menu item that opened a window, which took the foreground)
+        // is stale: Explorer ignored a right-click on its icon there (T-073, the menu never opened). Hidden first, it is
+        // opened afresh, with the foreground, below.
+        if (NotificationArea.Overflow(app.Automation) is not null && !NotificationArea.HasKeyboard())
+        {
+            trace($"The overflow flyout is still shown without the keyboard (foreground {DescribeWindow(app, Native.GetForegroundWindow())}): hiding it first.");
+            await NotificationArea.CloseOverflowAsync(app.Automation);
+        }
+
         (IReadOnlyList<AutomationElement> icons, bool openedOverflow) = await NotificationArea.FindTestIconsAsync(app.Automation, trace);
         TrayMenuWindow? menu = null;
         try

@@ -1,7 +1,7 @@
 ---
 id: T-073
 title: E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření (uzavření T-052)
-status: todo
+status: in-progress
 owner: qa-reviewer
 priority: P2
 platform: windows

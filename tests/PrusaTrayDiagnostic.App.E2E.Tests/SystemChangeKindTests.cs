@@ -157,6 +157,51 @@ public sealed class SystemChangeKindTests
         new(theme, null, null, TrayIconSnapshot.Of(trayIcons, Exe), []);
 
     [Fact]
+    public void SnapshotComparisonFindsTestCredentialsLeftAtTheEnd()
+    {
+        SystemStateSnapshot start = Snapshot(new ThemeState(1, 1), []);
+        SystemStateSnapshot end = start with { CredentialEntries = ["PrusaTrayDiagnostic.E2E/0a1b2c3d/0123456789ab/printer/p1"] };
+        List<string> notes = [];
+
+        Assert.Empty(start.Compare(start, notes));
+        Assert.Contains("PrusaTrayDiagnostic.E2E/0a1b2c3d/0123456789ab/printer/p1", Assert.Single(start.Compare(end, notes)), StringComparison.Ordinal);
+        Assert.Contains("Credential Manager test entries (PrusaTrayDiagnostic.E2E/*): none", start.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TestCredentialPrefixesStayUnderTheTestRoot()
+    {
+        string prefix = TestCredentials.NewPrefix();
+
+        Assert.StartsWith($"{AppSwitches.TestCredentialPrefixRoot}{PrusaTrayDiagnostic.Tests.Shared.TestWorktree.Id}/", prefix, StringComparison.Ordinal);
+        Assert.NotEqual(prefix, TestCredentials.NewPrefix());
+        Assert.True(TestCredentials.IsTestPrefix(prefix));
+        Assert.True(TestCredentials.IsTestPrefix(AppSwitches.TestCredentialPrefixRoot));
+        // The production prefix (WindowsCredentialSecretStore.DefaultTargetPrefix) and anything that could widen the filter.
+        Assert.False(TestCredentials.IsTestPrefix("PrusaTrayDiagnostic/printer/p1"));
+        Assert.False(TestCredentials.IsTestPrefix("PrusaTrayDiagnostic.E2E"));
+        Assert.False(TestCredentials.IsTestPrefix("PrusaTrayDiagnostic.E2E/*"));
+        Assert.False(TestCredentials.IsTestPrefix("PrusaTrayDiagnostic.E2E/a b"));
+        // Refused before Credential Manager is asked anything.
+        Assert.Throws<ArgumentException>(static () => TestCredentials.Targets("PrusaTrayDiagnostic/"));
+        Assert.Throws<ArgumentException>(static () => TestCredentials.DeleteAll("*"));
+        Assert.Throws<ArgumentException>(static () => TestCredentials.Persist("PrusaTrayDiagnostic/printer/p1"));
+    }
+
+    [Fact]
+    public void CredentialsAreRestoredOnlyWhenNoTestEntryIsLeft()
+    {
+        CredentialsState none = new([]);
+        CredentialsState left = new(["PrusaTrayDiagnostic.E2E/0a1b2c3d/0123456789ab/printer/p1"]);
+
+        // Entries a crashed run left before the change go too: restored means none.
+        Assert.True(SystemChanges.Credentials.Matches(left, none));
+        Assert.False(SystemChanges.Credentials.Matches(none, left));
+        Assert.Equal(left.Targets, SystemChanges.Credentials.Deserialize(SystemChanges.Credentials.Serialize(left)).Targets);
+        Assert.Contains("Credential Manager", SystemChanges.Credentials.Describe("PrusaTrayDiagnostic.E2E/0a1b2c3d/0123456789ab", none), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TrayStateSurvivesTheJournalJson()
     {
         TrayIconPromotionState state = new(Exe, [new("100", null), new("200", 1)]);

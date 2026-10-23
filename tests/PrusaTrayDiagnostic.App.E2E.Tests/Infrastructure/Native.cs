@@ -91,6 +91,10 @@ internal static partial class Native
     public static partial bool IsIconic(nint hwnd);
 
     [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsWindow(nint hwnd);
+
+    [LibraryImport("user32.dll")]
     public static partial uint GetWindowThreadProcessId(nint hwnd, out uint processId);
 
     [LibraryImport("user32.dll")]

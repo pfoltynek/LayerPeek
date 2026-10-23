@@ -14,4 +14,5 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 [JsonSerializable(typeof(ToastsEnabledState))]
 [JsonSerializable(typeof(RegistryKeySnapshot))]
 [JsonSerializable(typeof(TestToastsState))]
+[JsonSerializable(typeof(CredentialsState))]
 internal sealed partial class SystemChangeJson : JsonSerializerContext;

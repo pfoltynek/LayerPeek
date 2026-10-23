@@ -18,7 +18,10 @@ internal static class Screenshots
     {
         if (!Native.GetWindowRect(hwnd, out Native.Rect rect) || rect.Width <= 0 || rect.Height <= 0)
         {
-            throw new InvalidOperationException("The window has no area to capture.");
+            // Which case it is tells whether the app closed the window (T-073: seen once, cause not found).
+            throw new InvalidOperationException(
+                $"The window 0x{hwnd:X} has no area to capture (exists: {Native.IsWindow(hwnd)}, visible: {Native.IsWindowVisible(hwnd)}, "
+                + $"minimized: {Native.IsIconic(hwnd)}, rect: {rect}).");
         }
 
         Bitmap bitmap = new(rect.Width, rect.Height, PixelFormat.Format32bppArgb);
