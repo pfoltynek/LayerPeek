@@ -1,7 +1,7 @@
 ---
 id: T-039
 title: Obrázek tiskárny (podle modelu nebo vlastní)
-status: in-progress
+status: done
 owner: core-dev + ui-designer + ui-dev
 priority: P3
 platform: all
@@ -65,7 +65,7 @@ Každá tiskárna má obrázek, aby se tiskárny daly rychle rozlišit. Obrázek
 - [x] Vlastní ilustrace pro všechny podporované modely + obecná, schválené uživatelem; jako `AvaloniaResource` (test, že každý model má ilustraci a ta jde načíst)
 - [x] App.Tests: view model vybere ilustraci podle modelu, vlastní obrázek má přednost, neznámý model → obecná ilustrace podle otázky 2, import a odstranění vlastního obrázku, odstranění tiskárny uklidí její vlastní obrázek (podle otázky 5)
 - [x] Headless UI testy: obrázek v seznamu tiskáren, na podzáložce Tiskárna a v okně Diagnostika; snímky reference aktualizované; test „bez posuvníku“ z T-033 projde ve všech 8 jazycích
-- [ ] Tray menu: položka tiskárny má ikonu (test presenteru menu / falešného menu); ruční ověření na Windows, že se ikona v menu zobrazí (zapsat do poznámek) – testy hotové, **ruční ověření na Windows zbývá (uživatel)**
+- [x] Tray menu: položka tiskárny má ikonu (test presenteru menu / falešného menu); ruční ověření na Windows, že se ikona v menu zobrazí (zapsat do poznámek) – 2026-10-22 při 100 % ověřeno E2E testy T-069 (pixelová kontrola proti ilustraci modelu, viz poznámky); 2026-10-23 při 150 % ověřeno E2E testem T-070 (ostrá 24px ilustrace u aplikace spuštěné při 150 %)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish `win-x64` bez varování
 
 ## Otevřené otázky
@@ -116,7 +116,7 @@ Otázky z implementace (chyba importu, Prusa Connect, neuložený obrázek, pře
   - Dočasné soubory jsou pod `TestDirectories`, uklidí se i po pádu.
 
 ### App (ui-dev, 2026-10-20)
-Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `in-progress` kvůli ručnímu ověření ikon v tray menu na Windows (viz „Zbývá ručně“).
+Stav: implementace hotová, automatické testy procházejí. Ruční ověření ze seznamu „Zbývá ručně“ nahradily E2E testy T-069 (100 %) a T-070 (150 %), úkol je hotový (2026-10-23).
 
 - **Ilustrace (`Assets/Printers/`):**
   - Varianta A od ui-designera, id `mk4`, `core-one`, `xl`, `mini`, `generic`.
@@ -248,3 +248,6 @@ Stav: implementace hotová, automatické testy procházejí. Úkol zůstává `i
   - Zátěžově: třída 35× samostatně a celé UiTests 12× bez chyby.
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** ilustrace v tray menu při 100 %, nabídka obrázku s vlastní otočenou fotkou, záhlaví Diagnostiky a změna v menu po uložení ověří E2E testy T-069 (dialog ve složce testu z T-067); 150 % T-070. Kritérium se zaškrtne, až testy projdou. Ostrost při 150 % po novém přihlášení zůstává doporučená ruční kontrola (přehled pokrytí v T-065).
+- **Výsledek T-069 (2026-10-22, qa-reviewer, Windows 11, 100 %):** E2E testy `TrayMenuDetailTests.PrinterRowsHaveIllustrationsAndActionsHaveNone` (1 a 3 tiskárny; ikona řádku = ilustrace zjištěného modelu Core One / MK4S / XL / MINI pixel po pixelu, průměrný rozdíl 0,0; akce bez ikon), `PrinterImageTests.CustomImageFromAPhoneIsShownUpright` (nabídka tlačítka, výběr modelu změní náhled, vlastní JPEG s EXIF orientací 6 ze skutečného dialogu ve složce testu se zobrazí i uloží na výšku, Zrušit nic nezmění), `DiagnosticsHeaderShowsThePrinterImage` (ilustrace MK4 v záhlaví, po uložení vlastní obrázek) a `SavedImageChangesTheMenuWithoutReconnecting` (ikona v menu se po uložení změní, řádek nikdy „Connecting…“) prošly 3× po sobě. Kritérium tray menu zaškrtnuto pro 100 %. Úkol zůstává `in-progress`: „Zbývá ručně“ obsahuje i 150 % (T-070). Zjištění pro úkol: obrázek v záhlaví Diagnostiky (`DiagnosticsPrinterImage`) není v UI Automation, i když má jméno pro čtečky (otázka Q3 v T-069).
+- **Obrázek v záhlaví Diagnostiky pro čtečky (2026-10-22, ui-dev, rozhodnutí uživatele k T-069 Q3):** opraveno. `PrinterImageView` neměl vlastní automation peer (Avalonia pro `Control` vrací `NoneAutomationPeer`), takže `DiagnosticsPrinterImage` v UI Automation chyběl. Nový `Printers/PrinterImageViewAutomationPeer` (typ `Image`) ho s `AutomationProperties.Name` hlásí jako obrázek s lokalizovaným jménem „Obrázek tiskárny“; bez jména (seznam tiskáren, tlačítko obrázku) zůstává dekorativní. Testy: headless `PrinterImageViewTests` (`NamedImageIsAnImageForScreenReaders`, `UnnamedImageStaysDecorative`), `DiagnosticsWindowLayoutTests` (jméno a typ, i po přepnutí jazyka), E2E `PrinterImageTests.DiagnosticsHeaderShowsThePrinterImage` (najde obrázek přes UIA). Podrobnosti v T-069.
+- **Uzavření (2026-10-23, qa-reviewer):** všechna kritéria zaškrtnutá – tray menu při 100 % ověřily E2E testy T-069 (po revizi znovu 3× po sobě), při 150 % E2E test T-070 (`IconsThemeAndScalingTests`, po sloučení s T-069 znovu prošel). Body „Zbývá ručně“ (tray menu, nabídka obrázku s otočenou fotkou, záhlaví Diagnostiky, změna po uložení) jsou pokryté těmito testy. Doporučená ruční kontrola zůstává jen ostrost při 150 % po novém přihlášení (přehled v T-065). macOS ověří T-018/T-019.

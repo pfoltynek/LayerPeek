@@ -251,6 +251,12 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             // a text block reports its text, a panel has no peer of its own).
             DiagnosticsWindowHarness ui = OpenWorst(scope, loadedInfo: true);
 
+            // The printer image in the header: an image with its localized name (T-069 Q3).
+            AutomationPeer image = PeerOf(ui.Find<Control>("DiagnosticsPrinterImage"));
+            Assert.True(image.IsControlElement());
+            Assert.Equal(AutomationControlType.Image, image.GetAutomationControlType());
+            Assert.Equal(Strings.DiagnosticsPrinterImage, image.GetName());
+
             AutomationPeer selector = PeerOf(ui.Find<ComboBox>("DiagnosticsPrinterSelector"));
             Assert.Equal(Strings.DiagnosticsPrinter, selector.GetName());
             Assert.Equal(Strings.DiagnosticsChart, PeerOf(ui.Find<ComboBox>("DiagnosticsChartRange")).GetName());
@@ -368,6 +374,8 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             Assert.False(Ui.ShowsText(ui.Window, "Fans and motion"));
             Assert.Equal(Strings.ToolTipMonitoringFailed, ShownText(ui.Window, "DiagnosticsNotice"));
             Assert.Equal(Strings.DiagnosticsClose, ui.Find<Button>("DiagnosticsClose").Content);
+            Assert.Equal(Strings.DiagnosticsPrinterImage, PeerOf(ui.Find<Control>("DiagnosticsPrinterImage")).GetName());
+            Assert.NotEqual("Printer image", Strings.DiagnosticsPrinterImage);
             Assert.Empty(LayoutProblems(ui.Window, "it"));
             return Task.CompletedTask;
         });
