@@ -165,32 +165,17 @@ public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
     /// Scrolling found so far: recorded and asserted at the end of the test, so that one overflowing tab does not hide the
     /// states after it (every state is still captured).
     /// </summary>
-    private readonly List<string> _scrolling = [];
+    private readonly LayoutRecorder _layout = new();
 
-    private void RecordScrolling(AutomationElement window, string state)
-    {
-        if (WindowChecks.ScrollingProblems(window) is { Count: > 0 } problems)
-        {
-            _scrolling.Add($"{state}: {string.Join("; ", problems)}");
-        }
-    }
-
-    private void AssertNothingScrolled() => Assert.True(_scrolling.Count == 0, string.Join(Environment.NewLine, _scrolling));
+    private void AssertNothingScrolled() => _layout.AssertNothingFound();
 
     /// <summary>Selects a tab, lets the layout settle, records whether anything scrolls and captures the window.</summary>
-    private async Task CheckTabAsync(AutomationElement window, nint hwnd, string tab, string screenshot)
-    {
-        await Ui.SelectAsync(window, tab);
-        await Task.Delay(TimeSpan.FromMilliseconds(400), TestContext.Current.CancellationToken);
-        Screenshots.Save(hwnd, screenshot);
-        RecordScrolling(window, screenshot);
-    }
+    private Task CheckTabAsync(AutomationElement window, nint hwnd, string tab, string screenshot) =>
+        _layout.CheckTabAsync(window, hwnd, tab, screenshot);
 
     private async Task CheckDiagnosticsAsync(nint hwnd, AutomationElement window, string screenshot)
     {
-        await Task.Delay(TimeSpan.FromMilliseconds(400), TestContext.Current.CancellationToken);
-        Screenshots.Save(hwnd, screenshot);
-        RecordScrolling(window, screenshot);
+        await _layout.CheckAsync(window, hwnd, screenshot);
         WindowChecks.AssertAuxiliarySize(hwnd, screenshot);
     }
 }

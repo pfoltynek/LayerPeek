@@ -185,3 +185,4 @@ Stav 2026-10-20 (ui-dev): implementováno podle schváleného návrhu (varianta 
 - macOS: beze změny oproti návrhu (tlačítko Zavřít je tam netypické, lze ho později skrýt bez vlivu na rozložení) – neověřeno (T-018).
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** Segoe UI bez posuvníku v 8 jazycích při 125/150 %, tmavý motiv a Esc/Tab skutečnou klávesnicí ověří E2E testy T-071 (zásahy T-065/T-066; 100 % už pokrývá T-044). Kritérium se zaškrtne, až testy projdou. Celkový dojem zůstává doporučená ruční kontrola (přehled pokrytí v T-065).
+- **Stav T-071 (2026-10-22, qa-reviewer):** testy `AuxiliaryWindowScaleAndThemeTests` (125/150 % v 8 jazycích, tmavý motiv s Tab/Esc ze skutečné klávesnice) jsou hotové a čekají na řízený běh se zásahy (`DisplayScale`, `Theme`). Kritérium zatím zůstává nezaškrtnuté.
