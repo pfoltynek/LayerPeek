@@ -10,7 +10,10 @@
     tests/PrusaTrayDiagnostic.App.E2E.Tests with PTD_E2E=1. A normal `dotnet test` skips these tests.
 
     The started apps run in the isolated test mode: their own data folder in %TEMP% (reserved per worktree, removed after
-    the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut.
+    the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut
+    (except the tests that opt in, which are system changes with the warning below: silent toasts of the test app
+    PrusaTrayDiagnostic.E2E with its own Start menu shortcut "Prusa Tray Diagnostic E2E", T-067/T-068; both are removed
+    after the test, also after a crash).
     The user's running PrusaTrayDiagnostic is never touched. The crash tests of T-046 end two test apps on purpose:
     Windows records each crash as a ".NET Runtime" error in the Application event log (accepted; a dump or error report
     Windows may keep is removed again). Windows appear on the desktop for a few minutes; do not use the mouse or keyboard
@@ -18,14 +21,17 @@
     (up to 30 minutes) while another worktree's run holds the machine-wide lock %TEMP%\PrusaTrayDiagnostic.App.E2E.Desktop.lock.
 
     System changes (T-065): tests with the trait SystemChanges temporarily change Windows settings (light/dark theme,
-    Do Not Disturb, the test tray icon on the taskbar; later tasks add display scale, a switched-off monitor, toasts).
+    Do Not Disturb, the test tray icon on the taskbar, toasts of the test app with the notifications of Windows and of the
+    test app switched on when they are off (T-068); later tasks add display scale, a switched-off monitor).
     They run by default: when the selected tests contain one, the script first shows a warning with everything that may
     change and counts down 5 s (Ctrl+C aborts, nothing has changed then); only then it sets PTD_E2E_SYSTEM_CHANGES=1.
     The original state of every change is written to %LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore before the change
     and restored afterwards - also after a failed test, by the next run's start, by the script's own cleanup (even after
     Ctrl+C), and by a hidden watchdog process (this script with -RestoreOnly -AfterProcess) that outlives a killed test
     process. -NoSystemChanges skips those tests without the warning. Known traces Windows may keep: the test app
-    PrusaTrayDiagnostic.E2E in the notification database / Settings > Notifications (T-068, accepted).
+    PrusaTrayDiagnostic.E2E in the notification database %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
+    and in the app list of Settings > System > Notifications (T-068, accepted 2026-10-22; the run reports every trace it
+    finds in system-state-end.txt of the results folder).
 
     Screenshots of every checked state and the log of every started app go to the results folder, which is printed at
     the end (replaced by the next run).
@@ -158,9 +164,10 @@ function Show-SystemChangesWarning {
         '   - Do Not Disturb (switched off for notification tests)',
         '   - display scale of the primary and another monitor (100/125/150 %)',
         '   - a second monitor switched off for a moment',
-        '   - test toasts in the notification center and a temporary Start menu shortcut',
+        '   - silent test toasts in the notification center and a temporary Start menu shortcut',
         '     "Prusa Tray Diagnostic E2E" (Windows may keep remembering the app PrusaTrayDiagnostic.E2E',
         '     in its notification database / Settings > Notifications)',
+        '     (notifications of Windows and of the test app are switched on if they are off)',
         '   - the test tray icon shown directly on the taskbar',
         '   - temporary entries PrusaTrayDiagnostic.E2E/... in Credential Manager',
         '  Do not use the mouse or keyboard during the run; windows will move and change size.',

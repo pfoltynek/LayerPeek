@@ -16,10 +16,18 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests;
 /// turns on the desktop lock, so a unit test run elsewhere never loses its shortcut to them. Every test removes the test
 /// shortcut in <c>finally</c>, and starts by removing a leftover of a crashed run.
 /// </para>
+/// <para>
+/// The tests that start a test app with toasts change the system (its shortcut and notifications, T-065/T-068, user
+/// decision 2026-10-22): they carry the trait <see cref="SystemChanges.Trait"/>, run only after the warning of
+/// <c>tools/run-e2e.ps1</c> (skipped with <c>-NoSystemChanges</c>) and journal the change, so that a crash is cleaned up
+/// by the next start, the watchdog or <c>-RestoreOnly</c>.
+/// </para>
 /// </summary>
 public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
 {
     private static readonly TimeSpan ShortcutTimeout = TimeSpan.FromSeconds(20);
+
+    private static readonly TimeSpan ClearToastsTimeout = TimeSpan.FromSeconds(30);
 
     private const string NotificationSettings = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\";
 
@@ -30,14 +38,17 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     private static string ProductionShortcut => Path.Combine(StartMenu, AppSwitches.ProductionShortcutFileName);
 
     [Fact]
+    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
     public async Task TestToastsUseTheirOwnShortcutAndQuitRemovesIt()
     {
-        E2EFixture.Require();
+        SystemChanges.Require();
         ProductionState production = ProductionState.Read();
         bool settingsKeyBefore = TestAppSettingsKeyExists();
         await RemoveLeftoverAsync();
         try
         {
+            // Journaled (T-068): a crash is cleaned up by the next start, the watchdog or -RestoreOnly.
+            await using SystemChange<TestToastsState> toasts = await SystemChanges.TestToastsAsync(E2EFixture.AppPath, TestContext.Current.CancellationToken);
             await using (AppInstance app = await AppInstance.StartAsync(
                 fixture,
                 "test-toasts",
@@ -79,14 +90,18 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     }
 
     [Fact]
+    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
     public async Task ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp()
     {
-        E2EFixture.Require();
+        SystemChanges.Require();
         ProductionState production = ProductionState.Read();
         bool settingsKeyBefore = TestAppSettingsKeyExists();
         await RemoveLeftoverAsync();
         try
         {
+            // Journaled (T-068): a crash is cleaned up by the next start, the watchdog or -RestoreOnly.
+            await using SystemChange<TestToastsState> toasts = await SystemChanges.TestToastsAsync(E2EFixture.AppPath, TestContext.Current.CancellationToken);
+
             // A test app with toasts that crashes (killed): its shortcut stays behind.
             await using (AppInstance app = await AppInstance.StartAsync(
                 fixture,
@@ -101,17 +116,17 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
 
             Assert.True(File.Exists(TestShortcut), "The killed app removed its shortcut; nothing left to test.");
 
-            (int exitCode, string error, string unusedFolder) = await RunClearToastsAsync();
+            ClearToastsResult cleanup = await ClearToasts.RunAsync(E2EFixture.AppPath, ClearToastsTimeout);
 
-            Assert.True(exitCode == 0, $"--ptd-e2e-clear-toasts exited with {exitCode}: {error}");
-            Assert.Equal(string.Empty, error);
+            Assert.True(cleanup.ExitCode == 0, $"--ptd-e2e-clear-toasts exited with {cleanup.ExitCode}: {cleanup.Error}");
+            Assert.Equal(string.Empty, cleanup.Error);
             Assert.False(File.Exists(TestShortcut), "The cleanup left the shortcut of the test app.");
-            // No app ran: the test mode switches it got would have created a log in this folder.
-            Assert.False(Directory.Exists(unusedFolder), "The cleanup started the app (it wrote into the test data folder).");
+            // No app ran: the test mode switches it got would have created a log in its test data folder.
+            Assert.False(cleanup.StartedApp, "The cleanup started the app (it wrote into the test data folder).");
 
             // Nothing left to remove: still 0.
-            (exitCode, error, _) = await RunClearToastsAsync();
-            Assert.True(exitCode == 0, $"A second cleanup exited with {exitCode}: {error}");
+            cleanup = await ClearToasts.RunAsync(E2EFixture.AppPath, ClearToastsTimeout);
+            Assert.True(cleanup.ExitCode == 0, $"A second cleanup exited with {cleanup.ExitCode}: {cleanup.Error}");
 
             production.AssertUnchanged();
             Assert.Equal(settingsKeyBefore, TestAppSettingsKeyExists());
@@ -119,38 +134,6 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
         finally
         {
             await RemoveLeftoverAsync();
-        }
-    }
-
-    /// <summary>
-    /// Runs the exe in the cleanup mode with complete test mode switches (a data folder that must stay missing, an instance
-    /// suffix, the forward-only switch), so that a regression that starts the app would show and never reach the user's
-    /// instance.
-    /// </summary>
-    private static async Task<(int ExitCode, string Error, string UnusedFolder)> RunClearToastsAsync()
-    {
-        string run = Path.Combine(E2EFixture.Root, "clear-toasts-" + Guid.NewGuid().ToString("N")[..12]);
-        ProcessStartInfo start = AppInstance.StartInfo(run, "e2e-" + Guid.NewGuid().ToString("N")[..12]);
-        start.WorkingDirectory = E2EFixture.Root;
-        start.ArgumentList.Add(AppSwitches.ClearToastsArgument);
-        start.Environment[AppSwitches.ForwardOnlyVariable] = "1";
-        start.RedirectStandardError = true;
-        start.RedirectStandardOutput = true;
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException("The cleanup did not start.");
-        try
-        {
-            Task<string> error = process.StandardError.ReadToEndAsync();
-            Task<string> output = process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
-            await output;
-            return (process.ExitCode, (await error).Trim(), run);
-        }
-        finally
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
         }
     }
 
@@ -162,12 +145,12 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
             return;
         }
 
-        (int exitCode, string error, _) = await RunClearToastsAsync();
+        ClearToastsResult cleanup = await ClearToasts.RunAsync(E2EFixture.AppPath, ClearToastsTimeout);
         if (File.Exists(TestShortcut))
         {
             // The app's own cleanup failed (reported by the test that needs it); never leave the file.
             File.Delete(TestShortcut);
-            Assert.Fail($"--ptd-e2e-clear-toasts ({exitCode}: {error}) did not remove '{TestShortcut}'; it was deleted directly.");
+            Assert.Fail($"--ptd-e2e-clear-toasts ({cleanup.ExitCode}: {cleanup.Error}) did not remove '{TestShortcut}'; it was deleted directly.");
         }
     }
 

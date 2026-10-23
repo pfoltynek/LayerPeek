@@ -20,6 +20,9 @@ internal sealed record SystemStateSnapshot(
     /// <summary>Why Do Not Disturb could not be read, or <see langword="null"/> (the Do Not Disturb self-test reports it).</summary>
     public string? DoNotDisturbError { get; init; }
 
+    /// <summary>What the toasts of the test app touch (T-068).</summary>
+    public ToastSystemState? Toasts { get; init; }
+
     public static async Task<SystemStateSnapshot> CaptureAsync(bool includeDoNotDisturb, CancellationToken cancellationToken = default)
     {
         DoNotDisturbState? doNotDisturb = null;
@@ -45,6 +48,7 @@ internal sealed record SystemStateSnapshot(
             [.. SystemChanges.Journal.PendingFiles().Select(Path.GetFileName).OfType<string>()])
         {
             DoNotDisturbError = error,
+            Toasts = ToastSystemState.Capture(),
         };
     }
 
@@ -104,6 +108,11 @@ internal sealed record SystemStateSnapshot(
             }
         }
 
+        if (Toasts is not null && end.Toasts is not null)
+        {
+            Toasts.Compare(end.Toasts, differences, notes);
+        }
+
         if (end.JournalEntries.Count != 0)
         {
             differences.Add($"The journal {SystemChanges.JournalDirectory} still holds: {string.Join(", ", end.JournalEntries)}.");
@@ -122,6 +131,11 @@ internal sealed record SystemStateSnapshot(
         foreach ((string key, string? path, int? promoted) in TrayIcons)
         {
             text.AppendLine(CultureInfo.InvariantCulture, $"  {key}: IsPromoted={Show(promoted)} {path}");
+        }
+
+        if (Toasts is not null)
+        {
+            text.Append(Toasts);
         }
 
         return text.ToString();

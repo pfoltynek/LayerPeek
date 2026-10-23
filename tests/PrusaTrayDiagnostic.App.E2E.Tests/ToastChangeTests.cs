@@ -1,0 +1,318 @@
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Text.Json.Nodes;
+
+using PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
+
+namespace PrusaTrayDiagnostic.App.E2E.Tests;
+
+/// <summary>
+/// Unit tests of the pure parts of the toast tests of T-068 (registry restore plan, states, which UI texts belong to the
+/// test toast, the icon search, resource texts): they run in every <c>dotnet test</c> and read or write nothing of the
+/// system.
+/// </summary>
+public sealed class ToastChangeTests
+{
+    private static readonly RegistryValueState EnabledOff = new("Enabled", "DWord", "0");
+    private static readonly RegistryValueState BannerOff = new("ShowBanner", "DWord", "0");
+    private static readonly RegistryValueState Sound = new("Sound", "String", "x");
+
+    [Fact]
+    public void KeyThatDidNotExistIsDeletedAsAWhole()
+    {
+        RegistryKeyState current = new(true, [EnabledOff, Sound], ["sub"]);
+
+        Assert.Equal([(RegistryAction.DeleteKey, (RegistryValueState?)null)], RegistryKeys.Plan(RegistryKeyState.Missing, current));
+        Assert.Empty(RegistryKeys.Plan(RegistryKeyState.Missing, RegistryKeyState.Missing));
+    }
+
+    [Fact]
+    public void ExistingKeyGetsItsValuesBackAndLosesNewOnes()
+    {
+        RegistryKeyState original = new(true, [EnabledOff, Sound], []);
+        RegistryKeyState current = new(true, [EnabledOff with { Data = "1" }, BannerOff], []);
+
+        List<(RegistryAction Action, RegistryValueState? Value)> plan = RegistryKeys.Plan(original, current);
+
+        Assert.Equal(
+            [(RegistryAction.DeleteValue, BannerOff), (RegistryAction.SetValue, EnabledOff), (RegistryAction.SetValue, Sound)],
+            plan);
+    }
+
+    [Fact]
+    public void DeletedKeyIsCreatedWithItsValues()
+    {
+        RegistryKeyState original = new(true, [EnabledOff], []);
+
+        Assert.Equal([(RegistryAction.CreateKey, (RegistryValueState?)null), (RegistryAction.SetValue, EnabledOff)], RegistryKeys.Plan(original, RegistryKeyState.Missing));
+    }
+
+    [Fact]
+    public void UnchangedKeyNeedsNothingWhateverTheOrderAndCase()
+    {
+        RegistryKeyState original = new(true, [EnabledOff, Sound], ["A"]);
+        RegistryKeyState current = new(true, [Sound, EnabledOff with { Name = "ENABLED" }], ["a"]);
+
+        Assert.Empty(RegistryKeys.Plan(original, current));
+        Assert.True(original.SameAs(current));
+    }
+
+    [Fact]
+    public void KeyStatesDifferInExistenceKindDataAndSubkeys()
+    {
+        RegistryKeyState state = new(true, [EnabledOff], []);
+
+        Assert.False(state.SameAs(RegistryKeyState.Missing));
+        Assert.False(state.SameAs(state with { Values = [EnabledOff with { Kind = "QWord" }] }));
+        Assert.False(state.SameAs(state with { Values = [EnabledOff with { Data = "1" }] }));
+        Assert.False(state.SameAs(state with { SubKeys = ["new"] }));
+        Assert.False(state.SameAs(state with { Values = [EnabledOff, Sound] }));
+    }
+
+    [Fact]
+    public void NotificationsOfTheTestAppAreSwitchedOnOnlyWhereTheyAreOff()
+    {
+        RegistryKeyState original = new(true, [EnabledOff, BannerOff, Sound, new("ShowInActionCenter", "DWord", "0"), new("Other", "String", "0")], []);
+
+        RegistryKeyState on = ToastAppSettingsKind.WithNotificationsOn(original);
+
+        Assert.Equal("1", on.Value("Enabled")?.Data);
+        Assert.Equal("1", on.Value("ShowBanner")?.Data);
+        Assert.Equal("x", on.Value("Sound")?.Data);
+        // Only the two switches; a string "0" is not a switch.
+        Assert.Equal("0", on.Value("ShowInActionCenter")?.Data);
+        Assert.Equal("0", on.Value("Other")?.Data);
+        // A missing key means Windows' defaults (on): it stays missing.
+        Assert.Same(RegistryKeyState.Missing, ToastAppSettingsKind.WithNotificationsOn(RegistryKeyState.Missing));
+    }
+
+    [Fact]
+    public void ToastStatesSurviveTheJournal()
+    {
+        RegistryKeyState key = new(true, [EnabledOff, Sound], ["sub"]);
+        Assert.True(key.SameAs(SystemChanges.ToastAppSettings.Deserialize(SystemChanges.ToastAppSettings.Serialize(key))));
+        Assert.True(RegistryKeyState.Missing.SameAs(SystemChanges.ToastAppSettings.Deserialize(SystemChanges.ToastAppSettings.Serialize(RegistryKeyState.Missing))));
+
+        foreach (ToastsEnabledState state in new ToastsEnabledState[] { new(null), new(0), new(1) })
+        {
+            Assert.Equal(state, SystemChanges.ToastsEnabled.Deserialize(SystemChanges.ToastsEnabled.Serialize(state)));
+        }
+
+        Assert.Equal(new TestToastsState(true), SystemChanges.TestToasts.Deserialize(SystemChanges.TestToasts.Serialize(new TestToastsState(true))));
+    }
+
+    [Fact]
+    public void NotificationsAreOnUnlessSwitchedOff()
+    {
+        Assert.True(new ToastsEnabledState(null).IsOn);
+        Assert.True(new ToastsEnabledState(1).IsOn);
+        Assert.False(new ToastsEnabledState(0).IsOn);
+    }
+
+    [Fact]
+    public void TestToastsAreRestoredOnlyWhenTheShortcutIsGone()
+    {
+        // A shortcut before the change is a leftover of a crashed run: it goes as well.
+        Assert.True(SystemChanges.TestToasts.Matches(new TestToastsState(true), new TestToastsState(false)));
+        Assert.True(SystemChanges.TestToasts.Matches(new TestToastsState(false), new TestToastsState(false)));
+        Assert.False(SystemChanges.TestToasts.Matches(new TestToastsState(false), new TestToastsState(true)));
+    }
+
+    [Fact]
+    public void ToastKindsAreRegisteredAndNeedTheWarning()
+    {
+        Assert.Same(SystemChanges.ToastsEnabled, SystemChanges.Kinds["ToastsEnabled"]);
+        Assert.Same(SystemChanges.ToastAppSettings, SystemChanges.Kinds["ToastSettings"]);
+        Assert.Same(SystemChanges.TestToasts, SystemChanges.Kinds["ToastHistory"]);
+        Assert.True(SystemChanges.ToastsEnabled.ChangesSystem);
+        Assert.True(SystemChanges.ToastAppSettings.ChangesSystem);
+        Assert.True(SystemChanges.TestToasts.ChangesSystem);
+        // The toasts are cleared before the key Windows created for them goes (entries are restored in file name order).
+        Assert.True(string.CompareOrdinal(SystemChanges.Journal.FileOf("ToastHistory", "x"), SystemChanges.Journal.FileOf("ToastSettings", null)) < 0);
+    }
+
+    [Fact]
+    public void TestAppSettingsKeyIsTheTestAppsOnly()
+    {
+        Assert.EndsWith(@"\Notifications\Settings\PrusaTrayDiagnostic.E2E", ToastAppSettingsKind.SubKey, StringComparison.Ordinal);
+        Assert.Equal("Prusa Tray Diagnostic E2E", ToastTexts.AppName);
+    }
+
+    [Fact]
+    public void OnlyTheTextsOfTheTestToastBelongToIt()
+    {
+        ToastTexts texts = new("PTD E2E 1234abcd", "Print paused", [".bgcode"]);
+
+        Assert.True(texts.OnlyOurs([
+            ("Text", "PTD E2E 1234abcd"),
+            ("Text", "Print paused"),
+            ("Text", "benchy_0.4n_0.2mm_PLA.bgcode"),
+            ("Text", "Prusa Tray Diagnostic E2E"),
+            ("ListItem", "Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused"),
+            ("Image", "Some icon"),
+            ("Button", "Close"),
+            ("Group", string.Empty),
+        ]));
+        // Another notification, a time stamp or a window title: not ours.
+        Assert.False(texts.OnlyOurs([("Text", "PTD E2E 1234abcd"), ("Text", "New message from Alice")]));
+        Assert.False(texts.OnlyOurs([("Text", "PTD E2E 1234abcd"), ("Text", "10:42")]));
+        // A long button name is content (e.g. a notification presented as a button), not a control label.
+        Assert.False(texts.OnlyOurs([("Button", new string('x', ToastTexts.MaxControlLabel + 1))]));
+    }
+
+    [Fact]
+    public void AppIconIsFoundInAToastHeaderAtItsSize()
+    {
+        Color background = Color.FromArgb(44, 44, 44);
+        using Bitmap area = new(72, 40, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(area))
+        using (Bitmap icon = ToastIcon.Reference(24))
+        {
+            graphics.Clear(background);
+            graphics.DrawImage(icon, new Rectangle(11, 7, 24, 24));
+        }
+
+        IconMatch? match = ToastIcon.Find(area, ToastIcon.CandidateSizes(1.5));
+
+        Assert.NotNull(match);
+        Assert.True(match.IsMatch, match.ToString());
+        Assert.Equal(new Rectangle(11, 7, 24, 24), match.Location);
+        Assert.True(match.Score < 0.02, match.ToString());
+    }
+
+    [Fact]
+    public void EmptyOrOtherHeaderIsNoMatch()
+    {
+        using Bitmap empty = new(72, 40, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(empty))
+        {
+            graphics.Clear(Color.FromArgb(243, 243, 243));
+        }
+
+        Assert.False(ToastIcon.Find(empty, ToastIcon.CandidateSizes(1))?.IsMatch ?? false);
+
+        using Bitmap other = new(72, 40, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(other))
+        {
+            graphics.Clear(Color.FromArgb(243, 243, 243));
+            graphics.FillEllipse(Brushes.Magenta, 10, 8, 16, 16);
+        }
+
+        Assert.False(ToastIcon.Find(other, ToastIcon.CandidateSizes(1))?.IsMatch ?? false);
+    }
+
+    [Fact]
+    public void IconSizesFollowTheScale()
+    {
+        Assert.Equal([16, 20, 24, 32], ToastIcon.CandidateSizes(1));
+        Assert.Equal([24, 30, 36, 48], ToastIcon.CandidateSizes(1.5));
+        Assert.Equal([20, 25, 30, 40], ToastIcon.CandidateSizes(1.25));
+    }
+
+    [Fact]
+    public void OnlyTheTestAppsNotificationSettingsKeyMayBeTouched()
+    {
+        Assert.Equal(ToastAppSettingsKind.SettingsSubKey + @"\PrusaTrayDiagnostic.E2E", ToastAppSettingsKind.TestAppKey("PrusaTrayDiagnostic.E2E"));
+        // An empty id would make the key the parent of every app's settings, which this kind deletes as a whole.
+        Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(string.Empty));
+        Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(ToastSystemState.ProductionAppUserModelId));
+        Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(@"PrusaTrayDiagnostic\x.E2E"));
+    }
+
+    [Fact]
+    public void ARegionWithOtherNotificationsIsNotOneToast()
+    {
+        ToastTexts texts = new("PTD E2E 1234abcd", "Print paused", [".bgcode"]);
+
+        // The toast with its time stamp in the notification center.
+        Assert.True(texts.IsOneToast([("ListItem", "Prusa Tray Diagnostic E2E, PTD E2E 1234abcd, Print paused"), ("Text", "PTD E2E 1234abcd"), ("Text", "Print paused"), ("Text", "10:42")]));
+        // A container that also holds another app's notification.
+        Assert.False(texts.IsOneToast([("Group", "PTD E2E 1234abcd"), ("Text", "Print paused"), ("Text", "New message from Alice about the meeting")]));
+        Assert.False(texts.IsOneToast([("Group", "PTD E2E 1234abcd"), ("Text", "Print paused"), ("Text", "10:42"), ("Text", "Mail"), ("Text", "Hi")]));
+    }
+
+    [Fact]
+    public void NamesThatAreNotTheToastsOwnAreNeverReported()
+    {
+        ToastElement own = new("Text", "PTD E2E 1234abcd", "Title", "TextBlock", new Rectangle(1, 2, 3, 4), IsOurs: true);
+        ToastElement other = new("Text", "Alice: secret", "Body", "TextBlock", new Rectangle(1, 2, 3, 4), IsOurs: false);
+
+        Assert.Contains("'PTD E2E 1234abcd'", own.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("Alice", other.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("secret", new ToastMatch(null!, null!, 0, [own, other]).Describe(), StringComparison.Ordinal);
+        Assert.Contains("(other name, 13 chars)", other.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ClearToastsModeRunsOnlyADebugBuildOfTheApp()
+    {
+        string folder = UnitTestDirectories.Create();
+        try
+        {
+            string exe = Path.Combine(folder, "PrusaTrayDiagnostic.exe");
+            File.WriteAllBytes(exe, [0x4D, 0x5A]);
+            // A Release build: the assembly does not know the mode.
+            File.WriteAllText(Path.Combine(folder, "PrusaTrayDiagnostic.dll"), "no test mode here");
+            Assert.NotNull(ClearToasts.NotADebugBuild(exe));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => ClearToasts.RunAsync(exe, TimeSpan.FromSeconds(1)));
+
+            File.WriteAllText(Path.Combine(folder, "PrusaTrayDiagnostic.dll"), "x " + AppSwitches.ClearToastsArgument + " x", System.Text.Encoding.Unicode);
+            Assert.Null(ClearToasts.NotADebugBuild(exe));
+
+            // Another exe, or one that is gone.
+            string other = Path.Combine(folder, "Other.exe");
+            File.Copy(exe, other);
+            Assert.NotNull(ClearToasts.NotADebugBuild(other));
+            Assert.NotNull(ClearToasts.NotADebugBuild(Path.Combine(folder, "missing", "PrusaTrayDiagnostic.exe")));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void TestAppsPlayNoSound()
+    {
+        JsonNode? settings = JsonNode.Parse(TestSettings.Json("en", []));
+
+        Assert.Equal("Off", settings?["notifications"]?["sound"]?.GetValue<string>());
+    }
+
+    /// <summary>
+    /// User decision 2026-10-22: every test that starts a test app with toasts (its shortcut, its notifications) changes the
+    /// system and needs the warning; only the child entry of the crash test is skipped outside its child process.
+    /// </summary>
+    [Fact]
+    public void EveryTestThatStartsATestAppWithToastsNeedsTheWarning()
+    {
+        string[] tests =
+        [
+            .. typeof(ToastNotificationTests).GetMethods().Where(static method => method.IsDefined(typeof(FactAttribute), inherit: false)).Select(static method => method.Name),
+            nameof(TestModeOsIntegrationTests.TestToastsUseTheirOwnShortcutAndQuitRemovesIt),
+            nameof(TestModeOsIntegrationTests.ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp),
+        ];
+        Assert.Equal(6, tests.Length);
+
+        foreach (string name in tests)
+        {
+            System.Reflection.MethodInfo method = typeof(ToastNotificationTests).GetMethod(name) ?? typeof(TestModeOsIntegrationTests).GetMethod(name)!;
+            Assert.Contains(
+                method.GetCustomAttributes(typeof(TraitAttribute), inherit: false).OfType<TraitAttribute>(),
+                trait => trait.Name == SystemChanges.Trait && trait.Value == ToastSystemChanges.TraitValue);
+        }
+
+        // Without the switch the test mode shows no toast and creates no shortcut: it runs in every end-to-end run.
+        Assert.DoesNotContain(
+            typeof(TestModeOsIntegrationTests).GetMethod(nameof(TestModeOsIntegrationTests.WithoutTheSwitchTheTestModeCreatesNoShortcut))!.GetCustomAttributes(typeof(TraitAttribute), inherit: false).OfType<TraitAttribute>(),
+            static trait => trait.Name == SystemChanges.Trait);
+    }
+
+    [Fact]
+    public void ToastTextsComeFromTheResourcesOfTheApp()
+    {
+        Assert.Equal("Print paused", AppStrings.Get("en", "NotificationPrintPaused"));
+        Assert.Equal("Der Drucker meldet einen Fehler", AppStrings.Get("de", "NotificationError"));
+        Assert.Throws<InvalidOperationException>(() => AppStrings.Get("en", "NoSuchKey"));
+    }
+}
