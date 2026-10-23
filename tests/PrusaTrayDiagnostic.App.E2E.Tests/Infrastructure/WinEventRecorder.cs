@@ -79,9 +79,11 @@ internal sealed partial class WinEventRecorder : IDisposable
 
     /// <summary>
     /// What a user may see as a jump of the opening <paramref name="window"/>, or <see langword="null"/> when it kept still
-    /// (T-071 Q1, decided 2026-10-23: strict). Every location change after the first show counts, also one that reports
-    /// the rectangle of the show: a <c>SetWindowPos</c> that moves nothing still placed the window again after it was
-    /// shown. The rectangle is read when the event arrives (out of context), so it only describes the event.
+    /// (T-071 Q3, decided 2026-10-23): every location change after the first show whose window rectangle differs from the
+    /// rectangle of the show, by even one pixel in position or size, is a move. A notification with the unchanged
+    /// rectangle is allowed (Avalonia / DWM send one for a frameless window after it is shown, nothing moves). Moving back
+    /// later does not undo a move. The rectangle is read when the event arrives (out of context), so it only describes the
+    /// event.
     /// </summary>
     public static string? JumpProblem(IReadOnlyList<WindowEvent> events, nint window)
     {
@@ -91,10 +93,10 @@ internal sealed partial class WinEventRecorder : IDisposable
         }
 
         Native.Rect shown = events.First(e => e.Window == window && e.Kind == EventObjectShow).Rect;
-        List<WindowEvent> moves = MovesAfterShow(events, window);
+        List<WindowEvent> moves = [.. MovesAfterShow(events, window).Where(change => !change.Rect.Equals(shown))];
         return moves.Count == 0
             ? null
-            : $"{moves.Count} location change(s) after the window was shown at {shown}: {string.Join(", ", moves.Select(move => move.Rect.Equals(shown) ? $"{move} (same rectangle)" : move.ToString()))}";
+            : $"{moves.Count} move(s) after the window was shown at {shown}: {string.Join(", ", moves)}";
     }
 
     /// <summary>Whether <paramref name="window"/> was shown while recording.</summary>

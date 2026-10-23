@@ -83,16 +83,20 @@ internal static class TestMonitors
     }
 
     /// <summary>
-    /// The connected monitor the app uses for the saved <paramref name="saved"/> (T-035 Q4/Q8,
-    /// <c>CameraWindowDefaultPlacement.SelectScreen</c>): the same device path, else the same name and resolution, else
-    /// the same name (first from the left), else <see langword="null"/> ("not connected", the camera on the primary
-    /// monitor). With two identical monitors a switched-off one therefore matches its twin by name.
+    /// The connected monitor the app uses for the saved <paramref name="saved"/> (T-035 Q4/Q8, T-071 Q4,
+    /// <c>CameraWindowDefaultPlacement.SelectScreen</c>): with a device path only the monitor with that path; without one
+    /// (older settings) the same name and resolution, else the same name (first from the left). <see langword="null"/>:
+    /// "not connected", the camera on the primary monitor. A switched-off monitor therefore never matches its twin.
     /// </summary>
     public static TestMonitor? Matching(TestMonitor saved, IReadOnlyList<TestMonitor> connected)
     {
         List<TestMonitor> ordered = Ordered(connected);
-        return ordered.FirstOrDefault(m => saved.DevicePath.Length > 0 && string.Equals(m.DevicePath, saved.DevicePath, StringComparison.OrdinalIgnoreCase))
-            ?? ordered.FirstOrDefault(m => m.AppName == saved.AppName && m.Bounds.Width == saved.Bounds.Width && m.Bounds.Height == saved.Bounds.Height)
+        if (saved.DevicePath.Length > 0)
+        {
+            return ordered.FirstOrDefault(m => string.Equals(m.DevicePath, saved.DevicePath, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return ordered.FirstOrDefault(m => m.AppName == saved.AppName && m.Bounds.Width == saved.Bounds.Width && m.Bounds.Height == saved.Bounds.Height)
             ?? ordered.FirstOrDefault(m => m.AppName == saved.AppName);
     }
 

@@ -148,14 +148,29 @@ public sealed class MonitorWindowCheckTests
     }
 
     [Fact]
-    public void SwitchedOffMonitorMatchesByPathThenNameAndResolutionThenName()
+    public void SwitchedOffMonitorMatchesOnlyByItsDevicePath()
     {
+        // T-071 Q4 (2026-10-23): a known device path alone decides, a twin with the same name is another monitor.
         TestMonitor saved = Monitor("DELL U2719D", 2560, 0, 1440, 2560, gdi: @"\\.\DISPLAY2") with { DevicePath = "path-2" };
         TestMonitor twin = Monitor("DELL U2719D", 0, 0, 2560, 1440) with { DevicePath = "path-1" };
         TestMonitor rotatedTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
         TestMonitor other = Monitor("Other", 0, 0, 1920, 1080) with { DevicePath = "path-4" };
 
         Assert.Equal(saved, TestMonitors.Matching(saved, [twin, saved]));
+        Assert.Equal("PATH-2", TestMonitors.Matching(saved, [twin, saved with { DevicePath = "PATH-2" }])?.DevicePath);
+        Assert.Null(TestMonitors.Matching(saved, [twin, rotatedTwin]));
+        Assert.Null(TestMonitors.Matching(saved, [twin, other]));
+        Assert.Null(TestMonitors.Matching(saved, [other]));
+    }
+
+    [Fact]
+    public void OldSettingsWithoutDevicePathMatchByNameAndResolutionThenName()
+    {
+        TestMonitor saved = Monitor("DELL U2719D", 2560, 0, 1440, 2560, gdi: @"\\.\DISPLAY2") with { DevicePath = string.Empty };
+        TestMonitor twin = Monitor("DELL U2719D", 0, 0, 2560, 1440) with { DevicePath = "path-1" };
+        TestMonitor rotatedTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
+        TestMonitor other = Monitor("Other", 0, 0, 1920, 1080) with { DevicePath = "path-4" };
+
         Assert.Equal(rotatedTwin, TestMonitors.Matching(saved, [twin, rotatedTwin]));
         Assert.Equal(twin, TestMonitors.Matching(saved, [twin, other]));
         Assert.Null(TestMonitors.Matching(saved, [other]));
@@ -216,22 +231,45 @@ public sealed class MonitorWindowCheckTests
     }
 
     [Fact]
-    public void ChangeNotificationWithTheShownRectangleIsAJumpToo()
+    public void ChangeNotificationWithTheShownRectangleIsNoJump()
     {
-        // T-071 Q1 (decided 2026-10-23): strict, a SetWindowPos after the show counts even when it moves nothing.
+        // T-071 Q3 (decided 2026-10-23): Avalonia / DWM notify a frameless window again after the show without moving it.
         nint camera = 0x100;
         WindowEvent[] events =
         [
             Event(WinEventRecorder.EventObjectShow, camera, 10),
             Event(WinEventRecorder.EventObjectLocationChange, camera, 10),
-            Event(WinEventRecorder.EventObjectLocationChange, camera, 12),
+            Event(WinEventRecorder.EventObjectLocationChange, camera, 10),
+        ];
+
+        Assert.Null(WinEventRecorder.JumpProblem(events, camera));
+    }
+
+    [Theory]
+    [InlineData(1, 0, 0, 0)]
+    [InlineData(0, 1, 0, 0)]
+    [InlineData(0, 0, 1, 0)]
+    [InlineData(0, 0, 0, 1)]
+    [InlineData(-2, 0, 0, 0)]
+    public void MoveOrResizeAfterTheShowIsAJumpEvenByOnePixel(int dx, int dy, int dWidth, int dHeight)
+    {
+        nint camera = 0x100;
+        Native.Rect shown = Rect(2869, 1005, 820, 489);
+        Native.Rect moved = Rect(2869 + dx, 1005 + dy, 820 + dWidth, 489 + dHeight);
+        WindowEvent[] events =
+        [
+            new(WinEventRecorder.EventObjectShow, camera, shown, DateTime.UtcNow),
+            new(WinEventRecorder.EventObjectLocationChange, camera, shown, DateTime.UtcNow),
+            new(WinEventRecorder.EventObjectLocationChange, camera, moved, DateTime.UtcNow),
+            new(WinEventRecorder.EventObjectLocationChange, camera, shown, DateTime.UtcNow),
         ];
 
         string? problem = WinEventRecorder.JumpProblem(events, camera);
 
+        // Moving back does not undo what the user saw; only the changed rectangles are listed.
         Assert.NotNull(problem);
-        Assert.StartsWith("2 location change(s)", problem, StringComparison.Ordinal);
-        Assert.Equal(1, problem.Split("(same rectangle)").Length - 1);
+        Assert.StartsWith("1 move(s) after the window was shown", problem, StringComparison.Ordinal);
+        Assert.Contains(moved.ToString(), problem, StringComparison.Ordinal);
     }
 
     [Fact]

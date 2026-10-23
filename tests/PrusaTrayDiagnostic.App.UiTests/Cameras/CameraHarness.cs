@@ -29,14 +29,15 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="overlay">Print overlay of the printers with a camera (T-036); <see langword="null"/>: the defaults.</param>
     /// <param name="measureChrome">Fake frame measurement of the windows (T-040); <see langword="null"/>: the headless one.</param>
     /// <param name="track">Tracks each new window (T-043); <see langword="null"/>: none.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null)
+    /// <param name="predictChrome">Fake frame prediction per monitor scaling (T-071 Q3); <see langword="null"/>: the headless one (assumed chrome).</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null)
     {
         States = states ?? new MemoryCameraWindowStateStore();
         ((IMonitoringObserver)Printers).ApplySettings(new AppSettings
         {
             Printers = [CameraPrinter("a", "Alpha", window, overlay), CameraPrinter("b", "Beta", window, overlay), TestPrinters.Definition("c", "NoCamera")],
         });
-        Windows = new AuxiliaryWindowFactory(track).CameraWindows(Create, screens, measureChrome);
+        Windows = new AuxiliaryWindowFactory(track).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
 
     public FakeCameraFeedFactory Factory { get; } = new();

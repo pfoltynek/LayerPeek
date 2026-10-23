@@ -3,9 +3,10 @@ namespace PrusaTrayDiagnostic.Core.Cameras;
 /// <summary>
 /// The monitor chosen for a camera window (T-035): the name the OS reports for it (<see cref="CameraScreen.DisplayName"/>),
 /// its resolution in pixels (size of <see cref="CameraScreen.Bounds"/>) and, where the platform has one, the path of the
-/// physical monitor (<see cref="DevicePath"/>, Q8), which tells two identical monitors apart. Matching order (see
-/// <see cref="CameraWindowDefaultPlacement.SelectScreen"/>): the same device path, then the same name and resolution
-/// (<see cref="Matches"/>), then the same name (<see cref="MatchesName"/>); names are compared ordinally.
+/// physical monitor (<see cref="DevicePath"/>, Q8), which tells two identical monitors apart. Matching (see
+/// <see cref="CameraWindowDefaultPlacement.SelectScreen"/>, T-071 Q4): a saved device path alone decides; older settings
+/// without one match the same name and resolution (<see cref="Matches"/>), then the same name (<see cref="MatchesName"/>);
+/// names are compared ordinally.
 /// </summary>
 public sealed record CameraMonitorId
 {

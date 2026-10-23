@@ -162,7 +162,7 @@ internal sealed partial class TrayIconPromotionKind() : SystemChangeKind<TrayIco
     private static string ExecutableOf(string? key) =>
         key is { Length: > 0 } ? Path.GetFullPath(key) : throw new ArgumentException("The key of a tray icon change is the exe path.", nameof(key));
 
-    private static bool SamePath(string? path, string exe)
+    internal static bool SamePath(string? path, string exe)
     {
         if (path is null)
         {
