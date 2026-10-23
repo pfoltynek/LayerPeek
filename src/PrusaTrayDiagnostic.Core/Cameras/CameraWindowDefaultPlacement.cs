@@ -16,11 +16,12 @@ public static class CameraWindowDefaultPlacement
     public const double MarginDip = 16;
 
     /// <summary>
-    /// The monitor for a camera window (T-035 Q4, Q8): the screen with the same device path
-    /// (<see cref="CameraMonitorId.MatchesDevicePath"/>), else the first screen matching <paramref name="monitor"/> exactly
-    /// (name and resolution, <see cref="CameraMonitorId.Matches"/>), else the first screen with the same name
-    /// (<see cref="CameraMonitorId.MatchesName"/>), else the primary one (the first screen when none is flagged primary)
-    /// with <see cref="CameraScreenSelection.PreferredMonitorMissing"/>. "First" is list order.
+    /// The monitor for a camera window (T-035 Q4, Q8; T-071 Q4): a saved monitor with a device path is the screen with
+    /// that path (<see cref="CameraMonitorId.MatchesDevicePath"/>) and nothing else, so a switched-off monitor is never
+    /// replaced by a twin with the same name. Older settings without a device path match the first screen with the same
+    /// name and resolution (<see cref="CameraMonitorId.Matches"/>), else the first with the same name
+    /// (<see cref="CameraMonitorId.MatchesName"/>). Without a match: the primary screen (the first one when none is flagged
+    /// primary) with <see cref="CameraScreenSelection.PreferredMonitorMissing"/>. "First" is list order.
     /// <see langword="null"/> when there are no screens.
     /// </summary>
     public static CameraScreenSelection? SelectScreen(CameraMonitorId? monitor, IReadOnlyList<CameraScreen> screens)
@@ -31,32 +32,9 @@ public static class CameraWindowDefaultPlacement
             return null;
         }
 
-        if (monitor is not null)
+        if (monitor is not null && Find(monitor, screens) is { } match)
         {
-            CameraScreen? exact = null;
-            CameraScreen? sameName = null;
-            foreach (CameraScreen screen in screens)
-            {
-                if (monitor.MatchesDevicePath(screen))
-                {
-                    return new CameraScreenSelection(screen, PreferredMonitorMissing: false);
-                }
-
-                if (exact is null && monitor.Matches(screen))
-                {
-                    exact = screen;
-                }
-
-                if (sameName is null && monitor.MatchesName(screen))
-                {
-                    sameName = screen;
-                }
-            }
-
-            if ((exact ?? sameName) is { } match)
-            {
-                return new CameraScreenSelection(match, PreferredMonitorMissing: false);
-            }
+            return new CameraScreenSelection(match, PreferredMonitorMissing: false);
         }
 
         CameraScreen primary = screens[0];
@@ -73,24 +51,46 @@ public static class CameraWindowDefaultPlacement
     }
 
     /// <summary>
-    /// Whether the saved <paramref name="monitor"/> is connected: some screen has its device path or its name, whatever its
-    /// resolution (<see cref="CameraMonitorId.MatchesDevicePath"/>, <see cref="CameraMonitorId.MatchesName"/>). The settings
-    /// show it as "not connected" otherwise; it is the inverse of <see cref="CameraScreenSelection.PreferredMonitorMissing"/>
-    /// for a non-empty screen list.
+    /// Whether the saved <paramref name="monitor"/> is connected (T-071 Q4): with a device path, some screen has that path;
+    /// without one (older settings), some screen has its name, whatever its resolution. The settings show it as "not
+    /// connected" otherwise; it is the inverse of <see cref="CameraScreenSelection.PreferredMonitorMissing"/> for a
+    /// non-empty screen list.
     /// </summary>
     public static bool IsConnected(CameraMonitorId monitor, IReadOnlyList<CameraScreen> screens)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(screens);
-        foreach (CameraScreen screen in screens)
+        return Find(monitor, screens) is not null;
+    }
+
+    /// <summary>The screen <paramref name="monitor"/> resolves to (see <see cref="SelectScreen"/>), or <see langword="null"/>.</summary>
+    private static CameraScreen? Find(CameraMonitorId monitor, IReadOnlyList<CameraScreen> screens)
+    {
+        if (monitor.DevicePath is not null)
         {
-            if (monitor.MatchesDevicePath(screen) || monitor.MatchesName(screen))
+            foreach (CameraScreen screen in screens)
             {
-                return true;
+                if (monitor.MatchesDevicePath(screen))
+                {
+                    return screen;
+                }
             }
+
+            return null;
         }
 
-        return false;
+        CameraScreen? sameName = null;
+        foreach (CameraScreen screen in screens)
+        {
+            if (monitor.Matches(screen))
+            {
+                return screen;
+            }
+
+            sameName ??= monitor.MatchesName(screen) ? screen : null;
+        }
+
+        return sameName;
     }
 
     /// <summary>

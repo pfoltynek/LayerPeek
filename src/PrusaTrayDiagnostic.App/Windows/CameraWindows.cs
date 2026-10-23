@@ -16,6 +16,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     private readonly Func<string, PrinterDefinition?, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
     private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
+    private readonly Func<CameraWindow, double, WindowChrome?>? _predictChrome;
     private readonly Func<Window, IDisposable>? _track;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
@@ -28,13 +29,16 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     /// <param name="screens">Monitors for tests; <see langword="null"/>: each window asks Avalonia (<see cref="AvaloniaScreenCatalog"/>).</param>
     /// <param name="measureChrome">Frame measurement for tests (<see cref="CameraWindow.ChromeMeasurement"/>); <see langword="null"/>: the real one.</param>
     /// <param name="track">Tracks each new window before it is shown (T-043: taskbar properties, recently used windows).</param>
+    /// <param name="predictChrome">Frame prediction for tests (<see cref="CameraWindow.ChromePrediction"/>); <see langword="null"/>: the real one.</param>
     public CameraWindows(
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
-        Func<Window, IDisposable>? track = null)
+        Func<Window, IDisposable>? track = null,
+        Func<CameraWindow, double, WindowChrome?>? predictChrome = null)
     {
         _measureChrome = measureChrome;
+        _predictChrome = predictChrome;
         _track = track;
         ArgumentNullException.ThrowIfNull(createViewModel);
         _createViewModel = createViewModel;
@@ -102,8 +106,8 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                 used = true;
                 // The monitors first: the window places itself when it gets its view model.
                 CameraWindow window = _screens is { } screens
-                    ? new() { ChromeMeasurement = _measureChrome, ScreenCatalog = screens, ShowActivated = activate, DataContext = created }
-                    : new() { ChromeMeasurement = _measureChrome, ShowActivated = activate, DataContext = created };
+                    ? new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ScreenCatalog = screens, ShowActivated = activate, DataContext = created }
+                    : new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ShowActivated = activate, DataContext = created };
                 _open[printerId] = window;
                 window.Closed += (_, _) =>
                 {

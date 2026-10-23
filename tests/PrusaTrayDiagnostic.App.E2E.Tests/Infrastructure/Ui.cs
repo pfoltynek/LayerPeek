@@ -97,6 +97,25 @@ internal static class Ui
         }
     }
 
+    /// <summary>The texts of all items of a combo box (opened for reading, closed again) and the index of the selected one (-1: none).</summary>
+    public static async Task<(List<string> Items, int Selected)> ComboItemsAsync(AutomationElement root, string automationId)
+    {
+        AutomationElement combo = await FindAsync(root, automationId);
+        combo.Patterns.ExpandCollapse.Pattern.Expand();
+        try
+        {
+            AutomationElement[] items = [];
+            await Wait.UntilAsync(() => (items = combo.FindAllDescendants(cf => cf.ByControlType(ControlType.ListItem))).Length > 0, FindTimeout, $"the items of '{automationId}'");
+            List<string> texts = [.. items.Select(ItemText)];
+            int selected = Array.FindIndex(items, static item => item.Patterns.SelectionItem.TryGetPattern(out FlaUI.Core.Patterns.ISelectionItemPattern? pattern) && pattern.IsSelected.ValueOrDefault);
+            return (texts, selected);
+        }
+        finally
+        {
+            combo.Patterns.ExpandCollapse.Pattern.Collapse();
+        }
+    }
+
     /// <summary>The text of a list item: its name, or the text of its first text child (data templates).</summary>
     private static string ItemText(AutomationElement item) =>
         item.Properties.Name.ValueOrDefault is { Length: > 0 } name

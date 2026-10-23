@@ -80,7 +80,7 @@ public sealed class SystemChangeKindTests
         SystemStateSnapshot end = Snapshot(new ThemeState(0, null), [("100", Exe, 1), ("200", Other, 1), ("300", Exe, null), ("400", Exe, 0), ("500", Other, 1)]);
         List<string> notes = [];
 
-        List<string> differences = start.Compare(end, Exe, notes);
+        List<string> differences = start.Compare(end, notes);
 
         Assert.Equal(2, differences.Count);
         Assert.Contains("Theme", differences[0], StringComparison.Ordinal);
@@ -95,7 +95,7 @@ public sealed class SystemChangeKindTests
         SystemStateSnapshot end = Snapshot(new ThemeState(1, 1), [("300", Exe, 1)]) with { JournalEntries = ["Theme.json"] };
         List<string> notes = [];
 
-        List<string> differences = start.Compare(end, Exe, notes);
+        List<string> differences = start.Compare(end, notes);
 
         Assert.Equal(2, differences.Count);
         Assert.Contains("300", differences[0], StringComparison.Ordinal);
@@ -104,13 +104,43 @@ public sealed class SystemChangeKindTests
     }
 
     [Fact]
+    public void SnapshotRecordsOnlyACountAndFingerprintOfOtherProgramsTrayEntries()
+    {
+        // Privacy (T-071, 2026-10-23): system-state-*.txt must not list the exe paths of other apps.
+        const string Other = @"C:\Users\someone\AppData\Local\Secret Tool\secret.exe";
+        SystemStateSnapshot start = Snapshot(new ThemeState(1, null), [("100", Exe, null), ("200", Other, 1), ("300", Other, null)]);
+        SystemStateSnapshot changed = Snapshot(new ThemeState(1, null), [("100", Exe, null), ("200", Other, 0), ("300", Other, null), ("400", Other, 1)]);
+        List<string> notes = [];
+
+        string text = start.ToString();
+        List<string> differences = start.Compare(changed, notes);
+
+        Assert.DoesNotContain("Secret Tool", text, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(Exe, text, StringComparison.Ordinal);
+        Assert.Contains("other programs: 2 entries", text, StringComparison.Ordinal);
+        Assert.NotEqual(Fingerprint(start), Fingerprint(changed));
+        Assert.Equal(Fingerprint(start), Fingerprint(Snapshot(new ThemeState(0, 1), [("300", Other, null), ("200", Other, 1), ("100", Exe, 1)])));
+        // A changed IsPromoted of another program is still a difference, a new entry a note, both without its path.
+        Assert.Contains("1 of 2 entries of other programs", Assert.Single(differences), StringComparison.Ordinal);
+        Assert.Contains("1 entry of other programs appeared", Assert.Single(notes), StringComparison.Ordinal);
+        Assert.All(differences.Concat(notes).Append(changed.ToString()), line => Assert.DoesNotContain("Secret Tool", line, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>The fingerprint of the other programs' entries from the snapshot text (the only place it is written).</summary>
+    private static string Fingerprint(SystemStateSnapshot snapshot)
+    {
+        string line = snapshot.ToString().Split(Environment.NewLine).Single(line => line.Contains("other programs:", StringComparison.Ordinal));
+        return line[(line.IndexOf("fingerprint ", StringComparison.Ordinal) + "fingerprint ".Length)..].Trim();
+    }
+
+    [Fact]
     public void SnapshotComparisonOfAnUnchangedSystemIsEmpty()
     {
         SystemStateSnapshot start = Snapshot(new ThemeState(null, 0), [("100", Exe, null)]) with { DoNotDisturb = DoNotDisturbState.On };
         List<string> notes = [];
 
-        Assert.Empty(start.Compare(start with { DoNotDisturb = DoNotDisturbState.On }, Exe, notes));
-        Assert.Contains("Do Not Disturb", Assert.Single(start.Compare(start with { DoNotDisturb = DoNotDisturbState.Off }, Exe, notes)), StringComparison.Ordinal);
+        Assert.Empty(start.Compare(start with { DoNotDisturb = DoNotDisturbState.On }, notes));
+        Assert.Contains("Do Not Disturb", Assert.Single(start.Compare(start with { DoNotDisturb = DoNotDisturbState.Off }, notes)), StringComparison.Ordinal);
         Assert.Empty(notes);
     }
 
@@ -124,7 +154,7 @@ public sealed class SystemChangeKindTests
         Assert.Equal(expected, DoNotDisturbKind.IsCandidateId(automationId));
 
     private static SystemStateSnapshot Snapshot(ThemeState theme, IReadOnlyList<(string Key, string? ExecutablePath, int? IsPromoted)> trayIcons) =>
-        new(theme, null, null, trayIcons, []);
+        new(theme, null, null, TrayIconSnapshot.Of(trayIcons, Exe), []);
 
     [Fact]
     public void TrayStateSurvivesTheJournalJson()

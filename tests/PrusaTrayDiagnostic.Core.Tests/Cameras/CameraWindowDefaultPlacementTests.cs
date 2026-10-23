@@ -439,17 +439,45 @@ public class CameraWindowDefaultPlacementTests
     }
 
     [Fact]
-    public void ChangedDevicePathFallsBackToNameAndResolution()
+    public void ChangedDevicePathIsNotConnectedEvenWithTheSameNameAndResolution()
     {
-        // Plugged into another connector: the stored path is gone, the exact name and resolution still match.
+        // T-071 Q4 (2026-10-23): a saved device path alone decides. Plugged into another connector, the stored path is
+        // gone: the primary monitor, "not connected" in the settings.
         CameraScreen moved = new("DELL U2719D", new PixelBounds(2560, 0, 1920, 1080), new PixelBounds(2560, 0, 1920, 1040), 1.0, IsPrimary: false, DevicePath: PathB.Replace("UID160002", "UID160004", StringComparison.Ordinal));
         CameraMonitorId stored = new("DELL U2719D", 1920, 1080, PathB);
 
         CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [DellA, moved])!;
 
-        Assert.Same(moved, selection.Screen);
-        Assert.False(selection.PreferredMonitorMissing);
-        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [DellA, moved]));
+        Assert.Same(DellA, selection.Screen);
+        Assert.True(selection.PreferredMonitorMissing);
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [DellA, moved]));
+    }
+
+    [Fact]
+    public void SwitchedOffMonitorIsNotReplacedByItsTwin()
+    {
+        // T-071 Q4: two identical monitors, the chosen one is switched off; its twin with the same name is not it.
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB);
+        CameraScreen otherPrimary = new("Other", new PixelBounds(-1920, 0, 1920, 1080), new PixelBounds(-1920, 0, 1920, 1040), 1.0, IsPrimary: true, DevicePath: @"\\?\DISPLAY#OTH0001#1&0&UID1#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}");
+        CameraScreen twin = DellA with { IsPrimary = false };
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [otherPrimary, twin])!;
+
+        Assert.Same(otherPrimary, selection.Screen);
+        Assert.True(selection.PreferredMonitorMissing);
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [otherPrimary, twin]));
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [otherPrimary, twin, DellB]));
+    }
+
+    [Fact]
+    public void SavedDevicePathIsNotConnectedOnScreensWithoutPaths()
+    {
+        // The rule is the same where screens have no device path (a settings file from Windows on another platform).
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB);
+        CameraScreen noPath = DellB with { DevicePath = null };
+
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [noPath]));
+        Assert.True(CameraWindowDefaultPlacement.SelectScreen(stored, [noPath])!.PreferredMonitorMissing);
     }
 
     [Fact]
@@ -470,6 +498,9 @@ public class CameraWindowDefaultPlacementTests
 
         Assert.False(old.MatchesDevicePath(DellB));
         Assert.Same(DellA, CameraWindowDefaultPlacement.SelectScreen(old, [DellA, DellB])!.Screen);
+        // Older settings without a path: the name alone still means connected (any resolution).
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(new CameraMonitorId("DELL U2719D", 1920, 1080), [DellB]));
+        Assert.Same(DellB, CameraWindowDefaultPlacement.SelectScreen(new CameraMonitorId("DELL U2719D", 1920, 1080), [DellB])!.Screen);
     }
 
     [Fact]

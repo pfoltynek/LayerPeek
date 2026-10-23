@@ -67,6 +67,46 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task NormalWindowIsPlacedWithTheFrameOfTheChosenMonitorAndNotCorrected() =>
+        session.RunAsync(async scope =>
+        {
+            // T-071 Q3: Windows 11 at 150 % (11 px borders of which 2 px visible, 45 px title bar), not the 100 % chrome scaled up.
+            WindowChrome at150 = WindowChrome.FromPixels(new PixelFrame(11, 45, 11, 11, VisibleBorder: 2), 1.5);
+            List<double> predicted = [];
+            int measured = 0;
+            FakeScreenCatalog screens = ThreeMonitors();
+            CameraWindowDefaults defaults = CameraWindowDefaults.Default with
+            {
+                StartMode = CameraWindowStartMode.Normal,
+                Monitor = Lg,
+                Normal = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.BottomRight),
+            };
+            await using CameraHarness harness = new(
+                screens: screens,
+                window: defaults,
+                measureChrome: _ =>
+                {
+                    measured++;
+                    return at150;
+                },
+                predictChrome: (_, scaling) =>
+                {
+                    predicted.Add(scaling);
+                    return at150;
+                });
+
+            CameraWindow window = harness.Open();
+            window.Settle();
+
+            // LG work area (-1920, 200) 1920 × 1032: right edge 0 − 24 px margin − 2 px visible border − 960 px client − 2 px −
+            // 9 px invisible border; bottom 1232 − 24 − 2 − 540 − 45 (the top border is all visible). Measured once, the same: no correction.
+            Assert.Equal([1.5], predicted);
+            Assert.Equal(1, measured);
+            Assert.Equal(new PixelPoint(-24 - 2 - 960 - 2 - 9, 1232 - 24 - 2 - 540 - 45), window.Position);
+            Assert.Equal(new Size(640, 360), window.ClientSize);
+        });
+
+    [Fact]
     public Task DefaultsWithoutSettingsCentreTheNormalWindowOnThePrimaryMonitor() =>
         session.RunAsync(async scope =>
         {

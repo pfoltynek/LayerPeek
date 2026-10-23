@@ -20,14 +20,51 @@ internal readonly record struct WindowChrome(Size Frame, Thickness InvisibleBord
         Math.Max(Frame.Width - InvisibleBorders.Left - InvisibleBorders.Right, 0),
         Math.Max(Frame.Height - InvisibleBorders.Top - InvisibleBorders.Bottom, 0));
 
-    /// <summary>Whether <paramref name="other"/> differs by less than half a DIP everywhere (no correction needed).</summary>
-    public bool IsCloseTo(WindowChrome other) =>
-        Close(Frame.Width, other.Frame.Width) && Close(Frame.Height, other.Frame.Height)
-        && Close(InvisibleBorders.Left, other.InvisibleBorders.Left) && Close(InvisibleBorders.Top, other.InvisibleBorders.Top)
-        && Close(InvisibleBorders.Right, other.InvisibleBorders.Right) && Close(InvisibleBorders.Bottom, other.InvisibleBorders.Bottom);
+    /// <summary>
+    /// The chrome of <paramref name="frame"/> on a monitor with <paramref name="scaling"/> (T-071 Q3: known before the
+    /// window is shown). The left, right and bottom sides are invisible except for the visible border; the top is all
+    /// visible (Windows 10/11 draw the top resize border inside the title bar; measured: <c>DWMWA_EXTENDED_FRAME_BOUNDS</c>
+    /// has the top of <c>GetWindowRect</c>). Pixels are divided by the scaling, so that placing converts them back exactly.
+    /// </summary>
+    public static WindowChrome FromPixels(PixelFrame frame, double scaling)
+    {
+        if (!double.IsFinite(scaling) || scaling <= 0)
+        {
+            scaling = 1.0;
+        }
 
-    private static bool Close(double a, double b) => Math.Abs(a - b) < 0.5;
+        return new WindowChrome(
+            new Size((frame.Left + frame.Right) / scaling, (frame.Top + frame.Bottom) / scaling),
+            new Thickness(
+                Math.Max(frame.Left - frame.VisibleBorder, 0) / scaling,
+                0,
+                Math.Max(frame.Right - frame.VisibleBorder, 0) / scaling,
+                Math.Max(frame.Bottom - frame.VisibleBorder, 0) / scaling));
+    }
+
+    /// <summary>Whether <paramref name="other"/> differs by less than half a DIP everywhere.</summary>
+    public bool IsCloseTo(WindowChrome other) => IsCloseTo(other, 1.0);
+
+    /// <summary>
+    /// Whether <paramref name="other"/> differs by less than half a pixel everywhere on a monitor with
+    /// <paramref name="scaling"/>, i.e. it places the window on the same pixels (no correction needed).
+    /// </summary>
+    public bool IsCloseTo(WindowChrome other, double scaling)
+    {
+        double limit = 0.5 / (double.IsFinite(scaling) && scaling > 0 ? scaling : 1.0);
+        return Close(Frame.Width, other.Frame.Width, limit) && Close(Frame.Height, other.Frame.Height, limit)
+            && Close(InvisibleBorders.Left, other.InvisibleBorders.Left, limit) && Close(InvisibleBorders.Top, other.InvisibleBorders.Top, limit)
+            && Close(InvisibleBorders.Right, other.InvisibleBorders.Right, limit) && Close(InvisibleBorders.Bottom, other.InvisibleBorders.Bottom, limit);
+    }
+
+    private static bool Close(double a, double b, double limit) => Math.Abs(a - b) < limit;
 }
+
+/// <summary>
+/// The frame Windows gives a window at one DPI, in pixels per side (<c>AdjustWindowRectExForDpi</c> of its style), and
+/// how many of those pixels the window manager draws as the visible border (the rest are invisible resize borders).
+/// </summary>
+internal readonly record struct PixelFrame(int Left, int Top, int Right, int Bottom, int VisibleBorder);
 
 /// <summary>
 /// Where the camera window goes when it opens or switches modes (T-035), as pure functions over the monitors of an
@@ -40,34 +77,50 @@ internal readonly record struct WindowChrome(Size Frame, Thickness InvisibleBord
 /// <c>DWMWA_EXTENDED_FRAME_BOUNDS</c> 7 px inside on the left, right and bottom) the frame of a normal window is 16 × 39
 /// DIP, of which 7 / 0 / 7 / 7 DIP are invisible resize borders. The defaults place the <em>visible</em> window (client +
 /// visible frame) with the 16 DIP margin and the position is moved out by the invisible left and top borders, so that the
-/// visible gap is exactly the margin (Q9). This chrome is assumed before the window is shown; the window measures the real
-/// one once after opening and corrects the placement once. The mini preview has no frame.
+/// visible gap is exactly the margin (Q9). The frame does not scale linearly with the DPI (Windows 11: 8 / 31 px per side
+/// / title bar at 100 %, 9 / 38 at 125 %, 11 / 45 at 150 %), so the camera window asks Windows for the frame at the DPI of
+/// the monitor it goes to before it is shown (T-071 Q3, <see cref="WindowChrome.FromPixels"/>); the chrome measured at
+/// 100 % (<see cref="AssumedNormalChrome"/>) is only the fallback where that is not possible. The mini preview has no frame.
 /// </remarks>
 internal static class CameraWindowPlanner
 {
-    /// <summary>Chrome of the normal window assumed until the real one is measured after opening (see remarks).</summary>
+    /// <summary>
+    /// Chrome of the normal window when the real one cannot be asked for before showing (not Windows, no window handle):
+    /// the one measured at 100 % (see remarks).
+    /// </summary>
     public static WindowChrome AssumedNormalChrome { get; } = OperatingSystem.IsWindows()
         ? new WindowChrome(new Size(16, 39), new Thickness(7, 0, 7, 7))
         : new WindowChrome(new Size(0, 32), default);
 
-    /// <summary>The chrome of a window in <paramref name="mode"/> before it is shown.</summary>
+    /// <summary>The fallback chrome of a window in <paramref name="mode"/> (see <see cref="AssumedNormalChrome"/>).</summary>
     public static WindowChrome AssumedChrome(CameraWindowMode mode) => mode == CameraWindowMode.Mini ? WindowChrome.None : AssumedNormalChrome;
+
+    /// <inheritdoc cref="ForOpening(CameraWindowDefaults, CameraWindowMode, CameraWindowPlacement?, IReadOnlyList{CameraScreen}, Func{CameraScreen, WindowChrome})"/>
+    public static CameraWindowPlacement? ForOpening(
+        CameraWindowDefaults defaults,
+        CameraWindowMode mode,
+        CameraWindowPlacement? remembered,
+        IReadOnlyList<CameraScreen> screens,
+        WindowChrome chrome) =>
+        ForOpening(defaults, mode, remembered, screens, _ => chrome);
 
     /// <summary>
     /// Where the window opens in <paramref name="mode"/> (normal window or mini preview; full screen opens the normal
     /// window on its monitor first): <paramref name="remembered"/> when it is valid and reachable on
-    /// <paramref name="screens"/>, else the defaults on the chosen monitor. <see langword="null"/> without screens and
-    /// without a usable remembered placement (the window then keeps its default size and centres itself).
+    /// <paramref name="screens"/>, else the defaults on the chosen monitor with the chrome the window has there
+    /// (<paramref name="chromeOn"/>). <see langword="null"/> without screens and without a usable remembered placement (the
+    /// window then keeps its default size and centres itself).
     /// </summary>
     public static CameraWindowPlacement? ForOpening(
         CameraWindowDefaults defaults,
         CameraWindowMode mode,
         CameraWindowPlacement? remembered,
         IReadOnlyList<CameraScreen> screens,
-        WindowChrome chrome)
+        Func<CameraScreen, WindowChrome> chromeOn)
     {
         ArgumentNullException.ThrowIfNull(defaults);
         ArgumentNullException.ThrowIfNull(screens);
+        ArgumentNullException.ThrowIfNull(chromeOn);
         if (remembered is { IsValid: true } placement && IsReachable(placement, screens))
         {
             return placement;
@@ -75,18 +128,24 @@ internal static class CameraWindowPlanner
 
         CameraWindowLayout layout = mode == CameraWindowMode.Mini ? defaults.Mini : defaults.Normal;
         return CameraWindowDefaultPlacement.SelectScreen(defaults.Monitor, screens) is { } selection
-            ? Place(layout, selection.Screen, chrome)
+            ? Place(layout, selection.Screen, chromeOn(selection.Screen))
             : null;
     }
 
+    /// <inheritdoc cref="OnCurrentScreen(CameraWindowLayout, PixelBounds, IReadOnlyList{CameraScreen}, Func{CameraScreen, WindowChrome})"/>
+    public static CameraWindowPlacement? OnCurrentScreen(CameraWindowLayout layout, PixelBounds window, IReadOnlyList<CameraScreen> screens, WindowChrome chrome) =>
+        OnCurrentScreen(layout, window, screens, _ => chrome);
+
     /// <summary>
     /// <paramref name="layout"/> on the monitor the window is on now (T-035 Q5: switching modes in an open window, e.g. to
-    /// the mini preview that has no remembered placement). <see langword="null"/> without screens.
+    /// the mini preview that has no remembered placement), with the chrome the window has there
+    /// (<paramref name="chromeOn"/>). <see langword="null"/> without screens.
     /// </summary>
-    public static CameraWindowPlacement? OnCurrentScreen(CameraWindowLayout layout, PixelBounds window, IReadOnlyList<CameraScreen> screens, WindowChrome chrome)
+    public static CameraWindowPlacement? OnCurrentScreen(CameraWindowLayout layout, PixelBounds window, IReadOnlyList<CameraScreen> screens, Func<CameraScreen, WindowChrome> chromeOn)
     {
         ArgumentNullException.ThrowIfNull(layout);
-        return ScreenOf(window, screens) is { } screen ? Place(layout, screen, chrome) : null;
+        ArgumentNullException.ThrowIfNull(chromeOn);
+        return ScreenOf(window, screens) is { } screen ? Place(layout, screen, chromeOn(screen)) : null;
     }
 
     /// <summary>

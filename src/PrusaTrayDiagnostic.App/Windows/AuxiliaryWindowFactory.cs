@@ -39,6 +39,7 @@ internal sealed class AuxiliaryWindowFactory
     public CameraWindows CameraWindows(
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
-        Func<CameraWindow, WindowChrome?>? measureChrome = null) =>
-        new(createViewModel, screens, measureChrome, _track);
+        Func<CameraWindow, WindowChrome?>? measureChrome = null,
+        Func<CameraWindow, double, WindowChrome?>? predictChrome = null) =>
+        new(createViewModel, screens, measureChrome, _track, predictChrome);
 }
