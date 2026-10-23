@@ -89,12 +89,46 @@ internal static class PixelChecks
     /// <summary>Largest channel difference of two colours (alpha ignored: screenshots carry none that matters).</summary>
     public static int Distance(Color a, Color b) => Math.Max(Math.Abs(a.R - b.R), Math.Max(Math.Abs(a.G - b.G), Math.Abs(a.B - b.B)));
 
+    /// <summary><see cref="Distance(Color, Color)"/> of two 32-bit ARGB values (alpha ignored).</summary>
+    private static int Distance(int a, int b) => Math.Max(
+        Math.Abs(((a >> 16) & 0xFF) - ((b >> 16) & 0xFF)),
+        Math.Max(Math.Abs(((a >> 8) & 0xFF) - ((b >> 8) & 0xFF)), Math.Abs((a & 0xFF) - (b & 0xFF))));
+
+    /// <summary>The ARGB values of <paramref name="area"/> row by row, read in one go (no <c>GetPixel</c> per pixel).</summary>
+    private static int[] Pixels(Bitmap bitmap, Rectangle area)
+    {
+        int[] pixels = new int[area.Width * area.Height];
+        if (pixels.Length == 0)
+        {
+            return pixels;
+        }
+
+        System.Drawing.Imaging.BitmapData data = bitmap.LockBits(area, System.Drawing.Imaging.ImageLockMode.ReadOnly, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        try
+        {
+            for (int y = 0; y < area.Height; y++)
+            {
+                System.Runtime.InteropServices.Marshal.Copy(data.Scan0 + (y * data.Stride), pixels, y * area.Width, area.Width);
+            }
+        }
+        finally
+        {
+            bitmap.UnlockBits(data);
+        }
+
+        return pixels;
+    }
+
     /// <summary>
     /// Compares <paramref name="expected"/> with the area of <paramref name="capture"/> at <paramref name="area"/>'s top left,
     /// also shifted by up to <paramref name="slack"/> pixels (UI Automation rectangles are rounded); the best shift wins.
     /// </summary>
     public static PixelMatch Compare(Bitmap capture, Point topLeft, Bitmap expected, int slack = 1)
     {
+        // Every pixel read once (GetPixel per shift made the 48 px header search with slack 12 take seconds).
+        Rectangle searched = Rectangle.Intersect(new Rectangle(topLeft.X - slack, topLeft.Y - slack, expected.Width + (2 * slack), expected.Height + (2 * slack)), new Rectangle(Point.Empty, capture.Size));
+        int[] captured = Pixels(capture, searched);
+        int[] wanted = Pixels(expected, new Rectangle(Point.Empty, expected.Size));
         PixelMatch? best = null;
         for (int dy = -slack; dy <= slack; dy++)
         {
@@ -109,7 +143,7 @@ internal static class PixelChecks
                     {
                         int cx = topLeft.X + dx + x;
                         int cy = topLeft.Y + dy + y;
-                        int d = cx < 0 || cy < 0 || cx >= capture.Width || cy >= capture.Height ? 255 : Distance(capture.GetPixel(cx, cy), expected.GetPixel(x, y));
+                        int d = !searched.Contains(cx, cy) ? 255 : Distance(captured[((cy - searched.Top) * searched.Width) + cx - searched.Left], wanted[(y * expected.Width) + x]);
                         sum += d;
                         max = Math.Max(max, d);
                         count++;

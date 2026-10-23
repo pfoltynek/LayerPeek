@@ -169,7 +169,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         AssertFixedItems(menu, fixedKeys);
         await Task.Delay(400, TestContext.Current.CancellationToken);
         Screenshots.Save(menu.Handle, "menu-keyboard-2-opened");
-        Keyboard.Type(VirtualKeyShort.ALT);
+        TrayMenu.Press(app, VirtualKeyShort.ALT);
         await Task.Delay(400, TestContext.Current.CancellationToken);
         Assert.True(menu.IsOpen, "Alt closed the menu.");
         using Bitmap withKeys = Screenshots.Capture(menu.Handle);
@@ -184,7 +184,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
 
         // The letter alone runs the item, like in classic Windows menus and in the submenu (user decision 2026-10-22, T-069
         // Q2): S = Settings… after Alt.
-        Keyboard.Type(TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuSettings"))!));
+        TrayMenu.Press(app, TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuSettings"))!));
         Assert.True(await OpensAsync(app, AppWindowKind.Settings), "The letter alone (S) after Alt did not open Settings from the main menu.");
         nint settings = await app.WaitForWindowAsync(AppWindowKind.Settings);
         await Wait.UntilAsync(() => !menu.IsOpen, TimeSpan.FromSeconds(2), "the menu closed after S");
@@ -193,7 +193,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         // Opened with the mouse, no Alt at all: the letter alone (D = Diagnostics…).
         menu = await TrayMenu.OpenWithMouseAsync(app);
         Assert.True(menu.Item(TrayMenu.ShownText(TrayMenu.Resource("MenuDiagnostics"))).IsEnabled, "Diagnostics… is disabled with a printer.");
-        Keyboard.Type(TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuDiagnostics"))!));
+        TrayMenu.Press(app, TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuDiagnostics"))!));
         Assert.True(await OpensAsync(app, AppWindowKind.Diagnostics), "The letter alone (D) did not open Diagnostics from the menu opened with the mouse.");
         nint diagnostics = await app.WaitForWindowAsync(AppWindowKind.Diagnostics);
         await Wait.UntilAsync(() => !menu.IsOpen, TimeSpan.FromSeconds(2), "the menu closed after D");
@@ -202,18 +202,18 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         // Down to the printer, Right opens its submenu, C = Show camera.
         menu = await TrayMenu.OpenWithKeyboardAsync(app);
         List<nint> before = app.Windows();
-        Keyboard.Type(VirtualKeyShort.DOWN);
+        TrayMenu.Press(app, VirtualKeyShort.DOWN);
         await Task.Delay(300, TestContext.Current.CancellationToken);
         Assert.StartsWith("MK4 workshop", app.Automation.FocusedElement()?.Name ?? string.Empty, StringComparison.Ordinal);
-        Keyboard.Type(VirtualKeyShort.RIGHT);
+        TrayMenu.Press(app, VirtualKeyShort.RIGHT);
         (AutomationElement[] submenu, nint submenuWindow) = await TrayMenu.SubmenuAsync(app, menu, menu.Items()[0], before);
         Screenshots.Save(submenuWindow, "menu-keyboard-4-submenu");
         Assert.Equal([TrayMenu.ShownText(TrayMenu.Resource("MenuOpenPrusaLink")), TrayMenu.ShownText(TrayMenu.Resource("MenuShowCamera"))], submenu.Select(static item => item.Name).ToArray());
         Assert.Equal([TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuOpenPrusaLink")), TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuShowCamera"))], submenu.Select(TrayMenu.AccessKeyOf).ToArray());
-        Keyboard.Type(TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuShowCamera"))!));
+        TrayMenu.Press(app, TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuShowCamera"))!));
         nint cameraWindow = await app.WaitForWindowAsync(AppWindowKind.Camera);
         await app.CloseWindowAsync(cameraWindow);
-        NotificationArea.CloseOverflow(NotificationArea.Overflow(app.Automation) is not null);
+        await NotificationArea.CloseOverflowAsync(app.Automation);
     }
 
     /// <summary>
@@ -441,13 +441,13 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
             Simulators.Secrets("e2e-web", printer));
         TrayMenuWindow menu = await TrayMenu.OpenWithKeyboardAsync(app);
         List<nint> before = app.Windows();
-        Keyboard.Type(VirtualKeyShort.DOWN);
+        TrayMenu.Press(app, VirtualKeyShort.DOWN);
         await Task.Delay(300, TestContext.Current.CancellationToken);
-        Keyboard.Type(VirtualKeyShort.RIGHT);
+        TrayMenu.Press(app, VirtualKeyShort.RIGHT);
         (_, nint submenuWindow) = await TrayMenu.SubmenuAsync(app, menu, menu.Items()[0], before);
         Screenshots.Save(submenuWindow, "menu-open-prusalink-submenu");
-        Keyboard.Type(TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuOpenPrusaLink"))!));
-        NotificationArea.CloseOverflow(NotificationArea.Overflow(app.Automation) is not null);
+        TrayMenu.Press(app, TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuOpenPrusaLink"))!));
+        await NotificationArea.CloseOverflowAsync(app.Automation);
 
         string file = Path.Combine(app.DataDirectory, AppSwitches.OpenedUrlsFileName);
         string[] lines = [];

@@ -17,7 +17,7 @@ internal static class NotificationArea
 
     public const string TaskbarClassName = "Shell_TrayWnd";
 
-    private const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
+    public const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
 
     /// <summary>Automation id of the system buttons of the tray (the overflow chevron, input indicator, clock…).</summary>
     private const string SystemButtonId = "SystemTrayIcon";
@@ -162,14 +162,49 @@ internal static class NotificationArea
         }
     }
 
-    /// <summary>Closes the overflow flyout (Escape) when the tests opened it.</summary>
+    /// <summary>
+    /// Closes the overflow flyout (Escape) when the tests opened it, but only while it has the keyboard: Escape is never
+    /// pressed into another window (an app window, another program). Use <see cref="CloseOverflowAsync"/> to close it
+    /// whoever has the keyboard.
+    /// </summary>
     public static void CloseOverflow(bool opened)
     {
-        if (opened)
+        if (opened && OverflowHasKeyboard())
         {
             Keyboard.Type(VirtualKeyShort.ESCAPE);
         }
     }
+
+    /// <summary>
+    /// Closes the overflow flyout when it is shown: Escape while it has the keyboard, otherwise "Show hidden icons" through
+    /// UI Automation (it toggles the flyout; no key goes to another window). Waits up to 2 s for it to hide.
+    /// </summary>
+    public static async Task CloseOverflowAsync(AutomationBase automation)
+    {
+        if (Overflow(automation) is null)
+        {
+            return;
+        }
+
+        if (OverflowHasKeyboard())
+        {
+            Keyboard.Type(VirtualKeyShort.ESCAPE);
+        }
+        else
+        {
+            OverflowChevron(Taskbar(automation))?.Patterns.Invoke.Pattern.Invoke();
+        }
+
+        for (int i = 0; i < 20 && Overflow(automation) is not null; i++)
+        {
+            await Task.Delay(100);
+        }
+    }
+
+    /// <summary>Whether the keyboard goes to the notification area: the taskbar or the overflow flyout is in the foreground.</summary>
+    public static bool HasKeyboard() => Native.ClassName(Native.GetForegroundWindow()) is TaskbarClassName or OverflowClass;
+
+    private static bool OverflowHasKeyboard() => Native.ClassName(Native.GetForegroundWindow()) == OverflowClass;
 
     /// <summary>
     /// "Show hidden icons": the system tray button that comes before every application icon (the others – input

@@ -42,9 +42,34 @@ internal static class TrayMenu
 
     private static readonly TimeSpan MenuTimeout = TimeSpan.FromSeconds(10);
 
-    /// <summary>Right-clicks the test instance's tray icon and returns the menu.</summary>
+    /// <summary>
+    /// Right-clicks the test instance's tray icon and returns the menu once it has stayed open for a moment. A menu that
+    /// closes by itself right after it opened (seen once when the overflow flyout hid at the same moment) is opened once
+    /// more; that is written to the test output and the results, a second such close fails.
+    /// </summary>
     public static Task<TrayMenuWindow> OpenWithMouseAsync(AppInstance app) =>
-        WithFailureReportAsync(app, "tray-menu-mouse", trace => OpenWithMouseCoreAsync(app, trace));
+        WithFailureReportAsync(app, "tray-menu-mouse", async trace =>
+        {
+            for (int attempt = 1; ; attempt++)
+            {
+                TrayMenuWindow menu = await OpenWithMouseCoreAsync(app, trace);
+                await Task.Delay(500);
+                if (menu.IsOpen)
+                {
+                    return menu;
+                }
+
+                string closed = $"Attempt {attempt}: the tray menu closed by itself within 0.5 s of opening (foreground now {DescribeWindow(app, Native.GetForegroundWindow())}).";
+                trace(closed);
+                if (attempt == 2)
+                {
+                    throw new InvalidOperationException("The tray menu closed by itself right after it opened, twice.");
+                }
+
+                TestContext.Current.TestOutputHelper?.WriteLine(closed);
+                Screenshots.SaveText(closed, "tray-menu-mouse-reopened");
+            }
+        });
 
     /// <summary>
     /// Opens the menu without the mouse: Win+B puts the focus into the notification area, the arrow keys move it onto the
@@ -57,6 +82,11 @@ internal static class TrayMenu
             List<nint> before = app.Windows();
             bool overflow = await FocusTestIconAsync(app, requireTaskbar, trace);
             trace($"Shift+F10 (icon {(overflow ? "in the overflow flyout" : "on the taskbar")})");
+            if (!IsTestIcon(Focused(app)))
+            {
+                throw new InvalidOperationException($"Not pressing Shift+F10: the focus left the test icon ({DescribeFocus(Focused(app))}).");
+            }
+
             Keyboard.TypeSimultaneously(VirtualKeyShort.SHIFT, VirtualKeyShort.F10);
             return await WaitForMenuAsync(app, before, MenuTimeout, trace);
         });
@@ -78,6 +108,9 @@ internal static class TrayMenu
             menu.Element.Patterns.Window.Pattern.Close();
             await Wait.UntilAsync(() => !menu.IsOpen, TimeSpan.FromSeconds(5), "the tray menu to close");
         }
+
+        // A menu opened from the overflow flyout leaves the flyout open; the next test (and the user) must not find it so.
+        await NotificationArea.CloseOverflowAsync(menu.Element.Automation);
     }
 
     /// <summary>The menu items directly in the menu's list (not those of an expanded submenu).</summary>
@@ -249,13 +282,33 @@ internal static class TrayMenu
     }
 
     /// <summary>
-    /// Moves the keyboard focus onto the test icon; returns whether it is in the overflow flyout. Win+B gives the focus to the
-    /// notification area where it was last (not always the first button), so the walk starts from the left end.
+    /// Moves the keyboard focus onto the test icon; returns whether it is in the overflow flyout. A failed attempt (Explorer
+    /// slow to move the focus, Win+B not taken) is started once more from Win+B; both attempts are in the trace.
     /// </summary>
     private static async Task<bool> FocusTestIconAsync(AppInstance app, bool requireTaskbar, Action<string> trace)
     {
-        Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.KEY_B);
-        await Task.Delay(600);
+        for (int attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return await FocusTestIconOnceAsync(app, requireTaskbar, trace);
+            }
+            catch (Exception ex) when (attempt < 2 && ex is InvalidOperationException or TimeoutException)
+            {
+                trace($"Attempt {attempt} failed ({ex.Message}); again from Win+B.");
+                await NotificationArea.CloseOverflowAsync(app.Automation);
+                await Task.Delay(500);
+            }
+        }
+    }
+
+    /// <summary>
+    /// One attempt of <see cref="FocusTestIconAsync"/>. Win+B gives the focus to the notification area where it was last
+    /// (not always the first button), so the walk starts from the left end.
+    /// </summary>
+    private static async Task<bool> FocusTestIconOnceAsync(AppInstance app, bool requireTaskbar, Action<string> trace)
+    {
+        await EnterNotificationAreaAsync(app, trace);
         await WalkAsync(app, VirtualKeyShort.LEFT, 40, IsChevron, trace);
         if (await WalkAsync(app, VirtualKeyShort.RIGHT, 40, IsTestIcon, trace))
         {
@@ -278,13 +331,14 @@ internal static class TrayMenu
         if (NotificationArea.Overflow(app.Automation) is not null)
         {
             trace("The overflow flyout is open: Enter closes it first.");
-            Keyboard.Type(VirtualKeyShort.RETURN);
+            PressInNotificationArea(app, VirtualKeyShort.RETURN);
             await Wait.UntilAsync(() => NotificationArea.Overflow(app.Automation) is null, TimeSpan.FromSeconds(5), "the overflow flyout to close");
             await Task.Delay(300);
         }
 
-        Keyboard.Type(VirtualKeyShort.RETURN);
+        PressInNotificationArea(app, VirtualKeyShort.RETURN);
         await Wait.UntilAsync(() => NotificationArea.Overflow(app.Automation) is not null, TimeSpan.FromSeconds(5), "the overflow flyout");
+        await Wait.UntilAsync(() => IsTrayButton(Focused(app)), TimeSpan.FromSeconds(3), "the focus in the overflow flyout");
         await Task.Delay(400);
         foreach (VirtualKeyShort key in new[] { VirtualKeyShort.RIGHT, VirtualKeyShort.LEFT, VirtualKeyShort.DOWN, VirtualKeyShort.UP })
         {
@@ -298,8 +352,55 @@ internal static class TrayMenu
     }
 
     /// <summary>
+    /// Win+B until the keyboard focus is on a button of the notification area (up to three presses, 2 s each): the arrow
+    /// keys that follow must never go to another window.
+    /// </summary>
+    private static async Task EnterNotificationAreaAsync(AppInstance app, Action<string> trace)
+    {
+        // An overflow flyout still open (e.g. from a right click on an icon in it) keeps the focus of Win+B inside it.
+        if (NotificationArea.Overflow(app.Automation) is not null)
+        {
+            trace("The overflow flyout is open: closing it before Win+B.");
+            await NotificationArea.CloseOverflowAsync(app.Automation);
+        }
+
+        for (int press = 1; press <= 3; press++)
+        {
+            Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.KEY_B);
+            Stopwatch waited = Stopwatch.StartNew();
+            while (waited.ElapsedMilliseconds < 2000)
+            {
+                await Task.Delay(100);
+                AutomationElement? focused = Focused(app);
+                string foreground = Native.ClassName(Native.GetForegroundWindow());
+                if (IsTrayButton(focused) && foreground != NotificationArea.OverflowClass)
+                {
+                    trace($"Win+B #{press}: focus on {DescribeFocus(focused)} after {waited.ElapsedMilliseconds} ms, foreground class '{foreground}'");
+                    return;
+                }
+
+                if (foreground == NotificationArea.OverflowClass)
+                {
+                    // Found 2026-10-23: after a menu opened from the overflow flyout, the flyout window (even hidden) kept the
+                    // foreground and Win+B put the focus on an icon inside it, so the walk never reached the taskbar.
+                    // Escape goes to Explorer's flyout only (it has the foreground) and hands the focus back; Win+B again.
+                    trace($"Win+B #{press}: the focus is in the overflow flyout ({DescribeFocus(focused)}); Escape.");
+                    Keyboard.Type(VirtualKeyShort.ESCAPE);
+                    await Task.Delay(400);
+                    break;
+                }
+            }
+
+            trace($"Win+B #{press}: the focus did not reach the notification area (focus {DescribeFocus(Focused(app))}, foreground {DescribeWindow(app, Native.GetForegroundWindow())}).");
+        }
+
+        throw new InvalidOperationException("Win+B did not put the keyboard focus into the notification area.");
+    }
+
+    /// <summary>
     /// Presses <paramref name="key"/> until the focused element is <paramref name="wanted"/> (<see langword="true"/>) or the
-    /// focus stops moving or comes back (<see langword="false"/>).
+    /// focus stops moving, comes back or leaves the notification area (<see langword="false"/>). After each press it waits
+    /// for the focus to move (Explorer is sometimes slow, a fixed pause read the old element and ended the walk early).
     /// </summary>
     private static async Task<bool> WalkAsync(AppInstance app, VirtualKeyShort key, int steps, Func<AutomationElement?, bool> wanted, Action<string> trace)
     {
@@ -313,20 +414,76 @@ internal static class TrayMenu
                 return true;
             }
 
-            string id = focused is null ? "(none)" : string.Join(".", focused.Properties.RuntimeId.ValueOrDefault ?? []);
+            string id = IdOf(focused);
             if (i >= steps || !seen.Add(id))
             {
                 return false;
             }
 
-            Keyboard.Type(key);
-            await Task.Delay(250);
+            if (!IsTrayButton(focused))
+            {
+                trace($"The focus left the notification area: no {key}.");
+                return false;
+            }
+
+            PressInNotificationArea(app, key);
+            Stopwatch moving = Stopwatch.StartNew();
+            while (moving.ElapsedMilliseconds < 1000 && IdOf(Focused(app)) == id)
+            {
+                await Task.Delay(50);
+            }
+
+            await Task.Delay(100);
         }
     }
 
-    private static bool IsChevron(AutomationElement? element) => element?.Properties.AutomationId.ValueOrDefault == "SystemTrayIcon"
+    /// <summary>A key for the notification area: only while the focus is on one of its buttons, never into another window.</summary>
+    private static void PressInNotificationArea(AppInstance app, VirtualKeyShort key)
+    {
+        AutomationElement? focused = Focused(app);
+        if (!IsTrayButton(focused))
+        {
+            throw new InvalidOperationException($"Not pressing {key}: the keyboard focus is not in the notification area ({DescribeFocus(focused)}, foreground {DescribeWindow(app, Native.GetForegroundWindow())}).");
+        }
+
+        Keyboard.Type(key);
+    }
+
+    /// <summary>
+    /// Presses <paramref name="key"/> for the app (the open tray menu, its submenu): only while a window of the app is in the
+    /// foreground, so a menu that closed meanwhile fails the test instead of the key going to another program.
+    /// </summary>
+    public static void Press(AppInstance app, VirtualKeyShort key)
+    {
+        nint foreground = Native.GetForegroundWindow();
+        Native.GetWindowThreadProcessId(foreground, out uint process);
+        if (process != (uint)app.Process.Id)
+        {
+            throw new InvalidOperationException($"Not pressing {key}: the app does not have the keyboard (foreground {DescribeWindow(app, foreground)}).");
+        }
+
+        Keyboard.Type(key);
+    }
+
+    /// <summary>A button of the notification area (an application icon or a system button such as "Show hidden icons").</summary>
+    private static bool IsTrayButton(AutomationElement? element) =>
+        Readable(() => element?.Properties.AutomationId.ValueOrDefault is "SystemTrayIcon" or "NotifyItemIcon");
+
+    private static string IdOf(AutomationElement? element)
+    {
+        try
+        {
+            return element is null ? "(none)" : string.Join(".", element.Properties.RuntimeId.ValueOrDefault ?? []);
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or FlaUI.Core.Exceptions.ElementNotAvailableException)
+        {
+            return "(gone)";
+        }
+    }
+
+    private static bool IsChevron(AutomationElement? element) => Readable(() => element?.Properties.AutomationId.ValueOrDefault == "SystemTrayIcon"
         && element.Properties.ClassName.ValueOrDefault != null
-        && IsFirstSystemButton(element);
+        && IsFirstSystemButton(element));
 
     /// <summary>"Show hidden icons" is the system tray button left of every application icon (the others come after them).</summary>
     private static bool IsFirstSystemButton(AutomationElement element)
@@ -348,9 +505,22 @@ internal static class TrayMenu
         }
     }
 
-    private static bool IsTestIcon(AutomationElement? element) =>
+    private static bool IsTestIcon(AutomationElement? element) => Readable(() =>
         element is not null && element.Properties.AutomationId.ValueOrDefault == "NotifyItemIcon"
-        && (element.Properties.Name.ValueOrDefault ?? string.Empty).Contains(NotificationArea.TestToolTipPrefix, StringComparison.Ordinal);
+        && (element.Properties.Name.ValueOrDefault ?? string.Empty).Contains(NotificationArea.TestToolTipPrefix, StringComparison.Ordinal));
+
+    /// <summary>A check of a focused element that may vanish while it is read (Explorer rebuilds its buttons): then false.</summary>
+    private static bool Readable(Func<bool> check)
+    {
+        try
+        {
+            return check();
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or FlaUI.Core.Exceptions.ElementNotAvailableException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>The focused element for the trace: the name only of the test icon and of the system's own buttons.</summary>
     private static string DescribeFocus(AutomationElement? element)
