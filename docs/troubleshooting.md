@@ -66,14 +66,14 @@ Před vložením do veřejného hlášení ho můžete projít.
 ## Přerušený E2E běh vrátil nastavení jen zčásti
 
 *Pro vývojáře.* E2E testy skutečné aplikace (`tools/run-e2e.ps1`, T-044) mohou dočasně měnit nastavení Windows (T-065):
-motiv, Nerušit, testovací ikonu na hlavním panelu, později i měřítko, druhý monitor a toasty (T-066, T-068). Před každou
+motiv, Nerušit, testovací ikonu na hlavním panelu, měřítko monitoru a dočasně vypnutý druhý monitor (T-066), později i toasty (T-068). Varování skriptu vypíše jen ty druhy zásahů, které vybrané testy opravdu udělají. Před každou
 změnou se původní stav zapíše do složky **`%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore`** (jeden soubor `<druh>.json`
 na zásah, s popisem původního stavu a ručním postupem). Záznam se smaže, až když se návrat ověří. Prázdná složka se
 smaže. Vedle ní je během práce se záznamy zámek `PrusaTrayDiagnostic.E2E.Restore.lock`.
 
 Návrat proběhne sám: po testu (i neúspěšném), při startu dalšího běhu, ve `finally` skriptu (i po Ctrl+C) a v hlídacím
 procesu, který počká na konec testovacího procesu (i zabitého) a uklidí po něm. Jeho výpis je v
-`system-changes-watchdog.log` ve složce výsledků (`%TEMP%\PrusaTrayDiagnostic.App.E2E.Results.<id>`).
+`system-changes-watchdog.log` ve složce výsledků (`%TEMP%\PrusaTrayDiagnostic.App.E2E.Results.<id>`). Vypnutý monitor se vrací jako první, teprve potom jeho měřítko.
 
 Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo skript ohlásí „NOT restored“):
 
@@ -87,8 +87,8 @@ Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo 
 | Motiv | Nastavení → Přizpůsobení → Barvy → Zvolit režim (Vlastní: režim Windows / režim aplikací), nebo hodnoty DWORD `SystemUsesLightTheme` a `AppsUseLightTheme` v `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` (chybějící hodnota = světlý). `ColorPrevalence` testy nemění. |
 | Nerušit | Win+N → tlačítko Nerušit (zvonek) nahoře v centru oznámení, nebo Nastavení → Systém → Oznámení → Nerušit. |
 | Testovací ikona na hlavním panelu | Nastavení → Přizpůsobení → Hlavní panel → Další ikony na hlavním panelu (testovací ikonu vypnout), nebo v `HKCU\Control Panel\NotifyIconSettings` u položek testovaného exe vrátit `IsPromoted` na hodnotu ze záznamu (kde chyběla, a u položek vzniklých během běhu, ji smazat). Položky samotné se nemažou (rozhodnutí 2026-10-22). |
-| Měřítko (T-066) | Nastavení → Systém → Obrazovka → Měřítko. |
-| Vypnutý monitor (T-066) | Win+P → Rozšířit. |
+| Měřítko (T-066) | Nastavení → Systém → Obrazovka → vybrat monitor → Měřítko (hodnoty ze záznamu). Potom klíč `HKCU\Control Panel\Desktop\PerMonitorSettings` uvést přesně do stavu ze záznamu (záznam obsahuje jeho export): podklíče a hodnoty, které v exportu nejsou, smazat; `(key missing)` = smazat celý klíč. Systémové DPI se mění jen odhlášením a testy ho nemění. |
+| Vypnutý monitor (T-066) | Win+P → Rozšířit; pak Nastavení → Systém → Obrazovka: uspořádání, rozlišení, orientace a hlavní monitor podle záznamu. Testy konfiguraci do databáze Windows neukládají, takže po restartu počítače se použije uložená konfigurace se všemi monitory. Okna ostatních aplikací vrací Windows (nastavení „Pamatovat umístění oken podle připojení monitoru“), testy je nepřesouvají. |
 | Testovací sonda | Klíč `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests` (jen samotesty infrastruktury) smazat. |
 
 3. Až je vše vrácené, smažte soubory ve složce `%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore` (jinak je další běh

@@ -16,9 +16,22 @@ internal interface ISystemChangeKind
 
     /// <summary>
     /// Whether the kind changes settings of Windows (needs the confirmed warning of <c>tools/run-e2e.ps1</c>); only the
-    /// probes of the infrastructure self-tests, which touch a key of the tests' own, say no.
+    /// probe of the infrastructure self-tests, which touches a key of the tests' own, says no.
     /// </summary>
     bool ChangesSystem { get; }
+
+    /// <summary>
+    /// The value of the trait <see cref="SystemChanges.Trait"/> a test that makes this change carries (one of
+    /// <see cref="SystemChangeTraits"/>; the warning lists the change by it), or <see langword="null"/> for a kind that
+    /// changes nothing of the system. The change is refused unless the warning of the run listed this value.
+    /// </summary>
+    string? Trait { get; }
+
+    /// <summary>
+    /// Order of the restore of pending entries (lower first; entries of the same order by file name): a switched-off
+    /// monitor comes back before the scale of that monitor can be restored.
+    /// </summary>
+    int RestoreOrder { get; }
 
     Task<JsonElement> ReadAsync(string? key, CancellationToken cancellationToken);
 
@@ -37,7 +50,13 @@ internal abstract class SystemChangeKind<TState> : ISystemChangeKind
 {
     private readonly JsonTypeInfo<TState> _typeInfo;
 
-    protected SystemChangeKind(string name, bool changesSystem, JsonTypeInfo<TState> typeInfo)
+    /// <param name="name">Stable name of the kind (journal file name).</param>
+    /// <param name="trait">
+    /// Trait value of the tests that make the change (see <see cref="ISystemChangeKind.Trait"/>); <see langword="null"/>
+    /// only for a kind that changes nothing of the system.
+    /// </param>
+    /// <param name="typeInfo">Source-generated JSON of the state.</param>
+    protected SystemChangeKind(string name, string? trait, JsonTypeInfo<TState> typeInfo)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         if (!name.All(char.IsAsciiLetterOrDigit))
@@ -46,25 +65,29 @@ internal abstract class SystemChangeKind<TState> : ISystemChangeKind
         }
 
         Name = name;
-        ChangesSystem = changesSystem;
+        Trait = trait;
         _typeInfo = typeInfo;
     }
 
     public string Name { get; }
 
-    public bool ChangesSystem { get; }
+    public bool ChangesSystem => Trait is not null;
+
+    public string? Trait { get; }
+
+    public virtual int RestoreOrder => 0;
 
     public abstract Task<TState> ReadStateAsync(string? key, CancellationToken cancellationToken);
 
     /// <summary>
-    /// Applies <paramref name="state"/>. A kind that changes the system refuses without the confirmed warning, whoever
-    /// calls it (the guard of <see cref="SystemChanges"/>).
+    /// Applies <paramref name="state"/>. A kind that changes the system refuses without the confirmed warning that listed
+    /// its <see cref="Trait"/>, whoever calls it (the guard of <see cref="SystemChanges"/>).
     /// </summary>
     public Task ApplyStateAsync(string? key, TState state, CancellationToken cancellationToken)
     {
-        if (ChangesSystem)
+        if (Trait is { } trait)
         {
-            SystemChanges.EnsureConfirmed();
+            SystemChanges.EnsureConfirmed(trait);
         }
 
         return ApplyCoreAsync(key, state, cancellationToken);
@@ -111,9 +134,9 @@ internal sealed class SystemChange<TState> : IAsyncDisposable
 
     private SystemChange(SystemChangeJournal journal, SystemChangeKind<TState> kind, string? key)
     {
-        if (kind.ChangesSystem)
+        if (kind.Trait is { } trait)
         {
-            SystemChanges.EnsureConfirmed();
+            SystemChanges.EnsureConfirmed(trait);
         }
 
         _journal = journal;

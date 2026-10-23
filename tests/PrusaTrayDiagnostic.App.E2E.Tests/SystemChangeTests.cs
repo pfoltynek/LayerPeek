@@ -35,7 +35,7 @@ public sealed class SystemChangeTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, SystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Theme)]
     public async Task ThemeChangeOfAKilledProcessIsRestoredByTheStartCleanup()
     {
         SystemChanges.Require();
@@ -45,7 +45,7 @@ public sealed class SystemChangeTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, SystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Theme)]
     public async Task ThemeChangeOfAKilledProcessIsRestoredByTheWatchdog()
     {
         SystemChanges.Require();
@@ -108,7 +108,7 @@ public sealed class SystemChangeTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, SystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Theme)]
     public async Task ThemeSwitchesTheTaskbarAndIsRestored()
     {
         SystemChanges.Require();
@@ -142,12 +142,12 @@ public sealed class SystemChangeTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, SystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.TrayPromotion)]
     public async Task TestTrayIconIsPromotedOnTheTaskbarAndRestored()
     {
         SystemChanges.Require();
         SystemChange<TrayIconPromotionState> tray = fixture.TrayIconPromotion
-            ?? throw new InvalidOperationException("The run-wide tray icon change is missing although system changes are confirmed.");
+            ?? throw new InvalidOperationException("The run-wide tray icon change is missing although the warning listed TrayPromotion.");
         StringBuilder report = new();
         report.AppendLine(CultureInfo.InvariantCulture, $"Entries of the tested exe at the start of the run: {tray.Original}");
 
@@ -184,7 +184,7 @@ public sealed class SystemChangeTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, SystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
     public async Task DoNotDisturbIsSwitchedAndRestored()
     {
         SystemChanges.Require();
@@ -219,7 +219,7 @@ public sealed class SystemChangeTests(E2EFixture fixture)
     /// cleanup (layer 2, <see cref="SystemChangeJournal.RestorePendingAsync"/>) restores it; with it the watchdog alone
     /// does (layer 4: this test only waits for the entry to go).
     /// </summary>
-    private static async Task KilledChildIsRestoredAsync(ISystemChangeKind kind, bool watchdog)
+    internal static async Task KilledChildIsRestoredAsync(ISystemChangeKind kind, bool watchdog)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         JsonElement original = await kind.ReadAsync(null, cancellationToken);

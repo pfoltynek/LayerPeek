@@ -33,7 +33,7 @@ internal sealed record ThemeState(int? SystemUsesLightTheme, int? AppsUseLightTh
 /// the taskbar) is never changed, only reported, because it changes the taskbar colour.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed partial class ThemeKind() : SystemChangeKind<ThemeState>("Theme", changesSystem: true, SystemChangeJson.Default.ThemeState)
+internal sealed partial class ThemeKind() : SystemChangeKind<ThemeState>("Theme", SystemChangeTraits.Theme, SystemChangeJson.Default.ThemeState)
 {
     public const string SubKey = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
     public const string SystemValue = "SystemUsesLightTheme";

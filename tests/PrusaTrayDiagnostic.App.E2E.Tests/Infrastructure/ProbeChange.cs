@@ -13,7 +13,7 @@ internal sealed record ProbeState(string? Value);
 /// real change, without touching any setting of Windows. The key is removed once it holds nothing.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class ProbeKind(string name, bool changesSystem) : SystemChangeKind<ProbeState>(name, changesSystem, SystemChangeJson.Default.ProbeState)
+internal sealed class ProbeKind(string name, string? trait) : SystemChangeKind<ProbeState>(name, trait, SystemChangeJson.Default.ProbeState)
 {
     public const string SubKey = @"Software\PrusaTrayDiagnostic.E2E.Tests";
 

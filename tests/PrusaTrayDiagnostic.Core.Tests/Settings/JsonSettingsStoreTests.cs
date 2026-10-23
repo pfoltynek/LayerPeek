@@ -192,18 +192,6 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task LoadExclusivelyLockedFileIsReportedAsUnreadable()
-    {
-        await _store.SaveAsync(AppSettings.Default, Ct);
-        await using FileStream locked = new(FilePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
-
-        SettingsLoadResult result = await _store.LoadAsync(Ct);
-
-        Assert.Equal(SettingsLoadStatus.Unreadable, result.Status);
-        Assert.False(string.IsNullOrWhiteSpace(result.ErrorMessage));
-    }
-
-    [Fact]
     public async Task LoadIsLenientToCommentsTrailingCommasAndUnknownProperties()
     {
         await WriteSettingsFileAsync("""

@@ -60,7 +60,7 @@ Ověřit automaticky ruční kontroly T-042 (body 1–7) a T-039 při 100 % na s
 - (Q1 o U+2060 rozhodnuta 2026-10-22, viz Rozhodnuto)
 - (Q2 o písmenu zkratky v hlavním menu rozhodnuta a opravena 2026-10-22, viz Rozhodnuto a poznámky)
 - (Q3 o obrázku v záhlaví Diagnostiky v UI Automation rozhodnuta a opravena 2026-10-22, viz Rozhodnuto a poznámky)
-- **Q4 – zápis zjištěného modelu bez opakování:** `JsonSettingsStore` zapisuje `settings.json` přes `File.Move(..., overwrite: true)`. Když soubor v tu chvíli drží jiný proces bez sdílení mazání (antivir, zálohování, editor – v E2E testu to dělalo obyčejné `File.ReadAllText`), zápis zjištěného modelu selže a v tomto běhu se už nezopakuje (ilustrace modelu se ukáže až po dalším startu). Testy teď čtou soubor se sdílením `ReadWrite | Delete`. Má aplikace zápis zkusit znovu (core-dev)?
+- (Q4 o zápisu zjištěného modelu bez opakování vyřešena 2026-10-22 rozhodnutím uživatele: aplikace opakuje přístup k souborům aplikace, který selhal jen kvůli sdílení – `Core/IO/FileRetry` (5 opakování, celkem asi 1,5 s; `JsonSettingsStore`, stav okna kamery, obrázky tiskáren), commit 9d4b4cc z větve `feature/settings-save-retry`, v `develop` od 872c409 a do této větve sloučeno. E2E testy dál čtou `settings.json` se sdílením `ReadWrite | Delete`.)
 
 ## Poznámky k implementaci
 - **Nové testy** (`tests/PrusaTrayDiagnostic.App.E2E.Tests`, běží jen přes `tools/run-e2e.ps1`):

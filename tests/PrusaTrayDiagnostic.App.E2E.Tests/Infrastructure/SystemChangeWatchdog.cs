@@ -63,7 +63,7 @@ internal static class SystemChangeWatchdog
         return Convert.ToInt32(result["ProcessId"], CultureInfo.InvariantCulture);
     }
 
-    private static string? FindOnPath(string file)
+    internal static string? FindOnPath(string file)
     {
         foreach (string folder in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))
         {

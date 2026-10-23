@@ -221,7 +221,7 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
     /// after the run).
     /// </summary>
     [Fact]
-    [Trait(SystemChanges.Trait, SystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.TrayPromotion)]
     public async Task PromotedTestIconOpensTheMenuFromTheKeyboard()
     {
         SystemChanges.Require();
@@ -231,7 +231,8 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
             "menu-keyboard-taskbar",
             TestSettings.Json("en", [new TestPrinter("e2e-promoted", "MK4 workshop", printer.Address())]),
             Simulators.Secrets("e2e-promoted", printer));
-        SystemChange<TrayIconPromotionState> tray = fixture.TrayIconPromotion ?? throw new InvalidOperationException("The run-wide tray icon change is missing.");
+        SystemChange<TrayIconPromotionState> tray = fixture.TrayIconPromotion
+            ?? throw new InvalidOperationException("The run-wide tray icon change is missing although the warning listed TrayPromotion.");
         await tray.PromoteAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
         await Wait.UntilAsync(() => NotificationArea.TestIconsOnTaskbar(app.Automation).Count > 0, TimeSpan.FromSeconds(15), "the test icon on the taskbar");
         Screenshots.SaveScreenArea(NotificationArea.TestIconsOnTaskbar(app.Automation)[0].BoundingRectangle, 8, "menu-keyboard-taskbar-1-button");
