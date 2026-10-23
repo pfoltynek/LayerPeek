@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing;
 using System.Globalization;
 using System.Text;
@@ -32,6 +33,9 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
     private const int Scaled = 150;
 
     private static readonly TimeSpan TaskbarTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long the taskbar may animate a new button (and the buttons after a scale change) into place.</summary>
+    private static readonly TimeSpan TaskbarIconTimeout = TimeSpan.FromSeconds(10);
 
     /// <summary>The app polls every 5 s (<see cref="TestSettings"/>); a state switch shows within two polls.</summary>
     private static readonly TimeSpan StateTimeout = TimeSpan.FromSeconds(20);
@@ -118,21 +122,29 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
             await app.OpenAsync("settings", AppWindowKind.Settings);
 
             AutomationElement button = await TaskbarJumpList.WaitForButtonAsync(app.Automation);
-            // The taskbar slides a new button in.
-            Rectangle bounds = await Wait.StableAsync(() => button.BoundingRectangle, TimeSpan.FromSeconds(10), "the taskbar button to settle");
-            Pixels capture = ScreenArea.Capture(bounds);
-            capture.Save($"icons-taskbar-button-{percent}");
-
-            // The taskbar shows 24 × scale px (T-025) of the primary monitor, where the taskbar is.
+            // The taskbar shows 24 × scale px (T-025) of the primary monitor, where the taskbar is. After a scale change at
+            // run time, Explorer keeps drawing the icons for its own system DPI (that of its start, Windows): both slots count.
             int slot = (int)Math.Round(24 * percent / 100.0);
-            List<(string Candidate, IconMatch Match)> matches = MatchAppIcon(capture, new Rectangle(0, 0, capture.Width, capture.Height), slot);
-            report.AppendLine(CultureInfo.InvariantCulture, $"Button {bounds}, icon slot {slot} px:");
-            foreach ((string candidate, IconMatch match) in matches)
+            uint explorerDpi = DisplayConfig.SystemDpiOf(TaskbarProcessId());
+            int explorerSlot = (int)Math.Round(24 * explorerDpi / 96.0);
+            int[] slots = slot == explorerSlot ? [slot] : [slot, explorerSlot];
+            TaskbarButtonCapture shown = await CaptureTaskbarButtonAsync(app, button, slots);
+            shown.Capture?.Save($"icons-taskbar-button-{percent}");
+            report.AppendLine(CultureInfo.InvariantCulture, $"Button {shown.Bounds}, icon slot {slot} px (Explorer's system DPI {explorerDpi}: {explorerSlot} px), {shown.Attempts} capture(s) in {shown.Elapsed.TotalSeconds:0.0} s:");
+            Assert.True(shown.Capture is not null, $"The taskbar button of the test app at {percent} % is not where UI Automation puts it ({shown.Bounds}); nothing was captured (taskbar hidden, overflowing or covered).");
+            foreach ((string candidate, IconMatch match) in shown.Matches)
             {
                 report.AppendLine(CultureInfo.InvariantCulture, $"  {candidate}: {match}");
             }
 
-            Assert.True(matches[0].Match.IsMatch, $"The taskbar button at {percent} % does not show the app icon (best: {matches[0].Candidate}, {matches[0].Match}).");
+            Assert.True(shown.Matches[0].Match.IsMatch, $"The taskbar button at {percent} % does not show the app icon (best: {shown.Matches[0].Candidate}, {shown.Matches[0].Match}).");
+            if (explorerSlot != slot)
+            {
+                string note = $"Explorer was started at {explorerDpi} DPI, so the taskbar draws the icons in {explorerSlot} px, not in the {slot} px of {percent} %; "
+                    + $"the {slot} px icon on the taskbar shows only after signing in at {percent} % (recommended manual check, T-065 Remains manual 1).";
+                report.AppendLine(note);
+                TestContext.Current.SendDiagnosticMessage(note);
+            }
         }
         finally
         {
@@ -228,8 +240,12 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
             int startSize = TrayIconSize(primary.Percent);
             if (scaleChangedAtRunTime)
             {
-                // Only for the report: what the taskbar shows right after the change, before the icon changes.
-                await SaveTrayIconAsync(app, $"icons-tray-{percent}-right-after-the-scale-change");
+                // Only for the report (Q2): the idle icon right after the change, before the state changes; whether the app
+                // renders it again for the new scale by itself. Captured once the taskbar shows it (it animates the icons
+                // into their new places, over the neighbouring ones).
+                TrayIconResult afterChange = await WaitForTrayIconAsync(app, States.Single(static state => state.Scenario == PrinterScenario.Idle), size, startSize);
+                afterChange.Capture?.Save($"icons-tray-{percent}-right-after-the-scale-change");
+                report.AppendLine(CultureInfo.InvariantCulture, $"Right after the scale change, idle: {afterChange}");
             }
 
             double? lightBrightness = null;
@@ -311,8 +327,10 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
                 ?? throw new InvalidOperationException("The tray menu has no item.");
             Assert.True(Native.GetWindowRect(hwnd, out Native.Rect window));
             uint menuDpi = Native.GetDpiForWindow(hwnd);
-            uint systemDpi = DisplayConfig.SystemDpi();
-            report.AppendLine(CultureInfo.InvariantCulture, $"Menu DPI {menuDpi}, system DPI {systemDpi} (fixed at sign-in), item {item.BoundingRectangle}");
+            // The app sizes the menu bitmaps by its own system DPI (T-039): that of the primary monitor when it started, so an
+            // app started after the scale change has the new one, unlike this test runner (GetSystemDpiForProcess).
+            uint systemDpi = DisplayConfig.SystemDpiOf(app.Process.Id);
+            report.AppendLine(CultureInfo.InvariantCulture, $"Menu DPI {menuDpi}, system DPI of the app {systemDpi} (fixed at its start; of this test runner {DisplayConfig.SystemDpi()}), item {item.BoundingRectangle}");
             Assert.True(menuDpi == DisplayScaleSteps.ExpectedDpi(Scaled), $"The tray menu opened at {menuDpi} DPI, not on the primary monitor at {Scaled} %.");
 
             using Bitmap bitmap = Screenshots.Capture(hwnd);
@@ -325,7 +343,7 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
 
             // The bitmap has the pixels of 16 DIP at the system scale (T-039), drawn in 16 DIP of the menu's monitor.
             int bitmapSize = IllustrationSizes.First(size => size >= MenuIconDip * systemDpi / 96.0);
-            bool sessionAtThisScale = systemDpi == menuDpi;
+            bool appAtThisScale = systemDpi == menuDpi;
             Color background = IconPixels.Median(capture, row);
             List<(string Candidate, IconMatch Match, IconMatch Stretched16)> matches = [];
             foreach (string id in new[] { "core-one", "generic" })
@@ -344,16 +362,16 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
 
             (string best, IconMatch bestMatch, IconMatch bestStretched) = matches[0];
             Assert.True(bestMatch.IsMatch, $"No printer illustration in the tray menu at {Scaled} % (best: {best}, {bestMatch}).");
-            if (sessionAtThisScale)
+            if (appAtThisScale)
             {
-                // Signed in at 150 %: the 24 px illustration, sharp (not the 16 px one stretched).
+                // The app started at 150 % (as after signing in at 150 %): the 24 px illustration, sharp (not the 16 px one stretched).
                 Assert.True(bestMatch.Difference < bestStretched.Difference, $"The illustration in the tray menu is not sharp: {best} {bestMatch}, 16 px stretched {bestStretched}.");
-                report.AppendLine(CultureInfo.InvariantCulture, $"Sharp {shown} px illustration verified (session signed in at {Scaled} %).");
+                report.AppendLine(CultureInfo.InvariantCulture, $"Sharp {shown} px illustration verified (the app's system DPI is that of the menu).");
             }
             else
             {
-                string note = $"Only the presence of the illustration is verified: the system DPI of this session is {systemDpi}, so the menu bitmap has {bitmapSize} px; "
-                    + $"its sharpness at {Scaled} % can be verified only after signing in at {Scaled} % (recommended manual check, T-065 Remains manual 1).";
+                string note = $"Only the presence of the illustration is verified: the system DPI of the app is {systemDpi}, so the menu bitmap has {bitmapSize} px; "
+                    + $"its sharpness at {Scaled} % can be verified only for an app started at {Scaled} % (recommended manual check, T-065 Remains manual 1).";
                 report.AppendLine(note);
                 TestContext.Current.SendDiagnosticMessage(note);
             }
@@ -375,7 +393,7 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
         if (primary.Percent != percent)
         {
             uint dpi = await scale.SetPercentAsync(primary.DevicePath, percent, cancellationToken);
-            report.AppendLine(CultureInfo.InvariantCulture, $"{primary.Name}: {primary.Percent} % -> {percent} % at run time (monitorDpi {dpi}; the system DPI stays {DisplayConfig.SystemDpi()})");
+            report.AppendLine(CultureInfo.InvariantCulture, $"{primary.Name}: {primary.Percent} % -> {percent} % at run time (monitorDpi {dpi}; the system DPI of this test runner and of Explorer stays {DisplayConfig.SystemDpi()}, apps started from now on get {dpi})");
             // Explorer lays the taskbar out again.
             await Wait.StableAsync(TaskbarBounds, TimeSpan.FromSeconds(10), "the taskbar after the scale change");
         }
@@ -385,10 +403,60 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
         }
     }
 
+    /// <summary>The process of the taskbar (Explorer).</summary>
+    private static int TaskbarProcessId()
+    {
+        nint taskbar = Native.FindWindow(NotificationArea.TaskbarClassName, null);
+        return taskbar != 0 && Native.GetWindowThreadProcessId(taskbar, out uint process) != 0
+            ? (int)process
+            : throw new InvalidOperationException($"No taskbar ({NotificationArea.TaskbarClassName}).");
+    }
+
     private static Rectangle TaskbarBounds()
     {
         nint taskbar = Native.FindWindow(NotificationArea.TaskbarClassName, null);
         return taskbar != 0 && Native.GetWindowRect(taskbar, out Native.Rect rect) ? Rectangle.FromLTRB(rect.Left, rect.Top, rect.Right, rect.Bottom) : Rectangle.Empty;
+    }
+
+    /// <summary>
+    /// Captures the test app's taskbar button until it shows the app icon in one of the <paramref name="slots"/> (px), or gives the
+    /// last capture after <see cref="TaskbarIconTimeout"/>. UI Automation reports the final place of a new button (and of
+    /// every button after a scale change) while the taskbar still animates them there, so one capture may show a
+    /// neighbouring button. Nothing is captured while the screen at the button is not the test app's button.
+    /// </summary>
+    private static async Task<TaskbarButtonCapture> CaptureTaskbarButtonAsync(AppInstance app, AutomationElement button, int[] slots)
+    {
+        Stopwatch clock = Stopwatch.StartNew();
+        TaskbarButtonCapture last = new(Rectangle.Empty, null, [], 0, TimeSpan.Zero);
+        int attempts = 0;
+        try
+        {
+            await Wait.UntilAsync(
+                () =>
+                {
+                    Rectangle bounds = button.BoundingRectangle;
+                    Point center = new(bounds.Left + (bounds.Width / 2), bounds.Top + (bounds.Height / 2));
+                    if (bounds.IsEmpty || !TaskbarJumpList.IsTestButtonAt(app.Automation, center))
+                    {
+                        last = last with { Bounds = bounds };
+                        return false;
+                    }
+
+                    Pixels capture = ScreenArea.Capture(bounds);
+                    Rectangle all = new(0, 0, capture.Width, capture.Height);
+                    List<(string Candidate, IconMatch Match)> matches = [.. slots.SelectMany(slot => MatchAppIcon(capture, all, slot)).OrderBy(static c => c.Match.Difference)];
+                    last = new TaskbarButtonCapture(bounds, capture, matches, ++attempts, clock.Elapsed);
+                    return matches[0].Match.IsMatch;
+                },
+                TaskbarIconTimeout,
+                "the app icon on the taskbar button");
+        }
+        catch (TimeoutException)
+        {
+            // The caller reports the last capture and why it does not fit.
+        }
+
+        return last;
     }
 
     /// <summary>
@@ -518,15 +586,6 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
         return best;
     }
 
-    private static async Task SaveTrayIconAsync(AppInstance app, string name)
-    {
-        await Task.Delay(TimeSpan.FromSeconds(1));
-        foreach (AutomationElement icon in NotificationArea.TestIconsOnTaskbar(app.Automation))
-        {
-            ScreenArea.Capture(icon.BoundingRectangle).Save(name);
-        }
-    }
-
     private static Pixels TrayIconSnapshot(string state, int size) =>
         Pixels.Load(Path.Combine(TestWorktree.Root, "tests", "PrusaTrayDiagnostic.App.UiTests", "Snapshots", "TrayIcons", $"{state}-{size}.png"));
 
@@ -535,6 +594,9 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
 
     /// <summary>A tray state of T-070: the scenario of the simulated printer and the name of its tray icon snapshot (T-025).</summary>
     private sealed record TrayState(PrinterScenario Scenario, string Snapshot, bool HasBadge);
+
+    /// <summary>The last capture of the taskbar button (<see langword="null"/> when it never was the test app's) and the app icon candidates in it, best first.</summary>
+    private sealed record TaskbarButtonCapture(Rectangle Bounds, Pixels? Capture, List<(string Candidate, IconMatch Match)> Matches, int Attempts, TimeSpan Elapsed);
 
     /// <summary>One capture of the tray icon with its checks.</summary>
     private sealed record TrayIconResult(Pixels? Capture, Rectangle Bounds, Color Background, TraySizeCheck Size, TrayVisibility? Visibility, bool CursorOnIcon)

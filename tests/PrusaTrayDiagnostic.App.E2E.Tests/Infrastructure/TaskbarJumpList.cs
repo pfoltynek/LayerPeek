@@ -96,7 +96,8 @@ internal static class TaskbarJumpList
         }
     }
 
-    private static bool IsTestButtonAt(AutomationBase automation, Point point)
+    /// <summary>Whether the screen at <paramref name="point"/> is the test app's taskbar button (not a stale rectangle, another button or a window over the taskbar).</summary>
+    internal static bool IsTestButtonAt(AutomationBase automation, Point point)
     {
         nint taskbar = Native.FindWindow(NotificationArea.TaskbarClassName, null);
         if (taskbar == 0 || Native.TopLevelWindowAt(point) != taskbar)

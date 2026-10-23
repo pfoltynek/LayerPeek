@@ -200,29 +200,10 @@ internal static class IconPixels
     /// Mean colour difference (0..1) between the capture at <paramref name="at"/> and the reference composed over
     /// <paramref name="background"/>, over the reference's own pixels (alpha at least <see cref="CoverageAlpha"/>).
     /// </summary>
-    public static double DifferenceAt(Pixels capture, Point at, Pixels reference, Color background)
-    {
-        double sum = 0;
-        int counted = 0;
-        for (int y = 0; y < reference.Height; y++)
-        {
-            for (int x = 0; x < reference.Width; x++)
-            {
-                Color top = reference[x, y];
-                if (top.A < CoverageAlpha)
-                {
-                    continue;
-                }
-
-                Color expected = Compose(top, background);
-                Color actual = capture[at.X + x, at.Y + y];
-                sum += (Math.Abs(actual.R - expected.R) + Math.Abs(actual.G - expected.G) + Math.Abs(actual.B - expected.B)) / (3 * 255.0);
-                counted++;
-            }
-        }
-
-        return counted == 0 ? 1 : sum / counted;
-    }
+    public static double DifferenceAt(Pixels capture, Point at, Pixels reference, Color background) =>
+        new Rectangle(0, 0, capture.Width, capture.Height).Contains(new Rectangle(at, new Size(reference.Width, reference.Height)))
+            ? new ComposedIcon(reference, background, capture.Width).DifferenceAt(capture, at.X, at.Y)
+            : throw new ArgumentOutOfRangeException(nameof(at), at, "The reference placed there reaches beyond the capture.");
 
     /// <summary>
     /// Mean colour difference (0..1) of two icons of the same size, both composed over mid grey: alpha counts too, and the
@@ -252,11 +233,13 @@ internal static class IconPixels
     {
         area.Intersect(new Rectangle(0, 0, capture.Width, capture.Height));
         IconMatch best = IconMatch.None;
+        // Composed once, not at every one of the up to thousands of places tried.
+        ComposedIcon icon = new(reference, background, capture.Width);
         for (int top = area.Top; top + reference.Height <= area.Bottom; top++)
         {
             for (int left = area.Left; left + reference.Width <= area.Right; left++)
             {
-                double difference = DifferenceAt(capture, new Point(left, top), reference, background);
+                double difference = icon.DifferenceAt(capture, left, top);
                 if (!best.Found || difference < best.Difference)
                 {
                     best = new IconMatch(new Point(left, top), difference);
@@ -433,6 +416,60 @@ internal static class IconPixels
         return straight;
 
         static int Straight(int channel, int alpha) => Math.Min(255, ((channel * 255) + (alpha / 2)) / alpha);
+    }
+
+    /// <summary>
+    /// The pixels of a reference that count in a comparison (alpha at least <see cref="CoverageAlpha"/>), composed over the
+    /// background, with their offsets in a capture of a given width: a comparison at a place is then one pass over arrays.
+    /// </summary>
+    private sealed class ComposedIcon
+    {
+        private readonly int[] _offsets;
+        private readonly int[] _rgb;
+
+        public ComposedIcon(Pixels reference, Color background, int captureWidth)
+        {
+            List<int> offsets = [];
+            List<int> rgb = [];
+            for (int y = 0; y < reference.Height; y++)
+            {
+                for (int x = 0; x < reference.Width; x++)
+                {
+                    Color top = reference[x, y];
+                    if (top.A >= CoverageAlpha)
+                    {
+                        offsets.Add((y * captureWidth) + x);
+                        rgb.Add(Compose(top, background).ToArgb() & 0xFF_FFFF);
+                    }
+                }
+            }
+
+            _offsets = [.. offsets];
+            _rgb = [.. rgb];
+        }
+
+        /// <summary>Mean colour difference (0..1) with the reference's top left corner at <paramref name="left"/>, <paramref name="top"/>; 1 without counted pixels.</summary>
+        public double DifferenceAt(Pixels capture, int left, int top)
+        {
+            if (_offsets.Length == 0)
+            {
+                return 1;
+            }
+
+            int[] argb = capture.Argb;
+            int origin = (top * capture.Width) + left;
+            long sum = 0;
+            for (int i = 0; i < _offsets.Length; i++)
+            {
+                int actual = argb[origin + _offsets[i]];
+                int expected = _rgb[i];
+                sum += Math.Abs(((actual >> 16) & 0xFF) - ((expected >> 16) & 0xFF))
+                    + Math.Abs(((actual >> 8) & 0xFF) - ((expected >> 8) & 0xFF))
+                    + Math.Abs((actual & 0xFF) - (expected & 0xFF));
+            }
+
+            return sum / (3 * 255.0 * _offsets.Length);
+        }
     }
 }
 

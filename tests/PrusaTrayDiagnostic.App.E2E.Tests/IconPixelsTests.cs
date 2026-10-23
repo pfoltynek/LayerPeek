@@ -52,6 +52,37 @@ public sealed class IconPixelsTests
     }
 
     [Fact]
+    public void DifferenceCountsOnlyTheIconsOwnPixelsComposedOverTheBackground()
+    {
+        // A 2×1 reference: one opaque red pixel and one nearly transparent pixel that does not count.
+        Pixels reference = new(2, 1);
+        reference[0, 0] = Color.FromArgb(255, 255, 0, 0);
+        reference[1, 0] = Color.FromArgb(IconPixels.CoverageAlpha - 1, 0, 0, 255);
+        Pixels capture = Capture(null, Color.Black, 4, 3, default);
+        capture[2, 1] = Color.FromArgb(255, 204, 0, 0);
+        capture[3, 1] = Color.White;
+
+        // Only the red pixel counts: |204 - 255| / (3 × 255) = 1/15.
+        Assert.Equal(1 / 15.0, IconPixels.DifferenceAt(capture, new Point(2, 1), reference, Color.Black), 6);
+        IconMatch best = IconPixels.FindBest(capture, new Rectangle(0, 0, 4, 3), reference, Color.Black);
+        Assert.Equal(new Point(2, 1), best.Location);
+        Assert.Equal(1 / 15.0, best.Difference, 6);
+    }
+
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(0, -1)]
+    [InlineData(3, 0)]
+    [InlineData(0, 3)]
+    public void DifferenceAtAPlaceBeyondTheCaptureIsRefused(int x, int y)
+    {
+        Pixels reference = new(2, 1);
+        Pixels capture = Capture(null, Color.Black, 4, 3, default);
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => IconPixels.DifferenceAt(capture, new Point(x, y), reference, Color.Black));
+    }
+
+    [Fact]
     public void SearchAreaSmallerThanTheIconFindsNothing()
     {
         Pixels icon = TrayIcon("idle", 24);
