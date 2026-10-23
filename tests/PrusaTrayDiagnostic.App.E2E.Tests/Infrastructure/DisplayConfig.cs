@@ -51,6 +51,9 @@ internal static unsafe partial class DisplayConfig
     /// <summary>MDT_EFFECTIVE_DPI of <c>GetDpiForMonitor</c>.</summary>
     private const int MdtEffectiveDpi = 0;
 
+    /// <summary>PROCESS_QUERY_LIMITED_INFORMATION: enough for <c>GetSystemDpiForProcess</c>, also on Explorer.</summary>
+    private const uint ProcessQueryLimitedInformation = 0x1000;
+
     [StructLayout(LayoutKind.Sequential)]
     public struct Luid : IEquatable<Luid>
     {
@@ -347,8 +350,34 @@ internal static unsafe partial class DisplayConfig
         return null;
     }
 
-    /// <summary>The system DPI (<c>GetDpiForSystem</c>): the DPI of the primary monitor at sign-in, unchanged until sign-out.</summary>
+    /// <summary>
+    /// The system DPI of this process (<c>GetDpiForSystem</c>): the DPI of the primary monitor when the process started (at
+    /// sign-in for Explorer and everything started before a scale change), unchanged while the process runs.
+    /// </summary>
     public static uint SystemDpi() => GetDpiForSystem();
+
+    /// <summary>
+    /// The system DPI of another process (<c>GetSystemDpiForProcess</c>): a process started after a scale change at run time
+    /// has the new DPI of the primary monitor, while the test runner and Explorer keep the one of their start (T-070).
+    /// </summary>
+    public static uint SystemDpiOf(int processId)
+    {
+        nint process = OpenProcess(ProcessQueryLimitedInformation, inheritHandle: false, (uint)processId);
+        if (process == 0)
+        {
+            throw new InvalidOperationException($"OpenProcess failed for process {processId} (error {Marshal.GetLastPInvokeError()}).");
+        }
+
+        try
+        {
+            uint dpi = GetSystemDpiForProcess(process);
+            return dpi != 0 ? dpi : throw new InvalidOperationException($"GetSystemDpiForProcess failed for process {processId}.");
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
 
     /// <summary>Windows version with build and revision (for the results), e.g. "10.0.26300.1234 (25H2)".</summary>
     public static string WindowsBuild()
@@ -441,4 +470,14 @@ internal static unsafe partial class DisplayConfig
 
     [LibraryImport("user32.dll")]
     private static partial uint GetDpiForSystem();
+
+    [LibraryImport("user32.dll")]
+    private static partial uint GetSystemDpiForProcess(nint process);
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial nint OpenProcess(uint access, [MarshalAs(UnmanagedType.Bool)] bool inheritHandle, uint processId);
+
+    [LibraryImport("kernel32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool CloseHandle(nint handle);
 }
