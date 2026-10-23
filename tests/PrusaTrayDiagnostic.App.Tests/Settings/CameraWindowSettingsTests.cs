@@ -393,7 +393,10 @@ public sealed class CameraWindowSettingsTests : IDisposable
             ],
             printer.MonitorOptions.Select(static option => option.Text));
         Assert.All(printer.MonitorOptions, static option => Assert.True(option.IsConnected));
-        Assert.Equal(new CameraMonitorId("DELL U2719D", 1440, 2560, DellPathB), printer.MonitorOptions[3].Value);
+        // T-071 Q5: each choice remembers the other connected monitors with its name (any resolution).
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 1440, 2560, DellPathB, [DellPathA]), printer.MonitorOptions[3].Value);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathA, [DellPathB]), printer.MonitorOptions[2].Value);
+        Assert.Equal(new CameraMonitorId("LG HDR 4K", 1920, 1080), printer.MonitorOptions[1].Value);
     }
 
     [Fact]
@@ -439,7 +442,7 @@ public sealed class CameraWindowSettingsTests : IDisposable
         vm.Printers[0].SelectedMonitor = vm.Printers[0].MonitorOptions[2];
         AppSettings saved = await SaveAsync(vm);
         CameraMonitorId stored = saved.Printers[0].Camera.Window.Monitor!;
-        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathB), stored);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathB, [DellPathA]), stored);
         vm.Dispose();
 
         PrinterEditorViewModel reopened = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = stored }), TwoIdenticalDells());
@@ -462,6 +465,61 @@ public sealed class CameraWindowSettingsTests : IDisposable
         Assert.False(printer.SelectedMonitor.IsConnected);
         Assert.Equal("DELL U2719D (2560 × 1440) – not connected", printer.SelectedMonitor.Text);
         Assert.Equal([DellPathA, DellPathB], printer.MonitorOptions.Skip(1).Take(2).Select(static option => option.Value!.DevicePath));
+    }
+
+    [Fact]
+    public async Task ChosenMonitorIsSavedWithThePathsOfItsConnectedTwins()
+    {
+        // T-071 Q5 (2026-10-23, option a): switched off later, the chosen monitor is not taken for its twin.
+        SettingsViewModel vm = await LoadAsync(ThreeMonitors(), Printer("a", "Alpha", Camera()));
+        vm.Printers[0].SelectedMonitor = vm.Printers[0].MonitorOptions[2];
+
+        AppSettings saved = await SaveAsync(vm);
+
+        CameraMonitorId stored = saved.Printers[0].Camera.Window.Monitor!;
+        Assert.Equal(DellPathA, stored.DevicePath);
+        Assert.Equal([DellPathB], stored.KnownTwinPaths);
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [Screen("DELL U2719D", 2560, 0, 1440, 2560, primary: true, devicePath: DellPathB)]));
+    }
+
+    [Fact]
+    public async Task ChosenMonitorWithoutTwinsIsSavedWithoutTwinPaths()
+    {
+        SettingsViewModel vm = await LoadAsync(ThreeMonitors(), Printer("a", "Alpha", Camera()));
+        vm.Printers[0].SelectedMonitor = vm.Printers[0].MonitorOptions[1];
+
+        AppSettings saved = await SaveAsync(vm);
+
+        Assert.Empty(saved.Printers[0].Camera.Window.Monitor!.KnownTwinPaths);
+    }
+
+    [Fact]
+    public async Task SavedMonitorOnAnotherConnectorIsConnectedAndKeptUnchanged()
+    {
+        // T-071 Q5: the saved path is gone, the only monitor with the same name and resolution is no known twin.
+        CameraMonitorId stored = new("DELL U2719D", 1440, 2560, DellPathB.Replace("UID160002", "UID160009", StringComparison.Ordinal), ["twin-path"]);
+
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = stored }), ThreeMonitors());
+
+        Assert.Equal(4, printer.MonitorOptions.Count);
+        Assert.Same(printer.MonitorOptions[3], printer.SelectedMonitor);
+        Assert.True(printer.SelectedMonitor.IsConnected);
+        // The settings window does not change the saved value (the camera window updates the path, see CameraMonitorPathUpdater).
+        Assert.Equal(stored, printer.SelectedMonitor.Value);
+    }
+
+    [Fact]
+    public async Task SwitchedOffMonitorWithAKnownTwinIsNotConnected()
+    {
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, DellPathB, [DellPathA]);
+        FakeScreenCatalog onlyTwin = new(Screen("DELL U2719D", 0, 0, 2560, 1440, primary: true, devicePath: DellPathA));
+
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = stored }), onlyTwin);
+
+        Assert.Equal(3, printer.MonitorOptions.Count);
+        Assert.Same(printer.MonitorOptions[2], printer.SelectedMonitor);
+        Assert.False(printer.SelectedMonitor.IsConnected);
+        Assert.Equal("DELL U2719D (2560\u00A0×\u00A01440) – not connected", printer.SelectedMonitor.Text);
     }
 
     [Fact]

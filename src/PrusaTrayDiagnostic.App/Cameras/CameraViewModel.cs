@@ -84,6 +84,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private readonly IUiDispatcher _dispatcher;
     private readonly ICameraWindowStateStore _stateStore;
     private readonly ILogger<CameraViewModel> _logger;
+    private readonly ICameraMonitorPathUpdater? _monitorPaths;
     private readonly TimeProvider _timeProvider;
     private readonly TimeSpan _retryDelay;
     private readonly Action _retry;
@@ -148,7 +149,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         ICameraWindowStateStore stateStore,
         TimeProvider timeProvider,
         CameraFeedOptions options,
-        ILogger<CameraViewModel> logger)
+        ILogger<CameraViewModel> logger,
+        ICameraMonitorPathUpdater? monitorPaths = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -171,6 +173,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _retryDelay = options.ReconnectDelay;
         _retry = Retry;
         _logger = logger;
+        _monitorPaths = monitorPaths;
         _presentFrame = PresentFrame;
         _applyPrintContent = ApplyPrintContent;
         _applyPrinters = ApplyPrinters;
@@ -319,6 +322,22 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     /// <summary>How the window opens (T-035); follows saved settings, which apply to the next placement from defaults.</summary>
     internal CameraWindowDefaults Defaults => _defaults;
+
+    /// <summary>
+    /// The window read the monitors to open on (UI thread, once per opening): a saved monitor found unambiguously at another
+    /// device path (another connector, older settings without a path) gets that path saved in the background (user decision
+    /// 2026-10-23, <see cref="CameraWindowDefaultPlacement.Relocate"/>). The window is placed the same either way.
+    /// </summary>
+    internal void OnScreensRead(IReadOnlyList<CameraScreen> screens)
+    {
+        ArgumentNullException.ThrowIfNull(screens);
+        if (_monitorPaths is { } monitorPaths
+            && _defaults.Monitor is { } saved
+            && CameraWindowDefaultPlacement.Relocate(saved, screens) is { } updated)
+        {
+            monitorPaths.Request(PrinterId, saved, updated);
+        }
+    }
 
     /// <summary>
     /// F11: into full screen from the normal window or the mini preview; out of full screen back to the mode it was entered

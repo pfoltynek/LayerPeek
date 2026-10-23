@@ -35,6 +35,8 @@ First public preview. Windows x64 only, PrusaLink only, builds are not code-sign
 - Settings, camera window positions and printer images are saved even when another program (antivirus, backup)
   briefly holds the file. A detected printer model that still can't be saved is tried again every minute, up to five
   times.
+- The monitor chosen for the camera window is found again after it is plugged into another connector, and its new
+  connector is remembered. A switched-off monitor is still not confused with an identical one next to it.
 
 [Unreleased]: https://github.com/pfoltynek/PrusaTrayDiagnostic/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/pfoltynek/PrusaTrayDiagnostic/releases/tag/v0.1.0

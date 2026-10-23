@@ -167,6 +167,13 @@ internal sealed class CameraMonitorDocument
     /// <summary>Path of the physical monitor (Windows, T-035 Q8); missing in older files and on other platforms.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? DevicePath { get; set; }
+
+    /// <summary>
+    /// Device paths of the other monitors with the same name when it was chosen (T-071 Q5); missing in older files and when
+    /// there are none.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public List<string?>? KnownTwinPaths { get; set; }
 }
 
 internal sealed class CameraWindowLayoutDocument

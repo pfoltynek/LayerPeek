@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.IO;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings.Storage;
@@ -165,6 +166,43 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
             }
 
             await WriteAtomicallyAsync(updated, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<bool> SetCameraMonitorAsync(string printerId, CameraMonitorId expected, CameraMonitorId updated, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(updated);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            SettingsLoadResult loaded = await LoadCoreAsync(cancellationToken).ConfigureAwait(false);
+            if (loaded.Status == SettingsLoadStatus.Unreadable)
+            {
+                // Also a file still held by another process after the retries: "nothing written" would hide the failure.
+                throw new IOException(loaded.ErrorMessage ?? "The settings file could not be read.");
+            }
+
+            // Only a file that loads cleanly is saved again: a save drops what the loader skipped or corrected, which is the
+            // user's call in the settings window, not a background update's.
+            if (loaded.Status != SettingsLoadStatus.Loaded || loaded.Warnings.Count > 0)
+            {
+                return false;
+            }
+
+            AppSettings changed = loaded.Settings.WithCameraMonitor(printerId, expected, updated);
+            if (ReferenceEquals(changed, loaded.Settings))
+            {
+                return false;
+            }
+
+            await SaveCoreAsync(SettingsMapper.ToDocument(changed), cancellationToken).ConfigureAwait(false);
             return true;
         }
         finally

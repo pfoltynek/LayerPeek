@@ -207,3 +207,29 @@ internal static class Waiting
         }
     }
 }
+
+/// <summary>Records the requested camera monitor path updates (user decision 2026-10-23) instead of saving them.</summary>
+internal sealed class RecordingMonitorPathUpdater : ICameraMonitorPathUpdater
+{
+    private readonly Lock _gate = new();
+    private readonly List<(string PrinterId, CameraMonitorId Saved, CameraMonitorId Updated)> _requests = [];
+
+    public IReadOnlyList<(string PrinterId, CameraMonitorId Saved, CameraMonitorId Updated)> Requests
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _requests];
+            }
+        }
+    }
+
+    public void Request(string printerId, CameraMonitorId saved, CameraMonitorId updated)
+    {
+        lock (_gate)
+        {
+            _requests.Add((printerId, saved, updated));
+        }
+    }
+}

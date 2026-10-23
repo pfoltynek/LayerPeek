@@ -68,4 +68,21 @@ public interface ISettingsStore
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, string expectedAddress, ConnectionType expectedConnectionType, CancellationToken cancellationToken) =>
         Task.FromResult(false);
+
+    /// <summary>
+    /// Sets the camera window monitor of printer <paramref name="printerId"/> (case-insensitive) to <paramref name="updated"/>
+    /// while the stored one still is <paramref name="expected"/> (user decision 2026-10-23: a monitor found on another
+    /// connector keeps its new device path; see <see cref="Cameras.CameraWindowDefaultPlacement.Relocate"/>). Written by the
+    /// normal atomic save, only when the stored settings load without warnings (a save would drop what the loader skipped
+    /// or corrected); a missing or invalid file, another printer or another monitor is left alone.
+    /// </summary>
+    /// <returns><see langword="true"/> when the file was written.</returns>
+    /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
+    /// <exception cref="IOException">
+    /// The settings could not be read or written, also when another process still held the file after the retries.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    Task<bool> SetCameraMonitorAsync(string printerId, Cameras.CameraMonitorId expected, Cameras.CameraMonitorId updated, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }

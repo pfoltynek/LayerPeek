@@ -88,15 +88,18 @@ public sealed record CameraWindowDefaults
     /// Whether saving <paramref name="updated"/> over <paramref name="saved"/> must forget the remembered state of the
     /// camera window of that printer (T-035 decision: changed defaults clear it, so that they take effect). Counts the
     /// start mode, the monitor and both layouts; a change of <see cref="RememberLastPlacement"/>, <see cref="TopmostNormal"/> or
-    /// <see cref="TopmostMini"/> alone does not (T-035 Q3).
+    /// <see cref="TopmostMini"/> alone does not (T-035 Q3), nor does a change of only the known twins of the monitor (T-071 Q5).
     /// </summary>
     public static bool RequiresForgettingRememberedState(CameraWindowDefaults saved, CameraWindowDefaults updated)
     {
         ArgumentNullException.ThrowIfNull(saved);
         ArgumentNullException.ThrowIfNull(updated);
         return saved.StartMode != updated.StartMode
-            || saved.Monitor != updated.Monitor
+            || !SameMonitor(saved.Monitor, updated.Monitor)
             || saved.Normal != updated.Normal
             || saved.Mini != updated.Mini;
     }
+
+    private static bool SameMonitor(CameraMonitorId? saved, CameraMonitorId? updated) =>
+        saved is null ? updated is null : saved.HasSameIdentity(updated);
 }

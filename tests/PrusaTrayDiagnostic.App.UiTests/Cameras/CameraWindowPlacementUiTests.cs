@@ -67,6 +67,52 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task MonitorOnAnotherConnectorIsUsedAndItsNewPathRequestedWhenTheWindowOpens() =>
+        session.RunAsync(async scope =>
+        {
+            // T-071 Q5 + user decision 2026-10-23: the rotated DELL now has another path, its twin (the primary) is known.
+            FakeScreenCatalog screens = ThreeMonitors();
+            CameraMonitorId saved = new("DELL U2719D", 1440, 2560, DellPathB.Replace("UID160002", "UID160009", StringComparison.Ordinal), [DellPathA]);
+            CameraWindowDefaults defaults = CameraWindowDefaults.Default with
+            {
+                StartMode = CameraWindowStartMode.Normal,
+                Monitor = saved,
+                Normal = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.TopLeft),
+            };
+            RecordingMonitorPathUpdater updater = new();
+            await using CameraHarness harness = new(screens: screens, window: defaults, monitorPaths: updater);
+
+            CameraWindow window = harness.Open();
+            window.Settle();
+
+            AssertPlaced(window, Expected(defaults.Normal, ScreenAt(screens, 2560), CameraWindowMode.Normal));
+            (string printerId, CameraMonitorId expected, CameraMonitorId updated) = Assert.Single(updater.Requests);
+            Assert.Equal("a", printerId);
+            Assert.Same(saved, expected);
+            Assert.Equal(saved.WithDevicePath(DellPathB), updated);
+        });
+
+    [Fact]
+    public Task SwitchedOffMonitorWithAKnownTwinOpensOnThePrimaryWithoutAPathRequest() =>
+        session.RunAsync(async scope =>
+        {
+            FakeScreenCatalog screens = new(Screen("DELL U2719D", 0, 0, 2560, 1440, primary: true, devicePath: DellPathA), Screen("LG HDR 4K", -1920, 200, 1920, 1080, scaling: 1.5));
+            CameraWindowDefaults defaults = CameraWindowDefaults.Default with
+            {
+                StartMode = CameraWindowStartMode.Normal,
+                Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPathB, [DellPathA]),
+            };
+            RecordingMonitorPathUpdater updater = new();
+            await using CameraHarness harness = new(screens: screens, window: defaults, monitorPaths: updater);
+
+            CameraWindow window = harness.Open();
+            window.Settle();
+
+            AssertPlaced(window, Expected(defaults.Normal, ScreenAt(screens, 0), CameraWindowMode.Normal));
+            Assert.Empty(updater.Requests);
+        });
+
+    [Fact]
     public Task NormalWindowIsPlacedWithTheFrameOfTheChosenMonitorAndNotCorrected() =>
         session.RunAsync(async scope =>
         {

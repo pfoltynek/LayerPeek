@@ -148,19 +148,50 @@ public sealed class MonitorWindowCheckTests
     }
 
     [Fact]
-    public void SwitchedOffMonitorMatchesOnlyByItsDevicePath()
+    public void SavedDevicePathWinsAndKnownTwinsAreNeverTheSavedMonitor()
     {
-        // T-071 Q4 (2026-10-23): a known device path alone decides, a twin with the same name is another monitor.
+        // T-071 Q4 + Q5 (2026-10-23): the saved device path decides; a known twin with the same name is another monitor.
         TestMonitor saved = Monitor("DELL U2719D", 2560, 0, 1440, 2560, gdi: @"\\.\DISPLAY2") with { DevicePath = "path-2" };
         TestMonitor twin = Monitor("DELL U2719D", 0, 0, 2560, 1440) with { DevicePath = "path-1" };
         TestMonitor rotatedTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
         TestMonitor other = Monitor("Other", 0, 0, 1920, 1080) with { DevicePath = "path-4" };
+        string[] knownTwins = ["path-1", "PATH-3"];
 
-        Assert.Equal(saved, TestMonitors.Matching(saved, [twin, saved]));
-        Assert.Equal("PATH-2", TestMonitors.Matching(saved, [twin, saved with { DevicePath = "PATH-2" }])?.DevicePath);
-        Assert.Null(TestMonitors.Matching(saved, [twin, rotatedTwin]));
-        Assert.Null(TestMonitors.Matching(saved, [twin, other]));
-        Assert.Null(TestMonitors.Matching(saved, [other]));
+        Assert.Equal(saved, TestMonitors.Matching(saved, knownTwins, [twin, saved]));
+        Assert.Equal("PATH-2", TestMonitors.Matching(saved, knownTwins, [twin, saved with { DevicePath = "PATH-2" }])?.DevicePath);
+        Assert.Null(TestMonitors.Matching(saved, knownTwins, [twin, rotatedTwin]));
+        Assert.Null(TestMonitors.Matching(saved, knownTwins, [twin, other]));
+        Assert.Null(TestMonitors.Matching(saved, knownTwins, [other]));
+    }
+
+    [Fact]
+    public void MonitorOnAnotherConnectorMatchesWhenItIsTheOnlyUnknownCandidate()
+    {
+        TestMonitor saved = Monitor("DELL U2719D", 2560, 0, 1440, 2560, gdi: @"\\.\DISPLAY2") with { DevicePath = "path-2" };
+        TestMonitor moved = saved with { DevicePath = "path-9" };
+        TestMonitor twin = Monitor("DELL U2719D", 0, 0, 2560, 1440) with { DevicePath = "path-1" };
+        TestMonitor sameResolutionTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
+
+        Assert.Equal(moved, TestMonitors.Matching(saved, ["path-1"], [twin, moved]));
+        // The rotated twin is known: it is no candidate on its own, but it still makes two candidates.
+        Assert.Null(TestMonitors.Matching(saved, ["path-3"], [sameResolutionTwin]));
+        Assert.Null(TestMonitors.Matching(saved, ["path-3"], [sameResolutionTwin, moved]));
+        // A twin unknown to the settings (plugged in after the choice) is taken for the moved monitor.
+        Assert.Equal(sameResolutionTwin, TestMonitors.Matching(saved, [], [twin, sameResolutionTwin]));
+    }
+
+    [Fact]
+    public void KnownTwinPathsAreTheOtherMonitorsWithTheSameName()
+    {
+        TestMonitor saved = Monitor("DELL U2719D", 2560, 0, 1440, 2560, gdi: @"\\.\DISPLAY2") with { DevicePath = "path-2" };
+        TestMonitor twin = Monitor("DELL U2719D", 0, 0, 2560, 1440) with { DevicePath = "path-1" };
+        TestMonitor noPath = Monitor("DELL U2719D", -2560, 0, 2560, 1440, gdi: @"\\.\DISPLAY3") with { DevicePath = string.Empty };
+        TestMonitor other = Monitor("Other", 0, 1440, 1920, 1080) with { DevicePath = "path-4" };
+
+        Assert.Equal(["path-1"], TestMonitors.KnownTwinPaths(saved, [noPath, twin, saved, other]));
+        Assert.Empty(TestMonitors.KnownTwinPaths(saved with { DevicePath = string.Empty }, [twin, saved]));
+        Assert.Equal("""["path-1"]""", saved.CameraMonitorJson([twin, saved, other])["knownTwinPaths"]!.ToJsonString());
+        Assert.False(saved.CameraMonitorJson([saved, other]).ContainsKey("knownTwinPaths"));
     }
 
     [Fact]
@@ -171,9 +202,9 @@ public sealed class MonitorWindowCheckTests
         TestMonitor rotatedTwin = Monitor("DELL U2719D", -1440, 0, 1440, 2560, gdi: @"\\.\DISPLAY3") with { DevicePath = "path-3" };
         TestMonitor other = Monitor("Other", 0, 0, 1920, 1080) with { DevicePath = "path-4" };
 
-        Assert.Equal(rotatedTwin, TestMonitors.Matching(saved, [twin, rotatedTwin]));
-        Assert.Equal(twin, TestMonitors.Matching(saved, [twin, other]));
-        Assert.Null(TestMonitors.Matching(saved, [other]));
+        Assert.Equal(rotatedTwin, TestMonitors.Matching(saved, [], [twin, rotatedTwin]));
+        Assert.Equal(twin, TestMonitors.Matching(saved, [], [twin, other]));
+        Assert.Null(TestMonitors.Matching(saved, [], [other]));
     }
 
     [Fact]
