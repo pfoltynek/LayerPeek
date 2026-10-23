@@ -5,12 +5,10 @@ using System.Runtime.InteropServices;
 namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 
 /// <summary>
-/// Screen captures of single elements that are not windows of the app (a taskbar button, a tray icon), never of the
-/// desktop (user decision 2026-10-22, T-070): an area must lie on one monitor and cover at most a quarter of it.
-/// Windows of the app are captured with <see cref="Screenshots.Capture"/> instead.
-/// <para>
-/// T-069 adds the same guard as <c>Screenshots.CaptureScreenArea</c>; when both are merged, one of them should go.
-/// </para>
+/// The only way the end-to-end tests read pixels from the screen (user decision 2026-10-22, T-069, T-070): single elements
+/// that are not windows of the app (a taskbar button, a tray icon, the overflow flyout, a jump list, the taskbar), never
+/// the desktop. An area must lie on one monitor and cover at most a quarter of it. Windows of the app are captured with
+/// <see cref="Screenshots.Capture"/> (PrintWindow) instead.
 /// </summary>
 internal static class ScreenArea
 {
@@ -39,8 +37,57 @@ internal static class ScreenArea
             : null;
     }
 
-    /// <summary>The screen pixels of <paramref name="area"/> (physical pixels); refuses areas <see cref="Refusal"/> names.</summary>
+    /// <summary>
+    /// The screen pixels of <paramref name="area"/> exactly (physical pixels, for measurements); refuses areas
+    /// <see cref="Refusal"/> names.
+    /// </summary>
     public static Pixels Capture(Rectangle area)
+    {
+        using Bitmap bitmap = CaptureExactly(area);
+        return Pixels.From(bitmap);
+    }
+
+    /// <summary>
+    /// A screenshot of an element: <paramref name="area"/> grown by <paramref name="margin"/> and cut to the element's monitor
+    /// (an element at the screen edge keeps its margin on the other sides); refuses areas <see cref="Refusal"/> names.
+    /// </summary>
+    public static Bitmap CaptureBitmap(Rectangle area, int margin = 0)
+    {
+        area.Inflate(margin, margin);
+        area.Intersect(MonitorOf(area));
+        return CaptureExactly(area);
+    }
+
+    /// <summary><see cref="CaptureBitmap"/> saved into the results as <c>NNN-name.png</c>; returns the file.</summary>
+    public static string Save(Rectangle area, int margin, string name)
+    {
+        using Bitmap bitmap = CaptureBitmap(area, margin);
+        return Screenshots.Save(bitmap, name);
+    }
+
+    private static Bitmap CaptureExactly(Rectangle area)
+    {
+        if (Refusal(area, MonitorOf(area)) is { } refusal)
+        {
+            throw new InvalidOperationException(refusal);
+        }
+
+        Bitmap bitmap = new(area.Width, area.Height, PixelFormat.Format32bppArgb);
+        try
+        {
+            using Graphics graphics = Graphics.FromImage(bitmap);
+            graphics.CopyFromScreen(area.Left, area.Top, 0, 0, area.Size);
+            return bitmap;
+        }
+        catch
+        {
+            bitmap.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary>The monitor of the centre of <paramref name="area"/> (the nearest one when the centre is on none).</summary>
+    private static Rectangle MonitorOf(Rectangle area)
     {
         Native.MonitorInfo info = new() { Size = Marshal.SizeOf<Native.MonitorInfo>() };
         Native.Point center = new() { X = area.Left + (area.Width / 2), Y = area.Top + (area.Height / 2) };
@@ -49,18 +96,6 @@ internal static class ScreenArea
             throw new InvalidOperationException("GetMonitorInfo failed.");
         }
 
-        Rectangle monitor = Rectangle.FromLTRB(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom);
-        if (Refusal(area, monitor) is { } refusal)
-        {
-            throw new InvalidOperationException(refusal);
-        }
-
-        using Bitmap bitmap = new(area.Width, area.Height, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.CopyFromScreen(area.Left, area.Top, 0, 0, area.Size);
-        }
-
-        return Pixels.From(bitmap);
+        return Rectangle.FromLTRB(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom);
     }
 }

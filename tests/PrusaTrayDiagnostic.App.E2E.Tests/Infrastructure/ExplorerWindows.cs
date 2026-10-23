@@ -13,6 +13,12 @@ internal static class ExplorerWindows
     public static bool Shows(string folder) => Visit(folder, close: false).Found > 0;
 
     /// <summary>
+    /// The windows showing only <paramref name="folder"/> (no other tab): a test may capture them. A window that also holds
+    /// tabs of the user is never captured (T-069: no screenshot of the user's windows).
+    /// </summary>
+    public static IReadOnlyList<nint> WindowsShowingOnly(string folder) => Visit(folder, close: false).Sole;
+
+    /// <summary>
     /// Closes the windows of <paramref name="folder"/> until none has appeared for <paramref name="quiet"/>: Explorer may
     /// open the window a moment after a test gave up waiting for it.
     /// </summary>
@@ -23,7 +29,7 @@ internal static class ExplorerWindows
         int shared = 0;
         while (DateTime.UtcNow - lastSeen < quiet)
         {
-            (int found, int closed) = Visit(folder, close: true);
+            (int found, int closed, _) = Visit(folder, close: true);
             shared = found - closed;
             if (closed > 0)
             {
@@ -40,7 +46,7 @@ internal static class ExplorerWindows
     /// The windows (tabs) showing <paramref name="folder"/>; with <paramref name="close"/> those that are the only tab of their
     /// window are closed. Every COM object is released.
     /// </summary>
-    private static (int Found, int Closed) Visit(string folder, bool close)
+    private static (int Found, int Closed, List<nint> Sole) Visit(string folder, bool close)
     {
         string wanted = Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
         Type shellType = Type.GetTypeFromProgID("Shell.Application") ?? throw new InvalidOperationException("The Windows shell is not available.");
@@ -74,6 +80,7 @@ internal static class ExplorerWindows
             }
 
             int closed = 0;
+            List<nint> sole = [.. matching.Where(m => tabsPerWindow[m.Handle] == 1).Select(static m => (nint)m.Handle)];
             foreach ((object window, long handle) in matching)
             {
                 if (close && tabsPerWindow[handle] == 1)
@@ -90,7 +97,7 @@ internal static class ExplorerWindows
                 }
             }
 
-            return (matching.Count, closed);
+            return (matching.Count, closed, sole);
         }
         finally
         {

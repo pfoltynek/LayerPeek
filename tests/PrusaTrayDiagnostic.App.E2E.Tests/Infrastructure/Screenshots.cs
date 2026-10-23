@@ -54,22 +54,6 @@ internal static class Screenshots
         return Save(bitmap, name);
     }
 
-    /// <summary>
-    /// The whole desktop (every monitor) as the user sees it, for failures outside the app's windows (the notification
-    /// area, a popup that vanished); saved as <c>NNN-name.png</c>.
-    /// </summary>
-    public static string SaveScreen(string name)
-    {
-        Native.Rect screen = Native.VirtualScreen();
-        using Bitmap bitmap = new(screen.Width, screen.Height, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.CopyFromScreen(screen.Left, screen.Top, 0, 0, bitmap.Size);
-        }
-
-        return Save(bitmap, name);
-    }
-
     public static string Save(Bitmap bitmap, string name)
     {
         int number = Interlocked.Increment(ref _counter);

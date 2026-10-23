@@ -321,10 +321,10 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
                 TestSettings.Json("en", [new TestPrinter(PrinterId, PrinterName, printer.Address())]),
                 Simulators.Secrets(PrinterId, printer));
 
-            AutomationElement menu = await TrayMenuTests.OpenMenuAsync(app, "icons-menu-150");
-            nint hwnd = menu.Properties.NativeWindowHandle.ValueOrDefault;
-            AutomationElement item = menu.FindFirstDescendant(cf => cf.ByControlType(ControlType.MenuItem))
-                ?? throw new InvalidOperationException("The tray menu has no item.");
+            TrayMenuWindow menu = await TrayMenu.OpenWithMouseAsync(app);
+            Screenshots.Save(menu.Handle, "icons-menu-150");
+            nint hwnd = menu.Handle;
+            AutomationElement item = menu.Items().FirstOrDefault() ?? throw new InvalidOperationException("The tray menu has no item.");
             Assert.True(Native.GetWindowRect(hwnd, out Native.Rect window));
             uint menuDpi = Native.GetDpiForWindow(hwnd);
             // The app sizes the menu bitmaps by its own system DPI (T-039): that of the primary monitor when it started, so an
@@ -375,6 +375,8 @@ public sealed class IconsThemeAndScalingTests(E2EFixture fixture)
                 report.AppendLine(note);
                 TestContext.Current.SendDiagnosticMessage(note);
             }
+
+            await TrayMenu.CloseAsync(menu);
         }
         finally
         {
