@@ -20,11 +20,15 @@
     meanwhile. Runs of different worktrees share the one desktop, so they take turns: a run waits
     (up to 30 minutes) while another worktree's run holds the machine-wide lock %TEMP%\PrusaTrayDiagnostic.App.E2E.Desktop.lock.
 
-    System changes (T-065): tests with the trait SystemChanges temporarily change Windows settings (light/dark theme,
-    Do Not Disturb, the test tray icon on the taskbar, toasts of the test app with the notifications of Windows and of the
-    test app switched on when they are off (T-068); later tasks add display scale, a switched-off monitor).
-    They run by default: when the selected tests contain one, the script first shows a warning with everything that may
-    change and counts down 5 s (Ctrl+C aborts, nothing has changed then); only then it sets PTD_E2E_SYSTEM_CHANGES=1.
+    System changes (T-065, T-066): tests with the trait SystemChanges temporarily change Windows settings (light/dark
+    theme, Do Not Disturb, the test tray icon on the taskbar, the display scale of a monitor, a switched-off second
+    monitor, silent toasts of the test app with the notifications of Windows and of the test app switched on when they
+    are off (T-068); later tasks add Credential Manager entries). Each such test carries one trait value per kind of
+    change (SystemChanges=Theme|DoNotDisturb|TrayPromotion|DisplayScale|MonitorOff|Toasts|Credentials|TestProbe; texts in
+    tools/RunE2E.SystemChanges.psm1). They run by default: when the selected tests contain one, the script first shows a
+    warning listing exactly the kinds the selected tests change and counts down 5 s (Ctrl+C aborts, nothing has changed
+    then); only then it sets PTD_E2E_SYSTEM_CHANGES=1 and PTD_E2E_SYSTEM_CHANGE_KINDS=<the listed kinds>. A change of a
+    kind the warning did not list is refused by the tests.
     The original state of every change is written to %LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore before the change
     and restored afterwards - also after a failed test, by the next run's start, by the script's own cleanup (even after
     Ctrl+C), and by a hidden watchdog process (this script with -RestoreOnly -AfterProcess) that outlives a killed test
@@ -92,6 +96,7 @@ $hash = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes(
 $id = [Convert]::ToHexString($hash, 0, 4).ToLowerInvariant()
 $results = Join-Path ([IO.Path]::GetTempPath()) "PrusaTrayDiagnostic.App.E2E.Results.$id"
 $script:logFile = $null
+Import-Module (Join-Path $PSScriptRoot 'RunE2E.SystemChanges.psm1') -Force
 
 function Write-Log([string] $Text, [ConsoleColor] $Color = [ConsoleColor]::Gray) {
     Write-Host $Text -ForegroundColor $Color
@@ -124,12 +129,13 @@ function Invoke-SystemChangeRestore([string] $Reason) {
 
     $report = [IO.Path]::GetTempFileName()
     $previous = @{}
-    foreach ($name in 'PTD_E2E', 'PTD_E2E_SYSTEM_CHANGES', 'PTD_E2E_RESTORE', 'PTD_E2E_RESTORE_REPORT', 'PTD_E2E_WATCHDOG') {
+    foreach ($name in 'PTD_E2E', 'PTD_E2E_SYSTEM_CHANGES', 'PTD_E2E_SYSTEM_CHANGE_KINDS', 'PTD_E2E_RESTORE', 'PTD_E2E_RESTORE_REPORT', 'PTD_E2E_WATCHDOG') {
         $previous[$name] = [Environment]::GetEnvironmentVariable($name)
     }
     try {
         [Environment]::SetEnvironmentVariable('PTD_E2E', $null)
         [Environment]::SetEnvironmentVariable('PTD_E2E_SYSTEM_CHANGES', $null)
+        [Environment]::SetEnvironmentVariable('PTD_E2E_SYSTEM_CHANGE_KINDS', $null)
         [Environment]::SetEnvironmentVariable('PTD_E2E_RESTORE', '1')
         [Environment]::SetEnvironmentVariable('PTD_E2E_RESTORE_REPORT', $report)
         # The restore makes no change of its own, so it needs no watchdog.
@@ -153,33 +159,9 @@ function Invoke-SystemChangeRestore([string] $Reason) {
     }
 }
 
-function Show-SystemChangesWarning {
-    $lines = @(
-        '',
-        '=====================================================================================',
-        '  WARNING: the selected end-to-end tests temporarily CHANGE WINDOWS SETTINGS',
-        '=====================================================================================',
-        '  They may change (each change is restored right after its test, also on failure):',
-        '   - light/dark mode of the taskbar and of apps (Settings > Personalization > Colors)',
-        '   - Do Not Disturb (switched off for notification tests)',
-        '   - display scale of the primary and another monitor (100/125/150 %)',
-        '   - a second monitor switched off for a moment',
-        '   - silent test toasts in the notification center and a temporary Start menu shortcut',
-        '     "Prusa Tray Diagnostic E2E" (Windows may keep remembering the app PrusaTrayDiagnostic.E2E',
-        '     in its notification database / Settings > Notifications)',
-        '     (notifications of Windows and of the test app are switched on if they are off)',
-        '   - the test tray icon shown directly on the taskbar',
-        '   - temporary entries PrusaTrayDiagnostic.E2E/... in Credential Manager',
-        '  Do not use the mouse or keyboard during the run; windows will move and change size.',
-        '',
-        '  If anything stays changed after the run:',
-        '   - run  tools/run-e2e.ps1 -RestoreOnly',
-        '   - by hand: Win+P > Extend; Settings > System > Display > Scale;',
-        '     Settings > Personalization > Colors; Win+N > Do not disturb',
-        '   - details: docs/troubleshooting.md',
-        '====================================================================================='
-    )
-    foreach ($line in $lines) { Write-Host $line -ForegroundColor Yellow }
+# The warning lists only the kinds of change of the selected tests (T-066; texts in RunE2E.SystemChanges.psm1).
+function Show-SystemChangesWarning([string[]] $Kinds) {
+    foreach ($line in (Get-SystemChangesWarningLines -Kinds $Kinds)) { Write-Host $line -ForegroundColor Yellow }
     for ($i = 5; $i -ge 1; $i--) {
         Write-Host -NoNewline "`r  Starting in $i s   (Ctrl+C = abort, nothing has changed yet) " -ForegroundColor Yellow
         Start-Sleep -Seconds 1
@@ -204,7 +186,7 @@ if ($RestoreOnly) {
 
 # Nothing inherited from the shell may confirm system changes without the warning below, switch the watchdog off or
 # make the tests act as a child / restore process (which skip the locks and the start cleanup).
-Remove-Item Env:PTD_E2E_SYSTEM_CHANGES, Env:PTD_E2E_WATCHDOG, Env:PTD_E2E_CHILD, Env:PTD_E2E_RESTORE, Env:PTD_E2E_RESTORE_REPORT -ErrorAction SilentlyContinue
+Remove-Item Env:PTD_E2E_SYSTEM_CHANGES, Env:PTD_E2E_SYSTEM_CHANGE_KINDS, Env:PTD_E2E_WATCHDOG, Env:PTD_E2E_CHILD, Env:PTD_E2E_RESTORE, Env:PTD_E2E_RESTORE_REPORT -ErrorAction SilentlyContinue
 
 dotnet build $app -c Debug
 if ($LASTEXITCODE -ne 0) { throw 'Building the Debug app failed.' }
@@ -230,12 +212,13 @@ if (-not (Invoke-SystemChangeRestore 'before the run')) {
     throw 'System changes of an earlier run could not be restored; fix them first (docs/troubleshooting.md).'
 }
 
-# Do the selected tests change the system? (The trait filter combines with -class / -method as AND.)
-$systemChangeTests = @()
+# What do the selected tests change? Every such test has one trait SystemChanges=<kind> per kind of change (T-066); the
+# trait filter combines with -class / -method as AND.
+$systemChanges = @()
 if (-not $NoSystemChanges) {
-    $listed = & $testsExe -list methods -trait 'SystemChanges=true' @filters 2>&1
+    $listed = & $testsExe -list full/json -trait 'SystemChanges=*' @filters 2>&1
     if ($LASTEXITCODE -ne 0) { throw "Listing the tests failed: $($listed | Out-String)" }
-    $systemChangeTests = @($listed | Where-Object { "$_" -match '^PrusaTrayDiagnostic\.' })
+    $systemChanges = @(Get-SelectedSystemChanges -ListOutput @($listed | ForEach-Object { "$_" }))
 }
 
 $resultsAot = "$results-aot"
@@ -245,12 +228,14 @@ try {
     if ($NoSystemChanges) {
         Write-Host 'System changes: off (-NoSystemChanges); the tests that change Windows settings are skipped.' -ForegroundColor Cyan
     }
-    elseif ($systemChangeTests.Count -eq 0) {
+    elseif ($systemChanges.Count -eq 0) {
         Write-Host 'System changes: none of the selected tests changes Windows settings.' -ForegroundColor Cyan
     }
     else {
-        Show-SystemChangesWarning
-        # Only after the countdown: Ctrl+C above leaves the tests unstarted and the system untouched.
+        Show-SystemChangesWarning -Kinds $systemChanges
+        # Only after the countdown: Ctrl+C above leaves the tests unstarted and the system untouched. The tests refuse
+        # any change of a kind the warning did not list.
+        $env:PTD_E2E_SYSTEM_CHANGE_KINDS = $systemChanges -join ','
         $env:PTD_E2E_SYSTEM_CHANGES = '1'
     }
 
@@ -270,7 +255,7 @@ try {
     }
 }
 finally {
-    Remove-Item Env:PTD_E2E, Env:PTD_E2E_RESULTS, Env:PTD_E2E_SYSTEM_CHANGES -ErrorAction SilentlyContinue
+    Remove-Item Env:PTD_E2E, Env:PTD_E2E_RESULTS, Env:PTD_E2E_SYSTEM_CHANGES, Env:PTD_E2E_SYSTEM_CHANGE_KINDS -ErrorAction SilentlyContinue
     if ($null -eq $previousApp) { Remove-Item Env:PTD_E2E_APP -ErrorAction SilentlyContinue } else { $env:PTD_E2E_APP = $previousApp }
     # Also after Ctrl+C or a crashed test process (entries of a test process that still ends are left to its watchdog).
     if (-not (Invoke-SystemChangeRestore 'after the run')) { $exitCode = 1 }

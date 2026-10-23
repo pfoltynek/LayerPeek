@@ -39,7 +39,8 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
     private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(10);
 
     [Fact]
-    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
     public async Task ToastBannerClickOpensThePrinterWebThroughTheProxy()
     {
         SystemChanges.Require();
@@ -90,7 +91,8 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
     public async Task ToastInTheNotificationCenterOpensThePrinterWeb()
     {
         SystemChanges.Require();
@@ -126,7 +128,8 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
     public async Task ToastFollowsTheLanguageSavedAtRuntime()
     {
         SystemChanges.Require();
@@ -174,14 +177,15 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
     /// settings key is as before; the toast is no longer in the notification center.
     /// </summary>
     [Fact]
-    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
     public async Task ToastsOfAKilledRunAreClearedByTheStartCleanup()
     {
         SystemChanges.Require();
         Assert.SkipWhen(ToastsEnabledKind.PolicyBlocksToasts() is not null, ToastsEnabledKind.PolicyBlocksToasts() ?? string.Empty);
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         StringBuilder report = new();
-        RegistryKeyState settingsBefore = RegistryKeys.Read(ToastAppSettingsKind.SubKey);
+        RegistryKeySnapshot settingsBefore = RegistryKeys.Read(ToastAppSettingsKind.SubKey);
         report.AppendLine(CultureInfo.InvariantCulture, $"Notification settings of the test app before: {settingsBefore}");
 
         // The parent keeps Windows' notifications on for the child; the child journals what its toast leaves.
@@ -227,7 +231,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             Assert.DoesNotContain(toastFile, SystemChanges.Journal.PendingFiles());
             Assert.DoesNotContain(settingsFile, SystemChanges.Journal.PendingFiles());
             Assert.False(File.Exists(TestToastsKind.ShortcutPath), "The cleanup left the shortcut of the test app.");
-            RegistryKeyState settingsAfter = RegistryKeys.Read(ToastAppSettingsKind.SubKey);
+            RegistryKeySnapshot settingsAfter = RegistryKeys.Read(ToastAppSettingsKind.SubKey);
             report.AppendLine(CultureInfo.InvariantCulture, $"Notification settings of the test app after: {settingsAfter}");
             Assert.True(settingsBefore.SameAs(settingsAfter), $"The notification settings of the test app: {settingsBefore} before, {settingsAfter} after.");
 
@@ -429,9 +433,9 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             _productionShortcut = ReadProductionShortcut();
 
             // Restored last: the key Windows creates with the first toast goes after the toasts are cleared.
-            SystemChange<RegistryKeyState> appSettings = await SystemChanges.ToastAppSettingsAsync(cancellationToken);
+            SystemChange<RegistryKeySnapshot> appSettings = await SystemChanges.ToastAppSettingsAsync(cancellationToken);
             _undo.Add(appSettings);
-            RegistryKeyState on = ToastAppSettingsKind.WithNotificationsOn(appSettings.Original);
+            RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(appSettings.Original);
             if (!on.SameAs(appSettings.Original))
             {
                 await appSettings.ApplyAsync(on, cancellationToken);
@@ -489,8 +493,8 @@ public sealed class ToastCrashChild
         int parent = int.Parse(Environment.GetEnvironmentVariable(SystemChangeChild.ParentVariable) ?? throw new InvalidOperationException($"{SystemChangeChild.ParentVariable} is not set."), CultureInfo.InvariantCulture);
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
 
-        await using SystemChange<RegistryKeyState> appSettings = await SystemChanges.ToastAppSettingsAsync(cancellationToken);
-        RegistryKeyState on = ToastAppSettingsKind.WithNotificationsOn(appSettings.Original);
+        await using SystemChange<RegistryKeySnapshot> appSettings = await SystemChanges.ToastAppSettingsAsync(cancellationToken);
+        RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(appSettings.Original);
         if (!on.SameAs(appSettings.Original))
         {
             await appSettings.ApplyAsync(on, cancellationToken);

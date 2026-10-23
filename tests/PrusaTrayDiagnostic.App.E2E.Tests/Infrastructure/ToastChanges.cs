@@ -7,30 +7,20 @@ using Microsoft.Win32;
 namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 
 /// <summary>
-/// The trait value of every test that shows toasts of the test app or creates its Start menu shortcut (T-067, T-068):
-/// <c>[Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]</c>. The one place to switch to the per-kind value of
-/// T-066 (<c>SystemChangeTraits.Toasts</c>); the three kinds below are the only other places.
+/// One registry key without recursion (unlike <see cref="RegistryKeyState"/> of T-066): whether it exists, its values and
+/// the names of its subkeys (compared, never written). Values are <see cref="RegistryValueState"/> as
+/// <see cref="RegistryKeys"/> reads them: DWORD/QWORD in decimal, strings as they are (multi-strings joined by NUL),
+/// binary as hex.
 /// </summary>
-internal static class ToastSystemChanges
+internal sealed record RegistryKeySnapshot(bool Exists, IReadOnlyList<RegistryValueState> Values, IReadOnlyList<string> SubKeys)
 {
-    public const string TraitValue = SystemChanges.TraitValue;
-}
-
-/// <summary>One registry value as text, so that it can be written back exactly (<see cref="RegistryKeyState"/>).</summary>
-/// <param name="Kind">The <see cref="RegistryValueKind"/> name (DWord, QWord, String, ExpandString, MultiString, Binary).</param>
-/// <param name="Data">DWORD/QWORD in decimal, strings as they are (multi-strings joined by NUL), binary as hex.</param>
-internal sealed record RegistryValueState(string Name, string Kind, string Data);
-
-/// <summary>A registry key: whether it exists, its values and the names of its subkeys (compared, never written).</summary>
-internal sealed record RegistryKeyState(bool Exists, IReadOnlyList<RegistryValueState> Values, IReadOnlyList<string> SubKeys)
-{
-    public static RegistryKeyState Missing { get; } = new(false, [], []);
+    public static RegistryKeySnapshot Missing { get; } = new(false, [], []);
 
     public RegistryValueState? Value(string name) =>
         Values.FirstOrDefault(value => string.Equals(value.Name, name, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>Same existence, same values (any order, names ignoring case) and same subkeys.</summary>
-    public bool SameAs(RegistryKeyState other) =>
+    public bool SameAs(RegistryKeySnapshot other) =>
         Exists == other.Exists
         && Values.Count == other.Values.Count
         && Values.All(value => other.Value(value.Name) is { } same && same.Kind == value.Kind && same.Data == value.Data)
@@ -42,8 +32,8 @@ internal sealed record RegistryKeyState(bool Exists, IReadOnlyList<RegistryValue
           + (SubKeys.Count == 0 ? string.Empty : $"; subkeys: {string.Join(", ", SubKeys)}");
 }
 
-/// <summary>One step that brings a registry key to a <see cref="RegistryKeyState"/>.</summary>
-internal enum RegistryAction
+/// <summary>One step that brings a registry key to a <see cref="RegistryKeySnapshot"/>.</summary>
+internal enum RegistryKeyStep
 {
     /// <summary>Delete the whole key (it did not exist).</summary>
     DeleteKey,
@@ -58,17 +48,17 @@ internal enum RegistryAction
     DeleteValue,
 }
 
-/// <summary>Reads and writes <see cref="RegistryKeyState"/> under <c>HKCU</c>.</summary>
+/// <summary>Reads and writes <see cref="RegistryKeySnapshot"/> under <c>HKCU</c>.</summary>
 [SupportedOSPlatform("windows")]
 internal static class RegistryKeys
 {
     /// <summary>The key as it is now; a value of a kind that could not be written back exactly is refused.</summary>
-    public static RegistryKeyState Read(string subKey)
+    public static RegistryKeySnapshot Read(string subKey)
     {
         using RegistryKey? key = Registry.CurrentUser.OpenSubKey(subKey);
         if (key is null)
         {
-            return RegistryKeyState.Missing;
+            return RegistryKeySnapshot.Missing;
         }
 
         List<RegistryValueState> values = [];
@@ -87,21 +77,21 @@ internal static class RegistryKeys
             }));
         }
 
-        return new RegistryKeyState(true, values, [.. key.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase)]);
+        return new RegistryKeySnapshot(true, values, [.. key.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase)]);
     }
 
     /// <summary>
     /// The steps that turn <paramref name="current"/> into <paramref name="wanted"/>: a key that should not exist goes as
     /// a whole; otherwise values are written or deleted (subkeys are never created or deleted, only compared).
     /// </summary>
-    internal static List<(RegistryAction Action, RegistryValueState? Value)> Plan(RegistryKeyState wanted, RegistryKeyState current)
+    internal static List<(RegistryKeyStep Action, RegistryValueState? Value)> Plan(RegistryKeySnapshot wanted, RegistryKeySnapshot current)
     {
-        List<(RegistryAction, RegistryValueState?)> plan = [];
+        List<(RegistryKeyStep, RegistryValueState?)> plan = [];
         if (!wanted.Exists)
         {
             if (current.Exists)
             {
-                plan.Add((RegistryAction.DeleteKey, null));
+                plan.Add((RegistryKeyStep.DeleteKey, null));
             }
 
             return plan;
@@ -109,14 +99,14 @@ internal static class RegistryKeys
 
         if (!current.Exists)
         {
-            plan.Add((RegistryAction.CreateKey, null));
+            plan.Add((RegistryKeyStep.CreateKey, null));
         }
 
         foreach (RegistryValueState value in current.Values)
         {
             if (wanted.Value(value.Name) is null)
             {
-                plan.Add((RegistryAction.DeleteValue, value));
+                plan.Add((RegistryKeyStep.DeleteValue, value));
             }
         }
 
@@ -124,7 +114,7 @@ internal static class RegistryKeys
         {
             if (current.Value(value.Name) is not { } now || now.Kind != value.Kind || now.Data != value.Data)
             {
-                plan.Add((RegistryAction.SetValue, value));
+                plan.Add((RegistryKeyStep.SetValue, value));
             }
         }
 
@@ -132,29 +122,29 @@ internal static class RegistryKeys
     }
 
     /// <summary>Brings <c>HKCU\<paramref name="subKey"/></c> to <paramref name="wanted"/> (see <see cref="Plan"/>).</summary>
-    public static void Write(string subKey, RegistryKeyState wanted)
+    public static void Write(string subKey, RegistryKeySnapshot wanted)
     {
-        List<(RegistryAction Action, RegistryValueState? Value)> plan = Plan(wanted, Read(subKey));
+        List<(RegistryKeyStep Action, RegistryValueState? Value)> plan = Plan(wanted, Read(subKey));
         if (plan.Count == 0)
         {
             return;
         }
 
-        if (plan[0].Action == RegistryAction.DeleteKey)
+        if (plan[0].Action == RegistryKeyStep.DeleteKey)
         {
             Registry.CurrentUser.DeleteSubKeyTree(subKey, throwOnMissingSubKey: false);
             return;
         }
 
         using RegistryKey key = Registry.CurrentUser.CreateSubKey(subKey, writable: true);
-        foreach ((RegistryAction action, RegistryValueState? value) in plan)
+        foreach ((RegistryKeyStep action, RegistryValueState? value) in plan)
         {
             switch (action)
             {
-                case RegistryAction.DeleteValue:
+                case RegistryKeyStep.DeleteValue:
                     key.DeleteValue(value!.Name, throwOnMissingValue: false);
                     break;
-                case RegistryAction.SetValue:
+                case RegistryKeyStep.SetValue:
                     RegistryValueKind kind = Enum.Parse<RegistryValueKind>(value!.Kind);
                     key.SetValue(value.Name, Parse(kind, value.Data), kind);
                     break;
@@ -200,7 +190,7 @@ internal sealed record ToastsEnabledState(int? ToastEnabled)
 /// documented API. A group policy that switches toasts off is not changed (the tests are skipped then).
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class ToastsEnabledKind() : SystemChangeKind<ToastsEnabledState>("ToastsEnabled", changesSystem: true, SystemChangeJson.Default.ToastsEnabledState)
+internal sealed class ToastsEnabledKind() : SystemChangeKind<ToastsEnabledState>("ToastsEnabled", SystemChangeTraits.Toasts, SystemChangeJson.Default.ToastsEnabledState)
 {
     public const string SubKey = @"Software\Microsoft\Windows\CurrentVersion\PushNotifications";
     public const string Value = "ToastEnabled";
@@ -255,7 +245,7 @@ internal sealed class ToastsEnabledKind() : SystemChangeKind<ToastsEnabledState>
 /// and banners on when they are off (<c>Enabled</c> / <c>ShowBanner</c> = 0). The production app's key is never touched.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeyState>("ToastSettings", changesSystem: true, SystemChangeJson.Default.RegistryKeyState)
+internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnapshot>("ToastSettings", SystemChangeTraits.Toasts, SystemChangeJson.Default.RegistryKeySnapshot)
 {
     public const string SettingsSubKey = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings";
 
@@ -279,14 +269,14 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeyState
             ? $@"{SettingsSubKey}\{appUserModelId}"
             : throw new InvalidOperationException($"'{appUserModelId}' is not the app id of the test app; refusing to touch its notification settings.");
 
-    public override Task<RegistryKeyState> ReadStateAsync(string? key, CancellationToken cancellationToken) =>
+    public override Task<RegistryKeySnapshot> ReadStateAsync(string? key, CancellationToken cancellationToken) =>
         Task.FromResult(RegistryKeys.Read(SubKey));
 
     /// <summary>
     /// Writes the original back and waits until it stays so; when Windows writes the key again meanwhile (it records the
     /// app's last toasts), the original is written once more (the journal then checks the result).
     /// </summary>
-    protected override async Task RestoreCoreAsync(string? key, RegistryKeyState original, CancellationToken cancellationToken)
+    protected override async Task RestoreCoreAsync(string? key, RegistryKeySnapshot original, CancellationToken cancellationToken)
     {
         for (int attempt = 1; attempt <= MaxRestoreAttempts; attempt++)
         {
@@ -299,9 +289,9 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeyState
         }
     }
 
-    public override bool Matches(RegistryKeyState original, RegistryKeyState current) => original.SameAs(current);
+    public override bool Matches(RegistryKeySnapshot original, RegistryKeySnapshot current) => original.SameAs(current);
 
-    public override string Describe(string? key, RegistryKeyState original) =>
+    public override string Describe(string? key, RegistryKeySnapshot original) =>
         $"Notification settings of the test app, HKCU\\{SubKey}: {original}. By hand: "
         + (original.Exists ? "regedit, write the values above back." : "regedit, delete that key.");
 
@@ -309,7 +299,7 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeyState
     /// <paramref name="original"/> with the app's notifications and banners on: an existing <c>Enabled</c> /
     /// <c>ShowBanner</c> of 0 becomes 1; a missing key stays missing (Windows' defaults are on).
     /// </summary>
-    internal static RegistryKeyState WithNotificationsOn(RegistryKeyState original) =>
+    internal static RegistryKeySnapshot WithNotificationsOn(RegistryKeySnapshot original) =>
         !original.Exists
             ? original
             : original with
@@ -320,7 +310,7 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeyState
                         : value)],
             };
 
-    protected override Task ApplyCoreAsync(string? key, RegistryKeyState state, CancellationToken cancellationToken)
+    protected override Task ApplyCoreAsync(string? key, RegistryKeySnapshot state, CancellationToken cancellationToken)
     {
         RegistryKeys.Write(SubKey, state);
         return Task.CompletedTask;
@@ -340,7 +330,7 @@ internal sealed record TestToastsState(bool ShortcutExists);
 /// decision 2026-10-22).
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed class TestToastsKind() : SystemChangeKind<TestToastsState>("ToastHistory", changesSystem: true, SystemChangeJson.Default.TestToastsState)
+internal sealed class TestToastsKind() : SystemChangeKind<TestToastsState>("ToastHistory", SystemChangeTraits.Toasts, SystemChangeJson.Default.TestToastsState)
 {
     private static readonly TimeSpan CleanupTimeout = TimeSpan.FromSeconds(30);
 

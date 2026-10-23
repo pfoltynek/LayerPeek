@@ -38,7 +38,7 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     private static string ProductionShortcut => Path.Combine(StartMenu, AppSwitches.ProductionShortcutFileName);
 
     [Fact]
-    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
     public async Task TestToastsUseTheirOwnShortcutAndQuitRemovesIt()
     {
         SystemChanges.Require();
@@ -90,7 +90,7 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     }
 
     [Fact]
-    [Trait(SystemChanges.Trait, ToastSystemChanges.TraitValue)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
     public async Task ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp()
     {
         SystemChanges.Require();

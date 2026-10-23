@@ -5,9 +5,11 @@ using System.Text;
 namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 
 /// <summary>
-/// The state the system changes of T-065 touch, taken at the start of an end-to-end run and compared at its end, after a
-/// successful as well as a failed run: theme (and <c>ColorPrevalence</c>), Do Not Disturb (read only when system changes
-/// are confirmed: it opens the notification center), Explorer's notification area entries and the journal folder.
+/// The state the system changes of T-065 and T-066 touch, taken at the start of an end-to-end run and compared at its end,
+/// after a successful as well as a failed run: theme (and <c>ColorPrevalence</c>), Do Not Disturb (read only when the
+/// warning listed Do Not Disturb or toasts: it opens the notification center), Explorer's notification area entries, the
+/// display topology and scale (with <c>PerMonitorSettings</c>; the text also has the Windows build, system DPI and the
+/// DPI of every monitor), what the test toasts touch (T-068) and the journal folder.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed record SystemStateSnapshot(
@@ -22,6 +24,18 @@ internal sealed record SystemStateSnapshot(
 
     /// <summary>What the toasts of the test app touch (T-068).</summary>
     public ToastSystemState? Toasts { get; init; }
+
+    /// <summary>Scale of every active monitor and <c>PerMonitorSettings</c> (T-066), or <see langword="null"/> when unreadable.</summary>
+    public DisplayScaleState? DisplayScale { get; init; }
+
+    /// <summary>The active display topology (T-066), or <see langword="null"/> when unreadable.</summary>
+    public DisplayTopologyState? DisplayTopology { get; init; }
+
+    /// <summary>Windows build, system DPI and the DPI of every monitor, for the results (T-066).</summary>
+    public string? DisplayReport { get; init; }
+
+    /// <summary>Why the display state could not be read, or <see langword="null"/>.</summary>
+    public string? DisplayError { get; init; }
 
     public static async Task<SystemStateSnapshot> CaptureAsync(bool includeDoNotDisturb, CancellationToken cancellationToken = default)
     {
@@ -40,6 +54,15 @@ internal sealed record SystemStateSnapshot(
             }
         }
 
+        // Read apart: an unknown scale (the undocumented packet −3 does not work here) still leaves the topology
+        // comparable. Neither ever fails the run; an unreadable state is only noted and not compared.
+        List<string> displayErrors = [];
+        DisplayScaleState? scale = await ReadDisplayAsync(
+            () => SystemChanges.DisplayScale.ReadStateAsync(null, cancellationToken), "Display scale", displayErrors);
+        DisplayTopologyState? topology = await ReadDisplayAsync(
+            () => SystemChanges.MonitorDisconnect.ReadStateAsync(null, cancellationToken), "Display topology", displayErrors);
+        string? displayError = displayErrors.Count == 0 ? null : string.Join(" ", displayErrors);
+
         return new(
             await SystemChanges.Theme.ReadStateAsync(null, cancellationToken),
             ThemeKind.ColorPrevalence(),
@@ -48,8 +71,27 @@ internal sealed record SystemStateSnapshot(
             [.. SystemChanges.Journal.PendingFiles().Select(Path.GetFileName).OfType<string>()])
         {
             DoNotDisturbError = error,
+            DisplayScale = scale,
+            DisplayTopology = topology,
+            DisplayReport = DisplayConfig.Report(),
+            DisplayError = displayError,
             Toasts = ToastSystemState.Capture(),
         };
+    }
+
+    /// <summary>A read of the display state that never fails the snapshot: an error is added to <paramref name="errors"/>.</summary>
+    internal static async Task<T?> ReadDisplayAsync<T>(Func<Task<T>> read, string what, List<string> errors)
+        where T : class
+    {
+        try
+        {
+            return await read();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            errors.Add($"{what}: {ex.Message}");
+            return null;
+        }
     }
 
     /// <summary>
@@ -113,6 +155,19 @@ internal sealed record SystemStateSnapshot(
             Toasts.Compare(end.Toasts, differences, notes);
         }
 
+        if (DisplayTopology is not null && end.DisplayTopology is not null && !SystemChanges.MonitorDisconnect.Matches(DisplayTopology, end.DisplayTopology))
+        {
+            differences.Add($"Display topology: {DisplayTopology} at the start, {end.DisplayTopology} at the end.");
+        }
+
+        if (DisplayScale is not null && end.DisplayScale is not null && !SystemChanges.DisplayScale.Matches(DisplayScale, end.DisplayScale))
+        {
+            differences.Add(
+                $"Display scale: {DisplayScale} at the start, {end.DisplayScale} at the end; PerMonitorSettings at the start:{Environment.NewLine}"
+                + $"  {PerMonitorSettingsRegistry.Describe(DisplayScale.PerMonitorSettings)}{Environment.NewLine}at the end:{Environment.NewLine}"
+                + $"  {PerMonitorSettingsRegistry.Describe(end.DisplayScale.PerMonitorSettings)}");
+        }
+
         if (end.JournalEntries.Count != 0)
         {
             differences.Add($"The journal {SystemChanges.JournalDirectory} still holds: {string.Join(", ", end.JournalEntries)}.");
@@ -126,6 +181,16 @@ internal sealed record SystemStateSnapshot(
         StringBuilder text = new();
         text.AppendLine(CultureInfo.InvariantCulture, $"Theme: {Theme}, ColorPrevalence={Show(ColorPrevalence)}");
         text.AppendLine(CultureInfo.InvariantCulture, $"Do Not Disturb: {(DoNotDisturb is null ? $"(not read{(DoNotDisturbError is null ? string.Empty : ": " + DoNotDisturbError)})" : DoNotDisturb.Enabled ? "on" : "off")}; SHQueryUserNotificationState: {DoNotDisturbKind.QueryUserNotificationState()}");
+        text.Append(DisplayReport ?? string.Empty);
+        if (DisplayError is not null)
+        {
+            text.AppendLine(CultureInfo.InvariantCulture, $"Display state not readable: {DisplayError}");
+        }
+
+        if (DisplayScale is not null)
+        {
+            text.AppendLine(PerMonitorSettingsRegistry.Describe(DisplayScale.PerMonitorSettings));
+        }
         text.AppendLine(CultureInfo.InvariantCulture, $"Journal: {(JournalEntries.Count == 0 ? "(empty)" : string.Join(", ", JournalEntries))}");
         text.AppendLine("Tray icon entries (HKCU\\Control Panel\\NotifyIconSettings):");
         foreach ((string key, string? path, int? promoted) in TrayIcons)

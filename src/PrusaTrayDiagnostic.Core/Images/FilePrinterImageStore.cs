@@ -1,3 +1,4 @@
+using PrusaTrayDiagnostic.Core.IO;
 using PrusaTrayDiagnostic.Core.Settings;
 
 namespace PrusaTrayDiagnostic.Core.Images;
@@ -5,7 +6,8 @@ namespace PrusaTrayDiagnostic.Core.Images;
 /// <summary>
 /// <see cref="IPrinterImageStore"/> in <c>&lt;directory&gt;/printer-images/</c>, where the directory is the one of
 /// <c>settings.json</c> (by default <see cref="AppDataPaths.GetDefaultDirectory"/>). Thread-safe: every operation is a
-/// single file operation and saves replace the file atomically.
+/// single file operation and saves replace the file atomically. While another process holds an image open (antivirus,
+/// backup), reading, replacing and deleting it are retried a few times with short, growing delays (<see cref="FileRetry"/>).
 /// </summary>
 public sealed class FilePrinterImageStore : IPrinterImageStore
 {
@@ -14,11 +16,15 @@ public sealed class FilePrinterImageStore : IPrinterImageStore
     private const string TemporaryExtension = ".tmp";
     private const int BufferSize = 16 * 1024;
 
+    private readonly TimeProvider _timeProvider;
+
     /// <param name="settingsDirectory">The folder of <c>settings.json</c>.</param>
-    public FilePrinterImageStore(string settingsDirectory)
+    /// <param name="timeProvider">Clock of the waits between retries; <see cref="TimeProvider.System"/> by default.</param>
+    public FilePrinterImageStore(string settingsDirectory, TimeProvider? timeProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(settingsDirectory);
         DirectoryPath = Path.Combine(Path.GetFullPath(settingsDirectory), DirectoryName);
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public string DirectoryPath { get; }
@@ -28,9 +34,11 @@ public sealed class FilePrinterImageStore : IPrinterImageStore
 
     public string GetFilePath(string printerId) => Path.Combine(DirectoryPath, PrinterImageFileNames.For(printerId));
 
-    public async Task<byte[]?> ReadAsync(string printerId, CancellationToken cancellationToken)
+    public Task<byte[]?> ReadAsync(string printerId, CancellationToken cancellationToken) =>
+        FileRetry.RunAsync(static (path, token) => ReadOnceAsync(path, token), GetFilePath(printerId), replacing: false, _timeProvider, cancellationToken);
+
+    private static async Task<byte[]?> ReadOnceAsync(string path, CancellationToken cancellationToken)
     {
-        string path = GetFilePath(printerId);
         FileStream stream;
         try
         {
@@ -81,7 +89,13 @@ public sealed class FilePrinterImageStore : IPrinterImageStore
             }
 
             cancellationToken.ThrowIfCancellationRequested();
-            File.Move(tempPath, path, overwrite: true);
+            // Only the replace is retried: the complete temporary file stays ready meanwhile.
+            await FileRetry.RunAsync(
+                static paths => File.Move(paths.Source, paths.Target, overwrite: true),
+                (Source: tempPath, Target: path),
+                replacing: true,
+                _timeProvider,
+                cancellationToken).ConfigureAwait(false);
         }
         catch
         {
@@ -99,8 +113,14 @@ public sealed class FilePrinterImageStore : IPrinterImageStore
             return Task.FromResult(false);
         }
 
-        File.Delete(path);
-        return Task.FromResult(true);
+        return DeleteExistingAsync(path, cancellationToken);
+    }
+
+    private async Task<bool> DeleteExistingAsync(string path, CancellationToken cancellationToken)
+    {
+        // Windows refuses to delete a file another process holds open without delete sharing.
+        await FileRetry.RunAsync(static target => File.Delete(target), path, replacing: true, _timeProvider, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     public Task<int> RemoveOrphansAsync(IEnumerable<string> printerIds, CancellationToken cancellationToken)

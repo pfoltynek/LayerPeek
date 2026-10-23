@@ -20,38 +20,38 @@ public sealed class ToastChangeTests
     [Fact]
     public void KeyThatDidNotExistIsDeletedAsAWhole()
     {
-        RegistryKeyState current = new(true, [EnabledOff, Sound], ["sub"]);
+        RegistryKeySnapshot current = new(true, [EnabledOff, Sound], ["sub"]);
 
-        Assert.Equal([(RegistryAction.DeleteKey, (RegistryValueState?)null)], RegistryKeys.Plan(RegistryKeyState.Missing, current));
-        Assert.Empty(RegistryKeys.Plan(RegistryKeyState.Missing, RegistryKeyState.Missing));
+        Assert.Equal([(RegistryKeyStep.DeleteKey, (RegistryValueState?)null)], RegistryKeys.Plan(RegistryKeySnapshot.Missing, current));
+        Assert.Empty(RegistryKeys.Plan(RegistryKeySnapshot.Missing, RegistryKeySnapshot.Missing));
     }
 
     [Fact]
     public void ExistingKeyGetsItsValuesBackAndLosesNewOnes()
     {
-        RegistryKeyState original = new(true, [EnabledOff, Sound], []);
-        RegistryKeyState current = new(true, [EnabledOff with { Data = "1" }, BannerOff], []);
+        RegistryKeySnapshot original = new(true, [EnabledOff, Sound], []);
+        RegistryKeySnapshot current = new(true, [EnabledOff with { Data = "1" }, BannerOff], []);
 
-        List<(RegistryAction Action, RegistryValueState? Value)> plan = RegistryKeys.Plan(original, current);
+        List<(RegistryKeyStep Action, RegistryValueState? Value)> plan = RegistryKeys.Plan(original, current);
 
         Assert.Equal(
-            [(RegistryAction.DeleteValue, BannerOff), (RegistryAction.SetValue, EnabledOff), (RegistryAction.SetValue, Sound)],
+            [(RegistryKeyStep.DeleteValue, BannerOff), (RegistryKeyStep.SetValue, EnabledOff), (RegistryKeyStep.SetValue, Sound)],
             plan);
     }
 
     [Fact]
     public void DeletedKeyIsCreatedWithItsValues()
     {
-        RegistryKeyState original = new(true, [EnabledOff], []);
+        RegistryKeySnapshot original = new(true, [EnabledOff], []);
 
-        Assert.Equal([(RegistryAction.CreateKey, (RegistryValueState?)null), (RegistryAction.SetValue, EnabledOff)], RegistryKeys.Plan(original, RegistryKeyState.Missing));
+        Assert.Equal([(RegistryKeyStep.CreateKey, (RegistryValueState?)null), (RegistryKeyStep.SetValue, EnabledOff)], RegistryKeys.Plan(original, RegistryKeySnapshot.Missing));
     }
 
     [Fact]
     public void UnchangedKeyNeedsNothingWhateverTheOrderAndCase()
     {
-        RegistryKeyState original = new(true, [EnabledOff, Sound], ["A"]);
-        RegistryKeyState current = new(true, [Sound, EnabledOff with { Name = "ENABLED" }], ["a"]);
+        RegistryKeySnapshot original = new(true, [EnabledOff, Sound], ["A"]);
+        RegistryKeySnapshot current = new(true, [Sound, EnabledOff with { Name = "ENABLED" }], ["a"]);
 
         Assert.Empty(RegistryKeys.Plan(original, current));
         Assert.True(original.SameAs(current));
@@ -60,9 +60,9 @@ public sealed class ToastChangeTests
     [Fact]
     public void KeyStatesDifferInExistenceKindDataAndSubkeys()
     {
-        RegistryKeyState state = new(true, [EnabledOff], []);
+        RegistryKeySnapshot state = new(true, [EnabledOff], []);
 
-        Assert.False(state.SameAs(RegistryKeyState.Missing));
+        Assert.False(state.SameAs(RegistryKeySnapshot.Missing));
         Assert.False(state.SameAs(state with { Values = [EnabledOff with { Kind = "QWord" }] }));
         Assert.False(state.SameAs(state with { Values = [EnabledOff with { Data = "1" }] }));
         Assert.False(state.SameAs(state with { SubKeys = ["new"] }));
@@ -72,9 +72,9 @@ public sealed class ToastChangeTests
     [Fact]
     public void NotificationsOfTheTestAppAreSwitchedOnOnlyWhereTheyAreOff()
     {
-        RegistryKeyState original = new(true, [EnabledOff, BannerOff, Sound, new("ShowInActionCenter", "DWord", "0"), new("Other", "String", "0")], []);
+        RegistryKeySnapshot original = new(true, [EnabledOff, BannerOff, Sound, new("ShowInActionCenter", "DWord", "0"), new("Other", "String", "0")], []);
 
-        RegistryKeyState on = ToastAppSettingsKind.WithNotificationsOn(original);
+        RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(original);
 
         Assert.Equal("1", on.Value("Enabled")?.Data);
         Assert.Equal("1", on.Value("ShowBanner")?.Data);
@@ -83,15 +83,15 @@ public sealed class ToastChangeTests
         Assert.Equal("0", on.Value("ShowInActionCenter")?.Data);
         Assert.Equal("0", on.Value("Other")?.Data);
         // A missing key means Windows' defaults (on): it stays missing.
-        Assert.Same(RegistryKeyState.Missing, ToastAppSettingsKind.WithNotificationsOn(RegistryKeyState.Missing));
+        Assert.Same(RegistryKeySnapshot.Missing, ToastAppSettingsKind.WithNotificationsOn(RegistryKeySnapshot.Missing));
     }
 
     [Fact]
     public void ToastStatesSurviveTheJournal()
     {
-        RegistryKeyState key = new(true, [EnabledOff, Sound], ["sub"]);
+        RegistryKeySnapshot key = new(true, [EnabledOff, Sound], ["sub"]);
         Assert.True(key.SameAs(SystemChanges.ToastAppSettings.Deserialize(SystemChanges.ToastAppSettings.Serialize(key))));
-        Assert.True(RegistryKeyState.Missing.SameAs(SystemChanges.ToastAppSettings.Deserialize(SystemChanges.ToastAppSettings.Serialize(RegistryKeyState.Missing))));
+        Assert.True(RegistryKeySnapshot.Missing.SameAs(SystemChanges.ToastAppSettings.Deserialize(SystemChanges.ToastAppSettings.Serialize(RegistryKeySnapshot.Missing))));
 
         foreach (ToastsEnabledState state in new ToastsEnabledState[] { new(null), new(0), new(1) })
         {
@@ -299,7 +299,15 @@ public sealed class ToastChangeTests
             System.Reflection.MethodInfo method = typeof(ToastNotificationTests).GetMethod(name) ?? typeof(TestModeOsIntegrationTests).GetMethod(name)!;
             Assert.Contains(
                 method.GetCustomAttributes(typeof(TraitAttribute), inherit: false).OfType<TraitAttribute>(),
-                trait => trait.Name == SystemChanges.Trait && trait.Value == ToastSystemChanges.TraitValue);
+                trait => trait.Name == SystemChanges.Trait && trait.Value == SystemChangeTraits.Toasts);
+        }
+
+        // The toast tests switch Do Not Disturb off when it is on: the warning must list it too.
+        foreach (System.Reflection.MethodInfo method in typeof(ToastNotificationTests).GetMethods().Where(static method => method.IsDefined(typeof(FactAttribute), inherit: false)))
+        {
+            Assert.Contains(
+                method.GetCustomAttributes(typeof(TraitAttribute), inherit: false).OfType<TraitAttribute>(),
+                trait => trait.Name == SystemChanges.Trait && trait.Value == SystemChangeTraits.DoNotDisturb);
         }
 
         // Without the switch the test mode shows no toast and creates no shortcut: it runs in every end-to-end run.

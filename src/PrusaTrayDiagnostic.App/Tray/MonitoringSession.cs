@@ -18,6 +18,18 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 {
     private static readonly TimeSpan DisposeTimeout = TimeSpan.FromSeconds(3);
 
+    /// <summary>
+    /// How long after a failed save of a detected model (also after the store's own short retries) it is tried again (user
+    /// decision 2026-10-22).
+    /// </summary>
+    internal static readonly TimeSpan ModelSaveRetryDelay = TimeSpan.FromMinutes(1);
+
+    /// <summary>
+    /// How many times a failed save of a detected model is tried again before the session gives up (user decision
+    /// 2026-10-22); a new detected model, a successful save or a save of the settings window starts a new streak.
+    /// </summary>
+    internal const int MaxModelSaveRetries = 5;
+
     private readonly Func<ISettingsStore> _settingsStoreFactory;
     private readonly IPrinterMonitor _monitor;
     private readonly IMonitoringObserver[] _observers;
@@ -48,6 +60,14 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
     // Guarded by _gate. Background saves of detected models (T-039), one after another.
     private Task _modelSaves = Task.CompletedTask;
+
+    // Guarded by _gate. Printers whose detected model could not be saved, with the timer of the next attempt: at most one
+    // per printer; it saves the model the printer has when it fires.
+    private readonly Dictionary<string, PendingModelRetry> _modelRetries = new(StringComparer.OrdinalIgnoreCase);
+
+    // Guarded by _gate. Failed saves of each printer's detected model in the current streak (see MaxModelSaveRetries); no
+    // entry: no failure since the last reset.
+    private readonly Dictionary<string, int> _modelSaveFailures = new(StringComparer.OrdinalIgnoreCase);
 
     /// <param name="settingsStoreFactory">
     /// Called on background threads (loading, saving a detected model); may throw (e.g. no per-user data folder).
@@ -261,6 +281,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
                 return Task.CompletedTask;
             }
 
+            // The window saved these settings: a model they hold no longer needs its retry, and every failure streak starts
+            // over (a model they lack is written below or by the pending retry).
+            CancelModelRetriesSavedWithLocked(settings);
+            _modelSaveFailures.Clear();
+
             if (!credentialsChanged && _loopActive && _run is { IsCancellationRequested: false } && _pending is null && _current is { } current && KeepsMonitoring(current, settings))
             {
                 // Only notification settings changed: no restart, so the tray keeps the current state (no "connecting").
@@ -351,6 +376,8 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             }
 
             _current = updated;
+            // Another model: its save gets all retries again.
+            _modelSaveFailures.Remove(detected.PrinterId);
             QueueModelSaveLocked(detected);
         }
 
@@ -365,8 +392,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     }
 
     /// <summary>
-    /// After the previous save; never faults (failures are logged, the next detection tries again). Written only while the
-    /// current settings still hold this code for the printer, and only into the entry of the same machine (address and
+    /// After the previous save; never faults. A failure (also a file another process still holds after the store's retries)
+    /// is logged and the save is tried again after <see cref="ModelSaveRetryDelay"/>, at most <see cref="MaxModelSaveRetries"/>
+    /// times in a row (see <see cref="OnModelSaveFailedLocked"/>);
+    /// the model stays in the current settings meanwhile, so a save of the settings window writes it too. Written only while
+    /// the current settings still hold this code for the printer, and only into the entry of the same machine (address and
     /// connection type of the current settings): settings applied meanwhile may have moved the printer.
     /// </summary>
     private async Task SaveDetectedModelAsync(Task previous, PrinterModelDetected detected)
@@ -375,7 +405,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         PrinterDefinition? printer;
         lock (_gate)
         {
-            printer = _current?.Printers.FirstOrDefault(candidate => string.Equals(candidate.Id, detected.PrinterId, StringComparison.OrdinalIgnoreCase));
+            printer = FindPrinter(_current, detected.PrinterId);
         }
 
         if (printer is null || printer.DetectedModel != detected.Code)
@@ -392,8 +422,163 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         }
         catch (Exception ex)
         {
-            LogModelNotSaved(ex, detected.PrinterId);
+            int failures;
+            bool retrying;
+            lock (_gate)
+            {
+                (failures, retrying) = OnModelSaveFailedLocked(printer.Id);
+            }
+
+            if (retrying)
+            {
+                LogModelNotSavedRetrying(ex, detected.PrinterId, ModelSaveRetryDelay, failures, MaxModelSaveRetries);
+            }
+            else if (failures > MaxModelSaveRetries)
+            {
+                LogModelSaveGivenUp(ex, detected.PrinterId, MaxModelSaveRetries);
+            }
+            else
+            {
+                LogModelNotSaved(ex, detected.PrinterId);
+            }
+
+            return;
         }
+
+        // The file has the latest model now (or never will: the entry moved); an older pending retry has nothing to do.
+        lock (_gate)
+        {
+            CancelModelRetryLocked(printer.Id);
+            _modelSaveFailures.Remove(printer.Id);
+        }
+    }
+
+    /// <summary>
+    /// Under <c>_gate</c>: one more failed save of <paramref name="printerId"/>'s detected model. It is tried again after
+    /// <see cref="ModelSaveRetryDelay"/> while the streak has retries left (<see cref="MaxModelSaveRetries"/>); after the
+    /// last one the session gives up until a new streak starts (a new model, a successful save, a save of the settings
+    /// window, the next start).
+    /// </summary>
+    /// <returns>
+    /// The failures of the streak so far (more than <see cref="MaxModelSaveRetries"/>: given up now) and whether a retry is
+    /// pending; (0, false) once the session stops.
+    /// </returns>
+    private (int Failures, bool Retrying) OnModelSaveFailedLocked(string printerId)
+    {
+        if (_stopping is not null || _disposed)
+        {
+            return (0, false);
+        }
+
+        int failures = _modelSaveFailures.GetValueOrDefault(printerId) + 1;
+        if (failures > MaxModelSaveRetries)
+        {
+            _modelSaveFailures.Remove(printerId);
+            CancelModelRetryLocked(printerId);
+            return (failures, false);
+        }
+
+        _modelSaveFailures[printerId] = failures;
+        return (failures, ScheduleModelRetryLocked(printerId));
+    }
+
+    /// <summary>
+    /// Under <c>_gate</c>: the save of <paramref name="printerId"/>'s detected model is tried again after
+    /// <see cref="ModelSaveRetryDelay"/>, unless one is pending already (it saves the latest model) or the session stops.
+    /// </summary>
+    /// <returns>Whether a retry is pending now.</returns>
+    private bool ScheduleModelRetryLocked(string printerId)
+    {
+        if (_stopping is not null || _disposed)
+        {
+            return false;
+        }
+
+        if (_modelRetries.ContainsKey(printerId))
+        {
+            return true;
+        }
+
+        PendingModelRetry retry = new(this, printerId);
+        // Created stopped and armed only once registered, so that it can never fire before OnModelRetryDue can find it.
+        retry.Timer = _timeProvider.CreateTimer(static state => ((PendingModelRetry)state!).Fire(), retry, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        _modelRetries.Add(printerId, retry);
+        retry.Timer.Change(ModelSaveRetryDelay, Timeout.InfiniteTimeSpan);
+        return true;
+    }
+
+    /// <summary>Timer thread: the retry of a failed save is due; it saves the model the printer has now.</summary>
+    private void OnModelRetryDue(PendingModelRetry retry)
+    {
+        lock (_gate)
+        {
+            if (!_modelRetries.TryGetValue(retry.PrinterId, out PendingModelRetry? pending) || !ReferenceEquals(pending, retry))
+            {
+                return;
+            }
+
+            CancelModelRetryLocked(retry.PrinterId);
+            if (_stopping is not null || _disposed || FindPrinter(_current, retry.PrinterId) is not { DetectedModel: { } code } printer)
+            {
+                return;
+            }
+
+            QueueModelSaveLocked(new PrinterModelDetected(printer.Id, code));
+        }
+    }
+
+    /// <summary>Under <c>_gate</c>.</summary>
+    private void CancelModelRetryLocked(string printerId)
+    {
+        if (_modelRetries.Remove(printerId, out PendingModelRetry? retry))
+        {
+            retry.Timer?.Dispose();
+        }
+    }
+
+    /// <summary>Under <c>_gate</c>: the session stops; no retry may start a save any more.</summary>
+    private void CancelModelRetriesLocked()
+    {
+        foreach (PendingModelRetry retry in _modelRetries.Values)
+        {
+            retry.Timer?.Dispose();
+        }
+
+        _modelRetries.Clear();
+        _modelSaveFailures.Clear();
+    }
+
+    /// <summary>
+    /// Under <c>_gate</c>: <paramref name="saved"/> (saved in the settings window) already holds the running model of a printer
+    /// whose save failed, so its retry has nothing left to do.
+    /// </summary>
+    private void CancelModelRetriesSavedWithLocked(AppSettings saved)
+    {
+        if (_modelRetries.Count == 0 || _current is not { } current)
+        {
+            return;
+        }
+
+        foreach (PrinterDefinition printer in saved.Printers)
+        {
+            if (printer.DetectedModel is { } code && _modelRetries.ContainsKey(printer.Id) && FindPrinter(current, printer.Id)?.DetectedModel == code)
+            {
+                CancelModelRetryLocked(printer.Id);
+            }
+        }
+    }
+
+    private static PrinterDefinition? FindPrinter(AppSettings? settings, string printerId)
+    {
+        foreach (PrinterDefinition printer in settings?.Printers ?? [])
+        {
+            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+            {
+                return printer;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -535,6 +720,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             }
 
             _monitor.ModelDetected -= OnModelDetected;
+            CancelModelRetriesLocked();
 
             _disposed = true;
             if (_stopping is null)
@@ -558,6 +744,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     {
         lock (_gate)
         {
+            CancelModelRetriesLocked();
             // CancelAsync runs the registered callbacks on the thread pool, never on the (UI) caller.
             return _stopping ??= _disposed ? Task.CompletedTask : _stop.CancelAsync();
         }
@@ -761,6 +948,23 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     [LoggerMessage(Level = LogLevel.Information, Message = "The detected model {Code} of printer '{PrinterId}' was saved.")]
     private partial void LogModelSaved(string printerId, PrinterModelCode code);
 
-    [LoggerMessage(Level = LogLevel.Warning, Message = "The detected model of printer '{PrinterId}' could not be saved; the next detection tries again.")]
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The detected model of printer '{PrinterId}' could not be saved; it is written with the next save of the settings window or detected again at the next start.")]
     private partial void LogModelNotSaved(Exception exception, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The detected model of printer '{PrinterId}' could not be saved; trying again in {RetryDelay} (retry {Retry} of {MaxRetries}).")]
+    private partial void LogModelNotSavedRetrying(Exception exception, string printerId, TimeSpan retryDelay, int retry, int maxRetries);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The detected model of printer '{PrinterId}' could still not be saved after {MaxRetries} retries; giving up until the settings window saves the settings, another model is detected or the app starts again.")]
+    private partial void LogModelSaveGivenUp(Exception exception, string printerId, int maxRetries);
+
+    /// <summary>The timer of a retry of a failed detected-model save, and whose it is.</summary>
+    private sealed class PendingModelRetry(MonitoringSession session, string printerId)
+    {
+        public string PrinterId { get; } = printerId;
+
+        /// <summary>Set right after creation, before the timer is armed.</summary>
+        public ITimer? Timer { get; set; }
+
+        public void Fire() => session.OnModelRetryDue(this);
+    }
 }
