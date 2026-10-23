@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
+
 using PrusaTrayDiagnostic.App.Tray;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings;
@@ -19,6 +22,7 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
     private readonly FakePrinterMonitor _monitor = new();
     private readonly ListLogger<MonitoringSession> _logger = new();
     private readonly RecordingObserver _observer = new();
+    private readonly FakeTimeProvider _time = new();
     private MonitoringSession? _session;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -34,7 +38,7 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
     private async Task<(MonitoringSession Session, ModelStore Store)> StartAsync(params PrinterDefinition[] printers)
     {
         ModelStore store = new(AppSettings.Default with { Printers = printers });
-        _session = new MonitoringSession(() => store, _monitor, [_observer], _logger);
+        _session = new MonitoringSession(() => store, _monitor, [_observer], _logger, timeProvider: _time);
         _session.Start();
         await _monitor.WaitForRunsAsync(1).WaitAsync(TestTimeouts.Wait, Ct);
         return (_session, store);
@@ -177,8 +181,218 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
 
         Assert.Contains(_logger.Entries, static entry => entry.Exception is IOException);
         Assert.Single(_monitor.Runs);
-        // Shown anyway (the tray knows the model); the next run tries to save it again.
+        // Shown anyway (the tray knows the model); the save is tried again a minute later.
         Assert.Equal(Mk4SCode, session.CurrentSettings!.Printers[0].DetectedModel);
+    }
+
+    [Fact]
+    public async Task FailedSaveIsRetriedAfterAboutAMinute()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        store.FailuresLeft = 1;
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(TimeSpan.FromMinutes(1), MonitoringSession.ModelSaveRetryDelay);
+
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay - TimeSpan.FromSeconds(1));
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(1, store.Started);
+
+        _time.Advance(TimeSpan.FromSeconds(1));
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(2, store.Started);
+        Assert.Equal([("a", Mk4SCode)], store.DetectedModelSaves);
+        Assert.Single(_logger.Entries, static entry => entry.Exception is IOException);
+        Assert.Single(_monitor.Runs);
+
+        // Saved: nothing is retried any more.
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay * 3);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(2, store.Started);
+    }
+
+    [Fact]
+    public async Task EveryFailureIsLoggedAndRetriedAgain()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        store.FailuresLeft = 2;
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(2, store.Started);
+        Assert.Empty(store.DetectedModelSaves);
+
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(3, store.Started);
+        Assert.Equal([("a", Mk4SCode)], store.DetectedModelSaves);
+        Assert.Equal(2, _logger.Entries.Count(static entry => entry.Level == LogLevel.Warning && entry.Exception is IOException));
+    }
+
+    [Fact]
+    public async Task RetryWritesOnlyTheLatestModelOnce()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        store.FailuresLeft = 2;
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        _time.Advance(TimeSpan.FromSeconds(30));
+        _monitor.RaiseModelDetected("a", CoreOneCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(2, store.Started);
+
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        // One pending retry for the printer, not one per failure; it writes the model the printer has now.
+        Assert.Equal(3, store.Started);
+        Assert.Equal([("a", CoreOneCode)], store.DetectedModelSaves);
+    }
+
+    [Fact]
+    public async Task NoRetryWhenTheSettingsWindowSavedTheModelMeanwhile()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        store.FailuresLeft = 1;
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        // The window saved the running settings, including the model (SettingsEditorStore merges it in).
+        await session.ApplyAsync(AppSettings.Default with { Printers = [Definition("a", "Alpha") with { DetectedModel = Mk4SCode }] }, credentialsChanged: false)
+            .WaitAsync(TestTimeouts.Wait, Ct);
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay * 2);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(1, store.Started);
+        Assert.Empty(store.DetectedModelSaves);
+    }
+
+    [Fact]
+    public async Task RetriesGiveUpAfterFiveAttemptsWithOneMessage()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(5, MonitoringSession.MaxModelSaveRetries);
+
+        await AdvanceRetriesAsync(session, MonitoringSession.MaxModelSaveRetries);
+        Assert.Equal(1 + MonitoringSession.MaxModelSaveRetries, store.Started);
+
+        // Given up: no more attempts, however long the app runs.
+        await AdvanceRetriesAsync(session, 3);
+        Assert.Equal(1 + MonitoringSession.MaxModelSaveRetries, store.Started);
+        Assert.Empty(store.DetectedModelSaves);
+        Assert.Single(_logger.Entries, static entry => entry.Message.Contains("giving up", StringComparison.Ordinal));
+        Assert.Equal(1 + MonitoringSession.MaxModelSaveRetries, _logger.Entries.Count(static entry => entry.Level == LogLevel.Warning && entry.Exception is IOException));
+        // Shown anyway; the settings window or the next start writes it.
+        Assert.Equal(Mk4SCode, session.CurrentSettings!.Printers[0].DetectedModel);
+    }
+
+    [Fact]
+    public async Task NewDetectedModelStartsANewRetryStreak()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        await AdvanceRetriesAsync(session, 3);
+        Assert.Equal(4, store.Started);
+
+        _monitor.RaiseModelDetected("a", CoreOneCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(5, store.Started);
+
+        // The new model gets all its retries, then the session gives up again.
+        await AdvanceRetriesAsync(session, MonitoringSession.MaxModelSaveRetries + 2);
+        Assert.Equal(5 + MonitoringSession.MaxModelSaveRetries, store.Started);
+        Assert.Single(_logger.Entries, static entry => entry.Message.Contains("giving up", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task NewDetectedModelAfterGivingUpIsSavedAndRetriedAgain()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        await AdvanceRetriesAsync(session, MonitoringSession.MaxModelSaveRetries + 1);
+        int givenUpAfter = store.Started;
+
+        store.FailuresLeft = 1;
+        _monitor.RaiseModelDetected("a", CoreOneCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        await AdvanceRetriesAsync(session, 1);
+
+        Assert.Equal(givenUpAfter + 2, store.Started);
+        Assert.Equal([("a", CoreOneCode)], store.DetectedModelSaves);
+    }
+
+    [Fact]
+    public async Task SuccessfulSaveStartsANewRetryStreak()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        store.FailuresLeft = 4;
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        await AdvanceRetriesAsync(session, 4);
+        Assert.Equal(5, store.Started);
+        Assert.Equal([("a", Mk4SCode)], store.DetectedModelSaves);
+
+        store.FailuresLeft = null;
+        _monitor.RaiseModelDetected("a", CoreOneCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        await AdvanceRetriesAsync(session, MonitoringSession.MaxModelSaveRetries + 2);
+
+        Assert.Equal(6 + MonitoringSession.MaxModelSaveRetries, store.Started);
+    }
+
+    [Fact]
+    public async Task SettingsWindowSaveStartsANewRetryStreak()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        await AdvanceRetriesAsync(session, 3);
+        Assert.Equal(4, store.Started);
+
+        // The window saved settings read before the detection: the session writes the running model itself, as a new streak.
+        await session.ApplyAsync(AppSettings.Default with { Printers = [Definition("a", "Alpha")] }, credentialsChanged: false)
+            .WaitAsync(TestTimeouts.Wait, Ct);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(5, store.Started);
+        await AdvanceRetriesAsync(session, MonitoringSession.MaxModelSaveRetries + 2);
+
+        Assert.Equal(5 + MonitoringSession.MaxModelSaveRetries, store.Started);
+        Assert.Single(_logger.Entries, static entry => entry.Message.Contains("giving up", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task PendingRetryEndsWithTheSession()
+    {
+        (MonitoringSession session, ModelStore store) = await StartAsync(Definition("a", "Alpha"));
+        store.Failure = new IOException("held by a scanner");
+        store.FailuresLeft = 1;
+        _monitor.RaiseModelDetected("a", Mk4SCode);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        await session.StopAsync(TestTimeouts.Wait);
+        _time.Advance(MonitoringSession.ModelSaveRetryDelay * 2);
+        await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(1, store.Started);
     }
 
     [Fact]
@@ -268,6 +482,16 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
         Assert.Empty(storedIds);
     }
 
+    /// <summary>Lets <paramref name="count"/> retry delays pass, each followed by the saves it started.</summary>
+    private async Task AdvanceRetriesAsync(MonitoringSession session, int count)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            _time.Advance(MonitoringSession.ModelSaveRetryDelay);
+            await session.ModelSaves.WaitAsync(TestTimeouts.Wait, Ct);
+        }
+    }
+
     /// <summary>Settings store that records detected-model saves; a save can wait for <see cref="Gate"/> or fail.</summary>
     private sealed class ModelStore(AppSettings settings) : ISettingsStore
     {
@@ -275,10 +499,23 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
         private readonly List<(string, PrinterModelCode)> _saves = [];
         private readonly List<(string, ConnectionType)> _machines = [];
         private int _started;
+        private int _failuresLeft;
+        private bool _failuresLeftSet;
 
         public TaskCompletionSource? Gate { get; set; }
 
         public Exception? Failure { get; set; }
+
+        /// <summary>How many more saves fail with <see cref="Failure"/>; <see langword="null"/>: all of them.</summary>
+        public int? FailuresLeft
+        {
+            get => _failuresLeftSet ? Math.Max(Volatile.Read(ref _failuresLeft), 0) : null;
+            set
+            {
+                _failuresLeftSet = value is not null;
+                Volatile.Write(ref _failuresLeft, value ?? 0);
+            }
+        }
 
         public int Started => Volatile.Read(ref _started);
 
@@ -318,7 +555,7 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
                 await gate.Task.WaitAsync(TestTimeouts.Wait, cancellationToken);
             }
 
-            if (Failure is { } failure)
+            if (Failure is { } failure && (FailuresLeft is null || Interlocked.Decrement(ref _failuresLeft) >= 0))
             {
                 throw failure;
             }

@@ -82,7 +82,7 @@ internal static class AppServices
         services.AddSingleton(env);
         services.AddSingleton<ISecretStore>(_ => CreateSecretStore(env));
         // Created on first use (by the monitoring session on a background thread), so building the provider touches no files.
-        services.AddSingleton<ISettingsStore>(_ => new JsonSettingsStore(env.DataDirectory()));
+        services.AddSingleton<ISettingsStore>(sp => new JsonSettingsStore(env.DataDirectory(), sp.GetRequiredService<TimeProvider>()));
 
         services.AddPrusaLink();
         services.AddSingleton<IPrinterClientFactory>(static sp => new PrinterClientFactory(sp.GetRequiredService<PrusaLinkClientFactory>()));
@@ -115,7 +115,7 @@ internal static class AppServices
         services.AddSingleton(static _ => TrayMenuOptions.ForCurrentPlatform);
         // Custom printer images (T-039): files next to settings.json (created on first use, may throw without a data folder) and
         // the images in use, in memory for the tray menu and the diagnostics window.
-        services.AddSingleton<IPrinterImageStore>(_ => new FilePrinterImageStore(env.DataDirectory()));
+        services.AddSingleton<IPrinterImageStore>(sp => new FilePrinterImageStore(env.DataDirectory(), sp.GetRequiredService<TimeProvider>()));
         services.AddSingleton(static _ => new CustomPrinterImages());
         // Opens PrusaLink logged in through the local web proxy registered by AddPrusaLink (T-028); the proxy starts on the
         // first click, and disposing the container (quit) stops it.
@@ -273,7 +273,8 @@ internal static class AppServices
         {
             return new JsonCameraWindowStateStore(
                 services.GetRequiredService<AppEnvironment>().DataDirectory(),
-                services.GetRequiredService<ILogger<JsonCameraWindowStateStore>>());
+                services.GetRequiredService<ILogger<JsonCameraWindowStateStore>>(),
+                services.GetRequiredService<TimeProvider>());
         }
         catch (InvalidOperationException)
         {

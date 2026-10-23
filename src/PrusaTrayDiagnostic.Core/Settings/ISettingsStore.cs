@@ -3,7 +3,8 @@ using PrusaTrayDiagnostic.Core.Printers;
 namespace PrusaTrayDiagnostic.Core.Settings;
 
 /// <summary>
-/// Loads and saves <see cref="AppSettings"/>.
+/// Loads and saves <see cref="AppSettings"/>. A file store retries for a short while when another process holds the
+/// file open (antivirus, backup, an editor); "unreadable" below means a file that still cannot be read after that.
 /// </summary>
 public interface ISettingsStore
 {
@@ -41,7 +42,9 @@ public interface ISettingsStore
     /// cleaned as well but cannot be listed.
     /// </returns>
     /// <remarks>The default implementation is for stores without a file (e.g. in memory): there is nothing to clean.</remarks>
-    /// <exception cref="IOException">The cleaned settings could not be written.</exception>
+    /// <exception cref="IOException">
+    /// The cleaned settings could not be written, or another process still held the file after the retries.
+    /// </exception>
     /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     Task<IReadOnlyList<string>> RemoveCameraCredentialsAsync(CancellationToken cancellationToken) =>
@@ -58,7 +61,9 @@ public interface ISettingsStore
     /// </summary>
     /// <returns><see langword="true"/> when the file was written (the code differed or was missing).</returns>
     /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
-    /// <exception cref="IOException">The settings could not be written.</exception>
+    /// <exception cref="IOException">
+    /// The settings could not be written, or another process still held the file after the retries (the model is not saved).
+    /// </exception>
     /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     Task<bool> SetDetectedModelAsync(string printerId, PrinterModelCode code, string expectedAddress, ConnectionType expectedConnectionType, CancellationToken cancellationToken) =>
