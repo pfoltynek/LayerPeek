@@ -54,6 +54,25 @@ public sealed class WindowsShortcutStoreTests : IDisposable
     }
 
     [Fact]
+    public void ToastActivatorReadsBack()
+    {
+        string path = Path.Combine(_directory, "activator.lnk");
+        AppShortcut shortcut = new(ExistingTarget, "PrusaTrayDiagnostic.Tests", new Guid("0B8D1A2C-3E4F-4A5B-9C6D-7E8F9A0B1C2D"));
+
+        _store.Write(path, shortcut);
+
+        AppShortcut? read = _store.Read(path);
+        Assert.NotNull(read);
+        Assert.Equal(shortcut.ToastActivatorClsid, read.ToastActivatorClsid);
+        Assert.Equal("PrusaTrayDiagnostic.Tests", read.AppUserModelId);
+        Assert.Equal(ShortcutAction.UpToDate, AppShortcutRegistration.Decide(read, shortcut));
+
+        // Rewritten without one, the shortcut has none.
+        _store.Write(path, shortcut with { ToastActivatorClsid = null });
+        Assert.Null(_store.Read(path)?.ToastActivatorClsid);
+    }
+
+    [Fact]
     public void RewritingUpdatesTargetAndId()
     {
         string path = Path.Combine(_directory, "app.lnk");

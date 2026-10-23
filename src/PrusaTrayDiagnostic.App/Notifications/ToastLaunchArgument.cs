@@ -44,8 +44,31 @@ internal static class ToastLaunchArgument
         return true;
     }
 
+    /// <summary>
+    /// Whether <paramref name="argument"/> has exactly the form <see cref="ForPrinter"/> creates: the prefix, then only
+    /// unreserved characters and percent escapes (ASCII, nothing to quote or escape), at most <see cref="MaxLength"/>,
+    /// naming a printer. Arguments that came from outside the app (another start, T-068) must pass this check.
+    /// </summary>
+    public static bool IsWellFormed([NotNullWhen(true)] string? argument)
+    {
+        if (argument is null || argument.Length > MaxLength || !argument.StartsWith(PrinterPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        foreach (char c in argument.AsSpan(PrinterPrefix.Length))
+        {
+            if (!char.IsAsciiLetterOrDigit(c) && c is not '-' and not '.' and not '_' and not '~' and not '%')
+            {
+                return false;
+            }
+        }
+
+        return TryGetPrinterId(argument, out _);
+    }
+
     /// <returns><see langword="false"/> for anything not created by <see cref="ForPrinter"/>.</returns>
-    public static bool TryGetPrinterId(string? argument, [NotNullWhen(true)] out string? printerId)
+    public static bool TryGetPrinterId([NotNullWhen(true)] string? argument, [NotNullWhen(true)] out string? printerId)
     {
         printerId = null;
         if (argument is null || !argument.StartsWith(PrinterPrefix, StringComparison.Ordinal))

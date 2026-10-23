@@ -31,6 +31,26 @@ internal static class AppProcesses
         return found;
     }
 
+    /// <summary>The command line of a marked app process of <paramref name="directory"/>, or <see langword="null"/> (never another process's).</summary>
+    public static string? MarkedCommandLine(string directory, int processId)
+    {
+        string prefix = AppSwitches.MarkerArgument + Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
+        using ManagementObjectSearcher searcher = new($"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {processId.ToString(System.Globalization.CultureInfo.InvariantCulture)} AND Name = 'PrusaTrayDiagnostic.exe'");
+        using ManagementObjectCollection processes = searcher.Get();
+        foreach (ManagementBaseObject process in processes)
+        {
+            using (process)
+            {
+                if (process["CommandLine"] is string commandLine && IsMarked(commandLine, prefix))
+                {
+                    return commandLine;
+                }
+            }
+        }
+
+        return null;
+    }
+
     /// <summary>
     /// Kills every marked app process of <paramref name="directory"/> (a crashed or hung run) and returns their
     /// descriptions; anything returned at the end of a run is a leak.

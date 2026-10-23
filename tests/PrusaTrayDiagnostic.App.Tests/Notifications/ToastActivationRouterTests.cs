@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 
 using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Tests.Tray;
@@ -98,10 +99,49 @@ public sealed class ToastActivationRouterTests
     }
 
     [Fact]
-    public async Task ClickBeforeAnySettingsOpensNothing()
+    public async Task ClickBeforeAnySettingsOpensNothingOnceTheWaitIsOver()
     {
-        Assert.False(await _router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
+        FakeTimeProvider time = new();
+        ToastActivationRouter router = new(TestWebOpener.Create(_launcher, _gateway), _logger, time);
+
+        Task<bool> click = router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4"));
+        Assert.False(click.IsCompleted);
+        time.Advance(ToastActivationRouter.SettingsWait);
+
+        Assert.False(await click.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
         Assert.Empty(_launcher.Opened);
+    }
+
+    [Fact]
+    public async Task ClickThatStartedTheAppWaitsForTheFirstSettings()
+    {
+        // Windows started the app for a click in the notification center (T-068): monitoring applies the printers later.
+        Task<bool> click = _router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4"));
+        Assert.False(click.IsCompleted);
+
+        Apply(Definition());
+
+        Assert.True(await click.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken));
+        Assert.Equal(new Uri("http://192.168.1.10/"), Assert.Single(_launcher.Opened));
+    }
+
+    [Fact]
+    public async Task OneClickReportedTwiceOpensTheWebOnce()
+    {
+        // A banner click may reach the app twice: the toast's Activated event and the COM activator (T-068).
+        FakeTimeProvider time = new();
+        ToastActivationRouter router = new(TestWebOpener.Create(_launcher, _gateway), _logger, time);
+        ((IMonitoringObserver)router).ApplySettings(new AppSettings { Printers = [Definition(), Definition(id: "xl", name: "XL")] });
+
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
+        Assert.False(await router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
+        // Another printer is another click.
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.ForPrinter("xl")));
+        time.Advance(ToastActivationRouter.DuplicateWindow);
+        // Later, the same toast again is a new click.
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.ForPrinter("mk4")));
+
+        Assert.Equal(3, _launcher.Opened.Count);
     }
 
     [Theory]

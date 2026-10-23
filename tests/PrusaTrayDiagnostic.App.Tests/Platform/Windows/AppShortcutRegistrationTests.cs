@@ -49,6 +49,26 @@ public sealed class AppShortcutRegistrationTests
     }
 
     [Fact]
+    public void ShortcutWithTheSameToastActivatorIsUpToDate()
+    {
+        Guid clsid = Guid.NewGuid();
+
+        Assert.Equal(ShortcutAction.UpToDate, AppShortcutRegistration.Decide(Desired with { ToastActivatorClsid = clsid }, Desired with { ToastActivatorClsid = clsid }));
+    }
+
+    [Fact]
+    public void ShortcutWithoutOrWithAnotherToastActivatorIsUpdated()
+    {
+        // The shortcut of an earlier version has no activator (T-068); a different one belongs to another build.
+        AppShortcut desired = Desired with { ToastActivatorClsid = Guid.NewGuid() };
+
+        Assert.Equal(ShortcutAction.Update, AppShortcutRegistration.Decide(Desired, desired));
+        Assert.Equal(ShortcutAction.Update, AppShortcutRegistration.Decide(desired with { ToastActivatorClsid = Guid.NewGuid() }, desired));
+        // An activator the app no longer registers (its registration failed) goes from the shortcut too.
+        Assert.Equal(ShortcutAction.Update, AppShortcutRegistration.Decide(desired, Desired));
+    }
+
+    [Fact]
     public void EnsureCreatesMissingShortcut()
     {
         ShortcutAction action = new AppShortcutRegistration(_store, _logger).Ensure(ShortcutPath, Desired);

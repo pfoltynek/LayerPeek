@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 using Avalonia;
 using Avalonia.Threading;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Composition;
 using PrusaTrayDiagnostic.App.Logging;
+using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.Platform.Windows;
 using PrusaTrayDiagnostic.App.SingleInstance;
 using PrusaTrayDiagnostic.App.Windows;
@@ -48,6 +50,14 @@ internal static partial class Program
             return TestToastCleanup.RunFromCommandLine(Console.Error);
         }
 
+        // A start by Windows for a click on a test toast (T-068) carries the test switches on its command line: they are set
+        // before anything reads them, and an invalid one refuses the start rather than starting the production app.
+        bool testActivation = ToastActivatorCommandLine.HasTestEnvironment(args);
+        if (testActivation && !ToastActivatorCommandLine.TryApplyTestEnvironment(args, Environment.SetEnvironmentVariable))
+        {
+            return AppEnvironment.InvalidTestModeExitCode;
+        }
+
         // Test mode (T-044): its own data folder and, required, its own instance names, so that a test start never
         // forwards to (or blocks) the user's running instance.
         AppEnvironment environment;
@@ -62,6 +72,12 @@ internal static partial class Program
 
         if (environment.IsIsolated && InstanceTransports.NameSuffix.Length == 0)
         {
+            return AppEnvironment.InvalidTestModeExitCode;
+        }
+
+        if (testActivation && (!environment.IsIsolated || !Directory.Exists(environment.DataDirectory())))
+        {
+            // A toast of a test run that is over: never a production start, never a new test folder.
             return AppEnvironment.InvalidTestModeExitCode;
         }
 #else
@@ -91,38 +107,119 @@ internal static partial class Program
         }
 #endif
 
-        // The guard runs before the app starts: a later start only passes "activate" on and exits (T-043).
-        InstanceCommandQueue instanceCommands = new();
-        using SingleInstanceGuard? guard = InstanceTransports.TryCreateForCurrentPlatform(InstanceTransports.NameSuffix, environment) is { } transport
-            ? new SingleInstanceGuard(transport, logging.Factory.CreateLogger<SingleInstanceGuard>())
+        // Clicks on toasts in the notification center reach the app through its COM toast activator (T-068, Windows only;
+        // none in the test mode without toasts).
+        ToastActivationInbox? toastClicks = OperatingSystem.IsWindows() && environment.ToastActivatorClsid is not null
+            ? new ToastActivationInbox(environment.AppUserModelId, logging.Factory.CreateLogger<ToastActivationInbox>())
             : null;
-        if (guard is not null && guard.Start(InstanceCommand.Activate, instanceCommands.Post) != InstanceRole.Primary)
+        ToastActivatorServer? toastActivator = null;
+        try
         {
-            LogNotPrimary(log);
-            return 0;
-        }
+            // The guard runs before the app starts: a later start only passes "activate" on and exits (T-043).
+            InstanceCommand? passOn = InstanceCommand.Activate;
+            if (OperatingSystem.IsWindows() && ToastActivatorCommandLine.IsActivationStart(args))
+            {
+                // Windows started the app for a click (T-068): its activator serves first, to learn the click, which then
+                // goes to the running instance (like a second start) or is handled here once the app runs.
+                toastActivator = StartToastActivator(environment, toastClicks, log);
+                passOn = toastClicks?.WaitForFirst(ToastActivationWait) is { } click && InstanceCommand.TryForToast(click, out InstanceCommand toast)
+                    ? toast
+                    : null;
+                LogStartedForToast(log, passOn is not null);
+            }
 
-        // Only the primary instance rotates the log files; a later start just appends its few records.
-        logging.EnableRotation();
+            InstanceCommandQueue instanceCommands = new();
+            using SingleInstanceGuard? guard = InstanceTransports.TryCreateForCurrentPlatform(InstanceTransports.NameSuffix, environment) is { } transport
+                ? new SingleInstanceGuard(transport, logging.Factory.CreateLogger<SingleInstanceGuard>())
+                : null;
+            if (guard is not null && guard.Start(passOn, instanceCommands.Post) != InstanceRole.Primary)
+            {
+                LogNotPrimary(log);
+                return 0;
+            }
+
+            // Only the primary instance rotates the log files; a later start just appends its few records.
+            logging.EnableRotation();
 
 #if DEBUG
-        if (Environment.GetEnvironmentVariable(InstanceTransports.ForwardOnlyVariable) == "1")
-        {
-            // Two-process test: this start was meant to find a running instance; never start a real app here.
-            return InstanceTransports.ForwardOnlyExitCode;
-        }
+            if (Environment.GetEnvironmentVariable(InstanceTransports.ForwardOnlyVariable) == "1")
+            {
+                // Two-process test: this start was meant to find a running instance; never start a real app here.
+                return InstanceTransports.ForwardOnlyExitCode;
+            }
 #endif
 
-        if (OperatingSystem.IsWindows())
+            if (OperatingSystem.IsWindows())
+            {
+                // Before any window exists, so that windows and toasts share the identity of the Start menu shortcut (T-010).
+                // Only the identity of this process: nothing is registered. The test mode has its own id (T-044), so test windows
+                // never group with the user's instance on the taskbar.
+                WindowsAppIdentity.ApplyToCurrentProcess(environment.AppUserModelId);
+                if (toastClicks is not null)
+                {
+                    // Clicks (also the one this start was made for) wait in the command queue until the app runs.
+                    toastActivator ??= StartToastActivator(environment, toastClicks, log);
+                    toastClicks.Attach(click => PostToastClick(instanceCommands, click, log));
+                }
+            }
+
+            return BuildAvaloniaApp(instanceCommands, environment, logging, crashes).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+        }
+        finally
         {
-            // Before any window exists, so that windows and toasts share the identity of the Start menu shortcut (T-010).
-            // Only the identity of this process: nothing is registered. The test mode has its own id (T-044), so test windows
-            // never group with the user's instance on the taskbar.
-            WindowsAppIdentity.ApplyToCurrentProcess(environment.AppUserModelId);
+            // Windows starts the app again for a later click.
+            if (OperatingSystem.IsWindows())
+            {
+                toastActivator?.Dispose();
+            }
+        }
+    }
+
+    /// <summary>How long a start by Windows waits for the click it was made for (Windows reports it right after the activator is registered).</summary>
+    private static readonly TimeSpan ToastActivationWait = TimeSpan.FromSeconds(10);
+
+    /// <summary>The COM toast activator of this run (T-068), or <see langword="null"/> without one or when it cannot be registered.</summary>
+    [SupportedOSPlatform("windows")]
+    private static ToastActivatorServer? StartToastActivator(AppEnvironment environment, ToastActivationInbox? clicks, ILogger log)
+    {
+        if (clicks is null || environment.ToastActivatorClsid is not { } clsid)
+        {
+            return null;
         }
 
-        return BuildAvaloniaApp(instanceCommands, environment, logging, crashes).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+        try
+        {
+            return ToastActivatorServer.Start(clsid, clicks.Receive);
+        }
+        catch (Exception ex)
+        {
+            // The app runs; clicks in the notification center do not reach it.
+            LogToastActivatorFailed(log, ex);
+            return null;
+        }
     }
+
+    private static void PostToastClick(InstanceCommandQueue commands, string click, ILogger log)
+    {
+        if (InstanceCommand.TryForToast(click, out InstanceCommand toast))
+        {
+            commands.Post(toast);
+        }
+        else
+        {
+            // Not an argument of the app's own toasts; the argument itself is not logged.
+            LogUnknownToastClick(log);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Started by Windows for a click on a notification (click received: {Received}).")]
+    private static partial void LogStartedForToast(ILogger logger, bool received);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Registering the toast activator failed; clicks on notifications in the notification center will not reach the app.")]
+    private static partial void LogToastActivatorFailed(ILogger logger, Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a click on a notification with an unrecognized argument.")]
+    private static partial void LogUnknownToastClick(ILogger logger);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Prusa Tray Diagnostic {Version} starting on {OperatingSystem} ({Architecture}).")]
     private static partial void LogStarted(ILogger logger, string version, string operatingSystem, Architecture architecture);

@@ -15,7 +15,7 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 /// has 0, so an empty header never matches, and a dark icon on a dark toast is still told apart from the background.
 /// </param>
 /// <param name="EntrySize">The icon entry the reference was drawn from (<see cref="ToastIcon.EntrySizes"/>).</param>
-internal sealed record IconMatch(Rectangle Location, int Size, double Score, double Correlation, Color Background, int EntrySize)
+internal sealed record ToastIconMatch(Rectangle Location, int Size, double Score, double Correlation, Color Background, int EntrySize)
 {
     /// <summary>Most a toast icon may differ in colour from the reference (acrylic background, Windows' own scaling).</summary>
     public const double MaxScore = 0.15;
@@ -74,11 +74,11 @@ internal static class ToastIcon
     internal static int[] EntrySizes(int size) => [.. new[] { size, size * 2, 256 }.Distinct()];
 
     /// <summary>The best position of the icon at any of <paramref name="sizes"/> in <paramref name="area"/>; null when the area is too small.</summary>
-    public static IconMatch? Find(Bitmap area, IReadOnlyList<int> sizes)
+    public static ToastIconMatch? Find(Bitmap area, IReadOnlyList<int> sizes)
     {
         Pixels pixels = Pixels.Of(area);
         Color background = pixels.BorderMedian();
-        IconMatch? best = null;
+        ToastIconMatch? best = null;
         foreach (int size in sizes)
         {
             if (size > area.Width || size > area.Height)
@@ -97,7 +97,7 @@ internal static class ToastIcon
                         double correlation = pixels.Correlation(icon, x, y);
                         if (best is null || correlation > best.Correlation)
                         {
-                            best = new IconMatch(new Rectangle(x, y, size, size), size, pixels.Difference(icon, x, y), correlation, background, entrySize);
+                            best = new ToastIconMatch(new Rectangle(x, y, size, size), size, pixels.Difference(icon, x, y), correlation, background, entrySize);
                         }
                     }
                 }

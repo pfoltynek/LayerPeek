@@ -2,9 +2,13 @@ using Microsoft.Extensions.Logging;
 
 namespace PrusaTrayDiagnostic.App.Platform.Windows;
 
-/// <summary>What a Start menu shortcut points to and which AppUserModelID it carries.</summary>
+/// <summary>What a Start menu shortcut points to, which AppUserModelID and which COM toast activator it carries.</summary>
 /// <param name="AppUserModelId"><see langword="null"/> when the shortcut has none.</param>
-internal sealed record AppShortcut(string TargetPath, string? AppUserModelId);
+/// <param name="ToastActivatorClsid">
+/// <c>System.AppUserModel.ToastActivatorCLSID</c>: the COM server Windows reports toast clicks to (T-068); <see langword="null"/>
+/// when the shortcut has none.
+/// </param>
+internal sealed record AppShortcut(string TargetPath, string? AppUserModelId, Guid? ToastActivatorClsid = null);
 
 /// <summary>Reads and writes <c>.lnk</c> files.</summary>
 internal interface IShortcutStore
@@ -24,12 +28,12 @@ internal interface IShortcutStore
 
 internal enum ShortcutAction
 {
-    /// <summary>The shortcut already points to this executable with this id; nothing was written.</summary>
+    /// <summary>Already as wanted; nothing was written.</summary>
     UpToDate,
 
     Create,
 
-    /// <summary>Rewritten: the executable moved, the id differed or the file could not be read.</summary>
+    /// <summary>Rewritten: the executable moved, the id or the activator differed, or the file could not be read.</summary>
     Update,
 }
 
@@ -76,6 +80,7 @@ internal sealed partial class AppShortcutRegistration
 
         return SamePath(existing.TargetPath, desired.TargetPath)
             && string.Equals(existing.AppUserModelId, desired.AppUserModelId, StringComparison.Ordinal)
+            && existing.ToastActivatorClsid == desired.ToastActivatorClsid
             ? ShortcutAction.UpToDate
             : ShortcutAction.Update;
     }

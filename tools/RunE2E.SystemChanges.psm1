@@ -36,8 +36,9 @@ $script:Kinds = [ordered]@{
     }
     Toasts        = @{
         Change  = @(
-            'silent test toasts in the notification center and a temporary Start menu shortcut',
-            '     "Prusa Tray Diagnostic E2E" (Windows may keep remembering the app PrusaTrayDiagnostic.E2E',
+            'silent test toasts in the notification center, a temporary Start menu shortcut',
+            '     "Prusa Tray Diagnostic E2E" and its toast activator under HKCU\Software\Classes\CLSID',
+            '     (a click on a test toast starts the test app) (Windows may keep remembering the app PrusaTrayDiagnostic.E2E',
             '     in its notification database / Settings > Notifications); notifications of Windows and of',
             '     the test app are switched on for the test if they are off')
         Restore = 'Settings > System > Notifications'

@@ -317,8 +317,11 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnaps
     }
 }
 
-/// <summary>Whether the Start menu shortcut of the test app exists (its toast history cannot be read from here).</summary>
-internal sealed record TestToastsState(bool ShortcutExists);
+/// <summary>
+/// Whether the Start menu shortcut of the test app exists and its COM toast activator is registered (T-068); its toast
+/// history cannot be read from here. Journal entries written before T-068 have no activator (read as not registered).
+/// </summary>
+internal sealed record TestToastsState(bool ShortcutExists, bool ActivatorRegistered = false);
 
 /// <summary>
 /// What a test app with toasts (T-067) leaves in Windows: its toasts in the notification center and its Start menu
@@ -336,16 +339,30 @@ internal sealed class TestToastsKind() : SystemChangeKind<TestToastsState>("Toas
 
     public static string ShortcutPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppSwitches.TestShortcutFileName);
 
-    public override Task<TestToastsState> ReadStateAsync(string? key, CancellationToken cancellationToken) =>
-        Task.FromResult(new TestToastsState(File.Exists(ShortcutPath)));
+    /// <summary>The registration of a COM server (relative to HKCU), as the app writes it.</summary>
+    public static string ActivatorSubKey(string clsid) => $@"Software\Classes\CLSID\{{{clsid.ToUpperInvariant()}}}";
 
-    /// <summary>The shortcut is gone: a shortcut that existed before was left by a crashed run and goes too.</summary>
-    public override bool Matches(TestToastsState original, TestToastsState current) => !current.ShortcutExists;
+    /// <summary>Whether the toast activator of the test app is registered (T-068).</summary>
+    public static bool ActivatorRegistered()
+    {
+        using RegistryKey? key = Registry.CurrentUser.OpenSubKey(ActivatorSubKey(AppSwitches.TestToastActivatorClsid));
+        return key is not null;
+    }
+
+    public override Task<TestToastsState> ReadStateAsync(string? key, CancellationToken cancellationToken) =>
+        Task.FromResult(new TestToastsState(File.Exists(ShortcutPath), ActivatorRegistered()));
+
+    /// <summary>
+    /// The shortcut and the activator are gone: what existed before was left by a crashed run and goes too (a test toast
+    /// could otherwise start the Debug exe).
+    /// </summary>
+    public override bool Matches(TestToastsState original, TestToastsState current) => !current.ShortcutExists && !current.ActivatorRegistered;
 
     public override string Describe(string? key, TestToastsState original) =>
-        $"Toasts of the test app {AppSwitches.AppUserModelId} and its Start menu shortcut '{ShortcutPath}' (shortcut before: {(original.ShortcutExists ? "a leftover" : "none")}). "
+        $"Toasts of the test app {AppSwitches.AppUserModelId}, its Start menu shortcut '{ShortcutPath}' (before: {(original.ShortcutExists ? "a leftover" : "none")}) "
+        + $"and its toast activator HKCU\\{ActivatorSubKey(AppSwitches.TestToastActivatorClsid)} (before: {(original.ActivatorRegistered ? "a leftover" : "none")}). "
         + $"By hand: \"{key ?? "PrusaTrayDiagnostic.exe (Debug)"}\" {AppSwitches.ClearToastsArgument}, or clear the notifications of "
-        + $"\"{Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName)}\" in the notification center (Win+N) and delete the shortcut.";
+        + $"\"{Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName)}\" in the notification center (Win+N), delete the shortcut and the registry key.";
 
     /// <summary>Nothing to apply: the test app creates the shortcut and shows the toasts itself.</summary>
     protected override Task ApplyCoreAsync(string? key, TestToastsState state, CancellationToken cancellationToken) =>

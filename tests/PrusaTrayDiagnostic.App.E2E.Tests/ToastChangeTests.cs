@@ -99,6 +99,26 @@ public sealed class ToastChangeTests
         }
 
         Assert.Equal(new TestToastsState(true), SystemChanges.TestToasts.Deserialize(SystemChanges.TestToasts.Serialize(new TestToastsState(true))));
+        Assert.Equal(new TestToastsState(false, true), SystemChanges.TestToasts.Deserialize(SystemChanges.TestToasts.Serialize(new TestToastsState(false, true))));
+        // An entry journaled before T-068 knows no activator.
+        using System.Text.Json.JsonDocument old = System.Text.Json.JsonDocument.Parse("""{"shortcutExists":true}""");
+        Assert.Equal(new TestToastsState(true, false), SystemChanges.TestToasts.Deserialize(old.RootElement));
+    }
+
+    [Fact]
+    public void TestToastsAreRestoredOnlyWhenTheActivatorIsGoneToo()
+    {
+        // T-068: a registered activator of the test app would let a test toast start the Debug exe.
+        Assert.False(SystemChanges.TestToasts.Matches(new TestToastsState(false), new TestToastsState(false, ActivatorRegistered: true)));
+        Assert.True(SystemChanges.TestToasts.Matches(new TestToastsState(true, ActivatorRegistered: true), new TestToastsState(false)));
+    }
+
+    [Fact]
+    public void TheActivatorKeysAreThoseTheAppWrites()
+    {
+        Assert.Equal(@"Software\Classes\CLSID\{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}", TestToastsKind.ActivatorSubKey(AppSwitches.TestToastActivatorClsid));
+        Assert.Equal(@"Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}", TestToastsKind.ActivatorSubKey(AppSwitches.ProductionToastActivatorClsid));
+        Assert.NotEqual(AppSwitches.TestToastActivatorClsid, AppSwitches.ProductionToastActivatorClsid);
     }
 
     [Fact]
@@ -174,7 +194,7 @@ public sealed class ToastChangeTests
             graphics.DrawImage(icon, new Rectangle(11, 7, 24, 24));
         }
 
-        IconMatch? match = ToastIcon.Find(area, ToastIcon.CandidateSizes(1.5));
+        ToastIconMatch? match = ToastIcon.Find(area, ToastIcon.CandidateSizes(1.5));
 
         Assert.NotNull(match);
         Assert.True(match.IsMatch, match.ToString());
@@ -189,7 +209,7 @@ public sealed class ToastChangeTests
         // and its dark body on the dark toast left too little contrast for a plain colour comparison.
         using Bitmap area = new(Path.Combine(AppContext.BaseDirectory, "Fixtures", "toast-header-icon-area-26300-100pct.png"));
 
-        IconMatch? match = ToastIcon.Find(area, ToastIcon.CandidateSizes(1));
+        ToastIconMatch? match = ToastIcon.Find(area, ToastIcon.CandidateSizes(1));
 
         Assert.NotNull(match);
         Assert.True(match.IsMatch, match.ToString());
@@ -283,6 +303,34 @@ public sealed class ToastChangeTests
     }
 
     [Fact]
+    public void OnlyAUiaTimeoutCountsAsABusyPoll()
+    {
+        Assert.True(Toasts.IsUiaTimeoutCode(unchecked((int)0x80131505)));
+        Assert.True(Toasts.IsUiaTimeout(new TimeoutException()));
+        Assert.False(Toasts.IsUiaTimeoutCode(unchecked((int)0x80040201)));
+        Assert.False(Toasts.IsUiaTimeout(new InvalidOperationException()));
+    }
+
+    [Fact]
+    public void ElementsMoveWithTheBannerThatWasStillSlidingIn()
+    {
+        // Run 2026-10-23: the banner was found mid-animation, so the icon was searched where the app name had moved to.
+        ToastElement region = new("Group", "PTD E2E 1234abcd", "", "", new Rectangle(2400, 1250, 364, 128), IsOurs: true);
+        ToastElement name = new("Text", "Prusa Tray Diagnostic E2E", "SenderName", "TextBlock", new Rectangle(2440, 1263, 138, 18), IsOurs: true);
+        ToastElement unplaced = new("Button", "", "DismissButton", "", Rectangle.Empty, IsOurs: false);
+        ToastMatch toast = new(null!, null!, 0, [region, name, unplaced]);
+
+        IReadOnlyList<ToastElement> settled = toast.ElementsAt(new Rectangle(2180, 1250, 364, 128));
+
+        Assert.Equal(new Rectangle(2180, 1250, 364, 128), settled[0].Bounds);
+        Assert.Equal(new Rectangle(2220, 1263, 138, 18), settled[1].Bounds);
+        Assert.Equal(Rectangle.Empty, settled[2].Bounds);
+        (Rectangle area, string how) = Toasts.IconSearchArea(toast, new Rectangle(2180, 1250, 364, 128), 1);
+        Assert.Equal(Rectangle.FromLTRB(2180, 1250, 2220, 1299), area);
+        Assert.StartsWith("left of the app name", how, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task ClearToastsModeRunsOnlyADebugBuildOfTheApp()
     {
         string folder = UnitTestDirectories.Create();
@@ -331,7 +379,7 @@ public sealed class ToastChangeTests
             nameof(TestModeOsIntegrationTests.TestToastsUseTheirOwnShortcutAndQuitRemovesIt),
             nameof(TestModeOsIntegrationTests.ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp),
         ];
-        Assert.Equal(6, tests.Length);
+        Assert.Equal(7, tests.Length);
 
         foreach (string name in tests)
         {

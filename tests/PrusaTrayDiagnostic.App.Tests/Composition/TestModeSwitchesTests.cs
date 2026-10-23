@@ -150,6 +150,11 @@ public sealed class TestModeSwitchesTests
             Assert.Equal("PrusaTrayDiagnostic.E2E", platform.AppUserModelId);
             Assert.Equal(TestToastCleanup.DefaultShortcutPath(), platform.ShortcutPath());
             Assert.Equal("Prusa Tray Diagnostic E2E.lnk", Path.GetFileName(platform.ShortcutPath()));
+            // T-068: the test app's own COM toast activator, whose start by Windows comes up in this test mode again.
+            Assert.Equal(new Guid(AppEnvironment.TestToastActivatorClsid), platform.Activator?.Clsid);
+            Assert.StartsWith("\"" + Environment.ProcessPath + "\" -ToastActivated ", platform.Activator!.CommandLine, StringComparison.Ordinal);
+            Assert.Contains(ToastActivatorCommandLine.Quote("--ptd-e2e-env=PRUSATRAYDIAGNOSTIC_TEST_DATA_DIR=" + Path.GetFullPath(folder)), platform.Activator.CommandLine, StringComparison.Ordinal);
+            Assert.Contains("--ptd-e2e-env=PRUSATRAYDIAGNOSTIC_TEST_TOASTS=1", platform.Activator.CommandLine, StringComparison.Ordinal);
             // Quitting removes exactly that shortcut and the toasts of the test app.
             Assert.Equal(TestToastCleanup.DefaultShortcutPath(), AppServices.CreateTestToastCleanup(services)?.ShortcutPath);
             // Creating the services showed nothing and wrote nothing.
@@ -162,6 +167,15 @@ public sealed class TestModeSwitchesTests
     }
 
     [Fact]
+    public void EachModeHasItsOwnToastActivatorOrNone()
+    {
+        Assert.Equal(new Guid(AppEnvironment.ProductionToastActivatorClsid), AppEnvironment.Production.ToastActivatorClsid);
+        Assert.Equal(new Guid(AppEnvironment.TestToastActivatorClsid), AppEnvironment.ForTests(Folder, toasts: true).ToastActivatorClsid);
+        // The test mode without toasts registers nothing with Windows.
+        Assert.Null(AppEnvironment.ForTests(Folder).ToastActivatorClsid);
+    }
+
+    [Fact]
     [SupportedOSPlatform("windows")]
     public async Task ProductionToastsKeepTheProductionAppAndShortcutAndNeverCleanUp()
     {
@@ -171,6 +185,9 @@ public sealed class TestModeSwitchesTests
         WindowsToastPlatform platform = ToastPlatform(services);
         Assert.Equal("PrusaTrayDiagnostic", platform.AppUserModelId);
         Assert.Equal(AppShortcutRegistration.DefaultShortcutPath(), platform.ShortcutPath());
+        // T-068: the production COM toast activator, started by Windows as the plain exe.
+        Assert.Equal(new Guid(AppEnvironment.ProductionToastActivatorClsid), platform.Activator?.Clsid);
+        Assert.Equal(ToastActivatorCommandLine.For(Environment.ProcessPath!, []), platform.Activator!.CommandLine);
         Assert.Null(AppServices.CreateTestToastCleanup(services));
     }
 

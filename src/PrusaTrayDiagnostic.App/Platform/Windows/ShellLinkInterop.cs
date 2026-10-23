@@ -90,6 +90,9 @@ internal static class ShellLinkIds
     /// <summary>PKEY_AppUserModel_ID (propkey.h): System.AppUserModel.ID.</summary>
     public static readonly PropertyKey AppUserModelId = new(new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), 5);
 
+    /// <summary>PKEY_AppUserModel_ToastActivatorCLSID (propkey.h): System.AppUserModel.ToastActivatorCLSID, a VT_CLSID (T-068).</summary>
+    public static readonly PropertyKey ToastActivatorClsid = new(new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), 26);
+
     /// <summary>STGM_READ.</summary>
     public const uint StorageModeRead = 0;
 }

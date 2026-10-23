@@ -11,10 +11,11 @@ namespace PrusaTrayDiagnostic.App.Platform.Windows;
 
 /// <summary>
 /// Debug builds only (T-067): removes what the toasts of the test mode leave in Windows, the toasts of the test app
-/// <see cref="AppEnvironment.TestAppUserModelId"/> in the notification center and its Start menu shortcut
-/// <see cref="ShortcutFileName"/>. Runs when a test app with toasts quits, and as the command line mode
-/// <see cref="ClearToastsArgument"/> after a crashed test run. Never touches the production app id or shortcut: both are
-/// fixed here, and a shortcut path with another file name is refused.
+/// <see cref="AppEnvironment.TestAppUserModelId"/> in the notification center, its Start menu shortcut
+/// <see cref="ShortcutFileName"/> and the registration of its COM toast activator
+/// <see cref="AppEnvironment.TestToastActivatorClsid"/> (T-068). Runs when a test app with toasts quits, and as the command
+/// line mode <see cref="ClearToastsArgument"/> after a crashed test run. Never touches the production app id, shortcut or
+/// activator: all are fixed here, and a shortcut path with another file name is refused.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed partial class TestToastCleanup
@@ -31,15 +32,18 @@ internal sealed partial class TestToastCleanup
     private readonly IToastHistory _history;
     private readonly IShortcutStore _shortcuts;
     private readonly string _shortcutPath;
+    private readonly IComServerRegistry _activators;
     private readonly ILogger _logger;
 
     /// <param name="shortcutPath">The test shortcut; its file name must be <see cref="ShortcutFileName"/>.</param>
+    /// <param name="activators">Where the toast activator of the test app is registered (only its CLSID is ever removed).</param>
     /// <exception cref="ArgumentException"><paramref name="shortcutPath"/> is not a path of the test shortcut.</exception>
-    public TestToastCleanup(IToastHistory history, IShortcutStore shortcuts, string shortcutPath, ILogger logger)
+    public TestToastCleanup(IToastHistory history, IShortcutStore shortcuts, string shortcutPath, IComServerRegistry activators, ILogger logger)
     {
         ArgumentNullException.ThrowIfNull(history);
         ArgumentNullException.ThrowIfNull(shortcuts);
         ArgumentException.ThrowIfNullOrWhiteSpace(shortcutPath);
+        ArgumentNullException.ThrowIfNull(activators);
         ArgumentNullException.ThrowIfNull(logger);
         if (!string.Equals(Path.GetFileName(shortcutPath), ShortcutFileName, StringComparison.OrdinalIgnoreCase))
         {
@@ -49,6 +53,7 @@ internal sealed partial class TestToastCleanup
         _history = history;
         _shortcuts = shortcuts;
         _shortcutPath = shortcutPath;
+        _activators = activators;
         _logger = logger;
     }
 
@@ -59,8 +64,8 @@ internal sealed partial class TestToastCleanup
     internal string ShortcutPath => _shortcutPath;
 
     /// <summary>
-    /// Clears the notification center history of the test app and deletes the test shortcut; the second step runs even
-    /// when the first one failed. Never throws.
+    /// Clears the notification center history of the test app, deletes the test shortcut and unregisters the toast
+    /// activator of the test app; each step runs even when an earlier one failed. Never throws.
     /// </summary>
     /// <returns>What failed; empty when everything is gone.</returns>
     public IReadOnlyList<string> Run()
@@ -90,10 +95,24 @@ internal sealed partial class TestToastCleanup
             LogShortcutFailed(ex);
         }
 
+        try
+        {
+            // After the shortcut: a toast left in the notification center can no longer start the test exe.
+            if (_activators.Delete(new Guid(AppEnvironment.TestToastActivatorClsid)))
+            {
+                LogActivatorDeleted();
+            }
+        }
+        catch (Exception ex)
+        {
+            failures.Add($"Unregistering the toast activator {AppEnvironment.TestToastActivatorClsid} failed: {ex.GetType().Name} {ex.Message}");
+            LogActivatorFailed(ex);
+        }
+
         return failures;
     }
 
-    /// <summary>The command line mode <see cref="ClearToastsArgument"/>: the real history and Start menu.</summary>
+    /// <summary>The command line mode <see cref="ClearToastsArgument"/>: the real history, Start menu and registry.</summary>
     /// <returns>0, or <see cref="FailedExitCode"/> after writing what failed to <paramref name="error"/>.</returns>
     public static int RunFromCommandLine(TextWriter error)
     {
@@ -101,7 +120,7 @@ internal sealed partial class TestToastCleanup
         IReadOnlyList<string> failures;
         try
         {
-            failures = new TestToastCleanup(new WinRtToastHistory(), new WindowsShortcutStore(), DefaultShortcutPath(), NullLogger.Instance).Run();
+            failures = new TestToastCleanup(new WinRtToastHistory(), new WindowsShortcutStore(), DefaultShortcutPath(), new WindowsComServerRegistry(), NullLogger.Instance).Run();
         }
         catch (Exception ex)
         {
@@ -128,5 +147,11 @@ internal sealed partial class TestToastCleanup
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Test mode: deleting the Start menu shortcut of the test app failed.")]
     private partial void LogShortcutFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: the toast activator of the test app was unregistered.")]
+    private partial void LogActivatorDeleted();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Test mode: unregistering the toast activator of the test app failed.")]
+    private partial void LogActivatorFailed(Exception exception);
 }
 #endif

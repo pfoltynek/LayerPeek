@@ -51,6 +51,34 @@ internal sealed class AppEnvironment
     internal const string TestAppUserModelId = "PrusaTrayDiagnostic.E2E";
 
     /// <summary>
+    /// The CLSID of the COM toast activator on Windows (T-068), carried by the Start menu shortcut and registered under
+    /// <c>HKCU\Software\Classes\CLSID</c>, through which Windows reports clicks on toasts in the notification center and
+    /// starts the app for them. Fixed for good: the installer (T-017) removes its registration on uninstall.
+    /// </summary>
+    internal const string ProductionToastActivatorClsid = "E8389DCA-851B-498C-8082-69B1AB263C14";
+
+    /// <summary>
+    /// The COM toast activator of this run: the production one, in the test mode with toasts that of the test app (T-068),
+    /// otherwise none (a run without toasts registers nothing with Windows).
+    /// </summary>
+    public Guid? ToastActivatorClsid
+    {
+        get
+        {
+            if (!IsIsolated)
+            {
+                return new Guid(ProductionToastActivatorClsid);
+            }
+
+#if DEBUG
+            return TestToasts ? new Guid(TestToastActivatorClsid) : null;
+#else
+            return null;
+#endif
+        }
+    }
+
+    /// <summary>
     /// The folder of the log files (T-024): the standard log folder of the OS, in the test mode the <c>logs</c> folder in the
     /// test data folder.
     /// </summary>
@@ -95,6 +123,12 @@ internal sealed class AppEnvironment
 
     /// <summary>The Start menu shortcut of the test app; also the app name Windows shows in its toasts (T-067).</summary>
     public const string TestShortcutFileName = "Prusa Tray Diagnostic E2E.lnk";
+
+    /// <summary>
+    /// The COM toast activator of the test app (T-068): never the production one, removed when the test app quits and by
+    /// <see cref="ClearToastsArgument"/>.
+    /// </summary>
+    public const string TestToastActivatorClsid = "1708A774-C00D-4A8B-B9E5-1BEB8527DD24";
 
     /// <summary>Every credential target of the test mode starts with this; the production prefix never does.</summary>
     public const string TestCredentialPrefixRoot = "PrusaTrayDiagnostic.E2E/";

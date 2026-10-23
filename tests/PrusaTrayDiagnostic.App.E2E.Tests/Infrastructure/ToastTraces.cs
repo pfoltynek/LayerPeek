@@ -11,7 +11,8 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 /// <summary>
 /// What the toasts of the test app may leave in Windows (T-068), taken at the start and the end of an end-to-end run by
 /// <see cref="SystemStateSnapshot"/>. Must be as before: the notifications switch, the test app's notification settings
-/// key, the test shortcut, and the production shortcut and key. Only reported (the user accepted traces Windows keeps,
+/// key, the test shortcut, the registration of the test app's COM toast activator, and the production shortcut, key and
+/// activator registration. Only reported (the user accepted traces Windows keeps,
 /// 2026-10-22): every other registry key or value under the notification keys that names the test app id, and whether the
 /// notification database <c>wpndatabase.db</c> mentions it. Only names and values of the test app are ever recorded.
 /// </summary>
@@ -20,8 +21,10 @@ internal sealed record ToastSystemState(
     string ToastsEnabled,
     string TestAppSettings,
     bool TestShortcutExists,
+    bool TestActivatorRegistered,
     string ProductionShortcut,
     string ProductionSettings,
+    string ProductionActivator,
     IReadOnlyList<string> Traces)
 {
     /// <summary>The production app id (T-010); its key and shortcut are only compared.</summary>
@@ -47,8 +50,10 @@ internal sealed record ToastSystemState(
             Read(static () => RegistryKeys.ReadDword(ToastsEnabledKind.SubKey, ToastsEnabledKind.Value)?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "(missing)"),
             Read(static () => RegistryKeys.Read(ToastAppSettingsKind.SubKey).ToString()),
             File.Exists(TestToastsKind.ShortcutPath),
+            TestToastsKind.ActivatorRegistered(),
             File.Exists(production) ? "SHA-256 " + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(production))) : "(missing)",
             Read(static () => RegistryKeys.Read($@"{ToastAppSettingsKind.SettingsSubKey}\{ProductionAppUserModelId}").ToString()),
+            Read(static () => RegistryKeys.Read(TestToastsKind.ActivatorSubKey(AppSwitches.ProductionToastActivatorClsid) + @"\LocalServer32").ToString()),
             FindTraces());
     }
 
@@ -71,6 +76,25 @@ internal sealed record ToastSystemState(
         if (TestShortcutExists != end.TestShortcutExists)
         {
             differences.Add($"Test Start menu shortcut '{TestToastsKind.ShortcutPath}': {(TestShortcutExists ? "present" : "missing")} at the start, {(end.TestShortcutExists ? "present" : "missing")} at the end.");
+        }
+
+        if (TestActivatorRegistered != end.TestActivatorRegistered)
+        {
+            differences.Add($"Toast activator of the test app {AppSwitches.TestToastActivatorClsid}: {(TestActivatorRegistered ? "registered" : "missing")} at the start, {(end.TestActivatorRegistered ? "registered" : "missing")} at the end.");
+        }
+
+        if (ProductionActivator != end.ProductionActivator)
+        {
+            // The tests never register it; a running production instance does (at its start, only when it differs).
+            string text = $"Toast activator of the production app {AppSwitches.ProductionToastActivatorClsid}: {ProductionActivator} at the start, {end.ProductionActivator} at the end.";
+            if (ProductionInstanceRuns())
+            {
+                notes.Add(text + " A production instance runs (it registers its activator itself).");
+            }
+            else
+            {
+                differences.Add(text);
+            }
         }
 
         if (ProductionShortcut != end.ProductionShortcut)
@@ -100,8 +124,8 @@ internal sealed record ToastSystemState(
     public override string ToString()
     {
         StringBuilder text = new();
-        text.AppendLine(CultureInfo.InvariantCulture, $"Toasts: ToastEnabled={ToastsEnabled}; {AppSwitches.AppUserModelId}: {TestAppSettings}; test shortcut {(TestShortcutExists ? "present" : "missing")}");
-        text.AppendLine(CultureInfo.InvariantCulture, $"Production app: shortcut {ProductionShortcut}; settings {ProductionSettings}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Toasts: ToastEnabled={ToastsEnabled}; {AppSwitches.AppUserModelId}: {TestAppSettings}; test shortcut {(TestShortcutExists ? "present" : "missing")}; test activator {(TestActivatorRegistered ? "registered" : "missing")}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Production app: shortcut {ProductionShortcut}; settings {ProductionSettings}; activator {ProductionActivator}");
         text.AppendLine(CultureInfo.InvariantCulture, $"Traces of {AppSwitches.AppUserModelId}:{(Traces.Count == 0 ? " none" : string.Empty)}");
         foreach (string trace in Traces)
         {

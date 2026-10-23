@@ -102,6 +102,23 @@ internal sealed record ToastMatch(AutomationElement Anchor, AutomationElement Re
     internal static bool IsLineOf(string name, string line) =>
         name.Split('\n').Any(part => string.Equals(part.TrimEnd('\r'), line, StringComparison.Ordinal));
 
+    /// <summary>
+    /// The elements where they are once the region settled at <paramref name="settled"/>: their bounds were read when the
+    /// toast was found, while a banner may still slide in, so they move by as much as the region (its own entry comes
+    /// first) moved since.
+    /// </summary>
+    public IReadOnlyList<ToastElement> ElementsAt(Rectangle settled)
+    {
+        if (Elements.Count == 0)
+        {
+            return Elements;
+        }
+
+        Point found = Elements[0].Bounds.Location;
+        Size moved = new(settled.X - found.X, settled.Y - found.Y);
+        return [.. Elements.Select(element => element with { Bounds = element.Bounds.IsEmpty ? element.Bounds : new Rectangle(element.Bounds.Location + moved, element.Bounds.Size) })];
+    }
+
     /// <summary>Whether a name of the region contains <paramref name="text"/>.</summary>
     public bool Mentions(string text) => Elements.Any(element => element.Name.Contains(text, StringComparison.Ordinal));
 
@@ -305,27 +322,11 @@ internal static class Toasts
         return how.ToString();
     }
 
-    /// <summary>The screen region of the toast only (never the whole desktop).</summary>
-    public static Bitmap Capture(Rectangle region)
-    {
-        if (region.Width <= 0 || region.Height <= 0)
-        {
-            throw new InvalidOperationException($"The toast has no area to capture ({region}).");
-        }
-
-        Bitmap bitmap = new(region.Width, region.Height, PixelFormat.Format32bppArgb);
-        try
-        {
-            using Graphics graphics = Graphics.FromImage(bitmap);
-            graphics.CopyFromScreen(region.Left, region.Top, 0, 0, region.Size);
-            return bitmap;
-        }
-        catch
-        {
-            bitmap.Dispose();
-            throw;
-        }
-    }
+    /// <summary>
+    /// The screen region of the toast only, through the shared guard of screen captures (<see cref="ScreenArea"/>: one
+    /// element on one monitor, at most a quarter of it, never the desktop).
+    /// </summary>
+    public static Bitmap Capture(Rectangle region) => ScreenArea.CaptureBitmap(region);
 
     /// <summary>
     /// Waits until the region has stopped moving for <see cref="SettleTime"/> (the banner and the notification center
@@ -366,12 +367,14 @@ internal static class Toasts
     /// Where the app icon of the header should be, in screen pixels: an image element of the toast near its top, otherwise
     /// the area left of the app name, otherwise the top left corner of the toast.
     /// </summary>
-    public static (Rectangle Area, string How) IconSearchArea(ToastMatch toast, double scale)
+    /// <param name="settled">The bounds of the toast once it stopped moving (<see cref="SettledBoundsAsync"/>).</param>
+    public static (Rectangle Area, string How) IconSearchArea(ToastMatch toast, Rectangle settled, double scale)
     {
-        Rectangle region = toast.Bounds;
+        Rectangle region = settled;
+        IReadOnlyList<ToastElement> elements = toast.ElementsAt(settled);
         int max = (int)Math.Round(48 * scale);
         int pad = (int)Math.Round(6 * scale);
-        ToastElement? image = toast.Elements
+        ToastElement? image = elements
             .Where(element => element.ControlType == nameof(ControlType.Image)
                 && element.Bounds.Width is > 6 && element.Bounds.Width <= max
                 && Math.Abs(element.Bounds.Width - element.Bounds.Height) <= 4
@@ -385,7 +388,7 @@ internal static class Toasts
             return (Rectangle.Intersect(area, region), $"image element {image}");
         }
 
-        ToastElement? name = toast.Elements.FirstOrDefault(static element => element.Name == ToastTexts.AppName && element.Bounds.Height > 0);
+        ToastElement? name = elements.FirstOrDefault(static element => element.Name == ToastTexts.AppName && element.Bounds.Height > 0);
         if (name is not null)
         {
             int height = name.Bounds.Height;
@@ -555,12 +558,32 @@ internal static class Toasts
         }
     }
 
+    /// <summary>A UI Automation call that timed out (UIA_E_TIMEOUT, as COM error or as FlaUI's <see cref="TimeoutException"/>).</summary>
+    internal static bool IsUiaTimeout(Exception exception) =>
+        exception is TimeoutException || (exception is COMException && IsUiaTimeoutCode(exception.HResult));
+
+    internal static bool IsUiaTimeoutCode(int hresult) => hresult == UiaETimeout;
+
+    /// <summary>UIA_E_TIMEOUT.</summary>
+    private const int UiaETimeout = unchecked((int)0x80131505);
+
     /// <summary>Visible top-level windows: handle, process name and class (titles are never read).</summary>
     private static List<(nint Handle, string Process, string ClassName, bool IsShell)> TopLevelWindows(UIA3Automation automation)
     {
         List<(nint, string, string, bool)> windows = [];
         Dictionary<int, string> processes = [];
-        foreach (AutomationElement window in automation.GetDesktop().FindAllChildren())
+        AutomationElement[] children;
+        try
+        {
+            children = automation.GetDesktop().FindAllChildren();
+        }
+        catch (Exception ex) when (IsUiaTimeout(ex))
+        {
+            // UIA busy for this one poll (run 2026-10-23: 0x80131505 while a banner slid in): nothing seen, the caller polls again.
+            return windows;
+        }
+
+        foreach (AutomationElement window in children)
         {
             nint handle = Safe(() => window.Properties.NativeWindowHandle.ValueOrDefault);
             int id = Safe(() => window.Properties.ProcessId.ValueOrDefault);

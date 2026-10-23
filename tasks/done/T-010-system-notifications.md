@@ -1,7 +1,7 @@
 ---
 id: T-010
 title: Systémové notifikace – Windows
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: windows
@@ -19,7 +19,7 @@ Implementace `INotificationService` pomocí nativních toast notifikací Windows
 
 ## Akceptační kritéria
 - [x] Notifikace fungují na Windows (ověřeno) – uživatel 2026-10-18 ručně potvrdil, že se bannery toastů na Windows zobrazují
-- [ ] Kliknutí na notifikaci otevře detail / web tiskárny – implementováno a pokryto testy, skutečné kliknutí ověří uživatel
+- [x] Kliknutí na notifikaci otevře detail / web tiskárny – ověřeno E2E testy T-068 na skutečném exe (2026-10-23, 2 běhy po sobě zelené): klik na banner, klik na toast v centru oznámení, dokud aplikace běží, i klik v centru, když aplikace neběží (Windows ji spustí přes COM aktivátor). Pokaždé se otevře web tiskárny přes proxy (GET 200).
 - [x] Na jiném OS než Windows se Windows implementace neregistruje a build/spuštění nespadne – registrace ověřena testem (větev „jiný OS“), spuštění na macOS lokálně neověřeno (dle rozhodnutí uživatele postačuje test; reálný běh na macOS ověří T-020)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -31,7 +31,7 @@ Vyřešené (rozhodnutí 2026-10-16):
 - ~~macOS před T-020~~ → `NullNotificationService` (notifikace se tiše neposílají).
 
 Vyřešené po implementaci (rozhodnutí uživatele 2026-10-16):
-- ~~Kliknutí, když aplikace neběží~~ → zatím nic (toast jen zmizí). COM aktivátor (`ToastActivatorCLSID`) patří do T-017, poznámka je v jeho rozsahu.
+- ~~Kliknutí, když aplikace neběží~~ → zatím nic (toast jen zmizí). COM aktivátor (`ToastActivatorCLSID`) patří do T-017, poznámka je v jeho rozsahu. **Změněno 2026-10-23 (uživatel, T-068 Q4):** COM aktivátor má aplikace sama (T-068), T-017 jen uklidí jeho registraci při odinstalaci.
 - ~~AppUserModelID a název zástupce~~ → `PrusaTrayDiagnostic` a „Prusa Tray Diagnostic“ jsou finální.
 - ~~Texty notifikací~~ → schválené (klíče `Notification*` v `Resources/Strings*.resx`, uživatel je může později upravit).
 - ~~Ikona v toastu~~ → řeší samostatný úkol (zakládá hlavní agent). Do té doby toast ukazuje obecnou ikonu, protože exe nemá `ApplicationIcon`.
@@ -84,14 +84,15 @@ Vyřešené po implementaci (rozhodnutí uživatele 2026-10-16):
     - Nejdřív se čte. Zapisuje se, jen když zástupce chybí, cíl je jinde (exe se přesunulo; cesty se porovnávají normalizovaně a bez ohledu na velikost písmen), AUMID nesedí nebo soubor nejde přečíst. Běžný start tedy jen přečte jeden malý soubor.
 - **Chování podle situace:**
   - Kliknutí, když aplikace běží: argument přijde přes `ToastNotification.Activated` na vlákně OS a otevře se web tiskárny.
-  - Kliknutí, když aplikace neběží (nebo na toast z předchozího běhu v centru oznámení): nic se nestane, toast zmizí. Aplikace nemá COM aktivátor (rozhodnuto: řeší T-017).
+  - ~~Kliknutí, když aplikace neběží (nebo na toast z předchozího běhu v centru oznámení): nic se nestane, toast zmizí. Aplikace nemá COM aktivátor (rozhodnuto: řeší T-017).~~ Od T-068 (rozhodnutí uživatele 2026-10-23): aplikace má COM aktivátor toastů. Kliknutí v centru oznámení, když aplikace běží, dojde přes aktivátor. Když aplikace neběží, Windows ji spustí (`-ToastActivated -Embedding`) a ta po startu otevře web tiskárny. Podrobnosti v T-068.
   - Příliš dlouhé id tiskárny (argument po zakódování delší než `ToastLaunchArgument.MaxLength` = 512 znaků): toast se zobrazí bez argumentu `launch`, kliknutí nic neotevře a služba zaloguje varování (s délkou id, ne s id). Délka obsahu toastu tak zůstane pod limitem Windows (~5 kB).
   - První start (zástupce právě vznikl): Windows může první toasty chvíli ignorovat, než zástupce zaregistruje. Proto se registrace spouští hned po startu.
   - Dev (`dotnet run`) a publikované exe mají stejné AUMID. Zástupce se přepne na exe, které běželo naposledy.
 - **Co aplikace zanechá v systému (pro odinstalaci / T-017):**
   - zástupce `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Prusa Tray Diagnostic.lnk`,
   - klíč, který vytvoří Windows: `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic` (uživatelovo nastavení oznámení aplikace),
-  - toasty v centru oznámení (při odinstalaci je lze smazat přes `ToastNotificationManager.History.Clear("PrusaTrayDiagnostic")`).
+  - toasty v centru oznámení (při odinstalaci je lze smazat přes `ToastNotificationManager.History.Clear("PrusaTrayDiagnostic")`),
+  - od T-068 registrace COM aktivátoru toastů `HKCU\Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}` (úklid při odinstalaci: T-017) a vlastnost `ToastActivatorCLSID` zástupce.
   - Instalátor (T-017) by měl vytvořit zástupce se stejným AUMID; aplikace ho pak jen přečte a nepřepisuje.
 - **Testy (App.Tests).** Žádný test nezobrazí toast ani nesáhne na Start menu či registr.
   - `ToastContentBuilderTests`: texty všech druhů událostí CZ/EN, zbývající čas, soubor, zvuk, launch argument, pokus o XML injection, neplatné znaky, zkracování.
@@ -160,3 +161,9 @@ Vyřešené po implementaci (rozhodnutí uživatele 2026-10-16):
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** kliknutí na toast (banner i v centru oznámení) a toast v novém jazyce ověří E2E testy T-068 (toasty testovací instance z T-067, infrastruktura zásahů T-065). Kritérium se zaškrtne, až testy projdou. Slyšitelný zvuk zůstává doporučená ruční kontrola (přehled pokrytí v T-065).
 - **E2E T-068 (2026-10-23, qa-reviewer):** na skutečném exe (Windows 11 26300, testovací instance) **klik na banner otevře web tiskárny** přes proxy (2 běhy po sobě zelené) a toast po změně jazyka je v novém jazyce. **Klik na toast v centru oznámení nefunguje:** Windows klik přijme (toast z centra zmizí), aplikace se nic nedozví. Nejpravděpodobnější příčina: nebalená aplikace bez COM aktivátoru (`ToastActivatorCLSID` + `INotificationActivationCallback`) dostává jen událost `Activated` z banneru. Týká se i produkční aplikace. Kritérium „Kliknutí na notifikaci otevře detail / web tiskárny“ proto zůstává nezaškrtnuté – čeká na rozhodnutí uživatele (T-068, Otevřené otázky Q4). Aplikace nově loguje nastavení notifikátoru, selhání toastu (`Failed` s HRESULT) a předání toastu Windows (Debug).
+- **COM aktivátor toastů (T-068, 2026-10-23 večer, rozhodnutí uživatele Q4):**
+  - aplikace registruje vlastní COM aktivátor (CLSID `{E8389DCA-851B-498C-8082-69B1AB263C14}`, `LocalServer32` v HKCU, `ToastActivatorCLSID` v zástupci);
+  - klik v centru oznámení otevře web tiskárny, i když aplikace neběží;
+  - druhý proces spuštěný Windows předá kliknutí běžící instanci (T-043);
+  - E2E testy T-068 zelené, kritérium zaškrtnuté;
+  - návrh a testy popisuje T-068, úklid registrace při odinstalaci řeší T-017.

@@ -12,8 +12,8 @@
     The started apps run in the isolated test mode: their own data folder in %TEMP% (reserved per worktree, removed after
     the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut
     (except the tests that opt in, which are system changes with the warning below: silent toasts of the test app
-    PrusaTrayDiagnostic.E2E with its own Start menu shortcut "Prusa Tray Diagnostic E2E", T-067/T-068; both are removed
-    after the test, also after a crash).
+    PrusaTrayDiagnostic.E2E with its own Start menu shortcut "Prusa Tray Diagnostic E2E" and its own COM toast activator
+    under HKCU\Software\Classes\CLSID, T-067/T-068; all are removed after the test, also after a crash).
     The user's running PrusaTrayDiagnostic is never touched. The crash tests of T-046 end two test apps on purpose:
     Windows records each crash as a ".NET Runtime" error in the Application event log (accepted; a dump or error report
     Windows may keep is removed again). Windows appear on the desktop for a few minutes; do not use the mouse or keyboard

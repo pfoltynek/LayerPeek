@@ -201,6 +201,18 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>Requests the monitoring to stop without waiting (e.g. the OS is ending the session).</summary>
     public void RequestStop() => _session.RequestStop();
 
+    /// <summary>
+    /// A click on a toast that reached the app through the COM toast activator (T-068): handled like a click on the banner
+    /// (<see cref="ToastActivationRouter"/>: printer id only, its web through the proxy). Never throws; ignored once stopping.
+    /// </summary>
+    public void ActivateToast(string launchArgument)
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _ = _services.GetRequiredService<ToastActivationRouter>().ActivateAsync(launchArgument);
+        }
+    }
+
     /// <summary>Opens web pages (About window link). Valid until <see cref="StopAsync"/>.</summary>
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
 

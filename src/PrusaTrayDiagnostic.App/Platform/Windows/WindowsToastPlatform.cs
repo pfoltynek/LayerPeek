@@ -25,9 +25,10 @@ internal static class WindowsAppIdentity
 }
 
 /// <summary>
-/// Windows toasts through WinRT (<c>ToastNotificationManager</c>), for an unpackaged app: on <see cref="Open"/> the
-/// per-user Start menu shortcut with the AppUserModelID is created or updated (<see cref="AppShortcutRegistration"/>),
-/// then a notifier for that id is created.
+/// Windows toasts through WinRT (<c>ToastNotificationManager</c>), for an unpackaged app: on <see cref="Open"/> the COM toast
+/// activator is registered (T-068, <see cref="ToastActivatorRegistration"/>) and the per-user Start menu shortcut with the
+/// AppUserModelID and the CLSID of the activator is created or updated (<see cref="AppShortcutRegistration"/>), then a notifier
+/// for that id is created.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed partial class WindowsToastPlatform : IToastPlatform
@@ -36,18 +37,26 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
     private readonly Func<string?> _shortcutPath;
     private readonly string? _executablePath;
     private readonly ILogger<WindowsToastPlatform> _logger;
+    private readonly ToastActivatorRegistration? _activatorRegistration;
 
     /// <param name="shortcutPath">Where the shortcut goes; evaluated on <see cref="Open"/> (thread of the service).</param>
     /// <param name="executablePath">The shortcut's target, normally <see cref="Environment.ProcessPath"/>.</param>
     /// <param name="appUserModelId">
     /// The app the toasts belong to: <see cref="WindowsAppIdentity.AppUserModelId"/>, or the test app of the test mode (T-067).
     /// </param>
+    /// <param name="activatorRegistration">Registers <paramref name="activator"/>; <see langword="null"/> without one.</param>
+    /// <param name="activator">
+    /// The COM toast activator the shortcut names (T-068); <see langword="null"/>: none (clicks in the notification center
+    /// then reach no app).
+    /// </param>
     public WindowsToastPlatform(
         AppShortcutRegistration registration,
         Func<string?> shortcutPath,
         string? executablePath,
         ILogger<WindowsToastPlatform> logger,
-        string appUserModelId = WindowsAppIdentity.AppUserModelId)
+        string appUserModelId = WindowsAppIdentity.AppUserModelId,
+        ToastActivatorRegistration? activatorRegistration = null,
+        ToastActivatorSettings? activator = null)
     {
         ArgumentNullException.ThrowIfNull(registration);
         ArgumentNullException.ThrowIfNull(shortcutPath);
@@ -58,6 +67,8 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
         _executablePath = executablePath;
         _logger = logger;
         AppUserModelId = appUserModelId;
+        _activatorRegistration = activatorRegistration;
+        Activator = activatorRegistration is null ? null : activator;
     }
 
     /// <summary>The app the toasts and the shortcut belong to.</summary>
@@ -66,10 +77,13 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
     /// <summary>Where the shortcut goes (composition tests).</summary>
     internal Func<string?> ShortcutPath => _shortcutPath;
 
+    /// <summary>The COM toast activator registered at startup (composition tests); <see langword="null"/> without one.</summary>
+    internal ToastActivatorSettings? Activator { get; }
+
     public IToastSession Open(Action<string?> activated)
     {
         ArgumentNullException.ThrowIfNull(activated);
-        RegisterShortcut();
+        Register();
         WindowsToastSession session = WindowsToastSession.Open(AppUserModelId, activated, LogToastFailed, LogReleaseFailed);
         LogSetting(session);
         return session;
@@ -101,7 +115,11 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
 
     private void LogToastFailed(int errorCode) => LogFailed(AppUserModelId, errorCode);
 
-    private void RegisterShortcut()
+    /// <summary>
+    /// The registrations toasts need: the COM toast activator first, then the Start menu shortcut, which names the activator
+    /// only when it is registered (a CLSID nobody serves would swallow clicks in the notification center). Never throws.
+    /// </summary>
+    internal void Register()
     {
         // Without the shortcut Windows may drop the toasts silently; the notifier is still created, an
         // installer (T-017) or an earlier run may have registered the id already.
@@ -114,13 +132,36 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
                 return;
             }
 
-            _registration.Ensure(shortcutPath, new AppShortcut(_executablePath, AppUserModelId));
+            _registration.Ensure(shortcutPath, new AppShortcut(_executablePath, AppUserModelId, RegisterActivator()));
         }
         catch (Exception ex)
         {
             LogShortcutFailed(ex);
         }
     }
+
+    /// <returns>The CLSID for the shortcut, or <see langword="null"/> when there is no activator or it could not be registered.</returns>
+    private Guid? RegisterActivator()
+    {
+        if (_activatorRegistration is null || Activator is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            _activatorRegistration.Ensure(Activator.Clsid, Activator.CommandLine);
+            return Activator.Clsid;
+        }
+        catch (Exception ex)
+        {
+            LogActivatorFailed(ex);
+            return null;
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Registering the toast activator failed; clicks on notifications in the notification center will not reach the app.")]
+    private partial void LogActivatorFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The executable path or the Start menu folder is unknown; the notification shortcut was not created.")]
     private partial void LogNoShortcut();

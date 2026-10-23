@@ -17,9 +17,9 @@ internal sealed class NamedPipeInstanceTransport : IInstanceTransport
 {
     /// <summary>
     /// Room for a few commands in the pipe: a later start's write completes even while the server handles another client
-    /// (with no buffer a write waits until the server reads).
+    /// (with no buffer a write waits until the server reads); also the longest one, a toast click (T-068).
     /// </summary>
-    internal const int InputBufferSize = 256;
+    internal const int InputBufferSize = 2 * InstanceProtocol.MaxMessageLength;
 
     /// <summary>Room for the acknowledgement.</summary>
     private const int OutputBufferSize = 16;

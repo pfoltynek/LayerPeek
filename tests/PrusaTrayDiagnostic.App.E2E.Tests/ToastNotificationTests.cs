@@ -64,8 +64,8 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
 
         // T-025: the app icon in the header of the toast.
         double scale = Toasts.ScaleOf(banner.Window);
-        (Rectangle area, string how) = Toasts.IconSearchArea(banner, scale);
-        IconMatch? icon;
+        (Rectangle area, string how) = Toasts.IconSearchArea(banner, bounds, scale);
+        ToastIconMatch? icon;
         using (Bitmap header = Toasts.Capture(area))
         {
             Screenshots.Save(header, "toast-banner-icon-area");
@@ -84,7 +84,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
 
         string activation = await Toasts.ActivateAsync(banner, () => run.OpenedUrls().Count > 0, OpenTimeout);
         report.AppendLine("Activated by " + activation);
-        await run.AssertOpensThePrinterWebAsync(run.OpenedUrls().Single(), report);
+        await run.AssertOpensThePrinterWebAsync(await run.SingleOpenedUrlAsync(), report);
         await run.AssertDoNotDisturbStayedOffAsync(report);
         run.AssertProductionUnchanged();
         Screenshots.SaveText(report.ToString(), "toast-banner-report");
@@ -120,12 +120,81 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             return await Toasts.ActivateAsync(toast, () => run.OpenedUrls().Count > 0, OpenTimeout, mouseOnly: true);
         });
 
+        // Windows reports a click in the notification center only to the COM toast activator (T-068).
         report.AppendLine("Activated by " + activation);
-        await run.AssertOpensThePrinterWebAsync(run.OpenedUrls().Single(), report);
+        report.AppendLine("App log about the click:").AppendLine(run.LoggedActivations());
+        Assert.Contains("reached the app through its toast activator", run.App.ReadLog(), StringComparison.Ordinal);
+        await run.AssertOpensThePrinterWebAsync(await run.SingleOpenedUrlAsync(), report);
         await run.AssertDoNotDisturbStayedOffAsync(report);
         run.AssertProductionUnchanged();
         Screenshots.SaveText(report.ToString(), "toast-center-report");
     }
+
+    /// <summary>
+    /// T-068: the app ended (killed, so its toast stays in the notification center and nothing is cleaned up); a click on
+    /// the toast makes Windows start the exe through the COM toast activator of the test app, in the same test mode (its
+    /// command line carries the test switches), and the started app opens the printer's web through its proxy. The
+    /// started app is then quit like the first one (it clears the toasts, the shortcut and the activator).
+    /// </summary>
+    [Fact]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
+    public async Task ToastInTheNotificationCenterStartsTheAppWhenItIsNotRunning()
+    {
+        SystemChanges.Require();
+        CancellationToken cancellationToken = TestContext.Current.CancellationToken;
+        StringBuilder report = new();
+        await using ToastRun run = await ToastRun.StartAsync(fixture, "toast-center-started", "en", report);
+        ToastTexts texts = run.Texts(AppStrings.Get("en", "NotificationError"));
+
+        MovePointerAway();
+        await run.SetScenarioAsync("error");
+        await run.WaitForBannerAsync(texts);
+        await Toasts.WaitForBannerGoneAsync(run.App.Automation, texts, Toasts.BannerLifetime());
+
+        int first = run.App.Process.Id;
+        run.App.Process.Kill(entireProcessTree: true);
+        await run.App.Process.WaitForExitAsync(cancellationToken).WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
+        Assert.True(TestToastsKind.ActivatorRegistered(), "The killed app left no toast activator to start it.");
+        Assert.Empty(run.OpenedUrls());
+        report.AppendLine(CultureInfo.InvariantCulture, $"The app ({first}) was killed; its toast stays in the notification center.");
+
+        string activation = await Toasts.InNotificationCenterAsync(run.App.Automation, async (_, window) =>
+        {
+            ToastMatch toast = await Toasts.FindInAsync(run.App.Automation, window, texts, TimeSpan.FromSeconds(10))
+                ?? throw new InvalidOperationException($"The toast of '{texts.PrinterName}' ('{texts.Body}') is not in the notification center after the app ended.");
+            report.AppendLine("Notification center elements:").AppendLine(toast.Describe());
+            Rectangle bounds = await Toasts.SettledBoundsAsync(toast);
+            using (Bitmap capture = Toasts.Capture(bounds))
+            {
+                Screenshots.Save(capture, "toast-center-not-running");
+            }
+
+            // The start takes longer than a click on a running app: the app starts, loads its settings and its proxy.
+            return await Toasts.ActivateAsync(toast, () => run.OpenedUrls().Count > 0, StartedAppOpenTimeout, mouseOnly: true);
+        });
+
+        report.AppendLine("Activated by " + activation);
+        string commandLine = await run.AdoptRestartAsync(first);
+        report.AppendLine(CultureInfo.InvariantCulture, $"Started by Windows with the activator's arguments: {string.Join(' ', ActivatorArguments(commandLine))}");
+        Assert.Contains("-ToastActivated", commandLine, StringComparison.Ordinal);
+        Assert.Contains(AppSwitches.TestEnvironmentArgument + AppSwitches.DataDirectoryVariable + "=", commandLine, StringComparison.Ordinal);
+        report.AppendLine("App log about the click:").AppendLine(run.LoggedActivations());
+        Assert.Contains("Started by Windows for a click on a notification (click received: True)", run.App.ReadLog(), StringComparison.Ordinal);
+        await run.AssertOpensThePrinterWebAsync(await run.SingleOpenedUrlAsync(), report);
+        await run.AssertDoNotDisturbStayedOffAsync(report);
+        run.AssertProductionUnchanged();
+        Screenshots.SaveText(report.ToString(), "toast-center-not-running-report");
+    }
+
+    /// <summary>A click opens the web of a started app within this time.</summary>
+    private static readonly TimeSpan StartedAppOpenTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>The switches of a command line (no paths of the exe; the test folder only as the switches show it).</summary>
+    private static IEnumerable<string> ActivatorArguments(string commandLine) =>
+        commandLine.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(static part => part.StartsWith('-') || part.StartsWith("\"-", StringComparison.Ordinal))
+            .Select(static part => part.Contains('=', StringComparison.Ordinal) ? part[..(part.IndexOf('=', StringComparison.Ordinal) + 1)] + "…" : part);
 
     [Fact]
     [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
@@ -216,6 +285,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             Assert.Contains(toastFile, SystemChanges.Journal.PendingFiles());
             Assert.Contains(settingsFile, SystemChanges.Journal.PendingFiles());
             Assert.True(File.Exists(TestToastsKind.ShortcutPath), "The child's test app did not create its shortcut.");
+            Assert.True(TestToastsKind.ActivatorRegistered(), "The child's test app did not register its toast activator.");
 
             // The whole tree: the app the child started holds its output pipe, so the child alone would never report its end.
             child.Process.Kill(entireProcessTree: true);
@@ -232,6 +302,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             Assert.DoesNotContain(toastFile, SystemChanges.Journal.PendingFiles());
             Assert.DoesNotContain(settingsFile, SystemChanges.Journal.PendingFiles());
             Assert.False(File.Exists(TestToastsKind.ShortcutPath), "The cleanup left the shortcut of the test app.");
+            Assert.False(TestToastsKind.ActivatorRegistered(), "The cleanup left the toast activator of the test app.");
             RegistryKeySnapshot settingsAfter = RegistryKeys.Read(ToastAppSettingsKind.SubKey);
             report.AppendLine(CultureInfo.InvariantCulture, $"Notification settings of the test app after: {settingsAfter}");
             Assert.True(settingsBefore.SameAs(settingsAfter), $"The notification settings of the test app: {settingsBefore} before, {settingsAfter} after.");
@@ -378,6 +449,44 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             Assert.True(response.IsSuccessStatusCode, $"The simulator did not switch to '{scenario}': {(int)response.StatusCode}.");
         }
 
+        /// <summary>
+        /// The one address a click opened: waits past the app's duplicate window (one click reported both by the toast's
+        /// event and the COM toast activator opens once, T-068) and fails when more were opened.
+        /// </summary>
+        public async Task<string> SingleOpenedUrlAsync()
+        {
+            await Task.Delay(TimeSpan.FromSeconds(3));
+            List<string> opened = OpenedUrls();
+            Assert.True(opened.Count == 1, $"One click opened {opened.Count} addresses.");
+            return opened[0];
+        }
+
+        /// <summary>
+        /// The app process Windows started for a click after <paramref name="ended"/> ended (marked with this run's folder,
+        /// T-068) becomes the app of this run; returns its command line.
+        /// </summary>
+        public async Task<string> AdoptRestartAsync(int ended)
+        {
+            int started = 0;
+            await Wait.UntilAsync(
+                () => (started = AppProcesses.FindMarked(App.RunDirectory).FirstOrDefault(id => id != ended)) != 0,
+                TimeSpan.FromSeconds(10),
+                "the app process Windows started for the click");
+            string commandLine = AppProcesses.MarkedCommandLine(App.RunDirectory, started)
+                ?? throw new InvalidOperationException($"The started process {started} is gone.");
+            App.AdoptRestart(Process.GetProcessById(started));
+            return commandLine;
+        }
+
+        /// <summary>What the app logged about toast activations (lines of the app's own log).</summary>
+        public string LoggedActivations() => string.Join(
+            Environment.NewLine,
+            App.ReadLog().Split('\n')
+                .Where(static line => line.Contains("toast activator", StringComparison.Ordinal)
+                    || line.Contains("Started by Windows", StringComparison.Ordinal)
+                    || line.Contains("Notification click", StringComparison.Ordinal))
+                .Select(static line => "  " + line.TrimEnd()));
+
         /// <summary>The addresses the app would have opened in the browser (complete lines only).</summary>
         public List<string> OpenedUrls()
         {
@@ -499,6 +608,8 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             _undo.Add(App);
 
             await Wait.UntilAsync(() => File.Exists(TestToastsKind.ShortcutPath), TimeSpan.FromSeconds(20), "the Start menu shortcut of the test app");
+            // Registered before the shortcut that names it (T-068).
+            Assert.True(TestToastsKind.ActivatorRegistered(), "The test app did not register its toast activator.");
             // The first status is the baseline (no toast); the scenario switch must come after it. One poll is 5 s.
             await Wait.UntilAsync(() => Printer.RequestCount > 0, TimeSpan.FromSeconds(30), "the app to poll the printer");
             await Task.Delay(TimeSpan.FromSeconds(8), cancellationToken);

@@ -96,6 +96,41 @@ public sealed class SingleInstanceGuardTests : IAsyncDisposable
     }
 
     [Fact]
+    public void SecondStartWithNothingToPassOnSendsNothing()
+    {
+        // A start by Windows for a toast click whose activation never came (T-068): the running app gets no "activate".
+        _transport.DefaultConnect = static _ => new RecordingStream();
+
+        InstanceRole role = _guard.Start(null, _received.Add);
+
+        Assert.Equal(InstanceRole.NotForwarded, role);
+        Assert.Equal(["lock"], _transport.Calls);
+        Assert.Empty(_transport.Sent);
+        Assert.Null(_transport.Listener);
+        Assert.Contains(_logger.Entries, static entry => entry.Level == LogLevel.Information);
+    }
+
+    [Fact]
+    public void FirstStartWithNothingToPassOnBecomesThePrimaryInstance()
+    {
+        _transport.QueueLock(static () => new FakeLock());
+
+        Assert.Equal(InstanceRole.Primary, _guard.Start(null, _received.Add));
+        Assert.NotNull(_guard.Server);
+    }
+
+    [Fact]
+    public void SecondInstanceForwardsAToastClick()
+    {
+        _transport.DefaultConnect = static _ => new RecordingStream();
+        Assert.True(InstanceCommand.TryForToast("printer=xl", out InstanceCommand toast));
+
+        Assert.Equal(InstanceRole.Forwarded, _guard.Start(toast, _received.Add));
+
+        Assert.Equal("toast:printer=xl\n", Encoding.ASCII.GetString(Assert.Single(_transport.Sent).Written));
+    }
+
+    [Fact]
     public void SecondInstanceGivesUpAfterTheForwardTimeoutAndExits()
     {
         _transport.DefaultConnect = TimeoutAfter;

@@ -120,6 +120,14 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
+        if (command.Kind == InstanceCommandKind.Toast && command.Argument is { } launchArgument)
+        {
+            // A click on a toast in the notification center (T-068): reported by Windows to this instance's toast activator,
+            // or forwarded by a start Windows made for it. Opens the printer's web like a click on the banner.
+            _host?.ActivateToast(launchArgument);
+            return;
+        }
+
 #if DEBUG
         // Test commands of the end-to-end tests (T-044), only in the isolated test mode.
         if (_environment.IsIsolated)

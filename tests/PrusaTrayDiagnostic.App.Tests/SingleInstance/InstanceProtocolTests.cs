@@ -1,5 +1,6 @@
 using System.Text;
 
+using PrusaTrayDiagnostic.App.Notifications;
 using PrusaTrayDiagnostic.App.SingleInstance;
 
 namespace PrusaTrayDiagnostic.App.Tests.SingleInstance;
@@ -22,6 +23,76 @@ public sealed class InstanceProtocolTests
     {
         Assert.False(InstanceProtocol.TryDecode("activate:x"u8, out _));
         Assert.Throws<ArgumentOutOfRangeException>(() => InstanceProtocol.Encode(new InstanceCommand(InstanceCommandKind.Activate, "x")));
+    }
+
+    [Theory]
+    [InlineData("printer=xl")]
+    [InlineData("printer=3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c")]
+    [InlineData("printer=MK4%20%C5%BElut%C3%BD%20%26%20%22co%22")]
+    [InlineData("printer=a-b_c.d~e")]
+    public void ToastActivationsRoundTripInEveryBuild(string launchArgument)
+    {
+        Assert.True(InstanceCommand.TryForToast(launchArgument, out InstanceCommand command));
+        byte[] wire = InstanceProtocol.Encode(command);
+
+        Assert.Equal("toast:" + launchArgument + "\n", Encoding.ASCII.GetString(wire));
+        Assert.True(InstanceProtocol.TryDecode(wire, out InstanceCommand decoded));
+        Assert.Equal(new InstanceCommand(InstanceCommandKind.Toast, launchArgument), decoded);
+    }
+
+    [Fact]
+    public void TheLongestToastArgumentFitsIntoOneMessage()
+    {
+        Assert.True(ToastLaunchArgument.TryForPrinter(new string('%', 168), out string? longest));
+        Assert.True(longest.Length > 500);
+
+        Assert.True(InstanceCommand.TryForToast(longest, out InstanceCommand command));
+        byte[] wire = InstanceProtocol.Encode(command);
+
+        Assert.True(wire.Length <= InstanceProtocol.MaxMessageLength);
+        Assert.True(InstanceProtocol.TryDecode(wire, out InstanceCommand decoded));
+        Assert.Equal(longest, decoded.Argument);
+    }
+
+    [Theory]
+    [InlineData("toast")]
+    [InlineData("toast:")]
+    [InlineData("toast:xl")]
+    [InlineData("toast:printer=")]
+    [InlineData("toast:printer=a b")]
+    [InlineData("toast:printer=a&b")]
+    [InlineData("toast:printer=a/b")]
+    [InlineData("toast:printer=a:b")]
+    [InlineData("toast:printer=https://evil.example")]
+    [InlineData("toast:printer=é")]
+    [InlineData("toast:url=http%3A%2F%2Fevil")]
+    [InlineData("Toast:printer=xl")]
+    public void MalformedToastActivationsAreRejected(string text)
+    {
+        Assert.False(InstanceProtocol.TryDecode(Encoding.UTF8.GetBytes(text), out _));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("xl")]
+    [InlineData("printer=")]
+    [InlineData("printer=%20")]
+    [InlineData("printer=a b")]
+    [InlineData("printer=https://evil.example")]
+    public void OnlyWellFormedLaunchArgumentsBecomeToastCommands(string? launchArgument)
+    {
+        Assert.False(InstanceCommand.TryForToast(launchArgument, out _));
+        Assert.Throws<ArgumentOutOfRangeException>(() => InstanceProtocol.Encode(new InstanceCommand(InstanceCommandKind.Toast, launchArgument)));
+    }
+
+    [Fact]
+    public void ToastArgumentLongerThanTheLaunchArgumentLimitIsRejected()
+    {
+        string tooLong = "printer=" + new string('a', ToastLaunchArgument.MaxLength);
+
+        Assert.False(InstanceCommand.TryForToast(tooLong, out _));
+        Assert.False(InstanceProtocol.TryDecode(Encoding.ASCII.GetBytes("toast:" + tooLong + "\n"), out _));
     }
 
 #if DEBUG
@@ -64,7 +135,7 @@ public sealed class InstanceProtocolTests
     [Fact]
     public void TooLongCommandCannotBeEncoded()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => InstanceProtocol.Encode(new InstanceCommand(InstanceCommandKind.Camera, new string('a', 64))));
+        Assert.Throws<ArgumentOutOfRangeException>(() => InstanceProtocol.Encode(new InstanceCommand(InstanceCommandKind.Camera, new string('a', InstanceProtocol.MaxMessageLength))));
     }
 #else
     [Theory]
