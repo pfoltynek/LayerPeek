@@ -176,6 +176,20 @@ public sealed class ToastNotificationServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task ToastHandedToWindowsIsLoggedAtDebugLevel()
+    {
+        // Windows drops toasts silently (unknown app id, notifications off): the log must tell whether one reached it.
+        _platform.Session.FailNext = new InvalidOperationException("WinRT failed");
+
+        Service.Show(Notification(PrintEventKind.PrintStarted));
+        Service.Show(Notification(PrintEventKind.PrintFinished));
+
+        await _platform.Session.WaitForShownAsync(1);
+        await Waiting.ForAsync(() => _logger.Entries.Any(e => e.Level == LogLevel.Debug && e.Message.Contains("PrintFinished", StringComparison.Ordinal)));
+        Assert.DoesNotContain(_logger.Entries, e => e.Level == LogLevel.Debug && e.Message.Contains("PrintStarted", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task TooLongPrinterIdIsShownWithoutClickAndLogged()
     {
         Service.Show(Notification(PrintEventKind.PrintFinished) with { Printer = Definition(id: new string('x', 2000)) });

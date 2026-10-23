@@ -32,7 +32,8 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
             link.GetPath(buffer, MaxPath, 0, 0);
             string target = new(buffer);
 
-            return new AppShortcut(target, ReadAppUserModelId((IPropertyStore)link));
+            IPropertyStore properties = (IPropertyStore)link;
+            return new AppShortcut(target, ReadAppUserModelId(properties), ReadToastActivator(properties));
         }
         finally
         {
@@ -52,10 +53,18 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
         {
             link.SetPath(shortcut.TargetPath);
             link.SetWorkingDirectory(Path.GetDirectoryName(shortcut.TargetPath) ?? string.Empty);
+            IPropertyStore properties = (IPropertyStore)link;
             if (shortcut.AppUserModelId is not null)
             {
-                WriteAppUserModelId((IPropertyStore)link, shortcut.AppUserModelId);
+                SetString(properties, ShellLinkIds.AppUserModelId, shortcut.AppUserModelId);
             }
+
+            if (shortcut.ToastActivatorClsid is { } clsid)
+            {
+                SetClsid(properties, ShellLinkIds.ToastActivatorClsid, clsid);
+            }
+
+            properties.Commit();
 
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             ((IPersistFile)link).Save(path, remember: true);
@@ -98,13 +107,40 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
         }
     }
 
-    private static void WriteAppUserModelId(IPropertyStore store, string appUserModelId)
+    /// <summary>System.AppUserModel.ToastActivatorCLSID (VT_CLSID), or <see langword="null"/>.</summary>
+    private static Guid? ReadToastActivator(IPropertyStore store)
     {
-        PropVariant value = new() { VarType = PropVariant.VtLpwstr, Value = Marshal.StringToCoTaskMemUni(appUserModelId) };
+        store.GetValue(ShellLinkIds.ToastActivatorClsid, out PropVariant value);
         try
         {
-            store.SetValue(ShellLinkIds.AppUserModelId, value);
-            store.Commit();
+            return value.VarType == PropVariant.VtClsid && value.Value != 0 ? *(Guid*)value.Value : null;
+        }
+        finally
+        {
+            _ = ComNative.PropVariantClear(&value);
+        }
+    }
+
+    private static void SetString(IPropertyStore store, in PropertyKey key, string text)
+    {
+        PropVariant value = new() { VarType = PropVariant.VtLpwstr, Value = Marshal.StringToCoTaskMemUni(text) };
+        try
+        {
+            store.SetValue(key, value);
+        }
+        finally
+        {
+            Marshal.FreeCoTaskMem(value.Value);
+        }
+    }
+
+    private static void SetClsid(IPropertyStore store, in PropertyKey key, Guid clsid)
+    {
+        PropVariant value = new() { VarType = PropVariant.VtClsid, Value = Marshal.AllocCoTaskMem(sizeof(Guid)) };
+        try
+        {
+            *(Guid*)value.Value = clsid;
+            store.SetValue(key, value);
         }
         finally
         {

@@ -1,7 +1,7 @@
 ---
 id: T-025
 title: Ikona aplikace (exe, okna, tray)
-status: in-progress
+status: done
 owner: ui-designer + ui-dev
 priority: P2
 platform: all
@@ -44,7 +44,7 @@ Aplikace má vlastní ikonu v barvách Prusa se stylizovaným motivem 3D tiskár
 - [x] Test (headless), že každé okno aplikace (Settings, Camera, Diagnostics, About, Licenses a nová okna) má nastavenou ikonu aplikace
 - [x] `ApplicationIcon` nastavená; ověřeno na `dotnet build` výstupu i AOT publish (ikona v exe – test čte prostředky PE, nebo ruční ověření zapsané v poznámkách)
 - [x] Tray: pro každý `TrayStatus` (a vybrané hodnoty progressu) se ikona vykreslí s novým motivem; testy palety / vzhledu a snímkové testy vykreslených tray ikon (PNG reference, škálování podle návrhu); test cache beze změny
-- [ ] Ručně na Windows: exe v Průzkumníku, hlavní panel, titulky oken, tray na světlém i tmavém panelu, 100 % a 150 %, toast (zapsat do poznámek) – **2026-10-23 ověřeno E2E testy T-070** (exe v Průzkumníku, hlavní panel a titulky oken při 100 % a 150 %, tray na světlém i tmavém panelu při 100 % a 150 %, detail v T-070); **zbývá toast (T-068)**
+- [x] Ručně na Windows: exe v Průzkumníku, hlavní panel, titulky oken, tray na světlém i tmavém panelu, 100 % a 150 %, toast (zapsat do poznámek) – **2026-10-23 ověřeno E2E testy T-070** (exe v Průzkumníku, hlavní panel a titulky oken při 100 % a 150 %, tray na světlém i tmavém panelu při 100 % a 150 %, detail v T-070); **toast ověřen E2E testem T-068** (`ToastBannerClickOpensThePrinterWebThroughTheProxy`: ikona 12 px v hlavičce banneru odpovídá `app-icon.ico`, korelace 0,930, rozdíl 5,5 %, 2026-10-23, 2 běhy po sobě zelené)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; `dotnet publish -c Release -r win-x64` (AOT) bez varování
 
 ## Návrh UI
@@ -81,3 +81,4 @@ Schválená varianta **B – Vrstvy** (ui-designer, 2026-10-19):
 - **Ručně zbývá (uživatel):** exe v Průzkumníku, hlavní panel a titulky oken, tray na světlém i tmavém panelu při 100 % a 150 % (při spuštění byla ikona ve skrytých ikonách), toast s novou ikonou. macOS neověřeno (chování beze změny: jedna 32px bitmapa).
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** exe v Průzkumníku, hlavní panel, titulky oken a tray na světlém i tmavém panelu při 100 % a 150 % ověří E2E testy T-070, toast s ikonou T-068 (infrastruktura T-065, měřítko T-066). Kritérium se zaškrtne, až testy projdou. Ostrost při 150 % po novém přihlášení a cache ikon po aktualizaci zůstávají doporučené ruční kontroly (přehled pokrytí v T-065).
+- **Toast s ikonou ověřen E2E testem T-068 (2026-10-23, qa-reviewer):** v hlavičce banneru (Windows 11 26300, 100 %) je ikona aplikace – porovnání s `app-icon.ico` (Windows ji kreslí 12 px; korelace tvaru 0,930, barevný rozdíl 5,5 %), 2 běhy po sobě zelené. Toastová část ruční kontroly je tím hotová; kritérium se zaškrtne, až projdou i ostatní části (T-070: Průzkumník, hlavní panel, titulky oken, tray při 100 % a 150 %).

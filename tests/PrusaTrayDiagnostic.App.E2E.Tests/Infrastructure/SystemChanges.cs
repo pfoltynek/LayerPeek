@@ -81,6 +81,15 @@ internal static class SystemChanges
 
     public static MonitorDisconnectKind MonitorDisconnect { get; } = new();
 
+    /// <summary>The notifications switch of Windows (T-068).</summary>
+    public static ToastsEnabledKind ToastsEnabled { get; } = new();
+
+    /// <summary>Windows' notification settings of the test app (T-068).</summary>
+    public static ToastAppSettingsKind ToastAppSettings { get; } = new();
+
+    /// <summary>Toast history and Start menu shortcut of the test app (T-068).</summary>
+    public static TestToastsKind TestToasts { get; } = new();
+
     /// <summary>Self-test probe of the journal machinery (a registry value of the tests' own, no warning needed).</summary>
     public static ProbeKind Probe { get; } = new("Probe", trait: null);
 
@@ -89,7 +98,7 @@ internal static class SystemChanges
 
     /// <summary>Every kind a journal entry may name (a crash of any of them can be restored by any process).</summary>
     public static IReadOnlyDictionary<string, ISystemChangeKind> Kinds { get; } =
-        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, Probe, GuardProbe }
+        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Probe, GuardProbe }
             .ToDictionary(static kind => kind.Name, StringComparer.Ordinal);
 
     /// <summary>The journal of this process; the first change starts the watchdog (unless switched off).</summary>
@@ -188,6 +197,30 @@ internal static class SystemChanges
     {
         Require();
         return SystemChange<TrayIconPromotionState>.BeginAsync(Journal, TrayIconPromotion, Path.GetFullPath(exe), cancellationToken);
+    }
+
+    /// <summary>The notifications switch of Windows (T-068); restored when disposed.</summary>
+    public static Task<SystemChange<ToastsEnabledState>> ToastsEnabledAsync(CancellationToken cancellationToken = default)
+    {
+        Require();
+        return SystemChange<ToastsEnabledState>.BeginAsync(Journal, ToastsEnabled, key: null, cancellationToken);
+    }
+
+    /// <summary>Windows' notification settings key of the test app (T-068); restored (usually deleted) when disposed.</summary>
+    public static Task<SystemChange<RegistryKeySnapshot>> ToastAppSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        Require();
+        return SystemChange<RegistryKeySnapshot>.BeginAsync(Journal, ToastAppSettings, key: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// Toasts and Start menu shortcut of a test app with toasts started from <paramref name="exe"/> (T-067, T-068); cleared
+    /// by <c>--ptd-e2e-clear-toasts</c> of that exe when disposed. Begin it before the app starts.
+    /// </summary>
+    public static Task<SystemChange<TestToastsState>> TestToastsAsync(string exe, CancellationToken cancellationToken = default)
+    {
+        Require();
+        return SystemChange<TestToastsState>.BeginAsync(Journal, TestToasts, Path.GetFullPath(exe), cancellationToken);
     }
 
     /// <summary>The probe of the journal self-tests (end-to-end run only, no warning needed).</summary>

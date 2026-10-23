@@ -5,8 +5,6 @@ using System.Text;
 
 using FlaUI.Core.AutomationElements;
 using FlaUI.Core.Definitions;
-using FlaUI.Core.Input;
-using FlaUI.Core.WindowsAPI;
 using FlaUI.UIA3;
 
 namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
@@ -92,23 +90,27 @@ internal sealed partial class DoNotDisturbKind() : SystemChangeKind<DoNotDisturb
         using UIA3Automation automation = new();
         StringBuilder seen = new();
 
-        nint before = Native.GetForegroundWindow();
-        Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.KEY_N);
+        string centerProblem;
         try
         {
-            if (await FindToggleAsync(automation, before, seen, "notification center", cancellationToken).ConfigureAwait(false) is { } toggle)
+            (nint center, nint before) = await NotificationCenter.OpenAsync(cancellationToken).ConfigureAwait(false);
+            try
             {
-                return await use(toggle).ConfigureAwait(false);
+                if (await FindToggleAsync(automation, before, seen, "notification center", cancellationToken).ConfigureAwait(false) is { } toggle)
+                {
+                    return await use(toggle).ConfigureAwait(false);
+                }
+
+                centerProblem = $"The notification center ({NotificationCenter.Describe(center)}) has no Do not disturb toggle";
+            }
+            finally
+            {
+                await NotificationCenter.CloseAsync(center).ConfigureAwait(false);
             }
         }
-        finally
+        catch (TimeoutException ex)
         {
-            // Closes the notification center; when it never came up, Escape would go to the window that has the focus.
-            if (Native.GetForegroundWindow() != before)
-            {
-                Keyboard.Type(VirtualKeyShort.ESCAPE);
-                await Task.Delay(500, CancellationToken.None).ConfigureAwait(false);
-            }
+            centerProblem = ex.Message;
         }
 
         if (Process.GetProcessesByName("SystemSettings") is { Length: > 0 } running)
@@ -119,18 +121,18 @@ internal sealed partial class DoNotDisturbKind() : SystemChangeKind<DoNotDisturb
             }
 
             throw new InvalidOperationException(
-                "The Do not disturb toggle is not in the notification center, and the Settings app is open (the fallback would replace its page). "
+                $"{centerProblem}, and the Settings app is open (the fallback would replace its page). "
                 + $"Close Settings and run again. Toggles seen:{Environment.NewLine}{seen}");
         }
 
-        before = Native.GetForegroundWindow();
+        nint beforeSettings = Native.GetForegroundWindow();
         using (Process.Start(new ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true }))
         {
         }
 
         try
         {
-            if (await FindToggleAsync(automation, before, seen, "Settings", cancellationToken).ConfigureAwait(false) is { } toggle)
+            if (await FindToggleAsync(automation, beforeSettings, seen, "Settings", cancellationToken).ConfigureAwait(false) is { } toggle)
             {
                 return await use(toggle).ConfigureAwait(false);
             }

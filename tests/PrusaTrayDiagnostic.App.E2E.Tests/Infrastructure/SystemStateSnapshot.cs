@@ -10,7 +10,7 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 /// warning listed Do Not Disturb or toasts: it opens the notification center), Explorer's notification area entries (of
 /// other programs only a count and a fingerprint, <see cref="TrayIconSnapshot"/>), the
 /// display topology and scale (with <c>PerMonitorSettings</c>; the text also has the Windows build, system DPI and the
-/// DPI of every monitor) and the journal folder.
+/// DPI of every monitor), what the test toasts touch (T-068) and the journal folder.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed record SystemStateSnapshot(
@@ -22,6 +22,9 @@ internal sealed record SystemStateSnapshot(
 {
     /// <summary>Why Do Not Disturb could not be read, or <see langword="null"/> (the Do Not Disturb self-test reports it).</summary>
     public string? DoNotDisturbError { get; init; }
+
+    /// <summary>What the toasts of the test app touch (T-068).</summary>
+    public ToastSystemState? Toasts { get; init; }
 
     /// <summary>Scale of every active monitor and <c>PerMonitorSettings</c> (T-066), or <see langword="null"/> when unreadable.</summary>
     public DisplayScaleState? DisplayScale { get; init; }
@@ -74,6 +77,7 @@ internal sealed record SystemStateSnapshot(
             DisplayTopology = topology,
             DisplayReport = DisplayConfig.Report(),
             DisplayError = displayError,
+            Toasts = ToastSystemState.Capture(),
         };
     }
 
@@ -116,6 +120,11 @@ internal sealed record SystemStateSnapshot(
 
         TrayIcons.Compare(end.TrayIcons, differences, notes);
 
+        if (Toasts is not null && end.Toasts is not null)
+        {
+            Toasts.Compare(end.Toasts, differences, notes);
+        }
+
         if (DisplayTopology is not null && end.DisplayTopology is not null && !SystemChanges.MonitorDisconnect.Matches(DisplayTopology, end.DisplayTopology))
         {
             differences.Add($"Display topology: {DisplayTopology} at the start, {end.DisplayTopology} at the end.");
@@ -154,6 +163,11 @@ internal sealed record SystemStateSnapshot(
         }
         text.AppendLine(CultureInfo.InvariantCulture, $"Journal: {(JournalEntries.Count == 0 ? "(empty)" : string.Join(", ", JournalEntries))}");
         TrayIcons.AppendTo(text);
+
+        if (Toasts is not null)
+        {
+            text.Append(Toasts);
+        }
 
         return text.ToString();
     }

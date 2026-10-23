@@ -13,6 +13,10 @@ internal static unsafe partial class ComNative
     public const int RpcEChangedMode = unchecked((int)0x80010106);
     public const uint CoInitMultithreaded = 0;
     public const uint ClsCtxInprocServer = 1;
+    public const uint ClsCtxLocalServer = 4;
+
+    /// <summary>REGCLS_MULTIPLEUSE: one registered class object serves every activation.</summary>
+    public const uint RegClsMultipleUse = 1;
 
     [LibraryImport("ole32.dll")]
     public static partial int CoInitializeEx(nint reserved, uint coInit);
@@ -25,6 +29,15 @@ internal static unsafe partial class ComNative
 
     [LibraryImport("ole32.dll")]
     public static partial int PropVariantClear(PropVariant* value);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CoGetClassObject(in Guid classId, uint context, nint serverInfo, in Guid interfaceId, out nint classObject);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CoRegisterClassObject(in Guid classId, nint unknown, uint context, uint flags, out uint cookie);
+
+    [LibraryImport("ole32.dll")]
+    public static partial int CoRevokeClassObject(uint cookie);
 
     [LibraryImport("combase.dll", StringMarshalling = StringMarshalling.Utf16)]
     public static partial int WindowsCreateString(string? source, uint length, out nint hstring);
@@ -200,6 +213,7 @@ internal struct PropVariant
 {
     public const ushort VtEmpty = 0;
     public const ushort VtLpwstr = 31;
+    public const ushort VtClsid = 72;
 
     public ushort VarType;
     public ushort Reserved1;

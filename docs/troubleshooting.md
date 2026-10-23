@@ -66,7 +66,7 @@ Před vložením do veřejného hlášení ho můžete projít.
 ## Přerušený E2E běh vrátil nastavení jen zčásti
 
 *Pro vývojáře.* E2E testy skutečné aplikace (`tools/run-e2e.ps1`, T-044) mohou dočasně měnit nastavení Windows (T-065):
-motiv, Nerušit, testovací ikonu na hlavním panelu, měřítko monitoru a dočasně vypnutý druhý monitor (T-066), později i toasty (T-068). Varování skriptu vypíše jen ty druhy zásahů, které vybrané testy opravdu udělají. Před každou
+motiv, Nerušit, testovací ikonu na hlavním panelu, měřítko monitoru a dočasně vypnutý druhý monitor (T-066) a toasty testovací aplikace (T-068). Varování skriptu vypíše jen ty druhy zásahů, které vybrané testy opravdu udělají. Před každou
 změnou se původní stav zapíše do složky **`%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore`** (jeden soubor `<druh>.json`
 na zásah, s popisem původního stavu a ručním postupem). Záznam se smaže, až když se návrat ověří. Prázdná složka se
 smaže. Vedle ní je během práce se záznamy zámek `PrusaTrayDiagnostic.E2E.Restore.lock`.
@@ -87,6 +87,9 @@ Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo 
 | Motiv | Nastavení → Přizpůsobení → Barvy → Zvolit režim (Vlastní: režim Windows / režim aplikací), nebo hodnoty DWORD `SystemUsesLightTheme` a `AppsUseLightTheme` v `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` (chybějící hodnota = světlý). `ColorPrevalence` testy nemění. |
 | Nerušit | Win+N → tlačítko Nerušit (zvonek) nahoře v centru oznámení, nebo Nastavení → Systém → Oznámení → Nerušit. |
 | Testovací ikona na hlavním panelu | Nastavení → Přizpůsobení → Hlavní panel → Další ikony na hlavním panelu (testovací ikonu vypnout), nebo v `HKCU\Control Panel\NotifyIconSettings` u položek testovaného exe vrátit `IsPromoted` na hodnotu ze záznamu (kde chyběla, a u položek vzniklých během běhu, ji smazat). Položky samotné se nemažou (rozhodnutí 2026-10-22). |
+| Toasty testovací aplikace (`ToastHistory`) | Spusťte Debug exe z cesty uvedené v záznamu s argumentem `--ptd-e2e-clear-toasts` (vymaže toasty `PrusaTrayDiagnostic.E2E` z centra oznámení, smaže zástupce `Prusa Tray Diagnostic E2E.lnk` a registraci testovacího COM aktivátoru toastů `HKCU\Software\Classes\CLSID\{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}` z T-068, kód 0 = hotovo). Ručně: Win+N → u skupiny „Prusa Tray Diagnostic E2E“ vymazat oznámení, smazat `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Prusa Tray Diagnostic E2E.lnk` a v Editoru registru klíč `HKCU\Software\Classes\CLSID\{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}`. Produkční zástupce `Prusa Tray Diagnostic.lnk` ani registraci produkčního aktivátoru `{E8389DCA-851B-498C-8082-69B1AB263C14}` testy nemění. |
+| Nastavení oznámení testovací aplikace (`ToastSettings`) | Klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic.E2E`: když v záznamu chyběl, smazat ho; jinak vrátit hodnoty ze záznamu. Klíč produkční aplikace `…\Settings\PrusaTrayDiagnostic` testy nemění. |
+| Oznámení Windows (`ToastsEnabled`) | Nastavení → Systém → Oznámení → Oznámení (zapnuto/vypnuto podle záznamu), nebo hodnota DWORD `ToastEnabled` v `HKCU\Software\Microsoft\Windows\CurrentVersion\PushNotifications` (chybějící = zapnuto). |
 | Měřítko (T-066) | Nastavení → Systém → Obrazovka → vybrat monitor → Měřítko (hodnoty ze záznamu). Potom klíč `HKCU\Control Panel\Desktop\PerMonitorSettings` uvést přesně do stavu ze záznamu (záznam obsahuje jeho export): podklíče a hodnoty, které v exportu nejsou, smazat; `(key missing)` = smazat celý klíč. Systémové DPI se mění jen odhlášením a testy ho nemění. |
 | Vypnutý monitor (T-066) | Win+P → Rozšířit; pak Nastavení → Systém → Obrazovka: uspořádání, rozlišení, orientace a hlavní monitor podle záznamu. Testy konfiguraci do databáze Windows neukládají, takže po restartu počítače se použije uložená konfigurace se všemi monitory. Okna ostatních aplikací vrací Windows (nastavení „Pamatovat umístění oken podle připojení monitoru“), testy je nepřesouvají. |
 | Testovací sonda | Klíč `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests` (jen samotesty infrastruktury) smazat. |
@@ -95,3 +98,10 @@ Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo 
    zkusí vrátit znovu a před spuštěním testů skončí chybou).
 
 Spuštění bez zásahů: `pwsh tools/run-e2e.ps1 -NoSystemChanges` (bez varování, testy se zásahy se přeskočí).
+
+**Stopy, které se neodstraňují (přijato 2026-10-22, T-068):** po testech toastů si Windows může dál pamatovat testovací
+aplikaci `PrusaTrayDiagnostic.E2E` v databázi oznámení `%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db`
+a v seznamu aplikací v Nastavení → Systém → Oznámení. Běh všechny nalezené stopy testovací aplikace (klíče a hodnoty pod
+`HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications`, `…\PushNotifications`, `HKCU\Software\Classes\AppUserModelId`
+a zmínku v databázi oznámení) zapíše do `system-state-start.txt` / `system-state-end.txt` ve složce výsledků. Nijak
+nevadí a nic nespouštějí. Co přesně v tomto počítači zůstává, je v poznámkách T-068.

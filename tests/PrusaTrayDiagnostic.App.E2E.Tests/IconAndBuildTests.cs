@@ -33,6 +33,9 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         AppSwitches.TestShortcutFileName,
         Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName),
         AppSwitches.OpenedUrlsFileName,
+        // T-068: the test app's toast activator and the test switches in its command line.
+        AppSwitches.TestToastActivatorClsid,
+        AppSwitches.TestEnvironmentArgument,
     ];
 
     [Fact]

@@ -221,9 +221,11 @@ public sealed class AppEnvironmentTests
             (@"Path\.GetTemp(Path|FileName)", ["SingleInstance/InstanceTransports.cs"]),
             (@"new WindowsCredentialSecretStore\(", ["Composition/AppServices.cs"]),
             (@"new AppShortcutRegistration\(", ["Composition/AppServices.cs"]),
-            // Explorer's tray icon settings (T-061): created only where the test mode switches the promotion off.
-            (@"Microsoft\.Win32\.Registry|RegistryKey|\bRegistry\.(CurrentUser|LocalMachine|ClassesRoot|Users)\b", ["Platform/Windows/NotifyIconSettingsRegistry.cs"]),
+            // Explorer's tray icon settings (T-061): created only where the test mode switches the promotion off. The toast
+            // activator (T-068): registered only with toasts (the test mode has its own activator), removed by the test cleanup.
+            (@"Microsoft\.Win32\.Registry|RegistryKey|\bRegistry\.(CurrentUser|LocalMachine|ClassesRoot|Users)\b", ["Platform/Windows/NotifyIconSettingsRegistry.cs", "Platform/Windows/ToastActivatorRegistration.cs"]),
             (@"new NotifyIconSettingsRegistry\(", ["Composition/TrayHost.cs"]),
+            (@"new WindowsComServerRegistry\(", ["Composition/AppServices.cs", "Platform/Windows/TestToastCleanup.cs"]),
         ];
 
         List<string> violations = [];

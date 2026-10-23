@@ -69,7 +69,11 @@ internal sealed partial class SingleInstanceGuard : IDisposable
     /// background thread) or sends <paramref name="command"/> to the running one. Never throws for the expected OS
     /// failures; call once.
     /// </summary>
-    public InstanceRole Start(InstanceCommand command, Action<InstanceCommand> received)
+    /// <param name="command">
+    /// What a later start passes on; <see langword="null"/>: nothing (a start by Windows for a toast click whose activation
+    /// never came, T-068), so a later start only exits.
+    /// </param>
+    public InstanceRole Start(InstanceCommand? command, Action<InstanceCommand> received)
     {
         ArgumentNullException.ThrowIfNull(received);
         if (_lock is not null)
@@ -103,6 +107,12 @@ internal sealed partial class SingleInstanceGuard : IDisposable
                 return BecomePrimary(instanceLock, received);
             }
 
+            if (command is not { } toSend)
+            {
+                LogNothingToForward();
+                return InstanceRole.NotForwarded;
+            }
+
             TimeSpan remaining = _forwardTimeout - _time.GetElapsedTime(start);
             if (remaining <= TimeSpan.Zero)
             {
@@ -112,8 +122,8 @@ internal sealed partial class SingleInstanceGuard : IDisposable
 
             try
             {
-                Send(command, remaining);
-                LogForwarded(command);
+                Send(toSend, remaining);
+                LogForwarded(toSend);
                 return InstanceRole.Forwarded;
             }
             catch (OperationCanceledException ex)
@@ -215,6 +225,9 @@ internal sealed partial class SingleInstanceGuard : IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The app already runs; sent {Command} to it.")]
     private partial void LogForwarded(InstanceCommand command);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The app already runs and this start has nothing to pass on; exiting.")]
+    private partial void LogNothingToForward();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The app already runs, but its instance lock cannot be opened (another user rights level?); exiting.")]
     private partial void LogLockDenied(Exception exception);

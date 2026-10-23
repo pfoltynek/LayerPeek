@@ -226,6 +226,7 @@ internal sealed partial class ToastNotificationService : INotificationService, I
             // The language is resolved once per toast, right now, and every text of the toast is read in it (the thread's
             // own UI culture is never changed). Number formats follow CurrentCulture, as in the tray.
             session.Show(ToastContentBuilder.Build(notification, _textCulture()));
+            LogShown(notification.Kind, notification.Printer.Id);
         }
         catch (Exception ex)
         {
@@ -271,6 +272,9 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     [LoggerMessage(Level = LogLevel.Error, Message = "System notifications are not available; notifications will not be shown.")]
     private partial void LogUnavailable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "The {Kind} notification for printer '{PrinterId}' was handed to Windows.")]
+    private partial void LogShown(PrintEventKind kind, string printerId);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Showing the {Kind} notification for printer '{PrinterId}' failed.")]
     private partial void LogShowFailed(Exception exception, PrintEventKind kind, string printerId);

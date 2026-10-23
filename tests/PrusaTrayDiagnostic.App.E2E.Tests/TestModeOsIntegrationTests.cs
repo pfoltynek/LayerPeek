@@ -16,10 +16,18 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests;
 /// turns on the desktop lock, so a unit test run elsewhere never loses its shortcut to them. Every test removes the test
 /// shortcut in <c>finally</c>, and starts by removing a leftover of a crashed run.
 /// </para>
+/// <para>
+/// The tests that start a test app with toasts change the system (its shortcut and notifications, T-065/T-068, user
+/// decision 2026-10-22): they carry the trait <see cref="SystemChanges.Trait"/>, run only after the warning of
+/// <c>tools/run-e2e.ps1</c> (skipped with <c>-NoSystemChanges</c>) and journal the change, so that a crash is cleaned up
+/// by the next start, the watchdog or <c>-RestoreOnly</c>.
+/// </para>
 /// </summary>
 public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
 {
     private static readonly TimeSpan ShortcutTimeout = TimeSpan.FromSeconds(20);
+
+    private static readonly TimeSpan ClearToastsTimeout = TimeSpan.FromSeconds(30);
 
     private const string NotificationSettings = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\";
 
@@ -30,14 +38,17 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     private static string ProductionShortcut => Path.Combine(StartMenu, AppSwitches.ProductionShortcutFileName);
 
     [Fact]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
     public async Task TestToastsUseTheirOwnShortcutAndQuitRemovesIt()
     {
-        E2EFixture.Require();
+        SystemChanges.Require();
         ProductionState production = ProductionState.Read();
         bool settingsKeyBefore = TestAppSettingsKeyExists();
         await RemoveLeftoverAsync();
         try
         {
+            // Journaled (T-068): a crash is cleaned up by the next start, the watchdog or -RestoreOnly.
+            await using SystemChange<TestToastsState> toasts = await SystemChanges.TestToastsAsync(E2EFixture.AppPath, TestContext.Current.CancellationToken);
             await using (AppInstance app = await AppInstance.StartAsync(
                 fixture,
                 "test-toasts",
@@ -47,12 +58,17 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
                 // The toast service registers the test app at startup (T-010), with the test shortcut.
                 await Wait.UntilAsync(() => File.Exists(TestShortcut), ShortcutTimeout, "the Start menu shortcut of the test app");
                 AssertIsTheTestShortcut(TestShortcut);
+                AssertIsTheTestActivator(app);
 
                 await app.QuitAsync();
                 Assert.Equal(0, app.Process.ExitCode);
                 Assert.False(File.Exists(TestShortcut), "Quitting left the shortcut of the test app in the Start menu.");
                 Assert.Contains("the Start menu shortcut of the test app was deleted", app.ReadLog(), StringComparison.Ordinal);
+                Assert.False(TestToastsKind.ActivatorRegistered(), "Quitting left the toast activator of the test app registered.");
+                Assert.Contains("the toast activator of the test app was unregistered", app.ReadLog(), StringComparison.Ordinal);
             }
+
+            AssertProductionActivatorUnchanged(production);
 
             production.AssertUnchanged();
             Assert.Equal(settingsKeyBefore, TestAppSettingsKeyExists());
@@ -74,19 +90,25 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
         await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
 
         Assert.False(File.Exists(TestShortcut));
+        // Nor a toast activator (T-068): without toasts nothing is registered with Windows.
+        Assert.False(TestToastsKind.ActivatorRegistered());
         await app.QuitAsync();
         production.AssertUnchanged();
     }
 
     [Fact]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
     public async Task ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp()
     {
-        E2EFixture.Require();
+        SystemChanges.Require();
         ProductionState production = ProductionState.Read();
         bool settingsKeyBefore = TestAppSettingsKeyExists();
         await RemoveLeftoverAsync();
         try
         {
+            // Journaled (T-068): a crash is cleaned up by the next start, the watchdog or -RestoreOnly.
+            await using SystemChange<TestToastsState> toasts = await SystemChanges.TestToastsAsync(E2EFixture.AppPath, TestContext.Current.CancellationToken);
+
             // A test app with toasts that crashes (killed): its shortcut stays behind.
             await using (AppInstance app = await AppInstance.StartAsync(
                 fixture,
@@ -100,20 +122,23 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
             }
 
             Assert.True(File.Exists(TestShortcut), "The killed app removed its shortcut; nothing left to test.");
+            Assert.True(TestToastsKind.ActivatorRegistered(), "The killed app left no toast activator; nothing left to test.");
 
-            (int exitCode, string error, string unusedFolder) = await RunClearToastsAsync();
+            ClearToastsResult cleanup = await ClearToasts.RunAsync(E2EFixture.AppPath, ClearToastsTimeout);
 
-            Assert.True(exitCode == 0, $"--ptd-e2e-clear-toasts exited with {exitCode}: {error}");
-            Assert.Equal(string.Empty, error);
+            Assert.True(cleanup.ExitCode == 0, $"--ptd-e2e-clear-toasts exited with {cleanup.ExitCode}: {cleanup.Error}");
+            Assert.Equal(string.Empty, cleanup.Error);
             Assert.False(File.Exists(TestShortcut), "The cleanup left the shortcut of the test app.");
-            // No app ran: the test mode switches it got would have created a log in this folder.
-            Assert.False(Directory.Exists(unusedFolder), "The cleanup started the app (it wrote into the test data folder).");
+            Assert.False(TestToastsKind.ActivatorRegistered(), "The cleanup left the toast activator of the test app (T-068).");
+            // No app ran: the test mode switches it got would have created a log in its test data folder.
+            Assert.False(cleanup.StartedApp, "The cleanup started the app (it wrote into the test data folder).");
 
             // Nothing left to remove: still 0.
-            (exitCode, error, _) = await RunClearToastsAsync();
-            Assert.True(exitCode == 0, $"A second cleanup exited with {exitCode}: {error}");
+            cleanup = await ClearToasts.RunAsync(E2EFixture.AppPath, ClearToastsTimeout);
+            Assert.True(cleanup.ExitCode == 0, $"A second cleanup exited with {cleanup.ExitCode}: {cleanup.Error}");
 
             production.AssertUnchanged();
+            AssertProductionActivatorUnchanged(production);
             Assert.Equal(settingsKeyBefore, TestAppSettingsKeyExists());
         }
         finally
@@ -123,53 +148,46 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     }
 
     /// <summary>
-    /// Runs the exe in the cleanup mode with complete test mode switches (a data folder that must stay missing, an instance
-    /// suffix, the forward-only switch), so that a regression that starts the app would show and never reach the user's
-    /// instance.
+    /// A shortcut or activator of an earlier crashed run (or of a failed assertion above) goes before and after every test.
     /// </summary>
-    private static async Task<(int ExitCode, string Error, string UnusedFolder)> RunClearToastsAsync()
-    {
-        string run = Path.Combine(E2EFixture.Root, "clear-toasts-" + Guid.NewGuid().ToString("N")[..12]);
-        ProcessStartInfo start = AppInstance.StartInfo(run, "e2e-" + Guid.NewGuid().ToString("N")[..12]);
-        start.WorkingDirectory = E2EFixture.Root;
-        start.ArgumentList.Add(AppSwitches.ClearToastsArgument);
-        start.Environment[AppSwitches.ForwardOnlyVariable] = "1";
-        start.RedirectStandardError = true;
-        start.RedirectStandardOutput = true;
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException("The cleanup did not start.");
-        try
-        {
-            Task<string> error = process.StandardError.ReadToEndAsync();
-            Task<string> output = process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
-            await output;
-            return (process.ExitCode, (await error).Trim(), run);
-        }
-        finally
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-            }
-        }
-    }
-
-    /// <summary>A shortcut of an earlier crashed run (or of a failed assertion above) goes before and after every test.</summary>
     private static async Task RemoveLeftoverAsync()
     {
-        if (!File.Exists(TestShortcut))
+        if (!File.Exists(TestShortcut) && !TestToastsKind.ActivatorRegistered())
         {
             return;
         }
 
-        (int exitCode, string error, _) = await RunClearToastsAsync();
-        if (File.Exists(TestShortcut))
+        ClearToastsResult cleanup = await ClearToasts.RunAsync(E2EFixture.AppPath, ClearToastsTimeout);
+        bool shortcutLeft = File.Exists(TestShortcut);
+        bool activatorLeft = TestToastsKind.ActivatorRegistered();
+        if (shortcutLeft || activatorLeft)
         {
-            // The app's own cleanup failed (reported by the test that needs it); never leave the file.
+            // The app's own cleanup failed (reported by the test that needs it); never leave them.
             File.Delete(TestShortcut);
-            Assert.Fail($"--ptd-e2e-clear-toasts ({exitCode}: {error}) did not remove '{TestShortcut}'; it was deleted directly.");
+            Registry.CurrentUser.DeleteSubKeyTree(TestToastsKind.ActivatorSubKey(AppSwitches.TestToastActivatorClsid), throwOnMissingSubKey: false);
+            Assert.Fail($"--ptd-e2e-clear-toasts ({cleanup.ExitCode}: {cleanup.Error}) did not remove{(shortcutLeft ? $" '{TestShortcut}'" : string.Empty)}{(activatorLeft ? " the test toast activator" : string.Empty)}; deleted directly.");
         }
     }
+
+    /// <summary>
+    /// The test app's toast activator (T-068): Windows starts the exe under test with the marker, the test mode switches of
+    /// this app and nothing of the production app.
+    /// </summary>
+    private static void AssertIsTheTestActivator(AppInstance app)
+    {
+        Assert.True(TestToastsKind.ActivatorRegistered(), "The test app did not register its toast activator.");
+        using RegistryKey? server = Registry.CurrentUser.OpenSubKey(TestToastsKind.ActivatorSubKey(AppSwitches.TestToastActivatorClsid) + @"\LocalServer32");
+        string commandLine = server?.GetValue(null) as string ?? string.Empty;
+        Assert.StartsWith("\"" + Path.GetFullPath(E2EFixture.AppPath) + "\" -ToastActivated ", commandLine, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(AppSwitches.TestEnvironmentArgument + AppSwitches.DataDirectoryVariable + "=" + app.DataDirectory, commandLine, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains(AppSwitches.TestEnvironmentArgument + AppSwitches.SuffixVariable + "=" + app.Suffix, commandLine, StringComparison.Ordinal);
+        Assert.Contains(AppSwitches.TestEnvironmentArgument + AppSwitches.TestToastsVariable + "=1", commandLine, StringComparison.Ordinal);
+        Assert.Contains(AppSwitches.MarkerArgument + app.RunDirectory, commandLine, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain(AppSwitches.ForwardOnlyVariable, commandLine, StringComparison.Ordinal);
+    }
+
+    private static void AssertProductionActivatorUnchanged(ProductionState production) =>
+        Assert.Equal(production.Activator, ProductionState.Read().Activator);
 
     /// <summary>The shortcut points to the exe under test and carries the test app id (UTF-16 in the property store).</summary>
     private static void AssertIsTheTestShortcut(string path)
@@ -193,9 +211,18 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
     {
         private readonly byte[]? _shortcut;
 
-        private ProductionState(byte[]? shortcut) => _shortcut = shortcut;
+        private ProductionState(byte[]? shortcut, string activator)
+        {
+            _shortcut = shortcut;
+            Activator = activator;
+        }
 
-        public static ProductionState Read() => new(File.Exists(ProductionShortcut) ? File.ReadAllBytes(ProductionShortcut) : null);
+        /// <summary>The registration of the production toast activator (T-068); the tests never write it.</summary>
+        public string Activator { get; }
+
+        public static ProductionState Read() => new(
+            File.Exists(ProductionShortcut) ? File.ReadAllBytes(ProductionShortcut) : null,
+            RegistryKeys.Read(TestToastsKind.ActivatorSubKey(AppSwitches.ProductionToastActivatorClsid) + @"\LocalServer32").ToString());
 
         public void AssertUnchanged() => Assert.Equal(_shortcut, Read()._shortcut);
     }

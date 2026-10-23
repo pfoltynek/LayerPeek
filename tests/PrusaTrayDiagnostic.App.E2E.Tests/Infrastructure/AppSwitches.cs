@@ -55,6 +55,21 @@ internal static class AppSwitches
     /// <summary>The Start menu shortcut of the test app (T-067); the production one is "Prusa Tray Diagnostic.lnk".</summary>
     public const string TestShortcutFileName = "Prusa Tray Diagnostic E2E.lnk";
 
+    /// <summary>
+    /// The COM toast activator of the test app (T-068): registered under <c>HKCU\Software\Classes\CLSID</c> by a test app
+    /// with toasts, removed when it quits and by <see cref="ClearToastsArgument"/>.
+    /// </summary>
+    public const string TestToastActivatorClsid = "1708A774-C00D-4A8B-B9E5-1BEB8527DD24";
+
+    /// <summary>The COM toast activator of the production app (T-068); the tests never change its registration.</summary>
+    public const string ProductionToastActivatorClsid = "E8389DCA-851B-498C-8082-69B1AB263C14";
+
+    /// <summary>
+    /// One test switch in the command line of the test app's toast activator (T-068), so that a start by Windows for a test
+    /// toast comes up in the same test mode.
+    /// </summary>
+    public const string TestEnvironmentArgument = "--ptd-e2e-env=";
+
     /// <summary>The production Start menu shortcut (T-010); the tests never change it.</summary>
     public const string ProductionShortcutFileName = "Prusa Tray Diagnostic.lnk";
 

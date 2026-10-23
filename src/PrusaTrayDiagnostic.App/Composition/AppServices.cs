@@ -129,7 +129,10 @@ internal static class AppServices
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<TrayMenuOptions>(),
             sp.GetRequiredService<CustomPrinterImages>()));
-        services.AddSingleton(static sp => new ToastActivationRouter(sp.GetRequiredService<PrinterWebOpener>(), sp.GetRequiredService<ILogger<ToastActivationRouter>>()));
+        services.AddSingleton(static sp => new ToastActivationRouter(
+            sp.GetRequiredService<PrinterWebOpener>(),
+            sp.GetRequiredService<ILogger<ToastActivationRouter>>(),
+            sp.GetRequiredService<TimeProvider>()));
         // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written; with the
         // Debug switch of T-067 toasts of the test app with a shortcut of its own.
         services.AddSingleton(sp => CreateNotificationService(sp, windows, env));
@@ -203,6 +206,8 @@ internal static class AppServices
 
         string appUserModelId = WindowsAppIdentity.AppUserModelId;
         Func<string?> shortcutPath = AppShortcutRegistration.DefaultShortcutPath;
+        // The COM toast activator (T-068): Windows starts the plain exe for a click while the app does not run.
+        List<string> activatorArguments = [];
         if (environment.IsIsolated)
         {
 #if DEBUG
@@ -213,18 +218,26 @@ internal static class AppServices
 
             appUserModelId = AppEnvironment.TestAppUserModelId;
             shortcutPath = TestToastCleanup.DefaultShortcutPath;
+            // A start by Windows for a test toast comes up as this test app again, never as the production app.
+            activatorArguments = ToastActivatorCommandLine.TestServerArguments(Environment.GetCommandLineArgs()[1..], name => TestSwitch(environment, name));
 #else
             return NullNotificationService.Instance;
 #endif
         }
 
+        string? executable = Environment.ProcessPath;
+        ToastActivatorSettings? activator = environment.ToastActivatorClsid is { } clsid && !string.IsNullOrEmpty(executable)
+            ? new ToastActivatorSettings(clsid, ToastActivatorCommandLine.For(executable, activatorArguments))
+            : null;
         ToastActivationRouter router = services.GetRequiredService<ToastActivationRouter>();
         WindowsToastPlatform platform = new(
             new AppShortcutRegistration(new WindowsShortcutStore(), services.GetRequiredService<ILogger<AppShortcutRegistration>>()),
             shortcutPath,
-            Environment.ProcessPath,
+            executable,
             services.GetRequiredService<ILogger<WindowsToastPlatform>>(),
-            appUserModelId);
+            appUserModelId,
+            new ToastActivatorRegistration(new WindowsComServerRegistry(), services.GetRequiredService<ILogger<ToastActivatorRegistration>>()),
+            activator);
         return new ToastNotificationService(
             platform,
             argument => _ = router.ActivateAsync(argument),
@@ -397,8 +410,8 @@ internal static class AppServices
 
 #if DEBUG
     /// <summary>
-    /// Debug builds only (T-067): what quitting removes after a test app with toasts, the toasts of the test app and its
-    /// Start menu shortcut; <see langword="null"/> without test toasts (never in production).
+    /// Debug builds only (T-067): what quitting removes after a test app with toasts, the toasts of the test app, its
+    /// Start menu shortcut and its toast activator (T-068); <see langword="null"/> without test toasts (never in production).
     /// </summary>
     internal static TestToastCleanup? CreateTestToastCleanup(IServiceProvider services)
     {
@@ -409,9 +422,25 @@ internal static class AppServices
                 new WinRtToastHistory(),
                 new WindowsShortcutStore(),
                 TestToastCleanup.DefaultShortcutPath(),
+                new WindowsComServerRegistry(),
                 services.GetRequiredService<ILogger<TestToastCleanup>>())
             : null;
     }
+
+    /// <summary>
+    /// Debug builds only (T-068): the value of a test switch of <paramref name="environment"/> for the command line of the
+    /// test app's toast activator; the instance suffix comes from the process (it is not part of the environment).
+    /// </summary>
+    private static string? TestSwitch(AppEnvironment environment, string name) => name switch
+    {
+        AppEnvironment.DataDirectoryVariable => environment.DataDirectory(),
+        AppEnvironment.TestToastsVariable => environment.TestToasts ? "1" : null,
+        AppEnvironment.TestCredentialPrefixVariable => environment.TestCredentialPrefix,
+        AppEnvironment.TestStartDelayVariable => environment.TestStartDelay > TimeSpan.Zero
+            ? ((long)environment.TestStartDelay.TotalMilliseconds).ToString(System.Globalization.CultureInfo.InvariantCulture)
+            : null,
+        _ => Environment.GetEnvironmentVariable(name),
+    };
 #endif
 
     private static ISecretStore CreateSecretStore(AppEnvironment environment)

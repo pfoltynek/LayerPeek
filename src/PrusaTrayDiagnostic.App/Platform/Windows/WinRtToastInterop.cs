@@ -73,6 +73,9 @@ internal partial interface IToastNotifier : IInspectable
     void Show(IToastNotification notification);
 
     void Hide(IToastNotification notification);
+
+    /// <summary>Whether Windows shows the toasts of this notifier's app (<see cref="ToastNotifierSetting"/>).</summary>
+    void GetSetting(out int value);
 }
 
 /// <summary>Windows.UI.Notifications.IToastNotificationFactory (activation factory of ToastNotification).</summary>
@@ -101,6 +104,10 @@ internal partial interface IToastNotification : IInspectable
     void AddActivated(nint handler, out long token);
 
     void RemoveActivated(long token);
+
+    void AddFailed(nint handler, out long token);
+
+    void RemoveFailed(long token);
 }
 
 /// <summary>Windows.UI.Notifications.IToastActivatedEventArgs.</summary>
@@ -109,6 +116,15 @@ internal partial interface IToastNotification : IInspectable
 internal partial interface IToastActivatedEventArgs : IInspectable
 {
     void GetArguments(out nint value);
+}
+
+/// <summary>Windows.UI.Notifications.IToastFailedEventArgs.</summary>
+[GeneratedComInterface]
+[Guid("35176862-CFD4-44F8-AD64-F500FD896C3B")]
+internal partial interface IToastFailedEventArgs : IInspectable
+{
+    /// <summary>The HRESULT why Windows did not show the toast.</summary>
+    void GetErrorCode(out int value);
 }
 
 /// <summary>Windows.Data.Xml.Dom.IXmlDocument; only passed on, no methods are called.</summary>
@@ -137,6 +153,27 @@ internal partial interface IToastActivatedHandler
     void Invoke(nint sender, nint args);
 }
 
+/// <summary>
+/// TypedEventHandler&lt;ToastNotification, ToastFailedEventArgs&gt; (delegate interface, IUnknown based); the IID is the
+/// parameterized-interface IID from windows.ui.notifications.h.
+/// </summary>
+[GeneratedComInterface]
+[Guid("95E3E803-C969-5E3A-9753-EA2AD22A9A33")]
+internal partial interface IToastFailedHandler
+{
+    void Invoke(nint sender, nint args);
+}
+
+/// <summary>Windows.UI.Notifications.NotificationSetting: whether Windows shows the toasts of an app.</summary>
+internal enum ToastNotifierSetting
+{
+    Enabled = 0,
+    DisabledForApplication = 1,
+    DisabledForUser = 2,
+    DisabledByGroupPolicy = 3,
+    DisabledByManifest = 4,
+}
+
 internal static class WinRtClassNames
 {
     public const string ToastNotificationManager = "Windows.UI.Notifications.ToastNotificationManager";
@@ -155,4 +192,5 @@ internal static class WinRtInterfaceIds
     public static readonly Guid ToastNotificationManagerStatics2 = new("7AB93C52-0E48-4750-BA9D-1A4113981847");
     public static readonly Guid ToastNotificationFactory = new("04124B20-82C6-4229-B109-FD9ED4662B53");
     public static readonly Guid ToastActivatedHandler = new("AB54DE2D-97D9-5528-B6AD-105AFE156530");
+    public static readonly Guid ToastFailedHandler = new("95E3E803-C969-5E3A-9753-EA2AD22A9A33");
 }

@@ -24,6 +24,7 @@ public sealed class TestToastCleanupTests
 
     private readonly FakeToastHistory _history = new();
     private readonly InMemoryShortcutStore _shortcuts = new();
+    private readonly InMemoryComServerRegistry _activators = new();
     private readonly ListLogger<TestToastCleanup> _logger = new();
 
     public TestToastCleanupTests()
@@ -38,7 +39,7 @@ public sealed class TestToastCleanupTests
         _shortcuts.Shortcuts[ProductionShortcut] = production;
         _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\src\bin\Debug\PrusaTrayDiagnostic.exe", "PrusaTrayDiagnostic.E2E");
 
-        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _logger).Run();
+        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Empty(failures);
         Assert.Equal(["PrusaTrayDiagnostic.E2E"], _history.Cleared);
@@ -50,7 +51,7 @@ public sealed class TestToastCleanupTests
     [Fact]
     public void WithoutAShortcutOnlyTheHistoryIsCleared()
     {
-        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _logger).Run();
+        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Empty(failures);
         Assert.Equal(["PrusaTrayDiagnostic.E2E"], _history.Cleared);
@@ -63,7 +64,7 @@ public sealed class TestToastCleanupTests
         _history.Failure = new InvalidOperationException("history gone");
         _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", "PrusaTrayDiagnostic.E2E");
 
-        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _logger).Run();
+        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Contains("history gone", Assert.Single(failures), StringComparison.Ordinal);
         Assert.Empty(_shortcuts.Shortcuts);
@@ -75,10 +76,47 @@ public sealed class TestToastCleanupTests
     {
         _shortcuts.DeleteFailure = new UnauthorizedAccessException("denied");
 
-        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _logger).Run();
+        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Contains("denied", Assert.Single(failures), StringComparison.Ordinal);
         Assert.Equal(["PrusaTrayDiagnostic.E2E"], _history.Cleared);
+    }
+
+    [Fact]
+    public void TheToastActivatorOfTheTestAppGoesAndTheProductionOneStays()
+    {
+        // T-068: a click on a test toast after the test app ended would otherwise start the (Debug) exe.
+        Guid test = new(AppEnvironment.TestToastActivatorClsid);
+        Guid production = new(AppEnvironment.ProductionToastActivatorClsid);
+        _activators.Servers[test] = "\"C:\\src\\bin\\Debug\\PrusaTrayDiagnostic.exe\" -ToastActivated";
+        _activators.Servers[production] = "\"C:\\Apps\\PrusaTrayDiagnostic.exe\" -ToastActivated";
+
+        Assert.Empty(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run());
+
+        Assert.Equal([test], _activators.Deleted);
+        Assert.Equal(production, Assert.Single(_activators.Servers).Key);
+    }
+
+    [Fact]
+    public void AFailingActivatorRemovalIsReportedAfterEverythingElse()
+    {
+        _activators.DeleteFailure = new UnauthorizedAccessException("registry denied");
+        _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", AppEnvironment.TestAppUserModelId);
+
+        IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
+
+        Assert.Contains("registry denied", Assert.Single(failures), StringComparison.Ordinal);
+        Assert.Equal([AppEnvironment.TestAppUserModelId], _history.Cleared);
+        Assert.Empty(_shortcuts.Shortcuts);
+    }
+
+    [Fact]
+    public void TheTestActivatorIsNeitherTheProductionOneNorEmpty()
+    {
+        Assert.NotEqual(new Guid(AppEnvironment.ProductionToastActivatorClsid), new Guid(AppEnvironment.TestToastActivatorClsid));
+        Assert.NotEqual(Guid.Empty, new Guid(AppEnvironment.TestToastActivatorClsid));
+        // Fixed for good: Windows and the installer (T-017) know the production activator by it.
+        Assert.Equal("E8389DCA-851B-498C-8082-69B1AB263C14", AppEnvironment.ProductionToastActivatorClsid);
     }
 
     [Theory]
@@ -87,7 +125,7 @@ public sealed class TestToastCleanupTests
     [InlineData(@"C:\Users\test\Prusa Tray Diagnostic E2E.lnk.bak")]
     public void RefusesAnyShortcutButTheTestOne(string path)
     {
-        Assert.Throws<ArgumentException>(() => new TestToastCleanup(_history, _shortcuts, path, _logger));
+        Assert.Throws<ArgumentException>(() => new TestToastCleanup(_history, _shortcuts, path, _activators, _logger));
     }
 
     [Fact]
@@ -114,12 +152,12 @@ public sealed class TestToastCleanupTests
             store.Write(production, new AppShortcut(Environment.ProcessPath!, AppEnvironment.ProductionAppUserModelId));
             byte[] productionBefore = File.ReadAllBytes(production);
 
-            Assert.Empty(new TestToastCleanup(_history, store, test, _logger).Run());
+            Assert.Empty(new TestToastCleanup(_history, store, test, _activators, _logger).Run());
 
             Assert.False(File.Exists(test));
             Assert.Equal(productionBefore, File.ReadAllBytes(production));
             // A second cleanup finds nothing and still succeeds.
-            Assert.Empty(new TestToastCleanup(_history, store, test, _logger).Run());
+            Assert.Empty(new TestToastCleanup(_history, store, test, _activators, _logger).Run());
             Assert.False(store.Delete(test));
         }
         finally
@@ -169,7 +207,7 @@ public sealed class TestToastCleanupTests
         _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", AppEnvironment.TestAppUserModelId);
         TaskCompletionSource threadEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        Task quitting = TrayHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _logger), threadEnded.Task, _logger);
+        Task quitting = TrayHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger), threadEnded.Task, _logger);
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.False(quitting.IsCompleted);
@@ -189,7 +227,7 @@ public sealed class TestToastCleanupTests
         _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", AppEnvironment.TestAppUserModelId);
         TaskCompletionSource neverEnds = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await TrayHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _logger), neverEnds.Task, _logger)
+        await TrayHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger), neverEnds.Task, _logger)
             .WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal([AppEnvironment.TestAppUserModelId], _history.Cleared);

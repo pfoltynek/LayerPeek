@@ -51,9 +51,28 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <summary>The instance name suffix (without the leading dash the app adds).</summary>
     public string Suffix { get; }
 
-    public Process Process { get; }
+    /// <summary>The app process; after <see cref="AdoptRestart"/> the one Windows started.</summary>
+    public Process Process { get; private set; }
 
     public UIA3Automation Automation => _automation;
+
+    /// <summary>
+    /// This app ended and Windows started it again with the same test mode (T-068: a click on a toast through the COM toast
+    /// activator, same run folder and instance names): from now on <paramref name="restarted"/> is this app, quit and cleaned
+    /// up like the first process.
+    /// </summary>
+    public void AdoptRestart(Process restarted)
+    {
+        ArgumentNullException.ThrowIfNull(restarted);
+        if (!Process.HasExited)
+        {
+            throw new InvalidOperationException("The first process of the app still runs.");
+        }
+
+        Process.Dispose();
+        Process = restarted;
+        _kinds.Clear();
+    }
 
     /// <summary>Starts the app with <paramref name="settingsJson"/> and optional seeded secrets (key, secret).</summary>
     /// <param name="name">Label of the run: its log is kept as <c>log-&lt;name&gt;.txt</c> in the results folder.</param>

@@ -137,6 +137,20 @@ internal sealed class WinRtToastNotifier : IDisposable
         _notifier.Show(toast.Notification);
     }
 
+    /// <summary>
+    /// Whether Windows shows the toasts of the app (switched off in Settings, by policy...). Toasts of a disabled app are
+    /// dropped silently, so this is the only hint.
+    /// </summary>
+    public ToastNotifierSetting Setting
+    {
+        get
+        {
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            _notifier.GetSetting(out int value);
+            return (ToastNotifierSetting)value;
+        }
+    }
+
     public void Dispose()
     {
         if (!_disposed)
@@ -147,11 +161,12 @@ internal sealed class WinRtToastNotifier : IDisposable
     }
 }
 
-/// <summary>One toast (Windows.UI.Notifications.ToastNotification) and its click subscription.</summary>
+/// <summary>One toast (Windows.UI.Notifications.ToastNotification) and its click and failure subscriptions.</summary>
 [SupportedOSPlatform("windows")]
 internal sealed class WinRtToast : IDisposable
 {
     private long? _activatedToken;
+    private long? _failedToken;
     private bool _disposed;
 
     internal WinRtToast(IToastNotification notification) => Notification = notification;
@@ -172,6 +187,20 @@ internal sealed class WinRtToast : IDisposable
         _activatedToken = token;
     }
 
+    /// <summary>Calls <paramref name="callback"/> when Windows reports that it did not show this toast.</summary>
+    public void SubscribeFailed(ToastFailedCallback callback)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(callback);
+        if (_failedToken is not null)
+        {
+            throw new InvalidOperationException("The toast is already subscribed.");
+        }
+
+        Notification.AddFailed(callback.Pointer, out long token);
+        _failedToken = token;
+    }
+
     /// <summary>Unsubscribes and releases the toast object; a toast already on screen stays there.</summary>
     public void Dispose()
     {
@@ -183,19 +212,30 @@ internal sealed class WinRtToast : IDisposable
         _disposed = true;
         try
         {
-            if (_activatedToken is long token)
-            {
-                Notification.RemoveActivated(token);
-            }
+            Unsubscribe(_activatedToken, Notification.RemoveActivated);
+            Unsubscribe(_failedToken, Notification.RemoveFailed);
+        }
+        finally
+        {
+            ComObjects.Release(Notification);
+        }
+    }
+
+    private static void Unsubscribe(long? token, Action<long> remove)
+    {
+        if (token is not long value)
+        {
+            return;
+        }
+
+        try
+        {
+            remove(value);
         }
         catch (Exception)
         {
             // The toast object is gone or closed on the OS side (COMException, RO_E_CLOSED as ObjectDisposedException...);
             // releasing our reference is all that is left.
-        }
-        finally
-        {
-            ComObjects.Release(Notification);
         }
     }
 }
@@ -270,6 +310,93 @@ internal sealed partial class ToastActivatedHandler(Action<string?> activated) :
         {
             eventArgs.GetArguments(out nint value);
             return HString.MoveToManaged(value);
+        }
+        finally
+        {
+            ComObjects.Release(eventArgs);
+        }
+    }
+}
+
+/// <summary>
+/// The native failure handler (TypedEventHandler&lt;ToastNotification, ToastFailedEventArgs&gt;) for
+/// <see cref="WinRtToast"/>: forwards the HRESULT why Windows did not show a toast to a managed callback. One instance
+/// serves every toast.
+/// </summary>
+[SupportedOSPlatform("windows")]
+internal sealed class ToastFailedCallback : IDisposable
+{
+    private nint _pointer;
+
+    /// <param name="failed">Called on an OS thread with the error code; must not throw.</param>
+    public ToastFailedCallback(Action<int> failed)
+    {
+        ArgumentNullException.ThrowIfNull(failed);
+        _pointer = ComObjects.GetInterfacePointer(new ToastFailedHandler(failed), WinRtInterfaceIds.ToastFailedHandler);
+    }
+
+    internal nint Pointer
+    {
+        get
+        {
+            nint pointer = _pointer;
+            ObjectDisposedException.ThrowIf(pointer == 0, this);
+            return pointer;
+        }
+    }
+
+    public void Dispose()
+    {
+        nint pointer = Interlocked.Exchange(ref _pointer, 0);
+        if (pointer != 0)
+        {
+            Marshal.Release(pointer);
+        }
+    }
+}
+
+[SupportedOSPlatform("windows")]
+[GeneratedComClass]
+internal sealed partial class ToastFailedHandler(Action<int> failed) : IToastFailedHandler
+{
+    /// <summary>Error code reported when the event arguments cannot be read (E_FAIL).</summary>
+    internal const int UnknownError = unchecked((int)0x80004005);
+
+    public void Invoke(nint sender, nint args)
+    {
+        // Called by the OS: nothing may escape.
+        int errorCode;
+        try
+        {
+            errorCode = ReadErrorCode(args);
+        }
+        catch (Exception)
+        {
+            errorCode = UnknownError;
+        }
+
+        try
+        {
+            failed(errorCode);
+        }
+        catch (Exception)
+        {
+            // The callback logs; a failing logger (quitting) loses only this report.
+        }
+    }
+
+    private static int ReadErrorCode(nint args)
+    {
+        if (args == 0)
+        {
+            return UnknownError;
+        }
+
+        IToastFailedEventArgs eventArgs = ComObjects.Borrow<IToastFailedEventArgs>(args);
+        try
+        {
+            eventArgs.GetErrorCode(out int value);
+            return value;
         }
         finally
         {

@@ -7,11 +7,21 @@ internal sealed class FakeToastNotification(Exception removeFailure) : IToastNot
 {
     public int RemoveCount { get; private set; }
 
+    public int RemoveFailedCount { get; private set; }
+
     public void AddActivated(nint handler, out long token) => token = 42;
 
     public void RemoveActivated(long token)
     {
         RemoveCount++;
+        throw removeFailure;
+    }
+
+    public void AddFailed(nint handler, out long token) => token = 43;
+
+    public void RemoveFailed(long token)
+    {
+        RemoveFailedCount++;
         throw removeFailure;
     }
 

@@ -1,4 +1,7 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
+
+using PrusaTrayDiagnostic.App.Notifications;
 
 namespace PrusaTrayDiagnostic.App.SingleInstance;
 
@@ -7,6 +10,12 @@ internal enum InstanceCommandKind
 {
     /// <summary>Bring the most recently used auxiliary window to the front, otherwise open the settings.</summary>
     Activate,
+
+    /// <summary>
+    /// A click on a toast that Windows reported to a later start (T-068); the argument is the toast's launch argument
+    /// (<see cref="ToastLaunchArgument.IsWellFormed"/>), handled like a click reported to the running app.
+    /// </summary>
+    Toast,
 
 #if DEBUG
     // Debug builds only, accepted only in the isolated test mode (T-044): the end-to-end tests open windows
@@ -39,6 +48,13 @@ internal readonly record struct InstanceCommand(InstanceCommandKind Kind, string
     /// <summary>Bring the most recently used auxiliary window to the front, otherwise open the settings.</summary>
     public static InstanceCommand Activate { get; } = new(InstanceCommandKind.Activate);
 
+    /// <summary>The click on a toast with <paramref name="launchArgument"/>, if that is a well-formed launch argument.</summary>
+    public static bool TryForToast([NotNullWhen(true)] string? launchArgument, out InstanceCommand command)
+    {
+        command = ToastLaunchArgument.IsWellFormed(launchArgument) ? new InstanceCommand(InstanceCommandKind.Toast, launchArgument) : default;
+        return command.Kind == InstanceCommandKind.Toast;
+    }
+
     /// <summary>The wire text without the line feed, also used in log messages (no secrets: a printer id at most).</summary>
     public override string ToString() => InstanceProtocol.ToText(this);
 }
@@ -51,19 +67,25 @@ internal readonly record struct InstanceCommand(InstanceCommandKind Kind, string
 /// the write normally completes at once; should the running instance hang without reading or answering, the client gives
 /// up at the end of its time budget (<see cref="SingleInstanceGuard"/>).
 /// <para>
+/// Every build knows <c>activate</c> and <c>toast:&lt;launch argument&gt;</c> (T-068: a click on a toast that Windows
+/// reported to a later start; only a well-formed launch argument, <see cref="ToastLaunchArgument.IsWellFormed"/>).
+/// </para>
+/// <para>
 /// Debug builds also know the test commands of T-044: <c>settings</c>, <c>diagnostics</c>, <c>diagnostics:&lt;id&gt;</c>,
 /// <c>about</c>, <c>camera:&lt;id&gt;</c>, <c>quit</c> and <c>crash:&lt;ui|background|task&gt;</c> (T-046) (printer ids of ASCII letters, digits, <c>-</c> and <c>_</c>).
 /// </para>
 /// </summary>
 internal static class InstanceProtocol
 {
-    /// <summary>Longest message the server reads; anything longer is ignored.</summary>
-    public const int MaxMessageLength = 64;
+    /// <summary>Longest message the server reads; anything longer is ignored. Holds the longest toast command.</summary>
+    public const int MaxMessageLength = ToastLaunchArgument.MaxLength + 64;
 
     /// <summary>The reply to a command that was handed over.</summary>
     public const byte Acknowledgement = (byte)'\n';
 
     private const string ActivateText = "activate";
+
+    private const string ToastText = "toast";
 
     public static byte[] Encode(InstanceCommand command)
     {
@@ -82,6 +104,7 @@ internal static class InstanceProtocol
         string word = command.Kind switch
         {
             InstanceCommandKind.Activate => ActivateText,
+            InstanceCommandKind.Toast => ToastText,
 #if DEBUG
             InstanceCommandKind.Settings => "settings",
             InstanceCommandKind.Diagnostics => "diagnostics",
@@ -94,10 +117,12 @@ internal static class InstanceProtocol
         };
         if (command.Argument is null)
         {
-            return word;
+            return command.Kind == InstanceCommandKind.Toast
+                ? throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "A toast command needs its launch argument.")
+                : word;
         }
 
-        if (!TakesArgument(command.Kind) || !IsValidArgument(command.Argument))
+        if (!TakesArgument(command.Kind) || !IsValidArgument(command.Kind, command.Argument))
         {
             throw new ArgumentOutOfRangeException(nameof(command), command.Kind, "Invalid argument of the instance command.");
         }
@@ -113,6 +138,12 @@ internal static class InstanceProtocol
         {
             command = InstanceCommand.Activate;
             return true;
+        }
+
+        if (text.StartsWith("toast:"u8))
+        {
+            // Any non-ASCII byte decodes to '?', which no launch argument contains.
+            return InstanceCommand.TryForToast(Encoding.ASCII.GetString(text["toast:"u8.Length..]), out command);
         }
 
 #if DEBUG
@@ -160,7 +191,7 @@ internal static class InstanceProtocol
         }
 
         string argument = Encoding.ASCII.GetString(text[(colon + 1)..]);
-        if (!TakesArgument(found) || !IsValidArgument(argument))
+        if (!TakesArgument(found) || !IsValidArgument(found, argument))
         {
             return false;
         }
@@ -172,14 +203,20 @@ internal static class InstanceProtocol
 
     private static bool TakesArgument(InstanceCommandKind kind) => kind switch
     {
+        InstanceCommandKind.Toast => true,
 #if DEBUG
         InstanceCommandKind.Diagnostics or InstanceCommandKind.Camera or InstanceCommandKind.Crash => true,
 #endif
         _ => false,
     };
 
-    private static bool IsValidArgument(string argument)
+    private static bool IsValidArgument(InstanceCommandKind kind, string argument)
     {
+        if (kind == InstanceCommandKind.Toast)
+        {
+            return ToastLaunchArgument.IsWellFormed(argument);
+        }
+
         if (argument.Length == 0)
         {
             return false;
