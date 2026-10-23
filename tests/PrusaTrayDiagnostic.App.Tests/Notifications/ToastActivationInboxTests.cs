@@ -82,6 +82,36 @@ public sealed class ToastActivationInboxTests
         Assert.Null(_inbox.WaitForFirst(TimeSpan.Zero));
     }
 
+    [Theory]
+    [InlineData("https://evil.example/")]
+    [InlineData("printer=")]
+    [InlineData("printer=a b")]
+    [InlineData("printer=a&url=https://evil.example/")]
+    [InlineData("PRINTER=a")]
+    public void ClicksWithAForeignArgumentAreNeitherKeptNorAwaited(string arguments)
+    {
+        // Anything but the launch argument of the app's own toasts: never kept, so it can neither take the place of the
+        // click a start by Windows waits for nor fill the bounded queue.
+        _inbox.Receive(AppId, arguments);
+        Assert.Null(_inbox.WaitForFirst(TimeSpan.Zero));
+
+        _inbox.Receive(AppId, "printer=a");
+        Assert.Equal("printer=a", _inbox.WaitForFirst(TimeSpan.Zero));
+        List<string> delivered = [];
+        _inbox.Attach(delivered.Add);
+        _inbox.Receive(AppId, arguments);
+        Assert.Equal(["printer=a"], delivered);
+        Assert.Contains(_logger.Entries, static entry => entry.Level == LogLevel.Warning);
+    }
+
+    [Fact]
+    public void AnOverlongArgumentIsNotKept()
+    {
+        _inbox.Receive(AppId, "printer=" + new string('a', ToastLaunchArgument.MaxLength));
+
+        Assert.Null(_inbox.WaitForFirst(TimeSpan.Zero));
+    }
+
     [Fact]
     public void AFloodOfClicksBeforeTheAppIsReadyIsBounded()
     {

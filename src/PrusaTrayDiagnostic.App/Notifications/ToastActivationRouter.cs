@@ -16,10 +16,11 @@ namespace PrusaTrayDiagnostic.App.Notifications;
 /// <para>
 /// T-068: a click that started the app (Windows starts it through the COM toast activator) waits for the first settings
 /// of monitoring, at most <see cref="SettingsWait"/>. Windows may report one click twice (the toast's own event and the
-/// COM activator): the same argument again within <see cref="DuplicateWindow"/> is ignored.
+/// COM activator): the same argument again within <see cref="DuplicateWindow"/> is ignored. Disposing (the container, when
+/// the app quits) ends every wait at once; nothing opens after that.
 /// </para>
 /// </summary>
-internal sealed partial class ToastActivationRouter : IMonitoringObserver
+internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisposable
 {
     /// <summary>How long a click waits for the printers of the first monitoring run (the app was just started for it).</summary>
     public static readonly TimeSpan SettingsWait = TimeSpan.FromSeconds(30);
@@ -31,6 +32,7 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver
     private readonly ILogger<ToastActivationRouter> _logger;
     private readonly TimeProvider _time;
     private readonly TaskCompletionSource _firstSettings = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _stopped = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Lock _recentLock = new();
     private string? _recentArgument;
     private long _recentTimestamp;
@@ -67,13 +69,20 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver
         {
             try
             {
-                await _firstSettings.Task.WaitAsync(SettingsWait, _time).ConfigureAwait(false);
+                // Ends early when the app quits.
+                await Task.WhenAny(_firstSettings.Task, _stopped.Task).WaitAsync(SettingsWait, _time).ConfigureAwait(false);
             }
             catch (TimeoutException)
             {
                 LogNoSettings(SettingsWait);
                 return false;
             }
+        }
+
+        if (_stopped.Task.IsCompleted)
+        {
+            LogStopped(printerId);
+            return false;
         }
 
         if (!_printers.TryGetValue(printerId, out PrinterDefinition? printer))
@@ -113,6 +122,9 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver
     {
     }
 
+    /// <summary>The app quits: waiting clicks end without opening anything, later ones open nothing. Safe to repeat.</summary>
+    public void Dispose() => _stopped.TrySetResult();
+
     /// <summary>Whether the same argument came within <see cref="DuplicateWindow"/>; remembers this one otherwise.</summary>
     private bool IsRepeated(string argument)
     {
@@ -135,6 +147,9 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Notification click for printer '{PrinterId}' reported again; opened once.")]
     private partial void LogRepeated(string printerId);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Notification click for printer '{PrinterId}' while the app quits; nothing to open.")]
+    private partial void LogStopped(string printerId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Notification click before monitoring knew its printers ({Wait}); nothing to open.")]
     private partial void LogNoSettings(TimeSpan wait);

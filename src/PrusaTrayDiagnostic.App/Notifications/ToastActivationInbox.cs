@@ -4,7 +4,7 @@ namespace PrusaTrayDiagnostic.App.Notifications;
 
 /// <summary>
 /// Clicks on toasts that Windows reports through the COM toast activator (T-068), on COM threads. Only clicks of the app's
-/// own AppUserModelID with a launch argument count. Until the app says where they go (<see cref="Attach"/>) they wait
+/// own AppUserModelID with a well-formed launch argument (<see cref="ToastLaunchArgument.IsWellFormed"/>) count. Until the app says where they go (<see cref="Attach"/>) they wait
 /// here (at most <see cref="MaxPending"/>): a start by Windows first waits for its click (<see cref="WaitForFirst"/>) to
 /// forward it to a running instance, or handles it itself once it runs. Thread-safe; <see cref="Receive"/> never throws.
 /// The argument is only passed on, never interpreted here: <see cref="ToastActivationRouter"/> accepts nothing but a
@@ -43,6 +43,14 @@ internal sealed partial class ToastActivationInbox
         {
             // E.g. a click on the header of the toast: nothing to open.
             LogNoArgument();
+            return;
+        }
+
+        if (!ToastLaunchArgument.IsWellFormed(arguments))
+        {
+            // Not an argument of the app's own toasts: it can neither take the place of the click a start by Windows waits
+            // for nor fill the queue. The argument itself is not logged.
+            LogForeignArgument(arguments.Length);
             return;
         }
 
@@ -133,6 +141,9 @@ internal sealed partial class ToastActivationInbox
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a toast activation of another app id ({Length} characters).")]
     private partial void LogForeignApp(int length);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a toast activation with an unrecognized argument ({Length} characters).")]
+    private partial void LogForeignArgument(int length);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Ignored a toast activation without an argument.")]
     private partial void LogNoArgument();
