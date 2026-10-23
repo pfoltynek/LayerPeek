@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.Core.Cameras;
+using PrusaTrayDiagnostic.Core.IO;
 
 namespace PrusaTrayDiagnostic.App.Cameras;
 
@@ -39,7 +40,8 @@ internal interface ICameraWindowStateStore
 /// <summary>
 /// <see cref="ICameraWindowStateStore"/> in <c>camera-windows.json</c> next to the settings file. It is app state, not a
 /// setting: the settings window never shows or saves it, so a settings save cannot overwrite a window position and vice
-/// versa. Writes are atomic (temporary file, then replace) and run one after another on the thread pool; a newer state
+/// versa. Writes are atomic (temporary file, then replace) and run one after another on the thread pool; while another
+/// process holds the file (antivirus, backup), reading and replacing it are retried briefly (<see cref="FileRetry"/>). A newer state
 /// replaces an older one that has not been written yet. A damaged file is ignored (defaults) and replaced by the next save.
 /// Creating the store touches no files. Thread-safe.
 /// </summary>
@@ -57,6 +59,7 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
 
     private readonly string _directory;
     private readonly ILogger<JsonCameraWindowStateStore> _logger;
+    private readonly TimeProvider _timeProvider;
     private readonly Lock _gate = new();
 
     // Guarded by _gate.
@@ -69,13 +72,14 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
     private Task _pendingSave = Task.CompletedTask;
     private long _saveVersion;
 
-    public JsonCameraWindowStateStore(string directory, ILogger<JsonCameraWindowStateStore> logger)
+    public JsonCameraWindowStateStore(string directory, ILogger<JsonCameraWindowStateStore> logger, TimeProvider? timeProvider = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(directory);
         ArgumentNullException.ThrowIfNull(logger);
         _directory = Path.GetFullPath(directory);
         FilePath = Path.Combine(_directory, FileName);
         _logger = logger;
+        _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     public string FilePath { get; }
@@ -175,8 +179,13 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
                 return;
             }
 
-            await using FileStream stream = new(FilePath, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 4096, useAsync: true);
-            document = await JsonSerializer.DeserializeAsync(stream, CameraWindowsJsonContext.Default.CameraWindowsDocument, cancellationToken).ConfigureAwait(false);
+            document = await FileRetry.RunAsync(static (path, token) => ReadDocumentAsync(path, token), FilePath, replacing: false, _timeProvider, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (FileNotFoundException)
+        {
+            // Deleted since the check above: nothing to load.
+            return;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or NotSupportedException)
         {
@@ -206,6 +215,15 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
             }
 
             _order.InsertRange(0, loaded);
+        }
+    }
+
+    private static async Task<CameraWindowsDocument?> ReadDocumentAsync(string path, CancellationToken cancellationToken)
+    {
+        FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 4096, useAsync: true);
+        await using (stream.ConfigureAwait(false))
+        {
+            return await JsonSerializer.DeserializeAsync(stream, CameraWindowsJsonContext.Default.CameraWindowsDocument, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -248,8 +266,23 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
         try
         {
             Directory.CreateDirectory(_directory);
-            await File.WriteAllBytesAsync(temporary, content, CancellationToken.None).ConfigureAwait(false);
-            File.Move(temporary, FilePath, overwrite: true);
+            await FileRetry.RunAsync(
+                static async (args, token) =>
+                {
+                    await File.WriteAllBytesAsync(args.Path, args.Content, token).ConfigureAwait(false);
+                    return true;
+                },
+                (Path: temporary, Content: content),
+                replacing: false,
+                _timeProvider,
+                CancellationToken.None).ConfigureAwait(false);
+            // Only the replace is retried here: the complete temporary file stays ready meanwhile.
+            await FileRetry.RunAsync(
+                static paths => File.Move(paths.Source, paths.Target, overwrite: true),
+                (Source: temporary, Target: FilePath),
+                replacing: true,
+                _timeProvider,
+                CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
