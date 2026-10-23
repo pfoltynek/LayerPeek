@@ -1,11 +1,11 @@
 ---
-id: T-067
+id: T-075
 title: Podpora projektu (GitHub Sponsors, Ko-fi) a financování podpisových certifikátů
 status: todo
 owner: architect
 priority: P3
 platform: all
-depends_on: [T-066]
+depends_on: [T-074]
 ---
 
 ## Cíl
