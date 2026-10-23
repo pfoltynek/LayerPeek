@@ -1,7 +1,7 @@
 ---
 id: T-066
 title: E2E – zásahy do zobrazení: měřítko monitoru a dočasné vypnutí monitoru
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
@@ -51,9 +51,9 @@ Dva zásahy do systému pro E2E testy (infrastruktura T-065), bez kterých nejde
 - Oba zásahy mají trait `SystemChanges` a bez potvrzeného varování se přeskočí.
 
 ## Akceptační kritéria
-- [ ] `DisplayScaleChange`: nastavení 100/125/150 % jednoho monitoru za běhu, ověření přes `GetDpiForMonitor`, návrat včetně stavu `PerMonitorSettings`; nedostupná změna → přeskočeno s důvodem (samotest)
-- [ ] `MonitorDisconnectChange`: vypnutí neprimárního monitoru bez zápisu do databáze konfigurací, návrat a ověření topologie; záloha `SDC_TOPOLOGY_EXTEND`; okna ostatních aplikací jsou po návratu zpět na původním monitoru, test je nepřesouvá (samotest)
-- [ ] Návrat po zabitém procesu pro oba zásahy (samotest s T-065)
+- [x] `DisplayScaleChange`: nastavení 100/125/150 % jednoho monitoru za běhu, ověření přes `GetDpiForMonitor`, návrat včetně stavu `PerMonitorSettings`; nedostupná změna → přeskočeno s důvodem (samotest)
+- [x] `MonitorDisconnectChange`: vypnutí neprimárního monitoru bez zápisu do databáze konfigurací, návrat a ověření topologie; záloha `SDC_TOPOLOGY_EXTEND`; okna ostatních aplikací jsou po návratu zpět na původním monitoru, test je nepřesouvá (samotest)
+- [x] Návrat po zabitém procesu pro oba zásahy (samotest s T-065)
 - [x] Výsledky běhu obsahují sestavení Windows, systémové DPI a DPI monitorů před a po (`system-state-start.txt` / `system-state-end.txt` každého běhu, ověřeno 2026-10-22; samotesty navíc zapisují zprávu před a po každém zásahu)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; žádný nový NuGet balíček
 
@@ -88,3 +88,9 @@ qa-reviewer, 2026-10-22 (kód bez zásahů do systému; vše níže opraveno ve 
 Nezměněno (drobnosti): `EnumDisplayMonitors` přes `[DllImport]` s delegátem (stejně jako dosavadní `Native.cs`); `DisplayScaleSteps.StepFor` alokuje `ToList()`; `Wait.UntilAsync` neruší čekání tokenem.
 
 Ověřeno po opravách 2026-10-22: `dotnet build` 0 varování, 0 chyb; `dotnet test` 0 selhalo; `tools/run-e2e.ps1 -NoSystemChanges` 168 testů, 0 selhalo, 16 přeskočeno (7 `DisplayChangeTests`, ostatní zásahy, kanár, skutečná kamera, vstupy podřízeného procesu), „nothing pending“ před i po běhu, „Differences from the start: none“; snímek stavu obsahuje sestavení Windows, `systemDpi`, měřítko a `monitorDpi` obou monitorů a `PerMonitorSettings: (key missing)`.
+
+## Ověření během se zásahy (Windows 11 26300, 2026-10-22)
+- `tools/run-e2e.ps1 -Class '*DisplayChangeTests'` spuštěný ve viditelném okně na ploše uživatele (varování s odpočtem 5 s): 7 testů, 0 selhalo, 0 přeskočeno, „nothing pending“.
+- Škálování: oba DELL U2719D 100 → 125 → 150 % (`monitorDpi` 96 → 120 → 144, `systemDpi` stále 96) a zpět na 100 %; `PerMonitorSettings` před i po během „(key missing)“.
+- Vypnutí DISPLAY2: okna ostatních aplikací (3, jen proces a obdélník) se vrátila, „Windows of other apps not back on their monitor: none“; topologie obnovena včetně otočení.
+- Zabité procesy: oba zásahy obnovil úklid při startu i samotný hlídací proces. Snímek stavu na konci: „Differences from the start: none“.
