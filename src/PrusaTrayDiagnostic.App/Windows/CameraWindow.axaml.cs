@@ -195,6 +195,8 @@ public sealed partial class CameraWindow : Window
 
         CameraWindowMode mode = viewModel.Mode;
         CameraWindowMode layoutMode = mode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
+        // The real chrome before anything changes, where none can be predicted (macOS): only while the frame is shown.
+        WindowChrome? measured = layoutMode == CameraWindowMode.Normal ? FramedChrome() : null;
         _placedBeforeMeasuring = null;
         _applyingMode = true;
         try
@@ -205,7 +207,7 @@ public sealed partial class CameraWindow : Window
             ShowInTaskbar = ShowsInTaskbar(mode);
             Topmost = viewModel.Defaults.IsTopmost(mode);
             WindowChrome chrome = WindowChrome.None;
-            if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, ScreenCatalog.GetScreens(), screen => chrome = ChromeOn(layoutMode, screen)) is { } placement)
+            if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, ScreenCatalog.GetScreens(), screen => chrome = ChromeOn(layoutMode, screen, measured)) is { } placement)
             {
                 Place(placement);
                 if (mode == CameraWindowMode.Normal)
@@ -353,7 +355,7 @@ public sealed partial class CameraWindow : Window
             layoutMode,
             remembered,
             ScreenCatalog.GetScreens(),
-            screen => chrome = ChromeOn(layoutMode, screen));
+            screen => chrome = ChromeOn(layoutMode, screen, measured: null));
         if (placement is not { } chosen)
         {
             Width = layout.Size.Width;
@@ -399,16 +401,17 @@ public sealed partial class CameraWindow : Window
     /// window is.
     /// </summary>
     private CameraWindowPlacement FromDefaults(CameraWindowLayout layout, CameraWindowMode mode, PixelBounds window) =>
-        CameraWindowPlanner.OnCurrentScreen(layout, window, ScreenCatalog.GetScreens(), screen => ChromeOn(mode, screen))
+        CameraWindowPlanner.OnCurrentScreen(layout, window, ScreenCatalog.GetScreens(), screen => ChromeOn(mode, screen, FramedChrome()))
             ?? new CameraWindowPlacement(Position.X, Position.Y, layout.Size.Width, layout.Size.Height);
 
     /// <summary>
     /// The chrome of the window in <paramref name="mode"/> on <paramref name="screen"/>: none for the mini preview; for the
     /// normal window the one predicted for the scaling of that monitor (<see cref="ChromePrediction"/>; on Windows the frame
-    /// of the window's current style at that DPI, so the frame must be set before), else
+    /// of the window's current style at that DPI, so the frame must be set before); where it cannot be predicted (macOS,
+    /// Windows refusing) the chrome <paramref name="measured"/> on the shown window (<see cref="FramedChrome"/>), else
     /// <see cref="CameraWindowPlanner.AssumedNormalChrome"/>.
     /// </summary>
-    private WindowChrome ChromeOn(CameraWindowMode mode, CameraScreen screen)
+    private WindowChrome ChromeOn(CameraWindowMode mode, CameraScreen screen, WindowChrome? measured)
     {
         if (mode == CameraWindowMode.Mini)
         {
@@ -417,15 +420,19 @@ public sealed partial class CameraWindow : Window
 
         if (ChromePrediction is { } predict)
         {
-            return predict(this, screen.Scaling) ?? CameraWindowPlanner.AssumedNormalChrome;
+            return predict(this, screen.Scaling) ?? measured ?? CameraWindowPlanner.AssumedNormalChrome;
         }
 
         return OperatingSystem.IsWindows()
             && TryGetPlatformHandle() is { HandleDescriptor: "HWND", Handle: var hwnd }
             && WindowFrameNative.TryPredictFrame(hwnd, DpiOf(screen.Scaling)) is { } frame
                 ? WindowChrome.FromPixels(frame, screen.Scaling)
-                : CameraWindowPlanner.AssumedNormalChrome;
+                : measured ?? CameraWindowPlanner.AssumedNormalChrome;
     }
+
+    /// <summary>The measured chrome while the shown window has its frame in the normal state, else <see langword="null"/>.</summary>
+    private WindowChrome? FramedChrome() =>
+        _opened && WindowState == WindowState.Normal && WindowDecorations == WindowDecorations.Full ? MeasuredChrome() : null;
 
     /// <summary>The DPI of a monitor with <paramref name="scaling"/> (Avalonia: DPI / 96).</summary>
     private static uint DpiOf(double scaling) =>
@@ -487,7 +494,7 @@ public sealed partial class CameraWindow : Window
         }
 
         CameraWindowMode layoutMode = _appliedMode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
-        if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, screens, screen => ChromeOn(layoutMode, screen)) is { } placement)
+        if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, screens, screen => ChromeOn(layoutMode, screen, FramedChrome())) is { } placement)
         {
             Place(placement);
         }

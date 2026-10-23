@@ -58,7 +58,8 @@ public sealed record CameraMonitorId
 
     /// <summary>
     /// The path of the physical monitor (Windows); <see langword="null"/> on other platforms and in settings written before
-    /// it was stored. It changes when the monitor is plugged into another connector; matching then falls back to the name.
+    /// it was stored. It changes when the monitor is plugged into another connector; the saved monitor is then not
+    /// connected (T-071 Q4: a saved path alone decides, see <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
     /// </summary>
     public string? DevicePath { get; }
 
