@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
@@ -9,7 +10,8 @@ namespace PrusaTrayDiagnostic.App.Printers;
 /// Draws a <see cref="PrinterPicture"/> (T-039) letterboxed into its square bounds: an illustration from the pre-rendered
 /// size that matches the physical pixels at the current scaling (so it is sharp at 100–200 % instead of a scaled
 /// bitmap), or the custom picture, decoded once and scaled smoothly. Give it a fixed <c>Width</c> and <c>Height</c>.
-/// Decorative by default (no automation peer name); set <c>AutomationProperties.Name</c> where it carries meaning.
+/// Decorative by default (left out of the UI Automation control view); set <c>AutomationProperties.Name</c> where it
+/// carries meaning and it is reported as an image with that name (<see cref="PrinterImageViewAutomationPeer"/>).
 /// </summary>
 public sealed class PrinterImageView : Control
 {
@@ -66,6 +68,8 @@ public sealed class PrinterImageView : Control
             context.DrawImage(bitmap, new Rect(bitmap.Size), destination);
         }
     }
+
+    protected override AutomationPeer OnCreateAutomationPeer() => new PrinterImageViewAutomationPeer(this);
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {

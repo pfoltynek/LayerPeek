@@ -25,6 +25,8 @@
     -->
     <PackageReference Include="FlaUI.Core" />
     <PackageReference Include="FlaUI.UIA3" />
+    <!-- A stopped clock for the simulated printer: a print at a fixed progress (T-070). -->
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>

@@ -1,7 +1,7 @@
 ---
 id: T-042
 title: Jednotné tray menu (podmenu pro každou tiskárnu)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -78,7 +78,7 @@ Ukončit
 - [x] Zkrácení názvu na cca 32 znaků (test)
 - [x] Klávesové zkratky ve všech 8 jazycích, test jedinečnosti (2026-10-21 i s „Diagnostika…“ v hlavním menu; pl `D_iagnostyka…`, de `D_iagnose…`)
 - [x] Ikony tiskáren na Windows, žádné na macOS (testy)
-- [ ] Ruční ověření na Windows (uživatel), viz seznam níže; mimo jiné Předčítání (Narrator) na řádku tiskárny s `_` v názvu (VoiceOver na macOS ověří T-018)
+- [x] Ruční ověření na Windows (uživatel), viz seznam níže; mimo jiné Předčítání (Narrator) na řádku tiskárny s `_` v názvu (VoiceOver na macOS ověří T-018) – 2026-10-22 body 1–7 ověřeny E2E testy T-069 (rozhodnutí architekta 2026-10-22), bod 2 po opravě samotného písmene v hlavním menu (T-069 Q2); hlas Předčítání zůstává doporučená ruční kontrola
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování (znovu ověřeno 2026-10-21 po přesunu „Diagnostika…“ do hlavního menu: 4387 testů, 0 selhání, 26–28 přeskočených – 25 E2E na vyžádání, 1 bez nahraných odpovědí, 0–2 `TestModeGuardTests` podle toho, zda běží jiná instance aplikace; AOT publish win-x64 bez varování ověřen i druhou revizí)
 
 ## Otevřené otázky
@@ -122,3 +122,5 @@ Ukončit
 - **macOS (ověří T-018):** zkratky odstraněné z NSMenu, U+2060 v názvu s `_` (vzhled a VoiceOver), žádné ikony, změna textu „Zobrazit kameru“ / „Skrýt kameru“ v NSMenu.
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** body 1–7 ručního seznamu ověří E2E testy T-069 (klávesnice a zkratky, tooltip, „Přidat tiskárnu…“, „Diagnostika…“ při startu s Debug-only zpožděním z T-067, položka kamery, Předčítání přes UIA `Name` podle rozhodnutí uživatele 2026-10-22). Kritérium se zaškrtne, až testy projdou. Skutečný hlas Předčítání zůstává doporučená ruční kontrola (přehled pokrytí v T-065).
+- **Výsledek T-069 (2026-10-22, qa-reviewer, Windows 11, 100 %):** E2E testy ověřily bod 1 (podmenu u 1 i 3 tiskáren, ilustrace jen u tiskáren, pixelová kontrola), bod 3 (tooltip s celým názvem do 3 s, `HelpText`), bod 4 („Add printer…“ otevře nastavení na záložce Tiskárny s jednou novou tiskárnou, podruhé stejné okno), bod 5 (UIA `Name` = viditelný text po odstranění U+2060; surový `Name` `MK4<U+2060>_dílna: Ready`, `AccessKey` `<U+2060>`), bod 6 (Diagnostics… se povolí ve stejném otevřeném menu, stejný HWND i `RuntimeId`) a bod 7 (bez zaškrtnutí, Show/Hide camera, po zavření křížkem znovu Show camera); navíc „Open PrusaLink“ klávesou `O` přes proxy. Bod 2: otevření menu bez myši (Win+B, šipky, Shift+F10), `AccessKey` podle `.resx` a podtržení po Alt ověřeny; **samotné písmeno v hlavním menu nic neudělá, funguje Alt+písmeno** (v podmenu funguje i samotné písmeno) – otázka Q2 v T-069. Kritérium zůstává nezaškrtnuté do rozhodnutí Q2; hlas Předčítání zůstává doporučená ruční kontrola.
+- **Samotné písmeno v hlavním menu (2026-10-22, ui-dev, rozhodnutí uživatele k T-069 Q2):** opraveno. Příčina: Avalonia.Win32 kreslí hlavní tray menu do interního okna (`TrayPopupRoot`, obsah `MenuFlyoutPresenter`) s výchozím `AccessKeyHandler`, který písmeno zpracuje jen s drženým Alt; podmenu (popup `MenuItem`) má `MenuItemAccessKeyHandler`, který bere i samotné písmeno. Oprava `Tray/Menu/TrayMenuAccessKeys` (registrace v `App.Initialize`): v okně tray menu se písmeno nebo číslice bez Alt/Ctrl/Win, kterou menu samo nezpracovalo, předá vlastnímu zpracování zkratek Avalonie jako Alt+písmeno. Podrobnosti a testy v T-069 (poznámky „Oprava Q2“). E2E `MenuWorksFromTheKeyboardWithAccessKeys` to teď tvrdě ověřuje (po Alt `S`, v menu otevřeném myší `D`, v podmenu `C`), proto je bod 2 a kritérium ručního ověření zaškrtnuté. macOS (NSMenu) se netýká, ověří T-018.

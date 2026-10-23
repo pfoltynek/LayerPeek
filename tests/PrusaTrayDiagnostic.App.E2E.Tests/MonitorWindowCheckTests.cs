@@ -277,32 +277,9 @@ public sealed class MonitorWindowCheckTests
     }
 
     [Fact]
-    public void ScreenAreaOfAQuarterOfTheMonitorIsAllowed()
-    {
-        Native.Rect monitor = Rect(2560, 0, 1440, 2560);
-
-        ScreenArea.EnsureAllowed(Rect(2560, 0, 720, 1280), monitor);
-        ScreenArea.EnsureAllowed(ScreenArea.Around(new Point(3280, 1280), 64, 64), monitor);
-    }
-
-    [Fact]
-    public void ScreenAreaLargerThanAQuarterOfTheMonitorIsRefused() =>
-        Assert.Throws<ArgumentException>(() => ScreenArea.EnsureAllowed(Rect(0, 0, 1281, 721), Rect(0, 0, 2560, 1440)));
-
-    [Fact]
-    public void ScreenAreaAcrossTheEdgeOfTheMonitorIsRefused()
-    {
-        Assert.Throws<ArgumentException>(() => ScreenArea.EnsureAllowed(Rect(2550, 0, 20, 20), Rect(0, 0, 2560, 1440)));
-        Assert.Throws<ArgumentException>(() => ScreenArea.EnsureAllowed(Rect(10, 10, 0, 5), Rect(0, 0, 2560, 1440)));
-    }
-
-    [Fact]
-    public void AroundCentresTheArea()
-    {
-        Native.Rect area = ScreenArea.Around(new Point(100, 50), 64, 31);
-
-        Assert.Equal(Rect(68, 35, 64, 31), area);
-    }
+    public void ProbeInTheMiddleOfACameraWindowIsAllowedByTheCaptureGuard() =>
+        // The 64 × 64 px probe of CameraTopmostTests on the portrait monitor (the guard itself is tested with T-069/T-070).
+        Assert.Null(ScreenArea.Refusal(new Rectangle(3248, 1248, 64, 64), new Rectangle(2560, 0, 1440, 2560)));
 
     [Fact]
     public void FractionNearCountsThePixelsOfTheColor()
@@ -315,8 +292,8 @@ public sealed class MonitorWindowCheckTests
             graphics.FillRectangle(brush, 0, 0, 10, 3);
         }
 
-        Assert.Equal(0.3, ScreenArea.FractionNear(bitmap, CoverWindow.Color), 3);
-        Assert.Equal(0.7, ScreenArea.FractionNear(bitmap, Color.Black), 3);
+        Assert.Equal(0.3, Screenshots.FractionNear(bitmap, CoverWindow.Color), 3);
+        Assert.Equal(0.7, Screenshots.FractionNear(bitmap, Color.Black), 3);
     }
 
     [Fact]

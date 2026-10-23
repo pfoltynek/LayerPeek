@@ -17,7 +17,7 @@ internal static class NotificationArea
 
     public const string TaskbarClassName = "Shell_TrayWnd";
 
-    private const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
+    public const string OverflowClass = "TopLevelWindowForOverflowXamlIsland";
 
     /// <summary>Automation id of the system buttons of the tray (the overflow chevron, input indicator, clock…).</summary>
     private const string SystemButtonId = "SystemTrayIcon";
@@ -35,6 +35,7 @@ internal static class NotificationArea
         AutomationElement taskbar = Taskbar(automation);
         List<AutomationElement> icons = [];
         bool opened = false;
+        DateTime openedAt = DateTime.MinValue;
         await Wait.UntilAsync(
             () =>
             {
@@ -44,11 +45,13 @@ internal static class NotificationArea
                     return true;
                 }
 
-                if (!opened && OverflowChevron(taskbar) is { } chevron)
+                // The flyout may not open (or close again right away, e.g. while focus changes): opened again after 2 s.
+                if ((!opened || (Overflow(automation) is null && DateTime.UtcNow - openedAt > TimeSpan.FromSeconds(2))) && OverflowChevron(taskbar) is { } chevron)
                 {
-                    trace?.Invoke("No test icon on the taskbar: opening the overflow flyout.");
+                    trace?.Invoke(opened ? "The overflow flyout is not shown: opening it again." : "No test icon on the taskbar: opening the overflow flyout.");
                     chevron.Patterns.Invoke.Pattern.Invoke();
                     opened = true;
+                    openedAt = DateTime.UtcNow;
                 }
 
                 return false;
@@ -87,20 +90,40 @@ internal static class NotificationArea
         return hwnd != 0 && Native.IsWindowVisible(hwnd) ? automation.FromHandle(hwnd) : null;
     }
 
-    /// <summary>Every application icon of the taskbar and the shown overflow flyout, for a failure report.</summary>
+    /// <summary>
+    /// Every application icon of the taskbar and the shown overflow flyout, for a failure report: the tooltip only of the
+    /// test icons (<see cref="TestToolTipPrefix"/>); icons of other programs only by position (T-069: nothing of the user's
+    /// other programs in the results).
+    /// </summary>
     public static IEnumerable<string> DescribeAll(AutomationBase automation)
     {
         foreach (AutomationElement icon in Taskbar(automation).FindAllDescendants(cf => cf.ByAutomationId(NotifyIconId)))
         {
-            yield return $"taskbar: {Describe(icon)}";
+            yield return $"taskbar: {DescribeAny(icon)}";
         }
 
         if (Overflow(automation) is { } overflow)
         {
             foreach (AutomationElement icon in overflow.FindAllDescendants(cf => cf.ByAutomationId(NotifyIconId)))
             {
-                yield return $"overflow: {Describe(icon)}";
+                yield return $"overflow: {DescribeAny(icon)}";
             }
+        }
+    }
+
+    /// <summary>A test icon in full (<see cref="Describe"/>), another program's icon without its tooltip.</summary>
+    public static string DescribeAny(AutomationElement icon)
+    {
+        try
+        {
+            return (icon.Properties.Name.ValueOrDefault ?? string.Empty).Contains(TestToolTipPrefix, StringComparison.Ordinal)
+                ? Describe(icon)
+                : $"(another program's icon) bounds={icon.Properties.BoundingRectangle.ValueOrDefault} offscreen={icon.Properties.IsOffscreen.ValueOrDefault}";
+        }
+        // Report only: a vanished icon must not fail the caller.
+        catch (Exception ex)
+        {
+            return $"(not readable: {ex.GetType().Name} 0x{ex.HResult:X8})";
         }
     }
 
@@ -139,14 +162,49 @@ internal static class NotificationArea
         }
     }
 
-    /// <summary>Closes the overflow flyout (Escape) when the tests opened it.</summary>
+    /// <summary>
+    /// Closes the overflow flyout (Escape) when the tests opened it, but only while it has the keyboard: Escape is never
+    /// pressed into another window (an app window, another program). Use <see cref="CloseOverflowAsync"/> to close it
+    /// whoever has the keyboard.
+    /// </summary>
     public static void CloseOverflow(bool opened)
     {
-        if (opened)
+        if (opened && OverflowHasKeyboard())
         {
             Keyboard.Type(VirtualKeyShort.ESCAPE);
         }
     }
+
+    /// <summary>
+    /// Closes the overflow flyout when it is shown: Escape while it has the keyboard, otherwise "Show hidden icons" through
+    /// UI Automation (it toggles the flyout; no key goes to another window). Waits up to 2 s for it to hide.
+    /// </summary>
+    public static async Task CloseOverflowAsync(AutomationBase automation)
+    {
+        if (Overflow(automation) is null)
+        {
+            return;
+        }
+
+        if (OverflowHasKeyboard())
+        {
+            Keyboard.Type(VirtualKeyShort.ESCAPE);
+        }
+        else
+        {
+            OverflowChevron(Taskbar(automation))?.Patterns.Invoke.Pattern.Invoke();
+        }
+
+        for (int i = 0; i < 20 && Overflow(automation) is not null; i++)
+        {
+            await Task.Delay(100);
+        }
+    }
+
+    /// <summary>Whether the keyboard goes to the notification area: the taskbar or the overflow flyout is in the foreground.</summary>
+    public static bool HasKeyboard() => Native.ClassName(Native.GetForegroundWindow()) is TaskbarClassName or OverflowClass;
+
+    private static bool OverflowHasKeyboard() => Native.ClassName(Native.GetForegroundWindow()) == OverflowClass;
 
     /// <summary>
     /// "Show hidden icons": the system tray button that comes before every application icon (the others – input

@@ -73,7 +73,12 @@ public partial class App : Application, ITrayAppCommands
         _logging = logging;
     }
 
-    public override void Initialize() => AvaloniaXamlLoader.Load(this);
+    public override void Initialize()
+    {
+        AvaloniaXamlLoader.Load(this);
+        // The letter alone runs an item of the tray menu that Avalonia draws on Windows (T-069 Q2).
+        TrayMenuAccessKeys.Register();
+    }
 
     public override void OnFrameworkInitializationCompleted()
     {

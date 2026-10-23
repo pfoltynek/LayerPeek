@@ -1,66 +1,83 @@
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Runtime.Versioning;
+using System.Runtime.InteropServices;
 
 namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 
 /// <summary>
-/// A capture of a small area of the screen as the user sees it (what lies on top there), for checks that a window
-/// capture cannot answer, e.g. which window is in front (T-071). Never the whole desktop: the area must lie on one
-/// monitor and cover at most a quarter of it (user decision 2026-10-22), and the tests take it only inside a window of
-/// the app or of the test itself.
-/// <para>Overlaps with the screenshot guard of T-069 (<c>CaptureScreenArea</c>); merge the two when both are in.</para>
+/// The only way the end-to-end tests read pixels from the screen (user decision 2026-10-22, T-069, T-070): single elements
+/// that are not windows of the app (a taskbar button, a tray icon, the overflow flyout, a jump list, the taskbar), or a
+/// small probe of what is in front in the middle of a camera window (T-071, always on top over a window of the test),
+/// never the desktop. An area must lie on one monitor and cover at most a quarter of it. Windows of the app are captured with
+/// <see cref="Screenshots.Capture"/> (PrintWindow) instead.
 /// </summary>
-[SupportedOSPlatform("windows")]
 internal static class ScreenArea
 {
-    /// <summary>The largest share of a monitor an area may cover.</summary>
-    public const double MaximumMonitorShare = 0.25;
+    /// <summary>The largest share of its monitor an area may cover.</summary>
+    public const double MaxMonitorShare = 0.25;
 
-    /// <summary>A rectangle of <paramref name="width"/> × <paramref name="height"/> centred on <paramref name="center"/>.</summary>
-    public static Native.Rect Around(Point center, int width, int height) => new()
-    {
-        Left = center.X - (width / 2),
-        Top = center.Y - (height / 2),
-        Right = center.X - (width / 2) + width,
-        Bottom = center.Y - (height / 2) + height,
-    };
-
-    /// <summary>Refuses an empty area, one that is not inside <paramref name="monitor"/> or covers more than a quarter of it.</summary>
-    public static void EnsureAllowed(Native.Rect area, Native.Rect monitor)
+    /// <summary>
+    /// Why <paramref name="area"/> must not be captured on <paramref name="monitor"/>, or <see langword="null"/>: it is
+    /// empty, reaches beyond the monitor or covers more than <see cref="MaxMonitorShare"/> of it.
+    /// </summary>
+    public static string? Refusal(Rectangle area, Rectangle monitor)
     {
         if (area.Width <= 0 || area.Height <= 0)
         {
-            throw new ArgumentException($"The screen area {area} is empty.", nameof(area));
+            return $"The screen area {area} is empty.";
         }
 
-        if (area.Left < monitor.Left || area.Top < monitor.Top || area.Right > monitor.Right || area.Bottom > monitor.Bottom)
+        if (!monitor.Contains(area))
         {
-            throw new ArgumentException($"The screen area {area} is not inside one monitor {monitor}.", nameof(area));
+            return $"Refusing to capture {area}: it is not inside the monitor {monitor}; only one element under test may be captured.";
         }
 
-        if ((double)area.Width * area.Height > MaximumMonitorShare * monitor.Width * monitor.Height)
-        {
-            throw new ArgumentException($"The screen area {area} covers more than {MaximumMonitorShare:P0} of the monitor {monitor}.", nameof(area));
-        }
+        double share = (double)area.Width * area.Height / ((double)monitor.Width * monitor.Height);
+        return share > MaxMonitorShare
+            ? $"Refusing to capture {area}: it covers {share:P0} of the monitor {monitor} (at most {MaxMonitorShare:P0}); only the element under test may be captured, never the desktop."
+            : null;
     }
 
-    /// <summary>The screen pixels of <paramref name="area"/> (physical pixels; see <see cref="EnsureAllowed"/>).</summary>
-    public static Bitmap Capture(Native.Rect area)
+    /// <summary>
+    /// The screen pixels of <paramref name="area"/> exactly (physical pixels, for measurements); refuses areas
+    /// <see cref="Refusal"/> names.
+    /// </summary>
+    public static Pixels Capture(Rectangle area)
     {
-        Native.Point center = new() { X = area.Left + (area.Width / 2), Y = area.Top + (area.Height / 2) };
-        Native.MonitorInfo monitor = new() { Size = System.Runtime.InteropServices.Marshal.SizeOf<Native.MonitorInfo>() };
-        if (!Native.GetMonitorInfo(Native.MonitorFromPoint(center, Native.MonitorDefaultToNearest), ref monitor))
+        using Bitmap bitmap = CaptureExactly(area);
+        return Pixels.From(bitmap);
+    }
+
+    /// <summary>
+    /// A screenshot of an element: <paramref name="area"/> grown by <paramref name="margin"/> and cut to the element's monitor
+    /// (an element at the screen edge keeps its margin on the other sides); refuses areas <see cref="Refusal"/> names.
+    /// </summary>
+    public static Bitmap CaptureBitmap(Rectangle area, int margin = 0)
+    {
+        area.Inflate(margin, margin);
+        area.Intersect(MonitorOf(area));
+        return CaptureExactly(area);
+    }
+
+    /// <summary><see cref="CaptureBitmap"/> saved into the results as <c>NNN-name.png</c>; returns the file.</summary>
+    public static string Save(Rectangle area, int margin, string name)
+    {
+        using Bitmap bitmap = CaptureBitmap(area, margin);
+        return Screenshots.Save(bitmap, name);
+    }
+
+    private static Bitmap CaptureExactly(Rectangle area)
+    {
+        if (Refusal(area, MonitorOf(area)) is { } refusal)
         {
-            throw new InvalidOperationException("GetMonitorInfo failed.");
+            throw new InvalidOperationException(refusal);
         }
 
-        EnsureAllowed(area, monitor.Monitor);
         Bitmap bitmap = new(area.Width, area.Height, PixelFormat.Format32bppArgb);
         try
         {
             using Graphics graphics = Graphics.FromImage(bitmap);
-            graphics.CopyFromScreen(area.Left, area.Top, 0, 0, bitmap.Size);
+            graphics.CopyFromScreen(area.Left, area.Top, 0, 0, area.Size);
             return bitmap;
         }
         catch
@@ -70,22 +87,16 @@ internal static class ScreenArea
         }
     }
 
-    /// <summary>Fraction (0..1) of the pixels within <paramref name="tolerance"/> (sum of channel differences) of <paramref name="color"/>.</summary>
-    public static double FractionNear(Bitmap bitmap, Color color, int tolerance = 60)
+    /// <summary>The monitor of the centre of <paramref name="area"/> (the nearest one when the centre is on none).</summary>
+    private static Rectangle MonitorOf(Rectangle area)
     {
-        int near = 0;
-        for (int y = 0; y < bitmap.Height; y++)
+        Native.MonitorInfo info = new() { Size = Marshal.SizeOf<Native.MonitorInfo>() };
+        Native.Point center = new() { X = area.Left + (area.Width / 2), Y = area.Top + (area.Height / 2) };
+        if (!Native.GetMonitorInfo(Native.MonitorFromPoint(center, Native.MonitorDefaultToNearest), ref info))
         {
-            for (int x = 0; x < bitmap.Width; x++)
-            {
-                Color c = bitmap.GetPixel(x, y);
-                if (Math.Abs(c.R - color.R) + Math.Abs(c.G - color.G) + Math.Abs(c.B - color.B) <= tolerance)
-                {
-                    near++;
-                }
-            }
+            throw new InvalidOperationException("GetMonitorInfo failed.");
         }
 
-        return bitmap.Width * bitmap.Height == 0 ? 0 : (double)near / (bitmap.Width * bitmap.Height);
+        return Rectangle.FromLTRB(info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom);
     }
 }

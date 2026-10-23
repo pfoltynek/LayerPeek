@@ -1,3 +1,5 @@
+using System.Text.Json.Nodes;
+
 using PrusaTrayDiagnostic.Simulator.Camera;
 using PrusaTrayDiagnostic.Simulator.Printers;
 
@@ -17,6 +19,10 @@ internal static class Simulators
     public static Task<SimulatedPrinter> StartPrinterAsync(PrinterScenario scenario = PrinterScenario.Printing) =>
         SimulatedPrinter.StartAsync(new SimulatedPrinterOptions { Scenario = scenario }, TestContext.Current.CancellationToken);
 
+    /// <summary>An idle printer of <paramref name="model"/> (its model code in <c>/api/version</c>, T-039); dispose it after the app.</summary>
+    public static Task<SimulatedPrinter> StartModelAsync(SimulatedModel model) =>
+        SimulatedPrinter.StartAsync(new SimulatedPrinterOptions { Model = model, Scenario = PrinterScenario.Idle }, TestContext.Current.CancellationToken);
+
     /// <summary>The address as a user enters it in the settings (host and port).</summary>
     public static string Address(this SimulatedPrinter printer) => $"127.0.0.1:{printer.Port}";
 
@@ -25,4 +31,26 @@ internal static class Simulators
         new() { [$"printer/{printerId}"] = printer.Password };
 
     public static RtspCamera StartCamera() => new(new RtspCameraOptions { Clip = Clip.Value });
+
+    /// <summary>
+    /// Waits until the app has detected the model of every printer in <paramref name="printerIds"/> and written it to its
+    /// <c>settings.json</c> (T-039): from then on the tray menu and the windows show the model's illustration.
+    /// </summary>
+    public static Task WaitForDetectedModelsAsync(AppInstance app, params string[] printerIds) =>
+        Wait.UntilAsync(
+            () =>
+            {
+                try
+                {
+                    JsonArray? printers = JsonNode.Parse(app.ReadSettings())?["printers"]?.AsArray();
+                    return printerIds.All(id => printers?.Any(p => (string?)p?["id"] == id && p?["detectedModel"] is not null) == true);
+                }
+                catch (Exception ex) when (ex is IOException or System.Text.Json.JsonException)
+                {
+                    // Being written right now.
+                    return false;
+                }
+            },
+            TimeSpan.FromSeconds(30),
+            $"the detected models of {string.Join(", ", printerIds)} in settings.json");
 }

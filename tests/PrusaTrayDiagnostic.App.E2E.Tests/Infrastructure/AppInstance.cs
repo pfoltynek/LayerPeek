@@ -149,12 +149,22 @@ internal sealed class AppInstance : IAsyncDisposable
             return kind;
         }
 
-        AutomationElement element = Element(hwnd);
-        kind = element.FindFirstDescendant(cf => cf.ByAutomationId("SettingsTabs")) is not null ? AppWindowKind.Settings
-            : element.FindFirstDescendant(cf => cf.ByAutomationId("DiagnosticsClose")) is not null ? AppWindowKind.Diagnostics
-            // Every camera mode shows the mini preview or the normal window button (full screen shows both).
-            : element.FindFirstDescendant(cf => cf.ByAutomationId("CameraMiniButton").Or(cf.ByAutomationId("CameraNormalButton"))) is not null ? AppWindowKind.Camera
-            : AppWindowKind.Other;
+        try
+        {
+            AutomationElement element = Element(hwnd);
+            kind = element.FindFirstDescendant(cf => cf.ByAutomationId("SettingsTabs")) is not null ? AppWindowKind.Settings
+                : element.FindFirstDescendant(cf => cf.ByAutomationId("DiagnosticsClose")) is not null ? AppWindowKind.Diagnostics
+                // Every camera mode shows the mini preview or the normal window button (full screen shows both).
+                : element.FindFirstDescendant(cf => cf.ByAutomationId("CameraMiniButton").Or(cf.ByAutomationId("CameraNormalButton"))) is not null ? AppWindowKind.Camera
+                : AppWindowKind.Other;
+        }
+        catch (Exception ex) when (ex is FlaUI.Core.Exceptions.ElementNotAvailableException or System.Runtime.InteropServices.COMException or TimeoutException)
+        {
+            // A window that is just closing (e.g. the tray menu after its item ran, T-069) or busy (FlaUI turns UIA_E_TIMEOUT
+            // into a TimeoutException): not (yet) a known kind, asked again next time.
+            return AppWindowKind.Other;
+        }
+
         if (kind != AppWindowKind.Other)
         {
             _kinds[hwnd] = kind;
@@ -320,6 +330,17 @@ internal sealed class AppInstance : IAsyncDisposable
         {
             File.Copy(log, Path.Combine(E2EFixture.ResultsDirectory, $"log-{Name}.txt"), overwrite: true);
         }
+    }
+
+    /// <summary>
+    /// The app's <c>settings.json</c> now, read with full sharing: a plain read (share mode read only) would make the app's
+    /// atomic replace of the file fail while the test polls it (T-069).
+    /// </summary>
+    public string ReadSettings()
+    {
+        using FileStream stream = new(Path.Combine(DataDirectory, "settings.json"), FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        using StreamReader reader = new(stream);
+        return reader.ReadToEnd();
     }
 
     /// <summary>The app's test log so far (for assertion messages).</summary>

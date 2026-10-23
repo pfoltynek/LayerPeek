@@ -54,22 +54,6 @@ internal static class Screenshots
         return Save(bitmap, name);
     }
 
-    /// <summary>
-    /// The whole desktop (every monitor) as the user sees it, for failures outside the app's windows (the notification
-    /// area, a popup that vanished); saved as <c>NNN-name.png</c>.
-    /// </summary>
-    public static string SaveScreen(string name)
-    {
-        Native.Rect screen = Native.VirtualScreen();
-        using Bitmap bitmap = new(screen.Width, screen.Height, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.CopyFromScreen(screen.Left, screen.Top, 0, 0, bitmap.Size);
-        }
-
-        return Save(bitmap, name);
-    }
-
     public static string Save(Bitmap bitmap, string name)
     {
         int number = Interlocked.Increment(ref _counter);
@@ -135,6 +119,25 @@ internal static class Screenshots
         }
 
         return sampled == 0 ? 0 : (double)lit / sampled;
+    }
+
+    /// <summary>Fraction (0..1) of all pixels within <paramref name="tolerance"/> (sum of channel differences) of <paramref name="color"/>.</summary>
+    public static double FractionNear(Bitmap bitmap, Color color, int tolerance = 60)
+    {
+        int near = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                Color c = bitmap.GetPixel(x, y);
+                if (Math.Abs(c.R - color.R) + Math.Abs(c.G - color.G) + Math.Abs(c.B - color.B) <= tolerance)
+                {
+                    near++;
+                }
+            }
+        }
+
+        return bitmap.Width * bitmap.Height == 0 ? 0 : (double)near / (bitmap.Width * bitmap.Height);
     }
 
     private static string Sanitize(string name)

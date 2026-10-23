@@ -111,8 +111,9 @@ public sealed class CameraTopmostTests(E2EFixture fixture)
 
         nint front = Native.TopLevelWindowAt(middle);
         bool cameraAbove = CoverWindow.IsAbove(camera, cover.Handle);
-        using Bitmap probe = ScreenArea.Capture(ScreenArea.Around(middle, ProbeSize, ProbeSize));
-        double magenta = ScreenArea.FractionNear(probe, CoverWindow.Color);
+        // What is in front there, as the user sees it: a small area of the screen (the shared capture guard of ScreenArea).
+        using Bitmap probe = ScreenArea.CaptureBitmap(new Rectangle(middle.X - (ProbeSize / 2), middle.Y - (ProbeSize / 2), ProbeSize, ProbeSize));
+        double magenta = Screenshots.FractionNear(probe, CoverWindow.Color);
         Screenshots.Save(probe, $"{label}-middle");
         _report.AppendLine(CultureInfo.InvariantCulture,
             $"{label}: camera 0x{camera:X} frame {frame}, topmost {CameraWindowSettings.IsTopmost(camera)}; cover 0x{cover.Handle:X}; at {middle.X},{middle.Y} 0x{front:X}; camera above cover in z-order: {cameraAbove}; magenta {magenta:P0}");
