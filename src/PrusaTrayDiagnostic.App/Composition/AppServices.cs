@@ -180,7 +180,8 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<SettingsEditorStore>>(),
             removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>(),
             imageStore: sp.GetRequiredService<IPrinterImageStore>,
-            customImages: sp.GetRequiredService<CustomPrinterImages>()));
+            customImages: sp.GetRequiredService<CustomPrinterImages>(),
+            monitorPaths: sp.GetRequiredService<ICameraMonitorPathUpdater>()));
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
@@ -278,6 +279,10 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
+        // A saved camera monitor found on another connector keeps its new device path (user decision 2026-10-23).
+        services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
+            sp.GetRequiredService<ISettingsStore>,
+            sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
     }
 
     private static ICameraWindowStateStore CreateCameraWindowStateStore(IServiceProvider services)
@@ -319,7 +324,8 @@ internal static class AppServices
                 services.GetRequiredService<ICameraWindowStateStore>(),
                 services.GetRequiredService<TimeProvider>(),
                 services.GetRequiredService<CameraFeedOptions>(),
-                services.GetRequiredService<ILogger<CameraViewModel>>())
+                services.GetRequiredService<ILogger<CameraViewModel>>(),
+                services.GetRequiredService<ICameraMonitorPathUpdater>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)

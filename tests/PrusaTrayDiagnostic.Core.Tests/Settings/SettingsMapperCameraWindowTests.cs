@@ -353,6 +353,94 @@ public class SettingsMapperCameraWindowTests
         Assert.DoesNotContain(path, Assert.Single(warnings), StringComparison.Ordinal);
     }
 
+    // ---- Known twins (T-071 Q5) ----
+
+    private const string TwinPath = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160000#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+
+    private static string MonitorJson(string twins, string devicePath = $"\"{DellPathJson}\"") =>
+        $$""", "camera": { "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "devicePath": {{devicePath}}, "knownTwinPaths": {{twins}} } } }""";
+
+    private const string DellPathJson = @"\\\\?\\DISPLAY#DEL415A#5&224edec0&0&UID160002#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+
+    [Fact]
+    public void KnownTwinPathsRoundTrip()
+    {
+        CameraWindowDefaults window = Customized with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath, [TwinPath]) };
+
+        AppSettings loaded = RoundTrip(WithWindow(window), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(window, Assert.Single(loaded.Printers).Camera.Window);
+        Assert.Equal([TwinPath], loaded.Printers[0].Camera.Window.Monitor!.KnownTwinPaths);
+    }
+
+    [Fact]
+    public void KnownTwinPathsAreWrittenOnlyWhenThereAreAny()
+    {
+        string withTwins = Write(WithWindow(Customized with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath, [TwinPath]) }));
+        string withoutTwins = Write(WithWindow(Customized with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath) }));
+
+        using JsonDocument json = JsonDocument.Parse(withTwins);
+        JsonElement twins = json.RootElement.GetProperty("printers")[0].GetProperty("camera").GetProperty("window").GetProperty("monitor").GetProperty("knownTwinPaths");
+        Assert.Equal([TwinPath], twins.EnumerateArray().Select(static path => path.GetString()));
+        Assert.DoesNotContain("knownTwinPaths", withoutTwins, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("[]")]
+    public void MissingKnownTwinPathsMeanNone(string twins)
+    {
+        AppSettings settings = Load(PrinterJson(MonitorJson(twins)), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath), Assert.Single(settings.Printers).Camera.Window.Monitor);
+    }
+
+    [Theory]
+    [InlineData("[\"SECRET\\u0007PATH\", \"TWIN\"]")]
+    [InlineData("[null, \"TWIN\"]")]
+    [InlineData("[\"   \", \"TWIN\"]")]
+    [InlineData("[\"TWIN\", \"twin\"]")]
+    [InlineData($"[\"TWIN\", \"{DellPathJson}\"]")]
+    public void InvalidKnownTwinPathsAreLeftOutWithOneWarning(string twins)
+    {
+        AppSettings settings = Load(PrinterJson(MonitorJson(twins)), out List<string> warnings);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, DellPath, ["TWIN"]), Assert.Single(settings.Printers).Camera.Window.Monitor);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("twin", warning, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("SECRET", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TooManyKnownTwinPathsAreCutWithAWarning()
+    {
+        string twins = $"[{string.Join(", ", Enumerable.Range(0, CameraMonitorId.MaxKnownTwinPaths + 2).Select(static i => $"\"twin-{i}\""))}]";
+
+        AppSettings settings = Load(PrinterJson(MonitorJson(twins)), out List<string> warnings);
+
+        CameraMonitorId monitor = Assert.Single(settings.Printers).Camera.Window.Monitor!;
+        Assert.Equal(CameraMonitorId.MaxKnownTwinPaths, monitor.KnownTwinPaths.Count);
+        Assert.Equal("twin-0", monitor.KnownTwinPaths[0]);
+        Assert.Single(warnings);
+    }
+
+    [Fact]
+    public void KnownTwinPathsWithoutADevicePathAreIgnored()
+    {
+        AppSettings missingPath = Load(PrinterJson(""", "camera": { "window": { "monitor": { "displayName": "DELL U2719D", "width": 2560, "height": 1440, "knownTwinPaths": ["TWIN"] } } }"""), out List<string> warnings);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440), Assert.Single(missingPath.Printers).Camera.Window.Monitor);
+        Assert.Contains("twin", Assert.Single(warnings), StringComparison.OrdinalIgnoreCase);
+
+        // An invalid device path is reported once; its twins go with it.
+        AppSettings invalidPath = Load(PrinterJson(MonitorJson("[\"TWIN\"]", devicePath: "\"\"")), out List<string> invalidWarnings);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440), Assert.Single(invalidPath.Printers).Camera.Window.Monitor);
+        Assert.Contains("device path", Assert.Single(invalidWarnings), StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TooLongMonitorNameMeansPrimaryWithWarning()
     {

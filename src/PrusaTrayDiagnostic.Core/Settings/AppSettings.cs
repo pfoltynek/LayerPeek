@@ -73,6 +73,37 @@ public sealed record AppSettings
     } = ReadOnlyCollection<PrinterDefinition>.Empty;
 
     /// <summary>
+    /// These settings with <paramref name="updated"/> as the camera window monitor of printer <paramref name="printerId"/>
+    /// (case-insensitive) while it still is <paramref name="expected"/> (user decision 2026-10-23: the device path follows
+    /// the monitor to another connector); the same instance when the printer is not configured, has another monitor or
+    /// nothing would change. Nothing else changes.
+    /// </summary>
+    public AppSettings WithCameraMonitor(string printerId, Cameras.CameraMonitorId expected, Cameras.CameraMonitorId updated)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(updated);
+        for (int i = 0; i < Printers.Count; i++)
+        {
+            PrinterDefinition printer = Printers[i];
+            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+            {
+                Cameras.CameraWindowDefaults window = printer.Camera.Window;
+                if (window.Monitor != expected || expected == updated)
+                {
+                    return this;
+                }
+
+                PrinterDefinition[] printers = [.. Printers];
+                printers[i] = printer with { Camera = printer.Camera with { Window = window with { Monitor = updated } } };
+                return this with { Printers = printers };
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
     /// These settings with <paramref name="code"/> as the detected model of printer <paramref name="printerId"/>
     /// (case-insensitive); the same instance when the printer is not configured or already has that code, so that callers
     /// save only real changes. Nothing else changes (the image choice stays as the user set it).

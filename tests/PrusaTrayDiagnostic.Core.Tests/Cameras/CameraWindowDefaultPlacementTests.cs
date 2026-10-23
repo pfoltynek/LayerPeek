@@ -411,9 +411,12 @@ public class CameraWindowDefaultPlacementTests
 
     private const string PathA = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160000#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
     private const string PathB = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160002#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+    private const string PathC = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160003#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
+    private const string PathMoved = @"\\?\DISPLAY#DEL415A#5&224edec0&0&UID160004#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}";
 
     private static readonly CameraScreen DellA = new("DELL U2719D", new PixelBounds(0, 0, 2560, 1440), new PixelBounds(0, 0, 2560, 1392), 1.0, IsPrimary: true, DevicePath: PathA);
     private static readonly CameraScreen DellB = new("DELL U2719D", new PixelBounds(2560, 0, 2560, 1440), new PixelBounds(2560, 0, 2560, 1392), 1.0, IsPrimary: false, DevicePath: PathB);
+    private static readonly CameraScreen OtherPrimary = new("Other", new PixelBounds(-1920, 0, 1920, 1080), new PixelBounds(-1920, 0, 1920, 1040), 1.0, IsPrimary: true, DevicePath: @"\\?\DISPLAY#OTH0001#1&0&UID1#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}");
 
     [Fact]
     public void IdenticalMonitorsAreToldApartByTheirDevicePath()
@@ -439,12 +442,67 @@ public class CameraWindowDefaultPlacementTests
     }
 
     [Fact]
-    public void ChangedDevicePathIsNotConnectedEvenWithTheSameNameAndResolution()
+    public void MonitorOnAnotherConnectorIsFoundByNameAndResolution()
     {
-        // T-071 Q4 (2026-10-23): a saved device path alone decides. Plugged into another connector, the stored path is
-        // gone: the primary monitor, "not connected" in the settings.
-        CameraScreen moved = new("DELL U2719D", new PixelBounds(2560, 0, 1920, 1080), new PixelBounds(2560, 0, 1920, 1040), 1.0, IsPrimary: false, DevicePath: PathB.Replace("UID160002", "UID160004", StringComparison.Ordinal));
+        // T-071 Q5 (2026-10-23, option a): the stored path is gone, exactly one connected monitor has the same name and
+        // resolution and it is no known twin: the same monitor plugged into another connector.
+        CameraScreen moved = new("DELL U2719D", new PixelBounds(2560, 0, 1920, 1080), new PixelBounds(2560, 0, 1920, 1040), 1.0, IsPrimary: false, DevicePath: PathMoved);
         CameraMonitorId stored = new("DELL U2719D", 1920, 1080, PathB);
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [DellA, moved])!;
+
+        Assert.Same(moved, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [DellA, moved]));
+    }
+
+    [Fact]
+    public void SwitchedOffMonitorIsNotReplacedByItsKnownTwin()
+    {
+        // T-071 Q4 + Q5: two identical monitors, the chosen one is switched off; its twin was known when it was chosen.
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB, [DellA, DellB]);
+        CameraScreen twin = DellA with { IsPrimary = false };
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [OtherPrimary, twin])!;
+
+        Assert.Equal([PathA], stored.KnownTwinPaths);
+        Assert.Same(OtherPrimary, selection.Screen);
+        Assert.True(selection.PreferredMonitorMissing);
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [OtherPrimary, twin]));
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [OtherPrimary, twin, DellB]));
+    }
+
+    [Fact]
+    public void KnownTwinIsComparedWithoutCase()
+    {
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB, [PathA.ToUpperInvariant()]);
+
+        Assert.True(stored.IsKnownTwin(DellA));
+        Assert.False(stored.IsKnownTwin(DellB));
+        Assert.False(stored.IsKnownTwin(DellA with { DevicePath = null }));
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [DellA]));
+    }
+
+    [Fact]
+    public void TwinPluggedInAfterTheChoiceIsNotKnown()
+    {
+        // Documented limitation: a twin connected only after the choice is unknown, so with the chosen monitor switched
+        // off it is taken for the chosen monitor on another connector.
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB, [DellB]);
+        CameraScreen laterTwin = DellA with { IsPrimary = false };
+
+        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [OtherPrimary, laterTwin])!;
+
+        Assert.Empty(stored.KnownTwinPaths);
+        Assert.Same(laterTwin, selection.Screen);
+        Assert.False(selection.PreferredMonitorMissing);
+    }
+
+    [Fact]
+    public void TwoCandidatesWithTheSameNameAndResolutionAreNotConnected()
+    {
+        CameraScreen moved = DellB with { DevicePath = PathMoved };
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathC);
 
         CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [DellA, moved])!;
 
@@ -454,30 +512,228 @@ public class CameraWindowDefaultPlacementTests
     }
 
     [Fact]
-    public void SwitchedOffMonitorIsNotReplacedByItsTwin()
+    public void KnownTwinCountsAsACandidate()
     {
-        // T-071 Q4: two identical monitors, the chosen one is switched off; its twin with the same name is not it.
-        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB);
-        CameraScreen otherPrimary = new("Other", new PixelBounds(-1920, 0, 1920, 1080), new PixelBounds(-1920, 0, 1920, 1040), 1.0, IsPrimary: true, DevicePath: @"\\?\DISPLAY#OTH0001#1&0&UID1#{e6f07b5f-ee97-4a90-b076-33f57bf4eaa7}");
-        CameraScreen twin = DellA with { IsPrimary = false };
+        // The known twin and an unknown monitor with the same name and resolution: two candidates, so neither is used.
+        CameraScreen moved = DellB with { DevicePath = PathMoved };
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathC, [PathA]);
 
-        CameraScreenSelection selection = CameraWindowDefaultPlacement.SelectScreen(stored, [otherPrimary, twin])!;
-
-        Assert.Same(otherPrimary, selection.Screen);
-        Assert.True(selection.PreferredMonitorMissing);
-        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [otherPrimary, twin]));
-        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [otherPrimary, twin, DellB]));
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [DellA, moved]));
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [moved]));
     }
 
     [Fact]
-    public void SavedDevicePathIsNotConnectedOnScreensWithoutPaths()
+    public void CandidateWithOtherResolutionIsNotUsed()
     {
-        // The rule is the same where screens have no device path (a settings file from Windows on another platform).
+        // Unlike older settings without a path, the fallback needs the same name and resolution.
+        CameraScreen rotated = new("DELL U2719D", new PixelBounds(2560, 0, 1440, 2560), new PixelBounds(2560, 0, 1440, 2512), 1.0, IsPrimary: false, DevicePath: PathMoved);
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB);
+
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [OtherPrimary, rotated]));
+    }
+
+    [Fact]
+    public void CandidateWithOtherNameIsNotUsed()
+    {
+        CameraMonitorId stored = new("DELL U2719D", 1920, 1080, PathB);
+
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [OtherPrimary]));
+    }
+
+    [Fact]
+    public void SavedDevicePathFallsBackToTheOnlyMatchingScreenWithoutPaths()
+    {
+        // Screens without device paths (a settings file from Windows on another platform): the fallback still applies.
         CameraMonitorId stored = CameraMonitorId.FromScreen(DellB);
         CameraScreen noPath = DellB with { DevicePath = null };
 
-        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [noPath]));
-        Assert.True(CameraWindowDefaultPlacement.SelectScreen(stored, [noPath])!.PreferredMonitorMissing);
+        Assert.True(CameraWindowDefaultPlacement.IsConnected(stored, [noPath]));
+        Assert.False(CameraWindowDefaultPlacement.IsConnected(stored, [noPath, DellA with { DevicePath = null }]));
+    }
+
+    // ---- Relocate (user decision 2026-10-23): the saved path follows the monitor to its new connector ----
+
+    [Fact]
+    public void RelocateGivesTheNewPathWhenTheFallbackMatches()
+    {
+        CameraScreen moved = DellB with { DevicePath = PathMoved };
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB, [PathC]);
+
+        CameraMonitorId? relocated = CameraWindowDefaultPlacement.Relocate(stored, [OtherPrimary, moved]);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, PathMoved, [PathC]), relocated);
+    }
+
+    [Fact]
+    public void RelocateKeepsAMonitorFoundByItsPath()
+    {
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB, [DellA, DellB]);
+
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, [DellA, DellB]));
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, [DellA, DellB with { DevicePath = PathB.ToUpperInvariant() }]));
+    }
+
+    [Fact]
+    public void RelocateDoesNothingWithoutAnUnambiguousCandidate()
+    {
+        CameraMonitorId stored = CameraMonitorId.FromScreen(DellB, [DellA, DellB]);
+
+        // Switched off, only its known twin is left.
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, [OtherPrimary, DellA]));
+        // Two candidates.
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(new CameraMonitorId("DELL U2719D", 2560, 1440, PathC), [DellA, DellB]));
+        // Nothing similar is connected.
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, [OtherPrimary]));
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, []));
+    }
+
+    [Fact]
+    public void RelocateNeedsAStorablePathOfTheCandidate()
+    {
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathC);
+
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, [DellB with { DevicePath = null }]));
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(stored, [DellB with { DevicePath = "bad\u0001path" }]));
+    }
+
+    [Fact]
+    public void RelocateStoresThePathOfOlderSettingsOnlyWhenTheNameIsUnique()
+    {
+        CameraMonitorId old = new("DELL U2719D", 2560, 1440);
+
+        // The only monitor with that name, in the saved resolution.
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB), CameraWindowDefaultPlacement.Relocate(old, [OtherPrimary, DellB]));
+        // Two monitors with that name (even in other resolutions): which one was meant is unknown.
+        CameraScreen rotatedTwin = new("DELL U2719D", new PixelBounds(5120, 0, 1440, 2560), new PixelBounds(5120, 0, 1440, 2512), 1.0, IsPrimary: false, DevicePath: PathA);
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(old, [DellB, rotatedTwin]));
+        // Unique name in another resolution: matched by the name rule, but not unambiguous enough to store.
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(old, [OtherPrimary, rotatedTwin]));
+        // No path to store.
+        Assert.Null(CameraWindowDefaultPlacement.Relocate(old, [DellB with { DevicePath = null }]));
+    }
+
+    // ---- Known twins (T-071 Q5) ----
+
+    [Fact]
+    public void FromScreenRemembersTheOtherConnectedMonitorsWithTheSameName()
+    {
+        CameraScreen rotatedTwin = new("DELL U2719D", new PixelBounds(5120, 0, 1440, 2560), new PixelBounds(5120, 0, 1440, 2512), 1.0, IsPrimary: false, DevicePath: PathC);
+
+        CameraMonitorId id = CameraMonitorId.FromScreen(DellB, [OtherPrimary, DellA, DellB, rotatedTwin]);
+
+        // Every other monitor with the same name (any resolution), in list order; the chosen one and other names not.
+        Assert.Equal([PathA, PathC], id.KnownTwinPaths);
+        Assert.Equal(PathB, id.DevicePath);
+    }
+
+    [Fact]
+    public void FromScreenLeavesOutTwinsWithoutAUsablePath()
+    {
+        CameraScreen sameAsChosen = DellA with { DevicePath = PathB.ToLowerInvariant() };
+        CameraScreen duplicate = new("DELL U2719D", new PixelBounds(5120, 0, 2560, 1440), new PixelBounds(5120, 0, 2560, 1392), 1.0, IsPrimary: false, DevicePath: PathA);
+
+        CameraMonitorId id = CameraMonitorId.FromScreen(DellB, [DellA with { DevicePath = null }, DellA with { DevicePath = "bad\u0001path" }, sameAsChosen, DellA, duplicate, DellB]);
+
+        Assert.Equal([PathA], id.KnownTwinPaths);
+    }
+
+    [Fact]
+    public void FromScreenWithoutAPathRemembersNoTwins()
+    {
+        CameraMonitorId id = CameraMonitorId.FromScreen(DellB with { DevicePath = null }, [DellA, DellB with { DevicePath = null }]);
+
+        Assert.Null(id.DevicePath);
+        Assert.Empty(id.KnownTwinPaths);
+    }
+
+    [Fact]
+    public void KnownTwinsAreCapped()
+    {
+        CameraScreen[] screens = [DellB, .. Enumerable.Range(0, CameraMonitorId.MaxKnownTwinPaths + 3).Select(i => DellA with { DevicePath = $"twin-{i}" })];
+
+        CameraMonitorId id = CameraMonitorId.FromScreen(DellB, screens);
+
+        Assert.Equal(CameraMonitorId.MaxKnownTwinPaths, id.KnownTwinPaths.Count);
+        Assert.Equal("twin-0", id.KnownTwinPaths[0]);
+    }
+
+    [Fact]
+    public void KnownTwinsAreValidated()
+    {
+        Assert.Throws<ArgumentException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, ["bad\u0001path"]));
+        Assert.Throws<ArgumentException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [PathA, PathA.ToLowerInvariant()]));
+        Assert.Throws<ArgumentException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [PathB.ToUpperInvariant()]));
+        Assert.Throws<ArgumentException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, devicePath: null, [PathA]));
+        Assert.Throws<ArgumentException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [.. Enumerable.Range(0, CameraMonitorId.MaxKnownTwinPaths + 1).Select(i => $"twin-{i}")]));
+        Assert.Throws<ArgumentNullException>(() => new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [null!]));
+        Assert.Empty(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB).KnownTwinPaths);
+        Assert.Empty(new CameraMonitorId("DELL U2719D", 2560, 1440, devicePath: null, []).KnownTwinPaths);
+    }
+
+    [Fact]
+    public void KnownTwinsAreCopiedAndPartOfTheValue()
+    {
+        List<string> twins = [PathA];
+        CameraMonitorId id = new("DELL U2719D", 2560, 1440, PathB, twins);
+        twins.Add(PathC);
+
+        Assert.Equal([PathA], id.KnownTwinPaths);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [PathA]), id);
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [PathA]).GetHashCode(), id.GetHashCode());
+        Assert.NotEqual(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB), id);
+        Assert.NotEqual(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB, [PathC]), id);
+        Assert.True(id.HasSameIdentity(new CameraMonitorId("DELL U2719D", 2560, 1440, PathB)));
+        Assert.False(id.HasSameIdentity(new CameraMonitorId("DELL U2719D", 2560, 1440, PathC, [PathA])));
+        Assert.False(id.HasSameIdentity(null));
+    }
+
+    [Fact]
+    public void TwinsAreRefreshedWhenTheMonitorIsFoundByItsPath()
+    {
+        // User decision 2026-10-23: the stored twins plus the connected monitors with the same name, stored ones first.
+        CameraScreen rotatedTwin = new("DELL U2719D", new PixelBounds(5120, 0, 1440, 2560), new PixelBounds(5120, 0, 1440, 2512), 1.0, IsPrimary: false, DevicePath: PathC);
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB, ["old-twin", PathA.ToLowerInvariant()]);
+
+        CameraMonitorId refreshed = stored.WithTwinsFrom([OtherPrimary, DellA, DellB, rotatedTwin]);
+
+        Assert.Equal(["old-twin", PathA.ToLowerInvariant(), PathC], refreshed.KnownTwinPaths);
+        Assert.Equal(PathB, refreshed.DevicePath);
+    }
+
+    [Fact]
+    public void TwinsAreNotRefreshedWithoutTheMonitorConnectedByItsPath()
+    {
+        CameraMonitorId stored = new("DELL U2719D", 2560, 1440, PathB, ["old-twin"]);
+        CameraMonitorId old = new("DELL U2719D", 2560, 1440);
+
+        // Not connected, connected only through the fallback (another connector), older settings without a path.
+        Assert.Same(stored, stored.WithTwinsFrom([OtherPrimary, DellA]));
+        Assert.Same(stored, stored.WithTwinsFrom([DellA with { DevicePath = PathMoved }]));
+        Assert.Same(old, old.WithTwinsFrom([DellA, DellB]));
+        // Nothing new.
+        CameraMonitorId known = new("DELL U2719D", 2560, 1440, PathB, [PathA]);
+        Assert.Same(known, known.WithTwinsFrom([DellA, DellB, DellA with { DevicePath = PathA.ToUpperInvariant() }]));
+    }
+
+    [Fact]
+    public void RefreshedTwinsAreCappedAndKeepTheStoredOnes()
+    {
+        string[] stored = [.. Enumerable.Range(0, CameraMonitorId.MaxKnownTwinPaths - 1).Select(static i => $"stored-{i}")];
+        CameraMonitorId monitor = new("DELL U2719D", 2560, 1440, PathB, stored);
+
+        CameraMonitorId refreshed = monitor.WithTwinsFrom([DellB, DellA, DellA with { DevicePath = PathC }, DellA with { DevicePath = "bad\u0001path" }]);
+
+        Assert.Equal([.. stored, PathA], refreshed.KnownTwinPaths);
+    }
+
+    [Fact]
+    public void WithDevicePathKeepsTheRest()
+    {
+        CameraMonitorId id = new("DELL U2719D", 2560, 1440, PathB, [PathA]);
+
+        Assert.Equal(new CameraMonitorId("DELL U2719D", 2560, 1440, PathMoved, [PathA]), id.WithDevicePath(PathMoved));
+        Assert.Throws<ArgumentException>(() => id.WithDevicePath(PathA));
+        Assert.Throws<ArgumentException>(() => id.WithDevicePath(" "));
     }
 
     [Fact]

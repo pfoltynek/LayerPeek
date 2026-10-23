@@ -258,7 +258,8 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
     /// <summary>
     /// The chosen second monitor really switched off while the app runs (T-066): the camera opens on the primary monitor
     /// and the settings show the monitor as "not connected", also when a remaining monitor has the same name (two identical
-    /// monitors, as on the development machine): the saved device path alone decides (T-071 Q4,
+    /// monitors, as on the development machine): the saved device path decides and the twin connected at the choice is
+    /// known (T-071 Q4/Q5, <c>knownTwinPaths</c>,
     /// <see cref="TestMonitors.Matching"/>). When it is back (a new settings window, the list is read once per window,
     /// T-035 Q10) it is connected again and the camera opens on it.
     /// </summary>
@@ -276,7 +277,7 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
         await using AppInstance app = await CameraWindowSettings.StartAsync(
             fixture,
             "camera-monitor-off",
-            CameraPlacement.Window(second.CameraMonitorJson(), "Normal", normalWidth: NormalSize.Width, normalHeight: NormalSize.Height),
+            CameraPlacement.Window(second.CameraMonitorJson(monitors), "Normal", normalWidth: NormalSize.Width, normalHeight: NormalSize.Height),
             camera);
         List<string> connected = TestMonitors.ExpectedChoices("en", monitors);
         int secondChoice = TestMonitors.Ordered(monitors).IndexOf(second) + 1;
@@ -287,11 +288,12 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
             MonitorOff off = await topology.SwitchOffAsync(second.DevicePath, cancellationToken);
             _report.Append(MonitorDisconnectChanges.Describe(off)).AppendLine("Monitor off:").Append(DisplayConfig.Report());
 
-            // The app's rule (T-071 Q4): no remaining monitor has the saved device path, a twin with the same name included.
+            // The app's rule (T-071 Q4/Q5): no remaining monitor has the saved device path, and a twin with the same name was
+            // connected when the monitor was chosen (knownTwinPaths), so it is not taken for the switched-off monitor.
             List<TestMonitor> remaining = TestMonitors.All();
             List<TestMonitor> twins = [.. remaining.Where(monitor => monitor.AppName == second.AppName)];
             _report.AppendLine(CultureInfo.InvariantCulture, $"Remaining monitors with the same name: {twins.Count}");
-            Assert.Null(TestMonitors.Matching(second, remaining));
+            Assert.Null(TestMonitors.Matching(second, TestMonitors.KnownTwinPaths(second, monitors), remaining));
             nint window = await CameraWindowSettings.OpenCameraAsync(app);
             await ExpectNormalWindowOnAsync(window, TestMonitors.Primary(remaining), "monitor off");
             Screenshots.Save(window, "camera-monitor-off-fallback");
