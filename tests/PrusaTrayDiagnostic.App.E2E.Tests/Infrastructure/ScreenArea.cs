@@ -6,8 +6,9 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 
 /// <summary>
 /// The only way the end-to-end tests read pixels from the screen (user decision 2026-10-22, T-069, T-070): single elements
-/// that are not windows of the app (a taskbar button, a tray icon, the overflow flyout, a jump list, the taskbar), never
-/// the desktop. An area must lie on one monitor and cover at most a quarter of it. Windows of the app are captured with
+/// that are not windows of the app (a taskbar button, a tray icon, the overflow flyout, a jump list, the taskbar), or a
+/// small probe of what is in front in the middle of a camera window (T-071, always on top over a window of the test),
+/// never the desktop. An area must lie on one monitor and cover at most a quarter of it. Windows of the app are captured with
 /// <see cref="Screenshots.Capture"/> (PrintWindow) instead.
 /// </summary>
 internal static class ScreenArea

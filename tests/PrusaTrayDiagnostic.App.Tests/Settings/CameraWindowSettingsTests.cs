@@ -449,16 +449,19 @@ public sealed class CameraWindowSettingsTests : IDisposable
     }
 
     [Fact]
-    public async Task SavedMonitorWhoseDevicePathChangedFallsBackToNameAndResolution()
+    public async Task SavedMonitorWhoseDevicePathIsGoneIsNotConnectedDespiteItsTwins()
     {
-        // Plugged into another connector: the stored path is gone; the first monitor with the same name and resolution.
+        // T-071 Q4 (2026-10-23): a saved device path alone decides; monitors with the same name and resolution are others.
         CameraMonitorId stored = new("DELL U2719D", 2560, 1440, DellPathB.Replace("UID160002", "UID160009", StringComparison.Ordinal));
 
         PrinterEditorViewModel printer = await LoadOneAsync(Camera(window: CameraWindowDefaults.Default with { Monitor = stored }), TwoIdenticalDells());
 
-        Assert.Same(printer.MonitorOptions[1], printer.SelectedMonitor);
+        Assert.Equal(4, printer.MonitorOptions.Count);
+        Assert.Same(printer.MonitorOptions[3], printer.SelectedMonitor);
         Assert.Equal(stored, printer.SelectedMonitor.Value);
-        Assert.Equal(3, printer.MonitorOptions.Count);
+        Assert.False(printer.SelectedMonitor.IsConnected);
+        Assert.Equal("DELL U2719D (2560 × 1440) – not connected", printer.SelectedMonitor.Text);
+        Assert.Equal([DellPathA, DellPathB], printer.MonitorOptions.Skip(1).Take(2).Select(static option => option.Value!.DevicePath));
     }
 
     [Fact]

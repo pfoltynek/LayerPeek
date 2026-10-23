@@ -7,7 +7,8 @@ namespace PrusaTrayDiagnostic.App.E2E.Tests.Infrastructure;
 /// <summary>
 /// The state the system changes of T-065 and T-066 touch, taken at the start of an end-to-end run and compared at its end,
 /// after a successful as well as a failed run: theme (and <c>ColorPrevalence</c>), Do Not Disturb (read only when the
-/// warning listed Do Not Disturb or toasts: it opens the notification center), Explorer's notification area entries, the
+/// warning listed Do Not Disturb or toasts: it opens the notification center), Explorer's notification area entries (of
+/// other programs only a count and a fingerprint, <see cref="TrayIconSnapshot"/>), the
 /// display topology and scale (with <c>PerMonitorSettings</c>; the text also has the Windows build, system DPI and the
 /// DPI of every monitor) and the journal folder.
 /// </summary>
@@ -16,7 +17,7 @@ internal sealed record SystemStateSnapshot(
     ThemeState Theme,
     int? ColorPrevalence,
     DoNotDisturbState? DoNotDisturb,
-    IReadOnlyList<(string Key, string? ExecutablePath, int? IsPromoted)> TrayIcons,
+    TrayIconSnapshot TrayIcons,
     IReadOnlyList<string> JournalEntries)
 {
     /// <summary>Why Do Not Disturb could not be read, or <see langword="null"/> (the Do Not Disturb self-test reports it).</summary>
@@ -34,7 +35,8 @@ internal sealed record SystemStateSnapshot(
     /// <summary>Why the display state could not be read, or <see langword="null"/>.</summary>
     public string? DisplayError { get; init; }
 
-    public static async Task<SystemStateSnapshot> CaptureAsync(bool includeDoNotDisturb, CancellationToken cancellationToken = default)
+    /// <param name="testedExe">The exe under test: only its tray entries are recorded with their keys.</param>
+    public static async Task<SystemStateSnapshot> CaptureAsync(string testedExe, bool includeDoNotDisturb, CancellationToken cancellationToken = default)
     {
         DoNotDisturbState? doNotDisturb = null;
         string? error = null;
@@ -64,7 +66,7 @@ internal sealed record SystemStateSnapshot(
             await SystemChanges.Theme.ReadStateAsync(null, cancellationToken),
             ThemeKind.ColorPrevalence(),
             doNotDisturb,
-            TrayIconPromotionKind.ReadAll(),
+            TrayIconSnapshot.Of(TrayIconPromotionKind.ReadAll(), testedExe),
             [.. SystemChanges.Journal.PendingFiles().Select(Path.GetFileName).OfType<string>()])
         {
             DoNotDisturbError = error,
@@ -91,13 +93,10 @@ internal sealed record SystemStateSnapshot(
     }
 
     /// <summary>
-    /// Differences of <paramref name="end"/> from this start state. Every tray entry that existed must keep its
-    /// <c>IsPromoted</c>. A new entry of <paramref name="testedExe"/> is a difference when it is promoted (the restore of
-    /// the run-wide tray change keeps new entries but removes their <c>IsPromoted</c>, T-065 Q3; 0 written by Explorer is
-    /// fine); otherwise, like new entries of other programs (Explorer creates one for any program that shows an icon), it
-    /// is listed in <paramref name="notes"/>.
+    /// Differences of <paramref name="end"/> from this start state; new or removed tray entries and the like are listed in
+    /// <paramref name="notes"/> (<see cref="TrayIconSnapshot.Compare"/>).
     /// </summary>
-    public List<string> Compare(SystemStateSnapshot end, string testedExe, List<string> notes)
+    public List<string> Compare(SystemStateSnapshot end, List<string> notes)
     {
         List<string> differences = [];
         if (Theme != end.Theme)
@@ -115,36 +114,7 @@ internal sealed record SystemStateSnapshot(
             differences.Add($"Do Not Disturb: {DoNotDisturb.Enabled} at the start, {end.DoNotDisturb.Enabled} at the end.");
         }
 
-        foreach ((string key, string? path, int? promoted) in TrayIcons)
-        {
-            (string Key, string? ExecutablePath, int? IsPromoted)? now = end.TrayIcons.FirstOrDefault(entry => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase));
-            if (now is null)
-            {
-                notes.Add($"Tray icon entry {key} ({path}) is gone (Explorer removed it).");
-            }
-            else if (now.Value.IsPromoted != promoted)
-            {
-                differences.Add($"Tray icon entry {key} ({path}): IsPromoted {Show(promoted)} at the start, {Show(now.Value.IsPromoted)} at the end.");
-            }
-        }
-
-        foreach ((string key, string? path, int? promoted) in end.TrayIcons)
-        {
-            if (TrayIcons.Any(entry => string.Equals(entry.Key, key, StringComparison.OrdinalIgnoreCase)))
-            {
-                continue;
-            }
-
-            bool ofTestedExe = path is not null && string.Equals(path, testedExe, StringComparison.OrdinalIgnoreCase);
-            if (ofTestedExe && !TrayIconPromotionKind.IsNotPromoted(promoted))
-            {
-                differences.Add($"Tray icon entry {key} ({path}, IsPromoted {Show(promoted)}) appeared during the run.");
-            }
-            else
-            {
-                notes.Add($"Tray icon entry {key} ({path}) appeared during the run (created by Explorer when the icon was first shown).");
-            }
-        }
+        TrayIcons.Compare(end.TrayIcons, differences, notes);
 
         if (DisplayTopology is not null && end.DisplayTopology is not null && !SystemChanges.MonitorDisconnect.Matches(DisplayTopology, end.DisplayTopology))
         {
@@ -183,11 +153,7 @@ internal sealed record SystemStateSnapshot(
             text.AppendLine(PerMonitorSettingsRegistry.Describe(DisplayScale.PerMonitorSettings));
         }
         text.AppendLine(CultureInfo.InvariantCulture, $"Journal: {(JournalEntries.Count == 0 ? "(empty)" : string.Join(", ", JournalEntries))}");
-        text.AppendLine("Tray icon entries (HKCU\\Control Panel\\NotifyIconSettings):");
-        foreach ((string key, string? path, int? promoted) in TrayIcons)
-        {
-            text.AppendLine(CultureInfo.InvariantCulture, $"  {key}: IsPromoted={Show(promoted)} {path}");
-        }
+        TrayIcons.AppendTo(text);
 
         return text.ToString();
     }

@@ -121,6 +121,25 @@ internal static class Screenshots
         return sampled == 0 ? 0 : (double)lit / sampled;
     }
 
+    /// <summary>Fraction (0..1) of all pixels within <paramref name="tolerance"/> (sum of channel differences) of <paramref name="color"/>.</summary>
+    public static double FractionNear(Bitmap bitmap, Color color, int tolerance = 60)
+    {
+        int near = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+        {
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                Color c = bitmap.GetPixel(x, y);
+                if (Math.Abs(c.R - color.R) + Math.Abs(c.G - color.G) + Math.Abs(c.B - color.B) <= tolerance)
+                {
+                    near++;
+                }
+            }
+        }
+
+        return bitmap.Width * bitmap.Height == 0 ? 0 : (double)near / (bitmap.Width * bitmap.Height);
+    }
+
     private static string Sanitize(string name)
     {
         char[] invalid = Path.GetInvalidFileNameChars();

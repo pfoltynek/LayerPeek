@@ -863,9 +863,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>
     /// "Primary monitor", then every connected monitor numbered in the order of the catalog, then the saved monitor when
-    /// no connected one matches it ("not connected"). The connected monitor the saved one resolves to (device path, name
-    /// and resolution, or name: <see cref="CameraWindowDefaultPlacement.SelectScreen"/>) carries the saved value, so that an
-    /// untouched choice is saved unchanged. Identical monitors are separate entries when they have device paths (Windows,
+    /// no connected one matches it ("not connected"). The connected monitor the saved one resolves to (its device path;
+    /// for older settings without one, name and resolution or name: <see cref="CameraWindowDefaultPlacement.SelectScreen"/>)
+    /// carries the saved value, so that an untouched choice is saved unchanged. Identical monitors are separate entries when they have device paths (Windows,
     /// T-035 Q8); without paths (other platforms) they cannot be told apart and appear once. A monitor without a name cannot
     /// be stored and is not offered.
     /// </summary>

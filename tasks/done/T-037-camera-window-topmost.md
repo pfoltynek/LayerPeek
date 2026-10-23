@@ -1,7 +1,7 @@
 ---
 id: T-037
 title: Okno kamery vždy navrchu (volba v nastavení)
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P2
 platform: all
@@ -33,7 +33,7 @@ U každé tiskárny jde nastavit, jestli normální okno kamery a malý náhled 
 - [x] Core: volby uložené a načtené, výchozí normální okno vypnuto, malý náhled zapnuto; starý soubor; testy
 - [x] App.Tests: view model nastavení (načtení, změna, uložení), `CameraViewModel` vystavuje požadovaný `Topmost` pro každý režim a kombinaci voleb; celá obrazovka vždy `false`
 - [x] Headless UI testy: `Window.Topmost` odpovídá nastavení ve všech režimech, i po přepnutí režimu tam a zpět a po uložení změněného nastavení za běhu; snímek reference podzáložky Kamera aktualizovaný; test „bez posuvníku“ z T-033 projde ve všech 8 jazycích
-- [ ] Ručně na Windows: okno zůstane nad jinou aplikací, po vypnutí volby ne (zapsat do poznámek)
+- [x] Ručně na Windows: okno zůstane nad jinou aplikací, po vypnutí volby ne (zapsat do poznámek) – automaticky E2E testy T-071 (`CameraTopmostTests`), 2026-10-22
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -67,3 +67,4 @@ U každé tiskárny jde nastavit, jestli normální okno kamery a malý náhled 
 - macOS (T-018): `Topmost` okna kamery – neověřeno.
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** skutečné pořadí oken nad oknem jiného procesu (normální okno, malý náhled, celá obrazovka; změna volby v otevřeném okně) ověří E2E testy T-071. Kritérium se zaškrtne, až testy projdou (přehled pokrytí v T-065).
+- **Ověřeno E2E testy T-071 (2026-10-22, qa-reviewer, Windows 11 26300, 2 monitory):** `CameraTopmostTests` prošly. Pomocné okno testovacího procesu (purpurové, ne navrchu) bylo vždy přeneseno do popředí a aktivováno. Normální okno se zapnutou volbou zůstalo nad ním (`WindowFromPoint` uprostřed kamery = okno kamery, v pořadí `EnumWindows` nad pomocným oknem, ve snímku 64 × 64 px 0 % purpurové). Po vypnutí volby v nastavení a Uložit (okno kamery zůstalo otevřené) bylo nahoře pomocné okno (100 % purpurové). Totéž platí pro malý náhled. Celá obrazovka s oběma volbami zapnutými zůstala pod pomocným oknem. macOS (T-018) dál neověřeno.

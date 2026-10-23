@@ -89,7 +89,7 @@ public sealed class CameraWindowPlannerTests
 
         Assert.Equal(remembered, CameraWindowPlanner.ForOpening(CameraWindowDefaults.Default, CameraWindowMode.Normal, remembered, [], WindowsChrome));
         Assert.Null(CameraWindowPlanner.ForOpening(CameraWindowDefaults.Default, CameraWindowMode.Normal, null, [], WindowsChrome));
-        Assert.Null(CameraWindowPlanner.OnCurrentScreen(CameraWindowDefaults.DefaultMini, new PixelBounds(0, 0, 10, 10), [], default));
+        Assert.Null(CameraWindowPlanner.OnCurrentScreen(CameraWindowDefaults.DefaultMini, new PixelBounds(0, 0, 10, 10), [], WindowChrome.None));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class CameraWindowPlannerTests
         // Mostly on the rotated monitor on the right (Q5), although the defaults choose the primary one.
         PixelBounds window = new(2300, 100, 1000, 600);
 
-        CameraWindowPlacement? placement = CameraWindowPlanner.OnCurrentScreen(CameraWindowDefaults.DefaultMini, window, Screens, default);
+        CameraWindowPlacement? placement = CameraWindowPlanner.OnCurrentScreen(CameraWindowDefaults.DefaultMini, window, Screens, WindowChrome.None);
 
         // Work area (2560, 0, 1440, 2512): bottom right with 16 px.
         Assert.Equal(new CameraWindowPlacement(3664, 2316, 320, 180), placement);
@@ -210,5 +210,121 @@ public sealed class CameraWindowPlannerTests
         Assert.True(WindowsChrome.IsCloseTo(new WindowChrome(new Size(16.3, 39.2), new Thickness(7.4, 0, 7, 6.6))));
         Assert.False(WindowsChrome.IsCloseTo(new WindowChrome(new Size(16, 39), new Thickness(0, 0, 7, 7))));
         Assert.False(WindowsChrome.IsCloseTo(new WindowChrome(new Size(16, 31), new Thickness(7, 0, 7, 7))));
+    }
+
+    /// <summary>
+    /// The frame of a normal window per DPI as Windows 11 reports it (<c>AdjustWindowRectExForDpi</c> of
+    /// <c>WS_OVERLAPPEDWINDOW</c>, 2026-10-23) and its visible border (measured 1 px at 100 / 125 %, 2 px at 150 %): the
+    /// title bar and borders do not grow linearly with the scale.
+    /// </summary>
+    public static TheoryData<double, int, int, int> PixelFrames => new()
+    {
+        { 1.0, 8, 31, 1 },
+        { 1.25, 9, 38, 1 },
+        { 1.5, 11, 45, 2 },
+        { 1.75, 12, 52, 2 },
+        { 2.0, 13, 58, 2 },
+    };
+
+    [Theory]
+    [MemberData(nameof(PixelFrames))]
+    public void VisibleGapIsExactlyTheMarginWithTheFrameOfTheMonitorsScale(double scaling, int border, int top, int visibleBorder)
+    {
+        // T-035 Q9 / T-071 Q3: the chrome for the scale of the chosen monitor, known before the window is shown, so
+        // nothing has to be corrected after it is shown. Only the DWM border of the frame is visible at the sides.
+        PixelFrame frame = new(border, top, border, border, visibleBorder);
+        CameraScreen screen = new("DELL U2719D", new PixelBounds(2560, 0, 1440, 2560), new PixelBounds(2560, 0, 1440, 2500), scaling, IsPrimary: false);
+        WindowChrome chrome = WindowChrome.FromPixels(frame, scaling);
+        int margin = (int)Math.Round(16 * scaling, MidpointRounding.AwayFromZero);
+        int clientWidth = (int)(640 * scaling);
+        int clientHeight = (int)(360 * scaling);
+
+        foreach (CameraWindowCorner corner in new[] { CameraWindowCorner.TopLeft, CameraWindowCorner.TopRight, CameraWindowCorner.BottomLeft, CameraWindowCorner.BottomRight })
+        {
+            CameraWindowPlacement placement = CameraWindowPlanner.Place(new CameraWindowLayout(new CameraWindowSize(640, 360), corner), screen, chrome);
+
+            // The window as Windows lays it out: client pixels plus the frame; the visible part lacks the invisible borders.
+            int visibleLeft = placement.X + frame.Left - frame.VisibleBorder;
+            int visibleTop = placement.Y;
+            int visibleRight = placement.X + frame.Left + clientWidth + frame.VisibleBorder;
+            int visibleBottom = placement.Y + frame.Top + clientHeight + frame.VisibleBorder;
+            bool left = corner is CameraWindowCorner.TopLeft or CameraWindowCorner.BottomLeft;
+            bool upper = corner is CameraWindowCorner.TopLeft or CameraWindowCorner.TopRight;
+            Assert.Equal(margin, left ? visibleLeft - screen.UsableArea.X : screen.UsableArea.Right - visibleRight);
+            Assert.Equal(margin, upper ? visibleTop - screen.UsableArea.Y : screen.UsableArea.Bottom - visibleBottom);
+            Assert.Equal(new Size(640, 360), new Size(placement.Width, placement.Height));
+        }
+    }
+
+    [Fact]
+    public void FixedChromeOfOneHundredPercentMissesAtOneHundredTwentyFivePercent()
+    {
+        // The cause of the 1–2 px move after showing (T-071 Q3): 125 %, normal window 640 × 360 in the centre of the
+        // rotated monitor; the 100 % chrome (16 × 39 DIP, 7 DIP invisible) puts it at x 2869, the real frame at x 2871.
+        CameraScreen screen = new("DELL U2719D", new PixelBounds(2560, 0, 1440, 2560), new PixelBounds(2560, 0, 1440, 2500), 1.25, IsPrimary: false);
+        CameraWindowLayout centre = new(new CameraWindowSize(640, 360), CameraWindowCorner.Center);
+
+        CameraWindowPlacement assumed = CameraWindowPlanner.Place(centre, screen, WindowsChrome);
+        CameraWindowPlacement exact = CameraWindowPlanner.Place(centre, screen, WindowChrome.FromPixels(new PixelFrame(9, 38, 9, 9, VisibleBorder: 1), 1.25));
+
+        Assert.Equal((2869, 1005), (assumed.X, assumed.Y));
+        Assert.Equal((2871, 1005), (exact.X, exact.Y));
+
+        // 150 % (E2E 2026-10-23: window (2789, 950) 982 × 596, visible 964 × 587 after the old correction).
+        CameraScreen at150 = new("DELL U2719D", screen.Bounds, new PixelBounds(2560, 0, 1440, 2488), 1.5, IsPrimary: false);
+        CameraWindowPlacement assumed150 = CameraWindowPlanner.Place(centre, at150, WindowsChrome);
+        CameraWindowPlacement exact150 = CameraWindowPlanner.Place(centre, at150, WindowChrome.FromPixels(new PixelFrame(11, 45, 11, 11, VisibleBorder: 2), 1.5));
+        Assert.Equal((2787, 950), (assumed150.X, assumed150.Y));
+        Assert.Equal((2789, 950), (exact150.X, exact150.Y));
+    }
+
+    [Fact]
+    public void ChromeFromPixelsHasNoInvisibleTopAndNeverNegativeBorders()
+    {
+        WindowChrome chrome = WindowChrome.FromPixels(new PixelFrame(11, 45, 11, 11, VisibleBorder: 2), 1.5);
+
+        Assert.Equal(22 / 1.5, chrome.Frame.Width, 9);
+        Assert.Equal(56 / 1.5, chrome.Frame.Height, 9);
+        Assert.Equal(new Thickness(9 / 1.5, 0, 9 / 1.5, 9 / 1.5), chrome.InvisibleBorders);
+        // A border thicker than the frame side (never expected) leaves nothing invisible; an invalid scaling counts as 100 %.
+        Assert.Equal(default, WindowChrome.FromPixels(new PixelFrame(1, 30, 1, 1, VisibleBorder: 2), double.NaN).InvisibleBorders);
+        Assert.Equal(WindowChrome.None, WindowChrome.FromPixels(default, 1.25));
+    }
+
+    [Fact]
+    public void ChromesAreCloseWhenTheyDifferByLessThanHalfAPixel()
+    {
+        WindowChrome predicted = WindowChrome.FromPixels(new PixelFrame(9, 38, 9, 9, VisibleBorder: 1), 1.25);
+        WindowChrome measured = new(new Size(18.2 / 1.25, 47 / 1.25), new Thickness(8 / 1.25, 0, 8 / 1.25, 8.4 / 1.25));
+        WindowChrome onePixelOff = new(new Size(18 / 1.25, 47 / 1.25), new Thickness(7 / 1.25, 0, 8 / 1.25, 8 / 1.25));
+
+        Assert.True(predicted.IsCloseTo(measured, 1.25));
+        // 1 px at 125 % is 0.8 DIP; at 250 % 0.4 DIP, still a pixel.
+        Assert.False(predicted.IsCloseTo(onePixelOff, 1.25));
+        Assert.False(WindowChrome.FromPixels(new PixelFrame(16, 75, 16, 16, 2), 2.5).IsCloseTo(WindowChrome.FromPixels(new PixelFrame(16, 75, 16, 15, 2), 2.5), 2.5));
+    }
+
+    [Fact]
+    public void ChromeIsChosenForTheMonitorTheWindowGoesTo()
+    {
+        // The 150 % LG on the left gets its own frame, the 100 % primary another one.
+        CameraWindowDefaults defaults = CameraWindowDefaults.Default with { Monitor = Lg, Normal = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.TopLeft) };
+        List<double> asked = [];
+        WindowChrome ChromeOn(CameraScreen screen)
+        {
+            asked.Add(screen.Scaling);
+            return screen.Scaling == 1.5
+                ? WindowChrome.FromPixels(new PixelFrame(11, 45, 11, 11, VisibleBorder: 2), 1.5)
+                : WindowChrome.FromPixels(new PixelFrame(8, 31, 8, 8, VisibleBorder: 1), screen.Scaling);
+        }
+
+        CameraWindowPlacement? opening = CameraWindowPlanner.ForOpening(defaults, CameraWindowMode.Normal, null, Screens, ChromeOn);
+        CameraWindowPlacement? switching = CameraWindowPlanner.OnCurrentScreen(defaults.Normal, new PixelBounds(10, 10, 100, 100), Screens, ChromeOn);
+
+        // LG work area starts at (-1920, 200): visible gap 24 px, 9 px invisible left border, no invisible top.
+        Assert.Equal((-1920 + 24 - 9, 200 + 24), (opening!.Value.X, opening.Value.Y));
+        // The primary at 100 %: 16 px, 7 px invisible.
+        Assert.Equal((16 - 7, 16), (switching!.Value.X, switching.Value.Y));
+        Assert.Equal([1.5, 1.0], asked);
     }
 }

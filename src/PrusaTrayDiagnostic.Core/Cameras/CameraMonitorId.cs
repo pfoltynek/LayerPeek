@@ -3,9 +3,10 @@ namespace PrusaTrayDiagnostic.Core.Cameras;
 /// <summary>
 /// The monitor chosen for a camera window (T-035): the name the OS reports for it (<see cref="CameraScreen.DisplayName"/>),
 /// its resolution in pixels (size of <see cref="CameraScreen.Bounds"/>) and, where the platform has one, the path of the
-/// physical monitor (<see cref="DevicePath"/>, Q8), which tells two identical monitors apart. Matching order (see
-/// <see cref="CameraWindowDefaultPlacement.SelectScreen"/>): the same device path, then the same name and resolution
-/// (<see cref="Matches"/>), then the same name (<see cref="MatchesName"/>); names are compared ordinally.
+/// physical monitor (<see cref="DevicePath"/>, Q8), which tells two identical monitors apart. Matching (see
+/// <see cref="CameraWindowDefaultPlacement.SelectScreen"/>, T-071 Q4): a saved device path alone decides; older settings
+/// without one match the same name and resolution (<see cref="Matches"/>), then the same name (<see cref="MatchesName"/>);
+/// names are compared ordinally.
 /// </summary>
 public sealed record CameraMonitorId
 {
@@ -57,7 +58,8 @@ public sealed record CameraMonitorId
 
     /// <summary>
     /// The path of the physical monitor (Windows); <see langword="null"/> on other platforms and in settings written before
-    /// it was stored. It changes when the monitor is plugged into another connector; matching then falls back to the name.
+    /// it was stored. It changes when the monitor is plugged into another connector; the saved monitor is then not
+    /// connected (T-071 Q4: a saved path alone decides, see <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
     /// </summary>
     public string? DevicePath { get; }
 

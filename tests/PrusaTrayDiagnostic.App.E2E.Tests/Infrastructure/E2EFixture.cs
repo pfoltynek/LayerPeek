@@ -152,6 +152,7 @@ public sealed class E2EFixture : IAsyncLifetime
             _automation = new UIA3Automation();
             // Reading Do Not Disturb opens the notification center: only in a run whose warning listed a change of it.
             _startState = await SystemStateSnapshot.CaptureAsync(
+                AppPath,
                 includeDoNotDisturb: SystemChanges.IsConfirmedFor(SystemChangeTraits.DoNotDisturb) || SystemChanges.IsConfirmedFor(SystemChangeTraits.Toasts));
             Screenshots.SaveText(_startState.ToString(), "system-state-start");
             if (SystemChanges.IsConfirmedFor(SystemChangeTraits.TrayPromotion))
@@ -251,14 +252,14 @@ public sealed class E2EFixture : IAsyncLifetime
             return;
         }
 
-        SystemStateSnapshot end = await SystemStateSnapshot.CaptureAsync(includeDoNotDisturb: _startState.DoNotDisturb is not null);
+        SystemStateSnapshot end = await SystemStateSnapshot.CaptureAsync(AppPath, includeDoNotDisturb: _startState.DoNotDisturb is not null);
         if (_startState.DoNotDisturb is not null && end.DoNotDisturb is null)
         {
             problems.Add($"Do Not Disturb could not be read at the end of the run: {end.DoNotDisturbError}");
         }
 
         List<string> notes = [];
-        List<string> differences = _startState.Compare(end, AppPath, notes);
+        List<string> differences = _startState.Compare(end, notes);
         Screenshots.SaveText(
             $"{end}{Environment.NewLine}Differences from the start:{Environment.NewLine}{(differences.Count == 0 ? "  none" : string.Join(Environment.NewLine, differences.Select(static d => "  " + d)))}"
             + $"{Environment.NewLine}Notes:{Environment.NewLine}{(notes.Count == 0 ? "  none" : string.Join(Environment.NewLine, notes.Select(static n => "  " + n)))}",

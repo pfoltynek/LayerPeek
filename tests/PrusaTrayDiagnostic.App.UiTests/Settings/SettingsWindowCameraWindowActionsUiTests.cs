@@ -331,6 +331,41 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
         });
 
     [Fact]
+    public Task ApplyOnAFramedWindowUsesItsMeasuredFrameWhereNoneCanBePredicted() =>
+        session.RunAsync(static async scope =>
+        {
+            // Where the frame cannot be predicted (macOS, or Windows refusing): the frame measured on the shown window, not
+            // the assumed one followed by a correction (the window would move twice).
+            WindowChrome real = new(new Size(20, 50), new Thickness(9, 0, 9, 9));
+            FakeScreenCatalog screens = FakeScreenCatalog.ThreeMonitors();
+            await using CameraHarness cameras = new(
+                screens: screens,
+                window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Normal },
+                measureChrome: window => window.WindowDecorations == WindowDecorations.Full ? real : null,
+                predictChrome: static (_, _) => null);
+            CameraWindow window = cameras.Open("a");
+            window.Settle();
+            Assert.Equal(CameraWindowMode.Normal, ViewModel(window).Mode);
+
+            CameraWindowDefaults wanted = CameraWindowDefaults.Default with
+            {
+                StartMode = CameraWindowStartMode.Normal,
+                Monitor = Lg,
+                Normal = new CameraWindowLayout(new CameraWindowSize(640, 360), CameraWindowCorner.TopLeft),
+            };
+            SettingsWindowHarness ui = await OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer(window: wanted)), cameras.States, cameras.Windows);
+            List<PixelPoint> positions = [];
+            window.PositionChanged += (_, e) => positions.Add(e.Point);
+            await ui.ApplyCameraWindowAsync();
+            Dispatcher.UIThread.RunJobs();
+            window.Settle();
+
+            CameraWindowPlacement exact = CameraWindowPlanner.Place(wanted.Normal, ScreenAt(screens, -1920), real);
+            Assert.Equal(new PixelPoint(exact.X, exact.Y), window.Position);
+            Assert.Equal([new PixelPoint(exact.X, exact.Y)], positions.Distinct());
+        });
+
+    [Fact]
     public Task SaveDoesNotMoveTheOpenCameraWindow() =>
         session.RunAsync(static async scope =>
         {
