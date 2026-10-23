@@ -182,22 +182,22 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         Screenshots.SaveText(string.Join(Environment.NewLine, [.. lines, .. problems]), "menu-keyboard-underlines");
         Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
 
-        // The letter runs the item: S = Settings…. Found 2026-10-22: in the main menu the letter alone does nothing (also
-        // after Alt), Alt+letter works (open question of T-069); the letter alone is tried and written to the results.
-        VirtualKeyShort settingsKey = TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuSettings"))!);
-        Keyboard.Type(settingsKey);
-        bool letterAlone = await OpensAsync(app, AppWindowKind.Settings);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Main menu, letter alone after Alt: {(letterAlone ? "opened Settings" : "did nothing")}.");
-        Screenshots.SaveText($"Main menu, letter alone (S) after Alt: {(letterAlone ? "opened Settings" : "did nothing")}", "menu-keyboard-letter-alone");
-        if (!letterAlone)
-        {
-            Assert.True(menu.IsOpen, "The letter alone closed the menu without opening Settings.");
-            Keyboard.TypeSimultaneously(VirtualKeyShort.ALT, settingsKey);
-        }
-
+        // The letter alone runs the item, like in classic Windows menus and in the submenu (user decision 2026-10-22, T-069
+        // Q2): S = Settings… after Alt.
+        Keyboard.Type(TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuSettings"))!));
+        Assert.True(await OpensAsync(app, AppWindowKind.Settings), "The letter alone (S) after Alt did not open Settings from the main menu.");
         nint settings = await app.WaitForWindowAsync(AppWindowKind.Settings);
-        Assert.False(menu.IsOpen);
+        await Wait.UntilAsync(() => !menu.IsOpen, TimeSpan.FromSeconds(2), "the menu closed after S");
         await app.CloseWindowAsync(settings);
+
+        // Opened with the mouse, no Alt at all: the letter alone (D = Diagnostics…).
+        menu = await TrayMenu.OpenWithMouseAsync(app);
+        Assert.True(menu.Item(TrayMenu.ShownText(TrayMenu.Resource("MenuDiagnostics"))).IsEnabled, "Diagnostics… is disabled with a printer.");
+        Keyboard.Type(TrayMenu.KeyOf(TrayMenu.AccessKeyLetter(TrayMenu.Resource("MenuDiagnostics"))!));
+        Assert.True(await OpensAsync(app, AppWindowKind.Diagnostics), "The letter alone (D) did not open Diagnostics from the menu opened with the mouse.");
+        nint diagnostics = await app.WaitForWindowAsync(AppWindowKind.Diagnostics);
+        await Wait.UntilAsync(() => !menu.IsOpen, TimeSpan.FromSeconds(2), "the menu closed after D");
+        await app.CloseWindowAsync(diagnostics);
 
         // Down to the printer, Right opens its submenu, C = Show camera.
         menu = await TrayMenu.OpenWithKeyboardAsync(app);

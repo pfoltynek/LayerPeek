@@ -100,8 +100,8 @@ public sealed class PrinterImageTests(E2EFixture fixture)
         nint diagnostics = await app.OpenAsync($"diagnostics:{PrinterId}", AppWindowKind.Diagnostics);
         await Task.Delay(500, TestContext.Current.CancellationToken);
 
-        // The illustration of the model, pixel for pixel on the window background. The image itself is no UI Automation
-        // element (a drawing control); it is found left of the printer name (48 + 12 DIP in the header grid).
+        // The image is an image for screen readers with its localized name (user decision 2026-10-22, T-069 Q3), found
+        // through UI Automation; then the illustration of the model, pixel for pixel on the window background.
         Rectangle area = await HeaderImageAreaAsync(app, diagnostics);
         using (Bitmap capture = Screenshots.Capture(diagnostics))
         {
@@ -152,18 +152,27 @@ public sealed class PrinterImageTests(E2EFixture fixture)
     private const int SearchSlack = 12;
 
     /// <summary>
-    /// The screen area of the header image of the diagnostics window, with <see cref="SearchSlack"/> around it: the 48 DIP
-    /// column left of the printer name (12 DIP gap), its top about at the top of the name (the image is top-aligned, the name block is centred in a 48 DIP row).
+    /// The screen area of the header image of the diagnostics window, with <see cref="SearchSlack"/> around it, from UI
+    /// Automation: the element <c>DiagnosticsPrinterImage</c> in the control view (what screen readers walk), an image
+    /// with the localized name of the resources, 48 DIP square, left of the printer name.
     /// </summary>
     private static async Task<Rectangle> HeaderImageAreaAsync(AppInstance app, nint diagnostics)
     {
-        AutomationElement name = await Ui.FindAsync(app.Element(diagnostics), "DiagnosticsPrinterName");
+        AutomationElement window = app.Element(diagnostics);
+        AutomationElement image = await Ui.FindAsync(window, "DiagnosticsPrinterImage");
+        Assert.Equal(ControlType.Image, image.ControlType);
+        Assert.Equal(TrayMenu.Resource("DiagnosticsPrinterImage"), image.Name);
+        Assert.True(image.Properties.IsControlElement.ValueOrDefault, "The header image is not in the control view.");
+        Assert.False(image.Properties.IsOffscreen.ValueOrDefault, "The header image is reported off screen.");
+
         double scaling = Native.GetDpiForWindow(diagnostics) / 96.0;
         int size = (int)Math.Round(48 * scaling);
-        Rectangle bounds = name.BoundingRectangle;
-        int left = bounds.Left - (int)Math.Round(60 * scaling);
-        int top = bounds.Top - (int)Math.Round(4 * scaling);
-        Rectangle area = new(left, top, size, size);
+        Rectangle bounds = image.BoundingRectangle;
+        Assert.True(Math.Abs(bounds.Width - size) <= 1 && Math.Abs(bounds.Height - size) <= 1, $"The header image is {bounds.Size}, expected {size} px square.");
+        Rectangle name = (await Ui.FindAsync(window, "DiagnosticsPrinterName")).BoundingRectangle;
+        Assert.True(bounds.Right <= name.Left, $"The header image {bounds} is not left of the printer name {name}.");
+
+        Rectangle area = bounds;
         area.Inflate(SearchSlack, SearchSlack);
         return area;
     }

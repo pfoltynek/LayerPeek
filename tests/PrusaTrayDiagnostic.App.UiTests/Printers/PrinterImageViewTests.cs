@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Media.Imaging;
@@ -119,6 +121,48 @@ public sealed class PrinterImageViewTests(HeadlessSession session)
 
             Assert.Equal(0, view.LastIllustrationPixelSize);
             Assert.Equal((255, 255, 255), Ui.Pixel(frame, (int)origin.X + 12, (int)origin.Y + 12));
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task NamedImageIsAnImageForScreenReaders() =>
+        session.RunAsync(static scope =>
+        {
+            // Through the automation peer, i.e. what UI Automation really reports (T-069 Q3: the drawing control had no peer
+            // of its own and was left out of the control view although the XAML named it).
+            (_, PrinterImageView view) = Show(scope, 48, PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S)));
+            AutomationProperties.SetName(view, "Printer image");
+
+            AutomationPeer peer = ControlAutomationPeer.CreatePeerForElement(view);
+
+            Assert.Equal(AutomationControlType.Image, peer.GetAutomationControlType());
+            Assert.True(peer.IsControlElement());
+            Assert.True(peer.IsContentElement());
+            Assert.Equal("Printer image", peer.GetName());
+            Assert.Equal("Image", peer.GetClassName());
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task UnnamedImageStaysDecorative() =>
+        session.RunAsync(static scope =>
+        {
+            // The list row and the image button name the printer themselves; their image adds nothing for a screen reader.
+            (_, PrinterImageView view) = Show(scope, 24, PrinterPicture.FromImage(new PrinterImage(PrinterImageKind.Model, PrinterModel.Mk4S)));
+
+            AutomationPeer peer = ControlAutomationPeer.CreatePeerForElement(view);
+
+            Assert.Equal(AutomationControlType.Image, peer.GetAutomationControlType());
+            Assert.False(peer.IsControlElement());
+            Assert.False(peer.IsContentElement());
+
+            // Named later (a binding that resolves after the peer exists): from then on an image for screen readers.
+            AutomationProperties.SetName(view, "Printer image");
+            Assert.True(peer.IsControlElement());
+
+            // An explicit accessibility view still wins.
+            AutomationProperties.SetAccessibilityView(view, AccessibilityView.Raw);
+            Assert.False(peer.IsControlElement());
             return Task.CompletedTask;
         });
 
