@@ -501,6 +501,11 @@ Describe 'Build marker' {
     It 'refuses a build containing win-arm64 until T-057' {
         Assert-Problems (Problems (Copy-With $script:Info @{ Runtimes = @('win-x64', 'win-arm64') })) 'contains win-arm64.*T-057'
     }
+    It 'reports missing build output instead of failing when there is no dist folder (Get-ReleaseBuildOutput)' {
+        $output = Get-ReleaseBuildOutput -RepoRoot (Join-Path $script:TempRoot 'no-build') -Version '0.1.0' -Head $script:Head
+        Assert-Problems $output.Problems 'No build output for version 0\.1\.0'
+        @($output.Files) | Should -BeNullOrEmpty
+    }
     It 'refuses files added to or missing in dist' {
         Assert-Problems (Problems $script:Info ($script:DistNames + 'old.zip')) 'not produced by the build: old.zip'
         Assert-Problems (Problems $script:Info @('SHA256SUMS-windows.txt')) 'missing in dist: P-0.1.0-win-x64.zip'
@@ -733,7 +738,7 @@ Describe 'AOT smoke script with an existing publish folder' {
 
 Describe 'Script help' {
     # Comment-based help must come before #Requires, otherwise Get-Help silently ignores it.
-    It 'Get-Help reads the synopsis of <_>' -ForEach 'aot-smoke.ps1', 'release-build.ps1', 'release-upload.ps1', 'release-publish.ps1' {
+    It 'Get-Help reads the synopsis of <_>' -ForEach 'aot-smoke.ps1', 'release-build.ps1', 'release-upload.ps1', 'release-publish.ps1', 'release.ps1' {
         $help = Get-Help (Join-Path $script:RepoRoot 'scripts' $_)
         "$($help.Synopsis)" | Should -Not -Match '^\s*\S+\.ps1 \['
         "$($help.Synopsis)".Trim() | Should -Not -BeNullOrEmpty

@@ -96,29 +96,6 @@ function Invoke-Native {
     if ($LASTEXITCODE -ne 0) { throw "$Description failed with exit code $LASTEXITCODE." }
 }
 
-function Assert-NativeToolchain {
-    # Fails before the long build when the AOT toolchain of a requested RID is missing (docs/prerequisites.md).
-    param([Parameter(Mandatory)] [string[]] $Runtimes, [Parameter(Mandatory)] [string] $HostOs)
-    if ($HostOs -eq 'macos') {
-        $null = & xcrun --find clang 2>&1
-        if ($LASTEXITCODE -ne 0) { throw 'Xcode Command Line Tools are missing (xcode-select --install). See docs/prerequisites.md.' }
-        return
-    }
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio' 'Installer' 'vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) { throw "Visual Studio Build Tools are missing ($vswhere not found). See docs/prerequisites.md." }
-    $components = @{
-        'win-x64'   = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
-        'win-arm64' = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
-    }
-    foreach ($rid in $Runtimes) {
-        $component = $components[$rid]
-        $found = @(& $vswhere -products * -requires $component -property installationPath)
-        if ($LASTEXITCODE -ne 0 -or -not ($found | Where-Object { $_ })) {
-            throw "The MSVC component $component needed for the $rid AOT publish is not installed. See docs/prerequisites.md."
-        }
-    }
-}
-
 function Get-FolderSnapshot {
     # Relative path, size and write time of every file: proves that the smoke run left the publish folder unchanged.
     param([Parameter(Mandatory)] [string] $Path)
@@ -146,7 +123,9 @@ try {
         }
     }
 
-    Assert-NativeToolchain -Runtimes $runtimes -HostOs $hostOs
+    # Fails before the long build when the AOT toolchain of a requested RID is missing (shared with scripts/release.ps1).
+    $toolchainProblems = @(Get-NativeToolchainProblems -Runtimes $runtimes -HostOs $hostOs)
+    if ($toolchainProblems.Count -gt 0) { throw ($toolchainProblems -join ' ') }
     if ($hostOs -eq 'windows') {
         # The Velopack installer step (T-017): vpk pinned in .config/dotnet-tools.json, the same version as the NuGet package.
         $velopackProblems = @(Get-VelopackVersionProblems -PackagesPropsPath (Join-Path $repoRoot 'Directory.Packages.props') -ToolManifestPath (Join-Path $repoRoot '.config' 'dotnet-tools.json'))
