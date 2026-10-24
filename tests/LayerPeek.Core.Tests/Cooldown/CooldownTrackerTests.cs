@@ -1020,6 +1020,66 @@ public sealed class CooldownTrackerTests
         Assert.Empty(_events);
     }
 
+    [Fact]
+    public void SeveralIntervalChangesBeforeTheNextSnapshotKeepTheLongestLimitForIt()
+    {
+        // 2 minutes (limit 6 minutes), then 5 s and 30 s before the next poll arrives: that poll still had the 2 minute plan.
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        _tracker.PollingInterval = TimeSpan.FromSeconds(30);
+        Assert.Equal(CooldownPhase.Cooling, Process(Snap(PrinterState.Finished, 120 + 360, 120, 0, job: Job())).Phase);
+
+        // Then only the last interval (30 s, limit 90 s) applies.
+        Assert.Equal(TimeSpan.FromSeconds(90), _tracker.GapLimit);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 480 + 91, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void ShortenedThenLengthenedIntervalAppliesTheLongerOneAtOnce()
+    {
+        // 5 s, then 2 minutes and 5 minutes (limit 15 minutes) before the next poll arrives.
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        _tracker.PollingInterval = TimeSpan.FromMinutes(5);
+        Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, End, End + 900)).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, End, End + 900 + 901)).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void UnreadableSnapshotAfterAShortenedIntervalIsMeasuredWithTheOldLimit()
+    {
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        // Within the old limit (6 minutes): no gap, and the old limit is used up by it.
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        Process(Snap(PrinterState.Unauthorized, 240));
+        Assert.Equal(CooldownPhase.Cooling, Process(Snap(PrinterState.Finished, 245, 118, 0, job: Job())).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 245 + 61, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void UnreadableSnapshotAfterAShortenedIntervalBeyondTheOldLimitIsAGap()
+    {
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Unauthorized, 120 + 361)).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 120 + 366, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
     [Theory]
     [InlineData(PrinterState.Unauthorized)]
     [InlineData(PrinterState.Unknown)]
