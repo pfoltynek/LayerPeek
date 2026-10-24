@@ -342,9 +342,12 @@ public sealed class CooldownMonitorTests : IDisposable
         Raise(Cooling(PrinterState.Finished, 300, 300));
         Assert.Equal(Start.AddSeconds(300), _cooldown.GetState("mk4").PrintEndedAt);
 
-        // Back to 5 s: a later gap of 5 minutes was not observed and ends the cool-down.
+        // Back to 5 s: the poll that was due under the 5 minute interval is still observed, a later gap of 5 minutes is not
+        // and ends the cool-down.
         _cooldown.Configure([Mk4], Poll);
         Raise(Cooling(PrinterState.Finished, 300, 600));
+        Assert.Equal(CooldownPhase.Cooling, _cooldown.GetState("mk4").Phase);
+        Raise(Cooling(PrinterState.Finished, 300, 900));
         Assert.Equal(CooldownPhase.None, _cooldown.GetState("mk4").Phase);
         Assert.Empty(_cooledDown);
     }

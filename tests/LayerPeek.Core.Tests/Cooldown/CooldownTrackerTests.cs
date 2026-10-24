@@ -1000,6 +1000,61 @@ public sealed class CooldownTrackerTests
     }
 
     [Fact]
+    public void ShortenedPollingIntervalDoesNotTurnThePendingPollIntoAGap()
+    {
+        // Settings saved while cooling at a 2 minute interval: the poll that follows was due under the old interval.
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        CooldownState state = Process(Snap(PrinterState.Finished, 240, 120, 0, job: Job()));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Equal(Start.AddSeconds(120), state.PrintEndedAt);
+        Assert.Equal(CooldownTrackerOptions.Default.OfflineGrace, _tracker.GapLimit);
+
+        // From then on the new interval applies.
+        Assert.Equal(CooldownPhase.Cooling, Process(Snap(PrinterState.Finished, 245, 118, 0, job: Job())).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 245 + _tracker.GapLimit.TotalSeconds + 1, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Unauthorized)]
+    [InlineData(PrinterState.Unknown)]
+    [InlineData(PrinterState.Offline)]
+    public void BackoffBetweenUnreadableSnapshotsIsNoGap(PrinterState unreadable)
+    {
+        // An unreadable printer is polled with an exponential backoff of up to a minute (PrinterMonitorOptions.MaxBackoff),
+        // plus the poll itself: more than the gap limit at the default interval, yet the monitor was running all along.
+        Process(Printing(0));
+        CooldownState cooling = Process(Cooling(PrinterState.Finished, End, End));
+        double t = End;
+        foreach (double delay in new[] { 5.0, 10, 20, 40, 61, 61, 61 })
+        {
+            t += delay;
+            Process(Snap(unreadable, t));
+        }
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, End, t + 61));
+
+        if (unreadable == PrinterState.Offline)
+        {
+            // Offline for longer than the grace ends the cool-down, as before.
+            Assert.Equal(CooldownPhase.None, state.Phase);
+        }
+        else
+        {
+            Assert.Equal(CooldownPhase.Cooling, state.Phase);
+            Assert.Equal(cooling.StartedAt, state.StartedAt);
+            Assert.Equal(cooling.PrintEndedAt, state.PrintEndedAt);
+        }
+
+        Assert.Empty(_events);
+    }
+
+    [Fact]
     public void GapLimitIsAtLeastTheTelemetryGapWithoutOfflineGrace()
     {
         CooldownTracker tracker = new(options: new CooldownTrackerOptions { OfflineGrace = TimeSpan.Zero });

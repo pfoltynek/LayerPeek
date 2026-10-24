@@ -17,10 +17,12 @@ namespace LayerPeek.Core.Cooldown;
 /// started (the first snapshot after app start or after adding the printer, or only unreadable snapshots before it) or
 /// another job that both ran and ended during an outage starts no cool-down: its end was not observed (user decision 11,
 /// 2026-10-24). Every print starts at most one cool-down.</item>
-/// <item>Two consecutive snapshots further apart than <see cref="GapLimit"/> (the computer slept and the monitor delivered
-/// no offline snapshot meanwhile) count like an outage longer than <see cref="CooldownTrackerOptions.OfflineGrace"/>: a
-/// print of the same job that ended in the gap has an unknown <see cref="CooldownState.PrintEndedAt"/>, another job that
-/// ran and ended in it starts no cool-down, and a cool-down in progress ends without an event and does not resume.</item>
+/// <item>A reachable snapshot followed by the next one more than <see cref="GapLimit"/> later (the computer slept and the
+/// monitor delivered no offline snapshot meanwhile) counts like an outage longer than
+/// <see cref="CooldownTrackerOptions.OfflineGrace"/>: a print of the same job that ended in the gap has an unknown
+/// <see cref="CooldownState.PrintEndedAt"/>, another job that ran and ended in it starts no cool-down, and a cool-down in
+/// progress ends without an event and does not resume. Gaps after an unreadable snapshot are not measured: the monitor
+/// backs off there for up to a minute (more than the limit at short intervals), and an offline printer has the grace.</item>
 /// <item>It is tracked from the first snapshot with the nozzle heater off (target 0 or unknown), so that a heater that
 /// is switched off a poll late does not count as heating again.</item>
 /// <item>It ends without an event when the next print starts (<see cref="PrinterState.Printing"/> /
@@ -57,9 +59,11 @@ public sealed class CooldownTracker
     private TimeSpan _pollingInterval;
     private TimeSpan _gapLimit;
 
+    // The limit for the next snapshot: after a shortened interval still the old one, as the poll then due was planned with it.
+    private TimeSpan _nextGapLimit;
+
     private CooldownState _state;
     private string? _printerId;
-    private bool _anySnapshot;
     private DateTimeOffset _lastTimestamp;
 
     // The current or last job and what happened to it.
@@ -110,7 +114,8 @@ public sealed class CooldownTracker
 
     /// <summary>
     /// How often the snapshots arrive (the polling interval of the monitoring run); sets <see cref="GapLimit"/>. Defaults to
-    /// <see cref="AppSettings.DefaultPollingInterval"/>; a change applies from the next snapshot.
+    /// <see cref="AppSettings.DefaultPollingInterval"/>. A longer interval applies to the next snapshot, a shorter one only to
+    /// the snapshot after it: the next poll was planned with the interval before (e.g. settings saved while cooling).
     /// </summary>
     /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
     public TimeSpan PollingInterval
@@ -121,11 +126,12 @@ public sealed class CooldownTracker
             TimeSpan telemetryGap = TelemetryHistory.GapThreshold(value);
             _pollingInterval = value;
             _gapLimit = telemetryGap > _offlineGrace ? telemetryGap : _offlineGrace;
+            _nextGapLimit = _gapLimit > _nextGapLimit ? _gapLimit : _nextGapLimit;
         }
     }
 
     /// <summary>
-    /// Longest time between two consecutive snapshots that still counts as observed: the gap after which the temperature
+    /// Longest time from a reachable snapshot to the next one that still counts as observed: the gap after which the temperature
     /// history starts a new segment (<see cref="TelemetryHistory.GapThreshold"/> of <see cref="PollingInterval"/>), but at
     /// least <see cref="CooldownTrackerOptions.OfflineGrace"/>. A longer gap (the computer slept, monitoring was stopped)
     /// counts like an outage longer than the grace: whatever happened in it was not observed.
@@ -138,9 +144,9 @@ public sealed class CooldownTracker
     public CooldownUpdate Process(PrinterSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        // A clock that went back is no gap.
-        bool gap = _anySnapshot && snapshot.Timestamp - _lastTimestamp > _gapLimit;
-        _anySnapshot = true;
+        // Measured only from a reachable snapshot (see the class remarks); a clock that went back is no gap.
+        bool gap = _lastReachable && snapshot.Timestamp - _lastTimestamp > _nextGapLimit;
+        _nextGapLimit = _gapLimit;
         _printerId = snapshot.PrinterId;
         _lastTimestamp = snapshot.Timestamp;
         if (gap)
