@@ -25,6 +25,26 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 - Kamery (`/api/v1/cameras`) Buddy nemá a vrací 404.
 - **MMU:** jedinou informací o MMU je `info.mmu`. Stav slotů API neposkytuje.
 
+## Soubor úlohy: odkazy na náhled a metadata (průzkum 2026-10-24, klient zatím nepoužívá, T-078 / T-086)
+
+- `GET /api/v1/job` vrací ve firmwaru Buddy (`get_job_v1` v `lib/WUI/link_content/basic_gets.cpp`) objekt `file` s poli `refs`, `name` (8.3 název), `display_name`, `path` (složka), `size` a `m_timestamp`. Pole `size` a `m_timestamp` jsou jen při úspěšném `stat`. `refs` obsahuje:
+  - `icon`: `/thumb/s<cesta>`,
+  - `thumbnail`: `/thumb/l<cesta>`,
+  - `download`: `<cesta>`.
+
+  Příklad: fixture `firmware/job-printing.json`.
+- **Metadata souboru Buddy neposílá.** Objekt `file.meta` (`layer_height`, `filament_type`, `nozzle_diameter`, `estimated_print_time`…) ze specifikace OpenAPI (`PrintFileMetadata`) ve firmwaru chybí. Údaje pro čipy widgetu Název tisku jde proto získat jen z `display_name` (T-078).
+- **Náhled** (`lib/WUI/nhttp/gcode_preview.cpp`):
+  - Vrací jen PNG (`image/png`).
+  - Podporuje ETag a odpověď `If-None-Match` → `304`.
+  - Soubor bez PNG náhledu → `404` („File doesn't contain preview“).
+  - Rozměry pro `s` / `l` určuje směrování `/thumb/`. Zatím **neověřeno**, ověří T-086.
+- Zdroje:
+  - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/link_content/basic_gets.cpp
+  - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/nhttp/gcode_preview.cpp
+  - https://raw.githubusercontent.com/prusa3d/Prusa-Link-Web/master/spec/openapi.yaml
+  - https://help.prusa3d.com/article/model-preview_648687 (PNG / QOI náhledy v G-code)
+
 ## Model tiskárny (`/api/version`, pole `printer`, T-039)
 
 **Formát:** `"printer": "<type>.<version>.<subversion>"`, např. `"1.4.1"`. Firmware ho skládá přes `JSON_FIELD_STR_FORMAT("printer", "%i.%i.%i", …)` z `PrinterModelInfo::current().version` (`lib/WUI/link_content/basic_gets.cpp`, funkce `get_version`). Pole existuje **od firmwaru 6.5** (v tagu `v6.4.2` chybí spolu s `firmware`, v `v6.5.1` už je).

@@ -50,6 +50,47 @@ LayerPeek je **tray-only** aplikace (Windows: oznamovací oblast, macOS: menu ba
 
 9. Otevření webu PrusaLink přihlášený (T-028): `App/Tray/Menu/PrinterWebOpener` získá adresu z `Core/Web/IPrinterWebGateway.OpenAsync`. Výsledek `PrinterWebAccess` je buď adresa proxy (`IsProxied`), nebo holá adresa tiskárny s důvodem (`PrinterWebFallback`). Brána se volá mimo UI vlákno, jen když položka menu ukazuje aktuální adresu své tiskárny. Adresu proxy otevře `IUrlLauncher.OpenSecretAsync`, který do logu nezapíše adresu ani text výjimky (`Process.Start` do něj vkládá celou adresu s tokenem). Při záložní cestě se otevře holá adresa bez další notifikace a do logu jde jen název důvodu. Po uloženém nastavení zastaví `SettingsEditorStore` proxy odebraných tiskáren a tiskáren se změněnou adresou, jménem, typem připojení nebo heslem (`StopAsync`, souběžně s restartem monitoringu, nejvýš 5 s, před smazáním hesel odebraných tiskáren). Při ukončení aplikace `TrayHost` zavolá `StopAllAsync` (čeká nejvýš 1 s souběžně se zastavením monitoringu) a pak kontejner DI bránu uvolní přes `DisposeAsync`. Implementace `PrusaLink/WebProxy/PrusaLinkWebGateway` (registrovaná v `AddPrusaLink`) spouští líně pro každou tiskárnu vlastní lokální reverzní proxy. Proxy je Kestrel ze sdíleného frameworku ASP.NET Core na `127.0.0.1`, port `0`, má 256bitový token v první části cesty a kontroluje `Host`. Na Digest výzvy tiskárny odpovídá sama přes vlastní instanci `DigestAuthenticator`, takže heslo do prohlížeče nejde. Před otevřením prohlížeče proběhne přihlášený `GET /api/version`. Bez hesla, při odmítnutém heslu, nedostupné tiskárně nebo když proxy nejde spustit se otevře holá adresa. Proxy se zastaví po 10 minutách bez požadavku, přes `StopAsync`/`StopAllAsync` po změně nastavení tiskárny a při ukončení aplikace (`DisposeAsync`). Podrobnosti jsou v [api/prusalink.md](api/prusalink.md), oddíl „Lokální proxy“.
 
+## Překryv okna kamery – widgety (plán T-076 až T-093)
+
+Jediný `Border` s řádky z T-036 nahradí systém widgetů. Stav je **plán**. Otázky rozhodl uživatel 2026-10-24, implementace UI čeká na schválení návrhu T-076.
+
+- **Core (`Core/Cameras/Overlay`, T-077):**
+  - `CameraOverlayLayout` je seznam `OverlayWidgetPlacement`. Každé umístění má textové id widgetu, jednu ze 6 kotev `OverlayAnchor`, pořadí v kotvě (pořadí v seznamu), velikost S/M/L, zvýraznění a viditelnost.
+  - Každý typ widgetu je v rozložení nejvýš jednou (v1). Normální okno a celá obrazovka sdílejí jedno rozložení.
+  - Rozložení je **u tiskárny** v `printers[*].camera.overlay`. Akce „použít u všech tiskáren“ je čistá operace. Neznámé id widgetu se zachová a zapíše zpět.
+  - **Průhlednost pozadí karet** je jediná **globální** hodnota v `AppSettings` (30–95 %, výchozí 72 %).
+  - `settings.json` má `version` 2. Starý tvar T-036 (`corner` / `normal` / `mini`) se při načtení převede a už se nezapisuje:
+    - viditelnost starých položek se zahodí, začíná se z výchozího rozložení,
+    - starý roh určí, kam se výchozí rozložení zrcadlí (hlavní kotva Stav + Časy skončí ve starém rohu).
+  - Operace nad rozložením jsou čisté funkce bez Avalonie: přesun do kotvy a na pozici, velikost, zvýraznění, viditelnost, obnovení, zrcadlení.
+  - Mimo okno nastavení zapisuje rozložení samostatný zapisovač sekce (po vzoru `CameraMonitorPathWriter`). Zápis ohlásí, takže otevřené okno nastavení znovu načte jen rozložení dané tiskárny a ostatní neuložené změny si ponechá (T-092).
+- **App – framework (T-081):**
+  - `OverlayWidgetRegistry` se plní **explicitním seznamem** v composition rootu (Native AOT: žádné skenování ani `Activator`). Nový widget je jedna třída (`IOverlayWidgetDefinition` + view model + `DataTemplate` s `x:DataType`) a jeden řádek registrace.
+  - Hostitel rozdělí viditelné widgety do 6 kotev nad obrazem normálního okna a celé obrazovky. V malém náhledu karty nejsou.
+  - Widget formátuje texty jen při změně svého levně porovnatelného obsahu, stejně jako `CameraPrintContent`.
+  - Zvýraznění vykreslí klíčový údaj widgetu akcentovou barvou `#FA6831`.
+  - Ikony jsou z Fluent UI System Icons (MIT), vložené jako geometrie bez balíčku a fontu. Licence je v přehledu licencí třetích stran.
+- **Widgety v1:** Stav (T-082), Časy (T-083), Teploty se sparkline (T-084), Název tisku (T-085, s náhledem G-code T-087), Vychladnutí (T-088).
+  - Sparkline je kompaktní režim stávajícího `TemperatureChart` s pevným oknem 60 minut, ne druhý graf.
+  - Barvy trysky (oranžová) a podložky (modrá) jsou sdílené zdroje a používá je i graf okna Diagnostika.
+- **Data mimo snapshot:**
+  - **Rozbor názvu souboru PrusaSliceru** (`Core`, T-078): sentence case, model tiskárny se vynechá. Firmware Buddy metadata souboru v `/api/v1/job` neposílá.
+  - **Stav vychladnutí** (`Core/Cooldown/CooldownMonitor`, T-079):
+    - stavový automat po vzoru `PrintEventDetector`, čas bere z `TimeProvider`,
+    - začne po dokončeném i zastaveném tisku, skončí při dalším tisku, offline nebo znovu zapnutém topení trysky,
+    - práh trysky je u tiskárny (30–100 °C, výchozí 50 °C).
+  - **Událost „vychladlo“** jde přes `INotificationService` jako nový `PrintEventKind` (T-080). Ve výchozím stavu je vypnutá a je informační (zvuk jen při nastavení „všechny“). Nepřijde, když tisk skončil už pod prahem.
+  - **Náhled G-code** (T-086): abstrakce v Core, PrusaLink ho stahuje z `/thumb/s|l`. Cache je jen v paměti a náhled se drží až do dalšího tisku. Do App přijdou jen bajty PNG a dekóduje je App.
+- **Malý náhled (T-089, T-090):**
+  - Údaje nejsou přes obraz, ale v informačním pásu **pod** obrazem. Obraz má poměr streamu, výchozí 16:9.
+  - Velikost 320×180 z nastavení je velikost obrazu, pás se přičte. Minimální šířka je 240.
+  - Výška okna se dopočítá po změně velikosti úchytem a při rozbalení řádků (název, graf). Okno roste od nejbližšího okraje obrazovky a ořízne se na pracovní plochu.
+  - Stav sbalení (výchozí sbaleno) je u tiskárny se stavem okna v `camera-windows.json` (`CameraWindowStateStore`), ne v `settings.json`. Ukládá se i při vypnutém „pamatovat poslední umístění“ a zapomene se spolu se stavem okna.
+- **Režim rozložení (T-091):**
+  - Je jen v normálním okně, vstup tlačítkem v řadě tlačítek okna a z kontextové nabídky.
+  - Pracovní kopie rozložení je ve view modelu bez Avalonie. Tažení do kotev a v rámci kotvy, popover (zvýraznit, S/M/L), ovládání klávesnicí.
+  - „Hotovo“ uloží přes zapisovač z T-077, Esc zahodí.
+
 ## Prusa Connect (cloud)
 
 Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podrobnosti a rozhodnutí, která čekají na uživatele, jsou v [api/prusa-connect.md](api/prusa-connect.md). Pokud se klient (T-005) bude implementovat, platí pro něj:
