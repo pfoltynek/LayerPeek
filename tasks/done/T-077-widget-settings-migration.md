@@ -112,6 +112,7 @@ depends_on: [T-076]
 
 ## Otevřené otázky
 - (žádné – Q1–Q4 rozhodnuté 2026-10-24, viz Rozhodnutí)
+- (qa-reviewer 2026-10-24, nepovinné) Má nečitelný text (osamocený surrogate, neplatné UTF-8) v typované hodnotě mimo sekci `overlay` – např. v názvu tiskárny nebo jazyce – dál znamenat poškozený soubor (`Corrupted`, nic z něj se nepoužije, soubor zůstane), jako každá hodnota špatného typu, nebo jen varování u té hodnoty? Druhé by vyžadovalo vlastní tolerantní převodník řetězců a rozhodnutí, čím hodnotu nahradit (výchozí / vynechání tiskárny).
 
 ## Poznámky k implementaci
 - **Model (`Core/Cameras/Overlay/`):**
@@ -167,3 +168,7 @@ depends_on: [T-076]
 
 ## Review
 - qa-reviewer 2026-10-24: opraveno – řetězec, který nejde přečíst jako text (osamocený escapovaný surrogate, např. `"\ud800"`), v id, kotvě, velikosti nebo starém rohu sekce `overlay` (nebo jako název vlastnosti widgetu) vyhodil `InvalidOperationException` z `LoadAsync` a aplikace pak použila výchozí nastavení celého souboru. Mapper teď čte texty sekce přes `TryGetText` / `NameOf`: takový údaj je neplatná hodnota s varováním (název vlastnosti se ignoruje). Testy v `SettingsMapperCameraOverlayTests`, `SettingsMapperOverlayMigrationTests` a `JsonSettingsStoreOverlayLayoutTests`.
+- qa-reviewer 2026-10-24, 2. kolo: oprava z 1. kola bez nálezů. Doplněno:
+  - **Nečitelný text mimo sekci `overlay`:** prověřena celá cesta načtení (`JsonSettingsStore.LoadCore`, `SettingsMapper`, `CameraMonitorPathWriter`, `DetectedModelWriter`, `CameraOverlaySectionWriter`, `CameraCredentialScrubber`). Jiné místo s výjimkou mimo `JsonException` není: typované hodnoty (název, adresa, id, uživatel, adresa kamery, jazyk, zvuk, monitor, čísla v uvozovkách…) s osamoceným surrogatem nebo neplatným UTF-8 převede serializer na `JsonException`, tj. soubor je `Corrupted` a zůstane beze změny (stejně jako hodnota špatného typu); zapisovače takovou výjimku chytají a soubor nechají být. Nová regresní sada `JsonSettingsStoreUnreadableTextTests` (načtení i všechny zapisovače, obě varianty nečitelného textu).
+  - **`CameraOverlayLayoutWriter`:** id tiskárny se ořízne (`Trim`) stejně jako v úložišti, takže ohlášené id najde `AppSettings.WithCameraOverlayLayout`. Výjimka odběratele `LayoutSaved` se zaloguje (Error), ostatní odběratelé dostanou událost a hotový zápis dál vrací `true` (vzor `CooldownMonitor`); konstruktor má volitelný `ILogger`.
+  - **Novější formát souboru:** plné uložení souboru s `version` > 2 nic neodmítá – načtení jen varuje, že neznámé hodnoty se uložením ztratí, a uložení pak soubor přepíše. Zápis samotné sekce `overlay` ale probíhá bez toho, aby uživatel varování viděl, proto `CameraOverlaySectionWriter` soubor novějšího formátu (poslední kořenové `version` > 2, i v uvozovkách) nebo s nečitelnou verzí (desetinné číslo, text, bool, objekt) nechá beze změny a `SetCameraOverlayLayoutAsync` vrátí `false`.

@@ -1,3 +1,6 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+
 using LayerPeek.Core.Cameras.Overlay;
 
 namespace LayerPeek.Core.Settings;
@@ -11,7 +14,8 @@ public interface ICameraOverlayLayoutWriter
 {
     /// <summary>
     /// Raised after a layout was written to the settings file, on the thread that completed the write (not the UI thread);
-    /// handlers marshal to their own thread. Not raised when nothing was written.
+    /// handlers marshal to their own thread. Not raised when nothing was written. A failing handler is logged and does not
+    /// affect the other handlers or the result of the save.
     /// </summary>
     event EventHandler<CameraOverlayLayoutSavedEventArgs>? LayoutSaved;
 
@@ -29,21 +33,29 @@ public interface ICameraOverlayLayoutWriter
 /// <summary>The layout of printer <see cref="PrinterId"/> that was written (<see cref="ICameraOverlayLayoutWriter.LayoutSaved"/>).</summary>
 public sealed class CameraOverlayLayoutSavedEventArgs(string printerId, CameraOverlayLayout layout) : EventArgs
 {
-    /// <summary>The printer id as passed to <see cref="ICameraOverlayLayoutWriter.SaveAsync"/>; compare case-insensitively.</summary>
+    /// <summary>The printer id passed to <see cref="ICameraOverlayLayoutWriter.SaveAsync"/>, trimmed; compare case-insensitively.</summary>
     public string PrinterId { get; } = printerId ?? throw new ArgumentNullException(nameof(printerId));
 
     public CameraOverlayLayout Layout { get; } = layout ?? throw new ArgumentNullException(nameof(layout));
 }
 
 /// <summary>The <see cref="ICameraOverlayLayoutWriter"/> over an <see cref="ISettingsStore"/>.</summary>
-public sealed class CameraOverlayLayoutWriter : ICameraOverlayLayoutWriter
+/// <remarks>
+/// Each <see cref="LayoutSaved"/> handler is isolated: an exception is logged and the other handlers still run, and the
+/// save, already completed, still reports success.
+/// </remarks>
+public sealed partial class CameraOverlayLayoutWriter : ICameraOverlayLayoutWriter
 {
     private readonly ISettingsStore _store;
+    private readonly ILogger<CameraOverlayLayoutWriter> _logger;
 
-    public CameraOverlayLayoutWriter(ISettingsStore store)
+    /// <param name="store">The settings the layout is written to.</param>
+    /// <param name="logger">Receives failures of <see cref="LayoutSaved"/> handlers; <see langword="null"/> = discarded.</param>
+    public CameraOverlayLayoutWriter(ISettingsStore store, ILogger<CameraOverlayLayoutWriter>? logger = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         _store = store;
+        _logger = logger ?? NullLogger<CameraOverlayLayoutWriter>.Instance;
     }
 
     public event EventHandler<CameraOverlayLayoutSavedEventArgs>? LayoutSaved;
@@ -52,12 +64,41 @@ public sealed class CameraOverlayLayoutWriter : ICameraOverlayLayoutWriter
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
         ArgumentNullException.ThrowIfNull(layout);
-        if (!await _store.SetCameraOverlayLayoutAsync(printerId, layout, cancellationToken).ConfigureAwait(false))
+
+        // Trimmed like the store matches it and like the loaded settings hold it, so that the announced id finds the
+        // printer (AppSettings.WithCameraOverlayLayout compares without trimming).
+        string id = printerId.Trim();
+        if (!await _store.SetCameraOverlayLayoutAsync(id, layout, cancellationToken).ConfigureAwait(false))
         {
             return false;
         }
 
-        LayoutSaved?.Invoke(this, new CameraOverlayLayoutSavedEventArgs(printerId, layout));
+        RaiseLayoutSaved(new CameraOverlayLayoutSavedEventArgs(id, layout));
         return true;
     }
+
+    private void RaiseLayoutSaved(CameraOverlayLayoutSavedEventArgs saved)
+    {
+        EventHandler<CameraOverlayLayoutSavedEventArgs>? handlers = LayoutSaved;
+        if (handlers is null)
+        {
+            return;
+        }
+
+        // One by one, so that a failing subscriber neither starves the others nor turns the completed save into a failure.
+        foreach (EventHandler<CameraOverlayLayoutSavedEventArgs> handler in Delegate.EnumerateInvocationList(handlers))
+        {
+            try
+            {
+                handler(this, saved);
+            }
+            catch (Exception ex)
+            {
+                LogSubscriberFailed(ex, saved.PrinterId);
+            }
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "A LayoutSaved handler failed for the camera overlay layout of printer '{PrinterId}'.")]
+    private partial void LogSubscriberFailed(Exception exception, string printerId);
 }

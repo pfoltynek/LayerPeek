@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -13,8 +14,10 @@ namespace LayerPeek.Core.Settings.Storage;
 /// replaced, or the property is added after the last value of the camera object, indented like its first property. The
 /// value is written like a full save writes it (format 2; <c>{}</c> for the default layout), indented relative to its line
 /// when the camera object spans several lines, otherwise on one line; the line breaks follow the file. Comments,
-/// formatting, unknown fields and the <c>version</c> stay (the loader reads the widget shape in any version). Property names
-/// are matched case-insensitively and escapes are decoded first, like <see cref="SettingsJsonContext"/> reads them.
+/// formatting, unknown fields and the <c>version</c> stay (format 1 files are read with the widget shape too). A file of a
+/// newer format (root <c>version</c> above <see cref="SettingsDocument.CurrentVersion"/>) or with an unreadable version is
+/// left alone: this write must not slip a format-2 section into it unseen. Property names are matched case-insensitively
+/// and escapes are decoded first, like <see cref="SettingsJsonContext"/> reads them.
 /// </summary>
 /// <remarks>
 /// Every printer entry whose (last) <c>id</c> equals the printer id (trimmed, case-insensitive) is updated, in every
@@ -54,6 +57,10 @@ internal static class CameraOverlaySectionWriter
         Stack<Frame> frames = new();
         string? property = null;
 
+        // The root "version" as the loader reads it: the last of duplicates, quoted numbers accepted.
+        int? version = null;
+        bool unreadableVersion = false;
+
         while (reader.Read())
         {
             Frame? parent = frames.Count > 0 ? frames.Peek() : null;
@@ -69,6 +76,7 @@ internal static class CameraOverlaySectionWriter
                     continue;
 
                 case JsonTokenType.StartObject or JsonTokenType.StartArray:
+                    unreadableVersion |= IsRootVersion(parent, property);
                     FrameKind kind = KindOf(parent, property, reader.TokenType);
                     frames.Push(new Frame(kind, checked((int)reader.TokenStartIndex), property, kind == FrameKind.Printer ? null : parent?.Printer));
                     break;
@@ -98,7 +106,19 @@ internal static class CameraOverlaySectionWriter
                     break;
 
                 default:
-                    if (parent?.Kind == FrameKind.Printer && reader.TokenType == JsonTokenType.String && Is(property, "id"))
+                    if (IsRootVersion(parent, property))
+                    {
+                        // An unreadable value fails the whole load, even when a later duplicate is readable.
+                        if (TryReadVersion(ref reader, out int? read))
+                        {
+                            version = read;
+                        }
+                        else
+                        {
+                            unreadableVersion = true;
+                        }
+                    }
+                    else if (parent?.Kind == FrameKind.Printer && reader.TokenType == JsonTokenType.String && Is(property, "id"))
                     {
                         parent.Id = reader.GetString();
                     }
@@ -113,7 +133,35 @@ internal static class CameraOverlaySectionWriter
             property = null;
         }
 
+        // A file of a newer format, or one whose format cannot be read, is left alone: a full save of a newer file loses its
+        // unknown values only after the loader warned about it, and this write would slip a format-2 section in unseen.
+        if (unreadableVersion || version > SettingsDocument.CurrentVersion)
+        {
+            return null;
+        }
+
         return replacements.Count == 0 ? null : Apply(content, replacements);
+    }
+
+    private static bool IsRootVersion(Frame? parent, string? property) => parent?.Kind == FrameKind.Root && Is(property, "version");
+
+    /// <summary>A version value read like <see cref="SettingsDocument.Version"/>: a whole number (also quoted) or null.</summary>
+    private static bool TryReadVersion(ref Utf8JsonReader reader, out int? version)
+    {
+        version = null;
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.Null:
+                return true;
+            case JsonTokenType.Number when reader.TryGetInt32(out int number):
+                version = number;
+                return true;
+            case JsonTokenType.String when int.TryParse(reader.GetString(), NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out int quoted):
+                version = quoted;
+                return true;
+            default:
+                return false;
+        }
     }
 
     private static FrameKind KindOf(Frame? parent, string? property, JsonTokenType token)

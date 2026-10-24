@@ -1,10 +1,13 @@
 using System.Text;
 using System.Text.Json;
 
+using Microsoft.Extensions.Logging;
+
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
+using LayerPeek.Core.Tests.Monitoring;
 
 namespace LayerPeek.Core.Tests.Settings;
 
@@ -357,6 +360,40 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
         Assert.Equal(Original.Replace("{ }", $"{{ \"overlay\": {ExpectedOverlay(Changed)} }}", StringComparison.Ordinal), result);
     }
 
+    [Theory]
+    [InlineData("""{ "version": 3, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "printers": [ { "id": "mk4", "camera": { } } ], "version": 7 }""")]
+    [InlineData("""{ "VERSION": "3", "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": 1, "printers": [ { "id": "mk4", "camera": { } } ], "version": 3 }""")]
+    [InlineData("""{ "version": 2.5, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": "x", "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": true, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": { }, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    public async Task FileOfANewerOrUnreadableFormatIsLeftAlone(string original)
+    {
+        // A format-2 section must not be slipped into a file whose format this version does not know (or cannot read).
+        (bool written, string result) = await SetAsync(original, "mk4", Changed);
+
+        Assert.False(written);
+        Assert.Equal(original, result);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 1, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": 2, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": "2", "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": null, "printers": [ { "id": "mk4", "camera": { } } ] }""")]
+    [InlineData("""{ "version": 3, "printers": [ { "id": "mk4", "camera": { } } ], "version": 2 }""")]
+    [InlineData("""{ "printers": [ { "id": "mk4", "camera": { }, "version": 3 } ], "x": { "version": 3 } }""")]
+    public async Task FileOfAKnownFormatIsWritten(string original)
+    {
+        // Only the root "version" counts, the last one of duplicates like the loader reads it.
+        (bool written, string result) = await SetAsync(original, "mk4", Changed);
+
+        Assert.True(written);
+        Assert.Equal(original.Replace("\"camera\": { }", $"\"camera\": {{ \"overlay\": {ExpectedOverlay(Changed)} }}", StringComparison.Ordinal), result);
+    }
+
     [Fact]
     public async Task MissingFileIsNotCreated()
     {
@@ -416,6 +453,52 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
         CameraOverlayLayoutSavedEventArgs saved = Assert.Single(announced);
         Assert.Equal("mk4", saved.PrinterId);
         Assert.Same(Changed, saved.Layout);
+    }
+
+    [Fact]
+    public async Task WriterAnnouncesTheTrimmedPrinterIdThatTheSettingsFind()
+    {
+        AppSettings saved = new() { Printers = [Printer("mk4", CameraOverlayLayout.Default)] };
+        await _store.SaveAsync(saved, Ct);
+        CameraOverlayLayoutWriter writer = new(_store);
+        AppSettings editor = saved;
+        string? announcedId = null;
+        writer.LayoutSaved += (_, e) =>
+        {
+            announcedId = e.PrinterId;
+            editor = editor.WithCameraOverlayLayout(e.PrinterId, e.Layout);
+        };
+
+        Assert.True(await writer.SaveAsync("  mk4\t", Changed, Ct));
+
+        Assert.Equal("mk4", announcedId);
+        Assert.Equal(Changed, editor.Printers[0].Camera.Overlay);
+        Assert.Equal(Changed, (await _store.LoadAsync(Ct)).Settings.Printers[0].Camera.Overlay);
+    }
+
+    [Fact]
+    public async Task FailingSubscriberIsLoggedAndNeitherStopsTheOthersNorFailsTheSave()
+    {
+        await _store.SaveAsync(new AppSettings { Printers = [Printer("mk4", CameraOverlayLayout.Default)] }, Ct);
+        ListLogger<CameraOverlayLayoutWriter> logger = new();
+        CameraOverlayLayoutWriter writer = new(_store, logger);
+        InvalidOperationException failure = new("subscriber failed");
+        List<string> calls = [];
+        writer.LayoutSaved += (_, _) =>
+        {
+            calls.Add("first");
+            throw failure;
+        };
+        writer.LayoutSaved += (_, e) => calls.Add("second " + e.PrinterId);
+
+        Assert.True(await writer.SaveAsync("mk4", Changed, Ct));
+
+        Assert.Equal(["first", "second mk4"], calls);
+        (LogLevel level, Exception? exception, string message) = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, level);
+        Assert.Same(failure, exception);
+        Assert.Contains("mk4", message, StringComparison.Ordinal);
+        Assert.Equal(Changed, (await _store.LoadAsync(Ct)).Settings.Printers[0].Camera.Overlay);
     }
 
     [Fact]

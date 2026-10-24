@@ -93,8 +93,9 @@ public interface ISettingsStore
     /// the stored settings and changes <b>nothing else</b>, byte for byte like <see cref="SetDetectedModelAsync"/>: the layout
     /// edited in the camera window is saved while the settings window may hold other unsaved changes. Every entry with that
     /// id (trimmed, case-insensitive) that has a camera object gets the layout (the default layout as <c>{}</c>); the write
-    /// is atomic. A missing, unreadable or too large file, one that is not syntactically valid JSON and one without such a
-    /// printer camera is left alone. Use <see cref="CameraOverlayLayoutWriter"/> to announce the write.
+    /// is atomic. A missing, unreadable or too large file, one that is not syntactically valid JSON, one of a newer settings
+    /// format (or with an unreadable format version) and one without such a printer camera is left alone. Use
+    /// <see cref="CameraOverlayLayoutWriter"/> to announce the write.
     /// </summary>
     /// <returns><see langword="true"/> when the file was written (the stored section differed).</returns>
     /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
