@@ -54,11 +54,15 @@ public sealed partial class CooldownMonitor : IDisposable
     /// Tracks <paramref name="printers"/> from now on, each with its own threshold. Call before every monitoring run and
     /// whenever the settings change. Printers that stay configured and point to the same machine (a rename keeps it) keep
     /// their state, and a changed threshold applies right away (see <see cref="CooldownTracker.SetThreshold"/>). Removed
-    /// printers and printers whose address or connection type changed are forgotten.
+    /// printers and printers whose address or connection type changed are forgotten. <paramref name="pollingInterval"/>
+    /// applies to every printer (see <see cref="CooldownTracker.PollingInterval"/>).
     /// </summary>
-    public void Configure(IReadOnlyList<PrinterDefinition> printers)
+    /// <exception cref="ArgumentException"><paramref name="printers"/> contains <see langword="null"/>.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="pollingInterval"/> is not positive.</exception>
+    public void Configure(IReadOnlyList<PrinterDefinition> printers, TimeSpan pollingInterval)
     {
         ArgumentNullException.ThrowIfNull(printers);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(pollingInterval, TimeSpan.Zero);
         foreach (PrinterDefinition? printer in printers)
         {
             if (printer is null)
@@ -103,6 +107,8 @@ public sealed partial class CooldownMonitor : IDisposable
                 {
                     entry = new Entry(printer, new CooldownTracker(printer.CooldownThresholdCelsius, _options));
                 }
+
+                entry.Tracker.PollingInterval = pollingInterval;
 
                 entries.Add(printer.Id, entry);
             }

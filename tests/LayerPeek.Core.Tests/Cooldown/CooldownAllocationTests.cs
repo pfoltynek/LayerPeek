@@ -80,7 +80,7 @@ public sealed class CooldownAllocationTests
             using CooldownMonitor monitor = new(new NullMonitor(), new FakeTimeProvider(Start), new ListLogger<CooldownMonitor>());
             int changes = 0;
             monitor.Changed += (_, _) => changes++;
-            monitor.Configure([printer]);
+            monitor.Configure([printer], TimeSpan.FromSeconds(PollSeconds));
             monitor.OnSnapshotUpdated(null, Printing(0));
             for (double t = 5; t < 60; t += PollSeconds)
             {

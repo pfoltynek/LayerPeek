@@ -17,6 +17,8 @@ public sealed class CooldownMonitorTests : IDisposable
 {
     private const double End = 5;
 
+    private static readonly TimeSpan Poll = TimeSpan.FromSeconds(PollSeconds);
+
     private static readonly PrinterDefinition Mk4 = new() { Id = "mk4", Name = "Workshop MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.20" };
 
     private readonly EventMonitor _monitor = new();
@@ -38,7 +40,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void CoolingIsPublishedWithChangedAndGetState()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         Assert.Empty(_changed);
 
@@ -54,7 +56,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void ChangedIsRaisedOnlyWhenTheStateChanges()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Snap(PrinterState.Idle, 0, 25, 0));
         Raise(Snap(PrinterState.Idle, 5, 25, 0));
         Raise(Printing(10));
@@ -66,7 +68,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void CooledDownIsRaisedOncePerJob()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
 
         RunCurve("mk4", End, End + 400);
@@ -80,7 +82,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void PrintEndedBelowTheThresholdRaisesNoCooledDown()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         Raise(Snap(PrinterState.Finished, End, 45, 0, job: Job()));
         Raise(Snap(PrinterState.Finished, 10, 44, 0, job: Job()));
@@ -93,7 +95,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void StateDisappearsWithChangedWhenTheNextPrintStarts()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         RunCurve("mk4", End, End + 400);
         _changed.Clear();
@@ -110,7 +112,7 @@ public sealed class CooldownMonitorTests : IDisposable
     {
         PrinterDefinition low = Mk4 with { Id = "low", CooldownThresholdCelsius = 30 };
         PrinterDefinition high = Mk4 with { Id = "high", CooldownThresholdCelsius = 100 };
-        _cooldown.Configure([low, high]);
+        _cooldown.Configure([low, high], Poll);
         foreach (string id in new[] { "low", "high" })
         {
             Raise(Printing(0, id));
@@ -125,14 +127,14 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void ThresholdChangeAppliesImmediately()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         RunCurve("mk4", End, End + 90);
         Assert.Equal(CooldownPhase.Cooling, _cooldown.GetState("mk4").Phase);
         _changed.Clear();
 
         // The nozzle is at about 70 °C; the new threshold is above it.
-        _cooldown.Configure([Mk4 with { CooldownThresholdCelsius = 80 }]);
+        _cooldown.Configure([Mk4 with { CooldownThresholdCelsius = 80 }], Poll);
 
         Assert.Equal((CooldownPhase.CooledDown, 80), Summary(_cooldown.GetState("mk4")));
         Assert.Equal(["mk4"], _changed);
@@ -143,10 +145,10 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void ThresholdChangeWhileNothingIsTrackedRaisesNothing()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Snap(PrinterState.Idle, 0, 25, 0));
 
-        _cooldown.Configure([Mk4 with { CooldownThresholdCelsius = 70 }]);
+        _cooldown.Configure([Mk4 with { CooldownThresholdCelsius = 70 }], Poll);
 
         Assert.Equal(CooldownState.None, _cooldown.GetState("mk4"));
         Assert.Empty(_changed);
@@ -160,13 +162,13 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void RenamedPrinterKeepsItsState()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         RunCurve("mk4", End, End + 30);
         CooldownState before = _cooldown.GetState("mk4");
         _changed.Clear();
 
-        _cooldown.Configure([Mk4 with { Name = "Renamed" }]);
+        _cooldown.Configure([Mk4 with { Name = "Renamed" }], Poll);
 
         Assert.Equal(before, _cooldown.GetState("mk4"));
         Assert.Empty(_changed);
@@ -180,7 +182,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [InlineData("removed")]
     public void AnotherMachineOrRemovedPrinterIsForgotten(string change)
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         RunCurve("mk4", End, End + 30);
         _changed.Clear();
@@ -190,7 +192,7 @@ public sealed class CooldownMonitorTests : IDisposable
             "address" => [Mk4 with { Address = "192.168.1.99" }],
             "connection" => [Mk4 with { ConnectionType = ConnectionType.PrusaConnect }],
             _ => [],
-        });
+        }, Poll);
 
         Assert.Equal(CooldownPhase.None, _cooldown.GetState("mk4").Phase);
         Assert.Equal(["mk4"], _changed);
@@ -200,10 +202,10 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void ForgottenPrinterInNoStateRaisesNothing()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Snap(PrinterState.Idle, 0, 25, 0));
 
-        _cooldown.Configure([]);
+        _cooldown.Configure([], Poll);
 
         Assert.Empty(_changed);
     }
@@ -213,7 +215,7 @@ public sealed class CooldownMonitorTests : IDisposable
     {
         Raise(Printing(0));
         Raise(Cooling(PrinterState.Finished, End, End));
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0, "xl"));
         Raise(Cooling(PrinterState.Finished, End, End, "xl"));
 
@@ -225,7 +227,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void PrinterIdIsMatchedCaseInsensitively()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0, "MK4"));
         Raise(Cooling(PrinterState.Finished, End, End, "MK4"));
 
@@ -235,7 +237,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void GetStateCarriesTheEndOfThePrintAndTheCooledDownTime()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         Raise(Cooling(PrinterState.Stopped, End, End));
         for (double t = End + PollSeconds; t <= End + 600; t += PollSeconds)
@@ -257,7 +259,7 @@ public sealed class CooldownMonitorTests : IDisposable
     public void PrinterAlreadyShowingAnEndedPrintAtStartIsNotTracked()
     {
         // Decision 11: the first snapshot after the app starts (or the printer is added) already shows the ended print.
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         RunCurve("mk4", End, End + 600, from: End + 20);
 
         Assert.Equal(CooldownState.None, _cooldown.GetState("mk4"));
@@ -268,7 +270,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void GetStateCountsTheEstimateDownBetweenPolls()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         RunCurve("mk4", End, End + 60);
         CooldownState polled = _cooldown.GetState("mk4");
@@ -293,7 +295,7 @@ public sealed class CooldownMonitorTests : IDisposable
         _cooldown.Changed += (_, _) => throw new InvalidOperationException("changed failed");
         _cooldown.Changed += (_, id) => later.Add(id);
         _cooldown.CooledDown += (_, _) => throw new InvalidOperationException("cooled failed");
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
 
         RunCurve("mk4", End, End + 400);
@@ -310,7 +312,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void NullSnapshotIsIgnored()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
 
         _monitor.Raise(null!);
 
@@ -319,10 +321,40 @@ public sealed class CooldownMonitorTests : IDisposable
     }
 
     [Fact]
+    public void PollingIntervalSetsHowLongAGapWithoutSnapshotsMayBe()
+    {
+        // At a 5 minute polling interval a print that ended between two polls was observed.
+        _cooldown.Configure([Mk4], TimeSpan.FromMinutes(5));
+        Raise(Printing(0));
+
+        Raise(Cooling(PrinterState.Finished, 300, 300));
+
+        Assert.Equal(Start.AddSeconds(300), _cooldown.GetState("mk4").PrintEndedAt);
+    }
+
+    [Fact]
+    public void ChangedPollingIntervalAppliesToKeptPrinters()
+    {
+        _cooldown.Configure([Mk4], Poll);
+        Raise(Printing(0));
+
+        _cooldown.Configure([Mk4], TimeSpan.FromMinutes(5));
+        Raise(Cooling(PrinterState.Finished, 300, 300));
+        Assert.Equal(Start.AddSeconds(300), _cooldown.GetState("mk4").PrintEndedAt);
+
+        // Back to 5 s: a later gap of 5 minutes was not observed and ends the cool-down.
+        _cooldown.Configure([Mk4], Poll);
+        Raise(Cooling(PrinterState.Finished, 300, 600));
+        Assert.Equal(CooldownPhase.None, _cooldown.GetState("mk4").Phase);
+        Assert.Empty(_cooledDown);
+    }
+
+    [Fact]
     public void ConfigureRejectsInvalidArguments()
     {
-        Assert.Throws<ArgumentNullException>(() => _cooldown.Configure(null!));
-        Assert.Throws<ArgumentException>(() => _cooldown.Configure([Mk4, null!]));
+        Assert.Throws<ArgumentNullException>(() => _cooldown.Configure(null!, Poll));
+        Assert.Throws<ArgumentException>(() => _cooldown.Configure([Mk4, null!], Poll));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _cooldown.Configure([Mk4], TimeSpan.Zero));
         Assert.Throws<ArgumentNullException>(() => _cooldown.GetState(null!));
     }
 
@@ -337,7 +369,7 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void DisposeUnsubscribesAndForgetsEverything()
     {
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         Raise(Printing(0));
         Raise(Cooling(PrinterState.Finished, End, End));
         Assert.Equal(1, _monitor.SubscriberCount);
@@ -348,7 +380,7 @@ public sealed class CooldownMonitorTests : IDisposable
 
         Assert.Equal(0, _monitor.SubscriberCount);
         Assert.Equal(default, _cooldown.GetState("mk4"));
-        _cooldown.Configure([Mk4]);
+        _cooldown.Configure([Mk4], Poll);
         _monitor.RaiseIgnoringSubscription(_cooldown, Cooling(PrinterState.Finished, End, 10));
         Assert.Equal(default, _cooldown.GetState("mk4"));
         Assert.Empty(_changed);
@@ -364,7 +396,7 @@ public sealed class CooldownMonitorTests : IDisposable
             printers[i] = Mk4 with { Id = "p" + i, CooldownThresholdCelsius = 30 + (i * 4) };
         }
 
-        _cooldown.Configure(printers);
+        _cooldown.Configure(printers, Poll);
         using CancellationTokenSource stop = new();
 
         // Like the monitor: one loop per printer, loops run concurrently, each printer's snapshots in order. Meanwhile the
@@ -395,7 +427,7 @@ public sealed class CooldownMonitorTests : IDisposable
                 int round = 0;
                 while (!stop.IsCancellationRequested)
                 {
-                    _cooldown.Configure([.. printers.Select(p => p with { Name = "n" + round })]);
+                    _cooldown.Configure([.. printers.Select(p => p with { Name = "n" + round })], Poll);
                     round++;
                 }
             },

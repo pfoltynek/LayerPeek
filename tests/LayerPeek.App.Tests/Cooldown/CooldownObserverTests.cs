@@ -35,6 +35,18 @@ public sealed class CooldownObserverTests : IDisposable
     }
 
     [Fact]
+    public void AppliedSettingsPassThePollingInterval()
+    {
+        // At a 5 minute polling interval, 5 minutes between two snapshots is no gap: the print end was observed.
+        _observer.ApplySettings(new AppSettings { Printers = [Definition()], PollingInterval = TimeSpan.FromMinutes(5) });
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(50)) with { Telemetry = Hot(215, 215) });
+
+        _monitor.Raise(Snapshot(PrinterState.Finished, Job(100)) with { Timestamp = Now.AddMinutes(5), Telemetry = Hot(200, 0) });
+
+        Assert.Equal(Now.AddMinutes(5), _cooldown.GetState("mk4").PrintEndedAt);
+    }
+
+    [Fact]
     public void UpdatedThresholdApplies()
     {
         _observer.ApplySettings(new AppSettings { Printers = [Definition()] });
