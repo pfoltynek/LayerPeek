@@ -162,9 +162,12 @@ public class PrintFileNameInfoTests
         {
             CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
 
-            PrintFileNameInfo info = PrintFileNameInfo.Parse("insert_0.4n_0.2mm_PLA_MK4S_1h0m.gcode");
+            // A different name per culture, otherwise the one-entry cache would return the result parsed under the
+            // previous culture and the later rows would not test anything.
+            string tag = culture.ToLowerInvariant();
+            PrintFileNameInfo info = PrintFileNameInfo.Parse($"insert_{tag}_0,4n_0.2mm_PLA_MK4S_1h0m.gcode");
 
-            Assert.Equal("Insert", info.Title);
+            Assert.Equal($"Insert {tag.Replace('-', ' ')}", info.Title);
             Assert.Equal(0.2, info.LayerHeightMm);
             Assert.Equal(0.4, info.NozzleDiameterMm);
         }
@@ -229,7 +232,29 @@ public class PrintFileNameInfoTests
             Assert.NotNull(info.Title);
             Assert.NotNull(info.Extension);
             Assert.Equal(info.Title.Trim(), info.Title);
+            Assert.True(!info.HasChips || info.Title.Length > 0, input);
         }
+    }
+
+    [Fact]
+    public void ConcurrentCallsNeverMixUpCachedResults()
+    {
+        // The monitoring thread and the UI thread share the one-entry cache; alternating names from several threads
+        // must always give the result that belongs to the name passed in.
+        string[] names =
+        [
+            "foldable_book_holder_v1_0.4n_0.2mm_PLA_COREONE_2h51m.bgcode",
+            "shape-box_0.4n_0.15mm_PETG_MK4S_45m.gcode",
+            "benchy.gcode",
+        ];
+        string[] titles = ["Foldable book holder v1", "Shape box", "Benchy"];
+
+        Parallel.For(0, 30_000, new ParallelOptions { MaxDegreeOfParallelism = 4 }, i =>
+        {
+            int index = i % names.Length;
+            PrintFileNameInfo info = PrintFileNameInfo.Parse(names[index]);
+            Assert.Equal(titles[index], info.Title);
+        });
     }
 
     [Fact]
