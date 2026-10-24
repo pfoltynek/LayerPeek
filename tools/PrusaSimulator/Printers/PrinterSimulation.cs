@@ -196,6 +196,9 @@ public sealed class PrinterSimulation
         }
     }
 
+    /// <summary>The files the simulated jobs print, in job order (job 42 prints the first).</summary>
+    public static IReadOnlyList<SimulatedFile> AllFiles => Files;
+
     /// <summary>The file of a job id (stable: the same id always has the same file).</summary>
     public static SimulatedFile FileOf(long jobId) => Files[(int)(((jobId - FirstJobId) % Files.Length + Files.Length) % Files.Length)];
 

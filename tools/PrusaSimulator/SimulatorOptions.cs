@@ -38,6 +38,7 @@ public sealed record SimulatorOptions
           --host <ip>             address to listen on (default 127.0.0.1; 0.0.0.0 or :: = reachable from the network,
                                   then the /_simulator/ control endpoints need the PrusaLink login too)
           --offline-mode <mode>   drop (close the connection, default) or hang (never answer) while offline
+          --no-previews           job files without G-code previews (/thumb/s and /thumb/l answer 404)
           --no-camera             no RTSP camera
           --camera-port <n>       RTSP port (default 8554; 0 = any free port)
           --clip <file>           H.264 Annex B clip to loop (default: the recorded Buddy3D clip)
@@ -48,6 +49,7 @@ public sealed record SimulatorOptions
           list                          state of all printers
           <n|all> <scenario>            switch printer n (1-based) or all printers to a scenario
           <n|all> offline | online      stop / resume answering
+          <n|all> no-previews | previews  job files without / with G-code previews
           camera offline | online       drop the camera / let clients connect again
           quit                          stop (as Ctrl+C)
         """;
@@ -73,6 +75,9 @@ public sealed record SimulatorOptions
     public IPAddress Address { get; init; } = IPAddress.Loopback;
 
     public OfflineMode OfflineMode { get; init; } = OfflineMode.Drop;
+
+    /// <summary>Whether the job files contain G-code previews (false: <c>--no-previews</c>).</summary>
+    public bool Previews { get; init; } = true;
 
     public bool Camera { get; init; } = true;
 
@@ -119,6 +124,12 @@ public sealed record SimulatorOptions
             if (name == "--no-camera")
             {
                 options = options with { Camera = false };
+                continue;
+            }
+
+            if (name == "--no-previews")
+            {
+                options = options with { Previews = false };
                 continue;
             }
 

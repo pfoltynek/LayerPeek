@@ -14,6 +14,8 @@ Ve widgetu Název tisku zobrazit náhled G-code z `IPrintPreviewSource` (T-086):
 ## Rozsah
 - Dekódování PNG v App (`Avalonia.Media.Imaging.Bitmap` ze streamu, mimo UI vlákno), škálování na cílovou velikost s ohledem na DPI, uvolnění bitmapy při změně úlohy / zavření okna.
 - Požadavek na náhled jen při viditelném widgetu ve velikosti M / L; malý (`s`) nebo velký (`l`) náhled podle ověřených rozměrů z T-086 a velikosti / DPI.
+  - Pozor (T-086, `docs/api/prusalink.md`): `s` je PNG přesně 16 × 16 px a standardní profily Prusa ho mají jen jako QOI, takže skutečná tiskárna na `/thumb/s` běžně vrací `404`. Použitelný je prakticky jen `Large` (380 × 285 px, zmenšit v App). Simulátor `s` obsluhuje jen kvůli testům.
+- `GetAsync` volat s úlohou z **aktuálního** snapshotu tiskárny a `Observe` volat ze `SnapshotUpdated` v pořadí snapshotů. Úloha, kterou `Observe` už viděl nahrazenou (zastaralý snapshot), dostane `null` a nic se nestáhne (pravidlo T-086 „nikdy zpět ke starší úloze“); widget s takovou úlohou nemá čekat na náhled, ale na další snapshot.
 - Poškozený PNG = bez náhledu, bez výjimky do UI.
 - `AutomationProperties.Name` náhledu podle návrhu.
 

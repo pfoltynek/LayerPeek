@@ -99,7 +99,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-083 | Widget Časy | all | ui-dev | P2 | T-081 |
 | T-084 | Widget Teploty se sparkline (kompaktní `TemperatureChart`) | all | ui-dev | P2 | T-081 |
 | T-085 | Widget Název tisku (bez náhledu G-code) | all | ui-dev | P2 | T-078, T-081 |
-| T-086 | Náhled G-code – načtení z PrusaLink (Core + klient + simulátor) | all | core-dev | P3 | – |
+| T-086 | Náhled G-code – načtení z PrusaLink (Core + klient + simulátor) (hotovo) | all | core-dev | P3 | – |
 | T-087 | Widget Název tisku – zobrazení náhledu G-code | all | ui-dev | P3 | T-085, T-086 |
 | T-088 | Widget Vychladnutí | all | ui-dev | P2 | T-079, T-081 |
 | T-089 | Malý náhled – informační pás pod obrazem a výška okna podle pásu | all | ui-dev | P2 | T-076, T-082, T-083 |
