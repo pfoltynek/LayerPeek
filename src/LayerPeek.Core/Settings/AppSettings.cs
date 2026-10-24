@@ -136,6 +136,17 @@ public sealed record AppSettings
         return this;
     }
 
+    /// <summary>
+    /// "Use this threshold for all printers" (T-079): these settings with <paramref name="thresholdCelsius"/> as the
+    /// cool-down threshold of every printer; the same instance when every printer already has it. Nothing else changes.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="thresholdCelsius"/> is not a valid <see cref="Cooldown.CooldownThreshold"/>.</exception>
+    public AppSettings WithCooldownThresholdForAllPrinters(int thresholdCelsius)
+    {
+        IReadOnlyList<PrinterDefinition> printers = Cooldown.CooldownThreshold.ApplyToAll(Printers, thresholdCelsius);
+        return ReferenceEquals(printers, Printers) ? this : this with { Printers = printers };
+    }
+
     // Value equality including the printer list (the synthesized one would compare the list by reference).
     public bool Equals(AppSettings? other) =>
         other is not null

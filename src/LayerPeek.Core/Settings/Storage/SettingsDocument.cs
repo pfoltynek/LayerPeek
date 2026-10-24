@@ -88,6 +88,13 @@ internal sealed class PrinterDocument
     /// <summary>Image choice (T-039); not written while automatic (the default).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PrinterImageDocument? Image { get; set; }
+
+    /// <summary>
+    /// Cool-down threshold of the nozzle in whole °C (T-079); missing in older files and not written while it is the
+    /// default. Read as a number so that fractions and out-of-range values fall back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CooldownThresholdCelsius { get; set; }
 }
 
 /// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
 using LayerPeek.App.Installer;
@@ -20,6 +21,7 @@ using LayerPeek.App.Tray.Menu;
 using LayerPeek.App.Windows;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
@@ -145,6 +147,12 @@ internal static class AppServices
             sp.GetRequiredService<INotificationService>(),
             sp.GetRequiredService<ILogger<PrintEventNotifier>>()));
         services.AddSingleton(static sp => new PrintNotificationObserver(sp.GetRequiredService<PrintEventNotifier>()));
+        // Cooling down after a print (T-079), per printer with its threshold; read by the cool-down widget and notification.
+        services.AddSingleton(static sp => new CooldownMonitor(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CooldownMonitor>>()));
+        services.AddSingleton(static sp => new CooldownObserver(sp.GetRequiredService<CooldownMonitor>()));
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
@@ -163,6 +171,7 @@ internal static class AppServices
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
+                sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),

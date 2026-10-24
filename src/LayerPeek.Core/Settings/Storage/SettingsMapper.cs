@@ -1,4 +1,5 @@
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.Core.Settings.Storage;
@@ -51,6 +52,7 @@ internal static class SettingsMapper
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
+                CooldownThresholdCelsius = printer.CooldownThresholdCelsius == CooldownThreshold.DefaultCelsius ? null : printer.CooldownThresholdCelsius,
             })],
         };
     }
@@ -236,6 +238,12 @@ internal static class SettingsMapper
                     printer = printer with { DetectedModel = detectedModel, Image = image };
                 }
 
+                int cooldownThreshold = ToCooldownThreshold(documents[i]!.CooldownThresholdCelsius, printer.Id, warnings);
+                if (cooldownThreshold != CooldownThreshold.DefaultCelsius)
+                {
+                    printer = printer with { CooldownThresholdCelsius = cooldownThreshold };
+                }
+
                 printers.Add(printer);
             }
             else
@@ -351,6 +359,24 @@ internal static class SettingsMapper
 
         warnings.Add($"Printer '{Shorten(printerId)}': invalid detected model code; it is ignored until the model is detected again.");
         return null;
+    }
+
+    /// <summary>Missing = the default; a fraction or a value out of range falls back to the default with a warning.</summary>
+    private static int ToCooldownThreshold(double? value, string printerId, List<string> warnings)
+    {
+        if (value is null)
+        {
+            return CooldownThreshold.DefaultCelsius;
+        }
+
+        if (TryGetWholeNumber(value, out int celsius) && CooldownThreshold.IsValid(celsius))
+        {
+            return celsius;
+        }
+
+        warnings.Add(
+            $"Printer '{Shorten(printerId)}': cool-down threshold is invalid (whole number {CooldownThreshold.MinCelsius}–{CooldownThreshold.MaxCelsius} °C); {CooldownThreshold.DefaultCelsius} °C is used.");
+        return CooldownThreshold.DefaultCelsius;
     }
 
     /// <summary>Not written while automatic (the default), so that files stay as they were.</summary>
