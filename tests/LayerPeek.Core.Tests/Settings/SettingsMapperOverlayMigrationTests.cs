@@ -82,6 +82,7 @@ public class SettingsMapperOverlayMigrationTests
     [InlineData("\"\"")]
     [InlineData("2")]
     [InlineData("[\"TopRight\"]")]
+    [InlineData("\"\\ud800\"")]
     public void InvalidOldCornerGivesTheDefaultLayoutWithAWarningWithoutEchoingIt(string corner)
     {
         AppSettings settings = Load(PrinterJson($$""", "camera": { "overlay": { "corner": {{corner}} } }"""), out List<string> warnings, out List<string> notices);

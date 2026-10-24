@@ -164,3 +164,6 @@ depends_on: [T-076]
   Všechny soubory jsou pod `TestDirectories`.
 - **AOT:** jen `SettingsJsonContext` (přidané `CameraOverlayDocument` a `List<OverlayWidgetDocument>`), žádná reflexe ani nový balíček. Core Avalonii nereferencuje.
 - E2E: žádné nové (převod při startu aplikace pokryje T-093).
+
+## Review
+- qa-reviewer 2026-10-24: opraveno – řetězec, který nejde přečíst jako text (osamocený escapovaný surrogate, např. `"\ud800"`), v id, kotvě, velikosti nebo starém rohu sekce `overlay` (nebo jako název vlastnosti widgetu) vyhodil `InvalidOperationException` z `LoadAsync` a aplikace pak použila výchozí nastavení celého souboru. Mapper teď čte texty sekce přes `TryGetText` / `NameOf`: takový údaj je neplatná hodnota s varováním (název vlastnosti se ignoruje). Testy v `SettingsMapperCameraOverlayTests`, `SettingsMapperOverlayMigrationTests` a `JsonSettingsStoreOverlayLayoutTests`.

@@ -201,6 +201,8 @@ public class SettingsMapperCameraOverlayTests
     [InlineData("emphasized", "\"yes\"")]
     [InlineData("visible", "1")]
     [InlineData("visible", "{ }")]
+    [InlineData("anchor", "\"\\ud800\"")]
+    [InlineData("size", "\"\\udc00x\"")]
     public void UnknownValueFallsBackToTheDefaultWithOneWarningWithoutEchoingIt(string property, string value)
     {
         AppSettings settings = Load(
@@ -250,6 +252,8 @@ public class SettingsMapperCameraOverlayTests
     [InlineData("{ \"id\": \"  \" }")]
     [InlineData("{ \"id\": \"a\\u0001b\" }")]
     [InlineData("{ \"anchor\": \"TopLeft\" }")]
+    [InlineData("{ \"id\": \"\\ud800\" }")]
+    [InlineData("{ \"id\": \"w\\udc00\" }")]
     public void InvalidWidgetEntryIsSkippedWithOneWarning(string entry)
     {
         AppSettings settings = Load(
@@ -312,6 +316,19 @@ public class SettingsMapperCameraOverlayTests
     {
         AppSettings settings = Load(
             PrinterJson(""", "camera": { "overlay": { "x": { "y": [1] }, "widgets": [ { "id": "status", "options": { "a": 1 }, "anchor": "TopRight" } ] } }"""),
+            out List<string> warnings,
+            out _);
+
+        Assert.Empty(warnings);
+        Assert.Equal(OverlayAnchor.TopRight, settings.Printers[0].Camera.Overlay.Find("status")!.Anchor);
+    }
+
+    [Fact]
+    public void PropertyNameThatIsNoValidTextIsIgnored()
+    {
+        // A lone escaped surrogate cannot be read as a string; like any unknown property it must not fail the file.
+        AppSettings settings = Load(
+            PrinterJson(""", "camera": { "overlay": { "widgets": [ { "\ud800": 1, "id": "status", "anchor": "TopRight" } ] } }"""),
             out List<string> warnings,
             out _);
 

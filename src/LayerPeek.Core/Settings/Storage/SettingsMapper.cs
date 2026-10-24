@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 
 using LayerPeek.Core.Cameras;
@@ -606,6 +607,44 @@ internal static class SettingsMapper
     private static bool IsPresent(JsonElement? value) => value is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) };
 
     /// <summary>
+    /// The text of a string value; <see langword="false"/> for any other value and for a string that is no valid text
+    /// (e.g. a lone escaped surrogate), which <see cref="JsonElement.GetString"/> throws for. The raw overlay section is
+    /// read leniently, so such a value must be a warning, not an exception that makes the whole file unusable.
+    /// </summary>
+    private static bool TryGetText(JsonElement value, [NotNullWhen(true)] out string? text)
+    {
+        text = null;
+        if (value.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        try
+        {
+            text = value.GetString();
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+
+        return text is not null;
+    }
+
+    /// <summary>The property name, or <see langword="null"/> when it is no valid text (treated like an unknown property).</summary>
+    private static string? NameOf(JsonProperty property)
+    {
+        try
+        {
+            return property.Name;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
     /// The T-036 conversion (T-077 Q4): the item choices (<c>normal</c>, <c>mini</c>) are dropped, the result is the default
     /// layout mirrored into the old corner (<see cref="CameraOverlayLayout.FromLegacyCorner"/>). An invalid corner gives the
     /// default layout with a warning that does not echo it.
@@ -617,7 +656,7 @@ internal static class SettingsMapper
             return CameraOverlayLayout.Default;
         }
 
-        if (value.ValueKind == JsonValueKind.String && TryParseAnchor(value.GetString()!, out OverlayAnchor anchor) && OverlayAnchors.IsCorner(anchor))
+        if (TryGetText(value, out string? name) && TryParseAnchor(name, out OverlayAnchor anchor) && OverlayAnchors.IsCorner(anchor))
         {
             return CameraOverlayLayout.FromLegacyCorner(anchor);
         }
@@ -720,7 +759,7 @@ internal static class SettingsMapper
         JsonElement? visible = null;
         foreach (JsonProperty property in entry.EnumerateObject())
         {
-            switch (property.Name.ToUpperInvariant())
+            switch (NameOf(property)?.ToUpperInvariant())
             {
                 case "ID":
                     id = property.Value;
@@ -740,7 +779,7 @@ internal static class SettingsMapper
             }
         }
 
-        string? text = id is { ValueKind: JsonValueKind.String } value ? value.GetString()?.Trim() : null;
+        string? text = id is { } value && TryGetText(value, out string? raw) ? raw.Trim() : null;
         if (!OverlayWidgetIds.IsValid(text))
         {
             return false;
@@ -755,7 +794,7 @@ internal static class SettingsMapper
         OverlayWidgetPlacement fallback = CameraOverlayLayout.DefaultPlacement(id) ?? new OverlayWidgetPlacement(id, CameraOverlayLayout.MainAnchor);
         OverlayAnchor anchor = fallback.Anchor;
         if (values.Anchor is { } anchorValue && IsPresent(anchorValue)
-            && !(anchorValue.ValueKind == JsonValueKind.String && TryParseAnchor(anchorValue.GetString()!, out anchor)))
+            && !(TryGetText(anchorValue, out string? anchorName) && TryParseAnchor(anchorName, out anchor)))
         {
             anchor = fallback.Anchor;
             invalidValues++;
@@ -763,7 +802,7 @@ internal static class SettingsMapper
 
         OverlayWidgetSize size = fallback.Size;
         if (values.Size is { } sizeValue && IsPresent(sizeValue)
-            && !(sizeValue.ValueKind == JsonValueKind.String && TryParseWidgetSize(sizeValue.GetString()!, out size)))
+            && !(TryGetText(sizeValue, out string? sizeName) && TryParseWidgetSize(sizeName, out size)))
         {
             size = fallback.Size;
             invalidValues++;

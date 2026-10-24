@@ -140,6 +140,31 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
         Assert.Same(CameraOverlayLayout.Default, result.Settings.Printers[1].Camera.Overlay);
     }
 
+    [Fact]
+    public async Task TextThatCannotBeReadInTheOverlaySectionOnlyWarns()
+    {
+        // Lone escaped surrogates cannot be read as strings; the section is read leniently, so the rest of the file stays usable.
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(
+            FilePath,
+            """
+            { "version": 2, "pollingIntervalSeconds": 30, "printers": [
+              { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "192.168.0.226",
+                "camera": { "overlay": { "widgets": [ { "id": "\ud800" }, { "id": "status", "anchor": "\udc00" } ] } } },
+              { "id": "xl", "name": "XL", "connectionType": "PrusaLink", "address": "192.168.0.227",
+                "camera": { "overlay": { "corner": "\ud800" } } } ] }
+            """,
+            Ct);
+
+        SettingsLoadResult result = await _store.LoadAsync(Ct);
+
+        Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
+        Assert.Equal(TimeSpan.FromSeconds(30), result.Settings.PollingInterval);
+        Assert.Equal(["mk4", "xl"], result.Settings.Printers.Select(static printer => printer.Id));
+        Assert.All(result.Settings.Printers, static printer => Assert.Same(CameraOverlayLayout.Default, printer.Camera.Overlay));
+        Assert.Equal(3, result.Warnings.Count);
+    }
+
     // ---- SetCameraOverlayLayoutAsync: only the overlay section of one printer changes ----
 
     [Fact]
