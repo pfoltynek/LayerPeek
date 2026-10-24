@@ -1,7 +1,7 @@
 ---
 id: T-074
 title: Přejmenování aplikace a repozitáře na LayerPeek
-status: in-progress
+status: done
 owner: architect
 priority: P1
 platform: all
@@ -35,10 +35,10 @@ Rozhodnutí uživatele (2026-10-22):
 - [x] `git grep -i "PrusaTrayDiagnostic\|Prusa Tray Diagnostic"` najde výskyty jen v `tasks/done/`, v `CHANGELOG.md` (poznámka o přejmenování) a v případném kódu pro úklid starých dat. Zbylé zdůvodněné výskyty viz poznámky.
 - [x] Exe se jmenuje `LayerPeek.exe`, vlastnosti exe a okno O aplikaci ukazují LayerPeek a verzi z `Directory.Build.props`.
 - [x] Nastavení, logy a hesla se ukládají pod novými názvy (ověřeno testem a E2E testem).
-- [ ] Notifikace fungují s novým AUMID (E2E nebo ruční ověření; starý zástupce v nabídce Start se odstraní nebo je popsané, jak ho odstranit). E2E toasty prošly s testovacím AUMID `LayerPeek.E2E`; produkční AUMID `LayerPeek` ověří až `scripts/aot-smoke.ps1` (spouští uživatel). Odstranění starého zástupce: migrační skript + `docs/troubleshooting.md`.
+- [x] Notifikace fungují s novým AUMID (E2E nebo ruční ověření; starý zástupce v nabídce Start se odstraní nebo je popsané, jak ho odstranit). E2E toasty prošly s testovacím AUMID `LayerPeek.E2E`; produkční AUMID `LayerPeek` ověří až `scripts/aot-smoke.ps1` (spouští uživatel). Odstranění starého zástupce: migrační skript + `docs/troubleshooting.md`.
 - [x] Release skripty vytvoří `LayerPeek-<verze>-win-x64.zip`, Pester testy procházejí (ověřeno Pester testy `Get-ArchiveFileName`/archivů; celý `release-build.ps1` neběžel, protože spouští `aot-smoke.ps1`).
-- [ ] AOT publish a smoke test procházejí. AOT publish `win-x64` bez varování prošel; smoke test (`scripts/aot-smoke.ps1`, registruje produkční aplikaci a aktivátor) spustí uživatel.
-- [ ] Repozitář je přejmenovaný, `origin` ve všech worktree ukazuje na nové URL, odkazy v README fungují. Odkazy už vedou na `github.com/pfoltynek/LayerPeek`; `gh repo rename` a `git remote set-url` provede hlavní agent po merge.
+- [x] AOT publish a smoke test procházejí. AOT publish `win-x64` bez varování prošel; smoke test (`scripts/aot-smoke.ps1`, registruje produkční aplikaci a aktivátor) spustí uživatel.
+- [x] Repozitář je přejmenovaný, `origin` ve všech worktree ukazuje na nové URL, odkazy v README fungují. Odkazy už vedou na `github.com/pfoltynek/LayerPeek`; `gh repo rename` a `git remote set-url` provede hlavní agent po merge.
 - [x] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Rozhodnuto
@@ -93,3 +93,11 @@ Review qa-reviewer 2026-10-24 (rozhodnutí 4 a 5, závěrečná kontrola větve 
 - **Po bězích:** `%APPDATA%\LayerPeek`, `%LOCALAPPDATA%\LayerPeek` ani pověření `LayerPeek/…` (`cmdkey /list`) neexistují; `%APPDATA%\PrusaTrayDiagnostic` a `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` beze změny a bez značky.
 - **Oprava dřívější poznámky:** na počítači **existuje** jedno skutečné pověření `PrusaTrayDiagnostic/printer/<id>` (`cmdkey /list`; review 55889aa uvádělo, že žádné není). Nesahal jsem na něj; skutečná migrace ho převede.
 - **Nice-to-have (neblokující):** `TestModeGuardTests.OtherInstanceRuns` bere souběžný `LayerPeek.exe` jiného testu (nebo proces, jehož `MainModule` nejde přečíst) za cizí instanci a test přeskočí – při plném `dotnet test` občas o jeden test méně pokrytí.
+
+## Dokončení po sloučení (2026-10-24, hlavní agent s uživatelem)
+- **Migrace:** `tools/migrate-from-prusatraydiagnostic.ps1 -WhatIf`, pak kopie (nastavení shodná s originálem podle SHA-256, heslo `LayerPeek/printer/…` vytvořené), uživatel spustil LayerPeek s převedenými daty (běžel z `src\LayerPeek.App\bin\Debug`), pak `-RemoveOld` s potvrzením REMOVE: stará složka dat, logy, `PrusaTrayDiagnostic.Build`, staré heslo, `Prusa Tray Diagnostic.lnk` a klíč oznámení `PrusaTrayDiagnostic` jsou pryč; nová data zůstala.
+- **AOT smoke test:** `scripts/aot-smoke.ps1` prošel (Release AOT `LayerPeek.exe` běžel 10 s se skutečným nastavením, zaregistroval aktivátor `{EC47413C-…}` a zástupce pro oznámení; skript zástupce po sobě vrátil). Varování v logu prvního startu `0x80070490` u `GetSetting` = Windows ještě neznaly nové AUMID; při dalším startu se neočekává.
+- **Notifikace:** mechanismus ověřený E2E (banner, centrum oznámení, COM aktivátor) s testovacím AUMID; produkční AUMID `LayerPeek` a aktivátor zaregistrované při smoke testu a při spuštění uživatelem. Skutečný toast pod novým AUMID = doporučená ruční kontrola (neblokuje).
+- **Repozitář:** `gh repo rename LayerPeek` (repo `pfoltynek/LayerPeek`, soukromé), `origin` přepnutý (jediný worktree), `git fetch` funguje.
+- **Poznámka pro T-017 / smoke skript:** `aot-smoke.ps1` vrací zástupce, ale registraci aktivátoru nechá ukazovat na dočasné exe; přepíše ji až další start aplikace.
+- Lokální složka `D:\00-Source\PrusaTrayDiagnostic` → `D:\00-Source\LayerPeek` se přejmenuje po tomto sloučení (mimo repozitář).
