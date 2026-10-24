@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.Core.Monitoring;
+using LayerPeek.Core.Previews;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.PrusaLink;
@@ -261,6 +262,68 @@ public sealed class AppClientAgainstSimulatorTests : IAsyncDisposable
         {
             await Task.Delay(20, timeout.Token);
         }
+    }
+
+    [Fact]
+    public async Task PreviewsOfThePrintAreFetchedOnceAndKeptUntilTheNextPrint()
+    {
+        await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);
+        PrinterDefinition definition = await DefineAsync(printer, "sim");
+        PrusaLinkClient client = _services.GetRequiredService<PrusaLinkClientFactory>().Create(definition);
+        using PrintPreviewCache cache = new(_services.GetRequiredService<PrusaLinkPreviewFetcher>(), _clock, NullLogger<PrintPreviewCache>.Instance);
+
+        _clock.Advance(TimeSpan.FromMinutes(10));
+        PrinterSnapshot printing = await client.GetSnapshotAsync(Ct);
+        cache.Observe(printing);
+        PrintPreview? large = await cache.GetAsync(definition, printing.Job!, PrintPreviewSize.Large, Ct);
+        PrintPreview? small = await cache.GetAsync(definition, printing.Job!, PrintPreviewSize.Small, Ct);
+        int previewRequests = printer.PreviewRequestCount;
+
+        _clock.Advance(TimeSpan.FromMinutes(22));
+        PrinterSnapshot finished = await client.GetSnapshotAsync(Ct);
+        cache.Observe(finished);
+        PrintPreview? afterFinish = await cache.GetAsync(definition, finished.Job!, PrintPreviewSize.Large, Ct);
+        int previewRequestsAfterFinish = printer.PreviewRequestCount;
+
+        _clock.Advance(TimeSpan.FromMinutes(3));
+        PrinterSnapshot next = await client.GetSnapshotAsync(Ct);
+        cache.Observe(next);
+        int keptForNextJob = cache.Count;
+        PrintPreview? nextLarge = await cache.GetAsync(definition, next.Job!, PrintPreviewSize.Large, Ct);
+
+        Assert.Equal((380, 285), (large!.Width, large.Height));
+        Assert.Equal((16, 16), (small!.Width, small.Height));
+        Assert.Equal(PreviewImages.For(PrinterSimulation.FileOf(42), large: true), large.Png.ToArray());
+        Assert.Equal(PrinterState.Finished, finished.State);
+        Assert.Same(large, afterFinish);
+        // No new preview request after the end.
+        Assert.Equal(2, previewRequests);
+        Assert.Equal(previewRequests, previewRequestsAfterFinish);
+        Assert.Equal(43, next.Job!.Id);
+        Assert.Equal(0, keptForNextJob);
+        Assert.Equal(PreviewImages.For(PrinterSimulation.FileOf(43), large: true), nextLarge!.Png.ToArray());
+    }
+
+    [Fact]
+    public async Task FileWithoutPreviewHasNone()
+    {
+        await using SimulatedPrinter printer = await TestPrinters.StartAsync(_clock);
+        printer.PreviewsEnabled = false;
+        PrinterDefinition definition = await DefineAsync(printer, "sim");
+        PrusaLinkClient client = _services.GetRequiredService<PrusaLinkClientFactory>().Create(definition);
+        using PrintPreviewCache cache = new(_services.GetRequiredService<PrusaLinkPreviewFetcher>(), _clock, NullLogger<PrintPreviewCache>.Instance);
+
+        PrinterSnapshot snapshot = await client.GetSnapshotAsync(Ct);
+        PrintPreview? preview = await cache.GetAsync(definition, snapshot.Job!, PrintPreviewSize.Large, Ct);
+        int requests = printer.PreviewRequestCount;
+        PrintPreview? again = await cache.GetAsync(definition, snapshot.Job!, PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(snapshot.Job!.PreviewReference);
+        Assert.Null(preview);
+        Assert.Null(again);
+        // A missing preview is remembered for the job.
+        Assert.Equal(1, requests);
+        Assert.Equal(requests, printer.PreviewRequestCount);
     }
 
     private async Task<PrinterDefinition> DefineAsync(SimulatedPrinter printer, string id, string? password = null, string? userName = null)

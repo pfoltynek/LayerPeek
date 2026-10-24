@@ -11,8 +11,9 @@ namespace LayerPeek.PrusaLink;
 public static class PrusaLinkServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers <see cref="PrusaLinkClientFactory"/>, the web gateway (<see cref="IPrinterWebGateway"/>, T-028) and their
-    /// HTTP configurations. Requires an
+    /// Registers <see cref="PrusaLinkClientFactory"/>, the web gateway (<see cref="IPrinterWebGateway"/>, T-028), the
+    /// G-code preview fetcher (<see cref="PrusaLinkPreviewFetcher"/>, T-086; the app puts a
+    /// <see cref="Core.Previews.PrintPreviewCache"/> in front of it) and their HTTP configurations. Requires an
     /// <see cref="Core.Secrets.ISecretStore"/> registration (platform specific, done by the app).
     /// </summary>
     public static IServiceCollection AddPrusaLink(this IServiceCollection services)
@@ -67,8 +68,31 @@ public static class PrusaLinkServiceCollectionExtensions
             .SetHandlerLifetime(Timeout.InfiniteTimeSpan)
             .RemoveAllLoggers();
 
+        // G-code previews (T-086): a separate pool, so that a download never queues a monitoring poll behind it. The
+        // fetcher enforces its own total timeout (headers and streamed body), hence none here.
+        services.AddHttpClient(PrusaLinkPreviewFetcher.HttpClientName, static client => client.Timeout = Timeout.InfiniteTimeSpan)
+            .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler
+            {
+                // Previews are rare (about one per job and size); one connection keeps the printer's 3-request budget.
+                MaxConnectionsPerServer = 1,
+                PooledConnectionIdleTimeout = TimeSpan.FromSeconds(50),
+                PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+                ConnectTimeout = TimeSpan.FromSeconds(3),
+                AllowAutoRedirect = false,
+                UseCookies = false,
+                UseProxy = false,
+                AutomaticDecompression = System.Net.DecompressionMethods.None,
+            })
+            .SetHandlerLifetime(Timeout.InfiniteTimeSpan)
+            .RemoveAllLoggers();
+
         services.TryAddSingleton(TimeProvider.System);
         services.TryAddSingleton<PrusaLinkClientFactory>();
+        services.TryAddSingleton(static sp => new PrusaLinkPreviewFetcher(
+            sp.GetRequiredService<IHttpClientFactory>(),
+            sp.GetRequiredService<ISecretStore>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrusaLinkPreviewFetcher>>()));
         services.TryAddSingleton(static sp => new PrusaLinkWebGateway(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),

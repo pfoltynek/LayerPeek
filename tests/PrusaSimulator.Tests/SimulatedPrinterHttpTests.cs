@@ -258,7 +258,7 @@ public sealed class SimulatedPrinterHttpTests
 
         Assert.Equal(HttpStatusCode.OK, paused.StatusCode);
         Assert.Equal(HttpStatusCode.OK, offline.StatusCode);
-        Assert.Equal("{\"model\":\"7.1.0\",\"scenario\":\"paused\",\"online\":false,\"forced_offline\":true}", state);
+        Assert.Equal("{\"model\":\"7.1.0\",\"scenario\":\"paused\",\"online\":false,\"forced_offline\":true,\"previews\":true}", state);
         Assert.Equal(HttpStatusCode.OK, online.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, unknown.StatusCode);
         Assert.Equal(PrinterScenario.Paused, printer.Simulation.Scenario);

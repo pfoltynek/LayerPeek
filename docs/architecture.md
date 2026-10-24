@@ -80,7 +80,15 @@ Jediný `Border` s řádky z T-036 nahradí systém widgetů. Stav je **plán**.
     - začne po dokončeném i zastaveném tisku, skončí při dalším tisku, offline nebo znovu zapnutém topení trysky,
     - práh trysky je u tiskárny (30–100 °C, výchozí 50 °C).
   - **Událost „vychladlo“** jde přes `INotificationService` jako nový `PrintEventKind` (T-080). Ve výchozím stavu je vypnutá a je informační (zvuk jen při nastavení „všechny“). Nepřijde, když tisk skončil už pod prahem.
-  - **Náhled G-code** (T-086): abstrakce v Core, PrusaLink ho stahuje z `/thumb/s|l`. Cache je jen v paměti a náhled se drží až do dalšího tisku. Do App přijdou jen bajty PNG a dekóduje je App.
+  - **Náhled G-code** (T-086, hotovo; zobrazení T-087):
+    - Odkaz na náhled nese `PrintJob.PreviewReference` (`Core/Previews/PrintPreviewReference`). Je neprůhledný, rozumí mu jen klient, který ho vytvořil. PrusaLink ho plní z `file.refs` v `/api/v1/job`, spolu s názvem souboru jednou na úlohu.
+    - `IPrintPreviewSource.GetAsync(tiskárna, úloha, velikost)` vrací `PrintPreview?`: bajty PNG a rozměry z hlavičky. Chyby se nevyhazují, znamenají „bez náhledu“. Dekódování na bitmapu dělá App.
+    - Implementace je `Core/Previews/PrintPreviewCache` nad `IPrintPreviewFetcher` (PrusaLink: `PrusaLinkPreviewFetcher`, registrovaný v `AddPrusaLink`). Cache je jen v paměti, nic na disk.
+    - Stahuje se líně při prvním `GetAsync`, jednou na úlohu a velikost. Souběžné požadavky sdílí jedno stažení, každý volající může čekání zrušit sám.
+    - Náhled zůstává po dokončení nebo zastavení tisku i bez úlohy (nečinná / offline tiskárna) až do další úlohy. `Observe(snapshot)` ho uvolní, jakmile snapshot ukáže jinou úlohu. Další tisk téhož souboru se ptá s `If-None-Match` (ETag) a při `304` použije uložený náhled.
+    - Chybějící náhled (`404`) se pamatuje pro úlohu. Přechodná chyba se zkusí znovu nejdřív po 30 s.
+    - `RetainOnly` / `Remove` zahodí odebrané tiskárny a tiskárny se změněnou adresou nebo typem připojení, běžící stažení zruší. V cache je nejvýš 32 tiskáren (nejdéle nepoužitá jde pryč).
+    - Zapojení do composition rootu a volání `Observe` / `RetainOnly` dělá App (T-087).
 - **Malý náhled (T-089, T-090):**
   - Údaje nejsou přes obraz, ale v informačním pásu **pod** obrazem. Obraz má poměr streamu, výchozí 16:9.
   - Velikost 320×180 z nastavení je velikost obrazu, pás se přičte. Minimální šířka je 240.

@@ -19,14 +19,18 @@ namespace LayerPeek.Simulator.Printers;
 /// <summary>
 /// One simulated printer: a Kestrel server with the PrusaLink endpoints the app uses (<c>/api/version</c>,
 /// <c>/api/v1/info</c>, <c>/api/v1/status</c>, <c>/api/v1/job</c>), Digest login like the firmware, and a small status
-/// page at <c>/</c> (read-only, served without login as the firmware serves its web). Control endpoints for scripts and
+/// page at <c>/</c> (read-only, served without login as the firmware serves its web). G-code previews of the job files at
+/// <c>/thumb/s/usb/…</c> and <c>/thumb/l/usb/…</c> (T-086) with login, ETag and 304 like the firmware; 404 while
+/// <see cref="PreviewsEnabled"/> is off. Control endpoints for scripts and
 /// tests, answered also while offline, without login on loopback and with the PrusaLink login otherwise
 /// (<see cref="SimulatedPrinterOptions.ControlRequiresLogin"/>): <c>GET /_simulator/state</c>, <c>POST /_simulator/scenario/{name}</c>,
-/// <c>POST /_simulator/offline</c>, <c>POST /_simulator/online</c>.
+/// <c>POST /_simulator/offline</c>, <c>POST /_simulator/online</c>, <c>POST /_simulator/previews/on</c>,
+/// <c>POST /_simulator/previews/off</c>.
 /// </summary>
 public sealed class SimulatedPrinter : IAsyncDisposable
 {
     private const string ControlPrefix = "/_simulator/";
+    private const string PreviewPrefix = "/thumb/";
     private const string JsonType = "application/json";
 
     private readonly SimulatedPrinterOptions _options;
@@ -36,11 +40,14 @@ public sealed class SimulatedPrinter : IAsyncDisposable
     private readonly string _serial;
     private WebApplication? _app;
     private int _requests;
+    private int _previewRequests;
     private int _disposed;
+    private volatile bool _previewsEnabled;
 
     private SimulatedPrinter(SimulatedPrinterOptions options)
     {
         _options = options;
+        _previewsEnabled = options.Previews;
         _digest = new DigestVerifier(options.UserName, options.Password, options.TimeProvider);
         _hostname = options.Hostname ?? options.Model.Hostname;
         _serial = "SN-SIM-" + options.Model.Key.ToUpperInvariant();
@@ -49,6 +56,16 @@ public sealed class SimulatedPrinter : IAsyncDisposable
     }
 
     public PrinterSimulation Simulation { get; }
+
+    /// <summary>
+    /// Whether the job files contain PNG previews; off, <c>/thumb/</c> answers 404 "File doesn't contain preview" as the
+    /// firmware does for a file without one (e.g. sliced with QOI previews only).
+    /// </summary>
+    public bool PreviewsEnabled
+    {
+        get => _previewsEnabled;
+        set => _previewsEnabled = value;
+    }
 
     public SimulatedModel Model => _options.Model;
 
@@ -66,6 +83,9 @@ public sealed class SimulatedPrinter : IAsyncDisposable
 
     /// <summary>Requests received (including control and offline ones).</summary>
     public int RequestCount => Volatile.Read(ref _requests);
+
+    /// <summary>Logged-in <c>/thumb/</c> requests (answered with a preview, 304 or 404).</summary>
+    public int PreviewRequestCount => Volatile.Read(ref _previewRequests);
 
     /// <summary>Starts listening.</summary>
     /// <exception cref="IOException">The port cannot be used (e.g. it is taken).</exception>
@@ -163,6 +183,17 @@ public sealed class SimulatedPrinter : IAsyncDisposable
             return;
         }
 
+        if (path.StartsWith(PreviewPrefix, StringComparison.Ordinal))
+        {
+            // Like the firmware: the /thumb/ namespace needs the login before anything else is checked.
+            if (await AuthorizeAsync(context).ConfigureAwait(false))
+            {
+                await HandlePreviewAsync(context, path[PreviewPrefix.Length..]).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
         if (!path.StartsWith("/api/", StringComparison.Ordinal))
         {
             await HandleWebAsync(context, path).ConfigureAwait(false);
@@ -211,6 +242,56 @@ public sealed class SimulatedPrinter : IAsyncDisposable
                 await WriteErrorAsync(context, StatusCodes.Status404NotFound, "404: Not Found").ConfigureAwait(false);
                 break;
         }
+    }
+
+    /// <summary>
+    /// <c>/thumb/{s|l}/usb/{file}</c> as Buddy's <c>link_content/previews.cpp</c> and <c>nhttp/gcode_preview.cpp</c>:
+    /// GET only, unknown size letter or file 404, file without preview 404 "File doesn't contain preview",
+    /// matching If-None-Match 304, otherwise the PNG with its ETag. <paramref name="rest"/> is the decoded path after
+    /// <c>/thumb/</c>.
+    /// </summary>
+    private async Task HandlePreviewAsync(HttpContext context, string rest)
+    {
+        Interlocked.Increment(ref _previewRequests);
+        bool large = rest.StartsWith("l/", StringComparison.Ordinal);
+        if (!large && !rest.StartsWith("s/", StringComparison.Ordinal))
+        {
+            await WriteErrorAsync(context, StatusCodes.Status404NotFound, "404: Not Found", "Thumbnail size specification not recognized").ConfigureAwait(false);
+            return;
+        }
+
+        if (!HttpMethods.IsGet(context.Request.Method))
+        {
+            await WriteErrorAsync(context, StatusCodes.Status405MethodNotAllowed, "405: Method Not Allowed").ConfigureAwait(false);
+            return;
+        }
+
+        string filePath = rest[1..];
+        SimulatedFile? file = PrinterSimulation.AllFiles.FirstOrDefault(f => filePath == "/usb/" + f.Name);
+        if (file is null)
+        {
+            await WriteErrorAsync(context, StatusCodes.Status404NotFound, "404: Not Found").ConfigureAwait(false);
+            return;
+        }
+
+        if (!PreviewsEnabled)
+        {
+            await WriteErrorAsync(context, StatusCodes.Status404NotFound, "404: Not Found", "File doesn't contain preview").ConfigureAwait(false);
+            return;
+        }
+
+        string etag = PreviewImages.ETag(file);
+        context.Response.Headers.ETag = etag;
+        if (context.Request.Headers.IfNoneMatch.Contains(etag))
+        {
+            context.Response.StatusCode = StatusCodes.Status304NotModified;
+            return;
+        }
+
+        byte[] png = PreviewImages.For(file, large);
+        context.Response.StatusCode = StatusCodes.Status200OK;
+        context.Response.ContentType = "image/png";
+        await context.Response.Body.WriteAsync(png, context.RequestAborted).ConfigureAwait(false);
     }
 
     /// <summary>Digest (or X-Api-Key) like the firmware; answers 401 with a challenge and returns false when missing or wrong.</summary>
@@ -276,6 +357,10 @@ public sealed class SimulatedPrinter : IAsyncDisposable
         {
             Simulation.SetOffline(false);
         }
+        else if (post && command is "previews/on" or "previews/off")
+        {
+            PreviewsEnabled = command == "previews/on";
+        }
         else if (post && command.StartsWith("scenario/", StringComparison.Ordinal)
             && PrinterScenarios.TryParse(command["scenario/".Length..], out PrinterScenario scenario, out bool offline))
         {
@@ -302,7 +387,7 @@ public sealed class SimulatedPrinter : IAsyncDisposable
 
     private string StateJson() => string.Create(
         CultureInfo.InvariantCulture,
-        $"{{\"model\":\"{_options.Model.Code}\",\"scenario\":\"{PrinterScenarios.Format(Simulation.Scenario)}\",\"online\":{(Simulation.IsOnline ? "true" : "false")},\"forced_offline\":{(Simulation.IsForcedOffline ? "true" : "false")}}}");
+        $"{{\"model\":\"{_options.Model.Code}\",\"scenario\":\"{PrinterScenarios.Format(Simulation.Scenario)}\",\"online\":{(Simulation.IsOnline ? "true" : "false")},\"forced_offline\":{(Simulation.IsForcedOffline ? "true" : "false")},\"previews\":{(PreviewsEnabled ? "true" : "false")}}}");
 
     private static Task WriteJsonAsync(HttpContext context, string json)
     {
@@ -312,14 +397,14 @@ public sealed class SimulatedPrinter : IAsyncDisposable
     }
 
     /// <summary>Like the firmware: JSON only when application/json is the first accepted type, otherwise a short HTML page.</summary>
-    private static Task WriteErrorAsync(HttpContext context, int status, string title)
+    private static Task WriteErrorAsync(HttpContext context, int status, string title, string message = "")
     {
         context.Response.StatusCode = status;
         string accept = context.Request.Headers.Accept.ToString();
         if (accept.TrimStart().StartsWith(JsonType, StringComparison.OrdinalIgnoreCase))
         {
             context.Response.ContentType = JsonType;
-            return context.Response.WriteAsync(PrusaLinkJson.Error(title), Encoding.UTF8, context.RequestAborted);
+            return context.Response.WriteAsync(PrusaLinkJson.Error(title, message), Encoding.UTF8, context.RequestAborted);
         }
 
         context.Response.ContentType = "text/html";

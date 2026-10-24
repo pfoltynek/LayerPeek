@@ -18,14 +18,15 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 | Endpoint | Kdy | Poznámka |
 |---|---|---|
 | `GET /api/v1/status` | každý polling | stav, teploty, osa Z, rychlost/průtok, ventilátory; objekt `job` (id, progress %, `time_remaining` s, `time_printing` s) jen při tisku/pauze |
-| `GET /api/v1/job` | jen při změně `job.id` | název souboru (`file.display_name`); **204 No Content**, když úloha neběží (i ve stavu FINISHED/STOPPED) |
+| `GET /api/v1/job` | jen při změně `job.id` | název souboru (`file.display_name`) a odkazy na náhled (`file.refs`); **204 No Content**, když úloha neběží (i ve stavu FINISHED/STOPPED) |
+| `GET /thumb/s/…`, `/thumb/l/…` | jen když UI náhled chce, nejvýš jednou na úlohu a velikost (T-086) | PNG náhled G-code, viz „Náhled G-code“ |
 | `GET /api/version` | test spojení; jednou za běh monitoringu (model, T-039) | `api`, `hostname`; `firmware` a `printer` až od 6.5 |
 | `GET /api/v1/info` | test spojení | `mmu` (bool), `nozzle_diameter`, `hostname`, `serial` |
 
 - Kamery (`/api/v1/cameras`) Buddy nemá a vrací 404.
 - **MMU:** jedinou informací o MMU je `info.mmu`. Stav slotů API neposkytuje.
 
-## Soubor úlohy: odkazy na náhled a metadata (průzkum 2026-10-24, klient zatím nepoužívá, T-078 / T-086)
+## Soubor úlohy: odkazy na náhled a metadata (průzkum 2026-10-24, T-078 / T-086)
 
 - `GET /api/v1/job` vrací ve firmwaru Buddy (`get_job_v1` v `lib/WUI/link_content/basic_gets.cpp`) objekt `file` s poli `refs`, `name` (8.3 název), `display_name`, `path` (složka), `size` a `m_timestamp`. Pole `size` a `m_timestamp` jsou jen při úspěšném `stat`. `refs` obsahuje:
   - `icon`: `/thumb/s<cesta>`,
@@ -40,16 +41,60 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
   - `printer_model` může obsahovat tečku (`MK3.9S`) i podtržítko (`COREONE_INDX4T`, `COREONE_INDX8T`),
   - `print_time` je výstup `short_time()` ze zdrojů PrusaSliceru (`src/libslic3r/src/libslic3r/utils.cpp`): `1d2h3m`, `2h51m`, `45m`, krátké tisky `42s`,
   - víc materiálů je v `printing_filament_types` oddělených čárkou (`PLA,PETG`), parser přijme i středník.
-- **Náhled** (`lib/WUI/nhttp/gcode_preview.cpp`):
-  - Vrací jen PNG (`image/png`).
-  - Podporuje ETag a odpověď `If-None-Match` → `304`.
-  - Soubor bez PNG náhledu → `404` („File doesn't contain preview“).
-  - Rozměry pro `s` / `l` určuje směrování `/thumb/`. Zatím **neověřeno**, ověří T-086.
+- Náhled G-code popisuje oddíl „Náhled G-code“ níže.
 - Zdroje:
   - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/link_content/basic_gets.cpp
-  - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/nhttp/gcode_preview.cpp
   - https://raw.githubusercontent.com/prusa3d/Prusa-Link-Web/master/spec/openapi.yaml
-  - https://help.prusa3d.com/article/model-preview_648687 (PNG / QOI náhledy v G-code)
+
+## Náhled G-code (`/thumb/s`, `/thumb/l`, T-086)
+
+Ověřeno ve zdrojích firmwaru na `master` (commit `1ce23f33`, 2026-08-27). Na skutečné tiskárně zatím neověřeno.
+
+**Odkazy:**
+- Přicházejí v `file.refs` z `GET /api/v1/job`: `icon` = `/thumb/s` + cesta, `thumbnail` = `/thumb/l` + cesta.
+- Cesta je krátká (8.3, SFN), např. `/usb/BENCHY~1.BGC`. Firmware ji v JSON jen escapuje (`JSONIFY_STR`), pro URL ji **nekóduje**. Požadavek naopak URL dekóduje (`RequestParser::uri_filename`, `lib/WUI/nhttp/req_parser.cpp`).
+- Po skončení tisku vrací `/api/v1/job` `204` a odkazy už nepřijdou. Náhled se proto musí stáhnout během tisku.
+
+**Směrování** (`lib/WUI/link_content/previews.cpp`):
+- Prefix `/thumb/` vyžaduje přihlášení (Digest) dřív než cokoli jiného.
+- Písmeno za prefixem určuje rozměr. Jiné písmeno vrátí `404` „Thumbnail size specification not recognized“.
+- Jiná metoda než GET vrátí `405`, neexistující soubor `404`.
+
+**Rozměry** (ověřeno: `previews.cpp`, výběr obrázku v `src/common/gcode/gcode_reader_binary.cpp` a `gcode_reader_plaintext.cpp`):
+
+| Odkaz | Požadavek firmwaru | Co se vrátí |
+|---|---|---|
+| `/thumb/s` | `width = 16`, `height = 16`, `allow_larger = false` | PNG přesně **16 × 16 px**, jinak `404` |
+| `/thumb/l` | `width = 17`, `height = 17`, `allow_larger = true` | **první** PNG v souboru s oběma stranami aspoň **17 px** |
+
+- Rozměr `l` tedy není pevný, určuje ho nastavení `thumbnails` v profilu PrusaSliceru. Všechny profily Prusa pro tiskárny s firmwarem Buddy (MINI, MK3.5/3.9/4, XL, Core One, Core One L) v bundlu 2.5.13 mají `… 380x285/PNG`. `/thumb/l` z nich proto vrátí **380 × 285 px**.
+  - Zdroj: https://github.com/prusa3d/PrusaSlicer-settings-prusa-fff/blob/main/PrusaResearch/2.5.13.ini, klíč `thumbnails` (ověřeno 2026-10-24).
+- Tytéž profily mají 16 × 16 jen jako **QOI** (`16x16/QOI`). `/thumb/s` vrací jen PNG, takže pro soubory ze standardních profilů vrátí **404**. Malý náhled existuje jen u vlastních profilů s `16x16/PNG`.
+
+**Odpověď** (`lib/WUI/nhttp/gcode_preview.cpp`, `headers.cpp`):
+- Jen PNG (`Content-Type: image/png`), tělo chunked (bez `Content-Length`).
+- `ETag` je číslo v uvozovkách (`"%u"`) spočítané z `stat` souboru (inode, velikost, `mtime`, `ctime`; `compute_etag`). Stejný soubor má stejný ETag i u další úlohy.
+- `If-None-Match` firmware čte jako číslo (číslice, ostatní znaky ignoruje). Při shodě vrátí `304` s ETagem a bez těla.
+- Soubor bez PNG náhledu požadované velikosti (nebo chyba čtení) → `404` „File doesn't contain preview“.
+
+**V aplikaci:**
+- `PrusaLinkClient` načte odkazy spolu s názvem souboru jednou za úlohu a předá je jako `PrintJob.PreviewReference` (`PrusaLinkPreviewReference`). Ten drží cesty bez úvodního `/` a s URL kódovanými segmenty (mezery, Unicode, `%`), takže se rozloží i pod prefixem reverzní proxy.
+  - Odkaz s `?`, `#`, `\`, segmenty `.`/`..`, prázdným segmentem, řídicími znaky nebo osamocenými surrogaty se zahodí. Takový odkaz pak náhled nemá.
+- `PrusaLinkPreviewFetcher` stahuje přes vlastní pojmenovaný `HttpClient` `PrusaLink.Preview` (1 spojení na tiskárnu, odděleně od pollingu).
+  - Digest: přihlášení je pro každé stažení nové, takže stojí jednu výzvu `401` navíc. Náhled se stahuje zhruba jednou na úlohu a velikost.
+  - Limity: celkový timeout 10 s (hlavičky i tělo), nejvýš 512 KB. Limit se hlídá **během čtení**: delší tělo se po 512 KB + 1 B přestane číst a zahodí. Větší `Content-Length` se odmítne bez čtení těla.
+  - Kontroly: `Content-Type: image/png`, signatura PNG a hlavička `IHDR` s rozměry 1–2048 px (`PrintPreview.FromPng`). Obrázek se nedekóduje.
+  - `404` = bez náhledu, bez záznamu v logu. Jiný stav, timeout, nedostupná tiskárna a chyba hesla = přechodná chyba, debug zpráva jen s id tiskárny, velikostí a důvodem. Adresa, cesta, heslo ani text výjimky v logu nejsou.
+- Cache (`Core/Previews/PrintPreviewCache`) je jen v paměti, popis v [../architecture.md](../architecture.md) (widgety, „Náhled G-code“).
+
+**Zdroje:**
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/link_content/previews.cpp
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/nhttp/gcode_preview.cpp
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/nhttp/headers.cpp (`write_headers`, `compute_etag`)
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/nhttp/req_parser.cpp (`If-None-Match`, `uri_filename`)
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/src/common/gcode/gcode_reader_binary.cpp (`stream_thumbnail_start`)
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/src/common/gcode/gcode_reader_plaintext.cpp (`IsBeginThumbnail`)
+- https://help.prusa3d.com/article/model-preview_648687 (PNG / QOI náhledy v G-code)
 
 ## Model tiskárny (`/api/version`, pole `printer`, T-039)
 

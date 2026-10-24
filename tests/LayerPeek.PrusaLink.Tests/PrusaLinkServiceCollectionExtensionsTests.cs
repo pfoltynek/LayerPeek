@@ -25,6 +25,24 @@ public class PrusaLinkServiceCollectionExtensionsTests
     }
 
     [Fact]
+    public void AddPrusaLinkProvidesThePreviewFetcherOnItsOwnClient()
+    {
+        ServiceCollection services = new();
+        services.AddLogging();
+        services.AddSingleton<ISecretStore, InMemorySecretStore>();
+        services.AddPrusaLink();
+        using ServiceProvider provider = services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+
+        PrusaLinkPreviewFetcher fetcher = provider.GetRequiredService<PrusaLinkPreviewFetcher>();
+        HttpClient previewClient = provider.GetRequiredService<IHttpClientFactory>().CreateClient(PrusaLinkPreviewFetcher.HttpClientName);
+
+        Assert.Same(fetcher, provider.GetRequiredService<PrusaLinkPreviewFetcher>());
+        Assert.NotEqual(PrusaLinkClientFactory.HttpClientName, PrusaLinkPreviewFetcher.HttpClientName);
+        // The fetcher's own timeout covers the streamed body as well.
+        Assert.Equal(Timeout.InfiniteTimeSpan, previewClient.Timeout);
+    }
+
+    [Fact]
     public void FactoryRejectsOtherConnectionTypes()
     {
         ServiceCollection services = new();

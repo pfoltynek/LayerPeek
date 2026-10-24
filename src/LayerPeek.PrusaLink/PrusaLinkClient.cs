@@ -28,7 +28,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
     private readonly ApiUris? _uris;
 
     // Poll state, touched only by GetSnapshotAsync.
-    private JobFileName? _jobFileName;
+    private JobDetails? _jobDetails;
     private PrintJob? _lastJob;
 
     public PrusaLinkClient(HttpClient httpClient, PrinterDefinition printer, ISecretStore secretStore, TimeProvider timeProvider, ILogger<PrusaLinkClient> logger)
@@ -163,11 +163,12 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
     {
         if (statusJob is not null)
         {
-            string? fileName = await GetFileNameAsync(statusJob.Id, cancellationToken).ConfigureAwait(false);
+            JobDetails? details = await GetJobDetailsAsync(statusJob.Id, cancellationToken).ConfigureAwait(false);
             return _lastJob = new PrintJob
             {
                 Id = statusJob.Id,
-                FileName = fileName,
+                FileName = details?.FileName,
+                PreviewReference = details?.Preview,
                 ProgressPercent = statusJob.Progress ?? 0,
                 Elapsed = Seconds(statusJob.TimePrinting),
                 Remaining = Seconds(statusJob.TimeRemaining),
@@ -186,22 +187,25 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
                 return _lastJob = _lastJob is null or { Remaining: null } ? _lastJob : _lastJob with { Remaining = null };
             default:
                 _lastJob = null;
-                _jobFileName = null;
+                _jobDetails = null;
                 return null;
         }
     }
 
-    /// <summary>File name of the job; requested once per job id and cached. Failures leave it unknown and are retried next poll.</summary>
-    private async Task<string?> GetFileNameAsync(long? jobId, CancellationToken cancellationToken)
+    /// <summary>
+    /// File name and preview reference of the job; requested once per job id and cached (the reference instance too, so
+    /// that the snapshots of one job carry the same one). Failures leave both unknown and are retried next poll.
+    /// </summary>
+    private async Task<JobDetails?> GetJobDetailsAsync(long? jobId, CancellationToken cancellationToken)
     {
         if (jobId is null)
         {
             return null;
         }
 
-        if (_jobFileName is { } cached && cached.JobId == jobId)
+        if (_jobDetails is { } cached && cached.JobId == jobId)
         {
-            return cached.FileName;
+            return cached;
         }
 
         try
@@ -209,9 +213,10 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
             ApiResult<JobResponse> job = await GetAsync(_uris!.Job, PrusaLinkJsonContext.Default.JobResponse, cancellationToken).ConfigureAwait(false);
             if (job.Failure is null && job.Value is { } value && (value.Id is null || value.Id == jobId))
             {
-                string? fileName = value.File?.DisplayName ?? value.File?.Name;
-                _jobFileName = new JobFileName(jobId.Value, fileName);
-                return fileName;
+                return _jobDetails = new JobDetails(
+                    jobId.Value,
+                    value.File?.DisplayName ?? value.File?.Name,
+                    PrusaLinkPreviewReference.FromRefs(value.File?.Refs));
             }
         }
         catch (Exception ex) when (ToFailure(ex, cancellationToken) is not null)
@@ -225,10 +230,14 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
     private async Task<ApiResult<T>> GetAsync<T>(Uri uri, JsonTypeInfo<T> typeInfo, CancellationToken cancellationToken)
         where T : class
     {
-        (HttpResponseMessage? response, AuthenticationError authenticationError) = await SendAuthenticatedAsync(uri, cancellationToken).ConfigureAwait(false);
+        // Firmware answers errors as JSON only when application/json is the first accepted type.
+        // ResponseContentRead: HttpClient.Timeout then covers the body too, and a connection dropped mid-body is reported
+        // as HttpRequestException. Buffering a sub-kilobyte body costs nothing worth streaming for.
+        (HttpResponseMessage? response, ChallengeResult refusal) = await DigestRequests.GetAsync(
+            _httpClient, _authenticator, uri, "application/json", ifNoneMatch: null, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
         if (response is null)
         {
-            return ApiResult<T>.Fail(PrinterState.Unauthorized, authenticationError.Message, authenticationError.Reason);
+            return ApiResult<T>.Fail(PrinterState.Unauthorized, refusal.Error!, refusal.Reason);
         }
 
         using (response)
@@ -255,57 +264,6 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
                     return ApiResult<T>.Fail(PrinterState.Unknown, string.Create(CultureInfo.InvariantCulture, $"The printer answered with HTTP {code}."), PrusaLinkFailure.UnexpectedResponse);
             }
         }
-    }
-
-    /// <summary>
-    /// Sends a GET with cached digest credentials and answers 401 challenges: at most twice, and the second time only when
-    /// the first one reused the cached password (stale nonce), so that a password changed at the same moment is re-read.
-    /// A final 401 is returned as is. When a challenge cannot be answered, the response is null and the error says why
-    /// (the error is only meaningful then).
-    /// </summary>
-    private async Task<(HttpResponseMessage? Response, AuthenticationError AuthenticationError)> SendAuthenticatedAsync(Uri uri, CancellationToken cancellationToken)
-    {
-        HttpResponseMessage response = await SendOnceAsync(uri, cancellationToken).ConfigureAwait(false);
-        for (int round = 0; round < 2 && response.StatusCode == HttpStatusCode.Unauthorized; round++)
-        {
-            ChallengeResult challenge;
-            try
-            {
-                challenge = await _authenticator.AcceptChallengeAsync(response.Headers.WwwAuthenticate, cancellationToken).ConfigureAwait(false);
-            }
-            finally
-            {
-                response.Dispose();
-            }
-
-            if (challenge.Error is not null)
-            {
-                return (null, new AuthenticationError(challenge.Error, challenge.Reason));
-            }
-
-            response = await SendOnceAsync(uri, cancellationToken).ConfigureAwait(false);
-            if (challenge.PasswordReloaded)
-            {
-                break;
-            }
-        }
-
-        return (response, default);
-    }
-
-    private async Task<HttpResponseMessage> SendOnceAsync(Uri uri, CancellationToken cancellationToken)
-    {
-        using HttpRequestMessage request = new(HttpMethod.Get, uri);
-        // Firmware answers errors as JSON only when application/json is the first accepted type.
-        request.Headers.TryAddWithoutValidation("Accept", "application/json");
-        if (_authenticator.GetAuthorization(HttpMethod.Get, uri.PathAndQuery) is { } authorization)
-        {
-            request.Headers.TryAddWithoutValidation("Authorization", authorization);
-        }
-
-        // ResponseContentRead: HttpClient.Timeout then covers the body too, and a connection dropped mid-body is reported
-        // as HttpRequestException. Buffering a sub-kilobyte body costs nothing worth streaming for.
-        return await _httpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Maps expected exceptions to a failure; returns null (rethrow) for caller cancellation and anything unexpected.</summary>
@@ -406,11 +364,9 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
         public Uri Info { get; } = new(baseUri, "api/v1/info");
     }
 
-    private sealed record JobFileName(long JobId, string? FileName);
+    private sealed record JobDetails(long JobId, string? FileName, PrusaLinkPreviewReference? Preview);
 
     private readonly record struct Failure(PrinterState State, string Message, PrusaLinkFailure Reason);
-
-    private readonly record struct AuthenticationError(string Message, PrusaLinkFailure Reason);
 
     private readonly record struct ApiResult<T>(T? Value, Failure? Failure)
         where T : class

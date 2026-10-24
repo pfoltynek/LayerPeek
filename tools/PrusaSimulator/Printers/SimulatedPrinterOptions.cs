@@ -48,6 +48,9 @@ public sealed record SimulatedPrinterOptions
 
     public OfflineMode OfflineMode { get; init; } = OfflineMode.Drop;
 
+    /// <summary>Whether the job files contain PNG previews (<c>/thumb/s</c>, <c>/thumb/l</c>); see <see cref="SimulatedPrinter.PreviewsEnabled"/>.</summary>
+    public bool Previews { get; init; } = true;
+
     /// <summary>
     /// Whether the control endpoints (<c>/_simulator/*</c>) need the PrusaLink login. Null (default): only when
     /// <see cref="Address"/> is not a loopback address (see <see cref="IsLoopbackOnly"/>), so that nobody else in the network
