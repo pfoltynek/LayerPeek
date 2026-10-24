@@ -48,8 +48,8 @@ released, so the app does not migrate anything; developers who ran the old build
 - Windows installer (Velopack): installs for the current user without administrator rights, adds a Start menu
   shortcut, and its uninstall removes the app's notifications, notification settings and system registrations (settings
   and passwords stay). A ZIP is still available.
-- "Start after signing in to Windows" option (off by default) and "Offer pre-release versions" option in the new
-  Startup and updates tab of the settings.
+- "Start automatically when I sign in to Windows" option (installed version only, off by default) and "Offer
+  pre-release versions" option in the new Startup and updates tab of the settings.
 
 ### Fixed
 
