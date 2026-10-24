@@ -63,6 +63,28 @@ internal static class SystemChangeWatchdog
         return Convert.ToInt32(result["ProcessId"], CultureInfo.InvariantCulture);
     }
 
+    /// <summary>
+    /// Waits until no watchdog of the process <paramref name="processId"/> runs any more. Its restore takes every entry of
+    /// a process that is gone, not only its own (T-065), so a test that kills its next child right after the first
+    /// watchdog removed its own entry would lose that child's entry to it (T-073: the start cleanup test of a switched-off
+    /// monitor found nothing left to restore).
+    /// </summary>
+    public static async Task WaitUntilGoneAsync(int processId, TimeSpan timeout)
+    {
+        string query = string.Create(
+            CultureInfo.InvariantCulture,
+            $"SELECT ProcessId FROM Win32_Process WHERE Name = 'pwsh.exe' AND CommandLine LIKE '%-RestoreOnly -AfterProcess {processId}'");
+        await Wait.UntilAsync(
+            () =>
+            {
+                using ManagementObjectSearcher searcher = new(query);
+                using ManagementObjectCollection found = searcher.Get();
+                return found.Count == 0;
+            },
+            timeout,
+            $"the watchdog of the process {processId} to end");
+    }
+
     internal static string? FindOnPath(string file)
     {
         foreach (string folder in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries))

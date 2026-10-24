@@ -239,8 +239,22 @@ function Invoke-TestPass([string] $Name, [string] $Results, [string] $App) {
     $passExitCode = 1
     $counts = $null
     try {
-        dotnet run --project $tests --no-build -- @filters -result-xml $report | Out-Host
-        $passExitCode = $LASTEXITCODE
+        # Started as a process of its own that writes straight to this console: a pipe (e.g. `| Out-Host`, needed to keep
+        # the output out of the function's result) would wait for every process that inherited it, and a test app left
+        # running by a killed test process would hang the script before its restore (T-073).
+        $start = [Diagnostics.ProcessStartInfo]::new('dotnet')
+        foreach ($argument in @('run', '--project', $tests, '--no-build', '--') + $filters + @('-result-xml', $report)) {
+            $start.ArgumentList.Add($argument)
+        }
+        $start.UseShellExecute = $false
+        $process = [Diagnostics.Process]::Start($start)
+        try {
+            $process.WaitForExit()
+            $passExitCode = $process.ExitCode
+        }
+        finally {
+            $process.Dispose()
+        }
         $counts = Get-TestPassCounts -Path $report
         if ((Test-Path -LiteralPath $report) -and (Test-Path -LiteralPath $Results)) {
             Copy-Item -LiteralPath $report -Destination (Join-Path $Results 'test-results.xml') -Force

@@ -171,7 +171,9 @@ public sealed class RunE2EScriptTests
 
         // T-073: both passes run the same selection (-Class / -Method), the second against the Debug Native AOT exe.
         Assert.Contains("RunE2E.Results.psm1", script, StringComparison.Ordinal);
-        Assert.Contains("dotnet run --project $tests --no-build -- @filters -result-xml $report", script, StringComparison.Ordinal);
+        Assert.Contains("@('run', '--project', $tests, '--no-build', '--') + $filters + @('-result-xml', $report)", script, StringComparison.Ordinal);
+        // Not through a pipe: a test app left by a killed test process would hang the script before its restore.
+        Assert.Contains("$process.WaitForExit()", script, StringComparison.Ordinal);
         Assert.Contains("Invoke-TestPass -Name 'Debug exe' -Results $results", script, StringComparison.Ordinal);
         Assert.Contains("Invoke-TestPass -Name 'Native AOT exe (Debug)' -Results $resultsAot -App (Join-Path $aotDebug 'PrusaTrayDiagnostic.exe')", script, StringComparison.Ordinal);
         Assert.DoesNotContain("-method '*LogHasRecordsAndAnExceptionWithItsStackTrace*'", script, StringComparison.Ordinal);

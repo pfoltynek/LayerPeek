@@ -94,20 +94,49 @@ internal sealed partial class CoverWindow : IDisposable
     /// Brings the window to the top of the non-topmost windows and activates it like a user switching to another app:
     /// <c>SetWindowPos(HWND_TOP)</c> and <c>SetForegroundWindow</c>; when Windows refuses the foreground to the test
     /// process, a click of the real mouse into a part of the window nothing covers.
+    /// <para>
+    /// A window that was just shown (the camera window of the test) can still activate itself a moment later and take the
+    /// foreground back (T-073: once, right after the camera window opened); then all of it is tried again, up to three
+    /// times.
+    /// </para>
     /// </summary>
     public async Task BringToFrontAsync()
     {
-        SetWindowPos(Handle, 0, 0, 0, 0, 0, SwpNoMove | SwpNoSize);
-        if (!Native.SetForegroundWindow(Handle) || Native.GetForegroundWindow() != Handle)
+        for (int attempt = 1; ; attempt++)
         {
-            Assert.True(Native.GetWindowRect(Handle, out Native.Rect bounds));
-            Point? target = ClickCandidates(bounds).Cast<Point?>().FirstOrDefault(point => Native.TopLevelWindowAt(point!.Value) == Handle)
-                ?? throw new InvalidOperationException($"No part of the cover window {bounds} can be clicked: other windows cover all of it.");
-            Mouse.Position = target.Value;
-            Mouse.Click(MouseButton.Left);
-        }
+            SetWindowPos(Handle, 0, 0, 0, 0, 0, SwpNoMove | SwpNoSize);
+            if (!Native.SetForegroundWindow(Handle) || Native.GetForegroundWindow() != Handle)
+            {
+                Assert.True(Native.GetWindowRect(Handle, out Native.Rect bounds));
+                Point? target = ClickCandidates(bounds).Cast<Point?>().FirstOrDefault(point => Native.TopLevelWindowAt(point!.Value) == Handle)
+                    ?? throw new InvalidOperationException($"No part of the cover window {bounds} can be clicked: other windows cover all of it.");
+                Mouse.Position = target.Value;
+                Mouse.Click(MouseButton.Left);
+            }
 
-        await Wait.UntilAsync(() => Native.GetForegroundWindow() == Handle, TimeSpan.FromSeconds(5), "the cover window in the foreground");
+            try
+            {
+                await Wait.UntilAsync(() => Native.GetForegroundWindow() == Handle, TimeSpan.FromSeconds(2), "the cover window in the foreground");
+                // Still in the foreground a moment later: not taken back by a window that activates itself late.
+                await Task.Delay(300);
+                if (Native.GetForegroundWindow() == Handle)
+                {
+                    return;
+                }
+            }
+            catch (WaitTimeoutException)
+            {
+                // Tried again below, or reported with the window that has the foreground.
+            }
+
+            if (attempt == 3)
+            {
+                nint foreground = Native.GetForegroundWindow();
+                throw new InvalidOperationException(
+                    $"The cover window did not keep the foreground after three attempts; the foreground is 0x{foreground:X} "
+                    + $"({NotificationCenter.ProcessNameOf(foreground)}, class '{Native.ClassName(foreground)}').");
+            }
+        }
     }
 
     public void Dispose() => _loop.Dispose();

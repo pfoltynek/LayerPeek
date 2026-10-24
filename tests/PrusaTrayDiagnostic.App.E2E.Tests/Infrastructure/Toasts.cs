@@ -127,7 +127,7 @@ internal sealed record ToastMatch(AutomationElement Anchor, AutomationElement Re
 
 /// <summary>
 /// Toasts of the test app through UI Automation (T-068): banners in the windows of the Windows shell, the notification
-/// center (Win+N), activation (UIA Invoke, otherwise the real mouse) and captures of the toast's own screen region only.
+/// center (opened from the taskbar clock), activation (UIA Invoke, otherwise the real mouse) and captures of the toast's own screen region only.
 /// Banners are searched from the desktop root in the top-level windows of the shell processes, by the unique printer
 /// name and the event text, never by localized window names.
 /// </summary>
@@ -206,13 +206,13 @@ internal static class Toasts
     }
 
     /// <summary>
-    /// Opens the notification center (Win+N), runs <paramref name="use"/> on its window and closes it again with Escape when
+    /// Opens the notification center (the taskbar clock, <see cref="NotificationCenter"/>), runs <paramref name="use"/> on its window and closes it again with Escape when
     /// it is still in the foreground (a click on a toast closes it by itself). Escape is never sent when the center did
     /// not come up: it would go to the window that has the focus.
     /// </summary>
     public static async Task<T> InNotificationCenterAsync<T>(UIA3Automation automation, Func<AutomationElement, nint, Task<T>> use)
     {
-        (nint center, _) = await NotificationCenter.OpenAsync();
+        (nint center, _) = await NotificationCenter.OpenAsync(automation);
         try
         {
             return await use(automation.FromHandle(center), center);
