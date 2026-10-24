@@ -6,9 +6,9 @@ using System.Text.RegularExpressions;
 
 using Microsoft.Extensions.Time.Testing;
 
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>Simulated printers on ephemeral loopback ports and a plain HTTP client for them.</summary>
 internal static partial class TestPrinters

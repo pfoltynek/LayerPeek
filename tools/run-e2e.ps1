@@ -7,34 +7,34 @@
 .DESCRIPTION
     Builds the Debug app (the exe under test, with the Debug-only test mode) and the Release assembly (checked for the
     absence of every test switch), optionally publishes the Native AOT exe (also checked), then runs
-    tests/PrusaTrayDiagnostic.App.E2E.Tests with PTD_E2E=1. A normal `dotnet test` skips these tests.
+    tests/LayerPeek.App.E2E.Tests with LAYERPEEK_E2E=1. A normal `dotnet test` skips these tests.
 
     The started apps run in the isolated test mode: their own data folder in %TEMP% (reserved per worktree, removed after
     the run and swept after a crash), their own instance names, no Credential Manager, no toasts, no Start menu shortcut
     (except the tests that opt in, which are system changes with the warning below: silent toasts of the test app
-    PrusaTrayDiagnostic.E2E with its own Start menu shortcut "Prusa Tray Diagnostic E2E" and its own COM toast activator
-    under HKCU\Software\Classes\CLSID, T-067/T-068; session-only Credential Manager entries PrusaTrayDiagnostic.E2E/...,
+    LayerPeek.E2E with its own Start menu shortcut "LayerPeek E2E" and its own COM toast activator
+    under HKCU\Software\Classes\CLSID, T-067/T-068; session-only Credential Manager entries LayerPeek.E2E/...,
     T-073; all are removed after the test, also after a crash).
-    The user's running PrusaTrayDiagnostic is never touched. The crash tests of T-046 end two test apps on purpose:
+    The user's running LayerPeek is never touched. The crash tests of T-046 end two test apps on purpose:
     Windows records each crash as a ".NET Runtime" error in the Application event log (accepted; a dump or error report
     Windows may keep is removed again). Windows appear on the desktop for a few minutes; do not use the mouse or keyboard
     meanwhile. Runs of different worktrees share the one desktop, so they take turns: a run waits
-    (up to 30 minutes) while another worktree's run holds the machine-wide lock %TEMP%\PrusaTrayDiagnostic.App.E2E.Desktop.lock.
+    (up to 30 minutes) while another worktree's run holds the machine-wide lock %TEMP%\LayerPeek.App.E2E.Desktop.lock.
 
     System changes (T-065, T-066): tests with the trait SystemChanges temporarily change Windows settings (light/dark
     theme, Do Not Disturb, the test tray icon on the taskbar, the display scale of a monitor, a switched-off second
     monitor, silent toasts of the test app with the notifications of Windows and of the test app switched on when they
-    are off (T-068), session-only Credential Manager entries PrusaTrayDiagnostic.E2E/... (T-073)). Each such test
+    are off (T-068), session-only Credential Manager entries LayerPeek.E2E/... (T-073)). Each such test
     carries one trait value per kind of change (SystemChanges=Theme|DoNotDisturb|TrayPromotion|DisplayScale|MonitorOff|Toasts|Credentials|TestProbe; texts in
     tools/RunE2E.SystemChanges.psm1). They run by default: when the selected tests contain one, the script first shows a
     warning listing exactly the kinds the selected tests change and counts down 5 s (Ctrl+C aborts, nothing has changed
-    then); only then it sets PTD_E2E_SYSTEM_CHANGES=1 and PTD_E2E_SYSTEM_CHANGE_KINDS=<the listed kinds>. A change of a
+    then); only then it sets LAYERPEEK_E2E_SYSTEM_CHANGES=1 and LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS=<the listed kinds>. A change of a
     kind the warning did not list is refused by the tests.
-    The original state of every change is written to %LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore before the change
+    The original state of every change is written to %LOCALAPPDATA%\LayerPeek.E2E.Restore before the change
     and restored afterwards - also after a failed test, by the next run's start, by the script's own cleanup (even after
     Ctrl+C), and by a hidden watchdog process (this script with -RestoreOnly -AfterProcess) that outlives a killed test
     process. -NoSystemChanges skips those tests without the warning. Known traces Windows may keep: the test app
-    PrusaTrayDiagnostic.E2E in the notification database %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
+    LayerPeek.E2E in the notification database %LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db
     and in the app list of Settings > System > Notifications (T-068, accepted 2026-10-22; the run reports every trace it
     finds in system-state-end.txt of the results folder).
 
@@ -87,16 +87,16 @@ if (-not $IsWindows) {
 }
 
 $root = [IO.Path]::TrimEndingDirectorySeparator([IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..')))
-$app = Join-Path $root 'src/PrusaTrayDiagnostic.App'
-$tests = Join-Path $root 'tests/PrusaTrayDiagnostic.App.E2E.Tests'
-$testsExe = Join-Path $tests 'bin/Debug/net11.0-windows/PrusaTrayDiagnostic.App.E2E.Tests.exe'
+$app = Join-Path $root 'src/LayerPeek.App'
+$tests = Join-Path $root 'tests/LayerPeek.App.E2E.Tests'
+$testsExe = Join-Path $tests 'bin/Debug/net11.0-windows/LayerPeek.App.E2E.Tests.exe'
 # Same folder as SystemChanges.JournalDirectory in the tests (machine-wide: the system state is shared by all worktrees).
-$journal = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'PrusaTrayDiagnostic.E2E.Restore'
+$journal = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek.E2E.Restore'
 
 # Same id as tests/Shared/TestWorktree.cs: first 4 bytes of SHA-256 of the upper-case worktree path.
 $hash = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($root.ToUpperInvariant()))
 $id = [Convert]::ToHexString($hash, 0, 4).ToLowerInvariant()
-$results = Join-Path ([IO.Path]::GetTempPath()) "PrusaTrayDiagnostic.App.E2E.Results.$id"
+$results = Join-Path ([IO.Path]::GetTempPath()) "LayerPeek.App.E2E.Results.$id"
 $script:logFile = $null
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.SystemChanges.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'RunE2E.Results.psm1') -Force
@@ -132,18 +132,18 @@ function Invoke-SystemChangeRestore([string] $Reason) {
 
     $report = [IO.Path]::GetTempFileName()
     $previous = @{}
-    foreach ($name in 'PTD_E2E', 'PTD_E2E_SYSTEM_CHANGES', 'PTD_E2E_SYSTEM_CHANGE_KINDS', 'PTD_E2E_RESTORE', 'PTD_E2E_RESTORE_REPORT', 'PTD_E2E_WATCHDOG') {
+    foreach ($name in 'LAYERPEEK_E2E', 'LAYERPEEK_E2E_SYSTEM_CHANGES', 'LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS', 'LAYERPEEK_E2E_RESTORE', 'LAYERPEEK_E2E_RESTORE_REPORT', 'LAYERPEEK_E2E_WATCHDOG') {
         $previous[$name] = [Environment]::GetEnvironmentVariable($name)
     }
     try {
-        [Environment]::SetEnvironmentVariable('PTD_E2E', $null)
-        [Environment]::SetEnvironmentVariable('PTD_E2E_SYSTEM_CHANGES', $null)
-        [Environment]::SetEnvironmentVariable('PTD_E2E_SYSTEM_CHANGE_KINDS', $null)
-        [Environment]::SetEnvironmentVariable('PTD_E2E_RESTORE', '1')
-        [Environment]::SetEnvironmentVariable('PTD_E2E_RESTORE_REPORT', $report)
+        [Environment]::SetEnvironmentVariable('LAYERPEEK_E2E', $null)
+        [Environment]::SetEnvironmentVariable('LAYERPEEK_E2E_SYSTEM_CHANGES', $null)
+        [Environment]::SetEnvironmentVariable('LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS', $null)
+        [Environment]::SetEnvironmentVariable('LAYERPEEK_E2E_RESTORE', '1')
+        [Environment]::SetEnvironmentVariable('LAYERPEEK_E2E_RESTORE_REPORT', $report)
         # The restore makes no change of its own, so it needs no watchdog.
-        [Environment]::SetEnvironmentVariable('PTD_E2E_WATCHDOG', '0')
-        $output = & $testsExe -method 'PrusaTrayDiagnostic.App.E2E.Tests.SystemChangeRestore.RestorePendingSystemChanges' -noColor -noLogo 2>&1
+        [Environment]::SetEnvironmentVariable('LAYERPEEK_E2E_WATCHDOG', '0')
+        $output = & $testsExe -method 'LayerPeek.App.E2E.Tests.SystemChangeRestore.RestorePendingSystemChanges' -noColor -noLogo 2>&1
         $exitCode = $LASTEXITCODE
         $text = if ((Test-Path -LiteralPath $report) -and (Get-Item -LiteralPath $report).Length -gt 0) { Get-Content -LiteralPath $report -Raw } else { $null }
         if ($text) {
@@ -189,7 +189,7 @@ if ($RestoreOnly) {
 
 # Nothing inherited from the shell may confirm system changes without the warning below, switch the watchdog off or
 # make the tests act as a child / restore process (which skip the locks and the start cleanup).
-Remove-Item Env:PTD_E2E_SYSTEM_CHANGES, Env:PTD_E2E_SYSTEM_CHANGE_KINDS, Env:PTD_E2E_WATCHDOG, Env:PTD_E2E_CHILD, Env:PTD_E2E_RESTORE, Env:PTD_E2E_RESTORE_REPORT -ErrorAction SilentlyContinue
+Remove-Item Env:LAYERPEEK_E2E_SYSTEM_CHANGES, Env:LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS, Env:LAYERPEEK_E2E_WATCHDOG, Env:LAYERPEEK_E2E_CHILD, Env:LAYERPEEK_E2E_RESTORE, Env:LAYERPEEK_E2E_RESTORE_REPORT -ErrorAction SilentlyContinue
 
 dotnet build $app -c Debug
 if ($LASTEXITCODE -ne 0) { throw 'Building the Debug app failed.' }
@@ -225,16 +225,16 @@ if (-not $NoSystemChanges) {
 }
 
 $resultsAot = "$results-aot"
-$previousApp = $env:PTD_E2E_APP
+$previousApp = $env:LAYERPEEK_E2E_APP
 $passes = [Collections.Generic.List[object]]::new()
 $exitCode = 1
 
 # One pass of the selected tests against one exe, with its own results folder. The runner's report goes to a file
 # outside first (the run empties its results folder at its start) and is kept in the results folder as test-results.xml.
 function Invoke-TestPass([string] $Name, [string] $Results, [string] $App) {
-    $env:PTD_E2E_RESULTS = $Results
-    if ($App) { $env:PTD_E2E_APP = $App }
-    $report = Join-Path ([IO.Path]::GetTempPath()) "PrusaTrayDiagnostic.App.E2E.Report.$id.xml"
+    $env:LAYERPEEK_E2E_RESULTS = $Results
+    if ($App) { $env:LAYERPEEK_E2E_APP = $App }
+    $report = Join-Path ([IO.Path]::GetTempPath()) "LayerPeek.App.E2E.Report.$id.xml"
     Remove-Item -LiteralPath $report -ErrorAction SilentlyContinue
     $passExitCode = 1
     $counts = $null
@@ -279,23 +279,23 @@ try {
         Show-SystemChangesWarning -Kinds $systemChanges
         # Only after the countdown: Ctrl+C above leaves the tests unstarted and the system untouched. The tests refuse
         # any change of a kind the warning did not list.
-        $env:PTD_E2E_SYSTEM_CHANGE_KINDS = $systemChanges -join ','
-        $env:PTD_E2E_SYSTEM_CHANGES = '1'
+        $env:LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS = $systemChanges -join ','
+        $env:LAYERPEEK_E2E_SYSTEM_CHANGES = '1'
     }
 
-    $env:PTD_E2E = '1'
+    $env:LAYERPEEK_E2E = '1'
     $exitCode = Invoke-TestPass -Name 'Debug exe' -Results $results
     if ($PublishAot -and $exitCode -eq 0) {
         # The same selection against the Native AOT exe of the Debug configuration (T-073: it keeps the test mode), with
         # its own results folder, so that the results of the pass above are kept.
         Write-Host ''
         Write-Host 'The selected tests against the Native AOT exe of the Debug app:'
-        $exitCode = Invoke-TestPass -Name 'Native AOT exe (Debug)' -Results $resultsAot -App (Join-Path $aotDebug 'PrusaTrayDiagnostic.exe')
+        $exitCode = Invoke-TestPass -Name 'Native AOT exe (Debug)' -Results $resultsAot -App (Join-Path $aotDebug 'LayerPeek.exe')
     }
 }
 finally {
-    Remove-Item Env:PTD_E2E, Env:PTD_E2E_RESULTS, Env:PTD_E2E_SYSTEM_CHANGES, Env:PTD_E2E_SYSTEM_CHANGE_KINDS -ErrorAction SilentlyContinue
-    if ($null -eq $previousApp) { Remove-Item Env:PTD_E2E_APP -ErrorAction SilentlyContinue } else { $env:PTD_E2E_APP = $previousApp }
+    Remove-Item Env:LAYERPEEK_E2E, Env:LAYERPEEK_E2E_RESULTS, Env:LAYERPEEK_E2E_SYSTEM_CHANGES, Env:LAYERPEEK_E2E_SYSTEM_CHANGE_KINDS -ErrorAction SilentlyContinue
+    if ($null -eq $previousApp) { Remove-Item Env:LAYERPEEK_E2E_APP -ErrorAction SilentlyContinue } else { $env:LAYERPEEK_E2E_APP = $previousApp }
     # Also after Ctrl+C or a crashed test process (entries of a test process that still ends are left to its watchdog).
     if (-not (Invoke-SystemChangeRestore 'after the run')) { $exitCode = 1 }
 }

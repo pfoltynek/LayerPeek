@@ -27,7 +27,7 @@
 .EXAMPLE
     pwsh scripts/release-publish.ps1 -DryRun
     pwsh scripts/release-publish.ps1
-    pwsh scripts/release-publish.ps1 -Repo pfoltynek/PrusaTrayDiagnostic-release-trial -AllowIncomplete
+    pwsh scripts/release-publish.ps1 -Repo pfoltynek/LayerPeek-release-trial -AllowIncomplete
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -58,7 +58,7 @@ try {
     if ($release) {
         $sumsAssets = @($release.assets | Where-Object { $_.name -cmatch '^SHA256SUMS-[a-z]+\.txt$' })
         if ($sumsAssets.Count -gt 0) {
-            $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-release-sums-$([guid]::NewGuid().ToString('N'))"
+            $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-sums-$([guid]::NewGuid().ToString('N'))"
             $null = New-Item -ItemType Directory -Path $downloadDir
             & gh release download $tag --repo $preflight.Repository --pattern 'SHA256SUMS-*.txt' --dir $downloadDir
             if ($LASTEXITCODE -ne 0) { throw "gh release download failed with exit code $LASTEXITCODE." }

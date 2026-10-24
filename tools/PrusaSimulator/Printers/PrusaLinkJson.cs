@@ -3,11 +3,11 @@ using System.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>
 /// Response bodies in the shape and number format of Buddy firmware 6.x (field order and decimals as in the recorded
-/// fixtures, tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/firmware): progress with two decimals, temperatures with
+/// fixtures, tests/LayerPeek.PrusaLink.Tests/Fixtures/firmware): progress with two decimals, temperatures with
 /// one, fans, flow and speed as integers. Written by hand so that the format is exactly the firmware's.
 /// </summary>
 public static class PrusaLinkJson

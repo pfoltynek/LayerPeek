@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>
 /// State of one simulated printer as a function of time: the current <see cref="PrinterScenario"/>, when it started and

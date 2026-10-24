@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.svg" alt="Ikona Prusa Tray Diagnostic" width="112" height="112">
+  <img src="src/LayerPeek.App/Assets/AppIcon/app-icon.svg" alt="Ikona LayerPeek" width="112" height="112">
 </p>
 
-<h1 align="center">Prusa Tray Diagnostic</h1>
+<h1 align="center">LayerPeek</h1>
 
 <p align="center">
   <b>Sleduj své tiskárny Prusa živě, přímo z oznamovací oblasti.</b><br>
@@ -10,18 +10,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><b>Stáhnout</b></a> ·
+  <a href="https://github.com/pfoltynek/LayerPeek/releases"><b>Stáhnout</b></a> ·
   <a href="#rychlý-start">Rychlý start</a> ·
   <a href="#funkce">Funkce</a> ·
   <a href="README.md">English</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/PrusaTrayDiagnostic?include_prereleases&label=release" alt="Poslední vydání"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Poslední vydání"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platforma: Windows 10/11">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/PrusaTrayDiagnostic?style=social" alt="Hvězdičky na GitHubu"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="Hvězdičky na GitHubu"></a>
 </p>
 
 <!--
@@ -38,7 +38,7 @@
 Spustíš devítihodinový tisk a vrátíš se k práci. Drží první vrstva? Nezamotala se cívka? Kolik ještě zbývá?
 Obvykle se jdeš podívat k tiskárně, nebo máš otevřenou záložku v prohlížeči a pořád ji obnovuješ.
 
-**Prusa Tray Diagnostic** ti odpověď dá na jeden pohled. Ikona v oznamovací oblasti ukazuje stav a průběh tisku
+**LayerPeek** ti odpověď dá na jeden pohled. Ikona v oznamovací oblasti ukazuje stav a průběh tisku
 všech tiskáren. Jedním kliknutím otevřeš **živé okno kamery** s průběhem tisku, teplotami a časem dokončení přímo
 v obraze. Když se něco stane, hned přijde **systémová notifikace**: tisk je hotový, tiskárna vyžaduje zásah, chyba,
 tiskárna je offline.
@@ -134,7 +134,7 @@ Každá tiskárna Prusa s **firmwarem Buddy 6.x a PrusaLink**:
 | Original Prusa MK3 / MK3S (8bitový firmware) | ❌ tiskárna nemá zabudovaný PrusaLink |
 
 Všechny tiskárny s firmwarem Buddy 6.x mají stejné PrusaLink API. Používáš aplikaci s jiným modelem? Dej prosím
-[vědět](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues), jestli funguje, ať ho můžeme označit jako
+[vědět](https://github.com/pfoltynek/LayerPeek/issues), jestli funguje, ať ho můžeme označit jako
 otestovaný.
 
 Kamera je volitelná. I bez ní máš ikonu, notifikace a diagnostiku. Kamera musí poskytovat stream **RTSP H.264**
@@ -150,8 +150,8 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 
 ### 1. Stažení
 
-Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/PrusaTrayDiagnostic/releases), rozbal ZIP
-kamkoli a spusť `PrusaTrayDiagnostic.exe`.
+Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases), rozbal ZIP
+kamkoli a spusť `LayerPeek.exe`.
 
 > [!IMPORTANT]
 > Verze 0.x jsou **předběžné**. Nastavení se mezi verzemi může změnit a zatím chybí instalátor i automatické
@@ -189,9 +189,9 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 
 | Co | Kde (Windows) |
 |---|---|
-| Nastavení | `%APPDATA%\PrusaTrayDiagnostic\settings.json` |
+| Nastavení | `%APPDATA%\LayerPeek\settings.json` |
 | Hesla | Správce pověření Windows |
-| Logy | `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` |
+| Logy | `%LOCALAPPDATA%\LayerPeek\logs` |
 
 Historie teplot je jen v paměti a na disk se nikdy neukládá. Aplikace se nepřipojuje nikam jinam než k tiskárnám
 a kamerám, které přidáš.
@@ -208,7 +208,7 @@ a kamerám, které přidáš.
 - Stav MMU3
 - Prusa Connect (cloud) jako volitelný druhý zdroj pro tiskárny mimo tvoji síť
 
-Máš nápad? [Založ issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues).
+Máš nápad? [Založ issue](https://github.com/pfoltynek/LayerPeek/issues).
 
 ## Časté otázky
 
@@ -243,12 +243,12 @@ Podrobnosti jsou v [docs/prerequisites.md](docs/prerequisites.md).
 ### Sestavení, testy, spuštění
 
 ```bash
-git clone https://github.com/pfoltynek/PrusaTrayDiagnostic.git
-cd PrusaTrayDiagnostic
+git clone https://github.com/pfoltynek/LayerPeek.git
+cd LayerPeek
 
 dotnet build                                      # sestaví celé řešení
 dotnet test                                       # spustí všechny testy
-dotnet run --project src/PrusaTrayDiagnostic.App  # spustí tray aplikaci
+dotnet run --project src/LayerPeek.App  # spustí tray aplikaci
 ```
 
 Nemáš po ruce tiskárnu? V repozitáři je [simulátor](docs/simulator.md) tiskáren PrusaLink a RTSP kamery pro vývoj.
@@ -256,8 +256,8 @@ Nemáš po ruce tiskárnu? V repozitáři je [simulátor](docs/simulator.md) tis
 ### Native AOT publish
 
 ```bash
-dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64     # na Windows
-dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # na macOS
+dotnet publish src/LayerPeek.App -c Release -r win-x64     # na Windows
+dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # na macOS
 ```
 
 AOT nejde kompilovat napříč operačními systémy: binárky pro Windows se sestavují na Windows, pro macOS na macOS.
@@ -272,11 +272,11 @@ k vydání v [CHANGELOG.md](CHANGELOG.md). Celý postup je v [docs/release.md](d
 
 | Cesta | Obsah |
 |---|---|
-| `src/PrusaTrayDiagnostic.Core` | doménový model, abstrakce, monitoring a detekce událostí (bez UI a bez HTTP) |
-| `src/PrusaTrayDiagnostic.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
-| `src/PrusaTrayDiagnostic.PrusaConnect` | klient Prusa Connect (plánováno) |
-| `src/PrusaTrayDiagnostic.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
-| `src/PrusaTrayDiagnostic.App` | Avalonia tray aplikace, okna, platformní kód |
+| `src/LayerPeek.Core` | doménový model, abstrakce, monitoring a detekce událostí (bez UI a bez HTTP) |
+| `src/LayerPeek.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
+| `src/LayerPeek.PrusaConnect` | klient Prusa Connect (plánováno) |
+| `src/LayerPeek.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
+| `src/LayerPeek.App` | Avalonia tray aplikace, okna, platformní kód |
 | `tests/` | unit, UI (Avalonia headless) a E2E testy v xUnit v3 |
 | `tools/` | vývojové nástroje, např. simulátor tiskárny PrusaLink a kamery |
 | `docs/` | architektura a poznámky k API |
@@ -298,9 +298,9 @@ v [CLAUDE.md](CLAUDE.md).
 Příspěvky jsou vítané: hlášení chyb, nápady, překlady i pull requesty. Podrobnosti jsou
 v [CONTRIBUTING.md](CONTRIBUTING.md) (anglicky).
 
-- **Chyby a nápady:** založ [issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues). Uveď model tiskárny,
+- **Chyby a nápady:** založ [issue](https://github.com/pfoltynek/LayerPeek/issues). Uveď model tiskárny,
   verzi firmwaru a operační systém. Hodně pomůže diagnostický balíček z okna O aplikaci.
-- **Překlady:** texty aplikace jsou v `src/PrusaTrayDiagnostic.App/Resources/Strings.*.resx`. Opravy i nové jazyky
+- **Překlady:** texty aplikace jsou v `src/LayerPeek.App/Resources/Strings.*.resx`. Opravy i nové jazyky
   jsou velmi vítané.
 - **Pull requesty:** projekt používá Gitflow. Větev založ z `develop` a PR směřuj do `develop`. `dotnet build`
   a `dotnet test` musí projít **bez jediného varování**, protože varování se počítají jako chyby.
@@ -314,7 +314,7 @@ v [CONTRIBUTING.md](CONTRIBUTING.md) (anglicky).
 ### Bezpečnost
 
 Bezpečnostní chyby prosím nehlas ve veřejných issues. Použij
-[soukromé hlášení zranitelností](https://github.com/pfoltynek/PrusaTrayDiagnostic/security/advisories/new) na GitHubu.
+[soukromé hlášení zranitelností](https://github.com/pfoltynek/LayerPeek/security/advisories/new) na GitHubu.
 Viz [SECURITY.md](SECURITY.md) (anglicky).
 
 ## Licence
@@ -337,5 +337,5 @@ licencí najdeš v aplikaci v okně **O aplikaci → Licence třetích stran…*
 ---
 
 <p align="center">
-  Ušetřil ti Prusa Tray Diagnostic cestu k tiskárně? Dej mu prosím ⭐. Pomůžeš tím ostatním makerům ho najít.
+  Ušetřil ti LayerPeek cestu k tiskárně? Dej mu prosím ⭐. Pomůžeš tím ostatním makerům ho najít.
 </p>

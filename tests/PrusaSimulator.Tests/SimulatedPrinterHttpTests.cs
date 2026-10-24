@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.RegularExpressions;
 
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>The simulated PrusaLink server over real HTTP on the loopback interface (ephemeral ports).</summary>
 public sealed class SimulatedPrinterHttpTests

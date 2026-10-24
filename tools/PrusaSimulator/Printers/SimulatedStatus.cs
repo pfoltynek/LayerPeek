@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>What <c>/api/v1/status</c> reports at one moment (firmware state names, °C, mm, %, RPM).</summary>
 public sealed record SimulatedStatus(

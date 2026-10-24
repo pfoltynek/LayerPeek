@@ -1,4 +1,4 @@
-using PrusaTrayDiagnostic.Simulator;
+using LayerPeek.Simulator;
 
 if (!SimulatorOptions.TryParse(args, out SimulatorOptions options, out string? error))
 {

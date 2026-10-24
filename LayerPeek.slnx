@@ -1,0 +1,24 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/LayerPeek.App/LayerPeek.App.csproj" />
+    <Project Path="src/LayerPeek.Camera.FFmpeg/LayerPeek.Camera.FFmpeg.csproj" />
+    <Project Path="src/LayerPeek.Core/LayerPeek.Core.csproj" />
+    <Project Path="src/LayerPeek.PrusaConnect/LayerPeek.PrusaConnect.csproj" />
+    <Project Path="src/LayerPeek.PrusaLink/LayerPeek.PrusaLink.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/LayerPeek.App.Tests/LayerPeek.App.Tests.csproj" />
+    <Project Path="tests/LayerPeek.App.E2E.Tests/LayerPeek.App.E2E.Tests.csproj" />
+    <Project Path="tests/LayerPeek.App.UiTests/LayerPeek.App.UiTests.csproj" />
+    <Project Path="tests/LayerPeek.Camera.FFmpeg.Tests/LayerPeek.Camera.FFmpeg.Tests.csproj" />
+    <Project Path="tests/LayerPeek.Core.Tests/LayerPeek.Core.Tests.csproj" />
+    <Project Path="tests/LayerPeek.E2E.Tests/LayerPeek.E2E.Tests.csproj" />
+    <Project Path="tests/LayerPeek.PrusaConnect.Tests/LayerPeek.PrusaConnect.Tests.csproj" />
+    <Project Path="tests/LayerPeek.PrusaLink.Tests/LayerPeek.PrusaLink.Tests.csproj" />
+    <Project Path="tests/LayerPeek.Scripts.Tests/LayerPeek.Scripts.Tests.csproj" />
+    <Project Path="tests/PrusaSimulator.Tests/PrusaSimulator.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/PrusaSimulator/PrusaSimulator.csproj" />
+  </Folder>
+</Solution>

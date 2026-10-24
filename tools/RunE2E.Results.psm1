@@ -1,7 +1,7 @@
 #Requires -Version 7.0
 # The summary of tools/run-e2e.ps1 (T-073): passed, skipped and failed tests of each pass (the Debug exe, and with
 # -PublishAot the Native AOT exe of the Debug configuration), read from the xUnit.net v2 XML report of the test runner
-# (-result-xml). Kept apart from the script so that it is unit-tested (tests/PrusaTrayDiagnostic.App.E2E.Tests/RunE2EScriptTests.cs).
+# (-result-xml). Kept apart from the script so that it is unit-tested (tests/LayerPeek.App.E2E.Tests/RunE2EScriptTests.cs).
 
 Set-StrictMode -Version Latest
 

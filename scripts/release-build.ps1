@@ -40,8 +40,8 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
 
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
-$solution = Join-Path $repoRoot 'PrusaTrayDiagnostic.slnx'
-$appProject = Join-Path $repoRoot 'src' 'PrusaTrayDiagnostic.App' 'PrusaTrayDiagnostic.App.csproj'
+$solution = Join-Path $repoRoot 'LayerPeek.slnx'
+$appProject = Join-Path $repoRoot 'src' 'LayerPeek.App' 'LayerPeek.App.csproj'
 $smokeScript = Join-Path $PSScriptRoot 'aot-smoke.ps1'
 
 # Packaging steps, run for every RID in this order. Each step gets a context object (Version, Runtime, Os,
@@ -138,7 +138,7 @@ try {
         $publishDir = Join-Path $publishRoot $rid
         Invoke-Native "dotnet publish $rid (Native AOT)" { dotnet publish $appProject -c Release -r $rid -o $publishDir -warnaserror }
 
-        $exe = Join-Path $publishDir ($hostOs -eq 'windows' ? 'PrusaTrayDiagnostic.exe' : 'PrusaTrayDiagnostic')
+        $exe = Join-Path $publishDir ($hostOs -eq 'windows' ? 'LayerPeek.exe' : 'LayerPeek')
         if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Published executable not found: $exe" }
         if ($hostOs -eq 'windows') {
             # ProductVersion is the informational version "X.Y.Z+<commit>"; it must come from Directory.Build.props.

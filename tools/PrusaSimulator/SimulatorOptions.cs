@@ -1,10 +1,10 @@
 using System.Globalization;
 using System.Net;
 
-using PrusaTrayDiagnostic.Simulator.Camera;
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Camera;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator;
+namespace LayerPeek.Simulator;
 
 /// <summary>Command line of the simulator (see <see cref="Usage"/> and docs/simulator.md).</summary>
 public sealed record SimulatorOptions
@@ -22,7 +22,7 @@ public sealed record SimulatorOptions
     };
 
     public const string Usage = """
-        PrusaSimulator - simulated PrusaLink printers and an RTSP camera for PrusaTrayDiagnostic.
+        PrusaSimulator - simulated PrusaLink printers and an RTSP camera for LayerPeek.
 
         Usage: dotnet run --project tools/PrusaSimulator -- [options]
 

@@ -1,10 +1,10 @@
 # Contributing
 
-Thanks for your interest in Prusa Tray Diagnostic! Bug reports, ideas, translations and pull requests are all welcome.
+Thanks for your interest in LayerPeek! Bug reports, ideas, translations and pull requests are all welcome.
 
 ## Bugs and ideas
 
-Open an [issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues) using one of the templates. For bugs, the
+Open an [issue](https://github.com/pfoltynek/LayerPeek/issues) using one of the templates. For bugs, the
 short report or the diagnostic bundle from the **About** window helps a lot. Security issues go through
 [SECURITY.md](SECURITY.md), not public issues.
 
@@ -13,7 +13,7 @@ works.
 
 ## Translations
 
-UI strings are in `src/PrusaTrayDiagnostic.App/Resources/Strings.*.resx` (English is `Strings.resx`). Every string
+UI strings are in `src/LayerPeek.App/Resources/Strings.*.resx` (English is `Strings.resx`). Every string
 must exist in all languages. Fixes of existing translations and new languages are very welcome.
 
 ## Pull requests

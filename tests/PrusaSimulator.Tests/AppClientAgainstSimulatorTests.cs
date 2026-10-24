@@ -4,13 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
-using PrusaTrayDiagnostic.Core.Monitoring;
-using PrusaTrayDiagnostic.Core.Printers;
-using PrusaTrayDiagnostic.Core.Secrets;
-using PrusaTrayDiagnostic.PrusaLink;
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Core.Monitoring;
+using LayerPeek.Core.Printers;
+using LayerPeek.Core.Secrets;
+using LayerPeek.PrusaLink;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>
 /// The app's PrusaLink client, registered exactly as the app does (<see cref="PrusaLinkServiceCollectionExtensions.AddPrusaLink"/>),

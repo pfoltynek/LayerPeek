@@ -5,7 +5,7 @@
 
 .DESCRIPTION
     Downloads /api/v1/status and /api/v1/job (plus /api/version and /api/v1/info) from the printer and stores them
-    in tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/recorded/<Printer>/<State>/. The password is asked for
+    in tests/LayerPeek.PrusaLink.Tests/Fixtures/recorded/<Printer>/<State>/. The password is asked for
     interactively (hidden) and is neither stored nor printed. The serial number is replaced by a placeholder.
 
     Run it once per printer state you want covered, e.g. idle, printing, paused, attention (filament runout / MMU),
@@ -26,7 +26,7 @@ $trimmed = $Address.Trim()
 $baseUri = $(if ($trimmed -match '://') { $trimmed } else { "http://$trimmed" }).TrimEnd('/')
 $password = Read-Host -AsSecureString -Prompt "PrusaLink password for user 'maker' (shown on the printer: Settings > Network > PrusaLink)"
 $credential = [pscredential]::new('maker', $password)
-$target = Join-Path $PSScriptRoot "../tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/recorded/$Printer/$State"
+$target = Join-Path $PSScriptRoot "../tests/LayerPeek.PrusaLink.Tests/Fixtures/recorded/$Printer/$State"
 New-Item -ItemType Directory -Force -Path $target | Out-Null
 
 function Save-Endpoint([string] $path, [string] $fileName) {

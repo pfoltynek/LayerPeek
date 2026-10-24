@@ -4,7 +4,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
-namespace PrusaTrayDiagnostic.Simulator.Camera;
+namespace LayerPeek.Simulator.Camera;
 
 /// <summary>
 /// A minimal RTSP camera that behaves like the Prusa Buddy3D: one H.264 track, packetization-mode 1, no

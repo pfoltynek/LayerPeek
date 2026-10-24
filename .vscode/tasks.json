@@ -5,7 +5,7 @@
       "label": "build",
       "type": "process",
       "command": "dotnet",
-      "args": ["build", "${workspaceFolder}/PrusaTrayDiagnostic.slnx", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
+      "args": ["build", "${workspaceFolder}/LayerPeek.slnx", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "build", "isDefault": true }
     },
@@ -13,7 +13,7 @@
       "label": "test",
       "type": "process",
       "command": "dotnet",
-      "args": ["test", "--solution", "${workspaceFolder}/PrusaTrayDiagnostic.slnx"],
+      "args": ["test", "--solution", "${workspaceFolder}/LayerPeek.slnx"],
       "problemMatcher": "$msCompile",
       "group": { "kind": "test", "isDefault": true }
     },
@@ -21,7 +21,7 @@
       "label": "watch app",
       "type": "process",
       "command": "dotnet",
-      "args": ["watch", "run", "--project", "${workspaceFolder}/src/PrusaTrayDiagnostic.App"],
+      "args": ["watch", "run", "--project", "${workspaceFolder}/src/LayerPeek.App"],
       "isBackground": true,
       "problemMatcher": "$msCompile"
     }

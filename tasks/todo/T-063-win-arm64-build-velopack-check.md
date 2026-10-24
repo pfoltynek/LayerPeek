@@ -15,7 +15,7 @@ Soustředit na jedno místo všechna neověřená místa kolem `win-arm64`, kter
 
 ## Rozsah
 1. **MSVC ARM64 build tools (převzato z T-055):** komponentu `Microsoft.VisualStudio.Component.VC.Tools.ARM64` musí doinstalovat uživatel v PowerShellu **jako správce**. Pokus agenta v T-055 (`setup.exe modify … --passive --norestart`) skončil kódem 5007, protože proces neběžel se zvýšenými oprávněními. Příkaz a ověření přes `vswhere` jsou v `docs/prerequisites.md`. Instalaci uživatel schválil (2026-10-21).
-2. **Sestavení a balení skriptem z T-055 (převzato z T-055, kritérium `win-arm64`):** `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64` sestaví a zabalí `win-arm64` stejně jako `win-x64` (publish složka, `PrusaTrayDiagnostic-<verze>-win-arm64.zip`, řádek v `SHA256SUMS-windows.txt`), jen lokálně, **bez nahrání**. Ověřit, že:
+2. **Sestavení a balení skriptem z T-055 (převzato z T-055, kritérium `win-arm64`):** `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64` sestaví a zabalí `win-arm64` stejně jako `win-x64` (publish složka, `LayerPeek-<verze>-win-arm64.zip`, řádek v `SHA256SUMS-windows.txt`), jen lokálně, **bez nahrání**. Ověřit, že:
    - AOT publish `win-arm64` je bez trim/AOT varování z kódu projektu a exe je ARM64 PE (pole Machine `0xAA64`);
    - výchozí běh skriptu (bez `-Runtime`) `win-arm64` nesestaví a `release-upload.ps1 -DryRun` výstup se `win-arm64` odmítne („Build output contains win-arm64, which must not be uploaded“), viz `docs/release.md`, „Povolení `win-arm64` (po T-057)“;
    - smoke test `win-arm64` se na x64 stroji vypíše jako „neověřeno spuštěním“.

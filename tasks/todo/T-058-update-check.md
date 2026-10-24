@@ -9,7 +9,7 @@ depends_on: [T-008, T-029, T-055]
 ---
 
 ## Cíl
-Aplikace na Windows i macOS sama zjistí, že na GitHub Releases (`github.com/pfoltynek/PrusaTrayDiagnostic`) je novější verze, a nabídne ji uživateli. Funguje nezávisle na instalátoru – i pro `.zip` (Windows) a `.tar.gz` / `.dmg` s ad-hoc podpisem (macOS, T-019), kde automatické aktualizace nejsou.
+Aplikace na Windows i macOS sama zjistí, že na GitHub Releases (`github.com/pfoltynek/LayerPeek`) je novější verze, a nabídne ji uživateli. Funguje nezávisle na instalátoru – i pro `.zip` (Windows) a `.tar.gz` / `.dmg` s ad-hoc podpisem (macOS, T-019), kde automatické aktualizace nejsou.
 
 Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku na Windows, může kontrolu a samotnou aktualizaci převzít Velopack (`UpdateManager` s `GithubSource`). Tento úkol pak buď kontrolu předá Velopacku, nebo jen nabídne „Aktualizovat“ místo otevření stránky vydání – podle doporučení T-056 a odpovědi na otázku níže. Bez Velopacku (archivy, macOS) klik otevře stránku vydání v prohlížeči.
 
@@ -18,7 +18,7 @@ Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku n
 ## Rozsah
 - **Core** (bez HTTP specifik): abstrakce `IUpdateChecker` (nejnovější vydání: verze, URL stránky vydání, příznak předběžného vydání), porovnání verzí SemVer 2 (tagy `vX.Y.Z`, předběžné přípony) a služba, která kontrolu spouští periodicky a událostí hlásí novou verzi. Čas a časovač přes abstrakci (testy bez čekání).
 - **Implementace v App** (HTTP specifika do Core nepatří): GitHub REST API (https://docs.github.com/en/rest/releases/releases).
-  - `GET /repos/pfoltynek/PrusaTrayDiagnostic/releases/latest` vrací jen nejnovější zveřejněné vydání, které **není** koncept ani předběžné. Protože všechna vydání `0.x` jsou předběžná (`--prerelease`, T-055), tento endpoint by nic nenašel → pro předběžná vydání je potřeba `GET /repos/{owner}/{repo}/releases` (seznam) a výběr podle verze. Volba podle odpovědi na otázku o předběžných verzích.
+  - `GET /repos/pfoltynek/LayerPeek/releases/latest` vrací jen nejnovější zveřejněné vydání, které **není** koncept ani předběžné. Protože všechna vydání `0.x` jsou předběžná (`--prerelease`, T-055), tento endpoint by nic nenašel → pro předběžná vydání je potřeba `GET /repos/{owner}/{repo}/releases` (seznam) a výběr podle verze. Volba podle odpovědi na otázku o předběžných verzích.
   - `HttpClient` přes `IHttpClientFactory`, hlavička `User-Agent` (GitHub ji vyžaduje), `Accept: application/vnd.github+json`, timeout, bez autentizace (limit 60 dotazů za hodinu na IP adresu). JSON jen přes source-generated `JsonSerializerContext`.
   - Chyby sítě, 403 (limit), 404 (soukromý repozitář) a neplatná data se jen zalogují.
 - **Verze aplikace** z `<Version>` v kořenovém `Directory.Build.props` (jediný zdroj, T-055), stejná jako v okně O aplikaci.

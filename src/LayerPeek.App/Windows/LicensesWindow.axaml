@@ -1,0 +1,87 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LayerPeek.App.Licenses"
+        x:Class="LayerPeek.App.Windows.LicensesWindow"
+        x:DataType="vm:LicensesViewModel"
+        Title="{Binding Title}"
+        Width="640"
+        Height="600"
+        MinWidth="420"
+        MinHeight="320"
+        WindowStartupLocation="CenterOwner">
+  <Window.Styles>
+    <Style Selector="TextBox.licence">
+      <Setter Property="IsReadOnly" Value="True" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="AcceptsReturn" Value="True" />
+      <Setter Property="MaxHeight" Value="320" />
+      <Setter Property="FontFamily" Value="Consolas, Menlo, monospace" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Opacity" Value="0.75" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16">
+    <Button DockPanel.Dock="Bottom"
+            HorizontalAlignment="Right"
+            Margin="0,12,0,0"
+            MinWidth="96"
+            Content="{Binding CloseText}"
+            IsDefault="True"
+            IsCancel="True"
+            Click="OnCloseClicked" />
+    <TextBlock DockPanel.Dock="Top" Text="{Binding Intro}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+      <StackPanel Spacing="8" Margin="0,0,12,0">
+        <!-- FFmpeg first: LGPL obligations (source, exact build, replaceable DLLs, full text). -->
+        <Expander HorizontalAlignment="Stretch">
+          <Expander.Header>
+            <StackPanel>
+              <TextBlock Text="{Binding FFmpegHeader}" FontWeight="SemiBold" />
+              <TextBlock Classes="secondary" Text="{Binding FFmpegLicenseText}" />
+            </StackPanel>
+          </Expander.Header>
+          <StackPanel Spacing="6">
+            <TextBlock Text="{Binding FFmpegVersionText}" TextWrapping="Wrap" />
+            <TextBlock Text="{Binding FFmpegNote}" TextWrapping="Wrap" />
+            <!-- Opened through IUrlLauncher (validated http(s) address), not through NavigateUri. -->
+            <HyperlinkButton Content="{Binding FFmpegSourceText}" Command="{Binding OpenFFmpegSourceCommand}" Padding="0" />
+            <HyperlinkButton Content="{Binding FFmpegBuildText}" Command="{Binding OpenFFmpegBuildCommand}" Padding="0" />
+            <HyperlinkButton Content="{Binding FFmpegBuildScriptsText}" Command="{Binding OpenFFmpegBuildScriptsCommand}" Padding="0" />
+            <TextBlock Text="{Binding LicenseTextHeader}" FontWeight="SemiBold" Margin="0,6,0,0" />
+            <TextBox Classes="licence" Text="{Binding FFmpegFullText}" AutomationProperties.Name="{Binding LicenseTextHeader}" />
+          </StackPanel>
+        </Expander>
+
+        <ItemsControl ItemsSource="{Binding Components}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <StackPanel Spacing="8" />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LicenseItemViewModel">
+              <Expander HorizontalAlignment="Stretch" IsExpanded="{Binding IsExpanded}">
+                <Expander.Header>
+                  <StackPanel>
+                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Classes="secondary" Text="{Binding VersionText}" />
+                    <TextBlock Classes="secondary" Text="{Binding LicenseText}" />
+                  </StackPanel>
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                  <HyperlinkButton Content="{Binding ProjectUrl}" Command="{Binding OpenProjectCommand}" Padding="0" />
+                  <TextBox Classes="licence" Text="{Binding FullText}" AutomationProperties.Name="{Binding Name}" />
+                </StackPanel>
+              </Expander>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

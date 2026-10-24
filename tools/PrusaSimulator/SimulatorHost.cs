@@ -1,7 +1,7 @@
-using PrusaTrayDiagnostic.Simulator.Camera;
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Camera;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator;
+namespace LayerPeek.Simulator;
 
 /// <summary>
 /// Everything the command line describes, running: the printers and the camera. Also usable in-process (e.g. by

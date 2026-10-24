@@ -55,5 +55,5 @@ First public preview. Windows x64 only, PrusaLink only, builds are not code-sign
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/PrusaTrayDiagnostic/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/pfoltynek/PrusaTrayDiagnostic/releases/tag/v0.1.0
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/pfoltynek/LayerPeek/releases/tag/v0.1.0

@@ -12,7 +12,7 @@
     The app runs with the real user settings, so it may show real toasts (e.g. a printer error found at
     start). They are cleared afterwards only when the notification center provably held no toasts of the app
     before the run and no other instance started meanwhile; otherwise they are left there (the user's own toasts
-    are never removed) and a warning is printed. Refuses to run while PrusaTrayDiagnostic is already running.
+    are never removed) and a warning is printed. Refuses to run while LayerPeek is already running.
 
 .PARAMETER Runtime
     Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture.
@@ -53,16 +53,16 @@ if (-not $Runtime) {
 
 # A running instance of the app (there is no single-instance guard) would share the Start menu shortcut and the
 # notification history with the smoke run, and its toasts could be cleared below: refuse instead.
-if (-not $SkipShellIntegration -and (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue)) {
-    Write-Host 'AOT smoke check NOT RUN: PrusaTrayDiagnostic is already running. Quit it and run the check again.' -ForegroundColor Red
+if (-not $SkipShellIntegration -and (Get-Process -Name 'LayerPeek' -ErrorAction SilentlyContinue)) {
+    Write-Host 'AOT smoke check NOT RUN: LayerPeek is already running. Quit it and run the check again.' -ForegroundColor Red
     exit 1
 }
 
-$project = Join-Path $PSScriptRoot '..' 'src' 'PrusaTrayDiagnostic.App'
+$project = Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App'
 # The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.
 $ownsPublishDir = -not $PublishDir
 $publishDir = if ($ownsPublishDir) {
-    Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-aot-smoke-$([guid]::NewGuid().ToString('N'))"
+    Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-aot-smoke-$([guid]::NewGuid().ToString('N'))"
 }
 elseif (Test-Path -LiteralPath $PublishDir -PathType Container) {
     (Resolve-Path -LiteralPath $PublishDir).ProviderPath
@@ -71,11 +71,11 @@ else {
     Write-Host "AOT smoke check NOT RUN: publish folder not found: $PublishDir" -ForegroundColor Red
     exit 1
 }
-$logDir = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-aot-smoke-log-$([guid]::NewGuid().ToString('N'))"
-$exeName = if ($Runtime.StartsWith('win')) { 'PrusaTrayDiagnostic.exe' } else { 'PrusaTrayDiagnostic' }
+$logDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-aot-smoke-log-$([guid]::NewGuid().ToString('N'))"
+$exeName = if ($Runtime.StartsWith('win')) { 'LayerPeek.exe' } else { 'LayerPeek' }
 $process = $null
 # The app creates its Start menu shortcut for notifications (T-010) pointing to the temporary exe: restore the previous state afterwards.
-$shortcut = if ($IsWindows -and -not $SkipShellIntegration) { Join-Path ([Environment]::GetFolderPath('Programs')) 'Prusa Tray Diagnostic.lnk' } else { $null }
+$shortcut = if ($IsWindows -and -not $SkipShellIntegration) { Join-Path ([Environment]::GetFolderPath('Programs')) 'LayerPeek.lnk' } else { $null }
 $shortcutBackup = if ($shortcut -and (Test-Path -LiteralPath $shortcut)) { [System.IO.File]::ReadAllBytes($shortcut) } else { $null }
 # Toasts the app shows during the run (it uses the real settings, so e.g. a printer error at start) stay in the
 # notification center. Windows PowerShell 5.1 is used because pwsh cannot load WinRT types.
@@ -83,7 +83,7 @@ $shortcutBackup = if ($shortcut -and (Test-Path -LiteralPath $shortcut)) { [Syst
 # (then nothing is ever cleared).
 function Get-ToastHistoryCount {
     try {
-        $lines = @(powershell.exe -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime]; @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory("PrusaTrayDiagnostic")).Count' 2>$null)
+        $lines = @(powershell.exe -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime]; @([Windows.UI.Notifications.ToastNotificationManager]::History.GetHistory("LayerPeek")).Count' 2>$null)
         $count = 0
         if ($LASTEXITCODE -eq 0 -and $lines.Count -eq 1 -and [int]::TryParse([string]$lines[0], [ref]$count) -and $count -ge 0) {
             return $count
@@ -94,7 +94,7 @@ function Get-ToastHistoryCount {
     return $null
 }
 function Clear-ToastHistory {
-    powershell.exe -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime]; [Windows.UI.Notifications.ToastNotificationManager]::History.Clear("PrusaTrayDiagnostic")' 2>$null | Out-Null
+    powershell.exe -NoProfile -NonInteractive -Command '$ErrorActionPreference = ''Stop''; [void][Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime]; [Windows.UI.Notifications.ToastNotificationManager]::History.Clear("LayerPeek")' 2>$null | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "clearing the notification history failed with exit code $LASTEXITCODE" }
 }
 $toastsBefore = if ($IsWindows -and -not $SkipShellIntegration) { Get-ToastHistoryCount } else { $null }
@@ -166,8 +166,8 @@ finally {
                 $reason = if ($null -eq $toastsBefore) { 'its previous content could not be read' } else { 'it already held toasts of the app' }
                 Write-Host "Toasts shown during the smoke run (if any) were left in the notification center: $reason." -ForegroundColor Yellow
             }
-            elseif (Get-Process -Name 'PrusaTrayDiagnostic' -ErrorAction SilentlyContinue) {
-                Write-Host 'Toasts were not cleared: another PrusaTrayDiagnostic instance started during the smoke run.' -ForegroundColor Yellow
+            elseif (Get-Process -Name 'LayerPeek' -ErrorAction SilentlyContinue) {
+                Write-Host 'Toasts were not cleared: another LayerPeek instance started during the smoke run.' -ForegroundColor Yellow
             }
             else {
                 Clear-ToastHistory

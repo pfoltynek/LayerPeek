@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>
 /// A printer model as PrusaLink reports it: <see cref="Code"/> is the <c>printer</c> field of <c>/api/version</c>

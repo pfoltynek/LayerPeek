@@ -1,8 +1,8 @@
 using System.Net;
 
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>Command line, console commands and the whole simulator (ports chosen by the OS).</summary>
 public sealed class SimulatorHostTests

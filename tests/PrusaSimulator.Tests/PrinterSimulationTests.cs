@@ -1,8 +1,8 @@
 using Microsoft.Extensions.Time.Testing;
 
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>The time model of a simulated printer, on a fake clock.</summary>
 public sealed class PrinterSimulationTests

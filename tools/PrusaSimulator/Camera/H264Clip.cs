@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Simulator.Camera;
+namespace LayerPeek.Simulator.Camera;
 
 /// <summary>
 /// A raw H.264 elementary stream (Annex B) split into access units (frames) of NAL units without start codes, prepared

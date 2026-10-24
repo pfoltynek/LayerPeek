@@ -14,7 +14,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>
 /// One simulated printer: a Kestrel server with the PrusaLink endpoints the app uses (<c>/api/version</c>,

@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 
-namespace PrusaTrayDiagnostic.Tests.Shared;
+namespace LayerPeek.Tests.Shared;
 
 /// <summary>
 /// The git worktree (repository root) the tests were built from, and its short stable <see cref="Id"/>. Locks and
@@ -93,7 +93,7 @@ internal sealed class ReservedTempDirectory
     private readonly Func<string, Task>? _beforeDelete;
 
     /// <param name="parent">Where the folder and its lock live (%TEMP%, or a sandbox in the tests of this class).</param>
-    /// <param name="name">Name of the test assembly's reservation, e.g. <c>PrusaTrayDiagnostic.Core.Tests</c>.</param>
+    /// <param name="name">Name of the test assembly's reservation, e.g. <c>LayerPeek.Core.Tests</c>.</param>
     /// <param name="worktree">The worktree owning the folder.</param>
     /// <param name="legacyDirectoryName">
     /// The folder of older runs without a worktree id (guarded by the lock <c>&lt;name&gt;.lock</c>), or <see langword="null"/>.

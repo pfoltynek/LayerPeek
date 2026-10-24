@@ -3,9 +3,9 @@ using System.Net.Sockets;
 
 using Microsoft.Extensions.Time.Testing;
 
-using PrusaTrayDiagnostic.Simulator.Camera;
+using LayerPeek.Simulator.Camera;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>The simulated RTSP camera, seen through a bare RTSP client (no FFmpeg; ephemeral loopback ports).</summary>
 public sealed class RtspCameraTests

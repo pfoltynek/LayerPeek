@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>What a simulated printer does (see docs/simulator.md).</summary>
 public enum PrinterScenario

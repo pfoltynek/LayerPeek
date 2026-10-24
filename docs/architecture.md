@@ -2,20 +2,20 @@
 
 ## Přehled
 
-PrusaTrayDiagnostic je **tray-only** aplikace (Windows: oznamovací oblast, macOS: menu bar) bez hlavního okna. Z menu ikony lze otevřít jen pomocná okna (nastavení, diagnostika, kamera).
+LayerPeek je **tray-only** aplikace (Windows: oznamovací oblast, macOS: menu bar) bez hlavního okna. Z menu ikony lze otevřít jen pomocná okna (nastavení, diagnostika, kamera).
 
 ```
-┌──────────────────────────── PrusaTrayDiagnostic.App (Avalonia) ───────────────────────────┐
+┌──────────────────────────── LayerPeek.App (Avalonia) ───────────────────────────┐
 │  TrayIcon + NativeMenu │ ViewModels │ pomocná okna │ platformní služby (notifikace, autostart) │
 └───────────────┬───────────────────────────────────────────────────────────────────────────┘
                 │ DI (composition root)
 ┌───────────────▼──────────────┐   ┌──────────────────────────────┐
-│ PrusaTrayDiagnostic.PrusaLink│   │ PrusaTrayDiagnostic.PrusaConnect │
+│ LayerPeek.PrusaLink│   │ LayerPeek.PrusaConnect │
 │  REST klient (lokální síť)   │   │  cloudový klient             │
 └───────────────┬──────────────┘   └───────────────┬──────────────┘
                 └──────────────┬───────────────────┘
                ┌───────────────▼───────────────┐
-               │   PrusaTrayDiagnostic.Core    │
+               │   LayerPeek.Core    │
                │ doménový model, IPrinterClient│
                │ monitoring, detekce událostí  │
                │ abstrakce (INotificationService, ISecretStore…) │
@@ -57,7 +57,7 @@ Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podr
 - Přihlašovací údaje patří k **účtu** Prusa Account, ne k tiskárně. Jeden účet obsluhuje víc `PrinterDefinition` (`Address` = UUID tiskárny).
 - Klienti téhož účtu sdílejí jeden dotaz na seznam tiskáren za cyklus pollingu, aby se nepřetěžovala služba.
 - Trvale se ukládá jen refresh token, a to přes `ISecretStore` pod klíčem pro účet. Access token zůstává jen v paměti.
-- Kód pro OAuth/PKCE a obnovu tokenů je v `PrusaTrayDiagnostic.PrusaConnect` a nezávisí na UI. UI přihlášení (T-022) je v App.
+- Kód pro OAuth/PKCE a obnovu tokenů je v `LayerPeek.PrusaConnect` a nezávisí na UI. UI přihlášení (T-022) je v App.
 - Klient jen čte a je izolovaný za `IPrinterClient`, takže ho jde při změně nedokumentovaného API vypnout bez dopadu na PrusaLink.
 
 ## Platformní rozdíly
@@ -79,13 +79,13 @@ Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-010, T-0
 
 Aplikace loguje přes `Microsoft.Extensions.Logging` a `[LoggerMessage]`; jediný provider je vlastní souborový `FileLogProvider` (T-024, `App/Logging`, bez NuGet balíčku, kompatibilní s Native AOT).
 
-- **Umístění:** Windows `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs`, macOS `~/Library/Logs/PrusaTrayDiagnostic` (`AppDataPaths.GetDefaultLogDirectory`, vystavené jedním místem `AppEnvironment.LogDirectory()`). Testovací režim T-044 zapisuje do `logs` v testovací datové složce. Bez složky pro logy (OS ji neposkytne) aplikace běží dál, jen bez logu.
+- **Umístění:** Windows `%LOCALAPPDATA%\LayerPeek\logs`, macOS `~/Library/Logs/LayerPeek` (`AppDataPaths.GetDefaultLogDirectory`, vystavené jedním místem `AppEnvironment.LogDirectory()`). Testovací režim T-044 zapisuje do `logs` v testovací datové složce. Bez složky pro logy (OS ji neposkytne) aplikace běží dál, jen bez logu.
 - **Formát:** `2026-10-21 14:03:12.345 +02:00 INF [pid 12345] Kategorie: zpráva`, úrovně `TRC DBG INF WRN ERR CRT`. Výjimka celá (`ToString()`, se stack trace) a další řádky zprávy pokračují na řádcích odsazených čtyřmi mezerami, takže každý neodsazený řádek je začátek záznamu. UTF-8 bez BOM, konce řádků `\n`.
 - **Úroveň:** výchozí `Information`, v testovacím režimu `Debug`. Rozhoduje jen `LogLevelSwitch` (čtený při každém volání), takže úroveň jde přepnout za běhu bez nové factory. Volbu „Podrobné logování (Debug)“ v nastavení (T-047, `AppSettings.DebugLogging`) uplatňuje `DebugLoggingObserver`: načtené nastavení a každé uložení přepne úroveň na `Debug` / `Information` a změnu zaloguje. Do načtení nastavení a vždy u druhého spuštění platí `Information`, testovací režim zůstává na `Debug`.
 - **Zápis:** volající jen naformátuje záznam a vloží ho do omezené fronty (10 000 záznamů); jedno vlákno na pozadí (ne thread pool) ji zapisuje po dávkách. Plná fronta nové záznamy zahodí. Když zápis dávky selže (plný disk, práva, druhý proces drží zámek souboru déle než 2 s), dávka se ztratí, ale aplikaci to neshodí. Počet ztracených záznamů uvede log v další úspěšné dávce. Smazaná složka se vytvoří znovu. `Flush(timeout)` počká na vše dosud zalogované (ukončení, T-046).
 - **Dvě instance (T-043):** obě zapisují do stejného souboru. Každá dávka se zapíše jedním voláním na skutečný konec souboru pod pojmenovaným mutexem souboru (`FileMode.Append` v .NET by psal na vlastní pozici). Na Windows je mutex v globálním jmenném prostoru, protože týž uživatel přihlášený dvakrát (konzole + vzdálená plocha) má v každé relaci primární instanci, ale jeden soubor v `%LOCALAPPDATA%`. Záznam, který zůstal po přerušeném zápisu bez konce řádku, dostane `
 ` dřív, než se připíše další; soubor se otevírá na každou dávku se sdílením `ReadWrite | Delete`, takže ho nikdo nezamkne a po rotaci se píše vždy do aktuálního souboru.
-- **Rotace:** podle velikosti, 1 MB × 5 souborů (`PrusaTrayDiagnostic.log`, `PrusaTrayDiagnostic.1.log` … `.4.log`, nejstarší se přepíše). Rotuje jen primární instance (zapne ji `Program.Main` po `SingleInstanceGuard`). Aktuální soubor se nejdřív jedním přejmenováním odsune na `PrusaTrayDiagnostic.rotating.log`, teprve pak se posunou starší soubory (jen po první mezeru). Když aktuální soubor nejde přejmenovat (otevřený bez sdílení mazání), nic se nezmění a rotace se zkusí při dalším zápisu, aniž by přišel o starší soubory. Rotaci přerušenou pádem dokončí primární instance hned při prvním zápisu.
+- **Rotace:** podle velikosti, 1 MB × 5 souborů (`LayerPeek.log`, `LayerPeek.1.log` … `.4.log`, nejstarší se přepíše). Rotuje jen primární instance (zapne ji `Program.Main` po `SingleInstanceGuard`). Aktuální soubor se nejdřív jedním přejmenováním odsune na `LayerPeek.rotating.log`, teprve pak se posunou starší soubory (jen po první mezeru). Když aktuální soubor nejde přejmenovat (otevřený bez sdílení mazání), nic se nezmění a rotace se zkusí při dalším zápisu, aniž by přišel o starší soubory. Rotaci přerušenou pádem dokončí primární instance hned při prvním zápisu.
 - **Životnost:** `AppLogging` (factory + provider) vzniká v `Program.Main` hned po `NativeLibrarySearch.Restrict()` a před `SingleInstanceGuard`, `Main` ho uvolní až po návratu z Avalonie. `App` ho předá `TrayHost`; kontejner DI factory nevlastní. `App.OnDesktopExit` jen vyprázdní frontu (při konci relace OS se `Main` nemusí dokončit). Po uvolnění se pozdní záznamy tiše zahodí.
 - **Neošetřené výjimky (T-046):** `UnhandledExceptionLogger` se registruje v `Program.Main` hned po vytvoření logování (platí i pro druhé spuštění): `AppDomain.UnhandledException` (`Critical`, celá výjimka), `TaskScheduler.UnobservedTaskException` (`Error`, bez `SetObserved`) a po startu Avalonie `Dispatcher.UIThread.UnhandledException` (`Critical`, bez `Handled`). Výjimku z UI vlákna, kterou pak ukončující proces hlásí znovu, zapíše jen jednou. Po zápisu vyprázdní frontu logu (nejvýš 2 s) a sám nikdy nehází. Chování při pádu se nemění. Debug build má pro E2E testy testovací příkaz `crash:ui|background|task`.
 - **Tajné údaje:** provider nic nemaskuje; volající nikdy nelogují hesla, klíče ani tokeny a adresy s přihlašovacími údaji redigují (`UriRedaction`).
