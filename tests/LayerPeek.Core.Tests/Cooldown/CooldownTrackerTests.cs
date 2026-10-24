@@ -126,6 +126,7 @@ public sealed class CooldownTrackerTests
         Assert.Equal("mk4", cooled.PrinterId);
         Assert.Equal(Start.AddSeconds(cooledAt), cooled.Timestamp);
         Assert.Equal("benchy.bgcode", cooled.FileName);
+        Assert.Equal(CooldownPrintOutcome.Finished, cooled.Outcome);
 
         CooldownState state = _tracker.State;
         Assert.Equal(CooldownPhase.CooledDown, state.Phase);
@@ -268,15 +269,72 @@ public sealed class CooldownTrackerTests
         Assert.Empty(_events);
     }
 
-    [Fact]
-    public void FirstSnapshotOfAFinishedPrintStartsCooling()
+    [Theory]
+    [InlineData(PrinterState.Finished)]
+    [InlineData(PrinterState.Stopped)]
+    public void PrintAlreadyEndedAtTheFirstSnapshotIsNotTracked(PrinterState ended)
     {
-        // The app starts (or the printer is added) while the printer still shows the finished print.
-        Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, End, 20)).Phase);
+        // Decision 11: the app starts (or the printer is added) while the printer still shows the ended print; its end
+        // was not observed, so there is no cool-down at all, not even after it cools down below the threshold.
+        for (double t = 20; t < 1000; t += PollSeconds)
+        {
+            Assert.Equal(CooldownState.None, Process(Cooling(ended, End, t)));
+        }
 
-        RunUntilCooledDown(End, from: 25);
+        Assert.Empty(_events);
+    }
 
-        Assert.Single(_events);
+    [Theory]
+    [InlineData(PrinterState.Offline)]
+    [InlineData(PrinterState.Unauthorized)]
+    [InlineData(PrinterState.Unknown)]
+    public void PrintEndedBeforeTheFirstReadableSnapshotIsNotTracked(PrinterState unreadable)
+    {
+        Process(Snap(unreadable, 0));
+        Process(Snap(unreadable, 100));
+
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, End, 105)));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, End, 110)));
+    }
+
+    [Fact]
+    public void PrintAlreadyEndedAtStartupBelowTheThresholdIsNotTracked()
+    {
+        Assert.Equal(CooldownState.None, Process(Snap(PrinterState.Finished, 0, 30, 0, 25, Job())));
+        Assert.Equal(CooldownState.None, Process(Snap(PrinterState.Finished, 5, 30, 0, 25, Job())));
+    }
+
+    [Fact]
+    public void NextPrintAfterAnUntrackedEndedPrintIsTracked()
+    {
+        Process(Cooling(PrinterState.Finished, End, 20));
+        Process(Cooling(PrinterState.Idle, End, 25));
+        Process(Printing(100, job: Job(8, "second.bgcode")));
+
+        RunUntilCooledDown(200, Job(8, "second.bgcode"));
+
+        Assert.Equal("second.bgcode", Assert.Single(_events).FileName);
+    }
+
+    [Fact]
+    public void ReheatingAfterAnUntrackedEndedPrintDoesNotTrackIt()
+    {
+        Process(Cooling(PrinterState.Finished, End, 20));
+        Process(Snap(PrinterState.Finished, 25, 150, 170, job: Job()));
+
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 30)));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 35)));
+    }
+
+    [Fact]
+    public void JobThatRanBetweenTwoPollsAfterAnUntrackedEndedPrintIsTracked()
+    {
+        Process(Cooling(PrinterState.Finished, End, 20));
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, 25, 25, job: Job(8)));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Equal(Start.AddSeconds(25), state.PrintEndedAt);
     }
 
     [Fact]
@@ -301,7 +359,7 @@ public sealed class CooldownTrackerTests
         Process(Printing(0));
         double cooledAt = RunUntilCooledDown(End);
 
-        // A whole print ran between two polls (or during an outage) and is reported as finished.
+        // A whole print ran between two polls and is reported as finished.
         CooldownState state = Process(Cooling(PrinterState.Finished, cooledAt + 50, cooledAt + 50, job: Job(8, "second.bgcode")));
 
         Assert.Equal(CooldownPhase.Cooling, state.Phase);
@@ -412,6 +470,43 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Offline, 200));
 
         Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, 190, 205)).Phase);
+    }
+
+    [Fact]
+    public void AnotherJobThatEndedDuringAnOutageIsNotTracked()
+    {
+        Process(Printing(0));
+        Process(Snap(PrinterState.Offline, 5));
+        Process(Snap(PrinterState.Offline, 200));
+
+        // Neither the print nor its end was observed.
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 190, 205, job: Job(8))));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 190, 210, job: Job(8))));
+    }
+
+    [Fact]
+    public void AnotherJobThatEndedDuringAShortOutageEndsTheCoolDownWithoutANewOne()
+    {
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+        Process(Snap(PrinterState.Offline, 10));
+
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 40, job: Job(8))));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 45, job: Job(8))));
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void PausedPrintThatEndedDuringAnOutageIsTracked()
+    {
+        Process(Snap(PrinterState.Paused, 0, 215, 215, 60, Job()));
+        Process(Snap(PrinterState.Offline, 5));
+
+        CooldownState state = Process(Cooling(PrinterState.Stopped, 20, 30));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Null(state.PrintEndedAt);
+        Assert.Equal(CooldownPrintOutcome.Stopped, state.Outcome);
     }
 
     [Theory]
@@ -656,6 +751,34 @@ public sealed class CooldownTrackerTests
         Assert.Equal(Start.AddSeconds(End), later.PrintEndedAt);
     }
 
+    [Theory]
+    [InlineData(PrinterState.Finished, CooldownPrintOutcome.Finished)]
+    [InlineData(PrinterState.Stopped, CooldownPrintOutcome.Stopped)]
+    public void EventCarriesHowThePrintEnded(PrinterState ended, CooldownPrintOutcome outcome)
+    {
+        Process(Printing(0));
+        Process(Snap(ended, End, 200, 0, job: Job()));
+        Process(Snap(ended, 10, 45, 0, job: Job()));
+        Process(Snap(ended, 15, 44, 0, job: Job()));
+
+        CooldownEvent cooled = Assert.Single(_events);
+        Assert.Equal(outcome, cooled.Outcome);
+        Assert.Equal(outcome, _tracker.State.Outcome);
+    }
+
+    [Fact]
+    public void EventFromARaisedThresholdCarriesHowThePrintEnded()
+    {
+        Process(Printing(0));
+        Process(Snap(PrinterState.Stopped, End, 200, 0, job: Job()));
+        Process(Snap(PrinterState.Stopped, 10, 75, 0, job: Job()));
+        Process(Snap(PrinterState.Stopped, 15, 70, 0, job: Job()));
+
+        CooldownUpdate update = _tracker.SetThreshold(80);
+
+        Assert.Equal(CooldownPrintOutcome.Stopped, update.Event?.Outcome);
+    }
+
     [Fact]
     public void CooledDownAtIsTheTimeOfTheCooledDownTransition()
     {
@@ -719,18 +842,6 @@ public sealed class CooldownTrackerTests
         CooldownState state = Process(Cooling(PrinterState.Finished, 5, 5, job: Job(9)));
 
         Assert.Equal(Start.AddSeconds(5), state.PrintEndedAt);
-    }
-
-    [Fact]
-    public void PrintEndIsUnknownWhenTheEndWasNotSeen()
-    {
-        // App start: the printer already shows the ended print.
-        CooldownState atStart = Process(Cooling(PrinterState.Stopped, End, 20));
-
-        Assert.Equal(CooldownPhase.Cooling, atStart.Phase);
-        Assert.Null(atStart.PrintEndedAt);
-        Assert.Equal(CooldownPrintOutcome.Stopped, atStart.Outcome);
-        Assert.Equal(Start.AddSeconds(20), atStart.StartedAt);
     }
 
     [Theory]

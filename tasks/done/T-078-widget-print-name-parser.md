@@ -34,6 +34,11 @@ Z názvu tiskového souboru udělat čitelný název a čipy pro widget Název t
 - **Velikost písmen (Q1):** sentence case – jen první písmeno velké („Foldable book holder v1“). Název, který už obsahuje velké písmeno, zůstane, jak je.
 - **Model tiskárny (Q2):** model tiskárny z názvu souboru se **vynechá**, čip nemá.
 
+## Rozhodnutí (uživatel, 2026-10-24, po dokončení)
+- **Přípony kopie a stažení (rozhodnutí 6):** přípony, které za šablonu sliceru přidá prohlížeč nebo Průzkumník Windows, se před rozborem odříznou, aby název dostal čipy: ` (1)`, ` (12)`, ` - Copy`, ` - Copy (2)`, české ` - kopie`, ` - kopie (2)`. Např. `…_MK4S_2h51m (1).bgcode` se rozpozná stejně jako `…_MK4S_2h51m.bgcode`.
+  - U názvu bez šablony (bez čipů) zůstane název, jak je, kromě odříznutí přípony, a to jen když přesně odpovídá jednomu z těchto tvarů přímo na konci názvu (`benchy (1).gcode` → „Benchy“).
+  - Implementace ve větvi `feature/widget-core-followups` (viz Poznámky k implementaci, poslední bod).
+
 ## Otevřené otázky
 - (žádné)
 
@@ -45,3 +50,7 @@ Z názvu tiskového souboru udělat čitelný název a čipy pro widget Název t
 - **Výkon:** bez regexu, jen spany; titulek přes `stackalloc` / `ArrayPool`. Poslední výsledek drží jednopoložková statická cache (neměnný objekt, bezpečné mezi vlákny), opakované volání se stejným názvem nic nealokuje.
 - **Testy:** `tests/LayerPeek.Core.Tests/Printers/PrintFileNameInfoTests.cs` – 22 názvů podle šablony (Core One, INDX, MK4S, MINI, XL multi-material, MK3.9S, HT, bez trysky, desetinná čárka, sekundy, cesty, velká přípona, části šablony, vlastní materiály, emoji, diakritika), 25 neznámých tvarů (null, prázdné, 8.3, jen přípona, neznámá přípona, chybná čísla, řídicí znaky, osamocený surrogate), invariance kultury (tr-TR, cs-CZ, de-DE), velmi dlouhé názvy, 5 000 náhodných vstupů bez výjimky (pevný seed), rovnost, cache a souběžné volání z více vláken (cache nesmí vrátit výsledek jiného názvu). E2E test úkol nepotřebuje (čistý parser v Core).
 - Žádné nové balíčky (AOT a licence beze změny).
+- **Doplněk po dokončení (rozhodnutí 6, větev `feature/widget-core-followups`):** po odříznutí cesty a přípony se z konce názvu odřízne **nejvýš jedna** přípona kopie: ` (N)` (mezera, 1–4 číslice v závorce), ` - Copy`, ` - kopie`, nebo ` - Copy (N)` / ` - kopie (N)`. Velikost písmen musí přesně sedět (tak je píše Windows). Platí pro šablonu i pro název bez šablony.
+  - Zůstane beze změny: bez mezery před závorkou (`benchy(1)`), nečíselný nebo prázdný obsah závorky, víc než 4 číslice, přípona uprostřed názvu (`benchy (1) final`), jiná velikost písmen (`- copy`, `- Kopie`) a název, ze kterého by nezbyl žádný viditelný znak (`(1).gcode`, `/usb/ (1).gcode`). U `benchy (1) (1)` se odřízne jen poslední ` (1)`.
+  - Jen spany bez alokace navíc, bez výjimek; jednopoložková cache se nemění (klíčem je původní název).
+  - Testy `CopySuffixAfterTheTemplateIsIgnored` (7 názvů), `CopySuffixOfANameWithoutTheTemplateIsRemoved` (9), `TextResemblingACopySuffixIsKept` (14), `CopySuffixInsideTheTemplateIsNotRemoved`.

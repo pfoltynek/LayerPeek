@@ -8,9 +8,13 @@ namespace LayerPeek.Core.Cooldown;
 /// <list type="bullet">
 /// <item>A cool-down starts when a print ends as <see cref="PrinterState.Finished"/> or <see cref="PrinterState.Stopped"/>,
 /// not after <see cref="PrinterState.Error"/> (an error during the print, or before the stop, rules the print out). A print
-/// ends when one of these states follows a printing / paused snapshot, when it is the first ended print seen (e.g. at app
-/// start), or when another job (<see cref="PrintJob.Id"/>, otherwise <see cref="PrintJob.FileName"/>) is reported as
-/// ended. Every print starts at most one cool-down.</item>
+/// ends when one of these states follows a printing / paused snapshot of the same job (also after an outage, then with an
+/// unknown <see cref="CooldownState.PrintEndedAt"/>), or when a print that was not seen printing (another job by
+/// <see cref="PrintJob.Id"/>, otherwise <see cref="PrintJob.FileName"/>, or the first ended print seen) is reported as ended
+/// right after a reachable snapshot, i.e. it ran between two polls. A print that was already over when the tracking
+/// started (the first snapshot after app start or after adding the printer, or only unreadable snapshots before it) or
+/// another job that both ran and ended during an outage starts no cool-down: its end was not observed (user decision 11,
+/// 2026-10-24). Every print starts at most one cool-down.</item>
 /// <item>It is tracked from the first snapshot with the nozzle heater off (target 0 or unknown), so that a heater that
 /// is switched off a poll late does not count as heating again.</item>
 /// <item>It ends without an event when the next print starts (<see cref="PrinterState.Printing"/> /
@@ -236,7 +240,12 @@ public sealed class CooldownTracker
         return new CooldownUpdate(_state, cooled);
     }
 
-    /// <summary>A Finished / Stopped snapshot: starts a cool-down when it reports a print that has not ended yet.</summary>
+    /// <summary>
+    /// A Finished / Stopped snapshot: starts a cool-down when it reports a print that has not ended yet and either the print
+    /// was seen printing / paused or its end was observed (the previous snapshot was reachable). A print that was already
+    /// over when the tracking started (the first snapshot after app start, or after unreadable ones only) is not tracked
+    /// (user decision 11, 2026-10-24).
+    /// </summary>
     private void EndPrintIfNew(PrintJob? job, PrinterState ended, DateTimeOffset timestamp)
     {
         bool otherJob = IsOtherJob(job);
@@ -246,7 +255,8 @@ public sealed class CooldownTracker
             return;
         }
 
-        if (_printSeen && !otherJob)
+        bool printSeen = _printSeen && !otherJob;
+        if (printSeen)
         {
             MergeJob(job);
         }
@@ -258,7 +268,7 @@ public sealed class CooldownTracker
         _printSeen = false;
         _anyPrintEnded = true;
         EndCoolDown();
-        if (!_endedByError)
+        if (!_endedByError && (printSeen || _lastReachable))
         {
             _stage = Stage.WaitingForHeaterOff;
             _coolingFileName = _jobFileName;
@@ -287,7 +297,7 @@ public sealed class CooldownTracker
 
         _cooled = true;
         _cooledDownAt = _lastTimestamp;
-        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName) : null;
+        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName, _outcome) : null;
     }
 
     private CooldownState BuildState(DateTimeOffset timestamp)

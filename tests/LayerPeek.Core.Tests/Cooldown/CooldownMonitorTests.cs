@@ -248,7 +248,21 @@ public sealed class CooldownMonitorTests : IDisposable
         Assert.Equal(CooldownPhase.CooledDown, state.Phase);
         Assert.Equal(CooldownPrintOutcome.Stopped, state.Outcome);
         Assert.Equal(Start.AddSeconds(End), state.PrintEndedAt);
-        Assert.Equal(Assert.Single(_cooledDown).Timestamp, state.CooledDownAt);
+        CooldownEvent cooled = Assert.Single(_cooledDown);
+        Assert.Equal(cooled.Timestamp, state.CooledDownAt);
+        Assert.Equal(CooldownPrintOutcome.Stopped, cooled.Outcome);
+    }
+
+    [Fact]
+    public void PrinterAlreadyShowingAnEndedPrintAtStartIsNotTracked()
+    {
+        // Decision 11: the first snapshot after the app starts (or the printer is added) already shows the ended print.
+        _cooldown.Configure([Mk4]);
+        RunCurve("mk4", End, End + 600, from: End + 20);
+
+        Assert.Equal(CooldownState.None, _cooldown.GetState("mk4"));
+        Assert.Empty(_changed);
+        Assert.Empty(_cooledDown);
     }
 
     [Fact]

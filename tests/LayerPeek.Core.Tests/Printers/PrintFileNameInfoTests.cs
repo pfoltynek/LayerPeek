@@ -135,6 +135,88 @@ public class PrintFileNameInfoTests
         Assert.False(info.HasChips);
     }
 
+    /// <summary>
+    /// Suffixes that browsers (" (1)") and Windows Explorer (" - Copy", Czech " - kopie", optionally with " (2)") append
+    /// to a downloaded or copied file (user decision 6, 2026-10-24).
+    /// </summary>
+    [Theory]
+    [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m (1).bgcode", ".bgcode")]
+    [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m (12).gcode", ".gcode")]
+    [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m - Copy.bgcode", ".bgcode")]
+    [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m - Copy (2).bgcode", ".bgcode")]
+    [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m - kopie.bgcode", ".bgcode")]
+    [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m - kopie (2).bgcode", ".bgcode")]
+    [InlineData("/usb/foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m (3).BGCODE", ".bgcode")]
+    public void CopySuffixAfterTheTemplateIsIgnored(string fileName, string extension)
+    {
+        PrintFileNameInfo info = PrintFileNameInfo.Parse(fileName);
+
+        Assert.Equal("Foldable book holder v1", info.Title);
+        Assert.Equal(["PLA"], info.Materials);
+        Assert.Equal(0.2, info.LayerHeightMm);
+        Assert.Equal(0.4, info.NozzleDiameterMm);
+        Assert.Equal(new TimeSpan(2, 51, 0), info.SlicerEstimate);
+        Assert.Equal(extension, info.Extension);
+        Assert.Equal(PrintFileNameInfo.Parse("foldable_book_holder_v1_0.4n_0.2mm_PLA_MK4S_2h51m" + extension), info);
+    }
+
+    /// <summary>Copy suffixes at the very end of a name without the template: file name, title.</summary>
+    [Theory]
+    [InlineData("benchy (1).gcode", "Benchy")]
+    [InlineData("benchy (12).bgcode", "Benchy")]
+    [InlineData("benchy - Copy.bgcode", "Benchy")]
+    [InlineData("benchy - Copy (2).bgcode", "Benchy")]
+    [InlineData("benchy - kopie.bgcode", "Benchy")]
+    [InlineData("benchy - kopie (2).bgcode", "Benchy")]
+    [InlineData("MyPart Final (1).bgcode", "MyPart Final")]
+    // Only one suffix is removed.
+    [InlineData("benchy (1) (1).gcode", "Benchy (1)")]
+    // No known extension: the suffix is still at the end of the name.
+    [InlineData("benchy (1)", "Benchy")]
+    public void CopySuffixOfANameWithoutTheTemplateIsRemoved(string fileName, string title)
+    {
+        PrintFileNameInfo info = PrintFileNameInfo.Parse(fileName);
+
+        Assert.Equal(title, info.Title);
+        Assert.False(info.HasChips);
+    }
+
+    /// <summary>Text that only resembles a copy suffix stays in the title: file name, title.</summary>
+    [Theory]
+    // No space before the parenthesis.
+    [InlineData("benchy(1).gcode", "Benchy(1)")]
+    // Not a number, empty, too many digits, negative.
+    [InlineData("benchy (a).gcode", "Benchy (a)")]
+    [InlineData("benchy ().gcode", "Benchy ()")]
+    [InlineData("benchy (12345).gcode", "Benchy (12345)")]
+    [InlineData("benchy (-1).gcode", "Benchy ( 1)")]
+    // Not at the very end of the name (a capital letter keeps the title as it is).
+    [InlineData("benchy (1) final.gcode", "Benchy (1) final")]
+    [InlineData("benchy - Copy v2.gcode", "benchy Copy v2")]
+    // Different case or wording than Windows writes (a capital letter keeps the title as it is).
+    [InlineData("benchy - copy.gcode", "Benchy copy")]
+    [InlineData("benchy - Kopie.gcode", "benchy Kopie")]
+    [InlineData("benchy -Copy.gcode", "benchy Copy")]
+    [InlineData("benchy - Copy(2).gcode", "benchy Copy(2)")]
+    // The suffix alone is the whole name, so there is nothing to remove it from.
+    [InlineData("(1).gcode", "(1)")]
+    [InlineData("- Copy.gcode", "Copy")]
+    [InlineData("/usb/ (1).gcode", "(1)")]
+    public void TextResemblingACopySuffixIsKept(string fileName, string title)
+    {
+        Assert.Equal(title, PrintFileNameInfo.Parse(fileName).Title);
+    }
+
+    [Fact]
+    public void CopySuffixInsideTheTemplateIsNotRemoved()
+    {
+        // The suffix must follow the whole template, not sit inside the base name.
+        PrintFileNameInfo info = PrintFileNameInfo.Parse("benchy (1)_0.4n_0.2mm_PLA_MK4S_1h0m.bgcode");
+
+        Assert.Equal("Benchy (1)", info.Title);
+        Assert.True(info.HasChips);
+    }
+
     [Theory]
     [InlineData("foldable_book_holder_v1_0.4n_0.2mm_PLA_COREONE_2h51m.bgcode")]
     [InlineData("tool_holder_0.4n_0.2mm_PLA;PETG_COREONE_INDX4T_5h12m.bgcode")]

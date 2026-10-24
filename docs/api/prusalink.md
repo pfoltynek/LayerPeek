@@ -41,6 +41,7 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
   - `printer_model` může obsahovat tečku (`MK3.9S`) i podtržítko (`COREONE_INDX4T`, `COREONE_INDX8T`),
   - `print_time` je výstup `short_time()` ze zdrojů PrusaSliceru (`src/libslic3r/src/libslic3r/utils.cpp`): `1d2h3m`, `2h51m`, `45m`, krátké tisky `42s`,
   - víc materiálů je v `printing_filament_types` oddělených čárkou (`PLA,PETG`), parser přijme i středník.
+  - přípony, které na konec názvu přidá prohlížeč nebo Průzkumník Windows (` (1)`, ` - Copy`, ` - Copy (2)`, české ` - kopie`, ` - kopie (2)`), parser před rozborem odřízne; jen přesně tyto tvary přímo na konci názvu (rozhodnutí 6, 2026-10-24).
 - Náhled G-code popisuje oddíl „Náhled G-code“ níže.
 - Zdroje:
   - https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/master/lib/WUI/link_content/basic_gets.cpp
@@ -82,6 +83,7 @@ Ověřeno ve zdrojích firmwaru na `master` (commit `1ce23f33`, 2026-08-27). Na 
   - Odkaz s `?`, `#`, `\`, segmenty `.`/`..`, prázdným segmentem, řídicími znaky nebo osamocenými surrogaty se zahodí. Takový odkaz pak náhled nemá.
 - `PrusaLinkPreviewFetcher` stahuje přes vlastní pojmenovaný `HttpClient` `PrusaLink.Preview` (1 spojení na tiskárnu, odděleně od pollingu).
   - Spolu s monitoringem (1 spojení) se vejde do 3 aktivních požadavků firmwaru. Když zároveň běží odkaz na tiskárnu přes proxy (T-028, až 2 spojení), je požadavků 4 a firmware je jen zpomalí (viz „Spojení a zátěž“).
+  - Rozhodnutí 13 (uživatel, 2026-10-24): čtvrté spojení se zatím přijímá. Omezení proxy odkazu na 1 spojení se zváží, jen když se na skutečné tiskárně objeví problémy.
   - Výsledná adresa musí zůstat na hostu, portu a schématu tiskárny a pod její cestou (prefix proxy). Jinak se nic nestahuje (pojistka navíc ke kontrole odkazu).
   - Digest: přihlášení je pro každé stažení nové, takže stojí jednu výzvu `401` navíc. Náhled se stahuje zhruba jednou na úlohu a velikost.
   - Limity: celkový timeout 10 s (hlavičky i tělo), nejvýš 512 KB. Limit se hlídá **během čtení**: delší tělo se po 512 KB + 1 B přestane číst a zahodí. Větší `Content-Length` se odmítne bez čtení těla.

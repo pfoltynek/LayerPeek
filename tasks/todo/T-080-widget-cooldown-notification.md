@@ -1,6 +1,6 @@
 ---
 id: T-080
-title: Vychladnutí – volitelná notifikace „vychladlo, můžeš vypnout“ a nastavení prahu
+title: Vychladnutí – volitelná notifikace „vychladlo, můžete vypnout“ a nastavení prahu
 status: todo
 owner: core-dev + ui-dev
 priority: P2
@@ -9,7 +9,7 @@ depends_on: [T-076, T-079]
 ---
 
 ## Cíl
-- Nový typ systémové notifikace „Tiskárna vychladla – můžeš ji vypnout“. Je volitelný, přepínač je v nastavení upozornění.
+- Nový typ systémové notifikace „Tiskárna vychladla – můžete ji vypnout“. Je volitelný, přepínač je v nastavení upozornění.
 - V nastavení tiskárny pole pro práh vychladnutí trysky (výchozí 50 °C, T-079) a akce „Použít práh u všech tiskáren“.
 
 ## Kontext
@@ -28,6 +28,11 @@ depends_on: [T-076, T-079]
 - **Zvuk (Q2, Q4):** notifikace je **informační** (`NotificationSeverity` jiná než `ActionRequired`), takže ve výchozím nastavení zvuku „jen důležité“ nehraje. Při nastavení zvuku „všechny“ zazní jako ostatní informační notifikace (Q4).
 - **macOS (Q3):** přijde automaticky s T-020 přes `INotificationService`, bez zvláštní práce.
 - **Práh (T-079):** je **u každé tiskárny**, 30–100 °C, výchozí 50 °C, s akcí „Použít práh u všech tiskáren“.
+
+## Rozhodnutí (uživatel, 2026-10-24, po dokončení T-079)
+- **Rozhodnutí 12 – výsledek tisku v textu:** text notifikace uvádí, jak tisk skončil, např. „CoreOne: tisk dokončen, tiskárna vychladla“ nebo „CoreOne: tisk zastaven, tiskárna vychladla“. Výsledek nese `CooldownEvent.Outcome` (`CooldownPrintOutcome.Finished` / `Stopped`, doplněno v T-079, větev `feature/widget-core-followups`). Přesné znění ve všech jazycích navrhne ui-dev podle T-076.
+- **Vykání:** texty vykají („Tiskárna vychladla – můžete ji vypnout“), stejně jako zbytek české UI.
+- **Tiskárna vychladlá už při startu (rozhodnutí 11):** pro tiskárnu, která už při startu aplikace ukazuje skončený tisk, Core chladnutí nesleduje, takže notifikace nepřijde.
 
 ## Rozsah
 ### Core (core-dev)
@@ -54,7 +59,7 @@ depends_on: [T-076, T-079]
   - tisk skončený pod prahem → žádná notifikace,
   - při nastavení zvuku „jen důležité“ bez zvuku,
   - při nastavení zvuku „všechny“ se zvukem, stejně jako ostatní informační notifikace.
-- [ ] App.Tests: obsah toastu (en, cs, fr), zvuk podle nastavení
+- [ ] App.Tests: obsah toastu (en, cs, fr) pro dokončený i zastavený tisk, zvuk podle nastavení
 - [ ] Headless UI testy (`LayerPeek.App.UiTests`):
   - přepínač a pole prahu: výchozí hodnoty, uložení, hodnoty mimo 30–100,
   - „Použít u všech tiskáren“,
