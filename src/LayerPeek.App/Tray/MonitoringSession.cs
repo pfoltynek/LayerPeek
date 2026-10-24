@@ -223,6 +223,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             LogSettingsWarning(logger, warning);
         }
 
+        foreach (string notice in result.Notices)
+        {
+            LogSettingsNotice(logger, notice);
+        }
+
         // A corrupted file is cleaned as well when it is valid JSON (user decision): nothing of it is used, but the password
         // must not stay on disk.
         if (result.Status is SettingsLoadStatus.Loaded or SettingsLoadStatus.Corrupted)
@@ -928,6 +933,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Settings: {Warning}")]
     private static partial void LogSettingsWarning(ILogger logger, string warning);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Settings: {Notice}")]
+    private static partial void LogSettingsNotice(ILogger logger, string notice);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from the camera addresses of {Count} printer(s) in the settings file; nothing else was changed.")]
     private static partial void LogCameraCredentialsRemoved(ILogger logger, int count);

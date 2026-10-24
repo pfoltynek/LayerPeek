@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using LayerPeek.App.Resources;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.PrusaLink;
@@ -98,9 +99,13 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     // printer even when the values equal the saved ones.
     private bool _forgetsRememberedCameraWindow;
 
-    // Print overlay (T-036): the corner and one row per item (in display order).
+    // Print overlay (T-036): the corner and one row per item (in display order). In memory only since settings format 2
+    // (T-077); T-092 replaces it with the widget table.
     private CameraOverlayCornerOption _overlayCorner;
     private readonly CameraOverlayItemRow[] _overlayRows;
+
+    // The widget layout (T-077) is not edited here yet (T-092): saved back as loaded.
+    private readonly CameraOverlayLayout _savedOverlayLayout;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
@@ -144,7 +149,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _topmostMini = _savedWindow.TopmostMini;
         ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
-        CameraOverlayOptions overlay = camera.Overlay;
+        _savedOverlayLayout = camera.Overlay;
+        CameraOverlayOptions overlay = camera.LegacyOverlay;
         _overlayCorner = owner.OverlayCornerOptions.First(option => option.Value == overlay.Corner);
         _overlayRows = [.. CameraOverlayOptions.Items.Select(item => new CameraOverlayItemRow(
             item,
@@ -717,9 +723,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private CameraSettings? BuildCamera(CameraWindowDefaults window)
     {
         CameraOverlayOptions overlay = BuildOverlay();
+        CameraOverlayLayout layout = _savedOverlayLayout;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = overlay };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, LegacyOverlay = overlay };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -730,14 +737,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         if (problem == CameraUrlProblem.Missing)
         {
             // No address and the default window and overlay: the shared "no camera" value.
-            return window == CameraSettings.Disabled.Window && overlay == CameraSettings.Disabled.Overlay
+            return window == CameraSettings.Disabled.Window && overlay == CameraSettings.Disabled.LegacyOverlay && layout == CameraSettings.Disabled.Overlay
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = overlay };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, LegacyOverlay = overlay };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = overlay };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, LegacyOverlay = overlay };
         }
         catch (ArgumentException)
         {

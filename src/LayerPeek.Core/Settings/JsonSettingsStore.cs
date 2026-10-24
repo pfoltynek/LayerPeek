@@ -1,6 +1,7 @@
 using System.Text.Json;
 
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.IO;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings.Storage;
@@ -229,6 +230,46 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
+    public async Task<bool> SetCameraOverlayLayoutAsync(string printerId, CameraOverlayLayout layout, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        ArgumentNullException.ThrowIfNull(layout);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // A file still held by another process after the retries is thrown: "nothing written" would hide that the
+            // layout the user just finished editing was not saved.
+            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            if (content is null)
+            {
+                return false;
+            }
+
+            byte[]? written;
+            try
+            {
+                written = CameraOverlaySectionWriter.Write(content, printerId, layout);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not valid JSON, or invalid UTF-8 in a property name or printer id: not ours to change.
+                return false;
+            }
+
+            if (written is null)
+            {
+                return false;
+            }
+
+            await WriteAtomicallyAsync(written, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public void Dispose() => _gate.Dispose();
 
     /// <summary>
@@ -293,9 +334,10 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
 
         List<string> warnings = [];
-        AppSettings settings = SettingsMapper.ToSettings(document, warnings);
+        List<string> notices = [];
+        AppSettings settings = SettingsMapper.ToSettings(document, warnings, notices);
         string[] storedIds = [.. (document.Printers ?? []).Select(static entry => entry?.Id?.Trim()).OfType<string>().Where(static id => id.Length > 0)];
-        return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings, StoredPrinterIds = storedIds };
+        return new SettingsLoadResult { Settings = settings, Status = SettingsLoadStatus.Loaded, Warnings = warnings, Notices = notices, StoredPrinterIds = storedIds };
     }
 
     /// <summary>

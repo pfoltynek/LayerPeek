@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
+using LayerPeek.Core.Cameras.Overlay;
+
 namespace LayerPeek.Core.Cameras;
 
 /// <summary>
@@ -74,8 +76,26 @@ public sealed record CameraSettings
         }
     } = CameraWindowDefaults.Default;
 
-    /// <summary>What the print overlay of the camera window shows (T-036); kept while the camera is disabled or its address is invalid.</summary>
-    public CameraOverlayOptions Overlay
+    /// <summary>
+    /// The widgets drawn over the camera image and where (T-077); kept while the camera is disabled or its address is
+    /// invalid. Persisted as <c>printers[*].camera.overlay</c> (settings format 2).
+    /// </summary>
+    public CameraOverlayLayout Overlay
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = CameraOverlayLayout.Default;
+
+    /// <summary>
+    /// The T-036 overlay options, used only by the old overlay of the camera window and its settings until T-081 / T-092
+    /// replace them. Kept in memory only: settings format 2 does not store them (user decision 2026-10-24, T-077 Q2), so
+    /// every load starts with <see cref="CameraOverlayOptions.Default"/>. Part of equality so that unsaved changes count.
+    /// </summary>
+    public CameraOverlayOptions LegacyOverlay
     {
         get;
         init
@@ -249,9 +269,10 @@ public sealed record CameraSettings
         && string.Equals(StreamUri?.OriginalString, other.StreamUri?.OriginalString, StringComparison.Ordinal)
         && string.Equals(InvalidStreamUrl, other.InvalidStreamUrl, StringComparison.Ordinal)
         && Window == other.Window
-        && Overlay == other.Overlay;
+        && Overlay == other.Overlay
+        && LegacyOverlay == other.LegacyOverlay;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, LegacyOverlay);
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -262,7 +283,8 @@ public sealed record CameraSettings
             .Append(", StreamUrlProblem = ").Append(StreamUrlProblem)
             .Append(", CredentialsRemoved = ").Append(CredentialsRemoved)
             .Append(", Window = ").Append(Window)
-            .Append(", Overlay = ").Append(Overlay);
+            .Append(", Overlay = ").Append(Overlay)
+            .Append(", LegacyOverlay = ").Append(LegacyOverlay);
         return true;
     }
 }

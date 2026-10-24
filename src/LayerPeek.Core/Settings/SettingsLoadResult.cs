@@ -32,6 +32,12 @@ public sealed record SettingsLoadResult
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
     /// <summary>
+    /// Informational messages without values, for the log only (not problems): e.g. that settings of an older format were
+    /// converted (T-077). The converted shape is written by the next save.
+    /// </summary>
+    public IReadOnlyList<string> Notices { get; init; } = [];
+
+    /// <summary>
     /// Ids (trimmed) of every printer entry in the file, also of entries that were skipped as invalid (unknown connection
     /// type, missing address, duplicate id...): data kept for such a printer (e.g. its custom image, T-039) must survive
     /// until the user fixes or removes the entry. Empty when the file was not <see cref="SettingsLoadStatus.Loaded"/>.

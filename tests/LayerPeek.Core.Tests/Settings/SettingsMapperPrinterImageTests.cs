@@ -25,7 +25,7 @@ public sealed class SettingsMapperPrinterImageTests : IDisposable
 
         Assert.DoesNotContain("detectedModel", json, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("\"image\"", json, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("\"version\": 1", json, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 2", json, StringComparison.Ordinal);
     }
 
     [Fact]

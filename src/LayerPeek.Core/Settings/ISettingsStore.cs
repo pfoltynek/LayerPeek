@@ -87,4 +87,23 @@ public interface ISettingsStore
     /// <exception cref="ArgumentException"><paramref name="devicePath"/> is not a valid device path or is a known twin of <paramref name="expected"/>.</exception>
     Task<bool> SetCameraMonitorDevicePathAsync(string printerId, Cameras.CameraMonitorId expected, string devicePath, CancellationToken cancellationToken) =>
         Task.FromResult(false);
+
+    /// <summary>
+    /// Sets the camera overlay layout of printer <paramref name="printerId"/> (<c>printers[*].camera.overlay</c>, T-077) in
+    /// the stored settings and changes <b>nothing else</b>, byte for byte like <see cref="SetDetectedModelAsync"/>: the layout
+    /// edited in the camera window is saved while the settings window may hold other unsaved changes. Every entry with that
+    /// id (trimmed, case-insensitive) that has a camera object gets the layout (the default layout as <c>{}</c>); the write
+    /// is atomic. A missing, unreadable or too large file, one that is not syntactically valid JSON, one of a newer settings
+    /// format (or with an unreadable format version) and one without such a printer camera is left alone. Use
+    /// <see cref="CameraOverlayLayoutWriter"/> to announce the write.
+    /// </summary>
+    /// <returns><see langword="true"/> when the file was written (the stored section differed).</returns>
+    /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
+    /// <exception cref="IOException">
+    /// The settings could not be read or written, also when another process still held the file after the retries.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    Task<bool> SetCameraOverlayLayoutAsync(string printerId, Cameras.Overlay.CameraOverlayLayout layout, CancellationToken cancellationToken) =>
+        Task.FromResult(false);
 }

@@ -58,7 +58,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
     }
 
     private static PrinterDefinition Printer(CameraOverlayOptions overlay, string name = "MK4") =>
-        Definition("mk4", name) with { Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = overlay } };
+        Definition("mk4", name) with { Camera = new CameraSettings(enabled: true, StreamUri) { LegacyOverlay = overlay } };
 
     private void Save(CameraOverlayOptions overlay, string name = "MK4")
     {

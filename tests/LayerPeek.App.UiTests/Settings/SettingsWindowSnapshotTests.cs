@@ -250,7 +250,7 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
                 scope,
-                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Overlay = overlay } }));
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { LegacyOverlay = overlay } }));
             ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.OverlayPrinterTab;
 
             SnapshotAssert.Matches(ui.Window, "settings-overlay");

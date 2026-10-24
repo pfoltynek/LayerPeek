@@ -39,7 +39,7 @@ public sealed class SettingsWindowOverlayUiTests(HeadlessSession session)
     public static TheoryData<string> Languages => [.. AppLanguages.Supported];
 
     private static PrinterDefinition Printer(bool cameraEnabled = true, CameraOverlayOptions? overlay = null) =>
-        LinkPrinter("a", "Alpha") with { Camera = new CameraSettings(cameraEnabled, StreamUri) { Overlay = overlay ?? CameraOverlayOptions.Default } };
+        LinkPrinter("a", "Alpha") with { Camera = new CameraSettings(cameraEnabled, StreamUri) { LegacyOverlay = overlay ?? CameraOverlayOptions.Default } };
 
     /// <summary>Opens the window and the Overlay sub-tab with a click on its header, like the user.</summary>
     private static async Task<SettingsWindowHarness> OpenAsync(UiTestScope scope, PrinterDefinition printer, FakeEditorStore? store = null)
@@ -118,7 +118,7 @@ public sealed class SettingsWindowOverlayUiTests(HeadlessSession session)
             ui.Window.Settle();
             await ui.SaveAsync();
 
-            Assert.Equal(Custom, Assert.Single(store.Saves).Updated.Printers[0].Camera.Overlay);
+            Assert.Equal(Custom, Assert.Single(store.Saves).Updated.Printers[0].Camera.LegacyOverlay);
             Assert.False(ui.IsOpen);
         });
 

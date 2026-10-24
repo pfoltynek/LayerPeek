@@ -52,18 +52,27 @@ LayerPeek je **tray-only** aplikace (Windows: oznamovací oblast, macOS: menu ba
 
 ## Překryv okna kamery – widgety (plán T-076 až T-093)
 
-Jediný `Border` s řádky z T-036 nahradí systém widgetů. Stav je **plán**. Otázky rozhodl uživatel 2026-10-24, implementace UI čeká na schválení návrhu T-076.
+Jediný `Border` s řádky z T-036 nahradí systém widgetů. Otázky rozhodl uživatel 2026-10-24, návrh T-076 je schválený. Core část (T-077) je hotová, UI je **plán**.
 
-- **Core (`Core/Cameras/Overlay`, T-077):**
-  - `CameraOverlayLayout` je seznam `OverlayWidgetPlacement`. Každé umístění má textové id widgetu, jednu ze 6 kotev `OverlayAnchor`, pořadí v kotvě (pořadí v seznamu), velikost S/M/L, zvýraznění a viditelnost.
-  - Každý typ widgetu je v rozložení nejvýš jednou (v1). Normální okno a celá obrazovka sdílejí jedno rozložení.
-  - Rozložení je **u tiskárny** v `printers[*].camera.overlay`. Akce „použít u všech tiskáren“ je čistá operace. Neznámé id widgetu se zachová a zapíše zpět.
-  - **Průhlednost pozadí karet** je jediná **globální** hodnota v `AppSettings` (30–95 %, výchozí 72 %).
-  - `settings.json` má `version` 2. Starý tvar T-036 (`corner` / `normal` / `mini`) se při načtení převede a už se nezapisuje:
+- **Core (`Core/Cameras/Overlay`, T-077, hotovo):**
+  - `CameraOverlayLayout` (`CameraSettings.Overlay`) je neměnný seznam `OverlayWidgetPlacement`. Každé umístění má textové id widgetu (`OverlayWidgetIds`), jednu ze 6 kotev `OverlayAnchor`, velikost `OverlayWidgetSize` S/M/L, zvýraznění a viditelnost.
+    - Seznam je seřazený podle kotev. Pořadí v kotvě = pořadí v seznamu, od okraje okna ke středu.
+    - Rovnost porovnává seznam po prvcích. Operace beze změny vrací stejnou instanci (levná detekce změn).
+  - Každý typ widgetu je v rozložení nejvýš jednou (v1, bez ohledu na velikost písmen). Normální okno a celá obrazovka sdílejí jedno rozložení.
+  - Výchozí rozložení `CameraOverlayLayout.Default` je podle návrhu T-076 3.3. Hlavní kotva `MainAnchor` = `BottomLeft` (kotva widgetu Časy).
+  - Rozložení je **u tiskárny** v `printers[*].camera.overlay` jako `{ "widgets": [ { "id", "anchor", "size", "emphasized", "visible" } ] }`. Výchozí rozložení se nezapisuje.
+    - „Použít u všech tiskáren“: `CameraOverlayLayout.ApplyToAll` / `AppSettings.WithCameraOverlayLayoutForAllPrinters`.
+    - Neznámé id widgetu se zachová a zapíše zpět. Známý widget, který v seznamu chybí, se doplní na výchozí místo.
+    - Hodnoty sekce se čtou volně z `JsonElement`: chybný typ nebo neznámá hodnota = výchozí hodnota s jedním varováním bez opisu hodnot, ne poškozený soubor.
+  - **Průhlednost pozadí karet** je jediná **globální** hodnota `AppSettings.CameraOverlayOpacityPercent` (`CameraOverlayOpacity`, 30–95 %, výchozí 72 %), v souboru `cameraOverlay.backgroundOpacityPercent`. Výchozí hodnota se nezapisuje.
+  - `settings.json` má `version` 2. Starý tvar T-036 (`corner` / `normal` / `mini`) bez `widgets` se při načtení převede a už se nezapisuje:
     - viditelnost starých položek se zahodí, začíná se z výchozího rozložení,
-    - starý roh určí, kam se výchozí rozložení zrcadlí (hlavní kotva Stav + Časy skončí ve starém rohu).
-  - Operace nad rozložením jsou čisté funkce bez Avalonie: přesun do kotvy a na pozici, velikost, zvýraznění, viditelnost, obnovení, zrcadlení.
-  - Mimo okno nastavení zapisuje rozložení samostatný zapisovač sekce (po vzoru `CameraMonitorPathWriter`). Zápis ohlásí, takže otevřené okno nastavení znovu načte jen rozložení dané tiskárny a ostatní neuložené změny si ponechá (T-092).
+    - starý roh určí, kam se výchozí rozložení zrcadlí (`CameraOverlayLayout.FromLegacyCorner`, `OverlayAnchors.MirrorBetweenCorners`): hlavní kotva skončí ve starém rohu a s ní celý levý sloupec,
+    - do logu jde jedna informační zpráva bez hodnot (`SettingsLoadResult.Notices`).
+  - Operace nad rozložením jsou čisté funkce bez Avalonie: `InAnchor`, `MoveTo` (kotva a pozice v kotvě), `WithSize`, `WithEmphasized`, `WithVisible`, `ResetToDefault` (neznámé widgety ponechá), `Mirrored`.
+  - Mimo okno nastavení zapisuje rozložení `ICameraOverlayLayoutWriter` / `CameraOverlayLayoutWriter` přes `ISettingsStore.SetCameraOverlayLayoutAsync`. Ten bajtově přepíše jen sekci `overlay` dané tiskárny (`CameraOverlaySectionWriter`, po vzoru `CameraMonitorPathWriter`), výchozí rozložení jako `{}`.
+    - Po zápisu přijde událost `LayoutSaved` (id tiskárny + rozložení). Otevřené okno nastavení z ní převezme jen rozložení dané tiskárny (`AppSettings.WithCameraOverlayLayout`) a ostatní neuložené změny si ponechá (T-092).
+  - Mezistav do T-081 / T-092: starý překryv T-036 a jeho podzáložka pracují s `CameraSettings.LegacyOverlay`. Ten je jen v paměti a neukládá se.
 - **App – framework (T-081):**
   - `OverlayWidgetRegistry` se plní **explicitním seznamem** v composition rootu (Native AOT: žádné skenování ani `Activator`). Nový widget je jedna třída (`IOverlayWidgetDefinition` + view model + `DataTemplate` s `x:DataType`) a jeden řádek registrace.
   - Hostitel rozdělí viditelné widgety do 6 kotev nad obrazem normálního okna a celé obrazovky. V malém náhledu karty nejsou.
