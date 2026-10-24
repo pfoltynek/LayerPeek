@@ -223,8 +223,14 @@ public sealed class AppEnvironmentTests
             (@"new AppShortcutRegistration\(", ["Composition/AppServices.cs"]),
             // Explorer's tray icon settings (T-061): created only where the test mode switches the promotion off. The toast
             // activator (T-068): registered only with toasts (the test mode has its own activator), removed by the test cleanup.
-            (@"Microsoft\.Win32\.Registry|RegistryKey|\bRegistry\.(CurrentUser|LocalMachine|ClassesRoot|Users)\b", ["Platform/Windows/NotifyIconSettingsRegistry.cs", "Platform/Windows/ToastActivatorRegistration.cs"]),
-            (@"new NotifyIconSettingsRegistry\(", ["Composition/TrayHost.cs"]),
+            // T-017: Windows' notification settings of the app, deleted only by the uninstall hook (production identity), which
+            // also clears the taskbar choice of the installed exe (AppServices.CreateInstallerHooks).
+            (@"Microsoft\.Win32\.Registry|RegistryKey|\bRegistry\.(CurrentUser|LocalMachine|ClassesRoot|Users)\b", ["Platform/Windows/NotifyIconSettingsRegistry.cs", "Platform/Windows/ToastActivatorRegistration.cs", "Platform/Windows/WindowsNotificationSettingsRegistry.cs"]),
+            (@"new NotifyIconSettingsRegistry\(", ["Composition/TrayHost.cs", "Composition/AppServices.cs"]),
+            (@"new WindowsNotificationSettingsRegistry\(", ["Composition/AppServices.cs"]),
+            // T-017: the autostart shortcut, only through AppEnvironment.AutostartShortcutPath (the test mode has its own folder).
+            (@"StartupShortcutPath\(\)", ["Platform/Windows/AppShortcutRegistration.cs", "Composition/AppEnvironment.cs"]),
+            (@"new StartupShortcutAutostart\(", ["Composition/AppServices.cs"]),
             (@"new WindowsComServerRegistry\(", ["Composition/AppServices.cs", "Platform/Windows/TestToastCleanup.cs"]),
         ];
 

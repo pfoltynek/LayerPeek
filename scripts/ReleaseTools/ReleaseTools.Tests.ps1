@@ -571,6 +571,138 @@ Describe 'Publish checks' {
     }
 }
 
+Describe 'Velopack packaging (T-017)' {
+    BeforeAll {
+        $script:VpkArguments = Get-VelopackPackArguments -Version '0.1.0' -Runtime 'win-x64' -PublishDirectory 'P:\publish\win-x64' `
+            -OutputDirectory 'P:\velopack\out' -ReleaseNotesFile 'P:\velopack\notes.md' -IconFile 'P:\repo\app-icon.ico'
+        function Option([string[]] $Arguments, [string] $Name) {
+            $index = [array]::IndexOf($Arguments, $Name)
+            if ($index -lt 0) { throw "Option $Name is missing: $($Arguments -join ' ')" }
+            if (@($Arguments | Where-Object { $_ -ceq $Name }).Count -ne 1) { throw "Option $Name is given more than once." }
+            $Arguments[$index + 1]
+        }
+    }
+    It 'runs vpk pack without its own update check' {
+        $script:VpkArguments[0..2] | Should -BeExactly @('vpk', '--skip-updates', 'pack')
+    }
+    It 'packs the app as LayerPeek with the AppUserModelID of the app (<Name> <Value>)' -ForEach @(
+        @{ Name = '--packId'; Value = 'LayerPeek' },
+        @{ Name = '--packTitle'; Value = 'LayerPeek' },
+        @{ Name = '--aumid'; Value = 'LayerPeek' },
+        @{ Name = '--mainExe'; Value = 'LayerPeek.exe' },
+        @{ Name = '--shortcuts'; Value = 'StartMenuRoot' },
+        @{ Name = '--delta'; Value = 'None' },
+        @{ Name = '--packVersion'; Value = '0.1.0' },
+        @{ Name = '--packDir'; Value = 'P:\publish\win-x64' },
+        @{ Name = '--outputDir'; Value = 'P:\velopack\out' },
+        @{ Name = '--releaseNotes'; Value = 'P:\velopack\notes.md' },
+        @{ Name = '--icon'; Value = 'P:\repo\app-icon.ico' }
+    ) {
+        Option $script:VpkArguments $Name | Should -BeExactly $Value
+    }
+    It 'uses the RID as channel and runtime (<_>)' -ForEach 'win-x64', 'win-arm64' {
+        $arguments = Get-VelopackPackArguments -Version '0.1.0' -Runtime $_ -PublishDirectory 'p' -OutputDirectory 'o' -ReleaseNotesFile 'n' -IconFile 'i'
+        Option $arguments '--channel' | Should -BeExactly $_
+        Option $arguments '-r' | Should -BeExactly $_
+    }
+    It 'makes no Portable.zip, no desktop or Startup shortcut and signs nothing' {
+        $script:VpkArguments | Should -Contain '--noPortable'
+        ($script:VpkArguments -join ' ') | Should -Not -Match 'Desktop|Startup|--sign|--msi|--framework'
+    }
+    It 'names Setup.exe like the archive and keeps the names of the feed files' {
+        $map = Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64'
+        @($map.Keys) | Should -BeExactly @('LayerPeek-0.1.0-win-x64-full.nupkg', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64', 'LayerPeek-win-x64-Setup.exe')
+        @($map.Values) | Should -BeExactly @('LayerPeek-0.1.0-win-x64-full.nupkg', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64', 'LayerPeek-0.1.0-win-x64-Setup.exe')
+        Get-VelopackSetupFileName -Version '0.1.0' -Runtime 'win-arm64' | Should -BeExactly 'LayerPeek-0.1.0-win-arm64-Setup.exe'
+    }
+    It 'gives every file of win-x64 and win-arm64 its own name (both can be in one release)' {
+        $x64 = @((Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64').Values) + (Get-ArchiveFileName -Version '0.1.0' -Runtime 'win-x64')
+        $arm64 = @((Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-arm64').Values) + (Get-ArchiveFileName -Version '0.1.0' -Runtime 'win-arm64')
+        @($x64 | Where-Object { $arm64 -contains $_ }) | Should -BeNullOrEmpty
+    }
+    It 'copies exactly the expected files into dist' {
+        $work = Join-Path $script:TempRoot 'vpk-ok'
+        $dist = Join-Path $script:TempRoot 'vpk-ok-dist'
+        $null = New-Item -ItemType Directory -Path $work, $dist
+        foreach ($name in (Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64').Keys) { [System.IO.File]::WriteAllText((Join-Path $work $name), $name) }
+
+        $copied = @(Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $dist -Version '0.1.0' -Runtime 'win-x64')
+
+        @($copied | ForEach-Object { Split-Path -Leaf $_ }) | Should -BeExactly @((Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64').Values)
+        [System.IO.File]::ReadAllText((Join-Path $dist 'LayerPeek-0.1.0-win-x64-Setup.exe')) | Should -BeExactly 'LayerPeek-win-x64-Setup.exe'
+        Assert-ThrowsMatching { Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $dist -Version '0.1.0' -Runtime 'win-x64' } 'already exists'
+    }
+    It 'refuses a Portable.zip, a delta or a missing file of vpk' {
+        $work = Join-Path $script:TempRoot 'vpk-bad'
+        $null = New-Item -ItemType Directory -Path $work
+        foreach ($name in (Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64').Keys) { [System.IO.File]::WriteAllText((Join-Path $work $name), 'x') }
+        [System.IO.File]::WriteAllText((Join-Path $work 'LayerPeek-win-x64-Portable.zip'), 'x')
+        Assert-ThrowsMatching { Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $script:TempRoot -Version '0.1.0' -Runtime 'win-x64' } 'unexpected files.*Portable.zip'
+        Remove-Item -LiteralPath (Join-Path $work 'LayerPeek-win-x64-Portable.zip'), (Join-Path $work 'RELEASES-win-x64')
+        Assert-ThrowsMatching { Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $script:TempRoot -Version '0.1.0' -Runtime 'win-x64' } 'did not create RELEASES-win-x64'
+    }
+    It 'pins vpk to the version of the Velopack package (real repository files)' {
+        Get-VelopackVersionProblems -PackagesPropsPath (Join-Path $script:RepoRoot 'Directory.Packages.props') -ToolManifestPath (Join-Path $script:RepoRoot '.config' 'dotnet-tools.json') |
+            Should -BeNullOrEmpty
+        $manifest = Get-Content -LiteralPath (Join-Path $script:RepoRoot '.config' 'dotnet-tools.json') -Raw | ConvertFrom-Json
+        # vpk targets .NET 8-10; a machine with only .NET 11 needs the roll-forward (docs/prerequisites.md).
+        $manifest.tools.vpk.rollForward | Should -BeTrue
+    }
+    It 'reports different versions of the package and the tool' {
+        $props = New-TempFile 'vv/Directory.Packages.props' '<Project><ItemGroup><PackageVersion Include="Velopack" Version="1.2.161" /></ItemGroup></Project>'
+        $tools = New-TempFile 'vv/dotnet-tools.json' '{ "version": 1, "isRoot": true, "tools": { "vpk": { "version": "1.3.0", "commands": ["vpk"] } } }'
+        Assert-Problems (Get-VelopackVersionProblems -PackagesPropsPath $props -ToolManifestPath $tools) 'Velopack 1.2.161 .* vpk 1.3.0 .* differ'
+        $none = New-TempFile 'vv/none.json' '{ "version": 1, "isRoot": true, "tools": { } }'
+        Assert-Problems (Get-VelopackVersionProblems -PackagesPropsPath $props -ToolManifestPath $none) 'does not pin the vpk tool'
+    }
+    It 'reads the release notes of an undated section for the package only on request' {
+        $path = New-TempFile 'vn/CHANGELOG.md' "## [0.1.0] - unreleased`n`n- First.`n"
+        Get-ChangelogSection -Path $path -Version '0.1.0' -AllowUndated | Should -BeExactly '- First.'
+        Assert-ThrowsMatching { Get-ChangelogSection -Path $path -Version '0.1.0' } 'has no release date'
+    }
+    It 'puts the Velopack files into the checksums and the upload plan like every other file' {
+        $dist = Join-Path $script:TempRoot 'vpk-sums'
+        $null = New-Item -ItemType Directory -Path $dist
+        $names = @((Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64').Values) + 'LayerPeek-0.1.0-win-x64.zip'
+        foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $dist $name), $name) }
+        $sums = Write-Sha256Sums -Directory $dist -FileName 'SHA256SUMS-windows.txt' -Files $names
+        @((Read-Sha256Sums $sums).Keys) | Should -BeExactly @($names | Sort-Object -CaseSensitive)
+        Assert-Problems (Get-Sha256SumsProblems $sums)
+        $local = @($names | ForEach-Object { [pscustomobject]@{ Name = $_; Sha256 = Get-FileSha256 (Join-Path $dist $_) } })
+        @(Get-UploadPlan -LocalFiles $local -RemoteAssets @() | ForEach-Object { "$($_.Name)=$($_.Action)" }) | Should -BeExactly @($names | ForEach-Object { "$_=Upload" })
+    }
+    It 'still refuses every Velopack file of win-arm64 until T-057 (<_>)' -ForEach @(
+        'LayerPeek-0.1.0-win-arm64-full.nupkg', 'releases.win-arm64.json', 'assets.win-arm64.json', 'RELEASES-win-arm64', 'LayerPeek-0.1.0-win-arm64-Setup.exe'
+    ) {
+        $name = $_
+        $release = [pscustomobject]@{ isDraft = $true; url = 'https://example.invalid'; assets = @(
+                [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = "sha256:$('7' * 64)" },
+                [pscustomobject]@{ name = $name; digest = "sha256:$('4' * 64)" }
+            )
+        }
+        $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{ $name = '4' * 64 } }
+        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs windows -Checksums $sums) "belongs to win-arm64"
+    }
+    It 'tells the files of a RID apart (<Name> / <Runtime> = <Expected>)' -ForEach @(
+        @{ Name = 'releases.win-x64.json'; Runtime = 'win-arm64'; Expected = $false },
+        @{ Name = 'RELEASES-win-x64'; Runtime = 'win-x64'; Expected = $true },
+        @{ Name = 'LayerPeek-0.1.0-win-x64-Setup.exe'; Runtime = 'win-x64'; Expected = $true },
+        @{ Name = 'LayerPeek-0.1.0-osx-arm64.tar.gz'; Runtime = 'win-arm64'; Expected = $false },
+        @{ Name = 'SHA256SUMS-windows.txt'; Runtime = 'win-x64'; Expected = $false }
+    ) {
+        Test-RuntimeFileName -Name $Name -Runtime $Runtime | Should -Be $Expected
+    }
+    It 'adds the installer as a Windows packaging step of the build script' {
+        $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
+        $script | Should -Match "Name\s+=\s+'installer'\s+Os\s+=\s+@\('windows'\)"
+        $script | Should -Match 'Get-VelopackPackArguments'
+        $script | Should -Match 'Copy-VelopackOutput'
+        # vpk's console output must not end up in the returned file list.
+        $script | Should -Match 'dotnet @arguments \| Out-Host'
+        $script | Should -Match 'Get-ChangelogSection .*-AllowUndated'
+    }
+}
+
 Describe 'AOT smoke script with an existing publish folder' {
     BeforeAll {
         # A publish folder whose path holds wildcard characters ([ ]): it must be addressed literally.

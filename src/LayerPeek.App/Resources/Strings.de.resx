@@ -537,6 +537,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Nur auf Anfrage zur Fehlersuche einschalten. Das Protokoll wächst schneller.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Autostart und Updates</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Nach der Anmeldung bei Windows starten</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Nur verfügbar, wenn LayerPeek mit Setup.exe installiert wurde, nicht in der ZIP-Version.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Vorabversionen anbieten</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Updates umfassen auch Versionen, die noch nicht final sind. Bis Version 1.0 ist jede Version eine Vorabversion, ohne diese Option erhalten Sie also keine Updates.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Einstellungen gespeichert. Der Start nach der Anmeldung konnte nicht geändert werden. Versuchen Sie, erneut zu speichern.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Druck gestartet</value>
   </data>

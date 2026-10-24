@@ -136,8 +136,10 @@ function Get-ChangelogSection {
         The section starts with '## [X.Y.Z] - YYYY-MM-DD' and ends before the next '## ' heading. Link reference
         definitions of versions at the end of the file ('[X.Y.Z]: https://...') are not part of the notes.
         Throws when the section is missing, duplicated, has no valid release date or no content.
+        -AllowUndated accepts a section without a date (e.g. '- unreleased'): the build of any commit packs the notes
+        into the Velopack package (T-017); only the upload insists on the date.
     #>
-    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [string] $Version)
+    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [string] $Version, [switch] $AllowUndated)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { throw "Changelog not found: $Path. Release notes are taken from it." }
     $lines = @(Get-Content -LiteralPath $Path -Encoding utf8)
     $heading = '^##\s+\[' + [regex]::Escape($Version) + '\](?:\s+-\s+(?<date>.*?))?\s*$'
@@ -150,7 +152,7 @@ function Get-ChangelogSection {
     $null = $lines[$starts[0]] -match $heading
     $date = if ($Matches.ContainsKey('date')) { $Matches.date } else { '' }
     $parsed = [datetime]::MinValue
-    if (-not ($date -match '^\d{4}-\d{2}-\d{2}$' -and [datetime]::TryParseExact($date, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed))) {
+    if (-not $AllowUndated -and -not ($date -match '^\d{4}-\d{2}-\d{2}$' -and [datetime]::TryParseExact($date, 'yyyy-MM-dd', [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::None, [ref]$parsed))) {
         throw "Section [$Version] in $Path has no release date: expected '## [$Version] - YYYY-MM-DD', found '$($lines[$starts[0]])'. Replace a placeholder such as 'unreleased' with the release date."
     }
 
@@ -603,12 +605,146 @@ function Get-PublishProblems {
     foreach ($asset in $assets) {
         if (-not $listed.Contains($asset.name)) { $problems.Add("$($asset.name) is uploaded but not listed in any checksum file.") }
         foreach ($rid in $Config.Keys) {
-            if (-not $Config[$rid].Uploadable -and $asset.name -match "-$([regex]::Escape($rid))[.-]") {
+            if (-not $Config[$rid].Uploadable -and (Test-RuntimeFileName -Name $asset.name -Runtime $rid)) {
                 $problems.Add("$($asset.name) belongs to $rid, which must not be released: $($Config[$rid].BlockedReason).")
             }
         }
     }
     $problems.ToArray()
+}
+
+function Test-RuntimeFileName {
+    <#
+    .SYNOPSIS
+        True when a release file belongs to the RID: the RID as a name part separated by '-' or '.', as in the archive
+        (LayerPeek-0.1.0-win-arm64.zip) and in every Velopack file (releases.win-arm64.json, RELEASES-win-arm64,
+        LayerPeek-0.1.0-win-arm64-full.nupkg, LayerPeek-0.1.0-win-arm64-Setup.exe).
+    #>
+    param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Runtime)
+    [bool]($Name -match "(^|[-.])$([regex]::Escape($Runtime))([-.]|$)")
+}
+
+# Velopack packaging (T-017, docs/velopack.md point 12). Fixed by the user: package id, title and AppUserModelID
+# 'LayerPeek', Start menu shortcut only, one channel per RID, no deltas yet, no Portable.zip (the archive step makes the .zip).
+$script:Velopack = [pscustomobject]@{
+    PackId    = 'LayerPeek'
+    Title     = 'LayerPeek'
+    Aumid     = 'LayerPeek'
+    Authors   = 'Petr Foltýnek'
+    MainExe   = 'LayerPeek.exe'
+    Shortcuts = 'StartMenuRoot'
+    Icon      = 'src/LayerPeek.App/Assets/AppIcon/app-icon.ico'
+}
+
+function Get-VelopackSettings {
+    <# .SYNOPSIS The fixed values of the Velopack packaging step. #>
+    $script:Velopack
+}
+
+function Get-VelopackSetupFileName {
+    <# .SYNOPSIS The installer in dist: LayerPeek-<version>-<rid>-Setup.exe (named like the archive of the RID). #>
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
+    "LayerPeek-$Version-$Runtime-Setup.exe"
+}
+
+function Get-VelopackOutputMap {
+    <#
+    .SYNOPSIS
+        The files vpk pack writes for one RID (channel = RID) and their names in dist: the feed files and the package keep
+        Velopack's names (the update client looks them up by these names), only Setup.exe is renamed. Ordered
+        dictionary vpk name -> dist name.
+    #>
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
+    $id = $script:Velopack.PackId
+    [ordered]@{
+        "$id-$Version-$Runtime-full.nupkg" = "$id-$Version-$Runtime-full.nupkg"
+        "releases.$Runtime.json"           = "releases.$Runtime.json"
+        "assets.$Runtime.json"             = "assets.$Runtime.json"
+        "RELEASES-$Runtime"                = "RELEASES-$Runtime"
+        "$id-$Runtime-Setup.exe"           = Get-VelopackSetupFileName -Version $Version -Runtime $Runtime
+    }
+}
+
+function Get-VelopackPackArguments {
+    <#
+    .SYNOPSIS
+        The arguments of 'dotnet vpk' for one RID (pure): Start menu shortcut with the AUMID LayerPeek, channel and runtime
+        = RID, release notes from a file, no deltas, no Portable.zip, no update check of vpk itself.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [Parameter(Mandatory)] [string] $PublishDirectory,
+        [Parameter(Mandatory)] [string] $OutputDirectory,
+        [Parameter(Mandatory)] [string] $ReleaseNotesFile,
+        [Parameter(Mandatory)] [string] $IconFile
+    )
+    $v = $script:Velopack
+    @(
+        'vpk', '--skip-updates', 'pack',
+        '--packId', $v.PackId,
+        '--packVersion', $Version,
+        '--packDir', $PublishDirectory,
+        '--mainExe', $v.MainExe,
+        '--packTitle', $v.Title,
+        '--packAuthors', $v.Authors,
+        '--aumid', $v.Aumid,
+        '--shortcuts', $v.Shortcuts,
+        '--icon', $IconFile,
+        '--channel', $Runtime,
+        '-r', $Runtime,
+        '--releaseNotes', $ReleaseNotesFile,
+        '--delta', 'None',
+        '--noPortable',
+        '--outputDir', $OutputDirectory
+    )
+}
+
+function Get-VelopackVersionProblems {
+    <#
+    .SYNOPSIS
+        The NuGet package Velopack (Directory.Packages.props) and the vpk tool (.config/dotnet-tools.json) must have the
+        same version (vpk warns or fails otherwise, docs/velopack.md). Returns problem messages.
+    #>
+    param([Parameter(Mandatory)] [string] $PackagesPropsPath, [Parameter(Mandatory)] [string] $ToolManifestPath)
+    $problems = [System.Collections.Generic.List[string]]::new()
+    [xml] $props = Get-Content -LiteralPath $PackagesPropsPath -Raw
+    $package = @($props.SelectNodes("//PackageVersion[@Include='Velopack']"))
+    $packageVersion = if ($package.Count -eq 1) { $package[0].GetAttribute('Version') } else { $null }
+    if (-not $packageVersion) { $problems.Add("$PackagesPropsPath has no single PackageVersion of Velopack.") }
+    $manifest = Get-Content -LiteralPath $ToolManifestPath -Raw | ConvertFrom-Json -AsHashtable
+    $toolVersion = if ($manifest.ContainsKey('tools') -and $manifest.tools.ContainsKey('vpk')) { $manifest.tools.vpk.version } else { $null }
+    if (-not $toolVersion) { $problems.Add("$ToolManifestPath does not pin the vpk tool.") }
+    if ($packageVersion -and $toolVersion -and $packageVersion -ne $toolVersion) {
+        $problems.Add("Velopack $packageVersion (Directory.Packages.props) and vpk $toolVersion (.config/dotnet-tools.json) differ; use the same version.")
+    }
+    $problems.ToArray()
+}
+
+function Copy-VelopackOutput {
+    <#
+    .SYNOPSIS
+        Checks that vpk wrote exactly the expected files (no Portable.zip, no delta) and copies them into dist under their
+        dist names. Returns the dist paths. Throws on missing or unexpected files, or when a dist file already exists.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $VelopackDirectory,
+        [Parameter(Mandatory)] [string] $OutputDirectory,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Runtime
+    )
+    $map = Get-VelopackOutputMap -Version $Version -Runtime $Runtime
+    $found = @(Get-ChildItem -LiteralPath $VelopackDirectory -File -Force | ForEach-Object Name)
+    $missing = @($map.Keys | Where-Object { $found -cnotcontains $_ })
+    $extra = @($found | Where-Object { -not $map.Contains($_) })
+    if ($missing.Count -gt 0) { throw "vpk did not create $($missing -join ', ') in $VelopackDirectory." }
+    if ($extra.Count -gt 0) { throw "vpk created unexpected files in $($VelopackDirectory): $($extra -join ', ')." }
+    foreach ($name in $map.Keys) {
+        $destination = Join-Path $OutputDirectory $map[$name]
+        if (Test-Path -LiteralPath $destination) { throw "Release file already exists: $destination" }
+        Copy-Item -LiteralPath (Join-Path $VelopackDirectory $name) -Destination $destination
+        $destination
+    }
 }
 
 function Get-GitRemotes {

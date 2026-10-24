@@ -139,10 +139,13 @@ internal static class PerMonitorSettingsRegistry
 {
     public const string SubKey = @"Control Panel\Desktop\PerMonitorSettings";
 
-    public static RegistryKeyState? Read()
+    public static RegistryKeyState? Read() => ReadTree(SubKey);
+
+    /// <summary>The tree of <c>HKCU\<paramref name="subKey"/></c> (also used by the installer change of T-017).</summary>
+    public static RegistryKeyState? ReadTree(string subKey)
     {
-        using RegistryKey? root = Registry.CurrentUser.OpenSubKey(SubKey);
-        return root is null ? null : ReadKey(root, "PerMonitorSettings");
+        using RegistryKey? root = Registry.CurrentUser.OpenSubKey(subKey);
+        return root is null ? null : ReadKey(root, Path.GetFileName(subKey));
     }
 
     /// <summary>One line per key and value, sorted: equal exports = equal trees.</summary>
@@ -224,11 +227,14 @@ internal static class PerMonitorSettingsRegistry
         }
     }
 
-    public static void Execute(IEnumerable<RegistryOperation> plan)
+    public static void Execute(IEnumerable<RegistryOperation> plan) => ExecuteAt(SubKey, plan);
+
+    /// <summary>Runs <paramref name="plan"/> below <c>HKCU\<paramref name="subKey"/></c> (also used by the installer change of T-017).</summary>
+    public static void ExecuteAt(string subKey, IEnumerable<RegistryOperation> plan)
     {
         foreach (RegistryOperation operation in plan)
         {
-            string full = operation.Path.Length == 0 ? SubKey : $@"{SubKey}\{operation.Path}";
+            string full = operation.Path.Length == 0 ? subKey : $@"{subKey}\{operation.Path}";
             switch (operation.Action)
             {
                 case RegistryAction.CreateKey:

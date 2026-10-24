@@ -4,7 +4,7 @@ Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Win
 
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
-| `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, `SHA256SUMS-<os>.txt` | ne |
+| `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), `SHA256SUMS-<os>.txt` | ne |
 | `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS) | ano (kromě `-DryRun`) |
 | `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
 | `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže) | ne |
@@ -56,7 +56,7 @@ Na čistém checkoutu tagovaného commitu (pracovní strom nesmí obsahovat žá
 
 ```powershell
 git switch --detach vX.Y.Z
-pwsh scripts/release-build.ps1                 # build, testy, publish win-x64, smoke test, zip, SHA256SUMS-windows.txt
+pwsh scripts/release-build.ps1                 # build, testy, publish win-x64, smoke test, zip, instalátor, SHA256SUMS-windows.txt
 pwsh scripts/release-upload.ps1 -DryRun         # jen kontroly a výpis, co by se nahrálo
 pwsh scripts/release-upload.ps1                 # vytvoří koncept vydání a nahraje soubory
 ```
@@ -101,6 +101,7 @@ artifacts/release/<verze>/
 ```
 
 - Archiv: `LayerPeek-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, zachová spustitelný bit).
+- Instalátor Velopack (jen Windows, T-017, viz „Instalátor pro Windows“ níže): `LayerPeek-<verze>-<RID>-Setup.exe` a soubory aktualizací `LayerPeek-<verze>-<RID>-full.nupkg`, `releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`. `vpk` pracuje ve vlastní složce `velopack-<RID>` vedle `dist/` a po zkopírování ji skript smaže.
 - **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
 - Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu.
 - Build zastaví jakékoli varování (`-warnaserror` u `dotnet build` i `dotnet publish`, tedy i trim/AOT varování z ILC). Testy běží v konfiguraci Release.
@@ -158,18 +159,7 @@ Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushuj�
 | `PublishDirectory` | hotová a smoke testem ověřená publish složka RID |
 | `OutputDirectory` | `dist/`, sem krok uloží své soubory |
 
-Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám zapíše do `SHA256SUMS-<os>.txt` a `build-info.json`, takže je `release-upload.ps1` nahraje a `release-publish.ps1` zkontroluje bez další změny. Příklad nového kroku (T-017):
-
-```powershell
-[pscustomobject]@{
-    Name   = 'installer'
-    Os     = @('windows')
-    Invoke = {
-        param($Context)
-        # vytvoří instalátor z $Context.PublishDirectory do $Context.OutputDirectory a vrátí jeho cestu
-    }
-}
-```
+Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám zapíše do `SHA256SUMS-<os>.txt` a `build-info.json`, takže je `release-upload.ps1` nahraje a `release-publish.ps1` zkontroluje bez další změny. Kroky dnes: `archive` (Windows, macOS) a `installer` (Windows, T-017, Velopack). Logika kroku `installer` je ve funkcích `Get-VelopackPackArguments`, `Get-VelopackOutputMap`, `Copy-VelopackOutput` a `Get-VelopackVersionProblems` modulu `ReleaseTools.psm1` (Pester testy).
 
 T-019 přidá krok pro macOS (`.app` + `.dmg`) a případně změní vstup archivu z publish složky na `.app` bundle. Build, publish a smoke test se tím nemění.
 
@@ -178,6 +168,52 @@ Poznámky pro navazující kroky:
 - **Názvy souborů musí být v rámci jednoho běhu jedinečné** (všechny kroky zapisují do jednoho `dist/`, skript duplicitu odmítne). Velopack (T-017, `docs/velopack.md`) pojmenovává soubory podle kanálu (`releases.<RID>.json`, `RELEASES-<RID>`), ale `Setup.exe` / `Portable.zip` je potřeba při více RID přejmenovat (např. `LayerPeek-<verze>-<RID>-Setup.exe`).
 - **Poznámky k vydání** pro krok (např. `vpk --releaseNotes`) vrací `Get-ChangelogSection` z `scripts/ReleaseTools/ReleaseTools.psm1`; krok je zapíše do dočasného souboru a ten po sobě smaže.
 - Podpis a notarizace macOS (T-060) nahradí ad-hoc podpis v balicím kroku T-019.
+
+## Instalátor pro Windows (Velopack, T-017)
+
+Balicí krok `installer` zabalí ověřenou publish složku každého Windows RID nástrojem `vpk` (verze připnutá v `.config/dotnet-tools.json`, stejná jako NuGet `Velopack`, viz [prerequisites.md](prerequisites.md)). Podrobnosti a ověření z T-056 jsou v [velopack.md](velopack.md).
+
+Příkaz (sestaví ho `Get-VelopackPackArguments`):
+
+```
+dotnet vpk --skip-updates pack --packId LayerPeek --packVersion <verze> --packDir <publish/RID> --mainExe LayerPeek.exe
+  --packTitle LayerPeek --packAuthors "Petr Foltýnek" --aumid LayerPeek --shortcuts StartMenuRoot
+  --icon src/LayerPeek.App/Assets/AppIcon/app-icon.ico --channel <RID> -r <RID>
+  --releaseNotes <úsek CHANGELOG.md> --delta None --noPortable --outputDir <dočasná složka>
+```
+
+| Soubor v `dist/` | Co to je |
+|---|---|
+| `LayerPeek-<verze>-<RID>-Setup.exe` | instalátor pro uživatele (Velopack ho pojmenuje `LayerPeek-<RID>-Setup.exe`, skript ho přejmenuje jako archiv) |
+| `LayerPeek-<verze>-<RID>-full.nupkg` | plný balíček aktualizace |
+| `releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>` | feed aktualizací kanálu `<RID>`; názvy se měnit **nesmí**, klient je hledá podle nich |
+
+- **Poznámky k vydání** v balíčku jsou úsek verze z `CHANGELOG.md`. Build je vezme i z úseku bez data (`- unreleased`), nahrání (`release-upload.ps1`) datum vyžaduje dál.
+- **Bez delt a bez `Portable.zip`** (rozhodnuto 2026-10-21 a 2026-10-24). Každá aktualizace stáhne celý balíček (asi 76 MB). `.zip` dělá krok `archive`.
+- **`win-arm64`** zabalí stejný krok, když se RID sestavuje (`-Runtime win-x64, win-arm64`). Názvy se s `win-x64` nekryjí. Do vydání se `win-arm64` nedostane, dokud není hotový T-057: `release-upload.ps1` odmítne celý výstup a `release-publish.ps1` odmítne každý soubor s `win-arm64` v názvu, tedy i `releases.win-arm64.json` a `RELEASES-win-arm64`. Spuštění na ARM64 zatím nejde ověřit.
+- **Nahrání:** soubory jdou na GitHub jako ostatní (`release-upload.ps1`, `gh`), `vpk upload` se nepoužívá. Aplikace hledá aktualizace v GitHub Releases bez tokenu (`GithubSource`, kanál = RID instalace). Koncept vydání anonymní klient nevidí, aktualizace se nabídne až po zveřejnění. Dokud je repozitář soukromý, kontrola skončí chybou 404 a aplikace ji bere jako „žádná aktualizace“.
+- **Předběžné verze:** volba „Nabízet předběžné verze“ v nastavení (záložka Spuštění a aktualizace). Dokud ji uživatel nezmění, je na `0.x` zapnutá a od `1.0` vypnutá (rozhodnuto 2026-10-24). Nabídku aktualizace v aplikaci doplní T-058.
+
+### Co uživatel uvidí
+
+1. **Stažení v prohlížeči:** Edge může nepodepsaný `Setup.exe` s malou reputací označit jako neběžně stahovaný soubor a chtít potvrzení „Ponechat“. Neověřeno, ověřit při prvním vydání a doplnit sem.
+2. **SmartScreen při spuštění** (ověřeno ručně v T-056 se značkou Mark-of-the-Web): „Systém Windows ochránil váš počítač“ jen s tlačítkem „Nespouštět“. Po „Další informace“ se ukáže „Vydavatel: Neznámý vydavatel“ a tlačítko „Přesto spustit“. Důvod: binárky ani instalátor nejsou podepsané (rozhodnuto 2026-10-21). Popis je v README a patří i do textu vydání.
+3. **Instalace** bez dotazu UAC pro aktuálního uživatele do `%LOCALAPPDATA%\LayerPeek` (exe v `current\LayerPeek.exe`), zástupce jen ve Start menu (bez plochy), položka v Nastavení → Aplikace. Po instalaci se aplikace spustí (kromě tiché instalace `--silent`).
+   - **Po `.zip` verzi** (logy v `%LOCALAPPDATA%\LayerPeek\logs`, rozhodnuto 2026-10-24) složka není prázdná a `Setup.exe` se nejdřív zeptá dialogem „přepsat/opravit“ (*Repair* / *Open install directory* / *Cancel*). *Cancel* nic nezmění a nic nenainstaluje. *Repair* nainstaluje a dosavadní obsah složky, tedy **logy `.zip` verze, smaže**. `--silent` odpoví *Repair* bez dotazu. Podrobnosti a ověření v [velopack.md](velopack.md#neprázdná-instalační-složka-logy-zip-verze).
+4. **Spouštění po přihlášení:** volba v nastavení (záložka Spuštění a aktualizace), ve výchozím stavu vypnutá a **jen v nainstalované verzi**. Ve `.zip` je vidět neaktivní s vysvětlením (rozhodnuto 2026-10-24). Aplikace vytvoří vlastního zástupce `LayerPeek.lnk` ve složce Po spuštění (`%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup`). Jeho cíl leží v instalační složce, takže ho Velopack při odinstalaci smaže.
+5. **Odinstalace** (Nastavení → Aplikace, nebo `Update.exe --uninstall --silent`) ukončí běžící aplikaci a smaže instalační složku **včetně logů** (`%LOCALAPPDATA%\LayerPeek\logs`, přijato 2026-10-24) a zástupce. Hook odinstalace smaže oznámení aplikace z centra oznámení, registraci aktivátoru toastů, nastavení oznámení aplikace ve Windows, volbu „zobrazit na hlavním panelu“ u ikony aplikace a zástupce ve Startup.
+   - **Zůstane:** nastavení `%APPDATA%\LayerPeek` a hesla ve Správci pověření (rozhodnuto 2026-10-21), log Velopacku `%LOCALAPPDATA%\velopack\velopack_LayerPeek.log` a `velopack.log` (Velopack do něj píše i po hooku, **známý zbytek**, přijato 2026-10-24) a záznamy, které si Windows vede o každém spuštěném programu (`MuiCache`, `AppListBackup`, položky v `NotifyIconSettings`).
+
+### Ověření instalátoru (E2E)
+
+Skutečnou tichou instalaci a odinstalaci na vývojovém stroji dělá E2E test `VelopackInstallerTests` (druh zásahu `Installer`), jen přes `tools/run-e2e.ps1` s varováním a žurnálem obnovy:
+
+```powershell
+pwsh scripts/release-build.ps1                     # vytvoří artifacts/release/<verze>/dist/LayerPeek-<verze>-win-x64-Setup.exe
+pwsh tools/run-e2e.ps1 -Class '*VelopackInstallerTests'
+```
+
+Test zálohuje vývojového zástupce `LayerPeek.lnk`, obsah složky `%LOCALAPPDATA%\LayerPeek` (logy, kopie v `%LOCALAPPDATA%\LayerPeek.E2E.InstallerBackup`), klíče `Uninstall\LayerPeek`, `CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}` a `Notifications\Settings\LayerPeek`, zástupce ve Startup a položky ikony v `NotifyIconSettings` a po testu je vrátí (i po pádu, viz [troubleshooting.md](troubleshooting.md)). Bez složky s logy si ji test vytvoří, aby ověřil i instalaci po `.zip` verzi. Ověří, že zrušený dialog „přepsat/opravit“ nic nenainstaluje a logy nechá, a že tichá instalace logy smaže a nainstaluje bez UAC. Dále ověří AUMID a `ToastActivatorCLSID` zástupce, registraci COM `LocalServer32` a to, že po odinstalaci nic z toho nezůstane. Přeskočí se, když instalátor chybí, když je LayerPeek opravdu nainstalovaný, když nějaký LayerPeek běží (jeho log by byl otevřený) a když testy běží jako správce. Odinstalace vymaže oznámení LayerPeeku z centra oznámení a ta vrátit nejde, varování skriptu to uvádí (přijato 2026-10-24).
 
 ## Navazující úkoly
 
@@ -204,7 +240,7 @@ Invoke-Pester scripts/ReleaseTools/ReleaseTools.Tests.ps1 -Output Detailed
 
 Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ReleaseScriptPesterTestsPass`) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
-Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání a kontroly před zveřejněním. Volání `dotnet` a `gh` a samotné skripty `release-*.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, `win-arm64` ve feedu). Volání `dotnet` a `gh` a samotné skripty `release-*.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
 
 ## Zkušební vydání (testovací repozitář)
 

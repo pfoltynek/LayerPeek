@@ -537,6 +537,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Activez-la uniquement si on vous le demande lors d'un dépannage. Le journal grossit plus vite.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Démarrage et mises à jour</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Démarrer à l'ouverture de session Windows</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Disponible uniquement si LayerPeek a été installé avec Setup.exe, pas dans la version ZIP.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Proposer les versions préliminaires</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Les mises à jour incluent aussi des versions pas encore finales. Jusqu'à la version 1.0, toutes les versions sont préliminaires, donc sans cette option, vous ne recevrez aucune mise à jour.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Paramètres enregistrés. Le démarrage à l'ouverture de session n'a pas pu être modifié. Essayez d'enregistrer à nouveau.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Impression démarrée</value>
   </data>

@@ -537,6 +537,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Attivalo solo su richiesta durante la risoluzione dei problemi. Il registro cresce più in fretta.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Avvio e aggiornamenti</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Avvia all'accesso a Windows</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Disponibile solo se LayerPeek è installato con Setup.exe, non nella versione ZIP.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Offri versioni preliminari</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Gli aggiornamenti includono anche versioni non ancora definitive. Fino alla versione 1.0 tutte le versioni sono preliminari, quindi senza questa opzione non riceverai aggiornamenti.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Impostazioni salvate. Impossibile modificare l'avvio all'accesso. Prova a salvare di nuovo.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Stampa avviata</value>
   </data>

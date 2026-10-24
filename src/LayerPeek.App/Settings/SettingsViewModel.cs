@@ -10,12 +10,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Localization;
+using LayerPeek.App.Platform;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
+using LayerPeek.Core.Updates;
 
 namespace LayerPeek.App.Settings;
 
@@ -50,6 +52,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <inheritdoc cref="PrintersTab"/>
     public const int GeneralTab = 1;
 
+    /// <summary>Main tab of the start after logon and the updates (T-017).</summary>
+    public const int StartupUpdatesTab = 2;
+
     /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
     public const int ConnectionPrinterTab = 0;
 
@@ -65,7 +70,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>How many sub-tabs a printer has.</summary>
     public const int PrinterTabCount = 4;
 
-    private const int TabCount = 2;
+    private const int TabCount = 3;
 
     private const int MaxIdAttempts = 100;
 
@@ -131,6 +136,14 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     private SoundOption _selectedSound;
     private LanguageOption _selectedLanguage;
     private bool _debugLogging;
+    private bool _offerPrereleaseUpdates;
+    private bool _startWithWindows;
+
+    // Whether the app starts after logon as the OS said when loading, or since the last change Save made.
+    private bool _autostartBaseline;
+    private readonly IAutostart? _autostart;
+    private readonly bool _autostartNeedsInstallation;
+    private readonly string _productVersion;
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
     /// <param name="cameraTester">Camera "Test" button; default: none available (every test fails).</param>
@@ -146,6 +159,14 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// </param>
     /// <param name="timeProvider">How long "Saved" stays after Apply (T-040); default: the system clock.</param>
     /// <param name="imageImporter">Checks and converts custom printer images (T-039); default: Avalonia/Skia (needs the platform).</param>
+    /// <param name="autostart">Start after logon (T-017); default: none (the option is hidden).</param>
+    /// <param name="autostartNeedsInstallation">
+    /// Without <paramref name="autostart"/>: the app is not installed (T-017), so autostart and "Offer pre-release versions"
+    /// are shown disabled with the reason (user decision 2026-10-24) instead of hidden.
+    /// </param>
+    /// <param name="productVersion">
+    /// The running version, for the default of "Offer pre-release versions" (T-017); default: the version of the app.
+    /// </param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -158,7 +179,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         ICameraWindowStateStore? cameraWindowStates = null,
         ICameraWindowPlacer? cameraWindowPlacer = null,
         TimeProvider? timeProvider = null,
-        PrinterImageImporter? imageImporter = null)
+        PrinterImageImporter? imageImporter = null,
+        IAutostart? autostart = null,
+        bool autostartNeedsInstallation = false,
+        string? productVersion = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -175,6 +199,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _cameraWindowPlacer = cameraWindowPlacer;
         _timeProvider = timeProvider ?? TimeProvider.System;
         ImageImporter = imageImporter ?? new PrinterImageImporter(AvaloniaPrinterImageProcessor.Instance);
+        _autostart = autostart;
+        _autostartNeedsInstallation = autostart is null && autostartNeedsInstallation;
+        _productVersion = productVersion ?? Windows.AboutViewModel.ProductVersion(typeof(SettingsViewModel).Assembly);
         StartModeOptions =
         [
             new CameraStartModeOption(CameraWindowStartMode.Last, static () => Strings.SettingsCameraWindowStartLast),
@@ -297,7 +324,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         private set => SetProperty(ref _statusIsError, value);
     }
 
-    /// <summary><see cref="PrintersTab"/> or <see cref="GeneralTab"/>; switched by a failed save to the part with the error.</summary>
+    /// <summary><see cref="PrintersTab"/>, <see cref="GeneralTab"/> or <see cref="StartupUpdatesTab"/>; switched by a failed save to the part with the error.</summary>
     public int SelectedTabIndex
     {
         get => _selectedTabIndex;
@@ -463,6 +490,60 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         set => SetGeneral(ref _debugLogging, value);
     }
 
+    /// <summary>
+    /// "Offer pre-release versions" of the updates (T-017): the saved choice, or while the user never chose, the default of
+    /// the running version (<see cref="PrereleaseUpdates"/>). Saved as a choice only once it differs from that default.
+    /// </summary>
+    public bool OfferPrereleaseUpdates
+    {
+        get => _offerPrereleaseUpdates;
+        set
+        {
+            // Disabled without an installation (user decision 2026-10-24): a .zip or a development build gets no updates.
+            if (!_autostartNeedsInstallation)
+            {
+                SetGeneral(ref _offerPrereleaseUpdates, value);
+            }
+        }
+    }
+
+    /// <summary>"Offer pre-release versions" can be changed: not in a <c>.zip</c> or a development build on Windows (T-017).</summary>
+    public bool IsPrereleaseOptionAvailable => !_autostartNeedsInstallation;
+
+    /// <summary>
+    /// Screen readers: a disabled check box cannot be focused, so its reason goes into the help text; otherwise the hint.
+    /// </summary>
+    public string PrereleaseHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : Strings.SettingsOfferPrereleaseUpdatesHint;
+
+    /// <summary>The reason of the disabled autostart for screen readers (T-017); <see langword="null"/> when it is available.</summary>
+    public string? AutostartHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : null;
+
+    /// <summary>The app can start after logon (T-017): Windows, installed by the installer.</summary>
+    public bool IsAutostartAvailable => _autostart is not null;
+
+    /// <summary>
+    /// The option is shown: available, or (a <c>.zip</c> or a development build on Windows) disabled with
+    /// <see cref="ShowsAutostartNeedsInstallation"/> (user decision 2026-10-24).
+    /// </summary>
+    public bool IsAutostartShown => _autostart is not null || _autostartNeedsInstallation;
+
+    /// <summary>Why the option is disabled: only the installed app can start after logon.</summary>
+    public bool ShowsAutostartNeedsInstallation => _autostartNeedsInstallation;
+
+    /// <summary>Start after logon (T-017), off by default; switched by Save, not by the check box itself.</summary>
+    public bool StartWithWindows
+    {
+        get => _startWithWindows;
+        set
+        {
+            // Disabled without an installation: nothing to switch.
+            if (_autostart is not null)
+            {
+                SetGeneral(ref _startWithWindows, value);
+            }
+        }
+    }
+
     /// <summary>Passwords can be saved on this OS (false on macOS until T-021).</summary>
     public bool IsPasswordSupported => Policy.IsSupported;
 
@@ -558,11 +639,61 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             data = new SettingsEditorData(AppSettings.Default, SettingsLoadStatus.Unreadable, [], null);
         }
 
+        _autostartBaseline = await ReadAutostartAsync().ConfigureAwait(true);
         if (!_disposed)
         {
             Populate(data);
         }
     }
+
+    /// <summary>Whether the app starts after logon now; off when there is no autostart or it cannot be read.</summary>
+    private async Task<bool> ReadAutostartAsync()
+    {
+        if (_autostart is not { } autostart)
+        {
+            return false;
+        }
+
+        try
+        {
+            // A shortcut read through the shell: off the UI thread.
+            return await Task.Run(autostart.IsEnabled).ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            SettingsLog.AutostartUnreadable(Logger, ex);
+            return false;
+        }
+    }
+
+    /// <summary>Switches the start after logon when it was changed; the warning for the status line when that failed.</summary>
+    private async Task<Func<string>?> ApplyAutostartAsync()
+    {
+        if (_autostart is not { } autostart || _startWithWindows == _autostartBaseline)
+        {
+            return null;
+        }
+
+        bool wanted = _startWithWindows;
+        try
+        {
+            await Task.Run(() => autostart.SetEnabled(wanted)).ConfigureAwait(true);
+            _autostartBaseline = wanted;
+            return null;
+        }
+        catch (Exception ex)
+        {
+            // Still a change to save: the next Save tries again.
+            SettingsLog.AutostartNotChanged(Logger, ex, wanted);
+            return static () => Strings.SettingsSavedAutostartFailed;
+        }
+    }
+
+    /// <summary>The pre-release choice to save: none while the shown value is the default of a never-made choice.</summary>
+    private bool? PrereleaseChoice() =>
+        _baseline.OfferPrereleaseUpdates is null && _offerPrereleaseUpdates == PrereleaseUpdates.IsDefaultFor(_productVersion)
+            ? null
+            : _offerPrereleaseUpdates;
 
     public void Dispose()
     {
@@ -598,6 +729,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         {
             option.RefreshText();
         }
+
+        OnPropertyChanged(nameof(PrereleaseHelpText));
+        OnPropertyChanged(nameof(AutostartHelpText));
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -732,6 +866,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _selectedSound = FindSound(notifications.Sound);
         _selectedLanguage = FindLanguage(settings.Language);
         _debugLogging = settings.DebugLogging;
+        _offerPrereleaseUpdates = PrereleaseUpdates.Offered(settings.OfferPrereleaseUpdates, _productVersion);
+        _startWithWindows = _autostartBaseline;
 
         _noticeSource = data.Status switch
         {
@@ -906,8 +1042,14 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         {
             // Nothing to write; "Factory settings" with the saved values still forgets the remembered window (T-040).
             ForgetRememberedCameraWindows(_baseline, updated);
+            Func<string>? autostartOnly = await ApplyAutostartAsync().ConfigureAwait(true);
+            if (_disposed)
+            {
+                return;
+            }
+
             UpdateDirty();
-            Completed(applying, updated, warning: null);
+            Completed(applying, updated, autostartOnly);
             return;
         }
 
@@ -961,6 +1103,13 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             printer.MarkSaved(imageStored);
         }
 
+        // T-017: after the settings were saved, so that a failed save changes nothing of the OS either.
+        Func<string>? autostartWarning = await ApplyAutostartAsync().ConfigureAwait(true);
+        if (_disposed)
+        {
+            return;
+        }
+
         UpdateDirty();
         Func<string>? imageNotice = !unsavedImages ? null
             : allKeepPreviousImage ? static () => Strings.SettingsSavedImageNotStoredPrevious
@@ -969,6 +1118,12 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         Func<string>? warning = result.UndeletedPasswords == 0 ? imageNotice
             : imageNotice is null ? static () => Strings.SettingsSavedPasswordsNotDeleted
             : () => string.Concat(Strings.SettingsSavedPasswordsNotDeleted, " ", imageNotice());
+        if (autostartWarning is not null)
+        {
+            Func<string>? others = warning;
+            warning = others is null ? autostartWarning : () => string.Concat(others(), " ", autostartWarning());
+        }
+
         Completed(applying, updated, warning);
     }
 
@@ -1079,6 +1234,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
                 PollingInterval = TimeSpan.FromSeconds((double)seconds),
                 Language = _selectedLanguage.Code,
                 DebugLogging = _debugLogging,
+                OfferPrereleaseUpdates = PrereleaseChoice(),
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,
@@ -1164,6 +1320,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             dirty |= printer.HasNewPassword || printer.ForgetsRememberedCameraWindow || printer.PendingImage is not null;
         }
 
+        // T-017: the start after logon is the state of the OS, not part of the settings file.
+        dirty |= _autostart is not null && _startWithWindows != _autostartBaseline;
         IsDirty = dirty || !TryBuildSettings(out AppSettings? current) || !current.Equals(_baseline);
     }
 

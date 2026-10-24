@@ -1,9 +1,12 @@
+using System.Runtime.Versioning;
+
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
+using LayerPeek.App.Installer;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
@@ -24,6 +27,7 @@ using LayerPeek.Core.Notifications;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.Core.Settings;
+using LayerPeek.Core.Updates;
 using LayerPeek.Core.Web;
 using LayerPeek.PrusaLink;
 
@@ -187,6 +191,20 @@ internal static class AppServices
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
+        // Start after logon (T-017), switched in the settings window: Windows only; the test mode's shortcut lives in its data
+        // folder. Creating it touches nothing.
+        services.AddSingleton(sp => CreateAutostart(env, windows, sp.GetRequiredService<ILogger<StartupShortcutAutostart>>()));
+        // Updates of the installed app from GitHub Releases (T-017; offered to the user by T-058). Pre-releases as the setting
+        // says, until the user chose by the running version (user decision 2026-10-24).
+        services.AddSingleton(sp =>
+        {
+            string version = AboutViewModel.ProductVersion(typeof(AppServices).Assembly);
+            MonitoringSession session = sp.GetRequiredService<MonitoringSession>();
+            return new AppUpdates(
+                CreateUpdateEngine(env, windows),
+                () => PrereleaseUpdates.Offered(session.CurrentSettings?.OfferPrereleaseUpdates, version),
+                sp.GetRequiredService<ILogger<AppUpdates>>());
+        });
 
         AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
 
@@ -226,25 +244,111 @@ internal static class AppServices
 #endif
         }
 
-        string? executable = Environment.ProcessPath;
-        ToastActivatorSettings? activator = environment.ToastActivatorClsid is { } clsid && !string.IsNullOrEmpty(executable)
-            ? new ToastActivatorSettings(clsid, ToastActivatorCommandLine.For(executable, activatorArguments))
-            : null;
         ToastActivationRouter router = services.GetRequiredService<ToastActivationRouter>();
-        WindowsToastPlatform platform = new(
-            new AppShortcutRegistration(new WindowsShortcutStore(), services.GetRequiredService<ILogger<AppShortcutRegistration>>()),
-            shortcutPath,
-            executable,
-            services.GetRequiredService<ILogger<WindowsToastPlatform>>(),
+        WindowsToastPlatform platform = CreateWindowsToastPlatform(
             appUserModelId,
-            new ToastActivatorRegistration(new WindowsComServerRegistry(), services.GetRequiredService<ILogger<ToastActivatorRegistration>>()),
-            activator);
+            shortcutPath,
+            Environment.ProcessPath,
+            environment.ToastActivatorClsid,
+            activatorArguments,
+            services.GetRequiredService<ILoggerFactory>());
         return new ToastNotificationService(
             platform,
             argument => _ = router.ActivateAsync(argument),
             UiLanguage.CurrentTextCulture,
             services.GetRequiredService<ILogger<ToastNotificationService>>());
     }
+
+    /// <summary>
+    /// The toast registrations of Windows (T-010, T-068): the COM toast activator (when <paramref name="activatorClsid"/> is
+    /// set and the exe is known) and the Start menu shortcut. The same for a start and for the install hook of Velopack (T-017).
+    /// </summary>
+    /// <param name="activatorArguments">Further arguments of the activator's command line (the test switches of the test app).</param>
+    [SupportedOSPlatform("windows")]
+    private static WindowsToastPlatform CreateWindowsToastPlatform(
+        string appUserModelId,
+        Func<string?> shortcutPath,
+        string? executable,
+        Guid? activatorClsid,
+        IReadOnlyList<string> activatorArguments,
+        ILoggerFactory loggers)
+    {
+        ToastActivatorSettings? activator = activatorClsid is { } clsid && !string.IsNullOrEmpty(executable)
+            ? new ToastActivatorSettings(clsid, ToastActivatorCommandLine.For(executable, [.. activatorArguments]))
+            : null;
+        return new WindowsToastPlatform(
+            new AppShortcutRegistration(new WindowsShortcutStore(), loggers.CreateLogger<AppShortcutRegistration>()),
+            shortcutPath,
+            executable,
+            loggers.CreateLogger<WindowsToastPlatform>(),
+            appUserModelId,
+            new ToastActivatorRegistration(new WindowsComServerRegistry(), loggers.CreateLogger<ToastActivatorRegistration>()),
+            activator);
+    }
+
+    /// <summary>
+    /// The Velopack installer hooks (T-017) with the production registrations of Windows: the hooks run only in an installed
+    /// app, which is a Release build without the test mode.
+    /// </summary>
+    [SupportedOSPlatform("windows")]
+    internal static InstallerHooks CreateInstallerHooks(ILoggerFactory loggers)
+    {
+        ArgumentNullException.ThrowIfNull(loggers);
+        AppEnvironment production = AppEnvironment.Production;
+        string? executable = Environment.ProcessPath;
+        return new InstallerHooks(
+            CreateWindowsToastPlatform(production.AppUserModelId, AppShortcutRegistration.DefaultShortcutPath, executable, production.ToastActivatorClsid, [], loggers),
+            new WinRtToastHistory(),
+            new WindowsComServerRegistry(),
+            new WindowsNotificationSettingsRegistry(),
+            // Only the entries of the installed exe (T-061); Explorer's other entries are never touched.
+            new TrayIconPromotion(new NotifyIconSettingsRegistry(), loggers.CreateLogger<TrayIconPromotion>()),
+            CreateAutostart(production, windows: true, loggers.CreateLogger<StartupShortcutAutostart>()).Autostart,
+            executable,
+            loggers.CreateLogger<InstallerHooks>());
+    }
+
+    /// <summary>
+    /// Start after logon (T-017): the app's shortcut in the Startup folder of the environment, to the running exe with the
+    /// identity of the Start menu shortcut, only for the app installed by Velopack (user decision 2026-10-24: a shortcut
+    /// into a <c>.zip</c> or a development build would never be removed). Not installed: no autostart, the settings show
+    /// the option disabled with the reason. Nothing on other OS (macOS: T-019) and nothing for a process that is not the
+    /// app's exe (a test host), so that nothing but the app can ever create the shortcut.
+    /// </summary>
+    internal static AutostartOption CreateAutostart(AppEnvironment environment, bool windows, ILogger<StartupShortcutAutostart> logger) =>
+        CreateAutostart(environment, windows, logger, Environment.ProcessPath, File.Exists);
+
+    /// <param name="executable">The running exe.</param>
+    /// <param name="fileExists">Whether a file exists (for <see cref="VelopackInstallation.IsInstalled"/>).</param>
+    internal static AutostartOption CreateAutostart(AppEnvironment environment, bool windows, ILogger<StartupShortcutAutostart> logger, string? executable, Func<string, bool> fileExists)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(fileExists);
+        if (!windows || !OperatingSystem.IsWindows() || string.IsNullOrEmpty(executable) || !TrayIconPromotion.AppliesTo(executable))
+        {
+            return new AutostartOption(null, NeedsInstallation: false);
+        }
+
+        if (!VelopackInstallation.IsInstalled(executable, fileExists))
+        {
+            return new AutostartOption(null, NeedsInstallation: true);
+        }
+
+        return new AutostartOption(
+            new StartupShortcutAutostart(
+                new WindowsShortcutStore(),
+                environment.AutostartShortcutPath(),
+                new AppShortcut(executable, environment.AppUserModelId, environment.ToastActivatorClsid),
+                logger),
+            NeedsInstallation: false);
+    }
+
+    /// <summary>Velopack's updates (T-017), only in a Velopack installation (never in the test mode, never for the <c>.zip</c>).</summary>
+    private static VelopackUpdateEngine? CreateUpdateEngine(AppEnvironment environment, bool windows) =>
+        windows && OperatingSystem.IsWindows() && !environment.IsIsolated && VelopackInstallation.IsInstalled(Environment.ProcessPath, File.Exists)
+            ? new VelopackUpdateEngine()
+            : null;
 
     /// <summary>
     /// The video decoder of the camera windows and of the camera test (T-014): FFmpeg. This is the only place that chooses
@@ -380,7 +484,9 @@ internal static class AppServices
             screens: screens,
             cameraWindowStates: services.GetRequiredService<ICameraWindowStateStore>(),
             cameraWindowPlacer: cameraWindowPlacer,
-            timeProvider: services.GetRequiredService<TimeProvider>())
+            timeProvider: services.GetRequiredService<TimeProvider>(),
+            autostart: services.GetRequiredService<AutostartOption>().Autostart,
+            autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation)
         {
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).

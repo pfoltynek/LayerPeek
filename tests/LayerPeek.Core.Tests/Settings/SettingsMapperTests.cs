@@ -247,6 +247,43 @@ public class SettingsMapperTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void ExplicitPrereleaseChoiceRoundTrips(bool offer)
+    {
+        AppSettings settings = new() { OfferPrereleaseUpdates = offer };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains($"\"offerPrereleaseUpdates\": {(offer ? "true" : "false")}", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(offer, loaded.OfferPrereleaseUpdates);
+        Assert.Equal(settings, loaded);
+    }
+
+    /// <summary>Never chosen: not written, so the default keeps following the running version (T-017).</summary>
+    [Fact]
+    public void UnsetPrereleaseChoiceIsNotWritten()
+    {
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(new AppSettings()), SettingsJsonContext.Default.SettingsDocument);
+
+        Assert.DoesNotContain("offerPrereleaseUpdates", json, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(RoundTrip(new AppSettings(), out _).OfferPrereleaseUpdates);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 1, "pollingIntervalSeconds": 5, "printers": [] }""")]
+    [InlineData("""{ "offerPrereleaseUpdates": null }""")]
+    public void FileWithoutPrereleaseChoiceLoadsUnset(string json)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Null(settings.OfferPrereleaseUpdates);
+    }
+
+    [Theory]
     [InlineData("""{ "version": 1, "pollingIntervalSeconds": 5, "printers": [] }""")]
     [InlineData("""{ "debugLogging": null }""")]
     public void FileWithoutDebugLoggingLoadsWithItOff(string json)

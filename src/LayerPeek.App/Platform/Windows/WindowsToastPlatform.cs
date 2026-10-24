@@ -31,7 +31,7 @@ internal static class WindowsAppIdentity
 /// for that id is created.
 /// </summary>
 [SupportedOSPlatform("windows")]
-internal sealed partial class WindowsToastPlatform : IToastPlatform
+internal sealed partial class WindowsToastPlatform : IToastPlatform, Installer.IToastRegistration
 {
     private readonly AppShortcutRegistration _registration;
     private readonly Func<string?> _shortcutPath;
@@ -159,6 +159,9 @@ internal sealed partial class WindowsToastPlatform : IToastPlatform
             return null;
         }
     }
+
+    /// <summary>The same registrations as a start, made by the install hook of Velopack (T-017).</summary>
+    void Installer.IToastRegistration.Register() => Register();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Registering the toast activator failed; clicks on notifications in the notification center will not reach the app.")]
     private partial void LogActivatorFailed(Exception exception);

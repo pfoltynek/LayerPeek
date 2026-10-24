@@ -89,6 +89,18 @@ internal sealed class AppEnvironment
     /// <summary>The log folder inside the test data folder.</summary>
     internal const string TestLogFolderName = "logs";
 
+    /// <summary>
+    /// The autostart shortcut (T-017, Windows): <c>LayerPeek.lnk</c> in the user's Startup folder, in the test mode in the
+    /// <see cref="TestStartupFolderName"/> folder of the test data folder, so that a test never makes the user's login start
+    /// a test build.
+    /// </summary>
+    public string AutostartShortcutPath() => _dataDirectory is null
+        ? Platform.Windows.AppShortcutRegistration.StartupShortcutPath()
+        : Path.Combine(_dataDirectory, TestStartupFolderName, Platform.Windows.AppShortcutRegistration.ShortcutFileName);
+
+    /// <summary>The stand-in for the Startup folder inside the test data folder.</summary>
+    internal const string TestStartupFolderName = "Startup";
+
 #if DEBUG
     /// <summary>
     /// Debug builds only: the test data folder (absolute path). Setting it switches the app into the isolated test mode;

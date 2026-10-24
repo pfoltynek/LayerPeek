@@ -595,6 +595,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Turn on only when asked to while troubleshooting. The log grows faster.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Startup and updates</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Start automatically when I sign in to Windows</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Available only when LayerPeek is installed with Setup.exe, not in the ZIP version.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Offer pre-release versions</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Updates also include versions that are not final yet. Until version 1.0 every version is a pre-release, so with this off you get no updates.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Settings saved. Starting after sign-in could not be changed. Try saving again.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Camera</value>
   </data>

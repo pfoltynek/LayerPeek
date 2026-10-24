@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.1.0] - unreleased
 
-First public preview. Windows x64 only, PrusaLink only, builds are not code-signed and there is no installer yet.
+First public preview. Windows x64 only, PrusaLink only, builds are not code-signed.
 
 The project was called *Prusa Tray Diagnostic* (`PrusaTrayDiagnostic`) during development and was renamed to
 LayerPeek before this first release, so that the name does not start with the Prusa trademark. No earlier version was
@@ -45,6 +45,11 @@ released, so the app does not migrate anything; developers who ran the old build
   passwords), copy a short report to the clipboard, open the log folder.
 - Single instance: starting the app again doesn't open a second tray icon.
 - Native AOT publishing (single executable, no .NET runtime required).
+- Windows installer (Velopack): installs for the current user without administrator rights, adds a Start menu
+  shortcut, and its uninstall removes the app's notifications, notification settings and system registrations (settings
+  and passwords stay). A ZIP is still available.
+- "Start after signing in to Windows" option (off by default) and "Offer pre-release versions" option in the new
+  Startup and updates tab of the settings.
 
 ### Fixed
 

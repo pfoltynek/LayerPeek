@@ -47,6 +47,19 @@ $script:Kinds = [ordered]@{
         Change  = @('temporary entries LayerPeek.E2E/... in Credential Manager')
         Restore = 'Control Panel > Credential Manager > Windows Credentials'
     }
+    Installer     = @{
+        Change  = @(
+            'the Velopack installer of the release build: an interactive start cancelled at its overwrite dialog, then a',
+            '     silent install into %LOCALAPPDATA%\LayerPeek and an uninstall (T-017). The logs in %LOCALAPPDATA%\LayerPeek',
+            '     are copied away and back (the install replaces that folder). It replaces the Start menu shortcut',
+            '     "LayerPeek", the toast activator of LayerPeek under HKCU\Software\Classes\CLSID and the notification',
+            '     settings of LayerPeek; the test adds a temporary autostart shortcut Startup\LayerPeek.lnk (to a file',
+            '     that does not exist), a temporary entry under HKCU\Control Panel\NotifyIconSettings and one silent test',
+            '     toast of LayerPeek (restored from the journal; the toast goes with the uninstall, which clears ALL',
+            '     notifications of LayerPeek from the notification center; they cannot be restored). Velopack keeps its',
+            '     log in %LOCALAPPDATA%\velopack')
+        Restore = 'Settings > Apps > Installed apps > LayerPeek > Uninstall, then run LayerPeek once (it recreates its shortcut)'
+    }
     TestProbe     = @{
         Change  = @('a test value under HKCU\Software\LayerPeek.E2E.Tests (self-test of the guard, no Windows setting)')
         Restore = 'delete the key HKCU\Software\LayerPeek.E2E.Tests'

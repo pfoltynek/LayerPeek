@@ -31,11 +31,14 @@ internal static class SystemChangeTraits
     /// <summary>Temporary entries in Credential Manager (T-073).</summary>
     public const string Credentials = "Credentials";
 
+    /// <summary>A real silent install and uninstall of the Velopack installer (T-017).</summary>
+    public const string Installer = "Installer";
+
     /// <summary>The guard self-test's value under <c>HKCU\Software\LayerPeek.E2E.Tests</c> (no Windows setting).</summary>
     public const string TestProbe = "TestProbe";
 
     /// <summary>Every value, in the order of the warning.</summary>
-    public static IReadOnlyList<string> All { get; } = [Theme, DoNotDisturb, TrayPromotion, DisplayScale, MonitorOff, Toasts, Credentials, TestProbe];
+    public static IReadOnlyList<string> All { get; } = [Theme, DoNotDisturb, TrayPromotion, DisplayScale, MonitorOff, Toasts, Credentials, Installer, TestProbe];
 }
 
 /// <summary>
@@ -93,6 +96,9 @@ internal static class SystemChanges
     /// <summary>Session-only test entries in Credential Manager (T-073).</summary>
     public static CredentialsKind Credentials { get; } = new();
 
+    /// <summary>A real install and uninstall of the Velopack installer (T-017).</summary>
+    public static InstallerKind Installer { get; } = new();
+
     /// <summary>Self-test probe of the journal machinery (a registry value of the tests' own, no warning needed).</summary>
     public static ProbeKind Probe { get; } = new("Probe", trait: null);
 
@@ -101,7 +107,7 @@ internal static class SystemChanges
 
     /// <summary>Every kind a journal entry may name (a crash of any of them can be restored by any process).</summary>
     public static IReadOnlyDictionary<string, ISystemChangeKind> Kinds { get; } =
-        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Credentials, Probe, GuardProbe }
+        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Credentials, Installer, Probe, GuardProbe }
             .ToDictionary(static kind => kind.Name, StringComparer.Ordinal);
 
     /// <summary>The journal of this process; the first change starts the watchdog (unless switched off).</summary>
@@ -235,6 +241,17 @@ internal static class SystemChanges
     {
         Require();
         return SystemChange<CredentialsState>.BeginAsync(Journal, Credentials, prefix, cancellationToken);
+    }
+
+    /// <summary>
+    /// What a real install and uninstall of the Velopack installer touch (T-017); restored (a leftover installation
+    /// uninstalled) when disposed. Begin it before the installer runs.
+    /// </summary>
+    /// <param name="version">The version of the test installer: the restore uninstalls only an installation of it (never a real one).</param>
+    public static Task<SystemChange<InstallerState>> InstallerAsync(string version, CancellationToken cancellationToken = default)
+    {
+        Require();
+        return SystemChange<InstallerState>.BeginAsync(Journal, Installer, version, cancellationToken);
     }
 
     /// <summary>The probe of the journal self-tests (end-to-end run only, no warning needed).</summary>

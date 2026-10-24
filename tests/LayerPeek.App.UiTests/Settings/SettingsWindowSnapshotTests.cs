@@ -154,6 +154,37 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-general");
         });
 
+    /// <summary>T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x.</summary>
+    [Fact]
+    public Task StartupAndUpdatesTab() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+
+            Assert.True(ui.ViewModel.IsAutostartAvailable);
+            Assert.False(ui.ViewModel.StartWithWindows);
+            Assert.True(ui.ViewModel.OfferPrereleaseUpdates);
+            SnapshotAssert.Matches(ui.Window, "settings-startup-updates");
+        });
+
+    /// <summary>T-017 (user decision 2026-10-24): a .zip or a development build shows autostart disabled with the reason.</summary>
+    [Fact]
+    public Task StartupAndUpdatesTabWithoutAnInstallation() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), autostartNeedsInstallation: true);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            ui.Window.Settle();
+
+            Assert.False(ui.ViewModel.IsAutostartAvailable);
+            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, ui.ShownText("SettingsStartWithWindowsNotInstalled"));
+            // The hint about pre-releases would mislead without an installation: only the reason is shown.
+            Assert.Null(ui.ShownText("SettingsOfferPrereleaseUpdatesHint"));
+            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, ui.ShownText("SettingsOfferPrereleaseUpdatesNotInstalled"));
+            SnapshotAssert.Matches(ui.Window, "settings-startup-updates-not-installed");
+        });
+
     [Fact]
     public Task GeneralTabWithErrors() =>
         session.RunAsync(static async scope =>

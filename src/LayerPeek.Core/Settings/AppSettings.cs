@@ -55,6 +55,12 @@ public sealed record AppSettings
     /// </summary>
     public bool DebugLogging { get; init; }
 
+    /// <summary>
+    /// Whether updates offer pre-release versions (T-017): the user's explicit choice, or <see langword="null"/> while the user
+    /// never set it; the running version then decides (<see cref="Updates.PrereleaseUpdates.Offered"/>).
+    /// </summary>
+    public bool? OfferPrereleaseUpdates { get; init; }
+
     public NotificationSettings Notifications
     {
         get;
@@ -136,10 +142,11 @@ public sealed record AppSettings
         && PollingInterval == other.PollingInterval
         && string.Equals(Language, other.Language, StringComparison.Ordinal)
         && DebugLogging == other.DebugLogging
+        && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
-    public override int GetHashCode() => HashCode.Combine(PollingInterval, Language, DebugLogging, Notifications, Printers.Count);
+    public override int GetHashCode() => HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, Notifications, Printers.Count);
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

@@ -62,7 +62,7 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
 ### 3. Instalace pro jednoho uživatele (P)
 - `Setup.exe` instaluje bez UAC do `%LocalAppData%\LayerPeek\` (`Update.exe`, stub `LayerPeek.exe`, `current\`, `packages\`), zapíše `HKCU\…\Uninstall\LayerPeek` (položka v Nastavení → Aplikace, `QuietUninstallString` = `Update.exe --uninstall --silent`) a spustí aplikaci.
 - Cesta exe: `%LocalAppData%\LayerPeek\current\LayerPeek.exe`. **Zůstala stejná po dvou aktualizacích** (0.1.0 → 0.1.1 → 0.1.2), protože se vyměňuje obsah složky `current`. `AppShortcutRegistration` (T-010) proto zástupce po aktualizaci nepřepisuje. Windows ukládá i nastavení ikony v oznamovací oblasti podle cesty exe (`HKCU\Control Panel\NotifyIconSettings`), takže volba „vždy zobrazit“ aktualizaci přežije.
-- **Kolize složky:** `%LocalAppData%\<packId>` patří Velopacku. Odinstalace ji celou smaže. Když složka při instalaci není prázdná, `Setup.exe` zobrazí dialog „přepsat/opravit“. Aplikace tam proto nesmí ukládat vlastní data. Dnes je nastavení v `%APPDATA%\LayerPeek` (Roaming), což je v pořádku. **T-024 (logy „v AppData“) nesmí použít `%LocalAppData%\LayerPeek`.**
+- **Kolize složky:** `%LocalAppData%\<packId>` patří Velopacku. Odinstalace ji celou smaže. Když složka při instalaci není prázdná, `Setup.exe` zobrazí dialog „přepsat/opravit“. Aplikace tam proto nesmí ukládat vlastní data. Dnes je nastavení v `%APPDATA%\LayerPeek` (Roaming), což je v pořádku. **Výjimka (rozhodnuto 2026-10-24, T-017):** logy z T-024 zůstávají v `%LOCALAPPDATA%\LayerPeek\logs`. Odinstalace je smaže a přijímá se to. Chování u neprázdné složky popisuje sekce „Neprázdná instalační složka“ níže.
 
 ### 4. Zástupce ve Start menu, AppUserModelID a `ToastActivatorCLSID` (P)
 - Velopack pojmenuje zástupce podle `--packTitle`, takže vznikne `LayerPeek.lnk` v kořeni Start menu (`--shortcuts StartMenuRoot`). AUMID nastaví z `--aumid` (ověřeno: `AUMID=LayerPeek`, cíl `current\LayerPeek.exe`, pracovní složka `current`). Bez `--aumid` použije `velopack.LayerPeek` ([WindowsPackCommandRunner.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/vpk/Velopack.Packaging.Windows/Commands/WindowsPackCommandRunner.cs)). **`--aumid` je v `vpk` 1.2.161 skrytá volba** (`SetHidden`, vypíše ji jen `vpk pack -H`). Dokumentace o ní mlčí, takže se může změnit. Uživatel tuto závislost přijal (2026-10-21).
@@ -157,6 +157,29 @@ dotnet vpk pack -u LayerPeek -v <Version z Directory.Build.props> -p <publish/RI
 - **`--noPortable`:** `Portable.zip` Velopacku (přenosná instalace se samoaktualizací) by duplikoval `.zip` z T-055. Viz otevřená otázka.
 - Kontrolní součty (`SHA256SUMS-windows.txt`) zahrnou nové soubory automaticky přes bod rozšíření.
 - Na macOS by balicí krok běžel jen na Macu (`vpk pack` s `--channel osx-arm64`) podle výsledku T-019.
+
+## Implementace (T-017)
+
+- **Start:** `Installer/VelopackStartup.Run(args)` hned po omezení hledání DLL (T-052, jedno volání jádra, nic nenačítá) a před vším ostatním v `Main`. Pořadí hlídá unit test (`vpk` ho u AOT exe nekontroluje). `VelopackApp` se vytvoří jen uvnitř instalace (`Update.exe` o složku výš a `sq.version` vedle exe, stejné rozpoznání jako `WindowsVelopackLocator`). Jinak by lokátor Velopacku při každém vývojovém, testovacím i `.zip` startu zapsal log do `%LOCALAPPDATA%\velopack`. Start s argumentem hooku mimo instalaci skončí hned s kódem 0.
+- **Hooky** (jen Windows, `OnAfterInstallFastCallback` / `OnBeforeUninstallFastCallback`), logika v `InstallerHooks`, vždy s produkční identitou:
+  - `--veloapp-install`: stejná registrace jako při startu (`WindowsToastPlatform.Register`): COM aktivátor `LocalServer32` a `ToastActivatorCLSID` v zástupci, který vytvořil Velopack;
+  - `--veloapp-uninstall`: historie toastů `LayerPeek` (`ToastNotificationManager.History.Clear`), klíč `HKCU\Software\Classes\CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}`, klíč `Notifications\Settings\LayerPeek`, `IsPromoted` u položek instalovaného exe (`TrayIconPromotion.ClearPromotions`) a zástupce autostartu. Každý krok běží i po chybě předchozího. Chyby (i varování komponent) hook ohlásí výjimkou, kterou Velopack zapíše do svého logu a pokračuje.
+- `SetAutoApplyOnStartup(false)`: aktualizaci nikdy nepoužije start (ukončil by běžící primární instanci).
+- **Aktualizace:** `AppUpdates` + `VelopackUpdateEngine` (`UpdateManager` s `GithubSource("https://github.com/pfoltynek/LayerPeek", accessToken: null, prerelease: <volba>)`). Vytváří se jen v instalaci a ne v testovacím režimu. Každá chyba kontroly = „žádná aktualizace“ (jen záznam v logu). Použití: stáhnout, spustit `WaitExitThenApplyUpdates` (updater čeká na konec procesu) a pak běžné ukončení aplikace, které uloží stav. Aplikace běží jen v primární instanci (T-043), takže aktualizaci nikdy nespustí druhá instance. Volání z UI (položka menu, notifikace) doplní T-058.
+- **Předběžné verze:** `AppSettings.OfferPrereleaseUpdates` (`bool?`, v souboru až po výslovné volbě), výchozí hodnota podle běžící verze v `Core/Updates/PrereleaseUpdates` (`0.x` zapnuto, od `1.0` vypnuto).
+- **Autostart:** `StartupShortcutAutostart` (zástupce `LayerPeek.lnk` ve složce Startup se stejným AUMID a `ToastActivatorCLSID` jako zástupce ve Start menu). V testovacím režimu je „složka Startup“ v testovací datové složce.
+- **Balení:** krok `installer` v `scripts/release-build.ps1`, popis v [release.md](release.md#instalátor-pro-windows-velopack-t-017).
+- **Autostart jen v instalaci** (rozhodnuto 2026-10-24): `AppServices.CreateAutostart` vrátí autostart jen pro exe uvnitř instalace Velopacku. Ve `.zip` a ve vývojovém sestavení je volba vidět neaktivní s vysvětlením (`SettingsNeedsInstallation`).
+
+### Neprázdná instalační složka (logy `.zip` verze)
+
+Kdo spustil `.zip` nebo vývojové sestavení, má v `%LOCALAPPDATA%\LayerPeek` složku `logs`. Instalátor ji podle zdrojového kódu 1.2.161 ([install.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/commands/install.rs), [dialogs.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/l18n/src/dialogs.rs)) zpracuje takto (D):
+
+- **Interaktivní `Setup.exe`:** dialog „already installed“ s tlačítky *Repair*, *Open install directory* a *Cancel*. Texty jsou lokalizované Velopackem.
+  - *Cancel*, zavření dialogu nebo vypršení jeho limitu: nic se nenainstaluje ani nezmění, `Setup.exe` skončí s úspěšným kódem.
+  - *Repair*: Velopack ukončí procesy ze složky a celou složku přejmenuje na `%LOCALAPPDATA%\LayerPeek.<16 znaků>`. Nainstaluje do prázdné složky a po úspěchu přejmenovanou složku smaže **i s logy**. Při chybě se stará složka vrátí zpět.
+- **`--silent`:** dialog se nezobrazí a odpověď je *Repair*. Logy se tedy smažou bez dotazu.
+- **Ověření:** chování ověřuje E2E test `VelopackInstallerTests` (zrušení dialogu, potom tichá instalace). Výsledek je v `## Poznámky k implementaci` T-017.
 
 ## Pokusy a úklid
 

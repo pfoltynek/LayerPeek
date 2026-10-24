@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Composition;
+using LayerPeek.App.Installer;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform.Windows;
@@ -34,6 +35,13 @@ internal static partial class Program
         if (OperatingSystem.IsWindows())
         {
             dllSearchError = NativeLibrarySearch.Restrict();
+        }
+
+        // Right after (T-017): inside a Velopack installation its hooks (install, uninstall) run and end the process here,
+        // before the single-instance guard, the log and any window, also while the app runs. Outside one nothing happens.
+        if (VelopackStartup.Run(args, out Exception? velopackFailure) is { } installerExit)
+        {
+            return installerExit;
         }
 
 #if DEBUG
@@ -104,6 +112,12 @@ internal static partial class Program
         {
             // The app still works with the standard search order; only the hardening is missing.
             NativeLibrarySearch.LogRestrictionFailed(log, dllSearchError);
+        }
+
+        if (velopackFailure is not null)
+        {
+            // The app runs without Velopack in this start (T-017): no updates, nothing else is missing.
+            LogVelopackFailed(log, velopackFailure);
         }
 
 #if DEBUG
@@ -233,6 +247,9 @@ internal static partial class Program
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Another instance is running; this start only passed the activation on and exits.")]
     private static partial void LogNotPrimary(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Velopack failed at startup; the app runs without updates in this start.")]
+    private static partial void LogVelopackFailed(ILogger logger, Exception exception);
 
 #if DEBUG
     [LoggerMessage(Level = LogLevel.Warning, Message = "The test switch {Name} is ignored outside the test mode.")]
