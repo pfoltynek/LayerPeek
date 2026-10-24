@@ -89,7 +89,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-058 | Kontrola nové verze v aplikaci (GitHub Releases) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
-| T-076 | Widgety překryvu – návrh UI (design spec) | all | ui-designer | P2 | – |
+| T-076 | Widgety překryvu – návrh UI (design spec) (hotovo) | all | ui-designer | P2 | – |
 | T-077 | Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036 | all | core-dev | P2 | T-076 |
 | T-078 | Hezčí název tisku – rozbor názvu souboru z PrusaSliceru v Core (hotovo) | all | core-dev | P2 | – |
 | T-079 | Vychladnutí po tisku – detekce v Core (hotovo) | all | core-dev | P2 | – |
