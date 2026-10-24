@@ -411,6 +411,15 @@ internal static class TrayMenu
             }
 
             trace($"Win+B #{press}: the focus did not reach the notification area (focus {DescribeFocus(Focused(app))}, foreground {DescribeWindow(app, Native.GetForegroundWindow())}).");
+
+            // A window of another program that kept the foreground (it had it before the press, so the check above did not
+            // fire) may be the one that takes Win+B: it gets no second press.
+            nint stayed = Native.GetForegroundWindow();
+            if (NotificationCenter.IsForeignWindow(stayed))
+            {
+                throw new InvalidOperationException(
+                    $"Win+B left a window of another program in the foreground ({NotificationCenter.ProcessNameOf(stayed)}); it is left alone and no more keys are pressed.");
+            }
         }
 
         throw new InvalidOperationException("Win+B did not put the keyboard focus into the notification area.");

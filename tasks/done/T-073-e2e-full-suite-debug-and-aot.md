@@ -112,3 +112,18 @@ Uzavřít poslední kritérium T-052: tray, okna, toasty, Správce pověření a
 - `dotnet build` 0 varování, 0 chyb. `dotnet test`: 5315 testů, 0 selhalo, 114 přeskočeno (E2E bez `PTD_E2E`); `PrusaTrayDiagnostic.E2E.Tests` (T-030) 19 prošlo. AOT publish win-x64 (Release i Debug) bez varování.
 - Řada T-010, T-025, T-035, T-037, T-039, T-041, T-042, T-043: všechny úkoly už jsou v `done/` se zaškrtnutými kritérii. Oba průchody je pokrývají, poznámky se neměnily.
 - Žádný nový NuGet balíček: P/Invoke `advapi32` je jen v testech, WMI jde přes už používaný `System.Management`.
+
+## Review
+**2026-10-24, qa-reviewer – schváleno po opravách.**
+- Bezpečnost Správce pověření v pořádku: `CredEnumerate` jen s filtrem `PrusaTrayDiagnostic.E2E/*` (filtr Windows nerozlišuje velikost písmen, výsledky se znovu kontrolují `Ordinal`, takže v nejhorším případě se něco nesmaže, nikdy naopak), `*` a mezery v předponě se odmítnou před voláním Windows, hesla se jen porovnávají. Úklid běhu je pod zámkem plochy, takže nesmaže položky souběžného běhu jiného worktree.
+- Opraveno:
+  - `Wait.UntilAsync`: časový limit po timeoutu UI Automation nese původní výjimku jako `InnerException` (se stopou), takže timeout, který nepochází z vytíženého okna aplikace, není skrytý. Test v `WaitTests`.
+  - `SystemChangeWatchdog`: příkazový řádek hlídacího procesu a dotaz WMI v `WaitUntilGoneAsync` se skládají z jedné metody (`CommandLineEnd`). Při změně formátu by dotaz jinak tiše nic nenašel a závod z T-073 by se vrátil. Test `WatchdogIsFoundByTheCommandLineItIsStartedWith`.
+  - Win+B: když okno jiného programu zůstane v popředí i po stisku (měl ho už předtím, takže kontrola „nové okno“ nezabrala), další Win+B se nestiskne a test skončí s chybou, která uvádí jen název procesu.
+  - Ruční postup Nerušit ve varování skriptu (`RunE2E.SystemChanges.psm1`) zní „the clock on the taskbar (or Win+N)“ jako v záznamu a `docs/troubleshooting.md`.
+- Ponecháno (nízké riziko, zapsané):
+  - `NotificationCenter.CloseAsync` a `NotificationArea.CloseOverflowAsync` posílají Escape po kontrole popředí; mezi kontrolou a stiskem zbývá okno v řádu mikrosekund (stejný vzor jako dřív).
+  - Hlídací proces průchodu AOT zapisuje `system-changes-watchdog.log` do složky výsledků průchodu Debug (skript ji počítá sám).
+  - Ctrl+C během průchodu: skript čeká, až testovací proces (dostane Ctrl+C také) skončí, a teprve pak vrací změny. Proces, který Ctrl+C ignoruje, skript drží.
+- T-052: zaškrtnuté kritérium 2 je podložené (rozhodnutí uživatele 2026-10-22, oba průchody zelené, web přes proxy ručně 2026-10-21, T-030 zelené).
+- Ověření po opravách: `dotnet build` 0 varování; `dotnet test` 5316 testů, 0 selhalo, 114 přeskočeno. `pwsh tools/run-e2e.ps1 -PublishAot -Class '*CredentialManagerTests'`: Debug 1/0/0, AOT 1/0/0, publikace Release i Debug AOT bez varování, „Credential Manager test entries: none“, „Differences from the start: none“. `-Class '*TrayMenu*'` 39/39, `-Class '*SystemChangeTests'` 9/9. Vždy „System changes (after the run): nothing pending“.

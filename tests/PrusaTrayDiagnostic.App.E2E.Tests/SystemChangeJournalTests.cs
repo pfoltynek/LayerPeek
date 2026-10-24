@@ -138,6 +138,19 @@ public sealed class SystemChangeJournalTests
     }
 
     [Fact]
+    public void WatchdogIsFoundByTheCommandLineItIsStartedWith()
+    {
+        // WaitUntilGoneAsync finds the watchdog by the end of its command line: a query that no longer matches would report
+        // it gone at once and bring back the race of T-073.
+        string commandLine = SystemChangeWatchdog.CommandLine(@"C:\Program Files\PowerShell\7\pwsh.exe", @"D:\repo\tools\run-e2e.ps1", 4242);
+
+        Assert.EndsWith(SystemChangeWatchdog.CommandLineEnd(4242), commandLine, StringComparison.Ordinal);
+        Assert.Contains($"LIKE '%{SystemChangeWatchdog.CommandLineEnd(4242)}'", SystemChangeWatchdog.ProcessQuery(4242), StringComparison.Ordinal);
+        // Another process id is another watchdog.
+        Assert.False(commandLine.EndsWith(SystemChangeWatchdog.CommandLineEnd(242), StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task EntryOfACrashedProcessIsRestoredBeforeTheNewOriginalIsRead()
     {
         Setup setup = new();

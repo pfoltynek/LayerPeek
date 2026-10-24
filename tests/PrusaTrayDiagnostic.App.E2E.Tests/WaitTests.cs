@@ -47,6 +47,8 @@ public sealed class WaitTests
 
         Assert.Contains("the busy window", timeout.Message, StringComparison.Ordinal);
         Assert.Contains("UI Automation call timed out", timeout.Message, StringComparison.Ordinal);
+        // Kept with its stack trace: a timeout that was not a busy window of the app still shows where it came from.
+        Assert.Equal("UIA timeout", Assert.IsType<TimeoutException>(timeout.InnerException).Message);
         // An outer wait ends on it instead of waiting on.
         Assert.False(Wait.IsUiaTimeout(timeout));
     }

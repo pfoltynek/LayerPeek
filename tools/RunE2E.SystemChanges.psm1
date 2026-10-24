@@ -16,7 +16,7 @@ $script:Kinds = [ordered]@{
     }
     DoNotDisturb  = @{
         Change  = @('Do Not Disturb (switched off for notification tests)')
-        Restore = 'Win+N > Do not disturb'
+        Restore = 'the clock on the taskbar (or Win+N) > Do not disturb'
     }
     TrayPromotion = @{
         Change  = @('the test tray icon shown directly on the taskbar')

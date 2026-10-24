@@ -39,9 +39,9 @@ internal static class Wait
 
             if (DateTime.UtcNow >= deadline)
             {
-                throw new WaitTimeoutException(busy is null
-                    ? $"Waited {timeout.TotalSeconds:0.#} s for {what}."
-                    : $"Waited {timeout.TotalSeconds:0.#} s for {what}; the last UI Automation call timed out ({busy.GetType().Name}: {busy.Message}).");
+                throw busy is null
+                    ? new WaitTimeoutException($"Waited {timeout.TotalSeconds:0.#} s for {what}.")
+                    : new WaitTimeoutException($"Waited {timeout.TotalSeconds:0.#} s for {what}; the last UI Automation call timed out ({busy.GetType().Name}: {busy.Message}).", busy);
             }
 
             await Task.Delay(Interval);

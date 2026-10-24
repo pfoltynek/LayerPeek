@@ -41,9 +41,7 @@ internal static class SystemChangeWatchdog
             throw new InvalidOperationException($"'{script}' is missing: no watchdog, so no system changes.");
         }
 
-        string commandLine = string.Create(
-            CultureInfo.InvariantCulture,
-            $"\"{pwsh}\" -NoProfile -NonInteractive -File \"{script}\" -RestoreOnly -AfterProcess {processId}");
+        string commandLine = CommandLine(pwsh, script, processId);
 
         using ManagementClass startupClass = new("Win32_ProcessStartup");
         using ManagementObject startup = startupClass.CreateInstance();
@@ -71,9 +69,7 @@ internal static class SystemChangeWatchdog
     /// </summary>
     public static async Task WaitUntilGoneAsync(int processId, TimeSpan timeout)
     {
-        string query = string.Create(
-            CultureInfo.InvariantCulture,
-            $"SELECT ProcessId FROM Win32_Process WHERE Name = 'pwsh.exe' AND CommandLine LIKE '%-RestoreOnly -AfterProcess {processId}'");
+        string query = ProcessQuery(processId);
         await Wait.UntilAsync(
             () =>
             {
@@ -84,6 +80,18 @@ internal static class SystemChangeWatchdog
             timeout,
             $"the watchdog of the process {processId} to end");
     }
+
+    /// <summary>The command line of the watchdog of <paramref name="processId"/>; it ends with <see cref="CommandLineEnd"/>.</summary>
+    internal static string CommandLine(string pwsh, string script, int processId) =>
+        $"\"{pwsh}\" -NoProfile -NonInteractive -File \"{script}\" {CommandLineEnd(processId)}";
+
+    /// <summary>The end of the watchdog's command line that names the process it waits for.</summary>
+    internal static string CommandLineEnd(int processId) =>
+        string.Create(CultureInfo.InvariantCulture, $"-RestoreOnly -AfterProcess {processId}");
+
+    /// <summary>The WMI query for the running watchdogs of <paramref name="processId"/> (found by <see cref="CommandLineEnd"/>).</summary>
+    internal static string ProcessQuery(int processId) =>
+        $"SELECT ProcessId FROM Win32_Process WHERE Name = 'pwsh.exe' AND CommandLine LIKE '%{CommandLineEnd(processId)}'";
 
     internal static string? FindOnPath(string file)
     {
