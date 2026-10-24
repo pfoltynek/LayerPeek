@@ -1,7 +1,7 @@
 ---
 id: T-076
 title: Widgety překryvu okna kamery – návrh UI (design spec)
-status: in-progress
+status: done
 owner: ui-designer
 priority: P2
 platform: all
@@ -71,6 +71,14 @@ Podrobný návrh nového překryvu okna kamery složeného z **widgetů**. Nahra
 - **Průhlednost pozadí (Q9):** **jedno globální nastavení** pro všechny karty i tiskárny. Rozsah **30–95 %**, výchozí **72 %**.
 - **Barvy (Q10):** tryska **oranžová**, podložka **modrá**. **Graf v okně Diagnostika používá stejné barvy.** Přesné odstíny (kontrast na tmavé kartě i v diagnostice) navrhne designer v návrhu.
 
+## Rozhodnutí k návrhu (uživatel, 2026-10-24)
+Návrh v sekci `## Návrh UI` je **schválený** (2026-10-24). Otázky, které návrh otevřel, uživatel rozhodl podle doporučení:
+- **Výchozí rozložení a hlavní kotva (Q1):** podle makety (oddíl 3.3). Hlavní kotva = `BottomLeft` = kotva widgetu Časy. Zrcadlení při převodu starého rohu přesune celý levý sloupec.
+- **Popisek průhlednosti (Q2):** „Neprůhlednost pozadí karet“ / „Card background opacity“, rozsah 30–95 %, výchozí 72 %.
+- **Tón českých textů (Q3):** vykání jako ve zbytku aplikace („Vychladlo – můžete vypnout“, „přetáhněte widget do kotvy“).
+- **Režim rozložení v malém okně (Q4):** pod 480 × 300 je tlačítko i položka nabídky zakázané s tooltipem „Pro úpravu rozložení zvětšete okno.“
+- **Přepínače v pásu malého náhledu (Q5):** 30 × 30, odchylka 2 DIP od cíle 32 DIP přijatá. Okno 320 × 213 / 311.
+
 ## Rozsah
 Do sekce `## Návrh UI` tohoto souboru patří ASCII drátěné modely a text, jako u T-033:
 1. **Karty a styl:**
@@ -129,7 +137,7 @@ Do sekce `## Návrh UI` tohoto souboru patří ASCII drátěné modely a text, j
 - [x] Varianta B (panel / šuplík) se v návrhu nevyskytuje
 - [x] Návrh je v souladu se sekcí Rozhodnutí
 - [x] Ikony: názvy z Fluent UI System Icons, licence MIT ověřená (odkaz na `LICENSE`), žádná závislost za běhu
-- [ ] Návrh schválený uživatelem (datum schválení v `## Rozhodnutí`)
+- [x] Návrh schválený uživatelem (datum schválení v `## Rozhodnutí k návrhu`: 2026-10-24)
 
 ## Návrh UI
 
@@ -934,29 +942,11 @@ cs = vykání (otázka Q3). Ostatní jazyky doplní ui-dev v příslušném úko
 - **Neověřeno:** skutečné Windows DPI 125 / 150 / 200 % a monitory s různým DPI (T-093), macOS (později na Macu), skutečné video kamery (kontrast na světlém obraze), Avalonia 12 `FontFeatures` a `AutomationProperties.LiveSetting` (ověří ui-dev v T-081 / T-091).
 
 ## Otevřené otázky
-Q1–Q10 z Rozhodnutí jsou vyřešené. Hotový návrh čeká na schválení. Návrh otevřel tyto otázky:
-
-- **Q1 – Výchozí rozložení a hlavní kotva:** maketa má Stav vlevo nahoře a Časy vlevo dole. T-077 počítal se „Stav + Časy v jedné kotvě“.
-  - (a) **Doporučuji:** držet maketu (oddíl 3.3). Hlavní kotva = `BottomLeft` = kotva Časů, Stav je ve stejném sloupci nahoře. Zrcadlení přesune celý levý sloupec na stranu starého rohu. T-077 upraví jen definici „hlavní kotvy“ (kotva widgetu Časy).
-  - (b) Stav i Časy pod sebou v `BottomLeft` (jako dnešní překryv T-036). Odchylka od schválené makety, levý horní roh zůstane prázdný.
-- **Q2 – Název nastavení průhlednosti:** hodnota 72 % je krytí (alfa 0,72), ne průhlednost. „Průhlednost 72 %“ by znamenala opak.
-  - (a) **Doporučuji:** popisek „Neprůhlednost pozadí karet“ / „Card background opacity“, hodnoty 30–95 %, výchozí 72 % beze změny.
-  - (b) Popisek „Průhlednost pozadí karet“ s obráceným rozsahem 5–70 %, výchozí 28 % (uložená hodnota by byla 100 − krytí). Zbytečně mate.
-  - (c) Posuvník bez čísla s krajními popisky „průhlednější“ / „sytější“.
-- **Q3 – Tón českých textů:** aplikace vyká („Zadejte…“), maketa tyká („můžeš vypnout“, „přetáhni“).
-  - (a) **Doporučuji:** vykat jako zbytek aplikace („Vychladlo – můžete vypnout“, „přetáhněte widget do kotvy“). Návrh je takto napsaný.
-  - (b) Tykat jen v nových textech překryvu. Nekonzistentní.
-  - (c) Přejít na tykání v celé aplikaci (samostatný úkol pro všech 8 jazyků).
-- **Q4 – Režim rozložení v malém okně** (normální okno jde zmenšit až na 160 × 90):
-  - (a) **Doporučuji:** pod 480 × 300 je tlačítko i položka nabídky zakázané s tooltipem „Pro úpravu rozložení zvětšete okno.“
-  - (b) Vstup okno dočasně zvětší na 640 × 360 a po skončení vrátí. Okno se mění bez přímého pokynu uživatele.
-  - (c) Režim povolit vždy, zóny se zmenší až na 120 × 70. Hůř se trefuje.
-- **Q5 – Velikost přepínačů v pásu malého náhledu:** schválený základní řádek je 30 vysoký, doporučený cíl je ≥ 32 DIP.
-  - (a) **Doporučuji:** přepínače 30 × 30 (celá výška řádku) a přijmout odchylku 2 DIP. Rozměry okna 320 × 213 / 311 podle makety zůstanou.
-  - (b) Řádek 32 → okno 320 × 215 / 313.
+- Žádné. Otázky Q1–Q5 z návrhu rozhodl uživatel 2026-10-24, viz `## Rozhodnutí k návrhu`.
 
 ## Poznámky k implementaci
 - 2026-10-24, ui-designer: návrh (oddíly 0–11) napsaný do sekce Návrh UI. Úkol zůstává v `in-progress`, dokud uživatel návrh neschválí a nerozhodne otázky Q1–Q5.
+- 2026-10-24: uživatel návrh schválil a rozhodl Q1–Q5 podle doporučení; úkol uzavřen.
 - Měřeno v kódu a na snímcích reference (`tests/LayerPeek.App.UiTests/Snapshots`: `camera-overlay-*.png`, `settings-overlay*.png`, `settings-general*.png`):
   - rozměry okna kamery, nastavení a podzáložky,
   - barvy tray ikony a grafu Diagnostiky,
