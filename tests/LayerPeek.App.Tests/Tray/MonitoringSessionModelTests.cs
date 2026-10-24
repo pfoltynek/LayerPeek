@@ -430,6 +430,19 @@ public sealed class MonitoringSessionModelTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task CooldownThresholdChangeDoesNotRestart()
+    {
+        (MonitoringSession session, _) = await StartAsync(Definition("a", "Alpha"));
+        AppSettings changed = AppSettings.Default with { Printers = [Definition("a", "Alpha") with { CooldownThresholdCelsius = 65 }] };
+
+        await session.ApplyAsync(changed, credentialsChanged: false).WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Single(_monitor.Runs);
+        Assert.Equal(["apply", "update"], _observer.Calls);
+        Assert.Same(changed, _observer.Settings);
+    }
+
+    [Fact]
     public async Task OtherPrinterChangesStillRestart()
     {
         (MonitoringSession session, _) = await StartAsync(Definition("a", "Alpha"));

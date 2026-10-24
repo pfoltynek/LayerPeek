@@ -1,4 +1,5 @@
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 
 namespace LayerPeek.Core.Printers;
 
@@ -96,6 +97,21 @@ public sealed record PrinterDefinition
             field = value;
         }
     } = PrinterImageChoice.Automatic;
+
+    /// <summary>
+    /// Nozzle temperature in whole °C at or below which the printer counts as cooled down after a print (T-079);
+    /// <see cref="CooldownThreshold.MinCelsius"/>–<see cref="CooldownThreshold.MaxCelsius"/>,
+    /// <see cref="CooldownThreshold.DefaultCelsius"/> by default.
+    /// </summary>
+    public int CooldownThresholdCelsius
+    {
+        get;
+        init
+        {
+            CooldownThreshold.Validate(value, nameof(value));
+            field = value;
+        }
+    } = CooldownThreshold.DefaultCelsius;
 
     private static string RequireText(string value)
     {

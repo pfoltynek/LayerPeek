@@ -7,6 +7,7 @@ using CommunityToolkit.Mvvm.Input;
 
 using LayerPeek.App.Resources;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.PrusaLink;
 
@@ -28,6 +29,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     // The saved user name (default for a new printer); kept for Prusa Connect, which does not use it.
     private readonly string _savedUserName;
+
+    // The saved cool-down threshold (T-079), carried through a save until the window gets a field for it (T-080).
+    private readonly int _savedCooldownThreshold;
     private string _password = string.Empty;
     private ConnectionTypeOption _connectionType;
     private bool _isNew;
@@ -114,6 +118,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _address = saved?.Address ?? string.Empty;
         _savedUserName = saved?.UserName ?? PrinterUserName.Default;
         _userName = _savedUserName;
+        _savedCooldownThreshold = saved?.CooldownThresholdCelsius ?? CooldownThreshold.DefaultCelsius;
         ConnectionType type = saved?.ConnectionType ?? ConnectionType.PrusaLink;
         ConnectionTypes = owner.ConnectionTypesFor(type);
         _connectionType = Array.Find((ConnectionTypeOption[])ConnectionTypes, option => option.Value == type)!;
@@ -692,6 +697,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 Camera = camera,
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
+                CooldownThresholdCelsius = _savedCooldownThreshold,
             };
 
     /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>

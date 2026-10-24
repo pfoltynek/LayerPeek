@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Composition;
+using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
 using LayerPeek.App.Localization;
@@ -18,6 +19,7 @@ using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Notifications;
@@ -169,6 +171,15 @@ public sealed class AppServicesTests
         Assert.Same(services.GetRequiredService<ToastActivationRouter>(), services.GetRequiredService<ToastActivationRouter>());
         // The router receives the printers of every run, so a click opens the current address.
         Assert.Contains(services.GetRequiredService<ToastActivationRouter>(), services.GetRequiredService<MonitoringSession>().Observers);
+    }
+
+    [Fact]
+    public async Task CooldownMonitorIsRegisteredAsSingletonAndGetsTheSettingsOfEveryRun()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<CooldownMonitor>(), services.GetRequiredService<CooldownMonitor>());
+        Assert.Contains(services.GetRequiredService<CooldownObserver>(), services.GetRequiredService<MonitoringSession>().Observers);
     }
 
     [Fact]
