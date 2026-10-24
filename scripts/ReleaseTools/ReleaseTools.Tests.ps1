@@ -9,7 +9,7 @@
     publish checks. The git checks run against throw-away repositories: a bare "origin" and clones in a temporary
     folder, with an isolated git configuration. No network, no GitHub, gh is never called.
 
-    Temporary files live in one folder under $env:LAYERPEEK_RELEASE_TESTS_TEMP (set by the xUnit wrapper
+    Temporary files live in one folder under $env:LAYERPEEK_PESTER_TESTS_TEMP (set by the xUnit wrapper
     tests/LayerPeek.Scripts.Tests, which also deletes it after a crash) or under the system temp folder.
     AfterAll deletes the folder and restores the environment.
 
@@ -22,7 +22,7 @@ BeforeAll {
     Import-Module (Join-Path $PSScriptRoot 'ReleaseTools.psm1') -Force
 
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).ProviderPath
-    $base = if ($env:LAYERPEEK_RELEASE_TESTS_TEMP) { $env:LAYERPEEK_RELEASE_TESTS_TEMP } else { [System.IO.Path]::GetTempPath() }
+    $base = if ($env:LAYERPEEK_PESTER_TESTS_TEMP) { $env:LAYERPEEK_PESTER_TESTS_TEMP } else { [System.IO.Path]::GetTempPath() }
     # Short name: git repositories live below it (Windows path length limit).
     $script:TempRoot = Join-Path $base "layerpeek-rt-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     $null = New-Item -ItemType Directory -Path $script:TempRoot

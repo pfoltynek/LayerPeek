@@ -3,12 +3,13 @@ using LayerPeek.Tests.Shared;
 namespace LayerPeek.Scripts.Tests;
 
 /// <summary>
-/// Runs the Pester tests of the release scripts (scripts/ReleaseTools/ReleaseTools.Tests.ps1, T-055) as part of
-/// dotnet test. Skipped when pwsh or Pester 5+ is not installed. The Pester run uses the reserved
-/// <see cref="TestDirectories.Root"/> as its temp root (also TEMP / TMP / TMPDIR of the child pwsh), so nothing is left
-/// behind even when pwsh is killed.
+/// Runs the Pester tests of the scripts as part of dotnet test: the release scripts
+/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1, T-055) and the one-time migration from the former name
+/// (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074). Skipped when pwsh or Pester 5+ is not installed. The
+/// Pester run uses the reserved <see cref="TestDirectories.Root"/> as its temp root (also TEMP / TMP / TMPDIR of the
+/// child pwsh), so nothing is left behind even when pwsh is killed.
 /// </summary>
-public sealed class ReleaseToolsPesterTests
+public sealed class PesterScriptTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
 
@@ -16,7 +17,7 @@ public sealed class ReleaseToolsPesterTests
         "$ErrorActionPreference = 'Stop'; " +
         "Import-Module Pester -MinimumVersion 5.0.0; " +
         "$c = New-PesterConfiguration; " +
-        "$c.Run.Path = $env:LAYERPEEK_RELEASE_TESTS_PATH; " +
+        "$c.Run.Path = $env:LAYERPEEK_PESTER_TESTS_PATH; " +
         "$c.Run.PassThru = $true; " +
         "$c.Output.Verbosity = 'Detailed'; " +
         "if ($c.Output.PSObject.Properties['RenderMode']) { $c.Output.RenderMode = 'Plaintext' }; " +
@@ -24,8 +25,10 @@ public sealed class ReleaseToolsPesterTests
         "Write-Output \"PESTER RESULT: $($r.Result) passed=$($r.PassedCount) failed=$($r.FailedCount) skipped=$($r.SkippedCount)\"; " +
         "if ($r.Result -ne 'Passed' -or $r.FailedCount -gt 0 -or $r.PassedCount -eq 0) { exit 1 }; exit 0";
 
-    [Fact]
-    public async Task ReleaseScriptPesterTestsPass()
+    [Theory]
+    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1")]
+    [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1")]
+    public async Task ScriptPesterTestsPass(string relativePath)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         string? skipReason = await PowerShell.PesterSkipReasonAsync(cancellationToken);
@@ -34,7 +37,7 @@ public sealed class ReleaseToolsPesterTests
             Assert.Skip(skipReason);
         }
 
-        string tests = Path.Combine(TestWorktree.Root, "scripts", "ReleaseTools", "ReleaseTools.Tests.ps1");
+        string tests = Path.Combine(TestWorktree.Root, relativePath);
         Assert.True(File.Exists(tests), $"Pester tests not found: {tests}");
         // Everything the child pwsh writes goes under the reserved folder: the Pester temp root and, through TEMP / TMP /
         // TMPDIR, the system temp folder of the scripts (smoke logs, tar file lists). A killed run leaves nothing in the
@@ -51,8 +54,8 @@ public sealed class ReleaseToolsPesterTests
                 Command,
                 new Dictionary<string, string>
                 {
-                    ["LAYERPEEK_RELEASE_TESTS_PATH"] = tests,
-                    ["LAYERPEEK_RELEASE_TESTS_TEMP"] = temp,
+                    ["LAYERPEEK_PESTER_TESTS_PATH"] = tests,
+                    ["LAYERPEEK_PESTER_TESTS_TEMP"] = temp,
                     ["TEMP"] = processTemp,
                     ["TMP"] = processTemp,
                     ["TMPDIR"] = processTemp,
