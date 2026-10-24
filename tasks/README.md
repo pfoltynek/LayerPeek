@@ -89,6 +89,23 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-058 | Kontrola nové verze v aplikaci (GitHub Releases) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
+| T-076 | Widgety překryvu – návrh UI (design spec) | all | ui-designer | P2 | – |
+| T-077 | Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036 | all | core-dev | P2 | T-076 |
+| T-078 | Hezčí název tisku – rozbor názvu souboru z PrusaSliceru v Core | all | core-dev | P2 | – |
+| T-079 | Vychladnutí po tisku – detekce v Core | all | core-dev | P2 | – |
+| T-080 | Vychladnutí – volitelná notifikace a nastavení prahu | all | core-dev + ui-dev | P2 | T-076, T-079 |
+| T-081 | Widgety překryvu – framework v okně kamery (registr, 6 kotev, karty) | all | ui-dev | P2 | T-076, T-077 |
+| T-082 | Widget Stav | all | ui-dev | P2 | T-081 |
+| T-083 | Widget Časy | all | ui-dev | P2 | T-081 |
+| T-084 | Widget Teploty se sparkline (kompaktní `TemperatureChart`) | all | ui-dev | P2 | T-081 |
+| T-085 | Widget Název tisku (bez náhledu G-code) | all | ui-dev | P2 | T-078, T-081 |
+| T-086 | Náhled G-code – načtení z PrusaLink (Core + klient + simulátor) | all | core-dev | P3 | – |
+| T-087 | Widget Název tisku – zobrazení náhledu G-code | all | ui-dev | P3 | T-085, T-086 |
+| T-088 | Widget Vychladnutí | all | ui-dev | P2 | T-079, T-081 |
+| T-089 | Malý náhled – informační pás pod obrazem a výška okna podle pásu | all | ui-dev | P2 | T-076, T-082, T-083 |
+| T-090 | Malý náhled – sbalitelný název a graf v pásu, zapamatování stavu | all | ui-dev | P2 | T-084, T-085, T-089 |
+| T-091 | Režim rozložení v okně kamery (jen normální okno) | all | ui-dev | P2 | T-077, T-082, T-083 |
+| T-092 | Podzáložka Překryv – viditelnost widgetů, globální průhlednost | all | ui-dev | P2 | T-077, T-081 |
 
 ### Windows (`windows`)
 
@@ -114,6 +131,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-071 | E2E – okno kamery na monitorech, vždy navrchu a okna při 125/150 % | windows | qa-reviewer | P2 | T-065, T-066 |
 | T-072 | E2E – jump list oken a druhé spuštění přes shell (popředí, blikání) | windows | qa-reviewer | P2 | T-044 |
 | T-073 | E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření | windows | qa-reviewer | P2 | T-067, T-068, T-069, T-070, T-071, T-072 |
+| T-093 | E2E – widgety překryvu, malý náhled, režim rozložení + AOT | windows | qa-reviewer | P2 | T-080, T-087, T-088, T-090, T-091, T-092 |
 
 ### macOS (`macos`) – jen na Macu, později
 
