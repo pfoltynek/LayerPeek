@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 
 using PrusaTrayDiagnostic.App.Cameras;
 using PrusaTrayDiagnostic.App.Printers;
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.Images;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Secrets;
@@ -40,6 +41,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
     private readonly Func<IPrinterImageStore>? _imageStore;
     private readonly CustomPrinterImages? _customImages;
+    private readonly ICameraMonitorPathUpdater? _monitorPaths;
     private readonly Lock _pendingLock = new();
 
     // Guarded by _pendingLock. The last save, awaited when the app quits (an interrupted save could leave an orphan).
@@ -61,6 +63,10 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     /// <see langword="null"/>: no custom images.
     /// </param>
     /// <param name="customImages">The images shown by the tray and the diagnostics window, updated after a save.</param>
+    /// <param name="monitorPaths">
+    /// Camera monitor paths saved in the background while the window was open (user decision 2026-10-23); a save takes them
+    /// over. <see langword="null"/>: none.
+    /// </param>
     public SettingsEditorStore(
         Func<ISettingsStore> settingsStore,
         ISecretStore secrets,
@@ -71,7 +77,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         TimeSpan? applyWaitTimeout = null,
         RemovedCameraCredentials? removedCameraCredentials = null,
         Func<IPrinterImageStore>? imageStore = null,
-        CustomPrinterImages? customImages = null)
+        CustomPrinterImages? customImages = null,
+        ICameraMonitorPathUpdater? monitorPaths = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(secrets);
@@ -89,6 +96,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         _removedCameraCredentials = removedCameraCredentials;
         _imageStore = imageStore;
         _customImages = customImages;
+        _monitorPaths = monitorPaths;
     }
 
     public Task<SettingsEditorData> LoadAsync(CancellationToken cancellationToken) =>
@@ -249,6 +257,37 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             a.ConnectionType == b.ConnectionType && string.Equals(a.Address, b.Address, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>
+    /// User decision 2026-10-23: the device path of a camera monitor found on another connector is saved in the background
+    /// while the window may be open; the window then saves that path, not the one it loaded. A printer whose monitor choice
+    /// the user left as loaded (the same monitor; the window may have refreshed its twins) gets the path saved meanwhile
+    /// (<see cref="ICameraMonitorPathUpdater.SavedDevicePath"/>); a monitor chosen in the window keeps the window's value.
+    /// </summary>
+    private AppSettings WithLatestCameraMonitors(SettingsChange change)
+    {
+        if (_monitorPaths is not { } monitorPaths)
+        {
+            return change.Updated;
+        }
+
+        AppSettings updated = change.Updated;
+        foreach (PrinterDefinition printer in change.Updated.Printers)
+        {
+            if (Find(change.Original, printer.Id)?.Camera.Window.Monitor is { } loaded
+                && printer.Camera.Window.Monitor is { } window
+                && window.HasSameIdentity(loaded)
+                && monitorPaths.SavedDevicePath(printer.Id, loaded) is { } path
+                && !string.Equals(path, window.DevicePath, StringComparison.Ordinal))
+            {
+                // The new path is the monitor itself, never one of its twins.
+                CameraMonitorId moved = new(window.DisplayName, window.Width, window.Height, path, window.KnownTwinPaths.Where(twin => !string.Equals(twin, path, StringComparison.OrdinalIgnoreCase)));
+                updated = updated.WithCameraMonitor(printer.Id, window, moved);
+            }
+        }
+
+        return updated;
+    }
+
     private static PrinterDefinition? Find(AppSettings settings, string id)
     {
         foreach (PrinterDefinition printer in settings.Printers)
@@ -396,8 +435,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
         }
 
-        // Step 2: the settings file, with the latest model detected by monitoring (T-039).
-        change = change with { Updated = WithLatestDetectedModels(change) };
+        // Step 2: the settings file, with the latest model detected by monitoring (T-039) and the latest camera monitor paths.
+        change = change with { Updated = WithLatestCameraMonitors(change with { Updated = WithLatestDetectedModels(change) }) };
         try
         {
             await _settingsStore().SaveAsync(change.Updated, CancellationToken.None).ConfigureAwait(false);

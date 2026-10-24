@@ -17,14 +17,28 @@ internal sealed record TestMonitor(string GdiName, string FriendlyName, string D
     /// <summary>The name the app shows and stores (T-035): the friendly name, or the GDI name when there is none.</summary>
     public string AppName => FriendlyName.Length > 0 ? FriendlyName : GdiName;
 
-    /// <summary>The <c>camera.window.monitor</c> object of <c>settings.json</c> that chooses this monitor.</summary>
-    public JsonObject CameraMonitorJson() => new()
+    /// <summary>
+    /// The <c>camera.window.monitor</c> object of <c>settings.json</c> that chooses this monitor, as the settings store it when
+    /// the user picks it among <paramref name="connected"/>: with the paths of the other monitors with the same name
+    /// (<c>knownTwinPaths</c>, T-071 Q5, only when there are any). <see langword="null"/>: no twins.
+    /// </summary>
+    public JsonObject CameraMonitorJson(IReadOnlyList<TestMonitor>? connected = null)
     {
-        ["displayName"] = AppName,
-        ["width"] = Bounds.Width,
-        ["height"] = Bounds.Height,
-        ["devicePath"] = DevicePath,
-    };
+        JsonObject json = new()
+        {
+            ["displayName"] = AppName,
+            ["width"] = Bounds.Width,
+            ["height"] = Bounds.Height,
+            ["devicePath"] = DevicePath,
+        };
+        List<string> twins = connected is null ? [] : TestMonitors.KnownTwinPaths(this, connected);
+        if (twins.Count > 0)
+        {
+            json["knownTwinPaths"] = new JsonArray([.. twins.Select(static path => (JsonNode?)JsonValue.Create(path))]);
+        }
+
+        return json;
+    }
 
     public override string ToString() => $"{AppName} {GdiName} {Bounds} work {Work} {Dpi} dpi{(Primary ? " primary" : string.Empty)}";
 }
@@ -83,21 +97,56 @@ internal static class TestMonitors
     }
 
     /// <summary>
-    /// The connected monitor the app uses for the saved <paramref name="saved"/> (T-035 Q4/Q8, T-071 Q4,
-    /// <c>CameraWindowDefaultPlacement.SelectScreen</c>): with a device path only the monitor with that path; without one
-    /// (older settings) the same name and resolution, else the same name (first from the left). <see langword="null"/>:
-    /// "not connected", the camera on the primary monitor. A switched-off monitor therefore never matches its twin.
+    /// The <c>knownTwinPaths</c> the settings store with <paramref name="saved"/> when it is picked among
+    /// <paramref name="connected"/> (T-071 Q5, <c>CameraMonitorId.FromScreen</c>): the device paths of the other monitors
+    /// with the same name, in the app's order, each once; none when <paramref name="saved"/> has no path.
     /// </summary>
-    public static TestMonitor? Matching(TestMonitor saved, IReadOnlyList<TestMonitor> connected)
+    public static List<string> KnownTwinPaths(TestMonitor saved, IReadOnlyList<TestMonitor> connected)
     {
-        List<TestMonitor> ordered = Ordered(connected);
-        if (saved.DevicePath.Length > 0)
+        List<string> twins = [];
+        if (saved.DevicePath.Length == 0)
         {
-            return ordered.FirstOrDefault(m => string.Equals(m.DevicePath, saved.DevicePath, StringComparison.OrdinalIgnoreCase));
+            return twins;
         }
 
-        return ordered.FirstOrDefault(m => m.AppName == saved.AppName && m.Bounds.Width == saved.Bounds.Width && m.Bounds.Height == saved.Bounds.Height)
-            ?? ordered.FirstOrDefault(m => m.AppName == saved.AppName);
+        foreach (TestMonitor monitor in Ordered(connected))
+        {
+            if (monitor.AppName == saved.AppName
+                && monitor.DevicePath.Length > 0
+                && !string.Equals(monitor.DevicePath, saved.DevicePath, StringComparison.OrdinalIgnoreCase)
+                && !twins.Contains(monitor.DevicePath, StringComparer.OrdinalIgnoreCase))
+            {
+                twins.Add(monitor.DevicePath);
+            }
+        }
+
+        return twins;
+    }
+
+    /// <summary>
+    /// The connected monitor the app uses for the saved <paramref name="saved"/> with <paramref name="knownTwinPaths"/>
+    /// (T-035 Q4/Q8, T-071 Q4/Q5, <c>CameraWindowDefaultPlacement.SelectScreen</c>): with a device path the monitor with
+    /// that path, else the only monitor with the same name and resolution when it is no known twin (the same monitor on
+    /// another connector); without a path (older settings) the same name and resolution, else the same name (first from
+    /// the left). <see langword="null"/>: "not connected", the camera on the primary monitor. A switched-off monitor
+    /// therefore never matches a twin that was connected when it was chosen.
+    /// </summary>
+    public static TestMonitor? Matching(TestMonitor saved, IReadOnlyList<string> knownTwinPaths, IReadOnlyList<TestMonitor> connected)
+    {
+        List<TestMonitor> ordered = Ordered(connected);
+        bool SameNameAndResolution(TestMonitor m) => m.AppName == saved.AppName && m.Bounds.Width == saved.Bounds.Width && m.Bounds.Height == saved.Bounds.Height;
+        if (saved.DevicePath.Length > 0)
+        {
+            if (ordered.FirstOrDefault(m => string.Equals(m.DevicePath, saved.DevicePath, StringComparison.OrdinalIgnoreCase)) is { } byPath)
+            {
+                return byPath;
+            }
+
+            List<TestMonitor> candidates = [.. ordered.Where(SameNameAndResolution)];
+            return candidates is [{ } only] && !knownTwinPaths.Contains(only.DevicePath, StringComparer.OrdinalIgnoreCase) ? only : null;
+        }
+
+        return ordered.FirstOrDefault(SameNameAndResolution) ?? ordered.FirstOrDefault(m => m.AppName == saved.AppName);
     }
 
     /// <summary>The item of a saved monitor that is not connected ("… – not connected").</summary>

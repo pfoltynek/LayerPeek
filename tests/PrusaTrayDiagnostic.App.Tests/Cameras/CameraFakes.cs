@@ -207,3 +207,47 @@ internal static class Waiting
         }
     }
 }
+
+/// <summary>Records the requested camera monitor path updates (user decision 2026-10-23) instead of saving them.</summary>
+internal sealed class RecordingMonitorPathUpdater : ICameraMonitorPathUpdater
+{
+    private readonly Lock _gate = new();
+    private readonly List<(string PrinterId, CameraMonitorId Saved, CameraMonitorId Updated)> _requests = [];
+
+    public IReadOnlyList<(string PrinterId, CameraMonitorId Saved, CameraMonitorId Updated)> Requests
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _requests];
+            }
+        }
+    }
+
+    public void Request(string printerId, CameraMonitorId saved, CameraMonitorId updated)
+    {
+        lock (_gate)
+        {
+            _requests.Add((printerId, saved, updated));
+        }
+    }
+
+    /// <summary>The paths <see cref="SavedDevicePath"/> reports, by printer id (case-insensitive) and saved monitor.</summary>
+    public Dictionary<(string PrinterId, CameraMonitorId Saved), string> SavedPaths { get; } = [];
+
+    public string? SavedDevicePath(string printerId, CameraMonitorId monitor)
+    {
+        foreach (((string id, CameraMonitorId saved), string path) in SavedPaths)
+        {
+            if (string.Equals(id, printerId, StringComparison.OrdinalIgnoreCase) && saved.HasSameIdentity(monitor))
+            {
+                return path;
+            }
+        }
+
+        return null;
+    }
+
+    public Task<bool> WaitForPendingAsync(TimeSpan timeout) => Task.FromResult(true);
+}

@@ -1,5 +1,6 @@
 using System.Text.Json;
 
+using PrusaTrayDiagnostic.Core.Cameras;
 using PrusaTrayDiagnostic.Core.IO;
 using PrusaTrayDiagnostic.Core.Printers;
 using PrusaTrayDiagnostic.Core.Settings.Storage;
@@ -165,6 +166,61 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
             }
 
             await WriteAtomicallyAsync(updated, cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<bool> SetCameraMonitorDevicePathAsync(string printerId, CameraMonitorId expected, string devicePath, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        ArgumentNullException.ThrowIfNull(expected);
+        ArgumentNullException.ThrowIfNull(devicePath);
+        CameraMonitorId updated = expected.WithDevicePath(devicePath);
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // One read for the check and the change, so that the file cannot change in between (another process, an
+            // editor). A file still held by another process after the retries is thrown: "nothing written" would hide it.
+            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            if (content is null)
+            {
+                return false;
+            }
+
+            byte[]? written;
+            try
+            {
+                // Only a file that loads cleanly and still has the expected monitor is changed: problems the loader
+                // reported are the user's to fix in the settings window, and a monitor chosen meanwhile wins.
+                using MemoryStream stream = new(content, writable: false);
+                SettingsDocument? document = JsonSerializer.Deserialize(stream, SettingsJsonContext.Default.SettingsDocument);
+                List<string> warnings = [];
+                AppSettings? settings = document is null ? null : SettingsMapper.ToSettings(document, warnings);
+                if (settings is null || warnings.Count > 0
+                    || ReferenceEquals(settings.WithCameraMonitor(printerId, expected, updated), settings))
+                {
+                    return false;
+                }
+
+                // Byte for byte like the detected model: only the device path of the monitor changes.
+                written = CameraMonitorPathWriter.Write(content, printerId, devicePath);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not valid JSON, or invalid UTF-8 in a property name or printer id: not ours to change.
+                return false;
+            }
+
+            if (written is null)
+            {
+                return false;
+            }
+
+            await WriteAtomicallyAsync(written, cancellationToken).ConfigureAwait(false);
             return true;
         }
         finally

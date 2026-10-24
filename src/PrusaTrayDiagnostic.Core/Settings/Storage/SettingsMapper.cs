@@ -429,7 +429,14 @@ internal static class SettingsMapper
             RememberLastPlacement = window.RememberLastPlacement,
             StartMode = FormatStartMode(window.StartMode),
             Monitor = window.Monitor is { } monitor
-                ? new CameraMonitorDocument { DisplayName = monitor.DisplayName, Width = monitor.Width, Height = monitor.Height, DevicePath = monitor.DevicePath }
+                ? new CameraMonitorDocument
+                {
+                    DisplayName = monitor.DisplayName,
+                    Width = monitor.Width,
+                    Height = monitor.Height,
+                    DevicePath = monitor.DevicePath,
+                    KnownTwinPaths = monitor.KnownTwinPaths.Count > 0 ? [.. monitor.KnownTwinPaths] : null,
+                }
                 : null,
             Normal = ToDocument(window.Normal),
             Mini = ToDocument(window.Mini),
@@ -643,14 +650,53 @@ internal static class SettingsMapper
             {
                 // The name and resolution still identify the monitor (as in files written before the path was stored).
                 warnings.Add($"{subject}: invalid monitor device path; the monitor is matched by its name.");
-                devicePath = null;
+                return new CameraMonitorId(document.DisplayName!, width, height);
             }
 
-            return new CameraMonitorId(document.DisplayName!, width, height, devicePath);
+            return new CameraMonitorId(document.DisplayName!, width, height, devicePath, ToKnownTwinPaths(document.KnownTwinPaths, devicePath, subject, warnings));
         }
 
         warnings.Add($"{subject}: invalid monitor; the primary monitor is used.");
         return null;
+    }
+
+    /// <summary>
+    /// The usable known twin paths (T-071 Q5): valid device paths, each once and not the monitor's own (case-insensitive),
+    /// at most <see cref="CameraMonitorId.MaxKnownTwinPaths"/>, in file order; none without a device path. Anything left out
+    /// gives one warning without the values.
+    /// </summary>
+    private static List<string> ToKnownTwinPaths(List<string?>? document, string? devicePath, string subject, List<string> warnings)
+    {
+        List<string> twins = [];
+        if (document is null || document.Count == 0)
+        {
+            return twins;
+        }
+
+        bool leftOut = devicePath is null;
+        if (!leftOut)
+        {
+            foreach (string? path in document)
+            {
+                if (twins.Count == CameraMonitorId.MaxKnownTwinPaths
+                    || !CameraMonitorId.IsValidDevicePath(path)
+                    || string.Equals(path, devicePath, StringComparison.OrdinalIgnoreCase)
+                    || twins.Contains(path!, StringComparer.OrdinalIgnoreCase))
+                {
+                    leftOut = true;
+                    continue;
+                }
+
+                twins.Add(path!);
+            }
+        }
+
+        if (leftOut)
+        {
+            warnings.Add($"{subject}: invalid or too many known twin monitor paths were left out.");
+        }
+
+        return twins;
     }
 
     private static CameraWindowLayout ToLayout(CameraWindowLayoutDocument? document, CameraWindowLayout fallback, string subject, List<string> warnings)

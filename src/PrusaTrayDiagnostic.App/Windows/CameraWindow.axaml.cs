@@ -350,11 +350,14 @@ public sealed partial class CameraWindow : Window
         CameraWindowPlacement? remembered = mini ? viewModel.MiniPlacement : viewModel.NormalPlacement;
         // T-071 Q3: the chrome the window will have on the chosen monitor, so that nothing moves after it is shown.
         WindowChrome chrome = WindowChrome.None;
+        IReadOnlyList<CameraScreen> screens = ScreenCatalog.GetScreens();
+        // A saved monitor found on another connector keeps its new path (user decision 2026-10-23; saved in the background).
+        viewModel.OnScreensRead(screens);
         CameraWindowPlacement? placement = CameraWindowPlanner.ForOpening(
             viewModel.Defaults,
             layoutMode,
             remembered,
-            ScreenCatalog.GetScreens(),
+            screens,
             screen => chrome = ChromeOn(layoutMode, screen, measured: null));
         if (placement is not { } chosen)
         {

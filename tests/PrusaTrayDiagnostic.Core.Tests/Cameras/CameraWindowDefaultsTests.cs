@@ -191,6 +191,18 @@ public class CameraWindowDefaultsTests
     }
 
     [Fact]
+    public void KnownTwinsAloneKeepRememberedState()
+    {
+        // T-071 Q5: the twins only help to recognise the monitor; it is the same monitor.
+        CameraWindowDefaults saved = Customized() with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, "path-b") };
+        CameraWindowDefaults updated = saved with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, "path-b", ["path-a"]) };
+
+        Assert.NotEqual(saved, updated);
+        Assert.False(CameraWindowDefaults.RequiresForgettingRememberedState(saved, updated));
+        Assert.True(CameraWindowDefaults.RequiresForgettingRememberedState(saved, saved with { Monitor = new CameraMonitorId("DELL U2719D", 2560, 1440, "path-c") }));
+    }
+
+    [Fact]
     public void RememberToggleAloneKeepsRememberedState()
     {
         CameraWindowDefaults saved = Customized();

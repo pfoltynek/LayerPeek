@@ -23,6 +23,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     public static readonly Uri StreamUri = new("rtsp://192.168.0.227/live");
 
     private readonly List<CameraViewModel> _created = [];
+    private readonly ICameraMonitorPathUpdater? _monitorPaths;
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
@@ -30,9 +31,11 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="measureChrome">Fake frame measurement of the windows (T-040); <see langword="null"/>: the headless one.</param>
     /// <param name="track">Tracks each new window (T-043); <see langword="null"/>: none.</param>
     /// <param name="predictChrome">Fake frame prediction per monitor scaling (T-071 Q3); <see langword="null"/>: the headless one (assumed chrome).</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null)
+    /// <param name="monitorPaths">Receives saved camera monitors found on another connector (user decision 2026-10-23); <see langword="null"/>: none.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null)
     {
         States = states ?? new MemoryCameraWindowStateStore();
+        _monitorPaths = monitorPaths;
         ((IMonitoringObserver)Printers).ApplySettings(new AppSettings
         {
             Printers = [CameraPrinter("a", "Alpha", window, overlay), CameraPrinter("b", "Beta", window, overlay), TestPrinters.Definition("c", "NoCamera")],
@@ -98,7 +101,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths);
         _created.Add(viewModel);
         return viewModel;
     }

@@ -502,7 +502,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>
     /// "Primary monitor", the connected monitors ("Monitor 2 – DELL U2719D (1440 × 2560)") and the saved monitor when it
-    /// is not among them ("… – not connected" when no monitor with its name is connected). Read when the printer is loaded.
+    /// is not among them ("… – not connected" when it is not connected, see <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
+    /// Read when the printer is loaded.
     /// </summary>
     public IReadOnlyList<CameraMonitorOption> MonitorOptions => _monitorOptions;
 
@@ -863,11 +864,13 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>
     /// "Primary monitor", then every connected monitor numbered in the order of the catalog, then the saved monitor when
-    /// no connected one matches it ("not connected"). The connected monitor the saved one resolves to (its device path;
-    /// for older settings without one, name and resolution or name: <see cref="CameraWindowDefaultPlacement.SelectScreen"/>)
-    /// carries the saved value, so that an untouched choice is saved unchanged. Identical monitors are separate entries when they have device paths (Windows,
-    /// T-035 Q8); without paths (other platforms) they cannot be told apart and appear once. A monitor without a name cannot
-    /// be stored and is not offered.
+    /// no connected one matches it ("not connected"). The connected monitor the saved one resolves to
+    /// (<see cref="CameraWindowDefaultPlacement.SelectScreen"/>: its device path, the same monitor on another connector,
+    /// or the name for older settings) carries the saved value, so that an untouched choice is saved unchanged. Every other
+    /// choice remembers the device paths of the other connected monitors with its name (T-071 Q5,
+    /// <see cref="CameraMonitorId.FromScreen(CameraScreen, IReadOnlyList{CameraScreen})"/>). Identical monitors are separate
+    /// entries when they have device paths (Windows, T-035 Q8); without paths (other platforms) they cannot be told apart
+    /// and appear once. A monitor without a name cannot be stored and is not offered.
     /// </summary>
     private static CameraMonitorOption[] CreateMonitorOptions(CameraMonitorId? saved, IReadOnlyList<CameraScreen> screens)
     {
@@ -879,7 +882,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             CameraScreen screen = screens[i];
             CameraMonitorId? id = ReferenceEquals(screen, savedScreen) ? saved
-                : CameraMonitorId.IsValid(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height) ? CameraMonitorId.FromScreen(screen)
+                : CameraMonitorId.IsValid(screen.DisplayName, screen.Bounds.Width, screen.Bounds.Height) ? CameraMonitorId.FromScreen(screen, screens)
                 : null;
             if (id is null || options.Exists(option => option.Value == id))
             {

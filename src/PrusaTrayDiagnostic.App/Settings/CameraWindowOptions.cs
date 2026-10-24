@@ -99,7 +99,7 @@ public sealed class CameraMonitorOption : LocalizedOption
 
     internal CameraMonitorId? Value { get; }
 
-    /// <summary>Shown as "not connected": no monitor with its name is connected now.</summary>
+    /// <summary>Shown as "not connected": the saved monitor is not connected now (<see cref="CameraWindowDefaultPlacement.IsConnected"/>).</summary>
     public bool IsConnected { get; }
 }
 
