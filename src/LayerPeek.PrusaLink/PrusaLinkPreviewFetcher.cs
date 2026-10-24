@@ -67,7 +67,12 @@ public sealed partial class PrusaLinkPreviewFetcher : IPrintPreviewFetcher
             return PrintPreviewFetchResult.NotAvailable;
         }
 
-        Uri uri = new(baseUri, path);
+        if (!Uri.TryCreate(baseUri, path, out Uri? uri) || !IsBelow(uri, baseUri))
+        {
+            // Defence in depth: references are validated when created, but the request must never leave the printer.
+            return PrintPreviewFetchResult.NotAvailable;
+        }
+
         using CancellationTokenSource timeout = new(_options.Timeout, _timeProvider);
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeout.Token);
         try
@@ -115,6 +120,15 @@ public sealed partial class PrusaLinkPreviewFetcher : IPrintPreviewFetcher
             return PrintPreviewFetchResult.Failed;
         }
     }
+
+    /// <summary>Same scheme, host and port as the printer, and a path below its base path (reverse-proxy prefix).</summary>
+    private static bool IsBelow(Uri uri, Uri baseUri) =>
+        string.Equals(uri.Scheme, baseUri.Scheme, StringComparison.OrdinalIgnoreCase)
+        && string.Equals(uri.IdnHost, baseUri.IdnHost, StringComparison.OrdinalIgnoreCase)
+        && uri.Port == baseUri.Port
+        && uri.AbsolutePath.StartsWith(baseUri.AbsolutePath, StringComparison.Ordinal)
+        && uri.Query.Length == 0
+        && uri.Fragment.Length == 0;
 
     private async Task<PrintPreviewFetchResult> ReadResponseAsync(HttpResponseMessage response, string printerId, PrintPreviewSize size, string? etag, CancellationToken cancellationToken)
     {

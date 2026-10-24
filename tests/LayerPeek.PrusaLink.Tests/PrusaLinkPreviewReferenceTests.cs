@@ -133,6 +133,8 @@ public sealed class PrusaLinkPreviewReferenceTests : IDisposable
     [InlineData("/thumb/l/usb/čaj.bgcode", "thumb/l/usb/%C4%8Daj.bgcode")]
     [InlineData("/thumb/l/usb/100%.BGC", "thumb/l/usb/100%25.BGC")]
     [InlineData("/api/thumbnails/usb/A.BGC.orig.png", "api/thumbnails/usb/A.BGC.orig.png")]
+    [InlineData("/http:/evil.example/A.BGC", "http%3A/evil.example/A.BGC")]
+    [InlineData("/thumb/l/usb/%2e%2e/A.BGC", "thumb/l/usb/%252e%252e/A.BGC")]
     public void LinksAreEscapedPerSegment(string link, string expected) =>
         Assert.Equal(expected, PrusaLinkPreviewReference.ToRelativePath(link));
 

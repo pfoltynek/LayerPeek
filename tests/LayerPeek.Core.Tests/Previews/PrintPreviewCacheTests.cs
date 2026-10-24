@@ -438,6 +438,245 @@ public sealed class PrintPreviewCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task NextJobCancelsTheRunningFetchOfTheOldOneAndDiscardsItsLateResult()
+    {
+        TaskCompletionSource<FetchCall> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<PrintPreviewFetchResult> answer = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _fetcher.Handler = call =>
+        {
+            started.TrySetResult(call);
+            // A fetcher that ignores cancellation and answers anyway.
+            return answer.Task;
+        };
+        Task<PrintPreview?> old = _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        FetchCall call = await started.Task.WaitAsync(Ct);
+
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        bool cancelled = call.CancellationToken.IsCancellationRequested;
+        answer.SetResult(PrintPreviewFetchResult.Downloaded(FakePreviewFetcher.NewPreview(), "\"1\""));
+        PrintPreview? late = await old.WaitAsync(Ct);
+        _fetcher.Handler = static _ => Task.FromResult(PrintPreviewFetchResult.Downloaded(FakePreviewFetcher.NewPreview(), "\"2\""));
+        PrintPreview? next = await _cache.GetAsync(Printer(), Job(43, Cube), PrintPreviewSize.Large, Ct);
+
+        Assert.True(cancelled);
+        Assert.Null(late);
+        Assert.NotNull(next);
+        Assert.Equal(2, _fetcher.Count);
+        Assert.Same(Cube, _fetcher.Calls.Last().Reference);
+    }
+
+    [Fact]
+    public async Task NextJobWithoutReferenceReleasesThePreview()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        _cache.Observe(Snapshot(PrinterState.Printing, new PrintJob { Id = 43 }));
+
+        Assert.Equal(0, _cache.Count);
+    }
+
+    [Fact]
+    public async Task SnapshotsOfOtherPrintersDoNotTouchTheEntry()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)) with { PrinterId = "other" });
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Equal(1, _cache.Count);
+        Assert.Equal(1, _fetcher.Count);
+    }
+
+    [Fact]
+    public async Task ValidatorSurvivesATransientFailureOfTheReprint()
+    {
+        PrintPreview? first = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Benchy)));
+        _fetcher.Handler = static _ => Task.FromResult(PrintPreviewFetchResult.Failed);
+        PrintPreview? failed = await _cache.GetAsync(Printer(), Job(43, Benchy), PrintPreviewSize.Large, Ct);
+
+        _time.Advance(PrintPreviewCacheOptions.Default.RetryDelay);
+        _fetcher.Handler = static call => Task.FromResult(PrintPreviewFetchResult.NotModified(call.ETag));
+        PrintPreview? retried = await _cache.GetAsync(Printer(), Job(43, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Null(failed);
+        Assert.Same(first, retried);
+        Assert.Equal(["\"1\"", "\"1\""], _fetcher.Calls.Skip(1).Select(static c => c.ETag));
+    }
+
+    [Fact]
+    public async Task ValidatorIsCarriedOverSeveralReprintsWithoutARequest()
+    {
+        PrintPreview? first = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        // Job 43 prints the same file but nobody asks for its preview; job 44 again the same file.
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Benchy)));
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(44, Benchy)));
+        _fetcher.Handler = static call => Task.FromResult(PrintPreviewFetchResult.NotModified(call.ETag));
+        PrintPreview? third = await _cache.GetAsync(Printer(), Job(44, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Same(first, third);
+        Assert.Equal("\"1\"", _fetcher.Calls.Last().ETag);
+    }
+
+    [Fact]
+    public async Task DownloadWithoutETagLeavesNoValidator()
+    {
+        _fetcher.Handler = static _ => Task.FromResult(PrintPreviewFetchResult.Downloaded(FakePreviewFetcher.NewPreview(), null));
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        await _cache.GetAsync(Printer(), Job(43, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Null(_fetcher.Calls.Last().ETag);
+    }
+
+    [Fact]
+    public async Task ChangedConnectionTypeDropsThePrinter()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        PrinterDefinition viaConnect = Printer() with { ConnectionType = ConnectionType.PrusaConnect };
+
+        _cache.RetainOnly([viaConnect]);
+        int afterRetain = _cache.Count;
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        await _cache.GetAsync(viaConnect, Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Equal(0, afterRetain);
+        Assert.Equal(3, _fetcher.Count);
+        Assert.Null(_fetcher.Calls.Last().ETag);
+    }
+
+    [Fact]
+    public async Task RetainOnlyMatchesPrinterIdsIgnoringCase()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        _cache.RetainOnly([Printer(id: "CORE-ONE")]);
+
+        Assert.Equal(1, _cache.Count);
+    }
+
+    [Fact]
+    public async Task CancellationSourceIsDisposedWhenTheReleasedFetchEnds()
+    {
+        TaskCompletionSource<FetchCall> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _fetcher.Handler = async call =>
+        {
+            started.TrySetResult(call);
+            await Task.Delay(Timeout.InfiniteTimeSpan, call.CancellationToken);
+            return PrintPreviewFetchResult.Failed;
+        };
+        Task<PrintPreview?> pending = _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        FetchCall call = await started.Task.WaitAsync(Ct);
+
+        _cache.Remove("core-one");
+        await pending.WaitAsync(Ct);
+
+        // CancellationToken.WaitHandle throws once the source is disposed.
+        Assert.Throws<ObjectDisposedException>(() => call.CancellationToken.WaitHandle);
+    }
+
+    [Fact]
+    public async Task CancellationSourceIsDisposedWhenAnIdleEntryIsReleased()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        FetchCall call = _fetcher.Calls.Single();
+        _ = call.CancellationToken.WaitHandle;
+
+        _cache.Remove("core-one");
+
+        Assert.Throws<ObjectDisposedException>(() => call.CancellationToken.WaitHandle);
+    }
+
+    [Fact]
+    public async Task EvictedPrinterHasItsFetchCancelled()
+    {
+        using PrintPreviewCache cache = new(_fetcher, _time, NullLogger<PrintPreviewCache>.Instance, new PrintPreviewCacheOptions { MaxPrinters = 1 });
+        TaskCompletionSource<FetchCall> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _fetcher.Handler = async call =>
+        {
+            started.TrySetResult(call);
+            await Task.Delay(Timeout.InfiniteTimeSpan, call.CancellationToken);
+            return PrintPreviewFetchResult.Failed;
+        };
+        Task<PrintPreview?> pending = cache.GetAsync(Printer("a"), Job(1, Benchy), PrintPreviewSize.Large, Ct);
+        FetchCall call = await started.Task.WaitAsync(Ct);
+
+        _fetcher.Handler = static _ => Task.FromResult(PrintPreviewFetchResult.NotAvailable);
+        await cache.GetAsync(Printer("b"), Job(1, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Null(await pending.WaitAsync(Ct));
+        Assert.True(call.CancellationToken.IsCancellationRequested);
+        Assert.Equal(1, cache.Count);
+    }
+
+    [Fact]
+    public async Task ThrowingLoggerStillCompletesTheRequest()
+    {
+        using PrintPreviewCache cache = new(_fetcher, _time, new ThrowingLogger());
+        _fetcher.Handler = static _ => throw new InvalidOperationException("broken fetcher");
+
+        PrintPreview? preview = await cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct).WaitAsync(TimeSpan.FromSeconds(30), Ct);
+        _time.Advance(PrintPreviewCacheOptions.Default.RetryDelay);
+        _fetcher.Handler = static _ => Task.FromResult(PrintPreviewFetchResult.Downloaded(FakePreviewFetcher.NewPreview(), null));
+        PrintPreview? retried = await cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct).WaitAsync(TimeSpan.FromSeconds(30), Ct);
+
+        Assert.Null(preview);
+        Assert.NotNull(retried);
+    }
+
+    [Fact]
+    public async Task ConcurrentUseNeitherThrowsNorLeavesRequestsHanging()
+    {
+        using PrintPreviewCache cache = new(_fetcher, _time, NullLogger<PrintPreviewCache>.Instance, new PrintPreviewCacheOptions { MaxPrinters = 3 });
+        _fetcher.Handler = static async call =>
+        {
+            await Task.Yield();
+            call.CancellationToken.ThrowIfCancellationRequested();
+            return call.Size == PrintPreviewSize.Small
+                ? PrintPreviewFetchResult.NotAvailable
+                : PrintPreviewFetchResult.Downloaded(FakePreviewFetcher.NewPreview(), "\"1\"");
+        };
+        string[] ids = ["a", "b", "c", "d", "e"];
+        TestPreviewReference[] files = [Benchy, Cube];
+
+        Task[] workers = [.. Enumerable.Range(0, 8).Select(worker => Task.Run(
+            async () =>
+            {
+                Random random = new(worker);
+                for (int i = 0; i < 300; i++)
+                {
+                    string id = ids[random.Next(ids.Length)];
+                    long jobId = random.Next(40, 44);
+                    PrintJob job = Job(jobId, files[jobId % 2]);
+                    switch (random.Next(6))
+                    {
+                        case 0:
+                            cache.Observe(Snapshot(PrinterState.Printing, job) with { PrinterId = id });
+                            break;
+                        case 1:
+                            cache.Remove(id);
+                            break;
+                        case 2:
+                            cache.RetainOnly(ids.Take(random.Next(ids.Length + 1)).Select(static printerId => Printer(printerId)));
+                            break;
+                        case 3:
+                            cache.Clear();
+                            break;
+                        default:
+                            await cache.GetAsync(Printer(id), job, (PrintPreviewSize)random.Next(2), Ct);
+                            break;
+                    }
+                }
+            },
+            Ct))];
+
+        await Task.WhenAll(workers).WaitAsync(TimeSpan.FromSeconds(60), Ct);
+
+        Assert.InRange(cache.Count, 0, 3);
+    }
+
+    [Fact]
     public async Task InvalidArgumentsAreRejected()
     {
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _cache.GetAsync(Printer(), Job(42, Benchy), (PrintPreviewSize)7, Ct));
@@ -470,4 +709,16 @@ public sealed class PrintPreviewCacheTests : IDisposable
         Timestamp = _time.GetUtcNow(),
         Job = job,
     };
+
+    /// <summary>A logger whose provider fails, as Microsoft.Extensions.Logging reports it (AggregateException).</summary>
+    private sealed class ThrowingLogger : ILogger<PrintPreviewCache>
+    {
+        public IDisposable? BeginScope<TState>(TState state)
+            where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            throw new AggregateException(new IOException("log file locked"));
+    }
 }

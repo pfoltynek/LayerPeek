@@ -73,7 +73,9 @@ public static class PrusaLinkServiceCollectionExtensions
         services.AddHttpClient(PrusaLinkPreviewFetcher.HttpClientName, static client => client.Timeout = Timeout.InfiniteTimeSpan)
             .ConfigurePrimaryHttpMessageHandler(static () => new SocketsHttpHandler
             {
-                // Previews are rare (about one per job and size); one connection keeps the printer's 3-request budget.
+                // Previews are rare (about one per job and size), so one connection. With monitoring (1) it stays within the
+                // firmware's 3 active requests; while the web gateway (T-028) also uses both of its connections, the 4th
+                // request is only slowed down by the firmware (no 503), see docs/api/prusalink.md.
                 MaxConnectionsPerServer = 1,
                 PooledConnectionIdleTimeout = TimeSpan.FromSeconds(50),
                 PooledConnectionLifetime = TimeSpan.FromMinutes(10),

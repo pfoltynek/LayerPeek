@@ -312,22 +312,29 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
     private async Task RunFetchAsync(Fetch fetch)
     {
         Entry entry = fetch.Entry;
-        PrintPreviewFetchResult result;
+        PrintPreviewFetchResult result = PrintPreviewFetchResult.Failed;
         try
         {
             result = await _fetcher.FetchAsync(fetch.Printer, fetch.Reference, fetch.Size, fetch.ETag, entry.Cancellation.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (entry.Cancellation.IsCancellationRequested)
         {
-            result = PrintPreviewFetchResult.Failed;
         }
         catch (Exception ex)
         {
             // The fetcher broke its contract (failures are results); the preview is just missing.
             LogFetcherFailed(ex, entry.PrinterId);
-            result = PrintPreviewFetchResult.Failed;
         }
+        finally
+        {
+            // Also when logging failed: the slot must leave "pending" and the waiters must be released.
+            Complete(fetch, result);
+        }
+    }
 
+    private void Complete(Fetch fetch, PrintPreviewFetchResult result)
+    {
+        Entry entry = fetch.Entry;
         PrintPreview? preview = null;
         bool dispose;
         lock (_lock)

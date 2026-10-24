@@ -363,6 +363,74 @@ public sealed class PrusaLinkPreviewFetcherTests : IDisposable
     }
 
     [Fact]
+    public async Task SchemeLookingFirstSegmentStaysOnThePrinter()
+    {
+        PrusaLinkPreviewReference reference = PrusaLinkPreviewReference.FromRefs(new Api.JobFileRefs { Thumbnail = "/http:/evil.example/A.BGC" })!;
+        _server.Handler = static (_, _) => Task.FromResult(Png(TestPng.Create(16, 16)));
+
+        await _fetcher.FetchAsync(Printer(), reference, PrintPreviewSize.Large, null, Ct);
+
+        Assert.All(_server.Requests, static r => Assert.Equal("/http%3A/evil.example/A.BGC", r.PathAndQuery));
+        Assert.NotEmpty(_server.Requests);
+    }
+
+    [Theory]
+    [InlineData("http://evil.example/thumb/l/A.BGC")]
+    [InlineData("https://192.168.1.20/thumb/l/A.BGC")]
+    [InlineData("//evil.example/thumb/l/A.BGC")]
+    [InlineData("/thumb/l/A.BGC")]
+    [InlineData("../../thumb/l/A.BGC")]
+    [InlineData("thumb/l/A.BGC?x=1")]
+    public async Task ReferenceThatWouldLeaveThePrinterIsNotFetched(string path)
+    {
+        // References are validated when created; the fetcher must still never follow one off the printer (or above the
+        // reverse-proxy prefix), whoever constructed it.
+        PrusaLinkPreviewReference reference = new(null, path);
+
+        PrintPreviewFetchResult result = await _fetcher.FetchAsync(Printer("http://192.168.1.20/printers/core-one"), reference, PrintPreviewSize.Large, null, Ct);
+
+        Assert.Equal(PrintPreviewFetchStatus.NotAvailable, result.Status);
+        Assert.Empty(_server.Requests);
+    }
+
+    [Fact]
+    public async Task ResponsesAreDisposedWhateverTheOutcome()
+    {
+        List<TrackingContent> contents = [];
+        Queue<Func<HttpResponseMessage>> answers = new([
+            () => Respond(HttpStatusCode.OK, TestPng.Create(16, 16), "image/png"),
+            () => Respond(HttpStatusCode.OK, TestPng.Create(16, 16), "image/png", declaredLength: 10 * 1024 * 1024),
+            () => Respond(HttpStatusCode.OK, TestPng.Create(16, 16), "text/html"),
+            () => Respond(HttpStatusCode.OK, "nope"u8.ToArray(), "image/png"),
+            () => Respond(HttpStatusCode.NotFound, [], null),
+            () => Respond(HttpStatusCode.NotModified, [], null),
+            () => Respond(HttpStatusCode.InternalServerError, [], null),
+        ]);
+        int count = answers.Count;
+        _server.Handler = (_, _) => Task.FromResult(answers.Dequeue()());
+
+        for (int i = 0; i < count; i++)
+        {
+            await _fetcher.FetchAsync(Printer(), Benchy, PrintPreviewSize.Large, "\"1\"", Ct);
+        }
+
+        Assert.Equal(count, contents.Count);
+        Assert.All(contents, static c => Assert.True(c.Disposed));
+
+        HttpResponseMessage Respond(HttpStatusCode status, byte[] body, string? mediaType, long? declaredLength = null)
+        {
+            TrackingContent content = new(body, declaredLength);
+            contents.Add(content);
+            if (mediaType is not null)
+            {
+                content.Headers.ContentType = new MediaTypeHeaderValue(mediaType);
+            }
+
+            return new HttpResponseMessage(status) { Content = content };
+        }
+    }
+
+    [Fact]
     public async Task ForeignPrintersAndReferencesAreNotAvailableWithoutRequests()
     {
         PrinterDefinition connect = new() { Id = "core-one", Name = "Core One", ConnectionType = ConnectionType.PrusaConnect, Address = "c0ffee" };
@@ -444,6 +512,27 @@ public sealed class PrusaLinkPreviewFetcherTests : IDisposable
     }
 
     private sealed record ForeignReference : PrintPreviewReference;
+
+    /// <summary>A body that records whether it was disposed (with the response).</summary>
+    private sealed class TrackingContent : ByteArrayContent
+    {
+        public TrackingContent(byte[] body, long? declaredLength)
+            : base(body)
+        {
+            if (declaredLength is not null)
+            {
+                Headers.ContentLength = declaredLength;
+            }
+        }
+
+        public bool Disposed { get; private set; }
+
+        protected override void Dispose(bool disposing)
+        {
+            Disposed = true;
+            base.Dispose(disposing);
+        }
+    }
 
     private sealed class ThrowingSecretStore : ISecretStore
     {

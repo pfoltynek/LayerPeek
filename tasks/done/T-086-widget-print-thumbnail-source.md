@@ -99,3 +99,12 @@ Hotovo 2026-10-24 (core-dev).
 **Závislosti a AOT:** žádný nový balíček. Bez reflexe, JSON jen přes stávající `PrusaLinkJsonContext`, logování přes `[LoggerMessage]`. Build s analyzátory AOT (`IsAotCompatible`) bez varování. Lokální AOT publish jsem nespouštěl (projde v T-093).
 
 **Pro T-087:** v composition rootu vytvořit `PrintPreviewCache` nad `PrusaLinkPreviewFetcher`, volat `Observe` ze `SnapshotUpdated` a `RetainOnly` po uložení nastavení, `Dispose` při ukončení.
+
+## Review
+Review 2026-10-24 (qa-reviewer), po sloučení `develop` (T-079). Bez blokujících nálezů, opraveno přímo:
+- **Cache – výjimka z logování:** když v `RunFetchAsync` selhal i zápis do logu (poskytovatel logu vyhodí `AggregateException`), slot zůstal navždy „čeká“ a volající bez vlastního tokenu čekali donekonečna. Dokončení je teď ve `finally` (`Complete`). Test `ThrowingLoggerStillCompletesTheRequest`.
+- **PrusaLink – pojistka proti SSRF:** stahovač ověřuje, že výsledná adresa zůstane na schématu, hostu a portu tiskárny a pod její cestou, a URI skládá přes `Uri.TryCreate`. Odkaz z `/api/v1/job` to už zaručoval; pojistka chrání i před odkazem vytvořeným jinde. Testy `ReferenceThatWouldLeaveThePrinterIsNotFetched`, `SchemeLookingFirstSegmentStaysOnThePrinter`.
+- **Komentář a dokumentace spojení:** monitoring 1 + proxy odkazu 2 + náhled 1 = 4 spojení proti 3 aktivním požadavkům firmwaru. Komentář tvrdil opak; opraveno v kódu i v `docs/api/prusalink.md`.
+- **T-087:** do rozsahu doplněno, že `/thumb/s` u standardních profilů vrací `404` a použitelný je prakticky jen `Large`.
+- **Doplněné testy** (napsané až po implementaci, proto kontrola, zda by test chybu zachytil): zrušení a zahození pozdního výsledku staré úlohy přes `Observe`, nová úloha bez odkazu, snapshot jiné tiskárny, validátor po přechodné chybě a přes víc tisků, stažení bez ETagu, změna typu připojení, `RetainOnly` bez ohledu na velikost písmen, uvolnění `CancellationTokenSource` (běžící i nečinné stažení), zrušení stažení vytlačené tiskárny (LRU), souběžný zátěžový test bez časových podmínek, uvolnění odpovědí HTTP ve všech větvích, odkazy `/http:/…` a `%2e%2e`.
+- `DigestRequests`: chování `PrusaLinkClient` beze změny (stejné hlavičky, `ResponseContentRead`, stejná logika výzev); pokrývají ho stávající testy klienta.
