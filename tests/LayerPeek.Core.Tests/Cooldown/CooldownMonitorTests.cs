@@ -233,6 +233,25 @@ public sealed class CooldownMonitorTests : IDisposable
     }
 
     [Fact]
+    public void GetStateCarriesTheEndOfThePrintAndTheCooledDownTime()
+    {
+        _cooldown.Configure([Mk4]);
+        Raise(Printing(0));
+        Raise(Cooling(PrinterState.Stopped, End, End));
+        for (double t = End + PollSeconds; t <= End + 600; t += PollSeconds)
+        {
+            Raise(Cooling(PrinterState.Stopped, End, t));
+        }
+
+        CooldownState state = _cooldown.GetState("mk4");
+
+        Assert.Equal(CooldownPhase.CooledDown, state.Phase);
+        Assert.Equal(CooldownPrintOutcome.Stopped, state.Outcome);
+        Assert.Equal(Start.AddSeconds(End), state.PrintEndedAt);
+        Assert.Equal(Assert.Single(_cooledDown).Timestamp, state.CooledDownAt);
+    }
+
+    [Fact]
     public void GetStateCountsTheEstimateDownBetweenPolls()
     {
         _cooldown.Configure([Mk4]);

@@ -26,6 +26,9 @@ namespace LayerPeek.Core.Cooldown;
 /// (after the confirming reading) without an event.</item>
 /// <item><see cref="PrinterState.Unauthorized"/>, <see cref="PrinterState.Unknown"/> and undefined states carry no
 /// information and change nothing.</item>
+/// <item>The state tells how the print ended (<see cref="CooldownState.Outcome"/>) and when
+/// (<see cref="CooldownState.PrintEndedAt"/>: the first ended snapshot, unknown when the previous snapshot was not a
+/// reachable one), and when it cooled down (<see cref="CooldownState.CooledDownAt"/>).</item>
 /// </list>
 /// Not thread-safe: callers serialize all calls. Allocates nothing after construction.
 /// </summary>
@@ -54,10 +57,16 @@ public sealed class CooldownTracker
 
     private DateTimeOffset? _offlineSince;
 
+    // The previous snapshot was reachable: a print reported as ended now ended at most one poll ago.
+    private bool _lastReachable;
+
     // The cool-down.
     private Stage _stage;
     private DateTimeOffset _startedAt;
     private string? _coolingFileName;
+    private CooldownPrintOutcome _outcome;
+    private DateTimeOffset? _printEndedAt;
+    private DateTimeOffset? _cooledDownAt;
     private bool _cooled;
     private double _highestNozzle = double.NaN;
     private double _lastNozzle = double.NaN;
@@ -95,12 +104,17 @@ public sealed class CooldownTracker
         switch (snapshot.State)
         {
             case PrinterState.Offline:
+                _lastReachable = false;
                 ProcessOffline(snapshot.Timestamp);
                 return new CooldownUpdate(_state, null);
             case PrinterState state when state.IsReachable():
                 _offlineSince = null;
-                return ProcessReachable(snapshot);
+                CooldownUpdate update = ProcessReachable(snapshot);
+                _lastReachable = true;
+                return update;
             default:
+                // Nothing is known about the printer, so neither is when a print ended meanwhile.
+                _lastReachable = false;
                 return new CooldownUpdate(_state, null);
         }
     }
@@ -177,7 +191,7 @@ public sealed class CooldownTracker
                 break;
             case PrinterState.Finished:
             case PrinterState.Stopped:
-                EndPrintIfNew(job);
+                EndPrintIfNew(job, state, snapshot.Timestamp);
                 break;
         }
 
@@ -223,7 +237,7 @@ public sealed class CooldownTracker
     }
 
     /// <summary>A Finished / Stopped snapshot: starts a cool-down when it reports a print that has not ended yet.</summary>
-    private void EndPrintIfNew(PrintJob? job)
+    private void EndPrintIfNew(PrintJob? job, PrinterState ended, DateTimeOffset timestamp)
     {
         bool otherJob = IsOtherJob(job);
         if (!_printSeen && _anyPrintEnded && !otherJob)
@@ -248,6 +262,8 @@ public sealed class CooldownTracker
         {
             _stage = Stage.WaitingForHeaterOff;
             _coolingFileName = _jobFileName;
+            _outcome = ended == PrinterState.Stopped ? CooldownPrintOutcome.Stopped : CooldownPrintOutcome.Finished;
+            _printEndedAt = _lastReachable ? timestamp : null;
         }
     }
 
@@ -270,6 +286,7 @@ public sealed class CooldownTracker
         }
 
         _cooled = true;
+        _cooledDownAt = _lastTimestamp;
         return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName) : null;
     }
 
@@ -293,7 +310,8 @@ public sealed class CooldownTracker
             remaining = _estimator.EstimateRemaining(threshold, timestamp);
         }
 
-        return new CooldownState(phase, _lastNozzle, _bed, threshold, progress, remaining, _startedAt, timestamp);
+        return new CooldownState(
+            phase, _lastNozzle, _bed, threshold, progress, remaining, _startedAt, timestamp, _outcome, _printEndedAt, _cooledDownAt);
     }
 
     private void EndCoolDown()
@@ -302,6 +320,8 @@ public sealed class CooldownTracker
         _state = CooldownState.None;
         _cooled = false;
         _coolingFileName = null;
+        _outcome = CooldownPrintOutcome.None;
+        _printEndedAt = _cooledDownAt = null;
         _highestNozzle = _lastNozzle = _previousNozzle = double.NaN;
         _bed = null;
         _estimator.Clear();

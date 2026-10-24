@@ -17,8 +17,21 @@ namespace LayerPeek.Core.Cooldown;
 /// <see langword="null"/> while there is no reliable estimate (too few readings, temperature not falling, noise) and once
 /// cooled down.
 /// </param>
-/// <param name="StartedAt">When the cool-down started: the print ended and the nozzle heater was off.</param>
+/// <param name="StartedAt">
+/// When the cool-down started: the first snapshot after the end of the print with the nozzle heater off (the same as
+/// <paramref name="PrintEndedAt"/> unless the heater was switched off later).
+/// </param>
 /// <param name="UpdatedAt">Timestamp of the snapshot this state was derived from.</param>
+/// <param name="Outcome">Whether the print finished or was stopped.</param>
+/// <param name="PrintEndedAt">
+/// Timestamp of the first snapshot that reported the print as ended, i.e. at most one polling interval after the real
+/// end. <see langword="null"/> when the end was not seen: the first snapshot of the printer (app start, printer added)
+/// already reported it, or the print ended while the printer could not be read (offline, unauthorized).
+/// </param>
+/// <param name="CooledDownAt">
+/// When the state became <see cref="CooldownPhase.CooledDown"/>: the snapshot that confirmed it (the same as
+/// <see cref="CooldownEvent.Timestamp"/> when there is an event); <see langword="null"/> while cooling.
+/// </param>
 public readonly record struct CooldownState(
     CooldownPhase Phase,
     double? NozzleCelsius,
@@ -27,7 +40,10 @@ public readonly record struct CooldownState(
     double Progress,
     TimeSpan? EstimatedRemaining,
     DateTimeOffset? StartedAt,
-    DateTimeOffset? UpdatedAt)
+    DateTimeOffset? UpdatedAt,
+    CooldownPrintOutcome Outcome,
+    DateTimeOffset? PrintEndedAt,
+    DateTimeOffset? CooledDownAt)
 {
     /// <summary>No cool-down.</summary>
     public static CooldownState None => default;

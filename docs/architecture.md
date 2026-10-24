@@ -81,6 +81,7 @@ Jediný `Border` s řádky z T-036 nahradí systém widgetů. Stav je **plán**.
     - skončí bez události při dalším tisku, při offline delším než 1 minuta (jako notifikace offline) nebo znovu zapnutém topení trysky,
     - „vychladlo“ potvrdí dvě po sobě jdoucí platná měření na prahu nebo pod ním; událost jen jednou na tisk a jen když tryska byla nad prahem,
     - odhad času: Newtonův model ochlazování s odhadem okolní teploty (`CooldownEstimator`, posledních až 48 měření),
+    - stav nese i výsledek tisku (`Finished` / `Stopped`), čas konce tisku (`null`, když konec nebyl vidět) a čas vychladnutí,
     - `CooldownMonitor` drží tracker pro každou tiskárnu (`Configure`, `GetState`, události `Changed` a `CooledDown`), odhad v `GetState` odpočítává podle `TimeProvider`; App ho napojí přes `CooldownObserver`,
     - práh trysky je u tiskárny (`printers[*].cooldownThresholdCelsius`, 30–100 °C, výchozí 50 °C se nezapisuje), čistá operace „použít u všech“ je `CooldownThreshold.ApplyToAll`. Změna prahu nerestartuje monitoring.
   - **Událost „vychladlo“** jde přes `INotificationService` jako nový `PrintEventKind` (T-080). Ve výchozím stavu je vypnutá a je informační (zvuk jen při nastavení „všechny“). Nepřijde, když tisk skončil už pod prahem.

@@ -36,6 +36,26 @@ public sealed class CooldownAllocationTests
     }
 
     [Fact]
+    public void CoolingDownWithTheEventAllocatesNothing()
+    {
+        CooldownUpdate update = default;
+        long allocated = AllocationProbe.MinAllocated(() =>
+        {
+            CooldownTracker tracker = new();
+            tracker.Process(Printing(0));
+            tracker.Process(Snap(PrinterState.Finished, 5, 200, 0, 60, Job()));
+            tracker.Process(Snap(PrinterState.Finished, 10, 45, 0, 55, Job()));
+            PrinterSnapshot next = Snap(PrinterState.Finished, 15, 44, 0, 54, Job());
+            return AllocationProbe.Measure(() => update = tracker.Process(next));
+        });
+
+        Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
+        Assert.NotNull(update.State.CooledDownAt);
+        Assert.NotNull(update.Event);
+        Assert.Equal(0, allocated);
+    }
+
+    [Fact]
     public void ProcessingWithoutCoolDownAllocatesNothing()
     {
         CooldownUpdate update = default;

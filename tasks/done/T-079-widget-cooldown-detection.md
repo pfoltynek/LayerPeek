@@ -81,7 +81,13 @@ Core logika, která po dokončení nebo zastavení tisku sleduje chladnutí trys
 ## Poznámky k implementaci
 - **Core (`Core/Cooldown/`):**
   - `CooldownTracker` – automat jedné tiskárny (monitor drží jeden na tiskárnu). `Process(snapshot)` a `SetThreshold(°C)` vrací `CooldownUpdate(State, Event?)`. Po vytvoření nealokuje (ověřeno testem alokací).
-  - `CooldownState` (record struct): `Phase`, `NozzleCelsius`, `BedCelsius`, `ThresholdCelsius`, `Progress`, `EstimatedRemaining`, `StartedAt`, `UpdatedAt`. Ve fázi `None` jsou všechny hodnoty výchozí (`CooldownState.None`).
+  - `CooldownState` (record struct): `Phase`, `NozzleCelsius`, `BedCelsius`, `ThresholdCelsius`, `Progress`, `EstimatedRemaining`, `StartedAt`, `UpdatedAt`, `Outcome`, `PrintEndedAt`, `CooledDownAt`. Ve fázi `None` jsou všechny hodnoty výchozí (`CooldownState.None`).
+    - Doplněno při review pro text návrhu T-076 „tisk dokončen v 19:52 · vychladlo za 14 min“:
+      - `Outcome` (`CooldownPrintOutcome`: `Finished` / `Stopped`) říká, jak tisk skončil.
+      - `PrintEndedAt` je čas prvního snapshotu, který hlásí konec tisku (nejvýš jeden interval pollingu po skutečném konci). Je `null`, když konec nebyl vidět: první snapshot tiskárny (start aplikace, přidání tiskárny) už ukazuje skončený tisk, nebo tisk skončil, zatímco tiskárna nebyla čitelná (offline, neautorizovaná). Hodiny tak nikdy neukážou čas startu aplikace jako konec tisku.
+      - `StartedAt` je začátek chladnutí: první snapshot po konci tisku s vypnutým topením trysky. Obvykle se rovná `PrintEndedAt`, později jen když firmware vypne topení o poll později.
+      - `CooledDownAt` je čas přechodu do „Vychladlo“, tedy snapshotu, který ho potvrdil (u události stejný jako `CooldownEvent.Timestamp`). Při chladnutí je `null`.
+      - „Vychladlo za“ = `CooledDownAt − PrintEndedAt`. Co widget ukáže, když je `PrintEndedAt` `null`, rozhodne T-076/T-088.
   - `CooldownEvent(PrinterId, Timestamp, FileName)` – podklad pro T-080.
   - `CooldownMonitor` (`Configure(printers)`, `GetState(id)`, `Changed(id)`, `CooledDown`, `Dispose`). Jeden zámek jako `PrintEventNotifier`, události mimo zámek. Odběratelé se volají po jednom bez alokace (`Delegate.EnumerateInvocationList`) a jejich výjimky se jen zalogují. `Configure` nepotřebuje `NotificationSettings`: práh je v `PrinterDefinition`.
   - `GetState` odpočítává odhad podle `TimeProvider` od času snapshotu (nejvýš na nulu, hodiny pozadu odhad neprodlouží).
