@@ -11,13 +11,16 @@
       2. copies %LOCALAPPDATA%\PrusaTrayDiagnostic\logs to %LOCALAPPDATA%\LayerPeek\logs, only when that folder does not
          exist yet; the log files are renamed (PrusaTrayDiagnostic.log -> LayerPeek.log, PrusaTrayDiagnostic.1.log ->
          LayerPeek.1.log, ...), so the new app continues the same rotation;
+         a copied old folder gets the marker file .migrated-to-LayerPeek, and only such a folder is ever removed (a
+         LayerPeek folder that existed before, e.g. from a first start of LayerPeek, never makes the old data removable);
       3. copies every Credential Manager entry PrusaTrayDiagnostic/<key> to LayerPeek/<key> (production prefix only,
          never the test prefixes; an existing new entry is kept). The secret is copied inside Windows (CredRead ->
          CredWrite) and never reaches PowerShell, the console or a file.
 
     Removing the old data is a separate step that is never done without an explicit confirmation (typing REMOVE):
     asked at the end of a migration run in an interactive console, or with -RemoveOld (also asks). It removes
-      - %APPDATA%\PrusaTrayDiagnostic and %LOCALAPPDATA%\PrusaTrayDiagnostic (only when the LayerPeek counterpart exists),
+      - %APPDATA%\PrusaTrayDiagnostic and %LOCALAPPDATA%\PrusaTrayDiagnostic (only when this script copied them and the
+        LayerPeek counterpart exists),
       - %LOCALAPPDATA%\PrusaTrayDiagnostic.Build (the FFmpeg download cache of the old builds),
       - the old Credential Manager entries (only those whose LayerPeek/<key> exists),
       - the old Start menu shortcut "Prusa Tray Diagnostic.lnk",
@@ -56,6 +59,8 @@ $script:NewCredentialPrefix = 'LayerPeek/'
 $script:OldShortcutFileName = 'Prusa Tray Diagnostic.lnk'
 $script:OldToastActivatorKey = 'Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}'
 $script:OldNotificationSettingsKey = 'Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic'
+# Written into an old folder once this script has copied it; only a folder with it may be removed.
+$script:MigratedMarkerName = '.migrated-to-LayerPeek'
 $script:KindLabels = @{ Folder = 'folder'; Credential = 'credential'; Shortcut = 'shortcut'; RegistryKey = 'registry key' }
 
 <#
@@ -100,10 +105,12 @@ function Get-MigrationFolders {
 
 <#
 .SYNOPSIS
-    Copies -Source to -Target when the source exists and the target does not; returns NoSource, TargetExists or Copied.
+    Copies -Source to -Target when the source exists and the target does not. Returns NoSource, Copied, AlreadyCopied
+    (by an earlier run), TargetExists (the target existed before and was left alone) or WouldCopy (-WhatIf).
 .DESCRIPTION
-    The copy is made in a hidden sibling folder first and renamed to -Target at the end, so an interrupted copy never
-    leaves a half-filled target that a later run would take for done.
+    The copy is made in a sibling folder .migrating-<random> first and renamed to -Target at the end, so an interrupted
+    copy never leaves a half-filled target that a later run would take for done. Only then the marker file
+    .migrated-to-LayerPeek is written into -Source (Test-MigratedFolder).
 #>
 function Copy-MigrationFolder {
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
@@ -113,8 +120,12 @@ function Copy-MigrationFolder {
         [switch] $RenameLogs
     )
 
+    # One file that cannot be copied must stop the whole copy, whatever the caller's preference.
+    $ErrorActionPreference = 'Stop'
     if (-not (Test-Path -LiteralPath $Source -PathType Container)) { return 'NoSource' }
-    if (Test-Path -LiteralPath $Target) { return 'TargetExists' }
+    if (Test-Path -LiteralPath $Target) {
+        return $(if (Test-MigratedFolder -Source $Source -Target $Target) { 'AlreadyCopied' } else { 'TargetExists' })
+    }
     if (-not $PSCmdlet.ShouldProcess($Target, "Copy from $Source")) { return 'WouldCopy' }
 
     $parent = Split-Path -Parent $Target
@@ -133,7 +144,38 @@ function Copy-MigrationFolder {
     finally {
         if (Test-Path -LiteralPath $staging) { Remove-Item -LiteralPath $staging -Recurse -Force }
     }
+    [System.IO.File]::WriteAllText((Join-Path $Source $script:MigratedMarkerName), "Copied to $Target by tools/migrate-from-prusatraydiagnostic.ps1 (T-074).`n")
     return 'Copied'
+}
+
+<#
+.SYNOPSIS
+    True when this script copied -Source to -Target: the marker file is in -Source and -Target exists.
+#>
+function Test-MigratedFolder {
+    param(
+        [Parameter(Mandatory)] [string] $Source,
+        [Parameter(Mandatory)] [string] $Target
+    )
+
+    (Test-Path -LiteralPath (Join-Path $Source $script:MigratedMarkerName) -PathType Leaf) -and
+        (Test-Path -LiteralPath $Target -PathType Container)
+}
+
+<#
+.SYNOPSIS
+    Why an old folder that was not copied by this script stays (-Shown is the new folder as the user knows it).
+#>
+function Get-NotMigratedReason {
+    param(
+        [Parameter(Mandatory)] [string] $Target,
+        [Parameter(Mandatory)] [string] $Shown
+    )
+
+    if (Test-Path -LiteralPath $Target) {
+        return "$Shown existed before the migration, the old data were not copied (docs/troubleshooting.md)"
+    }
+    return "$Shown does not exist (not migrated)"
 }
 
 <#
@@ -194,17 +236,19 @@ function Get-LegacyItems {
         $items.Add([pscustomobject]@{ Kind = $Kind; Path = $Path; Ready = $Ready; Reason = $Reason })
     }
 
-    $oldData = Join-Path $AppData $script:OldName
-    if (Test-Path -LiteralPath $oldData) {
-        $ready = Test-Path -LiteralPath (Join-Path $AppData $script:NewName)
-        Add 'Folder' $oldData $ready $(if ($ready) { '' } else { "%APPDATA%\$script:NewName does not exist (not migrated)" })
+    $folders = @(Get-MigrationFolders -AppData $AppData -LocalAppData $LocalAppData)
+    $data = $folders | Where-Object Name -EQ 'data'
+    if (Test-Path -LiteralPath $data.Source) {
+        $ready = Test-MigratedFolder -Source $data.Source -Target $data.Target
+        Add 'Folder' $data.Source $ready $(if ($ready) { '' } else { Get-NotMigratedReason -Target $data.Target -Shown "%APPDATA%\$script:NewName" })
     }
 
+    # The old builds kept nothing but their logs under %LOCALAPPDATA%\PrusaTrayDiagnostic.
     $oldLocal = Join-Path $LocalAppData $script:OldName
     if (Test-Path -LiteralPath $oldLocal) {
-        $hasLogs = Test-Path -LiteralPath (Join-Path $oldLocal 'logs')
-        $ready = -not $hasLogs -or (Test-Path -LiteralPath (Join-Path $LocalAppData $script:NewName 'logs'))
-        Add 'Folder' $oldLocal $ready $(if ($ready) { '' } else { "%LOCALAPPDATA%\$script:NewName\logs does not exist (not migrated)" })
+        $logs = $folders | Where-Object Name -EQ 'logs'
+        $ready = -not (Test-Path -LiteralPath $logs.Source) -or (Test-MigratedFolder -Source $logs.Source -Target $logs.Target)
+        Add 'Folder' $oldLocal $ready $(if ($ready) { '' } else { Get-NotMigratedReason -Target $logs.Target -Shown "%LOCALAPPDATA%\$script:NewName\logs" })
     }
 
     $oldBuild = Join-Path $LocalAppData "$script:OldName.Build"
@@ -238,6 +282,7 @@ function Remove-LegacyItems {
         [Parameter(Mandatory)] [object] $Registry
     )
 
+    $ErrorActionPreference = 'Stop'
     foreach ($item in $Items) {
         if (-not $item.Ready) { continue }
         if (-not $PSCmdlet.ShouldProcess($item.Path, "Remove $($script:KindLabels[$item.Kind])")) { continue }
@@ -421,42 +466,57 @@ function New-CurrentUserRegistry {
 
 <#
 .SYNOPSIS
-    Asks for the typed confirmation of the removal; $false without an interactive console.
+    What the user types at the removal question; $null without an interactive console (then nothing is removed).
 #>
-function Confirm-Removal {
+function Read-RemovalAnswer {
     if (-not [Environment]::UserInteractive -or [Console]::IsInputRedirected) {
         Write-Host 'No interactive console: nothing removed. Run the script again with -RemoveOld in a console.' -ForegroundColor Yellow
-        return $false
+        return $null
     }
-    $answer = Read-Host 'Type REMOVE to delete the old data listed above (anything else keeps it)'
-    return $answer -ceq 'REMOVE'
+    return Read-Host 'Type REMOVE to delete the old data listed above (anything else keeps it)'
 }
 
+<#
+.SYNOPSIS
+    The whole run. The parameters after -RemoveOld exist for the tests only; the script passes none of them, so a run
+    uses the real per-user folders, the Windows Credential Manager, HKCU, the running processes and the console.
+#>
 function Invoke-Main {
-    if (-not $IsWindows) { throw 'The migration is for Windows only (the old builds never ran elsewhere).' }
+    [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
+    param(
+        [switch] $RemoveOld,
+        [string] $AppData = [Environment]::GetFolderPath('ApplicationData'),
+        [string] $LocalAppData = [Environment]::GetFolderPath('LocalApplicationData'),
+        [string] $Programs = [Environment]::GetFolderPath('Programs'),
+        [object] $Store,
+        [object] $Registry,
+        [scriptblock] $GetRunningApps = { Get-Process -Name $script:OldName, $script:NewName -ErrorAction SilentlyContinue },
+        [scriptblock] $ReadConfirmation = { Read-RemovalAnswer }
+    )
 
-    $running = @(Get-Process -Name $script:OldName, $script:NewName -ErrorAction SilentlyContinue)
+    $ErrorActionPreference = 'Stop'
+    $running = @(& $GetRunningApps)
     if ($running.Count -gt 0) {
         throw "Quit $(($running | ForEach-Object { "$($_.ProcessName) ($($_.Id))" }) -join ', ') first: its files and credentials must not change meanwhile."
     }
 
-    $appData = [Environment]::GetFolderPath('ApplicationData')
-    $localAppData = [Environment]::GetFolderPath('LocalApplicationData')
-    $programs = [Environment]::GetFolderPath('Programs')
-    foreach ($folder in $appData, $localAppData, $programs) {
+    foreach ($folder in $AppData, $LocalAppData, $Programs) {
         if (-not [IO.Path]::IsPathFullyQualified($folder)) { throw 'A per-user folder of Windows is not available.' }
     }
-    $store = New-CredentialManagerStore
-    $registry = New-CurrentUserRegistry
+    if (-not $Store) { $Store = New-CredentialManagerStore }
+    if (-not $Registry) { $Registry = New-CurrentUserRegistry }
 
     if (-not $RemoveOld) {
         Write-Host "Migrating $script:OldName -> $script:NewName$(if ($WhatIfPreference) { ' (what if: nothing changes)' })" -ForegroundColor Cyan
         foreach ($folder in Get-MigrationFolders -AppData $appData -LocalAppData $localAppData) {
             $status = Copy-MigrationFolder -Source $folder.Source -Target $folder.Target -RenameLogs:$folder.RenameLogs
-            Write-Host ("  {0,-5} {1,-12} {2} -> {3}" -f $folder.Name, $status, $folder.Source, $folder.Target)
+            Write-Host ("  {0,-5} {1,-13} {2} -> {3}" -f $folder.Name, $status, $folder.Source, $folder.Target)
+            if ($status -eq 'TargetExists') {
+                Write-Host "        not copied: $($folder.Target) existed before (e.g. LayerPeek started already); the old folder stays, see docs/troubleshooting.md" -ForegroundColor Yellow
+            }
         }
         foreach ($result in @(Copy-MigrationCredentials -Store $store)) {
-            Write-Host ("  cred  {0,-12} {1} -> {2}" -f $result.Status, $result.Old, $result.New)
+            Write-Host ("  cred  {0,-13} {1} -> {2}" -f $result.Status, $result.Old, $result.New)
         }
     }
 
@@ -480,7 +540,8 @@ function Invoke-Main {
         Write-Host ''
         Write-Host "Check that $script:NewName starts with your printers before removing the old data (or run again later with -RemoveOld)."
     }
-    if (-not (Confirm-Removal)) {
+    # Exactly REMOVE, case-sensitive and without spaces; anything else (or no console) keeps everything.
+    if ((& $ReadConfirmation) -cne 'REMOVE') {
         Write-Host 'The old data were kept.'
         return
     }
@@ -491,5 +552,6 @@ function Invoke-Main {
 # Dot-sourced (the Pester tests): only the functions above.
 if ($MyInvocation.InvocationName -ne '.') {
     $ErrorActionPreference = 'Stop'
-    Invoke-Main
+    if (-not $IsWindows) { throw 'The migration is for Windows only (the old builds never ran elsewhere).' }
+    Invoke-Main -RemoveOld:$RemoveOld -WhatIf:$WhatIfPreference
 }

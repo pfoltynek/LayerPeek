@@ -134,10 +134,15 @@ pwsh tools/migrate-from-prusatraydiagnostic.ps1 -RemoveOld  # později: jen smaz
 ```
 
 - Zkopíruje `%APPDATA%\PrusaTrayDiagnostic` → `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` →
-  `%LOCALAPPDATA%\LayerPeek\logs` (logy přejmenuje na `LayerPeek*.log`), jen když cíl ještě neexistuje.
+  `%LOCALAPPDATA%\LayerPeek\logs` (logy přejmenuje na `LayerPeek*.log`), jen když cíl ještě neexistuje. Do zkopírované
+  staré složky zapíše značku `.migrated-to-LayerPeek`; smazat lze jen starou složku se značkou.
+- **Pozor, LayerPeek už běžel** (např. `dotnet run`, `scripts/aot-smoke.ps1` – běží se skutečným nastavením): pak
+  `%APPDATA%\LayerPeek` nebo `%LOCALAPPDATA%\LayerPeek\logs` už existuje, skript starou složku nezkopíruje (stav
+  `TargetExists`) a nikdy ji nesmaže („existed before the migration“). Kdo chce stará data, nejdřív ukončí LayerPeek,
+  novou složku sám přesune jinam (nebo smaže) a skript spustí znovu.
 - Položky Správce pověření `PrusaTrayDiagnostic/<klíč>` zkopíruje na `LayerPeek/<klíč>` (existující nové nechá). Heslo
   kopíruje uvnitř Windows a nikdy ho nevypisuje. Testovací položky `PrusaTrayDiagnostic.E2E/…` nechá být.
-- Smazání starých dat jen po napsání `REMOVE`: staré složky (jen když existuje jejich nový protějšek),
+- Smazání starých dat jen po napsání přesně `REMOVE`: staré složky (jen se značkou a s existujícím novým protějškem),
   `%LOCALAPPDATA%\PrusaTrayDiagnostic.Build` (cache FFmpeg starých buildů), staré položky pověření (jen převedené),
   zástupce `Prusa Tray Diagnostic.lnk` v nabídce Start, aktivátor toastů
   `HKCU\Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}` a nastavení oznámení
