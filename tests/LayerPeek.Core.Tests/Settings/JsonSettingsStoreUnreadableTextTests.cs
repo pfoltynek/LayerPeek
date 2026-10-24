@@ -107,24 +107,59 @@ public sealed class JsonSettingsStoreUnreadableTextTests : IDisposable
 
     [Theory]
     [MemberData(nameof(TypedValues))]
-    public async Task WritersLeaveAFileWithUnreadableTextAlone(string json)
+    public async Task WritersNeverThrowAndKeepAFileWithUnreadableTextByteForByte(string json)
     {
-        foreach (byte[] content in (byte[][])[Encoding.UTF8.GetBytes(Escaped(json)), InvalidUtf8(json)])
+        // The byte-level writers of single values (detected model, overlay) may still write their own value into a
+        // syntactically valid file the loader rejects, as documented on ISettingsStore; nothing else in the file changes.
+        (byte[] Content, byte[] Unreadable)[] files =
+        [
+            (Encoding.UTF8.GetBytes(Escaped(json)), "\"\\ud800\""u8.ToArray()),
+            (InvalidUtf8(json), [(byte)'"', 0xC3, 0x28, (byte)'"']),
+        ];
+        foreach ((byte[] content, byte[] unreadable) in files)
         {
             await WriteAsync(content);
 
             await _store.RemoveCameraCredentialsAsync(Ct);
-            await _store.SetDetectedModelAsync("mk4", new PrinterModelCode(1, 4, 1), "192.168.0.226", ConnectionType.PrusaLink, Ct);
-            Assert.False(await _store.SetCameraMonitorDevicePathAsync("mk4", new CameraMonitorId("D", 1920, 1080), "path", Ct));
+            Assert.Equal(content, await File.ReadAllBytesAsync(FilePath, Ct));
 
-            // Only the overlay section would change; whatever else is in the file stays byte for byte.
+            Assert.False(await _store.SetCameraMonitorDevicePathAsync("mk4", new CameraMonitorId("D", 1920, 1080), "path", Ct));
+            Assert.Equal(content, await File.ReadAllBytesAsync(FilePath, Ct));
+
             byte[] before = await File.ReadAllBytesAsync(FilePath, Ct);
+            bool written = await _store.SetDetectedModelAsync("mk4", new PrinterModelCode(1, 4, 1), "192.168.0.226", ConnectionType.PrusaLink, Ct);
+            AssertOnlyOwnValueWritten(before, await File.ReadAllBytesAsync(FilePath, Ct), written, unreadable);
+
+            before = await File.ReadAllBytesAsync(FilePath, Ct);
             CameraOverlayLayout layout = CameraOverlayLayout.Default.WithVisible(OverlayWidgetIds.Status, false);
-            if (await _store.SetCameraOverlayLayoutAsync("mk4", layout, Ct))
-            {
-                Assert.NotEqual(before, await File.ReadAllBytesAsync(FilePath, Ct));
-            }
+            written = await _store.SetCameraOverlayLayoutAsync("mk4", layout, Ct);
+            AssertOnlyOwnValueWritten(before, await File.ReadAllBytesAsync(FilePath, Ct), written, unreadable);
         }
+    }
+
+    /// <summary>
+    /// Unchanged when nothing was written; otherwise one contiguous change: the unchanged start and end of the file cover
+    /// the whole original except nothing (an inserted value) or (part of) the writer's own old value, the unreadable string
+    /// itself (<paramref name="unreadableValue"/>, quotes included).
+    /// </summary>
+    private static void AssertOnlyOwnValueWritten(byte[] before, byte[] after, bool written, byte[] unreadableValue)
+    {
+        if (!written)
+        {
+            Assert.Equal(before, after);
+            return;
+        }
+
+        int start = before.AsSpan().CommonPrefixLength(after);
+        int end = 0;
+        while (end < before.Length - start && end < after.Length - start && before[^(end + 1)] == after[^(end + 1)])
+        {
+            end++;
+        }
+
+        byte[] replaced = before[start..^end];
+        Assert.True(unreadableValue.AsSpan().IndexOf(replaced) >= 0, $"Changed outside the written value: {Convert.ToHexString(replaced)}");
+        Assert.NotEqual(before, after);
     }
 
     private static string Escaped(string json) =>
