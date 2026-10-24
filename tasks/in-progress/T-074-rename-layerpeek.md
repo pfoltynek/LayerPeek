@@ -1,0 +1,64 @@
+---
+id: T-074
+title: Přejmenování aplikace a repozitáře na LayerPeek
+status: in-progress
+owner: architect
+priority: P1
+platform: all
+depends_on: [T-065]
+---
+
+## Cíl
+Před prvním veřejným vydáním přejmenovat aplikaci z „Prusa Tray Diagnostic“ na **LayerPeek**, aby název nezačínal ochrannou známkou Prusa a nepůsobil jako oficiální produkt Prusa Research. Vztah k tiskárnám vyjadřuje doplněk „for Prusa printers“ (popis kompatibility).
+
+Rozhodnutí uživatele (2026-10-22):
+- Název **LayerPeek** (volný na GitHubu, ve wingetu i na webu, ověřeno 2026-10-22). Podnázev v README a v okně O aplikaci: „for Prusa printers“ / „pro tiskárny Prusa“.
+- Přejmenovat **úplně vše**: produkt, exe, složky dat, AUMID, cíle ve Správci pověření, projekty, namespaces, `.slnx`, testy, nástroje, skripty a dokumentaci.
+- Přejmenovat i **repozitář na GitHubu** na `pfoltynek/LayerPeek` (provede hlavní agent přes `gh repo rename`, GitHub staré URL přesměruje).
+- **Barva ikony zůstává** (`#FD5000`), ikona se nemění.
+
+## Předpoklady
+- T-065 je mergnutý do `develop` a **neběží žádná jiná feature větev / worktree** (přejmenování sahá na ~800 souborů, souběžná práce by skončila konflikty). Před začátkem ověřit `git worktree list` a domluvit se s ostatními sessions.
+- Větev `feature/readme-pitch` je mergnutá (nové README, CHANGELOG, `.github/`).
+
+## Rozsah
+- **Projekty a cesty:** `src/PrusaTrayDiagnostic.*` → `src/LayerPeek.*`, `tests/PrusaTrayDiagnostic.*` → `tests/LayerPeek.*`, `PrusaTrayDiagnostic.slnx` → `LayerPeek.slnx`, přes `git mv` (zachovat historii). `PrusaSimulator` zůstává (simuluje tiskárnu Prusa, nejde o náš produkt).
+- **Kód:** namespaces, `RootNamespace`, `AssemblyName` (exe `LayerPeek.exe`), `InternalsVisibleTo`, odkazy v `Directory.Build.props`, `Directory.Packages.props`, `build/FFmpeg.targets`, `.vscode/`.
+- **Identita za běhu:** AUMID (`ProductionAppUserModelId`), zástupce v nabídce Start, název mutexu / pipe jediné instance, prefix cílů ve Správci pověření, složky `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\LayerPeek\logs`, názvy logů a diagnostického balíčku, User-Agent (pokud obsahuje název), na macOS bundle id a cesty (jen pokud už existují).
+- **UI texty:** název aplikace ve všech `Strings.*.resx` (tooltip, O aplikaci, notifikace, titulky oken), odkaz na repozitář v `AboutViewModel`.
+- **Skripty a nástroje:** `scripts/*.ps1` (názvy archivů `LayerPeek-<verze>-<RID>.zip`, cesty k projektu), Pester testy, `tools/*.ps1`, E2E testy (název procesu, cesty).
+- **Dokumentace:** `README.md`, `README.cz.md`, `CHANGELOG.md`, `CLAUDE.md`, `.claude/agents/*.md`, `docs/**`, `.github/**`, odkazy `github.com/pfoltynek/PrusaTrayDiagnostic` → `github.com/pfoltynek/LayerPeek`. Hotové úkoly v `tasks/done/` se **nepřepisují** (historie), aktivní úkoly v `todo/` a `in-progress/` ano.
+- **Repozitář:** `gh repo rename LayerPeek`, `git remote set-url origin https://github.com/pfoltynek/LayerPeek.git` ve všech worktree. Volitelně přejmenovat lokální složku `D:\00-Source\PrusaTrayDiagnostic` (rozhodne uživatel).
+- Upozornění na nezávislost na Prusa Research v README a v okně O aplikaci zůstává.
+
+## Akceptační kritéria
+- [x] `git grep -i "PrusaTrayDiagnostic\|Prusa Tray Diagnostic"` najde výskyty jen v `tasks/done/`, v `CHANGELOG.md` (poznámka o přejmenování) a v případném kódu pro úklid starých dat. Zbylé zdůvodněné výskyty viz poznámky.
+- [x] Exe se jmenuje `LayerPeek.exe`, vlastnosti exe a okno O aplikaci ukazují LayerPeek a verzi z `Directory.Build.props`.
+- [x] Nastavení, logy a hesla se ukládají pod novými názvy (ověřeno testem a E2E testem).
+- [ ] Notifikace fungují s novým AUMID (E2E nebo ruční ověření; starý zástupce v nabídce Start se odstraní nebo je popsané, jak ho odstranit). E2E toasty prošly s testovacím AUMID `LayerPeek.E2E`; produkční AUMID `LayerPeek` ověří až `scripts/aot-smoke.ps1` (spouští uživatel). Odstranění starého zástupce: migrační skript + `docs/troubleshooting.md`.
+- [x] Release skripty vytvoří `LayerPeek-<verze>-win-x64.zip`, Pester testy procházejí (ověřeno Pester testy `Get-ArchiveFileName`/archivů; celý `release-build.ps1` neběžel, protože spouští `aot-smoke.ps1`).
+- [ ] AOT publish a smoke test procházejí. AOT publish `win-x64` bez varování prošel; smoke test (`scripts/aot-smoke.ps1`, registruje produkční aplikaci a aktivátor) spustí uživatel.
+- [ ] Repozitář je přejmenovaný, `origin` ve všech worktree ukazuje na nové URL, odkazy v README fungují. Odkazy už vedou na `github.com/pfoltynek/LayerPeek`; `gh repo rename` a `git remote set-url` provede hlavní agent po merge.
+- [x] `dotnet build` a `dotnet test` bez chyb a varování.
+
+## Rozhodnuto
+Rozhodnutí uživatele (2026-10-24), uzavírá dřívější otevřené otázky:
+1. **Migrace starých dat:** v aplikaci žádný migrační kód (nebyla vydaná). Jednorázový samostatný skript `tools/migrate-from-prusatraydiagnostic.ps1` (pwsh 7.2+): zkopíruje `%APPDATA%\PrusaTrayDiagnostic` → `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` → `%LOCALAPPDATA%\LayerPeek\logs` (jen když cíl neexistuje), převede položky Správce pověření ze starého produkčního prefixu na nový (nikdy testovací prefixy) a teprve po výslovném potvrzení (interaktivně, nebo `-RemoveOld` s vlastním potvrzením) smaže staré složky, pověření, zástupce „Prusa Tray Diagnostic.lnk“, klíč starého aktivátoru toastů v `HKCU\Software\Classes\CLSID` a nastavení oznámení starého AUMID. Podporuje `-WhatIf`, hesla nikdy nevypisuje. Pester testy jeho logiky. Na skutečných datech ho spustí uživatel s hlavním agentem později.
+2. **Lokální složka** `D:\00-Source\PrusaTrayDiagnostic` → `D:\00-Source\LayerPeek` se přejmenuje až úplně na konci po merge (není součástí této práce; stará cesta nesmí být nikde natvrdo).
+3. **Repozitář na GitHubu** (`gh repo rename LayerPeek`) přejmenuje po merge hlavní agent; odkazy v dokumentaci a kódu už vedou na `github.com/pfoltynek/LayerPeek`.
+
+## Otevřené otázky
+Žádné.
+
+## Poznámky k implementaci
+- **Přejmenování (git mv, historie zachována):** `src/LayerPeek.*`, `tests/LayerPeek.*` (vč. `LayerPeek.Scripts.Tests`), `LayerPeek.slnx`, všechny `.csproj`. Obsah mimo `tasks/done/` mechanicky: namespaces, `AssemblyName` (exe `LayerPeek.exe`, `AssemblyTitle`/`Product` = LayerPeek), `InternalsVisibleTo`, `avares://LayerPeek/…`, `.vscode/`, `.github/`, skripty, dokumentace, aktivní úkoly. `PrusaSimulator` zůstává.
+- **Nové identity:** AUMID `LayerPeek` (test `LayerPeek.E2E`), zástupce `LayerPeek.lnk` (test `LayerPeek E2E.lnk`), prefix pověření `LayerPeek/` (test `LayerPeek.E2E/`), složky `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\LayerPeek\logs`, logy `LayerPeek.log`, balíček `LayerPeek-diagnostics-*.zip`, mutex `Local\LayerPeek-<SID>`, pipe `LayerPeek-<SID>-<session>`, archivy `LayerPeek-<verze>-<RID>.zip`.
+- **Nová CLSID aktivátoru toastů** (stará patřila zástupci a registraci starého názvu; kdyby zůstala, klik na toast by mohl spustit starou cestu exe): produkční `{EC47413C-984D-447A-866A-5F780E408DE7}`, testovací `{EDD3ED5E-8363-4CF4-977A-64A623E0A5A2}`. T-017 a `docs/troubleshooting.md` aktualizované.
+- **Zkratka PTD** starého názvu přejmenovaná také: proměnné `LAYERPEEK_*` (dřív `PRUSATRAYDIAGNOSTIC_*` a `PTD_*`, např. `LAYERPEEK_E2E=1`, `LAYERPEEK_UPDATE_SNAPSHOTS=1`, `LAYERPEEK_PESTER_TESTS_*`), přepínače `--layerpeek-e2e-*`, MSBuild vlastnosti `LayerPeekFFmpeg*` (cache FFmpeg teď `%LOCALAPPDATA%\LayerPeek.Build`, první build ji stáhne znovu), testovací klíč registru `HKCU\Software\LayerPeek.E2E.Tests`, složka záznamů E2E `%LOCALAPPDATA%\LayerPeek.E2E.Restore`. Testovací názvy tiskáren `LP E2E …` (ne „LayerPeek E2E“, aby se nepletly s názvem testovací aplikace v toastech).
+- **Okno O aplikaci a README:** pod názvem podnázev „for Prusa printers“ (nový řetězec `AboutSubtitle` ve všech 8 jazycích); upozornění na nezávislost na Prusa Research zůstává. Snímky `about-support*.png` aktualizované.
+- **Starý záznam E2E:** `tools/run-e2e.ps1` (funkce `Resolve-LegacyRestoreJournal` v `RunE2E.SystemChanges.psm1`) nejdřív zkontroluje `%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore`: prázdnou složku smaže, s čekajícími záznamy skončí a vypíše postup (návrat kódem commitu `fc2bb11` v dočasném worktree). Na tomto počítači složka neexistovala.
+- **Migrační skript** `tools/migrate-from-prusatraydiagnostic.ps1`: viz Rozhodnuto bod 1 a `docs/troubleshooting.md`. Logy přejmenuje na `LayerPeek*.log` (rotace pokračuje). Pověření kopíruje nativně (`CredRead` → `CredWrite` se stejným blobem, `Persist` a `UserName`), heslo nikdy není řetězec v PowerShellu. Mazání jen po napsání `REMOVE` a jen položek, jejichž nový protějšek existuje; navíc maže `%LOCALAPPDATA%\PrusaTrayDiagnostic.Build` (cache FFmpeg). Pester testy (`tools/migrate-from-prusatraydiagnostic.Tests.ps1`, 20 testů, dočasné složky, falešné úložiště pověření a registr, kontrola, že se heslo nikde nevypíše) spouští `dotnet test` přes `PesterScriptTests` (teorie pro oba Pester soubory). Kopírování skutečných pověření netestováno (jen kompilace pomocníka a čtení), skript na skutečných datech **neběžel**.
+- **Testy identity:** `ProductIdentityTests` (názvy, složky, mutex/pipe, balíček, CLSID ≠ stará), `AboutViewModelTests` (podnázev v 8 jazycích), E2E `BuildsCarryNoFormerProductName` (Debug exe/dll, Release dll a AOT exe neobsahují starý název; přeskočí se, když cesta worktree starý název obsahuje – PDB cesta), testy `Resolve-LegacyRestoreJournal`.
+- **Ověření (2026-10-24):** `dotnet build` 0 varování; `dotnet test` 5334 testů, 0 selhání; Pester release 1 + migrace 20; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez varování (vlastnosti exe: ProductName/FileDescription LayerPeek, verze 0.1.0); `pwsh tools/run-e2e.ps1 -PublishAot`: Debug 410 prošlo / 6 přeskočeno, Native AOT (Debug) 409 / 7, 0 selhání, „System changes (after the run): nothing pending“, stav systému na konci shodný se začátkem. První běh skončil chybou úklidu: „Nerušit“ se během běhu zapnulo mimo testy (mezi testy toast-banner a toast-center; testy ho samy nevrátily jinak než na stav nalezený na začátku testu) – při druhém běhu už bylo zapnuté od začátku a běh je zelený. **„Nerušit“ je teď na tomto počítači zapnuté** – ověřit s uživatelem, zda to zapnul on nebo pravidlo Windows.
+- **Zbylé výskyty starého názvu (zdůvodněné):** `CHANGELOG.md` (poznámka o přejmenování), `CLAUDE.md` (název migračního skriptu v přehledu), `docs/troubleshooting.md` (migrace a starý záznam E2E), tento úkol, `tools/migrate-from-prusatraydiagnostic.ps1` a jeho testy, `tools/RunE2E.SystemChanges.psm1` a `RunE2EScriptTests.cs` (starý záznam E2E), `IconAndBuildTests.cs` (kontrola, že binárky starý název neobsahují), `PesterScriptTests.cs` (cesta k testům migrace). Dále `docs/velopack.md` obsahuje historickou dočasnou složku `ptdvelo` (záznam spiku).
+- **Zbývá (proto in-progress):** smoke test `scripts/aot-smoke.ps1` s produkčním AUMID (uživatel), `gh repo rename LayerPeek` + `git remote set-url origin https://github.com/pfoltynek/LayerPeek.git` ve všech worktree (hlavní agent po merge), spuštění migračního skriptu s uživatelem, přejmenování lokální složky.
