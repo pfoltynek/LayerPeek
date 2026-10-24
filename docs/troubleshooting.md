@@ -106,3 +106,42 @@ a v seznamu aplikací v Nastavení → Systém → Oznámení. Běh všechny nal
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications`, `…\PushNotifications`, `HKCU\Software\Classes\AppUserModelId`
 a zmínku v databázi oznámení) zapíše do `system-state-start.txt` / `system-state-end.txt` ve složce výsledků. Nijak
 nevadí a nic nespouštějí. Co přesně v tomto počítači zůstává, je v poznámkách T-068.
+
+**Záznamy z doby před přejmenováním (T-074):** do přejmenování na LayerPeek byla složka záznamů
+`%LOCALAPPDATA%\PrusaTrayDiagnostic.E2E.Restore` a záznamy v ní pojmenovávají testovací aplikaci, zástupce, pověření a
+klíče registru starého názvu, které nový kód nezná. `tools/run-e2e.ps1` proto při každém spuštění (i s `-RestoreOnly`)
+nejdřív zkontroluje i tuto složku: prázdnou smaže, s čekajícími záznamy (`*.json`) skončí chybou a vypíše postup. Záznamy
+vrátí kód před přejmenováním (commit `fc2bb11`) v dočasném worktree:
+
+```powershell
+git worktree add <prázdná dočasná složka> fc2bb11
+pwsh <ta složka>/tools/run-e2e.ps1 -RestoreOnly
+git worktree remove <ta složka>
+```
+
+Ručně: podle tabulky výše se starými názvy (`PrusaTrayDiagnostic.E2E`, `Prusa Tray Diagnostic E2E.lnk`, testovací
+aktivátor `{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}`, `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests`), potom složku smazat.
+
+## Přechod ze starého názvu PrusaTrayDiagnostic (jen vývojové počítače)
+
+Aplikace se do prvního vydání jmenovala Prusa Tray Diagnostic (T-074). Sama nic nepřevádí. Na počítači, kde běžely staré
+vývojové buildy, převede data jednorázový skript (PowerShell 7.2+, obě aplikace musí být ukončené):
+
+```powershell
+pwsh tools/migrate-from-prusatraydiagnostic.ps1 -WhatIf     # jen ukáže, co by udělal
+pwsh tools/migrate-from-prusatraydiagnostic.ps1             # převod, na konci se zeptá na smazání starých dat
+pwsh tools/migrate-from-prusatraydiagnostic.ps1 -RemoveOld  # později: jen smazání starých dat (zeptá se)
+```
+
+- Zkopíruje `%APPDATA%\PrusaTrayDiagnostic` → `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` →
+  `%LOCALAPPDATA%\LayerPeek\logs` (logy přejmenuje na `LayerPeek*.log`), jen když cíl ještě neexistuje.
+- Položky Správce pověření `PrusaTrayDiagnostic/<klíč>` zkopíruje na `LayerPeek/<klíč>` (existující nové nechá). Heslo
+  kopíruje uvnitř Windows a nikdy ho nevypisuje. Testovací položky `PrusaTrayDiagnostic.E2E/…` nechá být.
+- Smazání starých dat jen po napsání `REMOVE`: staré složky (jen když existuje jejich nový protějšek),
+  `%LOCALAPPDATA%\PrusaTrayDiagnostic.Build` (cache FFmpeg starých buildů), staré položky pověření (jen převedené),
+  zástupce `Prusa Tray Diagnostic.lnk` v nabídce Start, aktivátor toastů
+  `HKCU\Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}` a nastavení oznámení
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic`. Nová aplikace si zástupce,
+  aktivátor (nové CLSID `{EC47413C-984D-447A-866A-5F780E408DE7}`) i nastavení oznámení vytvoří při prvním startu.
+- Staré toasty v centru oznámení skript nemaže (zmizí po jejich zavření). Složky výsledků starých E2E běhů
+  `%TEMP%\PrusaTrayDiagnostic.App.E2E.Results.*` lze smazat ručně.

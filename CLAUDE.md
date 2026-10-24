@@ -51,22 +51,23 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 
 ```
 src/
-  LayerPeek.Core          domain model, abstractions (IPrinterClient...), monitoring, events — no UI, no HTTP specifics
-  LayerPeek.PrusaLink     PrusaLink REST client (implements Core abstractions)
-  LayerPeek.PrusaConnect  Prusa Connect cloud client (implements Core abstractions)
-  LayerPeek.Camera.FFmpeg RTSP/H.264 camera feed via FFmpeg (implements ICameraFeedFactory); native LGPL FFmpeg DLLs from build/FFmpeg.targets
-  LayerPeek.App           Avalonia tray app, composition root, platform specifics
+  LayerPeek.Core           domain model, abstractions (IPrinterClient...), monitoring, events — no UI, no HTTP specifics
+  LayerPeek.PrusaLink      PrusaLink REST client (implements Core abstractions)
+  LayerPeek.PrusaConnect   Prusa Connect cloud client (implements Core abstractions)
+  LayerPeek.Camera.FFmpeg  RTSP/H.264 camera feed via FFmpeg (implements ICameraFeedFactory); native LGPL FFmpeg DLLs from build/FFmpeg.targets
+  LayerPeek.App            Avalonia tray app, composition root, platform specifics
 tests/
-  <Project>.Tests                   one xUnit v3 project per src library
-  LayerPeek.E2E.Tests     cross-cutting browser E2E tests (Playwright + installed Edge, skipped without Edge)
-  LayerPeek.App.UiTests   cross-cutting Avalonia headless UI tests (T-031)
-  Shared/                           test helpers shared by several test projects (linked files, no copies)
-  PrusaSimulator.Tests              tests of the developer simulator (tools/PrusaSimulator)
+  <Project>.Tests          one xUnit v3 project per src library
+  LayerPeek.E2E.Tests      cross-cutting browser E2E tests (Playwright + installed Edge, skipped without Edge)
+  LayerPeek.App.UiTests    cross-cutting Avalonia headless UI tests (T-031)
+  Shared/                  test helpers shared by several test projects (linked files, no copies)
+  PrusaSimulator.Tests     tests of the developer simulator (tools/PrusaSimulator)
 tools/
-  PrusaSimulator                    dev tool: simulated PrusaLink printers + RTSP camera (docs/simulator.md); not shipped
-docs/                               architecture & API notes (Czech)
-tasks/                              task backlog (Czech), see tasks/README.md
-.claude/agents/                     subagent definitions
+  PrusaSimulator           dev tool: simulated PrusaLink printers + RTSP camera (docs/simulator.md); not shipped
+  migrate-from-prusatraydiagnostic.ps1  one-time migration of dev machines from the former name (T-074)
+docs/                      architecture & API notes (Czech)
+tasks/                     task backlog (Czech), see tasks/README.md
+.claude/agents/            subagent definitions
 ```
 
 Dependency direction: `App -> PrusaLink, PrusaConnect, Camera.FFmpeg -> Core`. Core must never reference Avalonia, concrete HTTP clients or FFmpeg.

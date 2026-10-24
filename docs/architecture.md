@@ -5,17 +5,17 @@
 LayerPeek je **tray-only** aplikace (Windows: oznamovací oblast, macOS: menu bar) bez hlavního okna. Z menu ikony lze otevřít jen pomocná okna (nastavení, diagnostika, kamera).
 
 ```
-┌──────────────────────────── LayerPeek.App (Avalonia) ───────────────────────────┐
+┌───────────────────────────────── LayerPeek.App (Avalonia) ────────────────────────────────┐
 │  TrayIcon + NativeMenu │ ViewModels │ pomocná okna │ platformní služby (notifikace, autostart) │
 └───────────────┬───────────────────────────────────────────────────────────────────────────┘
                 │ DI (composition root)
 ┌───────────────▼──────────────┐   ┌──────────────────────────────┐
-│ LayerPeek.PrusaLink│   │ LayerPeek.PrusaConnect │
+│ LayerPeek.PrusaLink          │   │ LayerPeek.PrusaConnect       │
 │  REST klient (lokální síť)   │   │  cloudový klient             │
 └───────────────┬──────────────┘   └───────────────┬──────────────┘
                 └──────────────┬───────────────────┘
                ┌───────────────▼───────────────┐
-               │   LayerPeek.Core    │
+               │        LayerPeek.Core         │
                │ doménový model, IPrinterClient│
                │ monitoring, detekce událostí  │
                │ abstrakce (INotificationService, ISecretStore…) │
