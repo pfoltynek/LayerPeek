@@ -1,0 +1,966 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MenuQuit" xml:space="preserve">
+    <value>_Beenden</value>
+  </data>
+  <data name="ToolTipStarting" xml:space="preserve">
+    <value>Wird gestartet…</value>
+  </data>
+  <data name="ToolTipNoPrinter" xml:space="preserve">
+    <value>Kein Drucker eingerichtet</value>
+  </data>
+  <data name="ToolTipMonitoringFailed" xml:space="preserve">
+    <value>Überwachung wegen eines Fehlers angehalten</value>
+  </data>
+  <data name="ToolTipStateWithProgress" xml:space="preserve">
+    <value>{0} – {1}</value>
+  </data>
+  <data name="ToolTipProgress" xml:space="preserve">
+    <value>{0} %</value>
+  </data>
+  <data name="ToolTipRemaining" xml:space="preserve">
+    <value>Noch {0}</value>
+  </data>
+  <data name="ToolTipOtherPrinters" xml:space="preserve">
+    <value>Weitere Drucker: {0}</value>
+  </data>
+  <data name="ToolTipLineRemaining" xml:space="preserve">
+    <value>{0}, noch {1}</value>
+  </data>
+  <data name="DurationLessThanMinute" xml:space="preserve">
+    <value>&lt; 1 min</value>
+  </data>
+  <data name="DurationMinutes" xml:space="preserve">
+    <value>{0} min</value>
+  </data>
+  <data name="DurationHoursMinutes" xml:space="preserve">
+    <value>{0} h {1} min</value>
+  </data>
+  <data name="DurationDaysHours" xml:space="preserve">
+    <value>{0} d {1} h</value>
+  </data>
+  <data name="StateConnecting" xml:space="preserve">
+    <value>Verbindung wird hergestellt…</value>
+  </data>
+  <data name="StateIdle" xml:space="preserve">
+    <value>Bereit</value>
+  </data>
+  <data name="StateBusy" xml:space="preserve">
+    <value>Beschäftigt</value>
+  </data>
+  <data name="StatePrinting" xml:space="preserve">
+    <value>Druckt</value>
+  </data>
+  <data name="StatePaused" xml:space="preserve">
+    <value>Pausiert</value>
+  </data>
+  <data name="StateFinished" xml:space="preserve">
+    <value>Fertig</value>
+  </data>
+  <data name="StateStopped" xml:space="preserve">
+    <value>Gestoppt</value>
+  </data>
+  <data name="StateError" xml:space="preserve">
+    <value>Fehler</value>
+  </data>
+  <data name="StateAttention" xml:space="preserve">
+    <value>Eingriff erforderlich</value>
+  </data>
+  <data name="StateOffline" xml:space="preserve">
+    <value>Offline</value>
+  </data>
+  <data name="StateUnauthorized" xml:space="preserve">
+    <value>Ungültige Anmeldedaten</value>
+  </data>
+  <data name="StateUnknown" xml:space="preserve">
+    <value>Unbekannter Zustand</value>
+  </data>
+  <data name="MenuPrinter" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="MenuSettings" xml:space="preserve">
+    <value>_Einstellungen…</value>
+  </data>
+  <data name="MenuDiagnostics" xml:space="preserve">
+    <value>D_iagnose…</value>
+  </data>
+  <data name="MenuAbout" xml:space="preserve">
+    <value>_Über</value>
+  </data>
+  <data name="MenuAddPrinter" xml:space="preserve">
+    <value>_Drucker hinzufügen…</value>
+  </data>
+  <data name="MenuOpenPrusaLink" xml:space="preserve">
+    <value>_PrusaLink öffnen</value>
+  </data>
+  <data name="MenuOpenPrusaConnect" xml:space="preserve">
+    <value>_Prusa Connect öffnen</value>
+  </data>
+  <data name="MenuInvalidAddress" xml:space="preserve">
+    <value>Die Druckeradresse ist ungültig</value>
+  </data>
+  <data name="AboutTitle" xml:space="preserve">
+    <value>Über LayerPeek</value>
+  </data>
+  <data name="AboutVersion" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="AboutSubtitle" xml:space="preserve">
+    <value>für Prusa-Drucker</value>
+  </data>
+  <data name="AboutDescription" xml:space="preserve">
+    <value>Statusanzeige für Prusa 3D-Drucker.</value>
+  </data>
+  <data name="AboutClose" xml:space="preserve">
+    <value>Schließen</value>
+  </data>
+  <data name="AboutDisclaimer" xml:space="preserve">
+    <value>Dies ist kein offizielles Produkt von Prusa Research.</value>
+  </data>
+  <data name="AboutLicense" xml:space="preserve">
+    <value>Lizenz: {0}</value>
+  </data>
+  <data name="AboutRepository" xml:space="preserve">
+    <value>Quellcode auf GitHub</value>
+  </data>
+  <data name="DiagnosticsTitle" xml:space="preserve">
+    <value>Diagnose – LayerPeek</value>
+  </data>
+  <data name="DiagnosticsPrinter" xml:space="preserve">
+    <value>Drucker</value>
+  </data>
+  <data name="DiagnosticsStatus" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="DiagnosticsState" xml:space="preserve">
+    <value>Zustand</value>
+  </data>
+  <data name="DiagnosticsDetail" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="DiagnosticsLastUpdate" xml:space="preserve">
+    <value>Letzte Aktualisierung</value>
+  </data>
+  <data name="DiagnosticsTemperatures" xml:space="preserve">
+    <value>Temperaturen</value>
+  </data>
+  <data name="DiagnosticsActual" xml:space="preserve">
+    <value>Ist</value>
+  </data>
+  <data name="DiagnosticsTarget" xml:space="preserve">
+    <value>Soll</value>
+  </data>
+  <data name="DiagnosticsNozzle" xml:space="preserve">
+    <value>Düse</value>
+  </data>
+  <data name="DiagnosticsBed" xml:space="preserve">
+    <value>Heizbett</value>
+  </data>
+  <data name="DiagnosticsMotionAndFans" xml:space="preserve">
+    <value>Lüfter und Bewegung</value>
+  </data>
+  <data name="DiagnosticsHotendFan" xml:space="preserve">
+    <value>Hotend-Lüfter</value>
+  </data>
+  <data name="DiagnosticsPrintFan" xml:space="preserve">
+    <value>Bauteillüfter</value>
+  </data>
+  <data name="DiagnosticsSpeed" xml:space="preserve">
+    <value>Druckgeschwindigkeit</value>
+  </data>
+  <data name="DiagnosticsFlow" xml:space="preserve">
+    <value>Fluss</value>
+  </data>
+  <data name="DiagnosticsAxisZ" xml:space="preserve">
+    <value>Z-Achse</value>
+  </data>
+  <data name="DiagnosticsTemperatureValue" xml:space="preserve">
+    <value>{0} °C</value>
+  </data>
+  <data name="DiagnosticsHeaterOff" xml:space="preserve">
+    <value>Aus</value>
+  </data>
+  <data name="DiagnosticsRpmValue" xml:space="preserve">
+    <value>{0} U/min</value>
+  </data>
+  <data name="DiagnosticsPercentValue" xml:space="preserve">
+    <value>{0} %</value>
+  </data>
+  <data name="DiagnosticsMillimetreValue" xml:space="preserve">
+    <value>{0} mm</value>
+  </data>
+  <data name="DiagnosticsMissingValue" xml:space="preserve">
+    <value>–</value>
+  </data>
+  <data name="DiagnosticsYes" xml:space="preserve">
+    <value>Ja</value>
+  </data>
+  <data name="DiagnosticsNo" xml:space="preserve">
+    <value>Nein</value>
+  </data>
+  <data name="DiagnosticsChart" xml:space="preserve">
+    <value>Temperaturverlauf</value>
+  </data>
+  <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
+    <value>30 min</value>
+  </data>
+  <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
+    <value>2 h</value>
+  </data>
+  <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
+    <value>24 h</value>
+  </data>
+  <data name="DiagnosticsChartNoData" xml:space="preserve">
+    <value>Keine Temperaturdaten in diesem Zeitraum</value>
+  </data>
+  <data name="DiagnosticsChartTargetLegend" xml:space="preserve">
+    <value>gestrichelt: Soll</value>
+  </data>
+  <data name="DiagnosticsPrinterInfo" xml:space="preserve">
+    <value>Druckerinformationen</value>
+  </data>
+  <data name="DiagnosticsFirmware" xml:space="preserve">
+    <value>Firmware</value>
+  </data>
+  <data name="DiagnosticsModel" xml:space="preserve">
+    <value>Modellcode</value>
+  </data>
+  <data name="DiagnosticsHostname" xml:space="preserve">
+    <value>Hostname</value>
+  </data>
+  <data name="DiagnosticsNozzleDiameter" xml:space="preserve">
+    <value>Düsendurchmesser</value>
+  </data>
+  <data name="DiagnosticsMmu" xml:space="preserve">
+    <value>MMU</value>
+  </data>
+  <data name="DiagnosticsInfoLoading" xml:space="preserve">
+    <value>Wird geladen…</value>
+  </data>
+  <data name="DiagnosticsInfoUnavailable" xml:space="preserve">
+    <value>Konnte nicht gelesen werden: {0}</value>
+  </data>
+  <data name="DiagnosticsProblemInvalidAddress" xml:space="preserve">
+    <value>Die Druckeradresse ist ungültig.</value>
+  </data>
+  <data name="DiagnosticsProblemNotReachable" xml:space="preserve">
+    <value>Der Drucker ist nicht erreichbar.</value>
+  </data>
+  <data name="DiagnosticsProblemPasswordMissing" xml:space="preserve">
+    <value>Der Drucker verlangt ein Passwort (Einstellungen).</value>
+  </data>
+  <data name="DiagnosticsProblemSecureConnection" xml:space="preserve">
+    <value>Die sichere (https-)Verbindung zum Drucker ist fehlgeschlagen.</value>
+  </data>
+  <data name="DiagnosticsInfoNotSupported" xml:space="preserve">
+    <value>Für Prusa Connect nicht verfügbar</value>
+  </data>
+  <data name="DiagnosticsClose" xml:space="preserve">
+    <value>Schließen</value>
+  </data>
+  <data name="SettingsTitle" xml:space="preserve">
+    <value>Einstellungen</value>
+  </data>
+  <data name="SettingsTabPrinters" xml:space="preserve">
+    <value>Drucker</value>
+  </data>
+  <data name="SettingsTabGeneral" xml:space="preserve">
+    <value>Allgemein</value>
+  </data>
+  <data name="SettingsPrinterTabConnection" xml:space="preserve">
+    <value>Drucker</value>
+  </data>
+  <data name="SettingsTabContainsErrors" xml:space="preserve">
+    <value>{0} – enthält Fehler</value>
+  </data>
+  <data name="SettingsAddPrinter" xml:space="preserve">
+    <value>Drucker hinzufügen</value>
+  </data>
+  <data name="SettingsRemovePrinter" xml:space="preserve">
+    <value>Entfernen</value>
+  </data>
+  <data name="SettingsNoPrinters" xml:space="preserve">
+    <value>Es ist kein Drucker eingerichtet. Fügen Sie einen mit „Drucker hinzufügen“ hinzu.</value>
+  </data>
+  <data name="SettingsNewPrinter" xml:space="preserve">
+    <value>Neuer Drucker</value>
+  </data>
+  <data name="SettingsName" xml:space="preserve">
+    <value>Name</value>
+  </data>
+  <data name="SettingsConnectionType" xml:space="preserve">
+    <value>Verbindung</value>
+  </data>
+  <data name="SettingsConnectionPrusaLink" xml:space="preserve">
+    <value>PrusaLink (lokales Netzwerk)</value>
+  </data>
+  <data name="SettingsConnectionPrusaConnect" xml:space="preserve">
+    <value>Prusa Connect (noch nicht verfügbar)</value>
+  </data>
+  <data name="SettingsAddress" xml:space="preserve">
+    <value>Adresse</value>
+  </data>
+  <data name="SettingsAddressHint" xml:space="preserve">
+    <value>IP-Adresse oder Hostname, z. B. 192.168.1.20 oder http://prusa-mk4.local</value>
+  </data>
+  <data name="SettingsUserName" xml:space="preserve">
+    <value>Benutzername</value>
+  </data>
+  <data name="SettingsUserNameHint" xml:space="preserve">
+    <value>PrusaLink-Benutzername aus den Druckereinstellungen. Standard ist „maker“.</value>
+  </data>
+  <data name="SettingsUserNameNotUsed" xml:space="preserve">
+    <value>Prusa Connect verwendet keinen Druckerbenutzernamen.</value>
+  </data>
+  <data name="SettingsPassword" xml:space="preserve">
+    <value>Passwort</value>
+  </data>
+  <data name="SettingsPasswordNewHint" xml:space="preserve">
+    <value>PrusaLink-Passwort aus den Druckereinstellungen.</value>
+  </data>
+  <data name="SettingsPasswordUnchanged" xml:space="preserve">
+    <value>Unverändert</value>
+  </data>
+  <data name="SettingsPasswordNotSet" xml:space="preserve">
+    <value>Nicht festgelegt</value>
+  </data>
+  <data name="SettingsPasswordKeepHint" xml:space="preserve">
+    <value>Leer lassen, um das gespeicherte Passwort zu behalten.</value>
+  </data>
+  <data name="SettingsPasswordUnsupported" xml:space="preserve">
+    <value>Auf diesem System können noch keine Passwörter gespeichert werden. Drucker, die ein Passwort benötigen, melden, dass es fehlt.</value>
+  </data>
+  <data name="SettingsPasswordNotUsed" xml:space="preserve">
+    <value>Prusa Connect verwendet kein Druckerpasswort.</value>
+  </data>
+  <data name="SettingsTestConnection" xml:space="preserve">
+    <value>Verbindung testen</value>
+  </data>
+  <data name="SettingsCancelTest" xml:space="preserve">
+    <value>Test abbrechen</value>
+  </data>
+  <data name="SettingsTesting" xml:space="preserve">
+    <value>Verbindung wird getestet…</value>
+  </data>
+  <data name="SettingsTestSuccess" xml:space="preserve">
+    <value>Die Verbindung funktioniert. Modellcode: {0}, Firmware: {1}.</value>
+  </data>
+  <data name="SettingsTestNotReachable" xml:space="preserve">
+    <value>Der Drucker ist nicht erreichbar. Prüfen Sie die Adresse und ob der Drucker eingeschaltet und mit dem Netzwerk verbunden ist.</value>
+  </data>
+  <data name="SettingsTestTimeout" xml:space="preserve">
+    <value>Der Drucker hat nicht rechtzeitig geantwortet.</value>
+  </data>
+  <data name="SettingsTestSecureConnection" xml:space="preserve">
+    <value>Die sichere Verbindung (https) ist fehlgeschlagen. Versuchen Sie die Adresse mit http:// oder prüfen Sie das Zertifikat des Druckers.</value>
+  </data>
+  <data name="SettingsTestPasswordRejected" xml:space="preserve">
+    <value>Der Drucker hat den Benutzernamen oder das Passwort abgelehnt.</value>
+  </data>
+  <data name="SettingsTestAccessDenied" xml:space="preserve">
+    <value>Der Drucker hat den Zugriff verweigert.</value>
+  </data>
+  <data name="SettingsTestPasswordMissing" xml:space="preserve">
+    <value>Der Drucker benötigt ein Passwort. Geben Sie es oben ein.</value>
+  </data>
+  <data name="SettingsTestPasswordUnavailable" xml:space="preserve">
+    <value>Das gespeicherte Passwort konnte nicht gelesen werden.</value>
+  </data>
+  <data name="SettingsTestUnsupportedAuthentication" xml:space="preserve">
+    <value>Der Drucker verlangt eine nicht unterstützte Anmeldemethode.</value>
+  </data>
+  <data name="SettingsTestUnexpectedResponse" xml:space="preserve">
+    <value>Unter dieser Adresse antwortet etwas, aber es sieht nicht nach einem Drucker mit PrusaLink aus.</value>
+  </data>
+  <data name="SettingsTestNotSupported" xml:space="preserve">
+    <value>Für Prusa Connect ist der Test noch nicht verfügbar.</value>
+  </data>
+  <data name="SettingsTestCancelled" xml:space="preserve">
+    <value>Test abgebrochen.</value>
+  </data>
+  <data name="SettingsTestFailed" xml:space="preserve">
+    <value>Der Test ist unerwartet fehlgeschlagen.</value>
+  </data>
+  <data name="SettingsErrorNameRequired" xml:space="preserve">
+    <value>Geben Sie einen Namen ein.</value>
+  </data>
+  <data name="SettingsErrorNameTooLong" xml:space="preserve">
+    <value>Der Name darf höchstens {0} Zeichen lang sein.</value>
+  </data>
+  <data name="SettingsErrorNameDuplicate" xml:space="preserve">
+    <value>Ein anderer Drucker hat bereits diesen Namen.</value>
+  </data>
+  <data name="SettingsErrorAddressRequired" xml:space="preserve">
+    <value>Geben Sie die Druckeradresse ein.</value>
+  </data>
+  <data name="SettingsErrorAddressInvalid" xml:space="preserve">
+    <value>Geben Sie eine IP-Adresse oder einen Hostnamen ein, optional mit http:// oder https://, Port und Pfad. Benutzername, Passwort, Abfrage (?) und Fragment (#) sind nicht erlaubt.</value>
+  </data>
+  <data name="SettingsErrorUserNameRequired" xml:space="preserve">
+    <value>Geben Sie einen Benutzernamen ein.</value>
+  </data>
+  <data name="SettingsErrorUserNameTooLong" xml:space="preserve">
+    <value>Der Benutzername darf höchstens {0} Zeichen lang sein.</value>
+  </data>
+  <data name="SettingsErrorUserNameControlCharacter" xml:space="preserve">
+    <value>Der Benutzername darf keine Tabulatoren, Zeilenumbrüche oder anderen Steuerzeichen enthalten.</value>
+  </data>
+  <data name="SettingsErrorUserNameColon" xml:space="preserve">
+    <value>Der Benutzername darf keinen Doppelpunkt (:) enthalten.</value>
+  </data>
+  <data name="SettingsErrorUserNameUnsupported" xml:space="preserve">
+    <value>Der Benutzername darf nur Buchstaben ohne diakritische Zeichen, Ziffern und gängige Symbole außer " und \ enthalten.</value>
+  </data>
+  <data name="SettingsErrorPasswordTooLong" xml:space="preserve">
+    <value>Das Passwort ist zu lang (höchstens {0} Bytes in UTF-8).</value>
+  </data>
+  <data name="SettingsErrorPasswordInvalid" xml:space="preserve">
+    <value>Das Passwort enthält Zeichen, die nicht gespeichert werden können.</value>
+  </data>
+  <data name="SettingsPollingInterval" xml:space="preserve">
+    <value>Abfrageintervall (Sekunden)</value>
+  </data>
+  <data name="SettingsPollingIntervalHint" xml:space="preserve">
+    <value>Wie oft die Drucker nach ihrem Zustand gefragt werden.</value>
+  </data>
+  <data name="SettingsErrorPollingInterval" xml:space="preserve">
+    <value>Geben Sie eine Zahl von {0} bis {1} ein.</value>
+  </data>
+  <data name="SettingsNotifications" xml:space="preserve">
+    <value>Benachrichtigungen</value>
+  </data>
+  <data name="SettingsNotificationsEnabled" xml:space="preserve">
+    <value>Benachrichtigungen anzeigen</value>
+  </data>
+  <data name="SettingsNotifyPrintStarted" xml:space="preserve">
+    <value>Druck gestartet</value>
+  </data>
+  <data name="SettingsNotifyPrintFinished" xml:space="preserve">
+    <value>Druck abgeschlossen</value>
+  </data>
+  <data name="SettingsNotifyPrintPaused" xml:space="preserve">
+    <value>Druck pausiert</value>
+  </data>
+  <data name="SettingsNotifyPrintResumed" xml:space="preserve">
+    <value>Druck fortgesetzt</value>
+  </data>
+  <data name="SettingsNotifyPrintStopped" xml:space="preserve">
+    <value>Druck gestoppt (abgebrochen)</value>
+  </data>
+  <data name="SettingsNotifyError" xml:space="preserve">
+    <value>Druckerfehler</value>
+  </data>
+  <data name="SettingsNotifyAttention" xml:space="preserve">
+    <value>Drucker erfordert einen Eingriff (auch abgelehntes Passwort)</value>
+  </data>
+  <data name="SettingsNotifyOffline" xml:space="preserve">
+    <value>Drucker ist offline oder wieder online</value>
+  </data>
+  <data name="SettingsRemainingTime" xml:space="preserve">
+    <value>Benachrichtigen, wenn noch so viele Minuten Druckzeit verbleiben (0 = aus)</value>
+  </data>
+  <data name="SettingsErrorRemainingTime" xml:space="preserve">
+    <value>Geben Sie eine ganze Zahl von 0 bis {0} ein (0 = aus).</value>
+  </data>
+  <data name="SettingsSound" xml:space="preserve">
+    <value>Ton</value>
+  </data>
+  <data name="SettingsSoundOff" xml:space="preserve">
+    <value>Aus</value>
+  </data>
+  <data name="SettingsSoundImportantOnly" xml:space="preserve">
+    <value>Nur wichtige Benachrichtigungen</value>
+  </data>
+  <data name="SettingsSoundAll" xml:space="preserve">
+    <value>Alle Benachrichtigungen</value>
+  </data>
+  <data name="SettingsSave" xml:space="preserve">
+    <value>Speichern</value>
+  </data>
+  <data name="SettingsCancel" xml:space="preserve">
+    <value>Abbrechen</value>
+  </data>
+  <data name="SettingsLoading" xml:space="preserve">
+    <value>Wird geladen…</value>
+  </data>
+  <data name="SettingsSaving" xml:space="preserve">
+    <value>Wird gespeichert…</value>
+  </data>
+  <data name="SettingsFixErrors" xml:space="preserve">
+    <value>Einige Werte sind ungültig. Korrigieren Sie die markierten Felder.</value>
+  </data>
+  <data name="SettingsNoticeCorrupted" xml:space="preserve">
+    <value>Die Einstellungsdatei ist beschädigt. Es werden die Standardeinstellungen angezeigt; beim Speichern wird die Datei ersetzt.</value>
+  </data>
+  <data name="SettingsNoticeUnreadable" xml:space="preserve">
+    <value>Die Einstellungsdatei konnte nicht gelesen werden. Es werden die Standardeinstellungen angezeigt; beim Speichern wird die Datei ersetzt.</value>
+  </data>
+  <data name="SettingsNoticeWarnings" xml:space="preserve">
+    <value>Einige Werte in der Einstellungsdatei waren ungültig und wurden korrigiert oder ausgelassen. Beim Speichern werden die korrigierten Einstellungen geschrieben.</value>
+  </data>
+  <data name="SettingsSaveFailedSettings" xml:space="preserve">
+    <value>Die Einstellungen konnten nicht gespeichert werden. Es wurde nichts geändert.</value>
+  </data>
+  <data name="SettingsSaveFailedPassword" xml:space="preserve">
+    <value>Das Passwort konnte nicht im Anmeldeinformationsspeicher des Systems gespeichert werden. Es wurde nichts geändert.</value>
+  </data>
+  <data name="SettingsSaveRollbackIncomplete" xml:space="preserve">
+    <value>Die Einstellungen konnten nicht gespeichert werden, und ein zuvor gespeichertes Passwort hat sich möglicherweise geändert. Prüfen Sie die Druckerpasswörter.</value>
+  </data>
+  <data name="SettingsSavedPasswordsNotDeleted" xml:space="preserve">
+    <value>Einstellungen gespeichert. Das Passwort eines entfernten Druckers konnte nicht aus dem Anmeldeinformationsspeicher des Systems gelöscht werden.</value>
+  </data>
+  <data name="SettingsLanguage" xml:space="preserve">
+    <value>Sprache</value>
+  </data>
+  <data name="SettingsLanguageSystem" xml:space="preserve">
+    <value>Systemsprache</value>
+  </data>
+  <data name="SettingsLanguageHint" xml:space="preserve">
+    <value>Ändert nur die Texte. Zahlen, Datum und Uhrzeit richten sich immer nach den Regionaleinstellungen des Systems.</value>
+  </data>
+  <data name="SettingsDebugLogging" xml:space="preserve">
+    <value>Ausführliche Protokollierung (Debug)</value>
+  </data>
+  <data name="SettingsDebugLoggingHint" xml:space="preserve">
+    <value>Nur auf Anfrage zur Fehlersuche einschalten. Das Protokoll wächst schneller.</value>
+  </data>
+  <data name="NotificationPrintStarted" xml:space="preserve">
+    <value>Druck gestartet</value>
+  </data>
+  <data name="NotificationPrintFinished" xml:space="preserve">
+    <value>Druck abgeschlossen</value>
+  </data>
+  <data name="NotificationPrintPaused" xml:space="preserve">
+    <value>Druck pausiert</value>
+  </data>
+  <data name="NotificationPrintResumed" xml:space="preserve">
+    <value>Druck fortgesetzt</value>
+  </data>
+  <data name="NotificationPrintStopped" xml:space="preserve">
+    <value>Druck gestoppt</value>
+  </data>
+  <data name="NotificationError" xml:space="preserve">
+    <value>Der Drucker meldet einen Fehler</value>
+  </data>
+  <data name="NotificationAttention" xml:space="preserve">
+    <value>Der Drucker benötigt Ihre Aufmerksamkeit</value>
+  </data>
+  <data name="NotificationCredentialsRejected" xml:space="preserve">
+    <value>Der Drucker hat die Anmeldedaten abgelehnt</value>
+  </data>
+  <data name="NotificationOffline" xml:space="preserve">
+    <value>Der Drucker ist offline</value>
+  </data>
+  <data name="NotificationOnline" xml:space="preserve">
+    <value>Der Drucker ist wieder online</value>
+  </data>
+  <data name="NotificationRemainingTime" xml:space="preserve">
+    <value>Noch {0}</value>
+  </data>
+  <data name="NotificationAlmostFinished" xml:space="preserve">
+    <value>Der Druck ist gleich fertig</value>
+  </data>
+  <data name="NotificationStatusChanged" xml:space="preserve">
+    <value>Der Druckerstatus hat sich geändert</value>
+  </data>
+  <data name="SettingsCamera" xml:space="preserve">
+    <value>Kamera</value>
+  </data>
+  <data name="SettingsCameraEnabled" xml:space="preserve">
+    <value>Kamera verwenden (Eintrag „Kamera anzeigen“ im Menü des Infobereichs)</value>
+  </data>
+  <data name="SettingsCameraUrl" xml:space="preserve">
+    <value>Adresse des RTSP-Streams</value>
+  </data>
+  <data name="SettingsCameraUrlHint" xml:space="preserve">
+    <value>Zum Beispiel rtsp://192.168.0.227/live (Kamera Prusa Buddy3D); der Standardport ist 554. Geben Sie keinen Benutzernamen und kein Passwort an.</value>
+  </data>
+  <data name="SettingsCameraCredentialsRemoved" xml:space="preserve">
+    <value>Benutzername und Passwort wurden aus der gespeicherten Kameraadresse entfernt, da sie nicht in der Einstellungsdatei gespeichert werden dürfen. Prüfen Sie die Adresse und schalten Sie die Kamera wieder ein.</value>
+  </data>
+  <data name="SettingsCameraTest" xml:space="preserve">
+    <value>Kamera testen</value>
+  </data>
+  <data name="SettingsCameraTesting" xml:space="preserve">
+    <value>Warten auf ein Bild der Kamera…</value>
+  </data>
+  <data name="SettingsCameraTestSuccess" xml:space="preserve">
+    <value>Die Kamera funktioniert ({0}&#xA0;×&#xA0;{1}&#xA0;px).</value>
+  </data>
+  <data name="SettingsCameraPreview" xml:space="preserve">
+    <value>Kamerabild aus dem Test</value>
+  </data>
+  <data name="SettingsCameraTestTimeout" xml:space="preserve">
+    <value>Innerhalb von {0} s kam kein Bild von der Kamera.</value>
+  </data>
+  <data name="SettingsCameraTestFailed" xml:space="preserve">
+    <value>Der Kamerastream konnte nicht geöffnet werden: {0}</value>
+  </data>
+  <data name="SettingsCameraTestFailedUnknown" xml:space="preserve">
+    <value>Der Kamerastream konnte nicht geöffnet werden.</value>
+  </data>
+  <data name="SettingsCameraErrorMissing" xml:space="preserve">
+    <value>Geben Sie die Stream-Adresse ein, z. B. rtsp://192.168.0.227/live.</value>
+  </data>
+  <data name="SettingsCameraErrorInvalid" xml:space="preserve">
+    <value>Die Adresse ist ungültig. Verwenden Sie die Form rtsp://adresse/pfad.</value>
+  </data>
+  <data name="SettingsCameraErrorScheme" xml:space="preserve">
+    <value>Es werden nur rtsp://-Adressen unterstützt.</value>
+  </data>
+  <data name="SettingsCameraErrorHost" xml:space="preserve">
+    <value>In der Adresse fehlt der Hostname oder die IP-Adresse.</value>
+  </data>
+  <data name="SettingsCameraErrorCredentials" xml:space="preserve">
+    <value>Die Adresse darf weder Benutzername noch Passwort noch das Zeichen @ enthalten.</value>
+  </data>
+  <data name="MenuShowCamera" xml:space="preserve">
+    <value>_Kamera anzeigen</value>
+  </data>
+  <data name="MenuHideCamera" xml:space="preserve">
+    <value>_Kamera ausblenden</value>
+  </data>
+  <data name="CameraTitle" xml:space="preserve">
+    <value>{0} – Kamera</value>
+  </data>
+  <data name="CameraConnecting" xml:space="preserve">
+    <value>Verbindung zur Kamera wird hergestellt…</value>
+  </data>
+  <data name="CameraNoSignal" xml:space="preserve">
+    <value>Kein Signal</value>
+  </data>
+  <data name="CameraError" xml:space="preserve">
+    <value>Kamerafehler</value>
+  </data>
+  <data name="CameraFullScreen" xml:space="preserve">
+    <value>Vollbild (F11)</value>
+  </data>
+  <data name="CameraMini" xml:space="preserve">
+    <value>Kleine Vorschau, immer im Vordergrund</value>
+  </data>
+  <data name="CameraMiniPlain" xml:space="preserve">
+    <value>Vorschau</value>
+  </data>
+  <data name="CameraNormal" xml:space="preserve">
+    <value>Zurück zum normalen Fenster (Doppelklick)</value>
+  </data>
+  <data name="CameraNormalPlain" xml:space="preserve">
+    <value>Normales Fenster</value>
+  </data>
+  <data name="CameraImageHint" xml:space="preserve">
+    <value>Kamerabild. Doppelklick schaltet das Vollbild um; F11 Vollbild, Esc zurück.</value>
+  </data>
+  <data name="AboutThirdPartyLicenses" xml:space="preserve">
+    <value>Lizenzen von Drittanbietern…</value>
+  </data>
+  <data name="LicensesTitle" xml:space="preserve">
+    <value>Lizenzen von Drittanbietern</value>
+  </data>
+  <data name="LicensesIntro" xml:space="preserve">
+    <value>LayerPeek verwendet die folgenden Open-Source-Komponenten. Klappen Sie einen Eintrag auf, um den vollständigen Lizenztext zu lesen.</value>
+  </data>
+  <data name="LicensesVersion" xml:space="preserve">
+    <value>Version {0}</value>
+  </data>
+  <data name="LicensesLicense" xml:space="preserve">
+    <value>Lizenz: {0}</value>
+  </data>
+  <data name="LicensesProject" xml:space="preserve">
+    <value>Projektseite</value>
+  </data>
+  <data name="LicensesShowText" xml:space="preserve">
+    <value>Lizenztext</value>
+  </data>
+  <data name="LicensesTextUnavailable" xml:space="preserve">
+    <value>Der Lizenztext ist nicht verfügbar.</value>
+  </data>
+  <data name="LicensesFFmpegHeader" xml:space="preserve">
+    <value>FFmpeg (Videodekodierung der Kamera)</value>
+  </data>
+  <data name="LicensesFFmpegLoading" xml:space="preserve">
+    <value>FFmpeg-Bibliotheken werden ermittelt…</value>
+  </data>
+  <data name="LicensesFFmpegMissing" xml:space="preserve">
+    <value>Die FFmpeg-Bibliotheken wurden neben der Anwendung nicht gefunden; die Kamera funktioniert nicht.</value>
+  </data>
+  <data name="LicensesFFmpegNote" xml:space="preserve">
+    <value>FFmpeg ist unter der GNU LGPL Version 3 oder neuer lizenziert. Die Anwendung verwendet einen unveränderten LGPL-Build von BtbN und bindet ihn dynamisch ein: Die DLLs avcodec, avformat, avutil, swscale und swresample neben der Anwendung können durch einen kompatiblen FFmpeg-Build ersetzt werden (gleiche Bibliotheksversionen, z. B. avcodec-63).</value>
+  </data>
+  <data name="LicensesFFmpegSource" xml:space="preserve">
+    <value>Quellcode von FFmpeg</value>
+  </data>
+  <data name="LicensesFFmpegBuild" xml:space="preserve">
+    <value>Verwendeter FFmpeg-Build (BtbN-Release)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
+    <value>Build-Konfiguration und Skripte (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
+    <value>Der Lizenztext von FFmpeg (FFmpeg-LICENSE.txt) wurde neben der Anwendung nicht gefunden. Die GNU LGPL 3.0 ist unter https://www.gnu.org/licenses/lgpl-3.0.html veröffentlicht.</value>
+  </data>
+  <data name="LicensesComponentAspNetCore" xml:space="preserve">
+    <value>Gemeinsames Framework ASP.NET Core (Webserver Kestrel, Microsoft.Extensions; in die Anwendung kompiliert)</value>
+  </data>
+  <data name="LicensesComponentDotNet" xml:space="preserve">
+    <value>.NET-Laufzeit (Native AOT, in die Anwendung kompiliert)</value>
+  </data>
+  <data name="LicensesComponentTmdsDBus" xml:space="preserve">
+    <value>Tmds.DBus.Protocol (nur Linux)</value>
+  </data>
+  <data name="SettingsPrinterTabCameraWindow" xml:space="preserve">
+    <value>Kamerafenster</value>
+  </data>
+  <data name="SettingsCameraWindowCameraOff" xml:space="preserve">
+    <value>Die Kamera ist aus – die Einstellungen gelten nach dem Einschalten.</value>
+  </data>
+  <data name="SettingsCameraWindowRemember" xml:space="preserve">
+    <value>Letzte Position und Größe merken</value>
+  </data>
+  <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
+    <value>Wenn aktiviert, gelten die Werte unten nur, solange keine Position gespeichert ist. Speichern wirkt beim nächsten Öffnen, Übernehmen sofort.</value>
+  </data>
+  <data name="SettingsCameraWindowStartMode" xml:space="preserve">
+    <value>Öffnen als</value>
+  </data>
+  <data name="SettingsCameraWindowStartLast" xml:space="preserve">
+    <value>Wie beim letzten Mal</value>
+  </data>
+  <data name="SettingsCameraWindowStartNormal" xml:space="preserve">
+    <value>Normales Fenster</value>
+  </data>
+  <data name="SettingsCameraWindowStartMini" xml:space="preserve">
+    <value>Mini-Vorschau</value>
+  </data>
+  <data name="SettingsCameraWindowStartFullScreen" xml:space="preserve">
+    <value>Vollbild</value>
+  </data>
+  <data name="SettingsCameraWindowMonitor" xml:space="preserve">
+    <value>Bildschirm</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorPrimary" xml:space="preserve">
+    <value>Hauptbildschirm</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNumbered" xml:space="preserve">
+    <value>Bildschirm {0} – {1} ({2}&#xA0;×&#xA0;{3})</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNumberedUnnamed" xml:space="preserve">
+    <value>Bildschirm {0} ({1}&#xA0;×&#xA0;{2})</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorNotConnected" xml:space="preserve">
+    <value>{0} ({1}&#xA0;×&#xA0;{2}) – nicht angeschlossen</value>
+  </data>
+  <data name="SettingsCameraWindowMonitorGeneric" xml:space="preserve">
+    <value>Bildschirm</value>
+  </data>
+  <data name="SettingsCameraWindowNormal" xml:space="preserve">
+    <value>Normales Fenster</value>
+  </data>
+  <data name="SettingsCameraWindowMini" xml:space="preserve">
+    <value>Mini-Vorschau</value>
+  </data>
+  <data name="SettingsCameraWindowSize" xml:space="preserve">
+    <value>Größe</value>
+  </data>
+  <data name="SettingsCameraWindowPosition" xml:space="preserve">
+    <value>Position</value>
+  </data>
+  <data name="SettingsCameraWindowTopmost" xml:space="preserve">
+    <value>Immer im Vordergrund</value>
+  </data>
+  <data name="SettingsCameraWindowReset" xml:space="preserve">
+    <value>Standard wiederherstellen</value>
+  </data>
+  <data name="SettingsCameraWindowApply" xml:space="preserve">
+    <value>Übernehmen</value>
+  </data>
+  <data name="SettingsSavedConfirmation" xml:space="preserve">
+    <value>Gespeichert</value>
+  </data>
+  <data name="SettingsCameraWindowCornerTopLeft" xml:space="preserve">
+    <value>Oben links</value>
+  </data>
+  <data name="SettingsCameraWindowCornerTopRight" xml:space="preserve">
+    <value>Oben rechts</value>
+  </data>
+  <data name="SettingsCameraWindowCornerBottomLeft" xml:space="preserve">
+    <value>Unten links</value>
+  </data>
+  <data name="SettingsCameraWindowCornerBottomRight" xml:space="preserve">
+    <value>Unten rechts</value>
+  </data>
+  <data name="SettingsCameraWindowCornerCenter" xml:space="preserve">
+    <value>Mitte</value>
+  </data>
+  <data name="SettingsCameraWindowSizeError" xml:space="preserve">
+    <value>Geben Sie eine Breite von {0}–{1} und eine Höhe von {2}–{3} ein.</value>
+  </data>
+  <data name="CameraOverlayLabeledValue" xml:space="preserve">
+    <value>{0}: {1}</value>
+  </data>
+  <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
+    <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayFinishTime" xml:space="preserve">
+    <value>Fertig um {0}</value>
+  </data>
+  <data name="CameraOverlayFinishDateTime" xml:space="preserve">
+    <value>Fertig am {0} um {1}</value>
+  </data>
+  <data name="CameraOverlayPrintTime" xml:space="preserve">
+    <value>Druckzeit: {0}</value>
+  </data>
+  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
+    <value>Einblendung</value>
+  </data>
+  <data name="SettingsOverlayCorner" xml:space="preserve">
+    <value>Ecke der Einblendung</value>
+  </data>
+  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
+    <value>Normales Fenster und Vollbild</value>
+  </data>
+  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
+    <value>Druckername</value>
+  </data>
+  <data name="SettingsOverlayItemState" xml:space="preserve">
+    <value>Druckerstatus</value>
+  </data>
+  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
+    <value>Düsentemperatur</value>
+  </data>
+  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
+    <value>Heizbetttemperatur</value>
+  </data>
+  <data name="SettingsOverlayItemProgress" xml:space="preserve">
+    <value>Fortschritt (%)</value>
+  </data>
+  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
+    <value>Restzeit</value>
+  </data>
+  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
+    <value>Fertigstellung (Uhrzeit)</value>
+  </data>
+  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
+    <value>Druckzeit</value>
+  </data>
+  <data name="SettingsOverlayItemFileName" xml:space="preserve">
+    <value>Dateiname</value>
+  </data>
+  <data name="SettingsOverlayHint" xml:space="preserve">
+    <value>Auftragsdaten (Fortschritt, Zeiten, Dateiname) werden nur während eines Drucks angezeigt. Änderungen gelten nach dem Speichern auch für geöffnete Kamerafenster.</value>
+  </data>
+  <data name="SettingsImageButtonName" xml:space="preserve">
+    <value>Druckerbild: {0}</value>
+  </data>
+  <data name="SettingsImageButtonToolTip" xml:space="preserve">
+    <value>Druckerbild ändern</value>
+  </data>
+  <data name="SettingsImageAutomatic" xml:space="preserve">
+    <value>Automatisch nach Modell ({0})</value>
+  </data>
+  <data name="SettingsImageNotDetected" xml:space="preserve">
+    <value>noch nicht erkannt</value>
+  </data>
+  <data name="SettingsImageGeneric" xml:space="preserve">
+    <value>Allgemeine Abbildung</value>
+  </data>
+  <data name="SettingsImageChooseModel" xml:space="preserve">
+    <value>Modell wählen</value>
+  </data>
+  <data name="SettingsImageCustom" xml:space="preserve">
+    <value>Eigenes Bild…</value>
+  </data>
+  <data name="SettingsImageRemoveCustom" xml:space="preserve">
+    <value>Eigenes Bild entfernen</value>
+  </data>
+  <data name="SettingsImageDescriptionCustom" xml:space="preserve">
+    <value>eigenes Bild</value>
+  </data>
+  <data name="SettingsImageDescriptionGeneric" xml:space="preserve">
+    <value>allgemeine Abbildung</value>
+  </data>
+  <data name="SettingsImageDescriptionDetected" xml:space="preserve">
+    <value>{0} (erkannt)</value>
+  </data>
+  <data name="SettingsImagePickerTitle" xml:space="preserve">
+    <value>Druckerbild auswählen</value>
+  </data>
+  <data name="SettingsImagePickerFilter" xml:space="preserve">
+    <value>Bilder (PNG, JPG)</value>
+  </data>
+  <data name="SettingsImageErrorTooLarge" xml:space="preserve">
+    <value>Das Bild ist größer als {0} MB.</value>
+  </data>
+  <data name="SettingsImageErrorFormat" xml:space="preserve">
+    <value>Nur PNG- und JPG-Bilder können verwendet werden.</value>
+  </data>
+  <data name="SettingsImageErrorUndecodable" xml:space="preserve">
+    <value>Das Bild konnte nicht gelesen werden. Es ist möglicherweise beschädigt oder hat zu viele Pixel.</value>
+  </data>
+  <data name="SettingsImageErrorUnreadable" xml:space="preserve">
+    <value>Die Datei konnte nicht geöffnet werden.</value>
+  </data>
+  <data name="SettingsSavedImageNotStored" xml:space="preserve">
+    <value>Einstellungen gespeichert. Ein Druckerbild konnte nicht gespeichert werden, der Drucker zeigt daher seine Abbildung.</value>
+  </data>
+  <data name="DiagnosticsPrinterImage" xml:space="preserve">
+    <value>Druckerbild</value>
+  </data>
+  <data name="SettingsSavedImageNotStoredPrevious" xml:space="preserve">
+    <value>Einstellungen gespeichert. Ein Druckerbild konnte nicht gespeichert werden, der Drucker zeigt daher sein bisheriges Bild.</value>
+  </data>
+  <data name="SupportHeading" xml:space="preserve">
+    <value>Problem melden</value>
+  </data>
+  <data name="SupportSaveBundle" xml:space="preserve">
+    <value>Diagnosepaket speichern…</value>
+  </data>
+  <data name="SupportSaveBundleTip" xml:space="preserve">
+    <value>Eine ZIP-Datei mit den Protokollen, Versions- und Systeminformationen und den Einstellungen ohne Passwörter und Schlüssel.</value>
+  </data>
+  <data name="SupportOpenLogFolder" xml:space="preserve">
+    <value>Protokollordner öffnen</value>
+  </data>
+  <data name="SupportBundleDialogTitle" xml:space="preserve">
+    <value>Diagnosepaket speichern</value>
+  </data>
+  <data name="SupportBundleFileType" xml:space="preserve">
+    <value>ZIP-Archiv</value>
+  </data>
+  <data name="SupportBundleSaving" xml:space="preserve">
+    <value>Diagnosepaket wird gespeichert…</value>
+  </data>
+  <data name="SupportBundleSaved" xml:space="preserve">
+    <value>Das Diagnosepaket wurde gespeichert.</value>
+  </data>
+  <data name="SupportBundleFailed" xml:space="preserve">
+    <value>Das Diagnosepaket konnte nicht gespeichert werden. Wählen Sie einen anderen Ordner und versuchen Sie es erneut.</value>
+  </data>
+  <data name="SupportLogFolderFailed" xml:space="preserve">
+    <value>Der Protokollordner konnte nicht geöffnet werden.</value>
+  </data>
+  <data name="SupportCopyInfo" xml:space="preserve">
+    <value>Infos in die Zwischenablage kopieren</value>
+  </data>
+  <data name="SupportCopyInfoTip" xml:space="preserve">
+    <value>Version, System, Druckerstatus und die letzten 200 Protokollzeilen als Text, auf Englisch.</value>
+  </data>
+  <data name="SupportCopied" xml:space="preserve">
+    <value>Kopiert</value>
+  </data>
+  <data name="SupportCopyFailed" xml:space="preserve">
+    <value>Die Informationen konnten nicht in die Zwischenablage kopiert werden. Versuchen Sie es erneut.</value>
+  </data>
+</root>

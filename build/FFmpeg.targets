@@ -2,7 +2,7 @@
   <!--
     Native FFmpeg libraries (LGPL shared build by BtbN, pinned release, decided in T-014).
 
-    Imported ONLY by src/PrusaTrayDiagnostic.Camera.FFmpeg. The DLLs are None items with CopyToOutputDirectory and
+    Imported ONLY by src/LayerPeek.Camera.FFmpeg. The DLLs are None items with CopyToOutputDirectory and
     CopyToPublishDirectory, so every project that references the FFmpeg project (App, tests) gets them in its output
     and publish directory transitively. Do not import this file into a referencing project as well: the DLLs would be
     listed twice and publish fails with NETSDK1152 (duplicate output paths).
@@ -14,38 +14,38 @@
     Windows x64 only for now; on other platforms / runtime identifiers nothing happens (macOS: task T-026).
 
     Overridable properties:
-      PtdFFmpegCacheRoot  cache root (default %LOCALAPPDATA%\PrusaTrayDiagnostic.Build\ffmpeg\; also as environment variable)
-      PtdFFmpegEnabled    set to false to skip the native libraries entirely
+      LayerPeekFFmpegCacheRoot  cache root (default %LOCALAPPDATA%\LayerPeek.Build\ffmpeg\; also as environment variable)
+      LayerPeekFFmpegEnabled    set to false to skip the native libraries entirely
   -->
   <PropertyGroup>
-    <PtdFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</PtdFFmpegUrl>
-    <PtdFFmpegSha256>00ab3bc8fe02554bd0fffac9968bba498d1ab7e899a4871b85fbba828a50bfcc</PtdFFmpegSha256>
+    <LayerPeekFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</LayerPeekFFmpegUrl>
+    <LayerPeekFFmpegSha256>00ab3bc8fe02554bd0fffac9968bba498d1ab7e899a4871b85fbba828a50bfcc</LayerPeekFFmpegSha256>
     <!-- Top-level folder inside the archive. -->
-    <PtdFFmpegArchiveFolder>ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0</PtdFFmpegArchiveFolder>
+    <LayerPeekFFmpegArchiveFolder>ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0</LayerPeekFFmpegArchiveFolder>
 
-    <PtdFFmpegEnabled Condition="'$(PtdFFmpegEnabled)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'win-x64')">true</PtdFFmpegEnabled>
-    <PtdFFmpegCacheRoot Condition="'$(PtdFFmpegCacheRoot)' == ''">$(LOCALAPPDATA)\PrusaTrayDiagnostic.Build\ffmpeg\</PtdFFmpegCacheRoot>
+    <LayerPeekFFmpegEnabled Condition="'$(LayerPeekFFmpegEnabled)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'win-x64')">true</LayerPeekFFmpegEnabled>
+    <LayerPeekFFmpegCacheRoot Condition="'$(LayerPeekFFmpegCacheRoot)' == ''">$(LOCALAPPDATA)\LayerPeek.Build\ffmpeg\</LayerPeekFFmpegCacheRoot>
     <!-- Separate property: a global property (/p:) cannot be reassigned. -->
-    <_PtdFFmpegCacheRoot>$([MSBuild]::EnsureTrailingSlash('$(PtdFFmpegCacheRoot)'))</_PtdFFmpegCacheRoot>
+    <_LayerPeekFFmpegCacheRoot>$([MSBuild]::EnsureTrailingSlash('$(LayerPeekFFmpegCacheRoot)'))</_LayerPeekFFmpegCacheRoot>
     <!-- Keyed by the archive hash: a new pinned build never mixes with an old one. -->
-    <PtdFFmpegCacheDir>$(_PtdFFmpegCacheRoot)$(PtdFFmpegSha256)\</PtdFFmpegCacheDir>
-    <_PtdFFmpegMarker>$(PtdFFmpegCacheDir)verified.sha256</_PtdFFmpegMarker>
+    <LayerPeekFFmpegCacheDir>$(_LayerPeekFFmpegCacheRoot)$(LayerPeekFFmpegSha256)\</LayerPeekFFmpegCacheDir>
+    <_LayerPeekFFmpegMarker>$(LayerPeekFFmpegCacheDir)verified.sha256</_LayerPeekFFmpegMarker>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(PtdFFmpegEnabled)' == 'true'">
-    <_PtdFFmpegLibrary Include="avformat-63.dll;avcodec-63.dll;avutil-61.dll;swscale-10.dll;swresample-7.dll" />
+  <ItemGroup Condition="'$(LayerPeekFFmpegEnabled)' == 'true'">
+    <_LayerPeekFFmpegLibrary Include="avformat-63.dll;avcodec-63.dll;avutil-61.dll;swscale-10.dll;swresample-7.dll" />
   </ItemGroup>
 
   <!-- A design-time build (IDE) downloads nothing, so it lists the files only once they are in the cache. -->
-  <ItemGroup Condition="'$(PtdFFmpegEnabled)' == 'true' and ('$(DesignTimeBuild)' != 'true' or Exists('$(_PtdFFmpegMarker)'))">
-    <!-- Paths into the cache; the files exist once PtdAcquireFFmpeg ran (before anything copies them). -->
-    <None Include="@(_PtdFFmpegLibrary->'$(PtdFFmpegCacheDir)bin\%(Identity)')"
+  <ItemGroup Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and ('$(DesignTimeBuild)' != 'true' or Exists('$(_LayerPeekFFmpegMarker)'))">
+    <!-- Paths into the cache; the files exist once LayerPeekAcquireFFmpeg ran (before anything copies them). -->
+    <None Include="@(_LayerPeekFFmpegLibrary->'$(LayerPeekFFmpegCacheDir)bin\%(Identity)')"
           Link="%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest"
           Visible="false" />
     <!-- LGPL: the license text travels with the DLLs. Final placement of the notice is an open question of T-014. -->
-    <None Include="$(PtdFFmpegCacheDir)LICENSE.txt"
+    <None Include="$(LayerPeekFFmpegCacheDir)LICENSE.txt"
           Link="FFmpeg-LICENSE.txt"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest"
@@ -57,68 +57,68 @@
     with the marker and all files. It is assembled in a staging folder (marker written last) and renamed into place in
     one step, so a crashed or concurrent build never leaves a half-filled cache that looks complete.
   -->
-  <Target Name="PtdAcquireFFmpeg"
+  <Target Name="LayerPeekAcquireFFmpeg"
           BeforeTargets="AssignTargetPaths;GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems;CopyFilesToOutputDirectory"
-          Condition="'$(PtdFFmpegEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+          Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <PropertyGroup>
-      <_PtdFFmpegComplete>false</_PtdFFmpegComplete>
-      <_PtdFFmpegComplete Condition="Exists('$(_PtdFFmpegMarker)') and Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll')">true</_PtdFFmpegComplete>
+      <_LayerPeekFFmpegComplete>false</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swresample-7.dll')">true</_LayerPeekFFmpegComplete>
     </PropertyGroup>
 
-    <CallTarget Targets="_PtdDownloadFFmpeg" Condition="'$(_PtdFFmpegComplete)' != 'true'" />
+    <CallTarget Targets="_LayerPeekDownloadFFmpeg" Condition="'$(_LayerPeekFFmpegComplete)' != 'true'" />
   </Target>
 
-  <Target Name="_PtdDownloadFFmpeg">
+  <Target Name="_LayerPeekDownloadFFmpeg">
     <PropertyGroup>
       <!-- Unique per build; the timestamp lets later builds recognise leftovers of crashed builds by their age. -->
-      <_PtdFFmpegWorkDir>$(_PtdFFmpegCacheRoot)tmp-$([System.DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))-$([System.Guid]::NewGuid().ToString('N'))\</_PtdFFmpegWorkDir>
-      <_PtdFFmpegArchive>$(_PtdFFmpegWorkDir)ffmpeg.zip</_PtdFFmpegArchive>
+      <_LayerPeekFFmpegWorkDir>$(_LayerPeekFFmpegCacheRoot)tmp-$([System.DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))-$([System.Guid]::NewGuid().ToString('N'))\</_LayerPeekFFmpegWorkDir>
+      <_LayerPeekFFmpegArchive>$(_LayerPeekFFmpegWorkDir)ffmpeg.zip</_LayerPeekFFmpegArchive>
       <!-- A name that never occurs inside a cache (see the nested-move case below). -->
-      <_PtdFFmpegStagingName>staged-cache</_PtdFFmpegStagingName>
-      <_PtdFFmpegStaging>$(_PtdFFmpegWorkDir)$(_PtdFFmpegStagingName)</_PtdFFmpegStaging>
-      <_PtdFFmpegFinal>$(PtdFFmpegCacheDir.TrimEnd('\'))</_PtdFFmpegFinal>
+      <_LayerPeekFFmpegStagingName>staged-cache</_LayerPeekFFmpegStagingName>
+      <_LayerPeekFFmpegStaging>$(_LayerPeekFFmpegWorkDir)$(_LayerPeekFFmpegStagingName)</_LayerPeekFFmpegStaging>
+      <_LayerPeekFFmpegFinal>$(LayerPeekFFmpegCacheDir.TrimEnd('\'))</_LayerPeekFFmpegFinal>
       <!-- Work folders older than this belong to crashed builds (a download takes minutes, not hours). -->
-      <_PtdFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_PtdFFmpegStaleBefore>
-      <_PtdFFmpegHelp>To fix it: if the pinned release is no longer available, update PtdFFmpegUrl, PtdFFmpegSha256 and PtdFFmpegArchiveFolder in build/FFmpeg.targets to another BtbN LGPL shared win64 build with the same library versions. Or pre-fill the cache by hand: avformat-63.dll, avcodec-63.dll, avutil-61.dll, swscale-10.dll and swresample-7.dll into $(PtdFFmpegCacheDir)bin\, LICENSE.txt and a file verified.sha256 into $(PtdFFmpegCacheDir); or set the property or environment variable PtdFFmpegCacheRoot to a folder that already holds such a cache. See docs/prerequisites.md.</_PtdFFmpegHelp>
+      <_LayerPeekFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_LayerPeekFFmpegStaleBefore>
+      <_LayerPeekFFmpegHelp>To fix it: if the pinned release is no longer available, update LayerPeekFFmpegUrl, LayerPeekFFmpegSha256 and LayerPeekFFmpegArchiveFolder in build/FFmpeg.targets to another BtbN LGPL shared win64 build with the same library versions. Or pre-fill the cache by hand: avformat-63.dll, avcodec-63.dll, avutil-61.dll, swscale-10.dll and swresample-7.dll into $(LayerPeekFFmpegCacheDir)bin\, LICENSE.txt and a file verified.sha256 into $(LayerPeekFFmpegCacheDir); or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
     </PropertyGroup>
 
     <ItemGroup>
-      <_PtdFFmpegWorkDirs Include="$([System.IO.Directory]::GetDirectories('$(_PtdFFmpegCacheRoot)', 'tmp-*'))" Condition="Exists('$(_PtdFFmpegCacheRoot)')" />
+      <_LayerPeekFFmpegWorkDirs Include="$([System.IO.Directory]::GetDirectories('$(_LayerPeekFFmpegCacheRoot)', 'tmp-*'))" Condition="Exists('$(_LayerPeekFFmpegCacheRoot)')" />
       <!-- Creation time from the name ("0" for unknown names, which then count as stale). -->
-      <_PtdFFmpegWorkDirs>
+      <_LayerPeekFFmpegWorkDirs>
         <Stamp>0$([System.Text.RegularExpressions.Regex]::Match('%(Filename)', '(?&lt;=^tmp-)\d{14}').Value)</Stamp>
-      </_PtdFFmpegWorkDirs>
-      <_PtdFFmpegStaleDirs Include="@(_PtdFFmpegWorkDirs)" Condition="'0%(Stamp)' &lt; '0$(_PtdFFmpegStaleBefore)'" />
+      </_LayerPeekFFmpegWorkDirs>
+      <_LayerPeekFFmpegStaleDirs Include="@(_LayerPeekFFmpegWorkDirs)" Condition="'0%(Stamp)' &lt; '0$(_LayerPeekFFmpegStaleBefore)'" />
     </ItemGroup>
-    <RemoveDir Directories="@(_PtdFFmpegStaleDirs)" ContinueOnError="true" />
+    <RemoveDir Directories="@(_LayerPeekFFmpegStaleDirs)" ContinueOnError="true" />
 
-    <Message Importance="high" Text="Downloading FFmpeg (LGPL, ~77 MB) into $(PtdFFmpegCacheDir) ..." />
-    <DownloadFile SourceUrl="$(PtdFFmpegUrl)" DestinationFolder="$(_PtdFFmpegWorkDir)" DestinationFileName="ffmpeg.zip" Retries="3" RetryDelayMilliseconds="2000" ContinueOnError="true" />
-    <Error Condition="!Exists('$(_PtdFFmpegArchive)')"
-           Text="Downloading the FFmpeg libraries from $(PtdFFmpegUrl) failed (see the message above: offline, or the release was removed). $(_PtdFFmpegHelp)" />
+    <Message Importance="high" Text="Downloading FFmpeg (LGPL, ~77 MB) into $(LayerPeekFFmpegCacheDir) ..." />
+    <DownloadFile SourceUrl="$(LayerPeekFFmpegUrl)" DestinationFolder="$(_LayerPeekFFmpegWorkDir)" DestinationFileName="ffmpeg.zip" Retries="3" RetryDelayMilliseconds="2000" ContinueOnError="true" />
+    <Error Condition="!Exists('$(_LayerPeekFFmpegArchive)')"
+           Text="Downloading the FFmpeg libraries from $(LayerPeekFFmpegUrl) failed (see the message above: offline, or the release was removed). $(_LayerPeekFFmpegHelp)" />
 
-    <GetFileHash Files="$(_PtdFFmpegArchive)" Algorithm="SHA256" HashEncoding="hex">
-      <Output TaskParameter="Hash" PropertyName="_PtdFFmpegActualSha256" />
+    <GetFileHash Files="$(_LayerPeekFFmpegArchive)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_LayerPeekFFmpegActualSha256" />
     </GetFileHash>
     <!-- MSBuild compares strings case-insensitively. -->
-    <Error Condition="'$(_PtdFFmpegActualSha256)' != '$(PtdFFmpegSha256)'"
-           Text="FFmpeg archive SHA256 mismatch: expected $(PtdFFmpegSha256), got $(_PtdFFmpegActualSha256). The download was discarded. $(_PtdFFmpegHelp)" />
+    <Error Condition="'$(_LayerPeekFFmpegActualSha256)' != '$(LayerPeekFFmpegSha256)'"
+           Text="FFmpeg archive SHA256 mismatch: expected $(LayerPeekFFmpegSha256), got $(_LayerPeekFFmpegActualSha256). The download was discarded. $(_LayerPeekFFmpegHelp)" />
 
-    <Unzip SourceFiles="$(_PtdFFmpegArchive)" DestinationFolder="$(_PtdFFmpegWorkDir)x" />
+    <Unzip SourceFiles="$(_LayerPeekFFmpegArchive)" DestinationFolder="$(_LayerPeekFFmpegWorkDir)x" />
     <ItemGroup>
-      <_PtdFFmpegExtracted Include="@(_PtdFFmpegLibrary->'$(_PtdFFmpegWorkDir)x\$(PtdFFmpegArchiveFolder)\bin\%(Identity)')" />
+      <_LayerPeekFFmpegExtracted Include="@(_LayerPeekFFmpegLibrary->'$(_LayerPeekFFmpegWorkDir)x\$(LayerPeekFFmpegArchiveFolder)\bin\%(Identity)')" />
     </ItemGroup>
-    <Error Condition="!Exists('%(_PtdFFmpegExtracted.FullPath)')" Text="The FFmpeg archive does not contain %(_PtdFFmpegExtracted.Filename)%(_PtdFFmpegExtracted.Extension). $(_PtdFFmpegHelp)" />
+    <Error Condition="!Exists('%(_LayerPeekFFmpegExtracted.FullPath)')" Text="The FFmpeg archive does not contain %(_LayerPeekFFmpegExtracted.Filename)%(_LayerPeekFFmpegExtracted.Extension). $(_LayerPeekFFmpegHelp)" />
 
     <!-- Staging: the complete cache, marker last. -->
-    <Copy SourceFiles="@(_PtdFFmpegExtracted)" DestinationFolder="$(_PtdFFmpegStaging)\bin" />
-    <Copy SourceFiles="$(_PtdFFmpegWorkDir)x\$(PtdFFmpegArchiveFolder)\LICENSE.txt" DestinationFolder="$(_PtdFFmpegStaging)" />
-    <WriteLinesToFile File="$(_PtdFFmpegStaging)\verified.sha256" Lines="$(PtdFFmpegSha256)" Overwrite="true" />
+    <Copy SourceFiles="@(_LayerPeekFFmpegExtracted)" DestinationFolder="$(_LayerPeekFFmpegStaging)\bin" />
+    <Copy SourceFiles="$(_LayerPeekFFmpegWorkDir)x\$(LayerPeekFFmpegArchiveFolder)\LICENSE.txt" DestinationFolder="$(_LayerPeekFFmpegStaging)" />
+    <WriteLinesToFile File="$(_LayerPeekFFmpegStaging)\verified.sha256" Lines="$(LayerPeekFFmpegSha256)" Overwrite="true" />
 
     <!-- Another build may have finished meanwhile: then its cache is used and this download is discarded. -->
     <PropertyGroup>
-      <_PtdFFmpegComplete>false</_PtdFFmpegComplete>
-      <_PtdFFmpegComplete Condition="Exists('$(_PtdFFmpegMarker)') and Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll')">true</_PtdFFmpegComplete>
+      <_LayerPeekFFmpegComplete>false</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swresample-7.dll')">true</_LayerPeekFFmpegComplete>
     </PropertyGroup>
     <!--
       Putting the cache in place uses only folder renames (atomic on one volume) and never deletes a folder in place:
@@ -129,27 +129,27 @@
         then the nested staging folder (a name that never occurs in a cache) is removed again and the winner stays.
       The final check below accepts whichever complete cache is in place. Windows only for now (macOS, T-026: mv).
     -->
-    <Exec Command="move &quot;$(_PtdFFmpegFinal)&quot; &quot;$(_PtdFFmpegWorkDir)replaced&quot;"
-          Condition="'$(_PtdFFmpegComplete)' != 'true' and Exists('$(_PtdFFmpegFinal)')"
+    <Exec Command="move &quot;$(_LayerPeekFFmpegFinal)&quot; &quot;$(_LayerPeekFFmpegWorkDir)replaced&quot;"
+          Condition="'$(_LayerPeekFFmpegComplete)' != 'true' and Exists('$(_LayerPeekFFmpegFinal)')"
           IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
-    <Exec Command="move &quot;$(_PtdFFmpegStaging)&quot; &quot;$(_PtdFFmpegFinal)&quot;"
-          Condition="'$(_PtdFFmpegComplete)' != 'true'"
+    <Exec Command="move &quot;$(_LayerPeekFFmpegStaging)&quot; &quot;$(_LayerPeekFFmpegFinal)&quot;"
+          Condition="'$(_LayerPeekFFmpegComplete)' != 'true'"
           IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
-    <RemoveDir Directories="$(_PtdFFmpegFinal)\$(_PtdFFmpegStagingName)" Condition="Exists('$(_PtdFFmpegFinal)\$(_PtdFFmpegStagingName)')" ContinueOnError="true" />
+    <RemoveDir Directories="$(_LayerPeekFFmpegFinal)\$(_LayerPeekFFmpegStagingName)" Condition="Exists('$(_LayerPeekFFmpegFinal)\$(_LayerPeekFFmpegStagingName)')" ContinueOnError="true" />
 
     <!-- The rename can lose against a concurrent build; what matters is that a complete cache is in place now. -->
     <PropertyGroup>
-      <_PtdFFmpegComplete>false</_PtdFFmpegComplete>
-      <_PtdFFmpegComplete Condition="Exists('$(_PtdFFmpegMarker)') and Exists('$(PtdFFmpegCacheDir)LICENSE.txt') and Exists('$(PtdFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(PtdFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(PtdFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(PtdFFmpegCacheDir)bin\swresample-7.dll')">true</_PtdFFmpegComplete>
+      <_LayerPeekFFmpegComplete>false</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swresample-7.dll')">true</_LayerPeekFFmpegComplete>
     </PropertyGroup>
-    <Error Condition="'$(_PtdFFmpegComplete)' != 'true'"
-           Text="The verified FFmpeg libraries could not be moved into $(PtdFFmpegCacheDir) (is a file there in use?). $(_PtdFFmpegHelp)" />
+    <Error Condition="'$(_LayerPeekFFmpegComplete)' != 'true'"
+           Text="The verified FFmpeg libraries could not be moved into $(LayerPeekFFmpegCacheDir) (is a file there in use?). $(_LayerPeekFFmpegHelp)" />
 
-    <RemoveDir Directories="$(_PtdFFmpegWorkDir)" ContinueOnError="true" />
-    <OnError ExecuteTargets="_PtdCleanFFmpegWorkDir" />
+    <RemoveDir Directories="$(_LayerPeekFFmpegWorkDir)" ContinueOnError="true" />
+    <OnError ExecuteTargets="_LayerPeekCleanFFmpegWorkDir" />
   </Target>
 
-  <Target Name="_PtdCleanFFmpegWorkDir">
-    <RemoveDir Directories="$(_PtdFFmpegWorkDir)" Condition="'$(_PtdFFmpegWorkDir)' != ''" ContinueOnError="true" />
+  <Target Name="_LayerPeekCleanFFmpegWorkDir">
+    <RemoveDir Directories="$(_LayerPeekFFmpegWorkDir)" Condition="'$(_LayerPeekFFmpegWorkDir)' != ''" ContinueOnError="true" />
   </Target>
 </Project>

@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>
 /// The page at <c>/</c>: a stand-in for the PrusaLink web, e.g. for "Open PrusaLink" through the app's proxy

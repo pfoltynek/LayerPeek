@@ -7,7 +7,7 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <AssemblyName>PrusaSimulator</AssemblyName>
-    <RootNamespace>PrusaTrayDiagnostic.Simulator</RootNamespace>
+    <RootNamespace>LayerPeek.Simulator</RootNamespace>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
@@ -18,6 +18,6 @@
   </ItemGroup>
   <ItemGroup>
     <!-- The recorded Buddy3D clip of T-014 is the default camera loop; linked, not copied. -->
-    <None Include="..\..\tests\PrusaTrayDiagnostic.Camera.FFmpeg.Tests\Fixtures\buddy3d.h264" Link="Clips\buddy3d.h264" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\tests\LayerPeek.Camera.FFmpeg.Tests\Fixtures\buddy3d.h264" Link="Clips\buddy3d.h264" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

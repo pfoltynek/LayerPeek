@@ -370,10 +370,10 @@ function Get-Sha256SumsProblems {
 }
 
 function Get-ArchiveFileName {
-    <# .SYNOPSIS PrusaTrayDiagnostic-<version>-<rid>.zip (Windows) / .tar.gz (macOS). #>
+    <# .SYNOPSIS LayerPeek-<version>-<rid>.zip (Windows) / .tar.gz (macOS). #>
     param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime, $Config = $script:ReleaseRuntimes)
     $extension = if ((Get-RuntimeOs $Runtime $Config) -eq 'windows') { 'zip' } else { 'tar.gz' }
-    "PrusaTrayDiagnostic-$Version-$Runtime.$extension"
+    "LayerPeek-$Version-$Runtime.$extension"
 }
 
 function Get-TarCommand {
@@ -433,7 +433,7 @@ function New-ReleaseArchive {
     elseif ($Destination.EndsWith('.tar.gz', [StringComparison]::OrdinalIgnoreCase)) {
         # tar keeps the Unix permissions (the executable bit of the macOS binary). The file list goes through a
         # temporary file (-T), so that exactly the files of Get-ArchiveFiles are archived.
-        $list = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-tar-list-$([guid]::NewGuid().ToString('N')).txt"
+        $list = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-tar-list-$([guid]::NewGuid().ToString('N')).txt"
         try {
             [System.IO.File]::WriteAllText($list, (($files | ForEach-Object { "./$_" }) -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
             # macOS bsdtar stores extended attributes by default (--mac-metadata, AppleDouble '._*' entries such as the

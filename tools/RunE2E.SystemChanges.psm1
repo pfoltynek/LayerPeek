@@ -1,9 +1,9 @@
 #Requires -Version 7.0
 # Which Windows settings the selected end-to-end tests change, and the warning text of tools/run-e2e.ps1 (T-065, T-066).
 # Every test that changes the system carries one trait SystemChanges=<kind> per kind of change
-# (tests/PrusaTrayDiagnostic.App.E2E.Tests/Infrastructure/SystemChanges.cs, SystemChangeTraits); the warning lists only the
+# (tests/LayerPeek.App.E2E.Tests/Infrastructure/SystemChanges.cs, SystemChangeTraits); the warning lists only the
 # kinds of the selected tests. Kept apart from the script so that the selection is unit-tested
-# (tests/PrusaTrayDiagnostic.App.E2E.Tests/RunE2EScriptTests.cs).
+# (tests/LayerPeek.App.E2E.Tests/RunE2EScriptTests.cs).
 
 Set-StrictMode -Version Latest
 
@@ -37,19 +37,19 @@ $script:Kinds = [ordered]@{
     Toasts        = @{
         Change  = @(
             'silent test toasts in the notification center, a temporary Start menu shortcut',
-            '     "Prusa Tray Diagnostic E2E" and its toast activator under HKCU\Software\Classes\CLSID',
-            '     (a click on a test toast starts the test app) (Windows may keep remembering the app PrusaTrayDiagnostic.E2E',
+            '     "LayerPeek E2E" and its toast activator under HKCU\Software\Classes\CLSID',
+            '     (a click on a test toast starts the test app) (Windows may keep remembering the app LayerPeek.E2E',
             '     in its notification database / Settings > Notifications); notifications of Windows and of',
             '     the test app are switched on for the test if they are off')
         Restore = 'Settings > System > Notifications'
     }
     Credentials   = @{
-        Change  = @('temporary entries PrusaTrayDiagnostic.E2E/... in Credential Manager')
+        Change  = @('temporary entries LayerPeek.E2E/... in Credential Manager')
         Restore = 'Control Panel > Credential Manager > Windows Credentials'
     }
     TestProbe     = @{
-        Change  = @('a test value under HKCU\Software\PrusaTrayDiagnostic.E2E.Tests (self-test of the guard, no Windows setting)')
-        Restore = 'delete the key HKCU\Software\PrusaTrayDiagnostic.E2E.Tests'
+        Change  = @('a test value under HKCU\Software\LayerPeek.E2E.Tests (self-test of the guard, no Windows setting)')
+        Restore = 'delete the key HKCU\Software\LayerPeek.E2E.Tests'
     }
 }
 
@@ -151,4 +151,40 @@ function Get-SystemChangesWarningLines {
     return [string[]] $lines
 }
 
-Export-ModuleMember -Function Get-SystemChangeKindNames, Get-SelectedSystemChanges, Get-SystemChangesWarningLines
+<#
+.SYNOPSIS
+    Checks the restore journal of the app's former name (T-074) under -LocalAppData.
+.DESCRIPTION
+    Before the rename to LayerPeek the journal lived in <LocalAppData>\PrusaTrayDiagnostic.E2E.Restore, and its entries
+    name the test app, shortcut, credentials and registry keys of the former name, which this code no longer knows.
+    Returns nothing when there is no such folder; deletes the folder when it holds no pending change (*.json) and
+    returns nothing; otherwise leaves it alone and returns the lines that tell how to restore it with the last commit
+    of the former name.
+#>
+function Resolve-LegacyRestoreJournal {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $LocalAppData
+    )
+
+    $legacy = Join-Path $LocalAppData 'PrusaTrayDiagnostic.E2E.Restore'
+    if (-not (Test-Path -LiteralPath $legacy -PathType Container)) { return }
+
+    $pending = @(Get-ChildItem -LiteralPath $legacy -Filter '*.json' -File)
+    if ($pending.Count -eq 0) {
+        Remove-Item -LiteralPath $legacy -Recurse -Force
+        return
+    }
+
+    return [string[]] @(
+        "System changes of an E2E run from before the rename to LayerPeek (T-074) are pending: $($pending.Count) change(s) in",
+        "  $legacy",
+        'This code cannot restore them (they name the test app of the former name). Restore them with the last commit',
+        'before the rename (fc2bb11), then run this script again:',
+        '  git worktree add <empty temp folder> fc2bb11',
+        '  pwsh <that folder>/tools/run-e2e.ps1 -RestoreOnly',
+        '  git worktree remove <that folder>',
+        'By hand instead: docs/troubleshooting.md (section on an interrupted E2E run), then delete the folder above.')
+}
+
+Export-ModuleMember -Function Get-SystemChangeKindNames, Get-SelectedSystemChanges, Get-SystemChangesWarningLines, Resolve-LegacyRestoreJournal

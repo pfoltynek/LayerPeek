@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>
 /// Server side of the PrusaLink login as in Buddy firmware 6.x (docs/api/prusalink.md): HTTP Digest per RFC 2069 (MD5, no

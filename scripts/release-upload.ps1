@@ -34,7 +34,7 @@
 .EXAMPLE
     pwsh scripts/release-upload.ps1 -DryRun
     pwsh scripts/release-upload.ps1
-    pwsh scripts/release-upload.ps1 -Repo pfoltynek/PrusaTrayDiagnostic-release-trial -DryRun
+    pwsh scripts/release-upload.ps1 -Repo pfoltynek/LayerPeek-release-trial -DryRun
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -121,10 +121,10 @@ try {
     }
 
     if (-not $release) {
-        $notesFile = Join-Path ([System.IO.Path]::GetTempPath()) "prusatray-release-notes-$([guid]::NewGuid().ToString('N')).md"
+        $notesFile = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-notes-$([guid]::NewGuid().ToString('N')).md"
         [System.IO.File]::WriteAllText($notesFile, $notes + "`n", [System.Text.UTF8Encoding]::new($false))
         $arguments = @('release', 'create', $tag, '--repo', $preflight.Repository, '--draft', '--verify-tag',
-            '--title', "Prusa Tray Diagnostic $version", '--notes-file', $notesFile)
+            '--title', "LayerPeek $version", '--notes-file', $notesFile)
         if ($prerelease) { $arguments += '--prerelease' }
         & gh @arguments @toUpload
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE. Re-run the script: files already uploaded are skipped." }

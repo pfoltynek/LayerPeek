@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for taking the time to report a problem.
-        Please don't report security issues here, see [SECURITY.md](https://github.com/pfoltynek/PrusaTrayDiagnostic/blob/develop/SECURITY.md).
+        Please don't report security issues here, see [SECURITY.md](https://github.com/pfoltynek/LayerPeek/blob/develop/SECURITY.md).
   - type: textarea
     id: what-happened
     attributes:

@@ -206,5 +206,5 @@ Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWe
 
 ## Fixtures pro testy
 
-- `tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/firmware/` – odpovědi sestavené podle kódu firmwaru.
-- `tests/PrusaTrayDiagnostic.PrusaLink.Tests/Fixtures/recorded/<tiskárna>/<stav>/` – skutečné odpovědi nahrané skriptem `tools/record-prusalink-fixtures.ps1`. Skript se zeptá na heslo (skrytě) a anonymizuje sériové číslo. Test `RecordedFixturesTests` je automaticky všechny přehraje.
+- `tests/LayerPeek.PrusaLink.Tests/Fixtures/firmware/` – odpovědi sestavené podle kódu firmwaru.
+- `tests/LayerPeek.PrusaLink.Tests/Fixtures/recorded/<tiskárna>/<stav>/` – skutečné odpovědi nahrané skriptem `tools/record-prusalink-fixtures.ps1`. Skript se zeptá na heslo (skrytě) a anonymizuje sériové číslo. Test `RecordedFixturesTests` je automaticky všechny přehraje.

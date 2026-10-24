@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Tests.Shared;
+namespace LayerPeek.Tests.Shared;
 
 /// <summary>
 /// Files held open like another process that shares nothing (an antivirus scan, a backup, an editor), for tests of the

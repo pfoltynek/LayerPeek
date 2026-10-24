@@ -65,7 +65,7 @@ Smoke test spustí publikovanou aplikaci na 10 s s tvými skutečnými nastaven�
 
 ### 4. Běh na Macu
 
-Stejné příkazy na Macu (Apple Silicon), **až když běh na Windows úspěšně skončil** (souběžné běhy nejsou ošetřené). Vznikne `PrusaTrayDiagnostic-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu. Dokud T-019 nedodá `.app` bundle, obsahuje `.tar.gz` publish složku tak, jak je (bez `.dSYM` a `.pdb`). Na macOS se archiv balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, aby neobsahoval položky AppleDouble `._*`; ověřit při T-019 výpisem `tar -tzf`.
+Stejné příkazy na Macu (Apple Silicon), **až když běh na Windows úspěšně skončil** (souběžné běhy nejsou ošetřené). Vznikne `LayerPeek-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu. Dokud T-019 nedodá `.app` bundle, obsahuje `.tar.gz` publish složku tak, jak je (bez `.dSYM` a `.pdb`). Na macOS se archiv balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, aby neobsahoval položky AppleDouble `._*`; ověřit při T-019 výpisem `tar -tzf`.
 
 ### 5. Kontrola a zveřejnění
 
@@ -82,7 +82,7 @@ pwsh scripts/release-publish.ps1
 ### 6. Ověření staženého souboru
 
 ```powershell
-Get-FileHash .\PrusaTrayDiagnostic-X.Y.Z-win-x64.zip -Algorithm SHA256   # porovnat s SHA256SUMS-windows.txt
+Get-FileHash .\LayerPeek-X.Y.Z-win-x64.zip -Algorithm SHA256   # porovnat s SHA256SUMS-windows.txt
 ```
 
 ```bash
@@ -100,7 +100,7 @@ artifacts/release/<verze>/
   build-info.json       značka sestavení: verze, commit, čistý strom, RID, soubory a jejich SHA256, výsledek smoke testu
 ```
 
-- Archiv: `PrusaTrayDiagnostic-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, zachová spustitelný bit).
+- Archiv: `LayerPeek-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, zachová spustitelný bit).
 - **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
 - Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu.
 - Build zastaví jakékoli varování (`-warnaserror` u `dotnet build` i `dotnet publish`, tedy i trim/AOT varování z ILC). Testy běží v konfiguraci Release.
@@ -175,7 +175,7 @@ T-019 přidá krok pro macOS (`.app` + `.dmg`) a případně změní vstup archi
 
 Poznámky pro navazující kroky:
 
-- **Názvy souborů musí být v rámci jednoho běhu jedinečné** (všechny kroky zapisují do jednoho `dist/`, skript duplicitu odmítne). Velopack (T-017, `docs/velopack.md`) pojmenovává soubory podle kanálu (`releases.<RID>.json`, `RELEASES-<RID>`), ale `Setup.exe` / `Portable.zip` je potřeba při více RID přejmenovat (např. `PrusaTrayDiagnostic-<verze>-<RID>-Setup.exe`).
+- **Názvy souborů musí být v rámci jednoho běhu jedinečné** (všechny kroky zapisují do jednoho `dist/`, skript duplicitu odmítne). Velopack (T-017, `docs/velopack.md`) pojmenovává soubory podle kanálu (`releases.<RID>.json`, `RELEASES-<RID>`), ale `Setup.exe` / `Portable.zip` je potřeba při více RID přejmenovat (např. `LayerPeek-<verze>-<RID>-Setup.exe`).
 - **Poznámky k vydání** pro krok (např. `vpk --releaseNotes`) vrací `Get-ChangelogSection` z `scripts/ReleaseTools/ReleaseTools.psm1`; krok je zapíše do dočasného souboru a ten po sobě smaže.
 - Podpis a notarizace macOS (T-060) nahradí ad-hoc podpis v balicím kroku T-019.
 
@@ -202,7 +202,7 @@ Rozhodovací logika skriptů má testy v Pesteru 5+ (`scripts/ReleaseTools/Relea
 Invoke-Pester scripts/ReleaseTools/ReleaseTools.Tests.ps1 -Output Detailed
 ```
 
-Spouští je i `dotnet test`: projekt `tests/PrusaTrayDiagnostic.Scripts.Tests` (test `ReleaseScriptPesterTestsPass`) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
+Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ReleaseScriptPesterTestsPass`) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
 Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání a kontroly před zveřejněním. Volání `dotnet` a `gh` a samotné skripty `release-*.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
 
@@ -210,16 +210,16 @@ Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md
 
 Celý postup s GitHubem (koncept, nahrání, opakování, zveřejnění) se ověřuje v **dočasném samostatném repozitáři**, ne v hlavním (rozhodnuto 2026-10-21). Upload a publish mají parametr `-Repo <owner/název>`: skript si najde git remote, který na tento repozitář ukazuje, a **stejný remote** použije pro kontrolu tagu a větve `main`. Kontroly i vydání se tak vždy týkají jednoho repozitáře; bez `-Repo` je to `origin`. Když žádný remote na repozitář neukazuje (nebo ukazuje víc), skript to odmítne s příkazem `git remote add`.
 
-Postup (`<owner>` = tvůj účet, název např. `PrusaTrayDiagnostic-release-trial`):
+Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
 
 1. Testovací repozitář (soukromý) a samostatný klon, aby se lokální tagy hlavního repozitáře nemíchaly se zkušebními:
 
    ```powershell
-   gh repo create <owner>/PrusaTrayDiagnostic-release-trial --private
-   git clone https://github.com/pfoltynek/PrusaTrayDiagnostic.git $env:TEMP\ptd-trial
-   cd $env:TEMP\ptd-trial
+   gh repo create <owner>/LayerPeek-release-trial --private
+   git clone https://github.com/pfoltynek/LayerPeek.git $env:TEMP\layerpeek-trial
+   cd $env:TEMP\layerpeek-trial
    git switch feature/T-055-release-scripts     # nebo commit, který se má vyzkoušet
-   git remote add trial https://github.com/<owner>/PrusaTrayDiagnostic-release-trial.git
+   git remote add trial https://github.com/<owner>/LayerPeek-release-trial.git
    ```
 
 2. Commit pro zkoušku: v `CHANGELOG.md` dej sekci verze datum (`## [0.1.0] - 2026-10-21`), commitni, pošli ho jako `main` testovacího repozitáře a otaguj:
@@ -235,8 +235,8 @@ Postup (`<owner>` = tvůj účet, název např. `PrusaTrayDiagnostic-release-tri
 
    ```powershell
    pwsh scripts/release-build.ps1
-   pwsh scripts/release-upload.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -DryRun
-   pwsh scripts/release-upload.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial
+   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun
+   pwsh scripts/release-upload.ps1 -Repo <owner>/LayerPeek-release-trial
    ```
 
    Kontrola: na GitHubu je koncept `v0.1.0` označený jako předběžný, s poznámkami z `CHANGELOG.md`, se zipem a `SHA256SUMS-windows.txt`.
@@ -247,13 +247,13 @@ Postup (`<owner>` = tvůj účet, název např. `PrusaTrayDiagnostic-release-tri
    - **přerušené nahrání:** během uploadu ukonči skript (Ctrl+C). Zjisti, v jakém stavu soubor na GitHubu zůstal (`gh release view v0.1.0 --repo … --json assets` – `state`, `digest`), že ho další běh bez `-Force` odmítne a s `-Force` přepíše, a že `release-publish.ps1` nedokončený soubor nezveřejní;
    - **souběžné vytvoření:** dva běhy `release-upload.ps1` spuštěné současně (např. dva klony s různým RID, nebo Windows a Mac) – vznikne jeden koncept, nebo dva? Výsledek zapsat sem a do T-055.
 
-5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -DryRun` bez `-AllowIncomplete` musí odmítnout chybějící `SHA256SUMS-macos.txt`. Pak `pwsh scripts/release-publish.ps1 -Repo <owner>/PrusaTrayDiagnostic-release-trial -AllowIncomplete` a kontrola na GitHubu (zveřejněné, stále předběžné).
+5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun` bez `-AllowIncomplete` musí odmítnout chybějící `SHA256SUMS-macos.txt`. Pak `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -AllowIncomplete` a kontrola na GitHubu (zveřejněné, stále předběžné).
 
 6. Úklid:
 
    ```powershell
-   gh repo delete <owner>/PrusaTrayDiagnostic-release-trial --yes   # potřebuje oprávnění: gh auth refresh -s delete_repo
-   cd ..; Remove-Item -Recurse -Force $env:TEMP\ptd-trial
+   gh repo delete <owner>/LayerPeek-release-trial --yes   # potřebuje oprávnění: gh auth refresh -s delete_repo
+   cd ..; Remove-Item -Recurse -Force $env:TEMP\layerpeek-trial
    ```
 
 Hlavní repozitář se při zkoušce nemění (žádný tag, žádné vydání, `origin` se jen čte při klonování).

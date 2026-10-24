@@ -1,8 +1,8 @@
 using System.Globalization;
 
-using PrusaTrayDiagnostic.Simulator.Printers;
+using LayerPeek.Simulator.Printers;
 
-namespace PrusaTrayDiagnostic.Simulator;
+namespace LayerPeek.Simulator;
 
 /// <summary>The commands typed while the simulator runs (see <see cref="SimulatorOptions.Usage"/>).</summary>
 public static class ConsoleCommands

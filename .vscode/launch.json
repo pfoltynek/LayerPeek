@@ -2,13 +2,13 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "PrusaTrayDiagnostic (tray app)",
+      "name": "LayerPeek (tray app)",
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/PrusaTrayDiagnostic.App/bin/Debug/net11.0/PrusaTrayDiagnostic.dll",
+      "program": "${workspaceFolder}/src/LayerPeek.App/bin/Debug/net11.0/LayerPeek.dll",
       "args": [],
-      "cwd": "${workspaceFolder}/src/PrusaTrayDiagnostic.App",
+      "cwd": "${workspaceFolder}/src/LayerPeek.App",
       "console": "internalConsole",
       "stopAtEntry": false
     }

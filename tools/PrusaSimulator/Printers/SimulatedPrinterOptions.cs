@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace PrusaTrayDiagnostic.Simulator.Printers;
+namespace LayerPeek.Simulator.Printers;
 
 /// <summary>How a printer that is offline treats requests.</summary>
 public enum OfflineMode

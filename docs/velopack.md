@@ -9,7 +9,7 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
 - **Windows (T-017): Velopack ano, s podmínkami níže. Uživatel doporučení přijal 2026-10-21 (včetně závislosti na skryté volbě `--aumid`), WiX se nepoužije.** Všechny body, které šly ověřit pokusem, prošly: AOT publish bez varování, instalace bez admin práv, hooky před kontrolou jediné instance, aktualizace se zachováním cesty exe i `ToastActivatorCLSID` v zástupci, čtení GitHub Releases bez tokenu a úklid při odinstalaci.
   Podmínky:
   1. `VelopackApp.Build()…Run()` musí být první příkaz v `Main`, před `SingleInstanceGuard` (T-043).
-  2. Balit s `--aumid PrusaTrayDiagnostic` (skrytá volba `vpk`, viz bod 4), `--packTitle "Prusa Tray Diagnostic"` a `--shortcuts StartMenuRoot` (jen Start menu, bez plochy, rozhodnuto 2026-10-21).
+  2. Balit s `--aumid LayerPeek` (skrytá volba `vpk`, viz bod 4), `--packTitle "LayerPeek"` a `--shortcuts StartMenuRoot` (jen Start menu, bez plochy, rozhodnuto 2026-10-21).
   3. `ToastActivatorCLSID` do zástupce a registraci COM aktivátoru zapisuje aplikace (v hooku `--veloapp-install` a při startu). Úklid registrace, klíče notifikací a historie toastů dělá hook `--veloapp-uninstall`.
   4. Kontrola aktualizací musí chytat výjimky. Dokud je repozitář soukromý, končí `HttpRequestException` 404.
   5. Kanály podle RID: `--channel win-x64` a `--channel win-arm64`.
@@ -40,61 +40,61 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
 ### 2. Balení AOT výstupu (P)
 - Příkaz (ověřený):
   ```
-  dotnet vpk pack --packId PrusaTrayDiagnostic --packVersion 0.1.0 --packDir <publish win-x64> \
-    --mainExe PrusaTrayDiagnostic.exe --packTitle "Prusa Tray Diagnostic" --packAuthors "<autor>" \
-    --shortcuts StartMenuRoot --aumid PrusaTrayDiagnostic --icon src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.ico \
+  dotnet vpk pack --packId LayerPeek --packVersion 0.1.0 --packDir <publish win-x64> \
+    --mainExe LayerPeek.exe --packTitle "LayerPeek" --packAuthors "<autor>" \
+    --shortcuts StartMenuRoot --aumid LayerPeek --icon src/LayerPeek.App/Assets/AppIcon/app-icon.ico \
     --channel win-x64 -r win-x64 -o <výstup>
   ```
 - Výstup pro `0.1.0`:
 
   | Soubor | Velikost |
   |---|---|
-  | `PrusaTrayDiagnostic-win-x64-Setup.exe` | 84 MB |
-  | `PrusaTrayDiagnostic-0.1.0-win-x64-full.nupkg` | 76 MB |
-  | `PrusaTrayDiagnostic-win-x64-Portable.zip` | 76 MB |
+  | `LayerPeek-win-x64-Setup.exe` | 84 MB |
+  | `LayerPeek-0.1.0-win-x64-full.nupkg` | 76 MB |
+  | `LayerPeek-win-x64-Portable.zip` | 76 MB |
   | `releases.win-x64.json`, `assets.win-x64.json`, `RELEASES-win-x64` | < 1 kB |
 
   Publish složka bez `.pdb` má 179 MB, hlavně FFmpeg.
-- Nativní DLL (FFmpeg `avcodec-63.dll`…, `libSkiaSharp.dll`, `libHarfBuzzSharp.dll`, `av_libglesv2.dll`) a `FFmpeg-LICENSE.txt` jdou do balíčku beze změny. `.pdb` vynechá výchozí `--exclude .*\.pdb`. Balíček navíc obsahuje `Squirrel.exe` (= `Update.exe`, 5 MB) a spouštěcí stub `Prusa Tray Diagnostic.exe` (0,5 MB).
+- Nativní DLL (FFmpeg `avcodec-63.dll`…, `libSkiaSharp.dll`, `libHarfBuzzSharp.dll`, `av_libglesv2.dll`) a `FFmpeg-LICENSE.txt` jdou do balíčku beze změny. `.pdb` vynechá výchozí `--exclude .*\.pdb`. Balíček navíc obsahuje `Squirrel.exe` (= `Update.exe`, 5 MB) a spouštěcí stub `LayerPeek.exe` (0,5 MB).
 - Delta balíčky vznikají, jen když je ve výstupní složce předchozí plný `.nupkg`. 0.1.1 → 0.1.2 (změněné exe) mělo deltu 5,6 MB proti 76 MB. Klient deltu skutečně použil.
 - `vpk` nekontroluje, že architektura exe odpovídá `-r`: x64 binárky zabalené s `-r win-arm64` prošly bez varování. Skript musí předat správný RID.
 
 ### 3. Instalace pro jednoho uživatele (P)
-- `Setup.exe` instaluje bez UAC do `%LocalAppData%\PrusaTrayDiagnostic\` (`Update.exe`, stub `Prusa Tray Diagnostic.exe`, `current\`, `packages\`), zapíše `HKCU\…\Uninstall\PrusaTrayDiagnostic` (položka v Nastavení → Aplikace, `QuietUninstallString` = `Update.exe --uninstall --silent`) a spustí aplikaci.
-- Cesta exe: `%LocalAppData%\PrusaTrayDiagnostic\current\PrusaTrayDiagnostic.exe`. **Zůstala stejná po dvou aktualizacích** (0.1.0 → 0.1.1 → 0.1.2), protože se vyměňuje obsah složky `current`. `AppShortcutRegistration` (T-010) proto zástupce po aktualizaci nepřepisuje. Windows ukládá i nastavení ikony v oznamovací oblasti podle cesty exe (`HKCU\Control Panel\NotifyIconSettings`), takže volba „vždy zobrazit“ aktualizaci přežije.
-- **Kolize složky:** `%LocalAppData%\<packId>` patří Velopacku. Odinstalace ji celou smaže. Když složka při instalaci není prázdná, `Setup.exe` zobrazí dialog „přepsat/opravit“. Aplikace tam proto nesmí ukládat vlastní data. Dnes je nastavení v `%APPDATA%\PrusaTrayDiagnostic` (Roaming), což je v pořádku. **T-024 (logy „v AppData“) nesmí použít `%LocalAppData%\PrusaTrayDiagnostic`.**
+- `Setup.exe` instaluje bez UAC do `%LocalAppData%\LayerPeek\` (`Update.exe`, stub `LayerPeek.exe`, `current\`, `packages\`), zapíše `HKCU\…\Uninstall\LayerPeek` (položka v Nastavení → Aplikace, `QuietUninstallString` = `Update.exe --uninstall --silent`) a spustí aplikaci.
+- Cesta exe: `%LocalAppData%\LayerPeek\current\LayerPeek.exe`. **Zůstala stejná po dvou aktualizacích** (0.1.0 → 0.1.1 → 0.1.2), protože se vyměňuje obsah složky `current`. `AppShortcutRegistration` (T-010) proto zástupce po aktualizaci nepřepisuje. Windows ukládá i nastavení ikony v oznamovací oblasti podle cesty exe (`HKCU\Control Panel\NotifyIconSettings`), takže volba „vždy zobrazit“ aktualizaci přežije.
+- **Kolize složky:** `%LocalAppData%\<packId>` patří Velopacku. Odinstalace ji celou smaže. Když složka při instalaci není prázdná, `Setup.exe` zobrazí dialog „přepsat/opravit“. Aplikace tam proto nesmí ukládat vlastní data. Dnes je nastavení v `%APPDATA%\LayerPeek` (Roaming), což je v pořádku. **T-024 (logy „v AppData“) nesmí použít `%LocalAppData%\LayerPeek`.**
 
 ### 4. Zástupce ve Start menu, AppUserModelID a `ToastActivatorCLSID` (P)
-- Velopack pojmenuje zástupce podle `--packTitle`, takže vznikne `Prusa Tray Diagnostic.lnk` v kořeni Start menu (`--shortcuts StartMenuRoot`). AUMID nastaví z `--aumid` (ověřeno: `AUMID=PrusaTrayDiagnostic`, cíl `current\PrusaTrayDiagnostic.exe`, pracovní složka `current`). Bez `--aumid` použije `velopack.PrusaTrayDiagnostic` ([WindowsPackCommandRunner.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/vpk/Velopack.Packaging.Windows/Commands/WindowsPackCommandRunner.cs)). **`--aumid` je v `vpk` 1.2.161 skrytá volba** (`SetHidden`, vypíše ji jen `vpk pack -H`). Dokumentace o ní mlčí, takže se může změnit. Uživatel tuto závislost přijal (2026-10-21).
-- `VelopackApp.Run()` nastaví procesu AUMID z manifestu (`shortcutAumid`, jinak `velopack.<packId>`). S `--aumid PrusaTrayDiagnostic` je stejný jako ten z `WindowsAppIdentity`. Lze ho nastavit i přes `VelopackApp.SetAppUserModelId(...)`.
+- Velopack pojmenuje zástupce podle `--packTitle`, takže vznikne `LayerPeek.lnk` v kořeni Start menu (`--shortcuts StartMenuRoot`). AUMID nastaví z `--aumid` (ověřeno: `AUMID=LayerPeek`, cíl `current\LayerPeek.exe`, pracovní složka `current`). Bez `--aumid` použije `velopack.LayerPeek` ([WindowsPackCommandRunner.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/vpk/Velopack.Packaging.Windows/Commands/WindowsPackCommandRunner.cs)). **`--aumid` je v `vpk` 1.2.161 skrytá volba** (`SetHidden`, vypíše ji jen `vpk pack -H`). Dokumentace o ní mlčí, takže se může změnit. Uživatel tuto závislost přijal (2026-10-21).
+- `VelopackApp.Run()` nastaví procesu AUMID z manifestu (`shortcutAumid`, jinak `velopack.<packId>`). S `--aumid LayerPeek` je stejný jako ten z `WindowsAppIdentity`. Lze ho nastavit i přes `VelopackApp.SetAppUserModelId(...)`.
 - **`ToastActivatorCLSID` Velopack nastavit neumí.** Nemá volbu v `vpk` a veřejné C# API pro zástupce v 1.2.161 obsahuje jen část `Velopack.Windows.ShellLink`, kterou dokumentace označuje jako „legacy“ bez záruky stability.
 - **Co Velopack se zástupci dělá** ([shortcuts.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/windows/shortcuts.rs)):
   - Při instalaci vytvoří zástupce. **Existující soubor se stejným názvem bez dotazu přepíše** (ověřeno).
-  - Při **aktualizaci** najde všechny `.lnk` na ploše, ve Startup, ve Start menu (rekurzivně) a v připnutých položkách, jejichž cíl vede do instalační složky (tedy i zástupce vytvořené aplikací). Přepíše jim ikonu a AUMID na hodnotu z manifestu. Ostatní vlastnosti nechá. **Pokus:** `ToastActivatorCLSID` zapsaný do zástupce po instalaci zůstal po aktualizaci zachovaný a AUMID zůstal `PrusaTrayDiagnostic`. Bez `--aumid` by aktualizace AUMID přepsala na `velopack.PrusaTrayDiagnostic` a aplikace by ho opravila až při dalším startu.
+  - Při **aktualizaci** najde všechny `.lnk` na ploše, ve Startup, ve Start menu (rekurzivně) a v připnutých položkách, jejichž cíl vede do instalační složky (tedy i zástupce vytvořené aplikací). Přepíše jim ikonu a AUMID na hodnotu z manifestu. Ostatní vlastnosti nechá. **Pokus:** `ToastActivatorCLSID` zapsaný do zástupce po instalaci zůstal po aktualizaci zachovaný a AUMID zůstal `LayerPeek`. Bez `--aumid` by aktualizace AUMID přepsala na `velopack.LayerPeek` a aplikace by ho opravila až při dalším startu.
   - Zástupce, které uživatel smazal, Velopack při aktualizaci znovu nevytvoří.
   - Při **odinstalaci** smaže všechny zástupce s cílem v instalační složce, i ty, které vytvořila aplikace (ověřeno ve variantě `--shortcuts None`).
 - **Varianta `--shortcuts None` (P):** aplikace si zástupce vytvoří při prvním startu (`Setup.exe` aplikaci po instalaci spustí). Odinstalace ho přesto smaže. Funguje, ale po tiché instalaci (`--silent`) aplikace nenaběhne a zástupce chybí, dokud ho nevytvoří hook `--veloapp-install`.
-- **Doporučená varianta:** zástupce ve Start menu vytváří Velopack (`--shortcuts StartMenuRoot --aumid PrusaTrayDiagnostic --packTitle "Prusa Tray Diagnostic"`). Aplikace (`AppShortcutRegistration`, rozšířená v T-017) při startu a v hooku `--veloapp-install` doplní nebo opraví `ToastActivatorCLSID` a AUMID. Důvody: zástupce existuje hned po instalaci i po tiché instalaci, Velopack ho udržuje a uklízí a jeho jméno i AUMID jsou stejné jako u zástupce aplikace (žádná kolize, jde o tentýž soubor). Kontrola v aplikaci zůstává jako pojistka.
+- **Doporučená varianta:** zástupce ve Start menu vytváří Velopack (`--shortcuts StartMenuRoot --aumid LayerPeek --packTitle "LayerPeek"`). Aplikace (`AppShortcutRegistration`, rozšířená v T-017) při startu a v hooku `--veloapp-install` doplní nebo opraví `ToastActivatorCLSID` a AUMID. Důvody: zástupce existuje hned po instalaci i po tiché instalaci, Velopack ho udržuje a uklízí a jeho jméno i AUMID jsou stejné jako u zástupce aplikace (žádná kolize, jde o tentýž soubor). Kontrola v aplikaci zůstává jako pojistka.
 - **Okrajový případ:** když uživatel spustí i aplikaci z `.zip` (T-055), přepíše zástupce na cestu ze `.zip`. Velopack takového zástupce při aktualizaci ani odinstalaci nenajde, protože jeho cíl vede mimo instalační složku.
 
 ### 5. Hooky a odinstalace (P)
 - **Pořadí v `Setup.exe`** ([install.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/commands/install.rs)): rozbalení → zástupci → hook `--veloapp-install` (limit 30 s) → klíč Uninstall → start aplikace s `VELOPACK_FIRSTRUN`. Když hook selže nebo vyprší, `Setup.exe` zobrazí varování a instalace pokračuje. Hooky nejdou použít ke zrušení operace a nesmí zobrazovat UI ([dokumentace hooků](https://docs.velopack.io/integrating/hooks)).
 - **Aktualizace** ([apply_windows_impl.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/commands/apply_windows_impl.rs)): `--veloapp-obsolete` na staré verzi (15 s) → **násilné ukončení** všech procesů z instalační složky → výměna `current` → `--veloapp-updated` na nové verzi (15 s) → úprava zástupců → restart s `VELOPACK_RESTART`.
-- **Odinstalace** ([uninstall.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/commands/uninstall.rs)): **násilné ukončení běžící aplikace** → `--veloapp-uninstall` (v kódu limit 60 s, dokumentace uvádí 30 s) → smazání zástupců → smazání `%LocalAppData%\PrusaTrayDiagnostic` a `%TEMP%\velopack_PrusaTrayDiagnostic` → smazání klíče Uninstall.
+- **Odinstalace** ([uninstall.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/commands/uninstall.rs)): **násilné ukončení běžící aplikace** → `--veloapp-uninstall` (v kódu limit 60 s, dokumentace uvádí 30 s) → smazání zástupců → smazání `%LocalAppData%\LayerPeek` a `%TEMP%\velopack_LayerPeek` → smazání klíče Uninstall.
 - **Jediná instance (T-043):** pokus s `VelopackApp.Run()` jako prvním příkazem v `Main`: hooky (`--veloapp-install`, `--veloapp-uninstall`) spuštěné **při běžící primární instanci** proběhly, skončily s kódem 0 za 20–190 ms a nic nepředaly běžící instanci. Normální druhé spuštění skončilo jako sekundární instance. Hook spuštěný instalátorem trval 91 ms.
-- **Úklid v hooku `--veloapp-uninstall` (P):** hook smazal testovací klíč v `HKCU` přes `Microsoft.Win32.Registry` (AOT bez problému). Stejně jde smazat `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic`, registraci COM aktivátoru (`HKCU\Software\Classes\CLSID\{…}`) a autostart v `Run`. Skutečný klíč notifikací uživatele se v pokusu nemazal. **Historie toastů** (`ToastNotificationManager.History.Clear("PrusaTrayDiagnostic")`) potřebuje v aplikaci nový WinRT interop (`History`), dnes ho nemá. Patří do T-017.
+- **Úklid v hooku `--veloapp-uninstall` (P):** hook smazal testovací klíč v `HKCU` přes `Microsoft.Win32.Registry` (AOT bez problému). Stejně jde smazat `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\LayerPeek`, registraci COM aktivátoru (`HKCU\Software\Classes\CLSID\{…}`) a autostart v `Run`. Skutečný klíč notifikací uživatele se v pokusu nemazal. **Historie toastů** (`ToastNotificationManager.History.Clear("LayerPeek")`) potřebuje v aplikaci nový WinRT interop (`History`), dnes ho nemá. Patří do T-017.
 - **Omezení:**
   - Při aktualizaci i odinstalaci Velopack běžící aplikaci zabije. Aplikace nestihne uložit stav a ikona v oznamovací oblasti může zůstat viset, dokud nad ni uživatel nenajede myší. Aktualizaci proto má spouštět sama primární instance (`ApplyUpdatesAndRestart` až po uložení stavu).
-  - Velopack si vede log v `%LocalAppData%\velopack\velopack_PrusaTrayDiagnostic.log`. **Odinstalace ho nesmaže** (ověřeno) a hook to nevyřeší, protože `Update.exe` do logu zapisuje i po hooku.
+  - Velopack si vede log v `%LocalAppData%\velopack\velopack_LayerPeek.log`. **Odinstalace ho nesmaže** (ověřeno) a hook to nevyřeší, protože `Update.exe` do logu zapisuje i po hooku.
   - Windows si samo pamatuje spuštěné programy (`MuiCache`, `AppListBackup` Start menu, `NotifyIconSettings`). To dělá u každé aplikace a Velopack to neuklízí.
-  - Nastavení v `%APPDATA%\PrusaTrayDiagnostic` a hesla v Credential Manager Velopack neodstraní a hook je mazat nebude: odinstalace je ponechá a uklidí jen systémové registrace (klíč notifikací, COM aktivátor, autostart, historie toastů; rozhodnuto 2026-10-21).
+  - Nastavení v `%APPDATA%\LayerPeek` a hesla v Credential Manager Velopack neodstraní a hook je mazat nebude: odinstalace je ponechá a uklidí jen systémové registrace (klíč notifikací, COM aktivátor, autostart, historie toastů; rozhodnuto 2026-10-21).
 
 ### 6. Autostart (D)
 - `--shortcuts Startup` vytvoří při instalaci zástupce ve složce Startup s AUMID a odinstalace ho smaže. Když ho uživatel smaže, aktualizace ho znovu nevytvoří ([shortcuts.rs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/bins/src/windows/shortcuts.rs), [dokumentace zástupců](https://docs.velopack.io/integrating/shortcuts)).
 - **Volitelný autostart v nastavení** (otázka T-017): Velopack sám přepínač nenabízí. Aplikace by si spravovala vlastní zástupce ve Startup (Velopack ho při odinstalaci smaže sám, protože cíl vede do instalační složky) nebo hodnotu `Run` v registru (tu musí smazat hook `--veloapp-uninstall`). `--shortcuts Startup` se hodí jen pro „autostart vždy po instalaci“.
 
 ### 7. Aktualizace z GitHub Releases (D + P bez tokenu)
-- `new UpdateManager(new GithubSource("https://github.com/pfoltynek/PrusaTrayDiagnostic", accessToken: null, prerelease: true))`. Kanál se bere z nainstalovaného manifestu (`win-x64`) a hledá se soubor `releases.win-x64.json` ([GitBase.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/lib-csharp/Sources/GitBase.cs), [GithubSource.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/lib-csharp/Sources/GithubSource.cs)).
+- `new UpdateManager(new GithubSource("https://github.com/pfoltynek/LayerPeek", accessToken: null, prerelease: true))`. Kanál se bere z nainstalovaného manifestu (`win-x64`) a hledá se soubor `releases.win-x64.json` ([GitBase.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/lib-csharp/Sources/GitBase.cs), [GithubSource.cs](https://github.com/velopack/velopack/blob/92d6a1c91716729d449034df5c50307dcce39493/src/lib-csharp/Sources/GithubSource.cs)).
 - **Pokus, soukromý repozitář bez tokenu:** `CheckForUpdatesAsync` vyhodí `System.Net.Http.HttpRequestException` (404). Výjimka je zachytitelná, aplikace nespadne a token nepotřebuje. Implementace v T-017 ji musí zachytit a brát jako „aktualizace nejsou k dispozici“.
 - **Pokus, veřejný repozitář bez tokenu:** v AOT binárce proti cizímu veřejnému repozitáři s feedem Velopacku (`tgeorgiadis/quiver-launcher`) `GithubSource` načetl seznam vydání a feed a našel verzi 3.5.1. Anonymní přístup a deserializace v AOT fungují. Kontrola stáhla jen feed, nic se neinstalovalo. Feed s jiným kanálem (`releases.win-x64.json` tam není) vedl ke stavu „žádná aktualizace“ bez chyby.
 - **Předběžná vydání:** verze `0.x` jsou na GitHubu označené `--prerelease` (T-055). S `prerelease: false` by klient během `0.x` nenašel žádnou aktualizaci. Proto je potřeba `prerelease: true`, viz otevřená otázka.
@@ -106,20 +106,20 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
   - Integrita aktualizace se ověřuje jen SHA256/SHA1 z feedu. Velopack nemá vlastní podpis balíčků ([#975](https://github.com/velopack/velopack/issues/975)).
 
 ### 8. `win-arm64` (D + částečně P)
-- Každý RID má mít vlastní kanál ([Channels](https://docs.velopack.io/packaging/channels): „every unique os/rid has its own channel“). Pokus `--channel win-arm64 -r win-arm64` (s x64 binárkami, jen kvůli názvům) dal soubory `PrusaTrayDiagnostic-0.1.2-win-arm64-full.nupkg`, `PrusaTrayDiagnostic-win-arm64-Setup.exe`, `PrusaTrayDiagnostic-win-arm64-Portable.zip`, `releases.win-arm64.json`, `assets.win-arm64.json` a `RELEASES-win-arm64`. **Názvy se s `win-x64` nekryjí**, oba RID můžou být ve stejném GitHub vydání. `RELEASES` bez přípony vzniká jen pro výchozí kanál `win`, který nepoužijeme.
+- Každý RID má mít vlastní kanál ([Channels](https://docs.velopack.io/packaging/channels): „every unique os/rid has its own channel“). Pokus `--channel win-arm64 -r win-arm64` (s x64 binárkami, jen kvůli názvům) dal soubory `LayerPeek-0.1.2-win-arm64-full.nupkg`, `LayerPeek-win-arm64-Setup.exe`, `LayerPeek-win-arm64-Portable.zip`, `releases.win-arm64.json`, `assets.win-arm64.json` a `RELEASES-win-arm64`. **Názvy se s `win-x64` nekryjí**, oba RID můžou být ve stejném GitHub vydání. `RELEASES` bez přípony vzniká jen pro výchozí kanál `win`, který nepoužijeme.
 - `Setup.exe` a `Update.exe` pro `win-arm64` jsou nativní ARM64 binárky (hlavička PE `0xAA64`).
 - AOT publish `win-arm64` jsem neověřoval. Na tomto PC chybí MSVC ARM64 build tools a FFmpeg pro ARM64 řeší T-057. Spuštění na ARM64 nejde ověřit, uživatel nemá zařízení. Ověření AOT publish a `vpk pack` nad skutečným výstupem `win-arm64` řeší T-063, instalaci a spuštění na zařízení ARM64 T-057.
-- Pojmenování: názvy souborů Velopacku jsou pevné. T-055 navrhuje `PrusaTrayDiagnostic-<verze>-<RID>.zip`. `Setup.exe` jde po zabalení přejmenovat (např. `PrusaTrayDiagnostic-<verze>-<RID>-Setup.exe`), protože ho feed nepotřebuje. `*.nupkg` a `releases.*.json` se přejmenovat **nesmí**.
+- Pojmenování: názvy souborů Velopacku jsou pevné. T-055 navrhuje `LayerPeek-<verze>-<RID>.zip`. `Setup.exe` jde po zabalení přejmenovat (např. `LayerPeek-<verze>-<RID>-Setup.exe`), protože ho feed nepotřebuje. `*.nupkg` a `releases.*.json` se přejmenovat **nesmí**.
 
 ### 9. Nepodepsané binárky (P částečně, D)
 - `vpk pack` bez parametrů podpisu jen varuje („No signing parameters provided, 11 file(s) will not be signed“) a balíček vytvoří.
 - **Aktualizace bez podpisu fungují** (ověřeno 2×). Kontroluje se jen hash z feedu. Velopack stahuje přes `HttpClient`, takže stažené balíčky by neměly mít značku Mark-of-the-Web a SmartScreen se u aktualizací neozve. To je odvozené z kódu, pokusem neověřené.
-- **SmartScreen u `Setup.exe` se značkou Mark-of-the-Web (ověřeno ručně 2026-10-21, uživatel):** nepodepsaný `PrusaTrayDiagnostic-win-x64-Setup.exe` (`vpk` 1.2.161, AOT publish win-x64) dostal ručně datový proud `Zone.Identifier` se `ZoneId=3` (zóna Internet, `HostUrl` na GitHub Releases). Po dvojkliku v Průzkumníku se ukázal dialog „Systém Windows ochránil váš počítač“ jen s tlačítkem „Nespouštět“. Po „Další informace“ se zobrazil „Vydavatel: Neznámý vydavatel“ a tlačítko „Přesto spustit“, které spustí instalaci bez UAC. Odpovídá to [dokumentaci](https://docs.velopack.io/packaging/signing) („likely to be flagged“). Uživatelé to musí vědět předem: popsat v README a v poznámkách k vydání (T-017).
+- **SmartScreen u `Setup.exe` se značkou Mark-of-the-Web (ověřeno ručně 2026-10-21, uživatel):** nepodepsaný `LayerPeek-win-x64-Setup.exe` (`vpk` 1.2.161, AOT publish win-x64) dostal ručně datový proud `Zone.Identifier` se `ZoneId=3` (zóna Internet, `HostUrl` na GitHub Releases). Po dvojkliku v Průzkumníku se ukázal dialog „Systém Windows ochránil váš počítač“ jen s tlačítkem „Nespouštět“. Po „Další informace“ se zobrazil „Vydavatel: Neznámý vydavatel“ a tlačítko „Přesto spustit“, které spustí instalaci bez UAC. Odpovídá to [dokumentaci](https://docs.velopack.io/packaging/signing) („likely to be flagged“). Uživatelé to musí vědět předem: popsat v README a v poznámkách k vydání (T-017).
   - **Neověřeno:** skutečné stažení z GitHubu prohlížečem. Edge (SmartScreen pro stahování) může už stažení nepodepsaného exe s malou reputací označit jako „neběžně stahovaný soubor“ a vyžádat potvrzení „Ponechat“. Ověřit při prvním skutečném vydání (T-017).
   - **Vedlejší zjištění téhož pokusu** (instalace proběhla omylem několikrát, aplikace bez `VelopackApp.Build().Run()` v `Main`):
     - Hook `--veloapp-install` skončil po 30 s vypršením a zabitím aplikace. Hook `--veloapp-uninstall` čekal 60 s a pak aplikaci také zabil. Instalace i odinstalace přesto doběhly. Potvrzuje to, že `VelopackApp.Build().Run()` musí být první v `Main` (bod 1), jinak se instalace a odinstalace zdrží o 30, resp. 60 s.
-    - Odinstalace smazala složku, zástupce i klíč `Uninstall`. Zůstaly `%LocalAppData%\velopack\velopack.log` (log `Setup.exe`) a `velopack_PrusaTrayDiagnostic.log` (otevřená otázka v T-056). Zůstaly i záznamy, které vytváří sám Windows při spuštění exe: `MuiCache`, `AppListBackup`, `FeatureUsage\AppSwitched`, `NotifyIconSettings` a `AppCompatFlags\Compatibility Assistant\Store`. Ty po odinstalaci zůstávají u každé aplikace a odinstalace je mazat nemusí.
-    - Úklid po pokusu: všechny uvedené záznamy (po exportu) a logy smazány, `%APPDATA%\PrusaTrayDiagnostic` beze změny. Vývojový zástupce ve Start menu před pokusem neexistoval (log `Setup.exe`: „Will update all current shortcuts: []“), nebylo co obnovovat.
+    - Odinstalace smazala složku, zástupce i klíč `Uninstall`. Zůstaly `%LocalAppData%\velopack\velopack.log` (log `Setup.exe`) a `velopack_LayerPeek.log` (otevřená otázka v T-056). Zůstaly i záznamy, které vytváří sám Windows při spuštění exe: `MuiCache`, `AppListBackup`, `FeatureUsage\AppSwitched`, `NotifyIconSettings` a `AppCompatFlags\Compatibility Assistant\Store`. Ty po odinstalaci zůstávají u každé aplikace a odinstalace je mazat nemusí.
+    - Úklid po pokusu: všechny uvedené záznamy (po exportu) a logy smazány, `%APPDATA%\LayerPeek` beze změny. Vývojový zástupce ve Start menu před pokusem neexistoval (log `Setup.exe`: „Will update all current shortcuts: []“), nebylo co obnovovat.
 
 ### 10. macOS pro T-019 (D, neověřeno)
 Ověření pokusem na Macu je součástí T-019, výsledek se zapíše sem.
@@ -142,9 +142,9 @@ Balicí krok „Velopack“ pro každý Windows RID v bodu rozšíření T-055 (
 
 ```
 dotnet tool restore                                   # vpk z .config/dotnet-tools.json (připnutá verze)
-dotnet vpk pack -u PrusaTrayDiagnostic -v <Version z Directory.Build.props> -p <publish/RID> -e PrusaTrayDiagnostic.exe \
-  --packTitle "Prusa Tray Diagnostic" --packAuthors "<autor>" --aumid PrusaTrayDiagnostic --shortcuts StartMenuRoot \
-  --icon src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.ico --channel <RID> -r <RID> \
+dotnet vpk pack -u LayerPeek -v <Version z Directory.Build.props> -p <publish/RID> -e LayerPeek.exe \
+  --packTitle "LayerPeek" --packAuthors "<autor>" --aumid LayerPeek --shortcuts StartMenuRoot \
+  --icon src/LayerPeek.App/Assets/AppIcon/app-icon.ico --channel <RID> -r <RID> \
   --releaseNotes <úsek CHANGELOG.md pro verzi> --delta None --noPortable -o <dočasná složka>
 → do výstupní složky zkopírovat: *-full.nupkg, releases.<RID>.json, assets.<RID>.json, RELEASES-<RID>, Setup.exe (případně přejmenovaný)
 ```
@@ -162,18 +162,18 @@ dotnet vpk pack -u PrusaTrayDiagnostic -v <Version z Directory.Build.props> -p <
 
 - **Kde:** kopie repozitáře (`git archive HEAD`) v `%TEMP%\ptdvelo` s lokálním manifestem nástrojů (`vpk` nebyl instalován globálně). Pracovní strom větve `feature/T-056-velopack-spike` zůstal beze změny kódu.
 - **Pokusy:** instalace 0.1.0 (`--shortcuts StartMenuRoot`) → ruční spuštění hooků při běžící aplikaci → zápis `ToastActivatorCLSID` → aktualizace 0.1.1 (delta) a 0.1.2 (delta) přes `UpdateManager` → kontrola GitHub (soukromý i veřejný repozitář) → tichá odinstalace. Pak varianta `--shortcuts None`: instalace 0.1.2 → zástupce od aplikace → tichá odinstalace.
-- **Záloha před pokusem:** zástupce `Prusa Tray Diagnostic.lnk` (vývojový, zálohovaný po bajtech), export klíče `Notifications\Settings\PrusaTrayDiagnostic` a počet toastů aplikace (0).
+- **Záloha před pokusem:** zástupce `LayerPeek.lnk` (vývojový, zálohovaný po bajtech), export klíče `Notifications\Settings\LayerPeek` a počet toastů aplikace (0).
 - **Ověření úklidu:**
-  - neexistuje `%LocalAppData%\PrusaTrayDiagnostic`, `%LocalAppData%\velopack`, `%TEMP%\velopack`, `%TEMP%\velopack_PrusaTrayDiagnostic`, `%TEMP%\ptdvelo`;
-  - neexistuje klíč `HKCU\…\Uninstall\PrusaTrayDiagnostic` ani testovací klíč;
-  - `reg query HKCU /f` na `AppData\Local\PrusaTrayDiagnostic`, `ptdvelo` a `velopack` nenašel nic. Záznamy, které Windows vytvořilo při spouštění (`MuiCache`, `AppListBackup`, `NotifyIconSettings`), jsem smazal až po exportu;
+  - neexistuje `%LocalAppData%\LayerPeek`, `%LocalAppData%\velopack`, `%TEMP%\velopack`, `%TEMP%\velopack_LayerPeek`, `%TEMP%\ptdvelo`;
+  - neexistuje klíč `HKCU\…\Uninstall\LayerPeek` ani testovací klíč;
+  - `reg query HKCU /f` na `AppData\Local\LayerPeek`, `ptdvelo` a `velopack` nenašel nic. Záznamy, které Windows vytvořilo při spouštění (`MuiCache`, `AppListBackup`, `NotifyIconSettings`), jsem smazal až po exportu;
   - klíč notifikací je shodný se zálohou;
   - historie toastů je prázdná (0);
-  - `%APPDATA%\PrusaTrayDiagnostic` se nezměnil;
+  - `%APPDATA%\LayerPeek` se nezměnil;
   - na ploše ani ve Startup nic nezůstalo;
   - balíčky `velopack`/`vpk` jsem smazal z cache NuGet i nástrojů;
   - neběží žádný proces aplikace.
-- **Zástupce ve Start menu:** Velopack při instalaci vývojového zástupce přepsal (bod 4). Po pokusech jsem ho obnovil ze zálohy (shodný SHA256). Později ale zmizel. Pravděpodobně ho smazal souběžný běh `scripts/aot-smoke.ps1` jiného agenta (worktree `PTD-release`), který zástupce zálohuje a obnovuje stejně. To jsem neověřil. Pokus o opětovné vytvoření zamítlo oprávnění. Vývojový zástupce (cíl `D:\00-Source\PTD-logsec-b\…\bin\Debug\net11.0\PrusaTrayDiagnostic.exe`, AUMID `PrusaTrayDiagnostic`) se znovu vytvoří při příštím spuštění aplikace (`AppShortcutRegistration`).
+- **Zástupce ve Start menu:** Velopack při instalaci vývojového zástupce přepsal (bod 4). Po pokusech jsem ho obnovil ze zálohy (shodný SHA256). Později ale zmizel. Pravděpodobně ho smazal souběžný běh `scripts/aot-smoke.ps1` jiného agenta (worktree `PTD-release`), který zástupce zálohuje a obnovuje stejně. To jsem neověřil. Pokus o opětovné vytvoření zamítlo oprávnění. Vývojový zástupce (cíl `D:\00-Source\PTD-logsec-b\…\bin\Debug\net11.0\LayerPeek.exe`, AUMID `LayerPeek`) se znovu vytvoří při příštím spuštění aplikace (`AppShortcutRegistration`).
 
 ## Zdroje
 

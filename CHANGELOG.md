@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 First public preview. Windows x64 only, PrusaLink only, builds are not code-signed and there is no installer yet.
 
+The project was called *Prusa Tray Diagnostic* (`PrusaTrayDiagnostic`) during development and was renamed to
+LayerPeek before this first release, so that the name does not start with the Prusa trademark. No earlier version was
+released, so the app does not migrate anything; developers who ran the old builds can use the one-time script
+`tools/migrate-from-prusatraydiagnostic.ps1`.
+
 ### Added
 
 - Tray-only app for Windows: the tray icon shows the printer state and print progress, and the tooltip shows the
@@ -55,5 +60,5 @@ First public preview. Windows x64 only, PrusaLink only, builds are not code-sign
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/PrusaTrayDiagnostic/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/pfoltynek/PrusaTrayDiagnostic/releases/tag/v0.1.0
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/pfoltynek/LayerPeek/releases/tag/v0.1.0

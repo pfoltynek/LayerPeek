@@ -14,7 +14,7 @@ Implementovat `IPrinterClient` nad cloudovým Prusa Connect podle [docs/api/prus
 > **Blokováno:** Prusa Connect nemá oficiální API pro uživatelské aplikace (T-004). Implementovat až poté, co uživatel odpoví na otázky níže. Kritéria jsou napsaná pro doporučenou variantu A (webové API `https://connect.prusa3d.com/app/...`). Při jiné odpovědi je architekt upraví.
 
 ## Rozsah
-- Projekt `PrusaTrayDiagnostic.PrusaConnect`: HTTP klient, DTO, `JsonSerializerContext` a mapování na doménu.
+- Projekt `LayerPeek.PrusaConnect`: HTTP klient, DTO, `JsonSerializerContext` a mapování na doménu.
 - Správa tokenů Prusa Account:
   - obnova access tokenu přes `grant_type=refresh_token` na `https://account.prusa3d.com/o/token/`;
   - uložení rotovaného refresh tokenu;
@@ -38,7 +38,7 @@ Implementovat `IPrinterClient` nad cloudovým Prusa Connect podle [docs/api/prus
 - [ ] Výměna autorizačního kódu (PKCE S256: `code_verifier` → `code_challenge`) má test s pevně daným verifierem a očekávaným challenge.
 - [ ] JSON jen přes zdrojově generovaný `JsonSerializerContext`. JWT payload (`exp`) se čte bez knihovny třetí strany. Žádný nový NuGet balíček (případný nový balíček musí mít ověřenou AOT/trim kompatibilitu a být uvedený v poznámkách).
 - [ ] `HttpClient` přes `IHttpClientFactory`. Base URL Connectu a Prusa Account jsou konfigurovatelné kvůli testům.
-- [ ] Testy s JSON fixtures v `tests/PrusaTrayDiagnostic.PrusaConnect.Tests/Fixtures/*.json`, bez reálné sítě. Fixtures pocházejí ze skutečných odpovědí účtu uživatele a jsou anonymizované (UUID, sériová čísla, IP, MAC, jména, tokeny). Dokud je uživatel nedodá, vycházejí z komunitní specifikace a v poznámkách je to výslovně uvedeno.
+- [ ] Testy s JSON fixtures v `tests/LayerPeek.PrusaConnect.Tests/Fixtures/*.json`, bez reálné sítě. Fixtures pocházejí ze skutečných odpovědí účtu uživatele a jsou anonymizované (UUID, sériová čísla, IP, MAC, jména, tokeny). Dokud je uživatel nedodá, vycházejí z komunitní specifikace a v poznámkách je to výslovně uvedeno.
 - [ ] `docs/api/prusa-connect.md` aktualizováno podle skutečně ověřených odpovědí.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 

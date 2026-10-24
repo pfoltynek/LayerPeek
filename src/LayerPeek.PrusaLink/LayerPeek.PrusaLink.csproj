@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <!--
+      Kestrel for the local web proxy (T-028) and Microsoft.Extensions.Http/Logging/DependencyInjection come from the
+      shared ASP.NET Core framework (no NuGet package; explicit Microsoft.Extensions.* package references would be NU1510).
+    -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="LayerPeek.PrusaLink.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" />
+  </ItemGroup>
+</Project>

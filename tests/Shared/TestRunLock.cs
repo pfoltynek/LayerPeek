@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Tests.Shared;
+namespace LayerPeek.Tests.Shared;
 
 /// <summary>
 /// Cross-process lock that serializes concurrent runs of one test assembly (e.g. IDE test explorer and CLI),

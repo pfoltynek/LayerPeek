@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace PrusaTrayDiagnostic.Simulator.Camera;
+namespace LayerPeek.Simulator.Camera;
 
 /// <summary>Settings of a <see cref="RtspCamera"/>.</summary>
 public sealed record RtspCameraOptions

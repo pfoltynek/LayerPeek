@@ -116,7 +116,7 @@ Zdroj: veřejně dostupná OpenAPI 3.1 na [`https://connect-mobile-api.prusa3d.c
 ## Omezení pro náš klient
 
 - **Native AOT:** HTTP přes `IHttpClientFactory`, JSON jen přes zdrojově generovaný `JsonSerializerContext`. JWT nevalidujeme, jen z něj čteme `exp`. Stačí base64url dekódování payloadu a zdrojově generované DTO, žádná knihovna navíc. PKCE (`RandomNumberGenerator` + `SHA256`) je v BCL. Kvůli tomu není potřeba žádný NuGet balíček.
-- **Testy:** fixtures `tests/PrusaTrayDiagnostic.PrusaConnect.Tests/Fixtures/*.json` a falešný `HttpMessageHandler`, bez sítě. Tvar JSON zatím známe jen z komunitní specifikace. Skutečné odpovědi musí nahrát uživatel ze svého účtu a anonymizovat je (UUID, sériová čísla, IP, MAC, jména, tokeny).
+- **Testy:** fixtures `tests/LayerPeek.PrusaConnect.Tests/Fixtures/*.json` a falešný `HttpMessageHandler`, bez sítě. Tvar JSON zatím známe jen z komunitní specifikace. Skutečné odpovědi musí nahrát uživatel ze svého účtu a anonymizovat je (UUID, sériová čísla, IP, MAC, jména, tokeny).
 - **Tajné údaje a limit Windows Credential Manageru 2560 B:**
   - Skutečnou velikost tokenů jsme bez účtu nezměřili.
   - Nepřímý důkaz: PrusaSlicer ukládá `access_token|refresh_token|shared_session_key|timeout|pid` jako **jeden** tajný údaj (`UserAccountTokenStore.cpp`, na Windows přes `wxSecretStore`, tedy Credential Manager). To naznačuje, že se obvyklé tokeny do 2560 B vejdou (odvozeno, neověřeno).

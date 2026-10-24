@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Tests.Shared;
+namespace LayerPeek.Tests.Shared;
 
 /// <summary>
 /// Clock for retry tests without real waiting: every timer (i.e. every <c>Task.Delay</c> the code under test starts) is

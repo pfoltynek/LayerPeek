@@ -1,4 +1,4 @@
-namespace PrusaTrayDiagnostic.Tests.Allocation;
+namespace LayerPeek.Tests.Allocation;
 
 /// <summary>
 /// Collection of the zero-allocation tests. It runs without any other test in parallel: allocations and GCs on other

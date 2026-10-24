@@ -3,7 +3,7 @@ using System.Globalization;
 using System.Net.Sockets;
 using System.Text;
 
-namespace PrusaTrayDiagnostic.Simulator.Tests;
+namespace LayerPeek.Simulator.Tests;
 
 /// <summary>
 /// A bare RTSP client (TCP interleaved) that exposes the RTP packets exactly as the camera sends them, independently of

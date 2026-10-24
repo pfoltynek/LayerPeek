@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.svg" alt="Prusa Tray Diagnostic icon" width="112" height="112">
+  <img src="src/LayerPeek.App/Assets/AppIcon/app-icon.svg" alt="LayerPeek icon" width="112" height="112">
 </p>
 
-<h1 align="center">Prusa Tray Diagnostic</h1>
+<h1 align="center">LayerPeek</h1>
+<p align="center"><i>for Prusa printers</i></p>
 
 <p align="center">
   <b>Watch your Prusa printers live, right from the system tray.</b><br>
@@ -10,18 +11,18 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><b>Download</b></a> ·
+  <a href="https://github.com/pfoltynek/LayerPeek/releases"><b>Download</b></a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#features">Features</a> ·
   <a href="README.cz.md">Česky</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/PrusaTrayDiagnostic?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platform: Windows 10/11">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/PrusaTrayDiagnostic?style=social" alt="GitHub stars"></a>
+  <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="GitHub stars"></a>
 </p>
 
 <!--
@@ -38,7 +39,7 @@
 You start a 9-hour print and go back to work. Is the first layer sticking? Did the spool tangle? How long is left?
 Normally you walk to the printer, or open a browser tab and keep reloading it.
 
-**Prusa Tray Diagnostic** puts the answer one glance away. The tray icon shows the state and progress of every
+**LayerPeek** puts the answer one glance away. The tray icon shows the state and progress of every
 printer. A click opens a **live camera window** with the print progress, temperatures and the finish time on top of the
 picture. When something happens, a **system notification** tells you right away: print finished, printer needs
 attention, error, printer offline.
@@ -132,7 +133,7 @@ Any Prusa printer with **Buddy firmware 6.x and PrusaLink**:
 | Original Prusa MK3 / MK3S (8-bit firmware) | ❌ the printer has no built-in PrusaLink |
 
 All printers with Buddy firmware 6.x share the same PrusaLink API. Do you run the app with another model? Please
-[let us know](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues) whether it works, so we can mark it as tested.
+[let us know](https://github.com/pfoltynek/LayerPeek/issues) whether it works, so we can mark it as tested.
 
 The camera is optional. Without it you still get the tray icon, notifications and diagnostics. The camera has to
 provide an **RTSP H.264** stream reachable from your computer, for example the Prusa Buddy3D camera or most IP
@@ -148,8 +149,8 @@ cameras.
 
 ### 1. Download
 
-Get the latest build from the [Releases](https://github.com/pfoltynek/PrusaTrayDiagnostic/releases) page, unpack the
-ZIP anywhere and run `PrusaTrayDiagnostic.exe`.
+Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page, unpack the
+ZIP anywhere and run `LayerPeek.exe`.
 
 > [!IMPORTANT]
 > Versions 0.x are **previews**. Settings may change between versions, and there is no installer or automatic update
@@ -188,9 +189,9 @@ submenu.
 
 | What | Where (Windows) |
 |---|---|
-| Settings | `%APPDATA%\PrusaTrayDiagnostic\settings.json` |
+| Settings | `%APPDATA%\LayerPeek\settings.json` |
 | Passwords | Windows Credential Manager |
-| Logs | `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` |
+| Logs | `%LOCALAPPDATA%\LayerPeek\logs` |
 
 The temperature history is kept only in memory and is never written to disk. The app makes no connections except to
 the printers and cameras you add.
@@ -206,7 +207,7 @@ the printers and cameras you add.
 - MMU3 status
 - Prusa Connect (cloud) as an optional second source for printers outside your network
 
-Have an idea? [Open an issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues).
+Have an idea? [Open an issue](https://github.com/pfoltynek/LayerPeek/issues).
 
 ## FAQ
 
@@ -240,12 +241,12 @@ See [docs/prerequisites.md](docs/prerequisites.md) for details (in Czech).
 ### Build, test, run
 
 ```bash
-git clone https://github.com/pfoltynek/PrusaTrayDiagnostic.git
-cd PrusaTrayDiagnostic
+git clone https://github.com/pfoltynek/LayerPeek.git
+cd LayerPeek
 
 dotnet build                                      # build the whole solution
 dotnet test                                       # run all tests
-dotnet run --project src/PrusaTrayDiagnostic.App  # start the tray app
+dotnet run --project src/LayerPeek.App  # start the tray app
 ```
 
 No printer at hand? The repository contains a [simulator](docs/simulator.md) of PrusaLink printers and an RTSP camera
@@ -254,8 +255,8 @@ for development (in Czech).
 ### Native AOT publish
 
 ```bash
-dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64     # on Windows
-dotnet publish src/PrusaTrayDiagnostic.App -c Release -r osx-arm64   # on macOS
+dotnet publish src/LayerPeek.App -c Release -r win-x64     # on Windows
+dotnet publish src/LayerPeek.App -c Release -r osx-arm64   # on macOS
 ```
 
 AOT code can't be cross-compiled between operating systems: build Windows binaries on Windows and macOS binaries on
@@ -271,11 +272,11 @@ from [CHANGELOG.md](CHANGELOG.md). See [docs/release.md](docs/release.md) for th
 
 | Path | Contents |
 |---|---|
-| `src/PrusaTrayDiagnostic.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
-| `src/PrusaTrayDiagnostic.PrusaLink` | PrusaLink REST client and the local web proxy |
-| `src/PrusaTrayDiagnostic.PrusaConnect` | Prusa Connect cloud client (planned) |
-| `src/PrusaTrayDiagnostic.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
-| `src/PrusaTrayDiagnostic.App` | Avalonia tray app, windows, platform specifics |
+| `src/LayerPeek.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
+| `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
+| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (planned) |
+| `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
+| `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |
 | `tools/` | developer tools, e.g. the PrusaLink printer and camera simulator |
 | `docs/` | architecture and API notes (in Czech) |
@@ -297,9 +298,9 @@ simulator) and a review, and the app is tested on a real printer. The whole proc
 Contributions are welcome: bug reports, ideas, translations and pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md)
 for the details.
 
-- **Bugs and ideas:** open an [issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues). Include your printer
+- **Bugs and ideas:** open an [issue](https://github.com/pfoltynek/LayerPeek/issues). Include your printer
   model, firmware version and OS. The diagnostic bundle from the About window helps a lot.
-- **Translations:** UI strings are in `src/PrusaTrayDiagnostic.App/Resources/Strings.*.resx`. Fixes and new languages
+- **Translations:** UI strings are in `src/LayerPeek.App/Resources/Strings.*.resx`. Fixes and new languages
   are very welcome.
 - **Pull requests:** the project uses Gitflow. Branch from `develop` and open the PR against `develop`.
   `dotnet build` and `dotnet test` must pass with **zero warnings**, because warnings are treated as errors.
@@ -314,7 +315,7 @@ There is no CLA. By submitting a contribution you agree that it is licensed unde
 ### Security
 
 Please don't report security issues in public issues. Use GitHub's
-[private vulnerability reporting](https://github.com/pfoltynek/PrusaTrayDiagnostic/security/advisories/new) instead.
+[private vulnerability reporting](https://github.com/pfoltynek/LayerPeek/security/advisories/new) instead.
 See [SECURITY.md](SECURITY.md).
 
 ## License
@@ -336,5 +337,5 @@ their versions and full license texts are listed in the app under **About → Th
 ---
 
 <p align="center">
-  If Prusa Tray Diagnostic saves you a walk to the printer, please give it a ⭐. It helps other makers find it.
+  If LayerPeek saves you a walk to the printer, please give it a ⭐. It helps other makers find it.
 </p>

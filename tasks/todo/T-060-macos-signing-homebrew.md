@@ -24,14 +24,14 @@ Aplikaci pro macOS mohou instalovat i ostatní uživatelé bez ručního obcház
 - **Notarizace:** `xcrun notarytool submit --wait` a `xcrun stapler staple` pro `.app` i `.dmg` (https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution). Přihlašovací údaje (App Store Connect API klíč) jen v Keychainu vývojáře, nikdy v repozitáři ani v logu.
 - Napojení na balicí kroky skriptů T-055 / T-019 na Macu (bez CI, T-016 odložený): podpis a notarizace nahradí ad-hoc podpis.
 - Aktualizace přes Velopack na macOS, pokud to doporučí T-056 (Velopack na macOS vytváří `.pkg` a vyžaduje podpis a notarizaci).
-- **Homebrew – nejdřív vlastní tap:** repozitář `github.com/pfoltynek/homebrew-tap` (konvence `homebrew-*`), cask `prusa-tray-diagnostic` odkazující na `.dmg` z GitHub Releases (vyžaduje veřejný repozitář), `sha256`, `livecheck`, `zap` (úklid nastavení); `brew audit --cask` a `brew style` bez chyb. Aktualizace casku ručně / krokem skriptu vydání.
+- **Homebrew – nejdřív vlastní tap:** repozitář `github.com/pfoltynek/homebrew-tap` (konvence `homebrew-*`), cask `layerpeek` odkazující na `.dmg` z GitHub Releases (vyžaduje veřejný repozitář), `sha256`, `livecheck`, `zap` (úklid nastavení); `brew audit --cask` a `brew style` bez chyb. Aktualizace casku ručně / krokem skriptu vydání.
 - **Později oficiální `homebrew/cask`** – až projekt splní podmínky notability.
 - Dokumentace: `docs/release.md`, `docs/prerequisites.md` (Developer ID, `notarytool`).
 
 ## Akceptační kritéria
 - [ ] `codesign --verify --deep --strict`, `spctl --assess --type execute` a `xcrun stapler validate` procházejí pro `.app` i `.dmg`
 - [ ] Na čistém Macu se aplikace stažená z GitHub Release spustí bez varování Gatekeeperu (ověřeno)
-- [ ] `brew install --cask pfoltynek/tap/prusa-tray-diagnostic` nainstaluje aplikaci bez varování; `brew uninstall --zap` odstraní aplikaci i nastavení (ověřeno)
+- [ ] `brew install --cask pfoltynek/tap/layerpeek` nainstaluje aplikaci bez varování; `brew uninstall --zap` odstraní aplikaci i nastavení (ověřeno)
 - [ ] Žádné tajné údaje v repozitáři ani ve výstupu skriptů
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 

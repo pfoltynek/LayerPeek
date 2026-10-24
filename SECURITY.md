@@ -8,7 +8,7 @@ Only the latest release gets security fixes. Versions 0.x are previews.
 
 Please **don't** report security issues in public issues, discussions or pull requests.
 
-Use GitHub's [private vulnerability reporting](https://github.com/pfoltynek/PrusaTrayDiagnostic/security/advisories/new)
+Use GitHub's [private vulnerability reporting](https://github.com/pfoltynek/LayerPeek/security/advisories/new)
 instead. Please include:
 
 - the app version (About window) and the operating system,

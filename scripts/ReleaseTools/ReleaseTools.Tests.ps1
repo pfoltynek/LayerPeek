@@ -9,8 +9,8 @@
     publish checks. The git checks run against throw-away repositories: a bare "origin" and clones in a temporary
     folder, with an isolated git configuration. No network, no GitHub, gh is never called.
 
-    Temporary files live in one folder under $env:PTD_RELEASE_TESTS_TEMP (set by the xUnit wrapper
-    tests/PrusaTrayDiagnostic.Scripts.Tests, which also deletes it after a crash) or under the system temp folder.
+    Temporary files live in one folder under $env:LAYERPEEK_PESTER_TESTS_TEMP (set by the xUnit wrapper
+    tests/LayerPeek.Scripts.Tests, which also deletes it after a crash) or under the system temp folder.
     AfterAll deletes the folder and restores the environment.
 
 .EXAMPLE
@@ -22,9 +22,9 @@ BeforeAll {
     Import-Module (Join-Path $PSScriptRoot 'ReleaseTools.psm1') -Force
 
     $script:RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..' '..')).ProviderPath
-    $base = if ($env:PTD_RELEASE_TESTS_TEMP) { $env:PTD_RELEASE_TESTS_TEMP } else { [System.IO.Path]::GetTempPath() }
+    $base = if ($env:LAYERPEEK_PESTER_TESTS_TEMP) { $env:LAYERPEEK_PESTER_TESTS_TEMP } else { [System.IO.Path]::GetTempPath() }
     # Short name: git repositories live below it (Windows path length limit).
-    $script:TempRoot = Join-Path $base "prusatray-rt-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+    $script:TempRoot = Join-Path $base "layerpeek-rt-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     $null = New-Item -ItemType Directory -Path $script:TempRoot
 
     # Git environment isolated from the user's configuration (hooks, signing, default branch); restored in AfterAll.
@@ -159,8 +159,8 @@ Describe 'Runtimes' {
         Test-RuntimeRunnable -Runtime win-x64 -HostOs macos -HostArchitecture x64 | Should -BeFalse
     }
     It 'names the archives and checksum files' {
-        Get-ArchiveFileName -Version 0.1.0 -Runtime win-x64 | Should -BeExactly 'PrusaTrayDiagnostic-0.1.0-win-x64.zip'
-        Get-ArchiveFileName -Version 0.1.0 -Runtime osx-arm64 | Should -BeExactly 'PrusaTrayDiagnostic-0.1.0-osx-arm64.tar.gz'
+        Get-ArchiveFileName -Version 0.1.0 -Runtime win-x64 | Should -BeExactly 'LayerPeek-0.1.0-win-x64.zip'
+        Get-ArchiveFileName -Version 0.1.0 -Runtime osx-arm64 | Should -BeExactly 'LayerPeek-0.1.0-osx-arm64.tar.gz'
         Get-ChecksumFileName windows | Should -BeExactly 'SHA256SUMS-windows.txt'
     }
 }
@@ -277,21 +277,21 @@ Describe 'Git state checks (pure)' {
 Describe 'Remote selection (-Repo)' {
     BeforeAll {
         $script:Remotes = [ordered]@{
-            origin = 'https://github.com/pfoltynek/PrusaTrayDiagnostic.git'
-            trial  = 'git@github.com:pfoltynek/PrusaTrayDiagnostic-release-trial.git'
-            mirror = 'https://example.com/pfoltynek/PrusaTrayDiagnostic-release-trial.git'
+            origin = 'https://github.com/pfoltynek/LayerPeek.git'
+            trial  = 'git@github.com:pfoltynek/LayerPeek-release-trial.git'
+            mirror = 'https://example.com/pfoltynek/LayerPeek-release-trial.git'
         }
     }
     It 'uses origin and its repository by default' {
         $target = Resolve-ReleaseRemote -Remotes $script:Remotes
         $target.Remote | Should -BeExactly 'origin'
-        $target.Repository | Should -BeExactly 'pfoltynek/PrusaTrayDiagnostic'
+        $target.Repository | Should -BeExactly 'pfoltynek/LayerPeek'
         $target.Problem | Should -BeNullOrEmpty
     }
     It 'uses the remote of the -Repo repository, so that checks and release concern the same repository' {
-        $target = Resolve-ReleaseRemote -Remotes $script:Remotes -Repository 'pfoltynek/PrusaTrayDiagnostic-release-trial'
+        $target = Resolve-ReleaseRemote -Remotes $script:Remotes -Repository 'pfoltynek/LayerPeek-release-trial'
         $target.Remote | Should -BeExactly 'trial'
-        $target.Repository | Should -BeExactly 'pfoltynek/PrusaTrayDiagnostic-release-trial'
+        $target.Repository | Should -BeExactly 'pfoltynek/LayerPeek-release-trial'
         $target.Problem | Should -BeNullOrEmpty
     }
     It 'refuses a -Repo without a git remote, with the command to add one' {
@@ -309,7 +309,7 @@ Describe 'Remote selection (-Repo)' {
         (Resolve-ReleaseRemote -Remotes ([ordered]@{ origin = 'https://example.com/o/r.git' })).Problem | Should -Match 'origin is not a GitHub repository'
     }
     It 'parses GitHub remote URLs' {
-        Get-GitHubRepository 'https://github.com/pfoltynek/PrusaTrayDiagnostic.git' | Should -BeExactly 'pfoltynek/PrusaTrayDiagnostic'
+        Get-GitHubRepository 'https://github.com/pfoltynek/LayerPeek.git' | Should -BeExactly 'pfoltynek/LayerPeek'
         Get-GitHubRepository 'git@github.com:owner/repo.git' | Should -BeExactly 'owner/repo'
         Get-GitHubRepository 'https://github.com/owner/repo' | Should -BeExactly 'owner/repo'
         Get-GitHubRepository 'https://example.com/owner/repo.git' | Should -BeNullOrEmpty
@@ -577,7 +577,7 @@ Describe 'AOT smoke script with an existing publish folder' {
         $script:SmokeDir = Join-Path $script:TempRoot 'publish [x64]'
         $null = New-Item -ItemType Directory -Path $script:SmokeDir
         # A stand-in "app" that exits right away: proves the executable was found and started, without the real app.
-        $exeName = if ($IsWindows) { 'PrusaTrayDiagnostic.exe' } else { 'PrusaTrayDiagnostic' }
+        $exeName = if ($IsWindows) { 'LayerPeek.exe' } else { 'LayerPeek' }
         $standIn = if ($IsWindows) { Join-Path $env:SystemRoot 'System32' 'hostname.exe' } else { '/usr/bin/true' }
         Copy-Item -LiteralPath $standIn -Destination (Join-Path $script:SmokeDir $exeName)
         $script:SmokeScript = Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1'

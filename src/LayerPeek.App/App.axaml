@@ -1,0 +1,27 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:app="using:LayerPeek.App"
+             x:Class="LayerPeek.App.App"
+             RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+    <!-- One icon for every window (title bar, taskbar), T-025. Window subclasses share the Window style key. -->
+    <Style Selector="Window">
+      <Setter Property="Icon" Value="{x:Static app:AppIcon.Window}" />
+    </Style>
+  </Application.Styles>
+
+  <!--
+    Icon and tooltip are replaced at runtime by TrayIconPresenter; the static app icon is the fallback if rendering fails.
+    The menu is filled at runtime by TrayMenuPresenter (printers, settings, about, quit).
+  -->
+  <TrayIcon.Icons>
+    <TrayIcons>
+      <TrayIcon Icon="{x:Static app:AppIcon.Window}" ToolTipText="LayerPeek">
+        <TrayIcon.Menu>
+          <NativeMenu />
+        </TrayIcon.Menu>
+      </TrayIcon>
+    </TrayIcons>
+  </TrayIcon.Icons>
+</Application>
