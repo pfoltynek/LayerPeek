@@ -276,7 +276,10 @@ AOT nejde kompilovat napříč operačními systémy: binárky pro Windows se se
 
 Vydání se sestavují lokálně skripty v PowerShellu 7.2+ ve složce `scripts/` (build, testy, AOT publish, smoke test,
 archivy, kontrolní součty SHA-256, vydání na GitHubu). Verze je v `<Version>` v `Directory.Build.props`, poznámky
-k vydání v [CHANGELOG.md](CHANGELOG.md). Celý postup je v [docs/release.md](docs/release.md).
+k vydání v [CHANGELOG.md](CHANGELOG.md). Jeden příkaz, `pwsh scripts/release.ps1 -Version X.Y.Z` (nejdřív s `-DryRun`),
+provede vydání podle Gitflow (větev release, sloučení do `main` s tagem `vX.Y.Z`, sloučení zpět do `develop`), sestaví
+tag a nahraje ho do konceptu vydání na GitHubu; před každým pushem a nahráním se zeptá. Zveřejnění konceptu zůstává
+samostatný ruční krok (`scripts/release-publish.ps1`). Celý postup je v [docs/release.md](docs/release.md).
 
 ### Struktura projektu
 

@@ -4,6 +4,7 @@ Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Win
 
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
+| `scripts/release.ps1` | **jeden příkaz** pro kroky 1–3 níže: větev `release/X.Y.Z`, sloučení do `main` + tag, sloučení zpět do `develop`, sestavení tagu a nahrání do konceptu; nikdy nezveřejňuje (viz „Vydání jedním příkazem“) | ano, jen push a koncept po potvrzení (kromě `-DryRun`) |
 | `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), `SHA256SUMS-<os>.txt` | ne |
 | `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS) | ano (kromě `-DryRun`) |
 | `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
@@ -20,7 +21,115 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 - Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), anglicky podle `CLAUDE.md`).
 - Bez placeného podpisu: Windows soubory jsou nepodepsané, podpis macOS řeší T-019.
 
+## Vydání jedním příkazem (`scripts/release.ps1`, T-055)
+
+Rozhodnutí uživatele (2026-10-24): jeden skript provede celé vydání pro Windows až po **koncept** na GitHubu. Zveřejnění zůstává vždy samostatný ruční krok. Vše se spouští lokálně ručně, bez CI.
+
+```powershell
+git switch develop
+git pull --ff-only                                 # develop musí být stejný jako origin/develop
+pwsh scripts/release.ps1 -Version X.Y.Z -DryRun    # kontroly a plán, nic nezmění ani nestáhne (případně požádá o git fetch origin)
+pwsh scripts/release.ps1 -Version X.Y.Z            # nejdřív sám git fetch --no-tags origin, pak provedení s potvrzením před každým krokem ven
+```
+
+Kroky (odpovídají ručním krokům 1–3 v „Postup“ níže, které zůstávají jako reference):
+
+| # | Krok | Ven? |
+|---|---|---|
+| 1 | `release/X.Y.Z` z `develop` s commitem `Release X.Y.Z`: `<Version>` v `Directory.Build.props` a datum vydání v `CHANGELOG.md`. Existuje-li větev už (dřívější běh, ručně), zkontroluje se (viz níže) a případně dostane commit s dnešním datem | ne |
+| 2 | `merge --no-ff` do `main`, kontrola sloučených souborů (verze, datovaná sekce `CHANGELOG.md`) a anotovaný tag `vX.Y.Z` („Release X.Y.Z“), jen lokálně | ne |
+| 3 | `git push --atomic origin <sloučení>:refs/heads/main refs/tags/vX.Y.Z` – **potvrzení napsáním verze** | ano |
+| 4 | `merge --no-ff` zpět do `develop`, jen lokálně | ne |
+| 5 | `git push --atomic origin <sloučení>:refs/heads/develop` – potvrzení `y/N` | ano |
+| 6 | `git branch -d release/X.Y.Z` | ne |
+| 7 | `git switch --detach vX.Y.Z` (čistý strom) a `release-build.ps1` | ne |
+| 8 | `release-upload.ps1 -DryRun` (výpis souborů), potvrzení `y/N`, pak `release-upload.ps1` → koncept | ano |
+
+Na konci (i po chybě) se skript vrátí na `develop` a vypíše adresu konceptu a přesné další příkazy:
+
+```powershell
+git switch --detach vX.Y.Z
+pwsh scripts/release-publish.ps1 -DryRun
+pwsh scripts/release-publish.ps1 -AllowIncomplete   # jen Windows, dokud T-019 nedodá macOS
+git switch develop
+```
+
+- **macOS:** do dokončení T-019 je vydání jen pro Windows, proto se zatím zveřejňuje s `-AllowIncomplete` (výchozí chování `release-publish.ps1`, které vyžaduje soubory obou OS, se nemění). Po T-019 se mezi krok 8 a zveřejnění vloží běh na Macu (krok 4 v „Postup“) a zveřejní se bez `-AllowIncomplete`.
+- **`CHANGELOG.md`:**
+  - Existuje-li sekce `## [X.Y.Z]` (s `- unreleased`, jiným zástupným textem, jiným datem, i s pomlčkou `–`/`—` místo `-`), dostane nadpis `## [X.Y.Z] - <den vydání>`; `## [Unreleased]` musí být prázdná. Položky v obou sekcích najednou skript odmítne (spoj je ručně, rozhodnuto 2026-10-24).
+  - Jinak se položky z `## [Unreleased]` přesunou do nové sekce `## [X.Y.Z] - <den vydání>` pod ní a nahoře zůstane `## [Unreleased]`. Prázdné podnadpisy šablony (např. `### Fixed` bez položek) a úvod bez položek (komentář) zůstanou pod `[Unreleased]`, přesunou se jen podsekce s položkami.
+  - Odkazy dole: `[Unreleased]: …/compare/vA.B.C...HEAD` se změní na `…/compare/vX.Y.Z...HEAD` (i když odkaz `[X.Y.Z]:` už existuje) a `[X.Y.Z]: …/compare/vA.B.C...vX.Y.Z` přibude, jen když chybí.
+  - Každý řádek si ponechá svůj konec řádku (CRLF/LF); nové řádky dostanou v souboru nejčastější konec řádku. Chybějící konec řádku na konci souboru zůstane chybět.
+  - **Datum = den vydání** (rozhodnuto 2026-10-24): už datovaná sekce dostane den vydání a plán změnu vypíše (`'## [X.Y.Z] - <staré>' -> '## [X.Y.Z] - <den vydání>' (redated)`). Pokračuje-li se jiný den s existující větví `release/X.Y.Z` a tag ještě není, přidá skript na větev commit `Release X.Y.Z: release date <den>` (v plánu krok 1 „Re-date release/X.Y.Z to the release day“). Commit vznikne jen na tom vrcholu větve, který prošel kontrolou; když se větev mezitím pohnula, skript nic nezmění. Když tag už existuje, datum se nemění a plán to jen poznamená.
+- **Existující větev `release/X.Y.Z`** (z dřívějšího běhu nebo ručně) se kontroluje stejně jako nová: `<Version>` = X.Y.Z, sekce verze v `CHANGELOG.md` s platným datem a položkami (stejná kontrola jako upload, bez výjimky pro `unreleased`) a `develop` je její předek (jinak je větev zastaralá: sluč do ní `develop`, nebo ji smaž a spusť znovu). Commity větve, které `develop` ještě nemá (stabilizační opravy), plán vypíše jako poznámku – nejsou důvodem k odmítnutí.
+- **Kontrola před tagem:** po sloučení do `main` a před vytvořením tagu se znovu zkontrolují soubory sloučení (verze, datovaná sekce), tím se odhalí i hotfix na `main`, který by vydání rozbil. Při chybě nevznikne tag a `main` se neposune.
+- **Soubory z gitu, ne z pracovního stromu:** obsah commitu kroku 1 se bere bajt po bajtu z commitu `develop` (`git cat-file blob`), změny v pracovním stromu se do něj nedostanou.
+- **Bez zásahu do pracovního stromu:** commit kroku 1 a obě sloučení vznikají bez checkoutu (vlastní dočasný index, `git merge-tree --write-tree`, proto git 2.38+). Při chybě tak nezůstane rozpracované sloučení. `main` se posouvá jen porovnáním a záměnou (`update-ref` se starou hodnotou), `develop` jen rychle vpřed (`merge --ff-only`) a jen když je `develop` vybraný a stále na očekávaném commitu. Konflikt při sloučení skript odmítne a nic nezmění.
+- **Push podle SHA:** `main`, tag a `develop` se pushují jako přesné commity potvrzené v tomto běhu (při navázání z faktů). Těsně před pushem se lokální refy porovnají s potvrzenými SHA; když se mezitím pohnuly, push se neprovede. `--atomic`: buď projdou všechny refy, nebo žádný.
+- **Nikdy:** force-push, smazání nebo přesunutí tagu, `gh release edit/delete`, zveřejnění. Mimo repozitář mění jen vlastní dočasnou složku (`%TEMP%\layerpeek-release-*`), kterou smaže i po chybě.
+- **Stažení (rozhodnuto 2026-10-24):** ostrý běh na začátku, ještě před kontrolami, spustí `git fetch --no-tags origin` (s `-Repo` remote toho repozitáře). Mění jen sledovací větve `origin/*`; žádná lokální větev ani tag se nevytvoří ani neposune. `develop` musí být dál stejný jako `origin/develop`, jinak skript požádá o `git pull --ff-only`.
+- **`-DryRun`:** nic nezmění v gitu ani na GitHubu a nic nestahuje, jen čte (`git ls-remote`, `gh auth status`, `gh release view`) a vypíše plán. Nestažený `origin/main` / `origin/develop` ohlásí s příkazem `git fetch origin`. Změnu `CHANGELOG.md` ověří na kopii v dočasné složce.
+- **`-Repo owner/název`:** jako u uploadu a publish (zkušební vydání); push `main`, tagu a `develop` pak jde na remote tohoto repozitáře a kontroly se dělají proti němu. **Jen v samostatném dočasném klonu bez `origin`** (viz „Zkušební vydání“): klon, jehož `origin` je jiný repozitář, skript odmítne, aby jeho `main` a `develop` nedostaly sloučení cizího vydání.
+- **Potvrzení** čte `Read-Host`, takže mohou přijít i z roury, jeden řádek na otázku (tak to dělají Pester testy: `'X.Y.Z', 'y', 'y' | pwsh scripts/release.ps1 -Version X.Y.Z`). Neinteraktivní relace znamená „ne“.
+
+### Co `release.ps1` zkontroluje předem
+
+Všechny problémy vypíše najednou spolu s plánem a skončí s kódem 1:
+
+| Kontrola | Hláška (začátek) |
+|---|---|
+| verze není `X.Y.Z` / není větší než všechny tagy `v*` (lokální i na `origin`) / je menší než `<Version>` na `develop` | `… is not a version in the form X.Y.Z` / `… is not greater than the latest release tag …` / `… is lower than <Version> …` |
+| `HEAD` není `develop` | `Run the release from develop` |
+| pracovní strom není čistý (i nesledované soubory) | `Working tree is not clean` |
+| `develop` není stejný jako `origin/develop` | `Local develop has commits that are not on origin/develop` / `… is behind … git pull --ff-only` / `… have diverged` |
+| `origin/main` / `origin/develop` není stažený (jen `-DryRun`, ostrý běh stahuje sám) | `origin/main (…) is not in the local repository. Run: git fetch origin` |
+| lokální `main` má commity navíc (pozadu nevadí, sloučení vychází z `origin/main`) | `Local main has commits that are not on origin/main` |
+| `CHANGELOG.md` nemá pro verzi žádné položky / má je ve dvou sekcích / chybí `## [Unreleased]` | `… has no entries for X.Y.Z` / `… entries both under [Unreleased] and under [X.Y.Z]` |
+| existující `release/X.Y.Z`: jiná verze / sekce bez data, prázdná nebo chybí / není založená na aktuálním `develop` | `release/X.Y.Z exists, but its Directory.Build.props has version …` / `release/X.Y.Z: Section [X.Y.Z] … has no release date` / `… is not based on the current develop` |
+| existující tag: sekce `CHANGELOG.md` neprojde kontrolou uploadu | `Tag vX.Y.Z: … The tag is never changed automatically` |
+| na GitHubu už je vydání pro tag, který ještě neexistuje | `A GitHub release for vX.Y.Z already exists … although the tag does not` |
+| `-Repo` v klonu, jehož `origin` je jiný repozitář | `This clone's origin is …, not -Repo …` |
+| push URL remote ukazuje jinam než fetch URL (`pushurl`, `pushInsteadOf`) | `Remote origin fetches from … but pushes to …` |
+| `main` nebo `release/X.Y.Z` je otevřená v jiném worktree | `Branch main is checked out in another worktree` |
+| `gh` chybí / není přihlášený | `GitHub CLI (gh) is not installed` / `… is not logged in` |
+| chybí MSVC (Windows) / Xcode CLT (macOS), nesedí verze `vpk` – jen dokud build není hotový | `The MSVC component … is not installed` |
+| git starší než 2.38 – jen dokud zbývá některé sloučení | `git … is too old` |
+
+### Opakování po chybě (navázání)
+
+Opakované spuštění **se stejnou verzí** zjistí, co je hotové, a pokračuje prvním chybějícím krokem (v plánu `[done]` / `[todo]`). Rozhoduje podle stavu, ne podle záznamu z minulého běhu:
+
+| Krok je hotový, když… |
+|---|
+| 1: existuje lokální `release/X.Y.Z`, která projde kontrolou (verze, datovaná sekce, založená na `develop`) a má datum dne vydání (jinak dostane commit s dnešním datem), nebo už tag |
+| 2: existuje lokální tag `vX.Y.Z` (sloučení `release/X.Y.Z` do `main`, verze a sekce `CHANGELOG.md` sedí) a lokální `main` ho obsahuje; když tag existuje a `main` ještě ne (selhalo posunutí `main`), posune se jen `main` |
+| 3: tag je na `origin` na stejném commitu a `origin/main` ho obsahuje |
+| 4 / 5: lokální / `origin/develop` obsahuje commit vydání |
+| 6: lokální `release/X.Y.Z` už neexistuje |
+| 7: `artifacts/release/X.Y.Z/build-info.json` je z commitu tagu, z čistého stromu a soubory sedí se součty |
+| 8: koncept obsahuje všechny soubory místního buildu se stejným SHA256 (nebo je vydání už zveřejněné) |
+
+| Situace | Co dělat |
+|---|---|
+| potvrzení odmítnuto (nebo neinteraktivní relace) | nic z toho kroku se neprovedlo, lokální kroky před ním zůstanou. Spusť znovu, pokračuje od potvrzení |
+| build selhal po pushi tagu | oprav příčinu (např. MSVC) a spusť znovu se stejnou verzí: Gitflow kroky přeskočí a začne buildem. Chyba v kódu tagu: viz „v tagovaném commitu je chyba“ níže |
+| nahrání spadlo | spusť znovu: build se znovu nedělá (je aktuální), upload přeskočí stejné soubory |
+| „release/X.Y.Z: Section … has no release date“ / „… exists, but its Directory.Build.props has version …“ | ručně založená nebo upravená větev neodpovídá vydání: oprav ji na větvi (commit), nebo ji smaž (`git branch -D release/X.Y.Z`) a spusť znovu – skript ji založí sám |
+| „release/X.Y.Z … is not based on the current develop“ | na `develop` přibyly commity po založení větve: sluč `develop` do `release/X.Y.Z`, nebo větev smaž a spusť znovu |
+| „The merge of release/X.Y.Z into main would not be releasable“ | sloučení s `main` (např. hotfix) rozbilo verzi nebo sekci `CHANGELOG.md`. Tag nevznikl, `main` se neposunul: vyřeš to ručně na větvi release a spusť znovu |
+| „… is …, but … was confirmed. It moved after the confirmation“ | lokální `main`, tag nebo `develop` se mezi potvrzením a pushem změnil (jiný proces). Nic se nepushnulo: zkontroluj ref a spusť znovu |
+| „Tag … on origin points to …“ / „… is not a merge commit“ | tag někdo změnil nebo vytvořil ručně. Skript tagy nikdy neposouvá ani nemaže: vyřeš ručně (ruční kroky níže) |
+| „origin/main has moved since the release merge“ / push odmítnutý jako non-fast-forward | někdo mezitím pushnul do `main`. Nic se nepushuje silou (`--atomic`: ani tag): lokální sloučení zahoď (`git tag -d vX.Y.Z`, `git branch -f main origin/main`, jen dokud tag **není** na `origin`) a spusť znovu |
+| „origin/develop has moved since the merge back“ | někdo mezitím pushnul do `develop` a lokálně je navíc jen sloučení zpět. Zahoď ho (`git reset --keep origin/develop` na `develop`; ztratí se jen to sloučení, další běh ho udělá znovu, `--keep` nesmaže neodevzdané změny) a spusť znovu |
+| „Local develop and origin/develop have diverged after the merge back“ | lokální `develop` má kromě sloučení i další commity, které na `origin` nejsou: vyřeš ručně (rada s resetem by je zahodila) |
+| „Local main … has commits after the release merge of tag …“ | lokální `main` má po tagovaném sloučení další commity; pushnulo by se jen sloučení, proto skript odmítne. Přesuň ty commity jinam (větev) a `git branch -f main vX.Y.Z`, pak spusť znovu |
+| „Local develop has other commits besides the merge“ | na `develop` přibyl lokální commit po sloučení: pushni nebo odstraň ho ručně, pak spusť znovu |
+| „The draft … already contains SHA256SUMS-windows.txt, but there is no matching local build“ | soubory Windows už jsou v konceptu, ale místní build chybí (jiný stroj, smazané `artifacts/`). Nový build by se lišil: zkontroluj koncept (`release-publish.ps1 -DryRun`) a dokonči ručně, případně `release-upload.ps1 -Force` |
+| úplně zrušit vydání, dokud tag není na `origin` | `git switch develop`, `git tag -d vX.Y.Z`, `git branch -f main origin/main`, `git branch -D release/X.Y.Z` |
+
 ## Postup
+
+Ruční postup (reference; `scripts/release.ps1` dělá kroky 1–3 sám).
 
 ### 1. Větev release (Gitflow)
 
@@ -232,15 +341,18 @@ pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64   # sestaví a zabal�
 
 ## Testy skriptů (Pester)
 
-Rozhodovací logika skriptů má testy v Pesteru 5+ (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`, instalace v [prerequisites.md](prerequisites.md)):
+Rozhodovací logika skriptů má testy v Pesteru 5+ (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`, pro `scripts/release.ps1` `scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1`, instalace v [prerequisites.md](prerequisites.md)):
 
 ```powershell
 Invoke-Pester scripts/ReleaseTools/ReleaseTools.Tests.ps1 -Output Detailed
+Invoke-Pester scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1 -Output Detailed
 ```
 
-Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ReleaseScriptPesterTestsPass`) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
+Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ScriptPesterTestsPass`, jeden případ na soubor testů) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
-Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, `win-arm64` ve feedu). Volání `dotnet` a `gh` a samotné skripty `release-*.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, `win-arm64` ve feedu). Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+
+Testy `release.ps1` (`ReleaseOrchestrator.Tests.ps1`) ověří bez sítě: kontrolu verze proti tagům, změnu `<Version>` a `CHANGELOG.md` (datum `- unreleased`, přesun z `[Unreleased]`, šablona prázdných podnadpisů, odkazy, smíšené konce řádků, pomlčky `–`/`—`, odmítnutí), plán a navázání pro každý mezistav (čistě z připravených faktů) a skutečné kroky Gitflow v dočasných repozitářích: bare „origin“ je dostupný přes adresu `https://github.com/test-owner/…` přepsanou `url.<base>.insteadOf` a konfigurace gitu je izolovaná. `gh` je falešný skript na `PATH`: `auth status` projde, `release view` vrátí „release not found“, nebo – s `LAYERPEEK_FAKE_GH_STATE` – koncept, který vytvořil `release create` (soubory s `digest`); každé volání zapíše a testy ověří, co se volalo. Mimo jiné: větev release ručně bez data, s jinou verzí, zastaralá, se stabilizačními commity a s dřívějším datem (nový commit s datem), kontrola sloučení před tagem, selhané posunutí `main` po tagu a navázání, push odmítnutý kvůli posunutému `origin/main` (atomicky, bez tagu), ref posunutý po potvrzení, sloučení zpět bez vybraného `develop`, `-Repo` v klonu s cizím `origin`, push URL jiného repozitáře. Skript `release.ps1` se spouští i celý: `-DryRun` nic nezmění ani nestáhne, ostrý běh stáhne (`--no-tags`), bez potvrzení se nic nepushne, selhání zástupného buildu vrátí strom na `develop` a další běh začne buildem, a úspěšný běh se zástupným buildem a skutečným `release-upload.ps1` skončí konceptem (falešný `gh`), na `develop` s čistým stromem, a další běh najde všech 8 kroků hotových. Testy-only přepínač `LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1` vypne kontrolu MSVC / Xcode / `vpk`, aby testy nezávisely na stroji. Platí jen spolu s `LAYERPEEK_PESTER_TESTS_TEMP` a jen pro repozitář uvnitř této složky (proměnné, které zůstanou v interaktivním `pwsh` po přerušeném `Invoke-Pester`, tak skutečný repozitář neovlivní); když platí, plán vypíše řádek `TEST MODE: toolchain check skipped`. Falešný `gh` odpovídá na čtení přímo ze shimu (`gh.cmd` / `gh`) a `pwsh` spouští jen pro stavový koncept, takže testy běží rychleji (≈ 1 min 20 s). xUnit má pro tento soubor časový limit 15 min (ostatní soubory 5 min). Skutečný build a nahrání na GitHub testy nedělají.
 
 ## Zkušební vydání (testovací repozitář)
 
@@ -284,6 +396,19 @@ Postup (`<owner>` = tvůj účet, název např. `LayerPeek-release-trial`):
    - **souběžné vytvoření:** dva běhy `release-upload.ps1` spuštěné současně (např. dva klony s různým RID, nebo Windows a Mac) – vznikne jeden koncept, nebo dva? Výsledek zapsat sem a do T-055.
 
 5. Zveřejnění: `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -DryRun` bez `-AllowIncomplete` musí odmítnout chybějící `SHA256SUMS-macos.txt`. Pak `pwsh scripts/release-publish.ps1 -Repo <owner>/LayerPeek-release-trial -AllowIncomplete` a kontrola na GitHubu (zveřejněné, stále předběžné).
+
+   **Zkouška `release.ps1`** (místo ručních kroků 2–3, v novém testovacím repozitáři nebo po úklidu tagu a vydání z předchozí zkoušky). Testovací repozitář potřebuje `main` a `develop`, klon musí být na `develop` s `release.ps1` a **nesmí mít `origin`** (jinak ho `release.ps1 -Repo` odmítne, aby se sloučení zkoušky nedostala k `main` a `develop` hlavního repozitáře):
+
+   ```powershell
+   git switch develop
+   git remote remove origin                       # klon zkoušky zná jen remote trial
+   git push trial main develop
+   git fetch trial
+   pwsh scripts/release.ps1 -Version 0.1.0 -Repo <owner>/LayerPeek-release-trial -DryRun
+   pwsh scripts/release.ps1 -Version 0.1.0 -Repo <owner>/LayerPeek-release-trial
+   ```
+
+   Kontrola: v `trial` je `main` se sloučením a tagem `v0.1.0`, `develop` se sloučením zpět, koncept jako v kroku 3. Navázání: během buildu přeruš skript (Ctrl+C) a spusť ho znovu – musí ukázat kroky 1–6 jako hotové a začít buildem; po úspěšném konci musí další běh skončit bez práce (vše `[done]`). Zveřejnění pak podle kroku 5 (`release.ps1` nezveřejňuje).
 
 6. Úklid:
 

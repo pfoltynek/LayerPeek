@@ -4,15 +4,14 @@ namespace LayerPeek.Scripts.Tests;
 
 /// <summary>
 /// Runs the Pester tests of the scripts as part of dotnet test: the release scripts
-/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1, T-055) and the one-time migration from the former name
-/// (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074). Skipped when pwsh or Pester 5+ is not installed. The
+/// (scripts/ReleaseTools/ReleaseTools.Tests.ps1 and ReleaseOrchestrator.Tests.ps1 of scripts/release.ps1, T-055) and the
+/// one-time migration from the former name (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074). Skipped when pwsh
+/// or Pester 5+ is not installed. The
 /// Pester run uses the reserved <see cref="TestDirectories.Root"/> as its temp root (also TEMP / TMP / TMPDIR of the
 /// child pwsh), so nothing is left behind even when pwsh is killed.
 /// </summary>
 public sealed class PesterScriptTests
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromMinutes(5);
-
     private const string Command =
         "$ErrorActionPreference = 'Stop'; " +
         "Import-Module Pester -MinimumVersion 5.0.0; " +
@@ -25,10 +24,12 @@ public sealed class PesterScriptTests
         "Write-Output \"PESTER RESULT: $($r.Result) passed=$($r.PassedCount) failed=$($r.FailedCount) skipped=$($r.SkippedCount)\"; " +
         "if ($r.Result -ne 'Passed' -or $r.FailedCount -gt 0 -or $r.PassedCount -eq 0) { exit 1 }; exit 0";
 
+    // Time limit per test file in minutes: the orchestrator tests run release.ps1 end to end many times (about 1.5-2.5 min).
     [Theory]
-    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1")]
-    [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1")]
-    public async Task ScriptPesterTestsPass(string relativePath)
+    [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 5)]
+    [InlineData("scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1", 15)]
+    [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1", 5)]
+    public async Task ScriptPesterTestsPass(string relativePath, int timeoutMinutes)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;
         string? skipReason = await PowerShell.PesterSkipReasonAsync(cancellationToken);
@@ -60,7 +61,7 @@ public sealed class PesterScriptTests
                     ["TMP"] = processTemp,
                     ["TMPDIR"] = processTemp,
                 },
-                Timeout,
+                TimeSpan.FromMinutes(timeoutMinutes),
                 cancellationToken);
 
             Assert.True(result.ExitCode == 0, $"Pester failed (exit code {result.ExitCode}):{Environment.NewLine}{result.Output}{Environment.NewLine}{result.Error}");

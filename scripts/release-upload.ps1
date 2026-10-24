@@ -61,25 +61,11 @@ try {
     try { $notes = Get-ChangelogSection -Path (Join-Path $repoRoot 'CHANGELOG.md') -Version $version }
     catch { $problems.Add($_.Exception.Message) }
 
-    $releaseDir = Join-Path $repoRoot 'artifacts' 'release' $version
-    $distDir = Join-Path $releaseDir 'dist'
-    $buildInfoPath = Get-BuildInfoPath $releaseDir
-    $buildInfo = if (Test-Path -LiteralPath $buildInfoPath -PathType Leaf) { Get-Content -LiteralPath $buildInfoPath -Raw | ConvertFrom-Json } else { $null }
-    $distFiles = if (Test-Path -LiteralPath $distDir) { @(Get-ChildItem -LiteralPath $distDir -File -Force | ForEach-Object Name) } else { @() }
-    $buildProblems = @(Get-BuildInfoProblems -BuildInfo $buildInfo -Version $version -Head $preflight.GitState.Head -DistFiles $distFiles)
-    foreach ($problem in $buildProblems) { $problems.Add($problem) }
-    if ($buildInfo -and $buildProblems.Count -eq 0) {
-        foreach ($problem in @(Get-Sha256SumsProblems (Join-Path $distDir $buildInfo.ChecksumFile))) { $problems.Add($problem) }
-        foreach ($file in @($buildInfo.Files)) {
-            if ((Get-FileSha256 (Join-Path $distDir $file.Name)) -ne $file.Sha256) { $problems.Add("$($file.Name) changed after the build. Rebuild.") }
-        }
-    }
-
-    $localFiles = if ($buildInfo -and $buildProblems.Count -eq 0) {
-        @($buildInfo.Files | ForEach-Object { [pscustomobject]@{ Name = $_.Name; Sha256 = $_.Sha256 } }) +
-        [pscustomobject]@{ Name = $buildInfo.ChecksumFile; Sha256 = Get-FileSha256 (Join-Path $distDir $buildInfo.ChecksumFile) }
-    }
-    else { @() }
+    # Build marker, checksum file and SHA256 of every file (shared with scripts/release.ps1).
+    $output = Get-ReleaseBuildOutput -RepoRoot $repoRoot -Version $version -Head $preflight.GitState.Head
+    foreach ($problem in @($output.Problems)) { $problems.Add($problem) }
+    $distDir = $output.DistDirectory
+    $localFiles = @($output.Files)
 
     if ($problems.Count -gt 0) {
         if ($DryRun -and $localFiles.Count -gt 0) {
