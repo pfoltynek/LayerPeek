@@ -91,6 +91,7 @@ Jediný `Border` s řádky z T-036 nahradí systém widgetů. Stav je **plán**.
     - Implementace je `Core/Previews/PrintPreviewCache` nad `IPrintPreviewFetcher` (PrusaLink: `PrusaLinkPreviewFetcher`, registrovaný v `AddPrusaLink`). Cache je jen v paměti, nic na disk.
     - Stahuje se líně při prvním `GetAsync`, jednou na úlohu a velikost. Souběžné požadavky sdílí jedno stažení, každý volající může čekání zrušit sám.
     - Náhled zůstává po dokončení nebo zastavení tisku i bez úlohy (nečinná / offline tiskárna) až do další úlohy. `Observe(snapshot)` ho uvolní, jakmile snapshot ukáže jinou úlohu. Další tisk téhož souboru se ptá s `If-None-Match` (ETag) a při `304` použije uložený náhled.
+    - Nikdy zpět ke starší úloze: úloha, kterou `Observe` už viděl nahrazenou jinou (např. ze zastaralého snapshotu v UI), od `GetAsync` náhled nedostane. Nic se nestahuje a aktuální úloha v cache zůstane. Úlohy se rozlišují stejně jako v cache (`PrintJob.Id` + `PreviewReference`). Úloha, kterou cache ještě neviděla, se bere jako novější; úloha, kterou tiskárna ohlásí znovu, je zase aktuální.
     - Chybějící náhled (`404`) se pamatuje pro úlohu. Přechodná chyba se zkusí znovu nejdřív po 30 s.
     - `RetainOnly` / `Remove` zahodí odebrané tiskárny a tiskárny se změněnou adresou nebo typem připojení, běžící stažení zruší. V cache je nejvýš 32 tiskáren (nejdéle nepoužitá jde pryč).
     - Zapojení do composition rootu a volání `Observe` / `RetainOnly` dělá App (T-087).

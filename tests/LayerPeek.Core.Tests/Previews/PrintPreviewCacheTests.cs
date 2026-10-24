@@ -677,6 +677,150 @@ public sealed class PrintPreviewCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task RequestForAnOlderJobDoesNotReplaceTheCurrentOne()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        PrintPreview? current = await _cache.GetAsync(Printer(), Job(43, Cube), PrintPreviewSize.Large, Ct);
+
+        // E.g. a widget still holding the previous snapshot.
+        PrintPreview? stale = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        PrintPreview? again = await _cache.GetAsync(Printer(), Job(43, Cube), PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(current);
+        Assert.Null(stale);
+        Assert.Same(current, again);
+        Assert.Equal(2, _fetcher.Count);
+        Assert.Equal(1, _cache.Count);
+    }
+
+    [Fact]
+    public async Task RequestForAnOlderJobFetchesNothingWhenTheCurrentOneHasNoEntryYet()
+    {
+        await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+
+        PrintPreview? stale = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        int countAfterStale = _cache.Count;
+        PrintPreview? current = await _cache.GetAsync(Printer(), Job(43, Cube), PrintPreviewSize.Large, Ct);
+
+        Assert.Null(stale);
+        Assert.Equal(0, countAfterStale);
+        Assert.NotNull(current);
+        Assert.Equal(2, _fetcher.Count);
+    }
+
+    [Fact]
+    public async Task OlderJobsSeenOnlyByObserveAreNotFetched()
+    {
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(42, Benchy)));
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+
+        PrintPreview? stale = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Null(stale);
+        Assert.Equal(0, _fetcher.Count);
+        Assert.Equal(0, _cache.Count);
+    }
+
+    [Fact]
+    public async Task RequestForAnOlderJobOfTheSameFileKeepsTheValidator()
+    {
+        PrintPreview? first = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Benchy)));
+
+        PrintPreview? stale = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _fetcher.Handler = static call => Task.FromResult(PrintPreviewFetchResult.NotModified(call.ETag));
+        PrintPreview? current = await _cache.GetAsync(Printer(), Job(43, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.Null(stale);
+        Assert.Same(first, current);
+        Assert.Equal(2, _fetcher.Count);
+        Assert.Equal("\"1\"", _fetcher.Calls.Last().ETag);
+    }
+
+    [Fact]
+    public async Task RequestForAJobNewerThanTheObservedOneIsFetched()
+    {
+        // The widget may see the next snapshot before the cache does.
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(42, Benchy)));
+
+        PrintPreview? next = await _cache.GetAsync(Printer(), Job(43, Cube), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        PrintPreview? again = await _cache.GetAsync(Printer(), Job(43, Cube), PrintPreviewSize.Large, Ct);
+        PrintPreview? stale = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(next);
+        Assert.Same(next, again);
+        Assert.Null(stale);
+        Assert.Equal(1, _fetcher.Count);
+    }
+
+    [Fact]
+    public async Task JobReportedAgainByThePrinterIsCurrentAgain()
+    {
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(42, Benchy)));
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(42, Benchy)));
+
+        PrintPreview? preview = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(preview);
+        Assert.Equal(1, _fetcher.Count);
+    }
+
+    [Fact]
+    public async Task SnapshotOfTheCurrentJobWithoutReferenceDoesNotMakeItOlder()
+    {
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(42, Benchy)));
+        _cache.Observe(Snapshot(PrinterState.Printing, new PrintJob { Id = 42 }));
+        _cache.Observe(Snapshot(PrinterState.Idle, null));
+
+        PrintPreview? preview = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(preview);
+    }
+
+    [Fact]
+    public async Task RemovingOrClearingForgetsTheOlderJobs()
+    {
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(42, Benchy)));
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        _cache.Remove("CORE-ONE");
+        PrintPreview? afterRemove = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        _cache.Clear();
+        PrintPreview? afterClear = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        _cache.RetainOnly([]);
+        PrintPreview? afterRetain = await _cache.GetAsync(Printer(), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(afterRemove);
+        Assert.NotNull(afterClear);
+        Assert.NotNull(afterRetain);
+        Assert.Equal(3, _fetcher.Count);
+    }
+
+    [Fact]
+    public async Task ChangedAddressForgetsTheOlderJobs()
+    {
+        await _cache.GetAsync(Printer(address: "192.168.1.20"), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+
+        // Another printer under the same id: its job numbers have nothing to do with the old ones.
+        PrintPreview? viaRequest = await _cache.GetAsync(Printer(address: "192.168.1.30"), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+        _cache.Observe(Snapshot(PrinterState.Printing, Job(43, Cube)));
+        _cache.RetainOnly([Printer(address: "192.168.1.40")]);
+        PrintPreview? afterRetain = await _cache.GetAsync(Printer(address: "192.168.1.40"), Job(42, Benchy), PrintPreviewSize.Large, Ct);
+
+        Assert.NotNull(viaRequest);
+        Assert.NotNull(afterRetain);
+        Assert.Equal(3, _fetcher.Count);
+    }
+
+    [Fact]
     public async Task InvalidArgumentsAreRejected()
     {
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => _cache.GetAsync(Printer(), Job(42, Benchy), (PrintPreviewSize)7, Ct));

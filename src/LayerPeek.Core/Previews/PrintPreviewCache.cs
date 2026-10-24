@@ -15,12 +15,19 @@ namespace LayerPeek.Core.Previews;
 /// and while the printer is idle or offline without a job. It is released when another job appears
 /// (<see cref="Observe"/> or <see cref="GetAsync"/>). When that job prints the same file, the old preview is kept only
 /// as the validator of a conditional fetch (ETag); an unchanged file then costs no download.</item>
+/// <item>Never downgrade: a job that <see cref="Observe"/> already saw replaced by another one (an older job, e.g. from
+/// a stale snapshot still held by the UI) gets no preview from <see cref="GetAsync"/>; the request fetches nothing and
+/// leaves the current entry alone. Jobs are told apart by the same identity as the entries
+/// (<see cref="PrintJob.Id"/> + <see cref="PrintJob.PreviewReference"/>). A job the cache has not seen yet is assumed
+/// to be newer (the UI may get a snapshot before <see cref="Observe"/> does), and a job the printer reports again is
+/// current again. Callers should pass the job from the printer's latest snapshot.</item>
 /// <item>A missing preview is remembered for the job; a transient failure for <see cref="PrintPreviewCacheOptions.RetryDelay"/>.</item>
 /// <item>A printer that was removed or whose address or connection type changed is dropped
 /// (<see cref="RetainOnly"/>, <see cref="Remove"/>, or on the next <see cref="GetAsync"/>); at most
 /// <see cref="PrintPreviewCacheOptions.MaxPrinters"/> printers are kept (least recently requested dropped first).</item>
 /// </list>
-/// Dropping a printer cancels its running fetch. Thread-safe.
+/// Dropping a printer cancels its running fetch and forgets its older jobs (except for LRU eviction, which only drops
+/// the previews). Thread-safe.
 /// </summary>
 public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
 {
@@ -32,6 +39,9 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
     private readonly PrintPreviewCacheOptions _options;
     private readonly Lock _lock = new();
     private readonly Dictionary<string, Entry> _entries = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Current and older jobs per printer as reported by <see cref="Observe"/>; independent of the entries.</summary>
+    private readonly Dictionary<string, JobHistory> _jobs = new(StringComparer.OrdinalIgnoreCase);
     private long _useCounter;
     private bool _disposed;
 
@@ -83,8 +93,9 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
         List<Entry>? released = null;
         lock (_lock)
         {
-            if (_disposed)
+            if (_disposed || IsOlderJob(printer, new JobKey(job.Id, reference)))
             {
+                // An older job must not replace the current entry (and its preview would be downloaded again later).
                 return NoPreview;
             }
 
@@ -117,7 +128,9 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
     /// <summary>
     /// Tells the cache about a new snapshot (e.g. from <see cref="Monitoring.IPrinterMonitor.SnapshotUpdated"/>), so that
     /// the preview of a finished job is released as soon as the next job starts, even when nobody asks for the new
-    /// preview. Snapshots without a job keep the preview. Cheap and allocation-free when nothing changes.
+    /// preview. Snapshots without a job keep the preview. The reported job becomes the printer's current job; the one it
+    /// replaces is remembered as older (see the never-downgrade rule above), so call it in snapshot order. Cheap and
+    /// allocation-free when nothing changes.
     /// </summary>
     public void Observe(PrinterSnapshot snapshot)
     {
@@ -130,8 +143,16 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
         List<Entry>? released = null;
         lock (_lock)
         {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _entries.TryGetValue(snapshot.PrinterId, out Entry? entry);
+            TrackCurrentJob(snapshot.PrinterId, new JobKey(job.Id, job.PreviewReference), entry);
+
             // A job without a reference may be the same job whose details the client could not read this time.
-            if (!_entries.TryGetValue(snapshot.PrinterId, out Entry? entry)
+            if (entry is null
                 || entry.IsJob(job.Id, job.PreviewReference)
                 || (job.PreviewReference is null && job.Id == entry.JobId))
             {
@@ -176,12 +197,21 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
                     Detach(entry, ref released);
                 }
             }
+
+            foreach ((string printerId, JobHistory history) in _jobs.ToArray())
+            {
+                // A history not yet bound to an address may come from the printer's previous address: forget it.
+                if (!keep.TryGetValue(printerId, out PrinterDefinition? printer) || !history.IsAssignedTo(printer))
+                {
+                    _jobs.Remove(printerId);
+                }
+            }
         }
 
         Release(released);
     }
 
-    /// <summary>Drops the previews of one printer (e.g. removed from the settings).</summary>
+    /// <summary>Drops the previews and the job history of one printer (e.g. removed from the settings).</summary>
     public void Remove(string printerId)
     {
         ArgumentNullException.ThrowIfNull(printerId);
@@ -192,6 +222,8 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
             {
                 Detach(entry, ref released);
             }
+
+            _jobs.Remove(printerId);
         }
 
         Release(released);
@@ -265,6 +297,54 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
         foreach (Entry entry in _entries.Values.ToArray())
         {
             Detach(entry, ref released);
+        }
+
+        _jobs.Clear();
+    }
+
+    /// <summary>
+    /// Whether <paramref name="job"/> is known to be older than the printer's current job. A history recorded for
+    /// another address or connection type (the id now names another printer) is forgotten.
+    /// </summary>
+    private bool IsOlderJob(PrinterDefinition printer, JobKey job)
+    {
+        if (!_jobs.TryGetValue(printer.Id, out JobHistory? history))
+        {
+            return false;
+        }
+
+        if (!history.TryAssign(printer))
+        {
+            _jobs.Remove(printer.Id);
+            return false;
+        }
+
+        return history.IsOlder(job);
+    }
+
+    /// <summary>Records the job of the latest snapshot as current; the entry tells which printer the history belongs to.</summary>
+    private void TrackCurrentJob(string printerId, JobKey job, Entry? entry)
+    {
+        if (!_jobs.TryGetValue(printerId, out JobHistory? history)
+            || (entry is not null && !history.TryAssign(entry.ConnectionType, entry.Address)))
+        {
+            history = new JobHistory(job);
+            if (entry is not null)
+            {
+                history.TryAssign(entry.ConnectionType, entry.Address);
+            }
+
+            _jobs[printerId] = history;
+        }
+        else
+        {
+            history.Report(job);
+        }
+
+        if (entry is not null)
+        {
+            // The entry may hold a job that only GetAsync knew about (newer than the previous snapshot).
+            history.AddOlder(new JobKey(entry.JobId, entry.Reference));
         }
     }
 
@@ -432,6 +512,105 @@ public sealed partial class PrintPreviewCache : IPrintPreviewSource, IDisposable
                     ? (old.Current, old.ETag)
                     : (old.Validator, old.ValidatorETag);
             }
+        }
+    }
+
+    /// <summary>
+    /// Identity of a job as used by the entries. A key without a reference (the client could not read the job details)
+    /// matches any reference of the same job id.
+    /// </summary>
+    private readonly record struct JobKey(long? JobId, PrintPreviewReference? Reference)
+    {
+        public bool IsIdentifiable => JobId is not null || Reference is not null;
+
+        public bool IsSameJob(JobKey other) =>
+            JobId == other.JobId && (Reference is null || other.Reference is null || Reference.Equals(other.Reference));
+    }
+
+    /// <summary>The current job of one printer and the last few jobs it replaced. Guarded by the cache lock.</summary>
+    private sealed class JobHistory(JobKey current)
+    {
+        /// <summary>Enough for stale snapshots (normally just the previous job) while staying small.</summary>
+        private const int OlderJobsKept = 8;
+
+        private readonly List<JobKey> _older = [];
+        private ConnectionType? _connectionType;
+        private string? _address;
+
+        private JobKey _current = current;
+
+        /// <summary>Binds the history to the printer the first time it is known; false when it belongs to another one.</summary>
+        public bool TryAssign(PrinterDefinition printer) => TryAssign(printer.ConnectionType, printer.Address);
+
+        public bool TryAssign(ConnectionType connectionType, string address)
+        {
+            if (_address is null)
+            {
+                (_connectionType, _address) = (connectionType, address);
+                return true;
+            }
+
+            return _connectionType == connectionType && string.Equals(_address, address, StringComparison.Ordinal);
+        }
+
+        public bool IsAssignedTo(PrinterDefinition printer) =>
+            _address is not null && _connectionType == printer.ConnectionType && string.Equals(_address, printer.Address, StringComparison.Ordinal);
+
+        /// <summary>The job of the latest snapshot: it is current (again), the previous current job becomes older.</summary>
+        public void Report(JobKey job)
+        {
+            if (_current.IsSameJob(job))
+            {
+                if (_current.Reference is null)
+                {
+                    _current = job;
+                }
+
+                return;
+            }
+
+            JobKey previous = _current;
+            _current = job;
+            for (int i = _older.Count - 1; i >= 0; i--)
+            {
+                if (_older[i].IsSameJob(job))
+                {
+                    _older.RemoveAt(i);
+                }
+            }
+
+            AddOlder(previous);
+        }
+
+        public void AddOlder(JobKey job)
+        {
+            if (!job.IsIdentifiable || _current.IsSameJob(job) || ContainsOlder(job))
+            {
+                return;
+            }
+
+            if (_older.Count == OlderJobsKept)
+            {
+                _older.RemoveAt(0);
+            }
+
+            _older.Add(job);
+        }
+
+        public bool IsOlder(JobKey job) => !_current.IsSameJob(job) && ContainsOlder(job);
+
+        // Plain loops: no delegate allocation on the GetAsync hot path.
+        private bool ContainsOlder(JobKey job)
+        {
+            foreach (JobKey older in _older)
+            {
+                if (older.IsSameJob(job))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
