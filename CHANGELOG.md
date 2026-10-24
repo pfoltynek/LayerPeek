@@ -19,14 +19,25 @@ First public preview. Windows x64 only, PrusaLink only, builds are not code-sign
 - Monitoring of multiple printers over PrusaLink, with one combined icon and a submenu for each printer.
 - Windows toast notifications for print events (started, finished, paused, resumed, stopped, error, attention,
   offline, minutes remaining), with configurable sounds.
-- Diagnostics window with printer and firmware information and a 24-hour temperature chart.
-- Camera window for RTSP/H.264 cameras (e.g. Buddy3D) through FFmpeg, with a print overlay and full-screen, normal
-  and compact modes.
+- Diagnostics window with printer and firmware information, temperatures, fans, speed, flow and Z height, and a
+  temperature chart for the last 30 minutes, 2 hours or 24 hours.
+- Printer picture chosen by the printer model reported by PrusaLink, or a custom image.
+- Camera window for RTSP/H.264 cameras (e.g. Buddy3D) through FFmpeg, with automatic reconnection and full-screen,
+  normal and mini (always on top) modes.
+- Camera overlay with configurable items (name, state, progress, temperatures, remaining time, finish time, print
+  time, file name) and corner.
+- Camera window settings for each printer: start mode, size, position, monitor and always on top.
 - PrusaLink web opened already signed in through a local proxy. The password never reaches the browser.
-- Settings window: printers, connection test, camera, notifications, polling interval and language.
+- Settings window: printers, connection test, camera with a live preview, notifications, polling interval and
+  language.
 - Passwords stored in the Windows Credential Manager.
 - Localization: English, Czech, Slovak, German, Spanish, French, Italian and Polish.
-- About window with the third-party licences.
+- App icon for the executable, the windows and the tray. On Windows 11 the tray icon is shown in the visible part of
+  the taskbar instead of the hidden-icons area.
+- File logging with a "Detailed logging (Debug)" setting. Unhandled exceptions are written to the log before the app
+  ends.
+- About window with the third-party licences and a "Report a problem" group: save a diagnostic bundle (ZIP without
+  passwords), copy a short report to the clipboard, open the log folder.
 - Single instance: starting the app again doesn't open a second tray icon.
 - Native AOT publishing (single executable, no .NET runtime required).
 
@@ -37,6 +48,12 @@ First public preview. Windows x64 only, PrusaLink only, builds are not code-sign
   times.
 - The monitor chosen for the camera window is found again after it is plugged into another connector, and its new
   connector is remembered. A switched-off monitor is still not confused with an identical one next to it.
+
+### Security
+
+- FFmpeg accepts only RTSP over TCP with H.264, nothing else.
+- The PrusaLink web proxy rejects write requests from other origins.
+- Native libraries are loaded only from the application folder and the system folder.
 
 [Unreleased]: https://github.com/pfoltynek/PrusaTrayDiagnostic/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/pfoltynek/PrusaTrayDiagnostic/releases/tag/v0.1.0

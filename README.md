@@ -1,101 +1,188 @@
 <p align="center">
-  <img src="src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.svg" alt="Prusa Tray Diagnostic icon" width="96" height="96">
+  <img src="src/PrusaTrayDiagnostic.App/Assets/AppIcon/app-icon.svg" alt="Prusa Tray Diagnostic icon" width="112" height="112">
 </p>
 
 <h1 align="center">Prusa Tray Diagnostic</h1>
 
 <p align="center">
-  Keep an eye on your Prusa 3D printers from the system tray.
-  <br>
-  <a href="README.cz.md">Česky</a> ·
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases">Releases</a> ·
-  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/issues">Issues</a>
+  <b>Watch your Prusa printers live, right from the system tray.</b><br>
+  Real-time camera, print progress and notifications over your local network. No cloud, no account, no browser tab.
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20(planned)-lightgrey.svg" alt="Platform: Windows, macOS planned">
-  <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
+  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><b>Download</b></a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#features">Features</a> ·
+  <a href="README.cz.md">Česky</a>
 </p>
+
+<p align="center">
+  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/PrusaTrayDiagnostic?include_prereleases&label=release" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platform: Windows 10/11">
+  <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
+  <a href="https://github.com/pfoltynek/PrusaTrayDiagnostic/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/PrusaTrayDiagnostic?style=social" alt="GitHub stars"></a>
+</p>
+
+<!--
+  SCREENSHOT (hero): docs/images/camera-overlay.png
+  Camera window in normal mode during a real print, overlay with progress, temperatures and finish time.
+  Recommended 1600×900 px, PNG, no personal data in the file name or the printer name.
+<p align="center">
+  <img src="docs/images/camera-overlay.png" alt="Live camera window with print progress overlay" width="800">
+</p>
+-->
 
 ---
 
-**Prusa Tray Diagnostic** is a small tray-only application for monitoring Prusa 3D printers. It shows the state and
-progress of your prints in the tray icon, sends system notifications when something happens, and gives you quick
-access to diagnostics, temperatures and the printer camera. It doesn't have a main window. Everything starts from the
-tray icon.
+You start a 9-hour print and go back to work. Is the first layer sticking? Did the spool tangle? How long is left?
+Normally you walk to the printer, or open a browser tab and keep reloading it.
 
-It talks to the printers over **PrusaLink**, the local REST API built into the printer firmware. Support for
-**Prusa Connect** (cloud) is planned.
+**Prusa Tray Diagnostic** puts the answer one glance away. The tray icon shows the state and progress of every
+printer. A click opens a **live camera window** with the print progress, temperatures and the finish time on top of the
+picture. When something happens, a **system notification** tells you right away: print finished, printer needs
+attention, error, printer offline.
+
+It talks to your printers **directly over your local network** through PrusaLink, the API built into the printer
+firmware. Nothing leaves your network: no cloud service, no account, no telemetry.
 
 > [!NOTE]
 > This is an independent community project. It is **not** an official product of Prusa Research and is not affiliated
 > with or endorsed by Prusa Research a.s. *Prusa*, *PrusaLink* and *Prusa Connect* are trademarks of their respective
 > owners.
 
+## Why you'll like it
+
+- 🎥 **Live camera, not snapshots.** Real-time RTSP/H.264 stream from the Prusa Buddy3D camera (or any RTSP camera),
+  decoded locally with FFmpeg. A compact always-on-top window can sit in the corner of your screen while you work.
+- 🏠 **Local network only.** The app talks to the printers on your LAN. It works even when your internet is down, and
+  your camera picture never goes through somebody else's server.
+- 🔔 **You hear about it when it matters.** Native Windows notifications for finished, paused and stopped prints,
+  errors, "needs attention" and printers going offline, plus a reminder a few minutes before the print ends.
+- 🖨️ **Your whole print farm in one icon.** Add as many printers as you have. One combined icon shows the most
+  important state, and each printer has its own submenu.
+- 🪶 **Tiny and quiet.** A single native executable (Native AOT), no .NET runtime to install, no main window, no
+  background service. It just lives in the tray.
+- 🔒 **Safe with your passwords.** Passwords go to the Windows Credential Manager. The PrusaLink web interface opens
+  already signed in, and your password is never handed to the browser.
+- 🌍 **Speaks your language.** English, Czech, Slovak, German, Spanish, French, Italian and Polish.
+- 💚 **Free and open source** under GPL-3.0. No ads, no subscription, no "pro" version.
+
+## Screenshots
+
+<!--
+  SCREENSHOTS: add the files to docs/images/ and remove this comment wrapper.
+  Recommended: PNG, 100 % or 150 % display scaling, light Windows theme, no real IP addresses or serial numbers.
+
+| Tray menu | Mini camera window |
+|---|---|
+| <img src="docs/images/tray-menu.png" alt="Tray menu with two printers" width="380"> | <img src="docs/images/camera-mini.png" alt="Compact always-on-top camera window" width="380"> |
+
+| Notification | Diagnostics |
+|---|---|
+| <img src="docs/images/notification.png" alt="Print finished notification" width="380"> | <img src="docs/images/diagnostics.png" alt="Diagnostics window with the temperature chart" width="380"> |
+-->
+
+*Screenshots are coming with the first release.*
+
 ## Features
 
-- **Status at a glance.** The tray icon shows the printer's state (idle, printing with progress, paused, finished,
-  needs attention, error, offline). The tooltip shows the details.
-- **Multiple printers.** One combined icon shows the most important state across all printers. Each printer has its
-  own submenu.
-- **Notifications** when a print starts, finishes, pauses, resumes or stops, on errors, when the printer needs
-  attention or goes offline, and a configurable number of minutes before the print ends. Sounds can be off, on for
-  important events only, or on for all events.
-- **Diagnostics window** with printer and firmware information and a live temperature chart (nozzle and bed) covering
-  the last 24 hours.
-- **Camera window** for RTSP cameras (for example the Prusa Buddy3D camera), with an overlay showing print progress,
-  temperatures and the estimated finish time. It has full-screen, normal and compact modes.
-- **One-click PrusaLink web.** The printer's web interface opens in your browser already signed in. Your password is
-  never handed to the browser.
-- **Secure credential storage.** Passwords are kept in the Windows Credential Manager, never in plain text.
-- **Eight languages:** English, Czech, Slovak, German, Spanish, French, Italian and Polish. By default the app follows
-  your system language.
-- **Lightweight.** It is published as a single Native AOT executable and doesn't need a .NET runtime.
+### In the tray
 
-## Platform support
+- The icon shows the printer state: idle, printing (the icon fills up as the print progresses), paused, finished,
+  needs attention, error, offline. The tooltip shows the details: progress, time left and file name.
+- The menu has a submenu for each printer: show or hide the camera, open the diagnostics, open the PrusaLink web.
+
+### Camera window
+
+- Live RTSP stream with an overlay: printer name, state, progress, nozzle and bed temperatures, remaining time,
+  finish time, print time and file name. You choose the items and the corner.
+- Three modes: **normal**, **mini** (a small preview that stays on top of other windows) and **full screen** (F11).
+- Per printer: start mode, size, position, monitor and "always on top". The window can remember where you left it.
+- Reconnects automatically when the camera or Wi-Fi drops out.
+
+### Notifications
+
+- Print started, finished, paused, resumed, stopped, error, needs attention, printer offline.
+- "N minutes remaining" reminder, so you can be at the printer when the print ends.
+- Sound off, on for important events only, or on for all events.
+
+### Diagnostics
+
+- Printer model and firmware, current state and the time of the last update.
+- Nozzle and bed temperatures (actual and target), hotend and print fan speeds, print speed, flow and Z height.
+- Live temperature chart for the nozzle and the bed: last 30 minutes, 2 hours or 24 hours (kept in memory only).
+
+### Troubleshooting built in
+
+- The **About** window saves a diagnostic bundle (logs, version and system info, settings without passwords) or copies
+  a short report to the clipboard, so a bug report takes a minute.
+
+## Supported printers
+
+Any Prusa printer with **Buddy firmware 6.x and PrusaLink**:
+
+| Printer | Status |
+|---|---|
+| Prusa CORE One | ✅ tested (with the Buddy3D camera) |
+| Original Prusa MK4 / MK4S | 🟡 should work, not tested yet |
+| Original Prusa MK3.9 / MK3.9S, MK3.5 / MK3.5S | 🟡 should work, not tested yet |
+| Original Prusa XL | 🟡 should work, not tested yet |
+| Original Prusa MINI / MINI+ | 🟡 should work, not tested yet |
+| Original Prusa MK3 / MK3S (8-bit firmware) | ❌ the printer has no built-in PrusaLink |
+
+All printers with Buddy firmware 6.x share the same PrusaLink API. Do you run the app with another model? Please
+[let us know](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues) whether it works, so we can mark it as tested.
+
+The camera is optional. Without it you still get the tray icon, notifications and diagnostics. The camera has to
+provide an **RTSP H.264** stream reachable from your computer, for example the Prusa Buddy3D camera or most IP
+cameras.
 
 | Platform | Status |
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
-| macOS (Apple Silicon) | 🚧 planned: tray menu, notifications, Keychain and camera are in progress |
-| Prusa Connect (cloud) | 🚧 planned |
+| Windows on ARM64 | 🚧 planned |
+| macOS (Apple Silicon) | 🚧 planned: menu bar, notifications, Keychain and camera are in progress |
 
-## Installation
+## Quick start
+
+### 1. Download
+
+Get the latest build from the [Releases](https://github.com/pfoltynek/PrusaTrayDiagnostic/releases) page, unpack the
+ZIP anywhere and run `PrusaTrayDiagnostic.exe`.
 
 > [!IMPORTANT]
-> There is no packaged release yet. An installer with automatic updates is planned.
-> Until then, [build the app from source](#building-from-source).
+> Versions 0.x are **previews**. Settings may change between versions, and there is no installer or automatic update
+> yet. Builds are not code-signed, so Windows SmartScreen may show an "Unknown publisher" warning. Click
+> **More info → Run anyway**, or [build the app yourself](#building-from-source).
 
-Releases will be published on the [Releases](https://github.com/pfoltynek/PrusaTrayDiagnostic/releases) page.
-Early builds are not code-signed, so Windows SmartScreen may show an "Unknown publisher" warning.
-
-## Getting started
-
-### 1. Enable PrusaLink on the printer
+### 2. Enable PrusaLink on the printer
 
 On the printer, open **Settings → Network → PrusaLink**. Check that PrusaLink is enabled and note the **user name**
 (the default is `maker`), the **password** and the printer's **IP address**.
 
-### 2. Add the printer
+### 3. Add the printer
 
-1. Start the app. A Prusa icon appears in the system tray. On Windows you may need to pin it from the hidden-icons
-   area (`^`).
-2. Open the tray menu, choose **Add printer…** (or **Settings…** → **Printers** → **Add printer**) and fill in:
+1. A Prusa icon appears in the system tray. On Windows you may need to pin it from the hidden-icons area (`^`).
+2. Open the tray menu, choose **Add printer…** and fill in:
    - **Name:** any name you like.
    - **Address:** an IP address or host name, e.g. `192.168.1.20` or `http://prusa-mk4.local`.
-   - **User name** and **Password:** the values from step 1.
+   - **User name** and **Password:** the values from step 2.
 3. Click **Test connection**, then **Save**.
 
 The icon starts showing the printer's state immediately.
 
-### 3. Optional settings
+### 4. Turn on the camera (optional)
 
-- **Camera:** in the printer's settings, enter the camera's RTSP stream address, e.g. `rtsp://192.168.0.227/live` for the
-  Buddy3D camera. Don't put a user name or password in the URL. Turn the camera on in the printer's submenu in the
-  tray menu.
-- **Notifications:** choose which events you want, the sound mode and the "minutes remaining" reminder.
-- **General:** the polling interval (how often the printers are asked for their state) and the language.
+In the printer's settings, enter the camera's RTSP address, e.g. `rtsp://192.168.1.21/live` for the Buddy3D camera.
+Don't put a user name or password in the URL. Click **Test camera**, save, and choose **Show camera** in the printer's
+submenu.
+
+### Other settings
+
+- **Notifications:** which events you want, the sound mode and the "minutes remaining" reminder.
+- **Camera window and overlay:** start mode, size, monitor, always on top, overlay items and corner.
+- **General:** how often the printers are polled, the language and detailed logging.
 
 ### Where data is stored
 
@@ -105,14 +192,37 @@ The icon starts showing the printer's state immediately.
 | Passwords | Windows Credential Manager |
 | Logs | `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` |
 
-The temperature history is kept only in memory and is never written to disk.
+The temperature history is kept only in memory and is never written to disk. The app makes no connections except to
+the printers and cameras you add.
 
-### Reporting a problem
+## Roadmap
 
-The **About** window has a **Report a problem** group: save a diagnostic bundle (a ZIP with the logs, version and system
-information and the settings without passwords), copy a short report with the last log lines to the clipboard, or open
-the log folder. Detailed logging can be turned on in the settings
-(General tab). See [docs/troubleshooting.md](docs/troubleshooting.md) (in Czech) for what the bundle contains.
+- Installer with automatic updates (Velopack), autostart with Windows
+- `winget install` as soon as the first release is public
+- Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
+  signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
+- macOS menu bar app (Apple Silicon)
+- Windows on ARM64
+- MMU3 status
+- Prusa Connect (cloud) as an optional second source for printers outside your network
+
+Have an idea? [Open an issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues).
+
+## FAQ
+
+**Does it work outside my home network?**
+Not yet. The app talks to the printers directly over the LAN. You can use a VPN to your home network; optional Prusa
+Connect support is on the roadmap.
+
+**Does it replace Prusa Connect or PrusaLink web?**
+No, it complements them. It is the quick "glance" view on your desktop. For uploading files and starting prints, open
+the PrusaLink web from the tray menu: it signs you in automatically.
+
+**Can it control the printer (pause, stop)?**
+Not in this version. It is a monitoring tool on purpose: read-only access is safer for a tool that runs all the time.
+
+**Does it slow the printer down?**
+No. It asks for the state every few seconds (configurable), the same way the PrusaLink web does.
 
 ## Building from source
 
@@ -138,6 +248,9 @@ dotnet test                                       # run all tests
 dotnet run --project src/PrusaTrayDiagnostic.App  # start the tray app
 ```
 
+No printer at hand? The repository contains a [simulator](docs/simulator.md) of PrusaLink printers and an RTSP camera
+for development (in Czech).
+
 ### Native AOT publish
 
 ```bash
@@ -150,9 +263,8 @@ macOS.
 
 ### Making a release
 
-Releases are built locally (no CI) with PowerShell 7.2+ scripts: `scripts/release-build.ps1` (build, tests, AOT publish,
-smoke test, archives, SHA-256 checksums), `scripts/release-upload.ps1` (draft GitHub release) and
-`scripts/release-publish.ps1`. The version comes from `<Version>` in `Directory.Build.props` and the release notes
+Releases are built locally with PowerShell 7.2+ scripts in `scripts/` (build, tests, AOT publish, smoke test, archives,
+SHA-256 checksums, GitHub release). The version comes from `<Version>` in `Directory.Build.props` and the release notes
 from [CHANGELOG.md](CHANGELOG.md). See [docs/release.md](docs/release.md) for the full procedure (in Czech).
 
 ### Project structure
@@ -172,12 +284,23 @@ from [CHANGELOG.md](CHANGELOG.md). See [docs/release.md](docs/release.md) for th
 Built with [.NET](https://dotnet.microsoft.com/), [Avalonia UI](https://avaloniaui.net/),
 [CommunityToolkit.Mvvm](https://github.com/CommunityToolkit/dotnet) and [FFmpeg](https://ffmpeg.org/).
 
+### How this project is made
+
+This project is developed with the help of AI: most of the code, tests and documentation were written with
+[Claude Code](https://claude.com/claude-code) under the maintainer's direction. Every product decision is made by the
+maintainer, every change goes through automated tests (unit, headless UI and end-to-end tests against a printer
+simulator) and a review, and the app is tested on a real printer. The whole process is public: the task backlog is in
+`tasks/`, the agent instructions in `.claude/agents/` and the coding rules in [CLAUDE.md](CLAUDE.md).
+
 ## Contributing
 
-Contributions are welcome: bug reports, ideas, translations and pull requests.
+Contributions are welcome: bug reports, ideas, translations and pull requests. See [CONTRIBUTING.md](CONTRIBUTING.md)
+for the details.
 
 - **Bugs and ideas:** open an [issue](https://github.com/pfoltynek/PrusaTrayDiagnostic/issues). Include your printer
-  model, firmware version and OS.
+  model, firmware version and OS. The diagnostic bundle from the About window helps a lot.
+- **Translations:** UI strings are in `src/PrusaTrayDiagnostic.App/Resources/Strings.*.resx`. Fixes and new languages
+  are very welcome.
 - **Pull requests:** the project uses Gitflow. Branch from `develop` and open the PR against `develop`.
   `dotnet build` and `dotnet test` must pass with **zero warnings**, because warnings are treated as errors.
 - **Native AOT:** no unconstrained reflection, `System.Text.Json` only through source-generated contexts, and any new
@@ -192,6 +315,7 @@ There is no CLA. By submitting a contribution you agree that it is licensed unde
 
 Please don't report security issues in public issues. Use GitHub's
 [private vulnerability reporting](https://github.com/pfoltynek/PrusaTrayDiagnostic/security/advisories/new) instead.
+See [SECURITY.md](SECURITY.md).
 
 ## License
 
@@ -208,3 +332,9 @@ implied warranty of merchantability or fitness for a particular purpose.
 The app bundles the native **FFmpeg** libraries, which are licensed under the LGPL. They are dynamically linked and
 can be replaced. The FFmpeg license text ships with the app as `FFmpeg-LICENSE.txt`. All third-party components,
 their versions and full license texts are listed in the app under **About → Third-party licences…**.
+
+---
+
+<p align="center">
+  If Prusa Tray Diagnostic saves you a walk to the printer, please give it a ⭐. It helps other makers find it.
+</p>
