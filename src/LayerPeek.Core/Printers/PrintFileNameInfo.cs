@@ -198,7 +198,9 @@ public sealed record PrintFileNameInfo
 
             return new PrintFileNameInfo(title, extension)
             {
-                Materials = SplitMaterials(Segment(stem, starts, material)),
+                // Read-only wrapper: the instance is shared through the last-result cache, so a caller casting
+                // the list back to an array must not be able to change it for everyone else.
+                Materials = Array.AsReadOnly(SplitMaterials(Segment(stem, starts, material))),
                 LayerHeightMm = layerHeight,
                 NozzleDiameterMm = nozzle,
                 SlicerEstimate = estimate,
