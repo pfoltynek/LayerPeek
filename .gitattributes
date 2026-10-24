@@ -2,3 +2,5 @@
 *.png binary
 *.ico binary
 *.icns binary
+*.h264 binary
+*.wav binary

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <ProjectReference Include="..\LayerPeek.Core\LayerPeek.Core.csproj" />
+  </ItemGroup>
+</Project>

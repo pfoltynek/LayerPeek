@@ -1,28 +1,210 @@
-# PrusaLink API – poznámky
+# PrusaLink API (firmware Buddy 6.x)
 
-> Pracovní poznámky. Před implementací (T-003) ověřit proti oficiální OpenAPI specifikaci.
+Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ověřeno proti zdrojovému kódu firmwaru (verze 6.2–6.10). Specifikace OpenAPI v Prusa-Link-Web je obecná a částečně neaktuální (pokrývá i SL1 a PrusaLink na Raspberry Pi). Pro Buddy je referencí kód firmwaru.
 
 ## Zdroje
 
-- Prusa-Link-Web (OpenAPI spec v repozitáři): https://github.com/prusa3d/Prusa-Link-Web
-- Prusa-Link (MK3S+ / Raspberry Pi): https://github.com/prusa3d/Prusa-Link
-- Firmware Buddy (MK4, XL, MINI, Core One): https://github.com/prusa3d/Prusa-Firmware-Buddy
+- Specifikace: https://raw.githubusercontent.com/prusa3d/Prusa-Link-Web/master/spec/openapi.yaml
+- Firmware: https://github.com/prusa3d/Prusa-Firmware-Buddy
+  - `lib/WUI/nhttp/status_renderer.cpp` – `/api/v1/status`
+  - `lib/WUI/link_content/basic_gets.cpp` – `/api/version`, `/api/v1/info`, `/api/v1/job`
+  - `lib/WUI/nhttp/req_parser.cpp`, `status_page.cpp` – autentizace, chybové odpovědi
+  - `src/common/http/types.h` – platnost nonce
+  - `lib/WUI/nhttp/server.h` – limity spojení
+  - `src/state/printer_state.cpp` – mapování stavů
 
-## Předpokládané endpointy (ověřit)
+## Endpointy používané klientem
 
-| Endpoint | Účel |
+| Endpoint | Kdy | Poznámka |
+|---|---|---|
+| `GET /api/v1/status` | každý polling | stav, teploty, osa Z, rychlost/průtok, ventilátory; objekt `job` (id, progress %, `time_remaining` s, `time_printing` s) jen při tisku/pauze |
+| `GET /api/v1/job` | jen při změně `job.id` | název souboru (`file.display_name`); **204 No Content**, když úloha neběží (i ve stavu FINISHED/STOPPED) |
+| `GET /api/version` | test spojení; jednou za běh monitoringu (model, T-039) | `api`, `hostname`; `firmware` a `printer` až od 6.5 |
+| `GET /api/v1/info` | test spojení | `mmu` (bool), `nozzle_diameter`, `hostname`, `serial` |
+
+- Kamery (`/api/v1/cameras`) Buddy nemá a vrací 404.
+- **MMU:** jedinou informací o MMU je `info.mmu`. Stav slotů API neposkytuje.
+
+## Model tiskárny (`/api/version`, pole `printer`, T-039)
+
+**Formát:** `"printer": "<type>.<version>.<subversion>"`, např. `"1.4.1"`. Firmware ho skládá přes `JSON_FIELD_STR_FORMAT("printer", "%i.%i.%i", …)` z `PrinterModelInfo::current().version` (`lib/WUI/link_content/basic_gets.cpp`, funkce `get_version`). Pole existuje **od firmwaru 6.5** (v tagu `v6.4.2` chybí spolu s `firmware`, v `v6.5.1` už je).
+
+**Rozšířený typ tiskárny:** `PrinterModelInfo::current()` (`src/common/printer_model.cpp`) vrací u firmwaru s rozšířeným typem (`include/common/extended_printer_type.hpp`) model nastavený v tiskárně, ne model sestavení firmwaru:
+- firmware MK4: MK4, MK4S, MK3.9, MK3.9S;
+- firmware MK3.5: MK3.5, MK3.5S;
+- firmware XL: XL, XL+ (od 6.8; ve 6.10 se typ zjišťuje automaticky podle hardwaru, starší verze jsme v tomto ohledu nekontrolovali).
+
+Kód proto rozliší i varianty se stejným firmwarem.
+
+**Zdroj tabulky:** Prusa-Firmware-Buddy, `include/common/printer_model_data.hpp` (pole `printer_model_info`, položka `.version`):
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/v6.10.3/include/common/printer_model_data.hpp
+- https://github.com/prusa3d/Prusa-Firmware-Buddy/blob/v6.5.1/include/common/printer_model_data.hpp
+
+Ověřeno v tazích `v6.5.1`, `v6.6.0`, `v6.8.0`, `v6.9.x`, `v6.10.0`, `v6.10.3` a na `master` (commit `1ce23f33`, 2026-08-27). Kódy se mezi verzemi neměnily, jen přibývaly modely.
+
+| Kód | Model ve firmwaru (`PrinterModel::`, `id_str`) | Od tagu | `PrinterModel` v aplikaci |
+|---|---|---|---|
+| `1.3.0` | `mk3`, MK3 | – | `Unknown` (8bitový firmware bez PrusaLink Buddy) |
+| `1.3.1` | `mk3s`, MK3S | – | `Unknown` (8bitový firmware bez PrusaLink Buddy) |
+| `1.3.5` | `mk3_5`, MK3.5 | 6.5.1 | `Mk35` |
+| `1.3.6` | `mk3_5s`, MK3.5S | 6.5.1 | `Mk35S` |
+| `1.3.9` | `mk3_9`, MK3.9 | 6.5.1 | `Mk39` |
+| `1.3.10` | `mk3_9s`, MK3.9S | 6.5.1 | `Mk39S` |
+| `1.4.0` | `mk4`, MK4 | 6.5.1 | `Mk4` |
+| `1.4.1` | `mk4s`, MK4S | 6.5.1 | `Mk4S` |
+| `2.1.0` | `mini`, MINI | 6.5.1 | `Mini` (MINI i MINI+) |
+| `3.1.0` | `xl`, XL | 6.5.1 | `Xl` |
+| `3.1.1` | `xls`, XLP (na displeji „XL+“) | 6.8.0 | `XlPlus` |
+| `4.1.0` | `ix`, iX | 6.5.1 | `Unknown` (průmyslová tiskárna, bez ilustrace) |
+| `5.1.0` | `xl_dev_kit`, XL | 6.5.1 | `Xl` (ve firmwaru „works like standard XL“) |
+| `7.1.0` | `coreone`, COREONE | 6.5.1 | `CoreOne` |
+| `7.2.0` | `coreone_oak`, COREONEOAK | 6.6.0 | `Unknown` (nevydaná varianta, ve firmwaru „dead code“) |
+| `7.10.0` | `coreone_indx`, COREONEINDX | 6.6.0 | `Unknown` (obecná ilustrace, rozhodnutí T-039 2026-10-20) |
+| `8.1.0` | `coreonel`, COREONEL | 6.5.1 | `CoreOneL` |
+| `8.10.0` | `coreonel_indx`, COREONEL-INDX | 6.6.0 | `Unknown` (obecná ilustrace, rozhodnutí T-039 2026-10-20) |
+| cokoli jiného | – | – | `Unknown` (kód se ale uloží, novější verze aplikace ho může znát) |
+
+**Co kód nerozliší:**
+- MINI a MINI+ mají stejný firmware i kód `2.1.0`.
+- XL s jedním a s více nástroji má stejný kód `3.1.0`. Počet nástrojů z `/api/version` ani `/api/v1/info` nezjistíme; jiný zdroj jsme neověřovali.
+- MMU kód nemění (MMU varianty ve firmwaru mají jen jiný G-code kód). MMU hlásí `info.mmu`.
+
+**Neověřeno na skutečné tiskárně:** nahrané odpovědi (`Fixtures/recorded/`) zatím nemáme. Tabulka vychází jen ze zdrojového kódu. Starší fixture `version.json` měla vymyšlený kód `7.0.0`, opraveno na `7.1.0` (Core One).
+
+**Prusa Connect:** vrací `printer_model` a `printer_type_name` (viz [prusa-connect.md](prusa-connect.md)). Automatickou detekci u Prusa Connect podle rozhodnutí T-039 neděláme, takže hodnoty jsme neověřovali.
+
+**V aplikaci:**
+- Převod je `Core/Printers/PrinterModels.FromCode`, kód je `PrinterModelCode`.
+- Klient: `PrusaLinkClient.DetectModelAsync` (jen `/api/version`) a `PrusaLinkPrinterInfo.ModelCode` (test spojení).
+- Monitor se zeptá jednou za běh, po prvním úspěšném dotazu na stav, a vyvolá `IPrinterMonitor.ModelDetected`. Selhaný dotaz zkusí znovu po dalším úspěšném dotazu na stav, nejvýš 3× za běh. Firmware bez pole `printer` se už znovu neptá.
+- Uložený kód je `printers[*].detectedModel` v `settings.json`.
+- Kód zjištěný monitoringem uloží App (`MonitoringSession`) na pozadí, jen když se změnil. Do souboru zapíše jen tuto hodnotu, a jen do položky se stejnou adresou a typem připojení, pro které byl kód zjištěn (`ISettingsStore.SetDetectedModelAsync`, zbytek souboru zůstane bajt po bajtu). Monitoring kvůli tomu nerestartuje. Test spojení v okně nastavení kód uloží spolu s nastavením. Nová adresa nebo typ připojení v editoru kód zahodí do další detekce (T-039).
+
+## Stavy (`printer.state`)
+
+| PrusaLink | Doménový stav |
 |---|---|
-| `GET /api/version` | verze API, firmware |
-| `GET /api/v1/info` | informace o tiskárně |
-| `GET /api/v1/status` | stav tiskárny, teploty, aktuální úloha |
-| `GET /api/v1/job` | detail aktuální úlohy (soubor, progress, časy) |
-| `GET /api/v1/cameras` | seznam kamer (pokud podporováno) |
+| `IDLE`, `READY` | `Idle` (READY posílá jen Connect) |
+| `BUSY` | `Busy` (kalibrace, selftest, předehřev…) |
+| `PRINTING` | `Printing` (včetně ukončování/rušení) |
+| `PAUSED` | `Paused` |
+| `ATTENTION` | `Attention` (varování, výměna filamentu, otázky před tiskem) |
+| `FINISHED` | `Finished` (dokud uživatel nepotvrdí na displeji) |
+| `STOPPED` | `Stopped` |
+| `ERROR` | `Error` (Buddy ho v praxi neposílá – fatální chyba znamená, že web server neběží) |
+| `UNKNOWN` a cokoli jiného | `Unknown` |
 
-## Autentizace (ověřit)
+- Po skončení tisku zmizí objekt `job` ze `/status`. Klient proto u FINISHED/STOPPED vrací poslední známou úlohu (u FINISHED s progressem 100 %).
+- `job.id` se mapuje na `PrintJob.Id`. Detekce událostí (T-009) podle něj rozliší dvě po sobě jdoucí úlohy i se stejným názvem souboru.
+- `time_remaining` firmware vynechává, když odhad není k dispozici. Hodnota nikdy není `null`.
 
-- Novější firmware: HTTP Digest, uživatel `maker`, heslo z displeje tiskárny.
-- Starší firmware / PrusaLink: hlavička `X-Api-Key`.
+## Autentizace
 
-## Otevřené body
+**HTTP Digest podle RFC 2069:**
+- MD5, **bez `qop`**, realm `Printer API`, heslo z menu tiskárny.
+- Uživatelské jméno se nastavuje u každé tiskárny (T-027), výchozí je `maker`. Ukládá se v souboru nastavení (není tajné), heslo v `ISecretStore`.
+- Výpočet: `response = MD5(MD5("<uživatel>:Printer API:<heslo>"):nonce:MD5("<METODA>:<uri>"))`. Metoda je skutečná metoda požadavku (`GET`, `PUT`, `DELETE`…), `uri` je přesně cesta a query odeslané v požadavku (`lib/WUI/nhttp/req_parser.cpp`, `check_digest_auth`).
+- Firmware čte z hlavičky `Authorization` jen `nonce` a `response`.
 
-- Rozdíly mezi firmwary a modely – doplní T-003.
+**Nonce:**
+- Je platný **300 s od vydání** a lze ho opakovaně použít; čítač `nc` se nekontroluje.
+- Po vypršení vrátí firmware 401 s novým nonce a `stale=true`.
+- Klient proto cachuje nonce i hotovou hlavičku pro každou URI. Jeden 401 navíc tak přijde zhruba jednou za 5 minut.
+- Vestavěný Digest v .NET by platil 401 při každém požadavku, protože `PreAuthenticate` umí jen Basic.
+
+**Ostatní:**
+- `X-Api-Key` firmware 6.x stále přijímá se stejnou hodnotou jako heslo. Klient ho nepoužívá (rozhodnutí: jen Digest).
+- 401 má tělo `{"title": "401: Unauthorized","message":""}`. Chybové odpovědi jsou v JSON jen tehdy, když je `application/json` první v hlavičce `Accept`.
+
+**Reverzní proxy:** adresa smí obsahovat cestu (např. `http://proxy/printers/mk4`). Proxy ale musí cestu předat beze změny, protože firmware počítá Digest z cesty v požadavku. Proxy, která prefix odřízne, se projeví jako „The printer rejected the password.“
+
+## Otevření webu s přihlášením (T-028)
+
+**Stav:** proxy (Core + PrusaLink) i napojení na tray menu v App jsou implementované a uživatel je 2026-10-18 ručně ověřil v Edge se skutečnou tiskárnou (viz `tasks/done/T-028-prusalink-web-login.md`).
+
+**Údaje v adrese (`http://jmeno:heslo@tiskarna/`) nefungují** (ověřeno v Edge 2026-10-18):
+- Úvodní stránka a skripty webu se vracejí bez přihlášení (`200`). Digest výzvu vrací až API.
+- Web (Prusa-Link-Web, https://github.com/prusa3d/Prusa-Link-Web, `src/auth.js`) skládá adresy API z `window.location.pathname` bez koncového `/` (`API_ROOT`) a volá `fetch(`${API_ROOT}/api/...`)`. Nahrávání souborů jde přes `XMLHttpRequest` `PUT ${API_ROOT}/api/v1/files/...` (`src/helpers/upload_request.js`).
+- Chromium odmítne `fetch` na stránce, jejíž adresa obsahuje userinfo. Skript spadne a stránka zůstane prázdná.
+
+**Chování webu důležité pro proxy:**
+- Prostředky webu mají relativní cesty (`webpack.config.js`: `publicPath: ""`) a směrování je přes `#`. Web proto funguje i pod prefixem cesty, např. `/<token>/`.
+- Na `401` web čte `WWW-Authenticate` a podle prvního slova si do `sessionStorage` uloží `authType`. U `Digest` zavolá ověření znovu (`setUpAuth`). Odpověď `401` bez `WWW-Authenticate` skript shodí a opakovaná `401` ho zacyklí. Proxy proto prohlížeči `401` nikdy nevrací.
+- Firmware počítá HA2 ze skutečné metody požadavku: `MD5("<METODA>:<uri>")` (`lib/WUI/nhttp/req_parser.cpp`, `check_digest_auth`). Pro `PUT` a `DELETE` přes proxy tedy nestačí výpočet napevno s `GET`.
+
+### Lokální proxy (`PrusaLink/WebProxy`)
+
+Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWebGateway` spouští pro každou tiskárnu vlastní `PrusaLinkWebProxy` (Kestrel ze sdíleného frameworku ASP.NET Core, bez YARP).
+
+**Otevření (`OpenAsync`):**
+- Prusa Connect vrátí `NotSupported`, neplatná adresa `InvalidAddress`. V obou případech bez adresy.
+- Před otevřením prohlížeče proběhne přihlášený `GET /api/version` (kontrola hesla, limit 5 s).
+- Při chybě se vrátí holá adresa tiskárny s důvodem: `PasswordMissing`, `PasswordUnreadable`, `PasswordRejected`, `AccessDenied`, `UnsupportedAuthentication`, `NotReachable`, `UnexpectedResponse`. Když proxy nejde spustit, důvod je `ProxyUnavailable`.
+- Při úspěchu se vrátí `http://127.0.0.1:<port>/<token>/`. Opakované otevření použije běžící proxy, stejný port i token.
+
+**Životní cyklus:**
+- Proxy se spouští líně, až při prvním otevření. Každá tiskárna má vlastní listener na `127.0.0.1`, port `0` (vybere OS) a vlastní token.
+- Token má 256 náhodných bitů (`RandomNumberGenerator`) v base64url bez `=`.
+- Zastaví se po 10 minutách bez požadavku. Běžící požadavek (např. dlouhé nahrávání) zastavení odkládá.
+- Zastaví se také přes `StopAsync(printerId)` / `StopAllAsync` (po změně nebo odebrání tiskárny, změně hesla) a při `DisposeAsync`/`Dispose` (ukončení aplikace).
+- `OpenAsync` se změněnou adresou nebo jménem nahradí starou proxy novou.
+- Zastavení zruší rozběhnuté požadavky na tiskárnu a uvolní port.
+
+**Mapování a hlavičky:**
+- `/<token>/<zbytek>?<query>` jde na `<adresa tiskárny>/<zbytek>?<query>`. Cesta a query se předávají beze změny, bez kanonikalizace `Uri` (`DangerousDisablePathAndQueryCanonicalization`), protože firmware počítá Digest z přesné cesty.
+- Segmenty `.`/`..` (i `%2e`), `\` a `#` v cestě se odmítnou (`404`).
+- `/<token>` bez lomítka vrátí `302` na `/<token>/`.
+- K tiskárně nejdou hlavičky `Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, `Origin`, `Referer`, `Expect`, `Host` ani hop-by-hop hlavičky (včetně těch jmenovaných v `Connection`).
+- K prohlížeči nejdou `WWW-Authenticate`, `Proxy-Authenticate`, `Set-Cookie` ani hop-by-hop hlavičky.
+- `Location` na tiskárnu se přepíše na `/<token>/...`, cizí adresy a relativní odkazy zůstanou beze změny.
+- Proxy přidá `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` a `Cross-Origin-Resource-Policy: same-origin` (cizí stránky nemohou obsah proxy vkládat ani načítat v režimu `no-cors`; stejnojmenné hlavičky tiskárny se zahodí). U `/api/` přidá `Cache-Control: no-store`.
+
+**Odmítnuté požadavky:**
+- `Host` jiný než přesně `127.0.0.1:<port>` vrátí `421`. Chybějící nebo zdvojený `Host` odmítne už Kestrel (`400`).
+- Chybějící nebo neplatný token vrátí `404` s prázdným tělem, stejně jako jakákoli jiná neznámá cesta.
+- `CONNECT`/`TRACE` vrátí `405`, `Upgrade` (WebSocket) `501`.
+- Zápisové požadavky z cizí stránky (T-051, nález L1) vrátí `403` s JSON chybou a na tiskárnu nedorazí. Týká se všech metod kromě `GET`, `HEAD` a `OPTIONS`, a to když:
+  - `Sec-Fetch-Site` je přítomná a není přesně `same-origin` ani `none` (jiný port na `127.0.0.1` je pro prohlížeč `same-site`), **nebo**
+  - `Origin` je přítomná a není přesně `http://127.0.0.1:<port>` této proxy. `Origin: null` projde jen spolu se `Sec-Fetch-Site: same-origin` (rozhodnuto 2026-10-21); s `none` nebo bez `Sec-Fetch-Site` se odmítne.
+  - Opakovaná hlavička (více hodnot) se také odmítne. Požadavek bez obou hlaviček (klient mimo prohlížeč, který stejně musí znát token) projde.
+  - Kontrola běží až po kontrole `Host` a tokenu, takže neplatný token dál vrací `404` a odmítnutí neprozradí platnost tokenu.
+  - Odmítnutí se loguje (Warning) jen s metodou a názvem hlavičky, bez tokenu, cesty a hodnoty hlavičky. Neprodlužuje nečinnost proxy.
+  - Vlastní požadavky stránky proxy mají `Sec-Fetch-Site: same-origin` a buď skutečný `Origin` (`fetch`/`XMLHttpRequest` ve výchozím režimu `cors`), nebo kvůli `Referrer-Policy: no-referrer` `Origin: null` (HTML formuláře, `fetch` v režimu `same-origin`/`no-cors`, `sendBeacon`). Obojí projde, web PrusaLink proto funguje beze změny.
+
+**Těla:**
+- Těla se v obou směrech streamují. Limity Kestrelu `MaxRequestBodySize`, `MinRequestBodyDataRate` a `MinResponseDataRate` jsou vypnuté, `HttpClient` proxy nemá celkový timeout (jen `ConnectTimeout` 5 s).
+- Tělo do 64 KB se bufferuje, aby šel požadavek po `401` se `stale=true` jednou zopakovat. Větší nebo chunked tělo se streamuje.
+- Před streamovaným tělem proxy obnoví nonce starší než 240 s (nebo chybějící) levným `GET /api/version`.
+- Odkaz na tiskárnu má vlastní pojmenovaný `HttpClient` `PrusaLink.WebProxy`: `MaxConnectionsPerServer = 2`, nečinné spojení 50 s. Firmware zvládne 3 požadavky a 1 spojení má monitoring. Další požadavky prohlížeče čekají ve frontě.
+
+**Digest a chyby:**
+- Proxy má vlastní instanci `DigestAuthenticator` (bez cache hlaviček podle URI, protože cest k souborům je neomezeně). S monitoringem sdílí jen `ISecretStore`.
+- Heslo se čte až při první výzvě a při odmítnutí.
+- Prohlížeč nikdy nedostane `401`. Při odmítnutém, chybějícím nebo nečitelném hesle, nepodporované autentizaci nebo propadlém nonce u streamovaného těla dostane `403` s JSON ve formátu chyb firmwaru (`{"title":"403: Forbidden","message":"..."}`), které web zobrazí přes `handleError`.
+- Nedostupná tiskárna vrátí `502`, timeout spojení `504`. Obojí je JSON ve stejném formátu.
+
+**Logy:** jen id tiskárny, metoda, cesta za tokenem bez query a stavový kód. Nikdy token, adresa proxy, heslo, HA1 ani hlavičky `Authorization`/`Cookie`. Vlastní logování Kestrelu je vypnuté, protože by obsahovalo URL s tokenem.
+
+**Známá omezení:**
+- V adresním řádku je `127.0.0.1:<port>` místo adresy tiskárny.
+- Záložky a otevřené karty po zastavení proxy (nečinnost, změna nastavení, restart aplikace) přestanou fungovat. Je nutné znovu otevřít web z menu.
+- Adresa s tokenem je v historii prohlížeče a v příkazové řádce procesu prohlížeče. Platí ale jen do zastavení proxy.
+- Klient, který se připojí přesně ve chvíli zavírání listeneru, může zůstat bez odpovědi, dokud nevyprší timeout prohlížeče. Spojení zůstane ve frontě OS a do proxy se nedostane.
+
+## Spojení a zátěž
+
+- Keep-alive je podporovaný.
+- Server zpracovává nejvýš **3 aktivní požadavky** a nečinné spojení zavírá po **60 s**.
+- Při zahlcení nevrací 503, jen zpomalí odpověď.
+- Klient proto používá **jedno spojení na tiskárnu**, sekvenční požadavky a nečinný timeout 50 s (pod limitem firmwaru).
+- Timeout jednoho požadavku je 3 s.
+  - Běžný dotaz je jeden požadavek. Obnova nonce a nová úloha přidají pár dalších.
+  - V nejhorším případě (obnova nonce a změna hesla zároveň pro `/status` i `/job`) to je 6 požadavků. Tento vzácný případ utne 10 s timeout monitoru.
+- Odpověď větší než 64 KB se zahodí jako neočekávaná. Skutečné odpovědi mají pod 2 KB; limit chrání paměť při špatné adrese.
+- Tiskárny za jednou reverzní proxy (stejný host a port) sdílejí jedno spojení a dotazují se postupně. U pomalé proxy a více tiskáren to může vést k falešnému „Offline“.
+- Oficiální webové UI dotazuje `/status` jednou za sekundu, takže výchozí interval 5 s je bezpečný.
+
+## Fixtures pro testy
+
+- `tests/LayerPeek.PrusaLink.Tests/Fixtures/firmware/` – odpovědi sestavené podle kódu firmwaru.
+- `tests/LayerPeek.PrusaLink.Tests/Fixtures/recorded/<tiskárna>/<stav>/` – skutečné odpovědi nahrané skriptem `tools/record-prusalink-fixtures.ps1`. Skript se zeptá na heslo (skrytě) a anonymizuje sériové číslo. Test `RecordedFixturesTests` je automaticky všechny přehraje.

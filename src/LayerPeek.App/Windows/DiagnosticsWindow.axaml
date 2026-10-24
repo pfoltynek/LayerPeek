@@ -1,0 +1,304 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:LayerPeek.App.Diagnostics"
+        xmlns:chart="using:LayerPeek.App.Diagnostics.Chart"
+        xmlns:loc="using:LayerPeek.App.Localization"
+        xmlns:printers="using:LayerPeek.App.Printers"
+        x:Class="LayerPeek.App.Windows.DiagnosticsWindow"
+        x:DataType="vm:DiagnosticsViewModel"
+        Title="{Binding [DiagnosticsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
+        Width="780"
+        Height="508"
+        MinWidth="640"
+        MinHeight="400"
+        CanMinimize="False"
+        CanMaximize="False"
+        WindowStartupLocation="CenterScreen">
+  <!--
+    Layout of T-041 (approved design, variant A): the size of the settings window (client 780 × 508 DIP, fits an
+    800 × 600 screen at 100 % with the title bar), shrunk to a smaller work area like it (AuxiliaryWindowPlacement).
+    Header (image 48, name or selector, state, detail, last update), notice, two value columns (temperatures | fans and
+    motion), the temperature chart over the full width filling the remaining height (at least 120), and a footer with the
+    printer information (or its status) next to Close. The scroll viewer is only the fallback below the designed size.
+    Only the close button in the title bar (like the settings window, T-040); the window stays resizable.
+  -->
+  <Window.Resources>
+    <ResourceDictionary>
+      <!-- Chart colours per theme; the chart and its legend follow a theme change through DynamicResource. -->
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#D9480F" />
+          <SolidColorBrush x:Key="ChartBedBrush" Color="#1864AB" />
+          <SolidColorBrush x:Key="ChartAxisBrush" Color="#616161" />
+          <SolidColorBrush x:Key="ChartGridBrush" Color="#E6E6E6" />
+          <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#FF8A4C" />
+          <SolidColorBrush x:Key="ChartBedBrush" Color="#4DABF7" />
+          <SolidColorBrush x:Key="ChartAxisBrush" Color="#ADADAD" />
+          <SolidColorBrush x:Key="ChartGridBrush" Color="#3A3A3A" />
+          <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Window.Resources>
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,0,0,4" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Opacity" Value="0.75" />
+      <Setter Property="Margin" Value="0,1,12,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.value">
+      <Setter Property="Margin" Value="0,1,0,1" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <!-- Column headers of the temperature table (Actual / Target). -->
+    <Style Selector="TextBlock.head">
+      <Setter Property="Opacity" Value="0.75" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Margin" Value="0,0,16,0" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <!-- Actual temperatures stand out. -->
+    <Style Selector="TextBlock.big">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,1,16,1" />
+    </Style>
+    <!-- A "label value" pair of the printer information in the footer. -->
+    <Style Selector="StackPanel.pair">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="4" />
+      <Setter Property="Margin" Value="0,1,16,1" />
+    </Style>
+    <Style Selector="StackPanel.pair > TextBlock">
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="TextBlock.pairLabel">
+      <Setter Property="Opacity" Value="0.75" />
+    </Style>
+  </Window.Styles>
+
+  <DockPanel Margin="16,12,16,12">
+    <!-- Footer: printer information (left, wraps to a second row) and Close (right), like the status and buttons of the settings window. -->
+    <Grid DockPanel.Dock="Bottom"
+          AutomationProperties.AutomationId="DiagnosticsFooter"
+          ColumnDefinitions="*,16,Auto"
+          Margin="0,12,0,0">
+      <StackPanel AutomationProperties.AutomationId="DiagnosticsPrinterInfo"
+                  AutomationProperties.Name="{Binding [DiagnosticsPrinterInfo], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  AutomationProperties.AccessibilityView="Control"
+                  AutomationProperties.ControlTypeOverride="Group"
+                  VerticalAlignment="Center"
+                  IsVisible="{Binding HasPrinter}">
+        <TextBlock AutomationProperties.AutomationId="DiagnosticsInfoStatus"
+                   Text="{Binding InfoStatusText}"
+                   IsVisible="{Binding HasInfoStatus}"
+                   FontSize="12"
+                   Opacity="0.75"
+                   TextWrapping="Wrap" />
+        <WrapPanel AutomationProperties.AutomationId="DiagnosticsInfoValues" IsVisible="{Binding HasInfoValues}">
+          <StackPanel Classes="pair">
+            <TextBlock Classes="pairLabel" Text="{Binding [DiagnosticsFirmware], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <TextBlock Text="{Binding FirmwareText}" />
+          </StackPanel>
+          <StackPanel Classes="pair">
+            <TextBlock Classes="pairLabel" Text="{Binding [DiagnosticsModel], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <TextBlock Text="{Binding ModelText}" />
+          </StackPanel>
+          <StackPanel Classes="pair">
+            <TextBlock Classes="pairLabel" Text="{Binding [DiagnosticsHostname], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <TextBlock AutomationProperties.AutomationId="DiagnosticsHostname"
+                       Text="{Binding HostnameText}"
+                       ToolTip.Tip="{Binding HostnameText}"
+                       MaxWidth="200"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <StackPanel Classes="pair">
+            <TextBlock Classes="pairLabel" Text="{Binding [DiagnosticsNozzleDiameter], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <TextBlock Text="{Binding NozzleDiameterText}" />
+          </StackPanel>
+          <StackPanel Classes="pair">
+            <TextBlock Classes="pairLabel" Text="{Binding [DiagnosticsMmu], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <TextBlock Text="{Binding MmuText}" />
+          </StackPanel>
+        </WrapPanel>
+      </StackPanel>
+      <Button Grid.Column="2"
+              AutomationProperties.AutomationId="DiagnosticsClose"
+              VerticalAlignment="Bottom"
+              MinWidth="96"
+              HorizontalContentAlignment="Center"
+              Content="{Binding [DiagnosticsClose], Source={x:Static loc:LocalizedStrings.Instance}}"
+              IsCancel="True"
+              Click="OnCloseClicked" />
+    </Grid>
+
+    <ScrollViewer AutomationProperties.AutomationId="DiagnosticsScroll" HorizontalScrollBarVisibility="Disabled">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto,*">
+        <!-- Header: image 48, name or selector, state (+ detail); last update on the right. -->
+        <Grid AutomationProperties.AutomationId="DiagnosticsHeader"
+              ColumnDefinitions="48,12,*,16,Auto"
+              MinHeight="48"
+              Margin="0,0,0,12"
+              IsVisible="{Binding HasPrinter}">
+          <printers:PrinterImageView AutomationProperties.AutomationId="DiagnosticsPrinterImage"
+                                     AutomationProperties.Name="{Binding [DiagnosticsPrinterImage], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     Width="48"
+                                     Height="48"
+                                     VerticalAlignment="Top"
+                                     Picture="{Binding Picture}" />
+          <StackPanel Grid.Column="2" VerticalAlignment="Center" Spacing="2">
+            <TextBlock AutomationProperties.AutomationId="DiagnosticsPrinterName"
+                       Text="{Binding SelectedPrinter.Name, FallbackValue={x:Null}}"
+                       ToolTip.Tip="{Binding SelectedPrinter.Name, FallbackValue={x:Null}}"
+                       IsVisible="{Binding !HasPrinterSelector}"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+            <ComboBox AutomationProperties.AutomationId="DiagnosticsPrinterSelector"
+                      AutomationProperties.Name="{Binding [DiagnosticsPrinter], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      IsVisible="{Binding HasPrinterSelector}"
+                      ItemsSource="{Binding Printers}"
+                      SelectedItem="{Binding SelectedPrinter}"
+                      FontSize="16"
+                      FontWeight="SemiBold"
+                      MinWidth="240"
+                      MaxWidth="440"
+                      HorizontalAlignment="Left">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:PrinterChoice">
+                  <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+            <TextBlock AutomationProperties.AutomationId="DiagnosticsState" TextWrapping="Wrap">
+              <Run Text="{Binding [DiagnosticsState], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <Run Text=" " />
+              <Run Text="{Binding StateText}" FontWeight="SemiBold" />
+            </TextBlock>
+            <!-- No visible label; screen readers get a "Detail" group around the text (a text block reports only its text). -->
+            <Border AutomationProperties.AutomationId="DiagnosticsDetailGroup"
+                    AutomationProperties.Name="{Binding [DiagnosticsDetail], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    AutomationProperties.AccessibilityView="Control"
+                    AutomationProperties.ControlTypeOverride="Group"
+                    IsVisible="{Binding HasDetail}">
+              <TextBlock AutomationProperties.AutomationId="DiagnosticsDetail"
+                         Text="{Binding DetailText}"
+                         FontSize="12"
+                         Opacity="0.75"
+                         TextWrapping="Wrap" />
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="4" VerticalAlignment="Top" HorizontalAlignment="Right">
+            <TextBlock Text="{Binding [DiagnosticsLastUpdate], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       FontSize="12"
+                       Opacity="0.75"
+                       HorizontalAlignment="Right" />
+            <TextBlock AutomationProperties.AutomationId="DiagnosticsLastUpdate" Text="{Binding LastUpdateText}" HorizontalAlignment="Right" />
+          </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1"
+                IsVisible="{Binding HasNotice}"
+                Background="{DynamicResource NoticeBrush}"
+                CornerRadius="4"
+                Padding="10,6"
+                Margin="0,0,0,8">
+          <TextBlock AutomationProperties.AutomationId="DiagnosticsNotice" Text="{Binding Notice}" TextWrapping="Wrap" />
+        </Border>
+
+        <!-- Values: temperatures left, fans and motion right. Minimum widths keep the columns still when "–" turns into values. -->
+        <Grid Grid.Row="2"
+              AutomationProperties.AutomationId="DiagnosticsValues"
+              ColumnDefinitions="*,24,*"
+              Margin="0,0,0,12"
+              IsVisible="{Binding HasPrinter}">
+          <StackPanel>
+            <TextBlock Classes="section" Text="{Binding [DiagnosticsTemperatures], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <Grid RowDefinitions="Auto,Auto,Auto">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" MinWidth="96" />
+                <ColumnDefinition Width="Auto" MinWidth="80" />
+              </Grid.ColumnDefinitions>
+              <TextBlock Classes="head" Grid.Column="1" Text="{Binding [DiagnosticsActual], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="head" Grid.Column="2" Text="{Binding [DiagnosticsTarget], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="label" Grid.Row="1" Text="{Binding [DiagnosticsNozzle], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="big" Grid.Row="1" Grid.Column="1" Text="{Binding NozzleActualText}" />
+              <TextBlock Classes="value" Grid.Row="1" Grid.Column="2" Text="{Binding NozzleTargetText}" />
+              <TextBlock Classes="label" Grid.Row="2" Text="{Binding [DiagnosticsBed], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="big" Grid.Row="2" Grid.Column="1" Text="{Binding BedActualText}" />
+              <TextBlock Classes="value" Grid.Row="2" Grid.Column="2" Text="{Binding BedTargetText}" />
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Grid.Column="2">
+            <TextBlock Classes="section" Text="{Binding [DiagnosticsMotionAndFans], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+              <TextBlock Classes="label" Text="{Binding [DiagnosticsHotendFan], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="value" Grid.Column="1" Text="{Binding HotendFanText}" />
+              <TextBlock Classes="label" Grid.Row="1" Text="{Binding [DiagnosticsPrintFan], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="value" Grid.Row="1" Grid.Column="1" Text="{Binding PrintFanText}" />
+              <TextBlock Classes="label" Grid.Row="2" Text="{Binding [DiagnosticsSpeed], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="value" Grid.Row="2" Grid.Column="1" Text="{Binding SpeedText}" />
+              <TextBlock Classes="label" Grid.Row="3" Text="{Binding [DiagnosticsFlow], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="value" Grid.Row="3" Grid.Column="1" Text="{Binding FlowText}" />
+              <TextBlock Classes="label" Grid.Row="4" Text="{Binding [DiagnosticsAxisZ], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Classes="value" Grid.Row="4" Grid.Column="1" Text="{Binding AxisZText}" />
+            </Grid>
+          </StackPanel>
+        </Grid>
+
+        <!-- Chart header: title, legend and range on one row. -->
+        <Grid Grid.Row="3"
+              AutomationProperties.AutomationId="DiagnosticsChartHeader"
+              ColumnDefinitions="Auto,16,*,12,Auto"
+              Margin="0,0,0,4"
+              IsVisible="{Binding HasPrinter}">
+          <TextBlock FontWeight="SemiBold" VerticalAlignment="Center" Text="{Binding [DiagnosticsChart], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          <WrapPanel Grid.Column="2" VerticalAlignment="Center">
+            <Rectangle Width="18" Height="3" Fill="{DynamicResource ChartNozzleBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock Text="{Binding [DiagnosticsNozzle], Source={x:Static loc:LocalizedStrings.Instance}}" FontSize="12" Margin="0,0,16,0" />
+            <Rectangle Width="18" Height="3" Fill="{DynamicResource ChartBedBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
+            <TextBlock Text="{Binding [DiagnosticsBed], Source={x:Static loc:LocalizedStrings.Instance}}" FontSize="12" Margin="0,0,16,0" />
+            <TextBlock Text="{Binding [DiagnosticsChartTargetLegend], Source={x:Static loc:LocalizedStrings.Instance}}" FontSize="12" Opacity="0.75" />
+          </WrapPanel>
+          <ComboBox Grid.Column="4"
+                    AutomationProperties.AutomationId="DiagnosticsChartRange"
+                    AutomationProperties.Name="{Binding [DiagnosticsChart], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    MinWidth="96"
+                    ItemsSource="{Binding TimeWindows}"
+                    SelectedItem="{Binding SelectedTimeWindow}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ChartWindowOption">
+                <TextBlock Text="{Binding Text}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </Grid>
+
+        <!-- The chart fills the remaining height; below its minimum the scroll viewer scrolls. -->
+        <chart:TemperatureChart Grid.Row="4"
+                                AutomationProperties.AutomationId="DiagnosticsChart"
+                                MinHeight="120"
+                                IsVisible="{Binding HasPrinter}"
+                                History="{Binding History}"
+                                PrinterId="{Binding ChartPrinterId}"
+                                TimeWindow="{Binding SelectedTimeWindow.Window}"
+                                Clock="{Binding Clock}"
+                                NozzleBrush="{DynamicResource ChartNozzleBrush}"
+                                BedBrush="{DynamicResource ChartBedBrush}"
+                                AxisBrush="{DynamicResource ChartAxisBrush}"
+                                GridBrush="{DynamicResource ChartGridBrush}"
+                                NoDataText="{Binding [DiagnosticsChartNoData], Source={x:Static loc:LocalizedStrings.Instance}}" />
+      </Grid>
+    </ScrollViewer>
+  </DockPanel>
+</Window>

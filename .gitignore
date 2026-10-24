@@ -435,8 +435,8 @@ test-results/
 .AppleDouble
 .LSOverride
 
-# Icon must end with two \r
-Icon
+# macOS custom folder icon file: "Icon" followed by a carriage return (a literal CR inside the brackets below)
+Icon[]
 
 
 # Thumbnails
@@ -485,3 +485,9 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Git worktrees of Claude Code agents
+.claude/worktrees/
+
+# Output of the GSharp resx code generator editor extension (not C#, not part of the build)
+*.Designer.gs

@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "pollingIntervalSeconds": 5,
+  "language": "cs",
+  "notifications": {
+    "enabled": true,
+    "remainingTimeMinutes": 10,
+    "sound": "All"
+  },
+  "printers": [
+    {
+      "id": "3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c",
+      "name": "Workshop MK4",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.226",
+      "userName": "maker",
+      "camera": {
+        "enabled": true,
+        "streamUrl": "rtsp://192.168.0.227/live"
+      }
+    },
+    {
+      "id": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "name": "Core One",
+      "connectionType": "PrusaLink",
+      "address": "http://192.168.0.228",
+      "userName": "maker",
+      "camera": {
+        "enabled": false,
+        "streamUrl": "rtsp://192.168.0.229/live"
+      }
+    }
+  ]
+}

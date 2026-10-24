@@ -1,0 +1,11 @@
+<Project>
+  <Import Project="$([MSBuild]::GetPathOfFileAbove('Directory.Build.props', '$(MSBuildThisFileDirectory)../'))" />
+
+  <ItemGroup>
+    <!--
+      Root of the repository (worktree) the tests were built from. Test locks and reserved %TEMP% folders carry a hash
+      of it (tests/Shared/TestWorktree.cs), so that runs from different git worktrees never block or clean up each other.
+    -->
+    <AssemblyMetadata Include="TestWorktreeRoot" Value="$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))" />
+  </ItemGroup>
+</Project>

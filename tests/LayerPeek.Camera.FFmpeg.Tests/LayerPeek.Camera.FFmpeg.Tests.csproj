@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Fixtures\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The FFmpeg DLLs come with this reference (build/FFmpeg.targets). -->
+    <ProjectReference Include="..\..\src\LayerPeek.Camera.FFmpeg\LayerPeek.Camera.FFmpeg.csproj" />
+    <!-- The simulated Buddy3D camera (T-045), shared with tools/PrusaSimulator instead of a test-only copy. -->
+    <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
+  </ItemGroup>
+</Project>

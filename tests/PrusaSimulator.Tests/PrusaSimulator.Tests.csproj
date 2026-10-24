@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>LayerPeek.Simulator.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
+    <PackageReference Include="xunit.v3" />
+  </ItemGroup>
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The recorded firmware responses the simulator imitates (T-003); linked, not copied. -->
+    <None Include="..\LayerPeek.PrusaLink.Tests\Fixtures\firmware\*.json" Link="Fixtures\firmware\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
+    <!-- The app's own PrusaLink client and monitor, unchanged, against the simulator ("the app connects"). -->
+    <ProjectReference Include="..\..\src\LayerPeek.PrusaLink\LayerPeek.PrusaLink.csproj" />
+  </ItemGroup>
+</Project>

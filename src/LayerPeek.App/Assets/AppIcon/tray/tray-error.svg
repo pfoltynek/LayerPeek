@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+<defs><mask id="cut" maskUnits="userSpaceOnUse" x="0" y="0" width="32" height="32"><rect x="0" y="0" width="32" height="32" fill="#fff"/><circle cx="25" cy="7" r="8.5" fill="#000"/></mask></defs>
+<g mask="url(#cut)">
+<rect x="4" y="0" width="8" height="2" fill="#FD5000"/>
+<rect x="2" y="4" width="12" height="6" fill="#FD5000"/>
+<rect x="6" y="10" width="4" height="2" fill="#FD5000"/>
+<polygon points="6,10 10,10 9,12 7,12" fill="#FD5000"/>
+<rect x="2" y="28" width="28" height="4" fill="#E53935"/>
+<rect x="2" y="22" width="28" height="4" fill="#E53935"/>
+<rect x="2" y="16" width="28" height="4" fill="#E53935"/>
+
+</g>
+<circle cx="25" cy="7" r="6.25" fill="#E53935" stroke="#B71C1C" stroke-width="1.5"/><line x1="22.6" y1="4.6" x2="27.4" y2="9.4" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/><line x1="22.6" y1="9.4" x2="27.4" y2="4.6" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+</svg>
