@@ -847,6 +847,7 @@ public sealed class CooldownTrackerTests
     [Theory]
     [InlineData(PrinterState.Offline)]
     [InlineData(PrinterState.Unauthorized)]
+    [InlineData(PrinterState.Unknown)]
     public void PrintEndIsUnknownWhenItEndedWhileThePrinterWasNotReadable(PrinterState unreadable)
     {
         Process(Printing(0));

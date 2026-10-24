@@ -202,6 +202,10 @@ public class PrintFileNameInfoTests
     [InlineData("(1).gcode", "(1)")]
     [InlineData("- Copy.gcode", "Copy")]
     [InlineData("/usb/ (1).gcode", "(1)")]
+    // Only separators (which the title turns into spaces) are left before the suffix.
+    [InlineData("_ (1).gcode", "(1)")]
+    [InlineData("- - Copy.gcode", "Copy")]
+    [InlineData("__ - kopie (2).bgcode", "Kopie (2)")]
     public void TextResemblingACopySuffixIsKept(string fileName, string title)
     {
         Assert.Equal(title, PrintFileNameInfo.Parse(fileName).Title);

@@ -152,7 +152,7 @@ public sealed record PrintFileNameInfo
     /// Removes one suffix that a browser (<c> (1)</c>) or Windows Explorer (<c> - Copy</c>, Czech <c> - kopie</c>, each
     /// optionally followed by <c> (2)</c>) appends to a downloaded or copied file, so that the slicer template before it is
     /// recognised (user decision 6, 2026-10-24). Only these exact forms at the very end of the stem count; a stem that
-    /// would be left without any visible character is kept whole.
+    /// would be left with nothing but title separators (spaces, <c>_</c>, <c>-</c>), i.e. an empty title, is kept whole.
     /// </summary>
     private static ReadOnlySpan<char> StripCopySuffix(ReadOnlySpan<char> stem)
     {
@@ -171,8 +171,24 @@ public sealed record PrintFileNameInfo
             return stem;
         }
 
-        return rest.IsWhiteSpace() ? stem : rest;
+        return HasTitleCharacter(rest) ? rest : stem;
     }
+
+    /// <summary>Whether <see cref="MakeTitle"/> keeps any character of <paramref name="source"/> (not only separators).</summary>
+    private static bool HasTitleCharacter(ReadOnlySpan<char> source)
+    {
+        foreach (char c in source)
+        {
+            if (!IsTitleSeparator(c))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsTitleSeparator(char c) => c is '_' or '-' || char.IsWhiteSpace(c) || char.IsControl(c);
 
     // " (N)" with 1 to MaxCopyNumberDigits ASCII digits.
     private static bool TryStripCopyNumber(ref ReadOnlySpan<char> stem)
@@ -460,7 +476,7 @@ public sealed record PrintFileNameInfo
             bool hasUpper = false;
             foreach (char c in source)
             {
-                if (c is '_' or '-' || char.IsWhiteSpace(c) || char.IsControl(c))
+                if (IsTitleSeparator(c))
                 {
                     pendingSpace = length > 0;
                     continue;
