@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Settings;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -335,7 +336,8 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// <summary>Same printers (id, name, address, connection type, order) and polling interval: the run can go on.</summary>
     /// <remarks>
     /// The detected model and the image choice (T-039) only change what is shown, never what is polled: a change of only
-    /// those does not restart monitoring (a background save of a detected model must not show "Connecting…").
+    /// those does not restart monitoring (a background save of a detected model must not show "Connecting…"). Neither does
+    /// the cool-down threshold (T-079): the cool-down monitor applies it with the update.
     /// </remarks>
     private static bool KeepsMonitoring(AppSettings current, AppSettings next) =>
         current.PollingInterval == next.PollingInterval
@@ -343,9 +345,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         && current.Printers.Select(WhatIsPolled).SequenceEqual(next.Printers.Select(WhatIsPolled));
 
     private static PrinterDefinition WhatIsPolled(PrinterDefinition printer) =>
-        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic
+        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic && printer.CooldownThresholdCelsius == CooldownThreshold.DefaultCelsius
             ? printer
-            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic };
+            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic, CooldownThresholdCelsius = CooldownThreshold.DefaultCelsius };
 
     /// <summary>
     /// Monitor thread: a printer of the current run reported its model (T-039, user decision 2026-10-20). Only a real
