@@ -7,20 +7,20 @@
     development builds left on a Windows machine:
 
       1. copies %APPDATA%\PrusaTrayDiagnostic (settings, camera windows, printer images) to %APPDATA%\LayerPeek,
-         only when %APPDATA%\LayerPeek does not exist yet;
-      2. copies %LOCALAPPDATA%\PrusaTrayDiagnostic\logs to %LOCALAPPDATA%\LayerPeek\logs, only when that folder does not
-         exist yet; the log files are renamed (PrusaTrayDiagnostic.log -> LayerPeek.log, PrusaTrayDiagnostic.1.log ->
-         LayerPeek.1.log, ...), so the new app continues the same rotation;
-         a copied old folder gets the marker file .migrated-to-LayerPeek, and only such a folder is ever removed (a
-         LayerPeek folder that existed before, e.g. from a first start of LayerPeek, never makes the old data removable);
-      3. copies every Credential Manager entry PrusaTrayDiagnostic/<key> to LayerPeek/<key> (production prefix only,
+         only when %APPDATA%\LayerPeek does not exist yet; the copied old folder gets the marker file
+         .migrated-to-LayerPeek, and only such a folder is ever removed (a LayerPeek folder that existed before, e.g.
+         from a first start of LayerPeek, never makes the old data removable);
+      2. copies every Credential Manager entry PrusaTrayDiagnostic/<key> to LayerPeek/<key> (production prefix only,
          never the test prefixes; an existing new entry is kept). The secret is copied inside Windows (CredRead ->
          CredWrite) and never reaches PowerShell, the console or a file.
+    The old logs (%LOCALAPPDATA%\PrusaTrayDiagnostic\logs) are never copied: LayerPeek starts its own log.
 
     Removing the old data is a separate step that is never done without an explicit confirmation (typing REMOVE):
     asked at the end of a migration run in an interactive console, or with -RemoveOld (also asks). It removes
-      - %APPDATA%\PrusaTrayDiagnostic and %LOCALAPPDATA%\PrusaTrayDiagnostic (only when this script copied them and the
-        LayerPeek counterpart exists),
+      - %APPDATA%\PrusaTrayDiagnostic (only when this script copied it and %APPDATA%\LayerPeek exists),
+      - %LOCALAPPDATA%\PrusaTrayDiagnostic, the folder of the old logs: the one exception to "only what was copied",
+        since the logs are never copied; only that exact folder, and only when it holds nothing but a real (not linked)
+        logs folder, otherwise it stays and is listed with the reason,
       - %LOCALAPPDATA%\PrusaTrayDiagnostic.Build (the FFmpeg download cache of the old builds),
       - the old Credential Manager entries (only those whose LayerPeek/<key> exists),
       - the old Start menu shortcut "Prusa Tray Diagnostic.lnk",
@@ -65,42 +65,38 @@ $script:KindLabels = @{ Folder = 'folder'; Credential = 'credential'; Shortcut =
 
 <#
 .SYNOPSIS
-    The new name of a log file of the old app: PrusaTrayDiagnostic.log -> LayerPeek.log, PrusaTrayDiagnostic.<n>.log ->
-    LayerPeek.<n>.log, PrusaTrayDiagnostic.rotating.log -> LayerPeek.rotating.log; any other name stays.
+    The folders to copy, old and new paths: only the data folder (the old logs are never copied).
 #>
-function Get-MigratedLogFileName {
-    param([Parameter(Mandatory)] [string] $Name)
+function Get-MigrationFolders {
+    param([Parameter(Mandatory)] [string] $AppData)
 
-    if ($Name.StartsWith("$script:OldName.", [StringComparison]::OrdinalIgnoreCase)) {
-        return $script:NewName + $Name.Substring($script:OldName.Length)
-    }
-    return $Name
+    @(
+        [pscustomobject]@{
+            Name   = 'data'
+            Source = Join-Path $AppData $script:OldName
+            Target = Join-Path $AppData $script:NewName
+        }
+    )
 }
 
 <#
 .SYNOPSIS
-    The folders to copy: the data folder and the log folder, old and new paths.
+    Why the old log folder %LOCALAPPDATA%\PrusaTrayDiagnostic must stay, or '' when it may be removed without a copy:
+    it is a real folder that holds nothing but a real folder named logs (what the old builds left there).
 #>
-function Get-MigrationFolders {
-    param(
-        [Parameter(Mandatory)] [string] $AppData,
-        [Parameter(Mandatory)] [string] $LocalAppData
-    )
+function Get-OldLogFolderObstacle {
+    param([Parameter(Mandatory)] [string] $Path)
 
-    @(
-        [pscustomobject]@{
-            Name       = 'data'
-            Source     = Join-Path $AppData $script:OldName
-            Target     = Join-Path $AppData $script:NewName
-            RenameLogs = $false
-        },
-        [pscustomobject]@{
-            Name       = 'logs'
-            Source     = Join-Path $LocalAppData $script:OldName 'logs'
-            Target     = Join-Path $LocalAppData $script:NewName 'logs'
-            RenameLogs = $true
-        }
-    )
+    $folder = Get-Item -LiteralPath $Path -Force
+    if (-not $folder.PSIsContainer) { return 'not a folder' }
+    if ($folder.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) { return 'it is a link' }
+    $others = @(Get-ChildItem -LiteralPath $Path -Force | Where-Object { -not ($_.PSIsContainer -and $_.Name -eq 'logs') })
+    if ($others.Count -gt 0) {
+        return "it holds more than the old logs: $(($others | ForEach-Object Name | Sort-Object) -join ', '); remove it by hand"
+    }
+    $logs = Get-Item -LiteralPath (Join-Path $Path 'logs') -Force -ErrorAction SilentlyContinue
+    if ($logs -and $logs.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint)) { return 'its logs folder is a link' }
+    return ''
 }
 
 <#
@@ -116,8 +112,7 @@ function Copy-MigrationFolder {
     [CmdletBinding(SupportsShouldProcess, ConfirmImpact = 'Low')]
     param(
         [Parameter(Mandatory)] [string] $Source,
-        [Parameter(Mandatory)] [string] $Target,
-        [switch] $RenameLogs
+        [Parameter(Mandatory)] [string] $Target
     )
 
     # One file that cannot be copied must stop the whole copy, whatever the caller's preference.
@@ -133,12 +128,6 @@ function Copy-MigrationFolder {
     $staging = Join-Path $parent ".migrating-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     try {
         Copy-Item -LiteralPath $Source -Destination $staging -Recurse
-        if ($RenameLogs) {
-            foreach ($file in @(Get-ChildItem -LiteralPath $staging -File)) {
-                $name = Get-MigratedLogFileName -Name $file.Name
-                if ($name -ne $file.Name) { Rename-Item -LiteralPath $file.FullName -NewName $name }
-            }
-        }
         Move-Item -LiteralPath $staging -Destination $Target
     }
     finally {
@@ -236,19 +225,19 @@ function Get-LegacyItems {
         $items.Add([pscustomobject]@{ Kind = $Kind; Path = $Path; Ready = $Ready; Reason = $Reason })
     }
 
-    $folders = @(Get-MigrationFolders -AppData $AppData -LocalAppData $LocalAppData)
-    $data = $folders | Where-Object Name -EQ 'data'
+    $data = Get-MigrationFolders -AppData $AppData | Where-Object Name -EQ 'data'
     if (Test-Path -LiteralPath $data.Source) {
         $ready = Test-MigratedFolder -Source $data.Source -Target $data.Target
         Add 'Folder' $data.Source $ready $(if ($ready) { '' } else { Get-NotMigratedReason -Target $data.Target -Shown "%APPDATA%\$script:NewName" })
     }
 
-    # The old builds kept nothing but their logs under %LOCALAPPDATA%\PrusaTrayDiagnostic.
+    # The old builds kept nothing but their logs under %LOCALAPPDATA%\PrusaTrayDiagnostic. The logs are never copied, so
+    # this exact folder is the one exception to "only what was copied": removable without a copy (after REMOVE only),
+    # as long as it holds nothing else.
     $oldLocal = Join-Path $LocalAppData $script:OldName
     if (Test-Path -LiteralPath $oldLocal) {
-        $logs = $folders | Where-Object Name -EQ 'logs'
-        $ready = -not (Test-Path -LiteralPath $logs.Source) -or (Test-MigratedFolder -Source $logs.Source -Target $logs.Target)
-        Add 'Folder' $oldLocal $ready $(if ($ready) { '' } else { Get-NotMigratedReason -Target $logs.Target -Shown "%LOCALAPPDATA%\$script:NewName\logs" })
+        $obstacle = Get-OldLogFolderObstacle -Path $oldLocal
+        Add 'Folder' $oldLocal ($obstacle -eq '') $obstacle
     }
 
     $oldBuild = Join-Path $LocalAppData "$script:OldName.Build"
@@ -508,13 +497,14 @@ function Invoke-Main {
 
     if (-not $RemoveOld) {
         Write-Host "Migrating $script:OldName -> $script:NewName$(if ($WhatIfPreference) { ' (what if: nothing changes)' })" -ForegroundColor Cyan
-        foreach ($folder in Get-MigrationFolders -AppData $appData -LocalAppData $localAppData) {
-            $status = Copy-MigrationFolder -Source $folder.Source -Target $folder.Target -RenameLogs:$folder.RenameLogs
+        foreach ($folder in Get-MigrationFolders -AppData $AppData) {
+            $status = Copy-MigrationFolder -Source $folder.Source -Target $folder.Target
             Write-Host ("  {0,-5} {1,-13} {2} -> {3}" -f $folder.Name, $status, $folder.Source, $folder.Target)
             if ($status -eq 'TargetExists') {
                 Write-Host "        not copied: $($folder.Target) existed before (e.g. LayerPeek started already); the old folder stays, see docs/troubleshooting.md" -ForegroundColor Yellow
             }
         }
+        Write-Host "  logs  not copied (LayerPeek starts its own log; the old logs are only offered for removal)"
         foreach ($result in @(Copy-MigrationCredentials -Store $store)) {
             Write-Host ("  cred  {0,-13} {1} -> {2}" -f $result.Status, $result.Old, $result.New)
         }

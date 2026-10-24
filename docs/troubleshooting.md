@@ -133,16 +133,21 @@ pwsh tools/migrate-from-prusatraydiagnostic.ps1             # převod, na konci 
 pwsh tools/migrate-from-prusatraydiagnostic.ps1 -RemoveOld  # později: jen smazání starých dat (zeptá se)
 ```
 
-- Zkopíruje `%APPDATA%\PrusaTrayDiagnostic` → `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\PrusaTrayDiagnostic\logs` →
-  `%LOCALAPPDATA%\LayerPeek\logs` (logy přejmenuje na `LayerPeek*.log`), jen když cíl ještě neexistuje. Do zkopírované
+- Zkopíruje `%APPDATA%\PrusaTrayDiagnostic` → `%APPDATA%\LayerPeek`, jen když cíl ještě neexistuje. Do zkopírované
   staré složky zapíše značku `.migrated-to-LayerPeek`; smazat lze jen starou složku se značkou.
+- **Staré logy nekopíruje** (`%LOCALAPPDATA%\PrusaTrayDiagnostic\logs`): LayerPeek začne vlastní log. Kdo je chce
+  schovat, zkopíruje si je ručně před smazáním.
 - **Pozor, LayerPeek už běžel** (např. `dotnet run`, `scripts/aot-smoke.ps1` – běží se skutečným nastavením): pak
-  `%APPDATA%\LayerPeek` nebo `%LOCALAPPDATA%\LayerPeek\logs` už existuje, skript starou složku nezkopíruje (stav
-  `TargetExists`) a nikdy ji nesmaže („existed before the migration“). Kdo chce stará data, nejdřív ukončí LayerPeek,
-  novou složku sám přesune jinam (nebo smaže) a skript spustí znovu.
+  `%APPDATA%\LayerPeek` už existuje, skript starou složku nezkopíruje (stav `TargetExists`) a nikdy ji nesmaže
+  („existed before the migration“). Kdo chce stará data, nejdřív ukončí LayerPeek, novou složku sám přesune jinam
+  (nebo smaže) a skript spustí znovu.
 - Položky Správce pověření `PrusaTrayDiagnostic/<klíč>` zkopíruje na `LayerPeek/<klíč>` (existující nové nechá). Heslo
   kopíruje uvnitř Windows a nikdy ho nevypisuje. Testovací položky `PrusaTrayDiagnostic.E2E/…` nechá být.
-- Smazání starých dat jen po napsání přesně `REMOVE`: staré složky (jen se značkou a s existujícím novým protějškem),
+- Smazání starých dat jen po napsání přesně `REMOVE`: `%APPDATA%\PrusaTrayDiagnostic` (jen se značkou a s existujícím
+  `%APPDATA%\LayerPeek`), složka starých logů `%LOCALAPPDATA%\PrusaTrayDiagnostic` – **jediná výjimka** z pravidla
+  „jen co skript zkopíroval“, protože logy se nekopírují: smaže se bez kopie, ale také jen po `REMOVE`, jen přesně tato
+  složka (ne sourozenci jako `PrusaTrayDiagnostic.E2E.Restore`) a jen když v ní není nic než skutečná (ne odkazem
+  přesměrovaná) složka `logs`; jinak zůstane a skript vypíše důvod –,
   `%LOCALAPPDATA%\PrusaTrayDiagnostic.Build` (cache FFmpeg starých buildů), staré položky pověření (jen převedené),
   zástupce `Prusa Tray Diagnostic.lnk` v nabídce Start, aktivátor toastů
   `HKCU\Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}` a nastavení oznámení

@@ -5,7 +5,10 @@
 .DESCRIPTION
     The script is dot-sourced (its main part does not run) and its functions are tested against made-up per-user
     folders in a temporary folder, a fake credential store and a fake registry: nothing of the real user profile, the
-    Credential Manager or the registry is read or changed.
+    Credential Manager or the registry is read or changed. Every Invoke-Main run goes through Assert-TestRoot (all three
+    folders inside the test folder, both fakes), and the tests refuse to start when Invoke-Main lacks the parameters
+    for them. The only exceptions are the 'Windows helpers' tests: a read-only listing, HKCU read-only, and session
+    credentials under a prefix of their own (LayerPeek.MigrationTests.<guid>), deleted in finally.
 
     Temporary files live in one folder under $env:LAYERPEEK_PESTER_TESTS_TEMP (set by the xUnit wrapper
     tests/LayerPeek.Scripts.Tests, which also deletes it after a crash) or under the system temp folder.
@@ -82,6 +85,7 @@ BeforeAll {
         New-File (Join-Path $p.AppData 'PrusaTrayDiagnostic/printer-images/p1.png') 'png'
         New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') 'log'
         New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.Build/ffmpeg/x.dll')
+        New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.E2E.Restore/journal.json') 'pending'
         New-File (Join-Path $p.Programs 'Prusa Tray Diagnostic.lnk')
         New-File (Join-Path $p.Programs 'Prusa Tray Diagnostic E2E.lnk')
         New-File (Join-Path $p.Programs 'Other.lnk')
@@ -106,6 +110,18 @@ BeforeAll {
         foreach ($key in $Profile.Registry.Keys | Sort-Object) { "reg|$key" }
     }
 
+    # Every folder handed to the script must lie in this test's temporary folder (never the real profile), with the
+    # fake credential store and registry.
+    function Assert-TestRoot([object] $Profile) {
+        foreach ($folder in $Profile.AppData, $Profile.LocalAppData, $Profile.Programs) {
+            if (-not $folder -or -not [System.IO.Path]::GetFullPath($folder).StartsWith($script:TempRoot + [System.IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "Refusing to run the migration outside the test folder: '$folder'."
+            }
+        }
+        if (-not $Profile.Store -or -not $Profile.Store.PSObject.Properties['Entries']) { throw 'Refusing to run without the fake credential store.' }
+        if (-not $Profile.Registry -or -not $Profile.Registry.PSObject.Properties['Keys']) { throw 'Refusing to run without the fake registry.' }
+    }
+
     # Invoke-Main on a profile: -Answer is what the user types at the removal question ($null = no console).
     function Invoke-Migration {
         param(
@@ -116,6 +132,7 @@ BeforeAll {
             [scriptblock] $Running = { @() }
         )
 
+        Assert-TestRoot $Profile
         $asked = @{ Count = 0 }
         $reader = { $asked.Count++; $Answer }.GetNewClosure()
         $output = Invoke-Main -RemoveOld:$RemoveOld -WhatIf:$WhatIf -AppData $Profile.AppData -LocalAppData $Profile.LocalAppData `
@@ -128,6 +145,28 @@ BeforeAll {
 AfterAll {
     if ($script:TempRoot -and (Test-Path -LiteralPath $script:TempRoot)) {
         Remove-Item -LiteralPath $script:TempRoot -Recurse -Force
+    }
+}
+
+Describe 'Test guard' {
+    It 'refuses a profile outside the test folder or without the fakes (<Label>)' -TestCases @(
+        @{ Label = 'real AppData'; Change = { param($p) $p.AppData = [Environment]::GetFolderPath('ApplicationData') } }
+        @{ Label = 'real LocalAppData'; Change = { param($p) $p.LocalAppData = [Environment]::GetFolderPath('LocalApplicationData') } }
+        @{ Label = 'real Programs'; Change = { param($p) $p.Programs = [Environment]::GetFolderPath('Programs') } }
+        @{ Label = 'the test folder itself'; Change = { param($p) $p.AppData = $script:TempRoot } }
+        @{ Label = 'a sibling of the test folder'; Change = { param($p) $p.AppData = "$($script:TempRoot)x\Roaming" } }
+        @{ Label = 'no folder'; Change = { param($p) $p.Programs = '' } }
+        @{ Label = 'real credential store'; Change = { param($p) $p.Store = [pscustomobject]@{ Name = 'Windows Credential Manager' } } }
+        @{ Label = 'real registry'; Change = { param($p) $p.Registry = [pscustomobject]@{ Name = 'HKCU' } } }
+    ) {
+        $p = New-OldInstallation
+        & $Change $p
+        $asked = @{ Count = 0 }
+
+        { Invoke-Migration -Profile $p -Answer 'REMOVE' -Running { $asked.Count++; @() }.GetNewClosure() } | Should -Throw 'Refusing to run*'
+
+        # Refused before Invoke-Main started (its first step asks for the running apps).
+        $asked.Count | Should -Be 0
     }
 }
 
@@ -149,21 +188,22 @@ Describe 'Names' {
             Should -Match ([regex]::Escape("FileName = `"$script:NewName.log`""))
     }
 
-    It 'renames the log files of the old app and keeps other names' -TestCases @(
-        @{ Name = 'PrusaTrayDiagnostic.log'; Expected = 'LayerPeek.log' }
-        @{ Name = 'PrusaTrayDiagnostic.3.log'; Expected = 'LayerPeek.3.log' }
-        @{ Name = 'PrusaTrayDiagnostic.rotating.log'; Expected = 'LayerPeek.rotating.log' }
-        @{ Name = 'notes.txt'; Expected = 'notes.txt' }
-        @{ Name = 'PrusaTrayDiagnosticX.log'; Expected = 'PrusaTrayDiagnosticX.log' }
-    ) {
-        Get-MigratedLogFileName -Name $Name | Should -BeExactly $Expected
+    It 'copies only the data folder, never the old logs' {
+        $p = New-Profile
+
+        $folders = @(Get-MigrationFolders -AppData $p.AppData)
+
+        $folders | ForEach-Object { "$($_.Name)|$($_.Source)|$($_.Target)" } |
+            Should -Be @("data|$(Join-Path $p.AppData 'PrusaTrayDiagnostic')|$(Join-Path $p.AppData 'LayerPeek')")
+        Get-Command Get-MigratedLogFileName -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+        (Get-Command Copy-MigrationFolder).Parameters.ContainsKey('RenameLogs') | Should -BeFalse
     }
 }
 
 Describe 'Copy-MigrationFolder' {
     It 'copies the data folder with its sub-folders once' {
         $p = New-Profile
-        $folders = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData
+        $folders = Get-MigrationFolders -AppData $p.AppData
         $data = $folders | Where-Object Name -EQ 'data'
         New-File (Join-Path $data.Source 'settings.json') '{"a":1}'
         New-File (Join-Path $data.Source 'printer-images/p1.png') 'png'
@@ -178,7 +218,7 @@ Describe 'Copy-MigrationFolder' {
 
     It 'marks the copied old folder and reports it as copied on the next run' {
         $p = New-Profile
-        $data = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'data'
+        $data = Get-MigrationFolders -AppData $p.AppData | Where-Object Name -EQ 'data'
         New-File (Join-Path $data.Source 'settings.json')
 
         Copy-MigrationFolder -Source $data.Source -Target $data.Target | Should -BeExactly 'Copied'
@@ -190,7 +230,7 @@ Describe 'Copy-MigrationFolder' {
 
     It 'never overwrites an existing target and does not mark the old folder' {
         $p = New-Profile
-        $data = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'data'
+        $data = Get-MigrationFolders -AppData $p.AppData | Where-Object Name -EQ 'data'
         New-File (Join-Path $data.Source 'settings.json') 'old'
         New-File (Join-Path $data.Target 'settings.json') 'new'
 
@@ -202,7 +242,7 @@ Describe 'Copy-MigrationFolder' {
 
     It 'leaves no target and no marker when a file cannot be read' -Skip:(-not $IsWindows) {
         $p = New-Profile
-        $data = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'data'
+        $data = Get-MigrationFolders -AppData $p.AppData | Where-Object Name -EQ 'data'
         New-File (Join-Path $data.Source 'settings.json')
         New-File (Join-Path $data.Source 'printer-images/locked.png')
         # The caller's default: a failed file copy is not terminating by itself.
@@ -222,28 +262,15 @@ Describe 'Copy-MigrationFolder' {
 
     It 'does nothing without a source' {
         $p = New-Profile
-        $data = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'data'
+        $data = Get-MigrationFolders -AppData $p.AppData | Where-Object Name -EQ 'data'
 
         Copy-MigrationFolder -Source $data.Source -Target $data.Target | Should -BeExactly 'NoSource'
         Test-Path -LiteralPath $data.Target | Should -BeFalse
     }
 
-    It 'copies the logs under the new log names' {
-        $p = New-Profile
-        $logs = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'logs'
-        New-File (Join-Path $logs.Source 'PrusaTrayDiagnostic.log') 'current'
-        New-File (Join-Path $logs.Source 'PrusaTrayDiagnostic.1.log') 'older'
-
-        Copy-MigrationFolder -Source $logs.Source -Target $logs.Target -RenameLogs:$logs.RenameLogs | Should -BeExactly 'Copied'
-
-        $logs.Target | Should -BeExactly (Join-Path $p.LocalAppData 'LayerPeek' 'logs')
-        @(Get-ChildItem -LiteralPath $logs.Target -Name | Sort-Object) | Should -Be @('LayerPeek.1.log', 'LayerPeek.log')
-        Get-Content -Raw (Join-Path $logs.Target 'LayerPeek.log') | Should -BeExactly 'current'
-    }
-
     It 'changes nothing with -WhatIf' {
         $p = New-Profile
-        $data = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'data'
+        $data = Get-MigrationFolders -AppData $p.AppData | Where-Object Name -EQ 'data'
         New-File (Join-Path $data.Source 'settings.json')
 
         Copy-MigrationFolder -Source $data.Source -Target $data.Target -WhatIf | Should -BeExactly 'WouldCopy'
@@ -284,7 +311,7 @@ Describe 'Copy-MigrationCredentials' {
 }
 
 Describe 'Get-LegacyItems and Remove-LegacyItems' {
-    It 'lists every leftover and removes only what exists under the new name' {
+    It 'lists every leftover and removes only what exists under the new name or needs no copy' {
         $p = New-Profile
         New-File (Join-Path $p.AppData 'PrusaTrayDiagnostic/settings.json')
         New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log')
@@ -292,7 +319,7 @@ Describe 'Get-LegacyItems and Remove-LegacyItems' {
         New-File (Join-Path $p.Programs 'Prusa Tray Diagnostic.lnk')
         New-File (Join-Path $p.Programs 'Prusa Tray Diagnostic E2E.lnk')
         New-File (Join-Path $p.Programs 'LayerPeek.lnk')
-        # Data migrated by the script (its marker), logs not.
+        # Data migrated by the script (its marker); the old logs are never copied, their folder needs no copy.
         New-File (Join-Path $p.AppData 'PrusaTrayDiagnostic/.migrated-to-LayerPeek')
         New-File (Join-Path $p.AppData 'LayerPeek/settings.json')
         $store = New-FakeStore @{
@@ -307,7 +334,7 @@ Describe 'Get-LegacyItems and Remove-LegacyItems' {
 
         $items | ForEach-Object { "$($_.Kind)|$($_.Path)|$($_.Ready)" } | Should -Be @(
             "Folder|$(Join-Path $p.AppData 'PrusaTrayDiagnostic')|True"
-            "Folder|$(Join-Path $p.LocalAppData 'PrusaTrayDiagnostic')|False"
+            "Folder|$(Join-Path $p.LocalAppData 'PrusaTrayDiagnostic')|True"
             "Folder|$(Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.Build')|True"
             'Credential|PrusaTrayDiagnostic/a|True'
             'Credential|PrusaTrayDiagnostic/b|False'
@@ -318,9 +345,9 @@ Describe 'Get-LegacyItems and Remove-LegacyItems' {
 
         $removed = @(Remove-LegacyItems -Items $items -Store $store -Registry $registry)
 
-        $removed | Should -HaveCount 6
+        $removed | Should -HaveCount 7
         Test-Path -LiteralPath (Join-Path $p.AppData 'PrusaTrayDiagnostic') | Should -BeFalse
-        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') | Should -BeTrue
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.Build') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $p.Programs 'Prusa Tray Diagnostic.lnk') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $p.Programs 'Prusa Tray Diagnostic E2E.lnk') | Should -BeTrue
@@ -330,39 +357,88 @@ Describe 'Get-LegacyItems and Remove-LegacyItems' {
         @($registry.Keys) | Should -Be @('Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\PrusaTrayDiagnostic.E2E')
     }
 
-    It 'keeps old folders whose LayerPeek counterpart existed before the migration' {
+    It 'keeps the old data folder whose LayerPeek counterpart existed before the migration' {
         $p = New-Profile
         New-File (Join-Path $p.AppData 'PrusaTrayDiagnostic/settings.json')
-        New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log')
-        # A first start of LayerPeek before the migration: its own settings and log, the old ones never copied.
+        # A first start of LayerPeek before the migration: its own settings, the old ones never copied.
         New-File (Join-Path $p.AppData 'LayerPeek/settings.json')
-        New-File (Join-Path $p.LocalAppData 'LayerPeek/logs/LayerPeek.log')
         $store = New-FakeStore @{}
         $registry = New-FakeRegistry @()
 
         $items = @(Get-LegacyItems -AppData $p.AppData -LocalAppData $p.LocalAppData -Programs $p.Programs -Store $store -Registry $registry)
 
-        $items | ForEach-Object { "$($_.Kind)|$($_.Path)|$($_.Ready)" } | Should -Be @(
-            "Folder|$(Join-Path $p.AppData 'PrusaTrayDiagnostic')|False"
-            "Folder|$(Join-Path $p.LocalAppData 'PrusaTrayDiagnostic')|False"
-        )
-        $items | ForEach-Object { $_.Reason | Should -Match 'existed before the migration' }
+        $items | ForEach-Object { "$($_.Kind)|$($_.Path)|$($_.Ready)" } | Should -Be @("Folder|$(Join-Path $p.AppData 'PrusaTrayDiagnostic')|False")
+        $items[0].Reason | Should -Match 'existed before the migration'
         @(Remove-LegacyItems -Items $items -Store $store -Registry $registry) | Should -HaveCount 0
         Test-Path -LiteralPath (Join-Path $p.AppData 'PrusaTrayDiagnostic/settings.json') | Should -BeTrue
-        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') | Should -BeTrue
     }
 
-    It 'removes the old log folder once the script copied its logs' {
+    It 'offers the old log folder without a copy and never touches the new logs (<Label>)' -TestCases @(
+        @{ Label = 'no LayerPeek logs'; NewLogs = $false; Marker = $false }
+        @{ Label = 'LayerPeek logs existed before'; NewLogs = $true; Marker = $false }
+        @{ Label = 'marker of an older script version'; NewLogs = $true; Marker = $true }
+    ) {
         $p = New-Profile
-        New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log')
-        $logs = Get-MigrationFolders -AppData $p.AppData -LocalAppData $p.LocalAppData | Where-Object Name -EQ 'logs'
-        $null = Copy-MigrationFolder -Source $logs.Source -Target $logs.Target -RenameLogs
+        New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') 'old'
+        New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.1.log') 'older'
+        if ($Marker) { New-File (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/.migrated-to-LayerPeek') }
+        if ($NewLogs) { New-File (Join-Path $p.LocalAppData 'LayerPeek/logs/LayerPeek.log') 'new' }
         $store = New-FakeStore @{}
         $registry = New-FakeRegistry @()
 
         $items = @(Get-LegacyItems -AppData $p.AppData -LocalAppData $p.LocalAppData -Programs $p.Programs -Store $store -Registry $registry)
 
         $items | ForEach-Object { "$($_.Kind)|$($_.Path)|$($_.Ready)" } | Should -Be @("Folder|$(Join-Path $p.LocalAppData 'PrusaTrayDiagnostic')|True")
+        @(Remove-LegacyItems -Items $items -Store $store -Registry $registry) | Should -HaveCount 1
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic') | Should -BeFalse
+        if ($NewLogs) { Get-Content -Raw (Join-Path $p.LocalAppData 'LayerPeek/logs/LayerPeek.log') | Should -BeExactly 'new' }
+        else { Test-Path -LiteralPath (Join-Path $p.LocalAppData 'LayerPeek') | Should -BeFalse }
+    }
+
+    It 'keeps the old local folder when it holds anything but the logs folder (<Label>)' -TestCases @(
+        @{ Label = 'a file next to the logs'; Extra = 'notes.txt'; Directory = $false; NoLogs = $false }
+        @{ Label = 'a folder next to the logs'; Extra = 'cache'; Directory = $true; NoLogs = $false }
+        @{ Label = 'only another folder'; Extra = 'diagnostics'; Directory = $true; NoLogs = $true }
+        @{ Label = 'a file named logs'; Extra = 'logs'; Directory = $false; NoLogs = $true }
+    ) {
+        $p = New-Profile
+        $old = Join-Path $p.LocalAppData 'PrusaTrayDiagnostic'
+        if (-not $NoLogs) { New-File (Join-Path $old 'logs/PrusaTrayDiagnostic.log') }
+        if ($Directory) { New-File (Join-Path $old "$Extra/x.bin") } else { New-File (Join-Path $old $Extra) }
+        $store = New-FakeStore @{}
+        $registry = New-FakeRegistry @()
+
+        $items = @(Get-LegacyItems -AppData $p.AppData -LocalAppData $p.LocalAppData -Programs $p.Programs -Store $store -Registry $registry)
+
+        $items | ForEach-Object { "$($_.Kind)|$($_.Path)|$($_.Ready)" } | Should -Be @("Folder|$old|False")
+        $items[0].Reason | Should -Match ([regex]::Escape($Extra))
+        @(Remove-LegacyItems -Items $items -Store $store -Registry $registry) | Should -HaveCount 0
+        Test-Path -LiteralPath (Join-Path $old $Extra) | Should -BeTrue
+    }
+
+    It 'keeps the old local folder when its logs folder is a link' -Skip:(-not $IsWindows) {
+        $p = New-Profile
+        $elsewhere = Join-Path (Split-Path -Parent $p.AppData) 'elsewhere'
+        New-File (Join-Path $elsewhere 'precious.txt') 'keep'
+        $old = Join-Path $p.LocalAppData 'PrusaTrayDiagnostic'
+        $null = New-Item -ItemType Directory -Path $old
+        $link = Join-Path $old 'logs'
+        $null = New-Item -ItemType Junction -Path $link -Target $elsewhere
+        try {
+            $store = New-FakeStore @{}
+            $registry = New-FakeRegistry @()
+
+            $items = @(Get-LegacyItems -AppData $p.AppData -LocalAppData $p.LocalAppData -Programs $p.Programs -Store $store -Registry $registry)
+
+            $items | ForEach-Object { "$($_.Kind)|$($_.Path)|$($_.Ready)" } | Should -Be @("Folder|$old|False")
+            $items[0].Reason | Should -Match 'link'
+            @(Remove-LegacyItems -Items $items -Store $store -Registry $registry) | Should -HaveCount 0
+            Get-Content -Raw (Join-Path $elsewhere 'precious.txt') | Should -BeExactly 'keep'
+        }
+        finally {
+            # Only the link itself, never its target.
+            if (Test-Path -LiteralPath $link) { [System.IO.Directory]::Delete($link) }
+        }
     }
 
     It 'removes nothing with -WhatIf' {
@@ -401,10 +477,14 @@ Describe 'Invoke-Main' {
         $run.Asked | Should -Be 1
         $run.Output | Should -Match 'The old data were kept'
         Get-Content -Raw (Join-Path $p.AppData 'LayerPeek/settings.json') | Should -BeExactly '{"old":1}'
-        Get-Content -Raw (Join-Path $p.LocalAppData 'LayerPeek/logs/LayerPeek.log') | Should -BeExactly 'log'
+        # The old logs are never copied: no LayerPeek folder appears and the old folder is exactly as it was.
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'LayerPeek') | Should -BeFalse
         $p.Store.Entries['LayerPeek/printer/password'] | Should -BeExactly $script:Secret
         Test-Path -LiteralPath (Join-Path $p.AppData 'PrusaTrayDiagnostic/settings.json') | Should -BeTrue
-        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') | Should -BeTrue
+        Get-Content -Raw (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') | Should -BeExactly 'log'
+        @(Get-ChildItem -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic') -Recurse -Force -Name | Sort-Object) |
+            Should -Be @('logs', (Join-Path 'logs' 'PrusaTrayDiagnostic.log'))
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.E2E.Restore/journal.json') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.Build') | Should -BeTrue
         Test-Path -LiteralPath (Join-Path $p.Programs 'Prusa Tray Diagnostic.lnk') | Should -BeTrue
         $p.Store.Entries.ContainsKey('PrusaTrayDiagnostic/printer/password') | Should -BeTrue
@@ -420,7 +500,8 @@ Describe 'Invoke-Main' {
         $run.Output | Should -Match 'Removed 7 item\(s\)'
         $run.Output | Should -Not -Match ([regex]::Escape($script:Secret))
         @(Get-ChildItem -LiteralPath $p.AppData -Name -Force) | Should -Be @('LayerPeek')
-        @(Get-ChildItem -LiteralPath $p.LocalAppData -Name -Force) | Should -Be @('LayerPeek')
+        # The old log folder and the build cache are gone, nothing was created, the old E2E journal stays.
+        @(Get-ChildItem -LiteralPath $p.LocalAppData -Name -Force) | Should -Be @('PrusaTrayDiagnostic.E2E.Restore')
         @(Get-ChildItem -LiteralPath $p.Programs -Name -Force | Sort-Object) | Should -Be @('Other.lnk', 'Prusa Tray Diagnostic E2E.lnk')
         Get-Content -Raw (Join-Path $p.AppData 'LayerPeek/printer-images/p1.png') | Should -BeExactly 'png'
         @($p.Store.Entries.Keys | Sort-Object) | Should -Be @('LayerPeek/printer/password', 'Other/x', 'PrusaTrayDiagnostic.E2E/wt/1/x')
@@ -463,6 +544,7 @@ Describe 'Invoke-Main' {
         $p = New-OldInstallation
         $p.Store | Add-Member -MemberType ScriptMethod -Name Copy -Value { param($Source, $Target) throw 'CredWrite failed' } -Force
         $asked = @{ Count = 0 }
+        Assert-TestRoot $p
 
         {
             Invoke-Main -AppData $p.AppData -LocalAppData $p.LocalAppData -Programs $p.Programs -Store $p.Store -Registry $p.Registry `
@@ -494,15 +576,33 @@ Describe 'Invoke-Main' {
         $last.Output | Should -Match 'Nothing of the old name is left'
     }
 
+    It 'with -RemoveOld keeps everything unless REMOVE is typed exactly (<Label>)' -TestCases @(
+        @{ Label = 'no console'; Answer = $null }
+        @{ Label = 'lower case'; Answer = 'remove' }
+        @{ Label = 'no'; Answer = 'no' }
+    ) {
+        $p = New-OldInstallation
+        $before = @(Get-Snapshot $p)
+
+        $run = Invoke-Migration -Profile $p -Answer $Answer -RemoveOld
+
+        $run.Asked | Should -Be 1
+        $run.Output | Should -Match 'The old data were kept'
+        @(Get-Snapshot $p) | Should -Be $before
+    }
+
     It 'with -RemoveOld before a migration removes no data, only what needs no copy' {
         $p = New-OldInstallation
 
         $run = Invoke-Migration -Profile $p -Answer 'REMOVE' -RemoveOld
 
-        $run.Output | Should -Match 'Removed 4 item\(s\)'
+        $run.Output | Should -Match 'Removed 5 item\(s\)'
         Test-Path -LiteralPath (Join-Path $p.AppData 'LayerPeek') | Should -BeFalse
         Test-Path -LiteralPath (Join-Path $p.AppData 'PrusaTrayDiagnostic/settings.json') | Should -BeTrue
-        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic/logs/PrusaTrayDiagnostic.log') | Should -BeTrue
+        # The old log folder is the one exception: removable without a copy (still only after REMOVE).
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'LayerPeek') | Should -BeFalse
+        Test-Path -LiteralPath (Join-Path $p.LocalAppData 'PrusaTrayDiagnostic.E2E.Restore/journal.json') | Should -BeTrue
         $p.Store.Entries.ContainsKey('PrusaTrayDiagnostic/printer/password') | Should -BeTrue
         $p.Store.Entries.ContainsKey('LayerPeek/printer/password') | Should -BeFalse
     }
