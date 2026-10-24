@@ -155,6 +155,33 @@ public sealed class TestModeGuardTests
         }
     }
 
+    /// <summary>
+    /// The path found in T-074: the two-process test started the exe with the instance suffix and the forward-only switch
+    /// but without the test data folder, so the start ran in production mode and wrote into the user's log folder. A start
+    /// with the forward-only switch or a test argument (<c>--layerpeek-e2e-*</c>) but no test data folder now ends with 4
+    /// before the log exists; the user's log folder is neither created nor written. The suffix keeps a regression away from
+    /// the user's instance names.
+    /// </summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData(@"--layerpeek-e2e-run=C:\Temp\LayerPeek.App.Tests\no-such-run")]
+    [InlineData("--layerpeek-e2e-env=LAYERPEEK_INSTANCE_SUFFIX=e2e-guard")]
+    public async Task TestStartWithoutTestDataFolderExitsWithFourAndNeverWritesTheUserLog(string? argument)
+    {
+        ProductionLogState before = ProductionLogState.Now();
+        int exitCode = await RunExeAsync(start =>
+        {
+            start.Environment[InstanceTransports.SuffixVariable] = "test-" + Guid.NewGuid().ToString("N")[..8];
+            if (argument is not null)
+            {
+                start.ArgumentList.Add(argument);
+            }
+        });
+
+        Assert.Equal(AppEnvironment.InvalidTestModeExitCode, exitCode);
+        Assert.Equal(before, ProductionLogState.Now());
+    }
+
     /// <summary>Runs the exe next to the tests with the forward-only switch (never a real app) and returns its exit code.</summary>
     private static async Task<int> RunExeAsync(Action<ProcessStartInfo> configure)
     {
@@ -168,7 +195,8 @@ public sealed class TestModeGuardTests
             CreateNoWindow = true,
             WorkingDirectory = AppContext.BaseDirectory,
         };
-        foreach (string variable in new[] { AppEnvironment.TestToastsVariable, AppEnvironment.TestCredentialPrefixVariable, AppEnvironment.TestStartDelayVariable })
+        // Nothing of the test mode is inherited from the shell: each test sets exactly what it checks.
+        foreach (string variable in new[] { AppEnvironment.DataDirectoryVariable, InstanceTransports.SuffixVariable, AppEnvironment.TestToastsVariable, AppEnvironment.TestCredentialPrefixVariable, AppEnvironment.TestStartDelayVariable })
         {
             start.Environment.Remove(variable);
         }

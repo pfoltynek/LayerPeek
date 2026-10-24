@@ -75,6 +75,13 @@ internal static partial class Program
             return AppEnvironment.InvalidTestModeExitCode;
         }
 
+        if (!environment.IsIsolated && AppEnvironment.IsTestStart(args, Environment.GetEnvironmentVariable))
+        {
+            // A start by a test (run marker, forward-only switch) without its test data folder: never the production mode,
+            // so the user's log folder, instance names and settings are never touched by it.
+            return AppEnvironment.InvalidTestModeExitCode;
+        }
+
         if (testActivation && (!environment.IsIsolated || !Directory.Exists(environment.DataDirectory())))
         {
             // A toast of a test run that is over: never a production start, never a new test folder.

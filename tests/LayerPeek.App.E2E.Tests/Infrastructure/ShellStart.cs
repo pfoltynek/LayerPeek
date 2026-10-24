@@ -72,9 +72,25 @@ internal static partial class ShellStart
         }
     }
 
+    /// <summary>The arguments of a shortcut to the app (<see cref="CreateShortcut"/>): each one quoted.</summary>
+    public static string ShortcutArguments(IEnumerable<string> arguments) =>
+        string.Join(' ', arguments.Select(static argument => $"\"{argument}\""));
+
+    /// <summary>
+    /// <see cref="StartAsync"/> of a shortcut to the app under test made with <see cref="ShortcutArguments"/> of
+    /// <paramref name="appArguments"/>: refused (<see cref="TestLaunch.VerifyShellStart"/>) unless the started app gets the
+    /// complete test mode, so that a shell start can never run the app in production mode (T-074).
+    /// </summary>
+    public static Task<StartedProcess> StartAppAsync(string shortcut, IReadOnlyList<string> appArguments, IReadOnlyDictionary<string, string?> environment)
+    {
+        TestLaunch.VerifyShellStart(appArguments, environment);
+        return StartAsync(shortcut, environment);
+    }
+
     /// <summary>
     /// Opens <paramref name="shortcut"/> through the shell (<c>ShellExecuteEx</c>, no error UI) with <paramref name="environment"/>
-    /// set on the test process during the call (<see langword="null"/> removes a variable).
+    /// set on the test process during the call (<see langword="null"/> removes a variable). Never for the app itself: that
+    /// is <see cref="StartAppAsync"/>.
     /// </summary>
     public static async Task<StartedProcess> StartAsync(string shortcut, IReadOnlyDictionary<string, string?> environment, int show = SwShowNormal)
     {

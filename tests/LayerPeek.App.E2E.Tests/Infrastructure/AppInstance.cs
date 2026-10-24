@@ -100,7 +100,7 @@ internal sealed class AppInstance : IAsyncDisposable
             start.Environment[variable] = value;
         }
 
-        Process process = Process.Start(start) ?? throw new InvalidOperationException("The app did not start.");
+        Process process = TestLaunch.Start(start);
         AppInstance app = new(fixture.Automation, run, suffix, process) { Name = name };
         try
         {

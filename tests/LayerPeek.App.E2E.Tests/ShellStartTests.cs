@@ -141,9 +141,12 @@ public sealed class ShellStartTests(E2EFixture fixture)
         string shortcut = Path.Combine(folder, $"LP E2E second start {Guid.NewGuid().ToString("N")[..8]}.lnk");
         Directory.CreateDirectory(folder);
         await ShellStart.ExpectInheritedEnvironmentAsync(folder, AppSwitches.SuffixVariable, app.Suffix);
-        ShellStart.CreateShortcut(shortcut, E2EFixture.AppPath, $"\"{AppSwitches.MarkerArgument}{app.RunDirectory}\"", app.RunDirectory);
+        ShellStart.CreateShortcut(shortcut, E2EFixture.AppPath, ShellStart.ShortcutArguments(ShortcutArguments(app)), app.RunDirectory);
         return shortcut;
     }
+
+    /// <summary>The arguments of the shortcut to the app: the marker of its run.</summary>
+    private static string[] ShortcutArguments(AppInstance app) => [AppSwitches.MarkerArgument + app.RunDirectory];
 
     /// <summary>
     /// Opens the shortcut through the shell with the test mode variables of <paramref name="app"/> (and forward-only, so a
@@ -153,8 +156,9 @@ public sealed class ShellStartTests(E2EFixture fixture)
     private static async Task StartThroughShellAndExpectHandoverAsync(AppInstance app, string shortcut)
     {
         DateTime started = DateTime.Now;
-        using ShellStart.StartedProcess second = await ShellStart.StartAsync(
+        using ShellStart.StartedProcess second = await ShellStart.StartAppAsync(
             shortcut,
+            ShortcutArguments(app),
             new Dictionary<string, string?>
             {
                 [AppSwitches.DataDirectoryVariable] = app.DataDirectory,

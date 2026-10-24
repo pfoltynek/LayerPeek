@@ -48,7 +48,7 @@ public sealed class SingleInstanceTests(E2EFixture fixture)
     /// <summary>The second start exits with 0 (within its 5 s budget) and leaves no second process.</summary>
     private static async Task StartSecondAndExpectHandoverAsync(AppInstance app)
     {
-        using Process second = Process.Start(app.SecondStartInfo()) ?? throw new InvalidOperationException("The second start failed.");
+        using Process second = TestLaunch.Start(app.SecondStartInfo());
         try
         {
             await second.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(15));

@@ -137,8 +137,31 @@ internal sealed class AppEnvironment
     /// <summary>The longest start delay of the test mode.</summary>
     public const int MaxTestStartDelayMilliseconds = 60_000;
 
-    /// <summary>Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch.</summary>
+    /// <summary>
+    /// Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch,
+    /// and of a test start (<see cref="IsTestStart"/>) without the test data folder.
+    /// </summary>
     public const int InvalidTestModeExitCode = 4;
+
+    /// <summary>
+    /// Every command line argument of the test infrastructure starts with this: the run marker of the end-to-end tests, the
+    /// test switches in the command line of the test app's toast activator (T-068), the toast cleanup mode (T-067).
+    /// </summary>
+    public const string TestArgumentPrefix = "--layerpeek-e2e-";
+
+    /// <summary>
+    /// Whether a test made this start: an argument with <see cref="TestArgumentPrefix"/> (any case) or the forward-only
+    /// switch of the two-process tests (<see cref="SingleInstance.InstanceTransports.ForwardOnlyVariable"/>). Such a start
+    /// runs in the test mode or not at all: without the test data folder it would log into the user's log folder and use the
+    /// user's data, so <c>Program.Main</c> ends it with <see cref="InvalidTestModeExitCode"/> before anything is written.
+    /// </summary>
+    internal static bool IsTestStart(IReadOnlyList<string> arguments, Func<string, string?> read)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        ArgumentNullException.ThrowIfNull(read);
+        return arguments.Any(static argument => argument.StartsWith(TestArgumentPrefix, StringComparison.OrdinalIgnoreCase))
+            || !string.IsNullOrEmpty(read(SingleInstance.InstanceTransports.ForwardOnlyVariable));
+    }
 
     /// <summary>Test mode with <see cref="TestToastsVariable"/>: real toasts as the test app.</summary>
     public bool TestToasts { get; private init; }

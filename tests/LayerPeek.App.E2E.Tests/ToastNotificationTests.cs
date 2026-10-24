@@ -655,7 +655,7 @@ public sealed class ToastCrashChild
         await File.WriteAllLinesAsync(Path.Combine(run, "data", AppSwitches.SecretsFileName), Simulators.Secrets("crash", printer).Select(static pair => $"{pair.Key}\t{pair.Value}"), cancellationToken);
         ProcessStartInfo start = AppInstance.StartInfo(run, "e2e-" + Guid.NewGuid().ToString("N")[..12]);
         start.Environment[AppSwitches.TestToastsVariable] = "1";
-        using Process app = Process.Start(start) ?? throw new InvalidOperationException("The app did not start.");
+        using Process app = TestLaunch.Start(start);
 
         await Wait.UntilAsync(() => File.Exists(TestToastsKind.ShortcutPath), TimeSpan.FromSeconds(20), "the Start menu shortcut of the test app");
         await Wait.UntilAsync(() => printer.RequestCount > 0, TimeSpan.FromSeconds(30), "the app to poll the printer");

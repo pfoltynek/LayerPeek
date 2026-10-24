@@ -427,7 +427,7 @@ internal static class ClearToasts
         start.Environment.Remove(AppSwitches.TestToastsVariable);
         start.Environment.Remove(AppSwitches.TestCredentialPrefixVariable);
         start.Environment.Remove(AppSwitches.TestStartDelayVariable);
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException($"'{exe}' {AppSwitches.ClearToastsArgument} did not start.");
+        using Process process = TestLaunch.Start(start);
         try
         {
             Task<string> error = process.StandardError.ReadToEndAsync();

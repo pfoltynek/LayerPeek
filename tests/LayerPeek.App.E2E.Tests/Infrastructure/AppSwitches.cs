@@ -22,7 +22,7 @@ internal static class AppSwitches
     /// <summary>Base of the instance names.</summary>
     public const string BaseName = "LayerPeek";
 
-    /// <summary>Marker argument of every app process these tests start (ignored by the app).</summary>
+    /// <summary>Marker argument of every app process these tests start (a start with it but without the test data folder exits with 4, T-074).</summary>
     public const string MarkerArgument = "--layerpeek-e2e-run=";
 
     /// <summary>AppUserModelID of the app in the test mode (T-044); production uses "LayerPeek".</summary>
