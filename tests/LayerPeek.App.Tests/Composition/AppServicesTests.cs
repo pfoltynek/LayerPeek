@@ -45,6 +45,47 @@ public sealed class AppServicesTests
         Assert.NotNull(services.GetRequiredService<MonitoringSession>());
     }
 
+    /// <summary>
+    /// T-017: only the app's own exe may create the autostart shortcut, and updates exist only in a Velopack installation;
+    /// the test host is neither, so nothing here can touch the Startup folder or GitHub.
+    /// </summary>
+    [Fact]
+    public async Task OutsideTheInstalledAppThereIsNoAutostartAndNoUpdate()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Null(services.GetRequiredService<LayerPeek.App.Platform.AutostartOption>().Autostart);
+        LayerPeek.App.Installer.AppUpdates updates = services.GetRequiredService<LayerPeek.App.Installer.AppUpdates>();
+        Assert.False(updates.IsAvailable);
+        Assert.Null(await updates.CheckAsync(TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>User decision 2026-10-24: start after logon only for the app installed by the installer.</summary>
+    [Fact]
+    public void AutostartExistsOnlyForTheInstalledApp()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Autostart exists on Windows only (macOS: T-019).");
+        const string installed = @"C:\Users\u\AppData\Local\LayerPeek\current\LayerPeek.exe";
+        HashSet<string> files = new(StringComparer.OrdinalIgnoreCase)
+        {
+            @"C:\Users\u\AppData\Local\LayerPeek\Update.exe",
+            @"C:\Users\u\AppData\Local\LayerPeek\current\sq.version",
+        };
+        Microsoft.Extensions.Logging.Abstractions.NullLogger<StartupShortcutAutostart> logger = new();
+
+        AutostartOption inInstallation = AppServices.CreateAutostart(AppEnvironment.Production, windows: true, logger, installed, files.Contains);
+        AutostartOption zip = AppServices.CreateAutostart(AppEnvironment.Production, windows: true, logger, @"C:\Tools\LayerPeek\LayerPeek.exe", files.Contains);
+        AutostartOption host = AppServices.CreateAutostart(AppEnvironment.Production, windows: true, logger, @"C:\dotnet\testhost.exe", files.Contains);
+        AutostartOption otherOs = AppServices.CreateAutostart(AppEnvironment.Production, windows: false, logger, installed, files.Contains);
+
+        StartupShortcutAutostart autostart = Assert.IsType<StartupShortcutAutostart>(inInstallation.Autostart);
+        Assert.Equal(installed, autostart.Desired.TargetPath);
+        Assert.False(inInstallation.NeedsInstallation);
+        Assert.Equal(new AutostartOption(null, NeedsInstallation: true), zip);
+        Assert.Equal(new AutostartOption(null, NeedsInstallation: false), host);
+        Assert.Equal(new AutostartOption(null, NeedsInstallation: false), otherOs);
+    }
+
     [Fact]
     public async Task SuppliedLoggerFactoryIsUsedAndOutlivesContainer()
     {

@@ -234,9 +234,11 @@ public sealed class SettingsLayoutTests : IDisposable
         Assert.True(vm.SelectAdjacentTab(forward: true));
         Assert.Equal(SettingsViewModel.GeneralTab, vm.SelectedTabIndex);
         Assert.True(vm.SelectAdjacentTab(forward: true));
+        Assert.Equal(SettingsViewModel.StartupUpdatesTab, vm.SelectedTabIndex);
+        Assert.True(vm.SelectAdjacentTab(forward: true));
         Assert.Equal(SettingsViewModel.PrintersTab, vm.SelectedTabIndex);
         Assert.True(vm.SelectAdjacentTab(forward: false));
-        Assert.Equal(SettingsViewModel.GeneralTab, vm.SelectedTabIndex);
+        Assert.Equal(SettingsViewModel.StartupUpdatesTab, vm.SelectedTabIndex);
     }
 
     [Fact]

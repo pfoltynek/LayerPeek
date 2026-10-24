@@ -4,6 +4,9 @@
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.4" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.4" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <!-- Installer hooks and updates on Windows (T-017); MIT, verified for Native AOT and trimming in T-056 (docs/velopack.md).
+         Keep the same version as the vpk tool in .config/dotnet-tools.json (a Pester test compares them). -->
+    <PackageVersion Include="Velopack" Version="1.2.161" />
   </ItemGroup>
   <ItemGroup Label="Camera">
     <!-- MIT; [DllImport] bindings, verified for Native AOT (T-014). Native FFmpeg DLLs: build/FFmpeg.targets. -->

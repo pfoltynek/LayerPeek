@@ -49,6 +49,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
         ("Overlay", SettingsViewModel.PrintersTab, SettingsViewModel.OverlayPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
+        ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
     ];
 
     // ---- Size ----
@@ -93,6 +94,41 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
                 ui.Window.Close();
             }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-017: the longest texts of the Startup and updates tab, without an installation (both reasons shown) and with the
+    /// failed autostart in the status line next to Save / Cancel, in every language.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task StartupAndUpdatesTabFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+
+            SettingsWindowHarness notInstalled = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true);
+            notInstalled.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            notInstalled.Window.Settle();
+            problems.AddRange(ScrollingViewers(notInstalled.Window, $"{language} / not installed"));
+            problems.AddRange(CutTexts(notInstalled.Window, $"{language} / not installed"));
+            notInstalled.Window.Close();
+
+            SettingsWindowHarness failed = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                autostart: new MemoryAutostart { Failure = new UnauthorizedAccessException("denied") });
+            failed.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            failed.ViewModel.StartWithWindows = true;
+            await failed.ViewModel.SaveCommand.ExecuteAsync(null);
+            failed.Window.Settle();
+            Assert.Equal(Strings.SettingsSavedAutostartFailed, failed.ViewModel.StatusText);
+            problems.AddRange(ScrollingViewers(failed.Window, $"{language} / autostart failed"));
+            problems.AddRange(CutTexts(failed.Window, $"{language} / autostart failed"));
+            failed.Window.Close();
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });

@@ -70,6 +70,12 @@ internal sealed partial class AppShortcutRegistration
         return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), fileName);
     }
 
+    /// <summary>
+    /// <c>%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\LayerPeek.lnk</c>: the autostart shortcut (T-017), per user.
+    /// Only through <c>AppEnvironment.AutostartShortcutPath</c> (the test mode has a folder of its own).
+    /// </summary>
+    public static string StartupShortcutPath() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), ShortcutFileName);
+
     public static ShortcutAction Decide(AppShortcut? existing, AppShortcut desired)
     {
         ArgumentNullException.ThrowIfNull(desired);

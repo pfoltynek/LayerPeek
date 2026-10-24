@@ -31,6 +31,64 @@ public sealed class WindowsShortcutStoreTests : IDisposable
 
     private static string OtherExistingTarget => typeof(WindowsShortcutStoreTests).Assembly.Location;
 
+    /// <summary>
+    /// T-017: the Start menu shortcut Velopack created keeps its description and icon when the app adds its AppUserModelID
+    /// and toast activator; only those properties change.
+    /// </summary>
+    [Fact]
+    public void AnExistingShortcutKeepsItsOtherPropertiesWhenTheIdentityIsAdded()
+    {
+        string path = Path.Combine(_directory, "existing.lnk");
+        string icon = Path.Combine(Environment.SystemDirectory, "shell32.dll");
+        Type shellType = Type.GetTypeFromProgID("WScript.Shell") ?? throw new InvalidOperationException("WScript.Shell is not available.");
+        dynamic shell = Activator.CreateInstance(shellType)!;
+        dynamic link = shell.CreateShortcut(path);
+        link.TargetPath = ExistingTarget;
+        link.Description = "Made by the installer";
+        link.IconLocation = icon + ",3";
+        link.Save();
+        Guid clsid = new("0B8D1A2C-3E4F-4A5B-9C6D-7E8F9A0B1C2D");
+
+        _store.Write(path, new AppShortcut(ExistingTarget, "LayerPeek.Tests", clsid));
+
+        dynamic reread = shell.CreateShortcut(path);
+        Assert.Equal("Made by the installer", (string)reread.Description);
+        Assert.Equal(icon + ",3", (string)reread.IconLocation, ignoreCase: true);
+        Assert.Equal(new AppShortcut(ExistingTarget, "LayerPeek.Tests", clsid), _store.Read(path));
+    }
+
+    /// <summary>A loaded shortcut loses the id and the activator that are left out, and keeps its description.</summary>
+    [Fact]
+    public void ValuesLeftOutAreClearedOnALoadedShortcut()
+    {
+        string path = Path.Combine(_directory, "clear.lnk");
+        Type shellType = Type.GetTypeFromProgID("WScript.Shell") ?? throw new InvalidOperationException("WScript.Shell is not available.");
+        dynamic shell = Activator.CreateInstance(shellType)!;
+        dynamic link = shell.CreateShortcut(path);
+        link.TargetPath = ExistingTarget;
+        link.Description = "Made by the installer";
+        link.Save();
+        _store.Write(path, new AppShortcut(ExistingTarget, "LayerPeek.Tests", new Guid("0B8D1A2C-3E4F-4A5B-9C6D-7E8F9A0B1C2D")));
+
+        _store.Write(path, new AppShortcut(ExistingTarget, null, null));
+
+        Assert.Equal(new AppShortcut(ExistingTarget, null, null), _store.Read(path));
+        Assert.Equal("Made by the installer", (string)shell.CreateShortcut(path).Description);
+    }
+
+    [Fact]
+    public void AnExistingShortcutOfAnotherTargetIsPointedToTheNewOne()
+    {
+        string path = Path.Combine(_directory, "moved.lnk");
+        _store.Write(path, new AppShortcut(OtherExistingTarget, "LayerPeek.Tests"));
+
+        _store.Write(path, new AppShortcut(ExistingTarget, "LayerPeek.Tests"));
+
+        AppShortcut? shortcut = _store.Read(path);
+        Assert.Equal(ExistingTarget, shortcut?.TargetPath, ignoreCase: true);
+        Assert.Equal("LayerPeek.Tests", shortcut?.AppUserModelId);
+    }
+
     [Fact]
     public void MissingShortcutReadsAsNull()
     {

@@ -132,6 +132,17 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void PrereleaseChoiceIsUnsetByDefaultAndPartOfEquality()
+    {
+        Assert.Null(AppSettings.Default.OfferPrereleaseUpdates);
+        Assert.NotEqual(new AppSettings(), new AppSettings { OfferPrereleaseUpdates = true });
+        Assert.NotEqual(new AppSettings(), new AppSettings { OfferPrereleaseUpdates = false });
+        Assert.NotEqual(new AppSettings { OfferPrereleaseUpdates = true }, new AppSettings { OfferPrereleaseUpdates = false });
+        Assert.Equal(new AppSettings { OfferPrereleaseUpdates = false }, new AppSettings { OfferPrereleaseUpdates = false });
+        Assert.Equal(new AppSettings { OfferPrereleaseUpdates = true }.GetHashCode(), new AppSettings { OfferPrereleaseUpdates = true }.GetHashCode());
+    }
+
+    [Fact]
     public void EqualityIncludesLanguage()
     {
         AppSettings german = new() { Language = "de" };

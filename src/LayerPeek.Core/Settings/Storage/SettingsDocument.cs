@@ -23,6 +23,13 @@ internal sealed class SettingsDocument
     /// <summary>Detailed logging (T-047); missing in files of older versions, which load with <see langword="false"/>.</summary>
     public bool? DebugLogging { get; set; }
 
+    /// <summary>
+    /// "Offer pre-release versions" (T-017); written only once the user chose, so that until then the default follows the
+    /// running version.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? OfferPrereleaseUpdates { get; set; }
+
     public NotificationsDocument? Notifications { get; set; }
 
     public List<PrinterDocument?>? Printers { get; set; }

@@ -213,7 +213,9 @@ public sealed partial class ThirdPartyLicensesTests
         // The MIT entries carry the MIT text; the others their own licence file.
         foreach (ThirdPartyComponent component in ThirdPartyLicenses.All.Where(static c => c.License == "MIT"))
         {
-            Assert.Contains("Permission is hereby granted, free of charge", ThirdPartyLicenses.ReadText(component), StringComparison.Ordinal);
+            // Whitespace as in the original files (Velopack's licence aligns its words with double spaces).
+            string text = System.Text.RegularExpressions.Regex.Replace(ThirdPartyLicenses.ReadText(component), @"\s+", " ");
+            Assert.Contains("Permission is hereby granted, free of charge", text, StringComparison.Ordinal);
         }
 
         ThirdPartyComponent angle = Assert.Single(ThirdPartyLicenses.All, static c => c.License == "BSD-3-Clause");

@@ -537,6 +537,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Włącz tylko na prośbę przy rozwiązywaniu problemu. Plik logu będzie rósł szybciej.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Uruchamianie i aktualizacje</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Uruchamiaj po zalogowaniu się do systemu Windows</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Dostępne tylko, gdy LayerPeek został zainstalowany za pomocą Setup.exe, nie w wersji ZIP.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Oferuj wersje wstępne</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Aktualizacje obejmują też wersje, które nie są jeszcze ostateczne. Do wersji 1.0 wszystkie wersje są wstępne, więc bez tej opcji nie otrzymasz aktualizacji.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Ustawienia zostały zapisane. Nie udało się zmienić uruchamiania po zalogowaniu. Spróbuj zapisać ponownie.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Rozpoczęto drukowanie</value>
   </data>

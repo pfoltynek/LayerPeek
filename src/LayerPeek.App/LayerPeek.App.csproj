@@ -55,6 +55,7 @@
     <PackageReference Include="Avalonia.Desktop" />
     <PackageReference Include="Avalonia.Themes.Fluent" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Velopack" />
   </ItemGroup>
   <!--
     The ASP.NET Core shared framework (Kestrel for the local web proxy, T-028) ships the native IIS in-process module

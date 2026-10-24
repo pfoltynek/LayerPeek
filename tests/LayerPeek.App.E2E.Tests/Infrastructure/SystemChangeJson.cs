@@ -15,4 +15,5 @@ namespace LayerPeek.App.E2E.Tests.Infrastructure;
 [JsonSerializable(typeof(RegistryKeySnapshot))]
 [JsonSerializable(typeof(TestToastsState))]
 [JsonSerializable(typeof(CredentialsState))]
+[JsonSerializable(typeof(InstallerState))]
 internal sealed partial class SystemChangeJson : JsonSerializerContext;

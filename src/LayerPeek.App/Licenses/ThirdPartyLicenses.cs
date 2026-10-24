@@ -158,6 +158,14 @@ internal static class ThirdPartyLicenses
             [new("Tmds.DBus.Protocol", "0.94.1")],
             [ResourcePrefix + "mit-tmds.txt"],
             nameof(Strings.LicensesComponentTmdsDBus)),
+        // Installer hooks and updates (T-017); the same licence covers Setup.exe and Update.exe of the installer.
+        new(
+            "Velopack",
+            "1.2.161",
+            "MIT",
+            new Uri("https://github.com/velopack/velopack"),
+            [new("Velopack", "1.2.161")],
+            [ResourcePrefix + "mit-velopack.txt"]),
     ];
 
     /// <summary>

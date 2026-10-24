@@ -48,12 +48,14 @@ internal sealed class SettingsWindowHarness
         IScreenCatalog? screens = null,
         ICameraWindowStateStore? cameraWindowStates = null,
         ICameraWindowPlacer? cameraWindowPlacer = null,
-        IImageFilePicker? imagePicker = null)
+        IImageFilePicker? imagePicker = null,
+        LayerPeek.App.Platform.IAutostart? autostart = null,
+        bool autostartNeedsInstallation = false)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer);
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0");
         // Like SettingsWindowFactory: the window has a file dialog for custom printer images (T-039); by default the user cancels it.
         viewModel.ImageFilePicker = imagePicker ?? new FakeImagePicker { Content = null };
         scope.Defer(viewModel);
@@ -115,4 +117,16 @@ internal sealed class SettingsWindowHarness
     /// <summary>The text of a text block, or <see langword="null"/> when it is not shown.</summary>
     public string? ShownText(string automationId) =>
         Window.IsShown<TextBlock>(automationId) ? Find<TextBlock>(automationId).Text : null;
+}
+
+/// <summary>Start after logon in memory (T-017): the option is shown like on Windows; nothing touches the Startup folder.</summary>
+internal sealed class MemoryAutostart : LayerPeek.App.Platform.IAutostart
+{
+    public bool Enabled { get; set; }
+
+    public Exception? Failure { get; set; }
+
+    public bool IsEnabled() => Enabled;
+
+    public void SetEnabled(bool enabled) => Enabled = Failure is null ? enabled : throw Failure;
 }

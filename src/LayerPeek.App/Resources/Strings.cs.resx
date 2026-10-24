@@ -576,6 +576,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Zapněte jen na žádost při řešení chyby. Log poroste rychleji.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Spuštění a aktualizace</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Spouštět po přihlášení do Windows</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Jen když je LayerPeek nainstalovaný pomocí Setup.exe, ne ve verzi ZIP.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Nabízet předběžné verze</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Aktualizace nabídnou i verze, které ještě nejsou finální. Do verze 1.0 jsou předběžné všechny verze, bez této volby tedy žádné aktualizace nedostanete.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Nastavení je uloženo. Spouštění po přihlášení se nepodařilo změnit. Zkuste uložit znovu.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
   </data>

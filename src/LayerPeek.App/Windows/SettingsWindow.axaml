@@ -848,6 +848,50 @@
           </Grid>
         </ScrollViewer>
       </TabItem>
+
+      <!--
+        T-017: start after logon (Windows only, off by default; applied by Save) and pre-release updates. A tab of its own (user
+        decision 2026-10-24): the General tab has no room left within the 800 × 600 fit of T-033.
+      -->
+      <TabItem AutomationProperties.AutomationId="SettingsTabStartupUpdates" Header="{Binding [SettingsTabStartupUpdates], Source={x:Static loc:LocalizedStrings.Instance}}">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+          <StackPanel Spacing="12">
+            <!--
+              Only the installed app (user decision 2026-10-24): a .zip or a development build shows both options disabled with
+              the reason, which is also their help text (a disabled check box cannot be focused).
+            -->
+            <StackPanel IsVisible="{Binding IsAutostartShown}">
+              <CheckBox AutomationProperties.AutomationId="SettingsStartWithWindows"
+                        AutomationProperties.HelpText="{Binding AutostartHelpText}"
+                        IsEnabled="{Binding IsAutostartAvailable}"
+                        Content="{Binding [SettingsStartWithWindows], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        IsChecked="{Binding StartWithWindows}" />
+              <TextBlock AutomationProperties.AutomationId="SettingsStartWithWindowsNotInstalled"
+                         Classes="hint"
+                         Margin="28,0,0,0"
+                         IsVisible="{Binding ShowsAutostartNeedsInstallation}"
+                         Text="{Binding [SettingsNeedsInstallation], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            </StackPanel>
+            <StackPanel>
+              <CheckBox AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdates"
+                        AutomationProperties.HelpText="{Binding PrereleaseHelpText}"
+                        IsEnabled="{Binding IsPrereleaseOptionAvailable}"
+                        Content="{Binding [SettingsOfferPrereleaseUpdates], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        IsChecked="{Binding OfferPrereleaseUpdates}" />
+              <TextBlock AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdatesHint"
+                         Classes="hint"
+                         Margin="28,0,0,0"
+                         IsVisible="{Binding IsPrereleaseOptionAvailable}"
+                         Text="{Binding [SettingsOfferPrereleaseUpdatesHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdatesNotInstalled"
+                         Classes="hint"
+                         Margin="28,0,0,0"
+                         IsVisible="{Binding ShowsAutostartNeedsInstallation}"
+                         Text="{Binding [SettingsNeedsInstallation], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            </StackPanel>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
     </TabControl>
 
     <!-- Save / Cancel and the outcome of the last save attempt. -->

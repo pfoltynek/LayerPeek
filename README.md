@@ -149,13 +149,21 @@ cameras.
 
 ### 1. Download
 
-Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page, unpack the
-ZIP anywhere and run `LayerPeek.exe`.
+Get the latest build from the [Releases](https://github.com/pfoltynek/LayerPeek/releases) page:
+
+- **Installer** `LayerPeek-X.Y.Z-win-x64-Setup.exe`: installs for your user only, without administrator rights, into
+  `%LOCALAPPDATA%\LayerPeek` and adds LayerPeek to the Start menu. Uninstall it in **Settings → Apps**.
+- **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: unpack it anywhere and run `LayerPeek.exe`.
 
 > [!IMPORTANT]
-> Versions 0.x are **previews**. Settings may change between versions, and there is no installer or automatic update
-> yet. Builds are not code-signed, so Windows SmartScreen may show an "Unknown publisher" warning. Click
-> **More info → Run anyway**, or [build the app yourself](#building-from-source).
+> Versions 0.x are **previews**. Settings may change between versions. Builds are not code-signed, so Windows
+> SmartScreen shows "Windows protected your PC" with an "Unknown publisher". Click **More info → Run anyway**, or
+> [build the app yourself](#building-from-source).
+
+Uninstalling keeps your settings (`%APPDATA%\LayerPeek`) and passwords (Windows Credential Manager), and the installer
+leaves its own log in `%LOCALAPPDATA%\velopack`. You can delete them by hand. The app's logs in
+`%LOCALAPPDATA%\LayerPeek\logs` are deleted with the app. Installing over the ZIP version replaces that folder too,
+including the ZIP version's logs.
 
 ### 2. Enable PrusaLink on the printer
 
@@ -184,6 +192,8 @@ submenu.
 - **Notifications:** which events you want, the sound mode and the "minutes remaining" reminder.
 - **Camera window and overlay:** start mode, size, monitor, always on top, overlay items and corner.
 - **General:** how often the printers are polled, the language and detailed logging.
+- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
+  and whether updates offer pre-release versions.
 
 ### Where data is stored
 
@@ -198,7 +208,7 @@ the printers and cameras you add.
 
 ## Roadmap
 
-- Installer with automatic updates (Velopack), autostart with Windows
+- Update check in the app, with a one-click update of the installed version
 - `winget install` as soon as the first release is public
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.

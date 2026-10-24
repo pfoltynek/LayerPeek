@@ -95,4 +95,7 @@ internal static class ShellLinkIds
 
     /// <summary>STGM_READ.</summary>
     public const uint StorageModeRead = 0;
+
+    /// <summary>STGM_READWRITE: an existing shortcut is changed in place (T-017).</summary>
+    public const uint StorageModeReadWrite = 2;
 }

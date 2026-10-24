@@ -537,6 +537,24 @@
   <data name="SettingsDebugLoggingHint" xml:space="preserve">
     <value>Zapnite len na požiadanie pri riešení chyby. Log porastie rýchlejšie.</value>
   </data>
+  <data name="SettingsTabStartupUpdates" xml:space="preserve">
+    <value>Spustenie a aktualizácie</value>
+  </data>
+  <data name="SettingsStartWithWindows" xml:space="preserve">
+    <value>Spúšťať po prihlásení do Windows</value>
+  </data>
+  <data name="SettingsNeedsInstallation" xml:space="preserve">
+    <value>Len keď je LayerPeek nainštalovaný pomocou Setup.exe, nie vo verzii ZIP.</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
+    <value>Ponúkať predbežné verzie</value>
+  </data>
+  <data name="SettingsOfferPrereleaseUpdatesHint" xml:space="preserve">
+    <value>Aktualizácie ponúknu aj verzie, ktoré ešte nie sú finálne. Do verzie 1.0 sú predbežné všetky verzie, bez tejto voľby teda nedostanete žiadne aktualizácie.</value>
+  </data>
+  <data name="SettingsSavedAutostartFailed" xml:space="preserve">
+    <value>Nastavenia sú uložené. Spúšťanie po prihlásení sa nepodarilo zmeniť. Skúste uložiť znova.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Tlač sa začala</value>
   </data>

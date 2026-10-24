@@ -9,8 +9,8 @@
 
     Output (artifacts/ is gitignored), recreated on every run for the version:
         artifacts/release/<version>/publish/<rid>/   Native AOT publish folder
-        artifacts/release/<version>/dist/            files to upload: archives (and the outputs of later packaging
-                                                     steps, e.g. installers) + SHA256SUMS-<os>.txt
+        artifacts/release/<version>/dist/            files to upload: archives, the Velopack installer and update feed (Windows),
+                                                     later installers + SHA256SUMS-<os>.txt
         artifacts/release/<version>/build-info.json  build marker (version, commit, clean tree, files) that
                                                      release-upload.ps1 checks so that no older build is uploaded
     Build all RIDs of this OS in one run: a new run deletes the previous output of the same version.
@@ -47,7 +47,7 @@ $smokeScript = Join-Path $PSScriptRoot 'aot-smoke.ps1'
 # Packaging steps, run for every RID in this order. Each step gets a context object (Version, Runtime, Os,
 # PublishDirectory, OutputDirectory), creates its files directly in OutputDirectory (dist/) and returns their paths.
 # Returned files go automatically into the checksum file, the build marker and the upload.
-# Installers are added here as further steps (T-017: Windows installer, T-019: macOS .app + .dmg); the build and
+# Installers are further steps (T-017: the Windows installer below, T-019: macOS .app + .dmg); the build and
 # publish part above them does not change. Os limits a step to RIDs of that OS.
 $packagingSteps = @(
     [pscustomobject]@{
@@ -57,6 +57,34 @@ $packagingSteps = @(
             param($Context)
             $archive = Join-Path $Context.OutputDirectory (Get-ArchiveFileName -Version $Context.Version -Runtime $Context.Runtime)
             New-ReleaseArchive -SourceDirectory $Context.PublishDirectory -Destination $archive
+        }
+    },
+    # T-017: the Velopack installer and its update feed (docs/velopack.md point 12). vpk works in its own folder next to
+    # dist/ (deleted afterwards); only the expected files are copied into dist/ (Setup.exe renamed per version and RID).
+    [pscustomobject]@{
+        Name   = 'installer'
+        Os     = @('windows')
+        Invoke = {
+            param($Context)
+            $work = Join-Path (Split-Path -Parent $Context.OutputDirectory) "velopack-$($Context.Runtime)"
+            if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+            $null = New-Item -ItemType Directory -Path (Join-Path $work 'out')
+            try {
+                $notes = Join-Path $work 'release-notes.md'
+                $text = Get-ChangelogSection -Path (Join-Path $repoRoot 'CHANGELOG.md') -Version $Context.Version -AllowUndated
+                [System.IO.File]::WriteAllText($notes, $text + "`n", [System.Text.UTF8Encoding]::new($false))
+                $arguments = Get-VelopackPackArguments -Version $Context.Version -Runtime $Context.Runtime -PublishDirectory $Context.PublishDirectory `
+                    -OutputDirectory (Join-Path $work 'out') -ReleaseNotesFile $notes -IconFile (Join-Path $repoRoot (Get-VelopackSettings).Icon)
+                # A local tool: dotnet finds .config/dotnet-tools.json from the current folder.
+                Push-Location $repoRoot
+                # Its console output must not become a returned path.
+                try { Invoke-Native "vpk pack $($Context.Runtime)" { dotnet @arguments | Out-Host } }
+                finally { Pop-Location }
+                Copy-VelopackOutput -VelopackDirectory (Join-Path $work 'out') -OutputDirectory $Context.OutputDirectory -Version $Context.Version -Runtime $Context.Runtime
+            }
+            finally {
+                Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 )
@@ -119,6 +147,14 @@ try {
     }
 
     Assert-NativeToolchain -Runtimes $runtimes -HostOs $hostOs
+    if ($hostOs -eq 'windows') {
+        # The Velopack installer step (T-017): vpk pinned in .config/dotnet-tools.json, the same version as the NuGet package.
+        $velopackProblems = @(Get-VelopackVersionProblems -PackagesPropsPath (Join-Path $repoRoot 'Directory.Packages.props') -ToolManifestPath (Join-Path $repoRoot '.config' 'dotnet-tools.json'))
+        if ($velopackProblems.Count -gt 0) { throw ($velopackProblems -join ' ') }
+        Push-Location $repoRoot
+        try { Invoke-Native 'dotnet tool restore (vpk)' { dotnet tool restore } }
+        finally { Pop-Location }
+    }
 
     $releaseDir = Join-Path $repoRoot 'artifacts' 'release' $version
     $publishRoot = Join-Path $releaseDir 'publish'

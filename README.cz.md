@@ -151,13 +151,20 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 
 ### 1. Stažení
 
-Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases), rozbal ZIP
-kamkoli a spusť `LayerPeek.exe`.
+Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/LayerPeek/releases):
+
+- **Instalátor** `LayerPeek-X.Y.Z-win-x64-Setup.exe`: instaluje jen pro tvého uživatele, bez práv správce, do
+  `%LOCALAPPDATA%\LayerPeek` a přidá LayerPeek do nabídky Start. Odinstaluješ ho v **Nastavení → Aplikace**.
+- **ZIP** `LayerPeek-X.Y.Z-win-x64.zip`: rozbal ho kamkoli a spusť `LayerPeek.exe`.
 
 > [!IMPORTANT]
-> Verze 0.x jsou **předběžné**. Nastavení se mezi verzemi může změnit a zatím chybí instalátor i automatické
-> aktualizace. Sestavení nejsou podepsaná, takže Windows SmartScreen může zobrazit varování „Neznámý vydavatel“.
-> Klikni na **Další informace → Přesto spustit**, nebo si [aplikaci sestav sám](#sestavení-ze-zdrojových-kódů).
+> Verze 0.x jsou **předběžné**. Nastavení se mezi verzemi může změnit. Sestavení nejsou podepsaná, takže Windows
+> SmartScreen zobrazí „Systém Windows ochránil váš počítač“ s „Neznámým vydavatelem“. Klikni na
+> **Další informace → Přesto spustit**, nebo si [aplikaci sestav sám](#sestavení-ze-zdrojových-kódů).
+
+Odinstalace ponechá tvoje nastavení (`%APPDATA%\LayerPeek`) a hesla (Správce pověření Windows) a instalátor po sobě
+nechá vlastní log v `%LOCALAPPDATA%\velopack`. Smazat je můžeš ručně. Logy aplikace v `%LOCALAPPDATA%\LayerPeek\logs`
+se s aplikací smažou. Instalace přes verzi ZIP tuto složku také nahradí, včetně logů verze ZIP.
 
 ### 2. Zapni PrusaLink na tiskárně
 
@@ -185,6 +192,8 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 - **Notifikace:** které události chceš, režim zvuku a upozornění na zbývající minuty.
 - **Okno kamery a překryv:** výchozí režim, velikost, monitor, vždy navrchu, položky překryvu a roh.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
+- **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
+  jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze.
 
 ### Kde jsou uložená data
 
@@ -199,7 +208,7 @@ a kamerám, které přidáš.
 
 ## Plán
 
-- Instalátor s automatickými aktualizacemi (Velopack), spuštění po startu Windows
+- Kontrola nové verze v aplikaci a aktualizace nainstalované verze jedním kliknutím
 - `winget install` hned po zveřejnění prvního vydání
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory

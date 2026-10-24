@@ -51,17 +51,50 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
         IShellLinkW link = CreateShellLink();
         try
         {
-            link.SetPath(shortcut.TargetPath);
-            link.SetWorkingDirectory(Path.GetDirectoryName(shortcut.TargetPath) ?? string.Empty);
+            // An existing shortcut (e.g. the one Velopack created, T-017) is changed in place: its description, icon and
+            // other properties stay; the target and working folder change only when the target differs.
+            bool loaded = false;
+            if (File.Exists(path))
+            {
+                try
+                {
+                    ((IPersistFile)link).Load(path, ShellLinkIds.StorageModeReadWrite);
+                    loaded = true;
+                }
+                catch (Exception ex) when (ex is COMException or IOException or UnauthorizedAccessException)
+                {
+                    // Not a readable shortcut: written anew below. The new object first, so that a failure to create it leaves
+                    // only the old one to the finally block (never released twice).
+                    IShellLinkW fresh = CreateShellLink();
+                    ComObjects.Release(link);
+                    link = fresh;
+                }
+            }
+
+            if (!loaded || !SamePath(TargetOf(link), shortcut.TargetPath))
+            {
+                link.SetPath(shortcut.TargetPath);
+                link.SetWorkingDirectory(Path.GetDirectoryName(shortcut.TargetPath) ?? string.Empty);
+            }
+
             IPropertyStore properties = (IPropertyStore)link;
+            // A value left out is removed (an existing shortcut may carry one).
             if (shortcut.AppUserModelId is not null)
             {
                 SetString(properties, ShellLinkIds.AppUserModelId, shortcut.AppUserModelId);
+            }
+            else if (loaded)
+            {
+                Clear(properties, ShellLinkIds.AppUserModelId);
             }
 
             if (shortcut.ToastActivatorClsid is { } clsid)
             {
                 SetClsid(properties, ShellLinkIds.ToastActivatorClsid, clsid);
+            }
+            else if (loaded)
+            {
+                Clear(properties, ShellLinkIds.ToastActivatorClsid);
             }
 
             properties.Commit();
@@ -85,6 +118,26 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
 
         File.Delete(path);
         return true;
+    }
+
+    private static string TargetOf(IShellLinkW link)
+    {
+        char* buffer = stackalloc char[MaxPath];
+        buffer[0] = '\0';
+        link.GetPath(buffer, MaxPath, 0, 0);
+        return new string(buffer);
+    }
+
+    private static bool SamePath(string a, string b)
+    {
+        try
+        {
+            return a.Length > 0 && string.Equals(Path.GetFullPath(a), Path.GetFullPath(b), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 
     private static IShellLinkW CreateShellLink()
@@ -132,6 +185,13 @@ internal sealed unsafe class WindowsShortcutStore : IShortcutStore
         {
             Marshal.FreeCoTaskMem(value.Value);
         }
+    }
+
+    /// <summary>Removes a property (VT_EMPTY).</summary>
+    private static void Clear(IPropertyStore store, in PropertyKey key)
+    {
+        PropVariant empty = default;
+        store.SetValue(key, empty);
     }
 
     private static void SetClsid(IPropertyStore store, in PropertyKey key, Guid clsid)
