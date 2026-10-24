@@ -1,0 +1,149 @@
+{
+  "version": 1,
+  "pollingIntervalSeconds": 5,
+  "language": "cs",
+  "debugLogging": false,
+  "offerPrereleaseUpdates": true,
+  "notifications": {
+    "enabled": true,
+    "printStarted": true,
+    "printFinished": true,
+    "printPaused": true,
+    "printResumed": false,
+    "printStopped": true,
+    "error": true,
+    "attention": true,
+    "offline": false,
+    "remainingTimeMinutes": 10,
+    "sound": "ImportantOnly"
+  },
+  "printers": [
+    {
+      "id": "3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c",
+      "name": "Workshop MK4",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.226",
+      "userName": "maker",
+      "camera": {
+        "enabled": true,
+        "streamUrl": "rtsp://192.168.0.227/live",
+        "window": {
+          "rememberLastPlacement": true,
+          "startMode": "Mini",
+          "monitor": {
+            "displayName": "DELL U2719D",
+            "width": 2560,
+            "height": 1440
+          },
+          "normal": {
+            "width": 960,
+            "height": 540,
+            "corner": "Center"
+          },
+          "mini": {
+            "width": 320,
+            "height": 180,
+            "corner": "BottomRight"
+          },
+          "topmostNormal": false,
+          "topmostMini": true
+        },
+        "overlay": {
+          "corner": "TopRight",
+          "normal": [
+            "PrinterName",
+            "State",
+            "NozzleTemperature",
+            "BedTemperature",
+            "Progress",
+            "RemainingTime",
+            "FinishTime",
+            "PrintTime",
+            "FileName"
+          ],
+          "mini": [
+            "Progress"
+          ]
+        }
+      },
+      "detectedModel": "1.4.0",
+      "cooldownThresholdCelsius": 45
+    },
+    {
+      "id": "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "name": "Core One",
+      "connectionType": "PrusaLink",
+      "address": "http://192.168.0.228",
+      "userName": "maker",
+      "camera": {
+        "enabled": true,
+        "streamUrl": "rtsp://192.168.0.229/live",
+        "overlay": {
+          "corner": "BottomLeft",
+          "normal": [],
+          "mini": [
+            "State",
+            "Progress",
+            "RemainingTime"
+          ]
+        }
+      }
+    },
+    {
+      "id": "0f9e8d7c6b5a49382716051423324150",
+      "name": "MINI",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.230",
+      "userName": "maker",
+      "camera": {
+        "enabled": false,
+        "streamUrl": "rtsp://192.168.0.231/live",
+        "overlay": {
+          "corner": "TopLeft",
+          "normal": [
+            "State"
+          ],
+          "mini": [
+            "State",
+            "Progress",
+            "RemainingTime"
+          ]
+        }
+      },
+      "image": {
+        "mode": "Custom"
+      }
+    },
+    {
+      "id": "99887766554433221100aabbccddeeff",
+      "name": "XL",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.232",
+      "userName": "maker",
+      "camera": {
+        "enabled": false
+      }
+    },
+    {
+      "id": "c0ffee00c0ffee00c0ffee00c0ffee00",
+      "name": "MK3.9",
+      "connectionType": "PrusaLink",
+      "address": "192.168.0.233",
+      "userName": "maker",
+      "camera": {
+        "enabled": true,
+        "streamUrl": "rtsp://192.168.0.234/live",
+        "overlay": {
+          "corner": "BottomRight",
+          "normal": [
+            "State",
+            "Progress",
+            "RemainingTime",
+            "FileName"
+          ],
+          "mini": []
+        }
+      }
+    }
+  ]
+}

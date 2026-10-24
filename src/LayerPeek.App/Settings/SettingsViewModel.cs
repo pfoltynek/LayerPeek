@@ -1235,6 +1235,9 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
                 Language = _selectedLanguage.Code,
                 DebugLogging = _debugLogging,
                 OfferPrereleaseUpdates = PrereleaseChoice(),
+
+                // Not editable yet (T-092 adds the slider): kept as loaded so that saving does not reset it.
+                CameraOverlayOpacityPercent = _baseline.CameraOverlayOpacityPercent,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,

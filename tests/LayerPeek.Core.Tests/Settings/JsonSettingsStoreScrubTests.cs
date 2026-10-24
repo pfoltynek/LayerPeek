@@ -164,6 +164,26 @@ public sealed class JsonSettingsStoreScrubTests : IDisposable
     }
 
     [Fact]
+    public async Task CameraOverlayWidgetSectionIsLeftByteForByte()
+    {
+        // T-077: the widget layout of format 2 is never touched either, also with look-alike values inside.
+        string overlay = string.Join(
+            "\n",
+            "\"overlay\": { \"widgets\": [ /* layout */",
+            "      { \"id\": \"status\", \"anchor\": \"TopLeft\", \"size\": \"Medium\", \"emphasized\": true, \"visible\": true },",
+            "      { \"id\": \"rtsp://a:b@10.0.0.1/c\", \"streamUrl\": \"rtsp://x:y@10.0.0.1/z\", \"enabled\": true },",
+            "    ], \"streamUrl\": \"rtsp://q:r@10.0.0.1/s\" }");
+        string original = $$"""{ "cameraOverlay": { "backgroundOpacityPercent": 50 }, "printers": [ { "id": "a", "camera": { "enabled": true, {{overlay}}, "streamUrl": "rtsp://u:p@10.0.0.6/live" } } ] }""";
+
+        (IReadOnlyList<string> changed, string result) = await ScrubAsync(original);
+
+        Assert.Equal(["a"], changed);
+        Assert.Equal(
+            $$"""{ "cameraOverlay": { "backgroundOpacityPercent": 50 }, "printers": [ { "id": "a", "camera": { "enabled": false, {{overlay}}, "streamUrl": "rtsp://10.0.0.6/live" } } ] }""",
+            result);
+    }
+
+    [Fact]
     public async Task CommentsTrailingCommasAndWhitespaceArePreserved()
     {
         string original = string.Join(

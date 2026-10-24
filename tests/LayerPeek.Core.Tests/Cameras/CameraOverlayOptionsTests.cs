@@ -96,17 +96,17 @@ public class CameraOverlayOptionsTests
     [Fact]
     public void CameraSettingsHaveDefaultOverlay()
     {
-        Assert.Same(CameraOverlayOptions.Default, CameraSettings.Disabled.Overlay);
-        Assert.Same(CameraOverlayOptions.Default, new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")).Overlay);
-        Assert.Same(CameraOverlayOptions.Default, CameraSettings.FromInvalidStreamUrl("http://a/live").Overlay);
+        Assert.Same(CameraOverlayOptions.Default, CameraSettings.Disabled.LegacyOverlay);
+        Assert.Same(CameraOverlayOptions.Default, new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")).LegacyOverlay);
+        Assert.Same(CameraOverlayOptions.Default, CameraSettings.FromInvalidStreamUrl("http://a/live").LegacyOverlay);
     }
 
     [Fact]
     public void CameraSettingsEqualityIncludesOverlay()
     {
         CameraSettings camera = new(enabled: true, new Uri("rtsp://192.168.0.227/live"));
-        CameraSettings changed = camera with { Overlay = new CameraOverlayOptions { Corner = CameraOverlayCorner.TopLeft } };
-        CameraSettings same = camera with { Overlay = new CameraOverlayOptions { Corner = CameraOverlayCorner.TopLeft } };
+        CameraSettings changed = camera with { LegacyOverlay = new CameraOverlayOptions { Corner = CameraOverlayCorner.TopLeft } };
+        CameraSettings same = camera with { LegacyOverlay = new CameraOverlayOptions { Corner = CameraOverlayCorner.TopLeft } };
 
         Assert.NotEqual(camera, changed);
         Assert.Equal(changed, same);
@@ -115,12 +115,12 @@ public class CameraOverlayOptionsTests
 
     [Fact]
     public void CameraSettingsRejectNullOverlay() =>
-        Assert.Throws<ArgumentNullException>(() => CameraSettings.Disabled with { Overlay = null! });
+        Assert.Throws<ArgumentNullException>(() => CameraSettings.Disabled with { LegacyOverlay = null! });
 
     [Fact]
     public void CameraSettingsToStringShowsOverlayButHidesInvalidAddress()
     {
-        string text = (CameraSettings.FromInvalidStreamUrl("http://secret-host/live") with { Overlay = new CameraOverlayOptions { Normal = CameraOverlayItems.FileName } }).ToString();
+        string text = (CameraSettings.FromInvalidStreamUrl("http://secret-host/live") with { LegacyOverlay = new CameraOverlayOptions { Normal = CameraOverlayItems.FileName } }).ToString();
 
         Assert.Contains("Overlay = ", text, StringComparison.Ordinal);
         Assert.Contains("FileName", text, StringComparison.Ordinal);

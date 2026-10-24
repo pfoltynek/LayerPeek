@@ -37,7 +37,7 @@ public sealed class CameraOverlaySettingsTests : IDisposable
     private static PrinterDefinition Printer(string id, string name, CameraSettings camera) => LinkPrinter(id, name, $"192.168.1.{20 + id.Length}") with { Camera = camera };
 
     private static CameraSettings Camera(bool enabled = true, CameraOverlayOptions? overlay = null) =>
-        new(enabled, StreamUri) { Overlay = overlay ?? CameraOverlayOptions.Default };
+        new(enabled, StreamUri) { LegacyOverlay = overlay ?? CameraOverlayOptions.Default };
 
     private async Task<SettingsViewModel> LoadAsync(params PrinterDefinition[] printers)
     {
@@ -138,7 +138,7 @@ public sealed class CameraOverlaySettingsTests : IDisposable
         Assert.True(vm.IsDirty);
         AppSettings saved = await SaveAsync(vm);
 
-        Assert.Equal(Custom, saved.Printers[0].Camera.Overlay);
+        Assert.Equal(Custom, saved.Printers[0].Camera.LegacyOverlay);
         // The window defaults are untouched.
         Assert.Equal(CameraWindowDefaults.Default, saved.Printers[0].Camera.Window);
     }
@@ -170,8 +170,8 @@ public sealed class CameraOverlaySettingsTests : IDisposable
 
         AppSettings saved = await SaveAsync(vm);
 
-        Assert.Equal(CameraOverlayItems.None, saved.Printers[0].Camera.Overlay.Normal);
-        Assert.Equal(CameraOverlayItems.None, saved.Printers[0].Camera.Overlay.Mini);
+        Assert.Equal(CameraOverlayItems.None, saved.Printers[0].Camera.LegacyOverlay.Normal);
+        Assert.Equal(CameraOverlayItems.None, saved.Printers[0].Camera.LegacyOverlay.Mini);
     }
 
     [Fact]
@@ -217,9 +217,9 @@ public sealed class CameraOverlaySettingsTests : IDisposable
     [MemberData(nameof(CameraVariants))]
     public async Task OverlaySurvivesEverySaveOfTheCamera(string variant, bool enabled, string? url)
     {
-        CameraSettings camera = url is null ? CameraSettings.Disabled with { Overlay = Custom }
-            : CameraSettings.TryParseStreamUri(url, out Uri? uri, out _) ? new CameraSettings(enabled, uri) { Overlay = Custom }
-            : CameraSettings.FromInvalidStreamUrl(url) with { Overlay = Custom };
+        CameraSettings camera = url is null ? CameraSettings.Disabled with { LegacyOverlay = Custom }
+            : CameraSettings.TryParseStreamUri(url, out Uri? uri, out _) ? new CameraSettings(enabled, uri) { LegacyOverlay = Custom }
+            : CameraSettings.FromInvalidStreamUrl(url) with { LegacyOverlay = Custom };
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha", camera));
         Assert.False(vm.IsDirty, variant);
 
@@ -240,7 +240,7 @@ public sealed class CameraOverlaySettingsTests : IDisposable
 
         Assert.False(saved.Printers[0].Camera.Enabled);
         Assert.Null(saved.Printers[0].Camera.StreamUri);
-        Assert.Equal(CameraOverlayOptions.DefaultItems | CameraOverlayItems.PrintTime, saved.Printers[0].Camera.Overlay.Normal);
+        Assert.Equal(CameraOverlayOptions.DefaultItems | CameraOverlayItems.PrintTime, saved.Printers[0].Camera.LegacyOverlay.Normal);
     }
 
     [Fact]

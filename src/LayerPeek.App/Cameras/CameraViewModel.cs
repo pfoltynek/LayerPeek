@@ -42,7 +42,7 @@ internal sealed record CameraTarget(string PrinterId, string Name, Uri StreamUri
     /// <summary>The printer with an enabled camera, or <see langword="null"/> when it has none.</summary>
     public static CameraTarget? From(PrinterDefinition printer) =>
         printer is { Camera: { Enabled: true, StreamUri: { } uri } camera }
-            ? new CameraTarget(printer.Id, printer.Name, uri) { Window = camera.Window, Overlay = camera.Overlay }
+            ? new CameraTarget(printer.Id, printer.Name, uri) { Window = camera.Window, Overlay = camera.LegacyOverlay }
             : null;
 }
 

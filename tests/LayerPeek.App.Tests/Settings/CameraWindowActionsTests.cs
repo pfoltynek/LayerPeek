@@ -55,7 +55,7 @@ public sealed class CameraWindowActionsTests : IDisposable
     private static PrinterDefinition Printer(string id, string name, bool enabled = true, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null) =>
         LinkPrinter(id, name, $"192.168.1.{20 + id.Length}") with
         {
-            Camera = new CameraSettings(enabled, StreamUri) { Window = window ?? CameraWindowDefaults.Default, Overlay = overlay ?? CameraOverlayOptions.Default },
+            Camera = new CameraSettings(enabled, StreamUri) { Window = window ?? CameraWindowDefaults.Default, LegacyOverlay = overlay ?? CameraOverlayOptions.Default },
         };
 
     private async Task<SettingsViewModel> LoadAsync(params PrinterDefinition[] printers)

@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.Core.Settings;
@@ -60,6 +61,21 @@ public sealed record AppSettings
     /// never set it; the running version then decides (<see cref="Updates.PrereleaseUpdates.Offered"/>).
     /// </summary>
     public bool? OfferPrereleaseUpdates { get; init; }
+
+    /// <summary>
+    /// Opacity of the background of the overlay widget cards in whole percent (T-077): one value for the camera windows of
+    /// all printers, within <see cref="CameraOverlayOpacity.MinPercent"/>–<see cref="CameraOverlayOpacity.MaxPercent"/>,
+    /// <see cref="CameraOverlayOpacity.DefaultPercent"/> by default.
+    /// </summary>
+    public int CameraOverlayOpacityPercent
+    {
+        get;
+        init
+        {
+            CameraOverlayOpacity.Validate(value, nameof(value));
+            field = value;
+        }
+    } = CameraOverlayOpacity.DefaultPercent;
 
     public NotificationSettings Notifications
     {
@@ -147,6 +163,45 @@ public sealed record AppSettings
         return ReferenceEquals(printers, Printers) ? this : this with { Printers = printers };
     }
 
+    /// <summary>
+    /// These settings with <paramref name="layout"/> as the camera overlay layout of printer <paramref name="printerId"/>
+    /// (case-insensitive); the same instance when the printer is not configured or already has it. Nothing else changes.
+    /// The settings window uses it to take over a layout saved from the camera window while it keeps its other unsaved
+    /// changes (T-077 Q3, <see cref="ICameraOverlayLayoutWriter.LayoutSaved"/>).
+    /// </summary>
+    public AppSettings WithCameraOverlayLayout(string printerId, CameraOverlayLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        ArgumentNullException.ThrowIfNull(layout);
+        for (int i = 0; i < Printers.Count; i++)
+        {
+            PrinterDefinition printer = Printers[i];
+            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+            {
+                if (printer.Camera.Overlay == layout)
+                {
+                    return this;
+                }
+
+                PrinterDefinition[] printers = [.. Printers];
+                printers[i] = printer with { Camera = printer.Camera with { Overlay = layout } };
+                return this with { Printers = printers };
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// "Use this layout for all printers" (T-077 Q1): these settings with <paramref name="layout"/> as the camera overlay of
+    /// every printer, also of those whose camera is off; the same instance when every printer already has it.
+    /// </summary>
+    public AppSettings WithCameraOverlayLayoutForAllPrinters(CameraOverlayLayout layout)
+    {
+        IReadOnlyList<PrinterDefinition> printers = CameraOverlayLayout.ApplyToAll(Printers, layout);
+        return ReferenceEquals(printers, Printers) ? this : this with { Printers = printers };
+    }
+
     // Value equality including the printer list (the synthesized one would compare the list by reference).
     public bool Equals(AppSettings? other) =>
         other is not null
@@ -154,10 +209,12 @@ public sealed record AppSettings
         && string.Equals(Language, other.Language, StringComparison.Ordinal)
         && DebugLogging == other.DebugLogging
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
+        && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
-    public override int GetHashCode() => HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, Notifications, Printers.Count);
+    public override int GetHashCode() =>
+        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

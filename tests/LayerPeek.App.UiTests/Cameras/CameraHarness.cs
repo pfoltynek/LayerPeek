@@ -60,7 +60,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     public static PrinterDefinition CameraPrinter(string id, string name, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null) =>
         TestPrinters.Definition(id, name) with
         {
-            Camera = new CameraSettings(enabled: true, StreamUri) { Window = window ?? CameraWindowDefaults.Default, Overlay = overlay ?? CameraOverlayOptions.Default },
+            Camera = new CameraSettings(enabled: true, StreamUri) { Window = window ?? CameraWindowDefaults.Default, LegacyOverlay = overlay ?? CameraOverlayOptions.Default },
         };
 
     public CameraWindow Open(string printerId = "a")

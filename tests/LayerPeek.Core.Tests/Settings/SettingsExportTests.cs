@@ -25,7 +25,7 @@ public sealed class SettingsExportTests
         Assert.Contains("\"debugLogging\": true", json, StringComparison.Ordinal);
         // Valid JSON of the usual shape.
         using JsonDocument document = JsonDocument.Parse(json);
-        Assert.Equal(1, document.RootElement.GetProperty("version").GetInt32());
+        Assert.Equal(2, document.RootElement.GetProperty("version").GetInt32());
     }
 
     [Fact]

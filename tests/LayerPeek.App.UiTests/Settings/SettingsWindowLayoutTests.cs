@@ -557,7 +557,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             CameraOverlayOptions all = new() { Corner = CameraOverlayCorner.TopRight, Normal = CameraOverlayOptions.AllItems, Mini = CameraOverlayOptions.AllItems };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
                 scope,
-                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) { Overlay = all } }));
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) { LegacyOverlay = all } }));
             Assert.False(ui.ViewModel.SelectedPrinter!.CameraEnabled);
             return ui;
         });

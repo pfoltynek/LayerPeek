@@ -1,7 +1,7 @@
 ---
 id: T-077
 title: Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036
-status: todo
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -82,18 +82,18 @@ depends_on: [T-076]
 - Scrubber novou sekci nemění (test bajt po bajtu).
 
 ## Akceptační kritéria
-- [ ] Testy v `LayerPeek.Core.Tests` pokrývají:
+- [x] Testy v `LayerPeek.Core.Tests` pokrývají:
   - model a výchozí rozložení podle T-076,
   - validaci (včetně duplicitního id) a rovnost,
   - čisté operace: přesun do kotvy a na pozici v kotvě, velikost, zvýraznění, viditelnost, obnovení,
   - „použít u všech tiskáren“.
-- [ ] Globální průhlednost: výchozí hodnota 72, round-trip, hranice 30 a 95, hodnota mimo rozsah, starý soubor
-- [ ] Načtení a uložení nového tvaru:
+- [x] Globální průhlednost: výchozí hodnota 72, round-trip, hranice 30 a 95, hodnota mimo rozsah, starý soubor
+- [x] Načtení a uložení nového tvaru:
   - round-trip všech kotev, velikostí a příznaků,
   - výchozí hodnoty se nezapisují,
   - neznámé id widgetu se zachová a zapíše zpět,
   - neznámé hodnoty → varování bez opisu.
-- [ ] **Převod schématu**, testy pro:
+- [x] **Převod schématu**, testy pro:
   - každý ze 4 starých rohů → očekávané zrcadlené rozložení (každá kotva každého widgetu),
   - výchozí roh `BottomLeft` → přesně výchozí rozložení a nic se nezapíše,
   - libovolné výběry `normal` / `mini` (žádná položka, všechny, jen jedna) → viditelnost je vždy výchozí,
@@ -104,14 +104,63 @@ depends_on: [T-076]
   - opakované načtení a uložení (idempotence),
   - uložený soubor má `version` 2 a žádné staré klíče,
   - soubor verze 3 → varování jako dosud.
-- [ ] Zrcadlení kotev jako čistá funkce s testem všech 6 kotev × 4 rohy
-- [ ] Zapisovač sekce `overlay` jedné tiskárny mění jen ji a zapisuje atomicky. Ohlásí zapsané rozložení (pro opětovné načtení v okně nastavení, Q3)
-- [ ] Scrubber nemění sekci (bajt po bajtu)
-- [ ] Core nereferencuje Avalonii; vše kompatibilní s Native AOT (source-generated JSON)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Zrcadlení kotev jako čistá funkce s testem všech 6 kotev × 4 rohy
+- [x] Zapisovač sekce `overlay` jedné tiskárny mění jen ji a zapisuje atomicky. Ohlásí zapsané rozložení (pro opětovné načtení v okně nastavení, Q3)
+- [x] Scrubber nemění sekci (bajt po bajtu)
+- [x] Core nereferencuje Avalonii; vše kompatibilní s Native AOT (source-generated JSON)
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 - (žádné – Q1–Q4 rozhodnuté 2026-10-24, viz Rozhodnutí)
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- **Model (`Core/Cameras/Overlay/`):**
+  - `OverlayAnchor` (6 kotev), `OverlayWidgetSize` (S/M/L), `OverlayWidgetIds` (konstanty v1, `Known`, `IsKnown`, `IsValid`, `MaxLength` 64).
+  - `OverlayAnchors`: geometrie kotev (`IsTop/IsLeft/IsRight/IsCenter/IsCorner`), čisté funkce `Mirror(anchor, horizontally, vertically)` a `MirrorBetweenCorners(anchor, from, to)`.
+  - `OverlayWidgetPlacement` (record): `WidgetId`, `Anchor`, `Size`, `Emphasized`, `Visible`. Neplatné id nebo neznámá hodnota enumu → výjimka. Viditelnost pro malý náhled nemá.
+  - `CameraOverlayLayout` (record, neměnný):
+    - konstruktor ověří `null`, duplicitní id (bez ohledu na velikost písmen) a nejvýš `MaxWidgets` = 32 widgetů (pojistka proti nesmyslnému souboru),
+    - `Widgets` je seřazený podle kotev (pořadí enumu), v kotvě od okraje okna ke středu. Pořadí mezi kotvami proto neovlivní rovnost,
+    - rovnost po prvcích, levný hash; operace beze změny vrací stejnou instanci,
+    - `Default` podle T-076 3.3 (status TL zvýrazněný, print-name TC, times + cooldown BL, temperatures BR), `MainAnchor` = `BottomLeft`, `DefaultPlacement(id)`,
+    - `Find`, `Contains`, `InAnchor`, `MoveTo(id, anchor, position)` (pozice = index mezi ostatními widgety cílové kotvy), `WithSize`, `WithEmphasized`, `WithVisible`, `ResetToDefault`, `Mirrored`, `FromLegacyCorner(corner)`,
+    - `ApplyToAll(printers, layout)` + `AppSettings.WithCameraOverlayLayoutForAllPrinters` („použít u všech tiskáren“, i u vypnuté kamery) a `AppSettings.WithCameraOverlayLayout(printerId, layout)` (převzetí jednoho rozložení v okně nastavení, T-092).
+  - `CameraOverlayOpacity` (30–95, výchozí 72) a `AppSettings.CameraOverlayOpacityPercent` (součást rovnosti).
+- **Uložení (`settings.json` verze 2):**
+  - `printers[*].camera.overlay` = `{ "widgets": [ { "id": "status", "anchor": "TopLeft", "size": "Medium", "emphasized": true, "visible": true }, … ] }`. Zapisuje se celý seznam, jen když se rozložení liší od výchozího. `cameraOverlay.backgroundOpacityPercent` se zapisuje, jen když není 72.
+  - Hodnoty sekce `overlay` jsou v dokumentu `JsonElement?` a mapper je čte volně (bez reflexe, typy přes `SettingsJsonContext`). Špatný typ nebo neznámá hodnota v sekci je tak varování, ne poškozený soubor. `overlay`, které není objekt, poškodí soubor jako dřív.
+  - Pravidla čtení (implementační detaily, ne produktová volba):
+    - položka, která není objekt nebo nemá platné id → přeskočí se,
+    - duplicitní id → první výskyt,
+    - neznámá kotva / velikost / příznak → výchozí hodnota widgetu (u neznámého id hlavní kotva, M, nezvýrazněný, viditelný),
+    - známý widget, který v seznamu chybí (ruční úprava), se doplní na své výchozí místo (na konec své kotvy),
+    - neznámých id se drží nejvýš 27, aby se vešly všechny známé widgety.
+
+    Každý druh problému dává jedno varování na tiskárnu bez opisu hodnot.
+  - `ResetToDefault` ponechá widgety neznámé této verzi (data novější verze se neztratí).
+- **Převod T-036:**
+  - Spustí se, když sekce nemá `widgets` (chybí nebo `null`) a má aspoň jeden ze starých klíčů. Nezávisí na čísle verze.
+  - `normal` / `mini` se zahodí bez varování (i nesmyslné hodnoty). Platný roh → `FromLegacyCorner`. Neplatný roh (i `TopCenter`, číslo, pole) → výchozí rozložení s varováním bez opisu.
+  - Za celý soubor jde jedna informační zpráva s počtem tiskáren do nové vlastnosti `SettingsLoadResult.Notices`. `MonitoringSession` ji loguje na úrovni Information.
+- **Zapisovač mimo okno nastavení:**
+  - `ISettingsStore.SetCameraOverlayLayoutAsync` (výchozí implementace nic nezapíše) a `JsonSettingsStore` + `Storage/CameraOverlaySectionWriter`, po vzoru `CameraMonitorPathWriter`:
+    - nahradí bajty každé hodnoty `overlay` v objektu `camera` každé položky se stejným id, nebo vlastnost přidá za poslední hodnotu objektu `camera`,
+    - hodnota se formátuje jako při plném uložení (odsazená podle řádku a s konci řádků souboru, na jednom řádku u jednořádkového objektu). Soubor uložený aplikací se tak po zápisu a dalším plném uložení nezmění,
+    - výchozí rozložení zapíše jako `{}`. Bez sekce nic nezapisuje,
+    - `version` ani nic jiného nemění. Tiskárnu bez objektu `camera`, chybějící soubor a neplatný JSON nechá být,
+    - zápis je atomický pod stejným zámkem jako ostatní zápisy.
+  - `ICameraOverlayLayoutWriter` / `CameraOverlayLayoutWriter` po zápisu vyvolá `LayoutSaved` (`CameraOverlayLayoutSavedEventArgs`: id tiskárny, rozložení), jen když se opravdu zapsalo. Událost přijde na vlákně zápisu.
+- **Mezistav do T-081 / T-092:**
+  - `CameraSettings.Overlay` je nově `CameraOverlayLayout`. Starý překryv a podzáložka T-036 pracují s `CameraSettings.LegacyOverlay` (`CameraOverlayOptions`). Ten je jen v paměti (součást rovnosti, neukládá se), po spuštění vždy výchozí.
+  - App: `CameraTarget` bere `LegacyOverlay`, `PrinterEditorViewModel` ukládá rozložení beze změny (`_savedOverlayLayout`), `SettingsViewModel` zachová průhlednost z načteného nastavení. Testy App přepnuté na `LegacyOverlay`.
+  - Důsledek: volby podzáložky Překryv (T-036) platí jen do restartu. Rozložení převedené ze starého rohu se zatím nevykreslí. Doporučení: mezi T-077 a T-092 nevydávat verzi (T-081 už vydání mezi T-081 a T-085 zakazuje).
+- **Testy (Core):**
+  - `Cameras/Overlay/OverlayAnchorsTests` (mimo jiné 6 kotev × 4 rohy), `CameraOverlayLayoutTests`,
+  - `Settings/AppSettingsCameraOverlayTests`, `SettingsMapperCameraOverlayTests` (přepsáno na nový tvar), `SettingsMapperOverlayMigrationTests`, `SettingsMapperOverlayOpacityTests`,
+  - `JsonSettingsStoreOverlayLayoutTests`: fixture `Fixtures/settings-v1-0.1.0-overlay.json` (tvar souboru 0.1.0 se sekcemi `overlay` a s `cooldownThresholdCelsius` z T-079), zapisovač bajt po bajtu, souběh se zápisem okna nastavení, ohlášení,
+  - scrubber (`JsonSettingsStoreScrubTests.CameraOverlayWidgetSectionIsLeftByteForByte`),
+  - očekávaná verze 2 v dosavadních testech.
+
+  Všechny soubory jsou pod `TestDirectories`.
+- **AOT:** jen `SettingsJsonContext` (přidané `CameraOverlayDocument` a `List<OverlayWidgetDocument>`), žádná reflexe ani nový balíček. Core Avalonii nereferencuje.
+- E2E: žádné nové (převod při startu aplikace pokryje T-093).
