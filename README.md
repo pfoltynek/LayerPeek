@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">LayerPeek</h1>
+<p align="center"><i>for Prusa printers</i></p>
 
 <p align="center">
   <b>Watch your Prusa printers live, right from the system tray.</b><br>

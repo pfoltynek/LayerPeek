@@ -53,9 +53,10 @@ internal sealed class AppEnvironment
     /// <summary>
     /// The CLSID of the COM toast activator on Windows (T-068), carried by the Start menu shortcut and registered under
     /// <c>HKCU\Software\Classes\CLSID</c>, through which Windows reports clicks on toasts in the notification center and
-    /// starts the app for them. Fixed for good: the installer (T-017) removes its registration on uninstall.
+    /// starts the app for them. Fixed for good: the installer (T-017) removes its registration on uninstall. New with the
+    /// name LayerPeek (T-074): the activator of the app's former name is removed by the one-time migration script in tools/.
     /// </summary>
-    internal const string ProductionToastActivatorClsid = "E8389DCA-851B-498C-8082-69B1AB263C14";
+    internal const string ProductionToastActivatorClsid = "EC47413C-984D-447A-866A-5F780E408DE7";
 
     /// <summary>
     /// The COM toast activator of this run: the production one, in the test mode with toasts that of the test app (T-068),
@@ -128,7 +129,7 @@ internal sealed class AppEnvironment
     /// The COM toast activator of the test app (T-068): never the production one, removed when the test app quits and by
     /// <see cref="ClearToastsArgument"/>.
     /// </summary>
-    public const string TestToastActivatorClsid = "1708A774-C00D-4A8B-B9E5-1BEB8527DD24";
+    public const string TestToastActivatorClsid = "EDD3ED5E-8363-4CF4-977A-64A623E0A5A2";
 
     /// <summary>Every credential target of the test mode starts with this; the production prefix never does.</summary>
     public const string TestCredentialPrefixRoot = "LayerPeek.E2E/";

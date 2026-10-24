@@ -59,10 +59,10 @@ internal static class AppSwitches
     /// The COM toast activator of the test app (T-068): registered under <c>HKCU\Software\Classes\CLSID</c> by a test app
     /// with toasts, removed when it quits and by <see cref="ClearToastsArgument"/>.
     /// </summary>
-    public const string TestToastActivatorClsid = "1708A774-C00D-4A8B-B9E5-1BEB8527DD24";
+    public const string TestToastActivatorClsid = "EDD3ED5E-8363-4CF4-977A-64A623E0A5A2";
 
     /// <summary>The COM toast activator of the production app (T-068); the tests never change its registration.</summary>
-    public const string ProductionToastActivatorClsid = "E8389DCA-851B-498C-8082-69B1AB263C14";
+    public const string ProductionToastActivatorClsid = "EC47413C-984D-447A-866A-5F780E408DE7";
 
     /// <summary>
     /// One test switch in the command line of the test app's toast activator (T-068), so that a start by Windows for a test

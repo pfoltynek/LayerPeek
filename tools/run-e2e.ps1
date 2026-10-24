@@ -173,6 +173,13 @@ function Show-SystemChangesWarning([string[]] $Kinds) {
     Write-Host ''
 }
 
+# A journal of the app's former name (T-074) must be restored by the code of that name before anything else runs.
+$legacyJournal = Resolve-LegacyRestoreJournal -LocalAppData ([Environment]::GetFolderPath('LocalApplicationData'))
+if ($legacyJournal) {
+    foreach ($line in $legacyJournal) { Write-Log $line Red }
+    exit 1
+}
+
 if ($RestoreOnly) {
     if ($AfterProcess) {
         if (Test-Path -LiteralPath $results) {

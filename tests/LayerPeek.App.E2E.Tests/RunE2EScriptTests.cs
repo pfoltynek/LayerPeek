@@ -125,6 +125,44 @@ public sealed class RunE2EScriptTests
     }
 
     [Fact]
+    public async Task LegacyJournalIsIgnoredWhenMissingAndRemovedWhenNothingIsPending()
+    {
+        // T-074: the journal folder of the app's former name, under a made-up LocalAppData.
+        string localAppData = UnitTestDirectories.Create();
+        string legacy = Path.Combine(localAppData, LegacyJournalFolderName);
+
+        Assert.Empty(await RunJsonAsync($"Resolve-LegacyRestoreJournal -LocalAppData '{localAppData}'"));
+
+        Directory.CreateDirectory(legacy);
+        File.WriteAllText(Path.Combine(legacy, "not-a-change.tmp"), string.Empty);
+        Assert.Empty(await RunJsonAsync($"Resolve-LegacyRestoreJournal -LocalAppData '{localAppData}'"));
+        Assert.False(Directory.Exists(legacy));
+    }
+
+    [Fact]
+    public async Task PendingLegacyJournalStopsTheRunAndStaysForTheCodeOfTheFormerName()
+    {
+        string localAppData = UnitTestDirectories.Create();
+        string legacy = Directory.CreateDirectory(Path.Combine(localAppData, LegacyJournalFolderName)).FullName;
+        string entry = Path.Combine(legacy, "change.json");
+        File.WriteAllText(entry, "{}");
+
+        string[] lines = await RunJsonAsync($"Resolve-LegacyRestoreJournal -LocalAppData '{localAppData}'");
+
+        Assert.Contains(lines, line => line.Contains(legacy, StringComparison.Ordinal));
+        Assert.Contains(lines, line => line.Contains("run-e2e.ps1 -RestoreOnly", StringComparison.Ordinal));
+        Assert.True(File.Exists(entry));
+        string script = File.ReadAllText(Path.Combine(TestWorktree.Root, "tools", "run-e2e.ps1"));
+        // Checked before any restore or run of the new code.
+        Assert.True(
+            script.IndexOf("Resolve-LegacyRestoreJournal", StringComparison.Ordinal) is int check and > 0
+            && check < script.IndexOf("if ($RestoreOnly) {", StringComparison.Ordinal));
+    }
+
+    /// <summary>The journal folder before the rename to LayerPeek (T-074).</summary>
+    private const string LegacyJournalFolderName = "PrusaTrayDiagnostic.E2E.Restore";
+
+    [Fact]
     public async Task SummaryOfAPassCountsPassedSkippedAndFailedTests()
     {
         // The xUnit.net v2 XML report of the runner (-result-xml); errors outside tests (e.g. the run's cleanup) count as failed.

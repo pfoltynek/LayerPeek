@@ -62,6 +62,9 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
 
     public string AppName { get; } = TrayToolTipFormatter.AppName;
 
+    /// <summary>Compatibility note under the product name ("for Prusa printers", T-074); the name itself is never translated.</summary>
+    public string Subtitle { get; private set; } = string.Empty;
+
     public string VersionText { get; private set; } = string.Empty;
 
     public string Description { get; private set; } = string.Empty;
@@ -161,6 +164,7 @@ public sealed partial class AboutViewModel : ObservableObject, ILanguageAware
     private void FormatTexts()
     {
         Title = Strings.AboutTitle;
+        Subtitle = Strings.AboutSubtitle;
         VersionText = Format(Strings.AboutVersion, _version);
         Description = Strings.AboutDescription;
         Disclaimer = Strings.AboutDisclaimer;

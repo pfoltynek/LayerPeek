@@ -116,8 +116,8 @@ public sealed class ToastChangeTests
     [Fact]
     public void TheActivatorKeysAreThoseTheAppWrites()
     {
-        Assert.Equal(@"Software\Classes\CLSID\{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}", TestToastsKind.ActivatorSubKey(AppSwitches.TestToastActivatorClsid));
-        Assert.Equal(@"Software\Classes\CLSID\{E8389DCA-851B-498C-8082-69B1AB263C14}", TestToastsKind.ActivatorSubKey(AppSwitches.ProductionToastActivatorClsid));
+        Assert.Equal(@"Software\Classes\CLSID\{EDD3ED5E-8363-4CF4-977A-64A623E0A5A2}", TestToastsKind.ActivatorSubKey(AppSwitches.TestToastActivatorClsid));
+        Assert.Equal(@"Software\Classes\CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}", TestToastsKind.ActivatorSubKey(AppSwitches.ProductionToastActivatorClsid));
         Assert.NotEqual(AppSwitches.TestToastActivatorClsid, AppSwitches.ProductionToastActivatorClsid);
     }
 

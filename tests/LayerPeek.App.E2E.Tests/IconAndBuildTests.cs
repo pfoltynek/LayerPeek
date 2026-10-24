@@ -92,6 +92,29 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         }
     }
 
+    [Fact]
+    public void BuildsCarryNoFormerProductName()
+    {
+        // T-074: the app was renamed from its former name before the first release; no identity of the old name (data folder,
+        // AUMID, credential prefix, shortcut, pipe) may survive in the exe the tests run nor in the Release builds.
+        E2EFixture.Require();
+        // The binaries embed their PDB path: a worktree folder that still carries the former name (renamed by hand after the
+        // merge) would be found there, not in the code.
+        Assert.SkipWhen(
+            FormerNames.Any(name => TestWorktree.Root.Contains(name, StringComparison.OrdinalIgnoreCase)),
+            "The worktree folder still carries the former name (its PDB path is embedded in the binaries).");
+        string release = Path.Combine(AppProject, "bin", "Release", "net11.0", "LayerPeek.dll");
+        string published = Path.Combine(AppProject, "bin", "Release", "net11.0", "win-x64", "publish", "LayerPeek.exe");
+        string[] binaries = [E2EFixture.AppPath, .. new[] { Path.ChangeExtension(E2EFixture.AppPath, ".dll"), release, published }.Where(File.Exists)];
+        foreach (string binary in binaries.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            Assert.All(FormerNames, name => Assert.False(E2EFixture.BinaryContains(binary, name), $"'{binary}' contains the former name '{name}'."));
+        }
+    }
+
+    /// <summary>The former product name in the spellings the code used (T-074).</summary>
+    private static readonly string[] FormerNames = ["PrusaTrayDiagnostic", "Prusa Tray Diagnostic", "PRUSATRAYDIAGNOSTIC"];
+
     /// <summary>The icon matches the app icon file at the same size (mean colour difference below 10 %), saved for review.</summary>
     private static void AssertLooksLikeTheAppIcon(nint handle, string name)
     {

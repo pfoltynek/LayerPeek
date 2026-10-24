@@ -117,6 +117,9 @@
   <data name="AboutVersion" xml:space="preserve">
     <value>Wersja {0}</value>
   </data>
+  <data name="AboutSubtitle" xml:space="preserve">
+    <value>do drukarek Prusa</value>
+  </data>
   <data name="AboutDescription" xml:space="preserve">
     <value>Monitorowanie stanu drukarek 3D Prusa.</value>
   </data>

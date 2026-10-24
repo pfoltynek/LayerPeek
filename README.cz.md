@@ -3,6 +3,7 @@
 </p>
 
 <h1 align="center">LayerPeek</h1>
+<p align="center"><i>pro tiskárny Prusa</i></p>
 
 <p align="center">
   <b>Sleduj své tiskárny Prusa živě, přímo z oznamovací oblasti.</b><br>

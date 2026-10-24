@@ -133,6 +133,10 @@
   <data name="AboutVersion" xml:space="preserve">
     <value>Version {0}</value>
   </data>
+  <data name="AboutSubtitle" xml:space="preserve">
+    <value>for Prusa printers</value>
+    <comment>Shown under the product name LayerPeek (About window); describes compatibility, the name itself is not translated.</comment>
+  </data>
   <data name="AboutDescription" xml:space="preserve">
     <value>Status monitor for Prusa 3D printers.</value>
   </data>

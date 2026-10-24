@@ -40,7 +40,11 @@
   </Window.Styles>
   <!-- Fixed width (T-048 design): a status or a longer translation wraps instead of widening the window. -->
   <StackPanel Margin="24" Spacing="8" Width="400">
-    <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="SemiBold" />
+    <!-- T-074: the product name with its compatibility note right under it ("for Prusa printers", localized). -->
+    <StackPanel>
+      <TextBlock Text="{Binding AppName}" FontSize="20" FontWeight="SemiBold" />
+      <TextBlock AutomationProperties.AutomationId="AboutSubtitle" Text="{Binding Subtitle}" TextWrapping="Wrap" Opacity="0.75" />
+    </StackPanel>
     <TextBlock Text="{Binding VersionText}" />
     <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
     <TextBlock Text="{Binding Disclaimer}" TextWrapping="Wrap" Opacity="0.75" />

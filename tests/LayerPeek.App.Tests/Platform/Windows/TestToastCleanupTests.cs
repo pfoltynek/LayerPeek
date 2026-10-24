@@ -116,7 +116,7 @@ public sealed class TestToastCleanupTests
         Assert.NotEqual(new Guid(AppEnvironment.ProductionToastActivatorClsid), new Guid(AppEnvironment.TestToastActivatorClsid));
         Assert.NotEqual(Guid.Empty, new Guid(AppEnvironment.TestToastActivatorClsid));
         // Fixed for good: Windows and the installer (T-017) know the production activator by it.
-        Assert.Equal("E8389DCA-851B-498C-8082-69B1AB263C14", AppEnvironment.ProductionToastActivatorClsid);
+        Assert.Equal("EC47413C-984D-447A-866A-5F780E408DE7", AppEnvironment.ProductionToastActivatorClsid);
     }
 
     [Theory]

@@ -60,6 +60,8 @@ public sealed class AboutViewModelTests
         AboutViewModel viewModel = new(_launcher, AppAssembly);
 
         Assert.Equal("About LayerPeek", viewModel.Title);
+        Assert.Equal("LayerPeek", viewModel.AppName);
+        Assert.Equal("for Prusa printers", viewModel.Subtitle);
         Assert.Equal("Version " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
         Assert.Equal("This is not an official Prusa Research product.", viewModel.Disclaimer);
         Assert.Equal("License: GNU General Public License v3.0 only", viewModel.LicenseText);
@@ -75,6 +77,8 @@ public sealed class AboutViewModelTests
         AboutViewModel viewModel = new(_launcher, AppAssembly);
 
         Assert.Equal("O aplikaci LayerPeek", viewModel.Title);
+        Assert.Equal("LayerPeek", viewModel.AppName);
+        Assert.Equal("pro tiskárny Prusa", viewModel.Subtitle);
         Assert.Equal("Verze " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
         Assert.Equal("Nejde o oficiální produkt společnosti Prusa Research.", viewModel.Disclaimer);
         Assert.Equal("Licence: GNU General Public License v3.0 only", viewModel.LicenseText);
@@ -96,6 +100,7 @@ public sealed class AboutViewModelTests
         }
 
         Assert.Equal("Über LayerPeek", viewModel.Title);
+        Assert.Equal("für Prusa-Drucker", viewModel.Subtitle);
         Assert.Equal("Version " + AboutViewModel.ProductVersion(AppAssembly), viewModel.VersionText);
         Assert.Equal("Dies ist kein offizielles Produkt von Prusa Research.", viewModel.Disclaimer);
         Assert.Equal("Lizenz: GNU General Public License v3.0 only", viewModel.LicenseText);
@@ -104,6 +109,27 @@ public sealed class AboutViewModelTests
         Assert.Equal("Copyright © Petr Foltýnek", viewModel.Copyright);
         // "Everything changed" for the bindings.
         Assert.Equal([string.Empty], changes);
+    }
+
+    [Theory]
+    [InlineData("en-US", "for Prusa printers")]
+    [InlineData("cs-CZ", "pro tiskárny Prusa")]
+    [InlineData("de-DE", "für Prusa-Drucker")]
+    [InlineData("es-ES", "para impresoras Prusa")]
+    [InlineData("fr-FR", "pour imprimantes Prusa")]
+    [InlineData("it-IT", "per stampanti Prusa")]
+    [InlineData("pl-PL", "do drukarek Prusa")]
+    [InlineData("sk-SK", "pre tlačiarne Prusa")]
+    public void ProductNameIsNeverTranslatedOnlyItsSubtitleIs(string culture, string subtitle)
+    {
+        // T-074: the product is LayerPeek in every language; "for Prusa printers" only describes compatibility.
+        using CultureScope scope = new(culture);
+
+        AboutViewModel viewModel = new(_launcher, AppAssembly);
+
+        Assert.Equal("LayerPeek", viewModel.AppName);
+        Assert.Equal(subtitle, viewModel.Subtitle);
+        Assert.Contains("Prusa Research", viewModel.Disclaimer, StringComparison.Ordinal);
     }
 
     [Fact]

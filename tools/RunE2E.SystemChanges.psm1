@@ -151,4 +151,40 @@ function Get-SystemChangesWarningLines {
     return [string[]] $lines
 }
 
-Export-ModuleMember -Function Get-SystemChangeKindNames, Get-SelectedSystemChanges, Get-SystemChangesWarningLines
+<#
+.SYNOPSIS
+    Checks the restore journal of the app's former name (T-074) under -LocalAppData.
+.DESCRIPTION
+    Before the rename to LayerPeek the journal lived in <LocalAppData>\PrusaTrayDiagnostic.E2E.Restore, and its entries
+    name the test app, shortcut, credentials and registry keys of the former name, which this code no longer knows.
+    Returns nothing when there is no such folder; deletes the folder when it holds no pending change (*.json) and
+    returns nothing; otherwise leaves it alone and returns the lines that tell how to restore it with the last commit
+    of the former name.
+#>
+function Resolve-LegacyRestoreJournal {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $LocalAppData
+    )
+
+    $legacy = Join-Path $LocalAppData 'PrusaTrayDiagnostic.E2E.Restore'
+    if (-not (Test-Path -LiteralPath $legacy -PathType Container)) { return }
+
+    $pending = @(Get-ChildItem -LiteralPath $legacy -Filter '*.json' -File)
+    if ($pending.Count -eq 0) {
+        Remove-Item -LiteralPath $legacy -Recurse -Force
+        return
+    }
+
+    return [string[]] @(
+        "System changes of an E2E run from before the rename to LayerPeek (T-074) are pending: $($pending.Count) change(s) in",
+        "  $legacy",
+        'This code cannot restore them (they name the test app of the former name). Restore them with the last commit',
+        'before the rename (fc2bb11), then run this script again:',
+        '  git worktree add <empty temp folder> fc2bb11',
+        '  pwsh <that folder>/tools/run-e2e.ps1 -RestoreOnly',
+        '  git worktree remove <that folder>',
+        'By hand instead: docs/troubleshooting.md (section on an interrupted E2E run), then delete the folder above.')
+}
+
+Export-ModuleMember -Function Get-SystemChangeKindNames, Get-SelectedSystemChanges, Get-SystemChangesWarningLines, Resolve-LegacyRestoreJournal
