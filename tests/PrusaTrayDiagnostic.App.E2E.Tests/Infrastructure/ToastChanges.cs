@@ -362,7 +362,7 @@ internal sealed class TestToastsKind() : SystemChangeKind<TestToastsState>("Toas
         $"Toasts of the test app {AppSwitches.AppUserModelId}, its Start menu shortcut '{ShortcutPath}' (before: {(original.ShortcutExists ? "a leftover" : "none")}) "
         + $"and its toast activator HKCU\\{ActivatorSubKey(AppSwitches.TestToastActivatorClsid)} (before: {(original.ActivatorRegistered ? "a leftover" : "none")}). "
         + $"By hand: \"{key ?? "PrusaTrayDiagnostic.exe (Debug)"}\" {AppSwitches.ClearToastsArgument}, or clear the notifications of "
-        + $"\"{Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName)}\" in the notification center (Win+N), delete the shortcut and the registry key.";
+        + $"\"{Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName)}\" in the notification center (click the clock on the taskbar), delete the shortcut and the registry key.";
 
     /// <summary>Nothing to apply: the test app creates the shortcut and shows the toasts itself.</summary>
     protected override Task ApplyCoreAsync(string? key, TestToastsState state, CancellationToken cancellationToken) =>

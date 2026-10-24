@@ -74,6 +74,9 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
     public void ReleaseBuildsContainNoTestSwitches()
     {
         E2EFixture.Require();
+        // The Release builds are checked once, in the pass against the Debug exe (its managed assembly is the reference that
+        // the scan finds the switches at all); the Native AOT pass of the Debug configuration has no such assembly (T-073).
+        Assert.SkipWhen(E2EFixture.IsNativeAot, "Checked in the pass against the Debug exe; the Native AOT exe has no managed assembly to compare with.");
         string debug = Path.ChangeExtension(E2EFixture.AppPath, ".dll");
         Assert.All(Switches, name => Assert.True(E2EFixture.BinaryContains(debug, name), $"The scan finds nothing: '{name}' is missing in the Debug build."));
 

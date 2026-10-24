@@ -90,6 +90,9 @@ internal static class SystemChanges
     /// <summary>Toast history and Start menu shortcut of the test app (T-068).</summary>
     public static TestToastsKind TestToasts { get; } = new();
 
+    /// <summary>Session-only test entries in Credential Manager (T-073).</summary>
+    public static CredentialsKind Credentials { get; } = new();
+
     /// <summary>Self-test probe of the journal machinery (a registry value of the tests' own, no warning needed).</summary>
     public static ProbeKind Probe { get; } = new("Probe", trait: null);
 
@@ -98,7 +101,7 @@ internal static class SystemChanges
 
     /// <summary>Every kind a journal entry may name (a crash of any of them can be restored by any process).</summary>
     public static IReadOnlyDictionary<string, ISystemChangeKind> Kinds { get; } =
-        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Probe, GuardProbe }
+        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Credentials, Probe, GuardProbe }
             .ToDictionary(static kind => kind.Name, StringComparer.Ordinal);
 
     /// <summary>The journal of this process; the first change starts the watchdog (unless switched off).</summary>
@@ -221,6 +224,17 @@ internal static class SystemChanges
     {
         Require();
         return SystemChange<TestToastsState>.BeginAsync(Journal, TestToasts, Path.GetFullPath(exe), cancellationToken);
+    }
+
+    /// <summary>
+    /// Session-only entries a test app writes to Credential Manager under <paramref name="prefix"/> (T-073, from
+    /// <see cref="TestCredentials.NewPrefix"/>); every entry under it is deleted when disposed. Begin it before the app
+    /// starts.
+    /// </summary>
+    public static Task<SystemChange<CredentialsState>> CredentialsAsync(string prefix, CancellationToken cancellationToken = default)
+    {
+        Require();
+        return SystemChange<CredentialsState>.BeginAsync(Journal, Credentials, prefix, cancellationToken);
     }
 
     /// <summary>The probe of the journal self-tests (end-to-end run only, no warning needed).</summary>

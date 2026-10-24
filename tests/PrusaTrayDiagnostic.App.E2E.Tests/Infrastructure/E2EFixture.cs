@@ -149,6 +149,14 @@ public sealed class E2EFixture : IAsyncLifetime
                 throw new InvalidOperationException($"System changes of an earlier run could not be restored; nothing runs.{Environment.NewLine}{restored}");
             }
 
+            // Test entries of Credential Manager a crashed run left (T-073): only PrusaTrayDiagnostic.E2E/…, under the desktop
+            // lock, so no other run is using them.
+            List<string> swept = TestCredentials.DeleteAll();
+            if (swept.Count != 0)
+            {
+                Screenshots.SaveText($"Deleted test entries of Credential Manager:{Environment.NewLine}{string.Join(Environment.NewLine, swept)}", "credentials-swept-at-start");
+            }
+
             _automation = new UIA3Automation();
             // Reading Do Not Disturb opens the notification center: only in a run whose warning listed a change of it.
             _startState = await SystemStateSnapshot.CaptureAsync(
@@ -206,6 +214,8 @@ public sealed class E2EFixture : IAsyncLifetime
             }
             finally
             {
+                // After the comparison above, which reports any test entry left (T-073): none stays past the run.
+                SweepCredentials(problems);
                 await Reserved.DeleteAsync();
             }
 
@@ -267,6 +277,19 @@ public sealed class E2EFixture : IAsyncLifetime
         if (differences.Count != 0)
         {
             problems.Add($"The system is not as before the run (see docs/troubleshooting.md, tools/run-e2e.ps1 -RestoreOnly):{Environment.NewLine}{string.Join(Environment.NewLine, differences)}");
+        }
+    }
+
+    /// <summary>Deletes the test entries of Credential Manager at the end of the run; a failure is one of the run's problems.</summary>
+    private static void SweepCredentials(List<string> problems)
+    {
+        try
+        {
+            TestCredentials.DeleteAll();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            problems.Add($"{ex.Message} Remove them by hand: Control Panel > Credential Manager > Windows Credentials (they also go at the next sign-out).");
         }
     }
 

@@ -41,9 +41,7 @@ internal static class SystemChangeWatchdog
             throw new InvalidOperationException($"'{script}' is missing: no watchdog, so no system changes.");
         }
 
-        string commandLine = string.Create(
-            CultureInfo.InvariantCulture,
-            $"\"{pwsh}\" -NoProfile -NonInteractive -File \"{script}\" -RestoreOnly -AfterProcess {processId}");
+        string commandLine = CommandLine(pwsh, script, processId);
 
         using ManagementClass startupClass = new("Win32_ProcessStartup");
         using ManagementObject startup = startupClass.CreateInstance();
@@ -62,6 +60,38 @@ internal static class SystemChangeWatchdog
 
         return Convert.ToInt32(result["ProcessId"], CultureInfo.InvariantCulture);
     }
+
+    /// <summary>
+    /// Waits until no watchdog of the process <paramref name="processId"/> runs any more. Its restore takes every entry of
+    /// a process that is gone, not only its own (T-065), so a test that kills its next child right after the first
+    /// watchdog removed its own entry would lose that child's entry to it (T-073: the start cleanup test of a switched-off
+    /// monitor found nothing left to restore).
+    /// </summary>
+    public static async Task WaitUntilGoneAsync(int processId, TimeSpan timeout)
+    {
+        string query = ProcessQuery(processId);
+        await Wait.UntilAsync(
+            () =>
+            {
+                using ManagementObjectSearcher searcher = new(query);
+                using ManagementObjectCollection found = searcher.Get();
+                return found.Count == 0;
+            },
+            timeout,
+            $"the watchdog of the process {processId} to end");
+    }
+
+    /// <summary>The command line of the watchdog of <paramref name="processId"/>; it ends with <see cref="CommandLineEnd"/>.</summary>
+    internal static string CommandLine(string pwsh, string script, int processId) =>
+        $"\"{pwsh}\" -NoProfile -NonInteractive -File \"{script}\" {CommandLineEnd(processId)}";
+
+    /// <summary>The end of the watchdog's command line that names the process it waits for.</summary>
+    internal static string CommandLineEnd(int processId) =>
+        string.Create(CultureInfo.InvariantCulture, $"-RestoreOnly -AfterProcess {processId}");
+
+    /// <summary>The WMI query for the running watchdogs of <paramref name="processId"/> (found by <see cref="CommandLineEnd"/>).</summary>
+    internal static string ProcessQuery(int processId) =>
+        $"SELECT ProcessId FROM Win32_Process WHERE Name = 'pwsh.exe' AND CommandLine LIKE '%{CommandLineEnd(processId)}'";
 
     internal static string? FindOnPath(string file)
     {

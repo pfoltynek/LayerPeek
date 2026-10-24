@@ -1,7 +1,7 @@
 ---
 id: T-052
 title: Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4)
-status: in-progress
+status: done
 owner: core-dev
 priority: P3
 platform: windows
@@ -23,7 +23,7 @@ Opravit dva nálezy nízké závažnosti z bezpečnostní revize (2026-10-21):
 
 ## Akceptační kritéria
 - [x] `SetDefaultDllDirectories` se volá na začátku `Program.Main` na Windows (nebo je zdokumentovaná alternativa s resolverem); selhání se zaloguje
-- [ ] Ruční ověření na Windows v AOT publish i v Debug: tray, okna, toasty, Credential Manager, kamera (FFmpeg) a web přes proxy fungují; E2E testy T-044 a T-030 procházejí
+- [x] Ruční ověření na Windows v AOT publish i v Debug: tray, okna, toasty, Credential Manager, kamera (FFmpeg) a web přes proxy fungují; E2E testy T-044 a T-030 procházejí
 - [x] Test (pokud jde spolehlivě, v podřízeném procesu): DLL se stejným názvem jako chybějící knihovna, umístěná ve složce z `PATH`, se nenačte
 - [x] Jednotkový test: pro macOS `CreateStartInfo` vrací `FileName == "/usr/bin/open"` a adresu jako jediný argument
 - [x] `dotnet build` a `dotnet test` bez chyb a varování; AOT publish win-x64 bez varování
@@ -55,3 +55,6 @@ Opravit dva nálezy nízké závažnosti z bezpečnostní revize (2026-10-21):
 - **Ruční ověření 2026-10-21 (uživatel, Windows 11, skutečná tiskárna):** web PrusaLink přes proxy funguje v Debugu (`dotnet run`, `develop` 05b03ed) i v AOT (`dotnet publish -c Release -r win-x64`, 0 varování). Načtení bez hesla, nahrání a smazání souboru a ovládání tisku proběhly bez chyby. **Zbývá** ověřit se simulátorem (`tools/PrusaSimulator`) v AOT i v Debugu: tray, okna, toasty, Správce přihlašovacích údajů a kameru (FFmpeg). Port 8080 může být obsazený (např. Aspire), pak použít `--port 18080 --camera-port 18554`.
 
 - **Automatizace ruční kontroly (2026-10-22, architect):** zbývající část kritéria 2 (tray, okna, toasty, Správce pověření, kamera FFmpeg v Debug i AOT) pokryje T-073: celá E2E sada proti Debug exe i proti Native AOT exe konfigurace Debug a nový test skutečného Správce pověření s testovací předponou (T-067). Simulátory v E2E používají porty přidělené systémem, obsazený port 8080 nevadí. Uživatel 2026-10-22 rozhodl, že pro AOT část kritéria stačí Native AOT v konfiguraci Debug (jako u T-064). Krátké proklikání Release AOT exe je jen doporučená kontrola.
+
+- **Uzavření přes T-073 (2026-10-24, qa-reviewer):** kritérium 2 zaškrtnuté podle E2E. Celá sada `pwsh tools/run-e2e.ps1 -PublishAot` prošla dvakrát po sobě zeleně proti Debug exe (406 prošlo, 6 přeskočeno, 0 selhalo) i proti Native AOT exe konfigurace Debug (405 / 7 / 0). Pokrytí: tray (T-069), okna (T-071, `SettingsAndDiagnosticsTests`), toasty včetně COM aktivátoru (T-068), skutečný Správce pověření (`CredentialManagerTests`), kamera FFmpeg se simulátorem (živý obraz, DLL z publish složky) a GET přes proxy. Web přes proxy byl navíc ručně ověřen 2026-10-21. `dotnet test` včetně T-030 je zelený. AOT část kritéria splňuje Native AOT v konfiguraci Debug (rozhodnutí uživatele 2026-10-22). Podrobnosti v T-073.
+- **Doporučená ruční kontrola (neblokuje):** krátce proklikat Release Native AOT exe (`dotnet publish src/PrusaTrayDiagnostic.App -c Release -r win-x64`): tray, okno kamery se simulátorem (`tools/PrusaSimulator`, při obsazeném 8080 `--port 18080 --camera-port 18554`) a jeden toast. Testy ho nespouští, protože Release by pracoval s daty uživatele.

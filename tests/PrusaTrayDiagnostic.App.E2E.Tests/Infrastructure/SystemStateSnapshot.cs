@@ -26,6 +26,12 @@ internal sealed record SystemStateSnapshot(
     /// <summary>What the toasts of the test app touch (T-068).</summary>
     public ToastSystemState? Toasts { get; init; }
 
+    /// <summary>
+    /// The test entries <c>PrusaTrayDiagnostic.E2E/…</c> in Credential Manager (T-073; targets only, nothing else of the
+    /// Credential Manager is read). The run starts with none (swept under the desktop lock) and must end with none.
+    /// </summary>
+    public IReadOnlyList<string> CredentialEntries { get; init; } = [];
+
     /// <summary>Scale of every active monitor and <c>PerMonitorSettings</c> (T-066), or <see langword="null"/> when unreadable.</summary>
     public DisplayScaleState? DisplayScale { get; init; }
 
@@ -78,6 +84,7 @@ internal sealed record SystemStateSnapshot(
             DisplayReport = DisplayConfig.Report(),
             DisplayError = displayError,
             Toasts = ToastSystemState.Capture(),
+            CredentialEntries = TestCredentials.Targets(),
         };
     }
 
@@ -138,6 +145,11 @@ internal sealed record SystemStateSnapshot(
                 + $"  {PerMonitorSettingsRegistry.Describe(end.DisplayScale.PerMonitorSettings)}");
         }
 
+        if (end.CredentialEntries.Count != 0)
+        {
+            differences.Add($"Credential Manager still holds test entries: {string.Join(", ", end.CredentialEntries)}.");
+        }
+
         if (end.JournalEntries.Count != 0)
         {
             differences.Add($"The journal {SystemChanges.JournalDirectory} still holds: {string.Join(", ", end.JournalEntries)}.");
@@ -162,6 +174,7 @@ internal sealed record SystemStateSnapshot(
             text.AppendLine(PerMonitorSettingsRegistry.Describe(DisplayScale.PerMonitorSettings));
         }
         text.AppendLine(CultureInfo.InvariantCulture, $"Journal: {(JournalEntries.Count == 0 ? "(empty)" : string.Join(", ", JournalEntries))}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Credential Manager test entries ({AppSwitches.TestCredentialPrefixRoot}*): {(CredentialEntries.Count == 0 ? "none" : string.Join(", ", CredentialEntries))}");
         TrayIcons.AppendTo(text);
 
         if (Toasts is not null)

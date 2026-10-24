@@ -200,7 +200,18 @@ public sealed class PrinterImageTests(E2EFixture fixture)
         List<string> names = [];
         while (DateTime.UtcNow - saved < TimeSpan.FromSeconds(10))
         {
-            string name = menu.Items()[0].Name;
+            string name;
+            try
+            {
+                name = menu.Items()[0].Name;
+            }
+            catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or FlaUI.Core.Exceptions.ElementNotAvailableException or IndexOutOfRangeException)
+            {
+                // The app rebuilds the row for the new image right now (T-073: a COM error of UI Automation once): read again.
+                await Task.Delay(100, TestContext.Current.CancellationToken);
+                continue;
+            }
+
             if (names.Count == 0 || names[^1] != name)
             {
                 names.Add(name);

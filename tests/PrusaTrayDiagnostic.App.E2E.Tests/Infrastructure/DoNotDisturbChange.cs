@@ -19,7 +19,7 @@ internal sealed record DoNotDisturbState(bool Enabled)
 
 /// <summary>
 /// Do Not Disturb of Windows 11 (T-065). There is no public API to set it, so the "Do not disturb" toggle of the
-/// notification center (Win+N) is read and switched through UI Automation; the fallback is the Settings page
+/// notification center (opened from the taskbar clock) is read and switched through UI Automation; the fallback is the Settings page
 /// <c>ms-settings:notifications</c>, used only when the Settings app is not running (it would replace a page the user
 /// has open) and closed again afterwards. The toggle is found by its automation id, not by its localized name.
 /// Automatic Do Not Disturb rules (full screen, duplicated display, games) are never changed.
@@ -40,7 +40,7 @@ internal sealed partial class DoNotDisturbKind() : SystemChangeKind<DoNotDisturb
         new(await WithToggleAsync(static toggle => Task.FromResult(IsOn(toggle)), cancellationToken).ConfigureAwait(false));
 
     public override string Describe(string? key, DoNotDisturbState original) =>
-        $"Do Not Disturb was {(original.Enabled ? "ON" : "OFF")}. By hand: Win+N > the bell button (Do not disturb) at the top of the "
+        $"Do Not Disturb was {(original.Enabled ? "ON" : "OFF")}. By hand: click the clock on the taskbar > the bell button (Do not disturb) at the top of the "
         + "notification center, or Settings > System > Notifications > Do not disturb.";
 
     /// <summary>
@@ -93,7 +93,7 @@ internal sealed partial class DoNotDisturbKind() : SystemChangeKind<DoNotDisturb
         string centerProblem;
         try
         {
-            (nint center, nint before) = await NotificationCenter.OpenAsync(cancellationToken).ConfigureAwait(false);
+            (nint center, nint before) = await NotificationCenter.OpenAsync(automation, cancellationToken).ConfigureAwait(false);
             try
             {
                 if (await FindToggleAsync(automation, before, seen, "notification center", cancellationToken).ConfigureAwait(false) is { } toggle)

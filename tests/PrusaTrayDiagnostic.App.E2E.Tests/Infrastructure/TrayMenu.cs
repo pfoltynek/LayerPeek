@@ -226,6 +226,15 @@ internal static class TrayMenu
             trace($"App window before: {DescribeWindow(app, hwnd)}");
         }
 
+        // An overflow flyout left shown by an earlier step (e.g. a menu item that opened a window, which took the foreground)
+        // is stale: Explorer ignored a right-click on its icon there (T-073, the menu never opened). Hidden first, it is
+        // opened afresh, with the foreground, below.
+        if (NotificationArea.Overflow(app.Automation) is not null && !NotificationArea.HasKeyboard())
+        {
+            trace($"The overflow flyout is still shown without the keyboard (foreground {DescribeWindow(app, Native.GetForegroundWindow())}): hiding it first.");
+            await NotificationArea.CloseOverflowAsync(app.Automation);
+        }
+
         (IReadOnlyList<AutomationElement> icons, bool openedOverflow) = await NotificationArea.FindTestIconsAsync(app.Automation, trace);
         TrayMenuWindow? menu = null;
         try
@@ -366,11 +375,21 @@ internal static class TrayMenu
 
         for (int press = 1; press <= 3; press++)
         {
+            nint before = Native.GetForegroundWindow();
             Keyboard.TypeSimultaneously(VirtualKeyShort.LWIN, VirtualKeyShort.KEY_B);
             Stopwatch waited = Stopwatch.StartNew();
             while (waited.ElapsedMilliseconds < 2000)
             {
                 await Task.Delay(100);
+                // Another program may have registered Win+B for itself (T-073: Win+N was taken by OneNote): its window is
+                // left alone, and no further key is pressed (none would reach the notification area anyway).
+                nint now = Native.GetForegroundWindow();
+                if (now != before && NotificationCenter.IsForeignWindow(now))
+                {
+                    throw new InvalidOperationException(
+                        $"Win+B brought a window of another program to the foreground ({NotificationCenter.ProcessNameOf(now)}); it is left alone and no more keys are pressed.");
+                }
+
                 AutomationElement? focused = Focused(app);
                 string foreground = Native.ClassName(Native.GetForegroundWindow());
                 if (IsTrayButton(focused) && foreground != NotificationArea.OverflowClass)
@@ -392,6 +411,15 @@ internal static class TrayMenu
             }
 
             trace($"Win+B #{press}: the focus did not reach the notification area (focus {DescribeFocus(Focused(app))}, foreground {DescribeWindow(app, Native.GetForegroundWindow())}).");
+
+            // A window of another program that kept the foreground (it had it before the press, so the check above did not
+            // fire) may be the one that takes Win+B: it gets no second press.
+            nint stayed = Native.GetForegroundWindow();
+            if (NotificationCenter.IsForeignWindow(stayed))
+            {
+                throw new InvalidOperationException(
+                    $"Win+B left a window of another program in the foreground ({NotificationCenter.ProcessNameOf(stayed)}); it is left alone and no more keys are pressed.");
+            }
         }
 
         throw new InvalidOperationException("Win+B did not put the keyboard focus into the notification area.");

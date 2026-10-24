@@ -251,6 +251,8 @@ public sealed class SystemChangeTests(E2EFixture fixture)
             if (watchdog)
             {
                 await Wait.UntilAsync(() => !File.Exists(entryFile), WatchdogTimeout, "the watchdog of the killed child to restore its change");
+                // Its restore is done only when it ended: until then it would also take the entry of the next test's child.
+                await SystemChangeWatchdog.WaitUntilGoneAsync(child.Process.Id, WatchdogTimeout);
             }
             else
             {
