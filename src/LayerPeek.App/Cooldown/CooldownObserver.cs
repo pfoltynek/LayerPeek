@@ -5,7 +5,7 @@ using LayerPeek.Core.Settings;
 namespace LayerPeek.App.Cooldown;
 
 /// <summary>
-/// Hands the printers (with their cool-down thresholds) of every monitoring run and every settings update to the
+/// Hands the printers (with their cool-down thresholds) and the polling interval of every monitoring run and every settings update to the
 /// <see cref="CooldownMonitor"/> (T-079). The cool-down widget (T-088) and notification (T-080) read the monitor.
 /// </summary>
 internal sealed class CooldownObserver : IMonitoringObserver
@@ -21,7 +21,7 @@ internal sealed class CooldownObserver : IMonitoringObserver
     public void ApplySettings(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        _monitor.Configure(settings.Printers);
+        _monitor.Configure(settings.Printers, settings.PollingInterval);
     }
 
     /// <summary>Same printers, e.g. only a threshold changed: the monitor keeps their state and applies it right away.</summary>

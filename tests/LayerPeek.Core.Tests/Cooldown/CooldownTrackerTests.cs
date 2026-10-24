@@ -1,5 +1,7 @@
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
+using LayerPeek.Core.Settings;
 
 using static LayerPeek.Core.Tests.Cooldown.CooldownTestData;
 
@@ -126,6 +128,7 @@ public sealed class CooldownTrackerTests
         Assert.Equal("mk4", cooled.PrinterId);
         Assert.Equal(Start.AddSeconds(cooledAt), cooled.Timestamp);
         Assert.Equal("benchy.bgcode", cooled.FileName);
+        Assert.Equal(CooldownPrintOutcome.Finished, cooled.Outcome);
 
         CooldownState state = _tracker.State;
         Assert.Equal(CooldownPhase.CooledDown, state.Phase);
@@ -268,15 +271,72 @@ public sealed class CooldownTrackerTests
         Assert.Empty(_events);
     }
 
-    [Fact]
-    public void FirstSnapshotOfAFinishedPrintStartsCooling()
+    [Theory]
+    [InlineData(PrinterState.Finished)]
+    [InlineData(PrinterState.Stopped)]
+    public void PrintAlreadyEndedAtTheFirstSnapshotIsNotTracked(PrinterState ended)
     {
-        // The app starts (or the printer is added) while the printer still shows the finished print.
-        Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, End, 20)).Phase);
+        // Decision 11: the app starts (or the printer is added) while the printer still shows the ended print; its end
+        // was not observed, so there is no cool-down at all, not even after it cools down below the threshold.
+        for (double t = 20; t < 1000; t += PollSeconds)
+        {
+            Assert.Equal(CooldownState.None, Process(Cooling(ended, End, t)));
+        }
 
-        RunUntilCooledDown(End, from: 25);
+        Assert.Empty(_events);
+    }
 
-        Assert.Single(_events);
+    [Theory]
+    [InlineData(PrinterState.Offline)]
+    [InlineData(PrinterState.Unauthorized)]
+    [InlineData(PrinterState.Unknown)]
+    public void PrintEndedBeforeTheFirstReadableSnapshotIsNotTracked(PrinterState unreadable)
+    {
+        Process(Snap(unreadable, 0));
+        Process(Snap(unreadable, 100));
+
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, End, 105)));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, End, 110)));
+    }
+
+    [Fact]
+    public void PrintAlreadyEndedAtStartupBelowTheThresholdIsNotTracked()
+    {
+        Assert.Equal(CooldownState.None, Process(Snap(PrinterState.Finished, 0, 30, 0, 25, Job())));
+        Assert.Equal(CooldownState.None, Process(Snap(PrinterState.Finished, 5, 30, 0, 25, Job())));
+    }
+
+    [Fact]
+    public void NextPrintAfterAnUntrackedEndedPrintIsTracked()
+    {
+        Process(Cooling(PrinterState.Finished, End, 20));
+        Process(Cooling(PrinterState.Idle, End, 25));
+        Process(Printing(100, job: Job(8, "second.bgcode")));
+
+        RunUntilCooledDown(200, Job(8, "second.bgcode"));
+
+        Assert.Equal("second.bgcode", Assert.Single(_events).FileName);
+    }
+
+    [Fact]
+    public void ReheatingAfterAnUntrackedEndedPrintDoesNotTrackIt()
+    {
+        Process(Cooling(PrinterState.Finished, End, 20));
+        Process(Snap(PrinterState.Finished, 25, 150, 170, job: Job()));
+
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 30)));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 35)));
+    }
+
+    [Fact]
+    public void JobThatRanBetweenTwoPollsAfterAnUntrackedEndedPrintIsTracked()
+    {
+        Process(Cooling(PrinterState.Finished, End, 20));
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, 25, 25, job: Job(8)));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Equal(Start.AddSeconds(25), state.PrintEndedAt);
     }
 
     [Fact]
@@ -301,7 +361,7 @@ public sealed class CooldownTrackerTests
         Process(Printing(0));
         double cooledAt = RunUntilCooledDown(End);
 
-        // A whole print ran between two polls (or during an outage) and is reported as finished.
+        // A whole print ran between two polls and is reported as finished.
         CooldownState state = Process(Cooling(PrinterState.Finished, cooledAt + 50, cooledAt + 50, job: Job(8, "second.bgcode")));
 
         Assert.Equal(CooldownPhase.Cooling, state.Phase);
@@ -414,6 +474,43 @@ public sealed class CooldownTrackerTests
         Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, 190, 205)).Phase);
     }
 
+    [Fact]
+    public void AnotherJobThatEndedDuringAnOutageIsNotTracked()
+    {
+        Process(Printing(0));
+        Process(Snap(PrinterState.Offline, 5));
+        Process(Snap(PrinterState.Offline, 200));
+
+        // Neither the print nor its end was observed.
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 190, 205, job: Job(8))));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 190, 210, job: Job(8))));
+    }
+
+    [Fact]
+    public void AnotherJobThatEndedDuringAShortOutageEndsTheCoolDownWithoutANewOne()
+    {
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+        Process(Snap(PrinterState.Offline, 10));
+
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 40, job: Job(8))));
+        Assert.Equal(CooldownState.None, Process(Cooling(PrinterState.Finished, 30, 45, job: Job(8))));
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void PausedPrintThatEndedDuringAnOutageIsTracked()
+    {
+        Process(Snap(PrinterState.Paused, 0, 215, 215, 60, Job()));
+        Process(Snap(PrinterState.Offline, 5));
+
+        CooldownState state = Process(Cooling(PrinterState.Stopped, 20, 30));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Null(state.PrintEndedAt);
+        Assert.Equal(CooldownPrintOutcome.Stopped, state.Outcome);
+    }
+
     [Theory]
     [InlineData(PrinterState.Unauthorized)]
     [InlineData(PrinterState.Unknown)]
@@ -423,8 +520,13 @@ public sealed class CooldownTrackerTests
         Process(Printing(0));
         CooldownState cooling = Process(Cooling(PrinterState.Finished, End, End));
 
-        Assert.Equal(cooling, Process(Snap(state, 10)));
-        Assert.Equal(cooling, Process(Snap(state, 500, 20, 215)));
+        // Polled every few seconds for minutes (a gap without snapshots would be another matter): with and without
+        // telemetry, even a heating nozzle.
+        for (double t = 10; t <= 500; t += PollSeconds)
+        {
+            Assert.Equal(cooling, Process(t % 10 == 0 ? Snap(state, t) : Snap(state, t, 20, 215)));
+        }
+
         Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, End, 505)).Phase);
     }
 
@@ -656,14 +758,48 @@ public sealed class CooldownTrackerTests
         Assert.Equal(Start.AddSeconds(End), later.PrintEndedAt);
     }
 
+    [Theory]
+    [InlineData(PrinterState.Finished, CooldownPrintOutcome.Finished)]
+    [InlineData(PrinterState.Stopped, CooldownPrintOutcome.Stopped)]
+    public void EventCarriesHowThePrintEnded(PrinterState ended, CooldownPrintOutcome outcome)
+    {
+        Process(Printing(0));
+        Process(Snap(ended, End, 200, 0, job: Job()));
+        Process(Snap(ended, 10, 45, 0, job: Job()));
+        Process(Snap(ended, 15, 44, 0, job: Job()));
+
+        CooldownEvent cooled = Assert.Single(_events);
+        Assert.Equal(outcome, cooled.Outcome);
+        Assert.Equal(outcome, _tracker.State.Outcome);
+    }
+
+    [Fact]
+    public void EventFromARaisedThresholdCarriesHowThePrintEnded()
+    {
+        Process(Printing(0));
+        Process(Snap(PrinterState.Stopped, End, 200, 0, job: Job()));
+        Process(Snap(PrinterState.Stopped, 10, 75, 0, job: Job()));
+        Process(Snap(PrinterState.Stopped, 15, 70, 0, job: Job()));
+
+        CooldownUpdate update = _tracker.SetThreshold(80);
+
+        Assert.Equal(CooldownPrintOutcome.Stopped, update.Event?.Outcome);
+    }
+
     [Fact]
     public void CooledDownAtIsTheTimeOfTheCooledDownTransition()
     {
         Process(Printing(0));
 
         double cooledAt = RunUntilCooledDown(End);
-        CooldownState state = Process(Cooling(PrinterState.Idle, End, cooledAt + 300));
+        CooldownState state = _tracker.State;
+        for (double t = cooledAt + PollSeconds; t <= cooledAt + 300; t += PollSeconds)
+        {
+            state = Process(Cooling(PrinterState.Idle, End, t));
+        }
 
+        Assert.Equal(CooldownPhase.CooledDown, state.Phase);
+        Assert.Equal(Start.AddSeconds(cooledAt + 300), state.UpdatedAt);
         Assert.Equal(Start.AddSeconds(cooledAt), state.CooledDownAt);
         Assert.Equal(Assert.Single(_events).Timestamp, state.CooledDownAt);
         Assert.Equal(Start.AddSeconds(End), state.PrintEndedAt);
@@ -721,21 +857,10 @@ public sealed class CooldownTrackerTests
         Assert.Equal(Start.AddSeconds(5), state.PrintEndedAt);
     }
 
-    [Fact]
-    public void PrintEndIsUnknownWhenTheEndWasNotSeen()
-    {
-        // App start: the printer already shows the ended print.
-        CooldownState atStart = Process(Cooling(PrinterState.Stopped, End, 20));
-
-        Assert.Equal(CooldownPhase.Cooling, atStart.Phase);
-        Assert.Null(atStart.PrintEndedAt);
-        Assert.Equal(CooldownPrintOutcome.Stopped, atStart.Outcome);
-        Assert.Equal(Start.AddSeconds(20), atStart.StartedAt);
-    }
-
     [Theory]
     [InlineData(PrinterState.Offline)]
     [InlineData(PrinterState.Unauthorized)]
+    [InlineData(PrinterState.Unknown)]
     public void PrintEndIsUnknownWhenItEndedWhileThePrinterWasNotReadable(PrinterState unreadable)
     {
         Process(Printing(0));
@@ -747,6 +872,262 @@ public sealed class CooldownTrackerTests
         Assert.Equal(CooldownPhase.Cooling, state.Phase);
         Assert.Null(state.PrintEndedAt);
         Assert.Equal(CooldownPrintOutcome.Finished, state.Outcome);
+    }
+
+    [Fact]
+    public void PrintEndIsUnknownWhenItEndedDuringAGapWithoutSnapshots()
+    {
+        // The computer slept: no snapshot at all, not even an offline one, for longer than the gap limit.
+        Process(Printing(0));
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, 190, 200));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Null(state.PrintEndedAt);
+        Assert.Equal(CooldownPrintOutcome.Finished, state.Outcome);
+    }
+
+    [Fact]
+    public void GapUpToTheLimitIsObserved()
+    {
+        Assert.Equal(CooldownTrackerOptions.Default.OfflineGrace, _tracker.GapLimit);
+        double limit = _tracker.GapLimit.TotalSeconds;
+        Process(Printing(0));
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, limit, limit));
+
+        Assert.Equal(Start.AddSeconds(limit), state.PrintEndedAt);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Printing)]
+    [InlineData(PrinterState.Idle)]
+    public void OtherJobThatRanAndEndedDuringAGapStartsNoCoolDown(PrinterState before)
+    {
+        Process(before == PrinterState.Printing ? Printing(0) : Snap(PrinterState.Idle, 0, 25, 0));
+
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, 190, 200, job: Job(8))).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, 190, 205, job: Job(8))).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void GapLongerThanTheLimitEndsCoolingWithoutEventAndItDoesNotResume()
+    {
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+        Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, End, 10)).Phase);
+
+        double afterGap = 10 + _tracker.GapLimit.TotalSeconds + 1;
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, End, afterGap)).Phase);
+
+        // The same finished print stays ended, like after an outage longer than the offline grace.
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, End, afterGap + 5)).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, End, afterGap + 10)).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void GapUpToTheLimitKeepsCooling()
+    {
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+        CooldownState before = Process(Cooling(PrinterState.Finished, End, 10));
+
+        CooldownState after = Process(Cooling(PrinterState.Finished, End, 10 + _tracker.GapLimit.TotalSeconds));
+
+        Assert.Equal(CooldownPhase.Cooling, after.Phase);
+        Assert.Equal(before.StartedAt, after.StartedAt);
+        Assert.Equal(Start.AddSeconds(End), after.PrintEndedAt);
+    }
+
+    [Fact]
+    public void GapEndsACoolDownWaitingForTheHeaterToTurnOff()
+    {
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, End, 215, 215, job: Job()));
+
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 200, 30, 0, job: Job())).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 205, 29, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void GapEndsCooledDown()
+    {
+        Process(Printing(0));
+        double cooledAt = RunUntilCooledDown(End);
+
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Idle, End, cooledAt + 300)).Phase);
+    }
+
+    [Fact]
+    public void GapBeforeAnOfflineSnapshotEndsCooling()
+    {
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Offline, 200)).Phase);
+    }
+
+    [Fact]
+    public void ClockGoingBackIsNoGap()
+    {
+        Process(Printing(500));
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, End, End));
+
+        Assert.Equal(Start.AddSeconds(End), state.PrintEndedAt);
+    }
+
+    [Fact]
+    public void GapLimitFollowsThePollingInterval()
+    {
+        // Three polling intervals (TelemetryHistory.GapThreshold), at least the offline grace.
+        _tracker.PollingInterval = TimeSpan.FromMinutes(5);
+        Assert.Equal(TimeSpan.FromMinutes(15), _tracker.GapLimit);
+
+        Process(Printing(0));
+        CooldownState state = Process(Cooling(PrinterState.Finished, 300, 300));
+
+        Assert.Equal(Start.AddSeconds(300), state.PrintEndedAt);
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(30);
+        Assert.Equal(TimeSpan.FromSeconds(90), _tracker.GapLimit);
+        _tracker.PollingInterval = TimeSpan.FromSeconds(1);
+        Assert.Equal(CooldownTrackerOptions.Default.OfflineGrace, _tracker.GapLimit);
+        Assert.Equal(TimeSpan.FromSeconds(1), _tracker.PollingInterval);
+    }
+
+    [Fact]
+    public void ShortenedPollingIntervalDoesNotTurnThePendingPollIntoAGap()
+    {
+        // Settings saved while cooling at a 2 minute interval: the poll that follows was due under the old interval.
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        CooldownState state = Process(Snap(PrinterState.Finished, 240, 120, 0, job: Job()));
+
+        Assert.Equal(CooldownPhase.Cooling, state.Phase);
+        Assert.Equal(Start.AddSeconds(120), state.PrintEndedAt);
+        Assert.Equal(CooldownTrackerOptions.Default.OfflineGrace, _tracker.GapLimit);
+
+        // From then on the new interval applies.
+        Assert.Equal(CooldownPhase.Cooling, Process(Snap(PrinterState.Finished, 245, 118, 0, job: Job())).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 245 + _tracker.GapLimit.TotalSeconds + 1, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void SeveralIntervalChangesBeforeTheNextSnapshotKeepTheLongestLimitForIt()
+    {
+        // 2 minutes (limit 6 minutes), then 5 s and 30 s before the next poll arrives: that poll still had the 2 minute plan.
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        _tracker.PollingInterval = TimeSpan.FromSeconds(30);
+        Assert.Equal(CooldownPhase.Cooling, Process(Snap(PrinterState.Finished, 120 + 360, 120, 0, job: Job())).Phase);
+
+        // Then only the last interval (30 s, limit 90 s) applies.
+        Assert.Equal(TimeSpan.FromSeconds(90), _tracker.GapLimit);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 480 + 91, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void ShortenedThenLengthenedIntervalAppliesTheLongerOneAtOnce()
+    {
+        // 5 s, then 2 minutes and 5 minutes (limit 15 minutes) before the next poll arrives.
+        Process(Printing(0));
+        Process(Cooling(PrinterState.Finished, End, End));
+
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        _tracker.PollingInterval = TimeSpan.FromMinutes(5);
+        Assert.Equal(CooldownPhase.Cooling, Process(Cooling(PrinterState.Finished, End, End + 900)).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Cooling(PrinterState.Finished, End, End + 900 + 901)).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void UnreadableSnapshotAfterAShortenedIntervalIsMeasuredWithTheOldLimit()
+    {
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        // Within the old limit (6 minutes): no gap, and the old limit is used up by it.
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        Process(Snap(PrinterState.Unauthorized, 240));
+        Assert.Equal(CooldownPhase.Cooling, Process(Snap(PrinterState.Finished, 245, 118, 0, job: Job())).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 245 + 61, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void UnreadableSnapshotAfterAShortenedIntervalBeyondTheOldLimitIsAGap()
+    {
+        _tracker.PollingInterval = TimeSpan.FromMinutes(2);
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, 120, 200, 0, job: Job()));
+
+        _tracker.PollingInterval = TimeSpan.FromSeconds(5);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Unauthorized, 120 + 361)).Phase);
+        Assert.Equal(CooldownPhase.None, Process(Snap(PrinterState.Finished, 120 + 366, 100, 0, job: Job())).Phase);
+        Assert.Empty(_events);
+    }
+
+    [Theory]
+    [InlineData(PrinterState.Unauthorized)]
+    [InlineData(PrinterState.Unknown)]
+    [InlineData(PrinterState.Offline)]
+    public void BackoffBetweenUnreadableSnapshotsIsNoGap(PrinterState unreadable)
+    {
+        // An unreadable printer is polled with an exponential backoff of up to a minute (PrinterMonitorOptions.MaxBackoff),
+        // plus the poll itself: more than the gap limit at the default interval, yet the monitor was running all along.
+        Process(Printing(0));
+        CooldownState cooling = Process(Cooling(PrinterState.Finished, End, End));
+        double t = End;
+        foreach (double delay in new[] { 5.0, 10, 20, 40, 61, 61, 61 })
+        {
+            t += delay;
+            Process(Snap(unreadable, t));
+        }
+
+        CooldownState state = Process(Cooling(PrinterState.Finished, End, t + 61));
+
+        if (unreadable == PrinterState.Offline)
+        {
+            // Offline for longer than the grace ends the cool-down, as before.
+            Assert.Equal(CooldownPhase.None, state.Phase);
+        }
+        else
+        {
+            Assert.Equal(CooldownPhase.Cooling, state.Phase);
+            Assert.Equal(cooling.StartedAt, state.StartedAt);
+            Assert.Equal(cooling.PrintEndedAt, state.PrintEndedAt);
+        }
+
+        Assert.Empty(_events);
+    }
+
+    [Fact]
+    public void GapLimitIsAtLeastTheTelemetryGapWithoutOfflineGrace()
+    {
+        CooldownTracker tracker = new(options: new CooldownTrackerOptions { OfflineGrace = TimeSpan.Zero });
+
+        Assert.Equal(AppSettings.DefaultPollingInterval, tracker.PollingInterval);
+        Assert.Equal(TelemetryHistory.MinGapThreshold, tracker.GapLimit);
+    }
+
+    [Fact]
+    public void PollingIntervalMustBePositive()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>(() => _tracker.PollingInterval = TimeSpan.Zero);
+        Assert.Throws<ArgumentOutOfRangeException>(() => _tracker.PollingInterval = TimeSpan.FromSeconds(-1));
     }
 
     [Fact]
@@ -764,7 +1145,7 @@ public sealed class CooldownTrackerTests
     }
 
     [Fact]
-    public void ProcessRejectsNull() =>Assert.Throws<ArgumentNullException>(() => _tracker.Process(null!));
+    public void ProcessRejectsNull() => Assert.Throws<ArgumentNullException>(() => _tracker.Process(null!));
 
     [Fact]
     public void OptionsRejectNegativeGrace() =>

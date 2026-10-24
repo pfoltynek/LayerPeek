@@ -25,8 +25,9 @@ namespace LayerPeek.Core.Cooldown;
 /// <param name="Outcome">Whether the print finished or was stopped.</param>
 /// <param name="PrintEndedAt">
 /// Timestamp of the first snapshot that reported the print as ended, i.e. at most one polling interval after the real
-/// end. <see langword="null"/> when the end was not seen: the first snapshot of the printer (app start, printer added)
-/// already reported it, or the print ended while the printer could not be read (offline, unauthorized).
+/// end. <see langword="null"/> when the end was not seen because the print ended while the printer could not be read
+/// (offline, unauthorized) after it was seen printing. A print that was already over at the first snapshot of the printer
+/// (app start, printer added) is not tracked at all (user decision 11, 2026-10-24).
 /// </param>
 /// <param name="CooledDownAt">
 /// When the state became <see cref="CooldownPhase.CooledDown"/>: the snapshot that confirmed it (the same as

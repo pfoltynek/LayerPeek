@@ -8,4 +8,8 @@ namespace LayerPeek.Core.Cooldown;
 /// <param name="PrinterId">The printer.</param>
 /// <param name="Timestamp">Timestamp of the snapshot that confirmed it (or of the last snapshot when a threshold change did).</param>
 /// <param name="FileName">File name of the print that ended, <see langword="null"/> when unknown.</param>
-public readonly record struct CooldownEvent(string PrinterId, DateTimeOffset Timestamp, string? FileName);
+/// <param name="Outcome">
+/// How the print ended (<see cref="CooldownPrintOutcome.Finished"/> or <see cref="CooldownPrintOutcome.Stopped"/>), so that
+/// the notification can tell "print finished" from "print stopped" (user decision 12, 2026-10-24).
+/// </param>
+public readonly record struct CooldownEvent(string PrinterId, DateTimeOffset Timestamp, string? FileName, CooldownPrintOutcome Outcome);

@@ -43,6 +43,9 @@ Získat náhled (thumbnail) tištěného G-code z tiskárny přes PrusaLink pro 
 - **Cache (Q3):** **jen v paměti**, nic se neukládá na disk.
 - **Zdroj (Q1):** **jen PrusaLink**; Prusa Connect je mimo rozsah (klient T-005 je odložený).
 
+## Rozhodnutí (uživatel, 2026-10-24, po dokončení)
+- **Rozhodnutí 13 – čtvrté spojení k tiskárně:** monitoring 1 + proxy odkazu na tiskárnu 2 + náhled 1 = 4 spojení proti 3 aktivním požadavkům firmwaru (viz Review). **Zatím se to přijímá**, kód se nemění. Omezení webové brány (proxy odkazu, `PrusaLink.WebProxy`) na 1 spojení se zváží znovu, **jen když se na skutečné tiskárně objeví problémy**. Zapsáno i v `docs/api/prusalink.md`.
+
 ## Otevřené otázky
 - Žádné.
 

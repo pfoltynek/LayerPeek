@@ -17,6 +17,9 @@ public sealed record PrintFileNameInfo
     private const int MaxTimeDigits = 5;
     private const int MaxModelSegments = 2;
     private const int StackTitleLength = 256;
+    private const int MaxCopyNumberDigits = 4;
+    private const string CopySuffix = " - Copy";
+    private const string CzechCopySuffix = " - kopie";
 
     // Template tail from the right: time, printer model (up to two segments), materials, layer height, nozzle.
     private const int MaxTailSegments = 1 + MaxModelSegments + 3;
@@ -38,6 +41,8 @@ public sealed record PrintFileNameInfo
     /// Readable name: the base name with <c>_</c> and <c>-</c> turned into spaces, or the whole name without the
     /// extension when it does not follow the template. A title without capital letters gets its first letter capitalised;
     /// one that already contains a capital letter is kept as it is. Empty when the name has nothing but an extension.
+    /// A download or copy suffix at the very end (<c> (1)</c>, <c> - Copy</c>, <c> - Copy (2)</c>, <c> - kopie</c>,
+    /// <c> - kopie (2)</c>) is left out, with or without the template.
     /// </summary>
     public string Title { get; }
 
@@ -112,6 +117,7 @@ public sealed record PrintFileNameInfo
         ReadOnlySpan<char> name = fileName.AsSpan().Trim();
         name = name[(name.LastIndexOfAny('/', '\\') + 1)..];
         string extension = SplitExtension(ref name);
+        name = StripCopySuffix(name);
 
         if (TryParseTemplate(name, extension) is { } parsed)
         {
@@ -140,6 +146,72 @@ public sealed record PrintFileNameInfo
         }
 
         return "";
+    }
+
+    /// <summary>
+    /// Removes one suffix that a browser (<c> (1)</c>) or Windows Explorer (<c> - Copy</c>, Czech <c> - kopie</c>, each
+    /// optionally followed by <c> (2)</c>) appends to a downloaded or copied file, so that the slicer template before it is
+    /// recognised (user decision 6, 2026-10-24). Only these exact forms at the very end of the stem count; a stem that
+    /// would be left with nothing but title separators (spaces, <c>_</c>, <c>-</c>), i.e. an empty title, is kept whole.
+    /// </summary>
+    private static ReadOnlySpan<char> StripCopySuffix(ReadOnlySpan<char> stem)
+    {
+        ReadOnlySpan<char> rest = stem;
+        bool numbered = TryStripCopyNumber(ref rest);
+        if (rest.EndsWith(CopySuffix, StringComparison.Ordinal))
+        {
+            rest = rest[..^CopySuffix.Length];
+        }
+        else if (rest.EndsWith(CzechCopySuffix, StringComparison.Ordinal))
+        {
+            rest = rest[..^CzechCopySuffix.Length];
+        }
+        else if (!numbered)
+        {
+            return stem;
+        }
+
+        return HasTitleCharacter(rest) ? rest : stem;
+    }
+
+    /// <summary>Whether <see cref="MakeTitle"/> keeps any character of <paramref name="source"/> (not only separators).</summary>
+    private static bool HasTitleCharacter(ReadOnlySpan<char> source)
+    {
+        foreach (char c in source)
+        {
+            if (!IsTitleSeparator(c))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsTitleSeparator(char c) => c is '_' or '-' || char.IsWhiteSpace(c) || char.IsControl(c);
+
+    // " (N)" with 1 to MaxCopyNumberDigits ASCII digits.
+    private static bool TryStripCopyNumber(ref ReadOnlySpan<char> stem)
+    {
+        if (!stem.EndsWith(')'))
+        {
+            return false;
+        }
+
+        int open = stem.LastIndexOf('(');
+        if (open < 1 || stem[open - 1] != ' ')
+        {
+            return false;
+        }
+
+        ReadOnlySpan<char> digits = stem[(open + 1)..^1];
+        if (digits.IsEmpty || digits.Length > MaxCopyNumberDigits || digits.ContainsAnyExceptInRange('0', '9'))
+        {
+            return false;
+        }
+
+        stem = stem[..(open - 1)];
+        return true;
     }
 
     private static PrintFileNameInfo? TryParseTemplate(ReadOnlySpan<char> stem, string extension)
@@ -404,7 +476,7 @@ public sealed record PrintFileNameInfo
             bool hasUpper = false;
             foreach (char c in source)
             {
-                if (c is '_' or '-' || char.IsWhiteSpace(c) || char.IsControl(c))
+                if (IsTitleSeparator(c))
                 {
                     pendingSpace = length > 0;
                     continue;

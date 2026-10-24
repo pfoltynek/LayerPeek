@@ -1,4 +1,6 @@
+using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
+using LayerPeek.Core.Settings;
 
 namespace LayerPeek.Core.Cooldown;
 
@@ -8,14 +10,24 @@ namespace LayerPeek.Core.Cooldown;
 /// <list type="bullet">
 /// <item>A cool-down starts when a print ends as <see cref="PrinterState.Finished"/> or <see cref="PrinterState.Stopped"/>,
 /// not after <see cref="PrinterState.Error"/> (an error during the print, or before the stop, rules the print out). A print
-/// ends when one of these states follows a printing / paused snapshot, when it is the first ended print seen (e.g. at app
-/// start), or when another job (<see cref="PrintJob.Id"/>, otherwise <see cref="PrintJob.FileName"/>) is reported as
-/// ended. Every print starts at most one cool-down.</item>
+/// ends when one of these states follows a printing / paused snapshot of the same job (also after an outage, then with an
+/// unknown <see cref="CooldownState.PrintEndedAt"/>), or when a print that was not seen printing (another job by
+/// <see cref="PrintJob.Id"/>, otherwise <see cref="PrintJob.FileName"/>, or the first ended print seen) is reported as ended
+/// right after a reachable snapshot, i.e. it ran between two polls. A print that was already over when the tracking
+/// started (the first snapshot after app start or after adding the printer, or only unreadable snapshots before it) or
+/// another job that both ran and ended during an outage starts no cool-down: its end was not observed (user decision 11,
+/// 2026-10-24). Every print starts at most one cool-down.</item>
+/// <item>A reachable snapshot followed by the next one more than <see cref="GapLimit"/> later (the computer slept and the
+/// monitor delivered no offline snapshot meanwhile) counts like an outage longer than
+/// <see cref="CooldownTrackerOptions.OfflineGrace"/>: a print of the same job that ended in the gap has an unknown
+/// <see cref="CooldownState.PrintEndedAt"/>, another job that ran and ended in it starts no cool-down, and a cool-down in
+/// progress ends without an event and does not resume. Gaps after an unreadable snapshot are not measured: the monitor
+/// backs off there for up to a minute (more than the limit at short intervals), and an offline printer has the grace.</item>
 /// <item>It is tracked from the first snapshot with the nozzle heater off (target 0 or unknown), so that a heater that
 /// is switched off a poll late does not count as heating again.</item>
 /// <item>It ends without an event when the next print starts (<see cref="PrinterState.Printing"/> /
 /// <see cref="PrinterState.Paused"/>), when the printer stays <see cref="PrinterState.Offline"/> for
-/// <see cref="CooldownTrackerOptions.OfflineGrace"/>, or when the nozzle heats again (target above 0). Otherwise
+/// <see cref="CooldownTrackerOptions.OfflineGrace"/>, after a gap longer than <see cref="GapLimit"/>, or when the nozzle heats again (target above 0). Otherwise
 /// <see cref="CooldownPhase.CooledDown"/> lasts, also when the threshold is lowered later.</item>
 /// <item>Only the nozzle decides. Readings that are missing or implausible (not finite, below
 /// <see cref="MinPlausibleCelsius"/> or above <see cref="MaxPlausibleCelsius"/>) are skipped. The nozzle counts as cooled
@@ -28,7 +40,7 @@ namespace LayerPeek.Core.Cooldown;
 /// information and change nothing.</item>
 /// <item>The state tells how the print ended (<see cref="CooldownState.Outcome"/>) and when
 /// (<see cref="CooldownState.PrintEndedAt"/>: the first ended snapshot, unknown when the previous snapshot was not a
-/// reachable one), and when it cooled down (<see cref="CooldownState.CooledDownAt"/>).</item>
+/// reachable one or came more than <see cref="GapLimit"/> earlier), and when it cooled down (<see cref="CooldownState.CooledDownAt"/>).</item>
 /// </list>
 /// Not thread-safe: callers serialize all calls. Allocates nothing after construction.
 /// </summary>
@@ -44,6 +56,12 @@ public sealed class CooldownTracker
     private readonly CooldownEstimator _estimator = new();
     private readonly TimeSpan _offlineGrace;
 
+    private TimeSpan _pollingInterval;
+    private TimeSpan _gapLimit;
+
+    // The limit for the next snapshot: after a shortened interval still the old one, as the poll then due was planned with it.
+    private TimeSpan _nextGapLimit;
+
     private CooldownState _state;
     private string? _printerId;
     private DateTimeOffset _lastTimestamp;
@@ -57,7 +75,7 @@ public sealed class CooldownTracker
 
     private DateTimeOffset? _offlineSince;
 
-    // The previous snapshot was reachable: a print reported as ended now ended at most one poll ago.
+    // The previous snapshot was reachable and at most GapLimit ago: a print reported as ended now ended at most one poll ago.
     private bool _lastReachable;
 
     // The cool-down.
@@ -79,6 +97,7 @@ public sealed class CooldownTracker
         CooldownThreshold.Validate(thresholdCelsius, nameof(thresholdCelsius));
         ThresholdCelsius = thresholdCelsius;
         _offlineGrace = (options ?? CooldownTrackerOptions.Default).OfflineGrace;
+        PollingInterval = AppSettings.DefaultPollingInterval;
     }
 
     private enum Stage
@@ -93,14 +112,51 @@ public sealed class CooldownTracker
 
     public int ThresholdCelsius { get; private set; }
 
+    /// <summary>
+    /// How often the snapshots arrive (the polling interval of the monitoring run); sets <see cref="GapLimit"/>. Defaults to
+    /// <see cref="AppSettings.DefaultPollingInterval"/>. A longer interval applies to the next snapshot, a shorter one only to
+    /// the snapshot after it: the next poll was planned with the interval before (e.g. settings saved while cooling).
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException">The value is not positive.</exception>
+    public TimeSpan PollingInterval
+    {
+        get => _pollingInterval;
+        set
+        {
+            TimeSpan telemetryGap = TelemetryHistory.GapThreshold(value);
+            _pollingInterval = value;
+            _gapLimit = telemetryGap > _offlineGrace ? telemetryGap : _offlineGrace;
+            _nextGapLimit = _gapLimit > _nextGapLimit ? _gapLimit : _nextGapLimit;
+        }
+    }
+
+    /// <summary>
+    /// Longest time from a reachable snapshot to the next one that still counts as observed: the gap after which the temperature
+    /// history starts a new segment (<see cref="TelemetryHistory.GapThreshold"/> of <see cref="PollingInterval"/>), but at
+    /// least <see cref="CooldownTrackerOptions.OfflineGrace"/>. A longer gap (the computer slept, monitoring was stopped)
+    /// counts like an outage longer than the grace: whatever happened in it was not observed.
+    /// </summary>
+    public TimeSpan GapLimit => _gapLimit;
+
     /// <summary>The state after the last call.</summary>
     public CooldownState State => _state;
 
     public CooldownUpdate Process(PrinterSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        // Measured only from a reachable snapshot (see the class remarks); a clock that went back is no gap.
+        bool gap = _lastReachable && snapshot.Timestamp - _lastTimestamp > _nextGapLimit;
+        _nextGapLimit = _gapLimit;
         _printerId = snapshot.PrinterId;
         _lastTimestamp = snapshot.Timestamp;
+        if (gap)
+        {
+            // Not observed, like an outage longer than the offline grace: a print that ended meanwhile has an unknown
+            // end (another job that ran meanwhile is not tracked at all), and a cool-down ends without an event.
+            _lastReachable = false;
+            EndCoolDown();
+        }
+
         switch (snapshot.State)
         {
             case PrinterState.Offline:
@@ -236,7 +292,13 @@ public sealed class CooldownTracker
         return new CooldownUpdate(_state, cooled);
     }
 
-    /// <summary>A Finished / Stopped snapshot: starts a cool-down when it reports a print that has not ended yet.</summary>
+    /// <summary>
+    /// A Finished / Stopped snapshot: starts a cool-down when it reports a print that has not ended yet and either the print
+    /// was seen printing / paused or its end was observed (the previous snapshot was reachable and no gap longer than
+    /// <see cref="GapLimit"/> came between). A print that was already over when the tracking started (the first snapshot
+    /// after app start, or after unreadable ones only) or that ran and ended in an outage or gap is not tracked
+    /// (user decision 11, 2026-10-24).
+    /// </summary>
     private void EndPrintIfNew(PrintJob? job, PrinterState ended, DateTimeOffset timestamp)
     {
         bool otherJob = IsOtherJob(job);
@@ -246,7 +308,8 @@ public sealed class CooldownTracker
             return;
         }
 
-        if (_printSeen && !otherJob)
+        bool printSeen = _printSeen && !otherJob;
+        if (printSeen)
         {
             MergeJob(job);
         }
@@ -258,7 +321,7 @@ public sealed class CooldownTracker
         _printSeen = false;
         _anyPrintEnded = true;
         EndCoolDown();
-        if (!_endedByError)
+        if (!_endedByError && (printSeen || _lastReachable))
         {
             _stage = Stage.WaitingForHeaterOff;
             _coolingFileName = _jobFileName;
@@ -287,7 +350,7 @@ public sealed class CooldownTracker
 
         _cooled = true;
         _cooledDownAt = _lastTimestamp;
-        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName) : null;
+        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName, _outcome) : null;
     }
 
     private CooldownState BuildState(DateTimeOffset timestamp)
