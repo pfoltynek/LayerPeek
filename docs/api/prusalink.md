@@ -34,6 +34,12 @@ Platí pro tiskárny s firmwarem Buddy 6.x: Core One, MK4/S, MK3.9, XL, MINI. Ov
 
   Příklad: fixture `firmware/job-printing.json`.
 - **Metadata souboru Buddy neposílá.** Objekt `file.meta` (`layer_height`, `filament_type`, `nozzle_diameter`, `estimated_print_time`…) ze specifikace OpenAPI (`PrintFileMetadata`) ve firmwaru chybí. Údaje pro čipy widgetu Název tisku jde proto získat jen z `display_name` (T-078).
+- **Šablona názvu souboru PrusaSliceru** (rozbírá ji `Core/Printers/PrintFileNameInfo.Parse`, T-078). Zdroj: `output_filename_format` v profilech Prusa, https://github.com/prusa3d/PrusaSlicer-settings-prusa-fff/blob/main/PrusaResearch/2.5.13.ini (ověřeno 2026-10-24):
+  - většina profilů: `{input_filename_base}_{nozzle_diameter[0]}n_{layer_height}mm_{printing_filament_types}_{printer_model}_{print_time}.gcode`; některé mají trysku napevno (`_0.4n_`), model napevno (`COREONEINDX`, `XLIS`, `XL`, `XL+`) nebo trysku chybějící (XL+),
+  - profily HT hotendu píšou trysku jako `HT0.4` / `HT0.6` (bez `n`),
+  - `printer_model` může obsahovat tečku (`MK3.9S`) i podtržítko (`COREONE_INDX4T`, `COREONE_INDX8T`),
+  - `print_time` je výstup `short_time()` ze zdrojů PrusaSliceru (`src/libslic3r/src/libslic3r/utils.cpp`): `1d2h3m`, `2h51m`, `45m`, krátké tisky `42s`,
+  - víc materiálů je v `printing_filament_types` oddělených čárkou (`PLA,PETG`), parser přijme i středník.
 - **Náhled** (`lib/WUI/nhttp/gcode_preview.cpp`):
   - Vrací jen PNG (`image/png`).
   - Podporuje ETag a odpověď `If-None-Match` → `304`.
