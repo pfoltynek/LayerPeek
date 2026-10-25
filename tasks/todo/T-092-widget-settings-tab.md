@@ -32,6 +32,21 @@ Nahrazují koncept podzáložky Překryv z T-076 bodu 8 (schválený T-076 zůst
 - **Souběh (T-077 Q3):** když se rozložení uloží z okna kamery a okno nastavení je otevřené, okno nastavení **znovu načte jen rozložení** dané tiskárny a ostatní neuložené změny si ponechá.
 - Práh vychladnutí je **u tiskárny**, 30–100 °C, výchozí 50 °C (T-079), s akcí „Použít práh u všech tiskáren“.
 
+## Rozhodnutí (uživatel, 2026-10-24), která už neplatí
+Nahrazená rozhodnutím uživatele z 2026-10-25 (oddíl výše):
+- ~~„Vstup do režimu rozložení je jen v okně kamery (tlačítko a kontextová nabídka, T-091). Tlačítko v nastavení **není**.“~~ → **Nahrazeno:** oddíl „Všechny widgety“ má tlačítko „Upravit rozložení v okně kamery…“, které otevře režim rozložení (Návrh UI 5.4). Tlačítko a kontextová nabídka v okně kamery (T-091) zůstávají.
+- ~~„Tabulka widgetů na podzáložce Překryv, umístění podle T-076 bodu 8.“~~ → **Nahrazeno:** oblast Widgety s rozvržením master-detail (Návrh UI 1–4).
+
+## Převzato z T-080
+<!--
+  Reserved for the items merged from T-080 (done on another branch): the "Převzato z T-080" acceptance criterion, the
+  finished threshold view-model API, the existing string keys (SettingsOverlayApplyAllSingle etc.), the follow-up for
+  the SettingsNotifyCooledDownHelp text and the XAML prototype of the threshold section. The lead merges them here.
+  Design mapping: the T-080 threshold section becomes the Cool-down settings panel (Návrh UI 4.3, contract in 6);
+  SettingsNotifyCooledDownHelp gets the wording from Návrh UI 8.
+-->
+(doplní se sloučením z větve T-080)
+
 ## Kontext
 - Dnes: `SettingsViewModel.OverlayPrinterTab`, `PrinterEditorViewModel.OverlayRows` (`CameraOverlayItemRow`), `SelectedOverlayCorner`, podzáložka `PrinterTabOverlay` v `SettingsWindow.axaml`, testy `SettingsWindowOverlayUiTests`.
 - Velikost oken: `AuxiliaryWindowPlacement.DefaultClientSize` / `MinClientSize`, `Width` / `Height` v `SettingsWindow.axaml` a `DiagnosticsWindow.axaml`, testy `SettingsWindowLayoutTests`, `DiagnosticsWindowLayoutTests`, `AuxiliaryWindowPlacementTests`.
@@ -451,8 +466,8 @@ Skutečné Windows DPI 125 / 150 / 175 % a hlavní panel jiné výšky (měřeno
   - Neměnit velikost: okno se otevře a tlačítko režimu ukáže „Pro úpravu rozložení zvětšete okno.“ (T-076 Q4).
   - Zvětšit natrvalo.
 - **Q6 – Přesun rozsahu mezi úkoly (pro architekta po schválení):**
-  - **Doporučeno:** pole prahu a „Použít práh u všech tiskáren“ přejdou z T-080 do tohoto úkolu (panel Vychladnutí); T-080 si ponechá Core, toast a přepínač na záložce Obecné (s upraveným `SettingsNotifyCooledDownHelp`). T-091 dostane vstup do režimu rozložení zvenku (tiskárna + volitelná počáteční pracovní kopie, Q4, Q5). T-081 rozšíří `IOverlayWidgetDefinition` podle Návrhu UI 6 a T-088 zaregistruje panel Vychladnutí.
-  - Alternativa: T-080 udělá pole prahu dočasně jinde (např. na podzáložce Kamera) a tento úkol ho přesune. Dvojí práce na UI a testech.
+  - **Doporučeno:** oddíl prahu, který dodal T-080 (hotovo na jiné větvi, viz oddíl „Převzato z T-080“), tento úkol přesune do panelu Vychladnutí (view model prahu z T-080 se použije beze změny, mění se jen umístění a `AutomationId`); text `SettingsNotifyCooledDownHelp` dostane znění z Návrhu UI 8. T-091 dostane vstup do režimu rozložení zvenku (tiskárna + volitelná počáteční pracovní kopie, Q4, Q5). T-081 rozšíří `IOverlayWidgetDefinition` podle Návrhu UI 6 a T-088 zaregistruje panel Vychladnutí.
+  - Alternativa: oddíl prahu z T-080 zůstane, kde ho T-080 umístil, a panel Vychladnutí ukáže jen odkaz na něj (méně práce, ale práh by byl mimo oblast Widgety).
 - **Q7 – Popis widgetu v panelu:**
   - **Ano, jedna věta pod nadpisem (doporučeno):** widget bez nastavení tak nemá prázdný panel a uživatel ví, co karta ukazuje.
   - Ne: méně textů k překladu (5 klíčů × 8 jazyků), panel widgetu bez nastavení ukáže jen „Tento widget nemá další nastavení.“
