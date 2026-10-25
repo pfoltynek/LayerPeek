@@ -178,7 +178,7 @@ public partial class App : Application, ITrayAppCommands
         }
 
         _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host));
-        _windows = new AuxiliaryWindowFactory(_windowTracker.Track);
+        _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());

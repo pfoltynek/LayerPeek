@@ -43,7 +43,13 @@ Balíček **neobsahuje**:
 - hesla, API klíče ani tokeny (jsou v úložišti hesel systému, na Windows ve Správci pověření, a do balíčku se nikdy
   nedostanou),
 - přihlašovací údaje ani dotazovou část (`?…`) v adresách kamer,
-- uložené pozice oken kamer (`camera-windows.json`) ani vlastní obrázky tiskáren.
+- uložené pozice oken kamer (`camera-windows.json`), uloženou velikost oken Nastavení a Diagnostika (`windows.json`)
+  ani vlastní obrázky tiskáren.
+
+Soubor `windows.json` (ve stejné složce jako `settings.json`) si pamatuje jen velikost a maximalizaci oken Nastavení
+a Diagnostika. Když se okno otevírá v nevhodné velikosti, zavřete aplikaci a soubor smažte: okna se pak otevřou ve výchozí
+velikosti a nastavení ani pozice oken kamer se nezmění. Poškozený soubor aplikace sama ignoruje a při dalším zavření okna
+ho přepíše.
 
 Názvy a adresy tiskáren a uživatelské jméno PrusaLink v balíčku zůstávají. Logy se kopírují tak, jak jsou; pokud v nich
 nechcete nic sdílet, otevřete je před odesláním a zkontrolujte.

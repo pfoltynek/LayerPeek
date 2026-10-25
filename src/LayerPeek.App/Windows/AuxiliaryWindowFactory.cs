@@ -14,13 +14,30 @@ namespace LayerPeek.App.Windows;
 internal sealed class AuxiliaryWindowFactory
 {
     private readonly Func<Window, IDisposable>? _track;
+    private readonly IAuxiliaryWindowStateStore? _windowStates;
 
     /// <param name="track">Normally <see cref="AuxiliaryWindowTracker.Track"/>; <see langword="null"/>: nothing is tracked.</param>
-    public AuxiliaryWindowFactory(Func<Window, IDisposable>? track) => _track = track;
+    /// <param name="windowStates">
+    /// Where the settings and diagnostics windows remember their size and maximized state (T-094, <c>windows.json</c>);
+    /// <see langword="null"/>: they always open at the designed size.
+    /// </param>
+    public AuxiliaryWindowFactory(Func<Window, IDisposable>? track, IAuxiliaryWindowStateStore? windowStates = null)
+    {
+        _track = track;
+        _windowStates = windowStates;
+    }
 
     /// <summary>A diagnostics window showing <paramref name="viewModel"/> (owned by the caller until the slot takes it).</summary>
-    public IAuxiliaryWindow Diagnostics(DiagnosticsViewModel? viewModel) =>
-        new AvaloniaAuxiliaryWindow(new DiagnosticsWindow { DataContext = viewModel }, _track);
+    public IAuxiliaryWindow Diagnostics(DiagnosticsViewModel? viewModel)
+    {
+        DiagnosticsWindow window = new() { DataContext = viewModel };
+        if (_windowStates is not null)
+        {
+            window.RememberSizeIn(_windowStates);
+        }
+
+        return new AvaloniaAuxiliaryWindow(window, _track);
+    }
 
     /// <summary>A settings window with its view model (<see cref="SettingsWindowFactory"/>).</summary>
     public (IAuxiliaryWindow Window, SettingsViewModel ViewModel) Settings(
@@ -28,6 +45,11 @@ internal sealed class AuxiliaryWindowFactory
         Func<SettingsWindow>? createWindow = null)
     {
         (SettingsWindow window, SettingsViewModel viewModel) = SettingsWindowFactory.Create(createWindow ?? (static () => new SettingsWindow()), createViewModel);
+        if (_windowStates is not null)
+        {
+            window.RememberSizeIn(_windowStates);
+        }
+
         return (new AvaloniaAuxiliaryWindow(window, _track), viewModel);
     }
 

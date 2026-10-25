@@ -11,7 +11,7 @@ namespace LayerPeek.App.UiTests.Settings;
 
 /// <summary>
 /// What the settings window looks like (Skia rendering compared with the PNGs in <c>Snapshots/</c>). The window keeps its
-/// XAML size (780 × 508, T-033), the system language is English and the app language "system" unless a test switches it. Values
+/// XAML size (780 × 532, T-033, T-094), the system language is English and the app language "system" unless a test switches it. Values
 /// are set through the view model, not typed, so that no text box has the focus (no caret) and no pointer hovers.
 /// Update the references with <c>LAYERPEEK_UPDATE_SNAPSHOTS=1</c> (see the task notes of T-031).
 /// </summary>
@@ -299,6 +299,23 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraWindowPrinterTab;
 
             SnapshotAssert.Matches(ui.Window, "settings-camera-window-off-cs");
+        });
+
+    /// <summary>T-094: maximized on a 1366 × 768 screen at 100 % (client 1366 × 705), the content stretches.</summary>
+    [Fact]
+    public Task MaximizedOnALaptopScreen() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(
+                LinkPrinter("a", "MK4 workshop", address: "192.168.1.30", userName: "operator"),
+                CloudPrinter("c1", "Cloud XL"));
+            store.Data = store.Data with { PrintersWithPassword = Ids("a") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store);
+            ui.Window.WindowState = Avalonia.Controls.WindowState.Maximized;
+            ui.Window.Width = 1366;
+            ui.Window.Height = 705;
+
+            SnapshotAssert.Matches(ui.Window, "settings-maximized");
         });
 
     /// <summary>A new printer with a name, no address and a user name with a colon, after a save attempt.</summary>

@@ -134,6 +134,20 @@ internal sealed class AppInstance : IAsyncDisposable
         return start;
     }
 
+    /// <summary>
+    /// Quits the app (tray Quit) and starts it again with the same run folder, data folder and instance names, for what the
+    /// app remembers across a restart (T-094). From then on the new process is this app, quit and cleaned up like the first.
+    /// </summary>
+    public async Task RestartAsync()
+    {
+        await QuitAsync();
+        Process.Dispose();
+        _kinds.Clear();
+        Process = TestLaunch.Start(SecondStartInfo());
+        _quit = false;
+        await Wait.UntilAsync(async () => !Process.HasExited && await TryConnectAsync(), StartTimeout, "the instance channel of the restarted app");
+    }
+
     /// <summary>A second start of the same app (same data folder and instance names).</summary>
     public ProcessStartInfo SecondStartInfo() => StartInfo(RunDirectory, Suffix);
 
