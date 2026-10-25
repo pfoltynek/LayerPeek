@@ -3,6 +3,7 @@
         xmlns:vm="using:LayerPeek.App.Cameras"
         xmlns:loc="using:LayerPeek.App.Localization"
         xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+        xmlns:lay="using:LayerPeek.App.Cameras.Layout"
         xmlns:mini="using:LayerPeek.App.Cameras.Mini"
         x:Class="LayerPeek.App.Windows.CameraWindow"
         x:DataType="vm:CameraViewModel"
@@ -18,6 +19,25 @@
     <KeyBinding Gesture="F11" Command="{Binding ToggleFullScreenCommand}" />
     <KeyBinding Gesture="Escape" Command="{Binding EscapeCommand}" />
   </Window.KeyBindings>
+
+  <!--
+    Layout mode (T-091): the context menu of the image (right click, Menu key / Shift+F10, Ctrl+click on macOS) opens only in
+    the normal window outside the layout mode (CameraWindow.LayoutMode.cs); disabled with a tip below 480 × 300.
+  -->
+  <Window.ContextMenu>
+    <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening">
+      <MenuItem AutomationProperties.AutomationId="CameraLayoutMenuItem"
+                Header="{Binding [CameraLayoutEdit], Source={x:Static loc:LocalizedStrings.Instance}}"
+                Command="{Binding EditLayoutCommand}"
+                ToolTip.Tip="{Binding LayoutToolTip}"
+                ToolTip.ShowOnDisabled="True"
+                ToolTip.ServiceEnabled="{Binding !HasLayoutRoom}">
+        <MenuItem.Icon>
+          <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="{DynamicResource MenuFlyoutItemForeground}" />
+        </MenuItem.Icon>
+      </MenuItem>
+    </ContextMenu>
+  </Window.ContextMenu>
 
   <Window.Styles>
     <!-- The window buttons appear while the pointer is over the window or a button has keyboard focus. -->
@@ -114,6 +134,7 @@
                 AutomationProperties.AutomationId="CameraWindowButtons"
                 Classes="windowButtons"
                 Button.Click="OnWindowButtonClick"
+                IsVisible="{Binding !IsLayoutModeActive}"
                 Orientation="Horizontal"
                 Spacing="4"
                 Margin="6"
@@ -121,8 +142,17 @@
                 VerticalAlignment="Top">
       <!--
         Every mode shows the buttons of the other two, always in this order: normal window [full screen][mini preview],
-        mini preview [full screen][normal window], full screen [normal window][mini preview].
+        mini preview [full screen][normal window], full screen [normal window][mini preview]. The normal window has
+        "Edit layout" first (T-091, T-076 3.2); hidden while the layout mode is on.
       -->
+      <Button AutomationProperties.AutomationId="CameraLayoutButton"
+              Command="{Binding EditLayoutCommand}"
+              IsVisible="{Binding IsNormal}"
+              ToolTip.Tip="{Binding LayoutToolTip}"
+              ToolTip.ShowOnDisabled="True"
+              AutomationProperties.Name="{Binding LayoutToolTip}">
+        <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="White" />
+      </Button>
       <Button AutomationProperties.AutomationId="CameraFullScreenButton"
               Command="{Binding ShowFullScreenCommand}"
               IsVisible="{Binding !IsFullScreen}"
@@ -173,5 +203,8 @@
       <Border Classes="grip" Grid.Row="2" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.South}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="2" Grid.Column="2" Cursor="BottomRightCorner" Tag="{x:Static WindowEdge.SouthEast}" PointerPressed="OnGripPointerPressed" />
     </Grid>
+
+    <!-- Layout mode (T-091): above everything while it is on; its live region for screen readers is always there. -->
+    <lay:CameraLayoutOverlay x:Name="LayoutOverlay" DataContext="{Binding LayoutMode}" />
   </Grid>
 </Window>

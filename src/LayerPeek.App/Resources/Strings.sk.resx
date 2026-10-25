@@ -1092,4 +1092,85 @@
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>Informácie sa nepodarilo skopírovať do schránky. Skúste to znova.</value>
   </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Upraviť rozloženie</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Režim rozloženia</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>presuňte widget do kotvy</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Medzerník zdvihne widget, šípky ho presunú, Enter otvorí voľby, Esc zahodí zmeny.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Obnoviť predvolené</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Hotovo</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Pustiť sem</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>teraz bez údajov</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Zvýrazniť</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Kľúčový údaj sa zobrazí oranžovo.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Veľkosť</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Malá</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Stredná</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Veľká</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>Túto veľkosť widget nemá.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>Hore v strede</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>Dole v strede</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Režim rozloženia. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} zdvihnutý. Šípkami vyberte miesto, medzerníkom pustite, Esc zruší.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}: {1}, pozícia {2} z {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} presunutý: {1}, pozícia {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Presun zrušený</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Obnovené predvolené rozloženie</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Rozloženie uložené</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Zmeny rozloženia zahodené</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>Rozloženie sa nepodarilo uložiť. Skúste to znova.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Na úpravu rozloženia zväčšite okno.</value>
+  </data>
 </root>

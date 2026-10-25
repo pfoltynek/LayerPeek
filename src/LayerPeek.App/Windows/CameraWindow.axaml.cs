@@ -89,6 +89,7 @@ public sealed partial class CameraWindow : Window
             _viewModel.CloseRequested += OnCloseRequested;
             _viewModel.PlacementResetRequested += OnPlacementResetRequested;
             _viewModel.AttachFrameSink(_sink);
+            AttachLayoutMode(_viewModel);
             AttachMini(_viewModel);
             if (!_opened)
             {
@@ -163,6 +164,7 @@ public sealed partial class CameraWindow : Window
         _viewModel.CloseRequested -= OnCloseRequested;
         _viewModel.PlacementResetRequested -= OnPlacementResetRequested;
         _viewModel.AttachFrameSink(null);
+        DetachLayoutMode(_viewModel);
         DetachMini();
         _viewModel = null;
     }
@@ -322,10 +324,11 @@ public sealed partial class CameraWindow : Window
     {
         if (_viewModel is { } viewModel && _opened && WindowState == WindowState.Normal && _appliedMode != CameraWindowMode.FullScreen)
         {
-            // The mini preview remembers its image (T-089), the strip is added again when it is placed.
+            // The mini preview remembers its image (T-089), the strip is added again when it is placed. While the layout
+            // mode has the normal window enlarged, the size it had before (T-091 Q5: never remembered).
             viewModel.RememberPlacement(_appliedMode, _appliedMode == CameraWindowMode.Mini
                 ? MiniPlacementNow(viewModel)
-                : new CameraWindowPlacement(Position.X, Position.Y, ClientSize.Width, ClientSize.Height));
+                : PlacementToRemember());
         }
     }
 

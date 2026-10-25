@@ -236,17 +236,24 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
             Assert.False(window.Find<StackPanel>("CameraWindowButtons").IsKeyboardFocusWithin);
         });
 
-    /// <summary>Exactly <paramref name="left"/> and <paramref name="right"/> are shown, side by side in the top right corner.</summary>
-    private static void AssertButtons(CameraWindow window, string left, string right)
+    /// <summary>
+    /// Exactly <paramref name="ids"/> are shown, side by side in this order in the top right corner. The normal window has
+    /// "Edit layout" first (T-091, T-076 3.2), the other modes only their two buttons.
+    /// </summary>
+    private static void AssertButtons(CameraWindow window, params string[] ids)
     {
+        string[] expected = ViewModel(window).IsNormal ? ["CameraLayoutButton", .. ids] : ids;
         string[] shown = [.. window.Find<StackPanel>("CameraWindowButtons").Children
             .Where(static button => button.IsVisible)
             .Select(static button => AutomationProperties.GetAutomationId(button) ?? "")];
-        Assert.Equal([left, right], shown);
-        Rect first = BoundsIn(window.Find<Button>(left), window);
-        Rect second = BoundsIn(window.Find<Button>(right), window);
-        Assert.True(first.Right <= second.Left);
-        Assert.Equal(window.ClientSize.Width - 6, second.Right, 0.5);
+        Assert.Equal(expected, shown);
+        Rect[] bounds = [.. expected.Select(id => BoundsIn(window.Find<Button>(id), window))];
+        for (int i = 1; i < bounds.Length; i++)
+        {
+            Assert.True(bounds[i - 1].Right <= bounds[i].Left);
+        }
+
+        Assert.Equal(window.ClientSize.Width - 6, bounds[^1].Right, 0.5);
     }
 
     [Fact]

@@ -1,7 +1,9 @@
 using Avalonia.Controls;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Layout;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.App.Windows;
@@ -11,7 +13,7 @@ namespace LayerPeek.App.Windows;
 /// printers may be open at the same time. Each window owns its view model, which is disposed when the window closes
 /// (stopping the stream). After <see cref="Shutdown"/> (quitting) all are closed and none opens. UI thread only.
 /// </summary>
-internal sealed class CameraWindows : ICameraWindowPlacer
+internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLauncher
 {
     private readonly Func<string, PrinterDefinition?, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
@@ -58,12 +60,33 @@ internal sealed class CameraWindows : ICameraWindowPlacer
     /// <returns>Whether a window of the printer is open now (not when it has no enabled camera, or after <see cref="Shutdown"/>).</returns>
     public bool Show(string printerId) => Show(printerId, saved: null);
 
+    /// <inheritdoc/>
+    public bool Start(string printerId, CameraOverlayLayout? startingLayout)
+    {
+        if (_shutDown || string.IsNullOrWhiteSpace(printerId))
+        {
+            return false;
+        }
+
+        if (_open.TryGetValue(printerId, out CameraWindow? open) && open.DataContext is CameraViewModel viewModel)
+        {
+            // Into the normal window (and the layout mode, unless it is on already), then activated.
+            return viewModel.StartLayoutModeFromOutside(startingLayout) && Show(printerId) && viewModel.IsLayoutModeActive;
+        }
+
+        bool started = false;
+        // A new window: in the layout mode before it is placed and shown, so that it opens as the normal window.
+        bool shown = Show(printerId, saved: null, prepare: created => started = created.StartLayoutModeFromOutside(startingLayout));
+        return shown && started;
+    }
+
     /// <param name="saved">
     /// Apply (T-040): a new window comes from this saved printer and is placed by its window settings, like an open window
     /// (<see cref="CameraViewModel.ApplyWindowSettings"/>), and shown without taking the focus from the settings window
     /// (user decision 2026-10-21); <see langword="null"/>: the monitored settings, activated.
     /// </param>
-    private bool Show(string printerId, PrinterDefinition? saved)
+    /// <param name="prepare">Called with the view model of a new window before the window gets it (T-091: the layout mode).</param>
+    private bool Show(string printerId, PrinterDefinition? saved, Action<CameraViewModel>? prepare = null)
     {
         if (_shutDown || string.IsNullOrWhiteSpace(printerId))
         {
@@ -96,6 +119,8 @@ internal sealed class CameraWindows : ICameraWindowPlacer
                 // is shown (no visible jump).
                 created.ApplyWindowSettings(saved.Camera.Window);
             }
+
+            prepare?.Invoke(created);
         }
 
         bool used = false;

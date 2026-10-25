@@ -1092,4 +1092,85 @@
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>Die Informationen konnten nicht in die Zwischenablage kopiert werden. Versuchen Sie es erneut.</value>
   </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Layout bearbeiten</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Layoutmodus</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>ziehen Sie ein Widget auf einen Anker</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Leertaste hebt ein Widget an, Pfeiltasten verschieben es, Eingabe öffnet die Optionen, Esc verwirft die Änderungen.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Standard wiederherstellen</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Fertig</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Hier ablegen</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>derzeit keine Daten</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Hervorheben</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Zeigt den wichtigsten Wert in Orange.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Größe</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Klein</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Mittel</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Groß</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>Diese Größe hat das Widget nicht.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>Oben Mitte</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>Unten Mitte</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Layoutmodus. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} angehoben. Mit den Pfeiltasten einen Platz wählen, mit der Leertaste ablegen, Esc bricht ab.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}: {1}, Position {2} von {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} verschoben: {1}, Position {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Verschieben abgebrochen</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Standardlayout wiederhergestellt</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Layout gespeichert</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Layoutänderungen verworfen</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>Das Layout konnte nicht gespeichert werden. Versuchen Sie es erneut.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Vergrößern Sie das Fenster, um das Layout zu bearbeiten.</value>
+  </data>
 </root>
