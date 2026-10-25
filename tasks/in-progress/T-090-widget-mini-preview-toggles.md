@@ -1,7 +1,7 @@
 ---
 id: T-090
 title: Malý náhled – sbalitelný název tisku a graf teplot v pásu, zapamatování stavu
-status: todo
+status: in-progress
 owner: ui-dev
 priority: P2
 platform: all

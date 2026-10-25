@@ -451,4 +451,97 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
 
         Assert.Equal(new CameraWindowState(CameraWindowMode.Normal, new CameraWindowPlacement(5, 6, 700, 400), null), _states.Get("mk4"));
     }
+
+    // ---- Rows of the mini preview strip (T-090) ----
+
+    [Fact]
+    public void ToggledRowsAreRememberedRightAwayForThePrinter()
+    {
+        _states.Set("mk4", Remembered);
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        CameraViewModel other = Create(CameraWindowDefaults.Default, id: "xl");
+
+        viewModel.MiniStrip.IsChartRowExpanded = true;
+
+        // Saved on the toggle (not only when closing), the rest of the state untouched; the other printer has its own.
+        Assert.Equal(Remembered with { MiniRows = new CameraMiniRows(false, true) }, _states.Get("mk4"));
+        Assert.Equal(default, _states.Get("xl").MiniRows);
+        Assert.False(other.MiniStrip.IsChartRowExpanded);
+
+        viewModel.MiniStrip.IsNameRowExpanded = true;
+        Assert.Equal(new CameraMiniRows(true, true), _states.Get("mk4").MiniRows);
+    }
+
+    [Fact]
+    public void RememberedRowsOpenExpanded()
+    {
+        _states.Set("mk4", Remembered with { MiniRows = new CameraMiniRows(true, false) });
+
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+
+        Assert.True(viewModel.MiniStrip.IsNameRowExpanded);
+        Assert.False(viewModel.MiniStrip.IsChartRowExpanded);
+    }
+
+    [Fact]
+    public void RowsAreRememberedAndUsedWithRememberOff()
+    {
+        // T-090 Q3: "remember last placement" is only about the position and size.
+        _states.Set("mk4", Remembered with { MiniRows = new CameraMiniRows(false, true) });
+        CameraWindowDefaults off = CameraWindowDefaults.Default with { RememberLastPlacement = false };
+        CameraViewModel viewModel = Create(off);
+        Assert.True(viewModel.MiniStrip.IsChartRowExpanded);
+        Assert.Null(viewModel.MiniPlacement);
+
+        viewModel.MiniStrip.IsNameRowExpanded = true;
+        viewModel.RememberPlacement(CameraWindowMode.Mini, new CameraWindowPlacement(5, 6, 330, 190));
+        viewModel.Dispose();
+
+        // The placements stay as they were remembered earlier; the rows are the new ones.
+        Assert.Equal(Remembered with { MiniRows = new CameraMiniRows(true, true) }, _states.Get("mk4"));
+        Assert.Equal(new CameraMiniRows(true, true), Create(off).MiniStrip.Rows);
+    }
+
+    [Fact]
+    public void ClosingWithRememberOnKeepsTheRows()
+    {
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        viewModel.MiniStrip.IsNameRowExpanded = true;
+        viewModel.RememberPlacement(CameraWindowMode.Normal, new CameraWindowPlacement(5, 6, 700, 400));
+
+        viewModel.Dispose();
+
+        Assert.Equal(new CameraWindowState(CameraWindowMode.Normal, new CameraWindowPlacement(5, 6, 700, 400), null, new CameraMiniRows(true, false)), _states.Get("mk4"));
+    }
+
+    [Fact]
+    public void RowsForgottenWithTheStateOpenCollapsedNextTime()
+    {
+        // T-090 Q3: the settings changed the window defaults (Remove) while the window was open with expanded rows.
+        _states.Set("mk4", Remembered with { MiniRows = new CameraMiniRows(true, true) });
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        Assert.True(viewModel.MiniStrip.IsNameRowExpanded);
+
+        _states.Remove("mk4");
+        viewModel.Dispose();
+
+        Assert.Same(CameraWindowState.Default, _states.Get("mk4"));
+        CameraViewModel again = Create(CameraWindowDefaults.Default);
+        Assert.Equal(default, again.MiniStrip.Rows);
+    }
+
+    [Fact]
+    public void ApplyInTheSettingsCollapsesTheRows()
+    {
+        // T-040 Apply: the settings forgot the state and the open window takes the defaults, collapsed rows included.
+        _states.Set("mk4", Remembered with { MiniRows = new CameraMiniRows(true, true) });
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
+        _states.Remove("mk4");
+
+        viewModel.ApplyWindowSettings(CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+
+        Assert.Equal(default, viewModel.MiniStrip.Rows);
+        Assert.Equal(33, viewModel.MiniStrip.StripHeight);
+        Assert.Equal(default, _states.Get("mk4").MiniRows);
+    }
 }

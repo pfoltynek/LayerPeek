@@ -930,6 +930,27 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Enfriada · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Nombre de la impresión en la franja</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Gráfico de temperaturas en la franja</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Mostrar nombre de la impresión</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Ocultar nombre de la impresión</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Mostrar gráfico de temperaturas</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Ocultar gráfico de temperaturas</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>El nombre aparece durante una impresión</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Superposición</value>
   </data>

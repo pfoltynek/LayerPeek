@@ -8,7 +8,10 @@ using LayerPeek.Core.IO;
 
 namespace LayerPeek.App.Cameras;
 
-/// <summary>Remembers the camera windows between runs (T-014): mode, normal window and mini preview placement per printer.</summary>
+/// <summary>
+/// Remembers the camera windows between runs (T-014): mode, normal window and mini preview placement and the expanded
+/// rows of the mini preview strip (T-090) per printer.
+/// </summary>
 internal interface ICameraWindowStateStore
 {
     /// <summary>Reads the remembered states once (call early, off the UI thread). Never throws for file problems.</summary>
@@ -314,6 +317,9 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
                 Mode = state.Mode.ToString(),
                 Normal = ToDocument(state.Normal),
                 Mini = ToDocument(state.Mini),
+                // Written only when expanded: collapsed rows (the default) leave the entry as T-089 wrote it.
+                MiniNameRow = state.MiniRows.Name ? true : null,
+                MiniChartRow = state.MiniRows.Chart ? true : null,
             };
         }
 
@@ -326,7 +332,8 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
     private static CameraWindowState FromDocument(CameraWindowDocument window) => new(
         Enum.TryParse(window.Mode, ignoreCase: true, out CameraWindowMode mode) && Enum.IsDefined(mode) ? mode : CameraWindowMode.Normal,
         FromDocument(window.Normal),
-        FromDocument(window.Mini));
+        FromDocument(window.Mini),
+        new CameraMiniRows(window.MiniNameRow == true, window.MiniChartRow == true));
 
     private static CameraWindowPlacement? FromDocument(PlacementDocument? document) =>
         document is not null && new CameraWindowPlacement(document.X, document.Y, document.Width, document.Height) is { IsValid: true } placement
@@ -405,6 +412,49 @@ internal sealed class CameraWindowDocument
     public PlacementDocument? Normal { get; set; }
 
     public PlacementDocument? Mini { get; set; }
+
+    /// <summary>T-090: the print name row of the mini preview strip is expanded; missing or anything but <c>true</c> = collapsed.</summary>
+    [JsonConverter(typeof(LenientBooleanConverter))]
+    public bool? MiniNameRow { get; set; }
+
+    /// <summary>T-090: the temperature chart row of the mini preview strip is expanded; missing or anything but <c>true</c> = collapsed.</summary>
+    [JsonConverter(typeof(LenientBooleanConverter))]
+    public bool? MiniChartRow { get; set; }
+}
+
+/// <summary>
+/// Reads <c>true</c> / <c>false</c> and nothing else: any other value (a string, a number, an object…) is skipped and read
+/// as <see langword="null"/>, so that one damaged flag does not make the whole file unreadable.
+/// </summary>
+internal sealed class LenientBooleanConverter : JsonConverter<bool?>
+{
+    public override bool? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        switch (reader.TokenType)
+        {
+            case JsonTokenType.True:
+                return true;
+            case JsonTokenType.False:
+                return false;
+            default:
+                // An object or array is skipped as a whole; a single value needs nothing (the next token follows).
+                reader.Skip();
+                return null;
+        }
+    }
+
+    public override void Write(Utf8JsonWriter writer, bool? value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        if (value is { } flag)
+        {
+            writer.WriteBooleanValue(flag);
+        }
+        else
+        {
+            writer.WriteNullValue();
+        }
+    }
 }
 
 internal sealed class PlacementDocument

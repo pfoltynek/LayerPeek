@@ -5,9 +5,13 @@ using Avalonia.Media;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Cameras.Overlay.Widgets;
+using LayerPeek.App.Diagnostics.Chart;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.App.Cameras.Mini;
@@ -68,10 +72,26 @@ internal readonly record struct MiniStripContent(MiniStripKind Kind, PrinterStat
 }
 
 /// <summary>
-/// The info strip below the image of the mini preview (T-089, design T-076 4): a 3 DIP progress bar on its top edge and the
-/// summary row "● 19 % · 2 h 35 min" with room for the two toggle buttons of T-090 on the right. The row shows the number
-/// first; without a job the state, while cooling down the nozzle temperature (T-079). The full text is the row's tooltip
-/// and accessible name.
+/// The left column of the chart row of the mini preview strip (T-090, design T-076 4): the actual nozzle and bed
+/// temperatures in whole degrees, rounded like the display; <see langword="null"/> = not reported.
+/// </summary>
+internal readonly record struct MiniChartValues(long? Nozzle, long? Bed)
+{
+    /// <summary>The values of <paramref name="snapshot"/> (none while it reports no temperatures). Allocates nothing.</summary>
+    public static MiniChartValues Of(PrinterSnapshot? snapshot)
+    {
+        Telemetry? telemetry = snapshot?.Telemetry;
+        return telemetry is null
+            ? default
+            : new MiniChartValues(OverlayValues.Temperature(telemetry.Nozzle)?.Actual, OverlayValues.Temperature(telemetry.Bed)?.Actual);
+    }
+}
+
+/// <summary>
+/// The info strip below the image of the mini preview (T-089, T-090, design T-076 4): a 3 DIP progress bar on its top
+/// edge, the summary row "● 19 % · 2 h 35 min" with two toggle buttons on the right, and below it the collapsible print
+/// name row (34) and temperature chart row (64). The summary row shows the number first; without a job the state, while
+/// cooling down the nozzle temperature (T-079). The full text is the row's tooltip and accessible name.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -81,8 +101,12 @@ internal readonly record struct MiniStripContent(MiniStripKind Kind, PrinterStat
 /// formatted on the UI thread, and again after a language switch.
 /// </para>
 /// <para>
-/// T-090 adds the collapsible name and chart rows below the summary row: they add to <see cref="StripHeight"/>, which the
-/// window follows (the image keeps the aspect ratio of the stream).
+/// The name row is the compact template of the Print name widget over its own <see cref="PrintNameWidgetViewModel"/>
+/// (<see cref="NameRow"/>, T-085); it disappears without a job (the toggle stays on). The chart row shows the current
+/// temperatures and the compact <c>TemperatureChart</c> (T-084), which listens to the history only while it is shown; the
+/// temperatures are computed only while the row is expanded, so a collapsed chart costs nothing per poll. Both rows add to
+/// <see cref="StripHeight"/>, which the window follows (the image keeps the aspect ratio of the stream). Toggling a row
+/// raises <see cref="RowsChanged"/> (the camera window view model remembers it per printer).
 /// </para>
 /// <para>Public members are for the UI thread unless stated otherwise.</para>
 /// </remarks>
@@ -97,11 +121,18 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     /// <summary>The collapsed strip: the progress bar and the summary row (DIP).</summary>
     public const double CollapsedHeight = ProgressHeight + SummaryHeight;
 
+    /// <summary>The print name row (DIP).</summary>
+    public const double NameRowHeight = 34;
+
+    /// <summary>The temperature chart row (DIP).</summary>
+    public const double ChartRowHeight = 64;
+
     private const string Separator = " · ";
 
     private readonly string _printerId;
     private readonly IUiDispatcher _dispatcher;
     private readonly CooldownMonitor? _cooldown;
+    private readonly PrintNameWidgetViewModel _name = new();
     private readonly Action _apply;
     private readonly Lock _gate = new();
 
@@ -109,6 +140,8 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private PrinterSnapshot? _snapshot;
     private MiniStripContent _computed;
     private bool _hasComputed;
+    private bool _chartComputing;
+    private MiniChartValues _chartComputed;
     private bool _applyPending;
     private bool _disposed;
 
@@ -121,32 +154,71 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private double _progress;
     private bool _hasProgress;
     private MiniStripKind _kind;
-    private readonly double _stripHeight = CollapsedHeight;
+    private bool _nameExpanded;
+    private bool _chartExpanded;
+    private bool _showsNameRow;
+    private double _stripHeight = CollapsedHeight;
+    private MiniChartValues _chartShown;
+    private bool _hasChartShown;
+    private string _nozzleText = string.Empty;
+    private string _bedText = string.Empty;
+    private bool _hasNozzle;
+    private bool _hasBed;
+    private string _chartAccessibleText = string.Empty;
+    private string _nameToggleTip = string.Empty;
+    private string _chartToggleTip = string.Empty;
+    private string _nameToggleName = string.Empty;
+    private string _chartToggleName = string.Empty;
+    private string _chartRange = string.Empty;
+    private string _chartNoData = string.Empty;
+    private string _chartName = string.Empty;
 
     /// <param name="printerId">The printer of the window.</param>
     /// <param name="cooldown">The cool-down states (T-079); <see langword="null"/>: the strip never shows a cool-down.</param>
+    /// <param name="history">The telemetry history of the chart row (T-090); <see langword="null"/>: the chart says "No data".</param>
+    /// <param name="clock">The clock of the chart row; <see langword="null"/>: the system clock.</param>
+    /// <param name="rows">The rows expanded when the window opens (remembered per printer; default both collapsed).</param>
     /// <remarks>Shows "Connecting…" until <see cref="ShowCurrent"/> or the first <see cref="OnSnapshot"/>.</remarks>
-    internal CameraMiniStripViewModel(string printerId, IUiDispatcher dispatcher, CooldownMonitor? cooldown)
+    internal CameraMiniStripViewModel(
+        string printerId,
+        IUiDispatcher dispatcher,
+        CooldownMonitor? cooldown,
+        TelemetryHistory? history = null,
+        TimeProvider? clock = null,
+        CameraMiniRows rows = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
         ArgumentNullException.ThrowIfNull(dispatcher);
         _printerId = printerId;
         _dispatcher = dispatcher;
         _cooldown = cooldown;
+        History = history;
+        Clock = clock ?? TimeProvider.System;
         _apply = ApplyPosted;
+        _nameExpanded = rows.Name;
+        _chartExpanded = rows.Chart;
+        _chartComputing = rows.Chart;
         if (_cooldown is not null)
         {
             _cooldown.Changed += OnCooldownChanged;
         }
 
         ShowCurrent(null);
+        FormatRowTexts();
     }
 
+    /// <summary>A row was expanded or collapsed by the user (not when the strip opens with remembered rows).</summary>
+    public event EventHandler? RowsChanged;
+
     /// <summary>
-    /// Height of the whole strip (DIP): <see cref="CollapsedHeight"/>; T-090 adds the name and chart rows here and raises
-    /// the change, which the window follows with its height.
+    /// Height of the whole strip (DIP): <see cref="CollapsedHeight"/> plus the shown name row and the expanded chart row;
+    /// the window follows it with its height.
     /// </summary>
-    public double StripHeight => _stripHeight;
+    public double StripHeight
+    {
+        get => _stripHeight;
+        private set => SetProperty(ref _stripHeight, value);
+    }
 
     /// <summary>"19 % · 2 h 35 min", "19 % · Paused", "Ready", "Cooling down… 87 °C · about 6 min" (number first).</summary>
     public string Summary
@@ -191,6 +263,163 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
 
     /// <summary>The power icon of a printer that cooled down.</summary>
     public bool ShowsCooledIcon => _kind == MiniStripKind.Cooled;
+
+    /// <summary>The print name row is on (its toggle button is checked); the row is shown only while there is a job.</summary>
+    public bool IsNameRowExpanded
+    {
+        get => _nameExpanded;
+        set
+        {
+            if (_disposed || _nameExpanded == value)
+            {
+                return;
+            }
+
+            _nameExpanded = value;
+            OnPropertyChanged();
+            UpdateRows();
+            RowsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The temperature chart row is on (its toggle button is checked) and shown.</summary>
+    public bool IsChartRowExpanded
+    {
+        get => _chartExpanded;
+        set
+        {
+            if (_disposed || _chartExpanded == value)
+            {
+                return;
+            }
+
+            MiniChartValues values;
+            lock (_gate)
+            {
+                // From now on (or no longer) the polls compute the temperatures; the current ones are shown right away.
+                _chartComputing = value;
+                _chartComputed = values = MiniChartValues.Of(_snapshot);
+            }
+
+            _chartExpanded = value;
+            if (value)
+            {
+                FormatChart(values);
+            }
+            else
+            {
+                _hasChartShown = false;
+            }
+
+            OnPropertyChanged();
+            UpdateRows();
+            RowsChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    /// <summary>The name row is drawn: expanded and a job with a file name (T-090 Q4: it disappears without a job).</summary>
+    public bool ShowsNameRow
+    {
+        get => _showsNameRow;
+        private set => SetProperty(ref _showsNameRow, value);
+    }
+
+    /// <summary>The Print name widget whose compact template is the name row (T-085 <see cref="PrintNameCompactView"/>).</summary>
+    public PrintNameWidgetViewModel NameRow => _name;
+
+    /// <summary>Tooltip of the name toggle: "Show print name", "Hide print name", or without a job "The print name appears during a print".</summary>
+    public string NameToggleTip
+    {
+        get => _nameToggleTip;
+        private set => SetProperty(ref _nameToggleTip, value);
+    }
+
+    /// <summary>Tooltip of the chart toggle: "Show temperature chart" / "Hide temperature chart".</summary>
+    public string ChartToggleTip
+    {
+        get => _chartToggleTip;
+        private set => SetProperty(ref _chartToggleTip, value);
+    }
+
+    /// <summary>The steady accessible name of the name toggle ("Print name in the strip"); its state comes from the Toggle pattern.</summary>
+    public string NameToggleName
+    {
+        get => _nameToggleName;
+        private set => SetProperty(ref _nameToggleName, value);
+    }
+
+    /// <summary>The steady accessible name of the chart toggle ("Temperature chart in the strip").</summary>
+    public string ChartToggleName
+    {
+        get => _chartToggleName;
+        private set => SetProperty(ref _chartToggleName, value);
+    }
+
+    /// <summary>"60 min": the range of the compact chart.</summary>
+    public string ChartRange
+    {
+        get => _chartRange;
+        private set => SetProperty(ref _chartRange, value);
+    }
+
+    /// <summary>"No data" of the chart without history.</summary>
+    public string ChartNoData
+    {
+        get => _chartNoData;
+        private set => SetProperty(ref _chartNoData, value);
+    }
+
+    /// <summary>Accessible name of the chart ("chart of the last 60 minutes").</summary>
+    public string ChartName
+    {
+        get => _chartName;
+        private set => SetProperty(ref _chartName, value);
+    }
+
+    /// <summary>"215°": the actual nozzle temperature.</summary>
+    public string NozzleText
+    {
+        get => _nozzleText;
+        private set => SetProperty(ref _nozzleText, value);
+    }
+
+    /// <summary>"60°": the actual bed temperature.</summary>
+    public string BedText
+    {
+        get => _bedText;
+        private set => SetProperty(ref _bedText, value);
+    }
+
+    public bool HasNozzle
+    {
+        get => _hasNozzle;
+        private set => SetProperty(ref _hasNozzle, value);
+    }
+
+    public bool HasBed
+    {
+        get => _hasBed;
+        private set => SetProperty(ref _hasBed, value);
+    }
+
+    /// <summary>The chart row in words: "Nozzle 215 °C, Bed 60 °C" (without temperatures only the chart's name).</summary>
+    public string ChartAccessibleText
+    {
+        get => _chartAccessibleText;
+        private set => SetProperty(ref _chartAccessibleText, value);
+    }
+
+    /// <summary>The history the chart row draws.</summary>
+    public TelemetryHistory? History { get; }
+
+    /// <summary>The printer whose history the chart row draws.</summary>
+    public string PrinterId => _printerId;
+
+    /// <summary>The clock of the chart row.</summary>
+    public TimeProvider Clock { get; }
+
+    /// <summary>The expanded rows (remembered per printer).</summary>
+    internal CameraMiniRows Rows => new(_nameExpanded, _chartExpanded);
 
     /// <summary>The content shown now (tests).</summary>
     internal MiniStripContent ShownContent => _shown;
@@ -238,13 +467,45 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// "Apply" in the settings (T-040) forgot the remembered state: both rows collapse again (the default, T-090 Q1/Q3)
+    /// without raising <see cref="RowsChanged"/>.
+    /// </summary>
+    internal void ResetRows()
+    {
+        EventHandler? rowsChanged = RowsChanged;
+        RowsChanged = null;
+        try
+        {
+            IsNameRowExpanded = false;
+            IsChartRowExpanded = false;
+        }
+        finally
+        {
+            RowsChanged = rowsChanged;
+        }
+    }
+
     /// <summary>The language changed: the shown content is formatted again.</summary>
     public void RefreshTexts()
     {
-        if (_hasShown && !_disposed)
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_hasShown)
         {
             Format(_shown);
         }
+
+        _name.RefreshTexts();
+        if (_hasChartShown)
+        {
+            FormatChart(_chartShown);
+        }
+
+        FormatRowTexts();
     }
 
     public void Dispose()
@@ -263,6 +524,8 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         {
             _cooldown.Changed -= OnCooldownChanged;
         }
+
+        _name.Dispose();
     }
 
     // Monitor thread (or whoever configures the cool-down monitor).
@@ -291,25 +554,41 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>Under the lock: the content now; whether it differs from the last computed one.</summary>
+    /// <summary>Under the lock: the content now (summary, name, and the temperatures while the chart is expanded); whether any changed.</summary>
     private bool ComputeLocked()
     {
         CooldownState cooldown = _cooldown?.GetState(_printerId) ?? CooldownState.None;
         MiniStripContent content = MiniStripContent.Of(_snapshot, cooldown);
-        if (_hasComputed && content == _computed)
+        bool changed = false;
+        if (!_hasComputed || content != _computed)
         {
-            return false;
+            _computed = content;
+            _hasComputed = true;
+            changed = true;
         }
 
-        _computed = content;
-        _hasComputed = true;
-        return true;
+        // The name widget reads only the snapshot; in the mini preview it never asks for a thumbnail (T-087).
+        OverlayWidgetInput input = default(OverlayWidgetInput) with { Snapshot = _snapshot, Mode = CameraWindowMode.Mini };
+        changed |= _name.Compute(input);
+        if (_chartComputing)
+        {
+            MiniChartValues values = MiniChartValues.Of(_snapshot);
+            if (values != _chartComputed)
+            {
+                _chartComputed = values;
+                changed = true;
+            }
+        }
+
+        return changed;
     }
 
     // UI thread.
     private void ApplyPosted()
     {
         MiniStripContent content;
+        MiniChartValues chart;
+        bool chartComputing;
         lock (_gate)
         {
             _applyPending = false;
@@ -319,16 +598,45 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
             }
 
             content = _computed;
+            chart = _chartComputed;
+            chartComputing = _chartComputing;
+            _name.TakeComputed();
         }
 
-        if (_hasShown && content == _shown)
+        if (!_hasShown || content != _shown)
         {
-            return;
+            _shown = content;
+            _hasShown = true;
+            Format(content);
         }
 
-        _shown = content;
-        _hasShown = true;
-        Format(content);
+        _name.ApplyTaken();
+        if (chartComputing && _chartExpanded && (!_hasChartShown || chart != _chartShown))
+        {
+            FormatChart(chart);
+        }
+
+        UpdateRows();
+    }
+
+    /// <summary>Which rows are drawn, the strip height and the toggle tooltips that depend on them.</summary>
+    private void UpdateRows()
+    {
+        ShowsNameRow = _nameExpanded && _name.IsShown;
+        StripHeight = CollapsedHeight + (_showsNameRow ? NameRowHeight : 0) + (_chartExpanded ? ChartRowHeight : 0);
+        NameToggleTip = !_nameExpanded ? Strings.CameraMiniShowName : _showsNameRow ? Strings.CameraMiniHideName : Strings.CameraMiniNameNoJob;
+        ChartToggleTip = _chartExpanded ? Strings.CameraMiniHideChart : Strings.CameraMiniShowChart;
+    }
+
+    /// <summary>The texts of the rows that only follow the language.</summary>
+    private void FormatRowTexts()
+    {
+        UpdateRows();
+        NameToggleName = Strings.CameraMiniToggleName;
+        ChartToggleName = Strings.CameraMiniToggleChart;
+        ChartRange = Format(Strings.DurationMinutes, (long)TemperatureChart.CompactTimeWindow.TotalMinutes);
+        ChartNoData = Strings.CameraOverlayChartNoData;
+        ChartName = Strings.CameraOverlayChartName;
     }
 
     /// <summary>
@@ -373,6 +681,29 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
             OnPropertyChanged(nameof(ShowsCoolingIcon));
             OnPropertyChanged(nameof(ShowsCooledIcon));
         }
+    }
+
+    /// <summary>The left column of the chart row: "215°", "60°", and the row in words.</summary>
+    private void FormatChart(in MiniChartValues values)
+    {
+        _chartShown = values;
+        _hasChartShown = true;
+        NozzleText = values.Nozzle is { } nozzle ? Degrees(nozzle) + "°" : string.Empty;
+        BedText = values.Bed is { } bed ? Degrees(bed) + "°" : string.Empty;
+        HasNozzle = values.Nozzle is not null;
+        HasBed = values.Bed is not null;
+        string text = Strings.CameraOverlayChartName;
+        if (values.Nozzle is { } n)
+        {
+            text = string.Concat(text, ", ", Strings.DiagnosticsNozzle, " ", Format(Strings.DiagnosticsTemperatureValue, Degrees(n)));
+        }
+
+        if (values.Bed is { } b)
+        {
+            text = string.Concat(text, ", ", Strings.DiagnosticsBed, " ", Format(Strings.DiagnosticsTemperatureValue, Degrees(b)));
+        }
+
+        ChartAccessibleText = text;
     }
 
     private static string Degrees(long celsius) => celsius.ToString("N0", CultureInfo.CurrentCulture);

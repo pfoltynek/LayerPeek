@@ -930,6 +930,27 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Vychladla · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Názov tlače v páse</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Graf teplôt v páse</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Zobraziť názov tlače</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Skryť názov tlače</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Zobraziť graf teplôt</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Skryť graf teplôt</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>Názov tlače sa zobrazí počas tlače</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Prekrytie</value>
   </data>

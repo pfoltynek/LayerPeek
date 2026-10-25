@@ -151,9 +151,10 @@
 
     <!--
       Mini preview (T-089): the info strip below the image, not over it. Pressing and dragging it moves the window like the
-      image (not over its buttons, which handle their presses). Keep the mini preview parts in this region.
+      image (not over its buttons, which handle their presses). Keep the mini preview parts in this region. Above the resize
+      grips (ZIndex, T-090): its toggle buttons take presses there, its own hit test leaves the other edges to the grips.
     -->
-    <Panel Grid.Row="1" IsVisible="{Binding IsMini}">
+    <Panel Grid.Row="1" ZIndex="1" IsVisible="{Binding IsMini}">
       <mini:CameraMiniStrip x:Name="MiniStrip"
                             DataContext="{Binding MiniStrip}"
                             PointerPressed="OnSurfacePointerPressed"
