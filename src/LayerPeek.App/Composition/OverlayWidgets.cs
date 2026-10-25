@@ -10,8 +10,8 @@ namespace LayerPeek.App.Composition;
 /// one <see cref="OverlayWidgetDefinition"/> line in <see cref="CreateRegistry"/>.
 /// </summary>
 /// <remarks>
-/// Until the widgets of T-082 (Status), T-083 (Times), T-084 (Temperatures), T-085 (Print name) and T-088 (Cool-down)
-/// are registered, the overlay draws no cards: their placements stay in the layout and are only not drawn.
+/// Status (T-082) and Times (T-083) are registered. Until the widgets of T-084 (Temperatures), T-085 (Print name) and
+/// T-088 (Cool-down) are, their placements stay in the layout and are only not drawn.
 /// </remarks>
 internal static class OverlayWidgets
 {
@@ -29,6 +29,7 @@ internal static class OverlayWidgets
     /// <summary>The widgets of this version, in the order of the settings table.</summary>
     public static OverlayWidgetRegistry CreateRegistry() => new(
     [
+        new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Status, OverlayWidgetNames.Status, StatusPriority, StatusWidgetTemplate.Card, static _ => new StatusWidgetViewModel(), StatusWidgetViewModel.MinWidths),
         new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Times, OverlayWidgetNames.Times, TimesPriority, TimesWidgetView.CardTemplate, static _ => new TimesWidgetViewModel(), TimesWidgetViewModel.MinWidths),
     ]);
 }

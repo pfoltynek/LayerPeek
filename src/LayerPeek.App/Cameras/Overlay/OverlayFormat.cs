@@ -14,8 +14,17 @@ namespace LayerPeek.App.Cameras.Overlay;
 /// </summary>
 public static class OverlayFormat
 {
-    /// <summary>Longest printer name shown; longer ones end with "…".</summary>
+    /// <summary>Longest printer name shown; longer ones are shortened in the middle (<see cref="ShortenName"/>).</summary>
     public const int MaxNameLength = 40;
+
+    /// <summary>
+    /// UTF-16 code units kept at the start of a shortened printer name, rounded up to the end of the character that contains
+    /// the last one: the same start that the middle width trimming of the cards keeps (<c>TextTrimming.PrefixCharacterEllipsis</c>
+    /// in Avalonia 12 splits after 8 code units and rounds up to the end of the glyph cluster). A name that is also too wide
+    /// for its card therefore loses this "…" first and shows a single one, never "start…middle…". Glyph clusters equal
+    /// grapheme clusters except for font ligatures across the cut, which a text function cannot know.
+    /// </summary>
+    public const int NameHeadLength = 8;
 
     /// <summary>Longest file name shown; longer ones keep their start and end (extension) around "…".</summary>
     public const int MaxFileNameLength = 40;
@@ -59,11 +68,14 @@ public static class OverlayFormat
             : Format(Strings.DiagnosticsTemperatureValue, actual);
     }
 
-    /// <summary>A printer name of at most <see cref="MaxNameLength"/> characters (longer ones end with "…").</summary>
+    /// <summary>
+    /// A printer name of at most <see cref="MaxNameLength"/> characters: longer ones keep the first
+    /// <see cref="NameHeadLength"/> characters and the end around "…" (T-076 1.4 and 2.1).
+    /// </summary>
     public static string ShortenName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return TrayText.Ellipsize(name, MaxNameLength);
+        return ShortenMiddle(name, MaxNameLength, NameHeadLength, headUpToCharacterEnd: true);
     }
 
     /// <summary>
@@ -73,25 +85,54 @@ public static class OverlayFormat
     public static string ShortenFileName(string fileName)
     {
         ArgumentNullException.ThrowIfNull(fileName);
-        if (fileName.Length <= MaxFileNameLength)
+        return ShortenMiddle(fileName, MaxFileNameLength, MaxFileNameLength - FileNameTailLength - Ellipsis.Length);
+    }
+
+    /// <summary>
+    /// At most <paramref name="maxLength"/> UTF-16 code units: about the first <paramref name="head"/> and the end around "…".
+    /// Both cuts keep whole user-perceived characters (grapheme clusters: surrogate pairs, letters with combining accents,
+    /// emoji sequences). A cut inside a character moves the end of the start down (the end keeps its length) or up with
+    /// <paramref name="headUpToCharacterEnd"/> (the end gets shorter), and the start of the end up.
+    /// </summary>
+    private static string ShortenMiddle(string text, int maxLength, int head, bool headUpToCharacterEnd = false)
+    {
+        if (text.Length <= maxLength)
         {
-            return fileName;
+            return text;
         }
 
-        int head = MaxFileNameLength - FileNameTailLength - Ellipsis.Length;
-        int tailStart = fileName.Length - FileNameTailLength;
-        // Never split a surrogate pair.
-        if (char.IsHighSurrogate(fileName[head - 1]))
+        (int before, int after) = CharacterAround(text, head);
+        int headEnd = headUpToCharacterEnd ? after : before;
+        if (headEnd == 0 || headEnd > maxLength - Ellipsis.Length)
         {
-            head--;
+            // The first character is longer than the start (rounding down would keep nothing of it) or rounding up would
+            // exceed the whole limit (e.g. a letter with dozens of combining marks): cut it, only never inside a surrogate pair.
+            headEnd = char.IsHighSurrogate(text[head - 1]) ? head - 1 : head;
         }
 
-        if (char.IsLowSurrogate(fileName[tailStart]))
+        (_, int tailStart) = CharacterAround(text, text.Length - (maxLength - Math.Max(head, headEnd) - Ellipsis.Length));
+        return string.Concat(text.AsSpan(0, headEnd), Ellipsis, text.AsSpan(tailStart));
+    }
+
+    /// <summary>
+    /// The start and end of the character (grapheme cluster) that contains the code unit before <paramref name="index"/>
+    /// and the one at it; both are <paramref name="index"/> when a character boundary is there.
+    /// </summary>
+    private static (int Before, int After) CharacterAround(string text, int index)
+    {
+        int start = 0;
+        while (start < index)
         {
-            tailStart++;
+            int end = start + StringInfo.GetNextTextElementLength(text.AsSpan(start));
+            if (end > index)
+            {
+                return (start, end);
+            }
+
+            start = end;
         }
 
-        return string.Concat(fileName.AsSpan(0, head), Ellipsis, fileName.AsSpan(tailStart));
+        return (index, index);
     }
 
     /// <summary>

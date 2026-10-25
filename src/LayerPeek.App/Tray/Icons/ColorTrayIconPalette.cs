@@ -24,18 +24,32 @@ internal static class ColorTrayIconPalette
     /// <summary>Unfilled layers when there is no data: <see cref="Grey"/> at 35 % opacity.</summary>
     public static readonly Color OfflineTrack = Color.FromArgb(89, 0x8A, 0x8D, 0x96);
 
+    // The state colours are also the dots of the camera overlay's Status widget (T-082, OverlayStateBrushes).
+
+    /// <summary>Printing and busy.</summary>
+    public static readonly Color Blue = Color.FromRgb(0x1E, 0x88, 0xE5);
+
+    /// <summary>Paused.</summary>
+    public static readonly Color Yellow = Color.FromRgb(0xFD, 0xD8, 0x35);
+
+    /// <summary>Finished.</summary>
+    public static readonly Color Green = Color.FromRgb(0x43, 0xA0, 0x47);
+
+    /// <summary>Error.</summary>
+    public static readonly Color Red = Color.FromRgb(0xE5, 0x39, 0x35);
+
+    /// <summary>Needs attention (in the overlay also rejected credentials).</summary>
+    public static readonly Color Amber = Color.FromRgb(0xFB, 0x8C, 0x00);
+
+    /// <summary>The offline badge: no data (in the overlay also an unknown state and connecting).</summary>
+    public static readonly Color BadgeGrey = Color.FromRgb(0x9E, 0x9E, 0x9E);
+
     private static readonly Color White = Color.FromRgb(0xFF, 0xFF, 0xFF);
-    private static readonly Color BadgeGrey = Color.FromRgb(0x9E, 0x9E, 0x9E);
     private static readonly Color BadgeGreyOutline = Color.FromRgb(0x61, 0x61, 0x61);
-    private static readonly Color Blue = Color.FromRgb(0x1E, 0x88, 0xE5);
     private static readonly Color BlueOutline = Color.FromRgb(0x0D, 0x47, 0xA1);
-    private static readonly Color Yellow = Color.FromRgb(0xFD, 0xD8, 0x35);
     private static readonly Color YellowOutline = Color.FromRgb(0xF5, 0x7F, 0x17);
-    private static readonly Color Green = Color.FromRgb(0x43, 0xA0, 0x47);
     private static readonly Color GreenOutline = Color.FromRgb(0x1B, 0x5E, 0x20);
-    private static readonly Color Red = Color.FromRgb(0xE5, 0x39, 0x35);
     private static readonly Color RedOutline = Color.FromRgb(0xB7, 0x1C, 0x1C);
-    private static readonly Color Amber = Color.FromRgb(0xFB, 0x8C, 0x00);
     private static readonly Color AmberOutline = Color.FromRgb(0xBF, 0x36, 0x0C);
 
     public static TrayIconAppearance GetAppearance(TrayIconKey key) => key.Status switch

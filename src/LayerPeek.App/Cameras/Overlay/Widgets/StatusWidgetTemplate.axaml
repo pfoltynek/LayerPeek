@@ -1,0 +1,107 @@
+<!--
+  Card content of the Status widget (T-082, design T-076 2.1). The card itself (background, padding, size classes
+  small / medium / large) and the shared parts come from OverlayStyles.axaml.
+    M / L: printer name, state pill, large percent (key value, accent when emphasized), progress bar.
+    S:     dot + state name (shortened) with the percent on the right, bar below; no printer name (it is in the title).
+  Without an active job only the name and the pill. One element tree for all sizes, so that every AutomationId exists
+  once (T-076 5.7): CameraOverlayWidget-status-Name / -State / -Percent / -Progress.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+                    xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+                    x:Class="LayerPeek.App.Cameras.Overlay.Widgets.StatusWidgetTemplate">
+  <DataTemplate x:Key="StatusWidgetCard" x:DataType="w:StatusWidgetViewModel">
+    <Grid Classes="statusWidget" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto,Auto">
+      <Grid.Styles>
+        <!-- Card width (T-076 2.1) without the card padding: S max 240, M 180–280, L 220–340. -->
+        <Style Selector="Grid.statusWidget">
+          <Setter Property="MinWidth" Value="152" />
+          <Setter Property="MaxWidth" Value="252" />
+        </Style>
+        <Style Selector="Border.overlayCard.small Grid.statusWidget">
+          <Setter Property="MinWidth" Value="0" />
+          <Setter Property="MaxWidth" Value="220" />
+        </Style>
+        <Style Selector="Border.overlayCard.large Grid.statusWidget">
+          <Setter Property="MinWidth" Value="188" />
+          <Setter Property="MaxWidth" Value="308" />
+        </Style>
+
+        <!-- Printer name: M 13 semi-bold / 18, L 16 semi-bold / 22. -->
+        <Style Selector="TextBlock.statusName">
+          <Setter Property="FontWeight" Value="SemiBold" />
+        </Style>
+        <Style Selector="Border.overlayCard.large TextBlock.statusName">
+          <Setter Property="FontSize" Value="16" />
+          <Setter Property="LineHeight" Value="22" />
+        </Style>
+
+        <!-- Gaps: M name 6 pill 8 percent 6 bar; L 8 / 10 / 8 (card 158 high); S percent 8 right of the state, bar 6 below. -->
+        <Style Selector="ov|OverlayStatusPill.statusState">
+          <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+        <Style Selector="TextBlock.statusPercent">
+          <Setter Property="Margin" Value="0,8,0,0" />
+          <Setter Property="Grid.Row" Value="2" />
+          <Setter Property="Grid.Column" Value="0" />
+          <Setter Property="Grid.ColumnSpan" Value="2" />
+        </Style>
+        <Style Selector="ov|OverlayProgressBar.statusProgress">
+          <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+        <Style Selector="Border.overlayCard.large ov|OverlayStatusPill.statusState">
+          <Setter Property="Margin" Value="0,8,0,0" />
+        </Style>
+        <Style Selector="Border.overlayCard.large TextBlock.statusPercent">
+          <Setter Property="Margin" Value="0,10,0,0" />
+        </Style>
+        <Style Selector="Border.overlayCard.large ov|OverlayProgressBar.statusProgress">
+          <Setter Property="Margin" Value="0,8,0,0" />
+        </Style>
+
+        <!-- S: one row "● Printing   42%": the pill without its background, 13 semi-bold, as high as the percent line. -->
+        <Style Selector="Border.overlayCard.small ov|OverlayStatusPill.statusState">
+          <Setter Property="Margin" Value="0" />
+          <Setter Property="Padding" Value="0" />
+          <Setter Property="Height" Value="20" />
+          <Setter Property="CornerRadius" Value="0" />
+          <Setter Property="FontSize" Value="13" />
+          <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Border.overlayCard.small TextBlock.statusPercent">
+          <Setter Property="Margin" Value="8,0,0,0" />
+          <Setter Property="Grid.Row" Value="1" />
+          <Setter Property="Grid.Column" Value="1" />
+          <Setter Property="Grid.ColumnSpan" Value="1" />
+          <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+      </Grid.Styles>
+
+      <TextBlock Classes="statusName"
+                 Grid.ColumnSpan="2"
+                 Text="{Binding PrinterName}"
+                 TextTrimming="PrefixCharacterEllipsis"
+                 IsVisible="{Binding !IsSmall}"
+                 AutomationProperties.AutomationId="CameraOverlayWidget-status-Name" />
+      <ov:OverlayStatusPill Classes="statusState"
+                            Grid.Row="1"
+                            Text="{Binding StateText}"
+                            DotBrush="{Binding DotBrush}"
+                            AutomationProperties.AutomationId="CameraOverlayWidget-status-State"
+                            AutomationProperties.Name="{Binding StateText}" />
+      <TextBlock Classes="big numeric statusPercent"
+                 Classes.emphasized="{Binding IsEmphasized}"
+                 Text="{Binding PercentText}"
+                 IsVisible="{Binding HasProgress}"
+                 AutomationProperties.AutomationId="CameraOverlayWidget-status-Percent" />
+      <ov:OverlayProgressBar Classes="statusProgress"
+                             Grid.Row="3"
+                             Grid.ColumnSpan="2"
+                             Value="{Binding Progress}"
+                             IsVisible="{Binding HasProgress}"
+                             AutomationProperties.AutomationId="CameraOverlayWidget-status-Progress"
+                             AutomationProperties.Name="{Binding PercentText}" />
+    </Grid>
+  </DataTemplate>
+</ResourceDictionary>
