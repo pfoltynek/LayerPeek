@@ -69,6 +69,17 @@ public static class OverlayFormat
     }
 
     /// <summary>
+    /// <see cref="Temperature"/> split after the actual value, which a widget can emphasize alone: ("215", " / 215 °C"),
+    /// ("28", " °C"). A language that does not start with the value gives the whole text as the first part.
+    /// </summary>
+    public static (string Actual, string AfterActual) TemperatureParts(OverlayTemperature temperature)
+    {
+        string text = Temperature(temperature);
+        string actual = temperature.Actual.ToString("N0", CultureInfo.CurrentCulture);
+        return text.StartsWith(actual, StringComparison.Ordinal) ? (actual, text[actual.Length..]) : (text, string.Empty);
+    }
+
+    /// <summary>
     /// A printer name of at most <see cref="MaxNameLength"/> characters: longer ones keep the first
     /// <see cref="NameHeadLength"/> characters and the end around "…" (T-076 1.4 and 2.1).
     /// </summary>

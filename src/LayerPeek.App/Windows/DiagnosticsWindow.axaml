@@ -26,18 +26,18 @@
   -->
   <Window.Resources>
     <ResourceDictionary>
+      <!-- Nozzle and bed colours shared with the camera overlay (T-084): ChartNozzleBrush, ChartBedBrush. -->
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://LayerPeek/Resources/ChartColors.axaml" />
+      </ResourceDictionary.MergedDictionaries>
       <!-- Chart colours per theme; the chart and its legend follow a theme change through DynamicResource. -->
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#D9480F" />
-          <SolidColorBrush x:Key="ChartBedBrush" Color="#1864AB" />
           <SolidColorBrush x:Key="ChartAxisBrush" Color="#616161" />
           <SolidColorBrush x:Key="ChartGridBrush" Color="#E6E6E6" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#FF8A4C" />
-          <SolidColorBrush x:Key="ChartBedBrush" Color="#4DABF7" />
           <SolidColorBrush x:Key="ChartAxisBrush" Color="#ADADAD" />
           <SolidColorBrush x:Key="ChartGridBrush" Color="#3A3A3A" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />

@@ -3,7 +3,9 @@ using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 using LayerPeek.Core.History;
 
@@ -12,22 +14,35 @@ namespace LayerPeek.App.Diagnostics.Chart;
 /// <summary>
 /// Lightweight temperature chart over <see cref="TelemetryHistory"/>: nozzle and bed actual temperatures as solid lines,
 /// targets as thin dashed lines (only while heating), a value axis in °C and a local-time axis. Lines break at missing
-/// values and history segments (e.g. offline, computer asleep).
+/// values and history segments (e.g. offline, computer asleep). One control for every place that draws temperatures:
+/// the diagnostics window (axes, grid, selectable range) and, in the compact mode (<see cref="IsCompact"/>, T-084), the
+/// sparkline of the camera overlay's Temperatures widget.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Work happens only while the control is in a visible window: it subscribes to <see cref="TelemetryHistory.Changed"/>
-/// when attached to the visual tree and unsubscribes when detached (window closed). Changes of other printers are
-/// ignored on the calling thread; a burst of changes posts one redraw request to the UI thread.
+/// Work happens only while the control is shown: it subscribes to <see cref="TelemetryHistory.Changed"/> while it is
+/// attached to the visual tree <b>and</b> visible with all its ancestors, and unsubscribes when detached (window closed)
+/// or hidden (a hidden card or window, a hidden parent; the ancestors' IsVisible is watched while attached); when it is
+/// shown again it redraws with the latest history. A minimized window still counts as shown. Changes of other
+/// printers are ignored on the calling thread; a burst of changes posts one redraw request to the UI thread.
 /// </para>
 /// <para>
 /// Rendering: <see cref="TemperatureChartData"/> copies and decimates the samples (one column per pixel) only when the
 /// history version, the printer, the range or the width changed; geometries, pens and labels are rebuilt only then or
 /// when a brush (theme) changed. Otherwise <see cref="Render"/> just replays the cached objects.
 /// </para>
+/// <para>
+/// Compact mode: no axes, labels or grid (the plot is the whole control), a fixed range of
+/// <see cref="CompactTimeWindow"/> ending now, and a sample buffer sized to that range instead of the whole history.
+/// The look of the lines comes from <see cref="LineThickness"/> and <see cref="TargetOpacity"/>; "no data" is drawn in
+/// <see cref="AxisBrush"/>. The control draws no background.
+/// </para>
 /// </remarks>
 public sealed class TemperatureChart : Control
 {
+    /// <summary>The fixed range of the compact chart (user decision 2026-10-24, T-084 Q1).</summary>
+    public static readonly TimeSpan CompactTimeWindow = TimeSpan.FromMinutes(60);
+
     public static readonly StyledProperty<TelemetryHistory?> HistoryProperty =
         AvaloniaProperty.Register<TemperatureChart, TelemetryHistory?>(nameof(History));
 
@@ -55,19 +70,32 @@ public sealed class TemperatureChart : Control
     public static readonly StyledProperty<string?> NoDataTextProperty =
         AvaloniaProperty.Register<TemperatureChart, string?>(nameof(NoDataText));
 
+    public static readonly StyledProperty<bool> IsCompactProperty =
+        AvaloniaProperty.Register<TemperatureChart, bool>(nameof(IsCompact));
+
+    public static readonly StyledProperty<double> LineThicknessProperty =
+        AvaloniaProperty.Register<TemperatureChart, double>(nameof(LineThickness), 1.75, coerce: CoerceLineThickness);
+
+    public static readonly StyledProperty<double> TargetOpacityProperty =
+        AvaloniaProperty.Register<TemperatureChart, double>(nameof(TargetOpacity), 1, coerce: CoerceOpacity);
+
     private const double LeftMargin = 56;
     private const double RightMargin = 12;
     private const double TopMargin = 8;
     private const double BottomMargin = 22;
     private const double LabelFontSize = 11;
+    private const double CompactNoDataFontSize = 12;
     private const double LabelGap = 6;
-    private const double ActualThickness = 1.75;
     private const double TargetThickness = 1;
 
     private static readonly DashStyle TargetDash = new([4, 3], 0);
 
     private readonly TemperatureChartData _data = new();
     private readonly Action _refreshOnUiThread;
+    private readonly EventHandler<AvaloniaPropertyChangedEventArgs> _ancestorChanged;
+
+    // UI thread: the visual ancestors while attached, watched for IsVisible changes.
+    private readonly List<Visual> _ancestors = [];
     private readonly StreamGeometry?[] _series = new StreamGeometry?[TemperatureChartData.SeriesCount];
     private readonly IPen?[] _seriesPens = new IPen?[TemperatureChartData.SeriesCount];
 
@@ -111,19 +139,23 @@ public sealed class TemperatureChart : Control
             BedBrushProperty,
             AxisBrushProperty,
             GridBrushProperty,
-            NoDataTextProperty);
+            NoDataTextProperty,
+            IsCompactProperty,
+            LineThicknessProperty,
+            TargetOpacityProperty);
     }
 
     public TemperatureChart()
     {
         _refreshOnUiThread = OnRefreshPosted;
         _valueLabels = new ChartLabelCache<double, FormattedText>(
-            value => Label(DiagnosticsFormatter.AxisTemperature(value), AxisBrush),
+            value => Label(DiagnosticsFormatter.AxisTemperature(value), AxisBrush, LabelFontSize),
             capacity: 32);
         _timeLabels = new ChartLabelCache<long, FormattedText>(
-            utcTicks => Label(TimeZoneInfo.ConvertTime(new DateTimeOffset(utcTicks, TimeSpan.Zero), _labelZone).ToString("t", CultureInfo.CurrentCulture), AxisBrush),
+            utcTicks => Label(TimeZoneInfo.ConvertTime(new DateTimeOffset(utcTicks, TimeSpan.Zero), _labelZone).ToString("t", CultureInfo.CurrentCulture), AxisBrush, LabelFontSize),
             capacity: 64);
         ClipToBounds = true;
+        _ancestorChanged = OnAncestorPropertyChanged;
     }
 
     public TelemetryHistory? History
@@ -139,7 +171,7 @@ public sealed class TemperatureChart : Control
         set => SetValue(PrinterIdProperty, value);
     }
 
-    /// <summary>Shown range ending now (at least one minute).</summary>
+    /// <summary>Shown range ending now (at least one minute); the compact chart always shows <see cref="CompactTimeWindow"/>.</summary>
     public TimeSpan TimeWindow
     {
         get => GetValue(TimeWindowProperty);
@@ -185,9 +217,57 @@ public sealed class TemperatureChart : Control
         set => SetValue(NoDataTextProperty, value);
     }
 
+    /// <summary>
+    /// The sparkline of the overlay (T-084): no axes, labels or grid, the plot fills the control, the range is
+    /// <see cref="CompactTimeWindow"/> and "no data" is 12 instead of 11.
+    /// </summary>
+    public bool IsCompact
+    {
+        get => GetValue(IsCompactProperty);
+        set => SetValue(IsCompactProperty, value);
+    }
+
+    /// <summary>Thickness of the actual temperature lines (the dashed targets are always 1).</summary>
+    public double LineThickness
+    {
+        get => GetValue(LineThicknessProperty);
+        set => SetValue(LineThicknessProperty, value);
+    }
+
+    /// <summary>Opacity of the dashed target lines on top of their brush's own (0–1; the overlay draws them at 70 %).</summary>
+    public double TargetOpacity
+    {
+        get => GetValue(TargetOpacityProperty);
+        set => SetValue(TargetOpacityProperty, value);
+    }
+
+    /// <summary>The prepared data of the last render (tests).</summary>
+    internal TemperatureChartData Data => _data;
+
+    /// <summary>The chart listens to <see cref="TelemetryHistory.Changed"/> (tests: nothing while closed or hidden).</summary>
+    internal bool IsSubscribedToHistory => _subscribedHistory is not null;
+
+    /// <summary>The last render drew "no data" instead of lines.</summary>
+    internal bool ShowsNoData => _showNoData;
+
+    /// <summary>The last render drew axis labels or a grid.</summary>
+    internal bool HasAxes => _valueGrid is not null || _valueLabelPlacements.Count > 0 || _timeLabelPlacements.Count > 0;
+
+    /// <summary>How often the line geometries were rebuilt (tests: only for new data, a new size or new brushes).</summary>
+    internal int SeriesRebuilds { get; private set; }
+
+    /// <summary>The pen a series is drawn with; <see langword="null"/> before the first render or without a brush.</summary>
+    internal IPen? SeriesPenOf(TemperatureSeries series) => _seriesPens[(int)series];
+
+    /// <summary>The shown range: <see cref="CompactTimeWindow"/> in the compact mode, otherwise <see cref="TimeWindow"/>.</summary>
+    private TimeSpan EffectiveTimeWindow => IsCompact ? CompactTimeWindow : TimeWindow;
+
     public override void Render(DrawingContext context)
     {
-        Rect plot = new(LeftMargin, TopMargin, Bounds.Width - LeftMargin - RightMargin, Bounds.Height - TopMargin - BottomMargin);
+        bool compact = IsCompact;
+        Rect plot = compact
+            ? new Rect(Bounds.Size)
+            : new(LeftMargin, TopMargin, Bounds.Width - LeftMargin - RightMargin, Bounds.Height - TopMargin - BottomMargin);
         if (plot.Width < 1 || plot.Height < 1)
         {
             return;
@@ -203,7 +283,7 @@ public sealed class TemperatureChart : Control
             _refreshRequested = false;
         }
 
-        bool dataChanged = history is not null && _data.Update(history, printerId, _to - TimeWindow, _to, (int)plot.Width);
+        bool dataChanged = history is not null && _data.Update(history, printerId, _to - EffectiveTimeWindow, _to, (int)plot.Width);
         bool hasData = history is not null && float.IsFinite(_data.MaxValue);
         EnsurePens();
         EnsureLabelCaches(clock);
@@ -214,12 +294,12 @@ public sealed class TemperatureChart : Control
         bool layoutChanged = _visualsDirty || plot != _plot || top != _top || step != _step;
         if (layoutChanged)
         {
-            RebuildValueAxis(plot, top, step);
+            RebuildValueAxis(plot, top, step, compact);
         }
 
         if (layoutChanged || dataChanged)
         {
-            RebuildTimeAxis(plot);
+            RebuildTimeAxis(plot, compact);
             RebuildSeries(plot, top, hasData);
         }
 
@@ -228,7 +308,7 @@ public sealed class TemperatureChart : Control
         _step = step;
         _visualsDirty = false;
 
-        if (_gridPen is not null)
+        if (_gridPen is not null && !compact)
         {
             if (_valueGrid is not null)
             {
@@ -270,13 +350,13 @@ public sealed class TemperatureChart : Control
     {
         base.OnPropertyChanged(change);
         AvaloniaProperty property = change.Property;
-        if (property == HistoryProperty)
+        if (property == IsVisibleProperty)
         {
-            if (_isAttached)
-            {
-                Subscribe(History);
-            }
-
+            OnVisibilityChanged();
+        }
+        else if (property == HistoryProperty)
+        {
+            UpdateSubscription();
             _refreshRequested = true;
         }
         else if (property == PrinterIdProperty)
@@ -288,7 +368,16 @@ public sealed class TemperatureChart : Control
         {
             _refreshRequested = true;
         }
-        else if (property == NozzleBrushProperty || property == BedBrushProperty || property == GridBrushProperty)
+        else if (property == IsCompactProperty)
+        {
+            // The compact chart keeps only its hour of samples, not a buffer of the whole history (up to ~4 MB).
+            _data.SizeBufferToRange = IsCompact;
+            _noDataLabel = null;
+            _refreshRequested = true;
+            _visualsDirty = true;
+        }
+        else if (property == NozzleBrushProperty || property == BedBrushProperty || property == GridBrushProperty
+            || property == LineThicknessProperty || property == TargetOpacityProperty)
         {
             _pensDirty = true;
             _visualsDirty = true;
@@ -310,7 +399,14 @@ public sealed class TemperatureChart : Control
     {
         base.OnAttachedToVisualTree(e);
         _isAttached = true;
-        Subscribe(History);
+        // Avalonia raises no public event when an ancestor hides this control: watch the ancestors' IsVisible.
+        for (Visual? ancestor = this.GetVisualParent(); ancestor is not null; ancestor = ancestor.GetVisualParent())
+        {
+            ancestor.PropertyChanged += _ancestorChanged;
+            _ancestors.Add(ancestor);
+        }
+
+        UpdateSubscription();
         _refreshRequested = true;
         InvalidateVisual();
     }
@@ -319,12 +415,24 @@ public sealed class TemperatureChart : Control
     {
         // The window closed: no more work for history changes.
         _isAttached = false;
-        Subscribe(null);
+        foreach (Visual ancestor in _ancestors)
+        {
+            ancestor.PropertyChanged -= _ancestorChanged;
+        }
+
+        _ancestors.Clear();
+        UpdateSubscription();
         base.OnDetachedFromVisualTree(e);
     }
 
     private static TimeSpan CoerceTimeWindow(AvaloniaObject sender, TimeSpan value) =>
         value < TimeSpan.FromMinutes(1) ? TimeSpan.FromMinutes(1) : value;
+
+    private static double CoerceLineThickness(AvaloniaObject sender, double value) =>
+        double.IsFinite(value) && value > 0 ? value : 1;
+
+    private static double CoerceOpacity(AvaloniaObject sender, double value) =>
+        double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 1;
 
     private static StreamGeometry BuildSeries(ReadOnlySpan<ChartColumn> columns, Rect plot, double top)
     {
@@ -377,8 +485,48 @@ public sealed class TemperatureChart : Control
 
     private static double ValueToY(double value, Rect plot, double top) => plot.Bottom - (value / top * plot.Height);
 
-    private static FormattedText Label(string text, IBrush? brush) =>
-        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, LabelFontSize, brush ?? Brushes.Gray);
+    private static FormattedText Label(string text, IBrush? brush, double fontSize) =>
+        new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, fontSize, brush ?? Brushes.Gray);
+
+    private static Pen? SeriesPen(IBrush? brush, double thickness, IDashStyle? dash) =>
+        brush is null ? null : new Pen(brush, thickness, dash, PenLineCap.Round, PenLineJoin.Round);
+
+    /// <summary><paramref name="brush"/> with its opacity multiplied by <paramref name="opacity"/> (solid colours only).</summary>
+    private static IBrush? Faded(IBrush? brush, double opacity) =>
+        opacity < 1 && brush is ISolidColorBrush solid ? new ImmutableSolidColorBrush(solid.Color, solid.Opacity * opacity) : brush;
+
+    /// <summary>Listens to the history only while attached and shown (this control and all its ancestors visible).</summary>
+    private void UpdateSubscription() => Subscribe(IsShownInTree() ? History : null);
+
+    /// <summary>
+    /// Like <see cref="Visual.IsEffectivelyVisible"/>, but computed from the watched ancestors, so that it is right
+    /// while an ancestor's IsVisible change is still being raised.
+    /// </summary>
+    private bool IsShownInTree()
+    {
+        if (!_isAttached || !IsVisible)
+        {
+            return false;
+        }
+
+        foreach (Visual ancestor in _ancestors)
+        {
+            if (!ancestor.IsVisible)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void OnAncestorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == IsVisibleProperty)
+        {
+            OnVisibilityChanged();
+        }
+    }
 
     private void Subscribe(TelemetryHistory? history)
     {
@@ -396,6 +544,18 @@ public sealed class TemperatureChart : Control
         if (history is not null)
         {
             history.Changed += OnHistoryChanged;
+        }
+    }
+
+    /// <summary>Shown again: listen and redraw with what was recorded meanwhile; hidden: stop listening.</summary>
+    private void OnVisibilityChanged()
+    {
+        bool wasSubscribed = _subscribedHistory is not null;
+        UpdateSubscription();
+        if (!wasSubscribed && _subscribedHistory is not null)
+        {
+            _refreshRequested = true;
+            InvalidateVisual();
         }
     }
 
@@ -434,14 +594,13 @@ public sealed class TemperatureChart : Control
 
         _pensDirty = false;
         _gridPen = GridBrush is { } grid ? new Pen(grid, 1) : null;
-        _seriesPens[(int)TemperatureSeries.NozzleActual] = SeriesPen(NozzleBrush, ActualThickness, null);
-        _seriesPens[(int)TemperatureSeries.NozzleTarget] = SeriesPen(NozzleBrush, TargetThickness, TargetDash);
-        _seriesPens[(int)TemperatureSeries.BedActual] = SeriesPen(BedBrush, ActualThickness, null);
-        _seriesPens[(int)TemperatureSeries.BedTarget] = SeriesPen(BedBrush, TargetThickness, TargetDash);
+        double thickness = LineThickness;
+        double targetOpacity = TargetOpacity;
+        _seriesPens[(int)TemperatureSeries.NozzleActual] = SeriesPen(NozzleBrush, thickness, null);
+        _seriesPens[(int)TemperatureSeries.NozzleTarget] = SeriesPen(Faded(NozzleBrush, targetOpacity), TargetThickness, TargetDash);
+        _seriesPens[(int)TemperatureSeries.BedActual] = SeriesPen(BedBrush, thickness, null);
+        _seriesPens[(int)TemperatureSeries.BedTarget] = SeriesPen(Faded(BedBrush, targetOpacity), TargetThickness, TargetDash);
     }
-
-    private static Pen? SeriesPen(IBrush? brush, double thickness, IDashStyle? dash) =>
-        brush is null ? null : new Pen(brush, thickness, dash, PenLineCap.Round, PenLineJoin.Round);
 
     /// <summary>Drops cached labels when the culture or the time zone changed (the brush is handled in <see cref="OnPropertyChanged"/>).</summary>
     private void EnsureLabelCaches(TimeProvider clock)
@@ -470,10 +629,16 @@ public sealed class TemperatureChart : Control
         _noDataLabel = null;
     }
 
-    /// <summary>Horizontal grid lines and °C labels; only when the value range or the size changed.</summary>
-    private void RebuildValueAxis(Rect plot, double top, double step)
+    /// <summary>Horizontal grid lines and °C labels; only when the value range or the size changed. None when compact.</summary>
+    private void RebuildValueAxis(Rect plot, double top, double step, bool compact)
     {
         _valueLabelPlacements.Clear();
+        if (compact)
+        {
+            _valueGrid = null;
+            return;
+        }
+
         StreamGeometry grid = new();
         using (StreamGeometryContext lines = grid.Open())
         {
@@ -492,15 +657,23 @@ public sealed class TemperatureChart : Control
         _valueGrid = grid;
     }
 
-    /// <summary>Tick positions and labels at round local times (DST-aware); a label is created only for a new tick.</summary>
-    private void RebuildTimeAxis(Rect plot)
+    /// <summary>
+    /// Tick positions and labels at round local times (DST-aware); a label is created only for a new tick. None when
+    /// compact.
+    /// </summary>
+    private void RebuildTimeAxis(Rect plot, bool compact)
     {
+        _tickXs.Clear();
+        _timeLabelPlacements.Clear();
+        if (compact)
+        {
+            return;
+        }
+
         TimeSpan window = TimeWindow;
         DateTimeOffset from = _to - window;
         TimeSpan step = ChartScale.TimeStep(window, Math.Max(2, (int)(plot.Width / 90)));
         ChartScale.TimeTicks(from, _to, step, _labelZone, _ticks);
-        _tickXs.Clear();
-        _timeLabelPlacements.Clear();
         foreach (DateTimeOffset tick in _ticks)
         {
             double x = Math.Round(plot.Left + ((tick - from).Ticks / (double)window.Ticks * plot.Width)) + 0.5;
@@ -514,6 +687,7 @@ public sealed class TemperatureChart : Control
     /// <summary>Line geometries of the series; with every data change (the only per-poll allocation besides a new tick label).</summary>
     private void RebuildSeries(Rect plot, double top, bool hasData)
     {
+        SeriesRebuilds++;
         for (int s = 0; s < TemperatureChartData.SeriesCount; s++)
         {
             ReadOnlySpan<ChartColumn> columns = _data.GetColumns((TemperatureSeries)s);
@@ -523,7 +697,7 @@ public sealed class TemperatureChart : Control
         _showNoData = !hasData;
         if (_showNoData && _noDataLabel is null && !string.IsNullOrEmpty(NoDataText))
         {
-            _noDataLabel = Label(NoDataText, AxisBrush);
+            _noDataLabel = Label(NoDataText, AxisBrush, IsCompact ? CompactNoDataFontSize : LabelFontSize);
         }
     }
 }

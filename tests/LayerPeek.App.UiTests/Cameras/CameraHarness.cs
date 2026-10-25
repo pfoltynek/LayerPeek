@@ -11,6 +11,7 @@ using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.App.Windows;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -54,6 +55,9 @@ internal sealed class CameraHarness : IAsyncDisposable
     public FakeCameraFeedFactory Factory { get; } = new();
 
     public FakeTimeProvider Time { get; } = new();
+
+    /// <summary>The telemetry history the windows chart (T-084); empty and not configured until a test records samples.</summary>
+    public TelemetryHistory History { get; } = new();
 
     public FakePrinterMonitor Monitor { get; } = new();
 
@@ -109,7 +113,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History);
         _created.Add(viewModel);
         return viewModel;
     }
