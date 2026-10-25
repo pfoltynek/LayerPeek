@@ -86,6 +86,7 @@ public sealed class CooldownTracker
     private DateTimeOffset? _printEndedAt;
     private DateTimeOffset? _cooledDownAt;
     private bool _cooled;
+    private bool _endedBelowThreshold;
     private double _highestNozzle = double.NaN;
     private double _lastNozzle = double.NaN;
     private double _previousNozzle = double.NaN;
@@ -350,7 +351,9 @@ public sealed class CooldownTracker
 
         _cooled = true;
         _cooledDownAt = _lastTimestamp;
-        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName, _outcome, _lastNozzle, threshold) : null;
+        // Decided once with the threshold that confirmed it (like the event), so a later threshold change keeps it.
+        _endedBelowThreshold = !(_highestNozzle > threshold);
+        return !_endedBelowThreshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName, _outcome, _lastNozzle, threshold) : null;
     }
 
     private CooldownState BuildState(DateTimeOffset timestamp)
@@ -373,8 +376,8 @@ public sealed class CooldownTracker
             remaining = _estimator.EstimateRemaining(threshold, timestamp);
         }
 
-        // Cooled down although no reading since the end of the print was above the threshold.
-        bool endedBelowThreshold = phase == CooldownPhase.CooledDown && !(_highestNozzle > threshold);
+        // Cooled down although no reading since the end of the print was above the threshold that confirmed it.
+        bool endedBelowThreshold = phase == CooldownPhase.CooledDown && _endedBelowThreshold;
         return new CooldownState(
             phase, _lastNozzle, _bed, threshold, progress, remaining, _startedAt, timestamp, _outcome, _printEndedAt, _cooledDownAt, endedBelowThreshold);
     }
@@ -384,6 +387,7 @@ public sealed class CooldownTracker
         _stage = Stage.None;
         _state = CooldownState.None;
         _cooled = false;
+        _endedBelowThreshold = false;
         _coolingFileName = null;
         _outcome = CooldownPrintOutcome.None;
         _printEndedAt = _cooledDownAt = null;

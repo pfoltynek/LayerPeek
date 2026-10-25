@@ -45,9 +45,11 @@ internal readonly record struct MiniStripContent(MiniStripKind Kind, PrinterStat
 {
     /// <summary>
     /// The content for <paramref name="snapshot"/> and the cool-down state of the printer: the active job first (the next
-    /// print ends any cool-down), then the cool-down of a reachable printer, else the state name. Allocates nothing.
+    /// print ends any cool-down), then the cool-down of a reachable printer, else the state name. The cool-down estimate
+    /// follows the rules of the Cool-down widget (<see cref="CooldownEstimate.Minutes"/> at <paramref name="now"/>: never
+    /// "0 min", none for a stale state). Allocates nothing.
     /// </summary>
-    public static MiniStripContent Of(PrinterSnapshot? snapshot, in CooldownState cooldown)
+    public static MiniStripContent Of(PrinterSnapshot? snapshot, in CooldownState cooldown, DateTimeOffset now)
     {
         PrinterState? state = snapshot?.State;
         if (OverlayValues.ActiveJob(snapshot) is { } job)
@@ -63,7 +65,7 @@ internal readonly record struct MiniStripContent(MiniStripKind Kind, PrinterStat
             && OverlayValues.Temperature(new Temperature(cooldown.NozzleCelsius ?? double.NaN, null)) is { } nozzle)
         {
             return cooldown.Phase == CooldownPhase.Cooling
-                ? new MiniStripContent(MiniStripKind.Cooling, state, 0, cooldown.EstimatedRemaining is { } left ? ToolTipContent.CeilingMinutes(left) : null, nozzle.Actual)
+                ? new MiniStripContent(MiniStripKind.Cooling, state, 0, CooldownEstimate.Minutes(cooldown, now), nozzle.Actual)
                 : new MiniStripContent(MiniStripKind.Cooled, state, 0, null, nozzle.Actual);
         }
 
@@ -98,7 +100,9 @@ internal readonly record struct MiniChartValues(long? Nozzle, long? Bed)
 /// Snapshots and cool-down changes arrive on the monitor thread: the content is computed there under a lock with the shared
 /// rules of the Status and Times widgets (<see cref="OverlayValues"/>, <see cref="OverlayFormat"/>), and one update is
 /// posted to the UI thread only when it changed (a poll that changes nothing visible allocates nothing). Texts are
-/// formatted on the UI thread, and again after a language switch.
+/// formatted on the UI thread, and again after a language switch. The cool-down estimate follows the rules of the
+/// Cool-down widget (T-088, <see cref="CooldownEstimate"/>) and, while it is shown, counts down with the window clock
+/// (<see cref="CooldownCountdown"/>) also without snapshots.
 /// </para>
 /// <para>
 /// The name row is the compact template of the Print name widget over its own <see cref="PrintNameWidgetViewModel"/>
@@ -132,6 +136,7 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private readonly string _printerId;
     private readonly IUiDispatcher _dispatcher;
     private readonly CooldownMonitor? _cooldown;
+    private readonly CooldownCountdown? _countdown;
     private readonly PrintNameWidgetViewModel _name = new();
     private readonly Action _apply;
     private readonly Lock _gate = new();
@@ -200,6 +205,8 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         _chartComputing = rows.Chart;
         if (_cooldown is not null)
         {
+            // T-088: a shown estimate counts down with the window clock also while no snapshots arrive.
+            _countdown = new CooldownCountdown(Clock, Recompute);
             _cooldown.Changed += OnCooldownChanged;
         }
 
@@ -424,6 +431,9 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     /// <summary>The content shown now (tests).</summary>
     internal MiniStripContent ShownContent => _shown;
 
+    /// <summary>The clock that counts a shown cool-down estimate down runs (tests).</summary>
+    internal bool IsTicking => _countdown?.IsTicking ?? false;
+
     /// <summary>
     /// UI thread, the window opens: the latest snapshot the monitor had (read after subscribing) is shown right away,
     /// unless a newer one arrived meanwhile through <see cref="OnSnapshot"/>.
@@ -525,17 +535,23 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
             _cooldown.Changed -= OnCooldownChanged;
         }
 
+        _countdown?.Dispose();
+
         _name.Dispose();
     }
 
     // Monitor thread (or whoever configures the cool-down monitor).
     private void OnCooldownChanged(object? sender, string printerId)
     {
-        if (!string.Equals(printerId, _printerId, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(printerId, _printerId, StringComparison.OrdinalIgnoreCase))
         {
-            return;
+            Recompute();
         }
+    }
 
+    // Monitor thread or the countdown's timer: the content again; one update is posted only when it changed.
+    private void Recompute()
+    {
         bool post;
         lock (_gate)
         {
@@ -558,7 +574,8 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private bool ComputeLocked()
     {
         CooldownState cooldown = _cooldown?.GetState(_printerId) ?? CooldownState.None;
-        MiniStripContent content = MiniStripContent.Of(_snapshot, cooldown);
+        MiniStripContent content = MiniStripContent.Of(_snapshot, cooldown, Clock.GetUtcNow());
+        _countdown?.Set(content.Kind == MiniStripKind.Cooling && content.Minutes is not null);
         bool changed = false;
         if (!_hasComputed || content != _computed)
         {

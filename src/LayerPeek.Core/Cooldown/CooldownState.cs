@@ -34,8 +34,8 @@ namespace LayerPeek.Core.Cooldown;
 /// <see cref="CooldownEvent.Timestamp"/> when there is an event); <see langword="null"/> while cooling.
 /// </param>
 /// <param name="EndedBelowThreshold">
-/// Cooled down without cooling: no reading of the nozzle since the print ended was above the threshold (user decision
-/// Q5 of T-079, no event). The cool-down widget then shows when the print ended but not "cooled down in" (design T-076
+/// Cooled down without cooling: no reading of the nozzle since the print ended was above the threshold that confirmed
+/// "cooled down" (user decision Q5 of T-079, no event); a later threshold change keeps it. The cool-down widget then shows when the print ended but not "cooled down in" (design T-076
 /// 2.5). <see langword="false"/> while cooling.
 /// </param>
 public readonly record struct CooldownState(

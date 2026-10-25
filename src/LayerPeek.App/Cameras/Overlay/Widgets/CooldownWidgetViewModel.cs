@@ -66,15 +66,11 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     /// <summary>Narrowest card per size (T-076 2.5: M min 240, L min 280; S has no minimum).</summary>
     public static readonly OverlayWidgetMinWidths MinWidths = new(0, 240, 280);
 
-    /// <summary>
-    /// The age of a state beyond which its estimate is not shown: the longest gap between snapshots the monitor still
-    /// counts as observed (3 × the longest polling interval of 5 min, <see cref="CooldownTracker.GapLimit"/>). An older
-    /// state means monitoring stopped; the monitor ends the cool-down at the next snapshot anyway.
-    /// </summary>
-    public static readonly TimeSpan StaleAfter = TimeSpan.FromMinutes(15);
+    /// <summary>The age of a state beyond which its estimate is not shown (shared with the mini preview strip: <see cref="CooldownEstimate.StaleAfter"/>).</summary>
+    public static readonly TimeSpan StaleAfter = CooldownEstimate.StaleAfter;
 
-    /// <summary>How often the shown estimate is computed again without snapshots (the minutes lag at most this much).</summary>
-    public static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(15);
+    /// <summary>How often the shown estimate is computed again without snapshots (<see cref="CooldownEstimate.TickInterval"/>).</summary>
+    public static readonly TimeSpan TickInterval = CooldownEstimate.TickInterval;
 
     private static readonly PropertyChangedEventArgs[] PartsChanged =
     [
@@ -83,14 +79,8 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     ];
 
     private readonly CooldownMonitor? _cooldown;
-    private readonly TimeProvider _time;
-    private readonly Lock _tickerGate = new();
+    private readonly CooldownCountdown? _countdown;
     private readonly EventHandler<string>? _onChanged;
-
-    // Guarded by _tickerGate.
-    private ITimer? _ticker;
-    private bool _ticking;
-    private bool _disposed;
 
     // UI thread: the texts of the shown content.
     private string _title = string.Empty;
@@ -106,10 +96,10 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     {
         ArgumentNullException.ThrowIfNull(context);
         PrinterId = context.PrinterId;
-        _time = context.Time;
         _cooldown = context.Cooldown;
         if (_cooldown is not null)
         {
+            _countdown = new CooldownCountdown(context.Time, RequestUpdate);
             _onChanged = OnCooldownChanged;
             _cooldown.Changed += _onChanged;
             IsListening = true;
@@ -179,16 +169,7 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     internal bool IsListening { get; private set; }
 
     /// <summary>The clock that counts the shown estimate down runs.</summary>
-    internal bool IsTicking
-    {
-        get
-        {
-            lock (_tickerGate)
-            {
-                return _ticking;
-            }
-        }
-    }
+    internal bool IsTicking => _countdown?.IsTicking ?? false;
 
     /// <summary>How many times the content was computed (tests: per snapshot, per change of the monitor and per tick).</summary>
     internal int ComputeCount { get; private set; }
@@ -226,7 +207,7 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
                 bed,
                 state.ThresholdCelsius,
                 (int)Math.Floor(progress * 100),
-                EstimateMinutes(state, input.Now),
+                CooldownEstimate.Minutes(state, input.Now),
                 default,
                 null,
                 null);
@@ -256,26 +237,12 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
             cooledIn);
     }
 
-    /// <summary>The whole minutes of a running, fresh estimate; <see langword="null"/> for none, an expired or a stale one.</summary>
-    private static long? EstimateMinutes(in CooldownState state, DateTimeOffset now)
-    {
-        if (state.EstimatedRemaining is not { } remaining
-            || remaining <= TimeSpan.Zero
-            || state.UpdatedAt is not { } updatedAt
-            || now - updatedAt > StaleAfter)
-        {
-            return null;
-        }
-
-        return ToolTipContent.CeilingMinutes(remaining);
-    }
-
     protected override CooldownContent ComputeContent(in OverlayWidgetInput input)
     {
         ComputeCount++;
         CooldownState state = _cooldown?.GetState(PrinterId) ?? CooldownState.None;
         CooldownContent content = ContentOf(input, state);
-        SetTicking(content.EstimateMinutes is not null);
+        _countdown?.Set(content.EstimateMinutes is not null);
         return content;
     }
 
@@ -325,13 +292,7 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
             }
 
             IsListening = false;
-            lock (_tickerGate)
-            {
-                _disposed = true;
-                _ticking = false;
-                _ticker?.Dispose();
-                _ticker = null;
-            }
+            _countdown?.Dispose();
         }
 
         base.Dispose(disposing);
@@ -351,32 +312,6 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
         if (string.Equals(printerId, PrinterId, StringComparison.OrdinalIgnoreCase))
         {
             RequestUpdate();
-        }
-    }
-
-    /// <summary>Under the overlay's lock: starts or stops the clock; allocates only when it starts the first time.</summary>
-    private void SetTicking(bool ticking)
-    {
-        lock (_tickerGate)
-        {
-            if (ticking == _ticking || _disposed)
-            {
-                return;
-            }
-
-            _ticking = ticking;
-            if (!ticking)
-            {
-                _ticker?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-            }
-            else if (_ticker is null)
-            {
-                _ticker = _time.CreateTimer(static state => ((CooldownWidgetViewModel)state!).RequestUpdate(), this, TickInterval, TickInterval);
-            }
-            else
-            {
-                _ticker.Change(TickInterval, TickInterval);
-            }
         }
     }
 }

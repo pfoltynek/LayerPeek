@@ -219,7 +219,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     {
         CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 0.3, minutes is { } m ? TimeSpan.FromMinutes(m) : null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
 
-        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling);
+        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now);
         (string summary, string accessible) = CameraMiniStripViewModel.Texts(content);
 
         Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, minutes is null ? null : 6, 87), content);
@@ -232,13 +232,13 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     {
         CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 1, null, Now, Now, CooldownPrintOutcome.Stopped, Now, Now);
 
-        Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(null, cooled).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = null }).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = double.NaN }).Kind);
+        Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(null, cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = null }, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = double.NaN }, Now).Kind);
         // An active job wins: the next print ended the cool-down.
-        Assert.Equal(MiniStripKind.Job, MiniStripContent.Of(Printing(), cooled).Kind);
+        Assert.Equal(MiniStripKind.Job, MiniStripContent.Of(Printing(), cooled, Now).Kind);
     }
 
     [Fact]
