@@ -3,6 +3,7 @@
         xmlns:vm="using:LayerPeek.App.Cameras"
         xmlns:loc="using:LayerPeek.App.Localization"
         xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+        xmlns:mini="using:LayerPeek.App.Cameras.Mini"
         x:Class="LayerPeek.App.Windows.CameraWindow"
         x:DataType="vm:CameraViewModel"
         Title="{Binding Title}"
@@ -60,7 +61,8 @@
     </Style>
   </Window.Styles>
 
-  <Grid x:Name="Root" Background="Black">
+  <!-- Row 0: the image and everything over it. Row 1: the info strip of the mini preview (T-089); empty in the other modes. -->
+  <Grid x:Name="Root" Background="Black" RowDefinitions="*,Auto">
     <!-- Whole client area: double-click switches modes, dragging moves the mini preview. -->
     <Border x:Name="Surface"
             Background="Black"
@@ -147,8 +149,20 @@
       </Button>
     </StackPanel>
 
-    <!-- The mini preview has no window frame: these edges resize it. -->
-    <Grid IsVisible="{Binding IsMini}" RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
+    <!--
+      Mini preview (T-089): the info strip below the image, not over it. Pressing and dragging it moves the window like the
+      image (not over its buttons, which handle their presses). Keep the mini preview parts in this region.
+    -->
+    <Panel Grid.Row="1" IsVisible="{Binding IsMini}">
+      <mini:CameraMiniStrip x:Name="MiniStrip"
+                            DataContext="{Binding MiniStrip}"
+                            PointerPressed="OnSurfacePointerPressed"
+                            PointerMoved="OnSurfacePointerMoved"
+                            PointerReleased="OnSurfacePointerReleased" />
+    </Panel>
+
+    <!-- The mini preview has no window frame: these edges resize it (also along the strip). -->
+    <Grid Grid.RowSpan="2" IsVisible="{Binding IsMini}" RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
       <Border Classes="grip" Grid.Row="0" Grid.Column="0" Cursor="TopLeftCorner" Tag="{x:Static WindowEdge.NorthWest}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="0" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.North}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="0" Grid.Column="2" Cursor="TopRightCorner" Tag="{x:Static WindowEdge.NorthEast}" PointerPressed="OnGripPointerPressed" />

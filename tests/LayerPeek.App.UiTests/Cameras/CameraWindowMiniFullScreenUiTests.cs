@@ -23,16 +23,15 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
     private static Rect BoundsIn(Control control, Visual root) =>
         new(control.TranslatePoint(default, root) ?? throw new InvalidOperationException("Not in the window."), control.Bounds.Size);
 
-    /// <summary>The mini preview at its minimum size (160 × 90).</summary>
+    /// <summary>The mini preview at its minimum size: 240 wide, the 16:9 image (135) and the info strip (33) below it (T-089).</summary>
     private static CameraWindow OpenSmallestMini(CameraHarness harness)
     {
         CameraWindow window = harness.Open();
         window.Settle();
         Assert.True(ViewModel(window).IsMini);
-        window.Width = window.MinWidth;
-        window.Height = window.MinHeight;
+        CameraHarness.ResizeMiniWithGrip(window, window.MinWidth, window.MinHeight);
         window.Settle();
-        Assert.Equal(new Size(160, 90), window.ClientSize);
+        Assert.Equal(new Size(240, 168), window.ClientSize);
         return window;
     }
 
@@ -256,14 +255,12 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
         {
             await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: MiniFirst);
             (CameraWindow window, _) = await harness.OpenStreamingAsync(320, 180, 0xFF406080);
-            window.Width = window.MinWidth;
-            window.Height = window.MinHeight;
-            window.Settle();
-
             // The buttons appear while the pointer is over the window; the fade-in is skipped (it runs on real time).
             StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
             Assert.Equal(0, buttons.Opacity);
             buttons.Transitions = null;
+            CameraHarness.ResizeMiniWithGrip(window, window.MinWidth, window.MinHeight);
+            Assert.Equal(new Size(240, 168), window.ClientSize);
             window.MouseMove(new Point(40, 60), RawInputModifiers.None);
             window.Settle();
 

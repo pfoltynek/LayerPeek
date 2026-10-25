@@ -34,6 +34,17 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
         return (new PixelPoint(placement.X, placement.Y), new Size(placement.Width, placement.Height));
     }
 
+    /// <summary>
+    /// Where the mini preview should be: the image of <paramref name="layout"/> placed on <paramref name="screen"/>, with the
+    /// 33 DIP info strip added by the growth rule (T-089).
+    /// </summary>
+    private static (PixelPoint Position, Size Size) ExpectedMini(CameraWindowLayout layout, CameraScreen screen)
+    {
+        CameraWindowPlacement image = CameraWindowPlanner.Place(layout, screen, WindowChrome.None);
+        CameraWindowPlacement window = CameraMiniGeometry.FromImage(image, screen.Scaling, screen.UsableArea, null, 33);
+        return (new PixelPoint(window.X, window.Y), new Size(window.Width, window.Height));
+    }
+
     private static CameraScreen ScreenAt(FakeScreenCatalog screens, int x) => screens.GetScreens().Single(screen => screen.Bounds.X == x);
 
     private static void AssertPlaced(CameraWindow window, (PixelPoint Position, Size Size) expected)
@@ -180,9 +191,10 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
             Assert.True(ViewModel(window).IsMini);
             Assert.Equal(WindowDecorations.None, window.WindowDecorations);
             Assert.True(window.Topmost);
-            // Bottom right of the primary work area (2560 × 1392) with 16 px, no frame.
-            Assert.Equal(new PixelPoint(2224, 1196), window.Position);
-            Assert.Equal(new Size(320, 180), window.ClientSize);
+            // Bottom right of the primary work area (2560 × 1392) with 16 px, no frame: the 320 × 180 image with the
+            // 33 DIP info strip below it, grown up from the bottom edge (T-089).
+            Assert.Equal(new PixelPoint(2224, 1196 - 33), window.Position);
+            Assert.Equal(new Size(320, 213), window.ClientSize);
         });
 
     [Fact]
@@ -235,9 +247,9 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
             CameraWindow window = harness.Open();
             window.Settle();
 
-            // T-035 Q2: the remembered mode, at the default position and size.
+            // T-035 Q2: the remembered mode, at the default position and size (of the image, with the strip, T-089).
             Assert.True(ViewModel(window).IsMini);
-            AssertPlaced(window, Expected(defaults.Mini, ScreenAt(screens, 0), CameraWindowMode.Mini));
+            AssertPlaced(window, ExpectedMini(defaults.Mini, ScreenAt(screens, 0)));
         });
 
     [Fact]
@@ -277,9 +289,10 @@ public sealed class CameraWindowPlacementUiTests(HeadlessSession session)
             ViewModel(window).ShowMiniCommand.Execute(null);
             Dispatcher.UIThread.RunJobs();
 
-            // 150 %: 480 × 270 px with 24 px from the bottom right of the work area (-1920, 200, 1920, 1032).
-            Assert.Equal(new PixelPoint(-504, 938), window.Position);
-            Assert.Equal(new Size(320, 180), window.ClientSize);
+            // 150 %: the 480 × 270 px image with 24 px from the bottom right of the work area (-1920, 200, 1920, 1032), the
+            // window 213 DIP = 320 px high grown up from there (T-089).
+            Assert.Equal(new PixelPoint(-504, 938 + 270 - 320), window.Position);
+            Assert.Equal(new Size(320, 213), window.ClientSize);
 
             // Back to the normal window: where it was (remembered when it left).
             ViewModel(window).ShowNormalCommand.Execute(null);

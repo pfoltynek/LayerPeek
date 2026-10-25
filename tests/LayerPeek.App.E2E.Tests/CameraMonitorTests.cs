@@ -27,7 +27,11 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
     /// <summary>A normal window size that fits with its margins even on a 1440 px wide monitor at 150 %.</summary>
     private static readonly (int Width, int Height) NormalSize = (640, 360);
 
-    private static readonly (int Width, int Height) MiniSize = (320, 180);
+    /// <summary>
+    /// The default 320 × 180 image of the mini preview with its 33 DIP info strip below it (T-089); the simulator's clip is
+    /// 16:9 (1280 × 720), so the first frame keeps the height.
+    /// </summary>
+    private static readonly (int Width, int Height) MiniSize = (320, 213);
 
     /// <summary>How long the window must keep still after it was shown (T-071).</summary>
     private static readonly TimeSpan SettleTime = TimeSpan.FromSeconds(1);

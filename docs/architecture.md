@@ -114,6 +114,11 @@ Jediný `Border` s řádky z T-036 nahradil systém widgetů. Otázky rozhodl u�
   - Údaje nejsou přes obraz, ale v informačním pásu **pod** obrazem. Obraz má poměr streamu, výchozí 16:9.
   - Velikost 320×180 z nastavení je velikost obrazu, pás se přičte. Minimální šířka je 240.
   - Výška okna se dopočítá po změně velikosti úchytem a při rozbalení řádků (název, graf). Okno roste od nejbližšího okraje obrazovky a ořízne se na pracovní plochu.
+  - Implementace (T-089):
+    - geometrie jako čisté funkce v `App/Cameras/CameraMiniGeometry` (výška ze šířky a poměru, růst od nejbližšího okraje, okno uprostřed roste na obě strany, oříznutí, minimum 240),
+    - pás: `App/Cameras/Mini/CameraMiniStripViewModel` + `CameraMiniStrip.axaml`, texty ze sdílených `OverlayValues` / `OverlayFormat` (jako Stav a Časy), vychladnutí z `CooldownMonitor`; okno: `Windows/CameraWindow.Mini.cs`,
+    - pamatovaná i výchozí poloha malého náhledu je **obdélník obrazu**, ze kterého okno vyroste o pás. Pamatuje se inverzí růstu, takže se okno otevře na stejném místě. Starý stav (okno bez pásu) je takový obdélník obrazu, převod souboru proto není potřeba,
+    - poměr streamu nese `CameraViewModel.VideoAspectRatio` (z rozměrů snímku, mění se jen při změně poměru).
   - Stav sbalení (výchozí sbaleno) je u tiskárny se stavem okna v `camera-windows.json` (`CameraWindowStateStore`), ne v `settings.json`. Ukládá se i při vypnutém „pamatovat poslední umístění“ a zapomene se spolu se stavem okna.
 - **Režim rozložení (T-091):**
   - Je jen v normálním okně, vstup tlačítkem v řadě tlačítek okna a z kontextové nabídky.

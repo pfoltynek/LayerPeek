@@ -548,7 +548,7 @@ internal static class SettingsMapper
             StartMode = startMode,
             Monitor = ToMonitor(document.Monitor, subject, warnings),
             Normal = ToLayout(document.Normal, defaults.Normal, $"{subject}: normal window", warnings),
-            Mini = ToLayout(document.Mini, defaults.Mini, $"{subject}: mini preview", warnings),
+            Mini = ToMiniLayout(document.Mini, defaults.Mini, $"{subject}: mini preview", warnings),
             TopmostNormal = document.TopmostNormal ?? defaults.TopmostNormal,
             TopmostMini = document.TopmostMini ?? defaults.TopmostMini,
         };
@@ -983,6 +983,23 @@ internal static class SettingsMapper
 
         CameraWindowLayout layout = new(size, corner);
         return layout == fallback ? fallback : layout;
+    }
+
+    /// <summary>
+    /// The mini preview (T-089 Q4): as <see cref="ToLayout(CameraWindowLayoutDocument?, CameraWindowLayout, string, List{string})"/>,
+    /// and a usable width below <see cref="CameraWindowSize.MinMiniWidth"/> (saved before the info strip existed) is raised
+    /// to it with one warning; the height (of the image) stays.
+    /// </summary>
+    private static CameraWindowLayout ToMiniLayout(CameraWindowLayoutDocument? document, CameraWindowLayout fallback, string subject, List<string> warnings)
+    {
+        CameraWindowLayout layout = ToLayout(document, fallback, subject, warnings);
+        if (layout.Size.Width >= CameraWindowSize.MinMiniWidth)
+        {
+            return layout;
+        }
+
+        warnings.Add($"{subject} is narrower than {CameraWindowSize.MinMiniWidth}; the width {CameraWindowSize.MinMiniWidth} is used.");
+        return layout with { Size = new CameraWindowSize(CameraWindowSize.MinMiniWidth, layout.Size.Height) };
     }
 
     /// <summary>Whole number that fits an <see cref="int"/>; fractions, non-finite and missing values are rejected.</summary>

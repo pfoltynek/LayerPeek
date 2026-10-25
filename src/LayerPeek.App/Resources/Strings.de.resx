@@ -894,6 +894,15 @@
   <data name="CameraOverlayRemainingLabel" xml:space="preserve">
     <value>Verbleibend</value>
   </data>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Kühlt ab… {0}&#160;°C · ca. {1}</value>
+  </data>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Kühlt ab… {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Abgekühlt · {0}&#160;°C</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Einblendung</value>
   </data>

@@ -245,6 +245,46 @@ public class SettingsMapperCameraWindowTests
     }
 
     [Theory]
+    [InlineData(160, 90)]
+    [InlineData(239, 180)]
+    public void MiniPreviewNarrowerThan240IsMadeWiderWithOneWarningAndKeepsItsHeightAndCorner(int width, int height)
+    {
+        // T-089 Q4: saved before the info strip, when the mini preview could be 160 wide.
+        AppSettings settings = Load(
+            PrinterJson($$""", "camera": { "window": { "normal": { "width": 160, "height": 90 }, "mini": { "width": {{width}}, "height": {{height}}, "corner": "TopLeft" } } }"""),
+            out List<string> warnings);
+
+        CameraWindowDefaults window = Assert.Single(settings.Printers).Camera.Window;
+        Assert.Equal(new CameraWindowLayout(new CameraWindowSize(240, height), CameraWindowCorner.TopLeft), window.Mini);
+        // The normal window keeps its minimum of 160.
+        Assert.Equal(new CameraWindowSize(160, 90), window.Normal.Size);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("mini preview", warning, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("240", warning, StringComparison.Ordinal);
+        Assert.Contains("mk4", warning, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MiniPreviewOf240IsKeptWithoutAWarning()
+    {
+        AppSettings settings = Load(PrinterJson(""", "camera": { "window": { "mini": { "width": 240, "height": 135 } } }"""), out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(new CameraWindowSize(240, 135), Assert.Single(settings.Printers).Camera.Window.Mini.Size);
+    }
+
+    [Fact]
+    public void RaisedMiniWidthIsSavedAsLoaded()
+    {
+        AppSettings loaded = Load(PrinterJson(""", "camera": { "window": { "mini": { "width": 200, "height": 112 } } }"""), out _);
+
+        AppSettings again = RoundTrip(loaded, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(new CameraWindowSize(240, 112), Assert.Single(again.Printers).Camera.Window.Mini.Size);
+    }
+
+    [Theory]
     [InlineData(double.NaN, 540)]
     [InlineData(960, double.PositiveInfinity)]
     [InlineData(double.NegativeInfinity, double.NaN)]

@@ -147,6 +147,13 @@ public static class CameraWindowSizeText
     public static CameraWindowSize? Parse(string? text) =>
         TryParse(text, out int width, out int height) && CameraWindowSize.IsValid(width, height) ? new CameraWindowSize(width, height) : null;
 
+    /// <summary>
+    /// The size of the mini preview typed by the user when it is usable (at least <see cref="CameraWindowSize.MinMiniWidth"/>
+    /// wide, T-089 Q4); otherwise <see langword="null"/>.
+    /// </summary>
+    public static CameraWindowSize? ParseMini(string? text) =>
+        TryParse(text, out int width, out int height) && CameraWindowSize.IsValidMini(width, height) ? new CameraWindowSize(width, height) : null;
+
     private static bool TryParseNumber(ReadOnlySpan<char> text, out int value)
     {
         ReadOnlySpan<char> digits = text.Trim();

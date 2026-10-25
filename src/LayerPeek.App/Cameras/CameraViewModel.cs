@@ -5,12 +5,14 @@ using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Cameras.Mini;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 
@@ -129,6 +131,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private string? _lastRunFailure;
 
     /// <param name="widgets">The overlay widgets the window can draw (T-081); <see langword="null"/> = none.</param>
+    /// <param name="cooldown">The cool-down states shown in the mini preview strip (T-079, T-089); <see langword="null"/> = none.</param>
     internal CameraViewModel(
         CameraTarget target,
         ReconnectingCameraFeed feed,
@@ -140,7 +143,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         CameraFeedOptions options,
         ILogger<CameraViewModel> logger,
         ICameraMonitorPathUpdater? monitorPaths = null,
-        OverlayWidgetRegistry? widgets = null)
+        OverlayWidgetRegistry? widgets = null,
+        CooldownMonitor? cooldown = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -198,11 +202,15 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             _mode,
             snapshot: null);
 
+        // T-089: the info strip below the image of the mini preview.
+        MiniStrip = new CameraMiniStripViewModel(PrinterId, dispatcher, cooldown);
+
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
         _printers.Changed += OnPrintersChanged;
         PrinterSnapshot? current = _monitor.TryGetSnapshot(PrinterId, out PrinterSnapshot? snapshot) ? snapshot : null;
         Overlay.ShowCurrent(current);
+        MiniStrip.ShowCurrent(current);
     }
 
     /// <summary>The cards over the image (T-081): normal window and full screen, none in the mini preview.</summary>
@@ -243,6 +251,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(MiniToolTip));
         OnPropertyChanged(nameof(StatusText));
         Overlay.RefreshTexts();
+        MiniStrip.RefreshTexts();
     }
 
     public CameraWindowMode Mode
@@ -501,6 +510,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _printers.Changed -= OnPrintersChanged;
         Overlay.Dispose();
+        MiniStrip.Dispose();
         StopStream();
         _sink = null;
         if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
@@ -707,6 +717,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         {
             sink.Present(frame);
             HasFrame = true;
+            OnFrameShown(frame.Width, frame.Height);
             // A frame was shown: the next failure of a run is a new one (see LogRunFailure).
             Volatile.Write(ref _lastRunFailure, null);
         }
@@ -747,8 +758,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             return;
         }
 
-        // The widgets compare their content on this thread and post only visible changes (T-081).
+        // The widgets and the mini preview strip compare their content on this thread and post only visible changes (T-081, T-089).
         Overlay.OnSnapshot(snapshot);
+        MiniStrip.OnSnapshot(snapshot);
     }
 
     // Raised on the monitoring session's thread.
