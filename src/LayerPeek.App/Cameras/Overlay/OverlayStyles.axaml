@@ -63,16 +63,18 @@
         <Setter Property="HorizontalAlignment" Value="Left" />
         <Setter Property="Template">
           <ControlTemplate>
+            <!-- A grid, not a horizontal stack panel: the text gets the width that is left, so a long state name trims (T-082). -->
             <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
-              <StackPanel Orientation="Horizontal" Spacing="6" VerticalAlignment="Center">
-                <Ellipse Width="8" Height="8" Fill="{TemplateBinding DotBrush}" VerticalAlignment="Center" />
-                <TextBlock Text="{TemplateBinding Text}"
+              <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                <Ellipse Width="8" Height="8" Margin="0,0,6,0" Fill="{TemplateBinding DotBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1"
+                           Text="{TemplateBinding Text}"
                            FontSize="{TemplateBinding FontSize}"
                            FontWeight="{TemplateBinding FontWeight}"
                            Foreground="{TemplateBinding Foreground}"
                            TextTrimming="CharacterEllipsis"
                            VerticalAlignment="Center" />
-              </StackPanel>
+              </Grid>
             </Border>
           </ControlTemplate>
         </Setter>

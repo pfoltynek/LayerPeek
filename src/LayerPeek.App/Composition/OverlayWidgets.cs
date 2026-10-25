@@ -1,4 +1,5 @@
 using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Cameras.Overlay.Widgets;
 using LayerPeek.App.Resources;
 
 namespace LayerPeek.App.Composition;
@@ -26,7 +27,10 @@ internal static class OverlayWidgets
     public const int PrintNamePriority = 10;
 
     /// <summary>The widgets of this version, in the order of the settings table.</summary>
-    public static OverlayWidgetRegistry CreateRegistry() => new([]);
+    public static OverlayWidgetRegistry CreateRegistry() => new(
+    [
+        new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Status, OverlayWidgetNames.Status, StatusPriority, StatusWidgetTemplate.Card, static _ => new StatusWidgetViewModel(), StatusWidgetViewModel.MinWidths),
+    ]);
 }
 
 /// <summary>Keys of the widget names in <see cref="Strings"/> (settings table, layout mode), one per id of <c>OverlayWidgetIds</c>.</summary>
