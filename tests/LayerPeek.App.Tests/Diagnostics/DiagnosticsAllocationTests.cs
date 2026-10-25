@@ -57,6 +57,47 @@ public sealed class DiagnosticsAllocationTests
     }
 
     [Fact]
+    public void SteadyStateUpdatesOfARangeSizedBufferDoNotAllocate()
+    {
+        // The compact chart of the overlay (T-084): a buffer of the 60 minute range, sliding by one sample per poll.
+        TelemetryHistory history = new();
+        history.Configure([Definition()], TimeSpan.FromSeconds(1));
+        const int Window = 3600;
+        PrinterSnapshot[] snapshots = new PrinterSnapshot[Window + 1 + (3 * UpdatesPerPass)];
+        for (int i = 0; i < snapshots.Length; i++)
+        {
+            snapshots[i] = Sample(i, nozzle: 200 + (i % 10), nozzleTarget: 215, bed: 60, bedTarget: 60);
+        }
+
+        for (int i = 0; i <= Window; i++)
+        {
+            history.Record(snapshots[i]);
+        }
+
+        TemperatureChartData data = new() { SizeBufferToRange = true };
+        data.Update(history, "mk4", T0, T0.AddSeconds(Window), 256);
+
+        int next = Window + 1;
+        long allocated = AllocationProbe.MinAllocated(() =>
+        {
+            long bytes = 0;
+            for (int end = next + UpdatesPerPass; next < end; next++)
+            {
+                history.Record(snapshots[next]);
+                DateTimeOffset to = T0.AddSeconds(next);
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                bool changed = data.Update(history, "mk4", to.AddSeconds(-Window), to, 256);
+                bytes += GC.GetAllocatedBytesForCurrentThread() - before;
+                Assert.True(changed);
+            }
+
+            return bytes;
+        });
+
+        Assert.Equal(0, allocated);
+    }
+
+    [Fact]
     public void ReusingLabelKeysDoesNotAllocate()
     {
         ChartLabelCache<long, string> cache = new(static key => "label " + key, capacity: 4);

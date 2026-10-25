@@ -867,11 +867,35 @@
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
   </data>
+  <data name="CameraOverlayChartStart" xml:space="preserve">
+    <value>−60 min</value>
+  </data>
+  <data name="CameraOverlayChartNow" xml:space="preserve">
+    <value>teraz</value>
+  </data>
+  <data name="CameraOverlayChartNoData" xml:space="preserve">
+    <value>Brak danych</value>
+  </data>
+  <data name="CameraOverlayChartName" xml:space="preserve">
+    <value>wykres z ostatnich 60 minut</value>
+  </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Koniec o {0}</value>
   </data>
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Koniec {0} o {1}</value>
+  </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>dysza {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>wysokość warstwy {0} mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>dysza {0} mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>szacunek slicera {0}</value>
   </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Czas druku: {0}</value>
