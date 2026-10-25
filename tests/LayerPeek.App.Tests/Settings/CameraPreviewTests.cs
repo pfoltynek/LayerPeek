@@ -120,7 +120,7 @@ public sealed class CameraPreviewTests : IDisposable
         _time.Advance(TimeSpan.FromSeconds(15));
         await test.WaitAsync(TestTimeouts.Wait, Ct);
 
-        Assert.Equal("No image arrived from the camera within 15 s.", printer.CameraTestResultText);
+        Assert.Equal("No image arrived from the camera within 15\u00A0s.", printer.CameraTestResultText);
         AssertNoPreview(printer);
         Assert.Equal(1, old.DisposeCount);
         Assert.Single(_renderer.Rendered);

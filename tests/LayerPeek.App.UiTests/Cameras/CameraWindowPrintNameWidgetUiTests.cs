@@ -194,7 +194,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
 
             Assert.Equal(size, Widget(window).RenderedSize);
             Assert.True(Card(window).IsEffectivelyVisible);
-            Assert.Equal("Foldable book holder v1, PLA, layer height 0.2 mm, nozzle 0.4 mm, slicer estimate 2\u00A0h 51\u00A0min", Card(window).GetValue(AutomationProperties.NameProperty));
+            Assert.Equal("Foldable book holder v1, PLA, layer height 0.2\u00A0mm, nozzle 0.4\u00A0mm, slicer estimate 2\u00A0h 51\u00A0min", Card(window).GetValue(AutomationProperties.NameProperty));
             TextBlock title = window.Find<TextBlock>(TitleId);
             Assert.Equal("Foldable book holder v1", title.Text);
             Assert.Equal("Foldable book holder v1", DrawnText(title));
@@ -204,7 +204,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
             Assert.Equal(chips, window.IsShown<OverlayChip>(NozzleId));
             Assert.Equal(size == OverlayWidgetSize.Large, window.IsShown<TextBlock>(EstimateId));
             Assert.Equal(chips, Ui.ShowsText(window, "PLA"));
-            Assert.Equal(chips, Ui.ShowsText(window, "0.2 mm"));
+            Assert.Equal(chips, Ui.ShowsText(window, "0.2\u00A0mm"));
             Assert.Equal(chips, Ui.ShowsText(window, "nozzle 0.4"));
             AssertFits(window, size);
 
@@ -648,7 +648,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
             Assert.Equal(FontWeight.SemiBold, title.FontWeight);
             Assert.Equal(Color.Parse("#F4F4F5"), ((ISolidColorBrush)title.Foreground!).Color);
             OverlayChip[] chips = [.. row.GetVisualDescendants().OfType<OverlayChip>()];
-            Assert.Equal(["PLA", "0.2 mm"], chips.Select(static chip => chip.Text));
+            Assert.Equal(["PLA", "0.2\u00A0mm"], chips.Select(static chip => chip.Text));
             Assert.All(chips, static chip => Assert.Equal(18, chip.Bounds.Height, 0.5));
             Assert.True(BoundsInWindow(row, host).Right <= host.ClientSize.Width);
 

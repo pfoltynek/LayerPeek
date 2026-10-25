@@ -297,7 +297,7 @@ public sealed class CameraSettingsTests : IDisposable
     }
 
     [Theory]
-    [InlineData(CameraTestOutcome.Timeout, null, "No image arrived from the camera within 15 s.")]
+    [InlineData(CameraTestOutcome.Timeout, null, "No image arrived from the camera within 15\u00A0s.")]
     [InlineData(CameraTestOutcome.Failed, "Connection refused.", "The camera stream could not be opened: Connection refused.")]
     [InlineData(CameraTestOutcome.Failed, null, "The camera stream could not be opened.")]
     public async Task TestReportsFailures(CameraTestOutcome outcome, string? reason, string expected)
@@ -430,7 +430,7 @@ public sealed class CameraSettingsTests : IDisposable
 
     [Theory]
     [InlineData(CameraTestOutcome.Success, null, "Die Kamera funktioniert (1280\u00A0×\u00A0720\u00A0px).")]
-    [InlineData(CameraTestOutcome.Timeout, null, "Innerhalb von 15 s kam kein Bild von der Kamera.")]
+    [InlineData(CameraTestOutcome.Timeout, null, "Innerhalb von 15\u00A0s kam kein Bild von der Kamera.")]
     // The reason comes from the decoder (technical, English) and is not translated; the sentence around it is.
     [InlineData(CameraTestOutcome.Failed, "Connection refused.", "Der Kamerastream konnte nicht geöffnet werden: Connection refused.")]
     [InlineData(CameraTestOutcome.Failed, null, "Der Kamerastream konnte nicht geöffnet werden.")]

@@ -334,7 +334,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(
                 [
                     Strings.DiagnosticsFirmware, "6.2.1+8896", Strings.DiagnosticsModel, "1.4.0", Strings.DiagnosticsHostname, "prusa-mk4s",
-                    Strings.DiagnosticsNozzleDiameter, "0.40 mm", Strings.DiagnosticsMmu, Strings.DiagnosticsNo,
+                    Strings.DiagnosticsNozzleDiameter, "0.40 mm", Strings.DiagnosticsMmu, Strings.DiagnosticsNo,
                 ],
                 texts);
             // Close shares the footer row, right aligned.

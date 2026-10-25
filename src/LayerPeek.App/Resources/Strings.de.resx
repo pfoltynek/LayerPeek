@@ -193,13 +193,13 @@
     <value>Aus</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} U/min</value>
+    <value>{0}&#160;U/min</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0} %</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -214,13 +214,13 @@
     <value>Temperaturverlauf</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>Keine Temperaturdaten in diesem Zeitraum</value>
@@ -745,7 +745,7 @@
     <value>Kamerabild aus dem Test</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>Innerhalb von {0} s kam kein Bild von der Kamera.</value>
+    <value>Innerhalb von {0}&#160;s kam kein Bild von der Kamera.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>Der Kamerastream konnte nicht geöffnet werden: {0}</value>
@@ -973,10 +973,10 @@
     <value>Düse {0}</value>
   </data>
   <data name="CameraOverlayLayerHeightName" xml:space="preserve">
-    <value>Schichthöhe {0} mm</value>
+    <value>Schichthöhe {0}&#160;mm</value>
   </data>
   <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
-    <value>Düse {0} mm</value>
+    <value>Düse {0}&#160;mm</value>
   </data>
   <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
     <value>Slicer-Schätzung {0}</value>

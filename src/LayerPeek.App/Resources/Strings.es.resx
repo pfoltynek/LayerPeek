@@ -193,13 +193,13 @@
     <value>Apagado</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} rpm</value>
+    <value>{0}&#160;rpm</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0} %</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -214,13 +214,13 @@
     <value>Historial de temperaturas</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>No hay datos de temperatura en este periodo</value>
@@ -745,7 +745,7 @@
     <value>Imagen de la cámara de la prueba</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>No llegó ninguna imagen de la cámara en {0} s.</value>
+    <value>No llegó ninguna imagen de la cámara en {0}&#160;s.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>No se pudo abrir la transmisión de la cámara: {0}</value>
@@ -973,10 +973,10 @@
     <value>boquilla {0}</value>
   </data>
   <data name="CameraOverlayLayerHeightName" xml:space="preserve">
-    <value>altura de capa {0} mm</value>
+    <value>altura de capa {0}&#160;mm</value>
   </data>
   <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
-    <value>boquilla {0} mm</value>
+    <value>boquilla {0}&#160;mm</value>
   </data>
   <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
     <value>estimación del slicer {0}</value>
