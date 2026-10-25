@@ -1014,6 +1014,27 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Raffreddata · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Nome della stampa nella barra</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Grafico delle temperature nella barra</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Mostra nome della stampa</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Nascondi nome della stampa</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Mostra grafico delle temperature</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Nascondi grafico delle temperature</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>Il nome della stampa appare durante la stampa</value>
+  </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Immagine della stampante: {0}</value>
   </data>

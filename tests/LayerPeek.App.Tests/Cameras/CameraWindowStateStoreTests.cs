@@ -299,4 +299,108 @@ public sealed class CameraWindowStateStoreTests : IAsyncDisposable
         Assert.Equal(2, store.GetRemoveCount("mk4"));
         Assert.Equal(0, store.GetRemoveCount("xl"));
     }
+
+    // ---- Rows of the mini preview strip (T-090) ----
+
+    [Theory]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task ExpandedMiniRowsAreSavedAndLoaded(bool name, bool chart)
+    {
+        JsonCameraWindowStateStore first = Create();
+        CameraWindowState state = Mini with { MiniRows = new CameraMiniRows(name, chart) };
+        first.Set("mk4", state);
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        JsonCameraWindowStateStore second = Create();
+        await second.LoadAsync(Ct);
+
+        Assert.Equal(state, second.Get("mk4"));
+        string json = await File.ReadAllTextAsync(FilePath, Ct);
+        Assert.Equal(name, json.Contains("\"miniNameRow\": true", StringComparison.Ordinal));
+        Assert.Equal(chart, json.Contains("\"miniChartRow\": true", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task CollapsedMiniRowsAreNotWritten()
+    {
+        JsonCameraWindowStateStore store = Create();
+        store.Set("mk4", Mini);
+        Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        string json = await File.ReadAllTextAsync(FilePath, Ct);
+
+        Assert.DoesNotContain("miniNameRow", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("miniChartRow", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task FileOfThePreviousVersionHasCollapsedMiniRows()
+    {
+        // camera-windows.json as T-089 wrote it.
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(
+            FilePath,
+            """
+            {
+              "version": 1,
+              "windows": {
+                "mk4": { "mode": "Mini", "normal": { "x": -1900, "y": 40, "width": 960, "height": 540 }, "mini": { "x": 1500, "y": 860, "width": 320, "height": 180 } }
+              }
+            }
+            """,
+            Ct);
+        JsonCameraWindowStateStore store = Create();
+
+        await store.LoadAsync(Ct);
+
+        Assert.Equal(Mini, store.Get("mk4"));
+        Assert.Equal(default, store.Get("mk4").MiniRows);
+    }
+
+    [Fact]
+    public async Task InvalidMiniRowValuesAreCollapsedAndTheRestOfTheFileIsKept()
+    {
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(
+            FilePath,
+            """
+            {
+              "version": 1,
+              "windows": {
+                "a": { "mode": "Mini", "miniNameRow": "yes", "miniChartRow": 1 },
+                "b": { "mode": "Mini", "miniNameRow": { "on": true }, "miniChartRow": [true] },
+                "c": { "mode": "Mini", "miniNameRow": null, "miniChartRow": false },
+                "d": { "mode": "Mini", "miniNameRow": true, "miniChartRow": "true" }
+              }
+            }
+            """,
+            Ct);
+        JsonCameraWindowStateStore store = Create();
+
+        await store.LoadAsync(Ct);
+
+        CameraWindowState collapsed = CameraWindowState.Default with { Mode = CameraWindowMode.Mini };
+        Assert.Equal(collapsed, store.Get("a"));
+        Assert.Equal(collapsed, store.Get("b"));
+        Assert.Equal(collapsed, store.Get("c"));
+        Assert.Equal(collapsed with { MiniRows = new CameraMiniRows(true, false) }, store.Get("d"));
+    }
+
+    [Fact]
+    public async Task RemoveForgetsTheMiniRowsToo()
+    {
+        JsonCameraWindowStateStore first = Create();
+        first.Set("mk4", Mini with { MiniRows = new CameraMiniRows(true, true) });
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        first.Remove("mk4");
+        Assert.True(await first.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        JsonCameraWindowStateStore second = Create();
+        await second.LoadAsync(Ct);
+        Assert.Equal(default, second.Get("mk4").MiniRows);
+        Assert.DoesNotContain("miniNameRow", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+    }
 }

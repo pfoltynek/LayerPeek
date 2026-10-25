@@ -214,7 +214,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // T-091: the layout mode edits the overlay's layout.
         CreateLayoutMode(layoutWriter, logger);
         // T-089: the info strip below the image of the mini preview.
-        MiniStrip = new CameraMiniStripViewModel(PrinterId, dispatcher, cooldown);
+        MiniStrip = CreateMiniStrip(dispatcher, cooldown, history, timeProvider, state.MiniRows);
 
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
@@ -499,6 +499,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         IsResettingPlacement = true;
         try
         {
+            // The settings forgot the remembered state, the strip rows with it (T-090 Q3): collapsed, like the defaults.
+            MiniStrip.ResetRows();
             Mode = mode;
         }
         finally
@@ -551,14 +553,15 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         if (_defaults.RememberLastPlacement)
         {
-            _stateStore.Set(PrinterId, new CameraWindowState(_mode, _normalPlacement, _miniPlacement));
+            _stateStore.Set(PrinterId, new CameraWindowState(_mode, _normalPlacement, _miniPlacement, MiniStrip.Rows));
         }
         else
         {
             // "Remember" is off (T-035, user decision 2026-10-19): only the mode is remembered (for "same as last time",
             // Q2); the placements remembered earlier stay as they were, for when "remember" is turned on again.
             CameraWindowState stored = _stateStore.Get(PrinterId);
-            _stateStore.Set(PrinterId, stored with { Mode = _mode });
+            // The expanded strip rows are remembered either way (T-090 Q3).
+            _stateStore.Set(PrinterId, stored with { Mode = _mode, MiniRows = MiniStrip.Rows });
         }
     }
 

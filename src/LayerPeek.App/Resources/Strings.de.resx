@@ -1014,6 +1014,27 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Abgekühlt · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Druckname in der Leiste</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Temperaturdiagramm in der Leiste</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Druckname anzeigen</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Druckname ausblenden</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Temperaturdiagramm anzeigen</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Temperaturdiagramm ausblenden</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>Der Druckname erscheint während eines Drucks</value>
+  </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Druckerbild: {0}</value>
   </data>

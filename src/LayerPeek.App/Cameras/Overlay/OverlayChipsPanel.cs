@@ -15,9 +15,13 @@ public sealed class OverlayChipsPanel : Panel
     public static readonly StyledProperty<double> SpacingProperty =
         AvaloniaProperty.Register<OverlayChipsPanel, double>(nameof(Spacing), 4);
 
+    /// <summary>At most this many chips are drawn, the first ones (T-090: the mini preview name row by the window width).</summary>
+    public static readonly StyledProperty<int> MaxCountProperty =
+        AvaloniaProperty.Register<OverlayChipsPanel, int>(nameof(MaxCount), int.MaxValue);
+
     static OverlayChipsPanel()
     {
-        AffectsMeasure<OverlayChipsPanel>(SpacingProperty);
+        AffectsMeasure<OverlayChipsPanel>(SpacingProperty, MaxCountProperty);
         ClipToBoundsProperty.OverrideDefaultValue<OverlayChipsPanel>(true);
     }
 
@@ -25,6 +29,12 @@ public sealed class OverlayChipsPanel : Panel
     {
         get => GetValue(SpacingProperty);
         set => SetValue(SpacingProperty, value);
+    }
+
+    public int MaxCount
+    {
+        get => GetValue(MaxCountProperty);
+        set => SetValue(MaxCountProperty, value);
     }
 
     // The drawn chips after the last arrange, in order: the children of the automation peer.
@@ -143,7 +153,7 @@ public sealed class OverlayChipsPanel : Panel
             }
 
             double next = (count == 0 ? 0 : used + Spacing) + child.DesiredSize.Width;
-            if (next > width + Tolerance)
+            if (count >= MaxCount || next > width + Tolerance)
             {
                 break;
             }

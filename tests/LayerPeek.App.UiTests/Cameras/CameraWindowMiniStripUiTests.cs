@@ -289,8 +289,10 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
             Assert.Equal(62, reserved.Width);
             Assert.Equal(320 - 6, reserved.Right, 0.01);
             Assert.True(BoundsIn(SummaryText(window), window).Right <= reserved.Left - 8 + 0.01);
-            // Nothing in the strip takes the keyboard focus yet.
-            Assert.DoesNotContain(StripOf(window).GetVisualDescendants().OfType<InputElement>(), static element => element.Focusable && element.IsEffectivelyVisible);
+            // Only the two toggles of T-090 take the keyboard focus.
+            Assert.Equal(
+                ["CameraMiniToggleName", "CameraMiniToggleChart"],
+                StripOf(window).GetVisualDescendants().OfType<InputElement>().Where(static element => element.Focusable && element.IsEffectivelyVisible).Select(static element => AutomationProperties.GetAutomationId(element)));
         });
 
     [Fact]

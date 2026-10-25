@@ -1014,6 +1014,27 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Ostygła · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Nazwa wydruku w pasku</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Wykres temperatur w pasku</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Pokaż nazwę wydruku</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Ukryj nazwę wydruku</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Pokaż wykres temperatur</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Ukryj wykres temperatur</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>Nazwa wydruku pojawi się podczas drukowania</value>
+  </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Obraz drukarki: {0}</value>
   </data>

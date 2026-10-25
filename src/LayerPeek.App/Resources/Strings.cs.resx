@@ -1014,6 +1014,27 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Vychladlo · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Název tisku v pásu</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Graf teplot v pásu</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Zobrazit název tisku</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Skrýt název tisku</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Zobrazit graf teplot</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Skrýt graf teplot</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>Název tisku se zobrazí během tisku</value>
+  </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Obrázek tiskárny: {0}</value>
   </data>
