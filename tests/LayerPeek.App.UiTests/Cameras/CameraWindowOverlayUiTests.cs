@@ -152,6 +152,25 @@ public sealed class CameraWindowOverlayUiTests(HeadlessSession session)
             AssertAllAnchors(window);
         });
 
+    /// <summary>
+    /// T-093 (found by the E2E test on the real window): a card is an element of the UI Automation content view with its
+    /// AutomationId and its full name (T-076 3.1 / 5.7), not only its parts; a plain border has no peer in that view, so
+    /// screen readers and UI Automation never saw the card.
+    /// </summary>
+    [Fact]
+    public Task CardsAreUiAutomationElementsWithTheirFullName() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(window: Normal, overlay: AllAnchors);
+            CameraWindow window = await OpenPrintingAsync(harness);
+
+            Avalonia.Automation.Peers.AutomationPeer peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(Card(window, "test-a"));
+            Assert.True(peer.IsContentElement(), "The card is not in the content view of UI Automation.");
+            Assert.True(peer.IsControlElement(), "The card is not in the control view of UI Automation.");
+            Assert.Equal("CameraOverlayWidget-test-a", peer.GetAutomationId());
+            Assert.Equal("Printing, 42%", peer.GetName());
+        });
+
     [Fact]
     public Task MiniPreviewDrawsNoCards() =>
         session.RunAsync(async scope =>

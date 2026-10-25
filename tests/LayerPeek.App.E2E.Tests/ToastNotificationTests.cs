@@ -131,6 +131,87 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
     }
 
     /// <summary>
+    /// The "printer cooled down" toast (T-080, T-093) with the simulator's cooling curve and the printer's threshold of
+    /// 100 °C: off by default, so the first finished print cools down without it; switched on in the settings window (General,
+    /// notifications), the next finished print brings it, titled with the printer's name and saying the print finished and
+    /// the printer cooled down. Its sound (information: none with "important only") is covered by the unit tests of the
+    /// toast XML; the test toasts are silent anyway (T-068).
+    /// </summary>
+    [Fact]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.Toasts)]
+    [Trait(SystemChanges.Trait, SystemChangeTraits.DoNotDisturb)]
+    public async Task CooledDownToastComesOnlyWithItsSwitchOn()
+    {
+        SystemChanges.Require();
+        StringBuilder report = new();
+        SimulationTiming cycle = new()
+        {
+            HeatUp = TimeSpan.FromSeconds(5),
+            Print = TimeSpan.FromSeconds(20),
+            FinishedHold = TimeSpan.FromSeconds(110),
+            IdleHold = TimeSpan.FromSeconds(15),
+        };
+        await using ToastRun run = await ToastRun.StartAsync(fixture, "toast-cooled", "en", report, cycle, cooldownThresholdCelsius: 100);
+        string detail = AppStrings.Get("en", "NotificationCooledDownDetail");
+        ToastTexts texts = new(run.PrinterName, AppStrings.Get("en", "NotificationCooledDownFinished"), [detail[..detail.IndexOf('{', StringComparison.Ordinal)], ".bgcode"]);
+        try
+        {
+            // Off by default: the first print cools down below 100 °C without a toast.
+            await WaitForCooledDownAsync(run.Printer, report, "first print");
+            await Task.Delay(TimeSpan.FromSeconds(12), TestContext.Current.CancellationToken);
+            Assert.Null(Toasts.FindBanner(run.App.Automation, texts));
+            bool inCenter = await Toasts.InNotificationCenterAsync(run.App.Automation, async (_, window) => await Toasts.FindInAsync(run.App.Automation, window, texts, TimeSpan.FromSeconds(3)) is not null);
+            report.AppendLine(CultureInfo.InvariantCulture, $"Switch off: cooled-down toast in the notification center: {inCenter}");
+            Assert.False(inCenter, "A cooled-down toast came with the switch off (the default).");
+            Assert.DoesNotContain("\"cooledDown\"", run.App.ReadSettings(), StringComparison.Ordinal);
+
+            // Switched on in the settings window.
+            nint settings = await run.App.OpenAsync("settings", AppWindowKind.Settings);
+            AutomationElement settingsElement = run.App.Element(settings);
+            await Ui.SelectAsync(settingsElement, "SettingsTabGeneral");
+            await Ui.SetCheckedAsync(settingsElement, "SettingsNotifyCooledDown", true);
+            await CameraWindowSettings.CloseAsync(settings, settingsElement, save: true);
+            await Wait.UntilAsync(() => run.App.ReadSettings().Contains("\"cooledDown\": true", StringComparison.Ordinal), TimeSpan.FromSeconds(10), "the switch in settings.json");
+
+            // The next print: the toast.
+            await WaitForPrintAsync(run.Printer, report);
+            MovePointerAway();
+            await WaitForCooledDownAsync(run.Printer, report, "second print");
+            ToastMatch banner = await run.WaitForBannerAsync(texts);
+            Hover(banner.Anchor);
+            report.AppendLine("Banner elements:").AppendLine(banner.Describe());
+            Assert.True(banner.HasExactly(texts.PrinterName), $"The toast title is not the printer name:{Environment.NewLine}{banner.Describe()}");
+            Assert.True(banner.HasLine(texts.Body), $"The toast text is not '{texts.Body}':{Environment.NewLine}{banner.Describe()}");
+            Rectangle bounds = await Toasts.SettledBoundsAsync(banner);
+            using (Bitmap capture = Toasts.Capture(bounds))
+            {
+                Screenshots.Save(capture, "toast-cooled-down");
+            }
+
+            await run.AssertDoNotDisturbStayedOffAsync(report);
+            run.AssertProductionUnchanged();
+        }
+        finally
+        {
+            Screenshots.SaveText(report.ToString(), "toast-cooled-report");
+        }
+    }
+
+    /// <summary>Waits (simulator side) until a print is running.</summary>
+    private static async Task WaitForPrintAsync(SimulatedPrinter printer, StringBuilder report)
+    {
+        await Wait.UntilAsync(() => printer.Simulation.GetStatus().State == "PRINTING", TimeSpan.FromMinutes(3), "the next print of the simulator");
+        report.AppendLine(CultureInfo.InvariantCulture, $"{DateTime.Now:HH:mm:ss} printing again");
+    }
+
+    /// <summary>Waits (simulator side) until the finished print's nozzle is below the threshold of 100 °C.</summary>
+    private static async Task WaitForCooledDownAsync(SimulatedPrinter printer, StringBuilder report, string what)
+    {
+        await Wait.UntilAsync(() => printer.Simulation.GetStatus() is { State: "FINISHED", TempNozzle: < 98 }, TimeSpan.FromMinutes(4), $"the {what} to finish and cool down below 100 °C");
+        report.AppendLine(CultureInfo.InvariantCulture, $"{DateTime.Now:HH:mm:ss} {what}: finished and below 100 °C ({printer.Simulation.GetStatus().TempNozzle:0.0} °C)");
+    }
+
+    /// <summary>
     /// T-068: the app ended (killed, so its toast stays in the notification center and nothing is cleaned up); a click on
     /// the toast makes Windows start the exe through the COM toast activator of the test app, in the same test mode (its
     /// command line carries the test switches), and the started app opens the printer's web through its proxy. The
@@ -392,13 +473,13 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         /// <summary>Unique per test: only this test's toast is ever found.</summary>
         public string PrinterName { get; } = "LP E2E " + Guid.NewGuid().ToString("N")[..8];
 
-        public static async Task<ToastRun> StartAsync(E2EFixture fixture, string name, string language, StringBuilder report)
+        public static async Task<ToastRun> StartAsync(E2EFixture fixture, string name, string language, StringBuilder report, SimulationTiming? timing = null, int? cooldownThresholdCelsius = null)
         {
             Assert.SkipWhen(ToastsEnabledKind.PolicyBlocksToasts() is not null, ToastsEnabledKind.PolicyBlocksToasts() ?? string.Empty);
             ToastRun run = new(report);
             try
             {
-                await run.StartCoreAsync(fixture, name, language);
+                await run.StartCoreAsync(fixture, name, language, timing, cooldownThresholdCelsius);
                 return run;
             }
             catch
@@ -570,7 +651,19 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             return File.Exists(path) ? File.ReadAllBytes(path) : null;
         }
 
-        private async Task StartCoreAsync(E2EFixture fixture, string name, string language)
+        /// <summary>The test settings with the printer of this run and its cool-down threshold (T-079), when given.</summary>
+        private string Settings(string language, int? cooldownThresholdCelsius)
+        {
+            JsonObject settings = JsonNode.Parse(TestSettings.Json(language, [new TestPrinter(PrinterId, PrinterName, Printer.Address())]))!.AsObject();
+            if (cooldownThresholdCelsius is { } threshold)
+            {
+                settings["printers"]![0]!["cooldownThresholdCelsius"] = threshold;
+            }
+
+            return settings.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+
+        private async Task StartCoreAsync(E2EFixture fixture, string name, string language, SimulationTiming? timing, int? cooldownThresholdCelsius)
         {
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;
             _productionShortcut = ReadProductionShortcut();
@@ -597,12 +690,12 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             SystemChange<TestToastsState> toasts = await SystemChanges.TestToastsAsync(E2EFixture.AppPath, cancellationToken);
             _undo.Add(toasts);
 
-            Printer = await Simulators.StartPrinterAsync(PrinterScenario.Printing);
+            Printer = await SimulatedPrinter.StartAsync(new SimulatedPrinterOptions { Scenario = PrinterScenario.Printing, Timing = timing ?? SimulationTiming.Default }, cancellationToken);
             _undo.Add(Printer);
             App = await AppInstance.StartAsync(
                 fixture,
                 name,
-                TestSettings.Json(language, [new TestPrinter(PrinterId, PrinterName, Printer.Address())]),
+                Settings(language, cooldownThresholdCelsius),
                 Simulators.Secrets(PrinterId, Printer),
                 new Dictionary<string, string> { [AppSwitches.TestToastsVariable] = "1" });
             _undo.Add(App);

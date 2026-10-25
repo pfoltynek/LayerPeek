@@ -62,6 +62,7 @@ Všechny tiskárny hlásí firmware `6.9.2+10123` a trysku 0,4 mm. Aplikace podl
 | `printing` | Nekonečný cyklus: ohřev 90 s (`PRINTING`, průběh 0 %, bez odhadu zbývajícího času) → tisk (průběh, zbývající čas, teploty u cíle, soubor) → `FINISHED` 2 min (chladne) → `IDLE` 1 min → další úloha s novým ID a jiným souborem |
 | `paused` | `PAUSED`: úloha zůstane, kde byla (nebo 52 %), tryska chladne na 170 °C, podložka drží teplotu |
 | `finished` | `FINISHED`: bez úlohy, tiskárna chladne |
+| `stopped` | `STOPPED` (tisk zastavený uživatelem): bez úlohy, tiskárna chladne od teplot, kde byla (T-093: vychladnutí po zastaveném tisku) |
 | `error` | `ERROR`: bez úlohy, tiskárna chladne |
 | `attention` | `ATTENTION` (např. došel filament): úloha zůstane, kde byla (nebo 61 %), teploty se drží |
 | `offline` | tiskárna neodpovídá (pod tím scénář `idle`) |

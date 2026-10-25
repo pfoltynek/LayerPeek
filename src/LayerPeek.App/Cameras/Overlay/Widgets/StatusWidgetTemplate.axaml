@@ -88,6 +88,7 @@
                             Grid.Row="1"
                             Text="{Binding StateText}"
                             DotBrush="{Binding DotBrush}"
+                            AutomationProperties.AccessibilityView="Content"
                             AutomationProperties.AutomationId="CameraOverlayWidget-status-State"
                             AutomationProperties.Name="{Binding StateText}" />
       <TextBlock Classes="big numeric statusPercent"
@@ -100,6 +101,7 @@
                              Grid.ColumnSpan="2"
                              Value="{Binding Progress}"
                              IsVisible="{Binding HasProgress}"
+                             AutomationProperties.AccessibilityView="Content"
                              AutomationProperties.AutomationId="CameraOverlayWidget-status-Progress"
                              AutomationProperties.Name="{Binding PercentText}" />
     </Grid>

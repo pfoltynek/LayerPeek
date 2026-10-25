@@ -30,7 +30,7 @@ public sealed record SimulatorOptions
           --port <n>              PrusaLink port of the first printer; the others follow (default 8080; 0 = any free port)
           --models <list>         comma-separated models: coreone, mk4s, xl, mini (default: in this order, repeating)
           --scenario <list>       comma-separated scenario per printer, the last one repeats (default printing):
-                                  idle, printing, paused, finished, error, attention, offline, flaky, malformed
+                                  idle, printing, paused, finished, stopped, error, attention, offline, flaky, malformed
           --speed <x>             simulated time speed-up, e.g. 10 (default 1)
           --print-minutes <m>     duration of a simulated print (default 30)
           --user <name>           PrusaLink user (default maker)

@@ -150,6 +150,7 @@ public sealed partial class CameraWindow
     {
         Width = window.Width;
         Height = window.Height;
+        ApplySizeBeforeMoving();
         Position = new PixelPoint(window.X, window.Y);
     }
 

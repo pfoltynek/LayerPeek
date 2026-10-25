@@ -293,6 +293,13 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
         CancelDrag();
         int edit = _edit;
         CameraOverlayLayout draft = _draft!;
+        if (_writer is not null && draft == _overlay.SavedLayout)
+        {
+            // Nothing to write (no change, or changes undone): the store would report "not written", which is no error (T-093).
+            End(saved: draft);
+            return true;
+        }
+
         SetSaving(true);
         SetSaveError(false);
         bool saved = false;

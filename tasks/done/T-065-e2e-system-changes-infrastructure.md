@@ -118,6 +118,40 @@ Tento úkol obsahuje i **přehled pokrytí** (níže): ke každé otevřené ru�
 | T-052 | celá E2E sada v Debug i v AOT: tray, okna, toasty, Správce pověření, kamera (FFmpeg) | T-073 | druhý průchod proti Native AOT exe konfigurace Debug + nový test Správce pověření |
 | T-052 | web přes proxy | ověřeno ručně 2026-10-21 (Debug i AOT); navíc T-068/T-069 | GET přes proxy po kliknutí na toast a „Otevřít PrusaLink“ |
 
+### Doplněno v T-093 (widgety překryvu, malý náhled, režim rozložení; 2026-10-25)
+Testy v `tests/LayerPeek.App.E2E.Tests`, skutečná aplikace proti simulátoru (`WidgetRun`), Debug i Native AOT (Debug).
+
+| Úkol | Kontrola | Test | Jak / proč ne |
+|---|---|---|---|
+| T-081–T-085 | karty ve správných kotvách v normálním okně a na celé obrazovce, horní kotvy mimo tlačítka okna | `CameraWidgetTests.WidgetsFollowAPrintThroughCooldownToTheNextPrint`, `WidgetSettingsTests.OldOverlayCornerIsMirroredAndSavedAsVersion2` | UIA `CameraOverlayAnchor*` + `CameraOverlayWidget-*`, poloha karty v kotvě, průnik s `CameraWindowButtons` |
+| T-076, T-081 | čitelnost při 100 / 125 / 150 / 200 % (normální okno, celá obrazovka, malý náhled) | `CameraWidgetScaleTests.WidgetsThumbnailAndMiniPreviewAtEveryScale` (T-066) | kotvy + snímky; vizuální dojem zůstává doporučený |
+| T-087 | náhled G-code vlevo od názvu, jméno „Náhled tisku“, M 40 DIP | `CameraWidgetTests` | UIA prvek `CameraOverlayWidget-print-name-Thumbnail` |
+| T-087 | ostrý náhled při 100 / 125 / 150 / 200 % (dekódovaný na pixely monitoru) | `CameraWidgetScaleTests` | hrany nakresleného náhledu vs. náhled simulátoru zmenšený na tytéž pixely; rozmazaný (2× zvětšený) je jasně dál |
+| T-087 | náhled zůstane po dokončení, zastavení i během chladnutí; další tisk ho vymění | `CameraWidgetTests` (dokončený tisk, scénář simulátoru `stopped`) | |
+| T-087 | bez náhledu (`--no-previews`) karta bez obrázku a bez prázdného rámečku | `CameraWidgetTests.PrintWithoutPreviewsHasNoThumbnailAndNoEmptyFrame` | volba simulátoru při startu; přepnutí za běhu se týká až dalšího souboru |
+| T-087 | znovuotevřené okno ukáže náhled z paměti bez nového stažení | `CameraWidgetTests` | počet požadavků simulátoru na `/thumb` |
+| T-087 | přesun okna na monitor s jiným DPI náhled znovu dekóduje | `CameraWidgetScaleTests.ThumbnailAndMiniPreviewOnASecondMonitorWithAnotherScale` | druhý monitor 150 %, přetažení titulku skutečnou myší |
+| T-088 | „Chladne…“ → „Vychladlo“ po dokončeném i zastaveném tisku, zmizí při dalším tisku | `CameraWidgetTests` | práh 100 °C u tiskárny, křivka simulátoru |
+| T-080 | toast „vychladlo“ jen se zapnutým přepínačem (výchozí vypnuto) | `ToastNotificationTests.CooledDownToastComesOnlyWithItsSwitchOn` (T-068) | první tisk bez toastu, zapnutí v okně nastavení, druhý tisk s toastem |
+| T-080 | toast je informační, bez zvuku při „jen důležité“ | **unit testy** XML toastu | testovací toasty jsou vždy tiché (T-068); slyšitelnost viz bod 4 níže |
+| T-089 | žádné karty přes obraz, pás pod obrazem, poměr 16:9 | `CameraMiniPreviewTests.TogglesGrowTheWindowFromTheBottomEdgeAndSurviveARestart` | poloha `CameraMiniInfoStrip` vůči klientské oblasti |
+| T-089 | skutečné tažení úchytu: během tažení se výška nedopočítává, po puštění jednou; minimum 240; tažení za pás okno přesouvá | `CameraMiniPreviewTests.ResizeGripCorrectsTheHeightOnceAfterTheReleaseAndTheStripMovesTheWindow` | `SendInput` (FlaUI `Mouse`), vzorkování obdélníku okna během tažení |
+| T-089 | starý `camera-windows.json` z 0.1.0 (320 × 180 v rohu, 160 × 90 u okraje) | `CameraMiniPreviewTests.RememberedMiniPreviewOfVersion010GrowsByTheStripOntoTheWorkArea` | |
+| T-089 | `settings.json` z 0.1.0 s malým náhledem užším než 240 → 240 a jedno varování | `CameraMiniPreviewTests.NarrowMiniPreviewOfVersion010SettingsLoadsAs240WithOneWarning` | log aplikace |
+| T-089 | text pásu a jméno pro čtečku (`CameraMiniSummary`) ve stavech tiskne, chladne, vychladlo, pozastaveno, nečinná, offline | `CameraMiniPreviewTests.StripTextFollowsThePrinterStates` | |
+| T-089 | poměr streamu 4:3 | **headless testy** | simulátor má jen klip 16:9 |
+| T-090 | oba řádky výchozí sbalené, přepínače myší i klávesnicí (Tab, mezerník, Enter), růst od spodního i horního okraje, stav přežije restart i s vypnutým „pamatovat“ | `CameraMiniPreviewTests` | |
+| T-090 | malý náhled na druhém monitoru s jiným DPI roste uvnitř pracovní plochy | `CameraWidgetScaleTests.ThumbnailAndMiniPreviewOnASecondMonitorWithAnotherScale` | |
+| T-091 | vstup tlačítkem i kontextovou nabídkou, tažení myší do kotvy i v kotvě, klávesnice, popover, „Obnovit výchozí“, „Hotovo“, Esc | `CameraLayoutModeTests` | pravý klik a tažení skutečnou myší, klávesy přes `SendInput` |
+| T-091 | rozložení po restartu a na celé obrazovce, režim není v malém náhledu ani na celé obrazovce | `CameraLayoutModeTests.ReorderedLayoutSurvivesARestartAndAppliesToFullScreen` | |
+| T-091, T-092 | „Hotovo“ při otevřeném nastavení s neuloženou změnou jiného pole | `CameraLayoutModeTests.DoneWhileTheSettingsAreOpenKeepsTheirUnsavedChange` | |
+| T-092 | záložka Widgety: skrytí widgetu, „Upravit rozložení…“ s rozpracovaným rozložením, Esc nic nezapíše | `WidgetSettingsTests.WidgetsTabHidesAWidgetAndOpensTheLayoutModeWithItsDraft` | |
+| T-077 | převod `settings.json` 0.1.0 (roh vpravo nahoře) → zrcadlené výchozí rozložení, po uložení `version` 2 bez starých klíčů | `WidgetSettingsTests.OldOverlayCornerIsMirroredAndSavedAsVersion2` | |
+| T-087 | vzhled skutečného náhledu z PrusaSliceru, skutečná tiskárna (`/thumb/l`) | **zůstává ručně** | simulátor kreslí vlastní náhled; skutečná tiskárna není v testech dostupná |
+| T-090, T-091 | čtení stavu přepínačů a oznámení režimu rozložení skutečnou čtečkou (Předčítání) | **zůstává ručně** | viz bod 3 níže; ověřuje se UIA `Name` / vzor Toggle / `CameraLayoutAnnouncement` |
+| T-076 | čitelnost karet na skutečném (světlém) obraze kamery, celkový dojem | **zůstává doporučená** | estetický úsudek; snímky jsou ve výsledcích |
+| T-089–T-091 | macOS (`BeginResizeDrag` bez modální smyčky, pořadí tlačítek, Ctrl+klik) | **mimo tuto řadu** | jen na Macu |
+
 ## Zůstává ručně (doporučené kontroly, neblokují uzavření úkolů)
 1. **Tray menu při 150 % po novém přihlášení** (T-039, T-025): bitmapy ikon menu se vybírají podle systémového DPI, které se mění jen odhlášením. Test T-070 to ověří automaticky, když relace začala při 150 %. Ručně stačí odhlásit se, přihlásit při 150 % a spustit `tools/run-e2e.ps1` s filtrem na testy T-070.
 2. **Skutečný klik v nabídce Start** (T-043): viz tabulka, nejde izolovat od dat uživatele.
