@@ -56,7 +56,8 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
                 switches: new Dictionary<string, string> { [AppSwitches.TestToastsVariable] = "1" }))
             {
                 // The toast service registers the test app at startup (T-010), with the test shortcut.
-                await Wait.UntilAsync(() => File.Exists(TestShortcut), ShortcutTimeout, "the Start menu shortcut of the test app");
+                // The shortcut exists as soon as the app starts saving it; it is read only once the save released it.
+                await Wait.UntilAsync(() => IsReadable(TestShortcut), ShortcutTimeout, "the saved Start menu shortcut of the test app");
                 AssertIsTheTestShortcut(TestShortcut);
                 AssertIsTheTestActivator(app);
 
@@ -188,6 +189,20 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
 
     private static void AssertProductionActivatorUnchanged(ProductionState production) =>
         Assert.Equal(production.Activator, ProductionState.Read().Activator);
+
+    /// <summary>Whether <paramref name="path"/> exists and no other process (the app saving it) holds it open exclusively.</summary>
+    private static bool IsReadable(string path)
+    {
+        try
+        {
+            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>The shortcut points to the exe under test and carries the test app id (UTF-16 in the property store).</summary>
     private static void AssertIsTheTestShortcut(string path)
