@@ -134,6 +134,20 @@ public sealed class OverlayFormatTests : IDisposable
     }
 
     [Fact]
+    public void ShorteningAFileNameWhoseFirstCharacterIsLongerThanItsStartCutsThatCharacter()
+    {
+        // The first character (a letter with 30 combining marks, 31 code units) is longer than the kept start (23): moving
+        // the cut down to the character boundary would leave no start at all, so the character is cut at 23 and the end
+        // keeps its 16 characters.
+        string first = "a" + string.Concat(Enumerable.Repeat("́", 30));
+        string fileName = first + new string('b', 30) + new string('c', 10) + ".gcode";
+
+        string shown = OverlayFormat.ShortenFileName(fileName);
+
+        Assert.Equal(first[..23] + "…" + new string('c', 10) + ".gcode", shown);
+    }
+
+    [Fact]
     public void LongPrinterNameIsShortenedInTheMiddle()
     {
         // Start + "…" + end (T-076 1.4); the start is as long as the prefix that the width trimming of the card keeps, so a

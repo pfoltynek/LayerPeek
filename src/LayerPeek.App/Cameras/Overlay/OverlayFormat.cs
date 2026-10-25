@@ -105,8 +105,8 @@ public static class OverlayFormat
         int headEnd = headUpToCharacterEnd ? after : before;
         if (headEnd == 0 || headEnd > maxLength - Ellipsis.Length)
         {
-            // One character longer than the whole limit (e.g. a letter with dozens of combining marks): cut it, only never
-            // inside a surrogate pair.
+            // The first character is longer than the start (rounding down would keep nothing of it) or rounding up would
+            // exceed the whole limit (e.g. a letter with dozens of combining marks): cut it, only never inside a surrogate pair.
             headEnd = char.IsHighSurrogate(text[head - 1]) ? head - 1 : head;
         }
 
