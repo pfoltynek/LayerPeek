@@ -1,7 +1,7 @@
 ---
 id: T-092
 title: Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení
-status: todo
+status: in-progress
 owner: ui-dev
 priority: P2
 platform: all
