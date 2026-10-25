@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:LayerPeek.App.Cameras"
         xmlns:loc="using:LayerPeek.App.Localization"
+        xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
         x:Class="LayerPeek.App.Windows.CameraWindow"
         x:DataType="vm:CameraViewModel"
         Title="{Binding Title}"
@@ -51,36 +52,8 @@
       <Setter Property="Foreground" Value="White" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <!--
-      Print overlay (T-036): in the corner chosen in the settings, 6 DIP from the edges. The window buttons (top right, two
-      of 30 DIP with 4 between in every mode: the buttons of the other two modes) never cover it: in the top right corner
-      it starts below them (6 + 30 + 4); in the top left corner it keeps their width free on the right (6 + 30 + 4 + 30 + 4)
-      and wraps instead, which matters in the narrow mini preview.
-    -->
-    <Style Selector="Border.printOverlay">
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Bottom" />
-      <Setter Property="Margin" Value="6" />
-    </Style>
-    <Style Selector="Border.printOverlay.top">
-      <Setter Property="VerticalAlignment" Value="Top" />
-      <Setter Property="Margin" Value="6,6,74,6" />
-    </Style>
-    <Style Selector="Border.printOverlay.right">
-      <Setter Property="HorizontalAlignment" Value="Right" />
-    </Style>
-    <Style Selector="Border.printOverlay.top.right">
-      <Setter Property="Margin" Value="6,40,6,6" />
-    </Style>
-    <Style Selector="Border.printOverlay TextBlock">
-      <Setter Property="FontSize" Value="12" />
-    </Style>
-    <Style Selector="Border.printOverlay.right TextBlock">
-      <Setter Property="TextAlignment" Value="Right" />
-    </Style>
-    <Style Selector="Border.printOverlay TextBlock.emphasized">
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
+    <!-- Cards of the overlay widgets (T-081): colours, icons, the card and its parts. -->
+    <StyleInclude Source="avares://LayerPeek/Cameras/Overlay/OverlayStyles.axaml" />
     <!-- Resize grips of the borderless mini preview. -->
     <Style Selector="Border.grip">
       <Setter Property="Background" Value="Transparent" />
@@ -97,6 +70,24 @@
             AutomationProperties.Name="{Binding [CameraImageHint], Source={x:Static loc:LocalizedStrings.Instance}}">
       <Image x:Name="Video" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="MediumQuality" />
     </Border>
+
+    <!--
+      Widget cards in six anchors (T-081, design T-076): normal window and full screen share the layout, the mini preview
+      has none. Not a pointer target, so double-click and dragging work over the cards; below the connection state and
+      the window buttons (the top right anchor starts below the buttons).
+    -->
+    <ov:OverlayAnchorsPanel x:Name="OverlayCards"
+                            AutomationProperties.AutomationId="CameraOverlay"
+                            IsVisible="{Binding Overlay.AreCardsVisible}"
+                            IsHitTestVisible="False"
+                            ClipToBounds="True">
+      <ov:OverlayAnchorItems Anchor="TopLeft" AutomationProperties.AutomationId="CameraOverlayAnchorTopLeft" ItemsSource="{Binding Overlay.TopLeft}" />
+      <ov:OverlayAnchorItems Anchor="TopCenter" AutomationProperties.AutomationId="CameraOverlayAnchorTopCenter" ItemsSource="{Binding Overlay.TopCenter}" />
+      <ov:OverlayAnchorItems Anchor="TopRight" AutomationProperties.AutomationId="CameraOverlayAnchorTopRight" ItemsSource="{Binding Overlay.TopRight}" />
+      <ov:OverlayAnchorItems Anchor="BottomLeft" AutomationProperties.AutomationId="CameraOverlayAnchorBottomLeft" ItemsSource="{Binding Overlay.BottomLeft}" />
+      <ov:OverlayAnchorItems Anchor="BottomCenter" AutomationProperties.AutomationId="CameraOverlayAnchorBottomCenter" ItemsSource="{Binding Overlay.BottomCenter}" />
+      <ov:OverlayAnchorItems Anchor="BottomRight" AutomationProperties.AutomationId="CameraOverlayAnchorBottomRight" ItemsSource="{Binding Overlay.BottomRight}" />
+    </ov:OverlayAnchorsPanel>
 
     <!-- Connection state over the last image: connecting, no signal, error with its reason. -->
     <Border Classes="overlay"
@@ -115,23 +106,6 @@
                    HorizontalAlignment="Center"
                    TextAlignment="Center" />
       </StackPanel>
-    </Border>
-
-    <!-- Print overlay in a corner, in every mode (user decision 2026-10-18); items and corner from the settings (T-036). -->
-    <Border x:Name="PrintOverlay"
-            Classes="overlay printOverlay"
-            Classes.top="{Binding IsOverlayTop}"
-            Classes.right="{Binding IsOverlayRight}"
-            Padding="6,3"
-            AutomationProperties.AutomationId="CameraPrintOverlay"
-            IsVisible="{Binding IsPrintOverlayVisible}">
-      <ItemsControl ItemsSource="{Binding OverlayLines}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:CameraOverlayLine">
-            <TextBlock Text="{Binding Text}" Classes.emphasized="{Binding IsEmphasized}" />
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
     </Border>
 
     <StackPanel x:Name="WindowButtons"

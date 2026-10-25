@@ -269,28 +269,30 @@ public sealed class CameraWindowUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task PrintOverlayIsVisibleInEveryMode() =>
+    public Task OverlayCardsAreVisibleInTheNormalWindowAndOnFullScreenButNotInTheMiniPreview() =>
         session.RunAsync(async scope =>
         {
-            await using CameraHarness harness = new();
+            await using CameraHarness harness = new(overlay: new([new("test-a", Core.Cameras.Overlay.OverlayAnchor.TopLeft)]));
             (CameraWindow window, _) = await harness.OpenStreamingAsync(160, 90, Red);
             CameraViewModel viewModel = ViewModel(window);
-            Assert.False(Ui.ShowsText(window, "Printing – 42%"));
+            window.Width = 960;
+            window.Height = 540;
+            Assert.False(Ui.ShowsText(window, "42%"));
 
             harness.Monitor.Raise(Snapshot(PrinterState.Printing, Job(42.7, TimeSpan.FromMinutes(65)), printerId: "a"));
-            await Ui.UntilAsync(() => Ui.ShowsText(window, "Printing – 42%"), "print state shown");
+            await Ui.UntilAsync(() => Ui.ShowsText(window, "42%"), "print state shown");
 
-            foreach (Action switchMode in new Action[]
+            foreach ((Action switchMode, bool shown) in new (Action, bool)[]
             {
-                () => { },
-                () => viewModel.ToggleFullScreenCommand.Execute(null),
-                () => viewModel.ShowMiniCommand.Execute(null),
+                (() => { }, true),
+                (() => viewModel.ToggleFullScreenCommand.Execute(null), true),
+                (() => viewModel.ShowMiniCommand.Execute(null), false),
             })
             {
                 switchMode();
                 Avalonia.Threading.Dispatcher.UIThread.RunJobs();
-                Assert.True(Ui.ShowsText(window, "Printing – 42%"), viewModel.Mode.ToString());
-                Assert.True(Ui.ShowsText(window, "1 h 5 min remaining"), viewModel.Mode.ToString());
+                window.Settle();
+                Assert.True(Ui.ShowsText(window, "42%") == shown, viewModel.Mode.ToString());
             }
         });
 

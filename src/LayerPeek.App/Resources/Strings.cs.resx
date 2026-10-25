@@ -864,9 +864,6 @@
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Zadejte šířku {0}–{1} a výšku {2}–{3}.</value>
   </data>
-  <data name="CameraOverlayLabeledValue" xml:space="preserve">
-    <value>{0}: {1}</value>
-  </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
   </data>
@@ -878,6 +875,21 @@
   </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Doba tisku: {0}</value>
+  </data>
+  <data name="CameraOverlayWidgetStatus" xml:space="preserve">
+    <value>Stav</value>
+  </data>
+  <data name="CameraOverlayWidgetTimes" xml:space="preserve">
+    <value>Časy</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperatures" xml:space="preserve">
+    <value>Teploty</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintName" xml:space="preserve">
+    <value>Název tisku</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
+    <value>Vychladnutí</value>
   </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Překryv</value>

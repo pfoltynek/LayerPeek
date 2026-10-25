@@ -34,6 +34,7 @@
     <Compile Include="..\LayerPeek.App.Tests\Tray\Menu\FakeWebGateway.cs" Link="Shared\FakeWebGateway.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Cameras\CameraFakes.cs" Link="Shared\CameraFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Cameras\FakeScreenCatalog.cs" Link="Shared\FakeScreenCatalog.cs" />
+    <Compile Include="..\LayerPeek.App.Tests\Cameras\Overlay\TestOverlayWidget.cs" Link="Shared\TestOverlayWidget.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Printers\ImageFakes.cs" Link="Shared\ImageFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Diagnostics\DiagnosticsFakes.cs" Link="Shared\DiagnosticsFakes.cs" />
   </ItemGroup>

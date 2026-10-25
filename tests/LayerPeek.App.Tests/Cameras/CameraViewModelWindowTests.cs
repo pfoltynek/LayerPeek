@@ -44,7 +44,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
     private CameraViewModel Create(CameraWindowDefaults defaults, string id = "mk4")
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraTarget target = new(id, "MK4", StreamUri) { Window = defaults };
+        CameraTarget target = CameraTarget.From(Printer(defaults, id))!;
         CameraViewModel viewModel = new(target, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);
         return viewModel;
@@ -59,7 +59,7 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         CameraWindowDefaults defaults = CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini };
 
         Assert.Equal(defaults, CameraTarget.From(Printer(defaults))!.Window);
-        Assert.Same(CameraWindowDefaults.Default, new CameraTarget("a", "A", StreamUri).Window);
+        Assert.Same(CameraWindowDefaults.Default, CameraTarget.From(Definition("a", "A") with { Camera = new CameraSettings(enabled: true, StreamUri) })!.Window);
     }
 
     [Fact]

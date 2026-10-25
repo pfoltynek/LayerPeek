@@ -271,15 +271,20 @@ public sealed class CameraOverlaySettingsTests : IDisposable
         Assert.Equal(remembered, _states.Get("a"));
     }
 
+    /// <summary>
+    /// Interim until T-092 replaces this sub-tab: the camera window draws the widget layout (T-081), so the old corner stays
+    /// in the in-memory settings only and does not change the layout of the camera window.
+    /// </summary>
     [Fact]
-    public async Task SavedOverlayReachesTheCameraTarget()
+    public async Task SavedOldCornerDoesNotChangeTheWidgetLayout()
     {
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha", Camera()));
         vm.Printers[0].SelectedOverlayCorner = vm.Printers[0].OverlayCornerOptions[3];
 
         AppSettings saved = await SaveAsync(vm);
 
-        Assert.Equal(CameraOverlayCorner.BottomRight, CameraTarget.From(saved.Printers[0])!.Overlay.Corner);
+        Assert.Equal(CameraOverlayCorner.BottomRight, saved.Printers[0].Camera.LegacyOverlay.Corner);
+        Assert.Same(Core.Cameras.Overlay.CameraOverlayLayout.Default, CameraTarget.From(saved.Printers[0])!.Overlay);
     }
 
     // ---- Language ----

@@ -40,7 +40,7 @@ public sealed class CameraViewModelApplyTests : IAsyncDisposable
     private CameraViewModel Create(CameraWindowDefaults defaults, string id = "mk4")
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraTarget target = new(id, "MK4", StreamUri) { Window = defaults };
+        CameraTarget target = CameraTargets.For(id, "MK4", StreamUri, defaults);
         CameraViewModel viewModel = new(target, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
         _created.Add(viewModel);
         return viewModel;

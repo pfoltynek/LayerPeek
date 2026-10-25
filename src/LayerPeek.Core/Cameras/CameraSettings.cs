@@ -91,8 +91,8 @@ public sealed record CameraSettings
     } = CameraOverlayLayout.Default;
 
     /// <summary>
-    /// The T-036 overlay options, used only by the old overlay of the camera window and its settings until T-081 / T-092
-    /// replace them. Kept in memory only: settings format 2 does not store them (user decision 2026-10-24, T-077 Q2), so
+    /// The T-036 overlay options, used only by the old Overlay sub-tab of the settings until T-092 replaces it (the camera
+    /// window draws <see cref="Overlay"/> since T-081 and ignores them). Kept in memory only: settings format 2 does not store them (user decision 2026-10-24, T-077 Q2), so
     /// every load starts with <see cref="CameraOverlayOptions.Default"/>. Part of equality so that unsaved changes count.
     /// </summary>
     public CameraOverlayOptions LegacyOverlay

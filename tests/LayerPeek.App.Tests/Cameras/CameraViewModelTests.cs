@@ -3,9 +3,11 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Tests.Cameras.Overlay;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -41,21 +43,26 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     private static PrinterDefinition CameraPrinter(string id = "mk4", string name = "MK4", string url = "rtsp://192.168.0.227/live") =>
         Definition(id, name) with { Camera = new CameraSettings(enabled: true, new Uri(url)) };
 
+    /// <summary>A window whose overlay has the test widget (state and progress) top left.</summary>
     private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null, ListLogger<CameraViewModel>? logger = null)
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(new CameraTarget(id, name, StreamUri), feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, (Microsoft.Extensions.Logging.ILogger<CameraViewModel>?)logger ?? NullLogger<CameraViewModel>.Instance);
+        PrinterDefinition printer = Definition(id, name) with
+        {
+            Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = new([new("test-a", OverlayAnchor.TopLeft)]) },
+        };
+        CameraViewModel viewModel = new(CameraTarget.From(printer)!, feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, (Microsoft.Extensions.Logging.ILogger<CameraViewModel>?)logger ?? NullLogger<CameraViewModel>.Instance, widgets: TestOverlayWidgets.Registry("test-a"));
         _created.Add(viewModel);
         viewModel.AttachFrameSink(_sink);
         return viewModel;
     }
 
-    internal static string? Line(CameraViewModel viewModel, CameraOverlayItems item) =>
-        viewModel.OverlayLines.FirstOrDefault(line => line.Item == item)?.Text;
+    /// <summary>The overlay's test widget.</summary>
+    private static TestOverlayWidget Card(CameraViewModel viewModel) => Assert.IsType<TestOverlayWidget>(Assert.Single(viewModel.Overlay.TopLeft));
 
-    private static string? StateLine(CameraViewModel viewModel) => Line(viewModel, CameraOverlayItems.State);
-
-    private static string? RemainingLine(CameraViewModel viewModel) => Line(viewModel, CameraOverlayItems.RemainingTime);
+    /// <summary>The state the card shows; <see langword="null"/> when no card is drawn or it shows no state.</summary>
+    private static string? StateText(CameraViewModel viewModel) =>
+        viewModel.Overlay.AreCardsVisible && Card(viewModel) is { IsShown: true, Title.Length: > 0 } card ? card.Title : null;
 
     private void ApplyPrinters(params PrinterDefinition[] printers) =>
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = printers });
@@ -394,12 +401,13 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     // ---- Language switch (T-029) ----
 
     [Fact]
-    public void RefreshTextsFormatsTitleStatusTipAndPrintOverlayInTheNewLanguage()
+    public void RefreshTextsFormatsTitleStatusTipAndOverlayInTheNewLanguage()
     {
         CameraViewModel viewModel = Create(name: "MK4");
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(42.7, TimeSpan.FromMinutes(65))));
         _dispatcher.RunAll();
         Assert.Equal("MK4 – Camera", viewModel.Title);
+        int formatted = Card(viewModel).FormatCount;
         List<string?> changes = [];
         viewModel.PropertyChanged += (_, e) => changes.Add(e.PropertyName);
 
@@ -410,21 +418,20 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             Assert.Equal("MK4 – Kamera", viewModel.Title);
             Assert.Equal("Verbindung zur Kamera wird hergestellt…", viewModel.StatusText);
             Assert.Equal("Zurück zum normalen Fenster (Doppelklick)", viewModel.NormalToolTip);
-            Assert.StartsWith("Druckt – 42", StateLine(viewModel), StringComparison.Ordinal);
-            Assert.StartsWith("Noch ", RemainingLine(viewModel), StringComparison.Ordinal);
+            Assert.Equal("Druckt", StateText(viewModel));
         }
 
         Assert.Contains(nameof(CameraViewModel.Title), changes);
         Assert.Contains(nameof(CameraViewModel.StatusText), changes);
         Assert.Contains(nameof(CameraViewModel.NormalToolTip), changes);
-        Assert.Contains(nameof(CameraViewModel.OverlayLines), changes);
+        Assert.Equal(formatted + 1, Card(viewModel).FormatCount);
         // Nothing else changed: no new connection, the mode stays.
         Assert.True(viewModel.IsNormal);
         Assert.Empty(_factory.Uris);
     }
 
     [Fact]
-    public void RefreshTextsBeforeThePrinterWasPolledKeepsTheOverlayHidden()
+    public void RefreshTextsBeforeThePrinterWasPolledShowsNoState()
     {
         CameraViewModel viewModel = Create();
 
@@ -433,8 +440,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             viewModel.RefreshTexts();
         }
 
-        Assert.Null(StateLine(viewModel));
-        Assert.False(viewModel.IsPrintOverlayVisible);
+        Assert.Null(StateText(viewModel));
     }
 
     [Fact]
@@ -450,28 +456,13 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.Empty(changes);
     }
 
-    // ---- Print overlay ----
-
-    [Fact]
-    public void MiniPreviewShowsProgressAndRemainingTime()
-    {
-        CameraViewModel viewModel = Create();
-        viewModel.ShowMiniCommand.Execute(null);
-
-        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42.7, TimeSpan.FromMinutes(65))));
-        _dispatcher.RunAll();
-
-        Assert.True(viewModel.IsPrintOverlayVisible);
-        Assert.Equal("Printing – 42%", StateLine(viewModel));
-        Assert.Equal("1 h 5 min remaining", RemainingLine(viewModel));
-        Assert.NotNull(RemainingLine(viewModel));
-    }
+    // ---- Overlay (T-081) ----
 
     [Theory]
-    [InlineData(CameraWindowMode.Normal)]
-    [InlineData(CameraWindowMode.FullScreen)]
-    [InlineData(CameraWindowMode.Mini)]
-    public void PrintOverlayIsShownInEveryMode(CameraWindowMode mode)
+    [InlineData(CameraWindowMode.Normal, true)]
+    [InlineData(CameraWindowMode.FullScreen, true)]
+    [InlineData(CameraWindowMode.Mini, false)]
+    public void CardsAreDrawnInTheNormalWindowAndOnFullScreenOnly(CameraWindowMode mode, bool drawn)
     {
         CameraViewModel viewModel = Create();
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(10, TimeSpan.FromMinutes(5))));
@@ -487,19 +478,18 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         }
 
         Assert.Equal(mode, viewModel.Mode);
-        Assert.True(viewModel.IsPrintOverlayVisible);
-        Assert.Equal("Printing – 10%", StateLine(viewModel));
-        Assert.Equal("5 min remaining", RemainingLine(viewModel));
+        Assert.Equal(drawn, viewModel.Overlay.AreCardsVisible);
+        // The widget keeps its content in every mode; only the cards are not drawn in the mini preview.
+        Assert.Equal("10%", Card(viewModel).Value);
     }
 
     [Fact]
-    public void PrintOverlayIsHiddenBeforeThePrinterWasPolled()
+    public void OverlayShowsNoStateBeforeThePrinterWasPolled()
     {
         CameraViewModel viewModel = Create();
-        viewModel.ShowMiniCommand.Execute(null);
 
-        Assert.False(viewModel.IsPrintOverlayVisible);
-        Assert.Null(StateLine(viewModel));
+        Assert.Null(StateText(viewModel));
+        Assert.Equal("MK4", Card(viewModel).Value);
     }
 
     [Fact]
@@ -509,10 +499,8 @@ public sealed class CameraViewModelTests : IAsyncDisposable
 
         CameraViewModel viewModel = Create();
 
-        Assert.Equal("Ready", StateLine(viewModel));
-        Assert.Null(RemainingLine(viewModel));
-        // Shown in every mode (user decision 2026-10-18), also in the normal window.
-        Assert.True(viewModel.IsPrintOverlayVisible);
+        Assert.Equal("Ready", StateText(viewModel));
+        Assert.Equal(0, _dispatcher.Pending);
     }
 
     [Fact]
@@ -527,7 +515,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         _monitor.Raise(Snapshot(PrinterState.Error, printerId: "other"));
 
         Assert.Equal(posts, _dispatcher.PostCount);
-        Assert.Equal("Printing – 42%", StateLine(viewModel));
+        Assert.Equal("42%", Card(viewModel).Value);
     }
 
     [Fact]
@@ -618,7 +606,10 @@ public sealed class CameraViewModelTests : IAsyncDisposable
     {
         Assert.Null(CameraTarget.From(Definition()));
         Assert.Null(CameraTarget.From(Definition() with { Camera = new CameraSettings(enabled: false, StreamUri) }));
-        Assert.Equal(new CameraTarget("mk4", "MK4", StreamUri), CameraTarget.From(CameraPrinter()));
+        CameraTarget target = CameraTarget.From(CameraPrinter())!;
+        Assert.Equal(CameraPrinter(), target.Printer);
+        Assert.Equal(("mk4", "MK4", StreamUri), (target.PrinterId, target.Name, target.StreamUri));
+        Assert.Same(CameraOverlayLayout.Default, target.Overlay);
     }
 
     // ---- Review round 1 ----
