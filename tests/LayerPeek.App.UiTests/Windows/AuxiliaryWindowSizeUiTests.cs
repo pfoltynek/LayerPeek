@@ -190,7 +190,7 @@ public sealed class AuxiliaryWindowSizeUiTests(HeadlessSession session)
                 ("Printer", SettingsViewModel.PrintersTab, SettingsViewModel.ConnectionPrinterTab),
                 ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
                 ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
-                ("Overlay", SettingsViewModel.PrintersTab, SettingsViewModel.OverlayPrinterTab),
+                ("Widgets", SettingsViewModel.WidgetsTab, SettingsViewModel.ConnectionPrinterTab),
                 ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
                 ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
             ];

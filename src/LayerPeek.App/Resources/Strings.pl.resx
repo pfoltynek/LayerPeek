@@ -472,16 +472,13 @@
     <value>Drukarka ostygła</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Po wydruku powiadamia, gdy dysza ostygnie poniżej progu i drukarkę można wyłączyć.</value>
-  </data>
-  <data name="SettingsCooldownSection" xml:space="preserve">
-    <value>Stygnięcie po wydruku</value>
+    <value>Próg temperatury dyszy ustawia się dla każdej drukarki na karcie Widżety, widżet Stygnięcie.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Próg temperatury dyszy (°C)</value>
   </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Poniżej tej temperatury drukarkę można bezpiecznie wyłączyć. Używają go widżet Stygnięcie i powiadomienie.</value>
+    <value>Poniżej tej temperatury drukarkę można bezpiecznie wyłączyć.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Wpisz liczbę całkowitą od {0} do {1}.</value>
@@ -494,6 +491,93 @@
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Skonfigurowano tylko jedną drukarkę.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widżety</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Drukarka</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>Nie skonfigurowano żadnej drukarki. Dodaj ją na karcie Drukarki.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Widżety w oknie kamery</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Pokaż widżet {0}</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, widoczny</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, ukryty</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>Ten widżet nie ma innych ustawień.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>Wszystkie widżety</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Edytuj układ w oknie kamery…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Otwiera okno kamery tej drukarki w trybie układu. Tam zmienisz położenie, kolejność, rozmiar i wyróżnienie widżetów.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Włącz kamerę tej drukarki i zapisz ustawienia.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Najpierw zapisz ustawienia.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Przywraca domyślną widoczność, położenie, kolejność, rozmiar i wyróżnienie widżetów tej drukarki.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>Przywrócono domyślny układ. Zostanie zastosowany po zapisaniu.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>Powiadomienie „Drukarka ostygła”: włączone</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>Powiadomienie „Drukarka ostygła”: wyłączone</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Powiadomienia są wyłączone.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Zmień na karcie Ogólne</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Użyj układu dla wszystkich drukarek</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>Układ skopiowano do pozostałych drukarek. Zostanie zastosowany po zapisaniu.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Położenie, kolejność, rozmiar i wyróżnienie zmienisz przyciskiem Edytuj układ w oknie kamery.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Krycie tła kart</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Dotyczy okien kamer wszystkich drukarek. Wyższa wartość = czytelniejszy tekst na jasnym obrazie.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Nazwa drukarki, stan i postęp wydruku w procentach.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Pozostały czas, godzina zakończenia i czas drukowania.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Temperatura dyszy i stołu z wykresem z ostatnich 60 minut.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Czytelna nazwa wydruku z materiałem, wysokością warstwy i dyszą; większe rozmiary pokazują podgląd.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>Po zakończeniu wydruku pokazuje stygnięcie dyszy i kiedy drukarkę można bezpiecznie wyłączyć.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Powiadom, gdy do końca druku zostanie tyle minut (0 = wyłączone)</value>
@@ -950,45 +1034,6 @@
   </data>
   <data name="CameraMiniNameNoJob" xml:space="preserve">
     <value>Nazwa wydruku pojawi się podczas drukowania</value>
-  </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Nakładka</value>
-  </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Róg nakładki</value>
-  </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Zwykłe okno i pełny ekran</value>
-  </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Nazwa drukarki</value>
-  </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Stan drukarki</value>
-  </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Temperatura dyszy</value>
-  </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Temperatura stołu</value>
-  </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Postęp (%)</value>
-  </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Pozostały czas</value>
-  </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Godzina zakończenia</value>
-  </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Czas druku</value>
-  </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>Nazwa pliku</value>
-  </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Dane zadania (postęp, czasy, nazwa pliku) są wyświetlane tylko podczas drukowania. Po zapisaniu zmiany obowiązują także w otwartych oknach kamery.</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Obraz drukarki: {0}</value>

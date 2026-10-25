@@ -1,0 +1,66 @@
+<!--
+  The views of the widget settings panels of the Widgets tab (T-092, design 6): one DataTemplate per panel view model
+  (x:DataType, compiled bindings), added to SettingsWindow.DataTemplates, where a ContentControl with the selected panel
+  picks the template by type (no reflection, Native AOT). The text styles (label, hint, error) come from the window.
+  A new widget with settings = its panel view model, its template here and its factory in the registration.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:vm="using:LayerPeek.App.Settings"
+                    xmlns:w="using:LayerPeek.App.Settings.Widgets"
+                    xmlns:loc="using:LayerPeek.App.Localization"
+                    x:Class="LayerPeek.App.Settings.Widgets.WidgetSettingsTemplates">
+  <!--
+    Cool-down (design 4.3, the threshold section of T-080): label, the threshold box (120) and "Use threshold for all
+    printers" on one row, the hint or (instead of it, T-033 pattern) the error, then the state of the "Printer cooled down"
+    notification and the link to the General tab, where its switch is (Q3). Enabled also while the camera is off.
+  -->
+  <DataTemplate x:Key="CooldownWidgetSettings" x:DataType="w:CooldownWidgetSettingsViewModel">
+    <StackPanel>
+      <TextBlock Classes="label"
+                 TextWrapping="Wrap"
+                 Text="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}" />
+      <Grid ColumnDefinitions="120,12,Auto">
+        <NumericUpDown AutomationProperties.AutomationId="WidgetCooldownThreshold"
+                       AutomationProperties.Name="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       AutomationProperties.HelpText="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       Value="{Binding Printer.CooldownThresholdCelsius}"
+                       Minimum="{x:Static vm:PrinterEditorViewModel.MinCooldownThresholdCelsius}"
+                       Maximum="{x:Static vm:PrinterEditorViewModel.MaxCooldownThresholdCelsius}"
+                       Increment="1"
+                       FormatString="0"
+                       VerticalAlignment="Top" />
+        <Button Grid.Column="2"
+                AutomationProperties.AutomationId="WidgetCooldownApplyAll"
+                AutomationProperties.Name="{Binding [SettingsCooldownApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}"
+                MaxWidth="376"
+                VerticalAlignment="Top"
+                Command="{Binding Printer.ApplyCooldownThresholdToAllCommand}"
+                ToolTip.Tip="{Binding Printer.ApplyToAllUnavailableReason}"
+                ToolTip.ShowOnDisabled="True">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsCooldownApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </Button>
+      </Grid>
+      <TextBlock AutomationProperties.AutomationId="WidgetCooldownThresholdHint"
+                 Classes="hint"
+                 Text="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                 IsVisible="{Binding Printer.ShowsCooldownThresholdHint}" />
+      <TextBlock AutomationProperties.AutomationId="WidgetCooldownThresholdError"
+                 Classes="error"
+                 Text="{Binding Printer.CooldownThresholdError}"
+                 IsVisible="{Binding Printer.CooldownThresholdError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+      <TextBlock AutomationProperties.AutomationId="WidgetCooldownNotifyState"
+                 Margin="0,16,0,0"
+                 FontSize="12"
+                 TextWrapping="Wrap"
+                 Text="{Binding NotifyStateText}" />
+      <HyperlinkButton AutomationProperties.AutomationId="WidgetCooldownNotifyLink"
+                       Margin="0,4,0,0"
+                       MinHeight="32"
+                       Padding="0"
+                       VerticalContentAlignment="Center"
+                       Command="{Binding ShowNotificationSettingCommand}"
+                       Content="{Binding [SettingsWidgetsNotifyLink], Source={x:Static loc:LocalizedStrings.Instance}}" />
+    </StackPanel>
+  </DataTemplate>
+</ResourceDictionary>

@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
@@ -234,10 +235,11 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>
     /// A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
     /// <paramref name="screens"/>: the monitors offered for the camera window (those of the settings window);
-    /// <paramref name="cameraWindowPlacer"/>: the camera windows, opened or placed again by "Apply" (T-040).
+    /// <paramref name="cameraWindowPlacer"/>: the camera windows, opened or placed again by "Apply" (T-040);
+    /// <paramref name="layoutModeLauncher"/>: the camera windows, whose layout mode the Widgets tab starts (T-092).
     /// </summary>
-    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null) =>
-        AppServices.CreateSettingsViewModel(_services, screens, cameraWindowPlacer);
+    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null, ICameraLayoutModeLauncher? layoutModeLauncher = null) =>
+        AppServices.CreateSettingsViewModel(_services, screens, cameraWindowPlacer, layoutModeLauncher);
 
     /// <summary>
     /// A view model for a new camera window of <paramref name="printerId"/> (from <paramref name="saved"/> when given, else

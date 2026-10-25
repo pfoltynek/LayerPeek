@@ -95,13 +95,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     // printer even when the values equal the saved ones.
     private bool _forgetsRememberedCameraWindow;
 
-    // Print overlay (T-036): the corner and one row per item (in display order). In memory only since settings format 2
-    // (T-077); T-092 replaces it with the widget table.
-    private CameraOverlayCornerOption _overlayCorner;
-    private readonly CameraOverlayItemRow[] _overlayRows;
-
-    // The widget layout (T-077) is not edited here yet (T-092): saved back as loaded.
-    private readonly CameraOverlayLayout _savedOverlayLayout;
+    // The widget layout of the camera overlay (T-077) as edited on the Widgets tab (T-092); _savedCameraEnabled: the camera
+    // is on in the saved settings, which "Edit layout in camera window…" needs (the camera window works with them).
+    private CameraOverlayLayout _overlayLayout;
+    private bool _savedCameraEnabled;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
     /// <param name="hasSavedPassword">Whether a password is saved; <see langword="null"/> = unknown.</param>
@@ -145,15 +142,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _topmostMini = _savedWindow.TopmostMini;
         ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
-        _savedOverlayLayout = camera.Overlay;
-        CameraOverlayOptions overlay = camera.LegacyOverlay;
-        _overlayCorner = owner.OverlayCornerOptions.First(option => option.Value == overlay.Corner);
-        _overlayRows = [.. CameraOverlayOptions.Items.Select(item => new CameraOverlayItemRow(
-            item,
-            OverlayItemText(item),
-            isNormal: (overlay.Normal & item) != 0,
-            isMini: (overlay.Mini & item) != 0,
-            OnOverlayEdited))];
+        _overlayLayout = camera.Overlay;
+        _savedCameraEnabled = saved is not null && camera.Enabled;
         InitializeImage(saved, storedCustomImage);
         FormatCellNames();
         ValidateAddress();
@@ -320,7 +310,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors => HasConnectionErrors || HasCameraErrors || HasCameraWindowErrors || HasOverlayErrors;
+    public bool HasErrors => HasConnectionErrors || HasCameraErrors || HasCameraWindowErrors || HasWidgetErrors;
 
     /// <summary>A field of the Printer sub-tab (name, address, user name, password) is invalid (shown or not yet).</summary>
     public bool HasConnectionErrors =>
@@ -638,7 +628,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     /// <summary>
     /// "Factory settings" (T-040): every value of the Camera window sub-tab back to <see cref="CameraWindowDefaults.Default"/>
-    /// (not the overlay); the remembered camera window of this printer is forgotten by the next successful Save or Apply.
+    /// (not the widget layout); the remembered camera window of this printer is forgotten by the next successful Save or Apply.
     /// Only while the camera is on.
     /// </summary>
     public IRelayCommand ResetCameraWindowCommand { get; }
@@ -653,31 +643,70 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>"Factory settings" was used since the last save: saving forgets the remembered camera window.</summary>
     internal bool ForgetsRememberedCameraWindow => _forgetsRememberedCameraWindow;
 
-    // ---- Print overlay (T-036): what the camera window shows over the image. Edited only while the camera is on. ----
+    // ---- Widget layout of the camera overlay (T-077), edited on the Widgets tab (T-092) ----
 
-    public IReadOnlyList<CameraOverlayCornerOption> OverlayCornerOptions => _owner.OverlayCornerOptions;
+    /// <summary>
+    /// The widget layout as edited (visibility on the Widgets tab, "Restore defaults", "Use layout for all printers", or the
+    /// layout saved by the layout mode of the camera window). Anchors, order, sizes and highlighting are changed only in the
+    /// layout mode (T-091). Kept while the camera is off.
+    /// </summary>
+    public CameraOverlayLayout OverlayLayout => _overlayLayout;
 
-    /// <summary>Corner of the overlay in every mode.</summary>
-    public CameraOverlayCornerOption SelectedOverlayCorner
+    /// <summary>
+    /// The camera of the printer is on in the saved settings (a new printer: never). "Edit layout in camera window…" needs it
+    /// together with the camera on as edited: the camera window works with the saved printer.
+    /// </summary>
+    internal bool IsCameraEnabledWhenSaved => _savedCameraEnabled;
+
+    /// <summary>The widget is in the edited layout and visible; a widget missing from the layout is hidden.</summary>
+    internal bool IsWidgetShown(string widgetId) => _overlayLayout.Find(widgetId) is { Visible: true };
+
+    /// <summary>
+    /// Shows or hides the widget in the edited layout (<see cref="CameraOverlayLayout.WithVisible"/>). A registered widget
+    /// that is missing from the layout (only in layouts not read from the file, which adds every known widget) is added at
+    /// its default placement, or in the main anchor for a widget the default layout does not know.
+    /// </summary>
+    internal void SetWidgetShown(string widgetId, bool shown)
     {
-        get => _overlayCorner;
-        set
+        ArgumentNullException.ThrowIfNull(widgetId);
+        CameraOverlayLayout layout = _overlayLayout;
+        if (!layout.Contains(widgetId))
         {
-            if (value is not null && SetProperty(ref _overlayCorner, value))
+            if (!shown)
             {
-                OnOverlayEdited();
+                return;
             }
+
+            OverlayWidgetPlacement placement = CameraOverlayLayout.DefaultPlacement(widgetId) ?? new OverlayWidgetPlacement(widgetId, CameraOverlayLayout.MainAnchor);
+            layout = new CameraOverlayLayout([.. layout.Widgets, placement]);
+        }
+
+        SetOverlayLayout(layout.WithVisible(widgetId, shown));
+    }
+
+    /// <summary>
+    /// Replaces the edited layout ("Restore defaults", "Use layout for all printers"); saved with the other changes.
+    /// </summary>
+    internal void SetOverlayLayout(CameraOverlayLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        if (SetProperty(ref _overlayLayout, layout, nameof(OverlayLayout)))
+        {
+            RevealErrors();
+            _owner.OnPrinterEdited(nameChanged: false);
         }
     }
 
     /// <summary>
-    /// The items in display order (printer data, then job data), each with a check box for the normal window and full
-    /// screen and one for the mini preview.
+    /// The layout mode of the camera window saved <paramref name="layout"/> for this printer (T-077 Q3): it replaces the
+    /// edited layout, and nothing else of the printer changes. The owner updates its saved state, so that this alone is no
+    /// unsaved change.
     /// </summary>
-    public IReadOnlyList<CameraOverlayItemRow> OverlayRows => _overlayRows;
-
-    /// <summary>The overlay as entered.</summary>
-    internal CameraOverlayOptions CameraOverlay => BuildOverlay();
+    internal void TakeSavedOverlayLayout(CameraOverlayLayout layout)
+    {
+        ArgumentNullException.ThrowIfNull(layout);
+        SetProperty(ref _overlayLayout, layout, nameof(OverlayLayout));
+    }
 
     /// <summary>The camera window defaults as entered, to compare with the saved ones (tests and saving).</summary>
     internal CameraWindowDefaults? CameraWindow => BuildWindow();
@@ -717,16 +746,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private CameraSettings? BuildCamera() => BuildWindow() is { } window ? BuildCamera(window) : null;
 
     /// <summary>
-    /// The camera with the address as entered, <paramref name="window"/> and the overlay as entered (T-036);
+    /// The camera with the address as entered, <paramref name="window"/> and the widget layout as edited (T-092);
     /// <see langword="null"/> when the address blocks saving.
     /// </summary>
     private CameraSettings? BuildCamera(CameraWindowDefaults window)
     {
-        CameraOverlayOptions overlay = BuildOverlay();
-        CameraOverlayLayout layout = _savedOverlayLayout;
+        CameraOverlayLayout layout = _overlayLayout;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, LegacyOverlay = overlay };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -736,15 +764,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
         if (problem == CameraUrlProblem.Missing)
         {
-            // No address and the default window and overlay: the shared "no camera" value.
-            return window == CameraSettings.Disabled.Window && overlay == CameraSettings.Disabled.LegacyOverlay && layout == CameraSettings.Disabled.Overlay
+            // No address and the default window and layout: the shared "no camera" value.
+            return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout, LegacyOverlay = overlay };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, LegacyOverlay = overlay };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout };
         }
         catch (ArgumentException)
         {
@@ -778,42 +806,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         };
     }
 
-    /// <summary>The overlay as entered; nothing to validate. Equal to the shared default when nothing differs from it.</summary>
-    private CameraOverlayOptions BuildOverlay()
-    {
-        CameraOverlayItems normal = CameraOverlayItems.None;
-        CameraOverlayItems mini = CameraOverlayItems.None;
-        foreach (CameraOverlayItemRow row in _overlayRows)
-        {
-            normal |= row.IsNormal ? row.Item : CameraOverlayItems.None;
-            mini |= row.IsMini ? row.Item : CameraOverlayItems.None;
-        }
-
-        CameraOverlayOptions overlay = new() { Corner = _overlayCorner.Value, Normal = normal, Mini = mini };
-        return overlay == CameraOverlayOptions.Default ? CameraOverlayOptions.Default : overlay;
-    }
-
-    private static Func<string> OverlayItemText(CameraOverlayItems item) => item switch
-    {
-        CameraOverlayItems.PrinterName => static () => Strings.SettingsOverlayItemPrinterName,
-        CameraOverlayItems.State => static () => Strings.SettingsOverlayItemState,
-        CameraOverlayItems.NozzleTemperature => static () => Strings.SettingsOverlayItemNozzleTemperature,
-        CameraOverlayItems.BedTemperature => static () => Strings.SettingsOverlayItemBedTemperature,
-        CameraOverlayItems.Progress => static () => Strings.SettingsOverlayItemProgress,
-        CameraOverlayItems.RemainingTime => static () => Strings.SettingsOverlayItemRemainingTime,
-        CameraOverlayItems.FinishTime => static () => Strings.SettingsOverlayItemFinishTime,
-        CameraOverlayItems.PrintTime => static () => Strings.SettingsOverlayItemPrintTime,
-        CameraOverlayItems.FileName => static () => Strings.SettingsOverlayItemFileName,
-        _ => throw new ArgumentOutOfRangeException(nameof(item), item, "Unknown camera overlay item."),
-    };
-
-    /// <summary>A field of the overlay sub-tab changed.</summary>
-    private void OnOverlayEdited()
-    {
-        RevealErrors();
-        _owner.OnPrinterEdited(nameChanged: false);
-    }
-
     private bool IsInvalidSize(string text) => _cameraEnabled && CameraWindowSizeText.Parse(text) is null;
 
     /// <summary>The mini preview must be at least <see cref="CameraWindowSize.MinMiniWidth"/> wide (T-089 Q4).</summary>
@@ -838,7 +830,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _miniTopmostName = CellName(Strings.SettingsCameraWindowMini, Strings.SettingsCameraWindowTopmost);
     }
 
-    /// <summary>"Factory settings" of the Camera window sub-tab (T-040); the overlay sub-tab is not touched.</summary>
+    /// <summary>"Factory settings" of the Camera window sub-tab (T-040); the widget layout is not touched.</summary>
     private void ResetCameraWindow()
     {
         if (!_cameraEnabled || !_owner.IsEditable)
@@ -969,6 +961,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         CameraCredentialsRemoved = false;
         // The saved window defaults are the new fallback for an invalid size of a turned-off camera (Q6).
         _savedWindow = BuildWindow() ?? _savedWindow;
+        _savedCameraEnabled = _cameraEnabled;
+        OnPropertyChanged(nameof(IsCameraEnabledWhenSaved));
         if (imageStored)
         {
             MarkImageSaved();
@@ -1020,12 +1014,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(MiniCornerName));
         OnPropertyChanged(nameof(NormalTopmostName));
         OnPropertyChanged(nameof(MiniTopmostName));
-
-        // Overlay (T-036): the item names and the accessible names of their check boxes (the corners are shared).
-        foreach (CameraOverlayItemRow row in _overlayRows)
-        {
-            row.RefreshTexts();
-        }
 
         RefreshImageTexts();
 

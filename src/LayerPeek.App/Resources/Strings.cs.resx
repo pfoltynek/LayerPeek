@@ -523,16 +523,13 @@
     <value>Tiskárna vychladla</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Po tisku upozorní, když tryska vychladne pod práh a tiskárnu můžete vypnout.</value>
-  </data>
-  <data name="SettingsCooldownSection" xml:space="preserve">
-    <value>Vychladnutí po tisku</value>
+    <value>Práh teploty trysky se nastavuje u tiskárny na záložce Widgety, widget Vychladnutí.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Práh teploty trysky (°C)</value>
   </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Pod touto teplotou je tiskárnu bezpečné vypnout. Používá ho widget Vychladnutí a upozornění.</value>
+    <value>Pod touto teplotou je tiskárnu bezpečné vypnout.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Zadejte celé číslo od {0} do {1}.</value>
@@ -545,6 +542,93 @@
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Je nastavená jen jedna tiskárna.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widgety</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Tiskárna</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>Žádná tiskárna není nastavená. Přidejte ji na záložce Tiskárny.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Widgety v okně kamery</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Zobrazit widget {0}</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, zobrazený</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, skrytý</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>Tento widget nemá další nastavení.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>Všechny widgety</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Upravit rozložení v okně kamery…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Otevře okno kamery této tiskárny v režimu rozložení. Tam změníte polohu, pořadí, velikost a zvýraznění widgetů.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Zapněte kameru této tiskárny a uložte nastavení.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Nejdřív nastavení uložte.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů této tiskárny na výchozí.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>Obnoveno výchozí rozložení. Projeví se po uložení.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>Upozornění „Tiskárna vychladla“: zapnuté</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>Upozornění „Tiskárna vychladla“: vypnuté</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Upozornění jsou vypnutá.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Změnit na záložce Obecné</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Použít rozložení u všech tiskáren</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>Rozložení se zkopírovalo do ostatních tiskáren. Projeví se po uložení.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Polohu, pořadí, velikost a zvýraznění upravíte tlačítkem Upravit rozložení v okně kamery.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Neprůhlednost pozadí karet</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Platí pro okna kamer všech tiskáren. Vyšší hodnota = čitelnější text na světlém obraze.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Název tiskárny, stav a průběh tisku v procentech.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Zbývající čas, čas dokončení a doba tisku.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Teplota trysky a podložky s grafem posledních 60 minut.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Čitelný název tisku s materiálem, výškou vrstvy a tryskou, ve větší velikosti s náhledem.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>Po skončení tisku ukáže chladnutí trysky a kdy je tiskárnu bezpečné vypnout.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Upozornit, když zbývá tolik minut tisku (0 = vypnuto)</value>
@@ -950,45 +1034,6 @@
   </data>
   <data name="CameraMiniNameNoJob" xml:space="preserve">
     <value>Název tisku se zobrazí během tisku</value>
-  </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Překryv</value>
-  </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Roh překryvu</value>
-  </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Normální okno a celá obrazovka</value>
-  </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Název tiskárny</value>
-  </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Stav tiskárny</value>
-  </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Teplota trysky</value>
-  </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Teplota podložky</value>
-  </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Průběh (%)</value>
-  </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Zbývající čas</value>
-  </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Čas dokončení (hodiny)</value>
-  </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Doba tisku</value>
-  </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>Název souboru</value>
-  </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Údaje o úloze (průběh, časy, název souboru) se zobrazují jen během tisku. Změny se po uložení projeví i v otevřených oknech kamery.</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Obrázek tiskárny: {0}</value>

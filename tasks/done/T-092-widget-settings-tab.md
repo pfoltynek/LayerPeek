@@ -1,7 +1,7 @@
 ---
 id: T-092
 title: Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení
-status: todo
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -151,7 +151,7 @@ T-080 je hotový (sloučený do `develop` 2026-10-25) **bez pole prahu v okně**
 - Nové texty ve všech 8 jazycích, přepnutí jazyka za běhu.
 
 ## Akceptační kritéria
-- [ ] App.Tests:
+- [x] App.Tests:
   - načtení rozložení do seznamu, změna viditelnosti, uložení, přenos do `PrinterDefinition`,
   - „Obnovit výchozí“ (jen rozložení vybrané tiskárny, práh se nemění) a „Použít rozložení u všech tiskáren“ (kopíruje celé rozložení, jiné hodnoty tiskáren nemění),
   - práh: hranice 30 a 100, hodnoty mimo rozsah blokují uložení, „Použít práh u všech tiskáren“, značka chyby u widgetu, tiskárny a záložky,
@@ -160,7 +160,7 @@ T-080 je hotový (sloučený do `develop` 2026-10-25) **bez pole prahu v okně**
   - „Upravit rozložení v okně kamery…“: dostupnost (kamera vypnutá, neuložená tiskárna, žádná tiskárna) a předání tiskárny a rozpracovaného rozložení (Q4) do vstupu T-091,
   - registr: každý registrovaný widget má klíč názvu a popisu ve všech 8 `Strings.*.resx` a platný `IconKey`; panel se vytvoří jen pro widget, který ho deklaruje, a při změně výběru (widget i tiskárna) se uvolní,
   - smlouva: definice bez `DescriptionKey`, `IconKey` a `Settings` (registrace z T-081) se dál sestaví a chová jako dřív.
-- [ ] Headless UI testy (`LayerPeek.App.UiTests`):
+- [x] Headless UI testy (`LayerPeek.App.UiTests`):
   - výchozí hodnoty, změna viditelnosti myší i klávesnicí, uložení kliknutím, vypnutá kamera, žádná tiskárna,
   - výběr widgetu přepne panel; widget bez vlastního nastavení; Vychladnutí s chybou prahu (s testovací registrací panelu, dokud ho nezapojí T-088),
   - „Použít … u všech tiskáren“ s 1 a 3 tiskárnami,
@@ -169,13 +169,13 @@ T-080 je hotový (sloučený do `develop` 2026-10-25) **bez pole prahu v okně**
   - **bez posuvníku ve výchozí velikosti 780 × 532 ve všech 8 jazycích** × stavy (výchozí, Vychladnutí vybrané, chyba prahu, vypnutá kamera, jediná tiskárna, žádná tiskárna); po zmenšení okna (např. na minimum 640 × 400) se posuvník objeví a obsah zůstane dosažitelný,
   - velikost obou oken 780 × 532 (pokud ji už nezavedl T-094, jinak jen ověřit) a všechny dosavadní testy rozvržení obou oken v této velikosti,
   - snímky reference (nové i přegenerované, vizuálně zkontrolované).
-- [ ] **Převzato z T-080** (pole prahu vychladnutí, rozhodnutí 2026-10-25):
+- [x] **Převzato z T-080** (pole prahu vychladnutí, rozhodnutí 2026-10-25):
   - App.Tests i headless UI: pole prahu v panelu Vychladnutí – výchozí hodnota 50 °C, uložení, hodnoty mimo 30–100 a necelá čísla (chyba „Zadejte celé číslo od 30 do 100.“ místo nápovědy, blokuje uložení, okno přejde na záložku Widgety, vybere tiskárnu i widget Vychladnutí a označí je „!“),
   - „Použít práh u všech tiskáren“ v okně: s 1 tiskárnou zakázané s důvodem v tooltipu, s 3 tiskárnami zkopíruje platný práh a ukáže stavový text,
   - panel Vychladnutí s polem prahu **bez posuvníku ve všech 8 jazycích** × stavy z `SettingsWindowLayoutTests` (i s chybou prahu v de / fr),
   - `SettingsNotifyCooledDownHelp` má znění z Návrhu UI 8 ve všech 8 jazycích.
-- [ ] Žádné reflexní bindingy, žádné trim/AOT varování
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Žádné reflexní bindingy, žádné trim/AOT varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh UI
 
@@ -565,3 +565,21 @@ Původní znění otázek ui-designera pro dohledání důvodů. Ve všech plat�
 ## Poznámky k implementaci
 - 2026-10-25, ui-designer: rozsah a kritéria přepsané podle rozhodnutí uživatele z 2026-10-25, doplněný Návrh UI (oddíly 0–11) a otázky Q1–Q7.
 - 2026-10-25, architekt: do větve sloučený `develop` s hotovým T-080. Položky z T-080 (kritérium, API pohledu, texty, `SettingsNotifyCooledDownHelp`, prototyp XAML) jsou v oddílech Akceptační kritéria a Převzato z T-080. Zapsané rozhodnutí uživatele (schválený Návrh UI, Q1–Q7, velikost oken). Výchozí velikost oken, zvětšení na celou obrazovku a zapamatování velikosti přesunuté do T-094. Závislost na T-088 odebraná: T-088 naopak závisí na tomto úkolu, protože registruje panel Vychladnutí podle zde zavedené smlouvy.
+- 2026-10-25, ui-dev: hotovo.
+  - **Smlouva widgetů:** `IOverlayWidgetDefinition` má nové výchozí členy `DescriptionKey`, `IconKey` a `Settings` (`IOverlayWidgetSettingsFactory?`), `OverlayWidgetDefinition` je má jako nepovinné `init` vlastnosti. Registrace bez nich (T-081, testovací widgety, vlastní implementace rozhraní) se sestaví a chovají beze změny (test `DefinitionWithoutTheNewMembersBuildsAndBehavesAsBefore`).
+  - Továrna panelu (`Settings/Widgets/IOverlayWidgetSettingsFactory.cs`): `Create(IOverlayWidgetSettingsHost)` a `HasError(PrinterEditorViewModel)`, základ panelu `OverlayWidgetSettingsViewModel` (`IDisposable`). Hostitele implementuje `SettingsViewModel` jako malý vnořený adaptér pro jednu tiskárnu (`WidgetHost`), aby panel zůstal svázaný se „svou“ tiskárnou. `ShowStatus` a `ApplyToOtherPrinters` berou text jako `Func<string>`, aby se po přepnutí jazyka naformátoval znovu (návrh uváděl `string`).
+  - Pohledy panelů: `Settings/Widgets/WidgetSettingsTemplates.axaml` (`ResourceDictionary` s `x:Class`, `DataTemplate` s `x:DataType`), okno je přidá do `DataTemplates` a `ContentControl` vybere šablonu podle typu (bez reflexe).
+  - Popisy a ikony registrovaných widgetů: `OverlayWidgetDescriptions`, `OverlayWidgetIcons` v `Composition/OverlayWidgets.cs` (ikony sdílí i zástupné karty režimu rozložení). Ikonu kreslí `WidgetIcon` (klíč zdroje → `OverlayIcon`, velikost plátna z názvu klíče). Okno nastavení načítá `OverlayIcons.axaml`.
+  - **Vychladnutí:** panel `CooldownWidgetSettings.Instance` / `CooldownWidgetSettingsViewModel` je hotový, ale v aplikaci se zatím **neukazuje**: řádek Vychladnutí přidá do seznamu až T-088 registrací widgetu s `DescriptionKey = OverlayWidgetDescriptions.Cooldown`, `IconKey = OverlayWidgetIcons.Cooldown`, `Settings = CooldownWidgetSettings.Instance`. Do té doby nejde práh v okně změnit (jako dosud). Testy používají registraci `WidgetSettingsTestData.WithCooldown()` (UI testy ji mají jako výchozí, aby ověřily 5 widgetů a panel Vychladnutí).
+  - Hodnoty zůstávají u tiskárny: `PrinterEditorViewModel.OverlayLayout` (rozpracované rozložení), `HasCooldownThresholdError`, `HasWidgetErrors`, `ShowsWidgetErrorMarker` (náhrada `HasOverlayErrors` / `ShowsOverlayErrorMarker` / `OverlayTabName`). Uložení s chybou prahu přepne na záložku Widgety, vybere tiskárnu a první widget s chybou; značka „!“ je u řádku widgetu, tiskárny (výběr i seznam) a záložky (`SettingsTabWidgetsMarker`, jméno „Widgety – obsahuje chyby“).
+  - **Záložky:** Tiskárny 0, Widgety 1, Obecné 2, Spuštění a aktualizace 3; tiskárna má 3 podzáložky. Ctrl+PageDown na záložce Widgety nic nedělá.
+  - **Klávesnice:** seznam je jedna zastávka Tab (výchozí chování `ListBox` v Avalonii 12), šipky / Home / End mění výběr. Mezerník obsluhuje okno v tunelové obsluze `KeyDown` seznamu (`SettingsViewModel.ToggleSelectedWidget`); v Avalonii 12 funguje spolehlivě, záložní řešení nebylo potřeba. Zaškrtávací pole mají `IsTabStop=False`, `Focusable=False`; klik na ně přepne viditelnost a vybere řádek (ve view modelu).
+  - **Upravit rozložení v okně kamery…:** volá `ICameraLayoutModeLauncher.Start(id, rozpracované rozložení)`; `App` předá oknu instanci `CameraWindows` (`TrayHost.CreateSettingsViewModel(screens, cameraWindows, cameraWindows)`). Povolené jen pro uloženou tiskárnu se zapnutou kamerou v uloženém i rozpracovaném nastavení; důvod v tooltipu i `HelpText`. Když `Start` vrátí `false` (tiskárna mezitím bez kamery, aplikace končí), okno nic nehlásí.
+  - **Opětovné načtení:** `LayoutSaved` jde přes `IUiDispatcher` na UI vlákno; tiskárna převezme rozložení jako uložené (`_baseline.WithCameraOverlayLayout`) i rozpracované, ostatní neuložené změny zůstanou a samotné převzetí není neuložená změna. Nová i odebraná tiskárna událost ignoruje, zavřené okno se odhlásí. Tím je vyřešené známé omezení z T-091.
+  - **Neprůhlednost:** `SettingsViewModel.OverlayOpacityPercent` (zaokrouhlí a omezí na 30–95), text podle kultury („72 %“ / „72%“), ukládá se do `AppSettings.CameraOverlayOpacityPercent`.
+  - **Odstraněno:** podzáložka Překryv, `OverlayRows`, `SelectedOverlayCorner`, `CameraOverlayItemRow`, `CameraOverlayCornerOption`, `CameraSettings.LegacyOverlay` a typy `CameraOverlayOptions` / `CameraOverlayItems` / `CameraOverlayCorner` v Core (převod T-077 čte starý roh přímo z JSON), texty `SettingsPrinterTabOverlay`, `SettingsOverlayCorner`, `SettingsOverlayNormalColumn`, `SettingsOverlayItem*`, `SettingsOverlayHint`, `SettingsCooldownSection` ve všech 8 jazycích, testy T-036 (převedené do `WidgetsTabSettingsTests` a `SettingsWindowWidgetsUiTests`), snímky `settings-overlay*.png`.
+  - **Texty:** nové klíče podle Návrhu UI 8 ve všech 8 jazycích (de, es, fr, it, pl, sk navrhl ui-dev). Klíče, které návrh uváděl jako „znovu použité“ (`SettingsOverlayApplyAll`, `SettingsOverlayAppliedAll`, `SettingsOverlayOpacity`, `SettingsOverlayOpacityHint`, `SettingsOverlayLayoutHint`), ve zdrojích ještě nebyly, proto přibyly se zněním z T-076 / Návrhu UI 8. Změněné `SettingsCooldownThresholdHint` (jedna věta) a `SettingsNotifyCooledDownHelp`.
+  - **Rozvržení:** záložka má vlastní `ScrollViewer` (`WidgetsScroll`), řádek se seznamem a panelem má výšku `*`, oddíl Všechny widgety je vždy dole. Seznam nemá pevnou výšku: při 8 a více widgetech by se posouvala stránka, ne seznam (dnes 5 widgetů, rezerva podle Návrhu UI 3.3).
+  - **Testy:** App.Tests `WidgetsTabSettingsTests` (smlouva, registr, seznam a viditelnost, panely a jejich uvolnění, práh, Obnovit výchozí, Použít u všech, neprůhlednost, Upravit rozložení, `LayoutSaved`), upravené `PrinterCooldownThresholdSettingsTests`, `SettingsLayoutTests`, `CameraWindowActionsTests`. Headless `SettingsWindowWidgetsUiTests` (myš, klávesnice, pořadí Tab, `AutomationId`, vypnutá kamera, bez tiskáren, nová tiskárna, panel Vychladnutí s chybou, odkaz na Obecné s fokusem, Použít u všech s 1 a 3 tiskárnami, posuvník neprůhlednosti, převzetí rozložení, přepnutí jazyka, bez posuvníku ve všech 8 jazycích pro každý widget i bez tiskáren, posuvník v malém okně). `SettingsWindowLayoutTests` má místo stavu Překryv tři stavy záložky Widgety (Vychladnutí s jedinou tiskárnou, chyba prahu, vypnutá kamera) ve všech 8 jazycích a všech pohledech. Nové snímky `settings-widgets*.png` (6), přegenerované všechny `settings-*.png` (nová záložka v hlavičce), vizuálně zkontrolované; `diagnostics-*.png` se neměnily (velikost okna 780 × 532 zavedl už T-094). E2E seznamy podzáložek bez `PrinterTabOverlay`, přidaná kontrola záložky Widgety (běží jen v E2E režimu, T-093).
+  - Ověřeno na Windows: `dotnet build` bez varování, `dotnet test` 2× zelené, `dotnet publish -c Release -r win-x64` (Native AOT) bez varování, aplikace v izolovaném testovacím režimu se spustila, otevřela okno Nastavení a běžela dál. macOS neověřeno.
+  - Sloučený `develop` s T-090 (konflikty jen v `Strings.*.resx`: ponechané klíče T-090, odstraněné klíče Překryvu).

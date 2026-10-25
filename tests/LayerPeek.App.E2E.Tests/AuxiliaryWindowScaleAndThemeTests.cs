@@ -23,7 +23,7 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
     private const string OfflineId = "e2e-offline";
 
     /// <summary>Printer sub-tabs of the settings window, in order.</summary>
-    private static readonly string[] PrinterTabs = ["PrinterTabConnection", "PrinterTabCamera", "PrinterTabCameraWindow", "PrinterTabOverlay"];
+    private static readonly string[] PrinterTabs = ["PrinterTabConnection", "PrinterTabCamera", "PrinterTabCameraWindow"];
 
     /// <summary>The Tab order of the diagnostics with more printers (T-041): printer, chart range, Close.</summary>
     private static readonly string[] DiagnosticsTabOrder = ["DiagnosticsPrinterSelector", "DiagnosticsChartRange", "DiagnosticsClose"];
@@ -150,6 +150,7 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
             await _layout.CheckTabAsync(window, settings, tab, $"scale-settings-{name}-{tab}");
         }
 
+        await _layout.CheckTabAsync(window, settings, "SettingsTabWidgets", $"scale-settings-{name}-widgets");
         await _layout.CheckTabAsync(window, settings, "SettingsTabGeneral", $"scale-settings-{name}-general");
         await CameraWindowSettings.CloseAsync(settings, window, save: false);
 

@@ -1,5 +1,6 @@
 using Avalonia.Controls.Templates;
 
+using LayerPeek.App.Settings.Widgets;
 using LayerPeek.Core.Cameras.Overlay;
 
 namespace LayerPeek.App.Cameras.Overlay;
@@ -40,6 +41,25 @@ public interface IOverlayWidgetDefinition
 
     /// <summary>A new view model of the widget for one camera window; disposed with the window or when it leaves the layout.</summary>
     OverlayWidgetViewModel Create(OverlayWidgetContext context);
+
+    /// <summary>
+    /// Key of the one-sentence description in <c>Strings</c> shown in the widget's panel of the Widgets settings tab (T-092,
+    /// design 4.1); <see langword="null"/> = no description. A default member, so that older registrations still build.
+    /// </summary>
+    string? DescriptionKey => null;
+
+    /// <summary>
+    /// Key of the widget's icon, a <c>StreamGeometry</c> of <c>Cameras/Overlay/OverlayIcons.axaml</c> named
+    /// <c>Icon&lt;Name&gt;&lt;Size&gt;&lt;Style&gt;</c> (T-076 6), drawn 16 DIP in the widget list of the settings (T-092);
+    /// <see langword="null"/> = no icon.
+    /// </summary>
+    string? IconKey => null;
+
+    /// <summary>
+    /// The widget's own settings panel on the Widgets tab (T-092, design 6); <see langword="null"/> = the widget has no
+    /// settings of its own (its panel shows only the description).
+    /// </summary>
+    IOverlayWidgetSettingsFactory? Settings => null;
 }
 
 /// <summary>The narrowest card per size of a widget (T-076 2: "min" of each widget's widths); 0 = no minimum.</summary>
@@ -56,7 +76,8 @@ public readonly record struct OverlayWidgetMinWidths(double Small, double Medium
 
 /// <summary>
 /// The usual <see cref="IOverlayWidgetDefinition"/>: a new widget is its view model class, its card template and one
-/// <c>new OverlayWidgetDefinition(…)</c> line in the explicit registration (<c>Composition/OverlayWidgets</c>).
+/// <c>new OverlayWidgetDefinition(…)</c> line in the explicit registration (<c>Composition/OverlayWidgets</c>), with the
+/// description, icon and settings panel of the Widgets settings tab (T-092) as optional <c>init</c> properties.
 /// </summary>
 public sealed class OverlayWidgetDefinition : IOverlayWidgetDefinition
 {
@@ -116,4 +137,13 @@ public sealed class OverlayWidgetDefinition : IOverlayWidgetDefinition
         ArgumentNullException.ThrowIfNull(context);
         return _create(context);
     }
+
+    /// <inheritdoc/>
+    public string? DescriptionKey { get; init; }
+
+    /// <inheritdoc/>
+    public string? IconKey { get; init; }
+
+    /// <inheritdoc/>
+    public IOverlayWidgetSettingsFactory? Settings { get; init; }
 }

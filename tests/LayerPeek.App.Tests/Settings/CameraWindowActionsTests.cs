@@ -5,6 +5,7 @@ using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -30,12 +31,7 @@ public sealed class CameraWindowActionsTests : IDisposable
         TopmostMini = false,
     };
 
-    private static readonly CameraOverlayOptions CustomOverlay = new()
-    {
-        Corner = CameraOverlayCorner.TopRight,
-        Normal = CameraOverlayItems.PrinterName,
-        Mini = CameraOverlayItems.Progress,
-    };
+    private static readonly CameraOverlayLayout CustomOverlay = CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.TopRight).WithVisible(OverlayWidgetIds.Times, visible: false);
 
     private static readonly CameraWindowState Remembered = new(CameraWindowMode.Mini, new CameraWindowPlacement(1, 2, 700, 400), new CameraWindowPlacement(3, 4, 400, 225));
 
@@ -52,10 +48,10 @@ public sealed class CameraWindowActionsTests : IDisposable
         _culture.Dispose();
     }
 
-    private static PrinterDefinition Printer(string id, string name, bool enabled = true, CameraWindowDefaults? window = null, CameraOverlayOptions? overlay = null) =>
+    private static PrinterDefinition Printer(string id, string name, bool enabled = true, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null) =>
         LinkPrinter(id, name, $"192.168.1.{20 + id.Length}") with
         {
-            Camera = new CameraSettings(enabled, StreamUri) { Window = window ?? CameraWindowDefaults.Default, LegacyOverlay = overlay ?? CameraOverlayOptions.Default },
+            Camera = new CameraSettings(enabled, StreamUri) { Window = window ?? CameraWindowDefaults.Default, Overlay = overlay ?? CameraOverlayLayout.Default },
         };
 
     private async Task<SettingsViewModel> LoadAsync(params PrinterDefinition[] printers)
@@ -106,7 +102,7 @@ public sealed class CameraWindowActionsTests : IDisposable
 
         printer.ResetCameraWindowCommand.Execute(null);
 
-        Assert.Equal(CustomOverlay, printer.CameraOverlay);
+        Assert.Equal(CustomOverlay, printer.OverlayLayout);
         Assert.True(printer.CameraEnabled);
         Assert.Equal(StreamUri.OriginalString, printer.CameraUrl);
     }
