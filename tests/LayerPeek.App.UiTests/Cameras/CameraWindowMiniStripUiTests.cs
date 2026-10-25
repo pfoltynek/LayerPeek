@@ -284,6 +284,15 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
             Assert.Equal("19% · 2\u00A0h 35\u00A0min", SummaryText(window).Text);
             Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", AutomationProperties.GetName(summary));
             Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", ToolTip.GetTip(summary));
+            // Elements of UI Automation with their names (T-093: a plain grid or border is not one, a screen reader never read them).
+            foreach (Control named in new Control[] { summary, window.Find<Border>("CameraMiniNameRow"), window.Find<Border>("CameraMiniChartRow"), progress })
+            {
+                Avalonia.Automation.Peers.AutomationPeer peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(named);
+                Assert.True(peer.IsContentElement(), $"{AutomationProperties.GetAutomationId(named)} is not in the content view of UI Automation.");
+                Assert.Equal(AutomationProperties.GetAutomationId(named), peer.GetAutomationId());
+            }
+
+            Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(summary).GetName());
             // Room for the two 30 × 30 toggles of T-090, 2 apart, 6 from the right edge (the corner grip stays free).
             Rect reserved = BoundsIn(toggles, window);
             Assert.Equal(62, reserved.Width);

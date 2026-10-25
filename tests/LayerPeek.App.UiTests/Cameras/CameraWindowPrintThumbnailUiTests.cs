@@ -155,6 +155,11 @@ public sealed class CameraWindowPrintThumbnailUiTests(HeadlessSession session)
             Assert.True(BoundsInWindow(Card(window), window).Contains(thumbnailBounds));
 
             Assert.Equal("Print preview", thumbnail.GetValue(AutomationProperties.NameProperty));
+            // An element of UI Automation with its name (T-093: a plain border is not one).
+            Avalonia.Automation.Peers.AutomationPeer peer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(thumbnail);
+            Assert.True(peer.IsContentElement());
+            Assert.Equal(ThumbnailId, peer.GetAutomationId());
+            Assert.Equal("Print preview", peer.GetName());
         });
 
     [Theory]

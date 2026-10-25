@@ -77,17 +77,24 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <summary>Starts the app with <paramref name="settingsJson"/> and optional seeded secrets (key, secret).</summary>
     /// <param name="name">Label of the run: its log is kept as <c>log-&lt;name&gt;.txt</c> in the results folder.</param>
     /// <param name="switches">More Debug-only switches of the test mode (T-067), e.g. <see cref="AppSwitches.TestToastsVariable"/>.</param>
+    /// <param name="dataFiles">More files of the data folder (name, content), e.g. a <c>camera-windows.json</c> of an older version (T-093).</param>
     public static async Task<AppInstance> StartAsync(
         E2EFixture fixture,
         string name,
         string settingsJson,
         IReadOnlyDictionary<string, string>? secrets = null,
-        IReadOnlyDictionary<string, string>? switches = null)
+        IReadOnlyDictionary<string, string>? switches = null,
+        IReadOnlyDictionary<string, string>? dataFiles = null)
     {
         string run = Path.Combine(E2EFixture.Root, "run-" + Guid.NewGuid().ToString("N")[..12]);
         string data = Path.Combine(run, "data");
         Directory.CreateDirectory(data);
         await File.WriteAllTextAsync(Path.Combine(data, "settings.json"), settingsJson);
+        foreach ((string file, string content) in dataFiles ?? new Dictionary<string, string>())
+        {
+            await File.WriteAllTextAsync(Path.Combine(data, Path.GetFileName(file)), content);
+        }
+
         if (secrets is not null)
         {
             await File.WriteAllLinesAsync(Path.Combine(data, AppSwitches.SecretsFileName), secrets.Select(static pair => $"{pair.Key}\t{pair.Value}"));

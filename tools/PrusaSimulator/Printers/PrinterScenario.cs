@@ -18,6 +18,9 @@ public enum PrinterScenario
     /// <summary>FINISHED: no job in the status, the printer cools down.</summary>
     Finished,
 
+    /// <summary>STOPPED: a print the user stopped; no job in the status, the printer cools down (T-093).</summary>
+    Stopped,
+
     /// <summary>ERROR: no job, the printer cools down.</summary>
     Error,
 
@@ -40,7 +43,7 @@ public static class PrinterScenarios
     public const string OfflineName = "offline";
 
     /// <summary>All names accepted by <see cref="TryParse"/>.</summary>
-    public static IReadOnlyList<string> Names { get; } = ["idle", "printing", "paused", "finished", "error", "attention", OfflineName, "flaky", "malformed"];
+    public static IReadOnlyList<string> Names { get; } = ["idle", "printing", "paused", "finished", "stopped", "error", "attention", OfflineName, "flaky", "malformed"];
 
     /// <param name="offline">The name was "offline": the scenario is idle and the printer starts offline.</param>
     public static bool TryParse(string? name, out PrinterScenario scenario, out bool offline)
@@ -59,6 +62,9 @@ public static class PrinterScenarios
                 return true;
             case "FINISHED":
                 scenario = PrinterScenario.Finished;
+                return true;
+            case "STOPPED":
+                scenario = PrinterScenario.Stopped;
                 return true;
             case "ERROR":
                 scenario = PrinterScenario.Error;
@@ -88,6 +94,7 @@ public static class PrinterScenarios
         PrinterScenario.Printing => "printing",
         PrinterScenario.Paused => "paused",
         PrinterScenario.Finished => "finished",
+        PrinterScenario.Stopped => "stopped",
         PrinterScenario.Error => "error",
         PrinterScenario.Attention => "attention",
         PrinterScenario.Flaky => "flaky",

@@ -82,6 +82,7 @@
             Background="#14FFFFFF"
             ClipToBounds="True"
             IsVisible="{Binding ShowsThumbnail}"
+            AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraOverlayWidget-print-name-Thumbnail"
             AutomationProperties.Name="{Binding ThumbnailName}">
       <Image Source="{Binding Thumbnail}"

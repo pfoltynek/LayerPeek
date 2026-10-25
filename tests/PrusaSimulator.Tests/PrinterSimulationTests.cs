@@ -210,6 +210,37 @@ public sealed class PrinterSimulationTests
     }
 
     [Fact]
+    public void StoppedPrintHasNoJobAndCoolsDownFromWhereItWas()
+    {
+        PrinterSimulation printer = Create(PrinterScenario.Printing);
+        _clock.Advance(TimeSpan.FromMinutes(5));
+        printer.SetScenario(PrinterScenario.Stopped);
+        SimulatedStatus hot = printer.GetStatus();
+        _clock.Advance(TimeSpan.FromMinutes(10));
+        SimulatedStatus cold = printer.GetStatus();
+
+        Assert.Equal("STOPPED", hot.State);
+        Assert.Null(hot.Job);
+        Assert.Equal(0, hot.TargetNozzle);
+        Assert.InRange(hot.TempNozzle, 200, 216);
+        Assert.Equal("STOPPED", cold.State);
+        Assert.InRange(cold.TempNozzle, 22, 30);
+    }
+
+    [Fact]
+    public void StoppedPrinterStartsHot()
+    {
+        SimulatedStatus status = Create(PrinterScenario.Stopped).GetStatus();
+
+        Assert.Equal("STOPPED", status.State);
+        Assert.InRange(status.TempNozzle, 214, 216);
+        Assert.True(PrinterScenarios.TryParse("stopped", out PrinterScenario parsed, out bool offline));
+        Assert.Equal(PrinterScenario.Stopped, parsed);
+        Assert.False(offline);
+        Assert.Equal("stopped", PrinterScenarios.Format(PrinterScenario.Stopped));
+    }
+
+    [Fact]
     public void ErrorHasNoJobAndCoolsDown()
     {
         PrinterSimulation printer = Create(PrinterScenario.Printing);

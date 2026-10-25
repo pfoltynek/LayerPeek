@@ -109,6 +109,7 @@
     <ov:OverlayProgressBar Grid.Row="0"
                            Height="3"
                            IsHitTestVisible="False"
+                           AutomationProperties.AccessibilityView="Content"
                            AutomationProperties.AutomationId="CameraMiniProgress"
                            Value="{Binding Progress}"
                            Classes.idle="{Binding !HasProgress}" />
@@ -118,6 +119,7 @@
       <!-- The summary itself (tooltip and name of the whole content); the toggles are beside it, not inside. -->
       <Grid Grid.Column="0"
             Grid.ColumnSpan="5"
+            AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniSummary"
             AutomationProperties.Name="{Binding AccessibleText}"
             ToolTip.Tip="{Binding AccessibleText}"
@@ -187,6 +189,7 @@
             Height="34"
             Padding="10,0"
             IsVisible="{Binding ShowsNameRow}"
+            AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniNameRow"
             AutomationProperties.Name="{Binding NameRow.AccessibleName}"
             ToolTip.Tip="{Binding NameRow.AccessibleName}">
@@ -204,6 +207,7 @@
             Height="64"
             Padding="10,6"
             IsVisible="{Binding IsChartRowExpanded}"
+            AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniChartRow"
             AutomationProperties.Name="{Binding ChartAccessibleText}">
       <Grid ColumnDefinitions="64,8,*">
@@ -232,6 +236,7 @@
         </StackPanel>
         <chart:TemperatureChart Grid.Column="2"
                                 Height="52"
+                                AutomationProperties.AccessibilityView="Content"
                                 AutomationProperties.AutomationId="CameraMiniChart"
                                 AutomationProperties.Name="{Binding ChartName}"
                                 IsCompact="True"

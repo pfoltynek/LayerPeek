@@ -38,7 +38,8 @@
       <!--
         The card around every widget: background with the global opacity, padding and corner radius by size, hidden
         while the widget has nothing to show; never a pointer target (double-click and dragging work over it).
-        AutomationIds: CameraOverlayWidget-{id} (T-076 5.7).
+        AutomationIds: CameraOverlayWidget-{id} (T-076 5.7). A plain border has no element in UI Automation: the content view
+        makes the card one, with its full name for screen readers (T-076 3.1; found by the E2E test of T-093).
       -->
       <DataTemplate x:Key="OverlayCardTemplate" x:DataType="ov:OverlayWidgetViewModel">
         <Border Classes="overlayCard"
@@ -48,6 +49,7 @@
                 Classes.outlined="{Binding IsOutlined}"
                 IsVisible="{Binding IsShown}"
                 Background="{Binding CardBackground}"
+                AutomationProperties.AccessibilityView="Content"
                 AutomationProperties.AutomationId="{Binding AutomationId}"
                 AutomationProperties.Name="{Binding AccessibleName}">
           <ContentControl Content="{Binding}" ContentTemplate="{Binding CardTemplate}" />

@@ -489,6 +489,42 @@ public sealed class CameraLayoutModeViewModelTests : IAsyncDisposable
         Assert.Same(draft, viewModel.Overlay.SavedLayout);
     }
 
+    /// <summary>
+    /// T-093 (found by the E2E test on the real app): "Done" with the saved layout as the draft (nothing changed, or moved and
+    /// restored to the saved defaults) has nothing to write; the settings store reports such a write as "not written", which
+    /// must not show the save error and keep the mode.
+    /// </summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DoneWithTheSavedLayoutEndsTheModeWithoutWriting(bool movedAndRestored)
+    {
+        CameraViewModel viewModel = Create();
+        CameraLayoutModeViewModel mode = viewModel.LayoutMode;
+        List<CameraLayoutEndReason> ended = [];
+        mode.Ended += (_, e) => ended.Add(e.Reason);
+        mode.Start();
+        if (movedAndRestored)
+        {
+            mode.BeginDrag(Card(mode, Status));
+            mode.DragOver(OverlayAnchor.BottomCenter, 0);
+            mode.Drop();
+            mode.Reset();
+        }
+
+        // What the settings store answers for a layout equal to the stored one.
+        _writer.Result = false;
+
+        Assert.True(await mode.SaveAsync());
+
+        Assert.Empty(_writer.Saves);
+        Assert.False(mode.IsActive);
+        Assert.False(mode.HasSaveError);
+        Assert.Equal([CameraLayoutEndReason.Saved], ended);
+        Assert.Equal(CameraOverlayLayout.Default, viewModel.Overlay.SavedLayout);
+        Assert.Equal(["status"], viewModel.Overlay.TopLeft.Select(static w => w.Id));
+    }
+
     [Fact]
     public async Task WithoutAWriterDoneFailsVisibly()
     {
@@ -701,6 +737,10 @@ public sealed class CameraLayoutModeViewModelTests : IAsyncDisposable
     {
         CameraViewModel viewModel = Create();
         viewModel.LayoutMode.Start();
+        // A change to write (the saved layout itself has nothing to write, T-093).
+        viewModel.LayoutMode.BeginDrag(Card(viewModel.LayoutMode, Status));
+        viewModel.LayoutMode.DragOver(OverlayAnchor.BottomCenter, 0);
+        viewModel.LayoutMode.Drop();
         _writer.Hold();
         Task<bool> saving = viewModel.LayoutMode.SaveAsync();
 

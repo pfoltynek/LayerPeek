@@ -354,7 +354,25 @@ public sealed partial class CameraWindow : Window
 
         Width = Math.Max(placement.Width, MinWidth);
         Height = Math.Max(placement.Height, MinHeight);
+        ApplySizeBeforeMoving();
         Position = new PixelPoint(placement.X, placement.Y);
+    }
+
+    /// <summary>
+    /// Resizes the shown window to its new <see cref="Layoutable.Width"/> and <see cref="Layoutable.Height"/> now, before it is
+    /// moved: the size takes effect only in the next layout pass, while a new position takes effect at once. Moved first, the
+    /// window with its old size could reach mostly onto a neighbouring monitor with another scale for a moment; Windows then
+    /// rescales it to that monitor (WM_DPICHANGED) and the new size is lost (T-093: the normal window switched to the mini
+    /// preview in the bottom right corner of a 125 % monitor next to a 100 % one stayed as large as the normal window).
+    /// Only for a Win32 window: there the layout pass resizes it at once (and only Windows rescales a moved window this
+    /// way); elsewhere the resize may still come later and would then undo a size set after it.
+    /// </summary>
+    private void ApplySizeBeforeMoving()
+    {
+        if (IsVisible && TryGetPlatformHandle() is { HandleDescriptor: "HWND" })
+        {
+            UpdateLayout();
+        }
     }
 
     /// <summary>
