@@ -47,7 +47,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         ("Printer", SettingsViewModel.PrintersTab, SettingsViewModel.ConnectionPrinterTab),
         ("Camera", SettingsViewModel.PrintersTab, SettingsViewModel.CameraPrinterTab),
         ("Camera window", SettingsViewModel.PrintersTab, SettingsViewModel.CameraWindowPrinterTab),
-        ("Overlay", SettingsViewModel.PrintersTab, SettingsViewModel.OverlayPrinterTab),
+        ("Widgets", SettingsViewModel.WidgetsTab, SettingsViewModel.ConnectionPrinterTab),
         ("General", SettingsViewModel.GeneralTab, SettingsViewModel.ConnectionPrinterTab),
         ("Startup and updates", SettingsViewModel.StartupUpdatesTab, SettingsViewModel.ConnectionPrinterTab),
     ];
@@ -590,14 +590,30 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             return ui;
         });
 
-        // Overlay (T-036): the camera-off hint above the overlay hint is the tallest content of the sub-tab.
-        yield return ("overlay: camera off, every item in both columns, top right", static async scope =>
+        // Widgets (T-092, design 3.3–3.7): the Cool-down panel with the longest message under the threshold, the camera off,
+        // a single printer (both "… for all printers" disabled) and no printer at all.
+        yield return ("widgets: cool-down selected, single printer", static async scope =>
         {
-            CameraOverlayOptions all = new() { Corner = CameraOverlayCorner.TopRight, Normal = CameraOverlayOptions.AllItems, Mini = CameraOverlayOptions.AllItems };
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
-                scope,
-                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) { LegacyOverlay = all } }));
-            Assert.False(ui.ViewModel.SelectedPrinter!.CameraEnabled);
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }));
+            SelectCooldown(ui);
+            return ui;
+        });
+
+        yield return ("widgets: cool-down threshold error", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }, LinkPrinter("b", "Beta", "192.168.1.21")));
+            ui.ViewModel.Printers[0].CooldownThresholdCelsius = 120;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            Assert.Equal(SettingsViewModel.WidgetsTab, ui.ViewModel.SelectedTabIndex);
+            Assert.NotNull(ui.ViewModel.Printers[0].CooldownThresholdError);
+            ui.Window.Settle();
+            return ui;
+        });
+
+        yield return ("widgets: camera off, cool-down selected", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SelectCooldown(ui);
             return ui;
         });
 
@@ -623,6 +639,13 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(SettingsViewModel.GeneralTab, ui.ViewModel.SelectedTabIndex);
             return ui;
         });
+    }
+
+    /// <summary>The Cool-down widget on the Widgets tab.</summary>
+    private static void SelectCooldown(SettingsWindowHarness ui)
+    {
+        ui.ViewModel.SelectedWidget = ui.ViewModel.Widgets.Single(static widget => widget.Id == Core.Cameras.Overlay.OverlayWidgetIds.Cooldown);
+        ui.Window.Settle();
     }
 
     /// <summary>The longest message of every field of both sub-tabs (in the current language), after a save attempt.</summary>

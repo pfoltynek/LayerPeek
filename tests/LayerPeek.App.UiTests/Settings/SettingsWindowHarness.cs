@@ -38,7 +38,11 @@ internal sealed class SettingsWindowHarness
 
     public bool IsOpen => Window.IsVisible;
 
-    /// <summary>Opens and loads the window; new printers get the ids "p1", "p2"... in order.</summary>
+    /// <summary>
+    /// Opens and loads the window; new printers get the ids "p1", "p2"... in order. The Widgets tab lists the widgets of this
+    /// version and the Cool-down widget with its panel (registered by T-088 in the app) unless <paramref name="widgets"/> says
+    /// otherwise; announced layouts are taken over right away.
+    /// </summary>
     public static async Task<SettingsWindowHarness> OpenAsync(
         UiTestScope scope,
         ISettingsEditorStore store,
@@ -51,12 +55,15 @@ internal sealed class SettingsWindowHarness
         IImageFilePicker? imagePicker = null,
         LayerPeek.App.Platform.IAutostart? autostart = null,
         bool autostartNeedsInstallation = false,
-        IAuxiliaryWindowStateStore? windowStates = null)
+        IAuxiliaryWindowStateStore? windowStates = null,
+        LayerPeek.App.Cameras.Overlay.OverlayWidgetRegistry? widgets = null,
+        LayerPeek.App.Cameras.Layout.ICameraLayoutModeLauncher? layoutModeLauncher = null,
+        ICameraOverlayLayoutWriter? layoutWriter = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0");
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? WidgetSettingsTestData.WithCooldown(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher());
         // Like SettingsWindowFactory: the window has a file dialog for custom printer images (T-039); by default the user cancels it.
         viewModel.ImageFilePicker = imagePicker ?? new FakeImagePicker { Content = null };
         scope.Defer(viewModel);
@@ -136,4 +143,10 @@ internal sealed class MemoryAutostart : LayerPeek.App.Platform.IAutostart
     public bool IsEnabled() => Enabled;
 
     public void SetEnabled(bool enabled) => Enabled = Failure is null ? enabled : throw Failure;
+}
+
+/// <summary>Runs posted work right away (the tests call from the UI thread).</summary>
+internal sealed class InlineDispatcher : LayerPeek.App.Tray.IUiDispatcher
+{
+    public void Post(Action action) => action();
 }

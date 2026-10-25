@@ -9,10 +9,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Layout;
+using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
+using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Printers;
@@ -41,7 +44,7 @@ public sealed class ConnectionTypeOption(ConnectionType value, Func<string> text
 /// <see cref="Dispose"/> (running tests are cancelled, typed passwords forgotten). Edits stay in the view model until
 /// saved; cancelling or closing discards them. Call on the UI thread.
 /// </summary>
-public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguageAware
+public sealed partial class SettingsViewModel : ObservableObject, IDisposable, ILanguageAware
 {
     /// <summary>Longest printer name (the tray menu shows at most <c>TrayMenuFormatter.MaxNameLength</c> of it, T-042).</summary>
     public const int MaxNameLength = 100;
@@ -49,11 +52,14 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Main tabs (<see cref="SelectedTabIndex"/>).</summary>
     public const int PrintersTab = 0;
 
+    /// <summary>Main tab of the widgets of the camera overlay (T-092), right after the Printers tab.</summary>
+    public const int WidgetsTab = 1;
+
     /// <inheritdoc cref="PrintersTab"/>
-    public const int GeneralTab = 1;
+    public const int GeneralTab = 2;
 
     /// <summary>Main tab of the start after logon and the updates (T-017).</summary>
-    public const int StartupUpdatesTab = 2;
+    public const int StartupUpdatesTab = 3;
 
     /// <summary>Sub-tabs of the selected printer (<see cref="SelectedPrinterTabIndex"/>, T-033): connection fields.</summary>
     public const int ConnectionPrinterTab = 0;
@@ -64,13 +70,10 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Sub-tab of the selected printer: how the camera window opens (T-035).</summary>
     public const int CameraWindowPrinterTab = 2;
 
-    /// <summary>Sub-tab of the selected printer: what the print overlay of the camera window shows (T-036).</summary>
-    public const int OverlayPrinterTab = 3;
+    /// <summary>How many sub-tabs a printer has (the Overlay sub-tab of T-036 gave way to the Widgets tab, T-092).</summary>
+    public const int PrinterTabCount = 3;
 
-    /// <summary>How many sub-tabs a printer has.</summary>
-    public const int PrinterTabCount = 4;
-
-    private const int TabCount = 3;
+    private const int TabCount = 4;
 
     private const int MaxIdAttempts = 100;
 
@@ -168,6 +171,15 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <param name="productVersion">
     /// The running version, for the default of "Offer pre-release versions" (T-017); default: the version of the app.
     /// </param>
+    /// <param name="widgets">The overlay widgets listed on the Widgets tab (T-092); default: none.</param>
+    /// <param name="layoutModeLauncher">
+    /// "Edit layout in camera window…" (T-092): starts the layout mode of the camera window (T-091); default: none (the
+    /// button is disabled).
+    /// </param>
+    /// <param name="layoutWriter">
+    /// Announces a layout saved by the layout mode of a camera window, which the window takes over (T-077 Q3); default: none.
+    /// </param>
+    /// <param name="uiDispatcher">Brings those announcements to the UI thread; default: Avalonia's UI thread.</param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -183,7 +195,11 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         PrinterImageImporter? imageImporter = null,
         IAutostart? autostart = null,
         bool autostartNeedsInstallation = false,
-        string? productVersion = null)
+        string? productVersion = null,
+        OverlayWidgetRegistry? widgets = null,
+        ICameraLayoutModeLauncher? layoutModeLauncher = null,
+        ICameraOverlayLayoutWriter? layoutWriter = null,
+        IUiDispatcher? uiDispatcher = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -218,13 +234,6 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             new CameraCornerOption(CameraWindowCorner.BottomRight, static () => Strings.SettingsCameraWindowCornerBottomRight),
             new CameraCornerOption(CameraWindowCorner.Center, static () => Strings.SettingsCameraWindowCornerCenter),
         ];
-        OverlayCornerOptions =
-        [
-            new CameraOverlayCornerOption(CameraOverlayCorner.TopLeft, static () => Strings.SettingsCameraWindowCornerTopLeft),
-            new CameraOverlayCornerOption(CameraOverlayCorner.TopRight, static () => Strings.SettingsCameraWindowCornerTopRight),
-            new CameraOverlayCornerOption(CameraOverlayCorner.BottomLeft, static () => Strings.SettingsCameraWindowCornerBottomLeft),
-            new CameraOverlayCornerOption(CameraOverlayCorner.BottomRight, static () => Strings.SettingsCameraWindowCornerBottomRight),
-        ];
         SoundOptions =
         [
             new SoundOption(NotificationSound.Off, static () => Strings.SettingsSoundOff),
@@ -239,6 +248,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditable);
         CancelCommand = new RelayCommand(Cancel, () => !_isSaving);
         Printers.CollectionChanged += OnPrintersChanged;
+        InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
     }
 
     /// <summary>Save succeeded or Cancel was chosen: the window should close (which disposes this view model).</summary>
@@ -261,6 +271,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             {
                 OnPropertyChanged(nameof(HasSelectedPrinter));
                 RemovePrinterCommand.NotifyCanExecuteChanged();
+                OnSelectedPrinterChanged();
             }
         }
     }
@@ -341,7 +352,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
     /// <summary>
     /// Sub-tab of the printer form (<see cref="ConnectionPrinterTab"/>, <see cref="CameraPrinterTab"/>,
-    /// <see cref="CameraWindowPrinterTab"/>, <see cref="OverlayPrinterTab"/>). Belongs to the
+    /// <see cref="CameraWindowPrinterTab"/>). Belongs to the
     /// window, not to a printer: selecting another printer keeps it (Camera stays Camera). A failed save switches it to the
     /// first sub-tab with an error.
     /// </summary>
@@ -609,9 +620,6 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     /// <summary>Position choices of the camera window (shared by all printers).</summary>
     internal IReadOnlyList<CameraCornerOption> CornerOptions { get; }
 
-    /// <summary>Corner choices of the print overlay (T-036, shared by all printers).</summary>
-    internal IReadOnlyList<CameraOverlayCornerOption> OverlayCornerOptions { get; }
-
     /// <summary>
     /// The monitors offered for the camera window, read once per settings window (T-035 Q10: no live refresh) and shared by
     /// all printers.
@@ -712,6 +720,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
 
         _disposed = true;
         _lifetime.Cancel();
+        DisposeWidgets();
         foreach (PrinterEditorViewModel printer in Printers)
         {
             printer.Detach();
@@ -732,7 +741,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             return;
         }
 
-        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption, .. StartModeOptions, .. CornerOptions, .. OverlayCornerOptions];
+        LocalizedOption[] options = [.. SoundOptions, .. LanguageOptions, _prusaLinkOption, _prusaConnectOption, _prusaConnectExistingOption, .. StartModeOptions, .. CornerOptions];
         foreach (LocalizedOption option in options)
         {
             option.RefreshText();
@@ -753,6 +762,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         {
             printer.RefreshTexts();
         }
+
+        RefreshWidgetTexts();
     }
 
     /// <summary>
@@ -877,6 +888,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _debugLogging = settings.DebugLogging;
         _offerPrereleaseUpdates = PrereleaseUpdates.Offered(settings.OfferPrereleaseUpdates, _productVersion);
         _startWithWindows = _autostartBaseline;
+        _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
 
         _noticeSource = data.Status switch
         {
@@ -1011,13 +1023,22 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         ValidateGeneral();
         if (FirstInvalidPrinter() is { } invalid)
         {
-            // The first printer with an error, then its first sub-tab with an error (in the order of the sub-tabs).
+            // The first printer with an error, then its first sub-tab with an error (in the order of the sub-tabs), else the
+            // Widgets tab with the first widget whose settings have the error (T-092).
             SelectedPrinter = invalid;
-            SelectedTabIndex = PrintersTab;
-            SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab
-                : invalid.HasCameraErrors ? CameraPrinterTab
-                : invalid.HasCameraWindowErrors ? CameraWindowPrinterTab
-                : OverlayPrinterTab;
+            if (invalid.HasConnectionErrors || invalid.HasCameraErrors || invalid.HasCameraWindowErrors)
+            {
+                SelectedTabIndex = PrintersTab;
+                SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab
+                    : invalid.HasCameraErrors ? CameraPrinterTab
+                    : CameraWindowPrinterTab;
+            }
+            else
+            {
+                SelectedTabIndex = WidgetsTab;
+                SelectFirstWidgetWithError(invalid);
+            }
+
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
@@ -1246,8 +1267,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
                 DebugLogging = _debugLogging,
                 OfferPrereleaseUpdates = PrereleaseChoice(),
 
-                // Not editable yet (T-092 adds the slider): kept as loaded so that saving does not reset it.
-                CameraOverlayOpacityPercent = _baseline.CameraOverlayOpacityPercent,
+                // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
+                CameraOverlayOpacityPercent = _overlayOpacityPercent,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,
@@ -1409,6 +1430,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         {
             printer.OnOwnerEditableChanged();
         }
+
+        OnWidgetsStateChanged();
     }
 
     private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -1418,6 +1441,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         {
             printer.OnPrinterCountChanged();
         }
+
+        OnWidgetsStateChanged();
     }
 
     /// <summary>
@@ -1438,15 +1463,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             return;
         }
 
-        foreach (PrinterEditorViewModel printer in Printers)
-        {
-            if (!ReferenceEquals(printer, source))
-            {
-                printer.CooldownThresholdCelsius = threshold;
-            }
-        }
-
-        ShowStatus(static () => Strings.SettingsCooldownAppliedAll, isError: false);
+        ApplyToOtherPrinters(source, printer => printer.CooldownThresholdCelsius = threshold, static () => Strings.SettingsCooldownAppliedAll);
     }
 
     private static int Adjacent(int index, int count, bool forward) => (index + (forward ? 1 : count - 1)) % count;

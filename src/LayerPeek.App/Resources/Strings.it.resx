@@ -472,16 +472,13 @@
     <value>Stampante raffreddata</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Dopo la stampa, avvisa quando l'ugello si è raffreddato sotto la soglia e la stampante può essere spenta.</value>
-  </data>
-  <data name="SettingsCooldownSection" xml:space="preserve">
-    <value>Raffreddamento dopo la stampa</value>
+    <value>La soglia di temperatura dell'ugello si imposta per ogni stampante nella scheda Widget, widget Raffreddamento.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Soglia di temperatura dell'ugello (°C)</value>
   </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Sotto questa temperatura la stampante può essere spenta in sicurezza. La usano il widget Raffreddamento e la notifica.</value>
+    <value>Sotto questa temperatura la stampante può essere spenta in sicurezza.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Inserisci un numero intero da {0} a {1}.</value>
@@ -494,6 +491,93 @@
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>È configurata una sola stampante.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widget</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Stampante</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>Nessuna stampante configurata. Aggiungine una nella scheda Stampanti.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Widget della finestra della telecamera</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Mostra il widget {0}</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, visibile</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, nascosto</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>Questo widget non ha altre impostazioni.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>Tutti i widget</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Modifica layout nella finestra…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Apre la finestra della telecamera di questa stampante in modalità layout, dove cambi posizione, ordine, dimensione ed evidenziazione dei widget.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Attiva la telecamera di questa stampante e salva le impostazioni.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Salva prima le impostazioni.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Ripristina visibilità, posizione, ordine, dimensione ed evidenziazione dei widget di questa stampante.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>Layout predefinito ripristinato. Si applica dopo il salvataggio.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>Notifica “Stampante raffreddata”: attiva</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>Notifica “Stampante raffreddata”: disattivata</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Le notifiche sono disattivate.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Modifica nella scheda Generale</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Usa il layout per tutte le stampanti</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>Il layout è stato copiato nelle altre stampanti. Si applica dopo il salvataggio.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Cambia posizione, ordine, dimensione ed evidenziazione con Modifica layout nella finestra.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Opacità dello sfondo delle schede</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Vale per le finestre della telecamera di tutte le stampanti. Un valore più alto rende il testo leggibile su immagini chiare.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Nome della stampante, stato e avanzamento della stampa in percentuale.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Tempo rimanente, ora di fine e durata della stampa.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Temperatura dell'ugello e del piano con un grafico degli ultimi 60 minuti.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Nome della stampa con materiale, altezza dello strato e ugello; nelle dimensioni maggiori con anteprima.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>Al termine della stampa mostra il raffreddamento dell'ugello e quando la stampante può essere spenta.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avvisa quando mancano questi minuti di stampa (0 = disattivato)</value>
@@ -929,45 +1013,6 @@
   </data>
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Raffreddata · {0}&#160;°C</value>
-  </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Sovrimpressione</value>
-  </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Angolo sovrimpressione</value>
-  </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Finestra normale e schermo intero</value>
-  </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Nome della stampante</value>
-  </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Stato della stampante</value>
-  </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Temperatura dell'ugello</value>
-  </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Temperatura del piano</value>
-  </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Avanzamento (%)</value>
-  </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Tempo rimanente</value>
-  </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Ora di fine</value>
-  </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Tempo di stampa</value>
-  </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>Nome del file</value>
-  </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>I dati del lavoro (avanzamento, tempi, nome del file) vengono mostrati solo durante una stampa. Dopo il salvataggio le modifiche valgono anche per le finestre della telecamera aperte.</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Immagine della stampante: {0}</value>

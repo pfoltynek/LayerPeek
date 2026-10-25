@@ -472,16 +472,13 @@
     <value>Impresora enfriada</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Tras la impresión, avisa cuando la boquilla se ha enfriado por debajo del umbral y ya puede apagar la impresora.</value>
-  </data>
-  <data name="SettingsCooldownSection" xml:space="preserve">
-    <value>Enfriamiento tras la impresión</value>
+    <value>El umbral de temperatura de la boquilla se configura por impresora en la pestaña Widgets, widget Enfriamiento.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Umbral de temperatura de la boquilla (°C)</value>
   </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Por debajo de esta temperatura es seguro apagar la impresora. Lo usan el widget Enfriamiento y la notificación.</value>
+    <value>Por debajo de esta temperatura es seguro apagar la impresora.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Introduzca un número entero de {0} a {1}.</value>
@@ -494,6 +491,93 @@
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Solo hay una impresora configurada.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widgets</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Impresora</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>No hay ninguna impresora configurada. Añada una en la pestaña Impresoras.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Widgets de la ventana de la cámara</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Mostrar el widget {0}</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, visible</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, oculto</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>Este widget no tiene más ajustes.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>Todos los widgets</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Editar diseño en la ventana de la cámara…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Abre la ventana de la cámara de esta impresora en el modo de diseño, donde puede cambiar la posición, el orden, el tamaño y el resaltado de los widgets.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Active la cámara de esta impresora y guarde los ajustes.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Guarde primero los ajustes.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Restablece la visibilidad, la posición, el orden, el tamaño y el resaltado de los widgets de esta impresora.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>Se restauró el diseño predeterminado. Se aplica al guardar.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>Notificación «Impresora enfriada»: activada</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>Notificación «Impresora enfriada»: desactivada</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Las notificaciones están desactivadas.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Cambiar en la pestaña General</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Usar el diseño en todas las impresoras</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>El diseño se copió a las demás impresoras. Se aplica al guardar.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Cambie la posición, el orden, el tamaño y el resaltado con Editar diseño en la ventana de la cámara.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Opacidad del fondo de las tarjetas</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Se aplica a las ventanas de cámara de todas las impresoras. Un valor más alto mantiene legible el texto sobre imagen clara.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Nombre de la impresora, estado y progreso de la impresión en porcentaje.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Tiempo restante, hora de finalización y tiempo de impresión.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Temperatura de la boquilla y de la cama con un gráfico de los últimos 60 minutos.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Nombre legible de la impresión con material, altura de capa y boquilla; en tamaños mayores, con vista previa.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>Al terminar una impresión, muestra cómo se enfría la boquilla y cuándo es seguro apagar la impresora.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avisar cuando queden estos minutos de impresión (0 = desactivado)</value>
@@ -929,45 +1013,6 @@
   </data>
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Enfriada · {0}&#160;°C</value>
-  </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Superposición</value>
-  </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Esquina de la superposición</value>
-  </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Ventana normal y pantalla completa</value>
-  </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Nombre de la impresora</value>
-  </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Estado de la impresora</value>
-  </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Temperatura de la boquilla</value>
-  </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Temperatura de la base</value>
-  </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Progreso (%)</value>
-  </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Tiempo restante</value>
-  </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Hora de finalización</value>
-  </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Tiempo de impresión</value>
-  </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>Nombre del archivo</value>
-  </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Los datos del trabajo (progreso, tiempos, nombre del archivo) solo se muestran durante una impresión. Al guardar, los cambios se aplican también a las ventanas de la cámara abiertas.</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Imagen de la impresora: {0}</value>

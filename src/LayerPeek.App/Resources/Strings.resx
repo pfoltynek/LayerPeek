@@ -540,16 +540,13 @@
     <value>Printer cooled down</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>After a print, notifies when the nozzle has cooled down below the threshold and the printer can be turned off.</value>
-  </data>
-  <data name="SettingsCooldownSection" xml:space="preserve">
-    <value>Cool-down after printing</value>
+    <value>The nozzle temperature threshold is set per printer on the Widgets tab, Cool-down widget.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Nozzle temperature threshold (°C)</value>
   </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Below this temperature the printer is safe to turn off. Used by the Cool-down widget and notification.</value>
+    <value>Below this temperature the printer is safe to turn off.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Enter a whole number from {0} to {1}.</value>
@@ -562,6 +559,93 @@
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Only one printer is set up.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widgets</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Printer</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>No printer is set up. Add one on the Printers tab.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Camera window widgets</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Show the {0} widget</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, shown</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, hidden</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>This widget has no other settings.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>All widgets</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Edit layout in camera window…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Opens this printer's camera window in layout mode, where you change the position, order, size and highlighting of the widgets.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Turn on this printer's camera and save the settings.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Save the settings first.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Restores the visibility, position, order, size and highlighting of this printer's widgets.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>The default layout was restored. It applies after saving.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>“Printer cooled down” notification: on</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>“Printer cooled down” notification: off</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Notifications are turned off.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Change on the General tab</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Use layout for all printers</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>The layout was copied to the other printers. It applies after saving.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Change position, order, size and highlighting with Edit layout in camera window.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Card background opacity</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Applies to the camera windows of all printers. Higher values keep text readable on bright video.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Printer name, state and print progress in percent.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Time remaining, finish time and print time.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Nozzle and bed temperature with a chart of the last 60 minutes.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Readable print name with material, layer height and nozzle; larger sizes add a preview.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>After a print ends, shows the nozzle cooling down and when the printer is safe to turn off.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notify when this many minutes of printing remain (0 = off)</value>
@@ -950,45 +1034,6 @@
   </data>
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Cooled down · {0}&#160;°C</value>
-  </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Overlay</value>
-  </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Overlay corner</value>
-  </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Normal window and full screen</value>
-  </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Printer name</value>
-  </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Printer state</value>
-  </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Nozzle temperature</value>
-  </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Bed temperature</value>
-  </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Progress (%)</value>
-  </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Remaining time</value>
-  </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Finish time (clock)</value>
-  </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Print time</value>
-  </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>File name</value>
-  </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Job data (progress, times, file name) is shown only during a print. Changes apply to open camera windows too after saving.</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Printer image: {0}</value>

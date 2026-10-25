@@ -538,7 +538,10 @@ internal static class AppServices
     /// </summary>
     /// <param name="screens">The monitors offered for the camera window (T-035); <see langword="null"/>: none.</param>
     /// <param name="cameraWindowPlacer">The open camera windows, placed again by "Apply" (T-040); <see langword="null"/>: none.</param>
-    internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null)
+    /// <param name="layoutModeLauncher">
+    /// The camera windows, whose layout mode "Edit layout in camera window…" starts (T-092); <see langword="null"/>: none.
+    /// </param>
+    internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null, ICameraLayoutModeLauncher? layoutModeLauncher = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         AppEnvironment environment = services.GetRequiredService<AppEnvironment>();
@@ -553,7 +556,12 @@ internal static class AppServices
             cameraWindowPlacer: cameraWindowPlacer,
             timeProvider: services.GetRequiredService<TimeProvider>(),
             autostart: services.GetRequiredService<AutostartOption>().Autostart,
-            autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation)
+            autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation,
+            widgets: services.GetRequiredService<OverlayWidgetRegistry>(),
+            layoutModeLauncher: layoutModeLauncher,
+            // A layout saved from a camera window replaces only that layout in an open settings window (T-077 Q3).
+            layoutWriter: services.GetRequiredService<ICameraOverlayLayoutWriter>(),
+            uiDispatcher: services.GetRequiredService<IUiDispatcher>())
         {
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).

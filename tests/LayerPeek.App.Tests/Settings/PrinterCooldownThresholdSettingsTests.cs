@@ -102,8 +102,9 @@ public sealed class PrinterCooldownThresholdSettingsTests : IDisposable
         Assert.Equal("Enter a whole number from 30 to 100.", printer.CooldownThresholdError);
         Assert.False(printer.ShowsCooldownThresholdHint);
         Assert.True(printer.HasErrors);
-        Assert.True(printer.ShowsOverlayErrorMarker);
-        Assert.Equal("Overlay – contains errors", printer.OverlayTabName);
+        Assert.True(printer.ShowsWidgetErrorMarker);
+        Assert.True(vm.ShowsWidgetsErrorMarker);
+        Assert.Equal("Widgets – contains errors", vm.WidgetsTabName);
         Assert.False(printer.ShowsConnectionErrorMarker);
         Assert.False(printer.ShowsCameraErrorMarker);
 
@@ -111,8 +112,9 @@ public sealed class PrinterCooldownThresholdSettingsTests : IDisposable
 
         Assert.Empty(_store.Saves);
         Assert.Same(printer, vm.SelectedPrinter);
-        Assert.Equal(SettingsViewModel.PrintersTab, vm.SelectedTabIndex);
-        Assert.Equal(SettingsViewModel.OverlayPrinterTab, vm.SelectedPrinterTabIndex);
+        // T-092: the Widgets tab with the printer; the printer sub-tab stays.
+        Assert.Equal(SettingsViewModel.WidgetsTab, vm.SelectedTabIndex);
+        Assert.Equal(SettingsViewModel.ConnectionPrinterTab, vm.SelectedPrinterTabIndex);
         Assert.True(vm.StatusIsError);
     }
 
@@ -128,8 +130,9 @@ public sealed class PrinterCooldownThresholdSettingsTests : IDisposable
 
         Assert.Null(printer.CooldownThresholdError);
         Assert.True(printer.ShowsCooldownThresholdHint);
-        Assert.False(printer.ShowsOverlayErrorMarker);
-        Assert.Equal("Overlay", printer.OverlayTabName);
+        Assert.False(printer.ShowsWidgetErrorMarker);
+        Assert.False(_viewModel!.ShowsWidgetsErrorMarker);
+        Assert.Equal("Widgets", _viewModel.WidgetsTabName);
         await vm.SaveCommand.ExecuteAsync(null);
         Assert.Equal(75, Assert.Single(Assert.Single(_store.Saves).Updated.Printers).CooldownThresholdCelsius);
     }
@@ -157,7 +160,7 @@ public sealed class PrinterCooldownThresholdSettingsTests : IDisposable
             vm.RefreshTexts();
 
             Assert.Equal("Zadejte celé číslo od 30 do 100.", vm.Printers[0].CooldownThresholdError);
-            Assert.Equal("Překryv – obsahuje chyby", vm.Printers[0].OverlayTabName);
+            Assert.Equal("Widgety – obsahuje chyby", vm.WidgetsTabName);
         }
     }
 

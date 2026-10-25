@@ -354,23 +354,6 @@ public class SettingsMapperCameraOverlayTests
         Assert.Equal(noAddress, RoundTrip(noAddress, out _));
     }
 
-    /// <summary>The T-036 options stay in memory for the old overlay until T-081 removes it; format 2 never writes them.</summary>
-    [Fact]
-    public void LegacyOverlayOptionsAreNotPersisted()
-    {
-        CameraOverlayOptions legacy = new() { Corner = CameraOverlayCorner.TopRight, Normal = CameraOverlayItems.FileName };
-        AppSettings settings = WithCamera(CameraSettings.Disabled with { LegacyOverlay = legacy });
-
-        string json = Write(settings);
-        AppSettings loaded = Load(json, out List<string> warnings, out _);
-
-        Assert.Empty(warnings);
-        Assert.DoesNotContain("\"overlay\"", json, StringComparison.Ordinal);
-        Assert.DoesNotContain("TopRight", json, StringComparison.Ordinal);
-        Assert.Same(CameraOverlayOptions.Default, loaded.Printers[0].Camera.LegacyOverlay);
-        Assert.NotEqual(settings.Printers[0].Camera, loaded.Printers[0].Camera);
-    }
-
     [Fact]
     public void SkippedPrinterGivesNoOverlayWarning()
     {

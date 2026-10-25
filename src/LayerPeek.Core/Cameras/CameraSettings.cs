@@ -90,21 +90,6 @@ public sealed record CameraSettings
         }
     } = CameraOverlayLayout.Default;
 
-    /// <summary>
-    /// The T-036 overlay options, used only by the old Overlay sub-tab of the settings until T-092 replaces it (the camera
-    /// window draws <see cref="Overlay"/> since T-081 and ignores them). Kept in memory only: settings format 2 does not store them (user decision 2026-10-24, T-077 Q2), so
-    /// every load starts with <see cref="CameraOverlayOptions.Default"/>. Part of equality so that unsaved changes count.
-    /// </summary>
-    public CameraOverlayOptions LegacyOverlay
-    {
-        get;
-        init
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            field = value;
-        }
-    } = CameraOverlayOptions.Default;
-
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="streamUrl"/> is empty (no address), valid (use the constructor) or contains credentials
@@ -269,10 +254,9 @@ public sealed record CameraSettings
         && string.Equals(StreamUri?.OriginalString, other.StreamUri?.OriginalString, StringComparison.Ordinal)
         && string.Equals(InvalidStreamUrl, other.InvalidStreamUrl, StringComparison.Ordinal)
         && Window == other.Window
-        && Overlay == other.Overlay
-        && LegacyOverlay == other.LegacyOverlay;
+        && Overlay == other.Overlay;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, LegacyOverlay);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay);
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -283,8 +267,7 @@ public sealed record CameraSettings
             .Append(", StreamUrlProblem = ").Append(StreamUrlProblem)
             .Append(", CredentialsRemoved = ").Append(CredentialsRemoved)
             .Append(", Window = ").Append(Window)
-            .Append(", Overlay = ").Append(Overlay)
-            .Append(", LegacyOverlay = ").Append(LegacyOverlay);
+            .Append(", Overlay = ").Append(Overlay);
         return true;
     }
 }

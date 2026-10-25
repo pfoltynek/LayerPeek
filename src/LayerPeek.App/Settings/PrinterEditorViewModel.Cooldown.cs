@@ -9,14 +9,10 @@ namespace LayerPeek.App.Settings;
 /// <summary>
 /// The cool-down threshold of the printer (T-079, logic T-080): whole degrees Celsius within
 /// <see cref="CooldownThreshold.MinCelsius"/>–<see cref="CooldownThreshold.MaxCelsius"/>. An invalid value is never saved:
-/// it blocks Save like the other fields, with the error in place of the hint and the "!" on the sub-tab header. Not tied to
-/// the camera (the notification needs it without one), so it stays editable while the camera is off.
-/// <para>
-/// The window has no field for it yet: it comes with the "Widgets" settings tab (T-092, user decision 2026-10-25). Until
-/// then nothing in the window can make the value invalid (saved and default thresholds are valid, "Use threshold for all
-/// printers" copies only a valid one), so the Save block and the Overlay sub-tab marker cannot be triggered; T-092 moves
-/// them to wherever it puts the field.
-/// </para>
+/// it blocks Save like the other fields, with the error in place of the hint and the "!" on the Cool-down widget, the
+/// printer and the Widgets tab. Not tied to the camera (the notification needs it without one), so it stays editable while
+/// the camera is off. The field is in the panel of the Cool-down widget on the Widgets tab (T-092, user decision 2026-10-25),
+/// which only shows these values (<see cref="Widgets.CooldownWidgetSettings"/>).
 /// </summary>
 public sealed partial class PrinterEditorViewModel
 {
@@ -42,19 +38,22 @@ public sealed partial class PrinterEditorViewModel
     }
 
     /// <summary>Why the threshold cannot be saved; shown under the field instead of the hint.</summary>
-    public string? CooldownThresholdError => _showErrors && HasOverlayErrors ? CooldownThresholdErrorText : null;
+    public string? CooldownThresholdError => _showErrors && HasCooldownThresholdError ? CooldownThresholdErrorText : null;
 
     /// <summary>The hint under the threshold gives way to its error (T-033 pattern).</summary>
     public bool ShowsCooldownThresholdHint => CooldownThresholdError is null;
 
-    /// <summary>A field of the Overlay sub-tab (the threshold) blocks saving (shown or not yet).</summary>
-    public bool HasOverlayErrors => ValidCooldownThreshold is null;
+    /// <summary>The threshold blocks saving (shown or not yet).</summary>
+    public bool HasCooldownThresholdError => ValidCooldownThreshold is null;
 
-    /// <summary>The "!" on the Overlay sub-tab header; same rule as the list marker.</summary>
-    public bool ShowsOverlayErrorMarker => _showErrors && HasOverlayErrors;
+    /// <summary>
+    /// A value shown on the Widgets tab (the settings of a widget, today the cool-down threshold) blocks saving, shown or not
+    /// yet. The values belong to the printer, also those of a widget that is not registered (yet).
+    /// </summary>
+    public bool HasWidgetErrors => HasCooldownThresholdError;
 
-    /// <summary>Accessible name of the Overlay sub-tab header.</summary>
-    public string OverlayTabName => TabName(Strings.SettingsPrinterTabOverlay, ShowsOverlayErrorMarker);
+    /// <summary>The "!" of the printer on the Widgets tab and on the tab header; same rule as the list marker.</summary>
+    public bool ShowsWidgetErrorMarker => _showErrors && HasWidgetErrors;
 
     /// <summary>
     /// "Use threshold for all printers": copies a valid threshold to every other printer of the window (also unsaved ones);
@@ -97,8 +96,8 @@ public sealed partial class PrinterEditorViewModel
     {
         OnPropertyChanged(nameof(CooldownThresholdError));
         OnPropertyChanged(nameof(ShowsCooldownThresholdHint));
-        OnPropertyChanged(nameof(HasOverlayErrors));
-        OnPropertyChanged(nameof(ShowsOverlayErrorMarker));
-        OnPropertyChanged(nameof(OverlayTabName));
+        OnPropertyChanged(nameof(HasCooldownThresholdError));
+        OnPropertyChanged(nameof(HasWidgetErrors));
+        OnPropertyChanged(nameof(ShowsWidgetErrorMarker));
     }
 }

@@ -58,11 +58,11 @@ public sealed class CameraLayoutCard : ContentControl
     /// <summary>The icon resource of a widget's placeholder card (Fluent UI System Icons, T-076 6) and its canvas size.</summary>
     internal static (string Key, double Canvas) PlaceholderIconOf(string widgetId) => widgetId switch
     {
-        OverlayWidgetIds.Status => ("IconStatus16Regular", 16),
-        OverlayWidgetIds.Times => ("IconTimer16Regular", 16),
-        OverlayWidgetIds.Temperatures => ("IconTemperature16Regular", 16),
-        OverlayWidgetIds.PrintName => ("IconCube16Regular", 16),
-        OverlayWidgetIds.Cooldown => ("IconWeatherSnowflake20Regular", 20),
+        OverlayWidgetIds.Status => (Composition.OverlayWidgetIcons.Status, 16),
+        OverlayWidgetIds.Times => (Composition.OverlayWidgetIcons.Times, 16),
+        OverlayWidgetIds.Temperatures => (Composition.OverlayWidgetIcons.Temperatures, 16),
+        OverlayWidgetIds.PrintName => (Composition.OverlayWidgetIcons.PrintName, 16),
+        OverlayWidgetIds.Cooldown => (Composition.OverlayWidgetIcons.Cooldown, 20),
         _ => ("IconLayoutCellFour16Regular", 16),
     };
 

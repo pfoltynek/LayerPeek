@@ -241,13 +241,13 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
-        // "Apply" places the open camera windows again (T-040).
+        // "Apply" places the open camera windows again (T-040); "Edit layout in camera window…" starts their layout mode (T-092).
         CameraWindows cameraWindows = CameraWindowsFor(host);
 
         // The window first: its screens are the monitors offered for the camera window (T-035); a failure leaves nothing open.
         SettingsWindowCommand.Show(
             _settingsWindow,
-            () => windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows)),
+            () => windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows, cameraWindows)),
             addPrinter);
     }
 

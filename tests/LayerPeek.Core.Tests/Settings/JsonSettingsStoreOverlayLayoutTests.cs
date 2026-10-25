@@ -63,7 +63,6 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
         Assert.Same(CameraOverlayLayout.Default, printers[3].Camera.Overlay);
         Assert.Equal(CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.BottomRight), printers[4].Camera.Overlay);
         Assert.All(printers, static printer => Assert.All(printer.Camera.Overlay.Widgets, static w => Assert.True(w.Visible)));
-        Assert.All(printers, static printer => Assert.Same(CameraOverlayOptions.Default, printer.Camera.LegacyOverlay));
 
         // Everything else of the file is read as before.
         Assert.Equal(45, printers[0].CooldownThresholdCelsius);
