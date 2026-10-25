@@ -92,6 +92,10 @@ internal static partial class Native
 
     [LibraryImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool IsZoomed(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     public static partial bool IsWindow(nint hwnd);
 
     [LibraryImport("user32.dll")]

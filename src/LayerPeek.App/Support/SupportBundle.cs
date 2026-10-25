@@ -7,7 +7,7 @@ namespace LayerPeek.App.Support;
 /// <summary>
 /// The diagnostic bundle (T-048): a ZIP with every file of the log folder (<c>logs/</c>, unchanged), <c>info.txt</c>
 /// (<see cref="SupportInfo"/>) and <c>settings.json</c> (rebuilt and redacted, never the raw file). Nothing else goes in:
-/// no secrets, no <c>camera-windows.json</c>, no printer images.
+/// no secrets, no <c>camera-windows.json</c> or <c>windows.json</c>, no printer images.
 /// </summary>
 internal static class SupportBundle
 {

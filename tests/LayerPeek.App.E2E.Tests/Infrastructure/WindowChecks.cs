@@ -6,10 +6,10 @@ namespace LayerPeek.App.E2E.Tests.Infrastructure;
 /// <summary>Assertions about the real windows of the app (Win32 styles, sizes, taskbar properties, UI Automation).</summary>
 internal static class WindowChecks
 {
-    /// <summary>Client size of the settings and diagnostics windows in DIP (T-033, T-041).</summary>
+    /// <summary>Default client size of the settings and diagnostics windows in DIP (T-033, T-041, T-094).</summary>
     public const int AuxiliaryWidth = 780;
 
-    public const int AuxiliaryHeight = 508;
+    public const int AuxiliaryHeight = 532;
 
     /// <summary>Scaling of the window's monitor (1.0 = 96 DPI).</summary>
     public static double Scaling(nint hwnd) => Native.GetDpiForWindow(hwnd) / 96.0;
@@ -22,18 +22,18 @@ internal static class WindowChecks
         return ((int)Math.Round(client.Width / scaling), (int)Math.Round(client.Height / scaling));
     }
 
-    /// <summary>Only the close button in the title bar (T-040, T-041): no minimize and no maximize box.</summary>
-    public static void AssertCloseButtonOnly(nint hwnd, string context)
+    /// <summary>Close and maximize buttons in the title bar (T-040, T-041, T-094): no minimize box.</summary>
+    public static void AssertCloseAndMaximizeButtons(nint hwnd, string context)
     {
         long style = Native.Style(hwnd);
         Assert.True((style & Native.WsSysMenu) != 0, $"{context}: the window has no system menu (close button).");
         Assert.True((style & Native.WsMinimizeBox) == 0, $"{context}: the window has a minimize button.");
-        Assert.True((style & Native.WsMaximizeBox) == 0, $"{context}: the window has a maximize button.");
+        Assert.True((style & Native.WsMaximizeBox) != 0, $"{context}: the window has no maximize button.");
     }
 
     /// <summary>
-    /// The designed client size 780×508 DIP, or (on a smaller work area) the size clamped to the work area (T-033/T-041):
-    /// never larger than designed, never larger than the work area.
+    /// The default client size 780×532 DIP, or (on a smaller work area) the size clamped to the work area (T-033/T-041,
+    /// T-094): never larger than the default, never larger than the work area. For windows never resized in the run.
     /// </summary>
     public static void AssertAuxiliarySize(nint hwnd, string context)
     {

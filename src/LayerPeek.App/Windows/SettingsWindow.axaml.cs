@@ -9,7 +9,7 @@ namespace LayerPeek.App.Windows;
 /// <summary>
 /// Settings window (T-015). Closing it (Save, Cancel or the title bar button) never quits the app
 /// (<c>ShutdownMode.OnExplicitShutdown</c>); unsaved edits are discarded. Its view model is disposed by
-/// <see cref="AuxiliaryWindowSlot"/> when it closes. Opens at its designed size, shrunk to the work area of its screen
+/// <see cref="AuxiliaryWindowSlot"/> when it closes. Opens at its designed (or remembered, T-094) size, shrunk to the work area of its screen
 /// (<see cref="AuxiliaryWindowPlacement"/>, T-033). Ctrl+Tab / Ctrl+Shift+Tab switch the main tabs, Ctrl+PageDown /
 /// Ctrl+PageUp the sub-tabs of the printer form.
 /// </summary>
@@ -26,6 +26,15 @@ public sealed partial class SettingsWindow : Window
         // Tunnelling: before a text box or the focus navigation (Tab) sees the keys.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
     }
+
+    /// <summary>The fitting and remembering of the window size (T-094).</summary>
+    internal WorkAreaFitter Sizing => _fitter;
+
+    /// <summary>
+    /// Before showing (T-094): opens with the size and maximized state remembered in <paramref name="store"/> and
+    /// remembers them again when the window closes (also after "Cancel": it is window state, not a setting).
+    /// </summary>
+    internal void RememberSizeIn(IAuxiliaryWindowStateStore store) => _fitter.Remember(store, AuxiliaryWindowKeys.Settings);
 
     protected override void OnDataContextChanged(EventArgs e)
     {

@@ -50,7 +50,8 @@ internal sealed class SettingsWindowHarness
         ICameraWindowPlacer? cameraWindowPlacer = null,
         IImageFilePicker? imagePicker = null,
         LayerPeek.App.Platform.IAutostart? autostart = null,
-        bool autostartNeedsInstallation = false)
+        bool autostartNeedsInstallation = false,
+        IAuxiliaryWindowStateStore? windowStates = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
@@ -60,6 +61,12 @@ internal sealed class SettingsWindowHarness
         viewModel.ImageFilePicker = imagePicker ?? new FakeImagePicker { Content = null };
         scope.Defer(viewModel);
         SettingsWindow window = scope.Track(new SettingsWindow { DataContext = viewModel });
+        if (windowStates is not null)
+        {
+            // Like AuxiliaryWindowFactory (T-094): the remembered size and maximized state.
+            window.RememberSizeIn(windowStates);
+        }
+
         SettingsWindowHarness harness = new(window, viewModel, slot);
         slot.ShowOrActivate(() => (new AvaloniaAuxiliaryWindow(window), viewModel));
         await viewModel.LoadAsync();

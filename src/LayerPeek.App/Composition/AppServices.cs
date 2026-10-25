@@ -225,6 +225,9 @@ internal static class AppServices
         });
 
         AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
+        // Size and maximized state of the settings and diagnostics windows (T-094, windows.json): app state, not settings.
+        // Created on first use; TrayHost reads the file in the background at startup.
+        services.AddSingleton(CreateAuxiliaryWindowStateStore);
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
@@ -407,6 +410,22 @@ internal static class AppServices
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
+    }
+
+    private static IAuxiliaryWindowStateStore CreateAuxiliaryWindowStateStore(IServiceProvider services)
+    {
+        try
+        {
+            return new JsonAuxiliaryWindowStateStore(
+                services.GetRequiredService<AppEnvironment>().DataDirectory(),
+                services.GetRequiredService<ILogger<JsonAuxiliaryWindowStateStore>>(),
+                services.GetRequiredService<TimeProvider>());
+        }
+        catch (InvalidOperationException)
+        {
+            // No per-user data folder: the window sizes are remembered for this run only.
+            return new MemoryAuxiliaryWindowStateStore();
+        }
     }
 
     private static ICameraWindowStateStore CreateCameraWindowStateStore(IServiceProvider services)

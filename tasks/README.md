@@ -106,7 +106,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-090 | Malý náhled – sbalitelný název a graf v pásu, zapamatování stavu | all | ui-dev | P2 | T-084, T-085, T-089 |
 | T-091 | Režim rozložení v okně kamery (jen normální okno, vstup i z nastavení) | all | ui-dev | P2 | T-077, T-082, T-083 |
 | T-092 | Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení | all | ui-dev | P2 | T-077, T-080, T-081, T-091 |
-| T-094 | Okna Nastavení a Diagnostika – výchozí velikost 780 × 532, zvětšení na celou obrazovku a zapamatování velikosti | all | ui-dev | P2 | – |
+| T-094 | Okna Nastavení a Diagnostika – výchozí velikost 780 × 532, zvětšení na celou obrazovku a zapamatování velikosti (hotovo) | all | ui-dev | P2 | – |
 
 ### Windows (`windows`)
 

@@ -29,7 +29,7 @@ namespace LayerPeek.App.UiTests.Diagnostics;
 /// </summary>
 public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
 {
-    /// <summary>Title bar assumed by the design (Windows 11 at 100 %); the smallest supported screen leaves 780 × 540.</summary>
+    /// <summary>Title bar assumed by the design (Windows 11 at 100 %); the smallest common laptop work area is about 1093 × 580 DIP (T-094).</summary>
     private const double TitleBar = 32;
 
     /// <summary>The chart never gets lower than this (T-041 design).</summary>
@@ -75,19 +75,19 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
     // ---- Size and title bar ----
 
     [Fact]
-    public Task WindowOpensAtTheSizeOfTheSettingsWindowWithOnlyACloseButton() =>
+    public Task WindowOpensAtTheSizeOfTheSettingsWindowWithCloseAndMaximizeButtons() =>
         session.RunAsync(static scope =>
         {
             DiagnosticsWindowHarness ui = OpenPrinting(scope);
 
-            Assert.Equal(new Size(780, 508), ui.Window.ClientSize);
-            Assert.True(ui.Window.ClientSize.Height + TitleBar <= 540);
+            Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+            Assert.True(ui.Window.ClientSize.Height + TitleBar <= 580);
             Assert.Equal(AuxiliaryWindowPlacement.DefaultClientSize, new Size(ui.Window.Width, ui.Window.Height));
             Assert.Equal(AuxiliaryWindowPlacement.MinClientSize, new Size(ui.Window.MinWidth, ui.Window.MinHeight));
             Assert.Equal(WindowStartupLocation.CenterScreen, ui.Window.WindowStartupLocation);
-            // T-041 like T-040: no minimize, no maximize; the window can still be resized.
+            // T-041 like T-040: no minimize; T-094: maximize; the window can be resized.
             Assert.False(ui.Window.CanMinimize);
-            Assert.False(ui.Window.CanMaximize);
+            Assert.True(ui.Window.CanMaximize);
             Assert.True(ui.Window.CanResize);
             return Task.CompletedTask;
         });
@@ -105,9 +105,45 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             {
                 DiagnosticsWindowHarness ui = open(scope);
                 ui.Window.Settle();
-                Assert.Equal(new Size(780, 508), ui.Window.ClientSize);
+                Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
                 string context = $"{language} / {state}";
                 problems.AddRange(LayoutProblems(ui.Window, context));
+                ui.Window.Close();
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+            return Task.CompletedTask;
+        });
+
+    /// <summary>
+    /// T-094: maximized (the client of a maximized window on 1366 × 768 and on 1920 × 1080 at 100 %), the value columns
+    /// and the chart stretch, nothing scrolls and nothing is cut, in every language and state.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task MaximizedWindowStretchesWithoutScrollingOrCutTexts(string language) =>
+        session.RunAsync(scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            foreach ((string state, Func<UiTestScope, DiagnosticsWindowHarness> open) in States())
+            {
+                DiagnosticsWindowHarness ui = open(scope);
+                ui.Window.WindowState = WindowState.Maximized;
+                foreach (Size maximized in new[] { new Size(1366, 705), new Size(1920, 1017) })
+                {
+                    ui.Window.Width = maximized.Width;
+                    ui.Window.Height = maximized.Height;
+                    ui.Window.Settle();
+                    string context = $"{language} / {state} / maximized {maximized}";
+                    problems.AddRange(LayoutProblems(ui.Window, context));
+                    TemperatureChart chart = ui.Find<TemperatureChart>("DiagnosticsChart");
+                    if (chart.IsEffectivelyVisible && Math.Abs(chart.Bounds.Width - (maximized.Width - 32)) > 0.01)
+                    {
+                        problems.Add($"{context}: the chart is {chart.Bounds.Width:0.#} DIP wide, it does not stretch.");
+                    }
+                }
+
                 ui.Window.Close();
             }
 
@@ -138,7 +174,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
 
             // A chart that does not reach the footer.
             chart.MinHeight = MinChartHeight;
-            ui.Window.Height = 508;
+            ui.Window.Height = 532;
             chart.VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top;
             chart.Height = 130;
             ui.Window.Settle();
@@ -161,7 +197,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             Assert.True(designed >= 200, $"The chart is {designed:0.#} DIP high.");
             Assert.Equal(780 - 32, chart.Bounds.Width, 0.01);
 
-            ui.Window.Height = 608;
+            ui.Window.Height = 632;
             ui.Window.Settle();
 
             Assert.Equal(designed + 100, chart.Bounds.Height, 0.01);
