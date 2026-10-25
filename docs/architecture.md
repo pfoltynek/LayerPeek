@@ -82,7 +82,7 @@ Jediný `Border` s řádky z T-036 nahradil systém widgetů. Otázky rozhodl u�
   - Vzhled: `OverlayStyles.axaml` (barvy, karta `Border.overlayCard` s třídami velikosti, `TextBlock.numeric` s `FontFeatures="tnum"`, `.big`, `.secondary`, `.emphasized` v `#FA6831`, části `OverlayStatusPill`, `OverlayIconText`, `OverlayChip`, `OverlayProgressBar`, `OverlayIcon`) a `OverlayIcons.axaml` (Fluent UI System Icons, MIT, jako `StreamGeometry`, bez balíčku a fontu; licence v přehledu licencí třetích stran).
   - Rozmístění: `OverlayAnchorsPanel` se 6 `OverlayAnchorItems` (`CameraOverlayAnchor{Kotva}`, karty `CameraOverlayWidget-{id}`), odsazení 12, kotva vpravo nahoře od 44. Pravidla malého okna (stupně 0–3, šířka středové karty vedle rohů a rezervy tlačítek 112, skrytí karet s nižší prioritou při překryvu ve sloupci) jsou čisté funkce `OverlayArrangement`.
   - Sdílené hodnoty a texty pro widgety (pravidla T-036): `OverlayValues` (údaje úlohy jen během úlohy, zaokrouhlení, čas dokončení v místním pásmu) a `OverlayFormat` (doby, čas dokončení, teploty, zkracování názvů, `OverlayTextCache`).
-- **Widgety v1:** Stav (T-082), Časy (T-083), Teploty se sparkline (T-084), Název tisku (T-085, s náhledem G-code T-087), Vychladnutí (T-088).
+- **Widgety v1:** Stav (T-082), Časy (T-083, hotovo: `Cameras/Overlay/Widgets/TimesWidget*`), Teploty se sparkline (T-084), Název tisku (T-085, s náhledem G-code T-087), Vychladnutí (T-088).
   - Sparkline je kompaktní režim stávajícího `TemperatureChart` s pevným oknem 60 minut, ne druhý graf.
   - Barvy trysky (oranžová) a podložky (modrá) jsou sdílené zdroje a používá je i graf okna Diagnostika.
 - **Data mimo snapshot:**

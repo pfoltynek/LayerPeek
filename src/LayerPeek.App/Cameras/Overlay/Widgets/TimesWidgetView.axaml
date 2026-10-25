@@ -1,0 +1,108 @@
+<!--
+  Content of the Times card (T-083, design T-076 2.2); the card itself (background, padding, size classes, AutomationId
+  CameraOverlayWidget-times and the screen reader name) comes from the shared OverlayCardTemplate.
+  S: hourglass + remaining time (15 bold). M / L: "Remaining" (12 / 14 secondary) → 2 → remaining time (26 / 34 bold) → 8 →
+  flag + finish time → 4 → clock + print time (rows 13 / 15, icons 16 / 20). Rows of unknown values are left out (StackPanel
+  spacing skips hidden children); a card without a row hides (S without the remaining time). The remaining time is the key
+  value: accent colour when emphasized.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+             x:Class="LayerPeek.App.Cameras.Overlay.Widgets.TimesWidgetView"
+             x:DataType="w:TimesWidgetViewModel">
+  <UserControl.Styles>
+    <!-- Card widths (T-076 2.2: S max 200, M 180–260, L 220–320) without the card padding (S 10, M 14, L 16 per side). -->
+    <Style Selector="Border.overlayCard.small StackPanel.times">
+      <Setter Property="MaxWidth" Value="180" />
+    </Style>
+    <Style Selector="Border.overlayCard.medium StackPanel.times">
+      <Setter Property="MinWidth" Value="152" />
+      <Setter Property="MaxWidth" Value="232" />
+    </Style>
+    <Style Selector="Border.overlayCard.large StackPanel.times">
+      <Setter Property="MinWidth" Value="188" />
+      <Setter Property="MaxWidth" Value="288" />
+    </Style>
+
+    <!-- "Remaining": M 12 / 16, L 14 / 18, regular. -->
+    <Style Selector="Border.overlayCard TextBlock.timesLabel">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="LineHeight" Value="16" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.timesLabel">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LineHeight" Value="18" />
+    </Style>
+
+    <!-- The remaining time: S 15 / 20, M 26 / 32, L 34 / 42, bold, never wraps (an absurd estimate is trimmed). -->
+    <Style Selector="Border.overlayCard TextBlock.timesRemaining">
+      <Setter Property="FontSize" Value="26" />
+      <Setter Property="LineHeight" Value="32" />
+    </Style>
+    <Style Selector="Border.overlayCard.small TextBlock.timesRemaining">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="LineHeight" Value="20" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.timesRemaining">
+      <Setter Property="FontSize" Value="34" />
+      <Setter Property="LineHeight" Value="42" />
+    </Style>
+
+    <!-- Rows: L uses the 20 px icons (the shared style draws them at 20 and the text at 15). -->
+    <Style Selector="StackPanel.timesRows">
+      <Setter Property="Spacing" Value="4" />
+    </Style>
+    <Style Selector="ov|OverlayIconText.timesFinish">
+      <Setter Property="Icon" Value="{DynamicResource IconFlag16Regular}" />
+      <Setter Property="IconCanvasSize" Value="16" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIconText.timesFinish">
+      <Setter Property="Icon" Value="{DynamicResource IconFlag20Regular}" />
+      <Setter Property="IconCanvasSize" Value="20" />
+    </Style>
+    <Style Selector="ov|OverlayIconText.timesPrintTime">
+      <Setter Property="Icon" Value="{DynamicResource IconClock16Regular}" />
+      <Setter Property="IconCanvasSize" Value="16" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIconText.timesPrintTime">
+      <Setter Property="Icon" Value="{DynamicResource IconClock20Regular}" />
+      <Setter Property="IconCanvasSize" Value="20" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Classes="times" Spacing="8">
+    <StackPanel Spacing="2" IsVisible="{Binding HasRemaining}">
+      <TextBlock Classes="secondary timesLabel"
+                 Text="{Binding RemainingLabel}"
+                 IsVisible="{Binding !IsSmall}"
+                 TextTrimming="CharacterEllipsis" />
+      <StackPanel Orientation="Horizontal">
+        <ov:OverlayIcon Data="{DynamicResource IconHourglassHalf16Regular}"
+                        CanvasSize="16"
+                        Width="16"
+                        Height="16"
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource OverlayTextSecondaryBrush}"
+                        IsVisible="{Binding IsSmall}" />
+        <TextBlock Classes="big numeric timesRemaining"
+                   Classes.emphasized="{Binding IsEmphasized}"
+                   AutomationProperties.AutomationId="CameraOverlayWidget-times-Remaining"
+                   Text="{Binding Remaining}"
+                   TextTrimming="CharacterEllipsis" />
+      </StackPanel>
+    </StackPanel>
+    <StackPanel Classes="timesRows" IsVisible="{Binding ShowsRows}">
+      <ov:OverlayIconText Classes="timesFinish"
+                          AutomationProperties.AutomationId="CameraOverlayWidget-times-Finish"
+                          Text="{Binding Finish}"
+                          IsVisible="{Binding ShowsFinishRow}" />
+      <ov:OverlayIconText Classes="timesPrintTime"
+                          AutomationProperties.AutomationId="CameraOverlayWidget-times-Elapsed"
+                          Text="{Binding PrintTime}"
+                          IsVisible="{Binding ShowsPrintTimeRow}" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>
