@@ -13,8 +13,8 @@ namespace LayerPeek.App.Tests.Cameras.Overlay;
 
 /// <summary>
 /// The base of every widget (T-081): content compared on the monitor thread, texts formatted on the UI thread only when the
-/// shown content changed, nothing posted for polls that change nothing visible, a language switch, extra updates and the
-/// per-snapshot path without allocations.
+/// shown content changed, nothing posted for polls that change nothing visible, a language switch and extra updates (the
+/// per-snapshot path without allocations: <see cref="OverlayAllocationTests"/>).
 /// </summary>
 public sealed class OverlayWidgetViewModelTests : IDisposable
 {
@@ -232,32 +232,6 @@ public sealed class OverlayWidgetViewModelTests : IDisposable
 
         Assert.Equal(computed, widget.ComputeCount);
         Assert.Equal(posts, _dispatcher.PostCount);
-    }
-
-    [Fact]
-    public void SnapshotThatChangesNothingVisibleAllocatesNothing()
-    {
-        CameraOverlayViewModel overlay = Create("test-a", "test-b", "test-c");
-        PrinterSnapshot first = Printing(42.1);
-        PrinterSnapshot second = Printing(42.9);
-        overlay.OnSnapshot(first);
-        _dispatcher.RunAll();
-        // Warm up (JIT, lazy statics).
-        for (int i = 0; i < 100; i++)
-        {
-            overlay.OnSnapshot(i % 2 == 0 ? second : first);
-        }
-
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 1000; i++)
-        {
-            overlay.OnSnapshot(i % 2 == 0 ? second : first);
-        }
-
-        long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
-
-        Assert.Equal(0, allocated);
-        Assert.Equal(0, _dispatcher.Pending);
     }
 
     [Fact]

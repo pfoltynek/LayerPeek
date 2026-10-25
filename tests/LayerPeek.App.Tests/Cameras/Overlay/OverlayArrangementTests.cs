@@ -31,6 +31,23 @@ public sealed class OverlayArrangementTests
         Assert.Equal(expected, OverlayArrangement.SizeInStage(size, anchor, stage));
 
     [Theory]
+    [InlineData(OverlayWidgetSize.Small, OverlayWidgetSize.Medium)]
+    [InlineData(OverlayWidgetSize.Medium, OverlayWidgetSize.Medium)]
+    [InlineData(OverlayWidgetSize.Large, OverlayWidgetSize.Large)]
+    public void SizeTheWidgetDoesNotHaveFallsBackToTheNearestSmallerOneElseTheSmallest(OverlayWidgetSize wanted, OverlayWidgetSize expected) =>
+        Assert.Equal(expected, OverlayArrangement.NearestSupported(wanted, [OverlayWidgetSize.Medium, OverlayWidgetSize.Large]));
+
+    [Fact]
+    public void SmallerStageNeverDrawsAWidgetLargerThanItsLayoutSize()
+    {
+        // A widget with S and L only, M in the layout: stage 0 draws S (the nearest smaller), not L.
+        OverlayWidgetSize[] supported = [OverlayWidgetSize.Small, OverlayWidgetSize.Large];
+        Assert.Equal(OverlayWidgetSize.Small, OverlayArrangement.NearestSupported(OverlayWidgetSize.Medium, supported));
+        // Stage 1 of L asks for M: S, again never larger than asked.
+        Assert.Equal(OverlayWidgetSize.Small, OverlayArrangement.NearestSupported(OverlayArrangement.SizeInStage(OverlayWidgetSize.Large, OverlayAnchor.TopLeft, 1)!.Value, supported));
+    }
+
+    [Theory]
     [InlineData(OverlayAnchor.TopCenter, 2)]
     [InlineData(OverlayAnchor.BottomCenter, 2)]
     [InlineData(OverlayAnchor.TopLeft, 3)]

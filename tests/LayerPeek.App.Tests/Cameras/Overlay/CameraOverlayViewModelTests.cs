@@ -366,6 +366,31 @@ public sealed class CameraOverlayViewModelTests : IDisposable
     }
 
     [Fact]
+    public void WidgetThatCannotBeCreatedIsNotTriedAgainUntilTheWindowCloses()
+    {
+        int attempts = 0;
+        OverlayWidgetRegistry registry = new(
+        [
+            TestOverlayWidgets.Definition("test-a", create: _ =>
+            {
+                attempts++;
+                throw new InvalidOperationException("broken");
+            }),
+            TestOverlayWidgets.Definition("test-b"),
+        ]);
+        CameraOverlayViewModel overlay = Create(Layout(Place("test-a", OverlayAnchor.TopLeft), Place("test-b", OverlayAnchor.TopLeft)), registry);
+
+        // Saved layouts that still (or again) contain the broken widget.
+        overlay.ApplySettings(Definition(), Layout(Place("test-a", OverlayAnchor.BottomLeft), Place("test-b", OverlayAnchor.TopLeft)), CameraOverlayOpacity.DefaultPercent);
+        overlay.ApplySettings(Definition(), Layout(Place("test-b", OverlayAnchor.TopLeft)), CameraOverlayOpacity.DefaultPercent);
+        overlay.ApplySettings(Definition(), Layout(Place("test-a", OverlayAnchor.TopRight), Place("test-b", OverlayAnchor.TopLeft)), CameraOverlayOpacity.DefaultPercent);
+
+        Assert.Equal(1, attempts);
+        Assert.Single(_logger.Entries);
+        Assert.Equal(["test-b"], Ids(overlay.Widgets));
+    }
+
+    [Fact]
     public void WidgetThatFailsComputingIsHiddenAndTheOthersGoOn()
     {
         CameraOverlayViewModel overlay = Create(Layout(Place("test-a", OverlayAnchor.TopLeft), Place("test-b", OverlayAnchor.TopLeft)));

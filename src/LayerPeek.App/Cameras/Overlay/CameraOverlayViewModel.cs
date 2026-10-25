@@ -64,6 +64,9 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
     private int _opacityPercent;
     private IBrush _cardBackground;
 
+    // Widgets whose creation threw: left out (and not logged again) until the window closes, like the other failures.
+    private List<IOverlayWidgetDefinition>? _failedToCreate;
+
     /// <param name="snapshot">The latest snapshot of the printer; <see langword="null"/> before the first poll.</param>
     /// <param name="opacityPercent">The global card opacity (<see cref="CameraOverlayOpacity"/>); an invalid value counts as the default.</param>
     internal CameraOverlayViewModel(
@@ -306,21 +309,6 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
     private static ImmutableSolidColorBrush CardBrush(int percent) =>
         new(Color.FromArgb((byte)Math.Round(percent * 255 / 100.0, MidpointRounding.AwayFromZero), 0x0E, 0x0E, 0x10));
 
-    private static OverlayWidgetSize Supported(OverlayWidgetSize size, IReadOnlyList<OverlayWidgetSize> supported)
-    {
-        // The largest supported size not above the chosen one, else the smallest supported.
-        OverlayWidgetSize? best = null;
-        foreach (OverlayWidgetSize candidate in supported)
-        {
-            if (candidate <= size && (best is null || candidate > best))
-            {
-                best = candidate;
-            }
-        }
-
-        return best ?? supported[0];
-    }
-
     private void SetOpacity(int opacityPercent)
     {
         int percent = Coerce(opacityPercent);
@@ -364,7 +352,7 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
             }
 
             widget.Anchor = placement.Anchor;
-            widget.Size = Supported(placement.Size, definition.SupportedSizes);
+            widget.Size = OverlayArrangement.NearestSupported(placement.Size, definition.SupportedSizes);
             widget.IsEmphasized = placement.Emphasized;
             widget.CardBackground = _cardBackground;
             next.Add(widget);
@@ -402,6 +390,11 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
 
     private OverlayWidgetViewModel? Create(IOverlayWidgetDefinition definition)
     {
+        if (_failedToCreate is not null && _failedToCreate.Contains(definition))
+        {
+            return null;
+        }
+
         try
         {
             OverlayWidgetViewModel widget = definition.Create(_context)
@@ -411,6 +404,7 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
         }
         catch (Exception ex)
         {
+            (_failedToCreate ??= []).Add(definition);
             LogWidgetFailed(definition.Id, "creating", ex);
             return null;
         }

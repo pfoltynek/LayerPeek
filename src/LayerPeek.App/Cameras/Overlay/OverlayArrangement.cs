@@ -51,6 +51,31 @@ internal static class OverlayArrangement
         _ => null,
     };
 
+    /// <summary>
+    /// The size a widget that draws only <paramref name="supported"/> uses for <paramref name="size"/>: the largest
+    /// supported one not above it, else the smallest supported one.
+    /// </summary>
+    public static OverlayWidgetSize NearestSupported(OverlayWidgetSize size, IReadOnlyList<OverlayWidgetSize> supported)
+    {
+        ArgumentNullException.ThrowIfNull(supported);
+        OverlayWidgetSize? best = null;
+        OverlayWidgetSize smallest = supported[0];
+        foreach (OverlayWidgetSize candidate in supported)
+        {
+            if (candidate <= size && (best is null || candidate > best))
+            {
+                best = candidate;
+            }
+
+            if (candidate < smallest)
+            {
+                smallest = candidate;
+            }
+        }
+
+        return best ?? smallest;
+    }
+
     /// <summary>Top edge of the first card of a top anchor.</summary>
     public static double TopStart(OverlayAnchor anchor) => anchor == OverlayAnchor.TopRight ? TopRightStart : EdgeMargin;
 

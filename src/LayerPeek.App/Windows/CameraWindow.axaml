@@ -108,7 +108,6 @@
       </StackPanel>
     </Border>
 
-
     <StackPanel x:Name="WindowButtons"
                 AutomationProperties.AutomationId="CameraWindowButtons"
                 Classes="windowButtons"

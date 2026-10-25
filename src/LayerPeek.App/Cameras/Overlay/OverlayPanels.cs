@@ -192,8 +192,9 @@ public sealed class OverlayAnchorsPanel : Panel
 
     private static IEnumerable<OverlayWidgetViewModel> Widgets(ItemsControl items) => items.Items.OfType<OverlayWidgetViewModel>();
 
+    // Never larger than the stage asks for (a widget without the smaller size uses the next smaller one it has).
     private static OverlayWidgetSize Supported(OverlayWidgetViewModel widget, OverlayWidgetSize size) =>
-        widget.Definition.SupportedSizes.Contains(size) ? size : widget.Size;
+        OverlayArrangement.NearestSupported(size, widget.Definition.SupportedSizes);
 
     /// <summary>Width of the widest drawn card of an anchor (0 without cards).</summary>
     private static double CardsWidth(OverlayAnchorItems? items)

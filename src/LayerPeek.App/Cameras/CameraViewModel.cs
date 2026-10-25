@@ -756,7 +756,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     private void ApplyPrinters()
     {
-        if (_disposed || _printers.Current is not { Printers: { } printers })
+        if (_disposed || _printers.Current is not { Printers: { } printers } state)
         {
             return;
         }
@@ -788,7 +788,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         SetDefaults(target.Window);
 
         // The layout, the printer (name…) and the global card opacity apply to the open window right away, in place (T-081).
-        Overlay.ApplySettings(target.Printer, target.Overlay, _printers.Current.CameraOverlayOpacityPercent);
+        Overlay.ApplySettings(target.Printer, target.Overlay, state.CameraOverlayOpacityPercent);
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {
