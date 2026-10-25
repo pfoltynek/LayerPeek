@@ -4,6 +4,7 @@ using Microsoft.Extensions.Time.Testing;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Tests.Cameras;
+using LayerPeek.App.Tests.Cameras.Layout;
 using LayerPeek.App.Tests.Cameras.Overlay;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
@@ -40,6 +41,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="opacity">The global card opacity (T-077).</param>
     public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent)
     {
+        LayoutWriter = new FakeLayoutWriter();
         States = states ?? new MemoryCameraWindowStateStore();
         _monitorPaths = monitorPaths;
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
@@ -52,6 +54,9 @@ internal sealed class CameraHarness : IAsyncDisposable
     }
 
     public FakeCameraFeedFactory Factory { get; } = new();
+
+    /// <summary>Records the layouts saved by the layout mode of the windows (T-091); nothing on disk.</summary>
+    public FakeLayoutWriter LayoutWriter { get; }
 
     public FakeTimeProvider Time { get; } = new();
 
@@ -109,7 +114,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, LayoutWriter);
         _created.Add(viewModel);
         return viewModel;
     }

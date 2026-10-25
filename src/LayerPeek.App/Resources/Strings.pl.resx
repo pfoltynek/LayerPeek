@@ -1035,4 +1035,85 @@
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>Nie udało się skopiować informacji do schowka. Spróbuj ponownie.</value>
   </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Edytuj układ</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Tryb układu</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>przeciągnij widżet do kotwicy</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Spacja podnosi widżet, strzałki go przesuwają, Enter otwiera opcje, Esc odrzuca zmiany.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Przywróć domyślne</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Gotowe</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Upuść tutaj</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>teraz brak danych</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Wyróżnij</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Pokazuje kluczową wartość na pomarańczowo.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Rozmiar</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Mały</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Średni</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Duży</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>Widżet nie ma tego rozmiaru.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>Górny środek</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>Dolny środek</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Tryb układu. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} podniesiony. Wybierz miejsce strzałkami, upuść spacją, Esc anuluje.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}: {1}, pozycja {2} z {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} przeniesiony: {1}, pozycja {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Przenoszenie anulowane</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Przywrócono domyślny układ</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Układ zapisany</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Zmiany układu odrzucone</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>Nie udało się zapisać układu. Spróbuj ponownie.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Powiększ okno, aby edytować układ.</value>
+  </data>
 </root>

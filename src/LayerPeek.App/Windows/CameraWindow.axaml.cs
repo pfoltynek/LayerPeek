@@ -89,6 +89,7 @@ public sealed partial class CameraWindow : Window
             _viewModel.CloseRequested += OnCloseRequested;
             _viewModel.PlacementResetRequested += OnPlacementResetRequested;
             _viewModel.AttachFrameSink(_sink);
+            AttachLayoutMode(_viewModel);
             if (!_opened)
             {
                 PlaceBeforeShowing(_viewModel);
@@ -157,6 +158,7 @@ public sealed partial class CameraWindow : Window
         _viewModel.CloseRequested -= OnCloseRequested;
         _viewModel.PlacementResetRequested -= OnPlacementResetRequested;
         _viewModel.AttachFrameSink(null);
+        DetachLayoutMode(_viewModel);
         _viewModel = null;
     }
 
@@ -309,7 +311,8 @@ public sealed partial class CameraWindow : Window
     {
         if (_viewModel is { } viewModel && _opened && WindowState == WindowState.Normal && _appliedMode != CameraWindowMode.FullScreen)
         {
-            viewModel.RememberPlacement(_appliedMode, new CameraWindowPlacement(Position.X, Position.Y, ClientSize.Width, ClientSize.Height));
+            // While the layout mode has the window enlarged, the size it had before (T-091 Q5: never remembered).
+            viewModel.RememberPlacement(_appliedMode, PlacementToRemember());
         }
     }
 

@@ -1056,4 +1056,85 @@
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>The information could not be copied to the clipboard. Try again.</value>
   </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Edit layout</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Layout mode</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>drag a widget to an anchor</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Space picks a widget up, arrow keys move it, Enter opens its options, Esc discards the changes.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Restore defaults</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Drop here</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>no data right now</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Highlight</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Shows the key value in orange.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Small</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Medium</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Large</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>This widget has no such size.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>Top center</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>Bottom center</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Layout mode. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} picked up. Use the arrow keys to choose a place, Space to drop, Esc to cancel.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}: {1}, position {2} of {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} moved: {1}, position {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Move cancelled</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Default layout restored</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Layout saved</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Layout changes discarded</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>The layout could not be saved. Try again.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Enlarge the window to edit the layout.</value>
+  </data>
 </root>

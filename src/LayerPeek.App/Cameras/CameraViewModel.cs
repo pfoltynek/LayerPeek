@@ -13,6 +13,7 @@ using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
+using LayerPeek.Core.Settings;
 
 namespace LayerPeek.App.Cameras;
 
@@ -129,6 +130,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private string? _lastRunFailure;
 
     /// <param name="widgets">The overlay widgets the window can draw (T-081); <see langword="null"/> = none.</param>
+    /// <param name="layoutWriter">Saves the layout of the layout mode (T-091); <see langword="null"/> = saving fails.</param>
     internal CameraViewModel(
         CameraTarget target,
         ReconnectingCameraFeed feed,
@@ -140,7 +142,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         CameraFeedOptions options,
         ILogger<CameraViewModel> logger,
         ICameraMonitorPathUpdater? monitorPaths = null,
-        OverlayWidgetRegistry? widgets = null)
+        OverlayWidgetRegistry? widgets = null,
+        ICameraOverlayLayoutWriter? layoutWriter = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -198,6 +201,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             _mode,
             snapshot: null);
 
+        // T-091: the layout mode edits the overlay's layout.
+        CreateLayoutMode(layoutWriter, logger);
+
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
         _printers.Changed += OnPrintersChanged;
@@ -242,7 +248,9 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(NormalToolTip));
         OnPropertyChanged(nameof(MiniToolTip));
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(LayoutToolTip));
         Overlay.RefreshTexts();
+        LayoutMode.RefreshTexts();
     }
 
     public CameraWindowMode Mode
@@ -251,6 +259,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         private set
         {
             CameraWindowMode previous = _mode;
+            if (!_disposed && value != previous)
+            {
+                // T-091: the layout mode exists only in the normal window; its edit is discarded before the switch.
+                LeaveLayoutModeFor(value);
+            }
+
             if (_disposed || !SetProperty(ref _mode, value))
             {
                 return;
@@ -272,6 +286,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             ShowMiniCommand.NotifyCanExecuteChanged();
             ShowNormalCommand.NotifyCanExecuteChanged();
             EscapeCommand.NotifyCanExecuteChanged();
+            OnLayoutAvailabilityChanged();
         }
     }
 
@@ -402,12 +417,21 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// Double-click on the image: normal window → full screen; full screen → the mode it was entered from; mini preview →
     /// normal window.
     /// </summary>
-    public void OnImageDoubleClicked() => Mode = _mode switch
+    public void OnImageDoubleClicked()
     {
-        CameraWindowMode.Normal => CameraWindowMode.FullScreen,
-        CameraWindowMode.FullScreen => _fullScreenOrigin,
-        _ => CameraWindowMode.Normal,
-    };
+        // The double-click does not switch modes in the layout mode (T-076 5.1).
+        if (IsLayoutModeActive)
+        {
+            return;
+        }
+
+        Mode = _mode switch
+        {
+            CameraWindowMode.Normal => CameraWindowMode.FullScreen,
+            CameraWindowMode.FullScreen => _fullScreenOrigin,
+            _ => CameraWindowMode.Normal,
+        };
+    }
 
     /// <summary>
     /// Where the window was while it showed <paramref name="mode"/> (the window reports it before leaving a mode and
@@ -500,6 +524,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _printers.Changed -= OnPrintersChanged;
+        // An open edit is discarded (T-091).
+        DisposeLayoutMode();
         Overlay.Dispose();
         StopStream();
         _sink = null;
