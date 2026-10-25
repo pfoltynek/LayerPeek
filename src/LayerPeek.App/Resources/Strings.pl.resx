@@ -1014,6 +1014,30 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Ostygła · {0}&#160;°C</value>
   </data>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Chłodzenie…</value>
+  </data>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Ostygła – można wyłączyć</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>bezpieczne wyłączenie za ok. {0} (dysza poniżej {1}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>bezpieczne wyłączenie, gdy dysza spadnie poniżej {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>wydruk zakończony o {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>wydruk zatrzymany o {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>ostygła w {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>ok. {0}</value>
+  </data>
   <data name="CameraMiniToggleName" xml:space="preserve">
     <value>Nazwa wydruku w pasku</value>
   </data>

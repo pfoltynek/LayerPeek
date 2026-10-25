@@ -58,7 +58,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
             Supported,
             ids.Dequeue,
             cameraTester: new FakeCameraTester(),
-            widgets: widgets ?? WidgetSettingsTestData.WithCooldown(),
+            widgets: widgets ?? OverlayWidgets.CreateRegistry(),
             layoutModeLauncher: _launcher,
             layoutWriter: _announcer,
             uiDispatcher: _dispatcher);
@@ -102,8 +102,10 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     {
         OverlayWidgetRegistry registry = OverlayWidgets.CreateRegistry();
 
-        Assert.Equal([OverlayWidgetIds.Status, OverlayWidgetIds.Times, OverlayWidgetIds.Temperatures, OverlayWidgetIds.PrintName], registry.Definitions.Select(static definition => definition.Id));
-        foreach (IOverlayWidgetDefinition definition in registry.Definitions.Append(WidgetSettingsTestData.Cooldown))
+        Assert.Equal(
+            [OverlayWidgetIds.Status, OverlayWidgetIds.Times, OverlayWidgetIds.Temperatures, OverlayWidgetIds.PrintName, OverlayWidgetIds.Cooldown],
+            registry.Definitions.Select(static definition => definition.Id));
+        foreach (IOverlayWidgetDefinition definition in registry.Definitions)
         {
             string description = Assert.IsType<string>(definition.DescriptionKey);
             Assert.StartsWith("Icon", Assert.IsType<string>(definition.IconKey), StringComparison.Ordinal);
@@ -120,11 +122,20 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     }
 
     [Fact]
-    public void WidgetsOfThisVersionHaveNoSettingsPanelUntilTheCooldownWidgetIsRegistered()
+    public void OnlyTheCooldownWidgetHasASettingsPanel()
     {
         // T-092 builds the Cool-down panel; T-088 registers it with the Cool-down widget.
-        Assert.All(OverlayWidgets.CreateRegistry().Definitions, static definition => Assert.Null(definition.Settings));
-        Assert.Same(CooldownWidgetSettings.Instance, WidgetSettingsTestData.Cooldown.Settings);
+        foreach (IOverlayWidgetDefinition definition in OverlayWidgets.CreateRegistry().Definitions)
+        {
+            if (definition.Id == OverlayWidgetIds.Cooldown)
+            {
+                Assert.Same(CooldownWidgetSettings.Instance, definition.Settings);
+            }
+            else
+            {
+                Assert.Null(definition.Settings);
+            }
+        }
     }
 
     [Theory]
@@ -431,9 +442,10 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     [Fact]
     public async Task ThresholdErrorWithoutARegisteredPanelStillOpensTheWidgetsTab()
     {
-        // Before T-088 registers the Cool-down widget, nothing in the window makes the threshold invalid; if it were, the
-        // save would still stop on the Widgets tab.
-        SettingsViewModel vm = await LoadAsync(OverlayWidgets.CreateRegistry(), Printer("a", "Alpha"));
+        // Without the Cool-down widget (e.g. a host that does not register it) nothing in the window makes the threshold
+        // invalid; if it were, the save would still stop on the Widgets tab.
+        OverlayWidgetRegistry withoutCooldown = new([.. OverlayWidgets.CreateRegistry().Definitions.Where(static definition => definition.Id != OverlayWidgetIds.Cooldown)]);
+        SettingsViewModel vm = await LoadAsync(withoutCooldown, Printer("a", "Alpha"));
         vm.Printers[0].CooldownThresholdCelsius = 5;
 
         await vm.SaveCommand.ExecuteAsync(null);

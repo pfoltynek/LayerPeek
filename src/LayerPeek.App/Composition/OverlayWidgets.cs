@@ -1,6 +1,7 @@
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Cameras.Overlay.Widgets;
 using LayerPeek.App.Resources;
+using LayerPeek.App.Settings.Widgets;
 using LayerPeek.Core.Cameras.Overlay;
 
 namespace LayerPeek.App.Composition;
@@ -12,10 +13,8 @@ namespace LayerPeek.App.Composition;
 /// Widgets settings tab and, when it has settings of its own, its settings panel (T-092).
 /// </summary>
 /// <remarks>
-/// Status (T-082), Times (T-083), Temperatures (T-084) and Print name (T-085) are registered. Until the widget of T-088
-/// (Cool-down) is, its placement stays in the layout and is only not drawn nor listed on the Widgets tab; T-088 registers
-/// it with <see cref="OverlayWidgetDescriptions.Cooldown"/>, <see cref="OverlayWidgetIcons.Cooldown"/> and
-/// <c>Settings = Settings.Widgets.CooldownWidgetSettings.Instance</c> (the panel of T-092).
+/// Status (T-082), Times (T-083), Temperatures (T-084), Print name (T-085) and Cool-down (T-088, with the settings panel
+/// of T-092: threshold, notification state) are registered.
 /// </remarks>
 internal static class OverlayWidgets
 {
@@ -52,6 +51,12 @@ internal static class OverlayWidgets
         {
             DescriptionKey = OverlayWidgetDescriptions.PrintName,
             IconKey = OverlayWidgetIcons.PrintName,
+        },
+        new OverlayWidgetDefinition(OverlayWidgetIds.Cooldown, OverlayWidgetNames.Cooldown, CooldownPriority, CooldownWidgetView.CardTemplate, static context => new CooldownWidgetViewModel(context), CooldownWidgetViewModel.MinWidths)
+        {
+            DescriptionKey = OverlayWidgetDescriptions.Cooldown,
+            IconKey = OverlayWidgetIcons.Cooldown,
+            Settings = CooldownWidgetSettings.Instance,
         },
     ]);
 }

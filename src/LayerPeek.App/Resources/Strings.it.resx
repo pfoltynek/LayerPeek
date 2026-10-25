@@ -1014,6 +1014,30 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Raffreddata · {0}&#160;°C</value>
   </data>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Raffreddamento…</value>
+  </data>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Raffreddata – puoi spegnerla</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>spegnimento sicuro tra circa {0} (ugello sotto {1}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>spegnimento sicuro quando l'ugello scende sotto {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>stampa completata alle {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>stampa interrotta alle {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>raffreddata in {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>circa {0}</value>
+  </data>
   <data name="CameraMiniToggleName" xml:space="preserve">
     <value>Nome della stampa nella barra</value>
   </data>

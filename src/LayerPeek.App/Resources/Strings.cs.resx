@@ -1014,6 +1014,30 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Vychladlo · {0}&#160;°C</value>
   </data>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Chladne…</value>
+  </data>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Vychladlo – můžete vypnout</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>bezpečné vypnutí za cca {0} (tryska pod {1}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>bezpečné vypnutí, až tryska klesne pod {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>tisk dokončen v {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>tisk zastaven v {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>vychladlo za {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>cca {0}</value>
+  </data>
   <data name="CameraMiniToggleName" xml:space="preserve">
     <value>Název tisku v pásu</value>
   </data>

@@ -373,8 +373,10 @@ public sealed class CooldownTracker
             remaining = _estimator.EstimateRemaining(threshold, timestamp);
         }
 
+        // Cooled down although no reading since the end of the print was above the threshold.
+        bool endedBelowThreshold = phase == CooldownPhase.CooledDown && !(_highestNozzle > threshold);
         return new CooldownState(
-            phase, _lastNozzle, _bed, threshold, progress, remaining, _startedAt, timestamp, _outcome, _printEndedAt, _cooledDownAt);
+            phase, _lastNozzle, _bed, threshold, progress, remaining, _startedAt, timestamp, _outcome, _printEndedAt, _cooledDownAt, endedBelowThreshold);
     }
 
     private void EndCoolDown()

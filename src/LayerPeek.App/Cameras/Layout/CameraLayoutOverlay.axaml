@@ -294,6 +294,7 @@
                                     Classes.small="{Binding Widget.IsSmall}"
                                     Classes.medium="{Binding Widget.IsMedium}"
                                     Classes.large="{Binding Widget.IsLarge}"
+                                    Classes.outlined="{Binding Widget.IsOutlined}"
                                     Background="{Binding Widget.CardBackground}">
                               <Panel>
                                 <ContentControl Content="{Binding Widget}"

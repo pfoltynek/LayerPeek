@@ -138,6 +138,8 @@ public sealed class CooldownTrackerTests
         Assert.True(cooled.NozzleCelsius <= 50);
         Assert.Equal(1, state.Progress);
         Assert.Null(state.EstimatedRemaining);
+        // The nozzle was above the threshold: the widget shows how long it took (T-088).
+        Assert.False(state.EndedBelowThreshold);
         Assert.Equal(Start.AddSeconds(End), state.StartedAt);
 
         // "Cooled down" lasts: more polls, acknowledging the print on the printer and waiting change nothing.
@@ -267,6 +269,8 @@ public sealed class CooldownTrackerTests
         Assert.Equal(1, state.Progress);
         Assert.Equal(44, state.NozzleCelsius);
         Assert.Equal(Start.AddSeconds(End), state.StartedAt);
+        // Nothing cooled down: the widget leaves out "cooled down in" (design T-076 2.5).
+        Assert.True(state.EndedBelowThreshold);
         for (double t = 15; t < 200; t += PollSeconds)
         {
             Assert.Equal(CooldownPhase.CooledDown, Process(Snap(PrinterState.Finished, t, 40, 0, 30, Job())).Phase);

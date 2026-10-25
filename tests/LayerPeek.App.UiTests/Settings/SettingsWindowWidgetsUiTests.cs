@@ -260,6 +260,28 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
     // ---- Panels ----
 
     [Fact]
+    public Task CooldownPanelComesFromTheAppRegistration() =>
+        session.RunAsync(static async scope =>
+        {
+            // The registration of the app (T-088), not a test one: the Cool-down widget with its description, icon and panel.
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(Printer("a", "Alpha")),
+                widgets: OverlayWidgets.CreateRegistry());
+            ui.Click("SettingsTabWidgets");
+            ui.Window.Click(Row(ui, "cooldown"));
+
+            Assert.Equal("Cool-down", ui.ShownText("WidgetsDetailTitle"));
+            Assert.Equal(Strings.CameraOverlayWidgetCooldownDescription, ui.ShownText("WidgetsDetailDescription"));
+            Assert.IsType<CooldownWidgetSettingsViewModel>(ui.ViewModel.SelectedWidgetPanel);
+            Assert.True(ui.Window.IsShown<NumericUpDown>("WidgetCooldownThreshold"));
+            Assert.True(ui.Window.IsShown<Button>("WidgetCooldownApplyAll"));
+            Assert.Same(
+                ui.Window.FindResource(OverlayWidgetIcons.Cooldown),
+                Row(ui, "cooldown").GetVisualDescendants().OfType<global::LayerPeek.App.Cameras.Overlay.OverlayIcon>().Single().Data);
+        });
+
+    [Fact]
     public Task CooldownPanelShowsTheThresholdHintAndNotificationState() =>
         session.RunAsync(static async scope =>
         {

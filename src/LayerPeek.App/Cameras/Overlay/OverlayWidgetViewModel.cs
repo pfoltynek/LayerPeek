@@ -32,6 +32,7 @@ public abstract class OverlayWidgetViewModel : ObservableObject, IDisposable
     private bool _isEmphasized;
     private bool _hasContent;
     private bool _isFaulted;
+    private bool _isOutlined;
     private IBrush? _cardBackground;
     private string _accessibleName = string.Empty;
     private string _automationId = AutomationIdPrefix;
@@ -123,6 +124,16 @@ public abstract class OverlayWidgetViewModel : ObservableObject, IDisposable
 
     /// <summary>The card is drawn (before the small-window rules, which may still leave it out).</summary>
     public bool IsShown => _hasContent && !_isFaulted;
+
+    /// <summary>
+    /// The card has the 1.5 green outline (class <c>outlined</c>, <c>OverlayCooledBrush</c>): the only card with a border
+    /// is the Cool-down widget once the printer cooled down (T-076 1.1 and 2.5).
+    /// </summary>
+    public bool IsOutlined
+    {
+        get => _isOutlined;
+        private protected set => SetProperty(ref _isOutlined, value);
+    }
 
     /// <summary>Background of the card: <c>#0E0E10</c> with the global opacity (T-077); the same for every card of a window.</summary>
     public IBrush? CardBackground
