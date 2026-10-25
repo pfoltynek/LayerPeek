@@ -1,0 +1,100 @@
+<!--
+  Content of the Print name card (T-085, design T-076 2.4); the card itself (background, padding, size classes, AutomationId
+  CameraOverlayWidget-print-name and the screen reader name) comes from the shared OverlayCardTemplate.
+  S: cube icon + title (13 semi-bold, line 20; card 36 high). M: title (14 semi-bold / 20) → 4 → chips (20; card 68 high).
+  L: title (16 semi-bold / 22, up to 2 lines) → 6 → chips (22) → 6 → slicer estimate (13 secondary / 18; card 102 high).
+  The title is the key value (accent colour when emphasized); one line in S / M shortened in the middle, in L 2 lines and
+  then shortened at the end. Chips never wrap: those that do not fit are left out from the right. Column 0 of the grid is
+  reserved for the G-code preview of T-087 (M 40, L 72); without a preview nothing is drawn there and nothing moves.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+             x:Class="LayerPeek.App.Cameras.Overlay.Widgets.PrintNameWidgetView"
+             x:DataType="w:PrintNameWidgetViewModel">
+  <UserControl.Styles>
+    <!-- Card widths (T-076 2.4: S max 280, M 240–420, L 300–480) without the card padding (S 10, M 14, L 16 per side). -->
+    <Style Selector="Border.overlayCard.small Grid.printName">
+      <Setter Property="MaxWidth" Value="260" />
+    </Style>
+    <Style Selector="Border.overlayCard.medium Grid.printName">
+      <Setter Property="MinWidth" Value="212" />
+      <Setter Property="MaxWidth" Value="392" />
+    </Style>
+    <Style Selector="Border.overlayCard.large Grid.printName">
+      <Setter Property="MinWidth" Value="268" />
+      <Setter Property="MaxWidth" Value="448" />
+    </Style>
+
+    <Style Selector="StackPanel.printNameText">
+      <Setter Property="Spacing" Value="4" />
+    </Style>
+    <Style Selector="Border.overlayCard.large StackPanel.printNameText">
+      <Setter Property="Spacing" Value="6" />
+    </Style>
+
+    <!-- The title: S 13 / 20, M 14 / 20, L 16 / 22, semi-bold; one line shortened in the middle, L 2 lines. -->
+    <Style Selector="Border.overlayCard TextBlock.printNameTitle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="TextTrimming" Value="{x:Static ov:OverlayMiddleTrimming.Middle}" />
+    </Style>
+    <Style Selector="Border.overlayCard.small TextBlock.printNameTitle">
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.printNameTitle">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="LineHeight" Value="22" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="MaxLines" Value="2" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+
+    <!-- The slicer estimate (L): 13 / 18 secondary, not the 15 / 20 of the large card's rows. -->
+    <Style Selector="Border.overlayCard TextBlock.printNameEstimate">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="LineHeight" Value="18" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Classes="printName" ColumnDefinitions="Auto,*">
+    <StackPanel Grid.Column="1" Classes="printNameText">
+      <Grid ColumnDefinitions="Auto,*">
+        <ov:OverlayIcon Data="{DynamicResource IconCube16Regular}"
+                        CanvasSize="16"
+                        Width="16"
+                        Height="16"
+                        Margin="0,0,6,0"
+                        VerticalAlignment="Center"
+                        Foreground="{DynamicResource OverlayTextSecondaryBrush}"
+                        IsVisible="{Binding ShowsIcon}" />
+        <TextBlock Grid.Column="1"
+                   Classes="printNameTitle"
+                   Classes.emphasized="{Binding IsEmphasized}"
+                   AutomationProperties.AutomationId="CameraOverlayWidget-print-name-Title"
+                   Text="{Binding Title}" />
+      </Grid>
+      <ov:OverlayChipsPanel Spacing="4" IsVisible="{Binding ShowsChips}">
+        <ov:OverlayChip AutomationProperties.AutomationId="CameraOverlayWidget-print-name-Material"
+                        Text="{Binding MaterialChip}"
+                        IsVisible="{Binding HasMaterial}" />
+        <ov:OverlayChip AutomationProperties.AutomationId="CameraOverlayWidget-print-name-LayerHeight"
+                        Icon="{DynamicResource IconLayer20Regular}"
+                        IconCanvasSize="20"
+                        Text="{Binding LayerHeightChip}"
+                        IsVisible="{Binding HasLayerHeight}" />
+        <ov:OverlayChip AutomationProperties.AutomationId="CameraOverlayWidget-print-name-NozzleDiameter"
+                        Text="{Binding NozzleChip}"
+                        IsVisible="{Binding HasNozzle}" />
+      </ov:OverlayChipsPanel>
+      <TextBlock Classes="secondary numeric printNameEstimate"
+                 AutomationProperties.AutomationId="CameraOverlayWidget-print-name-Estimate"
+                 Text="{Binding Estimate}"
+                 IsVisible="{Binding ShowsEstimate}"
+                 TextTrimming="CharacterEllipsis" />
+    </StackPanel>
+  </Grid>
+</UserControl>

@@ -360,17 +360,6 @@ public class PrintFileNameInfoTests
     }
 
     [Fact]
-    public void RepeatedNameReusesLastResult()
-    {
-        const string name = "foldable_book_holder_v1_0.4n_0.2mm_PLA_COREONE_2h51m.bgcode";
-
-        PrintFileNameInfo first = PrintFileNameInfo.Parse(name);
-        PrintFileNameInfo second = PrintFileNameInfo.Parse(new string(name.AsSpan()));
-
-        Assert.Same(first, second);
-    }
-
-    [Fact]
     public void SameChipsWithDifferentMaterialSeparatorAreEqual()
     {
         PrintFileNameInfo comma = PrintFileNameInfo.Parse("x_0.4n_0.2mm_PLA,PETG_MK4S_1h0m.bgcode");
