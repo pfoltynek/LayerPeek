@@ -54,7 +54,7 @@ public sealed class CameraTopmostTests(E2EFixture fixture)
 
             // The mini preview (on by default), then off in the open window.
             await Ui.InvokeAsync(app.Element(window), "CameraMiniButton");
-            await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == (320, 180) && CameraWindowSettings.IsTopmost(window), WindowTimeout, "the mini preview always on top");
+            await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == (320, 213) && CameraWindowSettings.IsTopmost(window), WindowTimeout, "the mini preview always on top");
             await ExpectPictureAsync(window);
             await ExpectOrderAsync(window, cameraInFront: true, "topmost-mini-on");
             await SetTopmostAsync(app, "PrinterCameraWindowMiniTopmost", false);

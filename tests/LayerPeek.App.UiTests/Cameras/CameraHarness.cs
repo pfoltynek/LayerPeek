@@ -1,3 +1,5 @@
+using Avalonia.Headless;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
@@ -11,6 +13,7 @@ using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.App.Windows;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -44,13 +47,19 @@ internal sealed class CameraHarness : IAsyncDisposable
         States = states ?? new MemoryCameraWindowStateStore();
         _monitorPaths = monitorPaths;
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
-        ((IMonitoringObserver)Printers).ApplySettings(new AppSettings
+        AppSettings settings = new()
         {
             Printers = [CameraPrinter("a", "Alpha", window, overlay), CameraPrinter("b", "Beta", window, overlay), TestPrinters.Definition("c", "NoCamera")],
             CameraOverlayOpacityPercent = opacity,
-        });
+        };
+        ((IMonitoringObserver)Printers).ApplySettings(settings);
+        // The cool-down states of the mini preview strip (T-089) from the snapshots the test raises.
+        Cooldown = new CooldownMonitor(Monitor, TimeProvider.System, NullLogger<CooldownMonitor>.Instance);
+        Cooldown.Configure(settings.Printers, settings.PollingInterval);
         Windows = new AuxiliaryWindowFactory(track).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
+
+    public CooldownMonitor Cooldown { get; }
 
     public FakeCameraFeedFactory Factory { get; } = new();
 
@@ -94,6 +103,25 @@ internal sealed class CameraHarness : IAsyncDisposable
         return (window, feed);
     }
 
+    /// <summary>
+    /// The user resizes the mini preview with its bottom right grip to <paramref name="width"/> × <paramref name="height"/>
+    /// and releases it; the window corrects its height afterwards (T-089). Headless has no size loop and runs the posted
+    /// work right after the press: the size is set first, as the system's modal size loop does before
+    /// <c>BeginResizeDrag</c> returns, then the grip is pressed and released.
+    /// </summary>
+    public static void ResizeMiniWithGrip(CameraWindow window, double width, double height)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        window.Width = width;
+        window.Height = height;
+        window.Settle();
+        Avalonia.Point grip = new(window.ClientSize.Width - 2, window.ClientSize.Height - 2);
+        window.MouseDown(grip, Avalonia.Input.MouseButton.Left);
+        window.MouseUp(grip, Avalonia.Input.MouseButton.Left);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        window.Settle();
+    }
+
     public async ValueTask DisposeAsync()
     {
         Windows.Shutdown();
@@ -102,6 +130,8 @@ internal sealed class CameraHarness : IAsyncDisposable
             viewModel.Dispose();
             await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait);
         }
+
+        Cooldown.Dispose();
     }
 
     private CameraViewModel? Create(string printerId, PrinterDefinition? saved)
@@ -113,7 +143,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown);
         _created.Add(viewModel);
         return viewModel;
     }

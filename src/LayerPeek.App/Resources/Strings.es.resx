@@ -918,6 +918,15 @@
   <data name="CameraOverlayRemainingLabel" xml:space="preserve">
     <value>Restante</value>
   </data>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Enfriando… {0}&#160;°C · aprox. {1}</value>
+  </data>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Enfriando… {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Enfriada · {0}&#160;°C</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Superposición</value>
   </data>

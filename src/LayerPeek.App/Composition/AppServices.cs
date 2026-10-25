@@ -470,7 +470,8 @@ internal static class AppServices
                 services.GetRequiredService<ILogger<CameraViewModel>>(),
                 services.GetRequiredService<ICameraMonitorPathUpdater>(),
                 services.GetRequiredService<OverlayWidgetRegistry>(),
-                services.GetRequiredService<TelemetryHistory>())
+                services.GetRequiredService<TelemetryHistory>(),
+                services.GetRequiredService<CooldownMonitor>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)

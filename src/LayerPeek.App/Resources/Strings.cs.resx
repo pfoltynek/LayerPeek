@@ -918,6 +918,15 @@
   <data name="CameraOverlayRemainingLabel" xml:space="preserve">
     <value>Zbývá</value>
   </data>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Chladne… {0}&#160;°C · cca {1}</value>
+  </data>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Chladne… {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Vychladlo · {0}&#160;°C</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Překryv</value>
   </data>

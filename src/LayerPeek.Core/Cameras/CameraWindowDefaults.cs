@@ -10,7 +10,10 @@ public sealed record CameraWindowDefaults
     /// <summary>Normal window: 960 × 540 in the center (T-014).</summary>
     public static CameraWindowLayout DefaultNormal { get; } = new(new CameraWindowSize(960, 540), CameraWindowCorner.Center);
 
-    /// <summary>Mini preview: 320 × 180 (T-014) in the bottom right corner.</summary>
+    /// <summary>
+    /// Mini preview: 320 × 180 (T-014) in the bottom right corner. The size is the size of its image (T-089 Q3); the info
+    /// strip is added below it.
+    /// </summary>
     public static CameraWindowLayout DefaultMini { get; } = new(new CameraWindowSize(320, 180), CameraWindowCorner.BottomRight);
 
     /// <summary>All defaults; also used for settings files written before T-035.</summary>
@@ -53,7 +56,10 @@ public sealed record CameraWindowDefaults
         }
     } = DefaultNormal;
 
-    /// <summary>Size and position of the mini preview.</summary>
+    /// <summary>
+    /// Size (of the image; the info strip is added below it, T-089) and position of the mini preview. Narrower than
+    /// <see cref="CameraWindowSize.MinMiniWidth"/> only in code: settings files and the settings window never give that.
+    /// </summary>
     public CameraWindowLayout Mini
     {
         get;
