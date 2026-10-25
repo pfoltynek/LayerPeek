@@ -12,4 +12,12 @@ namespace LayerPeek.Core.Cooldown;
 /// How the print ended (<see cref="CooldownPrintOutcome.Finished"/> or <see cref="CooldownPrintOutcome.Stopped"/>), so that
 /// the notification can tell "print finished" from "print stopped" (user decision 12, 2026-10-24).
 /// </param>
-public readonly record struct CooldownEvent(string PrinterId, DateTimeOffset Timestamp, string? FileName, CooldownPrintOutcome Outcome);
+/// <param name="NozzleCelsius">The nozzle reading that confirmed it (at or below <paramref name="ThresholdCelsius"/>).</param>
+/// <param name="ThresholdCelsius">The printer's threshold it cooled down to (<see cref="CooldownThreshold"/>).</param>
+public readonly record struct CooldownEvent(
+    string PrinterId,
+    DateTimeOffset Timestamp,
+    string? FileName,
+    CooldownPrintOutcome Outcome,
+    double NozzleCelsius,
+    int ThresholdCelsius);

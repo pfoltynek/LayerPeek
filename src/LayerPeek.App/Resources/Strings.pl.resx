@@ -468,6 +468,33 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>Drukarka jest offline lub znów online</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Drukarka ostygła</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Próg temperatury dyszy ustawia się dla każdej drukarki na podkarcie Nakładka.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Stygnięcie po wydruku</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Próg temperatury dyszy (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Poniżej tej temperatury drukarkę można bezpiecznie wyłączyć. Używają go widżet Stygnięcie i powiadomienie.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Wpisz liczbę całkowitą od {0} do {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Użyj progu dla wszystkich drukarek</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>Próg skopiowano do pozostałych drukarek. Zostanie zastosowany po zapisaniu.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Skonfigurowano tylko jedną drukarkę.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Powiadom, gdy do końca druku zostanie tyle minut (0 = wyłączone)</value>
   </data>
@@ -593,6 +620,18 @@
   </data>
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Stan drukarki się zmienił</value>
+  </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Drukarka ostygła</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Zakończono drukowanie, drukarka ostygła</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Zatrzymano drukowanie, drukarka ostygła</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Można ją wyłączyć. Dysza {0} °C, próg {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>

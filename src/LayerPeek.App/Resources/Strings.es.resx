@@ -468,6 +468,33 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>La impresora se desconectó o vuelve a estar en línea</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Impresora enfriada</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>El umbral de temperatura de la boquilla se ajusta para cada impresora en la subpestaña Superposición.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Enfriamiento tras la impresión</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Umbral de temperatura de la boquilla (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Por debajo de esta temperatura es seguro apagar la impresora. Lo usan el widget Enfriamiento y la notificación.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Introduzca un número entero de {0} a {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Usar el umbral en todas las impresoras</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>El umbral se copió a las demás impresoras. Se aplica al guardar.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Solo hay una impresora configurada.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avisar cuando queden estos minutos de impresión (0 = desactivado)</value>
   </data>
@@ -593,6 +620,18 @@
   </data>
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>El estado de la impresora cambió</value>
+  </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Impresora enfriada</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Impresión terminada, impresora enfriada</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Impresión detenida, impresora enfriada</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Ya puede apagarla. Boquilla {0} °C, umbral {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Cámara</value>

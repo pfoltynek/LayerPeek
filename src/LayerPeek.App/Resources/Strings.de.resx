@@ -468,6 +468,33 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>Drucker ist offline oder wieder online</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Drucker abgekühlt</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Die Temperaturschwelle der Düse wird pro Drucker im Unterregister „Einblendung“ festgelegt.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Abkühlen nach dem Druck</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Temperaturschwelle der Düse (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Unter dieser Temperatur kann der Drucker sicher ausgeschaltet werden. Gilt für das Widget „Abkühlung“ und die Benachrichtigung.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Geben Sie eine ganze Zahl von {0} bis {1} ein.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Schwelle für alle Drucker übernehmen</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>Die Schwelle wurde in die anderen Drucker übernommen. Sie gilt nach dem Speichern.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Es ist nur ein Drucker eingerichtet.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Benachrichtigen, wenn noch so viele Minuten Druckzeit verbleiben (0 = aus)</value>
   </data>
@@ -593,6 +620,18 @@
   </data>
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Der Druckerstatus hat sich geändert</value>
+  </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Drucker abgekühlt</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Druck abgeschlossen, Drucker abgekühlt</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Druck gestoppt, Drucker abgekühlt</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Kann ausgeschaltet werden. Düse {0} °C, Schwelle {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>

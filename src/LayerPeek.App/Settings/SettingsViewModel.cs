@@ -131,6 +131,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     private bool _notifyError;
     private bool _notifyAttention;
     private bool _notifyOffline;
+    private bool _notifyCooledDown;
     private decimal? _remainingTimeMinutes;
     private string? _remainingTimeError;
     private SoundOption _selectedSound;
@@ -434,6 +435,13 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
     {
         get => _notifyOffline;
         set => SetGeneral(ref _notifyOffline, value);
+    }
+
+    /// <summary>"Printer cooled down" (T-080), off by default; the threshold is set per printer on the Overlay sub-tab.</summary>
+    public bool NotifyCooledDown
+    {
+        get => _notifyCooledDown;
+        set => SetGeneral(ref _notifyCooledDown, value);
     }
 
     public static decimal MaxRemainingTimeMinutes => NotificationSettings.MaxRemainingTimeMinutes;
@@ -862,6 +870,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         _notifyError = notifications.Error;
         _notifyAttention = notifications.Attention;
         _notifyOffline = notifications.Offline;
+        _notifyCooledDown = notifications.CooledDown;
         _remainingTimeMinutes = notifications.RemainingTimeMinutes;
         _selectedSound = FindSound(notifications.Sound);
         _selectedLanguage = FindLanguage(settings.Language);
@@ -1007,7 +1016,8 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
             SelectedTabIndex = PrintersTab;
             SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab
                 : invalid.HasCameraErrors ? CameraPrinterTab
-                : CameraWindowPrinterTab;
+                : invalid.HasCameraWindowErrors ? CameraWindowPrinterTab
+                : OverlayPrinterTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
             return;
         }
@@ -1249,6 +1259,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
                     Error = _notifyError,
                     Attention = _notifyAttention,
                     Offline = _notifyOffline,
+                    CooledDown = _notifyCooledDown,
                     RemainingTimeMinutes = (int)minutes,
                     Sound = _selectedSound.Value,
                 },
@@ -1400,7 +1411,43 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         }
     }
 
-    private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e) => OnPropertyChanged(nameof(HasNoPrinters));
+    private void OnPrintersChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasNoPrinters));
+        foreach (PrinterEditorViewModel printer in Printers)
+        {
+            printer.OnPrinterCountChanged();
+        }
+    }
+
+    /// <summary>
+    /// "Use threshold for all printers" of <paramref name="source"/> (T-080): its valid threshold goes to every other printer
+    /// of the window, saved with the other changes. An invalid threshold copies nothing (its error is shown).
+    /// </summary>
+    internal void ApplyCooldownThresholdToAll(PrinterEditorViewModel source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        if (!IsEditable || Printers.Count < 2 || !Printers.Contains(source))
+        {
+            return;
+        }
+
+        if (source.ValidCooldownThreshold is not { } threshold)
+        {
+            source.RevealErrors();
+            return;
+        }
+
+        foreach (PrinterEditorViewModel printer in Printers)
+        {
+            if (!ReferenceEquals(printer, source))
+            {
+                printer.CooldownThresholdCelsius = threshold;
+            }
+        }
+
+        ShowStatus(static () => Strings.SettingsCooldownAppliedAll, isError: false);
+    }
 
     private static int Adjacent(int index, int count, bool forward) => (index + (forward ? 1 : count - 1)) % count;
 

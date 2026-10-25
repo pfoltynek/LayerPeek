@@ -468,6 +468,33 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>Tlačiareň je offline alebo znova online</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Tlačiareň vychladla</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Prah teploty trysky sa nastavuje pri tlačiarni na podzáložke Prekrytie.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Vychladnutie po tlači</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Prah teploty trysky (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Pod touto teplotou je bezpečné tlačiareň vypnúť. Používa ho widget Vychladnutie a upozornenie.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Zadajte celé číslo od {0} do {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Použiť prah pre všetky tlačiarne</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>Prah sa skopíroval do ostatných tlačiarní. Prejaví sa po uložení.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Je nastavená len jedna tlačiareň.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Upozorniť, keď zostáva toľko minút tlače (0 = vypnuté)</value>
   </data>
@@ -593,6 +620,18 @@
   </data>
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Stav tlačiarne sa zmenil</value>
+  </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Tlačiareň vychladla</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Tlač sa dokončila, tlačiareň vychladla</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Tlač bola zastavená, tlačiareň vychladla</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Môžete tlačiareň vypnúť. Tryska {0} °C, prah {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>

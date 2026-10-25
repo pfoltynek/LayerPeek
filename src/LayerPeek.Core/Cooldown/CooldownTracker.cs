@@ -350,7 +350,7 @@ public sealed class CooldownTracker
 
         _cooled = true;
         _cooledDownAt = _lastTimestamp;
-        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName, _outcome) : null;
+        return _highestNozzle > threshold ? new CooldownEvent(_printerId!, _lastTimestamp, _coolingFileName, _outcome, _lastNozzle, threshold) : null;
     }
 
     private CooldownState BuildState(DateTimeOffset timestamp)

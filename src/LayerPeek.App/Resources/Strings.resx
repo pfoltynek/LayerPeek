@@ -191,6 +191,18 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>The printer status changed</value>
   </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Printer cooled down</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Print finished, printer cooled down</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Print stopped, printer cooled down</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Safe to turn off. Nozzle {0} °C, threshold {1} °C</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostics – LayerPeek</value>
   </data>
@@ -523,6 +535,33 @@
   </data>
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>Printer went offline or is back online</value>
+  </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Printer cooled down</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>The nozzle temperature threshold is set per printer on the Overlay sub-tab.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Cool-down after printing</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Nozzle temperature threshold (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Below this temperature the printer is safe to turn off. Used by the Cool-down widget and notification.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Enter a whole number from {0} to {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Use threshold for all printers</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>The threshold was copied to the other printers. It applies after saving.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Only one printer is set up.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notify when this many minutes of printing remain (0 = off)</value>
