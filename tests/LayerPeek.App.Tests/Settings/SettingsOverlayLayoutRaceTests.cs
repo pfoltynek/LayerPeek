@@ -188,6 +188,20 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
         Assert.Equal(Moved, OverlayOf(store.Current, "a"));
     }
 
+    [Fact]
+    public async Task FailingApplyLetsCameraWindowsSaveAgain()
+    {
+        LayoutRaceStore store = new(Settings(Printer("a", "Alpha")));
+        AppSettings original = store.Current;
+
+        SettingsSaveResult result = await Editor(store, new ThrowingApplier()).SaveAsync(Change(original, original with { PollingInterval = TimeSpan.FromSeconds(9) }, new Latest()));
+
+        Assert.Equal(SettingsSaveStatus.Saved, result.Status);
+        Assert.True(await Writer(store).SaveAsync("a", Moved, Ct).WaitAsync(TestTimeouts.Wait, Ct));
+        Assert.Equal(Moved, OverlayOf(store.Current, "a"));
+        Assert.Equal(TimeSpan.FromSeconds(9), store.Current.PollingInterval);
+    }
+
     // ---- Settings window ----
 
     [Fact]
@@ -471,6 +485,12 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
 
             return Task.FromResult(true);
         }
+    }
+
+    /// <summary>Monitoring that breaks the interface contract by throwing (a bug); the save must still release the write gate.</summary>
+    private sealed class ThrowingApplier : ISettingsApplier
+    {
+        public Task ApplyAsync(AppSettings settings, bool credentialsChanged) => throw new InvalidOperationException("apply failed");
     }
 
     /// <summary>Monitoring: records the applied settings into the store's log.</summary>
