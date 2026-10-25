@@ -6,7 +6,7 @@
   L: one row per heater with its word in a shared column (16 regular secondary, values 16 semi-bold / 22, rows 6 apart)
      → 8 → chart 360 × 110 → 4 → axis labels (12 / 16).
   The icons (cone pointing down, horizontal line) have the colours of the chart lines and stand for the legend. Only the
-  nozzle's actual value is the key value (accent colour when emphasized). The chart is the shared TemperatureChart in its
+  nozzle's actual value is the key value (accent colour and at least 15 bold when emphasized, T-076 1.3). The chart is the shared TemperatureChart in its
   compact mode: lines 1.5 (L 2), dashed targets with 70 % alpha, "No data" in the middle without history; hidden in S, so
   that it does not listen to the history there.
 -->
@@ -48,6 +48,15 @@
     <Style Selector="Border.overlayCard.large TextBlock.temperatureValue">
       <Setter Property="FontSize" Value="16" />
       <Setter Property="LineHeight" Value="22" />
+    </Style>
+    <!-- The emphasized nozzle value: the accent reaches only 2.7 : 1 over white video, so it is at least 15 bold
+         (T-076 1.3); same line height, so the row and the card keep their size. After the size styles, so it wins. -->
+    <Style Selector="Border.overlayCard TextBlock.temperatureValue.emphasized">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.temperatureValue.emphasized">
+      <Setter Property="FontSize" Value="16" />
     </Style>
     <Style Selector="Border.overlayCard TextBlock.temperatureWord">
       <Setter Property="FontSize" Value="16" />

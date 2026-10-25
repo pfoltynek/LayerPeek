@@ -216,13 +216,16 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
                 : "Nozzle 215 / 215 °C, Bed 60 / 60 °C";
             Assert.Equal(name, Card(window).GetValue(AutomationProperties.NameProperty));
 
-            // The drawn values: S 13, M 14, L 16, semi-bold (T-076 2.3).
+            // The drawn values: S 13, M 14, L 16, semi-bold (T-076 2.3); the emphasized nozzle value at least 15 bold
+            // (T-076 1.3: the accent has only 2.7 : 1 over white video).
             double valueSize = size switch { OverlayWidgetSize.Small => 13, OverlayWidgetSize.Medium => 14, _ => 16 };
             TextBlock[] nozzle = Texts(window.Find<Control>(NozzleId));
             TextBlock[] bed = Texts(window.Find<Control>(BedId));
             TextBlock[] values = size == OverlayWidgetSize.Large ? [.. nozzle[1..], .. bed[1..]] : [.. nozzle, .. bed];
             Assert.Equal(["215", " / 215 °C", "60 / 60 °C"], values.Select(static block => block.Text));
-            Assert.All(values, block =>
+            Assert.Equal(Math.Max(15, valueSize), values[0].FontSize);
+            Assert.Equal(FontWeight.Bold, values[0].FontWeight);
+            Assert.All(values[1..], block =>
             {
                 Assert.Equal(valueSize, block.FontSize);
                 Assert.Equal(FontWeight.SemiBold, block.FontWeight);
@@ -331,23 +334,39 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
 
     // ---- Look ----
 
-    [Fact]
-    public Task EmphasisDrawsOnlyTheNozzleValueInTheAccentColour() =>
+    [Theory]
+    [InlineData(OverlayWidgetSize.Small, 13, 15, 36)]
+    [InlineData(OverlayWidgetSize.Medium, 14, 15, 134)]
+    [InlineData(OverlayWidgetSize.Large, 16, 16, 216)]
+    public Task EmphasisDrawsOnlyTheNozzleValueInTheAccentColour(OverlayWidgetSize size, double plainSize, double emphasizedSize, double height) =>
         session.RunAsync(async scope =>
         {
-            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium, emphasized: true));
+            await using CameraHarness harness = Harness(Layout(size, emphasized: true));
             CameraWindow window = await OpenAsync(harness, Heating());
-            TextBlock[] nozzle = Texts(window.Find<Control>(NozzleId));
-            TextBlock bed = Texts(window.Find<Control>(BedId)).Single();
+            // The last two texts of the nozzle row are its value (L starts with the word "Nozzle").
+            TextBlock[] nozzle = Texts(window.Find<Control>(NozzleId))[^2..];
+            TextBlock bed = Texts(window.Find<Control>(BedId))[^1];
 
             Assert.Equal(Accent, ColorOf(nozzle[0].Foreground));
             // Only "215" of the nozzle (T-076 2.3), not "/ 215 °C" and not the bed.
             Assert.Equal(Primary, ColorOf(nozzle[1].Foreground));
             Assert.Equal(Primary, ColorOf(bed.Foreground));
+            // The accent reaches only 2.7 : 1 over white video, so the emphasized value is at least 15 bold (T-076 1.3),
+            // within the card's designed height and width.
+            Assert.Equal(emphasizedSize, nozzle[0].FontSize);
+            Assert.Equal(FontWeight.Bold, nozzle[0].FontWeight);
+            Assert.Equal(plainSize, nozzle[1].FontSize);
+            Assert.Equal(FontWeight.SemiBold, nozzle[1].FontWeight);
+            Assert.Equal(height, Card(window).Bounds.Height, 0.5);
+            AssertFits(window, size);
 
-            Save(harness, Layout(OverlayWidgetSize.Medium, emphasized: false));
+            Save(harness, Layout(size, emphasized: false));
 
-            Assert.Equal(Primary, ColorOf(Texts(window.Find<Control>(NozzleId))[0].Foreground));
+            TextBlock plain = Texts(window.Find<Control>(NozzleId))[^2];
+            Assert.Equal(Primary, ColorOf(plain.Foreground));
+            Assert.Equal(plainSize, plain.FontSize);
+            Assert.Equal(FontWeight.SemiBold, plain.FontWeight);
+            Assert.Equal(height, Card(window).Bounds.Height, 0.5);
         });
 
     [Fact]
