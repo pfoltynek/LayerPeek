@@ -812,6 +812,11 @@
               <CheckBox Content="{Binding [SettingsNotifyPrintPaused], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintPaused}" />
               <CheckBox Content="{Binding [SettingsNotifyPrintResumed], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintResumed}" />
               <CheckBox Content="{Binding [SettingsNotifyPrintStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStopped}" />
+              <!-- T-080: after "stopped" (finished → stopped → cooled down); the threshold is per printer (field in T-092). -->
+              <CheckBox AutomationProperties.AutomationId="SettingsNotifyCooledDown"
+                        AutomationProperties.HelpText="{Binding [SettingsNotifyCooledDownHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Content="{Binding [SettingsNotifyCooledDown], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        IsChecked="{Binding NotifyCooledDown}" />
             </StackPanel>
             <StackPanel Grid.Row="3" Grid.Column="2" IsEnabled="{Binding NotificationsEnabled}">
               <CheckBox Content="{Binding [SettingsNotifyError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyError}" />

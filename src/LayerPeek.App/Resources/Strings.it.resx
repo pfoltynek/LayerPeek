@@ -468,6 +468,33 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>La stampante è offline o di nuovo online</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Stampante raffreddata</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Dopo la stampa, avvisa quando l'ugello si è raffreddato sotto la soglia e la stampante può essere spenta.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Raffreddamento dopo la stampa</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Soglia di temperatura dell'ugello (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Sotto questa temperatura la stampante può essere spenta in sicurezza. La usano il widget Raffreddamento e la notifica.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Inserisci un numero intero da {0} a {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Usa la soglia per tutte le stampanti</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>La soglia è stata copiata nelle altre stampanti. Si applica dopo il salvataggio.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>È configurata una sola stampante.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avvisa quando mancano questi minuti di stampa (0 = disattivato)</value>
   </data>
@@ -593,6 +620,18 @@
   </data>
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Lo stato della stampante è cambiato</value>
+  </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Stampante raffreddata</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Stampa completata, stampante raffreddata</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Stampa interrotta, stampante raffreddata</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Puoi spegnerla. Ugello {0} °C, soglia {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Telecamera</value>

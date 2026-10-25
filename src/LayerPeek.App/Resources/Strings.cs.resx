@@ -174,6 +174,18 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>Stav tiskárny se změnil</value>
   </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Tiskárna vychladla</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Tisk dokončen, tiskárna vychladla</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Tisk zastaven, tiskárna vychladla</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Můžete tiskárnu vypnout. Tryska {0} °C, práh {1} °C</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostika – LayerPeek</value>
   </data>
@@ -506,6 +518,33 @@
   </data>
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>Tiskárna je offline nebo opět online</value>
+  </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Tiskárna vychladla</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Po tisku upozorní, když tryska vychladne pod práh a tiskárnu můžete vypnout.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Vychladnutí po tisku</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Práh teploty trysky (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Pod touto teplotou je tiskárnu bezpečné vypnout. Používá ho widget Vychladnutí a upozornění.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Zadejte celé číslo od {0} do {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Použít práh u všech tiskáren</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>Práh se zkopíroval do ostatních tiskáren. Projeví se po uložení.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Je nastavená jen jedna tiskárna.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Upozornit, když zbývá tolik minut tisku (0 = vypnuto)</value>

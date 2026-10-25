@@ -35,6 +35,12 @@ public sealed record NotificationSettings
     public bool Offline { get; init; } = true;
 
     /// <summary>
+    /// The printer cooled down after a print and can be turned off (T-080). Off by default (user decision 2026-10-24); the
+    /// threshold is set per printer (<see cref="Printers.PrinterDefinition.CooldownThresholdCelsius"/>).
+    /// </summary>
+    public bool CooledDown { get; init; }
+
+    /// <summary>
     /// Notify once per job when its estimated remaining time drops to this many minutes; 0 disables the notification.
     /// Within 0–<see cref="MaxRemainingTimeMinutes"/>.
     /// </summary>
@@ -89,6 +95,7 @@ public sealed record NotificationSettings
         PrintEventKind.AttentionRequired or PrintEventKind.CredentialsRejected => Attention,
         PrintEventKind.PrinterOffline or PrintEventKind.PrinterOnline => Offline,
         PrintEventKind.RemainingTime => RemainingTimeMinutes > 0,
+        PrintEventKind.CooledDown => CooledDown,
         _ => false,
     };
 }

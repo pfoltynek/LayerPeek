@@ -468,6 +468,33 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>L'imprimante est hors ligne ou de nouveau en ligne</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Imprimante refroidie</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Après l'impression, notifie lorsque la buse est descendue sous le seuil et que vous pouvez éteindre l'imprimante.</value>
+  </data>
+  <data name="SettingsCooldownSection" xml:space="preserve">
+    <value>Refroidissement après l'impression</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Seuil de température de la buse (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>En dessous de cette température, l'imprimante peut être éteinte sans risque. Utilisé par le widget Refroidissement et la notification.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Saisissez un nombre entier de {0} à {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Appliquer le seuil à toutes les imprimantes</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>Le seuil a été copié vers les autres imprimantes. Il s'applique après l'enregistrement.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Une seule imprimante est configurée.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notifier lorsqu'il reste ce nombre de minutes d'impression (0 = désactivé)</value>
   </data>
@@ -593,6 +620,18 @@
   </data>
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>L'état de l'imprimante a changé</value>
+  </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Imprimante refroidie</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Impression terminée, imprimante refroidie</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Impression arrêtée, imprimante refroidie</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Vous pouvez l'éteindre. Buse {0} °C, seuil {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Caméra</value>

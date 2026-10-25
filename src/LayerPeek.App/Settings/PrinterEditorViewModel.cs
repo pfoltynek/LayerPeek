@@ -8,7 +8,6 @@ using CommunityToolkit.Mvvm.Input;
 using LayerPeek.App.Resources;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
-using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.PrusaLink;
 
@@ -30,9 +29,6 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     // The saved user name (default for a new printer); kept for Prusa Connect, which does not use it.
     private readonly string _savedUserName;
-
-    // The saved cool-down threshold (T-079), carried through a save until the window gets a field for it (T-080).
-    private readonly int _savedCooldownThreshold;
     private string _password = string.Empty;
     private ConnectionTypeOption _connectionType;
     private bool _isNew;
@@ -123,7 +119,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _address = saved?.Address ?? string.Empty;
         _savedUserName = saved?.UserName ?? PrinterUserName.Default;
         _userName = _savedUserName;
-        _savedCooldownThreshold = saved?.CooldownThresholdCelsius ?? CooldownThreshold.DefaultCelsius;
+        InitializeCooldown(saved);
         ConnectionType type = saved?.ConnectionType ?? ConnectionType.PrusaLink;
         ConnectionTypes = owner.ConnectionTypesFor(type);
         _connectionType = Array.Find((ConnectionTypeOption[])ConnectionTypes, option => option.Value == type)!;
@@ -324,7 +320,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     public string? PasswordError => _showErrors ? _passwordProblem : null;
 
     /// <summary>Something is invalid (shown or not yet).</summary>
-    public bool HasErrors => HasConnectionErrors || HasCameraErrors || HasCameraWindowErrors;
+    public bool HasErrors => HasConnectionErrors || HasCameraErrors || HasCameraWindowErrors || HasOverlayErrors;
 
     /// <summary>A field of the Printer sub-tab (name, address, user name, password) is invalid (shown or not yet).</summary>
     public bool HasConnectionErrors =>
@@ -689,9 +685,13 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// <summary>The field holds a password that will be saved.</summary>
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
-    /// <summary>The definition to save; <see langword="null"/> while the name, address, user name or camera is invalid.</summary>
+    /// <summary>
+    /// The definition to save; <see langword="null"/> while the name, address, user name, camera or cool-down threshold is
+    /// invalid.
+    /// </summary>
     internal PrinterDefinition? ToDefinition() =>
         _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || BuildCamera() is not { } camera
+        || ValidCooldownThreshold is not { } cooldownThreshold
             ? null
             : new PrinterDefinition
             {
@@ -703,7 +703,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 Camera = camera,
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
-                CooldownThresholdCelsius = _savedCooldownThreshold,
+                CooldownThresholdCelsius = cooldownThreshold,
             };
 
     /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
@@ -858,6 +858,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         ResetCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCameraWindowCommand.NotifyCanExecuteChanged();
+        ApplyCooldownThresholdToAllCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>
@@ -1020,6 +1021,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         }
 
         RefreshImageTexts();
+
+        // Cool-down threshold (T-080): its error, the sub-tab name and the tooltip of "Use … for all printers".
+        OnCooldownErrorsChanged();
+        OnPropertyChanged(nameof(ApplyToAllUnavailableReason));
     }
 
     /// <summary>
@@ -1454,6 +1459,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsUserNameHint));
         OnPropertyChanged(nameof(ShowsPasswordHint));
         OnPropertyChanged(nameof(ShowsCameraUrlHint));
+        OnCooldownErrorsChanged();
     }
 
     private static string TabName(string name, bool hasErrors) =>

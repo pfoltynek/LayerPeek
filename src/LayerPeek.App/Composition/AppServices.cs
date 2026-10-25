@@ -154,6 +154,12 @@ internal static class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CooldownMonitor>>()));
         services.AddSingleton(static sp => new CooldownObserver(sp.GetRequiredService<CooldownMonitor>()));
+        // Optional "printer cooled down" notification (T-080), filtered and with sound like the other notifications.
+        services.AddSingleton(static sp => new CooldownNotifier(
+            sp.GetRequiredService<CooldownMonitor>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<ILogger<CooldownNotifier>>()));
+        services.AddSingleton(static sp => new CooldownNotificationObserver(sp.GetRequiredService<CooldownNotifier>()));
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
@@ -172,6 +178,8 @@ internal static class AppServices
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
+                // Before the cool-down monitor: a raised threshold may cool a printer down while it is configured.
+                sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
