@@ -903,6 +903,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OnPropertyChanged(string.Empty);
         ValidateNames();
         ValidateGeneral();
+        // Layouts saved by a camera window while loading (T-092 follow-up): newer than the file that was read, or the same.
+        TakeWaitingLayouts();
         SelectedPrinter = Printers.Count > 0 ? Printers[0] : null;
         UpdateDirty();
         OnEditableChanged();
@@ -1087,9 +1089,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         IsSaving = true;
         ShowStatus(static () => Strings.SettingsSaving, isError: false);
         SettingsSaveResult result;
+        // The store reads the layouts saved by a camera window that this window has not taken over yet when it writes
+        // (T-092 follow-up): a layout the window did not change is saved as the camera window saved it.
+        AnnouncedOverlayLayouts.Reader latestLayouts = _announcedLayouts.CreateReader();
         try
         {
-            result = await _store.SaveAsync(new SettingsChange(_baseline, updated, passwords, images.Count > 0 ? images : null)).ConfigureAwait(true);
+            result = await _store.SaveAsync(new SettingsChange(_baseline, updated, passwords, images.Count > 0 ? images : null, latestLayouts)).ConfigureAwait(true);
         }
         catch (Exception)
         {
@@ -1108,6 +1113,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         if (result.Status != SettingsSaveStatus.Saved)
         {
+            // Layouts saved by a camera window while saving: the file has them, the window takes them now.
+            TakeWaitingLayouts();
+            UpdateDirty();
             ShowStatus(
                 result.RollbackIncomplete ? static () => Strings.SettingsSaveRollbackIncomplete
                 : result.Status == SettingsSaveStatus.PasswordNotSaved ? static () => Strings.SettingsSaveFailedPassword
@@ -1118,6 +1126,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         ForgetRememberedCameraWindows(_baseline, updated);
         _baseline = updated;
+        // Before MarkSaved: a printer new in this save is no target of a camera window's layout.
+        TakeLayoutsAfterSave(latestLayouts, result.KeptOverlayLayouts);
         // T-039: a printer whose new image could not be stored keeps it (still unsaved), so that Save tries again; it shows
         // its previous custom image meanwhile when there is one, otherwise its illustration.
         bool unsavedImages = false;
@@ -1155,7 +1165,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             warning = others is null ? autostartWarning : () => string.Concat(others(), " ", autostartWarning());
         }
 
-        Completed(applying, updated, warning);
+        // The saved settings with the layouts saved by a camera window (a closed camera window opens from them).
+        Completed(applying, _baseline, warning);
     }
 
     /// <summary>

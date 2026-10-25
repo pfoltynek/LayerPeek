@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Settings;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Settings;
 
@@ -9,24 +10,31 @@ namespace LayerPeek.App.Cameras.Layout;
 /// The app's <see cref="ICameraOverlayLayoutWriter"/> (T-091): a <see cref="CameraOverlayLayoutWriter"/> over the settings
 /// store, created on the first save. Creating the store may fail (no per-user data folder); that save then throws an
 /// <see cref="InvalidOperationException"/> and the layout mode shows its error. Handlers subscribed before the first save
-/// are handed to the inner writer, which isolates and logs failing ones.
+/// are handed to the inner writer, which isolates and logs failing ones. A save (the write and its announcement) holds the
+/// <see cref="SettingsWriteGate"/> shared with the settings window's saves (T-092 follow-up).
 /// </summary>
 internal sealed class DeferredCameraOverlayLayoutWriter : ICameraOverlayLayoutWriter
 {
     private readonly Func<ISettingsStore> _store;
     private readonly ILogger<CameraOverlayLayoutWriter> _logger;
+    private readonly SettingsWriteGate? _writeGate;
     private readonly Lock _gate = new();
     private readonly List<EventHandler<CameraOverlayLayoutSavedEventArgs>> _handlers = [];
     private CameraOverlayLayoutWriter? _writer;
 
     /// <param name="store">The settings store; called on the first save (on the caller's thread), may throw.</param>
     /// <param name="logger">Receives failures of <see cref="LayoutSaved"/> handlers.</param>
-    public DeferredCameraOverlayLayoutWriter(Func<ISettingsStore> store, ILogger<CameraOverlayLayoutWriter> logger)
+    /// <param name="writeGate">
+    /// Held while a layout is written and announced, shared with the settings window's saves (T-092 follow-up);
+    /// <see langword="null"/>: none.
+    /// </param>
+    public DeferredCameraOverlayLayoutWriter(Func<ISettingsStore> store, ILogger<CameraOverlayLayoutWriter> logger, SettingsWriteGate? writeGate = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(logger);
         _store = store;
         _logger = logger;
+        _writeGate = writeGate;
     }
 
     /// <inheritdoc/>
@@ -68,8 +76,24 @@ internal sealed class DeferredCameraOverlayLayoutWriter : ICameraOverlayLayoutWr
     }
 
     /// <inheritdoc/>
-    public Task<bool> SaveAsync(string printerId, CameraOverlayLayout layout, CancellationToken cancellationToken) =>
-        Writer().SaveAsync(printerId, layout, cancellationToken);
+    public async Task<bool> SaveAsync(string printerId, CameraOverlayLayout layout, CancellationToken cancellationToken)
+    {
+        CameraOverlayLayoutWriter writer = Writer();
+        if (_writeGate is null)
+        {
+            return await writer.SaveAsync(printerId, layout, cancellationToken).ConfigureAwait(false);
+        }
+
+        await _writeGate.EnterAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            return await writer.SaveAsync(printerId, layout, cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Exit();
+        }
+    }
 
     private CameraOverlayLayoutWriter Writer()
     {

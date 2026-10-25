@@ -615,45 +615,49 @@
               <!--
                 One Tab stop; arrows / Home / End select, Space switches the visibility of the selected row (code-behind).
                 The check boxes are no Tab stops; a click on one switches it and selects its row (design 5.2).
+                Design 3.2: the list asks for at most 7 rows (7 × 32 + 2) and fills the row; with more widgets it scrolls
+                inside (keeping the selected row in view) while the tab does not scroll.
               -->
-              <ListBox x:Name="WidgetsList"
-                       AutomationProperties.AutomationId="WidgetsList"
-                       AutomationProperties.Name="{Binding [SettingsWidgetsListName], Source={x:Static loc:LocalizedStrings.Instance}}"
-                       ItemsSource="{Binding Widgets}"
-                       SelectedItem="{Binding SelectedWidget}">
-                <ListBox.ItemContainerTheme>
-                  <ControlTheme x:DataType="w:WidgetItemViewModel" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                    <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='WidgetsItem-{0}'}" />
-                    <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
-                    <Setter Property="MinHeight" Value="32" />
-                    <Setter Property="Padding" Value="8,0" />
-                  </ControlTheme>
-                </ListBox.ItemContainerTheme>
-                <ListBox.ItemTemplate>
-                  <DataTemplate x:DataType="w:WidgetItemViewModel">
-                    <Grid ColumnDefinitions="Auto,8,16,8,*,Auto" Height="32">
-                      <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsVisible-{0}'}"
-                                AutomationProperties.Name="{Binding ShowName}"
-                                MinWidth="0"
-                                Padding="0"
-                                IsTabStop="False"
-                                Focusable="False"
-                                VerticalAlignment="Center"
-                                IsChecked="{Binding IsShown}"
-                                IsEnabled="{Binding CanChangeVisibility}" />
-                      <w:WidgetIcon Grid.Column="2" Width="16" Height="16" VerticalAlignment="Center" IconKey="{Binding IconKey}" />
-                      <TextBlock Grid.Column="4" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
-                      <TextBlock Grid.Column="5"
-                                 AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsItemMarker-{0}'}"
-                                 Classes="marker"
-                                 Margin="4,0,0,0"
-                                 VerticalAlignment="Center"
-                                 Text="!"
-                                 IsVisible="{Binding ShowsErrorMarker}" />
-                    </Grid>
-                  </DataTemplate>
-                </ListBox.ItemTemplate>
-              </ListBox>
+              <w:CompactHeightDecorator CompactHeight="226">
+                <ListBox x:Name="WidgetsList"
+                         AutomationProperties.AutomationId="WidgetsList"
+                         AutomationProperties.Name="{Binding [SettingsWidgetsListName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         ItemsSource="{Binding Widgets}"
+                         SelectedItem="{Binding SelectedWidget}">
+                  <ListBox.ItemContainerTheme>
+                    <ControlTheme x:DataType="w:WidgetItemViewModel" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                      <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='WidgetsItem-{0}'}" />
+                      <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
+                      <Setter Property="MinHeight" Value="32" />
+                      <Setter Property="Padding" Value="8,0" />
+                    </ControlTheme>
+                  </ListBox.ItemContainerTheme>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="w:WidgetItemViewModel">
+                      <Grid ColumnDefinitions="Auto,8,16,8,*,Auto" Height="32">
+                        <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsVisible-{0}'}"
+                                  AutomationProperties.Name="{Binding ShowName}"
+                                  MinWidth="0"
+                                  Padding="0"
+                                  IsTabStop="False"
+                                  Focusable="False"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding IsShown}"
+                                  IsEnabled="{Binding CanChangeVisibility}" />
+                        <w:WidgetIcon Grid.Column="2" Width="16" Height="16" VerticalAlignment="Center" IconKey="{Binding IconKey}" />
+                        <TextBlock Grid.Column="4" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                        <TextBlock Grid.Column="5"
+                                   AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsItemMarker-{0}'}"
+                                   Classes="marker"
+                                   Margin="4,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Text="!"
+                                   IsVisible="{Binding ShowsErrorMarker}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </w:CompactHeightDecorator>
 
               <!-- The panel of the selected widget (design 4): title with icon, one-sentence description, its settings. -->
               <StackPanel Grid.Column="2"
