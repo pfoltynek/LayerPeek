@@ -323,24 +323,28 @@ public sealed class StatusWidgetUiTests(HeadlessSession session)
         });
 
     [Theory]
-    [InlineData(OverlayWidgetSize.Medium)]
-    [InlineData(OverlayWidgetSize.Large)]
-    public Task NameLongerThan40CharactersAndTheCardShowsOneEllipsisAndItsEnd(OverlayWidgetSize size) =>
+    [InlineData(OverlayWidgetSize.Medium, "Prusa CO")]
+    [InlineData(OverlayWidgetSize.Large, "Prusa CO")]
+    [InlineData(OverlayWidgetSize.Medium, "Prusa C\U0001F5A8")] // a surrogate pair across the 8th character
+    [InlineData(OverlayWidgetSize.Large, "Prusa C\U0001F5A8")]
+    [InlineData(OverlayWidgetSize.Medium, "Prusa Cé")] // a combining accent after the 8th character
+    [InlineData(OverlayWidgetSize.Large, "Prusa Cé")]
+    public Task NameLongerThan40CharactersAndTheCardShowsOneEllipsisAndItsEnd(OverlayWidgetSize size, string head) =>
         session.RunAsync(async scope =>
         {
             // T-076 1.4 / 2.1: shortened in the middle (start + "…" + end), also when the 40-character cut and the width
-            // trimming both apply; never "start…middle…".
+            // trimming both apply; never "start…middle…", also when the 8th character is not a single UTF-16 code unit.
             const string Tail = "druga od okna";
             await using CameraHarness harness = Harness(size);
             CameraWindow window = await OpenAsync(harness);
-            Save(harness, window, name: "Prusa CORE One WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW na piętrze – " + Tail);
+            Save(harness, window, name: head + "RE One WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW na piętrze – " + Tail);
 
             TextBlock name = Part<TextBlock>(window, "Name");
             TextLine line = Assert.Single(name.TextLayout.TextLines);
             Assert.True(line.HasCollapsed, "the name is trimmed by width");
             string drawn = string.Concat(line.TextRuns.Select(static run => run.Text.ToString()));
             Assert.Equal(1, drawn.Count(static c => c == '…'));
-            Assert.StartsWith("Prusa CO", drawn, StringComparison.Ordinal);
+            Assert.StartsWith(head + "…", drawn, StringComparison.Ordinal);
             Assert.EndsWith(Tail, drawn, StringComparison.Ordinal);
         });
 

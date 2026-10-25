@@ -119,6 +119,21 @@ public sealed class OverlayFormatTests : IDisposable
     }
 
     [Fact]
+    public void ShorteningAFileNameKeepsSurrogatePairsWhole()
+    {
+        // Exact outputs: a pair across the cut of the start is left out with the start, a pair across the cut of the end
+        // is left out with the end (shorter than the limit rather than a broken character).
+        string emoji = "\U0001F600";
+
+        Assert.Equal(
+            new string('a', 22) + "…" + new string('c', 10) + ".gcode",
+            OverlayFormat.ShortenFileName(new string('a', 22) + emoji + new string('b', 30) + new string('c', 10) + ".gcode"));
+        Assert.Equal(
+            new string('a', 23) + "…" + new string('c', 9) + ".gcode",
+            OverlayFormat.ShortenFileName(new string('a', 40) + emoji + new string('c', 9) + ".gcode"));
+    }
+
+    [Fact]
     public void LongPrinterNameIsShortenedInTheMiddle()
     {
         // Start + "…" + end (T-076 1.4); the start is as long as the prefix that the width trimming of the card keeps, so a
@@ -134,19 +149,49 @@ public sealed class OverlayFormatTests : IDisposable
         Assert.Equal(new string('n', 40), OverlayFormat.ShortenName(new string('n', 40)));
     }
 
-    [Fact]
-    public void ShorteningANameNeverSplitsASurrogatePair()
+    [Theory]
+    [InlineData("aaaaaaaa")] // the cut after 8 characters is between two characters
+    [InlineData("aaaaaaa\U0001F600")] // a surrogate pair across the cut
+    [InlineData("aaaaaaaé")] // "é" as a letter and a combining accent across the cut
+    [InlineData("aaaaaa\U0001F469‍\U0001F467")] // an emoji sequence (woman + ZWJ + girl) across the cut
+    public void ShortenedNameKeepsTheWholeCharacterAtTheCutOfItsStart(string head)
     {
-        string emoji = "\U0001F600";
-        string name = new string('a', 7) + emoji + new string('b', 30) + emoji + new string('c', 30);
+        // The width trimming of the card keeps the first 8 UTF-16 code units rounded up to the end of the character
+        // (glyph cluster) that contains the 8th. The start of the shortened name must end exactly there, otherwise the
+        // trimming keeps a different start and both "…" are drawn ("aaaaaaa…" + "…" + end).
+        string name = head + new string('b', 40) + new string('c', 40);
+
+        string shown = OverlayFormat.ShortenName(name);
+
+        Assert.Equal(head + "…" + new string('c', OverlayFormat.MaxNameLength - head.Length - 1), shown);
+    }
+
+    [Fact]
+    public void ShortenedNameDoesNotStartItsEndInsideACharacter()
+    {
+        // The cut before the end lands on the combining accent of "é": the end starts after the whole "é", never with a lone
+        // accent that would sit on the "…".
+        string name = new string('a', 20) + "é" + new string('c', 30);
+
+        string shown = OverlayFormat.ShortenName(name);
+
+        Assert.Equal(new string('a', OverlayFormat.NameHeadLength) + "…" + new string('c', 30), shown);
+    }
+
+    [Fact]
+    public void ShorteningANameWithOneHugeCharacterStaysWithinTheLimit()
+    {
+        // A letter with 60 combining marks is one character longer than the whole limit: it is cut, but never inside a
+        // surrogate pair.
+        string name = "a" + string.Concat(Enumerable.Repeat("́", 60)) + "\U0001F600" + new string('c', 30);
 
         string shown = OverlayFormat.ShortenName(name);
 
         Assert.True(shown.Length <= OverlayFormat.MaxNameLength);
         Assert.Single(shown, static c => c == '…');
-        Assert.DoesNotContain(shown, static c => char.IsSurrogate(c));
-        Assert.StartsWith(new string('a', 7) + "…", shown, StringComparison.Ordinal);
+        Assert.StartsWith("a", shown, StringComparison.Ordinal);
         Assert.EndsWith(new string('c', 30), shown, StringComparison.Ordinal);
+        Assert.False(char.IsLowSurrogate(shown[shown.IndexOf('…', StringComparison.Ordinal) + 1]));
     }
 
     [Fact]
