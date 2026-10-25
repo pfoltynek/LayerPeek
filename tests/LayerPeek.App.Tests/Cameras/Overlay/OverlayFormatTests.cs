@@ -119,13 +119,34 @@ public sealed class OverlayFormatTests : IDisposable
     }
 
     [Fact]
-    public void LongPrinterNameIsShortened()
+    public void LongPrinterNameIsShortenedInTheMiddle()
     {
-        string shown = OverlayFormat.ShortenName(new string('N', 100));
+        // Start + "…" + end (T-076 1.4); the start is as long as the prefix that the width trimming of the card keeps, so a
+        // name that is also too wide still shows a single "…" (the trimming removes this one first).
+        string name = "Prusa CORE One in the workshop upstairs – second from the window";
+
+        string shown = OverlayFormat.ShortenName(name);
 
         Assert.Equal(OverlayFormat.MaxNameLength, shown.Length);
-        Assert.EndsWith("…", shown, StringComparison.Ordinal);
+        Assert.Equal("Prusa CO…stairs – second from the window", shown);
+        Assert.Equal(OverlayFormat.NameHeadLength, shown.IndexOf('…', StringComparison.Ordinal));
         Assert.Equal("MK4", OverlayFormat.ShortenName("MK4"));
+        Assert.Equal(new string('n', 40), OverlayFormat.ShortenName(new string('n', 40)));
+    }
+
+    [Fact]
+    public void ShorteningANameNeverSplitsASurrogatePair()
+    {
+        string emoji = "\U0001F600";
+        string name = new string('a', 7) + emoji + new string('b', 30) + emoji + new string('c', 30);
+
+        string shown = OverlayFormat.ShortenName(name);
+
+        Assert.True(shown.Length <= OverlayFormat.MaxNameLength);
+        Assert.Single(shown, static c => c == '…');
+        Assert.DoesNotContain(shown, static c => char.IsSurrogate(c));
+        Assert.StartsWith(new string('a', 7) + "…", shown, StringComparison.Ordinal);
+        Assert.EndsWith(new string('c', 30), shown, StringComparison.Ordinal);
     }
 
     [Fact]

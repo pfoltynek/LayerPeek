@@ -208,7 +208,7 @@ public sealed class StatusWidgetTests : IDisposable
         StatusWidgetViewModel widget = Show(Printing(), name: new string('N', 100));
 
         Assert.Equal(OverlayFormat.MaxNameLength, widget.PrinterName.Length);
-        Assert.EndsWith("…", widget.PrinterName, StringComparison.Ordinal);
+        Assert.Equal(new string('N', OverlayFormat.NameHeadLength) + "…" + new string('N', OverlayFormat.MaxNameLength - OverlayFormat.NameHeadLength - 1), widget.PrinterName);
         Assert.StartsWith(widget.PrinterName + ": ", widget.AccessibleName, StringComparison.Ordinal);
     }
 

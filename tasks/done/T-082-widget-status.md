@@ -37,7 +37,7 @@ Widget **Stav**: název tiskárny, „pilulka“ stavu s barevnou tečkou, velk�
 ## Poznámky k implementaci
 - 2026-10-25, ui-dev. Kód v `App/Cameras/Overlay/Widgets/` (`StatusWidgetViewModel`, `StatusWidgetTemplate.axaml`) a `App/Cameras/Overlay/OverlayStateBrushes.cs`, registrace jedním řádkem v `Composition/OverlayWidgets.CreateRegistry` (min. šířky karty S 0 / M 180 / L 220, všechny velikosti, priorita Stav).
 - **Obsah** (`StatusWidgetContent`, levně porovnatelný):
-  - název tiskárny zkrácený na 40 znaků přes `OverlayTextCache` (stejný text = stejná instance),
+  - název tiskárny zkrácený na 40 znaků uprostřed (prvních 8 znaků + „…“ + konec, `OverlayFormat.ShortenName`) přes `OverlayTextCache` (stejný text = stejná instance),
   - stav (`null` před prvním dotazem = „Připojování…“),
   - celé procento (zaokrouhlené dolů) jen u aktivní úlohy podle `OverlayValues.ActiveJob` (tiskne, pozastaveno, vyžaduje zásah; tiskárna dostupná).
   - Prázdný název nenastane, `PrinterDefinition` ho odmítne, proto ho widget neřeší. Karta se nikdy neskryje (offline, neplatné údaje, chyba).
@@ -58,6 +58,12 @@ Widget **Stav**: název tiskárny, „pilulka“ stavu s barevnou tečkou, velk�
   - Headless `StatusWidgetUiTests`: části a výšky v S/M/L s úlohou i bez, karta před prvním dotazem a offline, zvýraznění jen procenta ve všech velikostech a jeho změna za běhu, barva tečky ve všech stavech, `AutomationId` a jména pro čtečku, dlouhý název a všech 8 jazyků ve všech velikostech uvnitř karty (zkrácené místo přetečení).
   - Nové snímky `camera-widget-status-medium.png`, `camera-widget-status-small.png`, `camera-widget-status-large-pl.png` (vizuálně zkontrolované).
   - E2E specifické pro widget žádné (celý průchod je T-093).
-- **Pozorování:** název delší než 40 znaků, který je navíc širší než karta, má dvě výpustky („Prusa CO…ne w pracowni na piętrze – …“). Nejdřív se zkrátí na 40 znaků (T-036), pak uprostřed podle šířky. Odpovídá návrhu 2.1, jen zapsáno.
-- **Známá chyba frameworku (tady neopravená):** změna jen velikosti karty v uloženém nastavení se v otevřeném okně projeví až po změně velikosti okna. Opravu přinese větev T-083 (`OverlayAnchorItems` sleduje `Size`), testy tohoto úkolu proto velikost za běhu nemění.
+- **Zkracování názvu (opraveno v review):** původně se název delší než 40 znaků zkrátil na konci a pak ještě uprostřed podle šířky, takže měl dvě výpustky („Prusa CO…ne w pracowni na piętrze – …“) a ztratil konec, v rozporu s návrhem 1.4 (začátek + „…“ + konec). Nově se zkrátí na 40 znaků uprostřed a začátek má právě 8 znaků jako ořez `PrefixCharacterEllipsis`, takže ořez podle šířky odstraní nejdřív tuto výpustku a zůstane jediná.
+- **Chyba frameworku (opravená v T-083, sloučeno):** změna jen velikosti karty v uloženém nastavení se v otevřeném okně projeví až po změně velikosti okna. Opravu přinesla T-083 (`OverlayAnchorItems` sleduje `Size`); testy tohoto úkolu velikost za běhu nemění.
 - Ověřeno na Windows 11: build, testy, aplikace se spustí a běží. Neověřeno: macOS (SF Pro), skutečné DPI 125–200 %, čitelnost na skutečném videu (T-093).
+
+## Review
+- 2026-10-25, qa-reviewer (e28beb8, po sloučení develop s T-083 97d15fc):
+  - **Dvě výpustky v názvu (opraveno):** viz Poznámky. Testy `NameLongerThan40CharactersAndTheCardShowsOneEllipsisAndItsEnd` (headless, kontroluje skutečně vykreslený řádek) a `OverlayFormatTests` (zkrácení uprostřed, náhradní páry).
+  - **Písmo pilulky (chyba T-081, opravená v T-083):** obecné styly `Border.overlayCard TextBlock` přebíjely `TemplateBinding` textu v šabloně `OverlayStatusPill` (M 13 místo 12, L 15 místo 13). Oprava přišla sloučením develop (T-083, styly `/template/ TextBlock`). Nový test `DrawnTextsHaveTheDesignedTypography` kontroluje vykreslené `TextBlock` Stavu ve všech velikostech (pilulka, procento, název). Snímky `camera-widget-status-medium` a `camera-widget-status-large-pl` přegenerované a vizuálně zkontrolované (menší písmo pilulky, název s jednou výpustkou).
+  - `OverlayWidgets.CreateRegistry`: po sloučení Stav i Časy (v tomto pořadí), `<remarks>` aktualizované.

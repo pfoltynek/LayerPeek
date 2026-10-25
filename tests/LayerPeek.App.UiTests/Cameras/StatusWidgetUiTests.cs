@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 
@@ -159,6 +160,38 @@ public sealed class StatusWidgetUiTests(HeadlessSession session)
             Assert.Equal("Offline", Part<OverlayStatusPill>(window, "State").Text);
         });
 
+    [Theory]
+    [InlineData(OverlayWidgetSize.Small, 13, 15)]
+    [InlineData(OverlayWidgetSize.Medium, 12, 30)]
+    [InlineData(OverlayWidgetSize.Large, 13, 40)]
+    public Task DrawnTextsHaveTheDesignedTypography(OverlayWidgetSize size, double stateSize, double percentSize) =>
+        session.RunAsync(async scope =>
+        {
+            // The drawn text blocks, not the control properties: the card's text styles must not win over the pill's own
+            // size and weight (T-076 1.2: pill M 12 / L 13 semi-bold, S row 13 semi-bold; name M 13 / L 16 semi-bold).
+            await using CameraHarness harness = Harness(size, emphasized: false);
+            CameraWindow window = await OpenAsync(harness);
+            await ShowAsync(harness, window, Printing());
+
+            TextBlock state = Part<OverlayStatusPill>(window, "State").GetVisualDescendants().OfType<TextBlock>().Single();
+            Assert.Equal(stateSize, state.FontSize);
+            Assert.Equal(FontWeight.SemiBold, state.FontWeight);
+            Assert.Equal(Primary, ColorOf(state.Foreground));
+
+            TextBlock percent = Part<TextBlock>(window, "Percent");
+            Assert.Equal(percentSize, percent.FontSize);
+            Assert.Equal(FontWeight.Bold, percent.FontWeight);
+            Assert.Equal(Primary, ColorOf(percent.Foreground));
+
+            if (size != OverlayWidgetSize.Small)
+            {
+                TextBlock name = Part<TextBlock>(window, "Name");
+                Assert.Equal(size == OverlayWidgetSize.Large ? 16 : 13, name.FontSize);
+                Assert.Equal(FontWeight.SemiBold, name.FontWeight);
+                Assert.Equal(Primary, ColorOf(name.Foreground));
+            }
+        });
+
     // ---- Emphasis ----
 
     [Theory]
@@ -287,6 +320,28 @@ public sealed class StatusWidgetUiTests(HeadlessSession session)
                     Assert.True(name.TextLayout.TextLines[0].HasCollapsed, $"{language}: the name is trimmed by width");
                 }
             }
+        });
+
+    [Theory]
+    [InlineData(OverlayWidgetSize.Medium)]
+    [InlineData(OverlayWidgetSize.Large)]
+    public Task NameLongerThan40CharactersAndTheCardShowsOneEllipsisAndItsEnd(OverlayWidgetSize size) =>
+        session.RunAsync(async scope =>
+        {
+            // T-076 1.4 / 2.1: shortened in the middle (start + "…" + end), also when the 40-character cut and the width
+            // trimming both apply; never "start…middle…".
+            const string Tail = "druga od okna";
+            await using CameraHarness harness = Harness(size);
+            CameraWindow window = await OpenAsync(harness);
+            Save(harness, window, name: "Prusa CORE One WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW na piętrze – " + Tail);
+
+            TextBlock name = Part<TextBlock>(window, "Name");
+            TextLine line = Assert.Single(name.TextLayout.TextLines);
+            Assert.True(line.HasCollapsed, "the name is trimmed by width");
+            string drawn = string.Concat(line.TextRuns.Select(static run => run.Text.ToString()));
+            Assert.Equal(1, drawn.Count(static c => c == '…'));
+            Assert.StartsWith("Prusa CO", drawn, StringComparison.Ordinal);
+            Assert.EndsWith(Tail, drawn, StringComparison.Ordinal);
         });
 
     // ---- Snapshots ----

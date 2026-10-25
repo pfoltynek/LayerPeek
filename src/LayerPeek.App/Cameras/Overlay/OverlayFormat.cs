@@ -14,8 +14,15 @@ namespace LayerPeek.App.Cameras.Overlay;
 /// </summary>
 public static class OverlayFormat
 {
-    /// <summary>Longest printer name shown; longer ones end with "…".</summary>
+    /// <summary>Longest printer name shown; longer ones are shortened in the middle (<see cref="ShortenName"/>).</summary>
     public const int MaxNameLength = 40;
+
+    /// <summary>
+    /// Characters kept at the start of a shortened printer name: as many as the middle width trimming of the cards keeps
+    /// (<c>TextTrimming.PrefixCharacterEllipsis</c>, 8), so that a name that is also too wide for its card loses this "…"
+    /// first and shows a single one, never "start…middle…".
+    /// </summary>
+    public const int NameHeadLength = 8;
 
     /// <summary>Longest file name shown; longer ones keep their start and end (extension) around "…".</summary>
     public const int MaxFileNameLength = 40;
@@ -59,11 +66,14 @@ public static class OverlayFormat
             : Format(Strings.DiagnosticsTemperatureValue, actual);
     }
 
-    /// <summary>A printer name of at most <see cref="MaxNameLength"/> characters (longer ones end with "…").</summary>
+    /// <summary>
+    /// A printer name of at most <see cref="MaxNameLength"/> characters: longer ones keep the first
+    /// <see cref="NameHeadLength"/> characters and the end around "…" (T-076 1.4 and 2.1).
+    /// </summary>
     public static string ShortenName(string name)
     {
         ArgumentNullException.ThrowIfNull(name);
-        return TrayText.Ellipsize(name, MaxNameLength);
+        return ShortenMiddle(name, MaxNameLength, NameHeadLength);
     }
 
     /// <summary>
@@ -73,25 +83,30 @@ public static class OverlayFormat
     public static string ShortenFileName(string fileName)
     {
         ArgumentNullException.ThrowIfNull(fileName);
-        if (fileName.Length <= MaxFileNameLength)
+        return ShortenMiddle(fileName, MaxFileNameLength, MaxFileNameLength - FileNameTailLength - Ellipsis.Length);
+    }
+
+    /// <summary>At most <paramref name="maxLength"/> characters: the first <paramref name="head"/> and the end around "…".</summary>
+    private static string ShortenMiddle(string text, int maxLength, int head)
+    {
+        if (text.Length <= maxLength)
         {
-            return fileName;
+            return text;
         }
 
-        int head = MaxFileNameLength - FileNameTailLength - Ellipsis.Length;
-        int tailStart = fileName.Length - FileNameTailLength;
+        int tailStart = text.Length - (maxLength - head - Ellipsis.Length);
         // Never split a surrogate pair.
-        if (char.IsHighSurrogate(fileName[head - 1]))
+        if (char.IsHighSurrogate(text[head - 1]))
         {
             head--;
         }
 
-        if (char.IsLowSurrogate(fileName[tailStart]))
+        if (char.IsLowSurrogate(text[tailStart]))
         {
             tailStart++;
         }
 
-        return string.Concat(fileName.AsSpan(0, head), Ellipsis, fileName.AsSpan(tailStart));
+        return string.Concat(text.AsSpan(0, head), Ellipsis, text.AsSpan(tailStart));
     }
 
     /// <summary>
