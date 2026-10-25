@@ -82,7 +82,7 @@ public sealed class TrayStatusViewModelTests : IDisposable
         _dispatcher.RunAll();
 
         Assert.Equal(TrayIconKey.For(TrayStatus.Printing, 42), _viewModel.IconKey);
-        Assert.Equal("MK4\nPrinting – 42%\n10 min remaining\nbenchy.bgcode", _viewModel.ToolTipText);
+        Assert.Equal("MK4\nPrinting – 42%\n10\u00A0min remaining\nbenchy.bgcode", _viewModel.ToolTipText);
         Assert.Equal([nameof(TrayStatusViewModel.IconKey), nameof(TrayStatusViewModel.ToolTipText)], _changes);
     }
 
@@ -270,7 +270,7 @@ public sealed class TrayStatusViewModelTests : IDisposable
             _dispatcher.RunAll();
         }
 
-        Assert.Equal("MK4\nTiskne – 42\u00A0%\nZbývá 10 min\nbenchy.bgcode", _viewModel.ToolTipText);
+        Assert.Equal("MK4\nTiskne – 42\u00A0%\nZbývá 10\u00A0min\nbenchy.bgcode", _viewModel.ToolTipText);
         Assert.Equal([nameof(TrayStatusViewModel.ToolTipText)], _changes);
     }
 
@@ -351,7 +351,7 @@ public sealed class TrayStatusViewModelTests : IDisposable
         _monitor.Raise(Snapshot(PrinterState.Printing, Job(10, TimeSpan.FromMinutes(9)), printerId: "b"));
         _dispatcher.RunAll();
 
-        Assert.Equal("Beta: Printing – 10%, 9 min left\nAlpha: Ready", _viewModel.ToolTipText);
+        Assert.Equal("Beta: Printing – 10%, 9\u00A0min left\nAlpha: Ready", _viewModel.ToolTipText);
     }
 
     [Fact]

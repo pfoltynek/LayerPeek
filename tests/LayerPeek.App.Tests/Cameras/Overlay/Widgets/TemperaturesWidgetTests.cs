@@ -365,7 +365,7 @@ public sealed class TemperaturesWidgetTests : IDisposable
     {
         TemperaturesWidgetViewModel widget = Show(Create(), Heating());
 
-        Assert.Equal("−60 min", widget.ChartStart);
+        Assert.Equal("−60\u00A0min", widget.ChartStart);
         Assert.Equal("now", widget.ChartNow);
         Assert.Equal("No data", widget.ChartNoData);
     }

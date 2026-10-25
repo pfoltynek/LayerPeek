@@ -163,7 +163,7 @@ public sealed class CameraMiniStripRowsTests : IDisposable
         Assert.Equal("59°", strip.BedText);
         Assert.True(strip.HasNozzle);
         Assert.True(strip.HasBed);
-        Assert.Equal("60 min", strip.ChartRange);
+        Assert.Equal("60\u00A0min", strip.ChartRange);
         Assert.Equal("No data", strip.ChartNoData);
         Assert.Equal($"chart of the last 60 minutes, Nozzle 215{Nbsp}°C, Bed 59{Nbsp}°C", strip.ChartAccessibleText);
 

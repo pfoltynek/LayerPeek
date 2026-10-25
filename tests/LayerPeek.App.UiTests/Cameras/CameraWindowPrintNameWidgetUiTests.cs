@@ -194,7 +194,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
 
             Assert.Equal(size, Widget(window).RenderedSize);
             Assert.True(Card(window).IsEffectivelyVisible);
-            Assert.Equal("Foldable book holder v1, PLA, layer height 0.2 mm, nozzle 0.4 mm, slicer estimate 2 h 51 min", Card(window).GetValue(AutomationProperties.NameProperty));
+            Assert.Equal("Foldable book holder v1, PLA, layer height 0.2 mm, nozzle 0.4 mm, slicer estimate 2\u00A0h 51\u00A0min", Card(window).GetValue(AutomationProperties.NameProperty));
             TextBlock title = window.Find<TextBlock>(TitleId);
             Assert.Equal("Foldable book holder v1", title.Text);
             Assert.Equal("Foldable book holder v1", DrawnText(title));
@@ -233,7 +233,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
             {
                 // The estimate 13 secondary, not the 15 of the large card's rows.
                 TextBlock estimate = window.Find<TextBlock>(EstimateId);
-                Assert.Equal("slicer estimate 2 h 51 min", estimate.Text);
+                Assert.Equal("slicer estimate 2\u00A0h 51\u00A0min", estimate.Text);
                 Assert.Equal(13, estimate.FontSize);
                 Assert.Equal(Color.Parse("#C9C9CE"), ((ISolidColorBrush)estimate.Foreground!).Color);
                 Assert.Contains(estimate.FontFeatures!, static feature => feature.Tag == "tnum");

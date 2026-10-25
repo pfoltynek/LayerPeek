@@ -52,7 +52,7 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
         PrinterSnapshot second = Printing(42.9, 64.9, 190);
         strip.OnSnapshot(first);
         _dispatcher.RunAll();
-        Assert.Equal("42% · 1 h 5 min", strip.Summary);
+        Assert.Equal("42% · 1\u00A0h 5\u00A0min", strip.Summary);
         int changes = 0;
         strip.PropertyChanged += (_, _) => changes++;
         // Warm up (JIT, lazy statics).

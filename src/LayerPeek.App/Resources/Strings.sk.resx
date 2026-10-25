@@ -40,16 +40,16 @@
     <value>{0}, zostáva {1}</value>
   </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
-    <value>&lt; 1 min</value>
+    <value>&lt;&#160;1&#160;min</value>
   </data>
   <data name="DurationMinutes" xml:space="preserve">
-    <value>{0} min</value>
+    <value>{0}&#160;min</value>
   </data>
   <data name="DurationHoursMinutes" xml:space="preserve">
-    <value>{0} h {1} min</value>
+    <value>{0}&#160;h {1}&#160;min</value>
   </data>
   <data name="DurationDaysHours" xml:space="preserve">
-    <value>{0} d {1} h</value>
+    <value>{0}&#160;d {1}&#160;h</value>
   </data>
   <data name="StateConnecting" xml:space="preserve">
     <value>Pripája sa…</value>
@@ -952,7 +952,7 @@
     <value>{0} / {1} °C</value>
   </data>
   <data name="CameraOverlayChartStart" xml:space="preserve">
-    <value>−60 min</value>
+    <value>−60&#160;min</value>
   </data>
   <data name="CameraOverlayChartNow" xml:space="preserve">
     <value>teraz</value>

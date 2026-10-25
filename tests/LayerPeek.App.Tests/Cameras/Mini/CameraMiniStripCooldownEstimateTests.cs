@@ -124,7 +124,7 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
         CoolUntilEstimate();
         TimeSpan remaining = _cooldown.GetState("mk4").EstimatedRemaining!.Value;
         long minutes = (long)Math.Ceiling(remaining.TotalMinutes);
-        Assert.EndsWith($" · about {minutes} min", strip.Summary, StringComparison.Ordinal);
+        Assert.EndsWith($" · about {minutes}\u00A0min", strip.Summary, StringComparison.Ordinal);
         Assert.True(strip.IsTicking);
 
         // A minute later without any snapshot.
@@ -134,7 +134,7 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
         long later = (long)Math.Ceiling((remaining - TimeSpan.FromMinutes(1)).TotalMinutes);
         if (later > 0)
         {
-            Assert.EndsWith($" · about {later} min", strip.Summary, StringComparison.Ordinal);
+            Assert.EndsWith($" · about {later}\u00A0min", strip.Summary, StringComparison.Ordinal);
         }
 
         // Past the estimate: no "about 0 min", and the clock stops.

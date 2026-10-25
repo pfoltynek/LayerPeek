@@ -206,7 +206,7 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             Assert.True(window.IsShown<Control>(NozzleId));
             Assert.True(window.IsShown<Control>(BedId));
             Assert.Equal(chart, window.IsShown<TemperatureChart>(ChartId));
-            Assert.Equal(chart, Ui.ShowsText(window, "−60 min"));
+            Assert.Equal(chart, Ui.ShowsText(window, "−60\u00A0min"));
             Assert.Equal(chart, Ui.ShowsText(window, "now"));
             // The words only in L (T-076 2.3), the icons stand for them in S and M.
             Assert.Equal(size == OverlayWidgetSize.Large, Ui.ShowsText(window, "Nozzle"));
@@ -247,7 +247,7 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             {
                 TemperatureChart sparkline = window.Find<TemperatureChart>(ChartId);
                 Assert.Equal(size == OverlayWidgetSize.Medium ? new Size(256, 64) : new Size(360, 110), sparkline.Bounds.Size);
-                TextBlock start = Ui.Find<TextBlock>(Card(window), static block => block.Text == "−60 min");
+                TextBlock start = Ui.Find<TextBlock>(Card(window), static block => block.Text == "−60\u00A0min");
                 TextBlock now = Ui.Find<TextBlock>(Card(window), static block => block.Text == "now");
                 foreach (TextBlock axis in new[] { start, now })
                 {
@@ -463,7 +463,7 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             Assert.Equal("No data", chart.NoDataText);
             Assert.Equal(Tertiary, ColorOf(chart.AxisBrush));
             // The axis labels stay (T-076 2.3).
-            Assert.True(Ui.ShowsText(window, "−60 min"));
+            Assert.True(Ui.ShowsText(window, "−60\u00A0min"));
             Assert.True(Ui.ShowsText(window, "now"));
 
             // The first sample comes in: the chart draws it.

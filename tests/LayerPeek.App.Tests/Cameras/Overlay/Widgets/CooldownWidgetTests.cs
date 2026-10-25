@@ -277,7 +277,7 @@ public sealed class CooldownWidgetTests : IDisposable
 
         CooldownWidgetViewModel widget = Widget(overlay);
         long minutes = (long)Math.Ceiling(_cooldown.GetState("mk4").EstimatedRemaining!.Value.TotalMinutes);
-        Assert.Equal($"safe to turn off in about {minutes} min (nozzle below 50{Nbsp}°C)", widget.DetailText);
+        Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nbsp}°C)", widget.DetailText);
     }
 
     [Theory]
@@ -302,7 +302,7 @@ public sealed class CooldownWidgetTests : IDisposable
         Assert.False(widget.ShowsProgress);
         long cooledIn = (long)Math.Ceiling((state.CooledDownAt!.Value - state.PrintEndedAt!.Value).TotalMinutes);
         // The print ended at the first Finished / Stopped snapshot: 12:00:05 (UTC).
-        Assert.Equal($"{endedText} 12:00 PM · cooled down in {cooledIn} min", widget.DetailText);
+        Assert.Equal($"{endedText} 12:00 PM · cooled down in {cooledIn}\u00A0min", widget.DetailText);
         Assert.True(widget.ShowsDetail);
     }
 
@@ -366,7 +366,7 @@ public sealed class CooldownWidgetTests : IDisposable
         Assert.Equal(39, content.BedCelsius);
         Assert.Equal(100, content.ProgressPercent);
         Assert.Null(content.EstimateMinutes);
-        Assert.Equal("print finished at 7:52 PM · cooled down in 14 min", CooldownFormat.Times(content));
+        Assert.Equal("print finished at 7:52 PM · cooled down in 14\u00A0min", CooldownFormat.Times(content));
     }
 
     [Fact]
@@ -374,9 +374,9 @@ public sealed class CooldownWidgetTests : IDisposable
     {
         CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 48, PrinterState.Stopped)), CooledState(CooldownPrintOutcome.Stopped));
 
-        Assert.Equal("print stopped at 7:52 PM · cooled down in 14 min", CooldownFormat.Times(content));
+        Assert.Equal("print stopped at 7:52 PM · cooled down in 14\u00A0min", CooldownFormat.Times(content));
         Assert.Equal(
-            $"Cooled down – safe to turn off, Nozzle 48{Nbsp}°C, Bed 39{Nbsp}°C, print stopped at 7:52 PM, cooled down in 14 min",
+            $"Cooled down – safe to turn off, Nozzle 48{Nbsp}°C, Bed 39{Nbsp}°C, print stopped at 7:52 PM, cooled down in 14\u00A0min",
             CooldownFormat.AccessibleText(content));
     }
 
@@ -485,10 +485,10 @@ public sealed class CooldownWidgetTests : IDisposable
     {
         CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 87)), CoolingState(remaining: TimeSpan.FromMinutes(5.5)));
 
-        Assert.Equal($"safe to turn off in about 6 min (nozzle below 50{Nbsp}°C)", CooldownFormat.Detail(content));
-        Assert.Equal(" · about 6 min", CooldownFormat.SmallDetail(content));
+        Assert.Equal($"safe to turn off in about 6\u00A0min (nozzle below 50{Nbsp}°C)", CooldownFormat.Detail(content));
+        Assert.Equal(" · about 6\u00A0min", CooldownFormat.SmallDetail(content));
         Assert.Equal(
-            $"Cooling down…, Nozzle 87{Nbsp}°C, Bed 45{Nbsp}°C, safe to turn off in about 6 min (nozzle below 50{Nbsp}°C)",
+            $"Cooling down…, Nozzle 87{Nbsp}°C, Bed 45{Nbsp}°C, safe to turn off in about 6\u00A0min (nozzle below 50{Nbsp}°C)",
             CooldownFormat.AccessibleText(content));
     }
 
@@ -533,7 +533,7 @@ public sealed class CooldownWidgetTests : IDisposable
         if (minutes > 0)
         {
             Assert.NotEqual(before, widget.DetailText);
-            Assert.Equal($"safe to turn off in about {minutes} min (nozzle below 50{Nbsp}°C)", widget.DetailText);
+            Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nbsp}°C)", widget.DetailText);
         }
 
         // Past the estimate: no "0 min", only the threshold, and the clock stops ticking.
@@ -615,7 +615,7 @@ public sealed class CooldownWidgetTests : IDisposable
         Assert.False(widget.ShowsBed);
         Assert.True(widget.ShowsProgress);
         Assert.True(widget.ShowsDetail);
-        Assert.Equal($" · about {minutes} min", widget.DetailText);
+        Assert.Equal($" · about {minutes}\u00A0min", widget.DetailText);
     }
 
     [Fact]

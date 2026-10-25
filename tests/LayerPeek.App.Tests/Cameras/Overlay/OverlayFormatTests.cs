@@ -20,9 +20,9 @@ public sealed class OverlayFormatTests : IDisposable
         Assert.Equal("Printing", OverlayFormat.StateName(PrinterState.Printing));
         Assert.Equal("Ready", OverlayFormat.StateName(PrinterState.Idle));
         Assert.Equal("42%", OverlayFormat.Percent(42));
-        Assert.Equal("1 h 5 min", OverlayFormat.Duration(65));
-        Assert.Equal("1 h 5 min remaining", OverlayFormat.Remaining(65));
-        Assert.Equal("Print time: 2 h 10 min", OverlayFormat.PrintTime(130));
+        Assert.Equal("1\u00A0h 5\u00A0min", OverlayFormat.Duration(65));
+        Assert.Equal("1\u00A0h 5\u00A0min remaining", OverlayFormat.Remaining(65));
+        Assert.Equal("Print time: 2\u00A0h 10\u00A0min", OverlayFormat.PrintTime(130));
         Assert.Equal("Done at 1:05 PM", OverlayFormat.Finish(new(new DateTime(2026, 10, 16, 13, 5, 0), false)));
         Assert.Equal("Done October 17 at 8:00 AM", OverlayFormat.Finish(new(new DateTime(2026, 10, 17, 8, 0, 0), true)));
         Assert.Equal("215 / 215 °C", OverlayFormat.Temperature(new(215, 215)));
@@ -37,17 +37,17 @@ public sealed class OverlayFormatTests : IDisposable
         {
             Assert.Equal("Tiskne", OverlayFormat.StateName(PrinterState.Printing));
             Assert.Equal("42 %", OverlayFormat.Percent(42));
-            Assert.Equal("Zbývá 1 h 5 min", OverlayFormat.Remaining(65));
+            Assert.Equal("Zbývá 1\u00A0h 5\u00A0min", OverlayFormat.Remaining(65));
             Assert.Equal("Hotovo v 13:05", OverlayFormat.Finish(new(new DateTime(2026, 10, 16, 13, 5, 0), false)));
             Assert.Equal("Hotovo 17. října v 8:00", OverlayFormat.Finish(new(new DateTime(2026, 10, 17, 8, 0, 0), true)));
-            Assert.Equal("Doba tisku: 2 h 10 min", OverlayFormat.PrintTime(130));
+            Assert.Equal("Doba tisku: 2\u00A0h 10\u00A0min", OverlayFormat.PrintTime(130));
             Assert.Equal("1 215 / 215 °C", OverlayFormat.Temperature(new(1215, 215)));
         }
 
         using (new CultureScope("de-DE"))
         {
             Assert.Equal("Fertig um 13:05", OverlayFormat.Finish(new(new DateTime(2026, 10, 16, 13, 5, 0), false)));
-            Assert.Equal("Druckzeit: 2 h 10 min", OverlayFormat.PrintTime(130));
+            Assert.Equal("Druckzeit: 2\u00A0h 10\u00A0min", OverlayFormat.PrintTime(130));
         }
     }
 
@@ -61,7 +61,7 @@ public sealed class OverlayFormatTests : IDisposable
             Assert.StartsWith("Pozostało ", OverlayFormat.Remaining(65), StringComparison.Ordinal);
         }
 
-        Assert.Equal("1 h 5 min remaining", english);
+        Assert.Equal("1\u00A0h 5\u00A0min remaining", english);
     }
 
     /// <summary>

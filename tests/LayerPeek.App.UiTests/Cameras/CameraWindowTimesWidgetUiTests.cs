@@ -139,15 +139,15 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
 
             Assert.Equal(size, Widget(window).RenderedSize);
             Assert.True(Card(window).IsEffectivelyVisible);
-            Assert.Equal("1 h 5 min remaining, Done at 1:05 PM, Print time: 2 h 10 min", Card(window).GetValue(AutomationProperties.NameProperty));
-            Assert.Equal("1 h 5 min", window.Find<TextBlock>(RemainingId).Text);
+            Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min", Card(window).GetValue(AutomationProperties.NameProperty));
+            Assert.Equal("1\u00A0h 5\u00A0min", window.Find<TextBlock>(RemainingId).Text);
             Assert.True(window.IsShown<TextBlock>(RemainingId));
             bool rows = size != OverlayWidgetSize.Small;
             Assert.Equal(rows, window.IsShown<OverlayIconText>(FinishId));
             Assert.Equal(rows, window.IsShown<OverlayIconText>(ElapsedId));
             Assert.Equal(rows, Ui.ShowsText(window, "Remaining"));
             Assert.Equal(rows, Ui.ShowsText(window, "Done at 1:05 PM"));
-            Assert.Equal(rows, Ui.ShowsText(window, "2 h 10 min"));
+            Assert.Equal(rows, Ui.ShowsText(window, "2\u00A0h 10\u00A0min"));
             AssertFits(window, size);
 
             // Sizes of T-076 1.2: the large number 15 / 26 / 34 bold.
@@ -204,7 +204,7 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
             Assert.True(elapsed.IsEffectivelyVisible);
             // The first row starts right at the card padding (no gap for the missing rows).
             Assert.Equal(BoundsInWindow(Card(window), window).Y + 12, BoundsInWindow(elapsed, window).Y, 0.5);
-            Assert.Equal("Print time: 3 min", Card(window).GetValue(AutomationProperties.NameProperty));
+            Assert.Equal("Print time: 3\u00A0min", Card(window).GetValue(AutomationProperties.NameProperty));
         });
 
     [Fact]
@@ -225,7 +225,7 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
 
             Assert.True(Card(window).IsEffectivelyVisible);
             Assert.True(window.IsShown<OverlayIconText>(ElapsedId));
-            Assert.Equal("3 min", window.Find<OverlayIconText>(ElapsedId).Text);
+            Assert.Equal("3\u00A0min", window.Find<OverlayIconText>(ElapsedId).Text);
         });
 
     [Fact]
@@ -285,11 +285,11 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
             await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
             CameraWindow window = await OpenAsync(harness, Printing(remaining: TimeSpan.FromMinutes(71)));
             TextBlock remaining = window.Find<TextBlock>(RemainingId);
-            Assert.Equal("1 h 11 min", remaining.Text);
+            Assert.Equal("1\u00A0h 11\u00A0min", remaining.Text);
             double narrow = remaining.Bounds.Width;
 
             harness.Monitor.Raise(Printing(remaining: TimeSpan.FromMinutes(108)));
-            await Ui.UntilAsync(() => remaining.Text == "1 h 48 min", "1 h 48 min shown");
+            await Ui.UntilAsync(() => remaining.Text == "1\u00A0h 48\u00A0min", "1\u00A0h 48\u00A0min shown");
             window.Settle();
 
             Assert.Contains(remaining.FontFeatures!, static feature => feature.Tag == "tnum" && feature.Value == 1);

@@ -69,6 +69,6 @@ public sealed class TimesWidgetAllocationTests : IDisposable
         Assert.Equal(0, allocated);
         Assert.Equal(posts, _dispatcher.PostCount);
         Assert.Equal(0, _dispatcher.Pending);
-        Assert.Equal("1 h 5 min", widget.Remaining);
+        Assert.Equal("1\u00A0h 5\u00A0min", widget.Remaining);
     }
 }

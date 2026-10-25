@@ -252,7 +252,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             if (small)
             {
                 // One row "❄ 87 °C · about 2 min": 46 high with the bar (T-076 2.5).
-                Assert.Equal($" · about {minutes} min", detail.Text);
+                Assert.Equal($" · about {minutes}\u00A0min", detail.Text);
                 Assert.Equal(13, detail.FontSize);
                 Assert.Equal(FontWeight.SemiBold, detail.FontWeight);
                 Assert.Equal(46, Card(window).Bounds.Height, 0.5);
@@ -270,7 +270,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
                 Assert.Equal(large ? 16 : 14, bed.FontSize);
                 Assert.Equal(FontWeight.SemiBold, bed.FontWeight);
                 Assert.Equal(Secondary, ColorOf(bed.Foreground));
-                Assert.Equal($"safe to turn off in about {minutes} min (nozzle below 50{Nb}°C)", detail.Text);
+                Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nb}°C)", detail.Text);
                 Assert.Equal(large ? 13 : 12, detail.FontSize);
                 Assert.Equal(FontWeight.Normal, detail.FontWeight);
                 Assert.Equal(Secondary, ColorOf(detail.Foreground));
@@ -295,7 +295,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
 
             // The screen reader gets every value in words, also those S does not draw.
             Assert.Equal(
-                $"Cooling down…, Nozzle {widget.ShownNozzleCelsius}{Nb}°C, Bed 40{Nb}°C, safe to turn off in about {minutes} min (nozzle below 50{Nb}°C)",
+                $"Cooling down…, Nozzle {widget.ShownNozzleCelsius}{Nb}°C, Bed 40{Nb}°C, safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nb}°C)",
                 Card(window).GetValue(AutomationProperties.NameProperty));
         });
 
@@ -366,7 +366,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             harness.Time.Advance(TimeSpan.FromMinutes(1));
             await Ui.UntilAsync(() => Widget(window).ShownEstimateMinutes == minutes - 1, "estimate counted down");
             window.Settle();
-            Assert.Equal($"safe to turn off in about {minutes - 1} min (nozzle below 30{Nb}°C)", Text(window, DetailId).Text);
+            Assert.Equal($"safe to turn off in about {minutes - 1}\u00A0min (nozzle below 30{Nb}°C)", Text(window, DetailId).Text);
 
             // Past the estimate: never "0 min".
             harness.Time.Advance(TimeSpan.FromMinutes(minutes));
@@ -430,7 +430,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
                 Assert.Equal(FontWeight.SemiBold, nozzle.FontWeight);
                 Assert.Equal(Primary, ColorOf(nozzle.Foreground));
                 TextBlock detail = Text(window, DetailId);
-                Assert.Equal($"print finished at 12:00 PM · cooled down in {cooledIn} min", detail.Text);
+                Assert.Equal($"print finished at 12:00 PM · cooled down in {cooledIn}\u00A0min", detail.Text);
                 // M: 96 with one detail line (T-076 2.5: 96–112).
                 int lines = detail.TextLayout.TextLines.Count;
                 double height = large ? 14 + 24 + 8 + 22 + 8 + (lines * 18) + 14 : 12 + 20 + 8 + 20 + 8 + (lines * 16) + 12;
@@ -438,7 +438,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             }
 
             Assert.Equal(
-                $"Cooled down – safe to turn off, Nozzle {widget.ShownNozzleCelsius}{Nb}°C, Bed 40{Nb}°C, print finished at 12:00 PM, cooled down in {cooledIn} min",
+                $"Cooled down – safe to turn off, Nozzle {widget.ShownNozzleCelsius}{Nb}°C, Bed 40{Nb}°C, print finished at 12:00 PM, cooled down in {cooledIn}\u00A0min",
                 card.GetValue(AutomationProperties.NameProperty));
         });
 
