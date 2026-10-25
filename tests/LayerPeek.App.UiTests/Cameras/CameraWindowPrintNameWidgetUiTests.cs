@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
@@ -427,6 +428,129 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
             AssertFits(window, OverlayWidgetSize.Medium);
         });
 
+    /// <summary>
+    /// Titles with characters drawn in another font (emoji, CJK: the line has several runs) or made of several UTF-16 code
+    /// units (surrogate pairs, combining accents, ZWJ emoji sequences), across the 14th code unit of the kept start and
+    /// along the kept end.
+    /// </summary>
+    public static TheoryData<string> TitlesWithLongCharacters
+    {
+        get
+        {
+            string grin = char.ConvertFromUtf32(0x1F600);
+            string rocket = char.ConvertFromUtf32(0x1F680);
+            string accented = "e" + (char)0x0301;
+            string zwj = ((char)0x200D).ToString();
+            string family = string.Join(zwj, char.ConvertFromUtf32(0x1F468), char.ConvertFromUtf32(0x1F469), char.ConvertFromUtf32(0x1F467));
+            string rockets = string.Concat(Enumerable.Repeat(rocket, 6));
+            return
+            [
+                "Benchy remix calibration cube with a very long tail of plain words v2",
+                // An emoji whose surrogate pair spans code units 13 and 14, and more of them in the end.
+                "Benchy remix " + grin + " calibration cube " + rockets + " v2",
+                // Emoji only in the end.
+                "Benchy remix calibration cube " + rockets + " v2",
+                // An emoji in the start before code unit 14, a plain end.
+                "Benchy " + grin + " remix calibration cube with a long plain tail v2",
+                // A letter with a combining accent spanning code units 13 and 14; combining accents in the end.
+                "Benchy remix " + accented + " calibration cube " + string.Concat(Enumerable.Repeat(accented, 9)) + " v2",
+                // A ZWJ family emoji (11 code units) from code unit 12; ZWJ sequences in the end.
+                "Benchy remix" + family + zwj + char.ConvertFromUtf32(0x1F466) + " calibration cube " + family + family + family + " v2",
+                // Cyrillic and CJK in the end.
+                "Benchy remix calibration cube держатель книг v2",
+                "Benchy remix calibration cube 打印打印打印打印 v2",
+                // CJK in the start (drawn in a fallback font).
+                "\u6253\u5370 Benchy remix calibration cube with a long plain tail v2",
+            ];
+        }
+    }
+
+    /// <summary>
+    /// Reads the DRAWN line at many widths: exactly one "…", a start and an end made of whole characters of the title, the
+    /// end really being the end of the title (Avalonia's own leading-prefix ellipsis draws pieces of several runs there,
+    /// see <see cref="OverlayMiddleTrimming"/>), and the version kept once the line is wide enough.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(TitlesWithLongCharacters))]
+    public Task MiddleShorteningKeepsWholeCharacters(string text) =>
+        session.RunAsync(scope =>
+        {
+            TextBlock title = new()
+            {
+                Text = text,
+                FontSize = 14,
+                FontWeight = FontWeight.SemiBold,
+                TextWrapping = TextWrapping.NoWrap,
+                TextTrimming = OverlayMiddleTrimming.Middle,
+                HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            };
+            Window host = OverlayHost(scope, 600, 60, title);
+            string[] characters = TextElements(text);
+            int collapsed = 0;
+            for (double width = 40; width <= 420; width += 3)
+            {
+                title.Width = width;
+                host.Settle();
+                if (!title.TextLayout.TextLines[0].HasCollapsed)
+                {
+                    continue;
+                }
+
+                collapsed++;
+                string drawn = DrawnText(title);
+                Assert.True(drawn.Count(static c => c == '…') == 1, $"'{drawn}' at {width}: not exactly one '…'");
+                int ellipsis = drawn.IndexOf('…', StringComparison.Ordinal);
+                Assert.True(IsWholeCharacterPrefix(characters, drawn[..ellipsis]), $"'{drawn}' at {width}: the start is not whole characters of the title");
+                Assert.True(IsWholeCharacterSuffix(characters, drawn[(ellipsis + 1)..]), $"'{drawn}' at {width}: the end is not whole characters of the title's end");
+                if (width >= 200)
+                {
+                    Assert.EndsWith(" v2", drawn, StringComparison.Ordinal);
+                }
+            }
+
+            Assert.True(collapsed > 10, $"only {collapsed} widths shortened the title");
+            return Task.CompletedTask;
+        });
+
+    private static string[] TextElements(string text)
+    {
+        List<string> elements = [];
+        System.Globalization.TextElementEnumerator enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(text);
+        while (enumerator.MoveNext())
+        {
+            elements.Add(enumerator.GetTextElement());
+        }
+
+        return [.. elements];
+    }
+
+    private static bool IsWholeCharacterPrefix(string[] characters, string head)
+    {
+        int length = 0;
+        foreach (string character in characters)
+        {
+            if (length == head.Length)
+            {
+                break;
+            }
+
+            length += character.Length;
+        }
+
+        return length == head.Length && string.Concat(characters).StartsWith(head, StringComparison.Ordinal);
+    }
+
+    private static bool IsWholeCharacterSuffix(string[] characters, string tail)
+    {
+        int length = 0;
+        for (int i = characters.Length - 1; i >= 0 && length < tail.Length; i--)
+        {
+            length += characters[i].Length;
+        }
+
+        return length == tail.Length && string.Concat(characters).EndsWith(tail, StringComparison.Ordinal);
+    }
+
     [Fact]
     public Task ChipsThatDoNotFitAreLeftOutFromTheRight() =>
         session.RunAsync(async scope =>
@@ -465,6 +589,11 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
                 {
                     Assert.True(chip.Bounds.X >= width, $"{chip.Text} at {chip.Bounds} in {width}");
                 }
+
+                // Screen readers get only the drawn chips (the card's name says everything anyway).
+                Assert.Equal(
+                    [.. new[] { material, layer, nozzle }.Take(row.ShownCount).Select(ControlAutomationPeer.CreatePeerForElement)],
+                    ControlAutomationPeer.CreatePeerForElement(row).GetChildren());
             }
 
             // Nozzle first, then the layer height, then the material.
@@ -476,6 +605,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
             host.Settle();
             Assert.Equal(2, row.ShownCount);
             Assert.Equal(material.Bounds.Right + 4, nozzle.Bounds.X, 0.5);
+            Assert.Equal([ControlAutomationPeer.CreatePeerForElement(material), ControlAutomationPeer.CreatePeerForElement(nozzle)], ControlAutomationPeer.CreatePeerForElement(row).GetChildren());
         });
 
     // ---- Languages ----

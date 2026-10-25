@@ -1,7 +1,7 @@
 ---
 id: T-085
 title: Widget Název tisku (hezčí název a čipy, bez náhledu G-code)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -30,8 +30,11 @@ Widget **Název tisku**: čitelný název z `PrintFileNameInfo` (T-078) a čipy 
 - **Zvýraznění:** klíčový údaj je název tisku (akcentová barva). Je to návrh architekta, designer ho potvrdí v T-076.
 - **Po skončení tisku:** widget zůstane i po dokončení nebo zastavení tisku (např. během vychladnutí), dokud nezačne další tisk. Stejně se drží náhled G-code (T-086).
 
+## Rozhodnutí (uživatel, 2026-10-25)
+- **Název bez titulku:** když parser (T-078) vrátí prázdný titulek (název jen s příponou nebo oddělovači, např. `.bgcode`, `___.gcode`), widget ukáže **samotný název souboru bez složky** – tedy současné chování (`PrintNameFormat.Title`, test `NameWithoutATitleShowsTheFileName`). Žádný nový přeložený text.
+
 ## Otevřené otázky
-- **Náhradní text pro název bez titulku (ui-dev, 2026-10-25):** parser (T-078) vrátí prázdný titulek u názvu, který má jen příponu nebo oddělovače (`.bgcode`, `___.gcode`, `-.g`), a náhradní text nechává na UI. Návrh T-076 ho neurčuje. Implementováno zatím tak, že widget ukáže **samotný název souboru bez složky** (`.bgcode`, `___.gcode`), tedy to, co ukazuje i displej tiskárny, bez nového textu. Varianta: přeložený text, např. „Bez názvu“ / „Untitled“ (nový klíč ve všech 8 jazycích). Kterou variantu chcete? Jinak je úkol hotový; po rozhodnutí stačí případně vyměnit `PrintNameFormat.Title` a test `NameWithoutATitleShowsTheFileName`.
+Žádné.
 
 ## Poznámky k implementaci
 - 2026-10-25, ui-dev. Kód v `App/Cameras/Overlay/Widgets/PrintNameWidget*` a `PrintNameCompactView*`, sdílené části `App/Cameras/Overlay/OverlayMiddleTrimming.cs` a `OverlayChipsPanel.cs`, registrace jedním řádkem v `Composition/OverlayWidgets.cs` (pořadí Časy → Název tisku; Stav a Teploty doplní T-082 / T-084). Popis v `docs/architecture.md` (Widgety v1).
@@ -45,3 +48,7 @@ Widget **Název tisku**: čitelný název z `PrintFileNameInfo` (T-078) a čipy 
 - **Nestabilní test T-078:** `RepeatedNameReusesLastResult` přesunut do nové třídy `PrintFileNameInfoCacheTests` v kolekci `PrintFileNameCache` s `DisableParallelization = true` (běží sama po všech paralelních testech sestavy), přidán test `AnotherNameReplacesTheCachedResult`. Widget sám statickou cache nepotřebuje.
 - **Testy:** App.Tests `PrintNameWidgetTests` (registrace, stavy, další tisk po dokončení / zastavení, opakovaný tisk téhož souboru, neznámý tvar, 8.3 název, název bez titulku, přípona kopie, šablona bez trysky a odhadu, víc materiálů, dlouhý seznam materiálů, sekundy v odhadu, dlouhý název, čipy cs/en/de, milimetry, přepnutí jazyka, texty v 8 jazycích s délkami, rozbor jen při změně, levné porovnání, velikosti, zvýraznění) a `PrintNameWidgetAllocationTests`. Headless `CameraWindowPrintNameWidgetUiTests`: části, písma, barvy a ikony S/M/L (kontrola skutečně vykreslených `TextBlock`), výšky 36 / 68 / 102 / 78 / 50 / 124, název bez šablony a bez odhadu, uložená změna velikosti, viditelnost po tisku a skrytí bez úlohy, zvýraznění, zkrácení uprostřed v S/M, 2 řádky v L, slovo delší než karta, mizení čipů zprava, nejdelší texty v 8 jazycích × S/M/L, přepnutí jazyka, kompaktní řádek; nové snímky `camera-widget-print-name-s/m/l.png` (720 × 405, vizuálně zkontrolované). E2E testy žádné (celý průchod T-093).
 - Ručně neověřeno: skutečné DPI 125–200 %, macOS (SF Pro), čitelnost na skutečném videu, skutečný název z tiskárny přes simulátor (aplikace se nespouštěla, aby se nedotkla uživatelského nastavení).
+- **Review (qa-reviewer, 2026-10-25):** opraveny dva nálezy (testy napřed, headless testy čtou skutečně vykreslenou řádku).
+  1. `TextLeadingPrefixCharacterEllipsis` z Avalonie 12.1.4 skládá konec zkráceného řádku chybně, když má řádek víc běhů (emoji, CJK, cyrilice – jiné písmo nebo jiné písmo Unicode): po běhu, který se vejde jen zčásti, přidává ještě kousky předchozích běhů, takže vykreslí text, který na konci názvu není („…e 打印 v2“ místo „…打印 v2“, „… 🚀🚀 v2“). `OverlayMiddleTrimming` teď výsledek Avalonie projde a z konce nechá jen část souvislou s koncem řádku (běhy se hledají v textu podle paměti přes `MemoryMarshal.TryGetString`, bez reflexe). Začátek (14 kódových jednotek zaokrouhlených na konec shluku glyfů) i konec drží celé znaky (náhradní páry, kombinující diakritika, ZWJ emoji). Test `MiddleShorteningKeepsWholeCharacters` (9 názvů × šířky 40–420).
+  2. Čipy vynechané zprava byly dál ve stromu přístupnosti (čtečka by přečetla nevykreslený čip). `OverlayChipsPanel` má vlastní automation peer, jehož potomci jsou jen vykreslené čipy; při změně se strom zneplatní. Ověřeno v `ChipsThatDoNotFitAreLeftOutFromTheRight`.
+  - Text čipu materiálu se krátí po kódových jednotkách, ale parser připouští jen ASCII materiály, takže to nevadí.
