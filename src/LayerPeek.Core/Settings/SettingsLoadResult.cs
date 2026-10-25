@@ -28,7 +28,11 @@ public sealed record SettingsLoadResult
     /// <summary>Why the stored settings were not used; set for <see cref="SettingsLoadStatus.Corrupted"/> and <see cref="SettingsLoadStatus.Unreadable"/>.</summary>
     public string? ErrorMessage { get; init; }
 
-    /// <summary>Invalid parts of the file that were skipped or corrected while loading.</summary>
+    /// <summary>
+    /// Invalid parts of the file that were skipped or corrected while loading. Technical English for the log: the UI shows
+    /// only a translated notice that there were warnings, never these texts, so units keep a normal space ("5 s", "50 °C"),
+    /// unlike the status texts that can reach the UI (non-breaking space, user decision 2026-10-25).
+    /// </summary>
     public IReadOnlyList<string> Warnings { get; init; } = [];
 
     /// <summary>

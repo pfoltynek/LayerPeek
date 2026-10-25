@@ -518,11 +518,99 @@ public sealed class CameraLayoutModeViewModelTests : IAsyncDisposable
         Assert.True(await mode.SaveAsync());
 
         Assert.Empty(_writer.Saves);
+        // T-092 follow-up: the layout is confirmed instead (an open settings window drops its unsaved layout of the printer).
+        Assert.Equal([("mk4", CameraOverlayLayout.Default)], _writer.Confirms);
+        Assert.Equal(1, _writer.Confirmed);
         Assert.False(mode.IsActive);
         Assert.False(mode.HasSaveError);
         Assert.Equal([CameraLayoutEndReason.Saved], ended);
         Assert.Equal(CameraOverlayLayout.Default, viewModel.Overlay.SavedLayout);
         Assert.Equal(["status"], viewModel.Overlay.TopLeft.Select(static w => w.Id));
+    }
+
+    /// <summary>
+    /// T-092 follow-up: started from the settings window with its unsaved layout, the saved layout restored and "Done"
+    /// confirms the saved layout; a changed draft is saved and never confirmed.
+    /// </summary>
+    [Fact]
+    public async Task DoneWithTheSavedLayoutRestoredFromAStartingLayoutConfirmsIt()
+    {
+        CameraViewModel viewModel = Create();
+        CameraLayoutModeViewModel mode = viewModel.LayoutMode;
+        CameraOverlayLayout fromSettings = CameraOverlayLayout.Default.WithVisible(Times, visible: false);
+        mode.Start(fromSettings);
+        mode.Reset();
+
+        Assert.True(await mode.SaveAsync());
+
+        Assert.Empty(_writer.Saves);
+        Assert.Equal([("mk4", CameraOverlayLayout.Default)], _writer.Confirms);
+        Assert.False(mode.IsActive);
+
+        mode.Start(fromSettings);
+        Assert.True(await mode.SaveAsync());
+        Assert.Equal([("mk4", fromSettings)], _writer.Saves);
+        Assert.Single(_writer.Confirms);
+    }
+
+    [Fact]
+    public async Task ConfirmationThatWritesEndsTheModeWithTheLayout()
+    {
+        // A settings save changed the file meanwhile: the writer writes the confirmed layout (announced as a save).
+        CameraViewModel viewModel = Create();
+        CameraLayoutModeViewModel mode = viewModel.LayoutMode;
+        _writer.ConfirmWrites = true;
+        mode.Start();
+
+        Assert.True(await mode.SaveAsync());
+
+        Assert.False(mode.IsActive);
+        Assert.False(mode.HasSaveError);
+        Assert.Equal(1, _writer.Announced);
+        Assert.Equal(0, _writer.Confirmed);
+    }
+
+    [Fact]
+    public async Task FailedConfirmationKeepsTheModeAndShowsTheError()
+    {
+        CameraViewModel viewModel = Create();
+        CameraLayoutModeViewModel mode = viewModel.LayoutMode;
+        List<CameraLayoutEndReason> ended = [];
+        mode.Ended += (_, e) => ended.Add(e.Reason);
+        mode.Start();
+        _writer.Failure = new IOException("The settings file is locked.");
+
+        Assert.False(await mode.SaveAsync());
+
+        Assert.True(mode.IsActive);
+        Assert.True(mode.HasSaveError);
+        Assert.Empty(ended);
+        Assert.Equal("The layout could not be saved. Try again.", mode.Announcement);
+
+        _writer.Failure = null;
+        Assert.True(await mode.SaveAsync());
+        Assert.False(mode.IsActive);
+        Assert.Equal(2, _writer.Confirms.Count);
+    }
+
+    [Fact]
+    public async Task HeldConfirmationBlocksInputUntilItCompletes()
+    {
+        CameraViewModel viewModel = Create();
+        CameraLayoutModeViewModel mode = viewModel.LayoutMode;
+        mode.Start();
+        _writer.Hold();
+
+        Task<bool> saving = mode.SaveAsync();
+
+        Assert.True(mode.IsSaving);
+        Assert.False(mode.DoneCommand.CanExecute(null));
+        Assert.False(await mode.SaveAsync());
+        _writer.Release(result: false);
+        Assert.True(await saving.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken));
+        Assert.False(mode.IsSaving);
+        Assert.False(mode.IsActive);
+        Assert.Single(_writer.Confirms);
     }
 
     [Fact]

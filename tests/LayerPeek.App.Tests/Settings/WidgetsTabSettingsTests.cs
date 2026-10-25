@@ -742,13 +742,87 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     public async Task ClosedWindowStopsListeningToSavedLayouts()
     {
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        Assert.Equal(1, _announcer.ConfirmSubscribers);
         _announcer.Announce("a", CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.TopLeft));
+        _announcer.Confirm("a", CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.BottomLeft));
 
         vm.Dispose();
         _dispatcher.RunAll();
 
         Assert.Equal(0, _announcer.Subscribers);
+        Assert.Equal(0, _announcer.ConfirmSubscribers);
         Assert.Same(CameraOverlayLayout.Default, vm.Printers[0].OverlayLayout);
+    }
+
+    // ---- Layout confirmed by the layout mode without a write (T-092 follow-up, user decision 2026-10-25) ----
+
+    [Fact]
+    public async Task ConfirmedLayoutDropsOnlyTheUnsavedLayoutOfItsPrinterOnTheUiThread()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"), Printer("b", "Beta"));
+        PrinterEditorViewModel alpha = vm.Printers[0];
+        PrinterEditorViewModel beta = vm.Printers[1];
+        vm.SelectedPrinter = alpha;
+        Widget(vm, "status").IsShown = false;
+        alpha.Name = "Alpha 2";
+        vm.SelectedPrinter = beta;
+        Widget(vm, "times").IsShown = false;
+        CameraOverlayLayout betaUnsaved = beta.OverlayLayout;
+        vm.SelectedPrinter = alpha;
+
+        // "Done" in Alpha's camera window with the saved layout restored: nothing written, the layout confirmed.
+        await Task.Run(() => _announcer.Confirm("A", CameraOverlayLayout.Default), TestContext.Current.CancellationToken);
+        Assert.Equal(1, _dispatcher.Pending);
+        Assert.False(Widget(vm, "status").IsShown);
+        _dispatcher.RunAll();
+
+        Assert.Equal(CameraOverlayLayout.Default, alpha.OverlayLayout);
+        Assert.True(Widget(vm, "status").IsShown);
+        Assert.Equal("Alpha 2", alpha.Name);
+        Assert.Equal(betaUnsaved, beta.OverlayLayout);
+        Assert.True(vm.IsDirty);
+
+        // Only Beta's layout and Alpha's name are still unsaved.
+        alpha.Name = "Alpha";
+        vm.SelectedPrinter = beta;
+        Widget(vm, "times").IsShown = true;
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task ConfirmedLayoutAloneLeavesNoUnsavedChangeAndALaterSaveKeepsIt()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
+        Widget(vm, "times").IsShown = false;
+        Assert.True(vm.IsDirty);
+
+        _announcer.Confirm("a", CameraOverlayLayout.Default);
+        _dispatcher.RunAll();
+
+        Assert.False(vm.IsDirty);
+        Assert.True(Widget(vm, "times").IsShown);
+        vm.Printers[0].Name = "Alpha 2";
+        AppSettings saved = await SaveAsync(vm);
+        Assert.Equal(CameraOverlayLayout.Default, saved.Printers[0].Camera.Overlay);
+        Assert.Equal("Alpha 2", saved.Printers[0].Name);
+    }
+
+    [Fact]
+    public async Task NewRemovedAndUnknownPrintersIgnoreAConfirmedLayout()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"), Printer("b", "Beta"));
+        vm.AddPrinterCommand.Execute(null);
+        PrinterEditorViewModel added = vm.SelectedPrinter!;
+        vm.SelectedPrinter = vm.Printers[1];
+        vm.RemovePrinterCommand.Execute(null);
+        CameraOverlayLayout confirmed = CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.TopLeft);
+
+        _announcer.Confirm(added.Id, confirmed);
+        _announcer.Confirm("b", confirmed);
+        _announcer.Confirm("unknown", confirmed);
+        _dispatcher.RunAll();
+
+        Assert.All(vm.Printers, static printer => Assert.Same(CameraOverlayLayout.Default, printer.OverlayLayout));
     }
 
     // ---- Tab ----

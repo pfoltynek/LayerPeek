@@ -501,6 +501,113 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
     }
 
     [Fact]
+    public async Task ConfirmationOfTheStoredLayoutWritesNothingAndAnnouncesTheConfirmation()
+    {
+        await _store.SaveAsync(new AppSettings { Printers = [Printer("mk4", Changed)] }, Ct);
+        DateTime before = File.GetLastWriteTimeUtc(FilePath);
+        string original = await File.ReadAllTextAsync(FilePath, Ct);
+        CameraOverlayLayoutWriter writer = new(_store);
+        List<CameraOverlayLayoutSavedEventArgs> saved = [];
+        List<CameraOverlayLayoutSavedEventArgs> confirmed = [];
+        writer.LayoutSaved += (_, e) => saved.Add(e);
+        writer.LayoutConfirmed += (sender, e) =>
+        {
+            Assert.Same(writer, sender);
+            confirmed.Add(e);
+        };
+
+        Assert.False(await writer.ConfirmAsync(" mk4\t", Changed, Ct));
+
+        Assert.Empty(saved);
+        CameraOverlayLayoutSavedEventArgs confirmation = Assert.Single(confirmed);
+        Assert.Equal("mk4", confirmation.PrinterId);
+        Assert.Same(Changed, confirmation.Layout);
+        Assert.Equal(original, await File.ReadAllTextAsync(FilePath, Ct));
+        Assert.Equal(before, File.GetLastWriteTimeUtc(FilePath));
+    }
+
+    [Fact]
+    public async Task ConfirmationOfALayoutTheFileNoLongerHoldsWritesItAndAnnouncesASave()
+    {
+        // A settings save changed the layout after the camera window last saw it: what the user confirmed is written.
+        await _store.SaveAsync(new AppSettings { Printers = [Printer("mk4", CameraOverlayLayout.Default)] }, Ct);
+        CameraOverlayLayoutWriter writer = new(_store);
+        List<CameraOverlayLayoutSavedEventArgs> saved = [];
+        int confirmed = 0;
+        writer.LayoutSaved += (_, e) => saved.Add(e);
+        writer.LayoutConfirmed += (_, _) => confirmed++;
+
+        Assert.True(await writer.ConfirmAsync("mk4", Changed, Ct));
+
+        Assert.Equal(0, confirmed);
+        Assert.Same(Changed, Assert.Single(saved).Layout);
+        Assert.Equal(Changed, (await _store.LoadAsync(Ct)).Settings.Printers[0].Camera.Overlay);
+    }
+
+    [Fact]
+    public async Task FailingConfirmationSubscriberIsLoggedAndNeitherStopsTheOthersNorFailsTheCall()
+    {
+        await _store.SaveAsync(new AppSettings { Printers = [Printer("mk4", Changed)] }, Ct);
+        ListLogger<CameraOverlayLayoutWriter> logger = new();
+        CameraOverlayLayoutWriter writer = new(_store, logger);
+        InvalidOperationException failure = new("subscriber failed");
+        List<string> calls = [];
+        writer.LayoutConfirmed += (_, _) =>
+        {
+            calls.Add("first");
+            throw failure;
+        };
+        writer.LayoutConfirmed += (_, e) => calls.Add("second " + e.PrinterId);
+
+        Assert.False(await writer.ConfirmAsync("mk4", Changed, Ct));
+
+        Assert.Equal(["first", "second mk4"], calls);
+        (LogLevel level, Exception? exception, string message) = Assert.Single(logger.Entries);
+        Assert.Equal(LogLevel.Error, level);
+        Assert.Same(failure, exception);
+        Assert.Contains("LayoutConfirmed", message, StringComparison.Ordinal);
+        Assert.Contains("mk4", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ConfirmationOverAStoreWithoutAFileIsAnnouncedWithoutAWrite()
+    {
+        CameraOverlayLayoutWriter writer = new(new MemoryOnlyStore());
+        bool saved = false;
+        bool confirmed = false;
+        writer.LayoutSaved += (_, _) => saved = true;
+        writer.LayoutConfirmed += (_, _) => confirmed = true;
+
+        Assert.False(await writer.ConfirmAsync("mk4", Changed, Ct));
+
+        Assert.False(saved);
+        Assert.True(confirmed);
+        await Assert.ThrowsAsync<ArgumentException>(() => writer.ConfirmAsync(" ", Changed, Ct));
+        await Assert.ThrowsAsync<ArgumentNullException>(() => writer.ConfirmAsync("mk4", null!, Ct));
+    }
+
+    [Fact]
+    public async Task ConfirmationOverAFileOfANewerFormatLeavesItAloneAndAnnouncesTheConfirmation()
+    {
+        // The running settings were loaded from this file, so the confirmed (saved) layout is what it holds; a newer
+        // format is never written by the layout writer, and "Done" with the saved layout is no error (T-093).
+        const string Original = """{ "version": 3, "printers": [ { "id": "mk4", "camera": { } } ] }""";
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(FilePath, Original, Ct);
+        CameraOverlayLayoutWriter writer = new(_store);
+        int saved = 0;
+        List<CameraOverlayLayoutSavedEventArgs> confirmed = [];
+        writer.LayoutSaved += (_, _) => saved++;
+        writer.LayoutConfirmed += (_, e) => confirmed.Add(e);
+
+        Assert.False(await writer.ConfirmAsync("mk4", Changed, Ct));
+
+        Assert.Equal(0, saved);
+        Assert.Same(Changed, Assert.Single(confirmed).Layout);
+        Assert.Equal(Original, await File.ReadAllTextAsync(FilePath, Ct));
+    }
+
+    [Fact]
     public async Task WriterOverAStoreWithoutAFileWritesAndAnnouncesNothing()
     {
         CameraOverlayLayoutWriter writer = new(new MemoryOnlyStore());

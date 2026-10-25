@@ -1,10 +1,15 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Time.Testing;
 
+using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Composition;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Settings.Widgets;
+using LayerPeek.App.Tests.Cameras;
+using LayerPeek.App.Tests.Cameras.Layout;
 using LayerPeek.App.Tests.Tray;
+using LayerPeek.App.Tray;
 using LayerPeek.App.Tests.Tray.Menu;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
@@ -19,7 +24,8 @@ namespace LayerPeek.App.Tests.Settings;
 /// T-092 follow-up (lost update): "Done" of the layout mode of a camera window and "Save" / "Apply" of the settings window
 /// at almost the same moment. A layout the settings window did not change is saved as the camera window saved it, in both
 /// orders and while the window loads; a layout changed in the window still wins; the window is not dirty afterwards.
-/// Everything in memory.
+/// "Done" with the saved layout (nothing to write) confirms it: the window drops its unsaved layout of that printer, also
+/// around a save of the window. Everything in memory.
 /// </summary>
 public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
 {
@@ -30,6 +36,11 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
     private readonly FakeWebGateway _gateway = new();
     private readonly ManualDispatcher _dispatcher = new();
     private readonly SettingsWriteGate _gate = new();
+    private readonly FakeCameraFeedFactory _feeds = new();
+    private readonly FakeTimeProvider _time = new();
+    private readonly FakePrinterMonitor _monitor = new();
+    private readonly MonitoredPrinters _printers = new();
+    private readonly List<CameraViewModel> _cameras = [];
     private SettingsViewModel? _viewModel;
 
     private static CancellationToken Ct => TestContext.Current.CancellationToken;
@@ -37,6 +48,12 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _viewModel?.Dispose();
+        foreach (CameraViewModel camera in _cameras)
+        {
+            camera.Dispose();
+            await camera.StreamCompletion.WaitAsync(TestTimeouts.Wait, Ct);
+        }
+
         _gate.Dispose();
         await _gateway.DisposeAsync();
     }
@@ -56,7 +73,7 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
 
     private DeferredCameraOverlayLayoutWriter Writer(LayoutRaceStore store) => new(() => store, NullLogger<CameraOverlayLayoutWriter>.Instance, _gate);
 
-    private SettingsViewModel ViewModel(ISettingsEditorStore store, ICameraOverlayLayoutWriter writer)
+    private SettingsViewModel ViewModel(ISettingsEditorStore store, ICameraOverlayLayoutWriter writer, ICameraLayoutModeLauncher? launcher = null)
     {
         SettingsViewModel vm = new(
             store,
@@ -64,17 +81,39 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
             Supported,
             cameraTester: new FakeCameraTester(),
             widgets: OverlayWidgets.CreateRegistry(),
+            layoutModeLauncher: launcher,
             layoutWriter: writer,
             uiDispatcher: _dispatcher);
         _viewModel = vm;
         return vm;
     }
 
-    private async Task<SettingsViewModel> LoadAsync(LayoutRaceStore store, ICameraOverlayLayoutWriter writer)
+    private async Task<SettingsViewModel> LoadAsync(LayoutRaceStore store, ICameraOverlayLayoutWriter writer, ICameraLayoutModeLauncher? launcher = null)
     {
-        SettingsViewModel vm = ViewModel(Editor(store), writer);
+        SettingsViewModel vm = ViewModel(Editor(store), writer, launcher);
         await vm.LoadAsync();
         return vm;
+    }
+
+    /// <summary>The camera window of <paramref name="printer"/> with the app's layout writer, as the launcher opens it.</summary>
+    private CameraViewModel CameraWindow(PrinterDefinition printer, ICameraOverlayLayoutWriter writer)
+    {
+        ReconnectingCameraFeed feed = new(_feeds, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraViewModel camera = new(
+            CameraTarget.From(printer)!,
+            feed,
+            _monitor,
+            _printers,
+            _dispatcher,
+            new MemoryCameraWindowStateStore(),
+            _time,
+            CameraFeedOptions.Default,
+            NullLogger<CameraViewModel>.Instance,
+            widgets: LayoutTestWidgets.Registry(),
+            layoutWriter: writer);
+        _cameras.Add(camera);
+        camera.OnClientSizeChanged(960, 540);
+        return camera;
     }
 
     private static WidgetItemViewModel Widget(SettingsViewModel vm, string id) => vm.Widgets.Single(widget => widget.Id == id);
@@ -395,6 +434,125 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
         Assert.False(vm.IsDirty);
     }
 
+    // ---- "Done" with the saved layout restored in a layout mode started from the window (T-092 follow-up) ----
+
+    [Fact]
+    public async Task RestoringTheSavedLayoutInTheCameraWindowDropsTheWindowsUnsavedLayoutOfThatPrinter()
+    {
+        LayoutRaceStore store = new(Settings(Printer("a", "Alpha"), Printer("b", "Beta")));
+        DeferredCameraOverlayLayoutWriter writer = Writer(store);
+        CameraViewModel camera = CameraWindow(store.Current.Printers[0], writer);
+        CameraWindowLauncher launcher = new(camera);
+        SettingsViewModel vm = await LoadAsync(store, writer, launcher);
+        PrinterEditorViewModel alpha = vm.Printers[0];
+        vm.SelectedPrinter = alpha;
+        Widget(vm, OverlayWidgetIds.Times).IsShown = false;
+        CameraOverlayLayout unsaved = alpha.OverlayLayout;
+        vm.Printers[1].Name = "Beta 2";
+
+        // "Edit layout in camera window…" with the unsaved layout, "Restore defaults" (the saved layout), "Done".
+        vm.EditLayoutCommand.Execute(null);
+        CameraLayoutModeViewModel mode = camera.LayoutMode;
+        Assert.Equal(unsaved, mode.Draft);
+        mode.Reset();
+        Assert.Equal(CameraOverlayLayout.Default, mode.Draft);
+        Assert.True(await mode.SaveAsync());
+        _dispatcher.RunAll();
+
+        // Nothing written, but the settings window took the confirmed layout over: a later save cannot bring back the old one.
+        Assert.Equal(["layout a unchanged"], store.Log);
+        Assert.Equal(CameraOverlayLayout.Default, alpha.OverlayLayout);
+        Assert.True(Widget(vm, OverlayWidgetIds.Times).IsShown);
+        Assert.Equal("Beta 2", vm.Printers[1].Name);
+        Assert.True(vm.IsDirty);
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Equal(CameraOverlayLayout.Default, OverlayOf(store.Current, "a"));
+        Assert.Equal("Beta 2", store.Current.Printers[1].Name);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task DoneWithTheWindowsLayoutStillSavesItAndTheWindowTakesItOver()
+    {
+        LayoutRaceStore store = new(Settings(Printer("a", "Alpha")));
+        DeferredCameraOverlayLayoutWriter writer = Writer(store);
+        CameraViewModel camera = CameraWindow(store.Current.Printers[0], writer);
+        SettingsViewModel vm = await LoadAsync(store, writer, new CameraWindowLauncher(camera));
+        PrinterEditorViewModel alpha = vm.Printers[0];
+        Widget(vm, OverlayWidgetIds.Times).IsShown = false;
+        CameraOverlayLayout unsaved = alpha.OverlayLayout;
+
+        vm.EditLayoutCommand.Execute(null);
+        Assert.True(await camera.LayoutMode.SaveAsync());
+        _dispatcher.RunAll();
+
+        Assert.Equal(["set layout a"], store.Log);
+        Assert.Equal(unsaved, OverlayOf(store.Current, "a"));
+        Assert.Equal(unsaved, alpha.OverlayLayout);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task ConfirmationWhileTheWindowAppliesItsLayoutWritesTheConfirmedLayoutAfterIt()
+    {
+        LayoutRaceStore store = new(Settings(Printer("a", "Alpha"))) { SaveGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        DeferredCameraOverlayLayoutWriter writer = Writer(store);
+        CameraViewModel camera = CameraWindow(store.Current.Printers[0], writer);
+        SettingsViewModel vm = await LoadAsync(store, writer, new CameraWindowLauncher(camera));
+        PrinterEditorViewModel alpha = vm.Printers[0];
+        Widget(vm, OverlayWidgetIds.Times).IsShown = false;
+        vm.EditLayoutCommand.Execute(null);
+        CameraLayoutModeViewModel mode = camera.LayoutMode;
+        mode.Reset();
+
+        // "Apply" writes the window's layout; "Done" with the saved layout comes meanwhile and waits for it.
+        Task applying = vm.ApplyAsync(alpha);
+        await store.SaveStarted.Task.WaitAsync(TestTimeouts.Wait, Ct);
+        Task<bool> confirming = mode.SaveAsync();
+        Assert.False(confirming.IsCompleted);
+        store.SaveGate.SetResult();
+        await applying.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.True(await confirming.WaitAsync(TestTimeouts.Wait, Ct));
+        _dispatcher.RunAll();
+
+        // The file held the window's layout by then, so the confirmed one is written after it and taken over.
+        Assert.Equal(["save settings", "apply", "set layout a"], store.Log);
+        Assert.Equal(CameraOverlayLayout.Default, OverlayOf(store.Current, "a"));
+        Assert.Equal(CameraOverlayLayout.Default, alpha.OverlayLayout);
+        Assert.False(vm.IsDirty);
+    }
+
+    [Fact]
+    public async Task ConfirmationWhileTheWindowSavesIsTakenOverAfterTheSave()
+    {
+        FakeEditorStore store = new() { SaveGate = new(TaskCreationOptions.RunContinuationsAsynchronously) };
+        store.Data = new SettingsEditorData(Settings(Printer("a", "Alpha")), SettingsLoadStatus.Loaded, [], Ids());
+        FakeLayoutAnnouncer announcer = new();
+        SettingsViewModel vm = ViewModel(store, announcer);
+        await vm.LoadAsync();
+        PrinterEditorViewModel alpha = vm.Printers[0];
+        alpha.Name = "Alpha 2";
+
+        Task applying = vm.ApplyAsync(alpha);
+        Assert.True(vm.IsSaving);
+        announcer.Confirm("a", Moved);
+        _dispatcher.RunAll();
+        Assert.Same(CameraOverlayLayout.Default, alpha.OverlayLayout);
+        store.SaveGate.SetResult();
+        await applying.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(Moved, alpha.OverlayLayout);
+        Assert.False(vm.IsDirty);
+        Assert.Equal("Alpha 2", alpha.Name);
+    }
+
+    /// <summary>"Edit layout in camera window…": starts the layout mode of the one camera window of the test.</summary>
+    private sealed class CameraWindowLauncher(CameraViewModel camera) : ICameraLayoutModeLauncher
+    {
+        public bool Start(string printerId, CameraOverlayLayout? startingLayout) =>
+            string.Equals(printerId, camera.PrinterId, StringComparison.OrdinalIgnoreCase) && camera.LayoutMode.Start(startingLayout);
+    }
+
     /// <summary>Latest layouts as a test sets them.</summary>
     private sealed class Latest : Dictionary<string, CameraOverlayLayout>, ILatestOverlayLayouts
     {
@@ -476,12 +634,20 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
             }
         }
 
+        /// <summary>Like the file store: written (and <see langword="true"/>) only when the stored layout differs.</summary>
         public Task<bool> SetCameraOverlayLayoutAsync(string printerId, CameraOverlayLayout layout, CancellationToken cancellationToken)
         {
             lock (_lock)
             {
+                AppSettings updated = _current.WithCameraOverlayLayout(printerId, layout);
+                if (OverlayOf(updated, printerId) == OverlayOf(_current, printerId))
+                {
+                    _log.Add($"layout {printerId} unchanged");
+                    return Task.FromResult(false);
+                }
+
                 _log.Add($"set layout {printerId}");
-                _current = _current.WithCameraOverlayLayout(printerId, layout);
+                _current = updated;
             }
 
             return Task.FromResult(true);

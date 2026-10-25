@@ -72,11 +72,67 @@ public sealed class DeferredCameraOverlayLayoutWriterTests
     }
 
     [Fact]
+    public async Task ConfirmationWaitsForTheWriteGateAndReachesHandlersSubscribedBeforeTheFirstCall()
+    {
+        OverlayStore store = new() { Result = false };
+        using SettingsWriteGate gate = new();
+        DeferredCameraOverlayLayoutWriter writer = new(() => store, NullLogger<CameraOverlayLayoutWriter>.Instance, gate);
+        List<CameraOverlayLayoutSavedEventArgs> confirmed = [];
+        List<CameraOverlayLayoutSavedEventArgs> removed = [];
+        int saved = 0;
+        writer.LayoutSaved += (_, _) => saved++;
+        writer.LayoutConfirmed += (_, e) => confirmed.Add(e);
+        void Removed(object? sender, CameraOverlayLayoutSavedEventArgs e) => removed.Add(e);
+        writer.LayoutConfirmed += Removed;
+        writer.LayoutConfirmed -= Removed;
+        await gate.EnterAsync(Ct);
+
+        // A settings save holds the gate: the confirmation compares with the file only after it.
+        Task<bool> confirming = writer.ConfirmAsync(" mk4 ", Moved, Ct);
+        Assert.False(confirming.IsCompleted);
+        Assert.Empty(store.Saves);
+        Assert.Empty(confirmed);
+        gate.Exit();
+
+        Assert.False(await confirming.WaitAsync(TestTimeouts.Wait, Ct));
+        Assert.Equal([("mk4", Moved)], store.Saves);
+        Assert.Equal("mk4", Assert.Single(confirmed).PrinterId);
+        Assert.Equal(0, saved);
+        Assert.Empty(removed);
+        // Released after the confirmation.
+        Assert.True(gate.EnterAsync(Ct).IsCompletedSuccessfully);
+        gate.Exit();
+
+        // Subscribed after the inner writer exists.
+        List<CameraOverlayLayoutSavedEventArgs> after = [];
+        writer.LayoutConfirmed += (_, e) => after.Add(e);
+        Assert.False(await writer.ConfirmAsync("mk4", CameraOverlayLayout.Default, Ct));
+        Assert.Same(CameraOverlayLayout.Default, Assert.Single(after).Layout);
+        Assert.Equal(2, confirmed.Count);
+    }
+
+    [Fact]
+    public async Task ConfirmationThatWritesIsAnnouncedAsASave()
+    {
+        DeferredCameraOverlayLayoutWriter writer = new(() => new OverlayStore(), NullLogger<CameraOverlayLayoutWriter>.Instance);
+        int saved = 0;
+        int confirmed = 0;
+        writer.LayoutSaved += (_, _) => saved++;
+        writer.LayoutConfirmed += (_, _) => confirmed++;
+
+        Assert.True(await writer.ConfirmAsync("mk4", Moved, Ct));
+
+        Assert.Equal(1, saved);
+        Assert.Equal(0, confirmed);
+    }
+
+    [Fact]
     public async Task NothingWrittenIsNotAnnounced()
     {
         DeferredCameraOverlayLayoutWriter writer = new(() => new OverlayStore { Result = false }, NullLogger<CameraOverlayLayoutWriter>.Instance);
         int announced = 0;
         writer.LayoutSaved += (_, _) => announced++;
+        writer.LayoutConfirmed += (_, _) => announced++;
 
         Assert.False(await writer.SaveAsync("mk4", Moved, Ct));
         Assert.Equal(0, announced);

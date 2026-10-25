@@ -40,12 +40,14 @@ public sealed partial class ReconnectingCameraFeed
         _timeProvider = timeProvider;
         _logger = logger;
         _options = options ?? CameraFeedOptions.Default;
+        // The reasons reach the UI (status detail of the camera window), so number and unit are joined by a
+        // non-breaking space (U+00A0); the log messages below keep a normal space.
         _connectTimedOut = new CameraStatus(
             CameraConnectionState.NoSignal,
-            string.Create(CultureInfo.InvariantCulture, $"The camera sent no image within {_options.ConnectTimeout.TotalSeconds:0.#} s."));
+            string.Create(CultureInfo.InvariantCulture, $"The camera sent no image within {_options.ConnectTimeout.TotalSeconds:0.#} s."));
         _frameTimedOut = new CameraStatus(
             CameraConnectionState.NoSignal,
-            string.Create(CultureInfo.InvariantCulture, $"The camera stopped sending images (none within {_options.FrameTimeout.TotalSeconds:0.#} s)."));
+            string.Create(CultureInfo.InvariantCulture, $"The camera stopped sending images (none within {_options.FrameTimeout.TotalSeconds:0.#} s)."));
     }
 
     /// <summary>

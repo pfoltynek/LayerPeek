@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 
@@ -162,6 +164,36 @@ public sealed class PrinterMonitorTests : IAsyncDisposable
         Assert.Equal(PrinterState.Offline, snapshot.State);
         Assert.Equal(Start + PrinterMonitorOptions.Default.PollTimeout, snapshot.Timestamp);
         Assert.False(string.IsNullOrWhiteSpace(snapshot.StatusMessage));
+    }
+
+    [Fact]
+    public async Task TimeoutMessageKeepsNumberAndUnitTogether()
+    {
+        // The status message is the Diagnostics window's fallback detail: a non-breaking space between number and unit,
+        // and the number is formatted the same way in every culture.
+        CultureInfo previous = CultureInfo.CurrentCulture;
+        CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("cs-CZ");
+        try
+        {
+            TimeSpan timeout = TimeSpan.FromSeconds(2.5);
+            PrinterMonitor monitor = new(_factory, _time, _logger, new PrinterMonitorOptions { PollTimeout = timeout });
+            SnapshotRecorder recorder = new(monitor);
+            FakePrinterClient client = _factory["mk4"];
+            client.Hangs();
+            Task run = monitor.RunAsync([Printer("mk4")], Interval, _cts.Token);
+            await client.NextCallAsync();
+
+            _time.Advance(timeout);
+            PrinterSnapshot snapshot = await recorder.NextAsync("mk4");
+
+            Assert.Equal("The printer did not respond within 2.5 s.", snapshot.StatusMessage);
+            await _cts.CancelAsync();
+            await run.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previous;
+        }
     }
 
     [Fact]

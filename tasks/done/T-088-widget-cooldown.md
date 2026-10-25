@@ -36,6 +36,12 @@ Widget **Vychladnutí**, který se objeví po dokončení nebo zastavení tisku 
 ## Rozhodnutí (uživatel, 2026-10-25)
 - Nastavení widgetu (práh trysky, „Použít práh u všech tiskáren“, stav upozornění) je v panelu Vychladnutí na nové záložce **Widgety** (T-092, otázka Q6 jeho návrhu). Tento úkol zaregistruje panel Vychladnutí podle smlouvy, kterou zavádí T-092 (`DescriptionKey`, `IconKey`, `IOverlayWidgetSettingsFactory`). Proto nově závisí na T-092 (T-092 naopak na tomto úkolu nezávisí).
 - **Délky se nezalamují mezi číslem a jednotkou (po review, nejdřív testy):** mezi číslem a jednotkou je ve všech 8 jazycích nezlomitelná mezera (U+00A0), stejně jako před „°C“: „3 min“, „cca 6 min“, „−60 min“, odhad sliceru. Mezi částmi („2 h“ a „35 min“) zůstává obyčejná mezera, aby se dlouhá délka mohla zalomit mezi nimi.
+- **Nezlomitelná mezera i v textech z Core, které se dostanou do UI (2026-10-25, větev `feature/widget-final-followups`, nejdřív testy):** mezi číslem a jednotkou je U+00A0 i v technických anglických zprávách z Core, které okno ukáže. Rozhoduje se u každého textu zvlášť, hranice je v kódu popsaná komentářem:
+  - Změněno: `PrinterMonitor` „The printer did not respond within 10 s.“ (stavová zpráva snímku, záložní detail okna Diagnostika; nově i formát čísla nezávislý na jazyce, „2.5 s“ i v češtině) a `ReconnectingCameraFeed` „The camera sent no image within 20 s.“ / „The camera stopped sending images (none within 10 s).“ (důvod stavu kamery, detail v okně kamery).
+  - Beze změny (do UI se nedostanou): varování `SettingsMapper` při načtení nastavení („Polling interval … s“, „… min“, „… °C“) jdou jen do logu, okno nastavení ukáže jen přeložené upozornění, že nějaká byla (`SettingsLoadResult.Warnings`); výjimka `CooldownThreshold.Validate` („… °C“) je chyba programu, okno nastavení pole ověřuje vlastním přeloženým textem; zprávy `LoggerMessage` a texty pro podporu (`SupportInfo`, např. „42 s ago“).
+  - Slova vypsaná celá („60 minut“, „bytes“) zůstávají, jak jsou (rozhodnutí uživatele).
+  - V `src/LayerPeek.PrusaLink`, `src/LayerPeek.PrusaConnect` a `src/LayerPeek.Camera.FFmpeg` žádný takový text pro UI není (jednotky jsou jen v komentářích).
+  - Testy: `PrinterMonitorTests.TimeoutMessageKeepsNumberAndUnitTogether` (i v kultuře cs-CZ), přesné texty v `ReconnectingCameraFeedTests` (`NoFrameWithinConnectTimeoutReportsNoSignalAndReconnects`, `StalledStreamReportsNoSignalAfterFrameTimeout`), upravený očekávaný text v `DiagnosticsWindowLayoutTests`.
 
 ## Otevřené otázky
 - (žádné)

@@ -22,6 +22,8 @@ public static class CooldownThreshold
     {
         if (!IsValid(celsius))
         {
+            // A programming error (the settings window validates the field with its own translated text), never shown
+            // in the UI, so a normal space before "°C".
             throw new ArgumentOutOfRangeException(paramName ?? nameof(celsius), celsius, $"The cool-down threshold must be within {MinCelsius}–{MaxCelsius} °C.");
         }
     }
