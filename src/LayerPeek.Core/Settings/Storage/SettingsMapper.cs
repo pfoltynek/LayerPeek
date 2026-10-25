@@ -988,7 +988,8 @@ internal static class SettingsMapper
     /// <summary>
     /// The mini preview (T-089 Q4): as <see cref="ToLayout(CameraWindowLayoutDocument?, CameraWindowLayout, string, List{string})"/>,
     /// and a usable width below <see cref="CameraWindowSize.MinMiniWidth"/> (saved before the info strip existed) is raised
-    /// to it with one warning; the height (of the image) stays.
+    /// to it with one warning. The image keeps its aspect ratio, like an old remembered mini preview does: the height is
+    /// scaled by the same factor (rounded half away from zero, at most <see cref="CameraWindowSize.MaxSize"/>).
     /// </summary>
     private static CameraWindowLayout ToMiniLayout(CameraWindowLayoutDocument? document, CameraWindowLayout fallback, string subject, List<string> warnings)
     {
@@ -998,8 +999,11 @@ internal static class SettingsMapper
             return layout;
         }
 
-        warnings.Add($"{subject} is narrower than {CameraWindowSize.MinMiniWidth}; the width {CameraWindowSize.MinMiniWidth} is used.");
-        return layout with { Size = new CameraWindowSize(CameraWindowSize.MinMiniWidth, layout.Size.Height) };
+        // The width is at least CameraWindowSize.MinWidth, so the factor is at most 1.5 and the height only grows.
+        double height = Math.Round((double)layout.Size.Height * CameraWindowSize.MinMiniWidth / layout.Size.Width, MidpointRounding.AwayFromZero);
+        int scaledHeight = (int)Math.Min(height, CameraWindowSize.MaxSize);
+        warnings.Add($"{subject} is narrower than {CameraWindowSize.MinMiniWidth}; it is widened to {CameraWindowSize.MinMiniWidth} keeping its aspect ratio.");
+        return layout with { Size = new CameraWindowSize(CameraWindowSize.MinMiniWidth, scaledHeight) };
     }
 
     /// <summary>Whole number that fits an <see cref="int"/>; fractions, non-finite and missing values are rejected.</summary>

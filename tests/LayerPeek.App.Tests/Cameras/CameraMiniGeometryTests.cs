@@ -130,17 +130,21 @@ public sealed class CameraMiniGeometryTests
     }
 
     [Theory]
-    [InlineData(1.0)]
-    [InlineData(1.25)]
-    [InlineData(1.5)]
-    [InlineData(1.75)]
-    [InlineData(2.0)]
-    public void WindowMovedAnywhereComesBackAtTheSamePlaceAtAnyScaling(double scaling)
+    [InlineData(1.0, 0, 0, 1600, 900)]
+    [InlineData(1.25, 0, 0, 2000, 1125)]
+    [InlineData(1.5, 0, 0, 2400, 1350)]
+    [InlineData(1.75, 0, 0, 2800, 1575)]
+    [InlineData(2.0, 0, 0, 3200, 1800)]
+    // A monitor left of and above the primary one (negative coordinates), odd and even work area heights.
+    [InlineData(1.0, -1920, -1033, 1920, 1033)]
+    [InlineData(1.25, -2400, -347, 2400, 1290)]
+    [InlineData(1.75, -3360, -1890, 3360, 1849)]
+    public void WindowMovedAnywhereComesBackAtTheSamePlaceAtAnyScaling(double scaling, int areaX, int areaY, int areaWidth, int areaHeight)
     {
         // Wherever the user drags the window (every pixel row, including the rows around the middle where it grows by
         // half to both sides), the remembered image opens as the same window again.
-        PixelBounds area = new(0, 0, (int)(1600 * scaling), (int)(900 * scaling));
-        CameraWindowPlacement size = CameraMiniGeometry.Correct(new PixelBounds(100, 0, 1, 1), 320, scaling, area, null, Strip);
+        PixelBounds area = new(areaX, areaY, areaWidth, areaHeight);
+        CameraWindowPlacement size = CameraMiniGeometry.Correct(new PixelBounds(areaX + 100, areaY, 1, 1), 320, scaling, area, null, Strip);
         PixelBounds sized = Pixels(size, scaling);
         for (int top = area.Y; top <= area.Bottom - sized.Height; top++)
         {

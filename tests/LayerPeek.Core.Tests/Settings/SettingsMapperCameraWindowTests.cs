@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 
 using LayerPeek.Core.Cameras;
@@ -245,23 +246,32 @@ public class SettingsMapperCameraWindowTests
     }
 
     [Theory]
-    [InlineData(160, 90)]
-    [InlineData(239, 180)]
-    public void MiniPreviewNarrowerThan240IsMadeWiderWithOneWarningAndKeepsItsHeightAndCorner(int width, int height)
+    [InlineData(160, 90, 135)]
+    [InlineData(239, 180, 181)] // 180.75
+    [InlineData(200, 112, 134)] // 134.4
+    [InlineData(160, 91, 137)] // 136.5, half away from zero
+    [InlineData(239, 90, 90)] // 90.38
+    [InlineData(160, CameraWindowSize.MaxSize, CameraWindowSize.MaxSize)] // 24576 would be above the maximum
+    [InlineData(200, 13654, CameraWindowSize.MaxSize)] // 16384.8
+    public void MiniPreviewNarrowerThan240IsMadeWiderWithOneWarningAndKeepsItsAspectRatioAndCorner(int width, int height, int expectedHeight)
     {
-        // T-089 Q4: saved before the info strip, when the mini preview could be 160 wide.
+        // T-089 Q4: saved before the info strip, when the mini preview could be 160 wide. Like an old remembered window
+        // (CameraMiniGeometry), the image keeps its aspect ratio: 160 × 90 becomes 240 × 135, not 240 × 90.
         AppSettings settings = Load(
             PrinterJson($$""", "camera": { "window": { "normal": { "width": 160, "height": 90 }, "mini": { "width": {{width}}, "height": {{height}}, "corner": "TopLeft" } } }"""),
             out List<string> warnings);
 
         CameraWindowDefaults window = Assert.Single(settings.Printers).Camera.Window;
-        Assert.Equal(new CameraWindowLayout(new CameraWindowSize(240, height), CameraWindowCorner.TopLeft), window.Mini);
+        Assert.Equal(new CameraWindowLayout(new CameraWindowSize(240, expectedHeight), CameraWindowCorner.TopLeft), window.Mini);
         // The normal window keeps its minimum of 160.
         Assert.Equal(new CameraWindowSize(160, 90), window.Normal.Size);
         string warning = Assert.Single(warnings);
         Assert.Contains("mini preview", warning, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("240", warning, StringComparison.Ordinal);
         Assert.Contains("mk4", warning, StringComparison.Ordinal);
+        // The values from the file are not echoed.
+        Assert.DoesNotContain(width.ToString(CultureInfo.InvariantCulture), warning, StringComparison.Ordinal);
+        Assert.DoesNotContain(height.ToString(CultureInfo.InvariantCulture), warning, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -281,7 +291,7 @@ public class SettingsMapperCameraWindowTests
         AppSettings again = RoundTrip(loaded, out List<string> warnings);
 
         Assert.Empty(warnings);
-        Assert.Equal(new CameraWindowSize(240, 112), Assert.Single(again.Printers).Camera.Window.Mini.Size);
+        Assert.Equal(new CameraWindowSize(240, 134), Assert.Single(again.Printers).Camera.Window.Mini.Size);
     }
 
     [Theory]
