@@ -37,6 +37,7 @@ public sealed partial class PrintThumbnails
     private readonly TimeSpan _retryDelay;
     private readonly Lock _lock = new();
     private readonly Dictionary<DecodeKey, Decoded> _decoded = [];
+    private int _busy;
 
     /// <param name="retryDelay">How long to wait before asking again for a missing preview; default: the cache's retry delay.</param>
     internal PrintThumbnails(
@@ -72,6 +73,12 @@ public sealed partial class PrintThumbnails
             }
         }
     }
+
+    /// <summary>
+    /// Requests that are fetching or decoding (not finished and not waiting for a retry); for tests, which wait for this
+    /// state instead of for a quiet period. Its updates are posted before a request stops counting.
+    /// </summary>
+    internal int BusyCount => Volatile.Read(ref _busy);
 
     /// <summary>
     /// UI thread: starts getting the thumbnail of <paramref name="job"/> (pass the job of the printer's latest snapshot)
@@ -220,7 +227,12 @@ public sealed partial class PrintThumbnails
         /// <summary>Under the owner's lock: disposed; takes no decoding any more.</summary>
         public bool IsReleased { get; set; }
 
-        public void Start() => _ = RunAsync(_cancellation.Token);
+        public void Start()
+        {
+            // Counted before the first await, so a test never sees a started request as idle.
+            Interlocked.Increment(ref owner._busy);
+            _ = RunAsync(_cancellation.Token);
+        }
 
         public void Dispose()
         {
@@ -269,7 +281,15 @@ public sealed partial class PrintThumbnails
                         Deliver(null);
                     }
 
-                    await retry.ConfigureAwait(false);
+                    Interlocked.Decrement(ref owner._busy);
+                    try
+                    {
+                        await retry.ConfigureAwait(false);
+                    }
+                    finally
+                    {
+                        Interlocked.Increment(ref owner._busy);
+                    }
                 }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -281,6 +301,10 @@ public sealed partial class PrintThumbnails
                 // The source never throws by contract; a broken one must not take the window down.
                 string failure = ex.GetType().Name;
                 owner.LogRequestFailed(failure);
+            }
+            finally
+            {
+                Interlocked.Decrement(ref owner._busy);
             }
         }
 

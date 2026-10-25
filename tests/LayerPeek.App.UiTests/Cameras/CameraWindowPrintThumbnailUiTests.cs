@@ -194,7 +194,7 @@ public sealed class CameraWindowPrintThumbnailUiTests(HeadlessSession session)
         {
             await using CameraHarness harness = Harness(size, out FakePreviewSource source);
             CameraWindow window = await OpenAsync(harness, Job(path: "usb/NOPREV~1.BGC"), _ => source.RequestCount == 1);
-            await Task.Delay(50, TestContext.Current.CancellationToken);
+            await Ui.UntilAsync(() => Widget(window).Thumbnails!.BusyCount == 0, "thumbnail request answered");
             window.Settle();
 
             // No empty frame, no placeholder: the title starts at the card's padding (M 14, L 16).
@@ -212,7 +212,7 @@ public sealed class CameraWindowPrintThumbnailUiTests(HeadlessSession session)
             await using CameraHarness harness = Harness(OverlayWidgetSize.Medium, out FakePreviewSource source);
             source.Previews[FoldablePath] = Corrupt();
             CameraWindow window = await OpenAsync(harness, Job(), _ => source.RequestCount == 1);
-            await Task.Delay(100, TestContext.Current.CancellationToken);
+            await Ui.UntilAsync(() => Widget(window).Thumbnails!.BusyCount == 0, "corrupt preview decoded");
             window.Settle();
 
             Assert.False(window.IsShown<Border>(ThumbnailId));

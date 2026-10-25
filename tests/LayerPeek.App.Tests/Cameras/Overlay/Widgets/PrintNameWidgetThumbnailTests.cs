@@ -103,21 +103,18 @@ public sealed class PrintNameWidgetThumbnailTests : IDisposable
 
     /// <summary>
     /// Waits until <paramref name="expectedRequests"/> previews were asked for and the UI thread got every resulting update
-    /// (decoding runs on the thread pool): until nothing more is posted for a while.
+    /// (decoding runs on the thread pool): until no request is fetching or decoding and nothing is posted any more. Waits
+    /// for that state, not for a quiet period, so a busy thread pool cannot end it early.
     /// </summary>
     private async Task SettleAsync(int expectedRequests)
     {
         await Waiting.UntilAsync(() => _source.RequestCount >= expectedRequests, $"{expectedRequests} preview request(s)");
-        DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
-        int posts;
         do
         {
-            posts = _dispatcher.PostCount;
-            await Task.Delay(40, TestContext.Current.CancellationToken);
+            await Waiting.UntilAsync(() => _thumbnails.BusyCount == 0, "thumbnail requests idle");
             _dispatcher.RunAll();
-            Assert.True(DateTime.UtcNow < deadline, "The thumbnail updates never settled.");
         }
-        while (posts != _dispatcher.PostCount);
+        while (_thumbnails.BusyCount != 0 || _dispatcher.Pending != 0);
     }
 
     // ---- Which preview, which size ----

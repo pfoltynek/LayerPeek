@@ -207,6 +207,24 @@ public sealed class PrintThumbnailsTests
     }
 
     [Fact]
+    public async Task RequestIsBusyOnlyWhileFetchingOrDecoding()
+    {
+        _source.Previews["usb/BENCHY~1.BGC"] = FakePreviewSource.Png();
+        _decoder.Gate.Reset();
+        PrintThumbnails thumbnails = Create();
+        using IDisposable decoding = thumbnails.Request(Definition(), Job(), 40, static _ => { });
+        using IDisposable missing = thumbnails.Request(Definition(), Job(2, "usb/NOPREV~1.BGC"), 40, static _ => { });
+        // The missing one waits for its retry (idle); the other one decodes (busy).
+        await Waiting.UntilAsync(() => _dispatcher.Pending == 1 && thumbnails.BusyCount == 1, "missing preview reported, the other one decoding");
+
+        Assert.Empty(_decoder.Decoded);
+        _decoder.Gate.Set();
+        await Waiting.UntilAsync(() => thumbnails.BusyCount == 0, "decoding done");
+
+        Assert.Equal(2, _dispatcher.Pending);
+    }
+
+    [Fact]
     public async Task DisposingWhileThePreviewIsDownloadingCancelsTheWait()
     {
         _source.Hold = true;
@@ -217,7 +235,7 @@ public sealed class PrintThumbnailsTests
 
         request.Dispose();
         _source.Release();
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await Waiting.UntilAsync(() => thumbnails.BusyCount == 0, "request finished");
         _dispatcher.RunAll();
 
         Assert.Empty(updates);

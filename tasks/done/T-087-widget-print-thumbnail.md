@@ -68,3 +68,8 @@ Ve widgetu Název tisku zobrazit náhled G-code z `IPrintPreviewSource` (T-086):
   - macOS (Avalonia / Skia stejné, neověřeno na Macu),
   - čtečka obrazovky (Narrator) a strom UI Automation u `Border` s náhledem.
 - **AOT:** žádný nový balíček, žádná reflexe, kompilované bindingy, logování přes `[LoggerMessage]`. Lokální AOT publish jsem nespouštěl (T-093).
+
+## Review
+- 2026-10-25, qa-reviewer. Bez blokujících nálezů. Zkontrolováno: počítání odkazů a uvolnění bitmap (jednou, i po zrušení během dekódování), vlákna (dekódování na thread poolu, aktualizace přes `Post`), zapojení cache (`Observe` v pořadí snapshotů, `RetainOnly`, uvolnění kontejnerem), dekódování nedůvěryhodného PNG (512 KB + hlavička ≤ 2048 px = nejvýš 16 MB dočasně), DPI, nulové alokace, upravený test T-085 (stále smysluplný), snímky, AOT.
+- Opraveno: `SettleAsync` v `PrintNameWidgetThumbnailTests` čekal na „40 ms bez nového postu“, takže na vytíženém thread poolu mohl skončit dřív, než dekódování doběhlo (nestabilní test). Nově `PrintThumbnails.BusyCount` (interní, pro testy: požadavky, které stahují nebo dekódují) a testy čekají na tento stav. Stejně v `PrintThumbnailsTests` a ve dvou headless testech (místo pevných `Task.Delay(50/100)`). Nový test `RequestIsBusyOnlyWhileFetchingOrDecoding`.
+- Ke zvážení (neblokuje): ověřit v Narratoru, že `Border` s náhledem je ve stromu UI Automation jako obrázek (případně `AutomationProperties.ControlTypeOverride`) – zapsáno už v „Ručně neověřeno“.
