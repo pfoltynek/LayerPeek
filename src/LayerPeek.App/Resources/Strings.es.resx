@@ -891,6 +891,9 @@
   <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
     <value>Enfriamiento</value>
   </data>
+  <data name="CameraOverlayRemainingLabel" xml:space="preserve">
+    <value>Restante</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Superposición</value>
   </data>

@@ -96,7 +96,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-080 | Vychladnutí – volitelná notifikace a nastavení prahu (hotovo) | all | core-dev + ui-dev | P2 | T-076, T-079 |
 | T-081 | Widgety překryvu – framework v okně kamery (registr, 6 kotev, karty) (hotovo) | all | ui-dev | P2 | T-076, T-077 |
 | T-082 | Widget Stav (hotovo) | all | ui-dev | P2 | T-081 |
-| T-083 | Widget Časy | all | ui-dev | P2 | T-081 |
+| T-083 | Widget Časy (hotovo) | all | ui-dev | P2 | T-081 |
 | T-084 | Widget Teploty se sparkline (kompaktní `TemperatureChart`) | all | ui-dev | P2 | T-081 |
 | T-085 | Widget Název tisku (bez náhledu G-code) | all | ui-dev | P2 | T-078, T-081 |
 | T-086 | Náhled G-code – načtení z PrusaLink (Core + klient + simulátor) (hotovo) | all | core-dev | P3 | – |
