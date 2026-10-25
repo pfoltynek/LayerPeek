@@ -78,9 +78,12 @@
         </Setter>
       </ControlTheme>
 
-      <!-- Icon + value row (icons replace labels); the text wraps to at most 2 lines, the icon stays at the first. -->
+      <!--
+        Icon + value row (icons replace labels); the text wraps to at most 2 lines, the icon stays at the first. Text and
+        icon in the secondary colour (T-076 1.3: rows with an icon); the large numbers stay primary.
+      -->
       <ControlTheme x:Key="{x:Type ov:OverlayIconText}" TargetType="ov:OverlayIconText">
-        <Setter Property="Foreground" Value="{StaticResource OverlayTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
         <Setter Property="IconBrush" Value="{StaticResource OverlayTextSecondaryBrush}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Template">
@@ -188,6 +191,15 @@
   </Style>
   <Style Selector="Border.overlayCard TextBlock.secondary">
     <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
+  </Style>
+  <!--
+    The text of an icon row draws the row's own colour, size and weight: the card's TextBlock styles above also match the
+    template part and would win over its TemplateBindings (secondary colour by default, T-076 1.3).
+  -->
+  <Style Selector="Border.overlayCard ov|OverlayIconText /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayIconText].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayIconText].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayIconText].FontWeight}" />
   </Style>
   <!-- Tabular figures wherever digits change (Segoe UI has them by default, SF Pro and Inter do not). -->
   <Style Selector="TextBlock.numeric">

@@ -268,8 +268,10 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
             TextBlock remaining = window.Find<TextBlock>(RemainingId);
 
             Assert.Equal(Color.Parse("#FA6831"), ((ISolidColorBrush)remaining.Foreground!).Color);
-            // Only the key value: the rows stay in their colours.
-            Assert.Equal(Color.Parse("#F4F4F5"), ((ISolidColorBrush)window.Find<OverlayIconText>(FinishId).Foreground!).Color);
+            // Only the key value: the rows stay in their secondary colour (T-076 1.3).
+            // The drawn text, not just the row's property (the card's TextBlock styles also reach the template part).
+            TextBlock finishText = window.Find<OverlayIconText>(FinishId).GetVisualDescendants().OfType<TextBlock>().Single();
+            Assert.Equal(Color.Parse("#C9C9CE"), ((ISolidColorBrush)finishText.Foreground!).Color);
 
             Save(harness, Layout(OverlayWidgetSize.Medium, emphasized: false));
 
@@ -314,8 +316,10 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
 
             // A remaining time of days (the widest large number).
             harness.Monitor.Raise(Printing(remaining: TimeSpan.FromHours(99), elapsed: TimeSpan.FromHours(30)));
-            Dispatcher.UIThread.RunJobs();
+            string days = OverlayFormat.Duration(99 * 60);
+            await Ui.UntilAsync(() => Widget(window).Remaining == days, days + " shown");
             window.Settle();
+            Assert.Equal(days, window.Find<TextBlock>(RemainingId).Text);
             AssertFits(window, size);
         });
 

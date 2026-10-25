@@ -300,6 +300,20 @@ public sealed class CameraWindowOverlayUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task IconRowDrawsItsTextAndIconInTheSecondaryColour() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(window: Normal, overlay: AllAnchors);
+            CameraWindow window = await OpenPrintingAsync(harness);
+            OverlayIconText row = Card(window, "test-a").GetVisualDescendants().OfType<OverlayIconText>().Single();
+
+            // T-076 1.3: OverlayTextSecondaryBrush #C9C9CE for the rows with an icon (text and icon), also on an emphasized card.
+            Color secondary = Color.Parse("#C9C9CE");
+            Assert.Equal(secondary, ((ISolidColorBrush)row.GetVisualDescendants().OfType<TextBlock>().Single().Foreground!).Color);
+            Assert.Equal(secondary, ((ISolidColorBrush)row.GetVisualDescendants().OfType<OverlayIcon>().Single().Foreground!).Color);
+        });
+
+    [Fact]
     public Task NumbersUseTabularFigures() =>
         session.RunAsync(async scope =>
         {

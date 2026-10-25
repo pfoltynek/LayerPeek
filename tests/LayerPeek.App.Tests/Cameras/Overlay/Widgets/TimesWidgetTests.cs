@@ -237,6 +237,21 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.False(widget.HasFinish);
     }
 
+    [Fact]
+    public void FinishAtTheEndOfTimeEastOfUtcDoesNotFault()
+    {
+        // A finish that is a valid date in UTC but past DateTime.MaxValue in the local zone (UTC+14) must not throw while
+        // computing (that would fault the widget for the rest of the window's life).
+        _time.SetLocalTimeZone(TimeZoneInfo.CreateCustomTimeZone("Test+14", TimeSpan.FromHours(14), "Test+14", "Test+14"));
+        TimeSpan remaining = DateTimeOffset.MaxValue - Now - TimeSpan.FromHours(1);
+
+        TimesWidgetViewModel widget = Show(Create(), Printing(remaining: remaining, progress: 0.01));
+
+        Assert.False(widget.IsFaulted);
+        Assert.True(widget.IsShown);
+        Assert.True(widget.HasRemaining);
+    }
+
     // ---- Cheap comparison ----
 
     [Fact]
