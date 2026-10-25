@@ -477,6 +477,8 @@ internal static class AppServices
                 services.GetRequiredService<ILogger<CameraViewModel>>(),
                 services.GetRequiredService<ICameraMonitorPathUpdater>(),
                 services.GetRequiredService<OverlayWidgetRegistry>(),
+                services.GetRequiredService<TelemetryHistory>(),
+                services.GetRequiredService<CooldownMonitor>(),
                 services.GetRequiredService<ICameraOverlayLayoutWriter>())
             : null;
 

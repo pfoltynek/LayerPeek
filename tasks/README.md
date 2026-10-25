@@ -97,12 +97,12 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-081 | Widgety překryvu – framework v okně kamery (registr, 6 kotev, karty) (hotovo) | all | ui-dev | P2 | T-076, T-077 |
 | T-082 | Widget Stav (hotovo) | all | ui-dev | P2 | T-081 |
 | T-083 | Widget Časy (hotovo) | all | ui-dev | P2 | T-081 |
-| T-084 | Widget Teploty se sparkline (kompaktní `TemperatureChart`) | all | ui-dev | P2 | T-081 |
-| T-085 | Widget Název tisku (bez náhledu G-code) | all | ui-dev | P2 | T-078, T-081 |
+| T-084 | Widget Teploty se sparkline (kompaktní `TemperatureChart`) (hotovo) | all | ui-dev | P2 | T-081 |
+| T-085 | Widget Název tisku (bez náhledu G-code) (hotovo) | all | ui-dev | P2 | T-078, T-081 |
 | T-086 | Náhled G-code – načtení z PrusaLink (Core + klient + simulátor) (hotovo) | all | core-dev | P3 | – |
 | T-087 | Widget Název tisku – zobrazení náhledu G-code | all | ui-dev | P3 | T-085, T-086 |
 | T-088 | Widget Vychladnutí | all | ui-dev | P2 | T-079, T-081, T-092 |
-| T-089 | Malý náhled – informační pás pod obrazem a výška okna podle pásu | all | ui-dev | P2 | T-076, T-082, T-083 |
+| T-089 | Malý náhled – informační pás pod obrazem a výška okna podle pásu (hotovo) | all | ui-dev | P2 | T-076, T-082, T-083 |
 | T-090 | Malý náhled – sbalitelný název a graf v pásu, zapamatování stavu | all | ui-dev | P2 | T-084, T-085, T-089 |
 | T-091 | Režim rozložení v okně kamery (jen normální okno, vstup i z nastavení) (hotovo) | all | ui-dev | P2 | T-077, T-082, T-083 |
 | T-092 | Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení | all | ui-dev | P2 | T-077, T-080, T-081, T-091 |

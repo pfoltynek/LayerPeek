@@ -1,0 +1,72 @@
+<!--
+  The info strip below the image of the mini preview (T-089, design T-076 4). Opaque, not affected by the card opacity.
+  Rows from the top: the 3 DIP progress bar on the top edge, the 30 DIP summary row; T-090 adds the name row (34) and the
+  chart row (64) below and their toggle buttons in CameraMiniToggles (reserved: 2 × 30 + 2, 6 from the right edge, so the
+  corner grip stays free). Pressing or dragging the strip outside of buttons moves the window like the image (the window
+  handles the pointer events). Colours and icons come from OverlayStyles.axaml of the window (dynamic resources: this
+  control is loaded before it is in the window).
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mini="using:LayerPeek.App.Cameras.Mini"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             x:Class="LayerPeek.App.Cameras.Mini.CameraMiniStrip"
+             x:DataType="mini:CameraMiniStripViewModel"
+             AutomationProperties.AutomationId="CameraMiniInfoStrip"
+             Background="{DynamicResource OverlayStripBrush}"
+             Height="{Binding StripHeight}"
+             UseLayoutRounding="True">
+  <UserControl.Styles>
+    <!-- Without a job only a faint track (white 6 %), same height, so nothing jumps. -->
+    <Style Selector="ov|OverlayProgressBar.idle">
+      <Setter Property="Background" Value="#0FFFFFFF" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="3,30" VerticalAlignment="Top">
+    <ov:OverlayProgressBar Grid.Row="0"
+                           Height="3"
+                           AutomationProperties.AutomationId="CameraMiniProgress"
+                           Value="{Binding Progress}"
+                           Classes.idle="{Binding !HasProgress}" />
+
+    <!-- Summary row: left 10, dot 8 (or icon 16) + 6, text, 8, toggles 62, right 6 (at 240 wide the text has 140). -->
+    <Grid Grid.Row="1"
+          AutomationProperties.AutomationId="CameraMiniSummary"
+          AutomationProperties.Name="{Binding AccessibleText}"
+          ToolTip.Tip="{Binding AccessibleText}"
+          ColumnDefinitions="10,Auto,6,*,8,62,6">
+      <Panel Grid.Column="1" VerticalAlignment="Center">
+        <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDot}" />
+        <ov:OverlayIcon Width="16"
+                        Height="16"
+                        CanvasSize="20"
+                        Data="{DynamicResource IconWeatherSnowflake20Regular}"
+                        Foreground="{DynamicResource OverlayCoolingBrush}"
+                        IsVisible="{Binding ShowsCoolingIcon}" />
+        <ov:OverlayIcon Width="16"
+                        Height="16"
+                        CanvasSize="20"
+                        Data="{DynamicResource IconPower20Regular}"
+                        Foreground="{DynamicResource OverlayCooledBrush}"
+                        IsVisible="{Binding ShowsCooledIcon}" />
+      </Panel>
+      <TextBlock x:Name="SummaryText"
+                 Grid.Column="3"
+                 Classes="numeric"
+                 Text="{Binding Summary}"
+                 FontSize="13"
+                 FontWeight="SemiBold"
+                 Foreground="{DynamicResource OverlayTextPrimaryBrush}"
+                 TextTrimming="CharacterEllipsis"
+                 TextWrapping="NoWrap"
+                 VerticalAlignment="Center" />
+      <!-- T-090: the toggle buttons of the name and chart rows go here (30 × 30 each, 2 apart). -->
+      <StackPanel x:Name="Toggles"
+                  Grid.Column="5"
+                  AutomationProperties.AutomationId="CameraMiniToggles"
+                  Orientation="Horizontal"
+                  Spacing="2" />
+    </Grid>
+  </Grid>
+</UserControl>

@@ -280,7 +280,7 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.True(Ui.ShowsText(ui.Window, "BenQ PD2700U (3840 × 2160) – nicht angeschlossen"));
             Assert.True(Ui.ShowsText(ui.Window, "Oben rechts"));
             Assert.True(Ui.ShowsText(ui.Window, "Normales Fenster"));
-            Assert.Equal("Geben Sie eine Breite von 160–16384 und eine Höhe von 90–16384 ein.", ui.ShownText("PrinterCameraWindowMiniSizeError"));
+            Assert.Equal("Geben Sie eine Breite von 240–16384 und eine Höhe von 90–16384 ein.", ui.ShownText("PrinterCameraWindowMiniSizeError"));
             Assert.Equal("Kamerafenster – enthält Fehler", AutomationProperties.GetName(ui.Find<TabItem>("PrinterTabCameraWindow")));
             Assert.Equal("Mini-Vorschau – Größe", AutomationProperties.GetName(ui.Find<ComboBox>("PrinterCameraWindowMiniSize")));
             Assert.Equal("Immer im Vordergrund", ui.ShownText("PrinterCameraWindowTopmostHeader"));

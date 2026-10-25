@@ -348,6 +348,65 @@ public sealed class StatusWidgetUiTests(HeadlessSession session)
             Assert.EndsWith(Tail, drawn, StringComparison.Ordinal);
         });
 
+    /// <summary>
+    /// Names whose end is drawn in several runs (emoji and CJK in a fallback font, Cyrillic, Hebrew), shorter and longer
+    /// than <see cref="OverlayFormat.MaxNameLength"/>.
+    /// </summary>
+    public static TheoryData<OverlayWidgetSize, string> NamesWithSeveralRunsInTheEnd
+    {
+        get
+        {
+            string rockets = string.Concat(Enumerable.Repeat(char.ConvertFromUtf32(0x1F680), 6));
+            string[] names =
+            [
+                "Prusa CORE One 打印机打印机打印机打印机 v2",
+                "Prusa CORE One remix cube 打印打印打印打印 v2",
+                "Prusa CORE One in the workshop upstairs 打印机打印机 v2",
+                "Prusa CORE One WWW " + rockets + " v2",
+                "Prusa CORE One upstairs " + rockets + " WWWWWWW v2",
+                "Prusa CORE One держатель книг на полке v2",
+                "Prusa CORE One WWWW 打印 держатель WWWW 打印 v2",
+                "Prusa CORE One WWWWWWWW מחזיק ספרים v2",
+            ];
+            TheoryData<OverlayWidgetSize, string> data = [];
+            foreach (OverlayWidgetSize size in new[] { OverlayWidgetSize.Medium, OverlayWidgetSize.Large })
+            {
+                foreach (string name in names)
+                {
+                    data.Add(size, name);
+                }
+            }
+
+            return data;
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(NamesWithSeveralRunsInTheEnd))]
+    public Task ShortenedNameEndsWithTheRealEndOfTheName(OverlayWidgetSize size, string printerName) =>
+        session.RunAsync(async scope =>
+        {
+            // The DRAWN line: one "…", the first 8 characters, and an end that really is the end of the name (Avalonia's own
+            // leading-prefix ellipsis draws pieces of earlier runs there, see OverlayMiddleTrimming), whole characters only.
+            await using CameraHarness harness = Harness(size);
+            CameraWindow window = await OpenAsync(harness);
+            Save(harness, window, name: printerName);
+
+            TextBlock name = Part<TextBlock>(window, "Name");
+            TextLine line = Assert.Single(name.TextLayout.TextLines);
+            Assert.True(line.HasCollapsed, $"'{name.Text}' is trimmed by width");
+            // In logical order (the runs of a line are in visual order, right-to-left text comes reversed).
+            (string start, string end) = DrawnLine.AssertMiddleShortened(name, size.ToString());
+            Assert.Equal(printerName[..OverlayFormat.NameHeadLength], start);
+            Assert.EndsWith(" v2", end, StringComparison.Ordinal);
+            Assert.EndsWith(end, printerName, StringComparison.Ordinal);
+            if (!printerName.Any(static c => c is >= (char)0x0590 and <= (char)0x08FF))
+            {
+                // Left-to-right only: the runs in visual order are the same text.
+                Assert.Equal(start + "…" + end, DrawnLine.Of(name));
+            }
+        });
+
     // ---- Snapshots ----
 
     [Fact]

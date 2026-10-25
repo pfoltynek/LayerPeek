@@ -867,11 +867,35 @@
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
   </data>
+  <data name="CameraOverlayChartStart" xml:space="preserve">
+    <value>−60 min</value>
+  </data>
+  <data name="CameraOverlayChartNow" xml:space="preserve">
+    <value>ora</value>
+  </data>
+  <data name="CameraOverlayChartNoData" xml:space="preserve">
+    <value>Nessun dato</value>
+  </data>
+  <data name="CameraOverlayChartName" xml:space="preserve">
+    <value>grafico degli ultimi 60 minuti</value>
+  </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Fine alle {0}</value>
   </data>
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Fine il {0} alle {1}</value>
+  </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>ugello {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>altezza layer {0} mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>ugello {0} mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>stima dello slicer {0}</value>
   </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Tempo di stampa: {0}</value>
@@ -893,6 +917,15 @@
   </data>
   <data name="CameraOverlayRemainingLabel" xml:space="preserve">
     <value>Rimanente</value>
+  </data>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Raffreddamento… {0}&#160;°C · circa {1}</value>
+  </data>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Raffreddamento… {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Raffreddata · {0}&#160;°C</value>
   </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Sovrimpressione</value>

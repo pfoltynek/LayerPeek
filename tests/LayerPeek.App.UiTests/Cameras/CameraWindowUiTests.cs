@@ -192,7 +192,8 @@ public sealed class CameraWindowUiTests(HeadlessSession session)
             Assert.True(viewModel.IsMini);
             Assert.Equal(WindowDecorations.None, window.WindowDecorations);
             Assert.True(window.Topmost);
-            Assert.Equal(new Size(320, 180), window.ClientSize);
+            // The 320 × 180 image of the 16:9 stream with the info strip below it (T-089).
+            Assert.Equal(new Size(320, 213), window.ClientSize);
 
             Ui.Click(window, Ui.CentreOf(WindowButton(window, "Back to the normal window (double-click)"), window));
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -229,8 +230,11 @@ public sealed class CameraWindowUiTests(HeadlessSession session)
 
             using WriteableBitmap frame = window.CaptureRenderedFrame()!;
 
-            Assert.Equal(new PixelSize(320, 180), frame.PixelSize);
+            // The image fills the 320 × 180 above the strip (T-089).
+            Assert.Equal(new PixelSize(320, 213), frame.PixelSize);
             Assert.Equal((255, 0, 0), Ui.Pixel(frame, 160, 90));
+            Assert.Equal((255, 0, 0), Ui.Pixel(frame, 2, 178));
+            Assert.NotEqual((255, 0, 0), Ui.Pixel(frame, 160, 200));
         });
 
     // ---- Overlays ----

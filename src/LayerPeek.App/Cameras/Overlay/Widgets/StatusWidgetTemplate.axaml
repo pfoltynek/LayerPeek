@@ -81,7 +81,7 @@
       <TextBlock Classes="statusName"
                  Grid.ColumnSpan="2"
                  Text="{Binding PrinterName}"
-                 TextTrimming="PrefixCharacterEllipsis"
+                 TextTrimming="{x:Static ov:OverlayMiddleTrimming.PrinterName}"
                  IsVisible="{Binding !IsSmall}"
                  AutomationProperties.AutomationId="CameraOverlayWidget-status-Name" />
       <ov:OverlayStatusPill Classes="statusState"

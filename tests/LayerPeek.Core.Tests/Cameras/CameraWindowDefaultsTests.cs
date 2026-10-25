@@ -90,6 +90,22 @@ public class CameraWindowDefaultsTests
         Assert.Equal(16384, CameraWindowSize.MaxSize);
     }
 
+    [Theory]
+    [InlineData(240, 90, true)]
+    [InlineData(320, 180, true)]
+    [InlineData(CameraWindowSize.MaxSize, CameraWindowSize.MaxSize, true)]
+    [InlineData(239, 180, false)]
+    [InlineData(160, 90, false)]
+    [InlineData(240, 89, false)]
+    [InlineData(CameraWindowSize.MaxSize + 1, 180, false)]
+    public void MiniPreviewIsAtLeast240Wide(int width, int height, bool valid)
+    {
+        // T-089 Q4: the info strip needs 240; the normal window keeps 160.
+        Assert.Equal(240, CameraWindowSize.MinMiniWidth);
+        Assert.Equal(valid, CameraWindowSize.IsValidMini(width, height));
+        Assert.True(CameraWindowSize.IsValidMini(CameraWindowDefaults.DefaultMini.Size.Width, CameraWindowDefaults.DefaultMini.Size.Height));
+    }
+
     [Fact]
     public void PresetsAreTheDecidedSizes()
     {

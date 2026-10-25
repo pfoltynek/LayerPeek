@@ -611,10 +611,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     public string? NormalSizeError => _showErrors && IsInvalidSize(_normalSizeText) ? SizeErrorText : null;
 
     /// <summary>Why the size of the mini preview cannot be used; only while the camera is on.</summary>
-    public string? MiniSizeError => _showErrors && IsInvalidSize(_miniSizeText) ? SizeErrorText : null;
+    public string? MiniSizeError => _showErrors && IsInvalidMiniSize(_miniSizeText) ? MiniSizeErrorText : null;
 
     /// <summary>A size of the camera window sub-tab blocks saving (shown or not yet): only while the camera is on.</summary>
-    public bool HasCameraWindowErrors => IsInvalidSize(_normalSizeText) || IsInvalidSize(_miniSizeText);
+    public bool HasCameraWindowErrors => IsInvalidSize(_normalSizeText) || IsInvalidMiniSize(_miniSizeText);
 
     /// <summary>The "!" on the Camera window sub-tab header; same rule as the list marker.</summary>
     public bool ShowsCameraWindowErrorMarker => _showErrors && HasCameraWindowErrors;
@@ -760,7 +760,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private CameraWindowDefaults? BuildWindow()
     {
         CameraWindowSize? normal = CameraWindowSizeText.Parse(_normalSizeText);
-        CameraWindowSize? mini = CameraWindowSizeText.Parse(_miniSizeText);
+        CameraWindowSize? mini = CameraWindowSizeText.ParseMini(_miniSizeText);
         if (_cameraEnabled && (normal is null || mini is null))
         {
             return null;
@@ -816,8 +816,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
     private bool IsInvalidSize(string text) => _cameraEnabled && CameraWindowSizeText.Parse(text) is null;
 
+    /// <summary>The mini preview must be at least <see cref="CameraWindowSize.MinMiniWidth"/> wide (T-089 Q4).</summary>
+    private bool IsInvalidMiniSize(string text) => _cameraEnabled && CameraWindowSizeText.ParseMini(text) is null;
+
     private static string SizeErrorText =>
         Format(Strings.SettingsCameraWindowSizeError, CameraWindowSize.MinWidth, CameraWindowSize.MaxSize, CameraWindowSize.MinHeight, CameraWindowSize.MaxSize);
+
+    /// <summary>The same sentence as <see cref="SizeErrorText"/> with the mini preview's minimum width.</summary>
+    private static string MiniSizeErrorText =>
+        Format(Strings.SettingsCameraWindowSizeError, CameraWindowSize.MinMiniWidth, CameraWindowSize.MaxSize, CameraWindowSize.MinHeight, CameraWindowSize.MaxSize);
 
     private static string CellName(string row, string column) => string.Concat(row, " – ", column);
 

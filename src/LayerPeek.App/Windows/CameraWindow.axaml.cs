@@ -90,6 +90,7 @@ public sealed partial class CameraWindow : Window
             _viewModel.PlacementResetRequested += OnPlacementResetRequested;
             _viewModel.AttachFrameSink(_sink);
             AttachLayoutMode(_viewModel);
+            AttachMini(_viewModel);
             if (!_opened)
             {
                 PlaceBeforeShowing(_viewModel);
@@ -115,6 +116,11 @@ public sealed partial class CameraWindow : Window
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
+        if (change.Property == ClientSizeProperty)
+        {
+            OnMiniClientSizeChanged();
+        }
+
         if (change.Property != WindowStateProperty || !_opened || _viewModel is not { } viewModel)
         {
             return;
@@ -159,6 +165,7 @@ public sealed partial class CameraWindow : Window
         _viewModel.PlacementResetRequested -= OnPlacementResetRequested;
         _viewModel.AttachFrameSink(null);
         DetachLayoutMode(_viewModel);
+        DetachMini();
         _viewModel = null;
     }
 
@@ -178,6 +185,10 @@ public sealed partial class CameraWindow : Window
         {
             // T-037: a saved option changes only the z-order of the open window, never its position or size.
             Topmost = current.Defaults.IsTopmost(_appliedMode);
+        }
+        else
+        {
+            OnMiniViewModelPropertyChanged(e.PropertyName);
         }
     }
 
@@ -208,10 +219,11 @@ public sealed partial class CameraWindow : Window
             WindowDecorations = layoutMode == CameraWindowMode.Mini ? WindowDecorations.None : WindowDecorations.Full;
             ShowInTaskbar = ShowsInTaskbar(mode);
             Topmost = viewModel.Defaults.IsTopmost(mode);
+            ApplyMinimumSize(layoutMode);
             WindowChrome chrome = WindowChrome.None;
             if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, ScreenCatalog.GetScreens(), screen => chrome = ChromeOn(layoutMode, screen, measured)) is { } placement)
             {
-                Place(placement);
+                Place(placement, layoutMode);
                 if (mode == CameraWindowMode.Normal)
                 {
                     // Checked once against the measured frame when the window has it (like after opening).
@@ -264,6 +276,7 @@ public sealed partial class CameraWindow : Window
         {
             CameraWindowMode previousWindowed = _lastWindowedMode;
             ShowInTaskbar = ShowsInTaskbar(mode);
+            ApplyMinimumSize(mode);
             if (mode != CameraWindowMode.Mini)
             {
                 // T-037: the option of the normal window; full screen is never on top.
@@ -282,7 +295,7 @@ public sealed partial class CameraWindow : Window
                     WindowDecorations = WindowDecorations.None;
                     Topmost = viewModel.Defaults.IsTopmost(CameraWindowMode.Mini);
                     // First time: the default size and corner of the mini preview on the monitor the window is on.
-                    Place(viewModel.MiniPlacement ?? FromDefaults(viewModel.Defaults.Mini, CameraWindowMode.Mini, current));
+                    PlaceMini(viewModel.MiniPlacement ?? FromDefaults(viewModel.Defaults.Mini, CameraWindowMode.Mini, current));
                     _lastWindowedMode = CameraWindowMode.Mini;
                     break;
                 default:
@@ -311,8 +324,24 @@ public sealed partial class CameraWindow : Window
     {
         if (_viewModel is { } viewModel && _opened && WindowState == WindowState.Normal && _appliedMode != CameraWindowMode.FullScreen)
         {
-            // While the layout mode has the window enlarged, the size it had before (T-091 Q5: never remembered).
-            viewModel.RememberPlacement(_appliedMode, PlacementToRemember());
+            // The mini preview remembers its image (T-089), the strip is added again when it is placed. While the layout
+            // mode has the normal window enlarged, the size it had before (T-091 Q5: never remembered).
+            viewModel.RememberPlacement(_appliedMode, _appliedMode == CameraWindowMode.Mini
+                ? MiniPlacementNow(viewModel)
+                : PlacementToRemember());
+        }
+    }
+
+    /// <summary><paramref name="placement"/> of the normal window, or the image placement of the mini preview (<see cref="PlaceMini"/>).</summary>
+    private void Place(CameraWindowPlacement placement, CameraWindowMode layoutMode)
+    {
+        if (layoutMode == CameraWindowMode.Mini)
+        {
+            PlaceMini(placement);
+        }
+        else
+        {
+            Place(placement);
         }
     }
 
@@ -349,6 +378,7 @@ public sealed partial class CameraWindow : Window
         }
 
         CameraWindowMode layoutMode = mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
+        ApplyMinimumSize(layoutMode);
         CameraWindowLayout layout = mini ? viewModel.Defaults.Mini : viewModel.Defaults.Normal;
         CameraWindowPlacement? remembered = mini ? viewModel.MiniPlacement : viewModel.NormalPlacement;
         // T-071 Q3: the chrome the window will have on the chosen monitor, so that nothing moves after it is shown.
@@ -364,13 +394,14 @@ public sealed partial class CameraWindow : Window
             screen => chrome = ChromeOn(layoutMode, screen, measured: null));
         if (placement is not { } chosen)
         {
-            Width = layout.Size.Width;
-            Height = layout.Size.Height;
+            Width = Math.Max(layout.Size.Width, MinWidth);
+            // The mini preview's size is its image; the strip is added below it (T-089 Q3).
+            Height = layout.Size.Height + (mini ? viewModel.MiniStrip.StripHeight : 0);
             return;
         }
 
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Place(chosen);
+        Place(chosen, layoutMode);
         if (!mini && remembered != chosen)
         {
             _placedBeforeMeasuring = (layout, chrome);
@@ -502,7 +533,7 @@ public sealed partial class CameraWindow : Window
         CameraWindowMode layoutMode = _appliedMode == CameraWindowMode.Mini ? CameraWindowMode.Mini : CameraWindowMode.Normal;
         if (CameraWindowPlanner.ForOpening(viewModel.Defaults, layoutMode, remembered: null, screens, screen => ChromeOn(layoutMode, screen, FramedChrome())) is { } placement)
         {
-            Place(placement);
+            Place(placement, layoutMode);
         }
     }
 
@@ -585,7 +616,7 @@ public sealed partial class CameraWindow : Window
         if (_viewModel is { IsMini: true } && sender is Control { Tag: WindowEdge edge } && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             e.Handled = true;
-            BeginResizeDrag(edge, e);
+            BeginMiniResize(edge, e);
         }
     }
 
