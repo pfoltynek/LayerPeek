@@ -128,8 +128,8 @@ Uživatel přijal návrhy architekta:
 - **Ověřeno:** Windows 11 (headless UI testy, E2E se skutečnou aplikací v testovacím režimu, snímky obrazovky průběhu tažení a výsledku). **Neověřeno:** macOS (pořadí tlačítek `[Zrušit][Hotovo]`, Ctrl+klik, Fn+F2), skutečná čtečka obrazovky, DPI 125–200 % a Native AOT publish (bez nového balíčku a reflexe; AOT/trim analyzátory v buildu čisté).
 
 ## Review
-- 2026-10-25, qa-reviewer (po sloučení `develop` s T-084, T-085 a T-089):
-  - Konflikty vyřešeny: `CameraViewModel` má parametry `widgets, history, cooldown, layoutWriter` (v tomto pořadí, upravené `AppServices` a `CameraHarness`); okno si v malém náhledu pamatuje obraz bez lišty (T-089), v normálním okně dál umístění před dočasným zvětšením (T-091 Q5); překryv režimu je v řádku 0 mřížky `Root` (oblast obrazu).
+- 2026-10-25, qa-reviewer (po sloučení `develop` s T-084, T-085, T-087 a T-089):
+  - Konflikty vyřešeny: `CameraViewModel` má parametry `widgets, history, cooldown, thumbnails, layoutWriter` (v tomto pořadí, upravené `AppServices` a `CameraHarness`); okno si v malém náhledu pamatuje obraz bez lišty (T-089), v normálním okně dál umístění před dočasným zvětšením (T-091 Q5); překryv režimu je v řádku 0 mřížky `Root` (oblast obrazu).
   - Opraveno: zápis „Hotovo“, který doběhl až poté, co uživatel režim opustil (přepnutí na celou obrazovku / malý náhled) a znovu spustil, ukončil novou úpravu jako uloženou, nebo do ní promítl starou chybu zápisu. Režim teď čísluje úpravy a výsledek starého zápisu novou úpravu nechá být (test `ASaveFinishingAfterTheModeWasLeftAndStartedAgainDoesNotEndTheNewEdit`).
   - Doplněno: UI test režimu s produkční registrací widgetů (`ProductionWidgetsTemperaturesAndPrintNameAreCardsThatMoveAndSave`) – karty Teploty a Název tisku, přesun klávesnicí i myší a uložení.
   - Známé omezení (řeší T-092): okno nastavení otevřené během „Hotovo“ zatím rozložení nepřevezme a jeho pozdější „Uložit“ by uložené rozložení přepsalo svou starší kopií.
