@@ -249,6 +249,27 @@ public sealed class AuxiliaryWindowStateStoreTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task KnownWindowAfterManyUnknownOnesIsLoadedAndUnknownOnesStayCapped()
+    {
+        // The known window comes last in the file, after more unknown keys than the load keeps.
+        string unknown = string.Join(",", Enumerable.Range(0, 40).Select(static i => $"\"unknown{i:00}\":{{\"width\":900,\"height\":600}}"));
+        await WriteFileAsync("{\"version\":1,\"windows\":{" + unknown + ",\"diagnostics\":{\"width\":900,\"height\":600,\"maximized\":true}}}");
+        JsonAuxiliaryWindowStateStore store = Create();
+        await store.LoadAsync(Ct);
+        Assert.Equal(Maximized, store.Get(AuxiliaryWindowKeys.Diagnostics));
+
+        store.Set(AuxiliaryWindowKeys.Settings, Large);
+        Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        // Unknown windows (another app version) are kept on write, but never more than the load kept.
+        using JsonDocument document = JsonDocument.Parse(await File.ReadAllTextAsync(FilePath, Ct));
+        List<string> keys = [.. document.RootElement.GetProperty("windows").EnumerateObject().Select(static property => property.Name)];
+        Assert.Contains(AuxiliaryWindowKeys.Settings, keys);
+        Assert.Contains(AuxiliaryWindowKeys.Diagnostics, keys);
+        Assert.InRange(keys.Count(static key => key.StartsWith("unknown", StringComparison.Ordinal)), 1, 16);
+    }
+
+    [Fact]
     public async Task UnknownPropertiesOfTheCurrentVersionAreIgnored()
     {
         await WriteFileAsync("{\"version\":1,\"extra\":true,\"windows\":{\"settings\":{\"width\":900,\"height\":600,\"x\":5}}}");

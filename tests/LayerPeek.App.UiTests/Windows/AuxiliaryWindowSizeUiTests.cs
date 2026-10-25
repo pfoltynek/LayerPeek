@@ -128,6 +128,24 @@ public sealed class AuxiliaryWindowSizeUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task UserChangeAfterALateLoadedStateIsStillSaved() =>
+        session.RunAsync(static async scope =>
+        {
+            // The window opened with the defaults, then a slow windows.json arrived; the open window keeps its size.
+            MemoryAuxiliaryWindowStateStore store = new();
+            SettingsWindowHarness ui = await OpenSettingsAsync(scope, store);
+            store.Set(AuxiliaryWindowKeys.Settings, new AuxiliaryWindowState(new Size(1100, 700), Maximized: true));
+            Assert.Equal(AuxiliaryWindowPlacement.DefaultClientSize, ui.Window.ClientSize);
+            Assert.Equal(WindowState.Normal, ui.Window.WindowState);
+
+            // What the user does in the open window is newer than the file: it wins.
+            ResizeByUser(ui.Window, UserSize);
+            ui.Window.Close();
+
+            Assert.Equal(new AuxiliaryWindowState(UserSize, Maximized: false), store.Get(AuxiliaryWindowKeys.Settings));
+        });
+
+    [Fact]
     public Task RememberedSizeLargerThanTheScreenIsFittedButNotForgotten() =>
         session.RunAsync(static scope =>
         {
