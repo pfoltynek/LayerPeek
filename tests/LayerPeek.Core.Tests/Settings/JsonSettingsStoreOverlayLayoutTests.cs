@@ -587,6 +587,27 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
     }
 
     [Fact]
+    public async Task ConfirmationOverAFileOfANewerFormatLeavesItAloneAndAnnouncesTheConfirmation()
+    {
+        // The running settings were loaded from this file, so the confirmed (saved) layout is what it holds; a newer
+        // format is never written by the layout writer, and "Done" with the saved layout is no error (T-093).
+        const string Original = """{ "version": 3, "printers": [ { "id": "mk4", "camera": { } } ] }""";
+        Directory.CreateDirectory(_directory);
+        await File.WriteAllTextAsync(FilePath, Original, Ct);
+        CameraOverlayLayoutWriter writer = new(_store);
+        int saved = 0;
+        List<CameraOverlayLayoutSavedEventArgs> confirmed = [];
+        writer.LayoutSaved += (_, _) => saved++;
+        writer.LayoutConfirmed += (_, e) => confirmed.Add(e);
+
+        Assert.False(await writer.ConfirmAsync("mk4", Changed, Ct));
+
+        Assert.Equal(0, saved);
+        Assert.Same(Changed, Assert.Single(confirmed).Layout);
+        Assert.Equal(Original, await File.ReadAllTextAsync(FilePath, Ct));
+    }
+
+    [Fact]
     public async Task WriterOverAStoreWithoutAFileWritesAndAnnouncesNothing()
     {
         CameraOverlayLayoutWriter writer = new(new MemoryOnlyStore());
