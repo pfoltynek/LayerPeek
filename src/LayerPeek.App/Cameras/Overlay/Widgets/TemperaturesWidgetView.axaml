@@ -1,0 +1,156 @@
+<!--
+  Content of the Temperatures card (T-084, design T-076 2.3); the card itself (background, padding, size classes,
+  AutomationId CameraOverlayWidget-temperatures and the screen reader name) comes from the shared OverlayCardTemplate.
+  S: one row "▽ 215 / 215 °C   ━ 60 / 60 °C" (13 semi-bold / 20), no chart.
+  M: the row (14 semi-bold / 20) → 8 → compact chart 256 × 64 → 4 → "−60 min" … "now" (11 / 14 tertiary).
+  L: one row per heater with its word in a shared column (16 regular secondary, values 16 semi-bold / 22, rows 6 apart)
+     → 8 → chart 360 × 110 → 4 → axis labels (12 / 16).
+  The icons (cone pointing down, horizontal line) have the colours of the chart lines and stand for the legend. Only the
+  nozzle's actual value is the key value (accent colour when emphasized). The chart is the shared TemperatureChart in its
+  compact mode: lines 1.5 (L 2), dashed targets with 70 % alpha, "No data" in the middle without history; hidden in S, so
+  that it does not listen to the history there.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+             xmlns:chart="using:LayerPeek.App.Diagnostics.Chart"
+             x:Class="LayerPeek.App.Cameras.Overlay.Widgets.TemperaturesWidgetView"
+             x:DataType="w:TemperaturesWidgetViewModel">
+  <UserControl.Styles>
+    <!-- Fixed widths in M / L: the chart width (card 284 / 392 without the padding of 14 / 16 per side); S by content. -->
+    <Style Selector="Border.overlayCard.medium StackPanel.temperatures">
+      <Setter Property="Width" Value="256" />
+    </Style>
+    <Style Selector="Border.overlayCard.large StackPanel.temperatures">
+      <Setter Property="Width" Value="360" />
+    </Style>
+
+    <!-- Values: one row in S / M (pairs 16 apart), one row per heater in L. -->
+    <Style Selector="StackPanel.temperatureRows">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="16" />
+    </Style>
+    <Style Selector="Border.overlayCard.large StackPanel.temperatureRows">
+      <Setter Property="Orientation" Value="Vertical" />
+      <Setter Property="Spacing" Value="6" />
+    </Style>
+    <Style Selector="Border.overlayCard TextBlock.temperatureValue">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.overlayCard.small TextBlock.temperatureValue">
+      <Setter Property="FontSize" Value="13" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.temperatureValue">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="LineHeight" Value="22" />
+    </Style>
+    <Style Selector="Border.overlayCard TextBlock.temperatureWord">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="LineHeight" Value="22" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
+
+    <!-- Icons 16 (L 20, the cone exists only at 16 and is drawn larger). -->
+    <Style Selector="ov|OverlayIcon.temperatureIcon">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="CanvasSize" Value="16" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.temperatureIcon">
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.bedIcon">
+      <Setter Property="Data" Value="{DynamicResource IconLineHorizontal1_16Filled}" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.bedIcon">
+      <Setter Property="Data" Value="{DynamicResource IconLineHorizontal1_20Filled}" />
+      <Setter Property="CanvasSize" Value="20" />
+    </Style>
+
+    <!-- Compact chart: 64 high with 1.5 lines (L 110 with 2). -->
+    <Style Selector="chart|TemperatureChart.temperaturesChart">
+      <Setter Property="Height" Value="64" />
+      <Setter Property="LineThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Border.overlayCard.large chart|TemperatureChart.temperaturesChart">
+      <Setter Property="Height" Value="110" />
+      <Setter Property="LineThickness" Value="2" />
+    </Style>
+
+    <!-- Axis labels: 11 / 14 (L 12 / 16), regular, tertiary. -->
+    <Style Selector="Border.overlayCard TextBlock.temperatureAxis">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="LineHeight" Value="14" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayTextTertiaryBrush}" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.temperatureAxis">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="LineHeight" Value="16" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Classes="temperatures" Spacing="8">
+    <StackPanel Classes="temperatureRows" Grid.IsSharedSizeScope="True">
+      <Grid AutomationProperties.AutomationId="CameraOverlayWidget-temperatures-Nozzle" IsVisible="{Binding HasNozzle}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="TemperatureWord" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <ov:OverlayIcon Classes="temperatureIcon"
+                        Data="{DynamicResource IconCone16Filled}"
+                        Foreground="{DynamicResource OverlayNozzleBrush}">
+          <ov:OverlayIcon.RenderTransform>
+            <RotateTransform Angle="180" />
+          </ov:OverlayIcon.RenderTransform>
+        </ov:OverlayIcon>
+        <TextBlock Grid.Column="1" Classes="secondary temperatureWord" Text="{Binding NozzleLabel}" IsVisible="{Binding IsLarge}" />
+        <StackPanel Grid.Column="2" Orientation="Horizontal">
+          <TextBlock Classes="numeric temperatureValue" Classes.emphasized="{Binding IsEmphasized}" Text="{Binding NozzleActual}" />
+          <TextBlock Classes="numeric temperatureValue" Text="{Binding NozzleRest}" />
+        </StackPanel>
+      </Grid>
+      <Grid AutomationProperties.AutomationId="CameraOverlayWidget-temperatures-Bed" IsVisible="{Binding HasBed}">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="Auto" />
+          <ColumnDefinition Width="Auto" SharedSizeGroup="TemperatureWord" />
+          <ColumnDefinition Width="Auto" />
+        </Grid.ColumnDefinitions>
+        <ov:OverlayIcon Classes="temperatureIcon bedIcon" Foreground="{DynamicResource OverlayBedBrush}" />
+        <TextBlock Grid.Column="1" Classes="secondary temperatureWord" Text="{Binding BedLabel}" IsVisible="{Binding IsLarge}" />
+        <TextBlock Grid.Column="2" Classes="numeric temperatureValue" Text="{Binding Bed}" />
+      </Grid>
+    </StackPanel>
+    <StackPanel Spacing="4" IsVisible="{Binding ShowsChart}">
+      <chart:TemperatureChart Classes="temperaturesChart"
+                              AutomationProperties.AutomationId="CameraOverlayWidget-temperatures-Chart"
+                              IsCompact="True"
+                              TargetOpacity="0.7"
+                              History="{Binding History}"
+                              PrinterId="{Binding PrinterId}"
+                              Clock="{Binding Clock}"
+                              NozzleBrush="{DynamicResource OverlayNozzleBrush}"
+                              BedBrush="{DynamicResource OverlayBedBrush}"
+                              AxisBrush="{DynamicResource OverlayTextTertiaryBrush}"
+                              GridBrush="{x:Null}"
+                              NoDataText="{Binding ChartNoData}" />
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Classes="temperatureAxis" Text="{Binding ChartStart}" />
+        <TextBlock Grid.Column="1" Classes="temperatureAxis" Text="{Binding ChartNow}" />
+      </Grid>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

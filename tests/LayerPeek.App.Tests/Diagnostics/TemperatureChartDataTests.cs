@@ -271,6 +271,89 @@ public sealed class TemperatureChartDataTests
         Assert.Equal(2, _data.SampleCount);
     }
 
+    // ---- Buffer sized to the range (compact chart, T-084) ----
+
+    [Fact]
+    public void RangeSizedBufferHoldsTheRangeNotTheWholeHistory()
+    {
+        // Two hours of 1 s samples; the compact chart shows the last 60 minutes.
+        for (int second = 0; second <= 7200; second++)
+        {
+            Record(second, nozzle: 200 + (second % 10));
+        }
+
+        TemperatureChartData data = new() { SizeBufferToRange = true };
+        DateTimeOffset to = T0.AddSeconds(7200);
+        data.Update(_history, "mk4", to.AddMinutes(-60), to, 256);
+
+        Assert.Equal(3601, data.SampleCount);
+        Assert.InRange(data.SampleBufferLength, 3601, 2 * 3601);
+        Assert.True(data.SampleBufferLength < _history.GetCapacity("mk4") / 10);
+        // The same columns as a buffer of the whole capacity.
+        _data.Update(_history, "mk4", to.AddMinutes(-60), to, 256);
+        Assert.Equal(_data.GetColumns(TemperatureSeries.NozzleActual).ToArray(), data.GetColumns(TemperatureSeries.NozzleActual).ToArray());
+    }
+
+    [Fact]
+    public void RangeSizedBufferGrowsWhenTheRangeHoldsMoreSamples()
+    {
+        TemperatureChartData data = new() { SizeBufferToRange = true };
+        Record(0, nozzle: 200);
+        data.Update(_history, "mk4", T0, T0.AddMinutes(60), 256);
+        Assert.Equal(1, data.SampleCount);
+        int length = data.SampleBufferLength;
+
+        for (int second = 1; second <= 3000; second++)
+        {
+            Record(second, nozzle: 200);
+        }
+
+        data.Update(_history, "mk4", T0, T0.AddMinutes(60), 256);
+
+        Assert.Equal(3001, data.SampleCount);
+        Assert.True(data.SampleBufferLength > length);
+    }
+
+    [Fact]
+    public void RangeSizedBufferIsReusedWhileTheRangeFits()
+    {
+        TemperatureChartData data = new() { SizeBufferToRange = true };
+        for (int second = 0; second <= 3600; second++)
+        {
+            Record(second, nozzle: 200);
+        }
+
+        data.Update(_history, "mk4", T0, T0.AddSeconds(3600), 256);
+        int allocations = data.SampleBufferAllocations;
+
+        // The window slides by one sample per poll: the count stays.
+        for (int second = 3601; second <= 3700; second++)
+        {
+            Record(second, nozzle: 200);
+            data.Update(_history, "mk4", T0.AddSeconds(second - 3600), T0.AddSeconds(second), 256);
+            Assert.Equal(3601, data.SampleCount);
+        }
+
+        Assert.Equal(allocations, data.SampleBufferAllocations);
+    }
+
+    [Fact]
+    public void RangeSizedBufferNeverExceedsTheCapacity()
+    {
+        _history.Configure([Definition()], TimeSpan.FromHours(1));
+        int capacity = _history.GetCapacity("mk4");
+        for (int second = 0; second < capacity; second++)
+        {
+            Record(second * 3600, nozzle: 200);
+        }
+
+        TemperatureChartData data = new() { SizeBufferToRange = true };
+        data.Update(_history, "mk4", T0, T0.AddDays(2), 256);
+
+        Assert.Equal(capacity, data.SampleCount);
+        Assert.Equal(capacity, data.SampleBufferLength);
+    }
+
     [Fact]
     public void ColumnBuffersGrowOnlyForWiderCharts()
     {

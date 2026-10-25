@@ -888,6 +888,18 @@
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
   </data>
+  <data name="CameraOverlayChartStart" xml:space="preserve">
+    <value>−60 min</value>
+  </data>
+  <data name="CameraOverlayChartNow" xml:space="preserve">
+    <value>now</value>
+  </data>
+  <data name="CameraOverlayChartNoData" xml:space="preserve">
+    <value>No data</value>
+  </data>
+  <data name="CameraOverlayChartName" xml:space="preserve">
+    <value>chart of the last 60 minutes</value>
+  </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Done at {0}</value>
   </data>
