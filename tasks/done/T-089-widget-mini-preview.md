@@ -23,6 +23,14 @@ Malý náhled kamery přestane kreslit údaje přes obraz. Pod obrazem bude **in
 - **Minimální šířka (Q4):** minimální šířka malého náhledu se zvyšuje na **240** DIP.
 - **Poměr stran (Q5):** podle **skutečného streamu**. Do prvního snímku (a bez snímku) platí 16:9.
 
+## Rozhodnutí (uživatel, 2026-10-25)
+Uživatel potvrdil všech pět výkladů zadání tak, jak jsou implementované. Jsou to pevné požadavky:
+1. **Otevření:** při otevření a přepnutí do malého náhledu má obraz velikost z nastavení / pamatovanou (i její poměr). Poměr streamu se uplatní až po prvním snímku (a dalších spouštěčích ze zadání).
+2. **Změna adresy kamery:** platí poslední známý poměr až do prvního snímku nové kamery.
+3. **Okno přesně uprostřed** pracovní plochy (± 1 px) roste na obě strany stejně.
+4. **Starý úzký malý náhled** (užší než 240) se rozšíří doprava a pak posune na pracovní plochu.
+5. **Dvojklik na pás** vrátí normální okno (stejně jako dvojklik na obraz).
+
 ## Kontext (dnešní chování, T-014 / T-035 / T-037)
 - Malý náhled je okno bez rámu, vždy navrchu (`TopmostMini`). Přesouvá se tažením obrazu.
 - Velikost se mění úchyty na okrajích (`Border.grip`, `BeginResizeDrag`) bez zámku poměru stran. Obraz se do okna vejde se zachovaným poměrem.
@@ -107,7 +115,7 @@ Malý náhled kamery přestane kreslit údaje přes obraz. Pod obrazem bude **in
   - menší uložená šířka se při načtení zvětší na 240 s jedním varováním (`SettingsMapper.ToMiniLayout`, výška obrazu zůstane), ověřeno i spuštěním aplikace v testovacím režimu,
   - `MinWidth` okna je 240 jen v malém náhledu, normální okno má dál 160.
 - **Nové texty (8 jazyků):** `CameraMiniCooling` („Chladne… {0} °C · cca {1}“), `CameraMiniCoolingNoEstimate`, `CameraMiniCooled` („Vychladlo · {0} °C“, max. 22 znaků podle návrhu). Nezlomitelná mezera před °C, test ve všech jazycích.
-- **Výklad zadání (k potvrzení uživatelem, implementaci neblokuje):**
+- **Výklad zadání (uživatel potvrdil 2026-10-25, viz Rozhodnutí 2026-10-25):**
   - Při otevření a přepnutí do malého náhledu má obraz velikost z nastavení / pamatovanou (tedy i její poměr). Na poměr streamu se výška dopočítá až podle spouštěčů ze zadání (první snímek, změna poměru, úchyty, pás). Pamatovaný obraz kamery 4:3 se tak otevře bez poskočení. Nastavení např. 320 × 240 se u streamu 16:9 po prvním snímku zmenší na 320 × 213.
   - Po změně adresy kamery platí poslední známý poměr až do prvního snímku nové kamery, aby okno neměnilo výšku dvakrát.
   - Okno přesně uprostřed pracovní plochy (± 1 px, např. výchozí roh „Na střed“) roste na obě strany stejně, aby zůstalo na středu.
@@ -120,3 +128,4 @@ Malý náhled kamery přestane kreslit údaje přes obraz. Pod obrazem bude **in
   - upravené testy umístění T-035 / T-040 / T-071 (headless) a E2E očekávání velikosti malého náhledu (320 × 213 se simulátorem 16:9; E2E se v tomto úkolu nespouštěly, jejich průchod je T-093, kam jsou zapsané i kontroly skutečného tažení úchytu a převodu starých souborů),
   - nové snímky `camera-mini-strip-printing.png`, `camera-mini-strip-cooled-de.png`, `camera-mini-strip-240-pl.png`, přegenerované `camera-mini-buttons.png` (240 × 168 s pásem) a `settings-camera-window-errors-fr.png` (chyba s minimem 240), všechny vizuálně zkontrolované.
 - Ověřeno na Windows 11: build bez varování, všechny testy zelené, aplikace v izolovaném testovacím režimu se spustí a běží (varování o rozšíření úzkého malého náhledu v logu jednou). Neověřeno: macOS (změna velikosti bez modální smyčky, `BeginResizeDrag` v Avalonia.Native), skutečné tažení úchytu a DPI 125–200 % na skutečném okně (T-093), Native AOT publish (nový kód je bez reflexe, kompilované bindingy).
+- **Review 2026-10-25 (qa-reviewer):** `CameraMiniGeometry.ToImage` bral směr růstu podle okna, ne podle pamatovaného obrazu. Okno těsně nad středem pracovní plochy (o 1 px blíž hornímu okraji, lichý pás v px, např. 33 při 100 % nebo 41 při 125 %) se po zavření a novém otevření posunulo o půl pásu (16 px). Opraveno: obraz se volí tak, aby z něj `FromImage` vyrostl zpět do stejného okna. Test `WindowMovedAnywhereComesBackAtTheSamePlaceAtAnyScaling` prochází každý řádek pracovní plochy při 100 / 125 / 150 / 175 / 200 %.

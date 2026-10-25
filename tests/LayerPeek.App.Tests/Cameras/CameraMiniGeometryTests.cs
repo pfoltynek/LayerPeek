@@ -129,6 +129,30 @@ public sealed class CameraMiniGeometryTests
         }
     }
 
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.25)]
+    [InlineData(1.5)]
+    [InlineData(1.75)]
+    [InlineData(2.0)]
+    public void WindowMovedAnywhereComesBackAtTheSamePlaceAtAnyScaling(double scaling)
+    {
+        // Wherever the user drags the window (every pixel row, including the rows around the middle where it grows by
+        // half to both sides), the remembered image opens as the same window again.
+        PixelBounds area = new(0, 0, (int)(1600 * scaling), (int)(900 * scaling));
+        CameraWindowPlacement size = CameraMiniGeometry.Correct(new PixelBounds(100, 0, 1, 1), 320, scaling, area, null, Strip);
+        PixelBounds sized = Pixels(size, scaling);
+        for (int top = area.Y; top <= area.Bottom - sized.Height; top++)
+        {
+            PixelBounds closed = sized with { Y = top };
+
+            CameraWindowPlacement remembered = CameraMiniGeometry.ToImage(closed, scaling, area, Strip);
+            CameraWindowPlacement again = CameraMiniGeometry.FromImage(remembered, scaling, area, null, Strip);
+
+            Assert.Equal((closed.X, closed.Y, closed.Width, closed.Height), (again.X, again.Y, Pixels(again, scaling).Width, Pixels(again, scaling).Height));
+        }
+    }
+
     [Fact]
     public void RememberedImageNearTheBottomStaysThereWhenOpenedAgain()
     {

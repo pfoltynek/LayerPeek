@@ -88,17 +88,31 @@ internal static class CameraMiniGeometry
         scaling = UsableScaling(scaling);
         int strip = stripHeight > 0 ? Math.Clamp(ToPixels(stripHeight, scaling), 0, Math.Max(window.Height - 1, 0)) : 0;
         int y = window.Y;
-        if (workArea is { } area)
+        if (workArea is { IsEmpty: false } area)
         {
-            y = Direction(window, area) switch
+            // The image must grow back by the same rule: its own nearest edge decides, not the window's. Near the middle
+            // the two can differ (the strip shifts the image off-centre), so the window's direction is tried first and
+            // then the others; one of "top stays" and "bottom stays" always fits.
+            Growth own = Direction(window, area);
+            y = ImageTop(window, strip, own);
+            if (Direction(window with { Y = y, Height = window.Height - strip }, area) != own)
             {
-                Growth.Up => window.Y + strip,
-                Growth.Both => window.Y + (strip / 2),
-                _ => window.Y,
-            };
+                y = ImageTop(window, strip, Growth.Down);
+                if (Direction(window with { Y = y, Height = window.Height - strip }, area) != Growth.Down)
+                {
+                    y = ImageTop(window, strip, Growth.Up);
+                }
+            }
         }
 
         return new CameraWindowPlacement(window.X, y, window.Width / scaling, (window.Height - strip) / scaling);
+
+        static int ImageTop(PixelBounds window, int strip, Growth growth) => growth switch
+        {
+            Growth.Up => window.Y + strip,
+            Growth.Both => window.Y + (strip / 2),
+            _ => window.Y,
+        };
     }
 
     /// <summary>
