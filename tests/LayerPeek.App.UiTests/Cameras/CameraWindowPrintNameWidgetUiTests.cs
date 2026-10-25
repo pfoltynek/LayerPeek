@@ -135,8 +135,7 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
     }
 
     /// <summary>The text a <see cref="TextBlock"/> draws on its line <paramref name="line"/> (after shortening).</summary>
-    private static string DrawnText(TextBlock block, int line = 0) =>
-        string.Concat(block.TextLayout.TextLines[line].TextRuns.Select(static run => run.Text.ToString()));
+    private static string DrawnText(TextBlock block, int line = 0) => DrawnLine.Of(block, line);
 
     /// <summary>The text of a part (chip) as drawn: the part's template TextBlock.</summary>
     private static TextBlock PartText(Control part) => part.GetVisualDescendants().OfType<TextBlock>().Single();
@@ -461,6 +460,10 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
                 "Benchy remix calibration cube 打印打印打印打印 v2",
                 // CJK in the start (drawn in a fallback font).
                 "\u6253\u5370 Benchy remix calibration cube with a long plain tail v2",
+                // Right-to-left text (Hebrew, Arabic) in the end, in the start and in the whole title.
+                "Benchy remix calibration cube \u05de\u05d7\u05d6\u05d9\u05e7 \u05e1\u05e4\u05e8\u05d9\u05dd \u05de\u05ea\u05e7\u05e4\u05dc v2",
+                "\u05de\u05d7\u05d6\u05d9\u05e7 \u05e1\u05e4\u05e8\u05d9\u05dd Benchy remix calibration cube with a long plain tail v2",
+                "\u062d\u0627\u0645\u0644 \u0643\u062a\u0628 \u0642\u0627\u0628\u0644 \u0644\u0644\u0637\u064a \u0645\u0639 \u063a\u0637\u0627\u0621 \u0637\u0648\u064a\u0644 \u062c\u062f\u0627 v2",
             ];
         }
     }
@@ -485,7 +488,8 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
                 HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
             };
             Window host = OverlayHost(scope, 600, 60, title);
-            string[] characters = TextElements(text);
+            string[] characters = DrawnLine.TextElements(text);
+            bool rightToLeft = text.Any(static c => c is >= (char)0x0590 and <= (char)0x08FF);
             int collapsed = 0;
             for (double width = 40; width <= 420; width += 3)
             {
@@ -497,59 +501,28 @@ public sealed class CameraWindowPrintNameWidgetUiTests(HeadlessSession session)
                 }
 
                 collapsed++;
-                string drawn = DrawnText(title);
-                Assert.True(drawn.Count(static c => c == '…') == 1, $"'{drawn}' at {width}: not exactly one '…'");
-                int ellipsis = drawn.IndexOf('…', StringComparison.Ordinal);
-                Assert.True(IsWholeCharacterPrefix(characters, drawn[..ellipsis]), $"'{drawn}' at {width}: the start is not whole characters of the title");
-                Assert.True(IsWholeCharacterSuffix(characters, drawn[(ellipsis + 1)..]), $"'{drawn}' at {width}: the end is not whole characters of the title's end");
+                // In logical order (also right-to-left text): one "…", a start and an end of whole characters, the end
+                // really being the end of the title.
+                (_, string end) = DrawnLine.AssertMiddleShortened(title, $"{width}");
                 if (width >= 200)
                 {
-                    Assert.EndsWith(" v2", drawn, StringComparison.Ordinal);
+                    Assert.EndsWith(" v2", end, StringComparison.Ordinal);
+                }
+
+                if (!rightToLeft)
+                {
+                    // Left-to-right only: the runs in visual order are the same text.
+                    string drawn = DrawnText(title);
+                    Assert.True(drawn.Count(static c => c == '…') == 1, $"'{drawn}' at {width}: not exactly one '…'");
+                    int ellipsis = drawn.IndexOf('…', StringComparison.Ordinal);
+                    Assert.True(DrawnLine.IsWholeCharacterPrefix(characters, drawn[..ellipsis]), $"'{drawn}' at {width}: the start is not whole characters of the title");
+                    Assert.True(DrawnLine.IsWholeCharacterSuffix(characters, drawn[(ellipsis + 1)..]), $"'{drawn}' at {width}: the end is not whole characters of the title's end");
                 }
             }
 
             Assert.True(collapsed > 10, $"only {collapsed} widths shortened the title");
             return Task.CompletedTask;
         });
-
-    private static string[] TextElements(string text)
-    {
-        List<string> elements = [];
-        System.Globalization.TextElementEnumerator enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(text);
-        while (enumerator.MoveNext())
-        {
-            elements.Add(enumerator.GetTextElement());
-        }
-
-        return [.. elements];
-    }
-
-    private static bool IsWholeCharacterPrefix(string[] characters, string head)
-    {
-        int length = 0;
-        foreach (string character in characters)
-        {
-            if (length == head.Length)
-            {
-                break;
-            }
-
-            length += character.Length;
-        }
-
-        return length == head.Length && string.Concat(characters).StartsWith(head, StringComparison.Ordinal);
-    }
-
-    private static bool IsWholeCharacterSuffix(string[] characters, string tail)
-    {
-        int length = 0;
-        for (int i = characters.Length - 1; i >= 0 && length < tail.Length; i--)
-        {
-            length += characters[i].Length;
-        }
-
-        return length == tail.Length && string.Concat(characters).EndsWith(tail, StringComparison.Ordinal);
-    }
 
     [Fact]
     public Task ChipsThatDoNotFitAreLeftOutFromTheRight() =>

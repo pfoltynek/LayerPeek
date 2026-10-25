@@ -34,6 +34,12 @@ public sealed class OverlayMiddleTrimming : TextTrimming
     /// <summary>The shared instance for XAML (<c>{x:Static ov:OverlayMiddleTrimming.Middle}</c>).</summary>
     public static OverlayMiddleTrimming Middle { get; } = new();
 
+    /// <summary>
+    /// The printer name line (Status widget): keeps the same start as the text-side shortening of the name
+    /// (<see cref="OverlayFormat.NameHeadLength"/>), so a name shortened both ways shows a single "…".
+    /// </summary>
+    public static OverlayMiddleTrimming PrinterName { get; } = new(OverlayFormat.NameHeadLength);
+
     public int PrefixLength { get; }
 
     public override TextCollapsingProperties CreateCollapsingProperties(TextCollapsingCreateInfo createInfo) =>

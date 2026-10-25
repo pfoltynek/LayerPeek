@@ -19,8 +19,8 @@ public static class OverlayFormat
 
     /// <summary>
     /// UTF-16 code units kept at the start of a shortened printer name, rounded up to the end of the character that contains
-    /// the last one: the same start that the middle width trimming of the cards keeps (<c>TextTrimming.PrefixCharacterEllipsis</c>
-    /// in Avalonia 12 splits after 8 code units and rounds up to the end of the glyph cluster). A name that is also too wide
+    /// the last one: the same start that the middle width trimming of the name line keeps (<see cref="OverlayMiddleTrimming.PrinterName"/>
+    /// splits after this many code units and rounds up to the end of the glyph cluster). A name that is also too wide
     /// for its card therefore loses this "…" first and shows a single one, never "start…middle…". Glyph clusters equal
     /// grapheme clusters except for font ligatures across the cut, which a text function cannot know.
     /// </summary>
