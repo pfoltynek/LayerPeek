@@ -131,6 +131,12 @@ Jediný `Border` s řádky z T-036 nahradil systém widgetů. Otázky rozhodl u�
     - pamatovaná i výchozí poloha malého náhledu je **obdélník obrazu**, ze kterého okno vyroste o pás. Pamatuje se inverzí růstu, takže se okno otevře na stejném místě. Starý stav (okno bez pásu) je takový obdélník obrazu, převod souboru proto není potřeba,
     - poměr streamu nese `CameraViewModel.VideoAspectRatio` (z rozměrů snímku, mění se jen při změně poměru).
   - Stav sbalení (výchozí sbaleno) je u tiskárny se stavem okna v `camera-windows.json` (`CameraWindowStateStore`), ne v `settings.json`. Ukládá se i při vypnutém „pamatovat poslední umístění“ a zapomene se spolu se stavem okna.
+  - Implementace (T-090):
+    - přepínače `CameraMiniToggleName` / `CameraMiniToggleChart` (`ToggleButton` 30 × 30) v `CameraMiniToggles` v základním řádku pásu; pás leží nad úchyty okna (`ZIndex`), jeho vlastní hit test (`CameraMiniStripPanel`) nechává okraje 6 DIP úchytům kromě místa pod přepínači,
+    - řádek názvu = kompaktní šablona `PrintNameCompactView` nad vlastním `PrintNameWidgetViewModel` pásu (bez náhledu G-code), čipy podle šířky okna (`OverlayChipsPanel.MaxCount`: materiál od 320, výška vrstvy od 400); bez úlohy zmizí,
+    - řádek grafu = kompaktní `TemperatureChart` (`CameraMiniChart`), který odebírá historii jen viditelný; aktuální teploty sloupce vlevo se počítají jen při rozbaleném grafu,
+    - výška pásu `CameraMiniStripViewModel.StripHeight` (33 / 67 / 97 / 131), okno ji sleduje stávajícím dopočtem z T-089,
+    - stav v `CameraWindowState.MiniRows` (`CameraMiniRows`), v souboru nepovinná pole `miniNameRow` / `miniChartRow` zapsaná jen při `true`; jiná hodnota než `true` / `false` se čte jako sbaleno a zbytek souboru zůstane platný.
 - **Režim rozložení (T-091):**
   - Je jen v normálním okně, vstup tlačítkem v řadě tlačítek okna a z kontextové nabídky.
   - Pracovní kopie rozložení je ve view modelu bez Avalonie. Tažení do kotev a v rámci kotvy, popover (zvýraznit, S/M/L), ovládání klávesnicí.
