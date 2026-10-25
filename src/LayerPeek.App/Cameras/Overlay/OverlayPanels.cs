@@ -20,6 +20,11 @@ public sealed class OverlayAnchorItems : ItemsControl
 
     private static readonly FuncTemplate<Panel?> StackPanelTemplate = new(static () => new OverlayStackPanel());
 
+    // The widgets of the anchor while it is in a window. The size from the layout is applied while the anchors panel measures
+    // (it decides the drawn size), so a saved size change of a card that stays in place must lay the cards out again (a
+    // hidden card, too: whether it has content may depend on its size, T-083).
+    private OverlayWidgetViewModel[] _watched = [];
+
     static OverlayAnchorItems()
     {
         ItemsPanelProperty.OverrideDefaultValue<OverlayAnchorItems>(StackPanelTemplate);
@@ -39,6 +44,49 @@ public sealed class OverlayAnchorItems : ItemsControl
 
     // The theme of a plain ItemsControl.
     protected override Type StyleKeyOverride => typeof(ItemsControl);
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+        if (change.Property == ItemsSourceProperty)
+        {
+            Watch(this.IsAttachedToVisualTree() ? ItemsSource : null);
+        }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        Watch(ItemsSource);
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        Watch(null);
+        base.OnDetachedFromVisualTree(e);
+    }
+
+    private void Watch(System.Collections.IEnumerable? items)
+    {
+        foreach (OverlayWidgetViewModel widget in _watched)
+        {
+            widget.PropertyChanged -= OnWidgetPropertyChanged;
+        }
+
+        _watched = items is null ? [] : [.. items.OfType<OverlayWidgetViewModel>()];
+        foreach (OverlayWidgetViewModel widget in _watched)
+        {
+            widget.PropertyChanged += OnWidgetPropertyChanged;
+        }
+    }
+
+    private void OnWidgetPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(OverlayWidgetViewModel.Size))
+        {
+            ((this.GetVisualParent() as Layoutable) ?? this).InvalidateMeasure();
+        }
+    }
 }
 
 /// <summary>
