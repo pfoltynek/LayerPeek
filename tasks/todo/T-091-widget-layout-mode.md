@@ -87,10 +87,14 @@ Varianta **C** ze schváleného návrhu: rozložení widgetů se upravuje přím
 - [ ] Po „Hotovo“ je rozložení v `settings.json`, celá obrazovka ho používá také a po restartu (novém otevření okna) je stejné
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
+## Rozhodnutí ke vstupu zvenku (uživatel, 2026-10-25)
+Uživatel přijal návrhy architekta:
+- **Q1 – dočasně zvětšené okno se nevejde na pracovní plochu:** okno 640 × 360 se na dobu režimu posune dovnitř pracovní plochy a po ukončení se vrátí původní poloha i velikost.
+- **Q2 – návrat po vstupu z malého náhledu nebo celé obrazovky:** po „Hotovo“ / Esc okno zůstane v normálním režimu.
+- **Q3 – vstup zvenku, když okno už je v režimu rozložení:** okno se jen aktivuje a rozpracovaná úprava pokračuje.
+
 ## Otevřené otázky
-- **Q1 – dočasně zvětšené okno se nevejde na pracovní plochu** (okno 640 × 360 „na stejném místě“ by přesáhlo okraj monitoru): posunout ho na dobu režimu dovnitř pracovní plochy a po ukončení vrátit původní polohu i velikost (návrh architekta), nebo ho nechat přesahovat?
-- **Q2 – návrat po vstupu zvenku z malého náhledu nebo celé obrazovky:** po „Hotovo“ / Esc zůstat v normálním okně (návrh architekta, jednodušší a odpovídá Návrhu UI 5.4 v T-092), nebo se vrátit do původního režimu okna?
-- **Q3 – vstup zvenku, když okno už je v režimu rozložení** (např. uživatel klikne v nastavení podruhé): jen okno aktivovat a pokračovat v rozpracované úpravě (návrh architekta), nebo úpravu zahodit a začít znovu z předaného rozložení?
+- Žádné.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

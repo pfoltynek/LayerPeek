@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 
 using LayerPeek.PrusaLink.WebProxy;
+using LayerPeek.Tests.Allocation;
 
 namespace LayerPeek.PrusaLink.Tests.WebProxy;
 
@@ -215,7 +216,11 @@ public class WebProxyDigestTests
     }
 }
 
-/// <summary>Bodies of hundreds of MB pass through block by block in both directions.</summary>
+/// <summary>
+/// Bodies of hundreds of MB pass through block by block in both directions. The allocation checks count every thread
+/// of the process (the proxy forwards on server threads), so the class runs alone, see <see cref="AllocationSensitive"/>.
+/// </summary>
+[Collection(nameof(AllocationSensitive))]
 public class WebProxyStreamingTests
 {
     private const long Size = 256L * 1024 * 1024;
