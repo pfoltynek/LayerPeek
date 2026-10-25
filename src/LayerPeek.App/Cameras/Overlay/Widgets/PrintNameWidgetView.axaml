@@ -5,7 +5,8 @@
   L: title (16 semi-bold / 22, up to 2 lines) → 6 → chips (22) → 6 → slicer estimate (13 secondary / 18; card 102 high).
   The title is the key value (accent colour when emphasized); one line in S / M shortened in the middle, in L 2 lines and
   then shortened at the end. Chips never wrap: those that do not fit are left out from the right. Column 0 of the grid is
-  reserved for the G-code preview of T-087 (M 40, L 72); without a preview nothing is drawn there and nothing moves.
+  the G-code thumbnail of T-087 (M 40, L 72, top-aligned with the title, Uniform on white 8 % with rounded corners);
+  without a thumbnail (none in the file, not decoded yet, broken PNG, S) nothing is drawn there and nothing moves.
 -->
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -58,9 +59,35 @@
       <Setter Property="FontSize" Value="13" />
       <Setter Property="LineHeight" Value="18" />
     </Style>
+
+    <!-- The G-code thumbnail (T-087): M 40 / radius 6 / gap 10, L 72 / radius 8 / gap 12; none in S. -->
+    <Style Selector="Border.overlayCard Border.printNameThumbnail">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Margin" Value="0,0,10,0" />
+    </Style>
+    <Style Selector="Border.overlayCard.large Border.printNameThumbnail">
+      <Setter Property="Width" Value="72" />
+      <Setter Property="Height" Value="72" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+    </Style>
   </UserControl.Styles>
 
   <Grid Classes="printName" ColumnDefinitions="Auto,*">
+    <!-- Drawn only with a decoded thumbnail: without one nothing takes room and nothing moves (T-076 2.4). -->
+    <Border Classes="printNameThumbnail"
+            VerticalAlignment="Top"
+            Background="#14FFFFFF"
+            ClipToBounds="True"
+            IsVisible="{Binding ShowsThumbnail}"
+            AutomationProperties.AutomationId="CameraOverlayWidget-print-name-Thumbnail"
+            AutomationProperties.Name="{Binding ThumbnailName}">
+      <Image Source="{Binding Thumbnail}"
+             Stretch="Uniform"
+             RenderOptions.BitmapInterpolationMode="HighQuality" />
+    </Border>
     <StackPanel Grid.Column="1" Classes="printNameText">
       <Grid ColumnDefinitions="Auto,*">
         <ov:OverlayIcon Data="{DynamicResource IconCube16Regular}"

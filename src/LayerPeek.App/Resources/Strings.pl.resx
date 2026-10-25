@@ -897,6 +897,9 @@
   <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
     <value>szacunek slicera {0}</value>
   </data>
+  <data name="CameraOverlayThumbnailName" xml:space="preserve">
+    <value>Podgląd wydruku</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Czas druku: {0}</value>
   </data>

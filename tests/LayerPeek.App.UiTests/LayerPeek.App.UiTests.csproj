@@ -37,6 +37,8 @@
     <Compile Include="..\LayerPeek.App.Tests\Cameras\Overlay\TestOverlayWidget.cs" Link="Shared\TestOverlayWidget.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Printers\ImageFakes.cs" Link="Shared\ImageFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Diagnostics\DiagnosticsFakes.cs" Link="Shared\DiagnosticsFakes.cs" />
+    <Compile Include="..\LayerPeek.App.Tests\Previews\PreviewFakes.cs" Link="Shared\PreviewFakes.cs" />
+    <Compile Include="..\Shared\TestPng.cs" Link="Shared\TestPng.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />
