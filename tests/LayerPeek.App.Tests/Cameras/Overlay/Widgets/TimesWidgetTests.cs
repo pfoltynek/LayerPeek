@@ -123,13 +123,13 @@ public sealed class TimesWidgetTests : IDisposable
 
         Assert.True(widget.IsShown);
         Assert.Equal("Remaining", widget.RemainingLabel);
-        Assert.Equal("1 h 5 min", widget.Remaining);
+        Assert.Equal("1\u00A0h 5\u00A0min", widget.Remaining);
         Assert.Equal("Done at 1:05 PM", widget.Finish);
-        Assert.Equal("2 h 10 min", widget.PrintTime);
+        Assert.Equal("2\u00A0h 10\u00A0min", widget.PrintTime);
         Assert.True(widget.HasRemaining);
         Assert.True(widget.HasFinish);
         Assert.True(widget.HasPrintTime);
-        Assert.Equal("1 h 5 min remaining, Done at 1:05 PM, Print time: 2 h 10 min", widget.AccessibleName);
+        Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min", widget.AccessibleName);
     }
 
     [Theory]
@@ -178,10 +178,10 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.False(widget.HasRemaining);
         Assert.False(widget.HasFinish);
         Assert.True(widget.HasPrintTime);
-        Assert.Equal("3 min", widget.PrintTime);
+        Assert.Equal("3\u00A0min", widget.PrintTime);
         Assert.True(widget.ShowsRows);
         Assert.False(widget.ShowsFinishRow);
-        Assert.Equal("Print time: 3 min", widget.AccessibleName);
+        Assert.Equal("Print time: 3\u00A0min", widget.AccessibleName);
     }
 
     [Fact]
@@ -192,7 +192,7 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.True(widget.HasRemaining);
         Assert.True(widget.HasFinish);
         Assert.False(widget.HasPrintTime);
-        Assert.Equal("1 h 5 min remaining, Done at 1:05 PM", widget.AccessibleName);
+        Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM", widget.AccessibleName);
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public sealed class TimesWidgetTests : IDisposable
     {
         TimesWidgetViewModel widget = Show(Create(), Printing(progress: 50, knownRemaining: false, elapsed: TimeSpan.FromMinutes(30)));
 
-        Assert.Equal("30 min", widget.Remaining);
+        Assert.Equal("30\u00A0min", widget.Remaining);
         Assert.Equal("Done at 12:30 PM", widget.Finish);
     }
 
@@ -220,8 +220,8 @@ public sealed class TimesWidgetTests : IDisposable
     {
         TimesWidgetViewModel widget = Show(Create(), Printing(remaining: TimeSpan.FromSeconds(270), elapsed: TimeSpan.FromSeconds(61), at: Now.AddSeconds(20)));
 
-        Assert.Equal("5 min", widget.Remaining);
-        Assert.Equal("2 min", widget.PrintTime);
+        Assert.Equal("5\u00A0min", widget.Remaining);
+        Assert.Equal("2\u00A0min", widget.PrintTime);
         // The finish agrees with the remaining time: 12:00:20 + 4:30 = 12:04:50, rounded up to 12:05.
         Assert.Equal("Done at 12:05 PM", widget.Finish);
     }
@@ -281,8 +281,8 @@ public sealed class TimesWidgetTests : IDisposable
 
         widget = Show(overlay, Printing(remaining: TimeSpan.FromMinutes(64), elapsed: TimeSpan.FromMinutes(131), at: Now.AddMinutes(1)));
 
-        Assert.Equal("1 h 4 min", widget.Remaining);
-        Assert.Equal("2 h 11 min", widget.PrintTime);
+        Assert.Equal("1\u00A0h 4\u00A0min", widget.Remaining);
+        Assert.Equal("2\u00A0h 11\u00A0min", widget.PrintTime);
         Assert.Contains(nameof(TimesWidgetViewModel.Remaining), changed);
         // The finish time stayed: its text is not set again.
         Assert.DoesNotContain(nameof(TimesWidgetViewModel.Finish), changed);
@@ -334,7 +334,7 @@ public sealed class TimesWidgetTests : IDisposable
         // 22:00 UTC on 24 October = 00:00 CEST; 4 h later is 02:00 UTC = 03:00 CET (clocks went back at 01:00 UTC), not 04:00.
         TimesWidgetViewModel widget = Show(Create(), Printing(remaining: TimeSpan.FromHours(4), at: new DateTimeOffset(2026, 10, 24, 22, 0, 0, TimeSpan.Zero)));
         Assert.Equal("Fertig um 03:00", widget.Finish);
-        Assert.Equal("4 h 0 min", widget.Remaining);
+        Assert.Equal("4\u00A0h 0\u00A0min", widget.Remaining);
     }
 
     [Fact]
@@ -351,10 +351,10 @@ public sealed class TimesWidgetTests : IDisposable
     // ---- Languages and regions ----
 
     [Theory]
-    [InlineData("en-US", "Remaining", "1 h 5 min", "Done at 1:05 PM", "1 h 5 min remaining, Done at 1:05 PM, Print time: 2 h 10 min")]
-    [InlineData("cs-CZ", "Zbývá", "1 h 5 min", "Hotovo v 13:05", "Zbývá 1 h 5 min, Hotovo v 13:05, Doba tisku: 2 h 10 min")]
-    [InlineData("de-DE", "Verbleibend", "1 h 5 min", "Fertig um 13:05", "Noch 1 h 5 min, Fertig um 13:05, Druckzeit: 2 h 10 min")]
-    [InlineData("fr-FR", "Restant", "1 h 5 min", "Fin à 13:05", "Temps restant : 1 h 5 min, Fin à 13:05, Durée d'impression : 2 h 10 min")]
+    [InlineData("en-US", "Remaining", "1\u00A0h 5\u00A0min", "Done at 1:05 PM", "1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min")]
+    [InlineData("cs-CZ", "Zbývá", "1\u00A0h 5\u00A0min", "Hotovo v 13:05", "Zbývá 1\u00A0h 5\u00A0min, Hotovo v 13:05, Doba tisku: 2\u00A0h 10\u00A0min")]
+    [InlineData("de-DE", "Verbleibend", "1\u00A0h 5\u00A0min", "Fertig um 13:05", "Noch 1\u00A0h 5\u00A0min, Fertig um 13:05, Druckzeit: 2\u00A0h 10\u00A0min")]
+    [InlineData("fr-FR", "Restant", "1\u00A0h 5\u00A0min", "Fin à 13:05", "Temps restant : 1\u00A0h 5\u00A0min, Fin à 13:05, Durée d'impression : 2\u00A0h 10\u00A0min")]
     public void TextsFollowTheLanguageAndTheRegion(string culture, string label, string remaining, string finish, string accessibleName)
     {
         using CultureScope scope = new(culture);
@@ -375,7 +375,7 @@ public sealed class TimesWidgetTests : IDisposable
         TimesWidgetViewModel widget = Show(Create(), Printing(remaining: TimeSpan.FromHours(20)));
 
         Assert.Equal("Hotovo 17. října v 8:00", widget.Finish);
-        Assert.Equal("20 h 0 min", widget.Remaining);
+        Assert.Equal("20\u00A0h 0\u00A0min", widget.Remaining);
     }
 
     [Fact]
@@ -391,7 +391,7 @@ public sealed class TimesWidgetTests : IDisposable
 
             Assert.Equal("Zbývá", widget.RemainingLabel);
             Assert.Equal("Hotovo v 13:05", widget.Finish);
-            Assert.Equal("Zbývá 1 h 5 min, Hotovo v 13:05, Doba tisku: 2 h 10 min", widget.AccessibleName);
+            Assert.Equal("Zbývá 1\u00A0h 5\u00A0min, Hotovo v 13:05, Doba tisku: 2\u00A0h 10\u00A0min", widget.AccessibleName);
         }
 
         Assert.Equal(posts, _dispatcher.PostCount);
@@ -423,7 +423,7 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.False(widget.ShowsFinishRow);
         Assert.False(widget.ShowsPrintTimeRow);
         // The screen reader still gets every value.
-        Assert.Equal("1 h 5 min remaining, Done at 1:05 PM, Print time: 2 h 10 min", widget.AccessibleName);
+        Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min", widget.AccessibleName);
     }
 
     [Fact]
@@ -462,8 +462,8 @@ public sealed class TimesWidgetTests : IDisposable
             widget.RenderedSize = OverlayWidgetSize.Large;
 
             Assert.True(widget.IsShown);
-            Assert.Equal("3 min", widget.PrintTime);
-            Assert.Equal("Doba tisku: 3 min", widget.AccessibleName);
+            Assert.Equal("3\u00A0min", widget.PrintTime);
+            Assert.Equal("Doba tisku: 3\u00A0min", widget.AccessibleName);
         }
 
         // Back to S: hidden again, no formatting needed.
@@ -481,7 +481,7 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.False(Show(overlay, Printing(progress: 0, knownRemaining: false)).IsShown);
         TimesWidgetViewModel widget = Show(overlay, Printing(remaining: TimeSpan.FromMinutes(30)));
         Assert.True(widget.IsShown);
-        Assert.Equal("30 min", widget.Remaining);
+        Assert.Equal("30\u00A0min", widget.Remaining);
     }
 
     [Theory]

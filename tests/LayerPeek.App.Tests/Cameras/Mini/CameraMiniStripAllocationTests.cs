@@ -1,5 +1,8 @@
+using Microsoft.Extensions.Time.Testing;
+
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Mini;
+using LayerPeek.App.Tests.Cameras.Overlay.Widgets;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
@@ -49,7 +52,7 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
         PrinterSnapshot second = Printing(42.9, 64.9, 190);
         strip.OnSnapshot(first);
         _dispatcher.RunAll();
-        Assert.Equal("42% · 1 h 5 min", strip.Summary);
+        Assert.Equal("42% · 1\u00A0h 5\u00A0min", strip.Summary);
         int changes = 0;
         strip.PropertyChanged += (_, _) => changes++;
         // Warm up (JIT, lazy statics).
@@ -93,6 +96,51 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
         PrinterSnapshot first = Printing(42.1, 64.2, 214.6);
         PrinterSnapshot second = Printing(42.9, 64.9, 150);
         AssertNothingAllocatedOrPosted(strip, first, second, string.Empty);
+    }
+
+    [Fact]
+    public void CoolingPollsWithTheSameMinutesAllocateNothing()
+    {
+        // T-088: the estimate rule of the Cool-down widget and its countdown clock cost nothing per poll either.
+        FakeTimeProvider time = new(Now);
+        using CooldownMonitor cooldown = new(_monitor, time, new ListLogger<CooldownMonitor>());
+        cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        using CameraMiniStripViewModel strip = new("mk4", _dispatcher, cooldown, clock: time);
+        _monitor.SnapshotUpdated += (_, snapshot) => strip.OnSnapshot(snapshot);
+        _monitor.Raise(CooldownWidgetTests.Printing());
+        double t = 5;
+        for (; cooldown.GetState("mk4").EstimatedRemaining is null; t += 5)
+        {
+            time.SetUtcNow(Now.AddSeconds(t));
+            _monitor.Raise(CooldownWidgetTests.Ended(t, CooldownWidgetTests.Newton(t - 5)));
+        }
+
+        _dispatcher.RunAll();
+        Assert.Equal(MiniStripKind.Cooling, strip.ShownContent.Kind);
+        Assert.NotNull(strip.ShownContent.Minutes);
+        Assert.True(strip.IsTicking);
+        // The same reading again: the same degree and minutes, the monitor changes only its time.
+        PrinterSnapshot same = CooldownWidgetTests.Ended(t - 5, CooldownWidgetTests.Newton(t - 10));
+        for (int i = 0; i < 100; i++)
+        {
+            _monitor.Raise(same);
+        }
+
+        _dispatcher.RunAll();
+        int posts = _dispatcher.PostCount;
+        const int Snapshots = 1000;
+
+        long allocated = AllocationProbe.MinAllocated(() => AllocationProbe.Measure(() =>
+        {
+            for (int i = 0; i < Snapshots; i++)
+            {
+                _monitor.Raise(same);
+            }
+        }));
+
+        Assert.Equal(0, allocated);
+        Assert.Equal(posts, _dispatcher.PostCount);
+        Assert.Equal(0, _dispatcher.Pending);
     }
 
     private void AssertNothingAllocatedOrPosted(CameraMiniStripViewModel strip, PrinterSnapshot first, PrinterSnapshot second, string nozzle)

@@ -47,16 +47,16 @@
     <comment>One printer line of the multi-printer tooltip. {0} = "Name: State – 42%", {1} = remaining duration.</comment>
   </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
-    <value>&lt; 1 min</value>
+    <value>&lt;&#160;1&#160;min</value>
   </data>
   <data name="DurationMinutes" xml:space="preserve">
-    <value>{0} min</value>
+    <value>{0}&#160;min</value>
   </data>
   <data name="DurationHoursMinutes" xml:space="preserve">
-    <value>{0} h {1} min</value>
+    <value>{0}&#160;h {1}&#160;min</value>
   </data>
   <data name="DurationDaysHours" xml:space="preserve">
-    <value>{0} d {1} h</value>
+    <value>{0}&#160;d {1}&#160;h</value>
   </data>
   <data name="StateConnecting" xml:space="preserve">
     <value>Connecting…</value>
@@ -973,7 +973,7 @@
     <value>{0} / {1} °C</value>
   </data>
   <data name="CameraOverlayChartStart" xml:space="preserve">
-    <value>−60 min</value>
+    <value>−60&#160;min</value>
   </data>
   <data name="CameraOverlayChartNow" xml:space="preserve">
     <value>now</value>
@@ -1034,6 +1034,30 @@
   </data>
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Cooled down · {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Cooling down…</value>
+  </data>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Cooled down – safe to turn off</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>safe to turn off in about {0} (nozzle below {1}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>safe to turn off once the nozzle is below {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>print finished at {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>print stopped at {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>cooled down in {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>about {0}</value>
   </data>
   <data name="CameraMiniToggleName" xml:space="preserve">
     <value>Print name in the strip</value>

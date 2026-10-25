@@ -95,6 +95,56 @@ public sealed partial class StringsTests
     [GeneratedRegex(@"(\}|\d) (%|°C)")]
     private static partial Regex UnitWithBreakingSpace();
 
+    /// <summary>
+    /// The durations of the overlay widgets, the mini preview strip, the tray tooltip and the toasts ("3 min", "2 h 35 min",
+    /// "−60 min"; decision 2026-10-25, T-088).
+    /// </summary>
+    private static readonly string[] DurationKeys =
+    [
+        nameof(Strings.DurationLessThanMinute),
+        nameof(Strings.DurationMinutes),
+        nameof(Strings.DurationHoursMinutes),
+        nameof(Strings.DurationDaysHours),
+        nameof(Strings.CameraOverlayChartStart),
+    ];
+
+    /// <summary>
+    /// A duration never breaks between a number and its unit ("3 / min"): a non-breaking space (U+00A0) joins them in
+    /// every language, also in "&lt; 1 min". Between the parts ("2 h" and "35 min") a breaking space stays, so a long
+    /// duration can still wrap between them (decision 2026-10-25, T-088).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(AllCultures))]
+    public void DurationsKeepNumberAndUnitTogether(string culture)
+    {
+        CultureInfo info = culture.Length == 0 ? CultureInfo.InvariantCulture : CultureInfo.GetCultureInfo(culture);
+        Dictionary<string, string> texts = Load(info);
+        foreach (string key in DurationKeys)
+        {
+            string text = texts[key];
+            Assert.False(DurationWithBreakingSpace().IsMatch(text), $"'{key}' in '{culture}' has a breaking space between a number and its unit: '{text}'.");
+            Assert.Matches(DurationPart(), text);
+        }
+
+        Assert.DoesNotContain(' ', texts[nameof(Strings.DurationLessThanMinute)]);
+        Assert.DoesNotContain(' ', string.Format(info, texts[nameof(Strings.DurationMinutes)], 3));
+        Assert.DoesNotContain(' ', texts[nameof(Strings.CameraOverlayChartStart)]);
+
+        // "2 h 35 min": each part stays together, the parts may wrap apart.
+        string[] parts = string.Format(info, texts[nameof(Strings.DurationHoursMinutes)], 2, 35).Split(' ');
+        Assert.Equal(2, parts.Length);
+        Assert.All(parts, static part => Assert.Matches(DurationPart(), part));
+        parts = string.Format(info, texts[nameof(Strings.DurationDaysHours)], 1, 4).Split(' ');
+        Assert.Equal(2, parts.Length);
+        Assert.All(parts, static part => Assert.Matches(DurationPart(), part));
+    }
+
+    [GeneratedRegex(@"(\}|\d) \p{L}")]
+    private static partial Regex DurationWithBreakingSpace();
+
+    [GeneratedRegex(@"(\}|\d)\u00A0\p{L}")]
+    private static partial Regex DurationPart();
+
     [Fact]
     public void EverySupportedLanguageExceptEnglishHasATranslation()
     {

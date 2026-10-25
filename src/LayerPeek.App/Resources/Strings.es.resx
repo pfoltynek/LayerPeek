@@ -40,16 +40,16 @@
     <value>{0}, quedan {1}</value>
   </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
-    <value>&lt; 1 min</value>
+    <value>&lt;&#160;1&#160;min</value>
   </data>
   <data name="DurationMinutes" xml:space="preserve">
-    <value>{0} min</value>
+    <value>{0}&#160;min</value>
   </data>
   <data name="DurationHoursMinutes" xml:space="preserve">
-    <value>{0} h {1} min</value>
+    <value>{0}&#160;h {1}&#160;min</value>
   </data>
   <data name="DurationDaysHours" xml:space="preserve">
-    <value>{0} d {1} h</value>
+    <value>{0}&#160;d {1}&#160;h</value>
   </data>
   <data name="StateConnecting" xml:space="preserve">
     <value>Conectando…</value>
@@ -952,7 +952,7 @@
     <value>{0} / {1} °C</value>
   </data>
   <data name="CameraOverlayChartStart" xml:space="preserve">
-    <value>−60 min</value>
+    <value>−60&#160;min</value>
   </data>
   <data name="CameraOverlayChartNow" xml:space="preserve">
     <value>ahora</value>
@@ -1013,6 +1013,30 @@
   </data>
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Enfriada · {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Enfriando…</value>
+  </data>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Enfriada – ya puede apagarla</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>apagado seguro en aprox. {0} (boquilla bajo {1}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>apagado seguro cuando la boquilla baje de {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>impresión terminada a las {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>impresión detenida a las {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>enfriada en {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>aprox. {0}</value>
   </data>
   <data name="CameraMiniToggleName" xml:space="preserve">
     <value>Nombre de la impresión en la franja</value>

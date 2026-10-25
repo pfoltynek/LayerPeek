@@ -45,6 +45,7 @@
                 Classes.small="{Binding IsSmall}"
                 Classes.medium="{Binding IsMedium}"
                 Classes.large="{Binding IsLarge}"
+                Classes.outlined="{Binding IsOutlined}"
                 IsVisible="{Binding IsShown}"
                 Background="{Binding CardBackground}"
                 AutomationProperties.AutomationId="{Binding AutomationId}"
@@ -178,6 +179,21 @@
   <Style Selector="Border.overlayCard.large">
     <Setter Property="Padding" Value="16,14" />
     <Setter Property="CornerRadius" Value="12" />
+  </Style>
+  <!--
+    The only card with a border (T-076 1.1): Cool-down once cooled, 1.5 OverlayCooledBrush. The padding gives back the
+    border's width, so the card keeps its size when "Cooling down…" turns into "Cooled down".
+  -->
+  <Style Selector="Border.overlayCard.outlined">
+    <Setter Property="BorderBrush" Value="{StaticResource OverlayCooledBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="Padding" Value="12.5,10.5" />
+  </Style>
+  <Style Selector="Border.overlayCard.small.outlined">
+    <Setter Property="Padding" Value="8.5,6.5" />
+  </Style>
+  <Style Selector="Border.overlayCard.large.outlined">
+    <Setter Property="Padding" Value="14.5,12.5" />
   </Style>
 
   <!-- Text (T-076 1.2): row text 13 (S semi-bold, L 15), light on the dark card. -->

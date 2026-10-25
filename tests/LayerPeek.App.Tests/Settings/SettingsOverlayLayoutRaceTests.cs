@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.App.Cameras.Layout;
+using LayerPeek.App.Composition;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Settings.Widgets;
 using LayerPeek.App.Tests.Tray;
@@ -62,7 +63,7 @@ public sealed class SettingsOverlayLayoutRaceTests : IAsyncDisposable
             new FakeConnectionTester(),
             Supported,
             cameraTester: new FakeCameraTester(),
-            widgets: WidgetSettingsTestData.WithCooldown(),
+            widgets: OverlayWidgets.CreateRegistry(),
             layoutWriter: writer,
             uiDispatcher: _dispatcher);
         _viewModel = vm;

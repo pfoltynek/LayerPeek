@@ -59,8 +59,9 @@ internal sealed class CameraHarness : IAsyncDisposable
             CameraOverlayOpacityPercent = opacity,
         };
         ((IMonitoringObserver)Printers).ApplySettings(settings);
-        // The cool-down states of the mini preview strip (T-089) from the snapshots the test raises.
-        Cooldown = new CooldownMonitor(Monitor, TimeProvider.System, NullLogger<CooldownMonitor>.Instance);
+        // The cool-down states of the Cool-down widget and the mini preview strip (T-088, T-089) from the snapshots the test
+        // raises, on the fake clock of the windows (the estimate counts down with it).
+        Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
         Cooldown.Configure(settings.Printers, settings.PollingInterval);
         Windows = new AuxiliaryWindowFactory(track).CameraWindows(Create, screens, measureChrome, predictChrome);
     }

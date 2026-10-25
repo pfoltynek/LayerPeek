@@ -303,7 +303,7 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
             Assert.True(chart.IsCompact);
             Assert.Equal(52, chart.Bounds.Height, 0.01);
             Assert.Equal(320 - 20 - 64 - 8, chart.Bounds.Width, 0.01);
-            Assert.True(Ui.ShowsText(window, "60 min"));
+            Assert.True(Ui.ShowsText(window, "60\u00A0min"));
             Assert.True(Ui.ShowsText(window, "215°"));
             Assert.True(Ui.ShowsText(window, "60°"));
 

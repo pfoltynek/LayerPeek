@@ -90,8 +90,8 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
 
         Raise(Printing(19.9, TimeSpan.FromMinutes(154.2)));
 
-        Assert.Equal("19% · 2 h 35 min", strip.Summary);
-        Assert.Equal("Printing, 19%, 2 h 35 min remaining", strip.AccessibleText);
+        Assert.Equal("19% · 2\u00A0h 35\u00A0min", strip.Summary);
+        Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", strip.AccessibleText);
         Assert.Same(OverlayStateBrushes.Active, strip.DotBrush);
         Assert.True(strip.HasProgress);
         Assert.Equal(19, strip.Progress);
@@ -180,7 +180,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
 
         // The next print ends it.
         Raise(Printing(1, TimeSpan.FromMinutes(90)) with { Timestamp = Now.AddSeconds(30), Telemetry = Hot(215, 215) });
-        Assert.Equal("1% · 1 h 30 min", strip.Summary);
+        Assert.Equal("1% · 1\u00A0h 30\u00A0min", strip.Summary);
         Assert.True(strip.ShowsDot);
         Assert.False(strip.ShowsCooledIcon);
     }
@@ -213,13 +213,13 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     }
 
     [Theory]
-    [InlineData(5.5, "Cooling down… 87{0}°C · about 6 min")]
+    [InlineData(5.5, "Cooling down… 87{0}°C · about 6\u00A0min")]
     [InlineData(null, "Cooling down… 87{0}°C")]
     public void CoolingShowsTheNozzleAndTheEstimateRoundedUp(double? minutes, string expected)
     {
         CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 0.3, minutes is { } m ? TimeSpan.FromMinutes(m) : null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
 
-        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling);
+        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now);
         (string summary, string accessible) = CameraMiniStripViewModel.Texts(content);
 
         Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, minutes is null ? null : 6, 87), content);
@@ -232,13 +232,13 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     {
         CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 1, null, Now, Now, CooldownPrintOutcome.Stopped, Now, Now);
 
-        Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(null, cooled).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = null }).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = double.NaN }).Kind);
+        Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(null, cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = null }, Now).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = double.NaN }, Now).Kind);
         // An active job wins: the next print ended the cool-down.
-        Assert.Equal(MiniStripKind.Job, MiniStripContent.Of(Printing(), cooled).Kind);
+        Assert.Equal(MiniStripKind.Job, MiniStripContent.Of(Printing(), cooled, Now).Kind);
     }
 
     [Fact]
@@ -256,7 +256,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
 
         Assert.Equal(posts, _dispatcher.PostCount);
         Assert.Equal(0, changes);
-        Assert.Equal("42% · 1 h 5 min", strip.Summary);
+        Assert.Equal("42% · 1\u00A0h 5\u00A0min", strip.Summary);
     }
 
     [Fact]
@@ -295,12 +295,12 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
         {
             strip.RefreshTexts();
 
-            Assert.Equal($"19{Nbsp}% · 2 h 35 min", strip.Summary);
-            Assert.Equal($"Tiskne, 19{Nbsp}%, Zbývá 2 h 35 min", strip.AccessibleText);
+            Assert.Equal($"19{Nbsp}% · 2\u00A0h 35\u00A0min", strip.Summary);
+            Assert.Equal($"Tiskne, 19{Nbsp}%, Zbývá 2\u00A0h 35\u00A0min", strip.AccessibleText);
         }
 
         strip.RefreshTexts();
-        Assert.Equal("19% · 2 h 35 min", strip.Summary);
+        Assert.Equal("19% · 2\u00A0h 35\u00A0min", strip.Summary);
     }
 
     [Fact]

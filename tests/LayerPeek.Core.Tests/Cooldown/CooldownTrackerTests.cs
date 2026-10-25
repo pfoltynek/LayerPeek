@@ -138,6 +138,8 @@ public sealed class CooldownTrackerTests
         Assert.True(cooled.NozzleCelsius <= 50);
         Assert.Equal(1, state.Progress);
         Assert.Null(state.EstimatedRemaining);
+        // The nozzle was above the threshold: the widget shows how long it took (T-088).
+        Assert.False(state.EndedBelowThreshold);
         Assert.Equal(Start.AddSeconds(End), state.StartedAt);
 
         // "Cooled down" lasts: more polls, acknowledging the print on the printer and waiting change nothing.
@@ -267,6 +269,8 @@ public sealed class CooldownTrackerTests
         Assert.Equal(1, state.Progress);
         Assert.Equal(44, state.NozzleCelsius);
         Assert.Equal(Start.AddSeconds(End), state.StartedAt);
+        // Nothing cooled down: the widget leaves out "cooled down in" (design T-076 2.5).
+        Assert.True(state.EndedBelowThreshold);
         for (double t = 15; t < 200; t += PollSeconds)
         {
             Assert.Equal(CooldownPhase.CooledDown, Process(Snap(PrinterState.Finished, t, 40, 0, 30, Job())).Phase);
@@ -664,6 +668,39 @@ public sealed class CooldownTrackerTests
         Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
         Assert.Equal(CooldownThreshold.MinCelsius, update.State.ThresholdCelsius);
         Assert.Null(update.Event);
+    }
+
+    [Fact]
+    public void RaisedThresholdAfterCoolingDownKeepsThatTheNozzleCooledDown()
+    {
+        // The nozzle was at 75 °C and cooled below 50 °C: "cooled down in" stays even when the threshold is now above 75 °C.
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, End, 75, 0, job: Job()));
+        Process(Snap(PrinterState.Finished, 10, 48, 0, job: Job()));
+        Assert.Equal(CooldownPhase.CooledDown, Process(Snap(PrinterState.Finished, 15, 46, 0, job: Job())).Phase);
+        Assert.False(_tracker.State.EndedBelowThreshold);
+
+        CooldownUpdate update = _tracker.SetThreshold(80);
+
+        Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
+        Assert.False(update.State.EndedBelowThreshold);
+        Assert.False(Process(Snap(PrinterState.Finished, 20, 45, 0, job: Job())).EndedBelowThreshold);
+    }
+
+    [Fact]
+    public void LoweredThresholdAfterEndingBelowItKeepsThatNothingCooledDown()
+    {
+        // The print ended at 45 °C below the threshold of 50 °C: a threshold of 40 °C later does not make it a cool-down.
+        Process(Printing(0));
+        Process(Snap(PrinterState.Finished, End, 45, 0, job: Job()));
+        Assert.True(Process(Snap(PrinterState.Finished, 10, 44, 0, job: Job())).EndedBelowThreshold);
+
+        CooldownUpdate update = _tracker.SetThreshold(CooldownThreshold.MinCelsius + 10);
+
+        Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
+        Assert.True(update.State.EndedBelowThreshold);
+        Assert.True(Process(Snap(PrinterState.Finished, 15, 43, 0, job: Job())).EndedBelowThreshold);
+        Assert.Empty(_events);
     }
 
     [Fact]

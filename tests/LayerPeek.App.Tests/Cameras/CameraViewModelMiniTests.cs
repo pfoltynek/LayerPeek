@@ -128,7 +128,7 @@ public sealed class CameraViewModelMiniTests : IAsyncDisposable
 
         CameraViewModel viewModel = Create();
 
-        Assert.Equal("19% · 2 h 35 min", viewModel.MiniStrip.Summary);
+        Assert.Equal("19% · 2\u00A0h 35\u00A0min", viewModel.MiniStrip.Summary);
         _monitor.Raise(Snapshot(PrinterState.Paused, Job(20.1, TimeSpan.FromMinutes(150))));
         _dispatcher.RunAll();
         Assert.Equal("20% · Paused", viewModel.MiniStrip.Summary);

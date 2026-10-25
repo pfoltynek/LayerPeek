@@ -58,8 +58,8 @@ public sealed class ToastContentBuilderTests
     }
 
     [Theory]
-    [InlineData("en-US", "10 min remaining")]
-    [InlineData("cs-CZ", "Zbývá 10 min")]
+    [InlineData("en-US", "10\u00A0min remaining")]
+    [InlineData("cs-CZ", "Zbývá 10\u00A0min")]
     public void RemainingTimeShowsFormattedDuration(string cultureName, string expected)
     {
         using CultureScope culture = new(cultureName);

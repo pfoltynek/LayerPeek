@@ -1011,15 +1011,16 @@ public sealed class CameraWindowLayoutModeUiTests(HeadlessSession session)
     public Task ProductionWidgetsTemperaturesAndPrintNameAreCardsThatMoveAndSave() =>
         session.RunAsync(async scope =>
         {
-            // The real registration (T-082..T-085): Status, Times, Temperatures and Print name; Cool-down is not registered yet.
+            // The real registration (T-082..T-085, T-088): Status, Times, Temperatures, Print name and Cool-down.
             await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), widgets: OverlayWidgets.CreateRegistry());
             CameraWindow window = OpenNormal(harness);
             CameraLayoutModeViewModel mode = Mode(window);
             EnterByButton(window);
 
-            // Reading order: top left, top centre, bottom left, bottom right; no card for the unregistered Cool-down.
-            Assert.Equal([Status, PrintName, Times, Temperatures], mode.Cards.Select(static card => card.WidgetId));
-            Assert.Null(mode.Card(OverlayWidgetIds.Cooldown));
+            // Reading order: top left, top centre, bottom left (Cool-down above Times, which is at the edge), bottom right.
+            Assert.Equal([Status, PrintName, OverlayWidgetIds.Cooldown, Times, Temperatures], mode.Cards.Select(static card => card.WidgetId));
+            // Without a cool-down the Cool-down widget is a placeholder card, so that it can be placed.
+            Assert.True(Ui.ShowsText(Card(window, OverlayWidgetIds.Cooldown), "no data right now"));
             Assert.True(Card(window, Temperatures).IsEffectivelyVisible);
             Assert.True(Card(window, PrintName).IsEffectivelyVisible);
             Assert.Equal("Temperatures: Bottom right, position 1 of 1", AutomationProperties.GetName(Card(window, Temperatures)));

@@ -281,9 +281,9 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
             Assert.Equal(19, progress.Value);
             Assert.Equal(new Rect(strip.X, strip.Y, 320, 3), BoundsIn(progress, window));
             Assert.Equal(30, summary.Bounds.Height);
-            Assert.Equal("19% · 2 h 35 min", SummaryText(window).Text);
-            Assert.Equal("Printing, 19%, 2 h 35 min remaining", AutomationProperties.GetName(summary));
-            Assert.Equal("Printing, 19%, 2 h 35 min remaining", ToolTip.GetTip(summary));
+            Assert.Equal("19% · 2\u00A0h 35\u00A0min", SummaryText(window).Text);
+            Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", AutomationProperties.GetName(summary));
+            Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", ToolTip.GetTip(summary));
             // Room for the two 30 × 30 toggles of T-090, 2 apart, 6 from the right edge (the corner grip stays free).
             Rect reserved = BoundsIn(toggles, window);
             Assert.Equal(62, reserved.Width);

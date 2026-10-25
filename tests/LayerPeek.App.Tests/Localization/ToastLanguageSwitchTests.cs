@@ -102,12 +102,12 @@ public sealed class ToastLanguageSwitchTests : IDisposable
 
         string xml = ToastContentBuilder.Build(remaining, CultureInfo.GetCultureInfo("fr-FR"));
 
-        Assert.Contains("<text>Temps restant : 1 j 2 h</text>", xml, StringComparison.Ordinal);
+        Assert.Contains("<text>Temps restant : 1\u00A0j 2\u00A0h</text>", xml, StringComparison.Ordinal);
         Assert.Equal("L'impression est sur le point de se terminer", ToastContentBuilder.EventText(PrintEventKind.RemainingTime, null, CultureInfo.GetCultureInfo("fr-FR")));
-        Assert.Equal("1 j 2 h", TrayToolTipFormatter.FormatDurationIn(TimeSpan.FromHours(26), CultureInfo.GetCultureInfo("fr-FR")));
+        Assert.Equal("1\u00A0j 2\u00A0h", TrayToolTipFormatter.FormatDurationIn(TimeSpan.FromHours(26), CultureInfo.GetCultureInfo("fr-FR")));
         // The tray keeps following the chosen language.
-        Assert.Equal("1 d 2 h", TrayToolTipFormatter.FormatDuration(TimeSpan.FromHours(26)));
-        Assert.Equal("1 g 2 h", TrayToolTipFormatter.FormatDurationIn(TimeSpan.FromHours(26), CultureInfo.GetCultureInfo("it-IT")));
+        Assert.Equal("1\u00A0d 2\u00A0h", TrayToolTipFormatter.FormatDuration(TimeSpan.FromHours(26)));
+        Assert.Equal("1\u00A0g 2\u00A0h",TrayToolTipFormatter.FormatDurationIn(TimeSpan.FromHours(26), CultureInfo.GetCultureInfo("it-IT")));
     }
 
     private static PrintNotification Notification(PrintEventKind kind) => new()
