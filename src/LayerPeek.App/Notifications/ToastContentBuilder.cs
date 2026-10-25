@@ -3,6 +3,7 @@ using System.Text;
 
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Events;
 using LayerPeek.Core.Notifications;
 
@@ -11,7 +12,7 @@ namespace LayerPeek.App.Notifications;
 /// <summary>
 /// Builds the toast XML (Windows <c>ToastGeneric</c> schema) of a <see cref="PrintNotification"/> with all texts in one
 /// given language (a language switch while building cannot mix languages): printer name as the title, the event as the
-/// body and the job file name as a third line.
+/// body and the job file name as a third line (for "cooled down", T-080: the temperatures instead).
 /// Printer and file names come from the user and the printer: they are stripped of characters XML cannot carry,
 /// shortened and escaped, so they can never add markup (actions, protocol launches...).
 /// </summary>
@@ -47,10 +48,19 @@ internal static class ToastContentBuilder
         // Foreground activation: the click is delivered to the running app (ToastNotification.Activated).
         xml.Append(" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
         AppendText(xml, title);
-        AppendText(xml, EventText(notification.Kind, notification.Remaining, textCulture));
-        if (!string.IsNullOrEmpty(fileName))
+        if (notification is { Kind: PrintEventKind.CooledDown, Cooldown: { } cooled })
         {
-            AppendText(xml, fileName);
+            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name.
+            AppendText(xml, CooledDownText(cooled.Outcome, textCulture));
+            AppendText(xml, Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.ThresholdCelsius));
+        }
+        else
+        {
+            AppendText(xml, EventText(notification.Kind, notification.Remaining, textCulture));
+            if (!string.IsNullOrEmpty(fileName) && notification.Kind != PrintEventKind.CooledDown)
+            {
+                AppendText(xml, fileName);
+            }
         }
 
         xml.Append("</binding></visual>");
@@ -80,14 +90,33 @@ internal static class ToastContentBuilder
         PrintEventKind.RemainingTime when remaining is { } time =>
             Format(Text(nameof(Strings.NotificationRemainingTime), culture), TrayToolTipFormatter.FormatDurationIn(time, culture)),
         PrintEventKind.RemainingTime => Text(nameof(Strings.NotificationAlmostFinished), culture),
+        PrintEventKind.CooledDown => Text(nameof(Strings.NotificationCooledDown), culture),
         _ => Text(nameof(Strings.NotificationStatusChanged), culture),
     };
+
+    /// <summary>The body line of the cooled-down toast: "Print finished, printer cooled down" / "Print stopped, …".</summary>
+    private static string CooledDownText(CooldownPrintOutcome outcome, CultureInfo culture) => outcome switch
+    {
+        CooldownPrintOutcome.Finished => Text(nameof(Strings.NotificationCooledDownFinished), culture),
+        CooldownPrintOutcome.Stopped => Text(nameof(Strings.NotificationCooledDownStopped), culture),
+        _ => Text(nameof(Strings.NotificationCooledDown), culture),
+    };
+
+    /// <summary>
+    /// The nozzle reading in whole degrees, like the threshold; it is at or below the threshold, so rounding never shows it
+    /// above. Defensive bounds only: the cool-down monitor sends plausible finite readings.
+    /// </summary>
+    private static int WholeDegrees(double celsius) =>
+        double.IsFinite(celsius) ? (int)Math.Clamp(Math.Round(celsius, MidpointRounding.AwayFromZero), -1000, 1000) : 0;
 
     /// <summary>A resource text in exactly <paramref name="culture"/>, regardless of the chosen language (<see cref="Strings.Culture"/>).</summary>
     private static string Text(string name, CultureInfo culture) => Strings.ResourceManager.GetString(name, culture) ?? name;
 
     private static string Format(string format, object? arg0) =>
         string.Format(CultureInfo.CurrentCulture, format, arg0);
+
+    private static string Format(string format, object? arg0, object? arg1) =>
+        string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
 
     private static void AppendText(StringBuilder xml, string text)
     {

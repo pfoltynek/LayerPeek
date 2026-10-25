@@ -1,3 +1,4 @@
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Events;
 using LayerPeek.Core.Printers;
 
@@ -5,7 +6,7 @@ namespace LayerPeek.Core.Notifications;
 
 /// <summary>
 /// What a notification shows. Contains no secrets. Texts are not localized here: implementations build them from
-/// <see cref="Kind"/>, <see cref="Printer"/> name, <see cref="FileName"/> and <see cref="Remaining"/>.
+/// <see cref="Kind"/>, <see cref="Printer"/> name, <see cref="FileName"/>, <see cref="Remaining"/> and <see cref="Cooldown"/>.
 /// </summary>
 public sealed record PrintNotification
 {
@@ -22,6 +23,12 @@ public sealed record PrintNotification
 
     /// <summary>Estimated remaining time; set for <see cref="PrintEventKind.RemainingTime"/>.</summary>
     public TimeSpan? Remaining { get; init; }
+
+    /// <summary>
+    /// How the print ended, the nozzle temperature and the threshold; set for <see cref="PrintEventKind.CooledDown"/>
+    /// (T-080).
+    /// </summary>
+    public CooldownEvent? Cooldown { get; init; }
 
     /// <summary>
     /// Whether the notification plays a sound, decided by <see cref="Settings.NotificationSettings.ShouldPlaySound"/>

@@ -74,6 +74,10 @@ internal sealed class NotificationsDocument
 
     public bool? Offline { get; set; }
 
+    /// <summary>"Printer cooled down" (T-080); written only when on (the default is off), missing in older files.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CooledDown { get; set; }
+
     /// <summary>Written as a whole number; read leniently (fractions are rounded, out-of-range values clamped).</summary>
     public double? RemainingTimeMinutes { get; set; }
 
