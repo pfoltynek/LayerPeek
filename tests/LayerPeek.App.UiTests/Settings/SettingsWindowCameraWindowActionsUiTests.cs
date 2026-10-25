@@ -83,13 +83,13 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
     // ---- Title bar ----
 
     [Fact]
-    public Task TitleBarHasOnlyTheCloseButtonAndTheWindowStaysResizable() =>
+    public Task TitleBarHasCloseAndMaximizeButtonsAndTheWindowStaysResizable() =>
         session.RunAsync(static async scope =>
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer()));
 
             Assert.False(ui.Window.CanMinimize);
-            Assert.False(ui.Window.CanMaximize);
+            Assert.True(ui.Window.CanMaximize);
             Assert.True(ui.Window.CanResize);
         });
 

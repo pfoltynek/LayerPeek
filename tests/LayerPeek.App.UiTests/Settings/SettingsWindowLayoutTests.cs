@@ -31,7 +31,7 @@ namespace LayerPeek.App.UiTests.Settings;
 /// </summary>
 public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 {
-    /// <summary>Title bar assumed by the design (Windows 11 at 100 %); the smallest supported screen leaves 780 × 540.</summary>
+    /// <summary>Title bar assumed by the design (Windows 11 at 100 %); the smallest common laptop work area is about 1093 × 580 DIP (T-094).</summary>
     private const double TitleBar = 32;
 
     private static readonly Color LightErrorColor = Color.Parse("#C42B1C");
@@ -60,9 +60,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
 
-            Assert.Equal(new Size(780, 508), ui.Window.ClientSize);
+            Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
             Assert.True(ui.Window.ClientSize.Width <= 780);
-            Assert.True(ui.Window.ClientSize.Height + TitleBar <= 540);
+            Assert.True(ui.Window.ClientSize.Height + TitleBar <= 580);
             Assert.Equal(AuxiliaryWindowPlacement.DefaultClientSize, new Size(ui.Window.Width, ui.Window.Height));
             Assert.Equal(AuxiliaryWindowPlacement.MinClientSize, new Size(ui.Window.MinWidth, ui.Window.MinHeight));
         });
@@ -79,7 +79,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             foreach ((string state, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States())
             {
                 SettingsWindowHarness ui = await open(scope);
-                Assert.Equal(new Size(780, 508), ui.Window.ClientSize);
+                Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
                 Assert.False(ui.ViewModel.HasNotice);
                 foreach ((string view, int tab, int printerTab) in Views)
                 {
@@ -129,6 +129,45 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(ScrollingViewers(failed.Window, $"{language} / autostart failed"));
             problems.AddRange(CutTexts(failed.Window, $"{language} / autostart failed"));
             failed.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-094: maximized (here the client of a maximized window on 1366 × 768 and on 1920 × 1080 at 100 %), the content
+    /// stretches with its * columns, nothing scrolls, nothing is cut and the headers stay on one row.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task MaximizedWindowStretchesWithoutScrollingOrCutTexts(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            SettingsWindowHarness ui = await OpenWithAllErrorsAsync(scope, SettingsWindowHarness.Supported, refusedTest: true);
+            ui.Window.WindowState = WindowState.Maximized;
+            foreach (Size maximized in new[] { new Size(1366, 705), new Size(1920, 1017) })
+            {
+                ui.Window.Width = maximized.Width;
+                ui.Window.Height = maximized.Height;
+                ui.Window.Settle();
+                Assert.Equal(maximized, ui.Window.ClientSize);
+                foreach ((string view, int tab, int printerTab) in Views)
+                {
+                    ui.ViewModel.SelectedTabIndex = tab;
+                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                    ui.Window.Settle();
+                    string context = $"{language} / maximized {maximized} / {view}";
+                    problems.AddRange(ScrollingViewers(ui.Window, context));
+                    problems.AddRange(CutTexts(ui.Window, context));
+                    problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
+                    TabControl tabs = ui.Find<TabControl>("SettingsTabs");
+                    if (tabs.Bounds.Width < maximized.Width - 64)
+                    {
+                        problems.Add($"{context}: the tabs are {tabs.Bounds.Width:0.#} DIP wide, they do not stretch.");
+                    }
+                }
+            }
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });

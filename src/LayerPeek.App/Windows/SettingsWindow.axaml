@@ -7,18 +7,21 @@
         x:DataType="vm:SettingsViewModel"
         Title="{Binding [SettingsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
         Width="780"
-        Height="508"
+        Height="532"
         MinWidth="640"
         MinHeight="400"
         CanMinimize="False"
-        CanMaximize="False"
+        CanMaximize="True"
         WindowStartupLocation="CenterScreen">
   <!--
-    Layout of T-033: the window (client 780 × 508 DIP, plus a title bar of about 32) fits an 800 × 600 screen at 100 %
-    without scrolling, in every language and with every validation message and test result. AuxiliaryWindowPlacement
-    shrinks it to a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case and for the
-    notice bar at the top. Sizes and spacing follow the approved design in the task (T-033, "Návrh UI").
-    T-040: only the close button in the title bar (no minimize, no maximize); the window stays resizable.
+    Layout of T-033: at its default size (client 780 × 532 DIP, T-094, plus a title bar of about 32) the window fits the
+    smallest common laptop work area (about 1093 × 580 DIP: 1366 × 768 at 125 % or 1920 × 1080 at 175 %) without
+    scrolling, in every language and with every validation message and test result. AuxiliaryWindowPlacement shrinks it to
+    a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case, for a window the user
+    made smaller and for the notice bar at the top. Sizes and spacing follow the approved design in the task (T-033,
+    "Návrh UI").
+    T-040 / T-094: close and maximize buttons in the title bar (no minimize); the window is resizable, and its size and
+    maximized state are remembered in windows.json (WorkAreaFitter). Maximized, the content stretches with its * columns.
   -->
   <Window.Resources>
     <ResourceDictionary>

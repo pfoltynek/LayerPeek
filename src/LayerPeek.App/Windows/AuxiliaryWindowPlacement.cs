@@ -7,10 +7,11 @@ internal readonly record struct AuxiliaryWindowBounds(Size ClientSize, PixelPoin
 
 /// <summary>
 /// Size of the settings (T-033) and diagnostics (T-041) windows, which share their designed and minimum size. The
-/// default fits the smallest supported screen (800 × 600 at 100 %: about 800 × 560 DIP of work area, so at most
-/// 780 × 540 including the title bar); on a smaller work area (higher scaling, a large taskbar) the window shrinks to
-/// fit, never below its minimum, and is centred. The content scrolls when it does not fit. Pure functions, testable
-/// without a screen; <see cref="WorkAreaFitter"/> applies them to a window.
+/// default (T-094) fits the smallest common laptop work area, about 1093 × 580 DIP (1366 × 768 at 125 % or
+/// 1920 × 1080 at 175 %, with a 48 DIP taskbar); on a smaller work area (higher scaling, a large taskbar) the window
+/// shrinks to fit, never below its minimum, and is centred. A size the user chose (remembered in <c>windows.json</c>)
+/// is fitted the same way on the monitor the window opens on. The content scrolls when it does not fit. Pure functions,
+/// testable without a screen; <see cref="WorkAreaFitter"/> applies them to a window.
 /// </summary>
 internal static class AuxiliaryWindowPlacement
 {
@@ -18,13 +19,31 @@ internal static class AuxiliaryWindowPlacement
     public const double TitleBarHeight = 32;
 
     /// <summary>Client size of the windows as designed (matches <c>Width</c> / <c>Height</c> in SettingsWindow.axaml and DiagnosticsWindow.axaml).</summary>
-    public static readonly Size DefaultClientSize = new(780, 508);
+    public static readonly Size DefaultClientSize = new(780, 532);
 
     /// <summary>Minimum client size (matches <c>MinWidth</c> / <c>MinHeight</c> in SettingsWindow.axaml and DiagnosticsWindow.axaml).</summary>
     public static readonly Size MinClientSize = new(640, 400);
 
+    /// <summary>Largest accepted remembered width or height (anything bigger comes from a damaged file).</summary>
+    public const double MaxClientSize = 16384;
+
     /// <summary>Window frame around the client area while the real one is unknown: only the title bar.</summary>
     public static readonly Thickness DefaultChrome = new(0, TitleBarHeight, 0, 0);
+
+    /// <summary>A usable remembered client size: finite, positive and at most <see cref="MaxClientSize"/> in each dimension.</summary>
+    public static bool IsUsable(Size size) =>
+        double.IsFinite(size.Width) && double.IsFinite(size.Height)
+        && size.Width > 0 && size.Height > 0
+        && size.Width <= MaxClientSize && size.Height <= MaxClientSize;
+
+    /// <summary>
+    /// The client size a window wants before it is fitted to the work area (T-094): the remembered one, never below
+    /// <paramref name="minClient"/>; <paramref name="designedClient"/> when nothing usable is remembered.
+    /// </summary>
+    public static Size PreferredClientSize(Size? remembered, Size designedClient, Size minClient) =>
+        remembered is { } size && IsUsable(size)
+            ? new Size(Math.Max(size.Width, minClient.Width), Math.Max(size.Height, minClient.Height))
+            : designedClient;
 
     /// <summary>
     /// Fits <paramref name="preferredClient"/> plus <paramref name="chrome"/> into <paramref name="workArea"/> (pixels of a
