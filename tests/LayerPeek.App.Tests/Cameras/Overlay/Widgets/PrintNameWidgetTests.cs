@@ -124,7 +124,7 @@ public sealed class PrintNameWidgetTests : IDisposable
         Assert.True(widget.IsShown);
         Assert.Equal("Foldable book holder v1", widget.Title);
         Assert.Equal("PLA", widget.MaterialChip);
-        Assert.Equal("0.2 mm", widget.LayerHeightChip);
+        Assert.Equal("0.2\u00A0mm", widget.LayerHeightChip);
         Assert.Equal("nozzle 0.4", widget.NozzleChip);
         Assert.Equal("slicer estimate 2\u00A0h 51\u00A0min", widget.Estimate);
         Assert.True(widget.HasMaterial);
@@ -132,7 +132,7 @@ public sealed class PrintNameWidgetTests : IDisposable
         Assert.True(widget.HasNozzle);
         Assert.True(widget.HasChips);
         Assert.True(widget.HasEstimate);
-        Assert.Equal("Foldable book holder v1, PLA, layer height 0.2 mm, nozzle 0.4 mm, slicer estimate 2\u00A0h 51\u00A0min", widget.AccessibleName);
+        Assert.Equal("Foldable book holder v1, PLA, layer height 0.2\u00A0mm, nozzle 0.4\u00A0mm, slicer estimate 2\u00A0h 51\u00A0min", widget.AccessibleName);
     }
 
     [Theory]
@@ -193,7 +193,7 @@ public sealed class PrintNameWidgetTests : IDisposable
         Assert.True(widget.IsShown);
         Assert.Equal("Shape box", widget.Title);
         Assert.Equal("PETG", widget.MaterialChip);
-        Assert.Equal("0.15 mm", widget.LayerHeightChip);
+        Assert.Equal("0.15\u00A0mm", widget.LayerHeightChip);
     }
 
     [Fact]
@@ -287,7 +287,7 @@ public sealed class PrintNameWidgetTests : IDisposable
         Assert.False(widget.HasNozzle);
         Assert.False(widget.HasEstimate);
         Assert.False(widget.ShowsEstimate);
-        Assert.Equal("Vase, PLA, layer height 0.2 mm", widget.AccessibleName);
+        Assert.Equal("Vase, PLA, layer height 0.2\u00A0mm", widget.AccessibleName);
     }
 
     [Fact]
@@ -325,7 +325,7 @@ public sealed class PrintNameWidgetTests : IDisposable
         PrintNameWidgetViewModel widget = Show(Job(fileName: "tiny_0.4n_0.1mm_PLA_MK4S_42s.bgcode"));
 
         Assert.Equal("slicer estimate 1\u00A0min", widget.Estimate);
-        Assert.Equal("0.1 mm", widget.LayerHeightChip);
+        Assert.Equal("0.1\u00A0mm", widget.LayerHeightChip);
     }
 
     [Fact]
@@ -342,9 +342,9 @@ public sealed class PrintNameWidgetTests : IDisposable
     // ---- Chips by region and language ----
 
     [Theory]
-    [InlineData("en-US", "0.2 mm", "nozzle 0.4", "slicer estimate 2\u00A0h 51\u00A0min", "Foldable book holder v1, PLA, layer height 0.2 mm, nozzle 0.4 mm, slicer estimate 2\u00A0h 51\u00A0min")]
-    [InlineData("cs-CZ", "0,2 mm", "tryska 0,4", "odhad sliceru 2\u00A0h 51\u00A0min", "Foldable book holder v1, PLA, výška vrstvy 0,2 mm, tryska 0,4 mm, odhad sliceru 2\u00A0h 51\u00A0min")]
-    [InlineData("de-DE", "0,2 mm", "Düse 0,4", "Slicer-Schätzung 2\u00A0h 51\u00A0min", "Foldable book holder v1, PLA, Schichthöhe 0,2 mm, Düse 0,4 mm, Slicer-Schätzung 2\u00A0h 51\u00A0min")]
+    [InlineData("en-US", "0.2\u00A0mm", "nozzle 0.4", "slicer estimate 2\u00A0h 51\u00A0min", "Foldable book holder v1, PLA, layer height 0.2\u00A0mm, nozzle 0.4\u00A0mm, slicer estimate 2\u00A0h 51\u00A0min")]
+    [InlineData("cs-CZ", "0,2\u00A0mm", "tryska 0,4", "odhad sliceru 2\u00A0h 51\u00A0min", "Foldable book holder v1, PLA, výška vrstvy 0,2\u00A0mm, tryska 0,4\u00A0mm, odhad sliceru 2\u00A0h 51\u00A0min")]
+    [InlineData("de-DE", "0,2\u00A0mm", "Düse 0,4", "Slicer-Schätzung 2\u00A0h 51\u00A0min", "Foldable book holder v1, PLA, Schichthöhe 0,2\u00A0mm, Düse 0,4\u00A0mm, Slicer-Schätzung 2\u00A0h 51\u00A0min")]
     public void ChipsFollowTheRegionAndTheLanguage(string culture, string layer, string nozzle, string estimate, string accessibleName)
     {
         using CultureScope scope = new(culture);
@@ -359,11 +359,11 @@ public sealed class PrintNameWidgetTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en-US", 0.15, "0.15 mm")]
-    [InlineData("cs-CZ", 0.15, "0,15 mm")]
-    [InlineData("cs-CZ", 0.075, "0,075 mm")]
-    [InlineData("de-DE", 1.0, "1 mm")]
-    [InlineData("en-US", 0.25, "0.25 mm")]
+    [InlineData("en-US", 0.15, "0.15\u00A0mm")]
+    [InlineData("cs-CZ", 0.15, "0,15\u00A0mm")]
+    [InlineData("cs-CZ", 0.075, "0,075\u00A0mm")]
+    [InlineData("de-DE", 1.0, "1\u00A0mm")]
+    [InlineData("en-US", 0.25, "0.25\u00A0mm")]
     public void MillimetresHaveNoTrailingZeros(string culture, double millimetres, string text)
     {
         using CultureScope scope = new(culture);
@@ -383,9 +383,9 @@ public sealed class PrintNameWidgetTests : IDisposable
             overlay.RefreshTexts();
 
             Assert.Equal("tryska 0,4", widget.NozzleChip);
-            Assert.Equal("0,2 mm", widget.LayerHeightChip);
+            Assert.Equal("0,2\u00A0mm", widget.LayerHeightChip);
             Assert.Equal("odhad sliceru 2\u00A0h 51\u00A0min", widget.Estimate);
-            Assert.Equal("Foldable book holder v1, PLA, výška vrstvy 0,2 mm, tryska 0,4 mm, odhad sliceru 2\u00A0h 51\u00A0min", widget.AccessibleName);
+            Assert.Equal("Foldable book holder v1, PLA, výška vrstvy 0,2\u00A0mm, tryska 0,4\u00A0mm, odhad sliceru 2\u00A0h 51\u00A0min", widget.AccessibleName);
         }
 
         Assert.Equal(posts, _dispatcher.PostCount);
@@ -494,7 +494,7 @@ public sealed class PrintNameWidgetTests : IDisposable
         Assert.False(widget.ShowsChips);
         Assert.False(widget.ShowsEstimate);
         // The screen reader still gets every value.
-        Assert.Equal("Foldable book holder v1, PLA, layer height 0.2 mm, nozzle 0.4 mm, slicer estimate 2\u00A0h 51\u00A0min", widget.AccessibleName);
+        Assert.Equal("Foldable book holder v1, PLA, layer height 0.2\u00A0mm, nozzle 0.4\u00A0mm, slicer estimate 2\u00A0h 51\u00A0min", widget.AccessibleName);
     }
 
     [Fact]

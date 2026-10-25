@@ -193,13 +193,13 @@
     <value>Spento</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} giri/min</value>
+    <value>{0}&#160;giri/min</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0}%</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -214,13 +214,13 @@
     <value>Cronologia temperature</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>Nessun dato di temperatura in questo periodo</value>
@@ -745,7 +745,7 @@
     <value>Immagine della telecamera dal test</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>Nessuna immagine dalla telecamera entro {0} s.</value>
+    <value>Nessuna immagine dalla telecamera entro {0}&#160;s.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>Impossibile aprire lo stream della telecamera: {0}</value>
@@ -973,10 +973,10 @@
     <value>ugello {0}</value>
   </data>
   <data name="CameraOverlayLayerHeightName" xml:space="preserve">
-    <value>altezza layer {0} mm</value>
+    <value>altezza layer {0}&#160;mm</value>
   </data>
   <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
-    <value>ugello {0} mm</value>
+    <value>ugello {0}&#160;mm</value>
   </data>
   <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
     <value>stima dello slicer {0}</value>

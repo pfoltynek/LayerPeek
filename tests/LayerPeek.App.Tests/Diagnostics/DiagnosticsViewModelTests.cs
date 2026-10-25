@@ -251,11 +251,11 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         Assert.Equal("215\u00A0°C", viewModel.NozzleTargetText);
         Assert.Equal("60.0\u00A0°C", viewModel.BedActualText);
         Assert.Equal("60\u00A0°C", viewModel.BedTargetText);
-        Assert.Equal("7,200 RPM", viewModel.HotendFanText);
-        Assert.Equal("3,000 RPM", viewModel.PrintFanText);
+        Assert.Equal("7,200\u00A0RPM", viewModel.HotendFanText);
+        Assert.Equal("3,000\u00A0RPM", viewModel.PrintFanText);
         Assert.Equal("100%", viewModel.SpeedText);
         Assert.Equal("95%", viewModel.FlowText);
-        Assert.Equal("14.00 mm", viewModel.AxisZText);
+        Assert.Equal("14.00\u00A0mm", viewModel.AxisZText);
         Assert.Equal(DiagnosticsFormatter.Timestamp(Now, Now, FixedClock.Zone), viewModel.LastUpdateText);
         Assert.False(viewModel.HasDetail);
     }
@@ -295,7 +295,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
 
         // Only the texts: numbers keep the (en-US) format of the system, no new information request.
         Assert.Equal("215.3\u00A0°C", viewModel.NozzleActualText);
-        Assert.Equal("0.40 mm", viewModel.NozzleDiameterText);
+        Assert.Equal("0.40\u00A0mm", viewModel.NozzleDiameterText);
         Assert.Same(window, viewModel.SelectedTimeWindow);
         Assert.Equal(requests, _info.Requests.Count);
     }
@@ -641,7 +641,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         Assert.Equal("6.9.2+10123", viewModel.FirmwareText);
         Assert.Equal("7.0.0", viewModel.ModelText);
         Assert.Equal("prusa-core-one", viewModel.HostnameText);
-        Assert.Equal("0.40 mm", viewModel.NozzleDiameterText);
+        Assert.Equal("0.40\u00A0mm", viewModel.NozzleDiameterText);
         Assert.Equal("Yes", viewModel.MmuText);
     }
 
@@ -938,7 +938,7 @@ public sealed class DiagnosticsViewModelTests : IDisposable
         DiagnosticsViewModel viewModel = Create();
 
         Assert.Equal([TimeSpan.FromMinutes(30), TimeSpan.FromHours(2), TimeSpan.FromHours(24)], viewModel.TimeWindows.Select(static option => option.Window));
-        Assert.Equal(["30 min", "2 h", "24 h"], viewModel.TimeWindows.Select(static option => option.Text));
+        Assert.Equal(["30\u00A0min", "2\u00A0h", "24\u00A0h"], viewModel.TimeWindows.Select(static option => option.Text));
         Assert.Equal(TimeSpan.FromHours(2), viewModel.SelectedTimeWindow.Window);
 
         viewModel.SelectedTimeWindow = viewModel.TimeWindows[0];

@@ -244,13 +244,13 @@
     <value>Vypnuto</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} ot./min</value>
+    <value>{0}&#160;ot./min</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0} %</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -265,13 +265,13 @@
     <value>Historie teplot</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>V tomto období nejsou žádné teploty</value>
@@ -745,7 +745,7 @@
     <value>Snímek z testu kamery</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>Z kamery nepřišel obraz do {0} s.</value>
+    <value>Z kamery nepřišel obraz do {0}&#160;s.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>Stream kamery nejde otevřít: {0}</value>
@@ -973,10 +973,10 @@
     <value>tryska {0}</value>
   </data>
   <data name="CameraOverlayLayerHeightName" xml:space="preserve">
-    <value>výška vrstvy {0} mm</value>
+    <value>výška vrstvy {0}&#160;mm</value>
   </data>
   <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
-    <value>tryska {0} mm</value>
+    <value>tryska {0}&#160;mm</value>
   </data>
   <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
     <value>odhad sliceru {0}</value>
