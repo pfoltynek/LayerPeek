@@ -32,6 +32,9 @@ public sealed partial class SettingsViewModel
     private IUiDispatcher _uiDispatcher = null!;
     private int _overlayOpacityPercent = CameraOverlayOpacity.DefaultPercent;
 
+    // Layouts saved by a camera window that this window has not taken over yet (T-092 follow-up).
+    private readonly AnnouncedOverlayLayouts _announcedLayouts = new();
+
     /// <summary>"Change on the General tab" of a widget panel: the window moves the focus to the switch of the notification.</summary>
     public event EventHandler<PrintEventKind>? NotificationSettingRequested;
 
@@ -377,7 +380,9 @@ public sealed partial class SettingsViewModel
     /// <summary>
     /// The writer's thread: the layout mode of a camera window saved a layout (T-077 Q3, T-091). On the UI thread the
     /// printer takes only that layout as its saved and edited layout; its other unsaved changes and those of the window stay.
-    /// A printer removed in the window or not saved yet ignores it.
+    /// A printer removed in the window or not saved yet ignores it. Until the window takes it over, it waits in
+    /// <see cref="_announcedLayouts"/>: a save meanwhile keeps it for a printer whose layout the window did not change
+    /// (T-092 follow-up), and the window takes it after loading or saving.
     /// </summary>
     private void OnLayoutSaved(object? sender, CameraOverlayLayoutSavedEventArgs saved)
     {
@@ -388,17 +393,28 @@ public sealed partial class SettingsViewModel
 
         string printerId = saved.PrinterId;
         CameraOverlayLayout layout = saved.Layout;
+        _announcedLayouts.Add(printerId, layout);
         _uiDispatcher.Post(() => TakeSavedLayout(printerId, layout));
     }
 
-    /// <summary>UI thread: see <see cref="OnLayoutSaved"/>.</summary>
+    /// <summary>
+    /// UI thread: see <see cref="OnLayoutSaved"/>. While loading or saving the layout keeps waiting (taken over afterwards);
+    /// a layout already taken over, saved by the window meanwhile or replaced by a newer one is ignored.
+    /// </summary>
     internal void TakeSavedLayout(string printerId, CameraOverlayLayout layout)
     {
-        if (_disposed || !_loaded)
+        if (_disposed || !_loaded || _isSaving || !_announcedLayouts.TryTake(printerId, layout))
         {
             return;
         }
 
+        TakeOverLayout(printerId, layout);
+        UpdateDirty();
+    }
+
+    /// <summary>The printer takes <paramref name="layout"/> as its saved and edited layout (no unsaved change).</summary>
+    private void TakeOverLayout(string printerId, CameraOverlayLayout layout)
+    {
         PrinterEditorViewModel? printer = Printers.FirstOrDefault(candidate => !candidate.IsNew && string.Equals(candidate.Id, printerId, StringComparison.OrdinalIgnoreCase));
         if (printer is null)
         {
@@ -407,7 +423,32 @@ public sealed partial class SettingsViewModel
 
         _baseline = _baseline.WithCameraOverlayLayout(printer.Id, layout);
         printer.TakeSavedOverlayLayout(layout);
-        UpdateDirty();
+    }
+
+    /// <summary>After loading or a failed save: every layout saved by a camera window meanwhile. The caller updates the dirty state.</summary>
+    private void TakeWaitingLayouts()
+    {
+        foreach ((string printerId, CameraOverlayLayout layout) in _announcedLayouts.TakeAll())
+        {
+            TakeOverLayout(printerId, layout);
+        }
+    }
+
+    /// <summary>
+    /// Right after a successful save, with <see cref="_baseline"/> already the saved settings: the store saved the layouts
+    /// <paramref name="latest"/> read (kept for the printers in <paramref name="kept"/>, replaced by the window's change for
+    /// the others); those printers take the kept ones. Layouts saved by a camera window after the store read them are newer
+    /// than the file: the window takes them too. The caller updates the dirty state.
+    /// </summary>
+    private void TakeLayoutsAfterSave(AnnouncedOverlayLayouts.Reader latest, IReadOnlyDictionary<string, CameraOverlayLayout>? kept)
+    {
+        _announcedLayouts.Forget(latest);
+        foreach ((string printerId, CameraOverlayLayout layout) in kept ?? new Dictionary<string, CameraOverlayLayout>())
+        {
+            TakeOverLayout(printerId, layout);
+        }
+
+        TakeWaitingLayouts();
     }
 
     /// <summary>The settings window as <see cref="IOverlayWidgetSettingsHost"/> of one widget panel, for its printer.</summary>

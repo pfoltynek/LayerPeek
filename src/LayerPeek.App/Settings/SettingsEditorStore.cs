@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Printers;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
@@ -42,6 +43,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     private readonly Func<IPrinterImageStore>? _imageStore;
     private readonly CustomPrinterImages? _customImages;
     private readonly ICameraMonitorPathUpdater? _monitorPaths;
+    private readonly SettingsWriteGate? _writeGate;
     private readonly Lock _pendingLock = new();
 
     // Guarded by _pendingLock. The last save, awaited when the app quits (an interrupted save could leave an orphan).
@@ -67,6 +69,10 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
     /// Camera monitor paths saved in the background while the window was open (user decision 2026-10-23); a save takes them
     /// over. <see langword="null"/>: none.
     /// </param>
+    /// <param name="writeGate">
+    /// Shared with the layout writer of the camera windows (T-092 follow-up): held from reading the latest overlay layouts
+    /// until monitoring has the saved settings. <see langword="null"/>: no other writer of layouts.
+    /// </param>
     public SettingsEditorStore(
         Func<ISettingsStore> settingsStore,
         ISecretStore secrets,
@@ -78,7 +84,8 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         RemovedCameraCredentials? removedCameraCredentials = null,
         Func<IPrinterImageStore>? imageStore = null,
         CustomPrinterImages? customImages = null,
-        ICameraMonitorPathUpdater? monitorPaths = null)
+        ICameraMonitorPathUpdater? monitorPaths = null,
+        SettingsWriteGate? writeGate = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStore);
         ArgumentNullException.ThrowIfNull(secrets);
@@ -97,6 +104,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         _imageStore = imageStore;
         _customImages = customImages;
         _monitorPaths = monitorPaths;
+        _writeGate = writeGate;
     }
 
     public Task<SettingsEditorData> LoadAsync(CancellationToken cancellationToken) =>
@@ -288,6 +296,38 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         return updated;
     }
 
+    /// <summary>
+    /// T-092 follow-up: the layout mode of a camera window saves a printer's overlay layout while the settings window may be
+    /// open, and the window takes it over only later on the UI thread (or after loading or saving). A printer whose layout
+    /// the window left as it loaded or took it over gets the layout saved last (<see cref="SettingsChange.LatestOverlayLayouts"/>)
+    /// instead of the window's older copy; a layout changed in the window (visibility, "Restore defaults", "Use layout for
+    /// all printers") keeps the window's value. New printers have no saved layout.
+    /// </summary>
+    /// <returns>The settings to save, and the layouts taken instead of the window's (<see langword="null"/> = none).</returns>
+    private static (AppSettings Updated, IReadOnlyDictionary<string, CameraOverlayLayout>? Kept) WithLatestOverlayLayouts(SettingsChange change)
+    {
+        if (change.LatestOverlayLayouts?.Read() is not { Count: > 0 } latest)
+        {
+            return (change.Updated, null);
+        }
+
+        AppSettings updated = change.Updated;
+        Dictionary<string, CameraOverlayLayout>? kept = null;
+        foreach (PrinterDefinition printer in change.Updated.Printers)
+        {
+            if (latest.TryGetValue(printer.Id, out CameraOverlayLayout? layout)
+                && Find(change.Original, printer.Id) is { } original
+                && printer.Camera.Overlay == original.Camera.Overlay
+                && printer.Camera.Overlay != layout)
+            {
+                updated = updated.WithCameraOverlayLayout(printer.Id, layout);
+                (kept ??= new Dictionary<string, CameraOverlayLayout>(StringComparer.OrdinalIgnoreCase))[printer.Id] = layout;
+            }
+        }
+
+        return (updated, kept);
+    }
+
     private static PrinterDefinition? Find(AppSettings settings, string id)
     {
         foreach (PrinterDefinition printer in settings.Printers)
@@ -435,40 +475,70 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
         }
 
-        // Step 2: the settings file, with the latest model detected by monitoring (T-039) and the latest camera monitor paths.
-        change = change with { Updated = WithLatestCameraMonitors(change with { Updated = WithLatestDetectedModels(change) }) };
+        // Step 2: the settings file, with the latest model detected by monitoring (T-039), the latest camera monitor paths
+        // and the latest layouts saved by a camera window. From reading those layouts until monitoring has the settings, no
+        // camera window saves a layout (the write gate): it is either read here or written after this file.
+        if (_writeGate is not null)
+        {
+            await _writeGate.EnterAsync(CancellationToken.None).ConfigureAwait(false);
+        }
+
+        bool settingsSaved = false;
+        IReadOnlySet<string>? unsavedImages = null;
+        Task webProxiesStopped = Task.CompletedTask;
+        Task oldRunEnded = Task.CompletedTask;
+        IReadOnlyDictionary<string, CameraOverlayLayout>? keptLayouts = null;
         try
         {
-            await _settingsStore().SaveAsync(change.Updated, CancellationToken.None).ConfigureAwait(false);
+            change = change with { Updated = WithLatestCameraMonitors(change with { Updated = WithLatestDetectedModels(change) }) };
+            (AppSettings withLayouts, keptLayouts) = WithLatestOverlayLayouts(change);
+            change = change with { Updated = withLayouts };
+            try
+            {
+                await _settingsStore().SaveAsync(change.Updated, CancellationToken.None).ConfigureAwait(false);
+                settingsSaved = true;
+            }
+            catch (Exception ex)
+            {
+                LogSettingsNotSaved(ex);
+            }
+
+            if (settingsSaved)
+            {
+                // The user saved what the window showed, including the notice about removed camera credentials.
+                _removedCameraCredentials?.Clear();
+
+                // Custom printer images (T-039): only now, so that Cancel or a failed save never touches the stored ones.
+                unsavedImages = await StoreImagesAsync(change).ConfigureAwait(false);
+
+                // Step 4: monitoring restarts with the new settings. Waiting for the old run to end (below, after the
+                // gate) means no poll of a removed printer can find its password deleted below (that would be a spurious
+                // "password rejected" notification). The web proxies of changed printers stop at the same time (never faults).
+                webProxiesStopped = StopWebProxiesAsync(change);
+                try
+                {
+                    oldRunEnded = _applier.ApplyAsync(change.Updated, credentialsChanged: change.NewPasswords.Count > 0);
+                }
+                catch (Exception ex)
+                {
+                    LogApplyFailed(ex);
+                }
+            }
         }
-        catch (Exception ex)
+        finally
         {
-            LogSettingsNotSaved(ex);
+            _writeGate?.Exit();
+        }
+
+        if (!settingsSaved)
+        {
             return new SettingsSaveResult(SettingsSaveStatus.SettingsNotSaved, RollbackIncomplete: !await RollbackAsync(written).ConfigureAwait(false));
         }
 
-        // The user saved what the window showed, including the notice about removed camera credentials.
-        _removedCameraCredentials?.Clear();
-
-        // Custom printer images (T-039): only now, so that Cancel or a failed save never touches the stored ones.
-        IReadOnlySet<string>? unsavedImages = await StoreImagesAsync(change).ConfigureAwait(false);
-
-        // Step 4: monitoring restarts with the new settings. Waiting for the old run to end means no poll of a removed
-        // printer can find its password deleted below (that would be a spurious "password rejected" notification).
-        // The web proxies of changed printers stop at the same time (never faults).
-        Task webProxiesStopped = StopWebProxiesAsync(change);
-        try
+        await oldRunEnded.WaitAsync(_applyWaitTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        if (!oldRunEnded.IsCompleted)
         {
-            Task oldRunEnded = _applier.ApplyAsync(change.Updated, credentialsChanged: change.NewPasswords.Count > 0);
-            await oldRunEnded.WaitAsync(_applyWaitTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
-            if (!oldRunEnded.IsCompleted)
-            {
-                LogOldRunStillRunning(_applyWaitTimeout);
-            }
-        }
-        catch (Exception ex)
-        {
-            LogApplyFailed(ex);
+            LogOldRunStillRunning(_applyWaitTimeout);
         }
 
         // Before the passwords of removed printers go: their proxies must not read them any more.
@@ -497,7 +567,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
         }
 
-        return new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: undeleted, UnsavedImages: unsavedImages);
+        return new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: undeleted, UnsavedImages: unsavedImages, KeptOverlayLayouts: keptLayouts);
     }
 
     /// <summary>Step 3: undoes written passwords, newest first. <see langword="false"/> when something could not be undone.</summary>

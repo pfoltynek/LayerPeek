@@ -5,11 +5,13 @@ using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 
+using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Composition;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Settings.Widgets;
+using LayerPeek.App.Tests.Cameras.Overlay;
 using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.Core.Cameras;
@@ -568,6 +570,85 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.InRange(top.Y, 0, viewer.Viewport.Height - slider.Bounds.Height);
             ui.Click("WidgetsEditLayout");
         });
+
+    /// <summary>
+    /// T-092 follow-up (design 3.2): with 8 and more widgets only the list scrolls; the tab itself does not, and the "All
+    /// widgets" section stays at the bottom. The keyboard keeps the selected row in view; the list stays one Tab stop.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task ManyWidgetsScrollInsideTheListWhileTheTabFits(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer("a", "MK4S workshop"), Printer("b", "Beta")), widgets: TenWidgets());
+            ui.Click("SettingsTabWidgets");
+            Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+
+            ListBox list = ui.Find<ListBox>("WidgetsList");
+            Assert.Equal(10, list.ItemCount);
+            ScrollViewer page = ui.Window.GetVisualDescendants().OfType<ScrollViewer>().Single(static viewer => viewer.Name == "WidgetsScroll");
+            ScrollViewer rows = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+            List<string> problems = [.. Overflow(ui, $"{language} / 10 widgets")];
+            if (rows.Extent.Height <= rows.Viewport.Height + 1)
+            {
+                problems.Add($"{language}: the list does not scroll ({rows.Extent} in {rows.Viewport}).");
+            }
+
+            // The section is at the bottom of the tab and fully shown; the list fills the row above it.
+            Grid section = ui.Find<Grid>("WidgetsAllSection");
+            Point sectionTop = section.TranslatePoint(default, page)!.Value;
+            if (sectionTop.Y < 0 || sectionTop.Y + section.Bounds.Height > page.Viewport.Height + 0.5)
+            {
+                problems.Add($"{language}: the section is at {sectionTop.Y:0.#} with {section.Bounds.Height:0.#} in {page.Viewport.Height:0.#}.");
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+            Assert.InRange(list.Bounds.Height, 226, sectionTop.Y);
+
+            // The keyboard brings the selected row into the list's view, and the tab does not move.
+            Assert.True(Row(ui, "status").Focus(NavigationMethod.Tab));
+            for (int i = 1; i < 10; i++)
+            {
+                Press(ui.Window, PhysicalKey.ArrowDown);
+                AssertShownInTheList(ui, list, ui.ViewModel.Widgets[i].Id);
+            }
+
+            Assert.Same(ui.ViewModel.Widgets[9], ui.ViewModel.SelectedWidget);
+            Assert.True(rows.Offset.Y > 0);
+            Press(ui.Window, PhysicalKey.Home);
+            AssertShownInTheList(ui, list, "status");
+            Assert.Equal(0, rows.Offset.Y);
+            Press(ui.Window, PhysicalKey.End);
+            AssertShownInTheList(ui, list, ui.ViewModel.Widgets[9].Id);
+            Press(ui.Window, PhysicalKey.ArrowUp);
+            AssertShownInTheList(ui, list, ui.ViewModel.Widgets[8].Id);
+            Assert.Equal(0, page.Offset.Y);
+
+            // One Tab stop: from the list straight to the next control after it.
+            Press(ui.Window, PhysicalKey.Tab);
+            Assert.False(FocusedId(ui.Window) is { } focused && focused.StartsWith("WidgetsItem-", StringComparison.Ordinal), $"Tab stayed in the list on {FocusedId(ui.Window)}.");
+        });
+
+    /// <summary>The widgets of the app (with Cool-down, T-088) and five more (8 and more: the list scrolls).</summary>
+    private static OverlayWidgetRegistry TenWidgets() =>
+        new([
+            .. OverlayWidgets.CreateRegistry().Definitions,
+            .. ExtraWidgetNames.Select(static (name, i) => new OverlayWidgetDefinition($"test-{i}", name, 0, TestOverlayWidgets.Template, static _ => new TestOverlayWidget())),
+        ]);
+
+    private static readonly string[] ExtraWidgetNames =
+        ["CameraOverlayWidgetStatus", "CameraOverlayWidgetTimes", "CameraOverlayWidgetTemperatures", "CameraOverlayWidgetPrintName", "CameraOverlayWidgetCooldown"];
+
+    /// <summary>The row of <paramref name="id"/> is selected and completely inside the visible part of the list.</summary>
+    private static void AssertShownInTheList(SettingsWindowHarness ui, ListBox list, string id)
+    {
+        ListBoxItem row = Row(ui, id);
+        Assert.True(row.IsSelected);
+        ScrollViewer rows = list.GetVisualDescendants().OfType<ScrollViewer>().First();
+        Point top = row.TranslatePoint(default, rows)!.Value;
+        Assert.InRange(top.Y, -0.5, rows.Viewport.Height - row.Bounds.Height + 0.5);
+    }
 
     /// <summary>The Widgets tab scrolls, or a text that should fit on one line is cut.</summary>
     private static IEnumerable<string> Overflow(SettingsWindowHarness ui, string context)
