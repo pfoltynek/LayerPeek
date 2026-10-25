@@ -631,7 +631,7 @@
     <value>Druck gestoppt, Drucker abgekühlt</value>
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
-    <value>Kann ausgeschaltet werden. Düse {0} °C, Schwelle {1} °C</value>
+    <value>Sie können ihn jetzt ausschalten. Düse {0} °C, Schwelle {1} °C</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
