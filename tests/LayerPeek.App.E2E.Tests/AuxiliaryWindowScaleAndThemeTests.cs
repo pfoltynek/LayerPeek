@@ -33,7 +33,7 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
 
     /// <summary>
     /// No scroll bar at 125 and 150 % (8 languages): the diagnostics printing, offline and without printers, the printer
-    /// sub-tabs and the general tab of the settings. On a work area too small for 780×508 DIP the window fits it instead.
+    /// sub-tabs and the general tab of the settings. On a work area too small for 780×532 DIP the window fits it instead.
     /// </summary>
     [Fact]
     [Trait(SystemChanges.Trait, SystemChangeTraits.DisplayScale)]

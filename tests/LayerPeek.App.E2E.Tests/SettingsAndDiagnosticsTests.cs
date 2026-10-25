@@ -8,7 +8,7 @@ namespace LayerPeek.App.E2E.Tests;
 
 /// <summary>
 /// The settings and diagnostics windows of the real app in every language and their main states (T-033, T-040, T-041,
-/// T-043, T-025): only the close button, client 780×508 DIP, nothing scrolls, taskbar properties and the app icon. Every
+/// T-043, T-025, T-094): close and maximize buttons, client 780×532 DIP, nothing scrolls, taskbar properties and the app icon. Every
 /// state is captured into the results folder.
 /// </summary>
 public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
@@ -154,7 +154,7 @@ public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
 
     private static void AssertAuxiliaryWindow(nint hwnd, string context)
     {
-        WindowChecks.AssertCloseButtonOnly(hwnd, context);
+        WindowChecks.AssertCloseAndMaximizeButtons(hwnd, context);
         WindowChecks.AssertAuxiliarySize(hwnd, context);
         WindowChecks.AssertTaskbarProperties(hwnd, context);
         WindowChecks.AssertHasIcon(hwnd, context);

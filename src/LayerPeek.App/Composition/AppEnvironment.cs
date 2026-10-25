@@ -29,7 +29,7 @@ internal sealed class AppEnvironment
     public bool IsIsolated { get; }
 
     /// <summary>
-    /// The folder of <c>settings.json</c>, <c>camera-windows.json</c> and <c>printer-images/</c>: the per-user data folder,
+    /// The folder of <c>settings.json</c>, <c>camera-windows.json</c>, <c>windows.json</c> and <c>printer-images/</c>: the per-user data folder,
     /// or the test folder.
     /// </summary>
     /// <exception cref="InvalidOperationException">The OS does not provide a per-user data folder.</exception>
