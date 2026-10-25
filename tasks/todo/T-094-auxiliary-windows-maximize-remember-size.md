@@ -67,14 +67,15 @@ Pomocná okna **Nastavení** a **Diagnostika** dnes mají pevnou výchozí velik
 - [ ] Žádná reflexní serializace ani bindingy, žádné trim/AOT varování
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
+## Rozhodnutí (uživatel, 2026-10-25)
+Uživatel přijal návrhy architekta:
+- **Q1 – kam ukládat velikost oken:** nový soubor stavu aplikace **`windows.json`** vedle `settings.json`, se stejnými zásadami jako `camera-windows.json` (stav aplikace, ne nastavení; uložení nastavení ho nepřepíše).
+- **Q2 – poloha:** **nepamatuje se**, okno se dál centruje na monitoru, kde se otevírá.
+- **Q3 – obsah maximalizovaného okna:** obsah se **roztáhne** podle stávajících sloupců, ověří se snímkem.
+- **Q4 – „Zrušit“ v Nastavení:** velikost se uloží **i po „Zrušit“**, je to stav okna, ne nastavení.
+
 ## Otevřené otázky
-- **Q1 – kam ukládat velikost oken:**
-  - **nový soubor stavu aplikace vedle `settings.json`, např. `windows.json` (návrh architekta):** stejné zásady jako `camera-windows.json` (stav aplikace, ne nastavení; uložení nastavení ho nepřepíše), oddělený od oken kamer,
-  - nová sekce v `camera-windows.json` (zvýšení verze souboru; míchá okna kamer a pomocná okna, soubor má dnes klíče podle tiskárny),
-  - `settings.json` (nedoporučeno: okno nastavení ukládá nastavení a uložení velikosti by se s ním míchalo).
-- **Q2 – pamatovat i polohu?** Zadání říká velikost a maximalizaci. Návrh architekta: polohu **ne**, okno se dál centruje na monitoru, kde se otevírá (po odpojení monitoru nehrozí okno mimo obrazovku). Alternativa: pamatovat i polohu a monitor (s kontrolou viditelnosti jako u oken kamer).
-- **Q3 – obsah maximalizovaného okna:** návrh architekta: nechat roztáhnout podle stávajících sloupců (`*`), jen ověřit snímkem. Alternativa: omezit šířku obsahu (např. max. ≈ 1000 DIP, vycentrovat), aby na velkém monitoru nebyly řádky příliš dlouhé – případně rozhodne ui-designer.
-- **Q4 – uložit velikost i po „Zrušit“ v Nastavení?** Návrh architekta: ano, velikost je stav okna, ne nastavení, a ukládá se při zavření bez ohledu na Uložit / Zrušit.
+- Žádné.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

@@ -17,6 +17,7 @@ Widget **Název tisku**: čitelný název z `PrintFileNameInfo` (T-078) a čipy 
 - Formát čipů podle kultury (desetinný oddělovač, „0,2 mm“, „⌀ 0,4 mm“ apod. podle návrhu), dlouhý název zkrácený podle návrhu (dnešní pravidlo T-036: začátek + „…“ + konec), neznámý tvar názvu = název bez čipů.
 - Rozbor názvu se počítá jen při změně názvu souboru (cache jako `CameraOverlayTextCache`).
 - Kompaktní podoba pro řádek názvu v malém náhledu (T-090) – stejný view model, jiná šablona; zde jen připravit, použití v T-090.
+- Test `PrintFileNameInfoTests.RepeatedNameReusesLastResult` (T-078) ověřuje `Assert.Same` proti statické jednopoložkové cache. Jakmile widget volá `PrintFileNameInfo.Parse` během jiných testů, stane se nestabilním (zjištěno při hledání nestabilního testu 2026-10-25). V tomto úkolu ho upravit tak, aby nezávisel na tom, co parsují jiné souběžně běžící testy (např. kolekce bez paralelizace nebo ověření bez `Assert.Same`).
 
 ## Akceptační kritéria
 - [ ] App.Tests: velikosti S/M/L, čipy podle kultury cs/en/de, neznámý tvar, 8.3 název `BENCHY~1.BGC`, dlouhé názvy, viditelnost podle stavu, levné porovnání, přepnutí jazyka
