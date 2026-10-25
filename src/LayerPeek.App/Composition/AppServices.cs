@@ -221,7 +221,12 @@ internal static class AppServices
             removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>(),
             imageStore: sp.GetRequiredService<IPrinterImageStore>,
             customImages: sp.GetRequiredService<CustomPrinterImages>(),
-            monitorPaths: sp.GetRequiredService<ICameraMonitorPathUpdater>()));
+            monitorPaths: sp.GetRequiredService<ICameraMonitorPathUpdater>(),
+            writeGate: sp.GetRequiredService<SettingsWriteGate>()));
+        // A layout saved by a camera window is never lost between the reading and the writing of a settings window's save.
+        // Registered as an instance: the container does not dispose it, so a save still running at exit never meets a
+        // disposed gate (it holds no OS handle).
+        services.AddSingleton(new SettingsWriteGate());
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
@@ -428,7 +433,8 @@ internal static class AppServices
         // session takes the layout, an open settings window reloads it (T-092).
         services.AddSingleton<ICameraOverlayLayoutWriter>(static sp => new DeferredCameraOverlayLayoutWriter(
             sp.GetRequiredService<ISettingsStore>,
-            sp.GetRequiredService<ILogger<CameraOverlayLayoutWriter>>()));
+            sp.GetRequiredService<ILogger<CameraOverlayLayoutWriter>>(),
+            sp.GetRequiredService<SettingsWriteGate>()));
         // A saved camera monitor found on another connector keeps its new device path (user decision 2026-10-23).
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.App.Cameras.Layout;
+using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Settings;
 
@@ -44,6 +46,29 @@ public sealed class DeferredCameraOverlayLayoutWriterTests
         Assert.Equal(["mk4", "mk4"], before.Select(static e => e.PrinterId));
         Assert.Same(CameraOverlayLayout.Default, Assert.Single(after).Layout);
         Assert.Empty(removed);
+    }
+
+    [Fact]
+    public async Task SaveAndAnnouncementWaitForTheWriteGateSharedWithTheSettingsWindow()
+    {
+        OverlayStore store = new();
+        using SettingsWriteGate gate = new();
+        DeferredCameraOverlayLayoutWriter writer = new(() => store, NullLogger<CameraOverlayLayoutWriter>.Instance, gate);
+        int announced = 0;
+        writer.LayoutSaved += (_, _) => announced++;
+        await gate.EnterAsync(Ct);
+
+        Task<bool> saving = writer.SaveAsync("mk4", Moved, Ct);
+        Assert.False(saving.IsCompleted);
+        Assert.Empty(store.Saves);
+        Assert.Equal(0, announced);
+        gate.Exit();
+
+        Assert.True(await saving.WaitAsync(TestTimeouts.Wait, Ct));
+        Assert.Equal(1, announced);
+        // Released after the save.
+        Assert.True(gate.EnterAsync(Ct).IsCompletedSuccessfully);
+        gate.Exit();
     }
 
     [Fact]
