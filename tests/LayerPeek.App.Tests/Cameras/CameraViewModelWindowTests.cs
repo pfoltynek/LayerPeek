@@ -503,6 +503,19 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
     }
 
     [Fact]
+    public void ToggledRowsAreRememberedRightAwayAlsoWithRememberOff()
+    {
+        // T-090 Q3: the toggle is saved at once (not only when closing) also with "remember last placement" off,
+        // and the remembered mode and placements stay untouched.
+        _states.Set("mk4", Remembered);
+        CameraViewModel viewModel = Create(CameraWindowDefaults.Default with { RememberLastPlacement = false });
+
+        viewModel.MiniStrip.IsChartRowExpanded = true;
+
+        Assert.Equal(Remembered with { MiniRows = new CameraMiniRows(false, true) }, _states.Get("mk4"));
+    }
+
+    [Fact]
     public void ClosingWithRememberOnKeepsTheRows()
     {
         CameraViewModel viewModel = Create(CameraWindowDefaults.Default);
