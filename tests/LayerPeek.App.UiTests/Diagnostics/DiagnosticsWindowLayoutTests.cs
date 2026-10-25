@@ -59,7 +59,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
     [
         "The printer address is not valid.",
         "The printer is not reachable.",
-        "The printer did not respond within 10 s.",
+        "The printer did not respond within 10 s.",
         "The secure (https) connection to the printer failed.",
         "The printer rejected the user name or password.",
         "The printer denied access (HTTP 403).",

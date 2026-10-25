@@ -22,6 +22,7 @@ internal sealed class FakeLayoutModeLauncher : ICameraLayoutModeLauncher
 internal sealed class FakeLayoutAnnouncer : ICameraOverlayLayoutWriter
 {
     private EventHandler<CameraOverlayLayoutSavedEventArgs>? _layoutSaved;
+    private EventHandler<CameraOverlayLayoutSavedEventArgs>? _layoutConfirmed;
 
     public event EventHandler<CameraOverlayLayoutSavedEventArgs>? LayoutSaved
     {
@@ -38,14 +39,40 @@ internal sealed class FakeLayoutAnnouncer : ICameraOverlayLayoutWriter
         }
     }
 
+    public event EventHandler<CameraOverlayLayoutSavedEventArgs>? LayoutConfirmed
+    {
+        add
+        {
+            _layoutConfirmed += value;
+            ConfirmSubscribers++;
+        }
+
+        remove
+        {
+            _layoutConfirmed -= value;
+            ConfirmSubscribers--;
+        }
+    }
+
     public int Subscribers { get; private set; }
+
+    public int ConfirmSubscribers { get; private set; }
 
     /// <summary>Raises <see cref="LayoutSaved"/> on the calling thread (the writer's thread in the app).</summary>
     public void Announce(string printerId, CameraOverlayLayout layout) => _layoutSaved?.Invoke(this, new CameraOverlayLayoutSavedEventArgs(printerId, layout));
+
+    /// <summary>Raises <see cref="LayoutConfirmed"/> on the calling thread: "Done" with the saved layout, nothing written.</summary>
+    public void Confirm(string printerId, CameraOverlayLayout layout) => _layoutConfirmed?.Invoke(this, new CameraOverlayLayoutSavedEventArgs(printerId, layout));
 
     public Task<bool> SaveAsync(string printerId, CameraOverlayLayout layout, CancellationToken cancellationToken)
     {
         Announce(printerId, layout);
         return Task.FromResult(true);
+    }
+
+    public Task<bool> ConfirmAsync(string printerId, CameraOverlayLayout layout, CancellationToken cancellationToken)
+    {
+        Confirm(printerId, layout);
+        return Task.FromResult(false);
     }
 }

@@ -278,7 +278,8 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
 
     /// <summary>
     /// "Done": writes the draft (once, even when pressed again meanwhile) and, when written, ends the mode with the draft as
-    /// the window's layout. A failed write keeps the mode and the draft and shows the error (T-076 5.2).
+    /// the window's layout. A failed write keeps the mode and the draft and shows the error (T-076 5.2). A draft equal to the
+    /// saved layout is confirmed (<see cref="ICameraOverlayLayoutWriter.ConfirmAsync"/>) instead of written.
     /// </summary>
     /// <returns>Whether the layout was saved.</returns>
     public async Task<bool> SaveAsync()
@@ -293,22 +294,33 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
         CancelDrag();
         int edit = _edit;
         CameraOverlayLayout draft = _draft!;
-        if (_writer is not null && draft == _overlay.SavedLayout)
-        {
-            // Nothing to write (no change, or changes undone): the store would report "not written", which is no error (T-093).
-            End(saved: draft);
-            return true;
-        }
 
+        // The saved layout as the draft (no change, changes undone, or the saved layout restored after a start from the
+        // settings window's unsaved layout) has nothing to write: the store would report "not written", which is no error
+        // (T-093). It is confirmed instead, so that an open settings window drops its unsaved layout of the printer (T-092
+        // follow-up, user decision 2026-10-25); the writer still writes it when the file changed meanwhile.
+        bool confirming = _writer is not null && draft == _overlay.SavedLayout;
         SetSaving(true);
         SetSaveError(false);
         bool saved = false;
         try
         {
-            saved = _writer is not null && await _writer.SaveAsync(PrinterId, draft, CancellationToken.None).ConfigureAwait(true);
-            if (!saved)
+            if (_writer is null)
             {
                 LogNotSaved();
+            }
+            else if (confirming)
+            {
+                await _writer.ConfirmAsync(PrinterId, draft, CancellationToken.None).ConfigureAwait(true);
+                saved = true;
+            }
+            else
+            {
+                saved = await _writer.SaveAsync(PrinterId, draft, CancellationToken.None).ConfigureAwait(true);
+                if (!saved)
+                {
+                    LogNotSaved();
+                }
             }
         }
         catch (Exception ex)

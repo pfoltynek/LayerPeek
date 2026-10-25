@@ -1071,7 +1071,8 @@ internal static class SettingsMapper
         return false;
     }
 
-    // Warnings are shown in the UI; a garbage file must not be able to push huge strings there.
+    // Warnings end up in the log (the UI shows only a translated notice); a garbage file must not be able to push huge
+    // strings there.
     private static string? Shorten(string? value) =>
         value is { Length: > MaxEchoedValueLength } ? string.Concat(value.AsSpan(0, MaxEchoedValueLength), "…") : value;
 

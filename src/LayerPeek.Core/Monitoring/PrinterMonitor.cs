@@ -1,4 +1,5 @@
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 
 using Microsoft.Extensions.Logging;
 
@@ -254,7 +255,9 @@ public sealed partial class PrinterMonitor : IPrinterMonitor
             _table = table;
             _interval = interval;
             _maxDelay = interval > monitor._options.MaxBackoff ? interval : monitor._options.MaxBackoff;
-            _timeoutMessage = $"The printer did not respond within {monitor._options.PollTimeout.TotalSeconds:0.#} s.";
+            // The status message can reach the UI (fallback detail of the Diagnostics window), so number and unit are
+            // joined by a non-breaking space (U+00A0); log-only texts keep a normal space.
+            _timeoutMessage = string.Create(CultureInfo.InvariantCulture, $"The printer did not respond within {monitor._options.PollTimeout.TotalSeconds:0.#} s.");
         }
 
         public async Task RunAsync(CancellationToken stopToken)

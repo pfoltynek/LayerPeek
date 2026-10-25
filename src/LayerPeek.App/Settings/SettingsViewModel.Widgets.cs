@@ -184,6 +184,7 @@ public sealed partial class SettingsViewModel
         {
             _layoutWriter = writer;
             writer.LayoutSaved += OnLayoutSaved;
+            writer.LayoutConfirmed += OnLayoutSaved;
         }
     }
 
@@ -192,6 +193,7 @@ public sealed partial class SettingsViewModel
         if (_layoutWriter is { } writer)
         {
             writer.LayoutSaved -= OnLayoutSaved;
+            writer.LayoutConfirmed -= OnLayoutSaved;
             _layoutWriter = null;
         }
 
@@ -332,7 +334,8 @@ public sealed partial class SettingsViewModel
             return;
         }
 
-        // Q4: from the layout as edited here; "Done" saves it (and announces it, OnLayoutSaved), Esc changes nothing.
+        // Q4: from the layout as edited here; "Done" saves it (and announces it, OnLayoutSaved) or, with the saved layout
+        // restored, confirms the saved one (this window then drops its unsaved layout of the printer); Esc changes nothing.
         _layoutModeLauncher!.Start(printer.Id, printer.OverlayLayout);
     }
 
@@ -378,7 +381,10 @@ public sealed partial class SettingsViewModel
     }
 
     /// <summary>
-    /// The writer's thread: the layout mode of a camera window saved a layout (T-077 Q3, T-091). On the UI thread the
+    /// The writer's thread: the layout mode of a camera window saved a layout (T-077 Q3, T-091), or confirmed the saved one
+    /// without a write (<see cref="ICameraOverlayLayoutWriter.LayoutConfirmed"/>: "Done" with the saved layout as the draft,
+    /// e.g. restored after "Edit layout in camera window…" started the mode with this window's unsaved layout; what the user
+    /// confirmed there applies here too, T-092 follow-up). Both are handled alike. On the UI thread the
     /// printer takes only that layout as its saved and edited layout; its other unsaved changes and those of the window stay.
     /// A printer removed in the window or not saved yet ignores it. Until the window takes it over, it waits in
     /// <see cref="_announcedLayouts"/>: a save meanwhile keeps it for a printer whose layout the window did not change
