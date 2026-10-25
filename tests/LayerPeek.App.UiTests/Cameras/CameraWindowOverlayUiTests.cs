@@ -300,6 +300,69 @@ public sealed class CameraWindowOverlayUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task IconRowDrawsItsTextAndIconInTheSecondaryColour() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = new(window: Normal, overlay: AllAnchors);
+            CameraWindow window = await OpenPrintingAsync(harness);
+            OverlayIconText row = Card(window, "test-a").GetVisualDescendants().OfType<OverlayIconText>().Single();
+
+            // T-076 1.3: OverlayTextSecondaryBrush #C9C9CE for the rows with an icon (text and icon), also on an emphasized card.
+            Color secondary = Color.Parse("#C9C9CE");
+            Assert.Equal(secondary, ((ISolidColorBrush)row.GetVisualDescendants().OfType<TextBlock>().Single().Foreground!).Color);
+            Assert.Equal(secondary, ((ISolidColorBrush)row.GetVisualDescendants().OfType<OverlayIcon>().Single().Foreground!).Color);
+        });
+
+    [Theory]
+    [InlineData(OverlayWidgetSize.Small)]
+    [InlineData(OverlayWidgetSize.Medium)]
+    [InlineData(OverlayWidgetSize.Large)]
+    public Task PartsDrawTheirTextInTheirOwnColourSizeAndWeight(OverlayWidgetSize size) =>
+        session.RunAsync(async scope =>
+        {
+            CameraOverlayLayout layout = new([new OverlayWidgetPlacement("test-a", OverlayAnchor.TopLeft, size)]);
+            await using CameraHarness harness = new(window: Normal, overlay: layout);
+            CameraWindow window = await OpenPrintingAsync(harness);
+            Border card = Card(window, "test-a");
+            Assert.Equal(size, Widget(window, "test-a").RenderedSize);
+            bool small = size == OverlayWidgetSize.Small;
+            bool large = size == OverlayWidgetSize.Large;
+
+            // The drawn text of each part, not just the part's properties: the card's TextBlock styles also reach the
+            // template parts and must not override them (T-076 1.2, 1.3).
+            static TextBlock DrawnText(Control part) => part.GetVisualDescendants().OfType<TextBlock>().Single();
+            static void AssertText(TextBlock text, string colour, double fontSize, FontWeight weight, string part)
+            {
+                Assert.True(Color.Parse(colour) == ((ISolidColorBrush)text.Foreground!).Color, $"{part} colour {((ISolidColorBrush)text.Foreground!).Color}");
+                Assert.True(fontSize == text.FontSize, $"{part} font size {text.FontSize}");
+                Assert.True(weight == text.FontWeight, $"{part} font weight {text.FontWeight}");
+            }
+
+            AssertText(
+                DrawnText(card.GetVisualDescendants().OfType<OverlayIconText>().Single()),
+                "#C9C9CE",
+                large ? 15 : 13,
+                small ? FontWeight.SemiBold : FontWeight.Normal,
+                "icon row");
+            if (!small)
+            {
+                // Pill and chip exist in M and L only (T-076 1.2).
+                AssertText(
+                    DrawnText(card.GetVisualDescendants().OfType<OverlayStatusPill>().Single()),
+                    "#F4F4F5",
+                    large ? 13 : 12,
+                    FontWeight.SemiBold,
+                    "pill");
+                AssertText(
+                    DrawnText(card.GetVisualDescendants().OfType<OverlayChip>().Single()),
+                    "#E4E4E7",
+                    large ? 12 : 11,
+                    FontWeight.SemiBold,
+                    "chip");
+            }
+        });
+
+    [Fact]
     public Task NumbersUseTabularFigures() =>
         session.RunAsync(async scope =>
         {

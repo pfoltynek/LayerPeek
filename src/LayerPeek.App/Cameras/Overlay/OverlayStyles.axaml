@@ -78,9 +78,12 @@
         </Setter>
       </ControlTheme>
 
-      <!-- Icon + value row (icons replace labels); the text wraps to at most 2 lines, the icon stays at the first. -->
+      <!--
+        Icon + value row (icons replace labels); the text wraps to at most 2 lines, the icon stays at the first. Text and
+        icon in the secondary colour (T-076 1.3: rows with an icon); the large numbers stay primary.
+      -->
       <ControlTheme x:Key="{x:Type ov:OverlayIconText}" TargetType="ov:OverlayIconText">
-        <Setter Property="Foreground" Value="{StaticResource OverlayTextPrimaryBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
         <Setter Property="IconBrush" Value="{StaticResource OverlayTextSecondaryBrush}" />
         <Setter Property="FontSize" Value="13" />
         <Setter Property="Template">
@@ -188,6 +191,26 @@
   </Style>
   <Style Selector="Border.overlayCard TextBlock.secondary">
     <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
+  </Style>
+  <!--
+    The text inside the parts draws the part's own colour, size and weight: the card's TextBlock styles above also match
+    the TextBlocks of the part templates and would win over their TemplateBindings (T-076 1.2 and 1.3: icon row secondary,
+    pill 12 / 13 semi-bold, chip #E4E4E7 11 / 12 semi-bold).
+  -->
+  <Style Selector="Border.overlayCard ov|OverlayIconText /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayIconText].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayIconText].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayIconText].FontWeight}" />
+  </Style>
+  <Style Selector="Border.overlayCard ov|OverlayStatusPill /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayStatusPill].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayStatusPill].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayStatusPill].FontWeight}" />
+  </Style>
+  <Style Selector="Border.overlayCard ov|OverlayChip /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayChip].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayChip].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayChip].FontWeight}" />
   </Style>
   <!-- Tabular figures wherever digits change (Segoe UI has them by default, SF Pro and Inter do not). -->
   <Style Selector="TextBlock.numeric">

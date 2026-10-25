@@ -891,6 +891,9 @@
   <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
     <value>Vychladnutie</value>
   </data>
+  <data name="CameraOverlayRemainingLabel" xml:space="preserve">
+    <value>Zostáva</value>
+  </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Prekrytie</value>
   </data>
