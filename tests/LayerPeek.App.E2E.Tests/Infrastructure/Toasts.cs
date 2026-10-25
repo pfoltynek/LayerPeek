@@ -371,7 +371,7 @@ internal static class Toasts
     public static (Rectangle Area, string How) IconSearchArea(ToastMatch toast, Rectangle settled, double scale)
     {
         Rectangle region = settled;
-        IReadOnlyList<ToastElement> elements = toast.ElementsAt(settled);
+        IReadOnlyList<ToastElement> elements = SettledElements(toast, settled);
         int max = (int)Math.Round(48 * scale);
         int pad = (int)Math.Round(6 * scale);
         ToastElement? image = elements
@@ -398,6 +398,35 @@ internal static class Toasts
 
         Rectangle corner = new(region.Left, region.Top, Math.Min(region.Width, (int)Math.Round(120 * scale)), Math.Min(region.Height, (int)Math.Round(60 * scale)));
         return (corner, "top left corner of the toast (no image element, no app name element)");
+    }
+
+    /// <summary>
+    /// The elements of the toast where they are now that its region settled at <paramref name="settled"/>, read again from the
+    /// live region: the bounds read when the banner was found are no consistent snapshot while it slides in (the region's
+    /// and the app name's bounds were read at different moments; run 2026-10-25 searched the icon 27 px too far left).
+    /// Only when the live region is gone or has moved again are the found bounds shifted (<see cref="ToastMatch.ElementsAt"/>).
+    /// </summary>
+    internal static IReadOnlyList<ToastElement> SettledElements(ToastMatch toast, Rectangle settled)
+    {
+        if (toast.Region is null || Safe(() => toast.Region.Properties.BoundingRectangle.ValueOrDefault) != settled)
+        {
+            return toast.ElementsAt(settled);
+        }
+
+        List<ToastElement> live = [.. new[] { toast.Region }.Concat(Safe(() => toast.Region.FindAllDescendants()) ?? []).Select(element =>
+        {
+            string name = Name(element);
+            return new ToastElement(
+                Safe(() => element.Properties.ControlType.ValueOrDefault.ToString()),
+                name,
+                Safe(() => element.Properties.AutomationId.ValueOrDefault) ?? string.Empty,
+                Safe(() => element.Properties.ClassName.ValueOrDefault) ?? string.Empty,
+                Safe(() => element.Properties.BoundingRectangle.ValueOrDefault),
+                toast.Elements.Any(found => found.IsOurs && found.Name == name));
+        })];
+
+        // The region must still be where it settled after the read, otherwise the read is no snapshot of the settled toast.
+        return Safe(() => toast.Region.Properties.BoundingRectangle.ValueOrDefault) == settled ? live : toast.ElementsAt(settled);
     }
 
     /// <summary>DPI scale (DPI / 96) of a window.</summary>

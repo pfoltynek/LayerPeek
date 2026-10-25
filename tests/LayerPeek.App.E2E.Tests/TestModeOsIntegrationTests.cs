@@ -29,6 +29,9 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
 
     private static readonly TimeSpan ClearToastsTimeout = TimeSpan.FromSeconds(30);
 
+    /// <summary>Logged by <c>AppShortcutRegistration.Ensure</c> only after the shell saved the shortcut.</summary>
+    private const string ShortcutWrittenLog = "Start menu shortcut for notifications: ";
+
     private const string NotificationSettings = @"Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\";
 
     private static string StartMenu => Environment.GetFolderPath(Environment.SpecialFolder.Programs);
@@ -56,7 +59,12 @@ public sealed class TestModeOsIntegrationTests(E2EFixture fixture)
                 switches: new Dictionary<string, string> { [AppSwitches.TestToastsVariable] = "1" }))
             {
                 // The toast service registers the test app at startup (T-010), with the test shortcut.
-                await Wait.UntilAsync(() => File.Exists(TestShortcut), ShortcutTimeout, "the Start menu shortcut of the test app");
+                // The shortcut exists as soon as the shell starts saving it; it is read only after the app logged that the save
+                // returned (a sharing violation or a partly written file otherwise, seen once in the Native AOT pass).
+                await Wait.UntilAsync(
+                    () => File.Exists(TestShortcut) && app.ReadLog().Contains(ShortcutWrittenLog, StringComparison.Ordinal),
+                    ShortcutTimeout,
+                    "the saved Start menu shortcut of the test app");
                 AssertIsTheTestShortcut(TestShortcut);
                 AssertIsTheTestActivator(app);
 

@@ -166,6 +166,9 @@ public sealed class CameraLayoutModeTests(E2EFixture fixture)
                 nint window = await run.OpenCameraAsync();
                 AutomationElement element = app.Element(window);
                 await Wait.UntilAsync(() => CameraWidgets.IsShown(element, CameraWidgets.Times), TimeSpan.FromSeconds(60), "the times card");
+                // The times card grows (and pushes the cool-down card up) when the print reports its remaining time after
+                // the heat-up; the reorder below aims at the cool-down card, so it is measured only in the final layout.
+                await Wait.UntilAsync(() => Ui.IsShown(element, "CameraOverlayWidget-times-Remaining"), TimeSpan.FromSeconds(60), "the remaining time in the times card");
                 await Ui.InvokeAsync(element, "CameraLayoutButton");
                 await Wait.UntilAsync(() => Ui.IsShown(element, "CameraLayoutOverlay"), ModeTimeout, "the layout mode");
                 await WindowActivation.ActivateAsync(window);
