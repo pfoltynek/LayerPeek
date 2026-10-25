@@ -61,6 +61,10 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
     // UI thread.
     private readonly OverlayWidgetViewModel[][] _anchors = [NoWidgets, NoWidgets, NoWidgets, NoWidgets, NoWidgets, NoWidgets];
     private CameraOverlayLayout? _layout;
+
+    // The layout of the saved settings; differs from _layout only while the layout mode previews its draft (T-091).
+    private CameraOverlayLayout? _savedLayout;
+    private bool _previewing;
     private int _opacityPercent;
     private IBrush _cardBackground;
 
@@ -100,11 +104,104 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
         ApplySettings(printer, layout, opacityPercent);
     }
 
-    /// <summary>Cards are drawn: in the normal window and on full screen, not in the mini preview.</summary>
-    public bool AreCardsVisible => _mode != CameraWindowMode.Mini;
+    /// <summary>
+    /// Cards are drawn: in the normal window and on full screen, not in the mini preview, and not while the layout mode
+    /// draws them itself (<see cref="IsPreviewing"/>, T-091).
+    /// </summary>
+    public bool AreCardsVisible => _mode != CameraWindowMode.Mini && !_previewing;
 
-    /// <summary>The layout in use (follows saved settings).</summary>
+    /// <summary>The layout the widgets follow: the saved one, or the draft of the layout mode while it previews it.</summary>
     public CameraOverlayLayout Layout => _layout!;
+
+    /// <summary>The layout of the saved settings (follows them, also while the layout mode previews a draft).</summary>
+    public CameraOverlayLayout SavedLayout => _savedLayout!;
+
+    /// <summary>The layout mode (T-091) shows its draft with these widgets; the cards of the overlay are hidden meanwhile.</summary>
+    public bool IsPreviewing => _previewing;
+
+    /// <summary>
+    /// The saved layout changed while the layout mode previews a draft (settings saved elsewhere): the old and the new saved
+    /// layout. UI thread.
+    /// </summary>
+    internal event EventHandler<OverlaySavedLayoutChangedEventArgs>? SavedLayoutChanged;
+
+    /// <summary>The registered widget of <paramref name="widgetId"/>; <see langword="null"/> when none is registered.</summary>
+    internal IOverlayWidgetDefinition? FindDefinition(string widgetId) => _registry.Find(widgetId);
+
+    /// <summary>The drawn widget of <paramref name="widgetId"/> (ignoring case); <see langword="null"/> when the layout draws none.</summary>
+    internal OverlayWidgetViewModel? FindWidget(string widgetId)
+    {
+        foreach (OverlayWidgetViewModel widget in _widgets)
+        {
+            if (string.Equals(widget.Id, widgetId, StringComparison.OrdinalIgnoreCase))
+            {
+                return widget;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The layout mode starts (T-091): the widgets follow <paramref name="draft"/> until <see cref="EndPreview"/>; the cards
+    /// of the overlay are hidden (the layout mode draws the same widgets in its zones). Saved settings meanwhile only
+    /// update <see cref="SavedLayout"/> and raise <see cref="SavedLayoutChanged"/>.
+    /// </summary>
+    internal void BeginPreview(CameraOverlayLayout draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (_disposed)
+        {
+            return;
+        }
+
+        bool wereVisible = AreCardsVisible;
+        _previewing = true;
+        Preview(draft);
+        if (wereVisible)
+        {
+            OnPropertyChanged(nameof(AreCardsVisible));
+        }
+
+        OnPropertyChanged(nameof(IsPreviewing));
+    }
+
+    /// <summary>A new draft of the layout mode: the widgets follow it in place (no window change).</summary>
+    internal void Preview(CameraOverlayLayout draft)
+    {
+        ArgumentNullException.ThrowIfNull(draft);
+        if (_disposed || !_previewing)
+        {
+            return;
+        }
+
+        ShowLayout(draft);
+    }
+
+    /// <summary>
+    /// The layout mode ended: the widgets follow <paramref name="saved"/> (just saved by the layout mode) or, when
+    /// <see langword="null"/>, the saved settings again; the cards of the overlay show again.
+    /// </summary>
+    internal void EndPreview(CameraOverlayLayout? saved)
+    {
+        if (_disposed || !_previewing)
+        {
+            return;
+        }
+
+        _previewing = false;
+        if (saved is not null)
+        {
+            _savedLayout = saved;
+        }
+
+        ShowLayout(_savedLayout!);
+        OnPropertyChanged(nameof(IsPreviewing));
+        if (AreCardsVisible)
+        {
+            OnPropertyChanged(nameof(AreCardsVisible));
+        }
+    }
 
     /// <summary>The global opacity of the card backgrounds in percent (30–95).</summary>
     public int OpacityPercent => _opacityPercent;
@@ -218,6 +315,31 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
         }
 
         SetOpacity(opacityPercent);
+        CameraOverlayLayout? previousSaved = _savedLayout;
+        _savedLayout = layout;
+        lock (_gate)
+        {
+            _printer = printer;
+        }
+
+        if (_previewing)
+        {
+            // The layout mode keeps showing its draft; it decides what the new saved layout means for it.
+            if (previousSaved is not null && previousSaved != layout)
+            {
+                SavedLayoutChanged?.Invoke(this, new OverlaySavedLayoutChangedEventArgs(previousSaved, layout));
+            }
+
+            ShowLayout(_layout!);
+            return;
+        }
+
+        ShowLayout(layout);
+    }
+
+    /// <summary>UI thread: the widgets of <paramref name="layout"/>, computed and shown with the latest input.</summary>
+    private void ShowLayout(CameraOverlayLayout layout)
+    {
         if (layout != _layout)
         {
             _layout = layout;
@@ -227,7 +349,6 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
         OverlayWidgetViewModel[] widgets;
         lock (_gate)
         {
-            _printer = printer;
             widgets = _widgets;
             ComputeLocked(widgets);
             TakeLocked(widgets);
@@ -355,6 +476,13 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
             widget.Size = OverlayArrangement.NearestSupported(placement.Size, definition.SupportedSizes);
             widget.IsEmphasized = placement.Emphasized;
             widget.CardBackground = _cardBackground;
+            if (_previewing)
+            {
+                // The layout mode draws the card in the size of its draft; the anchors panel (hidden meanwhile) sizes it again later.
+                widget.RenderedSize = widget.Size;
+                widget.IsCollapsed = false;
+            }
+
             next.Add(widget);
         }
 
@@ -534,4 +662,12 @@ public sealed partial class CameraOverlayViewModel : ObservableObject, IDisposab
 
     [LoggerMessage(Level = LogLevel.Error, Message = "The camera overlay widget {WidgetId} failed while {Phase}; it is hidden in this window.")]
     private partial void LogWidgetFailed(string widgetId, string phase, Exception exception);
+}
+
+/// <summary>The saved layout changed while the layout mode previews a draft (<see cref="CameraOverlayViewModel.SavedLayoutChanged"/>).</summary>
+internal sealed class OverlaySavedLayoutChangedEventArgs(CameraOverlayLayout previous, CameraOverlayLayout current) : EventArgs
+{
+    public CameraOverlayLayout Previous { get; } = previous;
+
+    public CameraOverlayLayout Current { get; } = current;
 }

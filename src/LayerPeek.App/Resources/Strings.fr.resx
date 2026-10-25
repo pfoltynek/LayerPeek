@@ -1071,4 +1071,85 @@
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>Les informations n'ont pas pu être copiées dans le presse-papiers. Réessayez.</value>
   </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Modifier la disposition</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Mode disposition</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>faites glisser un widget vers une ancre</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Espace soulève un widget, les flèches le déplacent, Entrée ouvre ses options, Échap annule les modifications.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Rétablir par défaut</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Terminé</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Déposer ici</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>aucune donnée pour l'instant</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Mettre en évidence</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Affiche la valeur clé en orange.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Taille</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Petite</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Moyenne</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Grande</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>Ce widget n'a pas cette taille.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>En haut au centre</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>En bas au centre</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Mode disposition. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} soulevé. Choisissez un emplacement avec les flèches, déposez avec Espace, Échap annule.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}&#160;: {1}, position {2} sur {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} déplacé&#160;: {1}, position {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Déplacement annulé</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Disposition par défaut rétablie</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Disposition enregistrée</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Modifications de la disposition annulées</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>Impossible d'enregistrer la disposition. Réessayez.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Agrandissez la fenêtre pour modifier la disposition.</value>
+  </data>
 </root>

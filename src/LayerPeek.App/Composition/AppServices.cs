@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
@@ -203,7 +204,8 @@ internal static class AppServices
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>(),
             sp.GetRequiredService<RemovedCameraCredentials>(),
-            sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ICameraOverlayLayoutWriter>()));
 
         // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
         // web proxies of printers whose login changed are stopped (T-028).
@@ -422,6 +424,11 @@ internal static class AppServices
         services.AddSingleton(cameraWindowStateStore);
         // The widgets of the camera overlay, an explicit list (T-081).
         services.AddSingleton(OverlayWidgets.CreateRegistry());
+        // "Done" of the layout mode writes only the printer's overlay section and announces it (T-077, T-091): the monitoring
+        // session takes the layout, an open settings window reloads it (T-092).
+        services.AddSingleton<ICameraOverlayLayoutWriter>(static sp => new DeferredCameraOverlayLayoutWriter(
+            sp.GetRequiredService<ISettingsStore>,
+            sp.GetRequiredService<ILogger<CameraOverlayLayoutWriter>>()));
         // A saved camera monitor found on another connector keeps its new device path (user decision 2026-10-23).
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
@@ -488,7 +495,8 @@ internal static class AppServices
                 services.GetRequiredService<OverlayWidgetRegistry>(),
                 services.GetRequiredService<TelemetryHistory>(),
                 services.GetRequiredService<CooldownMonitor>(),
-                services.GetRequiredService<PrintThumbnails>())
+                services.GetRequiredService<PrintThumbnails>(),
+                services.GetRequiredService<ICameraOverlayLayoutWriter>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)

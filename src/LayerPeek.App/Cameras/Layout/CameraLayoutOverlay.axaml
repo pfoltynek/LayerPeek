@@ -1,0 +1,384 @@
+<!--
+  The layout mode of the camera window (T-091, design T-076 5): over the image dimmed to 50 %, six dashed zones with the
+  widget cards of the draft, a toolbar ("Restore defaults", "Done", "Cancel") centred in the window and a hidden polite
+  live region for screen readers. Shown only while the mode is on; the live region stays, so that "Layout saved" is read
+  after the mode ended. Gestures (click, drag, keys) are handled in the code-behind; the logic is in
+  CameraLayoutModeViewModel. Colours as the overlay cards (T-076 1.3), independent of the app theme.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:lay="using:LayerPeek.App.Cameras.Layout"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:loc="using:LayerPeek.App.Localization"
+             x:Class="LayerPeek.App.Cameras.Layout.CameraLayoutOverlay"
+             x:DataType="lay:CameraLayoutModeViewModel">
+  <UserControl.Styles>
+    <!-- The colours, icons and the card of the overlay widgets (T-081), so that the cards look exactly like in the window. -->
+    <StyleInclude Source="avares://LayerPeek/Cameras/Overlay/OverlayStyles.axaml" />
+    <!-- Dimmed image: black 50 %, fading in over 150 ms; the stream goes on. -->
+    <Style Selector="Border.dim">
+      <Setter Property="Background" Value="#80000000" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Border.dim.on">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+
+    <!-- Zones: dashed white 55 % (6 / 4 at 1.5), fill white 6 %, radius 12; the target solid accent 2, fill accent 14 %. -->
+    <Style Selector="Rectangle.zoneOutline">
+      <Setter Property="Stroke" Value="#8CFFFFFF" />
+      <Setter Property="StrokeThickness" Value="1.5" />
+      <Setter Property="StrokeDashArray" Value="4,2.6666667" />
+      <Setter Property="Fill" Value="#0FFFFFFF" />
+      <Setter Property="RadiusX" Value="12" />
+      <Setter Property="RadiusY" Value="12" />
+    </Style>
+    <Style Selector="Panel.layoutZone.target Rectangle.zoneOutline">
+      <Setter Property="Stroke" Value="{StaticResource OverlayAccentBrush}" />
+      <Setter Property="StrokeThickness" Value="2" />
+      <Setter Property="StrokeDashArray" Value="{x:Null}" />
+      <Setter Property="Fill" Value="#24FA6831" />
+    </Style>
+    <Style Selector="TextBlock.zoneName">
+      <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="8" />
+    </Style>
+    <!-- The name only in an empty zone that is not the target (which says "Drop here" instead). -->
+    <Style Selector="Panel.layoutZone:not(.empty) TextBlock.zoneName, Panel.layoutZone.target TextBlock.zoneName">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <!--
+      "Drop here" (mouse drag only): docked at the free end of the target zone (the cards stack from the window edge, so the
+      zone grows inward and no card moves), centred in an empty one.
+    -->
+    <Style Selector="TextBlock.dropHere">
+      <Setter Property="Foreground" Value="{StaticResource OverlayAccentBrush}" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="TextAlignment" Value="Center" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="Margin" Value="8,6" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Panel.layoutZone.top TextBlock.dropHere.docked">
+      <Setter Property="DockPanel.Dock" Value="Bottom" />
+    </Style>
+    <Style Selector="Panel.layoutZone.bottom TextBlock.dropHere.docked">
+      <Setter Property="DockPanel.Dock" Value="Top" />
+    </Style>
+    <Style Selector="Panel.layoutZone:not(.empty) TextBlock.dropHere.docked.shown, Panel.layoutZone.empty TextBlock.dropHere.centered.shown">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!--
+      The zones and the cards of a zone draw outside their bounds (a dragged card follows the pointer anywhere, the selection
+      and focus rings surround a card): items without a clipping template.
+    -->
+    <Style Selector="ItemsControl.unclipped">
+      <Setter Property="ClipToBounds" Value="False" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <!-- The cards of a zone: 8 from the zone's edges (the top right one starts below the window buttons, like the anchor). -->
+    <Style Selector="ItemsControl.zoneCards">
+      <Setter Property="Margin" Value="8" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+    <Style Selector="Panel.layoutZone.top ItemsControl.zoneCards">
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Panel.layoutZone.bottom ItemsControl.zoneCards">
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+    <Style Selector="Panel.layoutZone.topRight ItemsControl.zoneCards">
+      <Setter Property="Margin" Value="8,32,8,8" />
+    </Style>
+    <Style Selector="Panel.layoutZone.left lay|CameraLayoutCard">
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="Panel.layoutZone.right lay|CameraLayoutCard">
+      <Setter Property="HorizontalAlignment" Value="Right" />
+    </Style>
+    <Style Selector="Panel.layoutZone.center lay|CameraLayoutCard">
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+
+    <!-- Cards: hand cursor, size-all while moved; raised (picked up or dragged): 1.03, 95 %, shadow. -->
+    <Style Selector="lay|CameraLayoutCard">
+      <!-- The selection and focus rings lie outside the card. -->
+      <Setter Property="ClipToBounds" Value="False" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FocusAdorner" Value="{x:Null}" />
+      <Setter Property="IsTabStop" Value="True" />
+    </Style>
+    <Style Selector="lay|CameraLayoutCard.raised">
+      <Setter Property="Cursor" Value="SizeAll" />
+      <Setter Property="ZIndex" Value="1" />
+    </Style>
+    <Style Selector="lay|CameraLayoutCard.raised Panel.lift">
+      <Setter Property="RenderTransform" Value="scale(1.03)" />
+      <Setter Property="Opacity" Value="0.95" />
+    </Style>
+    <Style Selector="lay|CameraLayoutCard.raised Border.overlayCard">
+      <Setter Property="BoxShadow" Value="0 8 24 0 #80000000" />
+    </Style>
+    <Style Selector="Rectangle.placeholderOutline">
+      <Setter Property="Stroke" Value="#8CFFFFFF" />
+      <Setter Property="StrokeThickness" Value="1.5" />
+      <Setter Property="StrokeDashArray" Value="4,2.6666667" />
+      <Setter Property="RadiusX" Value="10" />
+      <Setter Property="RadiusY" Value="10" />
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="lay|CameraLayoutCard.dragged Rectangle.placeholderOutline">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Selection: accent outline 2, 2 from the card. -->
+    <Style Selector="Border.selection">
+      <Setter Property="BorderBrush" Value="{StaticResource OverlayAccentBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Margin" Value="-4" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="lay|CameraLayoutCard.selected Border.selection">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Keyboard focus: the double Fluent ring (outer 2 white, inner 1 black), 3 from the card; only from the keyboard. -->
+    <Style Selector="Border.focusOuter">
+      <Setter Property="BorderBrush" Value="White" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="CornerRadius" Value="15" />
+      <Setter Property="Margin" Value="-6" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.focusInner">
+      <Setter Property="BorderBrush" Value="Black" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="13" />
+      <Setter Property="Margin" Value="-4" />
+      <Setter Property="IsHitTestVisible" Value="False" />
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="lay|CameraLayoutCard:focus-visible Border.focusOuter, lay|CameraLayoutCard:focus-visible Border.focusInner">
+      <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <!-- Placeholder card of a widget without data now: its icon, name and "no data right now". -->
+    <Style Selector="TextBlock.placeholderName">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.overlayCard TextBlock.placeholderNoData">
+      <Setter Property="Foreground" Value="{StaticResource OverlayTextTertiaryBrush}" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+
+    <!-- Toolbar: card style at 88 %, radius 10, padding 12 / 16, centred; Fluent buttons 32 high. -->
+    <Style Selector="Border.layoutToolbar">
+      <Setter Property="Background" Value="#E00E0E10" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="16,12" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.layoutToolbar TextBlock">
+      <Setter Property="Foreground" Value="{StaticResource OverlayTextPrimaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.layoutToolbar Button">
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
+  </UserControl.Styles>
+
+  <Panel>
+    <!--
+      Screen reader announcements (T-076 5.5): a polite live region, not drawn but in the automation tree; it stays after the
+      mode ended ("Layout saved").
+    -->
+    <TextBlock x:Name="Announcement"
+               AutomationProperties.AutomationId="CameraLayoutAnnouncement"
+               AutomationProperties.LiveSetting="Polite"
+               AutomationProperties.Name="{Binding Announcement}"
+               Text="{Binding Announcement}"
+               Opacity="0"
+               IsHitTestVisible="False"
+               Width="1"
+               Height="1"
+               ClipToBounds="True"
+               HorizontalAlignment="Left"
+               VerticalAlignment="Top" />
+
+    <Panel x:Name="LayoutRoot"
+           AutomationProperties.AutomationId="CameraLayoutOverlay"
+           AutomationProperties.AccessibilityView="Content"
+           IsVisible="{Binding IsActive}"
+           Background="Transparent"
+           KeyboardNavigation.TabNavigation="Cycle">
+      <Border Classes="dim" Classes.on="{Binding IsActive}" AutomationProperties.AutomationId="CameraLayoutDim" />
+
+      <ItemsControl x:Name="Zones" Classes="unclipped" ItemsSource="{Binding Zones}" KeyboardNavigation.TabNavigation="Continue">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <lay:CameraLayoutZonesPanel />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="lay:CameraLayoutZoneViewModel">
+            <Panel Classes="layoutZone"
+                   Classes.target="{Binding IsTarget}"
+                   Classes.empty="{Binding IsEmpty}"
+                   Classes.top="{Binding IsTop}"
+                   Classes.bottom="{Binding IsBottom}"
+                   Classes.left="{Binding IsLeft}"
+                   Classes.right="{Binding IsRight}"
+                   Classes.center="{Binding IsCenter}"
+                   Classes.topRight="{Binding IsTopRight}"
+                   AutomationProperties.AccessibilityView="Content"
+                   AutomationProperties.AutomationId="{Binding AutomationId}"
+                   AutomationProperties.Name="{Binding Name}">
+              <Rectangle Classes="zoneOutline" />
+              <TextBlock Classes="zoneName" Text="{Binding Name}" />
+              <TextBlock Classes="dropHere centered"
+                         Classes.shown="{Binding ShowsDropHere}"
+                         Text="{Binding [CameraLayoutDropHere], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <DockPanel>
+                <TextBlock Classes="dropHere docked"
+                           Classes.shown="{Binding ShowsDropHere}"
+                           Text="{Binding [CameraLayoutDropHere], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <ItemsControl Classes="zoneCards unclipped" ItemsSource="{Binding Items}" KeyboardNavigation.TabNavigation="Continue">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Spacing="8" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.DataTemplates>
+                    <!-- Where a dragged card goes: an accent line 3 high in the gap (its margins keep the cards in place). -->
+                    <DataTemplate DataType="lay:CameraLayoutInsertMarker">
+                      <Border AutomationProperties.AutomationId="CameraLayoutInsertIndicator"
+                              Height="3"
+                              Margin="0,-5.5"
+                              CornerRadius="1.5"
+                              Background="{StaticResource OverlayAccentBrush}"
+                              IsHitTestVisible="False" />
+                    </DataTemplate>
+                    <DataTemplate DataType="lay:CameraLayoutCardViewModel">
+                      <lay:CameraLayoutCard Classes.selected="{Binding IsSelected}"
+                                            Classes.raised="{Binding IsRaised}"
+                                            Classes.dragged="{Binding IsDragged}"
+                                            IsPopoverOpen="{Binding IsPopoverOpen}"
+                                            AutomationProperties.AutomationId="{Binding AutomationId}"
+                                            AutomationProperties.Name="{Binding AccessibleName}"
+                                            AutomationProperties.HelpText="{Binding [CameraLayoutKeyboardHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+                        <Panel>
+                          <Rectangle Classes="placeholderOutline" />
+                          <Panel Classes="lift" RenderTransformOrigin="50%,50%">
+                            <Border Classes="overlayCard"
+                                    Classes.small="{Binding Widget.IsSmall}"
+                                    Classes.medium="{Binding Widget.IsMedium}"
+                                    Classes.large="{Binding Widget.IsLarge}"
+                                    Background="{Binding Widget.CardBackground}">
+                              <Panel>
+                                <ContentControl Content="{Binding Widget}"
+                                                ContentTemplate="{Binding Widget.CardTemplate}"
+                                                IsVisible="{Binding Widget.IsShown}" />
+                                <StackPanel IsVisible="{Binding !Widget.IsShown}" MinWidth="{Binding MinCardWidth}" Spacing="2">
+                                  <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <ov:OverlayIcon Width="16"
+                                                    Height="16"
+                                                    VerticalAlignment="Center"
+                                                    Data="{Binding $parent[lay:CameraLayoutCard].PlaceholderIcon}"
+                                                    CanvasSize="{Binding $parent[lay:CameraLayoutCard].PlaceholderIconCanvas}"
+                                                    Foreground="{StaticResource OverlayTextSecondaryBrush}" />
+                                    <TextBlock Classes="placeholderName" Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                                  </StackPanel>
+                                  <TextBlock Classes="placeholderNoData"
+                                             Text="{Binding [CameraLayoutNoData], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                                </StackPanel>
+                              </Panel>
+                            </Border>
+                            <Border Classes="selection" />
+                            <Border Classes="focusOuter" />
+                            <Border Classes="focusInner" />
+                          </Panel>
+                        </Panel>
+                      </lay:CameraLayoutCard>
+                    </DataTemplate>
+                  </ItemsControl.DataTemplates>
+                </ItemsControl>
+              </DockPanel>
+            </Panel>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <!-- Always over the dimmed video: the dark theme, so that the Fluent buttons read on the dark toolbar. -->
+      <ThemeVariantScope RequestedThemeVariant="Dark">
+        <Border x:Name="Toolbar"
+                Classes="layoutToolbar"
+                AutomationProperties.AccessibilityView="Content"
+                AutomationProperties.AutomationId="CameraLayoutToolbar"
+                AutomationProperties.Name="{Binding [CameraLayoutTitle], Source={x:Static loc:LocalizedStrings.Instance}}">
+          <lay:CameraLayoutToolbarPanel x:Name="ToolbarPanel">
+            <StackPanel Spacing="4">
+              <WrapPanel Orientation="Horizontal">
+                <ov:OverlayIcon Width="16"
+                                Height="16"
+                                Margin="0,0,8,0"
+                                VerticalAlignment="Center"
+                                Data="{StaticResource IconLayoutCellFour16Regular}"
+                                Foreground="{StaticResource OverlayTextPrimaryBrush}" />
+                <TextBlock Text="{Binding [CameraLayoutTitle], Source={x:Static loc:LocalizedStrings.Instance}}" FontSize="14" FontWeight="SemiBold" />
+                <TextBlock Text=" · " FontSize="13" Foreground="{StaticResource OverlayTextSecondaryBrush}" />
+                <TextBlock AutomationProperties.AutomationId="CameraLayoutHint"
+                           Text="{Binding [CameraLayoutHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                           FontSize="13"
+                           Foreground="{StaticResource OverlayTextSecondaryBrush}"
+                           TextWrapping="Wrap" />
+              </WrapPanel>
+              <TextBlock AutomationProperties.AutomationId="CameraLayoutSaveError"
+                         Text="{Binding [CameraLayoutSaveError], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         IsVisible="{Binding HasSaveError}"
+                         Foreground="#FF99A4"
+                         FontSize="12"
+                         TextWrapping="Wrap" />
+            </StackPanel>
+            <!-- Windows order: [Restore defaults] … [Done] [Cancel]; macOS swaps Done and Cancel (code-behind). -->
+            <StackPanel x:Name="ToolbarButtons" Orientation="Horizontal" Spacing="8">
+              <Button AutomationProperties.AutomationId="CameraLayoutReset"
+                      Margin="0,0,8,0"
+                      Command="{Binding ResetCommand}"
+                      Content="{Binding [CameraLayoutReset], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <Button x:Name="DoneButton"
+                      Classes="accent"
+                      AutomationProperties.AutomationId="CameraLayoutDone"
+                      Command="{Binding DoneCommand}"
+                      Content="{Binding [CameraLayoutDone], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <Button x:Name="CancelButton"
+                      AutomationProperties.AutomationId="CameraLayoutCancel"
+                      Command="{Binding CancelCommand}"
+                      Content="{Binding [SettingsCancel], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            </StackPanel>
+          </lay:CameraLayoutToolbarPanel>
+        </Border>
+      </ThemeVariantScope>
+    </Panel>
+  </Panel>
+</UserControl>

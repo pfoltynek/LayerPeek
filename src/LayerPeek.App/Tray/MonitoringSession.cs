@@ -37,6 +37,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     private readonly ILogger<MonitoringSession> _logger;
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
     private readonly TimeProvider _timeProvider;
+    private readonly ICameraOverlayLayoutWriter? _layoutWriter;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
 
@@ -77,13 +78,17 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// Receives the printers whose camera address lost its credentials while loading (the settings window shows it).
     /// </param>
     /// <param name="timeProvider">Clock of the delayed start (T-067); <see cref="TimeProvider.System"/> by default.</param>
+    /// <param name="layoutWriter">
+    /// Saves the overlay layouts of the layout mode of camera windows (T-091); the running settings take each saved layout.
+    /// </param>
     public MonitoringSession(
         Func<ISettingsStore> settingsStoreFactory,
         IPrinterMonitor monitor,
         IEnumerable<IMonitoringObserver> observers,
         ILogger<MonitoringSession> logger,
         RemovedCameraCredentials? removedCameraCredentials = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ICameraOverlayLayoutWriter? layoutWriter = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStoreFactory);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -101,6 +106,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         _removedCameraCredentials = removedCameraCredentials;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _monitor.ModelDetected += OnModelDetected;
+        _layoutWriter = layoutWriter;
+        if (layoutWriter is not null)
+        {
+            layoutWriter.LayoutSaved += OnLayoutSaved;
+        }
     }
 
     /// <summary>
@@ -386,6 +396,42 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             // Another model: its save gets all retries again.
             _modelSaveFailures.Remove(detected.PrinterId);
             QueueModelSaveLocked(detected);
+        }
+
+        UpdateObservers(updated);
+    }
+
+    /// <summary>
+    /// The writer's thread: the layout mode of a camera window saved the overlay layout of a printer (T-091). The file has
+    /// it already; the running settings take it without a restart, so that observers (the open camera window, a window
+    /// opened later) keep it, and so do settings waiting for a restart. Settings saved afterwards replace it as usual.
+    /// </summary>
+    private void OnLayoutSaved(object? sender, CameraOverlayLayoutSavedEventArgs saved)
+    {
+        if (saved is null)
+        {
+            return;
+        }
+
+        AppSettings updated;
+        lock (_gate)
+        {
+            if (_stopping is not null || _disposed)
+            {
+                return;
+            }
+
+            if (_pending is { } pending)
+            {
+                _pending = pending.WithCameraOverlayLayout(saved.PrinterId, saved.Layout);
+            }
+
+            if (_current is not { } current || ReferenceEquals(updated = current.WithCameraOverlayLayout(saved.PrinterId, saved.Layout), current))
+            {
+                return;
+            }
+
+            _current = updated;
         }
 
         UpdateObservers(updated);
@@ -727,6 +773,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             }
 
             _monitor.ModelDetected -= OnModelDetected;
+            if (_layoutWriter is not null)
+            {
+                _layoutWriter.LayoutSaved -= OnLayoutSaved;
+            }
+
             CancelModelRetriesLocked();
 
             _disposed = true;

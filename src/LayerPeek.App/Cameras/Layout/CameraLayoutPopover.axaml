@@ -1,0 +1,113 @@
+<!--
+  The popover of a card in the layout mode (T-091, design T-076 5.4): the widget's name, "Highlight" (a switch without
+  On / Off texts) and the size as a segmented control of three radio buttons S / M / L (screen readers: Small / Medium /
+  Large; a size the widget does not have is disabled with a tip). Drawn in the app theme (a Fluent flyout), 232 wide.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:lay="using:LayerPeek.App.Cameras.Layout"
+             xmlns:loc="using:LayerPeek.App.Localization"
+             x:Class="LayerPeek.App.Cameras.Layout.CameraLayoutPopover"
+             x:DataType="lay:CameraLayoutModeViewModel"
+             Width="208"
+             AutomationProperties.AutomationId="CameraLayoutPopover">
+  <UserControl.Styles>
+    <!-- Segmented size control: three 40 × 32 toggles side by side; the chosen one in the accent colour. -->
+    <Style Selector="RadioButton.segment">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="32" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Background" Value="{DynamicResource ButtonBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ButtonBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="4" />
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Background="{TemplateBinding Background}"
+                  BorderBrush="{TemplateBinding BorderBrush}"
+                  BorderThickness="{TemplateBinding BorderThickness}"
+                  CornerRadius="{TemplateBinding CornerRadius}">
+            <ContentPresenter Content="{TemplateBinding Content}"
+                              Foreground="{TemplateBinding Foreground}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+          </Border>
+        </ControlTemplate>
+      </Setter>
+    </Style>
+    <Style Selector="RadioButton.segment:pointerover">
+      <Setter Property="Background" Value="{DynamicResource ButtonBackgroundPointerOver}" />
+    </Style>
+    <Style Selector="RadioButton.segment:checked">
+      <Setter Property="Background" Value="{DynamicResource AccentButtonBackground}" />
+      <Setter Property="Foreground" Value="{DynamicResource AccentButtonForeground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentButtonBackground}" />
+    </Style>
+    <Style Selector="RadioButton.segment:disabled">
+      <Setter Property="Opacity" Value="0.4" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Spacing="8">
+    <TextBlock AutomationProperties.AutomationId="CameraLayoutPopoverTitle"
+               Text="{Binding PopoverTitle}"
+               FontSize="14"
+               FontWeight="SemiBold"
+               TextTrimming="CharacterEllipsis" />
+    <Grid ColumnDefinitions="*,Auto">
+      <TextBlock Text="{Binding [CameraLayoutEmphasize], Source={x:Static loc:LocalizedStrings.Instance}}"
+                 VerticalAlignment="Center"
+                 TextWrapping="Wrap" />
+      <ToggleSwitch x:Name="Emphasize"
+                    Grid.Column="1"
+                    AutomationProperties.AutomationId="CameraLayoutEmphasize"
+                    AutomationProperties.Name="{Binding [CameraLayoutEmphasize], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    AutomationProperties.HelpText="{Binding [CameraLayoutEmphasizeHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    ToolTip.Tip="{Binding [CameraLayoutEmphasizeHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    IsChecked="{Binding PopoverEmphasized}"
+                    OnContent=""
+                    OffContent=""
+                    MinWidth="0" />
+    </Grid>
+    <TextBlock Text="{Binding [CameraLayoutSize], Source={x:Static loc:LocalizedStrings.Instance}}" />
+    <!-- One tab stop (the chosen size), the arrow keys choose among them (code-behind), like a radio group on Windows. -->
+    <StackPanel x:Name="SizeGroup" Orientation="Horizontal" Spacing="4" KeyboardNavigation.TabNavigation="Once">
+      <RadioButton x:Name="SizeSmall"
+                   Classes="segment"
+                   GroupName="CameraLayoutSize"
+                   Content="S"
+                   AutomationProperties.AutomationId="CameraLayoutSizeS"
+                   AutomationProperties.Name="{Binding [CameraLayoutSizeSmall], Source={x:Static loc:LocalizedStrings.Instance}}"
+                   IsChecked="{Binding IsPopoverSmall}"
+                   IsEnabled="{Binding CanPopoverSmall}"
+                   ToolTip.ShowOnDisabled="True"
+                   ToolTip.Tip="{Binding [CameraLayoutSizeUnsupported], Source={x:Static loc:LocalizedStrings.Instance}}"
+                   ToolTip.ServiceEnabled="{Binding !CanPopoverSmall}" />
+      <RadioButton x:Name="SizeMedium"
+                   Classes="segment"
+                   GroupName="CameraLayoutSize"
+                   Content="M"
+                   AutomationProperties.AutomationId="CameraLayoutSizeM"
+                   AutomationProperties.Name="{Binding [CameraLayoutSizeMedium], Source={x:Static loc:LocalizedStrings.Instance}}"
+                   IsChecked="{Binding IsPopoverMedium}"
+                   IsEnabled="{Binding CanPopoverMedium}"
+                   ToolTip.ShowOnDisabled="True"
+                   ToolTip.Tip="{Binding [CameraLayoutSizeUnsupported], Source={x:Static loc:LocalizedStrings.Instance}}"
+                   ToolTip.ServiceEnabled="{Binding !CanPopoverMedium}" />
+      <RadioButton x:Name="SizeLarge"
+                   Classes="segment"
+                   GroupName="CameraLayoutSize"
+                   Content="L"
+                   AutomationProperties.AutomationId="CameraLayoutSizeL"
+                   AutomationProperties.Name="{Binding [CameraLayoutSizeLarge], Source={x:Static loc:LocalizedStrings.Instance}}"
+                   IsChecked="{Binding IsPopoverLarge}"
+                   IsEnabled="{Binding CanPopoverLarge}"
+                   ToolTip.ShowOnDisabled="True"
+                   ToolTip.Tip="{Binding [CameraLayoutSizeUnsupported], Source={x:Static loc:LocalizedStrings.Instance}}"
+                   ToolTip.ServiceEnabled="{Binding !CanPopoverLarge}" />
+    </StackPanel>
+  </StackPanel>
+</UserControl>
