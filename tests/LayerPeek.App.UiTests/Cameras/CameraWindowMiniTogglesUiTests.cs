@@ -72,6 +72,9 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
     private static async Task<(CameraHarness Harness, CameraWindow Window)> OpenAsync(ICameraWindowStateStore? states = null, PrinterSnapshot? snapshot = null)
     {
         CameraHarness harness = new(states, FakeScreenCatalog.ThreeMonitors(), MiniFirst);
+        // The clock is at "now" before the stream starts: moving it later would make the frame stale ("No signal").
+        harness.Time.SetUtcNow(Now);
+        harness.History.Configure(harness.Printers.Current.Printers!, HistoryInterval);
         (CameraWindow window, _) = await harness.OpenStreamingAsync(1280, 720, Grey);
         Show(harness, window, snapshot ?? Printing());
         return (harness, window);
@@ -99,10 +102,9 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
         Assert.Equal(window.ClientSize.Height, strip.Bottom, 0.01);
     }
 
+    /// <summary>A sample every 20 s over the 70 minutes before <c>Now</c> (the harness clock, set on opening).</summary>
     private static void RecordHistory(CameraHarness harness)
     {
-        harness.Time.SetUtcNow(Now);
-        harness.History.Configure(harness.Printers.Current.Printers!, HistoryInterval);
         for (DateTimeOffset time = Now - TimeSpan.FromMinutes(70); time <= Now; time += HistoryInterval)
         {
             double ago = (Now - time).TotalMinutes;
@@ -433,6 +435,8 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
             await Ui.UntilAsync(() => { window.Settle(); return !window.Find<TemperatureChart>("CameraMiniChart").ShowsNoData; }, "history drawn");
             HideWindowButtons(window);
 
+            // Streaming: no status card ("No signal") over the image.
+            Assert.False(ViewModel(window).IsStatusVisible);
             SnapshotAssert.Matches(window, "camera-mini-strip-rows");
         });
 
@@ -449,6 +453,8 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
             CameraHarness.ResizeMiniWithGrip(window, 240, 400);
             HideWindowButtons(window);
 
+            // Streaming: no status card ("No signal") over the image.
+            Assert.False(ViewModel(window).IsStatusVisible);
             SnapshotAssert.Matches(window, "camera-mini-strip-rows-240-de");
         });
 
