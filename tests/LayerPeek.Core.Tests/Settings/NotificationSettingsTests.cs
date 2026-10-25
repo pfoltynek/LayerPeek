@@ -92,7 +92,8 @@ public class NotificationSettingsTests
                     && other is PrintEventKind.PrinterOffline or PrintEventKind.PrinterOnline)
                 || (kind is PrintEventKind.AttentionRequired or PrintEventKind.CredentialsRejected
                     && other is PrintEventKind.AttentionRequired or PrintEventKind.CredentialsRejected);
-            if (other != kind && !sharesSwitch)
+            // "Printer cooled down" is off by default (T-080); its own tests cover it.
+            if (other != kind && !sharesSwitch && other != PrintEventKind.CooledDown)
             {
                 Assert.True(disabled.IsEnabledFor(other), $"{other} must not depend on {setting}.");
             }
@@ -142,6 +143,61 @@ public class NotificationSettingsTests
         };
 
         Assert.Equal(expected, new NotificationSettings().ShouldPlaySound(notification.Severity));
+    }
+
+    [Fact]
+    public void CooledDownIsTheLastEventKindAndKeepsTheOthersNumbers()
+    {
+        // Appended (T-080): the values of the existing kinds do not change.
+        Assert.Equal(1, (int)PrintEventKind.PrintStarted);
+        Assert.Equal(11, (int)PrintEventKind.CredentialsRejected);
+        Assert.Equal(12, (int)PrintEventKind.CooledDown);
+        Assert.Equal(PrintEventKind.CooledDown, Enum.GetValues<PrintEventKind>().Max());
+    }
+
+    [Fact]
+    public void CooledDownIsOffByDefault()
+    {
+        Assert.False(new NotificationSettings().CooledDown);
+        Assert.False(AppSettings.Default.Notifications.CooledDown);
+        Assert.False(new NotificationSettings().IsEnabledFor(PrintEventKind.CooledDown));
+    }
+
+    [Fact]
+    public void CooledDownNeedsTheMasterSwitchAndItsOwnSwitch()
+    {
+        Assert.True(new NotificationSettings { CooledDown = true }.IsEnabledFor(PrintEventKind.CooledDown));
+        Assert.False(new NotificationSettings { CooledDown = true, Enabled = false }.IsEnabledFor(PrintEventKind.CooledDown));
+        Assert.False(new NotificationSettings { CooledDown = false }.IsEnabledFor(PrintEventKind.CooledDown));
+    }
+
+    [Fact]
+    public void CooledDownSwitchAffectsNoOtherEvent()
+    {
+        NotificationSettings on = new() { CooledDown = true };
+        foreach (PrintEventKind kind in Enum.GetValues<PrintEventKind>())
+        {
+            if (kind != PrintEventKind.CooledDown)
+            {
+                Assert.Equal(new NotificationSettings().IsEnabledFor(kind), on.IsEnabledFor(kind));
+            }
+        }
+    }
+
+    [Fact]
+    public void EqualityIncludesCooledDown()
+    {
+        Assert.NotEqual(new NotificationSettings(), new NotificationSettings { CooledDown = true });
+    }
+
+    [Theory]
+    [InlineData(NotificationSound.Off, false)]
+    [InlineData(NotificationSound.ImportantOnly, false)]
+    [InlineData(NotificationSound.All, true)]
+    public void CooledDownIsAnInformationNotification(NotificationSound sound, bool playsSound)
+    {
+        Assert.Equal(NotificationSeverity.Information, PrintNotification.SeverityOf(PrintEventKind.CooledDown));
+        Assert.Equal(playsSound, new NotificationSettings { Sound = sound }.ShouldPlaySound(PrintNotification.SeverityOf(PrintEventKind.CooledDown)));
     }
 
     [Fact]

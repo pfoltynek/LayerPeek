@@ -183,6 +183,19 @@ public sealed class AppServicesTests
     }
 
     [Fact]
+    public async Task CooldownNotificationIsConfiguredBeforeTheCooldownMonitor()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<CooldownNotifier>(), services.GetRequiredService<CooldownNotifier>());
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        int notification = observers.IndexOf(services.GetRequiredService<CooldownNotificationObserver>());
+        int monitor = observers.IndexOf(services.GetRequiredService<CooldownObserver>());
+        Assert.True(notification >= 0, "The cool-down notification gets no settings.");
+        Assert.True(notification < monitor, "A threshold raised by the same settings would be notified with the old ones.");
+    }
+
+    [Fact]
     public async Task TelemetryHistoryIsRegisteredAsSingletonWithObserver()
     {
         await using ServiceProvider services = AppServices.Create();

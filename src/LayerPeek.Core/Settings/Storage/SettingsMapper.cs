@@ -37,6 +37,7 @@ internal static class SettingsMapper
                 Error = notifications.Error,
                 Attention = notifications.Attention,
                 Offline = notifications.Offline,
+                CooledDown = notifications.CooledDown ? true : null,
                 RemainingTimeMinutes = notifications.RemainingTimeMinutes,
                 Sound = FormatSound(notifications.Sound),
             },
@@ -175,6 +176,7 @@ internal static class SettingsMapper
             Error = document.Error ?? defaults.Error,
             Attention = document.Attention ?? defaults.Attention,
             Offline = document.Offline ?? defaults.Offline,
+            CooledDown = document.CooledDown ?? defaults.CooledDown,
             RemainingTimeMinutes = ToRemainingTimeMinutes(document.RemainingTimeMinutes, warnings),
             Sound = ToSound(document.Sound, defaults.Sound, warnings),
         };

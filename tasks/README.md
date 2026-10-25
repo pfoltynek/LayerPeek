@@ -93,7 +93,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-077 | Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036 (hotovo) | all | core-dev | P2 | T-076 |
 | T-078 | Hezčí název tisku – rozbor názvu souboru z PrusaSliceru v Core (hotovo) | all | core-dev | P2 | – |
 | T-079 | Vychladnutí po tisku – detekce v Core (hotovo) | all | core-dev | P2 | – |
-| T-080 | Vychladnutí – volitelná notifikace a nastavení prahu | all | core-dev + ui-dev | P2 | T-076, T-079 |
+| T-080 | Vychladnutí – volitelná notifikace a nastavení prahu (hotovo) | all | core-dev + ui-dev | P2 | T-076, T-079 |
 | T-081 | Widgety překryvu – framework v okně kamery (registr, 6 kotev, karty) | all | ui-dev | P2 | T-076, T-077 |
 | T-082 | Widget Stav | all | ui-dev | P2 | T-081 |
 | T-083 | Widget Časy | all | ui-dev | P2 | T-081 |
@@ -105,7 +105,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-089 | Malý náhled – informační pás pod obrazem a výška okna podle pásu | all | ui-dev | P2 | T-076, T-082, T-083 |
 | T-090 | Malý náhled – sbalitelný název a graf v pásu, zapamatování stavu | all | ui-dev | P2 | T-084, T-085, T-089 |
 | T-091 | Režim rozložení v okně kamery (jen normální okno) | all | ui-dev | P2 | T-077, T-082, T-083 |
-| T-092 | Záložka Widgety – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení | all | ui-dev | P2 | T-077, T-080, T-081, T-088, T-091 |
+| T-092 | Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení | all | ui-dev | P2 | T-077, T-080, T-081, T-091 |
 
 ### Windows (`windows`)
 

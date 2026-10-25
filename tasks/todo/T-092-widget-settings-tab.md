@@ -5,7 +5,7 @@ status: todo
 owner: ui-dev
 priority: P2
 platform: all
-depends_on: [T-077, T-080, T-081, T-088, T-091]
+depends_on: [T-077, T-080, T-081, T-091]
 ---
 
 ## Cíl
@@ -25,6 +25,29 @@ Nahrazují koncept podzáložky Překryv z T-076 bodu 8 (schválený T-076 zůst
 - Okno nastavení smí trochu narůst, ale okna **Nastavení a Diagnostika musí mít dál stejnou velikost**.
 - Bez posuvníku ve všech 8 jazycích, ovládání klávesnicí, `AutomationId`, vykání.
 
+## Rozhodnutí (uživatel, 2026-10-25) – schválený Návrh UI a otázky Q1–Q7
+- **Návrh UI** (oddíl níže, ui-designer 2026-10-25) je **schválený**. U všech otázek Q1–Q7 platí doporučená varianta:
+  - **Q1 – umístění:** hlavní záložka **„Widgety“** hned za záložkou Tiskárny (pořadí Tiskárny | Widgety | Obecné | Spuštění a aktualizace) s rozbalovacím výběrem tiskárny, který sdílí výběr se záložkou Tiskárny (`SettingsViewModel.SelectedPrinter`). Návrh UI 1.
+  - **Q2 – velikost oken:** Nastavení i Diagnostika mají výchozí klient **780 × 532** (podrobnosti v oddílu Velikost oken níže).
+  - **Q3 – přepínač upozornění „Tiskárna vychladla“:** zůstává **jen na záložce Obecné**. Panel Vychladnutí ukáže stav upozornění a odkaz „Změnit na záložce Obecné“ (Návrh UI 4.3, 4.4).
+  - **Q4 – úprava rozložení s neuloženými změnami:** „Upravit rozložení v okně kamery…“ spustí režim rozložení **z rozpracovaného rozložení** vybrané tiskárny v nastavení. „Hotovo“ ho uloží (tím se uloží i rozpracovaná viditelnost této tiskárny), Esc nic nezmění.
+  - **Q5 – malé okno kamery:** normální okno kamery menší než 480 × 300 se na dobu režimu rozložení **dočasně zvětší na 640 × 360** na stejném místě. Po „Hotovo“ i Esc se vrátí na původní velikost.
+  - **Q6 – přesun rozsahu:**
+    - oddíl prahu z T-080 přejde do panelu Vychladnutí (view model prahu z T-080 beze změny, mění se jen umístění a `AutomationId`, viz oddíl Převzato z T-080),
+    - `SettingsNotifyCooledDownHelp` dostane znění z Návrhu UI 8,
+    - T-091 dostane vstup do režimu rozložení „zvenku“ (tiskárna + volitelné počáteční rozpracované rozložení, Q4, Q5),
+    - smlouvu widgetů z T-081 rozšíří **tento úkol** (Návrh UI 6; T-081 je implementovaný na větvi `feature/T-081-widget-framework` a jeho soubor se už nemění),
+    - panel Vychladnutí zaregistruje T-088 podle smlouvy z tohoto úkolu.
+  - **Q7 – popis widgetu:** každý widget má v panelu **popis jednou větou** (klíče `CameraOverlayWidget*Description`, Návrh UI 8).
+- Zodpovězené otázky z review T-080 (dřívější Q1–Q3 tohoto souboru): umístění řeší Q1, přepínač upozornění Q3, tlačítko „Upravit rozložení v okně kamery…“ v nastavení platí (rozhodnutí 2026-10-25 nahrazuje 2026-10-24).
+
+## Velikost oken Nastavení a Diagnostika (uživatel, 2026-10-25)
+- Výchozí velikost klientské oblasti **780 × 532** u obou oken (stejná), minimum zůstává **640 × 400**.
+- Dosavadní přizpůsobení pracovní ploše (`AuxiliaryWindowPlacement.Fit`, `WorkAreaFitter`) zůstává.
+- Posuvník **jen tehdy, když je potřeba** (každá záložka už má vlastní `ScrollViewer`): ve výchozí velikosti žádný posuvník v žádném z 8 jazyků, po zmenšení okna se posuvník objeví.
+- Cílové obrazovky: nejhorší běžná pracovní plocha notebooku **≈ 1093 × 580 DIP** (1366 × 768 při 125 %, 1920 × 1080 při 175 %). Výpočet v Návrhu UI 2 s hlavním panelem 48 DIP dává 566–569 DIP; okno 780 × 532 s titulkem se vejde v obou případech.
+- Změnu výchozí velikosti, zvětšení na celou obrazovku a zapamatování velikosti dělá **T-094**, aby se do aplikace dostaly dřív. Tento úkol na T-094 **nezávisí**: když T-094 ještě nebude hotový, změní výchozí velikost na 780 × 532 sám (stejné hodnoty a testy velikosti jako v T-094), jinak jen ověří, že nová záložka se do ní vejde.
+
 ## Rozhodnutí (uživatel, 2026-10-24), která platí dál
 - **Viditelnost** platí pro normální okno i celou obrazovku (sdílené rozložení). Malý náhled karty nemá (T-089 / T-090), sloupec pro něj **není**.
 - **„Použít rozložení u všech tiskáren“** zkopíruje celé rozložení tiskárny (viditelnost, kotvy, pořadí, velikosti, zvýraznění) do ostatních tiskáren v rozpracovaném nastavení. Uloží se s ostatními změnami.
@@ -38,31 +61,81 @@ Nahrazená rozhodnutím uživatele z 2026-10-25 (oddíl výše):
 - ~~„Tabulka widgetů na podzáložce Překryv, umístění podle T-076 bodu 8.“~~ → **Nahrazeno:** oblast Widgety s rozvržením master-detail (Návrh UI 1–4).
 
 ## Převzato z T-080
-<!--
-  Reserved for the items merged from T-080 (done on another branch): the "Převzato z T-080" acceptance criterion, the
-  finished threshold view-model API, the existing string keys (SettingsOverlayApplyAllSingle etc.), the follow-up for
-  the SettingsNotifyCooledDownHelp text and the XAML prototype of the threshold section. The lead merges them here.
-  Design mapping: the T-080 threshold section becomes the Cool-down settings panel (Návrh UI 4.3, contract in 6);
-  SettingsNotifyCooledDownHelp gets the wording from Návrh UI 8.
--->
-(doplní se sloučením z větve T-080)
+T-080 je hotový (sloučený do `develop` 2026-10-25) **bez pole prahu v okně**: dodal logiku pohledu, texty a upozornění, ale pole se do dnešní podzáložky Překryv nevešlo. Podle rozhodnutí z 2026-10-25 (Q6) pole prahu přidává tento úkol do panelu Vychladnutí (Návrh UI 4.3, smlouva v 6). Kritérium „Převzato z T-080“ je v Akceptačních kritériích.
+
+- **Hotové API pohledu (T-080, otestované v `PrinterCooldownThresholdSettingsTests`):**
+  - `PrinterEditorViewModel.CooldownThresholdCelsius`, `MinCooldownThresholdCelsius`, `MaxCooldownThresholdCelsius`,
+  - `CooldownThresholdError`, `ShowsCooldownThresholdHint`,
+  - `ApplyCooldownThresholdToAllCommand`, `ApplyToAllUnavailableReason` (`SettingsViewModel.ApplyCooldownThresholdToAll`),
+  - `HasOverlayErrors`, `ShowsOverlayErrorMarker`, `OverlayTabName` a přechod `SettingsViewModel` na `OverlayPrinterTab` při chybě prahu. S podzáložkou Překryv zaniknou: přejmenovat nebo přesměrovat na záložku Widgety (značka `SettingsTabWidgetsMarker`), výběr tiskárny a řádek Vychladnutí (`WidgetsItemMarker-{id}`), Návrh UI 4.3.
+  - Hodnoty a validace zůstávají u tiskárny (`PrinterEditorViewModel`), panel Vychladnutí je jen zobrazuje (Návrh UI 6, `IOverlayWidgetSettingsHost.Printer`).
+- **Texty už existují ve všech 8 jazycích:** `SettingsCooldownSection`, `SettingsCooldownThreshold`, `SettingsCooldownThresholdHint`, `SettingsCooldownThresholdError`, `SettingsCooldownApplyAll`, `SettingsCooldownAppliedAll`, `SettingsOverlayApplyAllSingle` (použít, nepřidávat znovu). Podle Návrhu UI 8 se `SettingsCooldownSection` nepoužije (nadpisem panelu je název widgetu) a `SettingsCooldownThresholdHint` dostane kratší znění.
+- **`SettingsNotifyCooledDownHelp`** (`HelpText` přepínače „Tiskárna vychladla“ na záložce Obecné) dnes jen popisuje, kdy upozornění přijde (review T-080 z něj odstranilo zastaralé místo prahu). Přepínač na záložce Obecné zůstává (Q3); text dostane znění z Návrhu UI 8 („Práh teploty trysky se nastavuje u tiskárny na záložce Widgety, widget Vychladnutí.“) ve všech 8 jazycích.
+- **Prototyp XAML z T-080** (pravý sloupec dnešní podzáložky Překryv; přetekl o 9–251 DIP, proto se nepoužil). Výchozí bod pro šablonu panelu Vychladnutí. `AutomationId` se mění podle Návrhu UI 7: `PrinterCooldownThreshold` → `WidgetCooldownThreshold`, `PrinterCooldownThresholdHint` → `WidgetCooldownThresholdHint`, `PrinterCooldownThresholdError` → `WidgetCooldownThresholdError`, `PrinterCooldownApplyAll` → `WidgetCooldownApplyAll`; `PrinterCooldownSection` a nadpis `SettingsCooldownSection` odpadnou (panel je `WidgetsDetail`). Rozvržení podle Návrhu UI 4.3 (pole a tlačítko na jednom řádku, pod nimi stav upozornění a odkaz).
+
+```xml
+                          <!--
+                            T-080 (design T-076, section 8): the cool-down threshold of the printer at the top of the right
+                            column, outside the table, so that it stays editable while the camera is off (the notification
+                            needs it too). The error replaces the hint (T-033 pattern).
+                          -->
+                          <StackPanel AutomationProperties.AutomationId="PrinterCooldownSection" Margin="0,0,0,16">
+                            <TextBlock Classes="section"
+                                       Margin="0,0,0,4"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding [SettingsCooldownSection], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <TextBlock Classes="label"
+                                       TextWrapping="Wrap"
+                                       Text="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <NumericUpDown AutomationProperties.AutomationId="PrinterCooldownThreshold"
+                                           AutomationProperties.Name="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           AutomationProperties.HelpText="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                           Value="{Binding CooldownThresholdCelsius}"
+                                           Minimum="{x:Static vm:PrinterEditorViewModel.MinCooldownThresholdCelsius}"
+                                           Maximum="{x:Static vm:PrinterEditorViewModel.MaxCooldownThresholdCelsius}"
+                                           Increment="1"
+                                           FormatString="0"
+                                           Width="120"
+                                           HorizontalAlignment="Left" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterCooldownThresholdHint"
+                                       Classes="hint"
+                                       Text="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                       IsVisible="{Binding ShowsCooldownThresholdHint}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterCooldownThresholdError"
+                                       Classes="error"
+                                       Text="{Binding CooldownThresholdError}"
+                                       IsVisible="{Binding CooldownThresholdError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            <Button AutomationProperties.AutomationId="PrinterCooldownApplyAll"
+                                    AutomationProperties.Name="{Binding [SettingsCooldownApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    Margin="0,8,0,0"
+                                    Command="{Binding ApplyCooldownThresholdToAllCommand}"
+                                    ToolTip.Tip="{Binding ApplyToAllUnavailableReason}"
+                                    ToolTip.ShowOnDisabled="True">
+                              <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsCooldownApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            </Button>
+                          </StackPanel>
+```
 
 ## Kontext
 - Dnes: `SettingsViewModel.OverlayPrinterTab`, `PrinterEditorViewModel.OverlayRows` (`CameraOverlayItemRow`), `SelectedOverlayCorner`, podzáložka `PrinterTabOverlay` v `SettingsWindow.axaml`, testy `SettingsWindowOverlayUiTests`.
-- Velikost oken: `AuxiliaryWindowPlacement.DefaultClientSize` / `MinClientSize`, `Width` / `Height` v `SettingsWindow.axaml` a `DiagnosticsWindow.axaml`, testy `SettingsWindowLayoutTests`, `DiagnosticsWindowLayoutTests`, `AuxiliaryWindowPlacementTests`.
+- Velikost oken: `AuxiliaryWindowPlacement.DefaultClientSize` / `MinClientSize`, `Width` / `Height` v `SettingsWindow.axaml` a `DiagnosticsWindow.axaml`, testy `SettingsWindowLayoutTests`, `DiagnosticsWindowLayoutTests`, `AuxiliaryWindowPlacementTests`. Výchozí velikost 780 × 532 zavádí T-094 (viz Velikost oken).
 - Rozložení: `CameraOverlayLayout` a čisté operace (`WithVisible`, `ResetToDefault`, `ApplyToAll`), globální `AppSettings.CameraOverlayOpacityPercent`, zapisovač `ICameraOverlayLayoutWriter` s událostí `LayoutSaved` (T-077, hotovo).
-- Práh: `printers[*].cooldownThresholdCelsius`, `CooldownThreshold.ApplyToAll` (T-079, hotovo). Upozornění `NotificationSettings.CooledDown` (T-080).
-- Registr widgetů `IOverlayWidgetDefinition` / `OverlayWidgetRegistry` (T-081). Smlouva pro panel nastavení je v oddílu Návrh UI 6.
-- Vstup do režimu rozložení z okna kamery (T-091). Tento úkol potřebuje navíc vstup „zvenku“ pro konkrétní tiskárnu (Návrh UI 5.4).
-- Vzhled, ikony, texty a vykání: schválený návrh `tasks/done/T-076-widget-design-spec.md` (oddíly 1.3, 6, 8, 10). Tento soubor ho doplňuje, ne mění.
+- Práh: `printers[*].cooldownThresholdCelsius`, `CooldownThreshold.ApplyToAll` (T-079, hotovo). Upozornění `NotificationSettings.CooledDown` a logika pohledu prahu (T-080, hotovo, viz Převzato z T-080).
+- Registr widgetů `IOverlayWidgetDefinition` / `OverlayWidgetDefinition` / `OverlayWidgetRegistry` (T-081, implementovaný na větvi `feature/T-081-widget-framework`, zatím nesloučený). **Tento úkol rozšiřuje smlouvu T-081** podle Návrhu UI 6:
+  - nové členy `DescriptionKey`, `IconKey` a volitelná továrna panelu nastavení (`IOverlayWidgetSettingsFactory? Settings`),
+  - jako nepovinné `init` vlastnosti `OverlayWidgetDefinition` a výchozí členy rozhraní (`null` = bez popisu / ikony / panelu), takže stávající registrace z T-081 a widgetových úkolů se nemusí měnit,
+  - název widgetu je v T-081 `NameKey` (v Návrhu UI 6 uvedený jako `DisplayNameKey`), nepřejmenovává se.
+- Panel Vychladnutí (view model, šablona, továrna) vytvoří tento úkol; do registrace widgetu Vychladnutí ho zapojí T-088 (rozhodnutí Q6). Popis a ikonu ostatních widgetů doplní tento úkol do jejich registrací, pokud už jsou hotové; widget registrovaný později je doplní ve svém úkolu (hlídá to test registru, viz kritéria).
+- Vstup do režimu rozložení z okna kamery (T-091). Tento úkol používá vstup „zvenku“ pro konkrétní tiskárnu s počátečním rozpracovaným rozložením, který dodá T-091 (Návrh UI 5.4, Q4, Q5).
+- Vzhled, ikony, texty a vykání: schválený návrh `tasks/done/T-076-widget-design-spec.md` (oddíly 1.3, 6, 8, 10). Návrh UI níže ho doplňuje, oddíl 8 T-076 nahrazuje.
 
 ## Rozsah
-- **Záložka Widgety** podle Návrhu UI (umístění podle rozhodnutí otázky Q1, návrh počítá s variantou B: hlavní záložka s výběrem tiskárny).
+- **Záložka Widgety** podle Návrhu UI: hlavní záložka za záložkou Tiskárny s výběrem tiskárny sdíleným se záložkou Tiskárny (Q1).
 - **Seznam widgetů:** jeden řádek na registrovaný widget v pořadí registrace (Stav, Časy, Teploty, Název tisku, Vychladnutí), ikona, název, zaškrtávací pole viditelnosti, značka „!“ při chybě v panelu widgetu. Hodnoty se mapují na `CameraOverlayLayout` přes `WithVisible`. Neznámé id widgetů z rozložení se v seznamu neukazují a zůstanou zachované.
-- **Panel vybraného widgetu:** nadpis s ikonou, popis, vlastní panel nastavení nebo text „nemá další nastavení“ (Návrh UI 4.2, 6).
-- **Panel Vychladnutí:** číselné pole prahu (°C, 30–100, validace a chyba jako u ostatních číselných polí), „Použít práh u všech tiskáren“, řádek se stavem upozornění „Tiskárna vychladla“ a odkazem na záložku Obecné (Návrh UI 4.3, podle rozhodnutí Q3 a Q6).
+- **Panel vybraného widgetu:** nadpis s ikonou, popis jednou větou (Q7), vlastní panel nastavení nebo text „nemá další nastavení“ (Návrh UI 4.1, 4.2, 6).
+- **Panel Vychladnutí** (view model, šablona a továrna pro registraci v T-088): číselné pole prahu (°C, 30–100, validace a chyba jako u ostatních číselných polí), „Použít práh u všech tiskáren“, řádek se stavem upozornění „Tiskárna vychladla“ a odkazem na záložku Obecné (Návrh UI 4.3, Q3, Q6). Vychází z API a prototypu XAML z T-080 (oddíl Převzato z T-080).
 - **Oddíl Všechny widgety:**
-  - „Upravit rozložení v okně kamery…“ (Návrh UI 5.4, podle rozhodnutí Q4 a Q5),
+  - „Upravit rozložení v okně kamery…“ (Návrh UI 5.4): předá vstupu T-091 tiskárnu a její rozpracované rozložení z nastavení (Q4); dočasné zvětšení malého okna kamery (Q5) řeší T-091,
   - „Obnovit výchozí“ (rozložení vybrané tiskárny),
   - „Použít rozložení u všech tiskáren“ (při jediné tiskárně zakázané s tooltipem),
   - posuvník neprůhlednosti 30–95 % s hodnotou, uložení do `AppSettings`, po uložení se změna projeví ve všech otevřených oknech kamery.
@@ -71,8 +144,9 @@ Nahrazená rozhodnutím uživatele z 2026-10-25 (oddíl výše):
   - Událost může přijít z jiného vlákna, zpracuje se na UI vlákně.
   - Odebraná nebo nová (neuložená) tiskárna událost ignoruje.
 - **Vypnutá kamera:** zaškrtávací pole a „Upravit rozložení…“ zakázané, hodnoty zůstanou. Výběr widgetu, panel Vychladnutí a neprůhlednost zůstanou dostupné.
-- **Společná velikost oken** Nastavení a Diagnostika podle rozhodnutí Q2 (návrh 780 × 532): XAML obou oken, `AuxiliaryWindowPlacement`, komentáře a testy velikosti. Snímky reference obou oken přegenerovat a zkontrolovat.
-- **Smlouva panelu nastavení** v registru widgetů (Návrh UI 6), bez reflexe (Native AOT).
+- **Velikost oken:** záložka Widgety se vejde do výchozího klientu 780 × 532 bez posuvníku. Pokud T-094 ještě není hotový, tento úkol změní výchozí velikost obou oken sám (XAML obou oken, `AuxiliaryWindowPlacement`, komentáře a testy velikosti). Snímky reference obou oken přegenerovat a zkontrolovat.
+- **Rozšíření smlouvy widgetů T-081** (Návrh UI 6, viz Kontext): `DescriptionKey`, `IconKey`, `IOverlayWidgetSettingsFactory`, `IOverlayWidgetSettingsHost` (implementuje `SettingsViewModel`), `OverlayWidgetSettingsViewModel`, sdílený `ResourceDictionary` šablon panelů, bez reflexe (Native AOT).
+- `SettingsNotifyCooledDownHelp` a ostatní změněné texty podle Návrhu UI 8.
 - Odstranit podzáložku Překryv, `OverlayRows`, `SelectedOverlayCorner`, staré texty a `AutomationId` `PrinterOverlay*`, `PrinterTabOverlay`. Testy T-036 převést.
 - Nové texty ve všech 8 jazycích, přepnutí jazyka za běhu.
 
@@ -83,23 +157,31 @@ Nahrazená rozhodnutím uživatele z 2026-10-25 (oddíl výše):
   - práh: hranice 30 a 100, hodnoty mimo rozsah blokují uložení, „Použít práh u všech tiskáren“, značka chyby u widgetu, tiskárny a záložky,
   - neprůhlednost: hranice 30 a 95, výchozí 72, uložení,
   - `LayoutSaved` nahradí jen rozložení a neuložené změny jiných polí zůstanou; následné uložení zapíše nové rozložení; nová i odebraná tiskárna událost ignoruje,
-  - „Upravit rozložení v okně kamery…“: dostupnost (kamera vypnutá, neuložená tiskárna, žádná tiskárna) a předání tiskárny (a podle Q4 rozpracovaného rozložení) do vstupu T-091,
-  - registr: každý widget má klíč názvu a popisu ve všech 8 `Strings.*.resx`; panel se vytvoří jen pro widget, který ho deklaruje, a při změně výběru se uvolní.
+  - „Upravit rozložení v okně kamery…“: dostupnost (kamera vypnutá, neuložená tiskárna, žádná tiskárna) a předání tiskárny a rozpracovaného rozložení (Q4) do vstupu T-091,
+  - registr: každý registrovaný widget má klíč názvu a popisu ve všech 8 `Strings.*.resx` a platný `IconKey`; panel se vytvoří jen pro widget, který ho deklaruje, a při změně výběru (widget i tiskárna) se uvolní,
+  - smlouva: definice bez `DescriptionKey`, `IconKey` a `Settings` (registrace z T-081) se dál sestaví a chová jako dřív.
 - [ ] Headless UI testy (`LayerPeek.App.UiTests`):
   - výchozí hodnoty, změna viditelnosti myší i klávesnicí, uložení kliknutím, vypnutá kamera, žádná tiskárna,
-  - výběr widgetu přepne panel; widget bez vlastního nastavení; Vychladnutí s chybou prahu,
+  - výběr widgetu přepne panel; widget bez vlastního nastavení; Vychladnutí s chybou prahu (s testovací registrací panelu, dokud ho nezapojí T-088),
   - „Použít … u všech tiskáren“ s 1 a 3 tiskárnami,
   - odkaz na upozornění přepne na záložku Obecné a dá fokus přepínači „Tiskárna vychladla“,
   - pořadí Tab, `AutomationId` podle Návrhu UI 7,
-  - **bez posuvníku ve všech 8 jazycích** × stavy (výchozí, Vychladnutí vybrané, chyba prahu, vypnutá kamera, jediná tiskárna, žádná tiskárna),
-  - nová velikost obou oken (výchozí, minimum, přizpůsobení pracovní ploše) a všechny dosavadní testy rozvržení obou oken v nové velikosti,
+  - **bez posuvníku ve výchozí velikosti 780 × 532 ve všech 8 jazycích** × stavy (výchozí, Vychladnutí vybrané, chyba prahu, vypnutá kamera, jediná tiskárna, žádná tiskárna); po zmenšení okna (např. na minimum 640 × 400) se posuvník objeví a obsah zůstane dosažitelný,
+  - velikost obou oken 780 × 532 (pokud ji už nezavedl T-094, jinak jen ověřit) a všechny dosavadní testy rozvržení obou oken v této velikosti,
   - snímky reference (nové i přegenerované, vizuálně zkontrolované).
+- [ ] **Převzato z T-080** (pole prahu vychladnutí, rozhodnutí 2026-10-25):
+  - App.Tests i headless UI: pole prahu v panelu Vychladnutí – výchozí hodnota 50 °C, uložení, hodnoty mimo 30–100 a necelá čísla (chyba „Zadejte celé číslo od 30 do 100.“ místo nápovědy, blokuje uložení, okno přejde na záložku Widgety, vybere tiskárnu i widget Vychladnutí a označí je „!“),
+  - „Použít práh u všech tiskáren“ v okně: s 1 tiskárnou zakázané s důvodem v tooltipu, s 3 tiskárnami zkopíruje platný práh a ukáže stavový text,
+  - panel Vychladnutí s polem prahu **bez posuvníku ve všech 8 jazycích** × stavy z `SettingsWindowLayoutTests` (i s chybou prahu v de / fr),
+  - `SettingsNotifyCooledDownHelp` má znění z Návrhu UI 8 ve všech 8 jazycích.
 - [ ] Žádné reflexní bindingy, žádné trim/AOT varování
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh UI
 
 Návrh ui-designer, 2026-10-25. Dodatek ke schválenému návrhu T-076 (oddíl 8 se tímto nahrazuje, ostatní oddíly platí). Rozměry v DIP. Čeština vyká.
+
+Stav: **schváleno uživatelem 2026-10-25** (u otázek Q1–Q7 platí doporučené varianty, viz oddíl Rozhodnutí). Výchozí stav v oddílu 0 popisuje okna před T-094.
 
 ### 0. Výchozí stav (změřeno 2026-10-25)
 - Okna Nastavení a Diagnostika: klient **780 × 508**, minimum 640 × 400 (`AuxiliaryWindowPlacement.DefaultClientSize` / `MinClientSize`, `Width` / `Height` v obou XAML). Cílem T-033 je obrazovka **800 × 600 při 100 %** (okno s titulkem ≤ 780 × 540). Na menší pracovní ploše se okno zmenší (`WorkAreaFitter`) a obsah pak posouvá.
@@ -446,31 +528,40 @@ Zaniknou: `SettingsPrinterTabOverlay`, `SettingsOverlayCorner`, `SettingsOverlay
 Skutečné Windows DPI 125 / 150 / 175 % a hlavní panel jiné výšky (měřeno výpočtem), macOS, chování mezerníku v `ListBox` Avalonie 12 (5.2), vzhled `HyperlinkButton` v obou motivech. Výšky textů jsou odhad (≈ 7,2 DIP na znak při 14, ≈ 6,3 při 12); rozhodne test bez posuvníku ve všech 8 jazycích.
 
 ## Otevřené otázky
-- **Q1 – Umístění oblasti Widgety:**
+- (žádné) – otázky Q1–Q7 návrhu i dřívější Q1–Q3 z review T-080 rozhodl uživatel 2026-10-25 (oddíl Rozhodnutí a Zodpovězené otázky).
+
+## Zodpovězené otázky (uživatel, 2026-10-25)
+Původní znění otázek ui-designera pro dohledání důvodů. Ve všech platí doporučená varianta (označená „doporučeno“).
+- **Q1 – Umístění oblasti Widgety:** → **B**.
   - **B (doporučeno):** hlavní záložka „Widgety“ za záložkou Tiskárny, s výběrem tiskárny sdíleným se záložkou Tiskárny (Návrh UI 1). Vejde se do 780 × 532, globální neprůhlednost je na přirozeném místě.
   - A: podzáložka „Widgety“ u tiskárny místo Překryvu. Konzistentní s ostatními podzáložkami, ale 548 × 358 nestačí: okno by muselo narůst na ≈ 780 × 570 (nevejde se na 1366 × 768 při 125 %) a vnoří tři úrovně výběru.
-- **Q2 – Společná velikost oken Nastavení a Diagnostika:**
+- **Q2 – Společná velikost oken Nastavení a Diagnostika:** → **780 × 532**, minimum 640 × 400, cílová pracovní plocha ≈ 1093 × 580 DIP (oddíl Velikost oken).
   - **780 × 532 (doporučeno):** cílová obrazovka 1366 × 768 při 125 % (nahrazuje 800 × 600 při 100 % z T-033). Na 800 × 600 se okno zmenší o 12 a obsah v1 se pořád vejde bez posuvníku.
   - 780 × 508 (beze změny): vejde se 6 widgetů a panel Vychladnutí jen s jednořádkovým popisem v každém jazyce; 7. widget nebo delší překlad = posuvník.
   - 840 × 560: pohodlná rezerva, ale nevejde se na 1366 × 768 při 125 % ani 1920 × 1080 při 175 % (zmenší se a obsah se posouvá).
-- **Q3 – Přepínač upozornění „Tiskárna vychladla“:**
+- **Q3 – Přepínač upozornění „Tiskárna vychladla“:** → **jen na záložce Obecné, v panelu stav + odkaz**.
   - **Jen na záložce Obecné, v panelu Vychladnutí stav + odkaz (doporučeno):** jeden zdroj pravdy, upozornění je globální a panel je u tiskárny (Návrh UI 4.4).
   - Zrcadlené zaškrtávací pole v panelu (dvě místa pro jednu hodnotu, naznačuje nastavení u tiskárny).
   - Jen na Obecné, v panelu nic (uživatel se nedozví, že práh řídí i upozornění).
-- **Q4 – „Upravit rozložení v okně kamery…“ s neuloženými změnami rozložení této tiskárny:**
+- **Q4 – „Upravit rozložení v okně kamery…“ s neuloženými změnami rozložení této tiskárny:** → **začít z rozpracovaného rozložení**.
   - **Režim rozložení začne z rozpracovaného rozložení nastavení (doporučeno):** uživatel uvidí, co právě nastavil. „Hotovo“ ho uloží (tím se uloží i rozpracovaná viditelnost této tiskárny), Esc nic nezmění.
   - Tlačítko zakázané, dokud rozložení není uložené (tooltip „Nejdřív nastavení uložte.“).
   - Dotaz „Uložit změny?“ před otevřením.
-- **Q5 – Okno kamery menší než 480 × 300 při spuštění z nastavení:**
+- **Q5 – Okno kamery menší než 480 × 300 při spuštění z nastavení:** → **dočasně zvětšit na 640 × 360 a pak vrátit**.
   - **Na dobu režimu zvětšit na 640 × 360 na stejném místě a po Hotovo / Esc vrátit původní velikost (doporučeno).**
   - Neměnit velikost: okno se otevře a tlačítko režimu ukáže „Pro úpravu rozložení zvětšete okno.“ (T-076 Q4).
   - Zvětšit natrvalo.
-- **Q6 – Přesun rozsahu mezi úkoly (pro architekta po schválení):**
-  - **Doporučeno:** oddíl prahu, který dodal T-080 (hotovo na jiné větvi, viz oddíl „Převzato z T-080“), tento úkol přesune do panelu Vychladnutí (view model prahu z T-080 se použije beze změny, mění se jen umístění a `AutomationId`); text `SettingsNotifyCooledDownHelp` dostane znění z Návrhu UI 8. T-091 dostane vstup do režimu rozložení zvenku (tiskárna + volitelná počáteční pracovní kopie, Q4, Q5). T-081 rozšíří `IOverlayWidgetDefinition` podle Návrhu UI 6 a T-088 zaregistruje panel Vychladnutí.
-  - Alternativa: oddíl prahu z T-080 zůstane, kde ho T-080 umístil, a panel Vychladnutí ukáže jen odkaz na něj (méně práce, ale práh by byl mimo oblast Widgety).
-- **Q7 – Popis widgetu v panelu:**
+- **Q6 – Přesun rozsahu mezi úkoly:** → **podle doporučení** (oddíl Rozhodnutí; smlouvu T-081 rozšiřuje tento úkol, protože T-081 je už implementovaný).
+  - **Doporučeno:** oddíl prahu z T-080 tento úkol přesune do panelu Vychladnutí (view model prahu z T-080 beze změny, mění se jen umístění a `AutomationId`); text `SettingsNotifyCooledDownHelp` dostane znění z Návrhu UI 8. T-091 dostane vstup do režimu rozložení zvenku (tiskárna + volitelná počáteční pracovní kopie, Q4, Q5). Smlouva `IOverlayWidgetDefinition` se rozšíří podle Návrhu UI 6 a T-088 zaregistruje panel Vychladnutí.
+  - Alternativa: oddíl prahu z T-080 zůstane, kde ho T-080 umístil, a panel Vychladnutí ukáže jen odkaz na něj.
+- **Q7 – Popis widgetu v panelu:** → **ano, jedna věta**.
   - **Ano, jedna věta pod nadpisem (doporučeno):** widget bez nastavení tak nemá prázdný panel a uživatel ví, co karta ukazuje.
-  - Ne: méně textů k překladu (5 klíčů × 8 jazyků), panel widgetu bez nastavení ukáže jen „Tento widget nemá další nastavení.“
+  - Ne: méně textů k překladu, panel widgetu bez nastavení ukáže jen „Tento widget nemá další nastavení.“
+- **Z review T-080:**
+  - Hlavní záložka, nebo podzáložka tiskárny? → hlavní záložka s výběrem tiskárny (Q1).
+  - Přepínač „Tiskárna vychladla“ přesunout do detailu widgetu, nebo zrcadlit? → ani jedno, zůstává na Obecné, v panelu stav + odkaz (Q3).
+  - Platí tlačítko otevření režimu rozložení v nastavení (2026-10-25) proti „tlačítko v nastavení není“ (2026-10-24)? → platí nové rozhodnutí.
 
 ## Poznámky k implementaci
-- 2026-10-25, ui-designer: rozsah a kritéria přepsané podle rozhodnutí uživatele z 2026-10-25, doplněný Návrh UI (oddíly 0–11) a otázky Q1–Q7. Implementace čeká na rozhodnutí otázek.
+- 2026-10-25, ui-designer: rozsah a kritéria přepsané podle rozhodnutí uživatele z 2026-10-25, doplněný Návrh UI (oddíly 0–11) a otázky Q1–Q7.
+- 2026-10-25, architekt: do větve sloučený `develop` s hotovým T-080. Položky z T-080 (kritérium, API pohledu, texty, `SettingsNotifyCooledDownHelp`, prototyp XAML) jsou v oddílech Akceptační kritéria a Převzato z T-080. Zapsané rozhodnutí uživatele (schválený Návrh UI, Q1–Q7, velikost oken). Výchozí velikost oken, zvětšení na celou obrazovku a zapamatování velikosti přesunuté do T-094. Závislost na T-088 odebraná: T-088 naopak závisí na tomto úkolu, protože registruje panel Vychladnutí podle zde zavedené smlouvy.
