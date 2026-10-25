@@ -897,6 +897,9 @@
   <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
     <value>odhad sliceru {0}</value>
   </data>
+  <data name="CameraOverlayThumbnailName" xml:space="preserve">
+    <value>Náhled tisku</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Doba tisku: {0}</value>
   </data>

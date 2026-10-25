@@ -15,6 +15,7 @@ using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
+using LayerPeek.App.Previews;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
@@ -28,6 +29,7 @@ using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Notifications;
+using LayerPeek.Core.Previews;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.Core.Settings;
@@ -164,6 +166,19 @@ internal static class AppServices
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
+        // G-code previews (T-086 / T-087): in memory only, over the PrusaLink fetcher; told about every snapshot and the printers
+        // of every run; decoded once per job and size for all camera windows. Disposed with the services.
+        services.AddSingleton(static sp => new PrintPreviewCache(
+            sp.GetRequiredService<PrusaLinkPreviewFetcher>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintPreviewCache>>()));
+        services.AddSingleton(static sp => new PrintPreviewObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<PrintPreviewCache>()));
+        services.AddSingleton(static sp => new PrintThumbnails(
+            sp.GetRequiredService<PrintPreviewCache>(),
+            new AvaloniaPrintThumbnailDecoder(),
+            sp.GetRequiredService<IUiDispatcher>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintThumbnails>>()));
         // Diagnostics window (T-011): the printers of the current run, and printer/firmware information on demand.
         services.AddSingleton(static _ => new MonitoredPrinters());
         services.AddSingleton<IPrinterInfoSource>(static sp => new PrinterInfoSource(sp.GetRequiredService<PrusaLinkClientFactory>()));
@@ -183,6 +198,7 @@ internal static class AppServices
                 sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
+                sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
             ],
@@ -479,6 +495,7 @@ internal static class AppServices
                 services.GetRequiredService<OverlayWidgetRegistry>(),
                 services.GetRequiredService<TelemetryHistory>(),
                 services.GetRequiredService<CooldownMonitor>(),
+                services.GetRequiredService<PrintThumbnails>(),
                 services.GetRequiredService<ICameraOverlayLayoutWriter>())
             : null;
 

@@ -214,11 +214,14 @@ public sealed class PrintNameWidgetTests : IDisposable
     {
         CameraOverlayViewModel overlay = Create();
         PrintNameWidgetViewModel widget = Show(overlay, Job(state: PrinterState.Finished));
-        int posts = _dispatcher.PostCount;
+        List<string?> changed = [];
+        widget.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
+        // A new job (T-087: its G-code preview is asked for again), but the same name: nothing parsed, no text changes.
         Show(overlay, Job(id: 2));
 
-        Assert.Equal(posts, _dispatcher.PostCount);
+        Assert.Equal(1, widget.ParseCount);
+        Assert.Empty(changed);
         Assert.True(widget.IsShown);
     }
 

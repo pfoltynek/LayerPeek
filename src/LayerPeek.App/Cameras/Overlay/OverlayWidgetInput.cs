@@ -1,5 +1,6 @@
 using System.Globalization;
 
+using LayerPeek.App.Previews;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
@@ -31,4 +32,5 @@ public readonly record struct OverlayWidgetInput(
 /// <param name="PrinterId">The printer of the window.</param>
 /// <param name="Time">The clock of the window.</param>
 /// <param name="History">The telemetry history (T-084: the temperature chart); <see langword="null"/> = none, charts show "no data".</param>
-public sealed record OverlayWidgetContext(string PrinterId, TimeProvider Time, TelemetryHistory? History = null);
+/// <param name="Thumbnails">The decoded G-code thumbnails (T-087: Print name widget); <see langword="null"/> = none, the card has no thumbnail.</param>
+public sealed record OverlayWidgetContext(string PrinterId, TimeProvider Time, TelemetryHistory? History = null, PrintThumbnails? Thumbnails = null);
