@@ -52,7 +52,7 @@ LayerPeek je **tray-only** aplikace (Windows: oznamovací oblast, macOS: menu ba
 
 ## Překryv okna kamery – widgety (plán T-076 až T-093)
 
-Jediný `Border` s řádky z T-036 nahradí systém widgetů. Otázky rozhodl uživatel 2026-10-24, návrh T-076 je schválený. Core část (T-077) je hotová, UI je **plán**.
+Jediný `Border` s řádky z T-036 nahradil systém widgetů. Otázky rozhodl uživatel 2026-10-24, návrh T-076 je schválený. Core část (T-077) a framework v okně kamery (T-081) jsou hotové, jednotlivé widgety jsou **plán**.
 
 - **Core (`Core/Cameras/Overlay`, T-077, hotovo):**
   - `CameraOverlayLayout` (`CameraSettings.Overlay`) je neměnný seznam `OverlayWidgetPlacement`. Každé umístění má textové id widgetu (`OverlayWidgetIds`), jednu ze 6 kotev `OverlayAnchor`, velikost `OverlayWidgetSize` S/M/L, zvýraznění a viditelnost.
@@ -72,13 +72,16 @@ Jediný `Border` s řádky z T-036 nahradí systém widgetů. Otázky rozhodl u�
   - Operace nad rozložením jsou čisté funkce bez Avalonie: `InAnchor`, `MoveTo` (kotva a pozice v kotvě), `WithSize`, `WithEmphasized`, `WithVisible`, `ResetToDefault` (neznámé widgety ponechá), `Mirrored`.
   - Mimo okno nastavení zapisuje rozložení `ICameraOverlayLayoutWriter` / `CameraOverlayLayoutWriter` přes `ISettingsStore.SetCameraOverlayLayoutAsync`. Ten bajtově přepíše jen sekci `overlay` dané tiskárny (`CameraOverlaySectionWriter`, po vzoru `CameraMonitorPathWriter`), výchozí rozložení jako `{}`.
     - Po zápisu přijde událost `LayoutSaved` (id tiskárny + rozložení). Otevřené okno nastavení z ní převezme jen rozložení dané tiskárny (`AppSettings.WithCameraOverlayLayout`) a ostatní neuložené změny si ponechá (T-092).
-  - Mezistav do T-081 / T-092: starý překryv T-036 a jeho podzáložka pracují s `CameraSettings.LegacyOverlay`. Ten je jen v paměti a neukládá se.
-- **App – framework (T-081):**
-  - `OverlayWidgetRegistry` se plní **explicitním seznamem** v composition rootu (Native AOT: žádné skenování ani `Activator`). Nový widget je jedna třída (`IOverlayWidgetDefinition` + view model + `DataTemplate` s `x:DataType`) a jeden řádek registrace.
-  - Hostitel rozdělí viditelné widgety do 6 kotev nad obrazem normálního okna a celé obrazovky. V malém náhledu karty nejsou.
-  - Widget formátuje texty jen při změně svého levně porovnatelného obsahu, stejně jako `CameraPrintContent`.
-  - Zvýraznění vykreslí klíčový údaj widgetu akcentovou barvou `#FA6831`.
-  - Ikony jsou z Fluent UI System Icons (MIT), vložené jako geometrie bez balíčku a fontu. Licence je v přehledu licencí třetích stran.
+  - Mezistav do T-092: stará podzáložka Překryv v nastavení (T-036) pracuje s `CameraSettings.LegacyOverlay`. Ten je jen v paměti a neukládá se a okno kamery ho od T-081 nepoužívá.
+- **App – framework (T-081, hotovo, `App/Cameras/Overlay`):**
+  - `OverlayWidgetRegistry` se plní **explicitním seznamem** v `Composition/OverlayWidgets.CreateRegistry` (Native AOT: žádné skenování ani `Activator`). Nový widget = view model (`OverlayWidgetViewModel<TContent>`), šablona obsahu karty (`DataTemplate` s `x:DataType`) a jeden řádek `new OverlayWidgetDefinition(id, klíč názvu, priorita, šablona, tvorba, min. šířky, velikosti)`. Klíče názvů jsou v `OverlayWidgetNames`, priority kolizí v `OverlayWidgets`.
+  - Smlouva `IOverlayWidgetDefinition` / `OverlayWidgetDefinition` se rozšiřuje bez rozbití: nový údaj (např. panel nastavení widgetu pro budoucí záložku Widgety) přibude jako volitelná `init` vlastnost `OverlayWidgetDefinition` s výchozí hodnotou `null` a v rozhraní jako člen s výchozí implementací (default interface member, AOT bez problému).
+  - Hostitel `CameraOverlayViewModel` (vlastnost `CameraViewModel.Overlay`): viditelné a registrované widgety rozložení v 6 seznamech kotev (pořadí od okraje okna), globální průhlednost (`MonitoredPrintersState.CameraOverlayOpacityPercent`), `AreCardsVisible` = ne v malém náhledu. Neznámé nebo neregistrované id se přeskočí. Uložené nastavení se projeví hned; widgety, které v rozložení zůstanou, si nechají instanci, seznam kotvy se mění jen při jiné sadě nebo pořadí.
+  - Snapshot: každý widget na vlákně monitoru pod zámkem spočítá levně porovnatelný obsah (`ComputeContent`); na UI vlákno jde jeden post, jen když se obsah změnil, a texty formátuje jen změněný widget (`Format`). Cesta bez viditelné změny nealokuje. Widget může požádat o přepočet sám (`RequestUpdate`). Přepnutí jazyka formátuje zobrazený obsah znovu.
+  - Widget, který vyhodí výjimku (vytvoření, výpočet, formátování), se jednou zaloguje a skryje (`IsFaulted`); okno a ostatní widgety běží dál.
+  - Vzhled: `OverlayStyles.axaml` (barvy, karta `Border.overlayCard` s třídami velikosti, `TextBlock.numeric` s `FontFeatures="tnum"`, `.big`, `.secondary`, `.emphasized` v `#FA6831`, části `OverlayStatusPill`, `OverlayIconText`, `OverlayChip`, `OverlayProgressBar`, `OverlayIcon`) a `OverlayIcons.axaml` (Fluent UI System Icons, MIT, jako `StreamGeometry`, bez balíčku a fontu; licence v přehledu licencí třetích stran).
+  - Rozmístění: `OverlayAnchorsPanel` se 6 `OverlayAnchorItems` (`CameraOverlayAnchor{Kotva}`, karty `CameraOverlayWidget-{id}`), odsazení 12, kotva vpravo nahoře od 44. Pravidla malého okna (stupně 0–3, šířka středové karty vedle rohů a rezervy tlačítek 112, skrytí karet s nižší prioritou při překryvu ve sloupci) jsou čisté funkce `OverlayArrangement`.
+  - Sdílené hodnoty a texty pro widgety (pravidla T-036): `OverlayValues` (údaje úlohy jen během úlohy, zaokrouhlení, čas dokončení v místním pásmu) a `OverlayFormat` (doby, čas dokončení, teploty, zkracování názvů, `OverlayTextCache`).
 - **Widgety v1:** Stav (T-082), Časy (T-083), Teploty se sparkline (T-084), Název tisku (T-085, s náhledem G-code T-087), Vychladnutí (T-088).
   - Sparkline je kompaktní režim stávajícího `TemperatureChart` s pevným oknem 60 minut, ne druhý graf.
   - Barvy trysky (oranžová) a podložky (modrá) jsou sdílené zdroje a používá je i graf okna Diagnostika.

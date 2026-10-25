@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
@@ -392,6 +393,8 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
+        // The widgets of the camera overlay, an explicit list (T-081).
+        services.AddSingleton(OverlayWidgets.CreateRegistry());
         // A saved camera monitor found on another connector keeps its new device path (user decision 2026-10-23).
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
@@ -438,7 +441,8 @@ internal static class AppServices
                 services.GetRequiredService<TimeProvider>(),
                 services.GetRequiredService<CameraFeedOptions>(),
                 services.GetRequiredService<ILogger<CameraViewModel>>(),
-                services.GetRequiredService<ICameraMonitorPathUpdater>())
+                services.GetRequiredService<ICameraMonitorPathUpdater>(),
+                services.GetRequiredService<OverlayWidgetRegistry>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)

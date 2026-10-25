@@ -825,9 +825,6 @@
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Saisissez une largeur de {0} à {1} et une hauteur de {2} à {3}.</value>
   </data>
-  <data name="CameraOverlayLabeledValue" xml:space="preserve">
-    <value>{0} : {1}</value>
-  </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
   </data>
@@ -839,6 +836,21 @@
   </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Durée d'impression : {0}</value>
+  </data>
+  <data name="CameraOverlayWidgetStatus" xml:space="preserve">
+    <value>État</value>
+  </data>
+  <data name="CameraOverlayWidgetTimes" xml:space="preserve">
+    <value>Temps</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperatures" xml:space="preserve">
+    <value>Températures</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintName" xml:space="preserve">
+    <value>Nom de l'impression</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
+    <value>Refroidissement</value>
   </data>
   <data name="SettingsPrinterTabOverlay" xml:space="preserve">
     <value>Superposition</value>

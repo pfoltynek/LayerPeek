@@ -5,45 +5,47 @@ using CommunityToolkit.Mvvm.Input;
 
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.App.Cameras;
 
-/// <summary>The printer whose camera a window shows.</summary>
-internal sealed record CameraTarget(string PrinterId, string Name, Uri StreamUri)
+/// <summary>The printer whose camera a window shows (only printers with an enabled camera, see <see cref="From"/>).</summary>
+internal sealed record CameraTarget
 {
-    /// <summary>How the window opens (T-035).</summary>
-    public CameraWindowDefaults Window
+    private CameraTarget(PrinterDefinition printer, Uri streamUri)
     {
-        get;
-        init
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            field = value;
-        }
-    } = CameraWindowDefaults.Default;
+        Printer = printer;
+        StreamUri = streamUri;
+    }
 
-    /// <summary>What the print overlay shows (T-036).</summary>
-    public CameraOverlayOptions Overlay
-    {
-        get;
-        init
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            field = value;
-        }
-    } = CameraOverlayOptions.Default;
+    /// <summary>The printer as configured.</summary>
+    public PrinterDefinition Printer { get; }
+
+    public string PrinterId => Printer.Id;
+
+    public string Name => Printer.Name;
+
+    public Uri StreamUri { get; }
+
+    /// <summary>How the window opens (T-035).</summary>
+    public CameraWindowDefaults Window => Printer.Camera.Window;
+
+    /// <summary>The widgets drawn over the image and where (T-077, T-081).</summary>
+    public CameraOverlayLayout Overlay => Printer.Camera.Overlay;
 
     /// <summary>The printer with an enabled camera, or <see langword="null"/> when it has none.</summary>
-    public static CameraTarget? From(PrinterDefinition printer) =>
-        printer is { Camera: { Enabled: true, StreamUri: { } uri } camera }
-            ? new CameraTarget(printer.Id, printer.Name, uri) { Window = camera.Window, Overlay = camera.LegacyOverlay }
-            : null;
+    public static CameraTarget? From(PrinterDefinition printer)
+    {
+        ArgumentNullException.ThrowIfNull(printer);
+        return printer is { Camera: { Enabled: true, StreamUri: { } uri } } ? new CameraTarget(printer, uri) : null;
+    }
 }
 
 /// <summary>Draws camera frames (the window's <c>WriteableBitmap</c>). UI thread only.</summary>
@@ -70,9 +72,10 @@ internal interface ICameraFrameSink
 /// there is never more than one connection per window.
 /// </para>
 /// <para>
-/// The print overlay follows <see cref="IPrinterMonitor"/> snapshots of this printer (compared cheaply on the monitor
-/// thread, applied on the UI thread only when something visible changed). When the settings disable the camera or remove
-/// the printer, <see cref="CloseRequested"/> is raised; a changed address restarts the stream, a new name the title.
+/// The widget overlay (<see cref="Overlay"/>, T-081) follows <see cref="IPrinterMonitor"/> snapshots of this printer
+/// (compared cheaply on the monitor thread, applied on the UI thread only when something visible changed). When the
+/// settings disable the camera or remove the printer, <see cref="CloseRequested"/> is raised; a changed address restarts the
+/// stream, a new name the title; a new layout or card opacity changes the overlay in place.
 /// </para>
 /// <para>All public members are for the UI thread.</para>
 /// </remarks>
@@ -90,20 +93,11 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private readonly Action _retry;
     private readonly CameraFrameExchange _exchange = new();
     private readonly Action _presentFrame;
-    private readonly Action _applyPrintContent;
     private readonly Action _applyPrinters;
     private readonly Lock _gate = new();
 
-    // Guarded by _gate (written by monitor threads). _snapshot: the latest of this printer, so that a new mode or saved
-    // overlay options can be applied without waiting for the next poll; _overlayItems / _overlayName: what the current mode
-    // shows (written on the UI thread).
-    private CameraPrintContent _printContent;
-    private bool _printContentPending;
+    // Guarded by _gate (read by monitor threads).
     private bool _disposed;
-    private PrinterSnapshot? _snapshot;
-    private CameraOverlayItems _overlayItems;
-    private string _overlayName;
-    private readonly CameraOverlayTextCache _textCache = new();
 
     // UI thread only.
     private Uri _streamUri;
@@ -122,7 +116,6 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private CameraWindowPlacement? _normalPlacement;
     private CameraWindowPlacement? _miniPlacement;
     private CameraWindowDefaults _defaults;
-    private CameraOverlayOptions _overlay;
 
     // GetRemoveCount of the state store when the window opened: a different value at closing means the settings changed
     // the defaults meanwhile, so the state is not written back (T-035). "Apply" in the settings (T-040) places the window
@@ -130,16 +123,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private int _stateRemoveCount;
     private CameraStatus _status = CameraStatus.Connecting;
     private bool _hasFrame;
-    private CameraPrintContent _shownPrintContent;
 
     // Thread of the ending run (runs never overlap) and the UI thread (cleared by a shown frame): the last failure that
     // ended a run by itself, as "type: message", so that a repeated one is logged briefly.
     private string? _lastRunFailure;
 
-    // The lines formatted from _shownPrintContent; _hasShownPrintContent: they were formatted at least once.
-    private IReadOnlyList<CameraOverlayLine> _overlayLines = [];
-    private bool _hasShownPrintContent;
-
+    /// <param name="widgets">The overlay widgets the window can draw (T-081); <see langword="null"/> = none.</param>
     internal CameraViewModel(
         CameraTarget target,
         ReconnectingCameraFeed feed,
@@ -150,7 +139,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         TimeProvider timeProvider,
         CameraFeedOptions options,
         ILogger<CameraViewModel> logger,
-        ICameraMonitorPathUpdater? monitorPaths = null)
+        ICameraMonitorPathUpdater? monitorPaths = null,
+        OverlayWidgetRegistry? widgets = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -175,7 +165,6 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _logger = logger;
         _monitorPaths = monitorPaths;
         _presentFrame = PresentFrame;
-        _applyPrintContent = ApplyPrintContent;
         _applyPrinters = ApplyPrinters;
 
         // T-035: the remembered state (when the defaults allow it) or the defaults; the window places itself from these.
@@ -197,24 +186,27 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         ShowNormalCommand = new RelayCommand(() => Mode = CameraWindowMode.Normal, () => _mode != CameraWindowMode.Normal);
         EscapeCommand = new RelayCommand(Escape, () => _mode != CameraWindowMode.Normal);
 
-        // T-036: the items of the current mode.
-        _overlay = target.Overlay;
-        _overlayItems = _overlay.ItemsFor(_mode);
-        _overlayName = _name;
+        // T-081: the widgets of the printer's layout with the global card opacity.
+        Overlay = new CameraOverlayViewModel(
+            widgets ?? OverlayWidgetRegistry.Empty,
+            new OverlayWidgetContext(PrinterId, timeProvider),
+            dispatcher,
+            logger,
+            target.Printer,
+            target.Overlay,
+            printers.Current.CameraOverlayOpacityPercent,
+            _mode,
+            snapshot: null);
 
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
         _printers.Changed += OnPrintersChanged;
         PrinterSnapshot? current = _monitor.TryGetSnapshot(PrinterId, out PrinterSnapshot? snapshot) ? snapshot : null;
-        lock (_gate)
-        {
-            // A snapshot delivered meanwhile by the monitor thread is at least as new; the text cache needs the lock too.
-            _snapshot ??= current;
-            _printContent = CameraPrintContent.From(_snapshot, _overlayItems, _overlayName, _timeProvider.LocalTimeZone, _textCache);
-        }
-
-        ApplyPrintContent();
+        Overlay.ShowCurrent(current);
     }
+
+    /// <summary>The cards over the image (T-081): normal window and full screen, none in the mini preview.</summary>
+    public CameraOverlayViewModel Overlay { get; }
 
     /// <summary>The settings no longer have this camera (disabled, printer removed): the window should close.</summary>
     public event EventHandler? CloseRequested;
@@ -236,8 +228,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     public string Title => Format(Strings.CameraTitle, _name);
 
     /// <summary>
-    /// UI thread: the language changed (T-029). The title, button tips, connection state and the print overlay are formatted
-    /// again from what they show; the stream, the mode and the image do not change.
+    /// UI thread: the language changed (T-029). The title, button tips, connection state and the overlay widgets are
+    /// formatted again from what they show; the stream, the mode and the image do not change.
     /// </summary>
     public void RefreshTexts()
     {
@@ -250,10 +242,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(NormalToolTip));
         OnPropertyChanged(nameof(MiniToolTip));
         OnPropertyChanged(nameof(StatusText));
-        if (!_shownPrintContent.IsEmpty)
-        {
-            OverlayLines = _shownPrintContent.Lines();
-        }
+        Overlay.RefreshTexts();
     }
 
     public CameraWindowMode Mode
@@ -277,8 +266,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsMini));
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
-            // The mini preview has its own overlay items (T-036).
-            UpdateOverlayItems();
+            // The mini preview draws no cards (T-081).
+            Overlay.SetMode(value);
             ShowFullScreenCommand.NotifyCanExecuteChanged();
             ShowMiniCommand.NotifyCanExecuteChanged();
             ShowNormalCommand.NotifyCanExecuteChanged();
@@ -377,40 +366,6 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         get => _hasFrame;
         private set => SetProperty(ref _hasFrame, value);
     }
-
-    /// <summary>
-    /// The lines of the print overlay (T-036): the items selected for the current mode (the mini preview has its own
-    /// selection, full screen uses the normal window's) that are known now, in display order. Empty = no overlay.
-    /// </summary>
-    public IReadOnlyList<CameraOverlayLine> OverlayLines
-    {
-        get => _overlayLines;
-        private set
-        {
-            bool wasVisible = IsPrintOverlayVisible;
-            _overlayLines = value;
-            OnPropertyChanged();
-            if (wasVisible != IsPrintOverlayVisible)
-            {
-                OnPropertyChanged(nameof(IsPrintOverlayVisible));
-            }
-        }
-    }
-
-    /// <summary>The print overlay is shown: at least one selected item is known (in every mode, user decision 2026-10-18).</summary>
-    public bool IsPrintOverlayVisible => _overlayLines.Count > 0;
-
-    /// <summary>Corner of the print overlay (T-036); the same in every mode, follows saved settings.</summary>
-    public CameraOverlayCorner OverlayCorner => _overlay.Corner;
-
-    /// <summary>The overlay is in a top corner (for the window's style classes).</summary>
-    public bool IsOverlayTop => _overlay.Corner is CameraOverlayCorner.TopLeft or CameraOverlayCorner.TopRight;
-
-    /// <summary>The overlay is in a right corner.</summary>
-    public bool IsOverlayRight => _overlay.Corner is CameraOverlayCorner.TopRight or CameraOverlayCorner.BottomRight;
-
-    /// <summary>The overlay items of the current mode.</summary>
-    internal CameraOverlayItems OverlayItems => _overlay.ItemsFor(_mode);
 
     /// <summary>Completes when the current (or last) stream run ended and its connection was closed.</summary>
     internal Task StreamCompletion => _streaming;
@@ -545,6 +500,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _printers.Changed -= OnPrintersChanged;
+        Overlay.Dispose();
         StopStream();
         _sink = null;
         if (_stateStore.GetRemoveCount(PrinterId) != _stateRemoveCount)
@@ -791,79 +747,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             return;
         }
 
-        TimeZoneInfo zone = _timeProvider.LocalTimeZone;
-        lock (_gate)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _snapshot = snapshot;
-            // Only the selected items are compared, so that e.g. a fluctuating temperature that is not shown costs nothing.
-            CameraPrintContent content = CameraPrintContent.From(snapshot, _overlayItems, _overlayName, zone, _textCache);
-            if (_printContent == content)
-            {
-                return;
-            }
-
-            _printContent = content;
-            if (_printContentPending)
-            {
-                return;
-            }
-
-            _printContentPending = true;
-        }
-
-        _dispatcher.Post(_applyPrintContent);
-    }
-
-    private void ApplyPrintContent()
-    {
-        CameraPrintContent content;
-        lock (_gate)
-        {
-            _printContentPending = false;
-            if (_disposed)
-            {
-                return;
-            }
-
-            content = _printContent;
-        }
-
-        if (content == _shownPrintContent && _hasShownPrintContent)
-        {
-            return;
-        }
-
-        _shownPrintContent = content;
-        _hasShownPrintContent = true;
-        OverlayLines = content.Lines();
-    }
-
-    /// <summary>
-    /// UI thread: the mode, the overlay options or the printer name changed; the content of the latest snapshot is built
-    /// again for the items of the current mode and shown when it differs.
-    /// </summary>
-    private void UpdateOverlayItems()
-    {
-        CameraOverlayItems items = _overlay.ItemsFor(_mode);
-        TimeZoneInfo zone = _timeProvider.LocalTimeZone;
-        lock (_gate)
-        {
-            if (_disposed || (items == _overlayItems && string.Equals(_name, _overlayName, StringComparison.Ordinal)))
-            {
-                return;
-            }
-
-            _overlayItems = items;
-            _overlayName = _name;
-            _printContent = CameraPrintContent.From(_snapshot, items, _overlayName, zone, _textCache);
-        }
-
-        ApplyPrintContent();
+        // The widgets compare their content on this thread and post only visible changes (T-081).
+        Overlay.OnSnapshot(snapshot);
     }
 
     // Raised on the monitoring session's thread.
@@ -902,17 +787,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // "always on top" applies to the open window right away (T-037).
         SetDefaults(target.Window);
 
-        // The overlay (T-036) applies to the open window right away, in place.
-        CameraOverlayCorner previousCorner = _overlay.Corner;
-        _overlay = target.Overlay;
-        if (_overlay.Corner != previousCorner)
-        {
-            OnPropertyChanged(nameof(OverlayCorner));
-            OnPropertyChanged(nameof(IsOverlayTop));
-            OnPropertyChanged(nameof(IsOverlayRight));
-        }
-
-        UpdateOverlayItems();
+        // The layout, the printer (name…) and the global card opacity apply to the open window right away, in place (T-081).
+        Overlay.ApplySettings(target.Printer, target.Overlay, _printers.Current.CameraOverlayOpacityPercent);
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

@@ -1,3 +1,4 @@
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -7,6 +8,9 @@ namespace LayerPeek.App.Tray;
 /// <param name="MonitoringFailed">Monitoring stopped unexpectedly (until the next run).</param>
 internal sealed record MonitoredPrintersState(IReadOnlyList<PrinterDefinition>? Printers, bool MonitoringFailed)
 {
+    /// <summary>The global opacity of the camera overlay cards (T-077, T-081); the default before the first run.</summary>
+    public int CameraOverlayOpacityPercent { get; init; } = CameraOverlayOpacity.DefaultPercent;
+
     public static MonitoredPrintersState Starting { get; } = new(null, MonitoringFailed: false);
 }
 
@@ -34,7 +38,7 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
     {
         ArgumentNullException.ThrowIfNull(settings);
         // A copy: the state must not change under a reader if the caller reuses its list.
-        Publish(new MonitoredPrintersState([.. settings.Printers], MonitoringFailed: false));
+        Publish(new MonitoredPrintersState([.. settings.Printers], MonitoringFailed: false) { CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent });
     }
 
     /// <summary>
@@ -46,7 +50,7 @@ internal sealed class MonitoredPrinters : IMonitoringObserver
         ArgumentNullException.ThrowIfNull(settings);
         lock (_gate)
         {
-            Volatile.Write(ref _current, _current with { Printers = [.. settings.Printers] });
+            Volatile.Write(ref _current, _current with { Printers = [.. settings.Printers], CameraOverlayOpacityPercent = settings.CameraOverlayOpacityPercent });
         }
 
         Changed?.Invoke(this, EventArgs.Empty);

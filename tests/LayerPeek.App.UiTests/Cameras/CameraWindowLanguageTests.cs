@@ -18,15 +18,15 @@ public sealed class CameraWindowLanguageTests(HeadlessSession session)
         Ui.Find<Button>(window, button => ToolTip.GetTip(button) as string == toolTip);
 
     [Fact]
-    public Task SwitchTranslatesTitleStatusButtonsAndPrintOverlayOfEveryOpenWindow() =>
+    public Task SwitchTranslatesTitleStatusButtonsAndOverlayCardsOfEveryOpenWindow() =>
         session.RunAsync(static async scope =>
         {
-            await using CameraHarness harness = new();
+            await using CameraHarness harness = new(overlay: new([new("test-a", Core.Cameras.Overlay.OverlayAnchor.TopLeft)]));
             CameraWindow alpha = harness.Open("a");
             CameraWindow beta = harness.Open("b");
             await harness.Factory.WaitForFeedAsync(2);
             harness.Monitor.Raise(Snapshot(PrinterState.Printing, Job(42.7, TimeSpan.FromMinutes(65)), printerId: "a"));
-            await Ui.UntilAsync(() => Ui.ShowsText(alpha, "Printing – 42%"), "print state shown");
+            await Ui.UntilAsync(() => Ui.ShowsText(alpha, "Printing") && Ui.ShowsText(alpha, "42%"), "print state shown");
             Assert.True(Ui.ShowsText(alpha, "Connecting to the camera…"));
 
             // What the app does: UiLanguage switches the resources (XAML bound through LocalizedStrings follows), then
@@ -40,8 +40,7 @@ public sealed class CameraWindowLanguageTests(HeadlessSession session)
             Assert.Equal("Beta – Kamera", beta.Title);
             Assert.True(Ui.ShowsText(alpha, "Verbindung zur Kamera wird hergestellt…"));
             Assert.True(Ui.ShowsText(beta, "Verbindung zur Kamera wird hergestellt…"));
-            Assert.Contains(Ui.VisibleTexts(alpha), static text => text.StartsWith("Druckt – 42", StringComparison.Ordinal));
-            Assert.Contains(Ui.VisibleTexts(alpha), static text => text.StartsWith("Noch ", StringComparison.Ordinal));
+            Assert.True(Ui.ShowsText(alpha, "Druckt"));
             // Bound in XAML (LocalizedStrings) and chosen by the view model (MiniToolTip).
             Button mini = WindowButton(alpha, "Kleine Vorschau, immer im Vordergrund");
             Assert.Equal("Kleine Vorschau, immer im Vordergrund", AutomationProperties.GetName(mini));

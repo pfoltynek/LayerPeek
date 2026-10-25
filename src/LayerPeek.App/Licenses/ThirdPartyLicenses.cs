@@ -166,6 +166,16 @@ internal static class ThirdPartyLicenses
             new Uri("https://github.com/velopack/velopack"),
             [new("Velopack", "1.2.161")],
             [ResourcePrefix + "mit-velopack.txt"]),
+        // Icons of the camera overlay (T-081, user decision 2026-10-24): SVG path data copied into
+        // Cameras/Overlay/OverlayIcons.axaml, no package and no font; the version is that of the @fluentui/svg-icons package
+        // of the repository commit the paths were taken from (82ecf7c, 2026-10-23).
+        new(
+            "Fluent UI System Icons",
+            "1.1.344",
+            "MIT",
+            new Uri("https://github.com/microsoft/fluentui-system-icons"),
+            [],
+            [ResourcePrefix + "mit-fluentui-system-icons.txt"]),
     ];
 
     /// <summary>
