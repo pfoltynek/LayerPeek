@@ -3,6 +3,7 @@ using Microsoft.Extensions.Time.Testing;
 
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Previews;
 using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Cameras.Overlay;
 using LayerPeek.App.Tests.Tray;
@@ -29,6 +30,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     private readonly List<CameraViewModel> _created = [];
     private readonly ICameraMonitorPathUpdater? _monitorPaths;
     private readonly OverlayWidgetRegistry _widgets;
+    private readonly PrintThumbnails? _thumbnails;
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
@@ -39,10 +41,12 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="monitorPaths">Receives saved camera monitors found on another connector (user decision 2026-10-23); <see langword="null"/>: none.</param>
     /// <param name="widgets">The overlay widgets of the windows (T-081); <see langword="null"/>: the test widgets <see cref="TestOverlayWidgets.Ids"/>.</param>
     /// <param name="opacity">The global card opacity (T-077).</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent)
+    /// <param name="thumbnails">The G-code thumbnails of the Print name widget (T-087); <see langword="null"/>: none.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null)
     {
         States = states ?? new MemoryCameraWindowStateStore();
         _monitorPaths = monitorPaths;
+        _thumbnails = thumbnails;
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
         ((IMonitoringObserver)Printers).ApplySettings(new AppSettings
         {
@@ -113,7 +117,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, _thumbnails);
         _created.Add(viewModel);
         return viewModel;
     }
