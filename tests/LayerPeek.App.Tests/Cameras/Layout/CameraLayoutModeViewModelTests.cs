@@ -563,6 +563,40 @@ public sealed class CameraLayoutModeViewModelTests : IAsyncDisposable
         Assert.False(viewModel.LayoutMode.HasSaveError);
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ASaveFinishingAfterTheModeWasLeftAndStartedAgainDoesNotEndTheNewEdit(bool written)
+    {
+        CameraViewModel viewModel = Create();
+        CameraLayoutModeViewModel mode = viewModel.LayoutMode;
+        List<CameraLayoutEndReason> ended = [];
+        mode.Ended += (_, e) => ended.Add(e.Reason);
+        mode.Start();
+        mode.BeginDrag(Card(mode, Status));
+        mode.DragOver(OverlayAnchor.BottomRight, 0);
+        mode.Drop();
+        _writer.Hold();
+        Task<bool> saving = mode.SaveAsync();
+
+        // Full screen ends the edit while the write is on its way; back in the normal window the user edits again.
+        viewModel.ShowFullScreenCommand.Execute(null);
+        viewModel.ShowNormalCommand.Execute(null);
+        Assert.True(mode.Start());
+        CameraOverlayLayout newDraft = mode.Draft!;
+        _writer.Release(written);
+
+        Assert.Equal(written, await saving.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken));
+        // The new edit goes on with its own draft and without the old save's result.
+        Assert.True(mode.IsActive);
+        Assert.False(mode.IsSaving);
+        Assert.False(mode.HasSaveError);
+        Assert.Same(newDraft, mode.Draft);
+        Assert.True(viewModel.Overlay.IsPreviewing);
+        Assert.Equal([CameraLayoutEndReason.Discarded], ended);
+        Assert.True(mode.DoneCommand.CanExecute(null));
+    }
+
     [Fact]
     public void LayoutModeIsOnlyForTheNormalWindowAndNeedsRoom()
     {

@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Composition;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Tests.Cameras;
 using LayerPeek.App.Tests.Cameras.Layout;
@@ -1004,5 +1005,45 @@ public sealed class CameraWindowLayoutModeUiTests(HeadlessSession session)
             Assert.True(window.LayoutModeView.ToolbarContent.IsWrapped);
 
             SnapshotAssert.Matches(window, "camera-layout-mode-de-480");
+        });
+
+    [Fact]
+    public Task ProductionWidgetsTemperaturesAndPrintNameAreCardsThatMoveAndSave() =>
+        session.RunAsync(async scope =>
+        {
+            // The real registration (T-082..T-085): Status, Times, Temperatures and Print name; Cool-down is not registered yet.
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), widgets: OverlayWidgets.CreateRegistry());
+            CameraWindow window = OpenNormal(harness);
+            CameraLayoutModeViewModel mode = Mode(window);
+            EnterByButton(window);
+
+            // Reading order: top left, top centre, bottom left, bottom right; no card for the unregistered Cool-down.
+            Assert.Equal([Status, PrintName, Times, Temperatures], mode.Cards.Select(static card => card.WidgetId));
+            Assert.Null(mode.Card(OverlayWidgetIds.Cooldown));
+            Assert.True(Card(window, Temperatures).IsEffectivelyVisible);
+            Assert.True(Card(window, PrintName).IsEffectivelyVisible);
+            Assert.Equal("Temperatures: Bottom right, position 1 of 1", AutomationProperties.GetName(Card(window, Temperatures)));
+
+            // Keyboard: Temperatures from the bottom right up into the top right anchor.
+            Card(window, Temperatures).Focus(NavigationMethod.Tab);
+            Press(window, Key.Space, PhysicalKey.Space, " ");
+            Press(window, Key.Up, PhysicalKey.ArrowUp);
+            Press(window, Key.Space, PhysicalKey.Space, " ");
+            Assert.Equal([Temperatures], ZoneCards(window, OverlayAnchor.TopRight));
+
+            // Mouse: Print name from the top centre into the bottom centre anchor.
+            Drag(window, Card(window, PrintName), BoundsIn(Zone(window, OverlayAnchor.BottomCenter), window).Center);
+            Assert.Equal([PrintName], ZoneCards(window, OverlayAnchor.BottomCenter));
+
+            window.Click(window.Find<Button>("CameraLayoutDone"));
+            await Ui.UntilAsync(() => !mode.IsActive, "the layout saved");
+            window.Settle();
+            CameraOverlayLayout saved = Assert.Single(harness.LayoutWriter.Saves).Layout;
+            Assert.Equal(OverlayAnchor.TopRight, saved.Find(Temperatures)!.Anchor);
+            Assert.Equal(OverlayAnchor.BottomCenter, saved.Find(PrintName)!.Anchor);
+            // The window's overlay draws the real widgets where they were put.
+            Assert.Contains(Temperatures, ViewModel(window).Overlay.TopRight.Select(static w => w.Id));
+            Assert.Contains(PrintName, ViewModel(window).Overlay.BottomCenter.Select(static w => w.Id));
+            Assert.True(window.IsShown<Panel>("CameraOverlay"));
         });
 }

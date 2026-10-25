@@ -74,6 +74,8 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
     private bool _isSaving;
     private bool _hasSaveError;
     private bool _disposed;
+    // Counts the edits (each Start): a save that ends after its edit was left must not touch a later one.
+    private int _edit;
     private string _announcement = string.Empty;
 
     /// <param name="printerId">The printer whose layout is edited.</param>
@@ -226,6 +228,7 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
             return true;
         }
 
+        _edit++;
         _draft = startingLayout ?? _overlay.SavedLayout;
         _hasSaveError = false;
         _overlay.BeginPreview(_draft);
@@ -288,6 +291,7 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
         // A card picked up with the keyboard stays where it is now.
         DropLiftedSilently();
         CancelDrag();
+        int edit = _edit;
         CameraOverlayLayout draft = _draft!;
         SetSaving(true);
         SetSaveError(false);
@@ -310,9 +314,9 @@ public sealed partial class CameraLayoutModeViewModel : ObservableObject, IDispo
             SetSaving(false);
         }
 
-        if (!_isActive || _disposed)
+        if (!_isActive || _disposed || edit != _edit)
         {
-            // The window closed meanwhile; what was written stays written.
+            // The window closed or left the edit meanwhile (also when a new edit started since); what was written stays written.
             return saved;
         }
 
