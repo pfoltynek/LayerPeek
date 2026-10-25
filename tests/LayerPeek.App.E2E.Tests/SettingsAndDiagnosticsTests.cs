@@ -18,7 +18,7 @@ public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
     private const string NoCameraId = "e2e-no-camera";
 
     /// <summary>Printer sub-tabs of the settings window, in order.</summary>
-    private static readonly string[] PrinterTabs = ["PrinterTabConnection", "PrinterTabCamera", "PrinterTabCameraWindow", "PrinterTabOverlay"];
+    private static readonly string[] PrinterTabs = ["PrinterTabConnection", "PrinterTabCamera", "PrinterTabCameraWindow"];
 
     public static TheoryData<string> Languages => [.. TestSettings.Languages];
 
@@ -71,6 +71,7 @@ public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
         await Wait.UntilAsync(() => Ui.IsShown(window, "PrinterCameraUrlError"), TimeSpan.FromSeconds(10), "the camera address error");
         await CheckTabAsync(window, settings, "PrinterTabCamera", $"settings-{language}-3p-errors-PrinterTabCamera");
 
+        await CheckTabAsync(window, settings, "SettingsTabWidgets", $"settings-{language}-3p-widgets");
         await CheckTabAsync(window, settings, "SettingsTabGeneral", $"settings-{language}-3p-general");
 
         // Cancel discards the invalid edits and closes the window.
@@ -108,6 +109,7 @@ public sealed class SettingsAndDiagnosticsTests(E2EFixture fixture)
         AutomationElement window = app.Element(settings);
         await Ui.FindAsync(window, "SettingsAddPrinter");
         await CheckTabAsync(window, settings, "SettingsTabPrinters", $"settings-{language}-0p-printers");
+        await CheckTabAsync(window, settings, "SettingsTabWidgets", $"settings-{language}-0p-widgets");
         await CheckTabAsync(window, settings, "SettingsTabGeneral", $"settings-{language}-0p-general");
         await app.CloseWindowAsync(settings);
 

@@ -209,9 +209,9 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabConnectionMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraMarker"));
             Assert.True(ui.Window.IsShown<TextBlock>("PrinterTabCameraWindowMarker"));
-            // T-036: four headers (Printer | Camera | Camera window | Overlay); Italian is the widest (T-033 design).
+            // Three headers (Printer | Camera | Camera window; the Overlay sub-tab gave way to the Widgets tab, T-092).
             Assert.Equal(SettingsViewModel.PrinterTabCount, ui.Find<TabControl>("SettingsPrinterTabs").ItemCount);
-            Assert.True(ui.Find<TabItem>("PrinterTabOverlay").IsEffectivelyVisible);
+            Assert.Equal(3, SettingsViewModel.PrinterTabCount);
             List<string> problems = [.. HeadersNotOnOneRow(ui.Window, language), .. CutTexts(ui.Window, language)];
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
@@ -462,10 +462,10 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.True(ui.AddressBox.Focus());
             Press(window, PhysicalKey.Tab, RawInputModifiers.Control);
-            Assert.True(ui.Find<TabItem>("SettingsTabGeneral").IsSelected);
-            Assert.Equal("SettingsTabGeneral", FocusedId(window));
+            Assert.True(ui.Find<TabItem>("SettingsTabWidgets").IsSelected);
+            Assert.Equal("SettingsTabWidgets", FocusedId(window));
 
-            // On the General tab there are no sub-tabs: the keys do nothing.
+            // On the Widgets tab there are no sub-tabs: the keys do nothing.
             Press(window, PhysicalKey.PageDown, RawInputModifiers.Control);
             Assert.Equal(SettingsViewModel.ConnectionPrinterTab, ui.ViewModel.SelectedPrinterTabIndex);
 
