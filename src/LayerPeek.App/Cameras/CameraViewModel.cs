@@ -11,6 +11,7 @@ using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 
@@ -129,6 +130,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private string? _lastRunFailure;
 
     /// <param name="widgets">The overlay widgets the window can draw (T-081); <see langword="null"/> = none.</param>
+    /// <param name="history">The telemetry history the widgets chart (T-084); <see langword="null"/> = none.</param>
     internal CameraViewModel(
         CameraTarget target,
         ReconnectingCameraFeed feed,
@@ -140,7 +142,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         CameraFeedOptions options,
         ILogger<CameraViewModel> logger,
         ICameraMonitorPathUpdater? monitorPaths = null,
-        OverlayWidgetRegistry? widgets = null)
+        OverlayWidgetRegistry? widgets = null,
+        TelemetryHistory? history = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -189,7 +192,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // T-081: the widgets of the printer's layout with the global card opacity.
         Overlay = new CameraOverlayViewModel(
             widgets ?? OverlayWidgetRegistry.Empty,
-            new OverlayWidgetContext(PrinterId, timeProvider),
+            new OverlayWidgetContext(PrinterId, timeProvider, history),
             dispatcher,
             logger,
             target.Printer,

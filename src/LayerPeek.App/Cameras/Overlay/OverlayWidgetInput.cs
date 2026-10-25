@@ -1,6 +1,7 @@
 using System.Globalization;
 
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.History;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.App.Cameras.Overlay;
@@ -25,8 +26,9 @@ public readonly record struct OverlayWidgetInput(
 
 /// <summary>
 /// What a widget gets when it is created for one camera window (T-081): the printer and the services it may need besides
-/// the snapshots. Later widgets add what they need here (e.g. the telemetry history of T-084).
+/// the snapshots. Later widgets add what they need here.
 /// </summary>
 /// <param name="PrinterId">The printer of the window.</param>
 /// <param name="Time">The clock of the window.</param>
-public sealed record OverlayWidgetContext(string PrinterId, TimeProvider Time);
+/// <param name="History">The telemetry history (T-084: the temperature chart); <see langword="null"/> = none, charts show "no data".</param>
+public sealed record OverlayWidgetContext(string PrinterId, TimeProvider Time, TelemetryHistory? History = null);

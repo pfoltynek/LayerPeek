@@ -31,7 +31,8 @@ public readonly record struct ChartColumn(int Column, float First, float Min, fl
 /// </para>
 /// <para>
 /// Memory: the sample buffer has <see cref="TelemetryHistory.GetCapacity"/> samples and is reallocated only when that
-/// capacity changes (polling interval changed) or released when no printer is shown; the column buffers grow with the
+/// capacity changes (polling interval changed) or released when no printer is shown (with <see cref="SizeBufferToRange"/>
+/// it holds just the samples of the range and grows with them); the column buffers grow with the
 /// widest chart seen. Steady-state updates do not allocate. Not thread-safe (the chart uses it on the UI thread).
 /// </para>
 /// <para>
@@ -66,6 +67,17 @@ public sealed class TemperatureChartData
 
     /// <summary>Highest value of all series in the range; NaN when there is none.</summary>
     public float MaxValue { get; private set; } = float.NaN;
+
+    /// <summary>
+    /// Size the sample buffer to the samples of the range (with some room to grow) instead of the whole
+    /// <see cref="TelemetryHistory.GetCapacity"/>: for a short range over a long history, e.g. the hour of the compact
+    /// chart (T-084) over 24 h. The buffer grows when the range holds more samples and never exceeds the capacity.
+    /// </summary>
+    /// <remarks>
+    /// The samples are counted just before they are copied; a sample recorded in between may push the oldest one of the
+    /// range out of this copy (the newest ones are kept), and the next update, which that sample triggers, copies it all.
+    /// </remarks>
+    public bool SizeBufferToRange { get; set; }
 
     internal int SampleBufferLength => _samples.Length;
 
@@ -142,10 +154,11 @@ public sealed class TemperatureChartData
         }
 
         int capacity = history.GetCapacity(printerId);
-        if (capacity != _samples.Length)
+        int length = SizeBufferToRange ? RangeBufferLength(history, printerId, capacity) : capacity;
+        if (length != _samples.Length)
         {
-            _samples = capacity == 0 ? [] : new TelemetrySample[capacity];
-            if (capacity != 0)
+            _samples = length == 0 ? [] : new TelemetrySample[length];
+            if (length != 0)
             {
                 SampleBufferAllocations++;
             }
@@ -153,6 +166,21 @@ public sealed class TemperatureChartData
 
         SampleCount = history.CopySamples(printerId, From, To, _samples, out long version);
         Version = version;
+    }
+
+    /// <summary>
+    /// The current buffer while it holds the range's samples and fits the capacity; otherwise room for a quarter more
+    /// samples than the range has now (a sliding range keeps its count, so steady updates do not reallocate).
+    /// </summary>
+    private int RangeBufferLength(TelemetryHistory history, string printerId, int capacity)
+    {
+        int count = history.CountSamples(printerId, From, To);
+        if (count <= _samples.Length && _samples.Length <= capacity)
+        {
+            return _samples.Length;
+        }
+
+        return (int)Math.Min(capacity, count + (count / 4L) + 16);
     }
 
     private void EnsureColumnBuffers(int columns)

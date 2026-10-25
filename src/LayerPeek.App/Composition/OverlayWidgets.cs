@@ -10,8 +10,8 @@ namespace LayerPeek.App.Composition;
 /// one <see cref="OverlayWidgetDefinition"/> line in <see cref="CreateRegistry"/>.
 /// </summary>
 /// <remarks>
-/// Until the widgets of T-082 (Status), T-083 (Times), T-084 (Temperatures), T-085 (Print name) and T-088 (Cool-down)
-/// are registered, the overlay draws no cards: their placements stay in the layout and are only not drawn.
+/// Status (T-082), Times (T-083), Temperatures (T-084) and Print name (T-085) are registered. Until the widget of T-088
+/// (Cool-down) is, its placement stays in the layout and is only not drawn.
 /// </remarks>
 internal static class OverlayWidgets
 {
@@ -29,7 +29,9 @@ internal static class OverlayWidgets
     /// <summary>The widgets of this version, in the order of the settings table.</summary>
     public static OverlayWidgetRegistry CreateRegistry() => new(
     [
+        new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Status, OverlayWidgetNames.Status, StatusPriority, StatusWidgetTemplate.Card, static _ => new StatusWidgetViewModel(), StatusWidgetViewModel.MinWidths),
         new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Times, OverlayWidgetNames.Times, TimesPriority, TimesWidgetView.CardTemplate, static _ => new TimesWidgetViewModel(), TimesWidgetViewModel.MinWidths),
+        new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Temperatures, OverlayWidgetNames.Temperatures, TemperaturesPriority, TemperaturesWidgetView.CardTemplate, static context => new TemperaturesWidgetViewModel(context), TemperaturesWidgetViewModel.MinWidths),
         new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.PrintName, OverlayWidgetNames.PrintName, PrintNamePriority, PrintNameWidgetView.CardTemplate, static _ => new PrintNameWidgetViewModel(), PrintNameWidgetViewModel.MinWidths),
     ]);
 }
