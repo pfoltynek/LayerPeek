@@ -100,11 +100,6 @@ internal sealed partial class JsonAuxiliaryWindowStateStore : IAuxiliaryWindowSt
                 return;
             }
 
-            if (!_states.ContainsKey(windowKey) && _states.Count >= MaxEntries)
-            {
-                return;
-            }
-
             _states[windowKey] = state;
             long version = ++_saveVersion;
             _pendingSave = SaveAfterAsync(_pendingSave, version);
@@ -174,10 +169,12 @@ internal sealed partial class JsonAuxiliaryWindowStateStore : IAuxiliaryWindowSt
 
         lock (_gate)
         {
-            // States set before the file was read are newer than the file: they win.
+            // States set before the file was read are newer than the file: they win. The cap applies to unknown keys only,
+            // so that a file full of them never crowds out the windows of this app.
             foreach ((string key, WindowDocument? window) in windows)
             {
-                if (_states.Count >= MaxEntries || string.IsNullOrWhiteSpace(key) || window is null || _states.ContainsKey(key))
+                if (string.IsNullOrWhiteSpace(key) || window is null || _states.ContainsKey(key)
+                    || (_states.Count >= MaxEntries && !IsKnownKey(key)))
                 {
                     continue;
                 }
@@ -186,6 +183,10 @@ internal sealed partial class JsonAuxiliaryWindowStateStore : IAuxiliaryWindowSt
             }
         }
     }
+
+    private static bool IsKnownKey(string key) =>
+        string.Equals(key, AuxiliaryWindowKeys.Settings, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(key, AuxiliaryWindowKeys.Diagnostics, StringComparison.OrdinalIgnoreCase);
 
     private static async Task<WindowsDocument?> ReadDocumentAsync(string path, CancellationToken cancellationToken)
     {

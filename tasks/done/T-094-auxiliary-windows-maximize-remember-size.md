@@ -90,3 +90,10 @@ Uživatel přijal návrhy architekta:
 - **Windows:** s maximalizací a bez minimalizace zobrazuje Windows v titulku i šedé (neaktivní) tlačítko minimalizace – chování systému pro `WS_MAXIMIZEBOX` bez `WS_MINIMIZEBOX`.
 - **macOS: neověřeno.** Pořadí událostí zoom/resize a důvod změny velikosti (`WindowResizeReason`) na macOS jsem nemohl spustit; logika je na pořadí nezávislá (testy obou pořadí), ale chování zelené tlačítko „zoom“ = `Maximized` a ukládání velikosti po tažení je třeba ověřit na Macu.
 - Podpůrný balíček `windows.json` neobsahuje (jako `camera-windows.json`); `docs/architecture.md` (nová sekce) a `docs/troubleshooting.md` doplněny.
+
+## Review (qa-reviewer, 2026-10-25)
+Bez blokujících nálezů. Opraveno při review (testy napřed):
+- Okno, které uživatel nezměnil, při zavření stav neukládá (`WorkAreaFitter.OnClosed` porovná `Current` s `Remembered`). Dřív: když se `windows.json` načetl až po otevření okna (pomalý soubor, > 1 s při startu), zavření nezměněného okna přepsalo zapamatovanou velikost výchozí. Test `StateReadOnlyAfterTheWindowOpenedIsNotOverwrittenByAnUntouchedWindow`.
+- Soubor s mnoha neznámými klíči (≥ 16) už nezablokuje zapamatování oken `settings` / `diagnostics`: limit platí jen pro neznámé klíče při čtení, `Set` nic neodmítá. Test `FileFullOfUnknownWindowsStillRemembersTheSettingsWindow`.
+
+Doporučení (neblokuje): přichycení okna na polovinu obrazovky (Win+←/→, Aero Snap) se uloží jako uživatelská velikost (Windows ho hlásí jako normální stav); okno otevřené maximalizované nemá po obnovení opravu podle skutečného rámu (`CorrectAfterOpening` se při maximalizaci přeskočí) – výchozí velikost se ale vejde i s rezervou. macOS (zoom, důvod změny velikosti) zůstává k ověření na Macu.

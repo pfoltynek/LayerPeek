@@ -112,6 +112,22 @@ public sealed class AuxiliaryWindowSizeUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task StateReadOnlyAfterTheWindowOpenedIsNotOverwrittenByAnUntouchedWindow() =>
+        session.RunAsync(static async scope =>
+        {
+            // windows.json took longer than the startup wait: the window opened with the defaults, then the file arrived.
+            MemoryAuxiliaryWindowStateStore store = new();
+            SettingsWindowHarness ui = await OpenSettingsAsync(scope, store);
+            AuxiliaryWindowState loadedLate = new(UserSize, Maximized: true);
+            store.Set(AuxiliaryWindowKeys.Settings, loadedLate);
+
+            // The user changed nothing: closing must not replace the preference from the file with the defaults.
+            ui.Window.Close();
+
+            Assert.Equal(loadedLate, store.Get(AuxiliaryWindowKeys.Settings));
+        });
+
+    [Fact]
     public Task RememberedSizeLargerThanTheScreenIsFittedButNotForgotten() =>
         session.RunAsync(static scope =>
         {

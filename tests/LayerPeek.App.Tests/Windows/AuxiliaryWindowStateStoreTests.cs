@@ -232,6 +232,23 @@ public sealed class AuxiliaryWindowStateStoreTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task FileFullOfUnknownWindowsStillRemembersTheSettingsWindow()
+    {
+        // A damaged or foreign file with many unknown keys (the load keeps at most a few of them).
+        string unknown = string.Join(",", Enumerable.Range(0, 40).Select(static i => $"\"unknown{i:00}\":{{\"width\":900,\"height\":600}}"));
+        await WriteFileAsync("{\"version\":1,\"windows\":{" + unknown + "}}");
+        JsonAuxiliaryWindowStateStore store = Create();
+        await store.LoadAsync(Ct);
+
+        store.Set(AuxiliaryWindowKeys.Settings, Large);
+        Assert.True(await store.WaitForPendingSaveAsync(TestTimeouts.Wait));
+
+        JsonAuxiliaryWindowStateStore next = Create();
+        await next.LoadAsync(Ct);
+        Assert.Equal(Large, next.Get(AuxiliaryWindowKeys.Settings));
+    }
+
+    [Fact]
     public async Task UnknownPropertiesOfTheCurrentVersionAreIgnored()
     {
         await WriteFileAsync("{\"version\":1,\"extra\":true,\"windows\":{\"settings\":{\"width\":900,\"height\":600,\"x\":5}}}");

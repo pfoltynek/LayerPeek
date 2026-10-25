@@ -135,7 +135,9 @@ internal sealed class WorkAreaFitter
         _window.Resized -= OnResized;
         _window.PropertyChanged -= OnPropertyChanged;
         _window.Closed -= OnClosed;
-        if (_store is not null && _key is not null)
+        // Unchanged since opening: nothing to remember. This also keeps a state the store read only after the window
+        // opened (a slow windows.json at startup) from being replaced by the defaults the window opened with.
+        if (_store is not null && _key is not null && _memory.Current != _memory.Remembered)
         {
             _store.Set(_key, _memory.Current);
         }
