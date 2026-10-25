@@ -30,6 +30,7 @@ internal static class OverlayWidgets
     public static OverlayWidgetRegistry CreateRegistry() => new(
     [
         new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.Times, OverlayWidgetNames.Times, TimesPriority, TimesWidgetView.CardTemplate, static _ => new TimesWidgetViewModel(), TimesWidgetViewModel.MinWidths),
+        new OverlayWidgetDefinition(Core.Cameras.Overlay.OverlayWidgetIds.PrintName, OverlayWidgetNames.PrintName, PrintNamePriority, PrintNameWidgetView.CardTemplate, static _ => new PrintNameWidgetViewModel(), PrintNameWidgetViewModel.MinWidths),
     ]);
 }
 

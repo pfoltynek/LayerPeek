@@ -873,6 +873,18 @@
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Hotovo {0} o {1}</value>
   </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>tryska {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>výška vrstvy {0} mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>tryska {0} mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>odhad slicera {0}</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Čas tlače: {0}</value>
   </data>

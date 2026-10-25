@@ -894,6 +894,18 @@
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Done {0} at {1}</value>
   </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>nozzle {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>layer height {0} mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>nozzle {0} mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>slicer estimate {0}</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Print time: {0}</value>
   </data>

@@ -873,6 +873,18 @@
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Fin le {0} à {1}</value>
   </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>buse {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>hauteur de couche {0} mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>buse {0} mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>estimation du slicer {0}</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Durée d'impression : {0}</value>
   </data>
