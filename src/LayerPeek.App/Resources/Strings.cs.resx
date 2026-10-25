@@ -523,7 +523,7 @@
     <value>Tiskárna vychladla</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Práh teploty trysky se nastavuje u tiskárny na podzáložce Překryv.</value>
+    <value>Po tisku upozorní, když tryska vychladne pod práh a tiskárnu můžete vypnout.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Vychladnutí po tisku</value>

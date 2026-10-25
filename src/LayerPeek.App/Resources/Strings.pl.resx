@@ -472,7 +472,7 @@
     <value>Drukarka ostygła</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Próg temperatury dyszy ustawia się dla każdej drukarki na podkarcie Nakładka.</value>
+    <value>Po wydruku powiadamia, gdy dysza ostygnie poniżej progu i drukarkę można wyłączyć.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Stygnięcie po wydruku</value>

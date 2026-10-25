@@ -129,9 +129,13 @@ public sealed class CooldownTrackerTests
         Assert.Equal(Start.AddSeconds(cooledAt), cooled.Timestamp);
         Assert.Equal("benchy.bgcode", cooled.FileName);
         Assert.Equal(CooldownPrintOutcome.Finished, cooled.Outcome);
+        Assert.Equal(50, cooled.ThresholdCelsius);
 
         CooldownState state = _tracker.State;
         Assert.Equal(CooldownPhase.CooledDown, state.Phase);
+        // The event carries the reading that confirmed it (T-080 toast).
+        Assert.Equal(state.NozzleCelsius, cooled.NozzleCelsius);
+        Assert.True(cooled.NozzleCelsius <= 50);
         Assert.Equal(1, state.Progress);
         Assert.Null(state.EstimatedRemaining);
         Assert.Equal(Start.AddSeconds(End), state.StartedAt);
@@ -629,6 +633,8 @@ public sealed class CooldownTrackerTests
         CooldownEvent cooled = Assert.IsType<CooldownEvent>(update.Event);
         Assert.Equal(Start.AddSeconds(15), cooled.Timestamp);
         Assert.Equal("mk4", cooled.PrinterId);
+        Assert.Equal(70, cooled.NozzleCelsius);
+        Assert.Equal(80, cooled.ThresholdCelsius);
     }
 
     [Fact]

@@ -7,10 +7,16 @@ using LayerPeek.Core.Printers;
 namespace LayerPeek.App.Settings;
 
 /// <summary>
-/// The cool-down threshold of the printer (T-079, field T-080) on the Overlay sub-tab: whole degrees Celsius within
+/// The cool-down threshold of the printer (T-079, logic T-080): whole degrees Celsius within
 /// <see cref="CooldownThreshold.MinCelsius"/>–<see cref="CooldownThreshold.MaxCelsius"/>. An invalid value is never saved:
 /// it blocks Save like the other fields, with the error in place of the hint and the "!" on the sub-tab header. Not tied to
 /// the camera (the notification needs it without one), so it stays editable while the camera is off.
+/// <para>
+/// The window has no field for it yet: it comes with the "Widgets" settings tab (T-092, user decision 2026-10-25). Until
+/// then nothing in the window can make the value invalid (saved and default thresholds are valid, "Use threshold for all
+/// printers" copies only a valid one), so the Save block and the Overlay sub-tab marker cannot be triggered; T-092 moves
+/// them to wherever it puts the field.
+/// </para>
 /// </summary>
 public sealed partial class PrinterEditorViewModel
 {

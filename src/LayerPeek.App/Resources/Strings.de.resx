@@ -472,7 +472,7 @@
     <value>Drucker abgekühlt</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Die Temperaturschwelle der Düse wird pro Drucker im Unterregister „Einblendung“ festgelegt.</value>
+    <value>Benachrichtigt nach dem Druck, wenn die Düse unter die Schwelle abgekühlt ist und der Drucker ausgeschaltet werden kann.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Abkühlen nach dem Druck</value>

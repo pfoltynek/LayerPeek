@@ -472,7 +472,7 @@
     <value>Tlačiareň vychladla</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Prah teploty trysky sa nastavuje pri tlačiarni na podzáložke Prekrytie.</value>
+    <value>Po tlači upozorní, keď tryska vychladne pod prah a tlačiareň môžete vypnúť.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Vychladnutie po tlači</value>

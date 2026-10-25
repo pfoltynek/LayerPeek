@@ -472,7 +472,7 @@
     <value>Imprimante refroidie</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Le seuil de température de la buse se règle pour chaque imprimante dans le sous-onglet Superposition.</value>
+    <value>Après l'impression, notifie lorsque la buse est descendue sous le seuil et que vous pouvez éteindre l'imprimante.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Refroidissement après l'impression</value>

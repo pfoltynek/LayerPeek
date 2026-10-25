@@ -472,7 +472,7 @@
     <value>Impresora enfriada</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>El umbral de temperatura de la boquilla se ajusta para cada impresora en la subpestaña Superposición.</value>
+    <value>Tras la impresión, avisa cuando la boquilla se ha enfriado por debajo del umbral y ya puede apagar la impresora.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Enfriamiento tras la impresión</value>

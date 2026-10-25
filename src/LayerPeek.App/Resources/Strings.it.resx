@@ -472,7 +472,7 @@
     <value>Stampante raffreddata</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>La soglia di temperatura dell'ugello si imposta per ogni stampante nella sotto-scheda Sovrimpressione.</value>
+    <value>Dopo la stampa, avvisa quando l'ugello si è raffreddato sotto la soglia e la stampante può essere spenta.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Raffreddamento dopo la stampa</value>

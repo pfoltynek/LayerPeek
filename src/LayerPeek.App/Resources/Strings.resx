@@ -540,7 +540,7 @@
     <value>Printer cooled down</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>The nozzle temperature threshold is set per printer on the Overlay sub-tab.</value>
+    <value>After a print, notifies when the nozzle has cooled down below the threshold and the printer can be turned off.</value>
   </data>
   <data name="SettingsCooldownSection" xml:space="preserve">
     <value>Cool-down after printing</value>

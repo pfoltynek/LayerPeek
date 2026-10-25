@@ -437,7 +437,7 @@ public sealed class SettingsViewModel : ObservableObject, IDisposable, ILanguage
         set => SetGeneral(ref _notifyOffline, value);
     }
 
-    /// <summary>"Printer cooled down" (T-080), off by default; the threshold is set per printer on the Overlay sub-tab.</summary>
+    /// <summary>"Printer cooled down" (T-080), off by default; the threshold is per printer (field in T-092).</summary>
     public bool NotifyCooledDown
     {
         get => _notifyCooledDown;

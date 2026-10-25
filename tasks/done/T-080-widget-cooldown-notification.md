@@ -1,7 +1,7 @@
 ---
 id: T-080
 title: Vychladnutí – volitelná notifikace „vychladlo, můžete vypnout“ a nastavení prahu
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P2
 platform: all
@@ -34,6 +34,15 @@ depends_on: [T-076, T-079]
 - **Vykání:** texty vykají („Tiskárna vychladla – můžete ji vypnout“), stejně jako zbytek české UI.
 - **Tiskárna vychladlá už při startu (rozhodnutí 11):** pro tiskárnu, která už při startu aplikace ukazuje skončený tisk, Core chladnutí nesleduje, takže notifikace nepřijde.
 
+## Rozhodnutí (uživatel, 2026-10-25)
+- **Pole prahu v okně nastavení (Q1):** na dnešní podzáložku Překryv se nevejde. Přesouvá se do přepracovaného **T-092** – nová záložka nastavení **„Widgety“** v uspořádání master-detail:
+  - vlevo seznam widgetů s viditelností,
+  - vpravo vlastní nastavení vybraného widgetu; u Vychladnutí práh, „Použít práh u všech tiskáren“ a přepínač notifikace,
+  - dole globální průhlednost, obnovení výchozího, použití rozložení u všech tiskáren a otevření režimu rozložení.
+  - Okno nastavení se smí zvětšit, okna Nastavení a Diagnostika ale musí mít stejnou velikost.
+- **T-080 se tím dokončuje bez pole prahu v UI.** API pohledu (`PrinterEditorViewModel.CooldownThresholdCelsius` a spol., `SettingsViewModel.ApplyCooldownThresholdToAll`) zůstává a je otestované. Nezaškrtnutá dílčí kritéria k poli prahu, „Použít u všech tiskáren“ a podzáložce Překryv se přesunula do `tasks/todo/T-092-widget-settings-tab.md` (sekce „Převzato z T-080“, včetně prototypu XAML).
+- Do T-092 platí v okně uložený práh (výchozí 50 °C); jinak ho lze změnit jen ručně v `settings.json`.
+
 ## Rozsah
 ### Core (core-dev)
 - `PrintEventKind.CooledDown`: nová hodnota na konci výčtu, číselné hodnoty existujících se nemění.
@@ -60,16 +69,14 @@ depends_on: [T-076, T-079]
   - při nastavení zvuku „jen důležité“ bez zvuku,
   - při nastavení zvuku „všechny“ se zvukem, stejně jako ostatní informační notifikace.
 - [x] App.Tests: obsah toastu (en, cs, fr) pro dokončený i zastavený tisk, zvuk podle nastavení
-- [ ] Headless UI testy (`LayerPeek.App.UiTests`):
+- [x] Headless UI testy (`LayerPeek.App.UiTests`):
   - [x] přepínač „Tiskárna vychladla“: výchozí hodnota, uložení kliknutím, hlavní přepínač, pořadí Tab, `AutomationId`, `HelpText`, bez posuvníku ve všech 8 jazycích,
-  - [ ] pole prahu: výchozí hodnoty, uložení, hodnoty mimo 30–100 – **čeká na otázku Q1** (logika je hotová a otestovaná v App.Tests, pole v okně zatím není),
-  - [ ] „Použít u všech tiskáren“ v okně – **čeká na Q1** (logika hotová v App.Tests),
-  - [ ] podzáložka Překryv s polem prahu bez posuvníku ve všech 8 jazycích – **čeká na Q1**.
+  - pole prahu, „Použít u všech tiskáren“ v okně a rozložení bez posuvníku ve všech 8 jazycích → **přesunuto do T-092** (rozhodnutí 2026-10-25); logika je hotová a otestovaná v App.Tests.
 - [x] Test přepnutí jazyka pro nové texty; `StringsTests` (nezlomitelná mezera před „°C“) projde
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-- **Q1 – kam teď dát pole prahu (blokuje dokončení):** podle návrhu T-076 (bod 8) patří práh do pravého sloupce podzáložky Překryv. Návrh ale počítá s novou podobou podzáložky z T-092 (vlevo 5 widgetů, 232 DIP; vpravo 292 DIP). Dnes je na podzáložce ještě tabulka T-036 (9 řádků, roh, 2 sloupce). Ta zabírá skoro celou výšku a pravý sloupec má jen asi 120–160 DIP.
+- **Q1 – kam teď dát pole prahu (vyřešeno 2026-10-25: přesun do T-092, viz Rozhodnutí):** podle návrhu T-076 (bod 8) patří práh do pravého sloupce podzáložky Překryv. Návrh ale počítá s novou podobou podzáložky z T-092 (vlevo 5 widgetů, 232 DIP; vpravo 292 DIP). Dnes je na podzáložce ještě tabulka T-036 (9 řádků, roh, 2 sloupce). Ta zabírá skoro celou výšku a pravý sloupec má jen asi 120–160 DIP.
   - Měřeno headless testem `SettingsWindowLayoutTests` s polem prahu v pravém sloupci nad nápovědami T-036: obsah přeteče o 9 DIP (en, kamera vypnutá) až o 251 DIP (es). Přeteče ve všech 8 jazycích, takže by se ukázal posuvník.
   - Možnosti:
     - **A (doporučeno):** pole prahu se přidá až po T-092, buď jako dokončení T-080 hned po sloučení T-092, nebo přímo v T-092. Na podzáložce už pak bude místo podle návrhu. Pohled je hotový a otestovaný: `PrinterEditorViewModel.CooldownThresholdCelsius`, `CooldownThresholdError`, `ShowsCooldownThresholdHint`, `ApplyCooldownThresholdToAllCommand`, `ApplyToAllUnavailableReason`, `ShowsOverlayErrorMarker`, `OverlayTabName`. Zbývá jen XAML a headless testy. Do té doby se práh nedá v okně změnit, platí uložený (výchozí 50 °C).
@@ -77,7 +84,7 @@ depends_on: [T-076, T-079]
     - **C:** dočasné jiné umístění nebo zhuštěná varianta, např. nápověda jen jako `HelpText` / tooltip. To je odchylka od schváleného návrhu.
 
 ## Poznámky k implementaci
-- 2026-10-25, ui-dev: hotová Core část, notifikace, toast, přepínač v záložce Obecné a logika prahu v pohledu. **Zbývá jen pole prahu v okně (Q1)**, proto úkol zůstává v `in-progress`.
+- 2026-10-25, ui-dev: hotová Core část, notifikace, toast, přepínač v záložce Obecné a logika prahu v pohledu. Pole prahu v okně se podle rozhodnutí 2026-10-25 přesunulo do T-092.
 - **Core:**
   - `PrintEventKind.CooledDown` je na konci výčtu (12), ostatní hodnoty se nemění.
   - `NotificationSettings.CooledDown` (výchozí `false`), `IsEnabledFor` (hlavní přepínač + vlastní přepínač).
@@ -92,7 +99,7 @@ depends_on: [T-076, T-079]
     - 3. řádek místo názvu souboru: cs „Můžete tiskárnu vypnout. Tryska 47 °C, práh 50 °C“, en „Safe to turn off. Nozzle 47 °C, threshold 50 °C“. Teplota je zaokrouhlená na celé stupně, před °C je nezlomitelná mezera.
     - Bez údajů o vychladnutí jen „Tiskárna vychladla“.
     - Kliknutí a zvuk jako u ostatních toastů. Klíče `NotificationCooledDownFinished` / `NotificationCooledDownStopped` doplňují klíče z návrhu T-076, protože rozhodnutí 12 přišlo po návrhu. `NotificationCooledDown` je text bez výsledku.
-  - Přepínač „Tiskárna vychladla“ je v záložce Obecné, v levém sloupci za „Tisk zastaven (zrušen)“ (`SettingsNotifyCooledDown`, `HelpText` z `SettingsNotifyCooledDownHelp`). Záložka se vejde bez posuvníku ve všech 8 jazycích. Snímky `settings-general*.png` jsou přegenerované.
+  - Přepínač „Tiskárna vychladla“ je v záložce Obecné, v levém sloupci za „Tisk zastaven (zrušen)“ (`SettingsNotifyCooledDown`, `HelpText` z `SettingsNotifyCooledDownHelp`), nápověda bez odkazu na umístění prahu (viz Review). Záložka se vejde bez posuvníku ve všech 8 jazycích. Snímky `settings-general*.png` jsou přegenerované.
   - Práh v pohledu (`PrinterEditorViewModel.Cooldown.cs`):
     - celé číslo 30–100, jinak chyba „Zadejte celé číslo od 30 do 100.“ místo nápovědy,
     - neplatná hodnota blokuje uložení a okno přepne na podzáložku Překryv s „!“,
@@ -108,3 +115,10 @@ depends_on: [T-076, T-079]
   - Žádné soubory na disku.
 - **Závislosti:** žádné nové balíčky; vše AOT kompatibilní (bez reflexe, JSON přes source generator).
 - **Platformy:** ověřeno na Windows (build, testy, start aplikace v testovacím režimu – běží). macOS notifikace přijde s T-020 přes `INotificationService`, na Macu neověřeno.
+
+## Review (qa-reviewer, 2026-10-25)
+- Bez blokujících nálezů. Ověřeno: pořadí pozorovatelů (notifikátor před `CooldownMonitor`, zvýšený práh vyvolá událost synchronně v `Configure`), sdílení `IsEnabledFor` / `ShouldPlaySound`, izolace výjimek, odhlášení v `Dispose`, zápis `notifications.cooledDown` jen při zapnutí, nezlomitelné mezery před „°C“ ve všech 8 jazycích, logika prahu bez pole nejde v okně dostat do neplatného stavu (uložené i výchozí prahy jsou platné, kopírování přenáší jen platný práh).
+- Opraveno v review:
+  - `SettingsNotifyCooledDownHelp` (`HelpText` přepínače) tvrdila, že se práh nastavuje na podzáložce Překryv. Po rozhodnutí 2026-10-25 tam pole není, proto text ve všech 8 jazycích jen popisuje, kdy notifikace přijde. Odkaz na nové umístění doplní T-092.
+  - Komentáře v kódu, které odkazovaly na pole na podzáložce Překryv.
+  - `CooldownTrackerTests` ověřují i nové hodnoty `CooldownEvent.NozzleCelsius` / `ThresholdCelsius`.
