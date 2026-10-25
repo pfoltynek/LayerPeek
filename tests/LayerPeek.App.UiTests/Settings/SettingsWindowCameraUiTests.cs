@@ -166,7 +166,7 @@ public sealed class SettingsWindowCameraUiTests(HeadlessSession session)
             await harness.Factory.WaitForFeedAsync(1);
             harness.Time.Advance(TimeSpan.FromSeconds(15));
 
-            await Ui.UntilAsync(() => Ui.ShowsText(harness.Window, "No image arrived from the camera within 15 s."), "timeout shown");
+            await Ui.UntilAsync(() => Ui.ShowsText(harness.Window, "No image arrived from the camera within 15 s."), "timeout shown");
         });
 
     // ---- Snapshot preview (T-034) ----

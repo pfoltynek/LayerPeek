@@ -58,15 +58,15 @@ public sealed class DiagnosticsFormatterTests
     {
         using (new CultureScope("en-US"))
         {
-            Assert.Equal("7,200 RPM", DiagnosticsFormatter.Rpm(7200));
-            Assert.Equal("0 RPM", DiagnosticsFormatter.Rpm(0));
+            Assert.Equal("7,200\u00A0RPM", DiagnosticsFormatter.Rpm(7200));
+            Assert.Equal("0\u00A0RPM", DiagnosticsFormatter.Rpm(0));
             Assert.Equal(Missing, DiagnosticsFormatter.Rpm(null));
         }
 
         using (new CultureScope("cs-CZ"))
         {
             string separator = CultureInfo.GetCultureInfo("cs-CZ").NumberFormat.NumberGroupSeparator;
-            Assert.Equal($"7{separator}200 ot./min", DiagnosticsFormatter.Rpm(7200));
+            Assert.Equal($"7{separator}200\u00A0ot./min", DiagnosticsFormatter.Rpm(7200));
         }
     }
 
@@ -90,13 +90,13 @@ public sealed class DiagnosticsFormatterTests
     {
         using (new CultureScope("en-US"))
         {
-            Assert.Equal("14.00 mm", DiagnosticsFormatter.Millimetres(14, 2));
-            Assert.Equal("0.40 mm", DiagnosticsFormatter.Millimetres(0.4, 2));
+            Assert.Equal("14.00\u00A0mm", DiagnosticsFormatter.Millimetres(14, 2));
+            Assert.Equal("0.40\u00A0mm", DiagnosticsFormatter.Millimetres(0.4, 2));
         }
 
         using (new CultureScope("cs-CZ"))
         {
-            Assert.Equal("0,25 mm", DiagnosticsFormatter.Millimetres(0.249, 2));
+            Assert.Equal("0,25\u00A0mm", DiagnosticsFormatter.Millimetres(0.249, 2));
         }
     }
 

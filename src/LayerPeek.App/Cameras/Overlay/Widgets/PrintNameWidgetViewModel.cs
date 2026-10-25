@@ -490,8 +490,8 @@ public static class PrintNameFormat
     /// <summary>"0.2" / "0,2": without trailing zeros, at most three decimals.</summary>
     public static string Number(double millimetres) => millimetres.ToString("0.###", CultureInfo.CurrentCulture);
 
-    /// <summary>"0.2 mm" / "0,2 mm".</summary>
-    public static string Millimetres(double millimetres) => Number(millimetres) + " mm";
+    /// <summary>"0.2 mm" / "0,2 mm", joined by a non-breaking space (U+00A0) so the chip never wraps between them.</summary>
+    public static string Millimetres(double millimetres) => Number(millimetres) + " mm";
 
     /// <summary>"nozzle 0.4" / "tryska 0,4".</summary>
     public static string NozzleChip(double millimetres) => Format(Strings.CameraOverlayNozzleChip, Number(millimetres));
