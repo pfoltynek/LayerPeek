@@ -4,7 +4,7 @@
       Product version: the single source for the exe, the About window, the release file names and the release tag
       vX.Y.Z (checked by scripts/release-*.ps1, see docs/release.md). Plain X.Y.Z only.
     -->
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <TargetFramework>net11.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
