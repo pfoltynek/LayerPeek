@@ -96,9 +96,11 @@ neopouští tvoji síť: žádná cloudová služba, žádný účet, žádná t
 
 ### Okno kamery
 
-- Živý RTSP stream s překryvnými údaji: název tiskárny, stav, průběh, teplota trysky a podložky, zbývající čas, čas
-  dokončení, doba tisku a název souboru. Položky i roh si vybereš sám.
-- Tři režimy: **normální**, **malý náhled** (zůstává nad ostatními okny) a **celá obrazovka** (F11).
+- Živý RTSP stream s widgety přes obraz: stav (název, stav, průběh), časy (zbývá, dokončení, doba tisku), teploty
+  s malým grafem, název tisku s náhledem z G-code a chladnutí po tisku. Widgety, jejich velikost i místo si vybereš
+  sám, přetáhneš je přímo v okně kamery.
+- Tři režimy: **normální**, **malý náhled** (zůstává nad ostatními okny, pod obrazem má informační pás) a **celá
+  obrazovka** (F11).
 - Pro každou tiskárnu zvlášť: výchozí režim, velikost, umístění, monitor a „vždy navrchu“. Okno si umí pamatovat,
   kde jsi ho nechal.
 - Po výpadku kamery nebo Wi-Fi se samo znovu připojí.
@@ -107,6 +109,7 @@ neopouští tvoji síť: žádná cloudová služba, žádný účet, žádná t
 
 - Spuštění, dokončení, pozastavení, obnovení a zastavení tisku, chyba, tiskárna vyžaduje zásah, tiskárna offline.
 - Připomínka „zbývá N minut“, abys byl u tiskárny, až tisk skončí.
+- Volitelné upozornění „tiskárna vychladla“, abys věděl, kdy ji můžeš vypnout.
 - Zvuk vypnutý, jen pro důležité události, nebo pro všechny.
 
 ### Diagnostika
@@ -190,7 +193,9 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 ### Další nastavení
 
 - **Notifikace:** které události chceš, režim zvuku a upozornění na zbývající minuty.
-- **Okno kamery a překryv:** výchozí režim, velikost, monitor, vždy navrchu, položky překryvu a roh.
+- **Okno kamery:** výchozí režim, velikost, monitor a vždy navrchu.
+- **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. práh vychladnutí), neprůhlednost karet a
+  rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
   jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze.
