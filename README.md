@@ -96,9 +96,11 @@ firmware. Nothing leaves your network: no cloud service, no account, no telemetr
 
 ### Camera window
 
-- Live RTSP stream with an overlay: printer name, state, progress, nozzle and bed temperatures, remaining time,
-  finish time, print time and file name. You choose the items and the corner.
-- Three modes: **normal**, **mini** (a small preview that stays on top of other windows) and **full screen** (F11).
+- Live RTSP stream with overlay widgets: status (name, state, progress), times (remaining, finish, print time),
+  temperatures with a small chart, print name with the G-code thumbnail, and cool-down after the print. You choose the
+  widgets, their size and where they sit: drag them right in the camera window.
+- Three modes: **normal**, **mini** (a small preview that stays on top of other windows, with an info strip below the
+  image) and **full screen** (F11).
 - Per printer: start mode, size, position, monitor and "always on top". The window can remember where you left it.
 - Reconnects automatically when the camera or Wi-Fi drops out.
 
@@ -106,6 +108,7 @@ firmware. Nothing leaves your network: no cloud service, no account, no telemetr
 
 - Print started, finished, paused, resumed, stopped, error, needs attention, printer offline.
 - "N minutes remaining" reminder, so you can be at the printer when the print ends.
+- Optional "printer cooled down" notification, so you know when you can switch it off.
 - Sound off, on for important events only, or on for all events.
 
 ### Diagnostics
@@ -190,7 +193,8 @@ submenu.
 ### Other settings
 
 - **Notifications:** which events you want, the sound mode and the "minutes remaining" reminder.
-- **Camera window and overlay:** start mode, size, monitor, always on top, overlay items and corner.
+- **Camera window:** start mode, size, monitor and always on top.
+- **Widgets:** which overlay widgets are shown, their settings (e.g. the cool-down threshold), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
 - **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
   and whether updates offer pre-release versions.

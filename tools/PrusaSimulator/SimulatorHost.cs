@@ -75,6 +75,7 @@ public sealed class SimulatorHost : IAsyncDisposable
                         Speed = options.Speed,
                         Timing = timing,
                         OfflineMode = options.OfflineMode,
+                        Previews = options.Previews,
                         TimeProvider = clock,
                     },
                     cancellationToken).ConfigureAwait(false));

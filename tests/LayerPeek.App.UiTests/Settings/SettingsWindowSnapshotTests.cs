@@ -11,7 +11,7 @@ namespace LayerPeek.App.UiTests.Settings;
 
 /// <summary>
 /// What the settings window looks like (Skia rendering compared with the PNGs in <c>Snapshots/</c>). The window keeps its
-/// XAML size (780 × 508, T-033), the system language is English and the app language "system" unless a test switches it. Values
+/// XAML size (780 × 532, T-033, T-094), the system language is English and the app language "system" unless a test switches it. Values
 /// are set through the view model, not typed, so that no text box has the focus (no caret) and no pointer hovers.
 /// Update the references with <c>LAYERPEEK_UPDATE_SNAPSHOTS=1</c> (see the task notes of T-031).
 /// </summary>
@@ -238,36 +238,90 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-camera-window");
         });
 
+    // ---- Widgets tab (T-092, design 10) ----
+
+    private static readonly Uri StreamUri = new("rtsp://192.168.0.227/live");
+
+    private static async Task<SettingsWindowHarness> OpenWidgetsAsync(UiTestScope scope, params Core.Printers.PrinterDefinition[] printers)
+    {
+        SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(printers));
+        ui.ViewModel.SelectedTabIndex = SettingsViewModel.WidgetsTab;
+        ui.Window.Settle();
+        return ui;
+    }
+
+    private static void SelectWidget(SettingsWindowHarness ui, string id)
+    {
+        ui.ViewModel.SelectedWidget = ui.ViewModel.Widgets.Single(widget => widget.Id == id);
+        ui.Window.Settle();
+    }
+
     [Fact]
-    public Task OverlaySubTab() =>
+    public Task WidgetsTab() =>
         session.RunAsync(static async scope =>
         {
-            CameraOverlayOptions overlay = new()
-            {
-                Corner = CameraOverlayCorner.TopRight,
-                Normal = CameraOverlayItems.PrinterName | CameraOverlayItems.State | CameraOverlayItems.NozzleTemperature | CameraOverlayItems.Progress | CameraOverlayItems.FinishTime,
-                Mini = CameraOverlayItems.Progress | CameraOverlayItems.RemainingTime,
-            };
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
                 scope,
-                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Overlay = overlay } }));
-            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.OverlayPrinterTab;
+                LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = Core.Cameras.Overlay.CameraOverlayLayout.Default.WithVisible("times", visible: false) } },
+                LinkPrinter("b", "Beta", "192.168.1.21"),
+                CloudPrinter("c", "Cloud XL"));
 
-            SnapshotAssert.Matches(ui.Window, "settings-overlay");
+            SnapshotAssert.Matches(ui.Window, "settings-widgets");
         });
 
     [Fact]
-    public Task OverlaySubTabWithTheCameraOffInItalian() =>
+    public Task WidgetsTabInTheDarkTheme() =>
         session.RunAsync(static async scope =>
         {
-            // Italian has the widest sub-tab headers (T-033 design); the camera-off hint is the tallest content.
-            new UiLanguage().Apply("it");
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
-                scope,
-                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: false, new Uri("rtsp://192.168.0.227/live")) }));
-            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.OverlayPrinterTab;
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            SelectWidget(ui, "cooldown");
 
-            SnapshotAssert.Matches(ui.Window, "settings-overlay-off-it");
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-dark");
+        });
+
+    [Fact]
+    public Task WidgetsTabCooldownWithASinglePrinterInGerman() =>
+        session.RunAsync(static async scope =>
+        {
+            // Design 3.4: the longest language, both "… for all printers" disabled.
+            new UiLanguage().Apply("de");
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 Werkstatt") with { Camera = new CameraSettings(enabled: true, StreamUri) });
+            SelectWidget(ui, "cooldown");
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-cooldown-de");
+        });
+
+    [Fact]
+    public Task WidgetsTabCooldownWithAThresholdErrorInFrench() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("fr");
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 atelier") with { Camera = new CameraSettings(enabled: true, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.Printers[0].CooldownThresholdCelsius = 120;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-cooldown-error-fr");
+        });
+
+    [Fact]
+    public Task WidgetsTabWithTheCameraOffInItalian() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("it");
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 officina") with { Camera = new CameraSettings(enabled: false, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-camera-off-it");
+        });
+
+    [Fact]
+    public Task WidgetsTabWithoutPrinters() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope);
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-no-printers");
         });
 
     [Fact]
@@ -299,6 +353,23 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraWindowPrinterTab;
 
             SnapshotAssert.Matches(ui.Window, "settings-camera-window-off-cs");
+        });
+
+    /// <summary>T-094: maximized on a 1366 × 768 screen at 100 % (client 1366 × 705), the content stretches.</summary>
+    [Fact]
+    public Task MaximizedOnALaptopScreen() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(
+                LinkPrinter("a", "MK4 workshop", address: "192.168.1.30", userName: "operator"),
+                CloudPrinter("c1", "Cloud XL"));
+            store.Data = store.Data with { PrintersWithPassword = Ids("a") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, store);
+            ui.Window.WindowState = Avalonia.Controls.WindowState.Maximized;
+            ui.Window.Width = 1366;
+            ui.Window.Height = 705;
+
+            SnapshotAssert.Matches(ui.Window, "settings-maximized");
         });
 
     /// <summary>A new printer with a name, no address and a user name with a colon, after a save attempt.</summary>

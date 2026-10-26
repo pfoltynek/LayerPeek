@@ -1,0 +1,25 @@
+<!--
+  Colours of the nozzle (orange) and the bed (blue) wherever temperatures are drawn (T-084, design T-076 1.3 and Q10):
+  the diagnostics chart and its legend, and the camera overlay (values, icons, sparkline). One source, no copies.
+  - TemperatureNozzleColor / TemperatureBedColor: the overlay colours, independent of the theme (the overlay is always
+    over video); OverlayStyles.axaml builds OverlayNozzleBrush / OverlayBedBrush from them.
+  - ChartNozzleBrush / ChartBedBrush: per theme for the diagnostics window. Dark = exactly the overlay colours; light =
+    darker shades of the same hue, because the overlay colours reach only 2.4 : 1 / 2.2 : 1 on white (below 3 : 1 for
+    graphics); #D9480F has 4.3 : 1 and #1864AB 6.1 : 1.
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="TemperatureNozzleColor">#FF8A3D</Color>
+  <Color x:Key="TemperatureBedColor">#6CB4FF</Color>
+
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <SolidColorBrush x:Key="ChartNozzleBrush" Color="#D9480F" />
+      <SolidColorBrush x:Key="ChartBedBrush" Color="#1864AB" />
+    </ResourceDictionary>
+    <ResourceDictionary x:Key="Dark">
+      <SolidColorBrush x:Key="ChartNozzleBrush" Color="{StaticResource TemperatureNozzleColor}" />
+      <SolidColorBrush x:Key="ChartBedBrush" Color="{StaticResource TemperatureBedColor}" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+</ResourceDictionary>

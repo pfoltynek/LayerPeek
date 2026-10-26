@@ -64,6 +64,20 @@ internal sealed class JobFile
 
     /// <summary>Long file name as shown to the user.</summary>
     public string? DisplayName { get; set; }
+
+    public JobFileRefs? Refs { get; set; }
+}
+
+/// <summary>Links of the job file; Buddy sends absolute paths (<c>/thumb/s/usb/BENCHY~1.BGC</c>), JSON-escaped but not URL-escaped.</summary>
+internal sealed class JobFileRefs
+{
+    /// <summary><c>/thumb/s</c> + short (8.3) path: the 16 × 16 px PNG preview.</summary>
+    public string? Icon { get; set; }
+
+    /// <summary><c>/thumb/l</c> + short (8.3) path: the first PNG preview of at least 17 × 17 px.</summary>
+    public string? Thumbnail { get; set; }
+
+    public string? Download { get; set; }
 }
 
 internal sealed class VersionResponse

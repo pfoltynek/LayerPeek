@@ -1,0 +1,285 @@
+<!--
+  Shared look of the camera overlay widgets (T-081, design T-076 1 and 2): colours, icons, the card that every widget is
+  drawn in and its parts. One set of colours regardless of the app theme (the overlay is always over video). Widgets only
+  provide their content (IOverlayWidgetDefinition.CardTemplate) and use these classes and parts:
+  - TextBlock: default primary 13 (S semi-bold, L 15); .secondary, .numeric (tabular figures), .big (large number),
+    .emphasized (accent colour, bound to OverlayWidgetViewModel.IsEmphasized on the key value);
+  - ov:OverlayStatusPill, ov:OverlayIconText, ov:OverlayChip, ov:OverlayProgressBar, ov:OverlayIcon.
+  Sizes follow the card's class small / medium / large (OverlayWidgetViewModel.RenderedSize).
+  Styles apply in order: later ones win over earlier ones for the same property.
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ov="using:LayerPeek.App.Cameras.Overlay">
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://LayerPeek/Cameras/Overlay/OverlayIcons.axaml" />
+        <!-- Nozzle and bed colours shared with the diagnostics chart (T-084). -->
+        <ResourceInclude Source="avares://LayerPeek/Resources/ChartColors.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+
+      <!-- Colours (T-076 1.3). The card background (#0E0E10 with the global opacity) comes from the view model. -->
+      <Color x:Key="OverlayCardColor">#0E0E10</Color>
+      <SolidColorBrush x:Key="OverlayTextPrimaryBrush" Color="#F4F4F5" />
+      <SolidColorBrush x:Key="OverlayTextSecondaryBrush" Color="#C9C9CE" />
+      <SolidColorBrush x:Key="OverlayTextTertiaryBrush" Color="#A1A1AA" />
+      <SolidColorBrush x:Key="OverlayAccentBrush" Color="#FA6831" />
+      <SolidColorBrush x:Key="OverlayTrackBrush" Color="#2EFFFFFF" />
+      <SolidColorBrush x:Key="OverlayPillBrush" Color="#1AFFFFFF" />
+      <SolidColorBrush x:Key="OverlayChipBrush" Color="#1AFFFFFF" />
+      <SolidColorBrush x:Key="OverlayChipTextBrush" Color="#E4E4E7" />
+      <SolidColorBrush x:Key="OverlayNozzleBrush" Color="{StaticResource TemperatureNozzleColor}" />
+      <SolidColorBrush x:Key="OverlayBedBrush" Color="{StaticResource TemperatureBedColor}" />
+      <SolidColorBrush x:Key="OverlayCoolingBrush" Color="#6CB4FF" />
+      <SolidColorBrush x:Key="OverlayCooledBrush" Color="#6CCB5F" />
+      <SolidColorBrush x:Key="OverlayStripBrush" Color="#141416" />
+
+      <!--
+        The card around every widget: background with the global opacity, padding and corner radius by size, hidden
+        while the widget has nothing to show; never a pointer target (double-click and dragging work over it).
+        AutomationIds: CameraOverlayWidget-{id} (T-076 5.7). A plain border has no element in UI Automation: the content view
+        makes the card one, with its full name for screen readers (T-076 3.1; found by the E2E test of T-093).
+      -->
+      <DataTemplate x:Key="OverlayCardTemplate" x:DataType="ov:OverlayWidgetViewModel">
+        <Border Classes="overlayCard"
+                Classes.small="{Binding IsSmall}"
+                Classes.medium="{Binding IsMedium}"
+                Classes.large="{Binding IsLarge}"
+                Classes.outlined="{Binding IsOutlined}"
+                IsVisible="{Binding IsShown}"
+                Background="{Binding CardBackground}"
+                AutomationProperties.AccessibilityView="Content"
+                AutomationProperties.AutomationId="{Binding AutomationId}"
+                AutomationProperties.Name="{Binding AccessibleName}">
+          <ContentControl Content="{Binding}" ContentTemplate="{Binding CardTemplate}" />
+        </Border>
+      </DataTemplate>
+
+      <!-- State pill (Status): dot in the state colour + state name; M 22 high, L 26. -->
+      <ControlTheme x:Key="{x:Type ov:OverlayStatusPill}" TargetType="ov:OverlayStatusPill">
+        <Setter Property="Background" Value="{StaticResource OverlayPillBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OverlayTextPrimaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="CornerRadius" Value="11" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="HorizontalAlignment" Value="Left" />
+        <Setter Property="Template">
+          <ControlTemplate>
+            <!-- A grid, not a horizontal stack panel: the text gets the width that is left, so a long state name trims (T-082). -->
+            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+              <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                <Ellipse Width="8" Height="8" Margin="0,0,6,0" Fill="{TemplateBinding DotBrush}" VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1"
+                           Text="{TemplateBinding Text}"
+                           FontSize="{TemplateBinding FontSize}"
+                           FontWeight="{TemplateBinding FontWeight}"
+                           Foreground="{TemplateBinding Foreground}"
+                           TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center" />
+              </Grid>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+
+      <!--
+        Icon + value row (icons replace labels); the text wraps to at most 2 lines, the icon stays at the first. Text and
+        icon in the secondary colour (T-076 1.3: rows with an icon); the large numbers stay primary.
+      -->
+      <ControlTheme x:Key="{x:Type ov:OverlayIconText}" TargetType="ov:OverlayIconText">
+        <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
+        <Setter Property="IconBrush" Value="{StaticResource OverlayTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Grid ColumnDefinitions="Auto,*">
+              <ov:OverlayIcon Width="{TemplateBinding IconSize}"
+                              Height="{TemplateBinding IconSize}"
+                              CanvasSize="{TemplateBinding IconCanvasSize}"
+                              Data="{TemplateBinding Icon}"
+                              Foreground="{TemplateBinding IconBrush}"
+                              VerticalAlignment="Top"
+                              Margin="0,1,6,0" />
+              <TextBlock Grid.Column="1"
+                         Text="{TemplateBinding Text}"
+                         FontSize="{TemplateBinding FontSize}"
+                         FontWeight="{TemplateBinding FontWeight}"
+                         Foreground="{TemplateBinding Foreground}"
+                         FontFeatures="tnum"
+                         TextWrapping="Wrap"
+                         MaxLines="2"
+                         TextTrimming="CharacterEllipsis" />
+            </Grid>
+          </ControlTemplate>
+        </Setter>
+      </ControlTheme>
+
+      <!-- Chip (print name: material, layer height, nozzle): 20 high (L 22), 11 semi-bold. -->
+      <ControlTheme x:Key="{x:Type ov:OverlayChip}" TargetType="ov:OverlayChip">
+        <Setter Property="Background" Value="{StaticResource OverlayChipBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OverlayChipTextBrush}" />
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="7,0" />
+        <Setter Property="Template">
+          <ControlTemplate>
+            <Border Background="{TemplateBinding Background}" CornerRadius="{TemplateBinding CornerRadius}" Padding="{TemplateBinding Padding}">
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <ov:OverlayIcon x:Name="PART_Icon"
+                                IsVisible="False"
+                                Width="12"
+                                Height="12"
+                                CanvasSize="{TemplateBinding IconCanvasSize}"
+                                Data="{TemplateBinding Icon}"
+                                Foreground="{TemplateBinding Foreground}"
+                                VerticalAlignment="Center" />
+                <TextBlock Text="{TemplateBinding Text}"
+                           FontSize="{TemplateBinding FontSize}"
+                           FontWeight="{TemplateBinding FontWeight}"
+                           Foreground="{TemplateBinding Foreground}"
+                           FontFeatures="tnum"
+                           VerticalAlignment="Center" />
+              </StackPanel>
+            </Border>
+          </ControlTemplate>
+        </Setter>
+        <Style Selector="^:icon /template/ ov|OverlayIcon#PART_Icon">
+          <Setter Property="IsVisible" Value="True" />
+        </Style>
+      </ControlTheme>
+
+      <!-- Progress bar: accent on a light track, drawn by the control itself; 4 / 6 / 8 high by card size. -->
+      <ControlTheme x:Key="{x:Type ov:OverlayProgressBar}" TargetType="ov:OverlayProgressBar">
+        <Setter Property="Background" Value="{StaticResource OverlayTrackBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource OverlayAccentBrush}" />
+        <Setter Property="Height" Value="6" />
+      </ControlTheme>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <!-- Every anchor draws its widgets in the shared card. -->
+  <Style Selector="ItemsControl.overlayAnchor">
+    <Setter Property="ItemTemplate" Value="{StaticResource OverlayCardTemplate}" />
+  </Style>
+
+  <!-- Card (T-076 1.1): padding vertical / horizontal S 8 / 10, M 12 / 14, L 14 / 16; radius 8 / 10 / 12. -->
+  <Style Selector="Border.overlayCard">
+    <Setter Property="Padding" Value="14,12" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="IsHitTestVisible" Value="False" />
+    <Setter Property="UseLayoutRounding" Value="True" />
+  </Style>
+  <Style Selector="Border.overlayCard.small">
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="CornerRadius" Value="8" />
+  </Style>
+  <Style Selector="Border.overlayCard.large">
+    <Setter Property="Padding" Value="16,14" />
+    <Setter Property="CornerRadius" Value="12" />
+  </Style>
+  <!--
+    The only card with a border (T-076 1.1): Cool-down once cooled, 1.5 OverlayCooledBrush. The padding gives back the
+    border's width, so the card keeps its size when "Cooling down…" turns into "Cooled down".
+  -->
+  <Style Selector="Border.overlayCard.outlined">
+    <Setter Property="BorderBrush" Value="{StaticResource OverlayCooledBrush}" />
+    <Setter Property="BorderThickness" Value="1.5" />
+    <Setter Property="Padding" Value="12.5,10.5" />
+  </Style>
+  <Style Selector="Border.overlayCard.small.outlined">
+    <Setter Property="Padding" Value="8.5,6.5" />
+  </Style>
+  <Style Selector="Border.overlayCard.large.outlined">
+    <Setter Property="Padding" Value="14.5,12.5" />
+  </Style>
+
+  <!-- Text (T-076 1.2): row text 13 (S semi-bold, L 15), light on the dark card. -->
+  <Style Selector="Border.overlayCard TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource OverlayTextPrimaryBrush}" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="LineHeight" Value="18" />
+  </Style>
+  <Style Selector="Border.overlayCard.small TextBlock">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.overlayCard.large TextBlock">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="LineHeight" Value="20" />
+  </Style>
+  <Style Selector="Border.overlayCard TextBlock.secondary">
+    <Setter Property="Foreground" Value="{StaticResource OverlayTextSecondaryBrush}" />
+  </Style>
+  <!--
+    The text inside the parts draws the part's own colour, size and weight: the card's TextBlock styles above also match
+    the TextBlocks of the part templates and would win over their TemplateBindings (T-076 1.2 and 1.3: icon row secondary,
+    pill 12 / 13 semi-bold, chip #E4E4E7 11 / 12 semi-bold).
+  -->
+  <Style Selector="Border.overlayCard ov|OverlayIconText /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayIconText].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayIconText].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayIconText].FontWeight}" />
+  </Style>
+  <Style Selector="Border.overlayCard ov|OverlayStatusPill /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayStatusPill].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayStatusPill].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayStatusPill].FontWeight}" />
+  </Style>
+  <Style Selector="Border.overlayCard ov|OverlayChip /template/ TextBlock">
+    <Setter Property="Foreground" Value="{Binding $parent[ov:OverlayChip].Foreground}" />
+    <Setter Property="FontSize" Value="{Binding $parent[ov:OverlayChip].FontSize}" />
+    <Setter Property="FontWeight" Value="{Binding $parent[ov:OverlayChip].FontWeight}" />
+  </Style>
+  <!-- Tabular figures wherever digits change (Segoe UI has them by default, SF Pro and Inter do not). -->
+  <Style Selector="TextBlock.numeric">
+    <Setter Property="FontFeatures" Value="tnum" />
+  </Style>
+  <!-- Large number (Status: M 30 / 36, S 15 / 20, L 40 / 48; widgets may set another size). Never wraps. -->
+  <Style Selector="Border.overlayCard TextBlock.big">
+    <Setter Property="FontSize" Value="30" />
+    <Setter Property="LineHeight" Value="36" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+  <Style Selector="Border.overlayCard.small TextBlock.big">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="LineHeight" Value="20" />
+  </Style>
+  <Style Selector="Border.overlayCard.large TextBlock.big">
+    <Setter Property="FontSize" Value="40" />
+    <Setter Property="LineHeight" Value="48" />
+  </Style>
+  <!-- Emphasis (T-076 Q8): the key value in the accent colour; the widget binds the class to IsEmphasized. -->
+  <Style Selector="Border.overlayCard TextBlock.emphasized">
+    <Setter Property="Foreground" Value="{StaticResource OverlayAccentBrush}" />
+  </Style>
+
+  <!-- Parts by card size. -->
+  <Style Selector="Border.overlayCard.large ov|OverlayStatusPill">
+    <Setter Property="Height" Value="26" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="Border.overlayCard.large ov|OverlayChip">
+    <Setter Property="Height" Value="22" />
+    <Setter Property="CornerRadius" Value="11" />
+    <Setter Property="FontSize" Value="12" />
+  </Style>
+  <Style Selector="Border.overlayCard.small ov|OverlayIconText">
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Border.overlayCard.large ov|OverlayIconText">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="IconSize" Value="20" />
+  </Style>
+  <Style Selector="Border.overlayCard.small ov|OverlayProgressBar">
+    <Setter Property="Height" Value="4" />
+  </Style>
+  <Style Selector="Border.overlayCard.large ov|OverlayProgressBar">
+    <Setter Property="Height" Value="8" />
+  </Style>
+</Styles>

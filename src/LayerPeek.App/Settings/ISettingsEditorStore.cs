@@ -1,3 +1,4 @@
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Settings;
 
 namespace LayerPeek.App.Settings;
@@ -31,11 +32,17 @@ internal sealed record SettingsEditorData(
 /// Custom images imported in the window (PNG) by printer id, for printers of <paramref name="Updated"/> that use a custom image
 /// (T-039); stored only after the settings were saved. <see langword="null"/> = none.
 /// </param>
+/// <param name="LatestOverlayLayouts">
+/// Overlay layouts saved by the layout mode of a camera window that the window has not taken over (T-092 follow-up), read
+/// by the store when it writes: a printer whose layout <paramref name="Updated"/> has as in <paramref name="Original"/>
+/// gets the latest one instead of the window's older copy. <see langword="null"/> = none.
+/// </param>
 internal sealed record SettingsChange(
     AppSettings Original,
     AppSettings Updated,
     IReadOnlyDictionary<string, string> NewPasswords,
-    IReadOnlyDictionary<string, byte[]>? NewImages = null);
+    IReadOnlyDictionary<string, byte[]>? NewImages = null,
+    ILatestOverlayLayouts? LatestOverlayLayouts = null);
 
 /// <summary>Outcome of <see cref="ISettingsEditorStore.SaveAsync"/>. Public only because xUnit theory data needs it.</summary>
 public enum SettingsSaveStatus
@@ -58,7 +65,16 @@ public enum SettingsSaveStatus
 /// Saved, but the new custom images of these printers (ids, case-insensitive) could not be stored (T-039); the window keeps
 /// them so that the next Save tries again. <see langword="null"/> = none.
 /// </param>
-internal sealed record SettingsSaveResult(SettingsSaveStatus Status, bool RollbackIncomplete = false, int UndeletedPasswords = 0, IReadOnlySet<string>? UnsavedImages = null);
+/// <param name="KeptOverlayLayouts">
+/// Saved with these layouts (by printer id, case-insensitive) from <see cref="SettingsChange.LatestOverlayLayouts"/> instead
+/// of the window's unchanged older copies; the window takes them as saved. <see langword="null"/> = none.
+/// </param>
+internal sealed record SettingsSaveResult(
+    SettingsSaveStatus Status,
+    bool RollbackIncomplete = false,
+    int UndeletedPasswords = 0,
+    IReadOnlySet<string>? UnsavedImages = null,
+    IReadOnlyDictionary<string, CameraOverlayLayout>? KeptOverlayLayouts = null);
 
 /// <summary>Loads and saves what the settings window edits: <see cref="AppSettings"/> and printer passwords.</summary>
 internal interface ISettingsEditorStore

@@ -4,6 +4,9 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Layout;
+using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
 using LayerPeek.App.Installer;
@@ -12,6 +15,7 @@ using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
+using LayerPeek.App.Previews;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
@@ -20,10 +24,12 @@ using LayerPeek.App.Tray.Menu;
 using LayerPeek.App.Windows;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Notifications;
+using LayerPeek.Core.Previews;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.Core.Settings;
@@ -145,9 +151,34 @@ internal static class AppServices
             sp.GetRequiredService<INotificationService>(),
             sp.GetRequiredService<ILogger<PrintEventNotifier>>()));
         services.AddSingleton(static sp => new PrintNotificationObserver(sp.GetRequiredService<PrintEventNotifier>()));
+        // Cooling down after a print (T-079), per printer with its threshold; read by the cool-down widget and notification.
+        services.AddSingleton(static sp => new CooldownMonitor(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CooldownMonitor>>()));
+        services.AddSingleton(static sp => new CooldownObserver(sp.GetRequiredService<CooldownMonitor>()));
+        // Optional "printer cooled down" notification (T-080), filtered and with sound like the other notifications.
+        services.AddSingleton(static sp => new CooldownNotifier(
+            sp.GetRequiredService<CooldownMonitor>(),
+            sp.GetRequiredService<INotificationService>(),
+            sp.GetRequiredService<ILogger<CooldownNotifier>>()));
+        services.AddSingleton(static sp => new CooldownNotificationObserver(sp.GetRequiredService<CooldownNotifier>()));
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
+        // G-code previews (T-086 / T-087): in memory only, over the PrusaLink fetcher; told about every snapshot and the printers
+        // of every run; decoded once per job and size for all camera windows. Disposed with the services.
+        services.AddSingleton(static sp => new PrintPreviewCache(
+            sp.GetRequiredService<PrusaLinkPreviewFetcher>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintPreviewCache>>()));
+        services.AddSingleton(static sp => new PrintPreviewObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<PrintPreviewCache>()));
+        services.AddSingleton(static sp => new PrintThumbnails(
+            sp.GetRequiredService<PrintPreviewCache>(),
+            new AvaloniaPrintThumbnailDecoder(),
+            sp.GetRequiredService<IUiDispatcher>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<PrintThumbnails>>()));
         // Diagnostics window (T-011): the printers of the current run, and printer/firmware information on demand.
         services.AddSingleton(static _ => new MonitoredPrinters());
         services.AddSingleton<IPrinterInfoSource>(static sp => new PrinterInfoSource(sp.GetRequiredService<PrusaLinkClientFactory>()));
@@ -163,13 +194,18 @@ internal static class AppServices
                 sp.GetRequiredService<TrayStatusViewModel>(),
                 sp.GetRequiredService<TrayMenuViewModel>(),
                 sp.GetRequiredService<PrintNotificationObserver>(),
+                // Before the cool-down monitor: a raised threshold may cool a printer down while it is configured.
+                sp.GetRequiredService<CooldownNotificationObserver>(),
+                sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
+                sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>(),
             sp.GetRequiredService<RemovedCameraCredentials>(),
-            sp.GetRequiredService<TimeProvider>()));
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ICameraOverlayLayoutWriter>()));
 
         // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
         // web proxies of printers whose login changed are stopped (T-028).
@@ -185,7 +221,12 @@ internal static class AppServices
             removedCameraCredentials: sp.GetRequiredService<RemovedCameraCredentials>(),
             imageStore: sp.GetRequiredService<IPrinterImageStore>,
             customImages: sp.GetRequiredService<CustomPrinterImages>(),
-            monitorPaths: sp.GetRequiredService<ICameraMonitorPathUpdater>()));
+            monitorPaths: sp.GetRequiredService<ICameraMonitorPathUpdater>(),
+            writeGate: sp.GetRequiredService<SettingsWriteGate>()));
+        // A layout saved by a camera window is never lost between the reading and the writing of a settings window's save.
+        // Registered as an instance: the container does not dispose it, so a save still running at exit never meets a
+        // disposed gate (it holds no OS handle).
+        services.AddSingleton(new SettingsWriteGate());
         services.AddSingleton<IConnectionTester>(static sp => new PrusaLinkConnectionTester(
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
@@ -207,6 +248,9 @@ internal static class AppServices
         });
 
         AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
+        // Size and maximized state of the settings and diagnostics windows (T-094, windows.json): app state, not settings.
+        // Created on first use; TrayHost reads the file in the background at startup.
+        services.AddSingleton(CreateAuxiliaryWindowStateStore);
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
@@ -383,10 +427,34 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
+        // The widgets of the camera overlay, an explicit list (T-081).
+        services.AddSingleton(OverlayWidgets.CreateRegistry());
+        // "Done" of the layout mode writes only the printer's overlay section and announces it (T-077, T-091): the monitoring
+        // session takes the layout, an open settings window reloads it (T-092).
+        services.AddSingleton<ICameraOverlayLayoutWriter>(static sp => new DeferredCameraOverlayLayoutWriter(
+            sp.GetRequiredService<ISettingsStore>,
+            sp.GetRequiredService<ILogger<CameraOverlayLayoutWriter>>(),
+            sp.GetRequiredService<SettingsWriteGate>()));
         // A saved camera monitor found on another connector keeps its new device path (user decision 2026-10-23).
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
+    }
+
+    private static IAuxiliaryWindowStateStore CreateAuxiliaryWindowStateStore(IServiceProvider services)
+    {
+        try
+        {
+            return new JsonAuxiliaryWindowStateStore(
+                services.GetRequiredService<AppEnvironment>().DataDirectory(),
+                services.GetRequiredService<ILogger<JsonAuxiliaryWindowStateStore>>(),
+                services.GetRequiredService<TimeProvider>());
+        }
+        catch (InvalidOperationException)
+        {
+            // No per-user data folder: the window sizes are remembered for this run only.
+            return new MemoryAuxiliaryWindowStateStore();
+        }
     }
 
     private static ICameraWindowStateStore CreateCameraWindowStateStore(IServiceProvider services)
@@ -429,7 +497,12 @@ internal static class AppServices
                 services.GetRequiredService<TimeProvider>(),
                 services.GetRequiredService<CameraFeedOptions>(),
                 services.GetRequiredService<ILogger<CameraViewModel>>(),
-                services.GetRequiredService<ICameraMonitorPathUpdater>())
+                services.GetRequiredService<ICameraMonitorPathUpdater>(),
+                services.GetRequiredService<OverlayWidgetRegistry>(),
+                services.GetRequiredService<TelemetryHistory>(),
+                services.GetRequiredService<CooldownMonitor>(),
+                services.GetRequiredService<PrintThumbnails>(),
+                services.GetRequiredService<ICameraOverlayLayoutWriter>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -471,7 +544,10 @@ internal static class AppServices
     /// </summary>
     /// <param name="screens">The monitors offered for the camera window (T-035); <see langword="null"/>: none.</param>
     /// <param name="cameraWindowPlacer">The open camera windows, placed again by "Apply" (T-040); <see langword="null"/>: none.</param>
-    internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null)
+    /// <param name="layoutModeLauncher">
+    /// The camera windows, whose layout mode "Edit layout in camera window…" starts (T-092); <see langword="null"/>: none.
+    /// </param>
+    internal static SettingsViewModel CreateSettingsViewModel(IServiceProvider services, IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null, ICameraLayoutModeLauncher? layoutModeLauncher = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         AppEnvironment environment = services.GetRequiredService<AppEnvironment>();
@@ -486,7 +562,12 @@ internal static class AppServices
             cameraWindowPlacer: cameraWindowPlacer,
             timeProvider: services.GetRequiredService<TimeProvider>(),
             autostart: services.GetRequiredService<AutostartOption>().Autostart,
-            autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation)
+            autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation,
+            widgets: services.GetRequiredService<OverlayWidgetRegistry>(),
+            layoutModeLauncher: layoutModeLauncher,
+            // A layout saved from a camera window replaces only that layout in an open settings window (T-077 Q3).
+            layoutWriter: services.GetRequiredService<ICameraOverlayLayoutWriter>(),
+            uiDispatcher: services.GetRequiredService<IUiDispatcher>())
         {
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).

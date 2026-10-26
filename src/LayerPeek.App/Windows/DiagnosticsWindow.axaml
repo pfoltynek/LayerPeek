@@ -8,34 +8,36 @@
         x:DataType="vm:DiagnosticsViewModel"
         Title="{Binding [DiagnosticsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
         Width="780"
-        Height="508"
+        Height="532"
         MinWidth="640"
         MinHeight="400"
         CanMinimize="False"
-        CanMaximize="False"
+        CanMaximize="True"
         WindowStartupLocation="CenterScreen">
   <!--
-    Layout of T-041 (approved design, variant A): the size of the settings window (client 780 × 508 DIP, fits an
-    800 × 600 screen at 100 % with the title bar), shrunk to a smaller work area like it (AuxiliaryWindowPlacement).
+    Layout of T-041 (approved design, variant A): the size of the settings window (client 780 × 532 DIP, T-094, fits the
+    smallest common laptop work area of about 1093 × 580 DIP with the title bar), shrunk to a smaller work area like it
+    (AuxiliaryWindowPlacement). Size and maximized state are remembered like the settings window's (windows.json).
     Header (image 48, name or selector, state, detail, last update), notice, two value columns (temperatures | fans and
     motion), the temperature chart over the full width filling the remaining height (at least 120), and a footer with the
     printer information (or its status) next to Close. The scroll viewer is only the fallback below the designed size.
-    Only the close button in the title bar (like the settings window, T-040); the window stays resizable.
+    Close and maximize buttons in the title bar (like the settings window, T-040 / T-094); the window stays resizable and,
+    maximized, the columns and the chart stretch.
   -->
   <Window.Resources>
     <ResourceDictionary>
+      <!-- Nozzle and bed colours shared with the camera overlay (T-084): ChartNozzleBrush, ChartBedBrush. -->
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://LayerPeek/Resources/ChartColors.axaml" />
+      </ResourceDictionary.MergedDictionaries>
       <!-- Chart colours per theme; the chart and its legend follow a theme change through DynamicResource. -->
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
-          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#D9480F" />
-          <SolidColorBrush x:Key="ChartBedBrush" Color="#1864AB" />
           <SolidColorBrush x:Key="ChartAxisBrush" Color="#616161" />
           <SolidColorBrush x:Key="ChartGridBrush" Color="#E6E6E6" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#FFF4E5" />
         </ResourceDictionary>
         <ResourceDictionary x:Key="Dark">
-          <SolidColorBrush x:Key="ChartNozzleBrush" Color="#FF8A4C" />
-          <SolidColorBrush x:Key="ChartBedBrush" Color="#4DABF7" />
           <SolidColorBrush x:Key="ChartAxisBrush" Color="#ADADAD" />
           <SolidColorBrush x:Key="ChartGridBrush" Color="#3A3A3A" />
           <SolidColorBrush x:Key="NoticeBrush" Color="#4A3410" />

@@ -58,7 +58,11 @@ internal sealed class DiagnosticsWindowHarness
     /// latest snapshots in <paramref name="snapshots"/> are known to the monitor before the window opens, like after a
     /// few polls; each of them also leaves 2.5 h of chart history behind.
     /// </summary>
-    public static DiagnosticsWindowHarness Open(UiTestScope scope, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots)
+    public static DiagnosticsWindowHarness Open(UiTestScope scope, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots) =>
+        OpenRemembering(scope, windowStates: null, printers, snapshots);
+
+    /// <summary>Like <see cref="Open(UiTestScope, PrinterDefinition[], PrinterSnapshot[])"/>, remembering the size in <paramref name="windowStates"/> (T-094).</summary>
+    public static DiagnosticsWindowHarness OpenRemembering(UiTestScope scope, IAuxiliaryWindowStateStore? windowStates, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots)
     {
         ArgumentNullException.ThrowIfNull(scope);
         FakePrinterMonitor monitor = new();
@@ -87,6 +91,11 @@ internal sealed class DiagnosticsWindowHarness
             new FixedClock(TestPrinters.Now),
             images: new CustomPrinterImages()));
         DiagnosticsWindow window = scope.Track(new DiagnosticsWindow { DataContext = viewModel });
+        if (windowStates is not null)
+        {
+            window.RememberSizeIn(windowStates);
+        }
+
         AuxiliaryWindowSlot slot = new();
         slot.ShowOrActivate(() => (new AvaloniaAuxiliaryWindow(window), viewModel));
         window.SetRenderScaling(1.0);

@@ -47,16 +47,16 @@
     <comment>One printer line of the multi-printer tooltip. {0} = "Name: State – 42%", {1} = remaining duration.</comment>
   </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
-    <value>&lt; 1 min</value>
+    <value>&lt;&#160;1&#160;min</value>
   </data>
   <data name="DurationMinutes" xml:space="preserve">
-    <value>{0} min</value>
+    <value>{0}&#160;min</value>
   </data>
   <data name="DurationHoursMinutes" xml:space="preserve">
-    <value>{0} h {1} min</value>
+    <value>{0}&#160;h {1}&#160;min</value>
   </data>
   <data name="DurationDaysHours" xml:space="preserve">
-    <value>{0} d {1} h</value>
+    <value>{0}&#160;d {1}&#160;h</value>
   </data>
   <data name="StateConnecting" xml:space="preserve">
     <value>Connecting…</value>
@@ -191,6 +191,18 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>The printer status changed</value>
   </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Printer cooled down</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Print finished, printer cooled down</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Print stopped, printer cooled down</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Safe to turn off. Nozzle {0} °C, threshold {1} °C</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostics – LayerPeek</value>
   </data>
@@ -249,13 +261,13 @@
     <value>Off</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} RPM</value>
+    <value>{0}&#160;RPM</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0}%</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -270,13 +282,13 @@
     <value>Temperature history</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>No temperature data in this period</value>
@@ -524,6 +536,117 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>Printer went offline or is back online</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Printer cooled down</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>The nozzle temperature threshold is set per printer on the Widgets tab, Cool-down widget.</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Nozzle temperature threshold (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Below this temperature the printer is safe to turn off.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Enter a whole number from {0} to {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Use threshold for all printers</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>The threshold was copied to the other printers. It applies after saving.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Only one printer is set up.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widgets</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Printer</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>No printer is set up. Add one on the Printers tab.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Camera window widgets</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Show the {0} widget</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, shown</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, hidden</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>This widget has no other settings.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>All widgets</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Edit layout in camera window…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Opens this printer's camera window in layout mode, where you change the position, order, size and highlighting of the widgets.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Turn on this printer's camera and save the settings.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Save the settings first.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Restores the visibility, position, order, size and highlighting of this printer's widgets.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>The default layout was restored. It applies after saving.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>“Printer cooled down” notification: on</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>“Printer cooled down” notification: off</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Notifications are turned off.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Change on the General tab</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Use layout for all printers</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>The layout was copied to the other printers. It applies after saving.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Change position, order, size and highlighting with Edit layout in camera window.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Card background opacity</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Applies to the camera windows of all printers. Higher values keep text readable on bright video.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Printer name, state and print progress in percent.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Time remaining, finish time and print time.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Nozzle and bed temperature with a chart of the last 60 minutes.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Readable print name with material, layer height and nozzle; larger sizes add a preview.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>After a print ends, shows the nozzle cooling down and when the printer is safe to turn off.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notify when this many minutes of printing remain (0 = off)</value>
   </data>
@@ -641,7 +764,7 @@
     <value>Camera snapshot from the test</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>No image arrived from the camera within {0} s.</value>
+    <value>No image arrived from the camera within {0}&#160;s.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>The camera stream could not be opened: {0}</value>
@@ -846,11 +969,20 @@
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Enter a width of {0}–{1} and a height of {2}–{3}.</value>
   </data>
-  <data name="CameraOverlayLabeledValue" xml:space="preserve">
-    <value>{0}: {1}</value>
-  </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayChartStart" xml:space="preserve">
+    <value>−60&#160;min</value>
+  </data>
+  <data name="CameraOverlayChartNow" xml:space="preserve">
+    <value>now</value>
+  </data>
+  <data name="CameraOverlayChartNoData" xml:space="preserve">
+    <value>No data</value>
+  </data>
+  <data name="CameraOverlayChartName" xml:space="preserve">
+    <value>chart of the last 60 minutes</value>
   </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Done at {0}</value>
@@ -858,47 +990,95 @@
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Done {0} at {1}</value>
   </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>nozzle {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>layer height {0}&#160;mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>nozzle {0}&#160;mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>slicer estimate {0}</value>
+  </data>
+  <data name="CameraOverlayThumbnailName" xml:space="preserve">
+    <value>Print preview</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Print time: {0}</value>
   </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Overlay</value>
+  <data name="CameraOverlayWidgetStatus" xml:space="preserve">
+    <value>Status</value>
   </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Overlay corner</value>
+  <data name="CameraOverlayWidgetTimes" xml:space="preserve">
+    <value>Times</value>
   </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Normal window and full screen</value>
+  <data name="CameraOverlayWidgetTemperatures" xml:space="preserve">
+    <value>Temperatures</value>
   </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Printer name</value>
+  <data name="CameraOverlayWidgetPrintName" xml:space="preserve">
+    <value>Print name</value>
   </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Printer state</value>
+  <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
+    <value>Cool-down</value>
   </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Nozzle temperature</value>
+  <data name="CameraOverlayRemainingLabel" xml:space="preserve">
+    <value>Remaining</value>
   </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Bed temperature</value>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Cooling down… {0}&#160;°C · about {1}</value>
   </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Progress (%)</value>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Cooling down… {0}&#160;°C</value>
   </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Remaining time</value>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Cooled down · {0}&#160;°C</value>
   </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Finish time (clock)</value>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Cooling down…</value>
   </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Print time</value>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Cooled down – safe to turn off</value>
   </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>File name</value>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>safe to turn off in about {0} (nozzle below {1}&#160;°C)</value>
   </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Job data (progress, times, file name) is shown only during a print. Changes apply to open camera windows too after saving.</value>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>safe to turn off once the nozzle is below {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>print finished at {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>print stopped at {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>cooled down in {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>about {0}</value>
+  </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Print name in the strip</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Temperature chart in the strip</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Show print name</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Hide print name</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Show temperature chart</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Hide temperature chart</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>The print name appears during a print</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Printer image: {0}</value>
@@ -1001,5 +1181,86 @@
   </data>
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>The information could not be copied to the clipboard. Try again.</value>
+  </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Edit layout</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Layout mode</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>drag a widget to an anchor</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Space picks a widget up, arrow keys move it, Enter opens its options, Esc discards the changes.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Restore defaults</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Drop here</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>no data right now</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Highlight</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Shows the key value in orange.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Size</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Small</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Medium</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Large</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>This widget has no such size.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>Top center</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>Bottom center</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Layout mode. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} picked up. Use the arrow keys to choose a place, Space to drop, Esc to cancel.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}: {1}, position {2} of {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} moved: {1}, position {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Move cancelled</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Default layout restored</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Layout saved</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Layout changes discarded</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>The layout could not be saved. Try again.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Enlarge the window to edit the layout.</value>
   </data>
 </root>

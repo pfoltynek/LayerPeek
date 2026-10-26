@@ -3,7 +3,10 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Overlay.Widgets;
+using LayerPeek.App.Previews;
 using LayerPeek.App.Composition;
+using LayerPeek.App.Cooldown;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.History;
 using LayerPeek.App.Localization;
@@ -18,9 +21,11 @@ using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Notifications;
+using LayerPeek.Core.Previews;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.Core.Settings;
@@ -172,6 +177,28 @@ public sealed class AppServicesTests
     }
 
     [Fact]
+    public async Task CooldownMonitorIsRegisteredAsSingletonAndGetsTheSettingsOfEveryRun()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<CooldownMonitor>(), services.GetRequiredService<CooldownMonitor>());
+        Assert.Contains(services.GetRequiredService<CooldownObserver>(), services.GetRequiredService<MonitoringSession>().Observers);
+    }
+
+    [Fact]
+    public async Task CooldownNotificationIsConfiguredBeforeTheCooldownMonitor()
+    {
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.Same(services.GetRequiredService<CooldownNotifier>(), services.GetRequiredService<CooldownNotifier>());
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        int notification = observers.IndexOf(services.GetRequiredService<CooldownNotificationObserver>());
+        int monitor = observers.IndexOf(services.GetRequiredService<CooldownObserver>());
+        Assert.True(notification >= 0, "The cool-down notification gets no settings.");
+        Assert.True(notification < monitor, "A threshold raised by the same settings would be notified with the old ones.");
+    }
+
+    [Fact]
     public async Task TelemetryHistoryIsRegisteredAsSingletonWithObserver()
     {
         await using ServiceProvider services = AppServices.Create();
@@ -252,6 +279,29 @@ public sealed class AppServicesTests
         // Only the type: resolving it touches no files (nothing is loaded or saved in this test).
         Assert.IsType<JsonCameraWindowStateStore>(services.GetRequiredService<ICameraWindowStateStore>());
         Assert.Same(services.GetRequiredService<RemovedCameraCredentials>(), services.GetRequiredService<RemovedCameraCredentials>());
+    }
+
+    /// <summary>
+    /// T-087: one in-memory preview cache over the PrusaLink fetcher (T-086), fed with every snapshot and the printers of
+    /// every run, and one shared store of decoded thumbnails that the Print name widget of every camera window uses.
+    /// </summary>
+    [Fact]
+    public async Task PreviewCacheIsWiredToMonitoringAndToTheCameraWindows()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        Assert.Same(services.GetRequiredService<PrintPreviewCache>(), services.GetRequiredService<PrintPreviewCache>());
+        Assert.Same(services.GetRequiredService<PrintThumbnails>(), services.GetRequiredService<PrintThumbnails>());
+        PrintPreviewObserver observer = services.GetRequiredService<PrintPreviewObserver>();
+        Assert.Contains(observer, services.GetRequiredService<MonitoringSession>().Observers);
+
+        PrinterDefinition saved = new() { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) };
+        using CameraViewModel? camera = AppServices.CreateCameraViewModel(services, "a", saved);
+        Assert.NotNull(camera);
+        PrintNameWidgetViewModel widget = Assert.IsType<PrintNameWidgetViewModel>(camera.Overlay.Widgets.Single(static widget => widget.Id == LayerPeek.Core.Cameras.Overlay.OverlayWidgetIds.PrintName));
+        Assert.Same(services.GetRequiredService<PrintThumbnails>(), widget.Thumbnails);
     }
 
     [Fact]

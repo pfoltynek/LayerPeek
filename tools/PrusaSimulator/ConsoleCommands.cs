@@ -55,6 +55,10 @@ public static class ConsoleCommands
                 {
                     printer.Simulation.SetOffline(false);
                 }
+                else if (action.Equals("previews", StringComparison.OrdinalIgnoreCase) || action.Equals("no-previews", StringComparison.OrdinalIgnoreCase))
+                {
+                    printer.PreviewsEnabled = action.Equals("previews", StringComparison.OrdinalIgnoreCase);
+                }
                 else if (PrinterScenarios.TryParse(action, out PrinterScenario scenario, out bool offline))
                 {
                     if (offline)
@@ -68,7 +72,7 @@ public static class ConsoleCommands
                 }
                 else
                 {
-                    output.WriteLine($"Unknown scenario '{action}' (use {string.Join(", ", PrinterScenarios.Names)}, online).");
+                    output.WriteLine($"Unknown scenario '{action}' (use {string.Join(", ", PrinterScenarios.Names)}, online, previews, no-previews).");
                     return true;
                 }
             }
@@ -95,7 +99,7 @@ public static class ConsoleCommands
                 : "";
             output.WriteLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"{i + 1}. {printer.Model.ProductName,-8} {printer.BaseUri} {PrinterScenarios.Format(printer.Simulation.Scenario),-9} {(printer.Simulation.IsOnline ? "online " : "OFFLINE")} {status.State,-9} nozzle {status.TempNozzle:0.0}/{status.TargetNozzle:0} bed {status.TempBed:0.0}/{status.TargetBed:0}{job}"));
+                $"{i + 1}. {printer.Model.ProductName,-8} {printer.BaseUri} {PrinterScenarios.Format(printer.Simulation.Scenario),-9} {(printer.Simulation.IsOnline ? "online " : "OFFLINE")} {status.State,-9} nozzle {status.TempNozzle:0.0}/{status.TargetNozzle:0} bed {status.TempBed:0.0}/{status.TargetBed:0}{job}{(printer.PreviewsEnabled ? "" : " (no previews)")}"));
         }
 
         if (host.Camera is { } camera)

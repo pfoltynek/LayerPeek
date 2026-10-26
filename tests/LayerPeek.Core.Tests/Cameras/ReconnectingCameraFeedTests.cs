@@ -254,7 +254,8 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
         _time.Advance(Tick);
         CameraStatus noSignal = await _status.NextAsync();
         Assert.Equal(CameraConnectionState.NoSignal, noSignal.State);
-        Assert.Contains("20", noSignal.Reason, StringComparison.Ordinal);
+        // The reason reaches the camera window (status detail): number and unit are joined by a non-breaking space.
+        Assert.Equal("The camera sent no image within 20 s.", noSignal.Reason);
         Assert.True(first.IsDisposed);
 
         _time.Advance(Options.ReconnectDelay);
@@ -281,7 +282,7 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
         _time.Advance(Tick);
         CameraStatus noSignal = await _status.NextAsync();
         Assert.Equal(CameraConnectionState.NoSignal, noSignal.State);
-        Assert.Contains("10", noSignal.Reason, StringComparison.Ordinal);
+        Assert.Equal("The camera stopped sending images (none within 10 s).", noSignal.Reason);
         Assert.True(stream.IsDisposed);
         Assert.False(move.IsCompleted);
     }

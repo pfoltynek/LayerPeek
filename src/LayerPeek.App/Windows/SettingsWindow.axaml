@@ -3,25 +3,33 @@
         xmlns:vm="using:LayerPeek.App.Settings"
         xmlns:loc="using:LayerPeek.App.Localization"
         xmlns:printers="using:LayerPeek.App.Printers"
+        xmlns:w="using:LayerPeek.App.Settings.Widgets"
         x:Class="LayerPeek.App.Windows.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
         Title="{Binding [SettingsTitle], Source={x:Static loc:LocalizedStrings.Instance}}"
         Width="780"
-        Height="508"
+        Height="532"
         MinWidth="640"
         MinHeight="400"
         CanMinimize="False"
-        CanMaximize="False"
+        CanMaximize="True"
         WindowStartupLocation="CenterScreen">
   <!--
-    Layout of T-033: the window (client 780 × 508 DIP, plus a title bar of about 32) fits an 800 × 600 screen at 100 %
-    without scrolling, in every language and with every validation message and test result. AuxiliaryWindowPlacement
-    shrinks it to a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case and for the
-    notice bar at the top. Sizes and spacing follow the approved design in the task (T-033, "Návrh UI").
-    T-040: only the close button in the title bar (no minimize, no maximize); the window stays resizable.
+    Layout of T-033: at its default size (client 780 × 532 DIP, T-094, plus a title bar of about 32) the window fits the
+    smallest common laptop work area (about 1093 × 580 DIP: 1366 × 768 at 125 % or 1920 × 1080 at 175 %) without
+    scrolling, in every language and with every validation message and test result. AuxiliaryWindowPlacement shrinks it to
+    a smaller work area; the scroll viewers of the (sub-)tabs are only the fallback for that case, for a window the user
+    made smaller and for the notice bar at the top. Sizes and spacing follow the approved design in the task (T-033,
+    "Návrh UI").
+    T-040 / T-094: close and maximize buttons in the title bar (no minimize); the window is resizable, and its size and
+    maximized state are remembered in windows.json (WorkAreaFitter). Maximized, the content stretches with its * columns.
   -->
   <Window.Resources>
     <ResourceDictionary>
+      <!-- The widget icons of the Widgets tab (T-092): the Fluent UI System Icons of the camera overlay (T-076 6). -->
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://LayerPeek/Cameras/Overlay/OverlayIcons.axaml" />
+      </ResourceDictionary.MergedDictionaries>
       <ResourceDictionary.ThemeDictionaries>
         <ResourceDictionary x:Key="Light">
           <SolidColorBrush x:Key="SettingsErrorBrush" Color="#C42B1C" />
@@ -74,23 +82,6 @@
     </Style>
     <Style Selector="TextBlock.status.isError">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
-    </Style>
-    <!--
-      Overlay table (T-036): column headers over the check boxes, at most 2 lines in 120 DIP (13 px: es "pantalla completa"
-      does not fit 120 DIP at 14 px semi-bold), check boxes centred in their column.
-    -->
-    <Style Selector="TextBlock.columnHeader">
-      <Setter Property="FontSize" Value="13" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="TextWrapping" Value="Wrap" />
-      <Setter Property="TextAlignment" Value="Center" />
-      <Setter Property="HorizontalAlignment" Value="Center" />
-      <Setter Property="VerticalAlignment" Value="Bottom" />
-      <Setter Property="Margin" Value="0,0,0,4" />
-    </Style>
-    <Style Selector="CheckBox.cell">
-      <Setter Property="HorizontalAlignment" Value="Center" />
-      <Setter Property="MinWidth" Value="0" />
     </Style>
     <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
     <Style Selector="TabControl.main, TabControl.sub">
@@ -518,7 +509,7 @@
                                       AutomationProperties.AutomationId="PrinterCameraWindowMiniSize"
                                       AutomationProperties.Name="{Binding MiniSizeName}"
                                       IsEditable="True"
-                                      ItemsSource="{x:Static vm:CameraWindowSizeText.Presets}"
+                                      ItemsSource="{x:Static vm:CameraWindowSizeText.MiniPresets}"
                                       Text="{Binding MiniSizeText, Mode=TwoWay}"
                                       HorizontalAlignment="Stretch" />
                             <ComboBox Grid.Row="5"
@@ -566,193 +557,204 @@
                 </ContentControl>
               </ScrollViewer>
             </TabItem>
-
-            <!--
-              Overlay (T-036): what the camera window shows over the image and in which corner. Rows: the items, printer data
-              first, then job data; columns: the normal window (also full screen) and the mini preview. The table is disabled
-              (values kept) while the camera is off; the hints on the right stay readable.
-            -->
-            <TabItem AutomationProperties.AutomationId="PrinterTabOverlay">
-              <TabItem.Header>
-                <TextBlock Text="{Binding [SettingsPrinterTabOverlay], Source={x:Static loc:LocalizedStrings.Instance}}" />
-              </TabItem.Header>
-              <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
-                <ContentControl Content="{Binding SelectedPrinter}">
-                  <ContentControl.ContentTemplate>
-                    <DataTemplate x:DataType="vm:PrinterEditorViewModel">
-                      <Grid ColumnDefinitions="Auto,16,*">
-                        <Grid AutomationProperties.AutomationId="PrinterOverlayFields"
-                              IsEnabled="{Binding CameraEnabled}"
-                              ColumnDefinitions="Auto,120,120"
-                              RowDefinitions="Auto,32,32,32,32,32,32,32,32,32">
-                          <StackPanel VerticalAlignment="Bottom" Margin="0,0,0,4">
-                            <TextBlock Classes="label" Text="{Binding [SettingsOverlayCorner], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <ComboBox AutomationProperties.AutomationId="PrinterOverlayCorner"
-                                      AutomationProperties.Name="{Binding [SettingsOverlayCorner], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                      ItemsSource="{Binding OverlayCornerOptions}"
-                                      SelectedItem="{Binding SelectedOverlayCorner}"
-                                      HorizontalAlignment="Stretch">
-                              <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CameraOverlayCornerOption">
-                                  <TextBlock Text="{Binding Text}" />
-                                </DataTemplate>
-                              </ComboBox.ItemTemplate>
-                            </ComboBox>
-                          </StackPanel>
-                          <TextBlock Grid.Column="1"
-                                     AutomationProperties.AutomationId="PrinterOverlayNormalHeader"
-                                     Classes="columnHeader"
-                                     Text="{Binding [SettingsOverlayNormalColumn], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                          <TextBlock Grid.Column="2"
-                                     AutomationProperties.AutomationId="PrinterOverlayMiniHeader"
-                                     Classes="columnHeader"
-                                     Text="{Binding [SettingsCameraWindowMini], Source={x:Static loc:LocalizedStrings.Instance}}" />
-
-                          <TextBlock Grid.Row="1" VerticalAlignment="Center" Text="{Binding OverlayRows[0].Text}" />
-                          <CheckBox Grid.Row="1"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayPrinterNameNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[0].NormalName}"
-                                    IsChecked="{Binding OverlayRows[0].IsNormal}" />
-                          <CheckBox Grid.Row="1"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayPrinterNameMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[0].MiniName}"
-                                    IsChecked="{Binding OverlayRows[0].IsMini}" />
-
-                          <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding OverlayRows[1].Text}" />
-                          <CheckBox Grid.Row="2"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayStateNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[1].NormalName}"
-                                    IsChecked="{Binding OverlayRows[1].IsNormal}" />
-                          <CheckBox Grid.Row="2"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayStateMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[1].MiniName}"
-                                    IsChecked="{Binding OverlayRows[1].IsMini}" />
-
-                          <TextBlock Grid.Row="3" VerticalAlignment="Center" Text="{Binding OverlayRows[2].Text}" />
-                          <CheckBox Grid.Row="3"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayNozzleTemperatureNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[2].NormalName}"
-                                    IsChecked="{Binding OverlayRows[2].IsNormal}" />
-                          <CheckBox Grid.Row="3"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayNozzleTemperatureMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[2].MiniName}"
-                                    IsChecked="{Binding OverlayRows[2].IsMini}" />
-
-                          <TextBlock Grid.Row="4" VerticalAlignment="Center" Text="{Binding OverlayRows[3].Text}" />
-                          <CheckBox Grid.Row="4"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayBedTemperatureNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[3].NormalName}"
-                                    IsChecked="{Binding OverlayRows[3].IsNormal}" />
-                          <CheckBox Grid.Row="4"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayBedTemperatureMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[3].MiniName}"
-                                    IsChecked="{Binding OverlayRows[3].IsMini}" />
-
-                          <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="{Binding OverlayRows[4].Text}" />
-                          <CheckBox Grid.Row="5"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayProgressNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[4].NormalName}"
-                                    IsChecked="{Binding OverlayRows[4].IsNormal}" />
-                          <CheckBox Grid.Row="5"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayProgressMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[4].MiniName}"
-                                    IsChecked="{Binding OverlayRows[4].IsMini}" />
-
-                          <TextBlock Grid.Row="6" VerticalAlignment="Center" Text="{Binding OverlayRows[5].Text}" />
-                          <CheckBox Grid.Row="6"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayRemainingTimeNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[5].NormalName}"
-                                    IsChecked="{Binding OverlayRows[5].IsNormal}" />
-                          <CheckBox Grid.Row="6"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayRemainingTimeMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[5].MiniName}"
-                                    IsChecked="{Binding OverlayRows[5].IsMini}" />
-
-                          <TextBlock Grid.Row="7" VerticalAlignment="Center" Text="{Binding OverlayRows[6].Text}" />
-                          <CheckBox Grid.Row="7"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayFinishTimeNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[6].NormalName}"
-                                    IsChecked="{Binding OverlayRows[6].IsNormal}" />
-                          <CheckBox Grid.Row="7"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayFinishTimeMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[6].MiniName}"
-                                    IsChecked="{Binding OverlayRows[6].IsMini}" />
-
-                          <TextBlock Grid.Row="8" VerticalAlignment="Center" Text="{Binding OverlayRows[7].Text}" />
-                          <CheckBox Grid.Row="8"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayPrintTimeNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[7].NormalName}"
-                                    IsChecked="{Binding OverlayRows[7].IsNormal}" />
-                          <CheckBox Grid.Row="8"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayPrintTimeMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[7].MiniName}"
-                                    IsChecked="{Binding OverlayRows[7].IsMini}" />
-
-                          <TextBlock Grid.Row="9" VerticalAlignment="Center" Text="{Binding OverlayRows[8].Text}" />
-                          <CheckBox Grid.Row="9"
-                                    Grid.Column="1"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayFileNameNormal"
-                                    AutomationProperties.Name="{Binding OverlayRows[8].NormalName}"
-                                    IsChecked="{Binding OverlayRows[8].IsNormal}" />
-                          <CheckBox Grid.Row="9"
-                                    Grid.Column="2"
-                                    Classes="cell"
-                                    AutomationProperties.AutomationId="PrinterOverlayFileNameMini"
-                                    AutomationProperties.Name="{Binding OverlayRows[8].MiniName}"
-                                    IsChecked="{Binding OverlayRows[8].IsMini}" />
-                        </Grid>
-                        <StackPanel Grid.Column="2">
-                          <TextBlock AutomationProperties.AutomationId="PrinterOverlayCameraOff"
-                                     Classes="hint"
-                                     Margin="0,0,0,8"
-                                     Text="{Binding [SettingsCameraWindowCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                     IsVisible="{Binding !CameraEnabled}" />
-                          <TextBlock AutomationProperties.AutomationId="PrinterOverlayHint"
-                                     Classes="hint"
-                                     Margin="0"
-                                     Text="{Binding [SettingsOverlayHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                        </StackPanel>
-                      </Grid>
-                    </DataTemplate>
-                  </ContentControl.ContentTemplate>
-                </ContentControl>
-              </ScrollViewer>
-            </TabItem>
           </TabControl>
         </Grid>
+      </TabItem>
+
+      <!--
+        Widgets (T-092, approved design "Návrh UI" 3): the printer selection shared with the Printers tab, the widget list
+        (216) with the panel of the selected widget (508) in the * row, and the "All widgets" section always at the bottom.
+        Without printers only the hint and the section (opacity is global). The check boxes and "Edit layout…" are disabled
+        while the camera is off (values kept); the list, the panels and the opacity stay usable.
+      -->
+      <TabItem AutomationProperties.AutomationId="SettingsTabWidgets" AutomationProperties.Name="{Binding WidgetsTabName}">
+        <TabItem.Header>
+          <StackPanel Orientation="Horizontal">
+            <TextBlock AutomationProperties.AutomationId="SettingsTabWidgetsMarker" Classes="marker" Text="!" IsVisible="{Binding ShowsWidgetsErrorMarker}" />
+            <TextBlock Text="{Binding [SettingsTabWidgets], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </StackPanel>
+        </TabItem.Header>
+        <ScrollViewer x:Name="WidgetsScroll" HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
+          <Grid RowDefinitions="Auto,12,*,Auto">
+            <Grid ColumnDefinitions="Auto,12,320,24,*" IsVisible="{Binding ShowsWidgets}">
+              <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsWidgetsPrinter], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <ComboBox Grid.Column="2"
+                        AutomationProperties.AutomationId="WidgetsPrinter"
+                        AutomationProperties.Name="{Binding [SettingsWidgetsPrinter], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ItemsSource="{Binding Printers}"
+                        SelectedItem="{Binding SelectedPrinter}"
+                        HorizontalAlignment="Stretch">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                    <!-- Like the printer list (T-039): the image 24 × 24, the "!" with an error, the name. -->
+                    <Grid ColumnDefinitions="24,8,Auto,*">
+                      <printers:PrinterImageView Width="24" Height="24" VerticalAlignment="Center" Picture="{Binding Picture}" />
+                      <TextBlock Grid.Column="2" Classes="marker" Text="!" VerticalAlignment="Center" IsVisible="{Binding ShowsErrorMarker}" />
+                      <TextBlock Grid.Column="3" Text="{Binding DisplayName}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    </Grid>
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <TextBlock Grid.Column="4"
+                         AutomationProperties.AutomationId="WidgetsCameraOff"
+                         Classes="hint"
+                         Margin="0"
+                         MaxLines="2"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center"
+                         Text="{Binding [SettingsCameraWindowCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         IsVisible="{Binding ShowsWidgetsCameraOff}" />
+            </Grid>
+            <TextBlock AutomationProperties.AutomationId="WidgetsNoPrinters"
+                       Text="{Binding [SettingsWidgetsNoPrinters], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       IsVisible="{Binding HasNoPrinters}"
+                       TextWrapping="Wrap"
+                       Opacity="0.75" />
+
+            <Grid Grid.Row="2" ColumnDefinitions="216,24,*" IsVisible="{Binding ShowsWidgets}">
+              <!--
+                One Tab stop; arrows / Home / End select, Space switches the visibility of the selected row (code-behind).
+                The check boxes are no Tab stops; a click on one switches it and selects its row (design 5.2).
+                Design 3.2: the list asks for at most 7 rows (7 × 32 + 2) and fills the row; with more widgets it scrolls
+                inside (keeping the selected row in view) while the tab does not scroll.
+              -->
+              <w:CompactHeightDecorator CompactHeight="226">
+                <ListBox x:Name="WidgetsList"
+                         AutomationProperties.AutomationId="WidgetsList"
+                         AutomationProperties.Name="{Binding [SettingsWidgetsListName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         ItemsSource="{Binding Widgets}"
+                         SelectedItem="{Binding SelectedWidget}">
+                  <ListBox.ItemContainerTheme>
+                    <ControlTheme x:DataType="w:WidgetItemViewModel" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                      <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='WidgetsItem-{0}'}" />
+                      <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
+                      <Setter Property="MinHeight" Value="32" />
+                      <Setter Property="Padding" Value="8,0" />
+                    </ControlTheme>
+                  </ListBox.ItemContainerTheme>
+                  <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="w:WidgetItemViewModel">
+                      <Grid ColumnDefinitions="Auto,8,16,8,*,Auto" Height="32">
+                        <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsVisible-{0}'}"
+                                  AutomationProperties.Name="{Binding ShowName}"
+                                  MinWidth="0"
+                                  Padding="0"
+                                  IsTabStop="False"
+                                  Focusable="False"
+                                  VerticalAlignment="Center"
+                                  IsChecked="{Binding IsShown}"
+                                  IsEnabled="{Binding CanChangeVisibility}" />
+                        <w:WidgetIcon Grid.Column="2" Width="16" Height="16" VerticalAlignment="Center" IconKey="{Binding IconKey}" />
+                        <TextBlock Grid.Column="4" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                        <TextBlock Grid.Column="5"
+                                   AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsItemMarker-{0}'}"
+                                   Classes="marker"
+                                   Margin="4,0,0,0"
+                                   VerticalAlignment="Center"
+                                   Text="!"
+                                   IsVisible="{Binding ShowsErrorMarker}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+              </w:CompactHeightDecorator>
+
+              <!-- The panel of the selected widget (design 4): title with icon, one-sentence description, its settings. -->
+              <StackPanel Grid.Column="2"
+                          AutomationProperties.AutomationId="WidgetsDetail"
+                          AutomationProperties.Name="{Binding SelectedWidget.Name, FallbackValue={x:Null}}">
+                <Grid ColumnDefinitions="20,8,*">
+                  <w:WidgetIcon Width="20" Height="20" VerticalAlignment="Center" IconKey="{Binding SelectedWidget.IconKey, FallbackValue={x:Null}}" />
+                  <TextBlock Grid.Column="2"
+                             AutomationProperties.AutomationId="WidgetsDetailTitle"
+                             Classes="section"
+                             Margin="0"
+                             VerticalAlignment="Center"
+                             TextTrimming="CharacterEllipsis"
+                             Text="{Binding SelectedWidget.Name, FallbackValue={x:Null}}" />
+                </Grid>
+                <TextBlock AutomationProperties.AutomationId="WidgetsDetailDescription"
+                           Classes="hint"
+                           MaxLines="2"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding SelectedWidget.Description, FallbackValue={x:Null}}"
+                           IsVisible="{Binding SelectedWidget.HasDescription, FallbackValue=False}" />
+                <StackPanel Margin="0,12,0,0" IsVisible="{Binding ShowsNoWidgetSettings}">
+                  <TextBlock AutomationProperties.AutomationId="WidgetsDetailNoSettings"
+                             TextWrapping="Wrap"
+                             Text="{Binding [SettingsWidgetsNoSettings], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                  <TextBlock AutomationProperties.AutomationId="WidgetsDetailLayoutHint"
+                             Classes="hint"
+                             Text="{Binding [SettingsOverlayLayoutHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </StackPanel>
+                <!-- The settings panel of the widget, by the type of its view model (Settings/Widgets/WidgetSettingsTemplates.axaml). -->
+                <ContentControl Margin="0,12,0,0"
+                                Content="{Binding SelectedWidgetPanel}"
+                                IsVisible="{Binding SelectedWidgetPanel, Converter={x:Static ObjectConverters.IsNotNull}}" />
+              </StackPanel>
+            </Grid>
+
+            <!-- All widgets (design 3.1 row 2): three buttons on the left (at most 300), the global opacity on the right. -->
+            <Grid Grid.Row="3" AutomationProperties.AutomationId="WidgetsAllSection" ColumnDefinitions="300,32,*" RowDefinitions="Auto,Auto">
+              <TextBlock Grid.ColumnSpan="3" Classes="section" Text="{Binding [SettingsWidgetsAll], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <StackPanel Grid.Row="1" Spacing="8">
+                <Button AutomationProperties.AutomationId="WidgetsEditLayout"
+                        AutomationProperties.Name="{Binding [SettingsWidgetsEditLayout], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.HelpText="{Binding EditLayoutToolTip}"
+                        HorizontalAlignment="Left"
+                        Command="{Binding EditLayoutCommand}"
+                        ToolTip.Tip="{Binding EditLayoutToolTip}"
+                        ToolTip.ShowOnDisabled="True">
+                  <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsWidgetsEditLayout], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </Button>
+                <Button AutomationProperties.AutomationId="WidgetsReset"
+                        AutomationProperties.Name="{Binding [CameraLayoutReset], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.HelpText="{Binding [SettingsWidgetsResetHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        HorizontalAlignment="Left"
+                        Command="{Binding ResetLayoutCommand}"
+                        ToolTip.Tip="{Binding [SettingsWidgetsResetHelp], Source={x:Static loc:LocalizedStrings.Instance}}">
+                  <TextBlock TextWrapping="Wrap" Text="{Binding [CameraLayoutReset], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </Button>
+                <Button AutomationProperties.AutomationId="WidgetsApplyAll"
+                        AutomationProperties.Name="{Binding [SettingsOverlayApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.HelpText="{Binding ApplyLayoutToAllUnavailableReason}"
+                        HorizontalAlignment="Left"
+                        Command="{Binding ApplyLayoutToAllCommand}"
+                        ToolTip.Tip="{Binding ApplyLayoutToAllUnavailableReason}"
+                        ToolTip.ShowOnDisabled="True">
+                  <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsOverlayApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                </Button>
+              </StackPanel>
+              <StackPanel Grid.Row="1" Grid.Column="2">
+                <TextBlock Classes="label" TextWrapping="Wrap" Text="{Binding [SettingsOverlayOpacity], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <Grid ColumnDefinitions="*,8,48">
+                  <Slider AutomationProperties.AutomationId="WidgetsOpacity"
+                          AutomationProperties.Name="{Binding [SettingsOverlayOpacity], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          AutomationProperties.HelpText="{Binding [SettingsOverlayOpacityHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                          Minimum="{x:Static vm:SettingsViewModel.MinOverlayOpacityPercent}"
+                          Maximum="{x:Static vm:SettingsViewModel.MaxOverlayOpacityPercent}"
+                          SmallChange="1"
+                          LargeChange="5"
+                          TickFrequency="5"
+                          IsSnapToTickEnabled="False"
+                          VerticalAlignment="Center"
+                          Value="{Binding OverlayOpacityPercent}" />
+                  <TextBlock Grid.Column="2"
+                             AutomationProperties.AutomationId="WidgetsOpacityValue"
+                             VerticalAlignment="Center"
+                             TextAlignment="Right"
+                             FontFeatures="tnum"
+                             Text="{Binding OverlayOpacityText}" />
+                </Grid>
+                <TextBlock AutomationProperties.AutomationId="WidgetsOpacityHint"
+                           Classes="hint"
+                           MaxLines="3"
+                           TextTrimming="CharacterEllipsis"
+                           Text="{Binding [SettingsOverlayOpacityHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              </StackPanel>
+            </Grid>
+          </Grid>
+        </ScrollViewer>
       </TabItem>
 
       <!-- General: polling interval and language, notifications in two columns, detailed logging. -->
@@ -812,6 +814,11 @@
               <CheckBox Content="{Binding [SettingsNotifyPrintPaused], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintPaused}" />
               <CheckBox Content="{Binding [SettingsNotifyPrintResumed], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintResumed}" />
               <CheckBox Content="{Binding [SettingsNotifyPrintStopped], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyPrintStopped}" />
+              <!-- T-080: after "stopped" (finished → stopped → cooled down); the threshold is per printer (field in T-092). -->
+              <CheckBox AutomationProperties.AutomationId="SettingsNotifyCooledDown"
+                        AutomationProperties.HelpText="{Binding [SettingsNotifyCooledDownHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Content="{Binding [SettingsNotifyCooledDown], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        IsChecked="{Binding NotifyCooledDown}" />
             </StackPanel>
             <StackPanel Grid.Row="3" Grid.Column="2" IsEnabled="{Binding NotificationsEnabled}">
               <CheckBox Content="{Binding [SettingsNotifyError], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotifyError}" />

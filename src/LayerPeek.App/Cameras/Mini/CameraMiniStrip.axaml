@@ -1,0 +1,256 @@
+<!--
+  The info strip below the image of the mini preview (T-089, T-090, design T-076 4). Opaque, not affected by the card
+  opacity. Rows from the top: the 3 DIP progress bar on the top edge, the 30 DIP summary row with the two toggle buttons
+  (CameraMiniToggles: 2 × 30 + 2, 6 from the right edge, so the corner grip stays free), the print name row (34, only while
+  expanded and there is a job) and the temperature chart row (64, while expanded). Pressing or dragging the strip outside
+  of buttons moves the window like the image (the window handles the pointer events). The strip lies above the window's
+  resize grips: its own hit test leaves the 6 DIP edges to them, except under the toggle buttons (CameraMiniStripPanel).
+  Colours and icons come from OverlayStyles.axaml of the window (dynamic resources: this control is loaded before it is in
+  the window).
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mini="using:LayerPeek.App.Cameras.Mini"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+             xmlns:chart="using:LayerPeek.App.Diagnostics.Chart"
+             x:Class="LayerPeek.App.Cameras.Mini.CameraMiniStrip"
+             x:DataType="mini:CameraMiniStripViewModel"
+             AutomationProperties.AutomationId="CameraMiniInfoStrip"
+             Height="{Binding StripHeight}"
+             UseLayoutRounding="True">
+  <UserControl.Resources>
+    <!--
+      The row toggles (T-076 4): 30 × 30, icon 16. Off: secondary icon, no background; pointer over: white 8 %; on: primary
+      icon, white 14 % and an accent line 2 below the icon (the state has a shape, not only a colour). Keyboard focus: the
+      Fluent double frame (white / black) 1 inside the button, so that the dark strip does not clip it.
+    -->
+    <ControlTheme x:Key="MiniToggleTheme" TargetType="ToggleButton">
+      <Setter Property="Width" Value="30" />
+      <Setter Property="Height" Value="30" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayTextSecondaryBrush}" />
+      <Setter Property="FocusAdorner">
+        <FocusAdornerTemplate>
+          <Border BorderThickness="2" BorderBrush="White" CornerRadius="4" Margin="1">
+            <Border BorderThickness="1" BorderBrush="Black" CornerRadius="2" />
+          </Border>
+        </FocusAdornerTemplate>
+      </Setter>
+      <Setter Property="Template">
+        <ControlTemplate>
+          <Border Name="PART_Background" Background="{TemplateBinding Background}" CornerRadius="4">
+            <Panel>
+              <ContentPresenter Name="PART_ContentPresenter"
+                                Content="{TemplateBinding Content}"
+                                HorizontalContentAlignment="Center"
+                                VerticalContentAlignment="Center" />
+              <Border Name="PART_AccentLine"
+                      Width="16"
+                      Height="2"
+                      Margin="0,0,0,4"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Bottom"
+                      Background="{DynamicResource OverlayAccentBrush}"
+                      IsVisible="False" />
+            </Panel>
+          </Border>
+        </ControlTemplate>
+      </Setter>
+      <Style Selector="^:pointerover">
+        <Setter Property="Background" Value="#14FFFFFF" />
+      </Style>
+      <Style Selector="^:checked">
+        <Setter Property="Background" Value="#24FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource OverlayTextPrimaryBrush}" />
+      </Style>
+      <Style Selector="^:checked /template/ Border#PART_AccentLine">
+        <Setter Property="IsVisible" Value="True" />
+      </Style>
+    </ControlTheme>
+  </UserControl.Resources>
+
+  <UserControl.Styles>
+    <!-- Without a job only a faint track (white 6 %), same height, so nothing jumps. -->
+    <Style Selector="ov|OverlayProgressBar.idle">
+      <Setter Property="Background" Value="#0FFFFFFF" />
+    </Style>
+    <!-- The name row's chips by the window width (T-076 4): material from 320, the layer height from 400. -->
+    <Style Selector="Border#NameRow ov|OverlayChipsPanel">
+      <Setter Property="MaxCount" Value="0" />
+    </Style>
+    <Style Selector="Border#NameRow.chipsOne ov|OverlayChipsPanel">
+      <Setter Property="MaxCount" Value="1" />
+    </Style>
+    <Style Selector="Border#NameRow.chipsTwo ov|OverlayChipsPanel">
+      <Setter Property="MaxCount" Value="2" />
+    </Style>
+    <!-- The chart row's values: 12 semi-bold in the colours of the chart lines. -->
+    <Style Selector="TextBlock.chartValue">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="LineHeight" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.chartIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+      <Setter Property="CanvasSize" Value="16" />
+      <Setter Property="Margin" Value="0,0,4,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+  </UserControl.Styles>
+
+  <!-- The background is drawn by the panel (not the UserControl), so that its hit test decides (CameraMiniStripPanel). -->
+  <mini:CameraMiniStripPanel RowDefinitions="3,30,Auto,Auto" Background="{DynamicResource OverlayStripBrush}">
+    <!-- Not a pointer target: the edges along it stay resize grips. -->
+    <ov:OverlayProgressBar Grid.Row="0"
+                           Height="3"
+                           IsHitTestVisible="False"
+                           AutomationProperties.AccessibilityView="Content"
+                           AutomationProperties.AutomationId="CameraMiniProgress"
+                           Value="{Binding Progress}"
+                           Classes.idle="{Binding !HasProgress}" />
+
+    <!-- Summary row: left 10, dot 8 (or icon 16) + 6, text, 8, toggles 62, right 6 (at 240 wide the text has 140). -->
+    <Grid Grid.Row="1" ColumnDefinitions="10,Auto,6,*,8,62,6">
+      <!-- The summary itself (tooltip and name of the whole content); the toggles are beside it, not inside. -->
+      <Grid Grid.Column="0"
+            Grid.ColumnSpan="5"
+            AutomationProperties.AccessibilityView="Content"
+            AutomationProperties.AutomationId="CameraMiniSummary"
+            AutomationProperties.Name="{Binding AccessibleText}"
+            ToolTip.Tip="{Binding AccessibleText}"
+            ColumnDefinitions="10,Auto,6,*,8">
+        <Panel Grid.Column="1" VerticalAlignment="Center">
+          <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDot}" />
+          <ov:OverlayIcon Width="16"
+                          Height="16"
+                          CanvasSize="20"
+                          Data="{DynamicResource IconWeatherSnowflake20Regular}"
+                          Foreground="{DynamicResource OverlayCoolingBrush}"
+                          IsVisible="{Binding ShowsCoolingIcon}" />
+          <ov:OverlayIcon Width="16"
+                          Height="16"
+                          CanvasSize="20"
+                          Data="{DynamicResource IconPower20Regular}"
+                          Foreground="{DynamicResource OverlayCooledBrush}"
+                          IsVisible="{Binding ShowsCooledIcon}" />
+        </Panel>
+        <TextBlock x:Name="SummaryText"
+                   Grid.Column="3"
+                   Classes="numeric"
+                   Text="{Binding Summary}"
+                   FontSize="13"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource OverlayTextPrimaryBrush}"
+                   TextTrimming="CharacterEllipsis"
+                   TextWrapping="NoWrap"
+                   VerticalAlignment="Center" />
+      </Grid>
+      <!-- T-090: Tab between them, Space / Enter toggles; a press never starts dragging the window (the button handles it). -->
+      <StackPanel x:Name="Toggles"
+                  Grid.Column="5"
+                  AutomationProperties.AutomationId="CameraMiniToggles"
+                  Orientation="Horizontal"
+                  Spacing="2">
+        <ToggleButton x:Name="NameToggle"
+                      Theme="{StaticResource MiniToggleTheme}"
+                      AutomationProperties.AutomationId="CameraMiniToggleName"
+                      AutomationProperties.Name="{Binding NameToggleName}"
+                      ToolTip.Tip="{Binding NameToggleTip}"
+                      IsChecked="{Binding IsNameRowExpanded}">
+          <ov:OverlayIcon Width="16"
+                          Height="16"
+                          CanvasSize="16"
+                          Data="{DynamicResource IconCube16Regular}"
+                          Foreground="{Binding $parent[ToggleButton].Foreground}" />
+        </ToggleButton>
+        <ToggleButton x:Name="ChartToggle"
+                      Theme="{StaticResource MiniToggleTheme}"
+                      AutomationProperties.AutomationId="CameraMiniToggleChart"
+                      AutomationProperties.Name="{Binding ChartToggleName}"
+                      ToolTip.Tip="{Binding ChartToggleTip}"
+                      IsChecked="{Binding IsChartRowExpanded}">
+          <ov:OverlayIcon Width="16"
+                          Height="16"
+                          CanvasSize="16"
+                          Data="{DynamicResource IconDataTrending16Regular}"
+                          Foreground="{Binding $parent[ToggleButton].Foreground}" />
+        </ToggleButton>
+      </StackPanel>
+    </Grid>
+
+    <!-- Print name row (34): the compact Print name template (T-085), left 10; disappears without a job. -->
+    <Border x:Name="NameRow"
+            Grid.Row="2"
+            Height="34"
+            Padding="10,0"
+            IsVisible="{Binding ShowsNameRow}"
+            AutomationProperties.AccessibilityView="Content"
+            AutomationProperties.AutomationId="CameraMiniNameRow"
+            AutomationProperties.Name="{Binding NameRow.AccessibleName}"
+            ToolTip.Tip="{Binding NameRow.AccessibleName}">
+      <ContentControl Content="{Binding NameRow}"
+                      ContentTemplate="{x:Static w:PrintNameCompactView.RowTemplate}"
+                      VerticalAlignment="Center" />
+    </Border>
+
+    <!--
+      Temperature chart row (64): padding 10 / 6, the column 64 ("60 min", ▽ nozzle, ━ bed), 8, the compact chart over the
+      rest × 52. "No data" in the middle of the chart without history; without temperatures the column has no values.
+      The chart listens to the history only while it is shown (collapsed row, other mode, closed window: not at all).
+    -->
+    <Border Grid.Row="3"
+            Height="64"
+            Padding="10,6"
+            IsVisible="{Binding IsChartRowExpanded}"
+            AutomationProperties.AccessibilityView="Content"
+            AutomationProperties.AutomationId="CameraMiniChartRow"
+            AutomationProperties.Name="{Binding ChartAccessibleText}">
+      <Grid ColumnDefinitions="64,8,*">
+        <StackPanel VerticalAlignment="Center" Spacing="2">
+          <TextBlock Text="{Binding ChartRange}"
+                     FontSize="11"
+                     LineHeight="14"
+                     TextWrapping="NoWrap"
+                     Foreground="{DynamicResource OverlayTextTertiaryBrush}" />
+          <StackPanel Orientation="Horizontal" IsVisible="{Binding HasNozzle}">
+            <ov:OverlayIcon Classes="chartIcon"
+                            Data="{DynamicResource IconCone16Filled}"
+                            Foreground="{DynamicResource OverlayNozzleBrush}">
+              <ov:OverlayIcon.RenderTransform>
+                <RotateTransform Angle="180" />
+              </ov:OverlayIcon.RenderTransform>
+            </ov:OverlayIcon>
+            <TextBlock Classes="numeric chartValue" Text="{Binding NozzleText}" Foreground="{DynamicResource OverlayNozzleBrush}" />
+          </StackPanel>
+          <StackPanel Orientation="Horizontal" IsVisible="{Binding HasBed}">
+            <ov:OverlayIcon Classes="chartIcon"
+                            Data="{DynamicResource IconLineHorizontal1_16Filled}"
+                            Foreground="{DynamicResource OverlayBedBrush}" />
+            <TextBlock Classes="numeric chartValue" Text="{Binding BedText}" Foreground="{DynamicResource OverlayBedBrush}" />
+          </StackPanel>
+        </StackPanel>
+        <chart:TemperatureChart Grid.Column="2"
+                                Height="52"
+                                AutomationProperties.AccessibilityView="Content"
+                                AutomationProperties.AutomationId="CameraMiniChart"
+                                AutomationProperties.Name="{Binding ChartName}"
+                                IsCompact="True"
+                                LineThickness="1.5"
+                                TargetOpacity="0.7"
+                                History="{Binding History}"
+                                PrinterId="{Binding PrinterId}"
+                                Clock="{Binding Clock}"
+                                NozzleBrush="{DynamicResource OverlayNozzleBrush}"
+                                BedBrush="{DynamicResource OverlayBedBrush}"
+                                AxisBrush="{DynamicResource OverlayTextTertiaryBrush}"
+                                GridBrush="{x:Null}"
+                                NoDataText="{Binding ChartNoData}" />
+      </Grid>
+    </Border>
+  </mini:CameraMiniStripPanel>
+</UserControl>

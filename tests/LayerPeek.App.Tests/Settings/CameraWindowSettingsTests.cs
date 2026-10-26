@@ -16,6 +16,9 @@ public sealed class CameraWindowSettingsTests : IDisposable
 {
     private const string SizeError = "Enter a width of 160–16384 and a height of 90–16384.";
 
+    /// <summary>The mini preview is at least 240 wide (T-089 Q4).</summary>
+    private const string MiniSizeError = "Enter a width of 240–16384 and a height of 90–16384.";
+
     private static readonly PasswordPolicy Supported = new(IsSupported: true, MaxBytes: 2560);
     private static readonly Uri StreamUri = new("rtsp://192.168.0.227/live");
 
@@ -115,6 +118,12 @@ public sealed class CameraWindowSettingsTests : IDisposable
     public void SizePresetsAreTheCorePresets()
     {
         Assert.Equal(["640\u00A0×\u00A0360", "960\u00A0×\u00A0540", "1280\u00A0×\u00A0720", "1920\u00A0×\u00A01080"], CameraWindowSizeText.Presets);
+    }
+
+    [Fact]
+    public void MiniSizePresetsAreTheCoreMiniPresets()
+    {
+        Assert.Equal(["320 × 180", "480 × 270", "640 × 360", "960 × 540"], CameraWindowSizeText.MiniPresets);
     }
 
     // ---- Saving (and the data loss fixed in T-035: the window defaults were dropped on every save) ----
@@ -230,10 +239,11 @@ public sealed class CameraWindowSettingsTests : IDisposable
     }
 
     [Theory]
-    [InlineData("159 × 90")]
-    [InlineData("160 × 89")]
+    [InlineData("239 × 90")]
+    [InlineData("160 × 90")]
+    [InlineData("240 × 89")]
     [InlineData("16385 × 90")]
-    [InlineData("160 × 16385")]
+    [InlineData("240 × 16385")]
     [InlineData("big")]
     public async Task InvalidSizeIsAnErrorWhileTheCameraIsOn(string text)
     {
@@ -243,7 +253,7 @@ public sealed class CameraWindowSettingsTests : IDisposable
         printer.MiniSizeText = text;
 
         Assert.Null(printer.NormalSizeError);
-        Assert.Equal(SizeError, printer.MiniSizeError);
+        Assert.Equal(MiniSizeError, printer.MiniSizeError);
         Assert.True(printer.HasCameraWindowErrors);
         Assert.True(printer.ShowsCameraWindowErrorMarker);
         Assert.True(printer.ShowsErrorMarker);
@@ -269,6 +279,49 @@ public sealed class CameraWindowSettingsTests : IDisposable
         AppSettings saved = await SaveAsync(vm);
 
         Assert.Equal(new CameraWindowSize(width, height), saved.Printers[0].Camera.Window.Normal.Size);
+    }
+
+    [Theory]
+    [InlineData("159 × 90")]
+    [InlineData("160 × 89")]
+    public async Task NormalWindowKeepsItsMinimumOf160(string text)
+    {
+        SettingsViewModel vm = await LoadAsync(null, Printer("a", "Alpha", Camera()));
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        printer.NormalSizeText = text;
+
+        Assert.Equal(SizeError, printer.NormalSizeError);
+        Assert.Null(printer.MiniSizeError);
+        Assert.True(printer.HasCameraWindowErrors);
+    }
+
+    [Theory]
+    [InlineData(240, 90)]
+    [InlineData(240, 135)]
+    [InlineData(16384, 16384)]
+    public async Task MiniSizesFrom240AreValidAndSavedAsTheImageSize(int width, int height)
+    {
+        SettingsViewModel vm = await LoadAsync(null, Printer("a", "Alpha", Camera()));
+        PrinterEditorViewModel printer = vm.Printers[0];
+
+        printer.MiniSizeText = $"{width}x{height}";
+
+        Assert.Null(printer.MiniSizeError);
+        Assert.False(printer.HasCameraWindowErrors);
+        AppSettings saved = await SaveAsync(vm);
+        // The size of the image (T-089 Q3): the strip is not part of it.
+        Assert.Equal(new CameraWindowSize(width, height), saved.Printers[0].Camera.Window.Mini.Size);
+    }
+
+    [Fact]
+    public async Task DefaultMiniSizeIs320By180ForTheImage()
+    {
+        SettingsViewModel vm = await LoadAsync(null, Printer("a", "Alpha", Camera()));
+
+        Assert.Equal(CameraWindowSizeText.Format(new CameraWindowSize(320, 180)), vm.Printers[0].MiniSizeText);
+        Assert.Null(vm.Printers[0].MiniSizeError);
+        Assert.Equal(new CameraWindowSize(320, 180), CameraWindowDefaults.Default.Mini.Size);
     }
 
     [Fact]
@@ -665,7 +718,7 @@ public sealed class CameraWindowSettingsTests : IDisposable
             Assert.Equal("Primární monitor", printer.MonitorOptions[0].Text);
             Assert.Equal("Monitor 1 – LG HDR 4K (1920\u00A0×\u00A01080)", printer.MonitorOptions[1].Text);
             Assert.Equal("BenQ PD2700U (3840\u00A0×\u00A02160) – nepřipojený", printer.SelectedMonitor.Text);
-            Assert.Equal("Zadejte šířku 160–16384 a výšku 90–16384.", printer.MiniSizeError);
+            Assert.Equal("Zadejte šířku 240–16384 a výšku 90–16384.", printer.MiniSizeError);
             Assert.Equal("Okno kamery – obsahuje chyby", printer.CameraWindowTabName);
             Assert.Equal("Malý náhled – Velikost", printer.MiniSizeName);
             Assert.Equal("Normální okno – Umístění", printer.NormalCornerName);

@@ -40,16 +40,16 @@
     <value>{0}, quedan {1}</value>
   </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
-    <value>&lt; 1 min</value>
+    <value>&lt;&#160;1&#160;min</value>
   </data>
   <data name="DurationMinutes" xml:space="preserve">
-    <value>{0} min</value>
+    <value>{0}&#160;min</value>
   </data>
   <data name="DurationHoursMinutes" xml:space="preserve">
-    <value>{0} h {1} min</value>
+    <value>{0}&#160;h {1}&#160;min</value>
   </data>
   <data name="DurationDaysHours" xml:space="preserve">
-    <value>{0} d {1} h</value>
+    <value>{0}&#160;d {1}&#160;h</value>
   </data>
   <data name="StateConnecting" xml:space="preserve">
     <value>Conectando…</value>
@@ -193,13 +193,13 @@
     <value>Apagado</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} rpm</value>
+    <value>{0}&#160;rpm</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0} %</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -214,13 +214,13 @@
     <value>Historial de temperaturas</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>No hay datos de temperatura en este periodo</value>
@@ -468,6 +468,117 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>La impresora se desconectó o vuelve a estar en línea</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Impresora enfriada</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>El umbral de temperatura de la boquilla se configura por impresora en la pestaña Widgets, widget Enfriamiento.</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Umbral de temperatura de la boquilla (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>Por debajo de esta temperatura es seguro apagar la impresora.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Introduzca un número entero de {0} a {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Usar el umbral en todas las impresoras</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>El umbral se copió a las demás impresoras. Se aplica al guardar.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Solo hay una impresora configurada.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widgets</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Impresora</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>No hay ninguna impresora configurada. Añada una en la pestaña Impresoras.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Widgets de la ventana de la cámara</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Mostrar el widget {0}</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, visible</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, oculto</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>Este widget no tiene más ajustes.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>Todos los widgets</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Editar diseño en la ventana de la cámara…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Abre la ventana de la cámara de esta impresora en el modo de diseño, donde puede cambiar la posición, el orden, el tamaño y el resaltado de los widgets.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Active la cámara de esta impresora y guarde los ajustes.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Guarde primero los ajustes.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Restablece la visibilidad, la posición, el orden, el tamaño y el resaltado de los widgets de esta impresora.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>Se restauró el diseño predeterminado. Se aplica al guardar.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>Notificación «Impresora enfriada»: activada</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>Notificación «Impresora enfriada»: desactivada</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Las notificaciones están desactivadas.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Cambiar en la pestaña General</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Usar el diseño en todas las impresoras</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>El diseño se copió a las demás impresoras. Se aplica al guardar.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Cambie la posición, el orden, el tamaño y el resaltado con Editar diseño en la ventana de la cámara.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Opacidad del fondo de las tarjetas</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>Se aplica a las ventanas de cámara de todas las impresoras. Un valor más alto mantiene legible el texto sobre imagen clara.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Nombre de la impresora, estado y progreso de la impresión en porcentaje.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Tiempo restante, hora de finalización y tiempo de impresión.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Temperatura de la boquilla y de la cama con un gráfico de los últimos 60 minutos.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Nombre legible de la impresión con material, altura de capa y boquilla; en tamaños mayores, con vista previa.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>Al terminar una impresión, muestra cómo se enfría la boquilla y cuándo es seguro apagar la impresora.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avisar cuando queden estos minutos de impresión (0 = desactivado)</value>
   </data>
@@ -594,6 +705,18 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>El estado de la impresora cambió</value>
   </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Impresora enfriada</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Impresión terminada, impresora enfriada</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Impresión detenida, impresora enfriada</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Ya puede apagarla. Boquilla {0} °C, umbral {1} °C</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Cámara</value>
   </data>
@@ -622,7 +745,7 @@
     <value>Imagen de la cámara de la prueba</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>No llegó ninguna imagen de la cámara en {0} s.</value>
+    <value>No llegó ninguna imagen de la cámara en {0}&#160;s.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>No se pudo abrir la transmisión de la cámara: {0}</value>
@@ -825,11 +948,20 @@
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Introduzca un ancho de {0}–{1} y un alto de {2}–{3}.</value>
   </data>
-  <data name="CameraOverlayLabeledValue" xml:space="preserve">
-    <value>{0}: {1}</value>
-  </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayChartStart" xml:space="preserve">
+    <value>−60&#160;min</value>
+  </data>
+  <data name="CameraOverlayChartNow" xml:space="preserve">
+    <value>ahora</value>
+  </data>
+  <data name="CameraOverlayChartNoData" xml:space="preserve">
+    <value>Sin datos</value>
+  </data>
+  <data name="CameraOverlayChartName" xml:space="preserve">
+    <value>gráfico de los últimos 60 minutos</value>
   </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Termina a las {0}</value>
@@ -837,47 +969,95 @@
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Termina el {0} a las {1}</value>
   </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>boquilla {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>altura de capa {0}&#160;mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>boquilla {0}&#160;mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>estimación del slicer {0}</value>
+  </data>
+  <data name="CameraOverlayThumbnailName" xml:space="preserve">
+    <value>Vista previa de la impresión</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Tiempo de impresión: {0}</value>
   </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Superposición</value>
+  <data name="CameraOverlayWidgetStatus" xml:space="preserve">
+    <value>Estado</value>
   </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Esquina de la superposición</value>
+  <data name="CameraOverlayWidgetTimes" xml:space="preserve">
+    <value>Tiempos</value>
   </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Ventana normal y pantalla completa</value>
+  <data name="CameraOverlayWidgetTemperatures" xml:space="preserve">
+    <value>Temperaturas</value>
   </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Nombre de la impresora</value>
+  <data name="CameraOverlayWidgetPrintName" xml:space="preserve">
+    <value>Nombre de impresión</value>
   </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>Estado de la impresora</value>
+  <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
+    <value>Enfriamiento</value>
   </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Temperatura de la boquilla</value>
+  <data name="CameraOverlayRemainingLabel" xml:space="preserve">
+    <value>Restante</value>
   </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Temperatura de la base</value>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Enfriando… {0}&#160;°C · aprox. {1}</value>
   </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Progreso (%)</value>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Enfriando… {0}&#160;°C</value>
   </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Tiempo restante</value>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Enfriada · {0}&#160;°C</value>
   </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Hora de finalización</value>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Enfriando…</value>
   </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Tiempo de impresión</value>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Enfriada – ya puede apagarla</value>
   </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>Nombre del archivo</value>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>apagado seguro en aprox. {0} (boquilla bajo {1}&#160;°C)</value>
   </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Los datos del trabajo (progreso, tiempos, nombre del archivo) solo se muestran durante una impresión. Al guardar, los cambios se aplican también a las ventanas de la cámara abiertas.</value>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>apagado seguro cuando la boquilla baje de {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>impresión terminada a las {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>impresión detenida a las {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>enfriada en {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>aprox. {0}</value>
+  </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Nombre de la impresión en la franja</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Gráfico de temperaturas en la franja</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Mostrar nombre de la impresión</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Ocultar nombre de la impresión</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Mostrar gráfico de temperaturas</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Ocultar gráfico de temperaturas</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>El nombre aparece durante una impresión</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Imagen de la impresora: {0}</value>
@@ -980,5 +1160,86 @@
   </data>
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>No se pudo copiar la información al portapapeles. Inténtelo de nuevo.</value>
+  </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Editar diseño</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Modo de diseño</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>arrastre un widget a un anclaje</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Espacio levanta un widget, las flechas lo mueven, Intro abre sus opciones, Esc descarta los cambios.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Restaurar predeterminado</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Listo</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Soltar aquí</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>sin datos por ahora</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Resaltar</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Muestra el valor clave en naranja.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Tamaño</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Pequeño</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Mediano</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Grande</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>El widget no tiene este tamaño.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>Arriba en el centro</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>Abajo en el centro</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Modo de diseño. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} levantado. Elija un lugar con las flechas, suéltelo con Espacio, Esc cancela.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}: {1}, posición {2} de {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} movido: {1}, posición {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Movimiento cancelado</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Diseño predeterminado restaurado</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Diseño guardado</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Cambios de diseño descartados</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>No se pudo guardar el diseño. Inténtelo de nuevo.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Amplíe la ventana para editar el diseño.</value>
   </data>
 </root>

@@ -1,10 +1,15 @@
+using Avalonia.Media;
+
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Overlay;
+using LayerPeek.App.Tests.Cameras.Overlay;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -12,17 +17,19 @@ using static LayerPeek.App.Tests.Tray.TestPrinters;
 
 namespace LayerPeek.App.Tests.Cameras;
 
-/// <summary>The print overlay of the camera window (T-036): items per mode, corner, applying saved settings.</summary>
+/// <summary>
+/// The widget overlay of the camera window (T-081): the printer's layout and the global card opacity, saved settings
+/// applied to an open window in place (it does not move, the stream goes on), no cards in the mini preview.
+/// </summary>
 public sealed class CameraViewModelOverlayTests : IAsyncDisposable
 {
     private static readonly Uri StreamUri = new("rtsp://192.168.0.227/live");
 
-    private static readonly CameraOverlayOptions NameAndTemperatures = new()
-    {
-        Normal = CameraOverlayItems.PrinterName | CameraOverlayItems.NozzleTemperature,
-        Mini = CameraOverlayItems.FileName,
-        Corner = CameraOverlayCorner.TopRight,
-    };
+    private static readonly CameraOverlayLayout TwoCards = new(
+    [
+        new OverlayWidgetPlacement("test-a", OverlayAnchor.TopLeft),
+        new OverlayWidgetPlacement("test-b", OverlayAnchor.BottomRight, emphasized: true),
+    ]);
 
     private readonly FakeCameraFeedFactory _factory = new();
     private readonly FakeTimeProvider _time = new();
@@ -32,11 +39,6 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
     private readonly MemoryCameraWindowStateStore _states = new();
     private readonly List<CameraViewModel> _created = [];
     private readonly CultureScope _culture = new("en-US");
-
-    public CameraViewModelOverlayTests()
-    {
-        _time.SetLocalTimeZone(TimeZoneInfo.Utc);
-    }
 
     public async ValueTask DisposeAsync()
     {
@@ -48,32 +50,32 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
         }
     }
 
-    private CameraViewModel Create(CameraOverlayOptions overlay, CameraWindowDefaults? window = null)
+    private static PrinterDefinition Printer(CameraOverlayLayout layout, string name = "MK4", string id = "mk4", CameraWindowDefaults? window = null) =>
+        Definition(id, name) with { Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = layout, Window = window ?? CameraWindowDefaults.Default } };
+
+    private CameraViewModel Create(CameraOverlayLayout layout, CameraWindowDefaults? window = null)
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraTarget target = new("mk4", "MK4", StreamUri) { Overlay = overlay, Window = window ?? CameraWindowDefaults.Default };
-        CameraViewModel viewModel = new(target, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance);
+        CameraViewModel viewModel = new(
+            CameraTarget.From(Printer(layout, window: window))!,
+            feed,
+            _monitor,
+            _printers,
+            _dispatcher,
+            _states,
+            _time,
+            CameraFeedOptions.Default,
+            NullLogger<CameraViewModel>.Instance,
+            widgets: TestOverlayWidgets.Registry("test-a", "test-b"));
         _created.Add(viewModel);
         return viewModel;
     }
 
-    private static PrinterDefinition Printer(CameraOverlayOptions overlay, string name = "MK4") =>
-        Definition("mk4", name) with { Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = overlay } };
-
-    private void Save(CameraOverlayOptions overlay, string name = "MK4")
+    private void Save(CameraOverlayLayout layout, string name = "MK4", int opacity = CameraOverlayOpacity.DefaultPercent, params PrinterDefinition[] others)
     {
-        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(overlay, name)] });
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(layout, name), .. others], CameraOverlayOpacityPercent = opacity });
         _dispatcher.RunAll();
     }
-
-    private static PrinterSnapshot Printing(double nozzle = 214.6) => new()
-    {
-        PrinterId = "mk4",
-        State = PrinterState.Printing,
-        Timestamp = Now,
-        Job = new PrintJob { FileName = "benchy.bgcode", ProgressPercent = 42.7, Elapsed = TimeSpan.FromMinutes(130), Remaining = TimeSpan.FromMinutes(65) },
-        Telemetry = new Telemetry { Nozzle = new Temperature(nozzle, 215), Bed = new Temperature(59.8, 60) },
-    };
 
     private void Raise(PrinterSnapshot snapshot)
     {
@@ -81,132 +83,52 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
         _dispatcher.RunAll();
     }
 
-    private static string[] Texts(CameraViewModel viewModel) => [.. viewModel.OverlayLines.Select(static line => line.Text)];
+    private static string[] Ids(IReadOnlyList<OverlayWidgetViewModel> widgets) => [.. widgets.Select(static widget => widget.Id)];
+
+    private static TestOverlayWidget Widget(CameraViewModel viewModel, string id) =>
+        (TestOverlayWidget)viewModel.Overlay.Widgets.Single(widget => widget.Id == id);
 
     [Fact]
-    public void TargetCarriesTheOverlayOfThePrinter()
+    public void TargetCarriesTheLayoutOfThePrinter()
     {
-        Assert.Equal(NameAndTemperatures, CameraTarget.From(Printer(NameAndTemperatures))!.Overlay);
-        Assert.Same(CameraOverlayOptions.Default, new CameraTarget("a", "A", StreamUri).Overlay);
+        Assert.Same(TwoCards, CameraTarget.From(Printer(TwoCards))!.Overlay);
+        Assert.Same(CameraOverlayLayout.Default, CameraTarget.From(Definition() with { Camera = new CameraSettings(enabled: true, StreamUri) })!.Overlay);
     }
 
     [Fact]
-    public void DefaultOverlayIsTodaysOverlayInTheBottomLeftCorner()
+    public void WindowOpensWithTheLayoutAndTheGlobalOpacity()
     {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default);
-        Raise(Printing());
+        ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = [Printer(TwoCards)], CameraOverlayOpacityPercent = 40 });
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(42.7)));
 
-        Assert.Equal(["Printing – 42%", "1 h 5 min remaining"], Texts(viewModel));
-        Assert.Equal(CameraOverlayCorner.BottomLeft, viewModel.OverlayCorner);
-        Assert.False(viewModel.IsOverlayTop);
-        Assert.False(viewModel.IsOverlayRight);
+        CameraViewModel viewModel = Create(TwoCards);
+
+        Assert.Equal(["test-a"], Ids(viewModel.Overlay.TopLeft));
+        Assert.Equal(["test-b"], Ids(viewModel.Overlay.BottomRight));
+        Assert.True(Widget(viewModel, "test-b").IsEmphasized);
+        Assert.Equal("42%", Widget(viewModel, "test-a").Value);
+        Assert.Equal(40, viewModel.Overlay.OpacityPercent);
+        Assert.Equal(102, ((ISolidColorBrush)Widget(viewModel, "test-a").CardBackground!).Color.A);
     }
 
     [Fact]
-    public void NormalWindowAndFullScreenShowTheNormalItemsAndTheMiniPreviewItsOwn()
-    {
-        CameraViewModel viewModel = Create(NameAndTemperatures);
-        Raise(Printing());
-
-        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
-
-        viewModel.ToggleFullScreenCommand.Execute(null);
-        Assert.True(viewModel.IsFullScreen);
-        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
-
-        viewModel.ShowMiniCommand.Execute(null);
-        Assert.True(viewModel.IsMini);
-        Assert.Equal(["benchy.bgcode"], Texts(viewModel));
-        Assert.Equal(CameraOverlayItems.FileName, viewModel.OverlayItems);
-
-        viewModel.ShowNormalCommand.Execute(null);
-        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
-    }
+    public void BeforeTheFirstMonitoringRunTheOpacityIsTheDefault() =>
+        Assert.Equal(CameraOverlayOpacity.DefaultPercent, Create(TwoCards).Overlay.OpacityPercent);
 
     [Fact]
-    public void WindowOpeningInTheMiniPreviewStartsWithTheMiniItems()
+    public void SavedLayoutAppliesToTheOpenWindowRightAway()
     {
-        CameraViewModel viewModel = Create(NameAndTemperatures, CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
-        Raise(Printing());
-
-        Assert.True(viewModel.IsMini);
-        Assert.Equal(["benchy.bgcode"], Texts(viewModel));
-    }
-
-    [Fact]
-    public void SwitchingTheModeUsesTheLatestSnapshotWithoutWaitingForAPoll()
-    {
-        CameraViewModel viewModel = Create(NameAndTemperatures);
-        Raise(Printing());
-        int posts = _dispatcher.PostCount;
-
-        viewModel.ShowMiniCommand.Execute(null);
-
-        Assert.Equal(["benchy.bgcode"], Texts(viewModel));
-        Assert.Equal(posts, _dispatcher.PostCount);
-    }
-
-    [Fact]
-    public void NoItemsHidesTheOverlay()
-    {
-        CameraViewModel viewModel = Create(new CameraOverlayOptions { Normal = CameraOverlayItems.None, Mini = CameraOverlayItems.State });
-        Raise(Printing());
-
-        Assert.False(viewModel.IsPrintOverlayVisible);
-        Assert.Empty(viewModel.OverlayLines);
-
-        viewModel.ShowMiniCommand.Execute(null);
-        Assert.True(viewModel.IsPrintOverlayVisible);
-        Assert.Equal(["Printing"], Texts(viewModel));
-    }
-
-    [Fact]
-    public void PrinterNameIsShownBeforeTheFirstPoll()
-    {
-        CameraViewModel viewModel = Create(NameAndTemperatures);
-
-        Assert.True(viewModel.IsPrintOverlayVisible);
-        Assert.Equal(["MK4"], Texts(viewModel));
-    }
-
-    [Fact]
-    public void UnselectedChangesPostNothing()
-    {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default);
-        Raise(Printing());
-        int posts = _dispatcher.PostCount;
-        int changes = 0;
-        viewModel.PropertyChanged += (_, _) => changes++;
-
-        _monitor.Raise(Printing(nozzle: 190) with { Timestamp = Now.AddSeconds(5) });
-
-        Assert.Equal(posts, _dispatcher.PostCount);
-        Assert.Equal(0, changes);
-    }
-
-    [Fact]
-    public void SelectedTemperatureChangeUpdatesTheOverlay()
-    {
-        CameraViewModel viewModel = Create(NameAndTemperatures);
-        Raise(Printing());
-
-        Raise(Printing(nozzle: 190.2));
-
-        Assert.Equal(["MK4", "Nozzle: 190 / 215\u00A0°C"], Texts(viewModel));
-    }
-
-    [Fact]
-    public void SavedItemsApplyToTheOpenWindowRightAway()
-    {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default);
-        Raise(Printing());
+        CameraViewModel viewModel = Create(TwoCards);
+        Raise(Snapshot(PrinterState.Printing, Job(42.7)));
         List<string?> changed = [];
         viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
 
-        Save(NameAndTemperatures);
+        Save(TwoCards.MoveTo("test-a", OverlayAnchor.BottomCenter, 0).WithVisible("test-b", false));
 
-        Assert.Equal(["MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
-        Assert.Contains(nameof(CameraViewModel.OverlayLines), changed);
+        Assert.Empty(viewModel.Overlay.TopLeft);
+        Assert.Empty(viewModel.Overlay.BottomRight);
+        Assert.Equal(["test-a"], Ids(viewModel.Overlay.BottomCenter));
+        Assert.Equal("42%", Widget(viewModel, "test-a").Value);
         // The window stays as it is: same mode, stream untouched, nothing to place again.
         Assert.True(viewModel.IsNormal);
         Assert.Empty(_factory.Uris);
@@ -214,93 +136,98 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
     }
 
     [Fact]
-    public void SavedMiniItemsApplyToAnOpenMiniPreview()
+    public void SavedOpacityAppliesToTheOpenWindowRightAway()
     {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default);
-        viewModel.ShowMiniCommand.Execute(null);
-        Raise(Printing());
+        CameraViewModel viewModel = Create(TwoCards);
 
-        Save(NameAndTemperatures);
+        Save(TwoCards, opacity: 95);
 
-        Assert.Equal(["benchy.bgcode"], Texts(viewModel));
-    }
-
-    [Theory]
-    [InlineData(CameraOverlayCorner.TopLeft, true, false)]
-    [InlineData(CameraOverlayCorner.TopRight, true, true)]
-    [InlineData(CameraOverlayCorner.BottomLeft, false, false)]
-    [InlineData(CameraOverlayCorner.BottomRight, false, true)]
-    public void SavedCornerApplies(CameraOverlayCorner corner, bool top, bool right)
-    {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default with { Corner = CameraOverlayCorner.BottomLeft });
-        List<string?> changed = [];
-        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
-
-        Save(CameraOverlayOptions.Default with { Corner = corner });
-
-        Assert.Equal(corner, viewModel.OverlayCorner);
-        Assert.Equal(top, viewModel.IsOverlayTop);
-        Assert.Equal(right, viewModel.IsOverlayRight);
-        Assert.Equal(corner != CameraOverlayCorner.BottomLeft, changed.Contains(nameof(CameraViewModel.OverlayCorner)));
+        Assert.Equal(95, viewModel.Overlay.OpacityPercent);
+        Assert.All(viewModel.Overlay.Widgets, widget => Assert.Equal(242, ((ISolidColorBrush)widget.CardBackground!).Color.A));
     }
 
     [Fact]
-    public void UnchangedOverlayAfterSavingChangesNothing()
+    public void SavedSettingsOfAnotherPrinterLeaveThisWindowAlone()
     {
-        CameraViewModel viewModel = Create(NameAndTemperatures);
-        Raise(Printing());
-        List<string?> changed = [];
-        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        CameraViewModel viewModel = Create(TwoCards);
+        Save(TwoCards);
+        TestOverlayWidget a = Widget(viewModel, "test-a");
+        int formatted = a.FormatCount;
 
-        Save(NameAndTemperatures);
+        Save(TwoCards, others: Printer(CameraOverlayLayout.Default, "Other", "other"));
 
-        Assert.Empty(changed);
+        Assert.Same(a, Widget(viewModel, "test-a"));
+        Assert.Equal(formatted, a.FormatCount);
+        Assert.Equal(["test-a"], Ids(viewModel.Overlay.TopLeft));
     }
 
     [Fact]
-    public void RenamedPrinterUpdatesTheNameLine()
+    public void RenamedPrinterReachesTheWidgets()
     {
-        CameraViewModel viewModel = Create(NameAndTemperatures);
-        Raise(Printing());
+        CameraViewModel viewModel = Create(TwoCards);
 
-        Save(NameAndTemperatures, name: "Workshop MK4");
+        Save(TwoCards, name: "Workshop MK4");
 
-        Assert.Equal(["Workshop MK4", "Nozzle: 215 / 215\u00A0°C"], Texts(viewModel));
+        Assert.Equal("Workshop MK4", Widget(viewModel, "test-a").Value);
         Assert.Equal("Workshop MK4 – Camera", viewModel.Title);
     }
 
     [Fact]
-    public void LanguageSwitchFormatsTheOverlayAgain()
+    public void MiniPreviewHasNoCardsAndFullScreenSharesTheLayout()
     {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default with { Normal = CameraOverlayOptions.AllItems });
-        Raise(Printing());
-        List<string?> changed = [];
-        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        CameraViewModel viewModel = Create(TwoCards);
+
+        viewModel.ToggleFullScreenCommand.Execute(null);
+        Assert.True(viewModel.Overlay.AreCardsVisible);
+        Assert.Equal(["test-a"], Ids(viewModel.Overlay.TopLeft));
+
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.False(viewModel.Overlay.AreCardsVisible);
+
+        viewModel.ShowNormalCommand.Execute(null);
+        Assert.True(viewModel.Overlay.AreCardsVisible);
+    }
+
+    [Fact]
+    public void WindowOpeningInTheMiniPreviewHasNoCards()
+    {
+        CameraViewModel viewModel = Create(TwoCards, CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+
+        Assert.True(viewModel.IsMini);
+        Assert.False(viewModel.Overlay.AreCardsVisible);
+    }
+
+    [Fact]
+    public void LanguageSwitchFormatsTheCardsAgain()
+    {
+        CameraViewModel viewModel = Create(TwoCards);
+        Raise(Snapshot(PrinterState.Printing, Job(42.7)));
 
         using (new UiCultureScope("cs"))
         {
             viewModel.RefreshTexts();
 
-            Assert.StartsWith("Tiskne – 42", Texts(viewModel)[1], StringComparison.Ordinal);
-            Assert.Equal("Tryska: 215 / 215\u00A0°C", Texts(viewModel)[2]);
-            Assert.Equal("Doba tisku: 2 h 10 min", Texts(viewModel)[6]);
+            Assert.Equal("Tiskne", Widget(viewModel, "test-a").Title);
         }
-
-        Assert.Contains(nameof(CameraViewModel.OverlayLines), changed);
     }
 
     [Fact]
-    public void ModeAndSettingsChangesAfterDisposeDoNothing()
+    public void SettingsAndSnapshotsAfterDisposeDoNothing()
     {
-        CameraViewModel viewModel = Create(CameraOverlayOptions.Default);
-        Raise(Printing());
-        IReadOnlyList<CameraOverlayLine> lines = viewModel.OverlayLines;
+        CameraViewModel viewModel = Create(TwoCards);
+        Raise(Snapshot(PrinterState.Printing, Job(10)));
+        TestOverlayWidget a = Widget(viewModel, "test-a");
         viewModel.Dispose();
+        int posts = _dispatcher.PostCount;
 
-        Save(NameAndTemperatures);
-        _monitor.Raise(Printing(nozzle: 100));
+        Save(CameraOverlayLayout.Default, opacity: 30);
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(50)));
         _dispatcher.RunAll();
 
-        Assert.Same(lines, viewModel.OverlayLines);
+        Assert.True(a.IsDisposed);
+        Assert.Equal("10%", a.Value);
+        Assert.Equal(CameraOverlayOpacity.DefaultPercent, viewModel.Overlay.OpacityPercent);
+        Assert.Equal(posts, _dispatcher.PostCount);
+        Assert.Equal(0, _monitor.SubscriberCount);
     }
 }

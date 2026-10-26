@@ -23,7 +23,7 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
     private const string OfflineId = "e2e-offline";
 
     /// <summary>Printer sub-tabs of the settings window, in order.</summary>
-    private static readonly string[] PrinterTabs = ["PrinterTabConnection", "PrinterTabCamera", "PrinterTabCameraWindow", "PrinterTabOverlay"];
+    private static readonly string[] PrinterTabs = ["PrinterTabConnection", "PrinterTabCamera", "PrinterTabCameraWindow"];
 
     /// <summary>The Tab order of the diagnostics with more printers (T-041): printer, chart range, Close.</summary>
     private static readonly string[] DiagnosticsTabOrder = ["DiagnosticsPrinterSelector", "DiagnosticsChartRange", "DiagnosticsClose"];
@@ -33,7 +33,7 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
 
     /// <summary>
     /// No scroll bar at 125 and 150 % (8 languages): the diagnostics printing, offline and without printers, the printer
-    /// sub-tabs and the general tab of the settings. On a work area too small for 780×508 DIP the window fits it instead.
+    /// sub-tabs and the general tab of the settings. On a work area too small for 780×532 DIP the window fits it instead.
     /// </summary>
     [Fact]
     [Trait(SystemChanges.Trait, SystemChangeTraits.DisplayScale)]
@@ -150,6 +150,7 @@ public sealed class AuxiliaryWindowScaleAndThemeTests(E2EFixture fixture)
             await _layout.CheckTabAsync(window, settings, tab, $"scale-settings-{name}-{tab}");
         }
 
+        await _layout.CheckTabAsync(window, settings, "SettingsTabWidgets", $"scale-settings-{name}-widgets");
         await _layout.CheckTabAsync(window, settings, "SettingsTabGeneral", $"scale-settings-{name}-general");
         await CameraWindowSettings.CloseAsync(settings, window, save: false);
 

@@ -544,7 +544,7 @@ public sealed class SettingsViewModelTests : IDisposable
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.Empty(_store.Saves);
-        Assert.Equal(1, vm.SelectedTabIndex);
+        Assert.Equal(SettingsViewModel.GeneralTab, vm.SelectedTabIndex);
     }
 
     [Fact]

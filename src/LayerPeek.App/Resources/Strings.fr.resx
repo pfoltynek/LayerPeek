@@ -40,16 +40,16 @@
     <value>{0}, reste {1}</value>
   </data>
   <data name="DurationLessThanMinute" xml:space="preserve">
-    <value>&lt; 1 min</value>
+    <value>&lt;&#160;1&#160;min</value>
   </data>
   <data name="DurationMinutes" xml:space="preserve">
-    <value>{0} min</value>
+    <value>{0}&#160;min</value>
   </data>
   <data name="DurationHoursMinutes" xml:space="preserve">
-    <value>{0} h {1} min</value>
+    <value>{0}&#160;h {1}&#160;min</value>
   </data>
   <data name="DurationDaysHours" xml:space="preserve">
-    <value>{0} j {1} h</value>
+    <value>{0}&#160;j {1}&#160;h</value>
   </data>
   <data name="StateConnecting" xml:space="preserve">
     <value>Connexion…</value>
@@ -193,13 +193,13 @@
     <value>Éteint</value>
   </data>
   <data name="DiagnosticsRpmValue" xml:space="preserve">
-    <value>{0} tr/min</value>
+    <value>{0}&#160;tr/min</value>
   </data>
   <data name="DiagnosticsPercentValue" xml:space="preserve">
     <value>{0} %</value>
   </data>
   <data name="DiagnosticsMillimetreValue" xml:space="preserve">
-    <value>{0} mm</value>
+    <value>{0}&#160;mm</value>
   </data>
   <data name="DiagnosticsMissingValue" xml:space="preserve">
     <value>–</value>
@@ -214,13 +214,13 @@
     <value>Historique des températures</value>
   </data>
   <data name="DiagnosticsChartWindow30Minutes" xml:space="preserve">
-    <value>30 min</value>
+    <value>30&#160;min</value>
   </data>
   <data name="DiagnosticsChartWindow2Hours" xml:space="preserve">
-    <value>2 h</value>
+    <value>2&#160;h</value>
   </data>
   <data name="DiagnosticsChartWindow24Hours" xml:space="preserve">
-    <value>24 h</value>
+    <value>24&#160;h</value>
   </data>
   <data name="DiagnosticsChartNoData" xml:space="preserve">
     <value>Aucune donnée de température sur cette période</value>
@@ -468,6 +468,117 @@
   <data name="SettingsNotifyOffline" xml:space="preserve">
     <value>L'imprimante est hors ligne ou de nouveau en ligne</value>
   </data>
+  <data name="SettingsNotifyCooledDown" xml:space="preserve">
+    <value>Imprimante refroidie</value>
+  </data>
+  <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
+    <value>Le seuil de température de la buse se règle par imprimante dans l'onglet Widgets, widget Refroidissement.</value>
+  </data>
+  <data name="SettingsCooldownThreshold" xml:space="preserve">
+    <value>Seuil de température de la buse (°C)</value>
+  </data>
+  <data name="SettingsCooldownThresholdHint" xml:space="preserve">
+    <value>En dessous de cette température, l'imprimante peut être éteinte sans risque.</value>
+  </data>
+  <data name="SettingsCooldownThresholdError" xml:space="preserve">
+    <value>Saisissez un nombre entier de {0} à {1}.</value>
+  </data>
+  <data name="SettingsCooldownApplyAll" xml:space="preserve">
+    <value>Appliquer le seuil à toutes les imprimantes</value>
+  </data>
+  <data name="SettingsCooldownAppliedAll" xml:space="preserve">
+    <value>Le seuil a été copié vers les autres imprimantes. Il s'applique après l'enregistrement.</value>
+  </data>
+  <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
+    <value>Une seule imprimante est configurée.</value>
+  </data>
+  <data name="SettingsTabWidgets" xml:space="preserve">
+    <value>Widgets</value>
+  </data>
+  <data name="SettingsWidgetsPrinter" xml:space="preserve">
+    <value>Imprimante</value>
+  </data>
+  <data name="SettingsWidgetsNoPrinters" xml:space="preserve">
+    <value>Aucune imprimante n'est configurée. Ajoutez-en une dans l'onglet Imprimantes.</value>
+  </data>
+  <data name="SettingsWidgetsListName" xml:space="preserve">
+    <value>Widgets de la fenêtre de la caméra</value>
+  </data>
+  <data name="SettingsWidgetsShowName" xml:space="preserve">
+    <value>Afficher le widget {0}</value>
+  </data>
+  <data name="SettingsWidgetsItemShown" xml:space="preserve">
+    <value>{0}, affiché</value>
+  </data>
+  <data name="SettingsWidgetsItemHidden" xml:space="preserve">
+    <value>{0}, masqué</value>
+  </data>
+  <data name="SettingsWidgetsNoSettings" xml:space="preserve">
+    <value>Ce widget n'a pas d'autres paramètres.</value>
+  </data>
+  <data name="SettingsWidgetsAll" xml:space="preserve">
+    <value>Tous les widgets</value>
+  </data>
+  <data name="SettingsWidgetsEditLayout" xml:space="preserve">
+    <value>Modifier la disposition de la caméra…</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutHelp" xml:space="preserve">
+    <value>Ouvre la fenêtre de la caméra de cette imprimante en mode disposition, où vous modifiez la position, l'ordre, la taille et la mise en évidence des widgets.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutCameraOff" xml:space="preserve">
+    <value>Activez la caméra de cette imprimante et enregistrez les paramètres.</value>
+  </data>
+  <data name="SettingsWidgetsEditLayoutUnsaved" xml:space="preserve">
+    <value>Enregistrez d'abord les paramètres.</value>
+  </data>
+  <data name="SettingsWidgetsResetHelp" xml:space="preserve">
+    <value>Rétablit la visibilité, la position, l'ordre, la taille et la mise en évidence des widgets de cette imprimante.</value>
+  </data>
+  <data name="SettingsWidgetsResetDone" xml:space="preserve">
+    <value>La disposition par défaut a été rétablie. Elle s'applique après l'enregistrement.</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOn" xml:space="preserve">
+    <value>Notification « Imprimante refroidie » : activée</value>
+  </data>
+  <data name="SettingsWidgetsCooledDownNotifyOff" xml:space="preserve">
+    <value>Notification « Imprimante refroidie » : désactivée</value>
+  </data>
+  <data name="SettingsWidgetsNotificationsOff" xml:space="preserve">
+    <value>Les notifications sont désactivées.</value>
+  </data>
+  <data name="SettingsWidgetsNotifyLink" xml:space="preserve">
+    <value>Modifier dans l'onglet Général</value>
+  </data>
+  <data name="SettingsOverlayApplyAll" xml:space="preserve">
+    <value>Disposition pour toutes les imprimantes</value>
+  </data>
+  <data name="SettingsOverlayAppliedAll" xml:space="preserve">
+    <value>La disposition a été copiée vers les autres imprimantes. Elle s'applique après l'enregistrement.</value>
+  </data>
+  <data name="SettingsOverlayLayoutHint" xml:space="preserve">
+    <value>Modifiez la position, l'ordre, la taille et la mise en évidence avec Modifier la disposition de la caméra.</value>
+  </data>
+  <data name="SettingsOverlayOpacity" xml:space="preserve">
+    <value>Opacité du fond des cartes</value>
+  </data>
+  <data name="SettingsOverlayOpacityHint" xml:space="preserve">
+    <value>S'applique aux fenêtres de caméra de toutes les imprimantes. Une valeur élevée garde le texte lisible sur une image claire.</value>
+  </data>
+  <data name="CameraOverlayWidgetStatusDescription" xml:space="preserve">
+    <value>Nom de l'imprimante, état et progression de l'impression en pourcentage.</value>
+  </data>
+  <data name="CameraOverlayWidgetTimesDescription" xml:space="preserve">
+    <value>Temps restant, heure de fin et durée d'impression.</value>
+  </data>
+  <data name="CameraOverlayWidgetTemperaturesDescription" xml:space="preserve">
+    <value>Température de la buse et du plateau avec un graphique des 60 dernières minutes.</value>
+  </data>
+  <data name="CameraOverlayWidgetPrintNameDescription" xml:space="preserve">
+    <value>Nom d'impression lisible avec matériau, hauteur de couche et buse ; les grandes tailles ajoutent un aperçu.</value>
+  </data>
+  <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
+    <value>Après la fin d'une impression, montre le refroidissement de la buse et quand l'imprimante peut être éteinte.</value>
+  </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notifier lorsqu'il reste ce nombre de minutes d'impression (0 = désactivé)</value>
   </data>
@@ -594,6 +705,18 @@
   <data name="NotificationStatusChanged" xml:space="preserve">
     <value>L'état de l'imprimante a changé</value>
   </data>
+  <data name="NotificationCooledDown" xml:space="preserve">
+    <value>Imprimante refroidie</value>
+  </data>
+  <data name="NotificationCooledDownFinished" xml:space="preserve">
+    <value>Impression terminée, imprimante refroidie</value>
+  </data>
+  <data name="NotificationCooledDownStopped" xml:space="preserve">
+    <value>Impression arrêtée, imprimante refroidie</value>
+  </data>
+  <data name="NotificationCooledDownDetail" xml:space="preserve">
+    <value>Vous pouvez l'éteindre. Buse {0} °C, seuil {1} °C</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Caméra</value>
   </data>
@@ -622,7 +745,7 @@
     <value>Image de la caméra issue du test</value>
   </data>
   <data name="SettingsCameraTestTimeout" xml:space="preserve">
-    <value>Aucune image n'est arrivée de la caméra en {0} s.</value>
+    <value>Aucune image n'est arrivée de la caméra en {0}&#160;s.</value>
   </data>
   <data name="SettingsCameraTestFailed" xml:space="preserve">
     <value>Impossible d'ouvrir le flux de la caméra : {0}</value>
@@ -825,11 +948,20 @@
   <data name="SettingsCameraWindowSizeError" xml:space="preserve">
     <value>Saisissez une largeur de {0} à {1} et une hauteur de {2} à {3}.</value>
   </data>
-  <data name="CameraOverlayLabeledValue" xml:space="preserve">
-    <value>{0} : {1}</value>
-  </data>
   <data name="CameraOverlayTemperatureWithTarget" xml:space="preserve">
     <value>{0} / {1} °C</value>
+  </data>
+  <data name="CameraOverlayChartStart" xml:space="preserve">
+    <value>−60&#160;min</value>
+  </data>
+  <data name="CameraOverlayChartNow" xml:space="preserve">
+    <value>maintenant</value>
+  </data>
+  <data name="CameraOverlayChartNoData" xml:space="preserve">
+    <value>Aucune donnée</value>
+  </data>
+  <data name="CameraOverlayChartName" xml:space="preserve">
+    <value>graphique des 60 dernières minutes</value>
   </data>
   <data name="CameraOverlayFinishTime" xml:space="preserve">
     <value>Fin à {0}</value>
@@ -837,47 +969,95 @@
   <data name="CameraOverlayFinishDateTime" xml:space="preserve">
     <value>Fin le {0} à {1}</value>
   </data>
+  <data name="CameraOverlayNozzleChip" xml:space="preserve">
+    <value>buse {0}</value>
+  </data>
+  <data name="CameraOverlayLayerHeightName" xml:space="preserve">
+    <value>hauteur de couche {0}&#160;mm</value>
+  </data>
+  <data name="CameraOverlayNozzleDiameterName" xml:space="preserve">
+    <value>buse {0}&#160;mm</value>
+  </data>
+  <data name="CameraOverlaySlicerEstimate" xml:space="preserve">
+    <value>estimation du slicer {0}</value>
+  </data>
+  <data name="CameraOverlayThumbnailName" xml:space="preserve">
+    <value>Aperçu de l'impression</value>
+  </data>
   <data name="CameraOverlayPrintTime" xml:space="preserve">
     <value>Durée d'impression : {0}</value>
   </data>
-  <data name="SettingsPrinterTabOverlay" xml:space="preserve">
-    <value>Superposition</value>
+  <data name="CameraOverlayWidgetStatus" xml:space="preserve">
+    <value>État</value>
   </data>
-  <data name="SettingsOverlayCorner" xml:space="preserve">
-    <value>Coin de la superposition</value>
+  <data name="CameraOverlayWidgetTimes" xml:space="preserve">
+    <value>Temps</value>
   </data>
-  <data name="SettingsOverlayNormalColumn" xml:space="preserve">
-    <value>Fenêtre normale et plein écran</value>
+  <data name="CameraOverlayWidgetTemperatures" xml:space="preserve">
+    <value>Températures</value>
   </data>
-  <data name="SettingsOverlayItemPrinterName" xml:space="preserve">
-    <value>Nom de l'imprimante</value>
+  <data name="CameraOverlayWidgetPrintName" xml:space="preserve">
+    <value>Nom de l'impression</value>
   </data>
-  <data name="SettingsOverlayItemState" xml:space="preserve">
-    <value>État de l'imprimante</value>
+  <data name="CameraOverlayWidgetCooldown" xml:space="preserve">
+    <value>Refroidissement</value>
   </data>
-  <data name="SettingsOverlayItemNozzleTemperature" xml:space="preserve">
-    <value>Température de la buse</value>
+  <data name="CameraOverlayRemainingLabel" xml:space="preserve">
+    <value>Restant</value>
   </data>
-  <data name="SettingsOverlayItemBedTemperature" xml:space="preserve">
-    <value>Température du plateau</value>
+  <data name="CameraMiniCooling" xml:space="preserve">
+    <value>Refroidissement… {0}&#160;°C · env. {1}</value>
   </data>
-  <data name="SettingsOverlayItemProgress" xml:space="preserve">
-    <value>Progression (%)</value>
+  <data name="CameraMiniCoolingNoEstimate" xml:space="preserve">
+    <value>Refroidissement… {0}&#160;°C</value>
   </data>
-  <data name="SettingsOverlayItemRemainingTime" xml:space="preserve">
-    <value>Temps restant</value>
+  <data name="CameraMiniCooled" xml:space="preserve">
+    <value>Refroidie · {0}&#160;°C</value>
   </data>
-  <data name="SettingsOverlayItemFinishTime" xml:space="preserve">
-    <value>Heure de fin</value>
+  <data name="CameraOverlayCooling" xml:space="preserve">
+    <value>Refroidissement…</value>
   </data>
-  <data name="SettingsOverlayItemPrintTime" xml:space="preserve">
-    <value>Durée d'impression</value>
+  <data name="CameraOverlayCooled" xml:space="preserve">
+    <value>Refroidie – vous pouvez l'éteindre</value>
   </data>
-  <data name="SettingsOverlayItemFileName" xml:space="preserve">
-    <value>Nom du fichier</value>
+  <data name="CameraOverlayCooldownEstimate" xml:space="preserve">
+    <value>extinction sûre dans env. {0} (buse sous {1}&#160;°C)</value>
   </data>
-  <data name="SettingsOverlayHint" xml:space="preserve">
-    <value>Les données de la tâche (progression, durées, nom du fichier) ne s'affichent que pendant une impression. Après l'enregistrement, les modifications s'appliquent aussi aux fenêtres de caméra ouvertes.</value>
+  <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
+    <value>extinction sûre quand la buse sera sous {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
+    <value>impression terminée à {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownStoppedAt" xml:space="preserve">
+    <value>impression arrêtée à {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownCooledIn" xml:space="preserve">
+    <value>refroidie en {0}</value>
+  </data>
+  <data name="CameraOverlayCooldownAbout" xml:space="preserve">
+    <value>env. {0}</value>
+  </data>
+  <data name="CameraMiniToggleName" xml:space="preserve">
+    <value>Nom de l'impression dans le bandeau</value>
+  </data>
+  <data name="CameraMiniToggleChart" xml:space="preserve">
+    <value>Graphique des températures dans le bandeau</value>
+  </data>
+  <data name="CameraMiniShowName" xml:space="preserve">
+    <value>Afficher le nom de l'impression</value>
+  </data>
+  <data name="CameraMiniHideName" xml:space="preserve">
+    <value>Masquer le nom de l'impression</value>
+  </data>
+  <data name="CameraMiniShowChart" xml:space="preserve">
+    <value>Afficher le graphique des températures</value>
+  </data>
+  <data name="CameraMiniHideChart" xml:space="preserve">
+    <value>Masquer le graphique des températures</value>
+  </data>
+  <data name="CameraMiniNameNoJob" xml:space="preserve">
+    <value>Le nom s'affiche pendant une impression</value>
   </data>
   <data name="SettingsImageButtonName" xml:space="preserve">
     <value>Image de l'imprimante : {0}</value>
@@ -980,5 +1160,86 @@
   </data>
   <data name="SupportCopyFailed" xml:space="preserve">
     <value>Les informations n'ont pas pu être copiées dans le presse-papiers. Réessayez.</value>
+  </data>
+  <data name="CameraLayoutEdit" xml:space="preserve">
+    <value>Modifier la disposition</value>
+  </data>
+  <data name="CameraLayoutTitle" xml:space="preserve">
+    <value>Mode disposition</value>
+  </data>
+  <data name="CameraLayoutHint" xml:space="preserve">
+    <value>faites glisser un widget vers une ancre</value>
+  </data>
+  <data name="CameraLayoutKeyboardHint" xml:space="preserve">
+    <value>Espace soulève un widget, les flèches le déplacent, Entrée ouvre ses options, Échap annule les modifications.</value>
+  </data>
+  <data name="CameraLayoutReset" xml:space="preserve">
+    <value>Rétablir par défaut</value>
+  </data>
+  <data name="CameraLayoutDone" xml:space="preserve">
+    <value>Terminé</value>
+  </data>
+  <data name="CameraLayoutDropHere" xml:space="preserve">
+    <value>Déposer ici</value>
+  </data>
+  <data name="CameraLayoutNoData" xml:space="preserve">
+    <value>aucune donnée pour l'instant</value>
+  </data>
+  <data name="CameraLayoutEmphasize" xml:space="preserve">
+    <value>Mettre en évidence</value>
+  </data>
+  <data name="CameraLayoutEmphasizeHelp" xml:space="preserve">
+    <value>Affiche la valeur clé en orange.</value>
+  </data>
+  <data name="CameraLayoutSize" xml:space="preserve">
+    <value>Taille</value>
+  </data>
+  <data name="CameraLayoutSizeSmall" xml:space="preserve">
+    <value>Petite</value>
+  </data>
+  <data name="CameraLayoutSizeMedium" xml:space="preserve">
+    <value>Moyenne</value>
+  </data>
+  <data name="CameraLayoutSizeLarge" xml:space="preserve">
+    <value>Grande</value>
+  </data>
+  <data name="CameraLayoutSizeUnsupported" xml:space="preserve">
+    <value>Ce widget n'a pas cette taille.</value>
+  </data>
+  <data name="CameraLayoutAnchorTopCenter" xml:space="preserve">
+    <value>En haut au centre</value>
+  </data>
+  <data name="CameraLayoutAnchorBottomCenter" xml:space="preserve">
+    <value>En bas au centre</value>
+  </data>
+  <data name="CameraLayoutAnnounceEnter" xml:space="preserve">
+    <value>Mode disposition. {0}</value>
+  </data>
+  <data name="CameraLayoutAnnounceLifted" xml:space="preserve">
+    <value>{0} soulevé. Choisissez un emplacement avec les flèches, déposez avec Espace, Échap annule.</value>
+  </data>
+  <data name="CameraLayoutAnnouncePosition" xml:space="preserve">
+    <value>{0}&#160;: {1}, position {2} sur {3}</value>
+  </data>
+  <data name="CameraLayoutAnnounceDropped" xml:space="preserve">
+    <value>{0} déplacé&#160;: {1}, position {2}</value>
+  </data>
+  <data name="CameraLayoutAnnounceCancelled" xml:space="preserve">
+    <value>Déplacement annulé</value>
+  </data>
+  <data name="CameraLayoutAnnounceReset" xml:space="preserve">
+    <value>Disposition par défaut rétablie</value>
+  </data>
+  <data name="CameraLayoutAnnounceSaved" xml:space="preserve">
+    <value>Disposition enregistrée</value>
+  </data>
+  <data name="CameraLayoutAnnounceDiscarded" xml:space="preserve">
+    <value>Modifications de la disposition annulées</value>
+  </data>
+  <data name="CameraLayoutSaveError" xml:space="preserve">
+    <value>Impossible d'enregistrer la disposition. Réessayez.</value>
+  </data>
+  <data name="CameraLayoutTooSmall" xml:space="preserve">
+    <value>Agrandissez la fenêtre pour modifier la disposition.</value>
   </data>
 </root>

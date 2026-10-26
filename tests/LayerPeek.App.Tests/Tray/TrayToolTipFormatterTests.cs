@@ -16,7 +16,7 @@ public sealed class TrayToolTipFormatterTests
 
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Printing, Job(45.6, OneHour23)), otherPrinterCount: 0);
 
-        Assert.Equal("MK4\nPrinting – 45%\n1 h 23 min remaining\nbenchy.bgcode", text);
+        Assert.Equal("MK4\nPrinting – 45%\n1\u00A0h 23\u00A0min remaining\nbenchy.bgcode", text);
     }
 
     [Fact]
@@ -26,7 +26,7 @@ public sealed class TrayToolTipFormatterTests
 
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Printing, Job(45.6, OneHour23)), otherPrinterCount: 0);
 
-        Assert.Equal("MK4\nTiskne – 45\u00A0%\nZbývá 1 h 23 min\nbenchy.bgcode", text);
+        Assert.Equal("MK4\nTiskne – 45\u00A0%\nZbývá 1\u00A0h 23\u00A0min\nbenchy.bgcode", text);
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public sealed class TrayToolTipFormatterTests
 
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Paused, Job(10, TimeSpan.FromMinutes(5))), otherPrinterCount: 0);
 
-        Assert.Equal("MK4\nPaused – 10%\n5 min remaining\nbenchy.bgcode", text);
+        Assert.Equal("MK4\nPaused – 10%\n5\u00A0min remaining\nbenchy.bgcode", text);
     }
 
     [Fact]
@@ -124,7 +124,7 @@ public sealed class TrayToolTipFormatterTests
 
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Printing, job), otherPrinterCount: 0);
 
-        Assert.Equal("MK4\nPrinting – 50%\n30 min remaining\na.gcode", text);
+        Assert.Equal("MK4\nPrinting – 50%\n30\u00A0min remaining\na.gcode", text);
     }
 
     [Fact]
@@ -136,14 +136,14 @@ public sealed class TrayToolTipFormatterTests
     }
 
     [Theory]
-    [InlineData(0, "< 1 min")]
-    [InlineData(20, "1 min")]
-    [InlineData(60, "1 min")]
-    [InlineData(61, "2 min")]
-    [InlineData(59 * 60, "59 min")]
-    [InlineData(60 * 60, "1 h 0 min")]
-    [InlineData((23 * 3600) + (59 * 60) + 1, "1 d 0 h")]
-    [InlineData((2 * 86400) + (5 * 3600), "2 d 5 h")]
+    [InlineData(0, "<\u00A01\u00A0min")]
+    [InlineData(20, "1\u00A0min")]
+    [InlineData(60, "1\u00A0min")]
+    [InlineData(61, "2\u00A0min")]
+    [InlineData(59 * 60, "59\u00A0min")]
+    [InlineData(60 * 60, "1\u00A0h 0\u00A0min")]
+    [InlineData((23 * 3600) + (59 * 60) + 1, "1\u00A0d 0\u00A0h")]
+    [InlineData((2 * 86400) + (5 * 3600), "2\u00A0d 5\u00A0h")]
     public void FormatsDurationRoundedUpToMinutes(int seconds, string expected)
     {
         using CultureScope culture = new("en-US");
@@ -158,7 +158,7 @@ public sealed class TrayToolTipFormatterTests
 
         string text = TrayToolTipFormatter.FormatDuration(TimeSpan.MaxValue);
 
-        Assert.EndsWith(" h", text, StringComparison.Ordinal);
+        Assert.EndsWith("\u00A0h", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -170,7 +170,7 @@ public sealed class TrayToolTipFormatterTests
         string text = TrayToolTipFormatter.Format(Printer(PrinterState.Printing, Job(45, OneHour23, fileName)), otherPrinterCount: 0);
 
         Assert.True(text.Length <= TrayToolTipFormatter.MaxLength, $"Length {text.Length}");
-        Assert.StartsWith("MK4\nPrinting – 45%\n1 h 23 min remaining\nxxx", text, StringComparison.Ordinal);
+        Assert.StartsWith("MK4\nPrinting – 45%\n1\u00A0h 23\u00A0min remaining\nxxx", text, StringComparison.Ordinal);
         Assert.EndsWith("…", text, StringComparison.Ordinal);
         Assert.Equal(TrayToolTipFormatter.MaxLength, text.Length);
     }
@@ -212,7 +212,7 @@ public sealed class TrayToolTipFormatterTests
             Content(PrinterState.Error, name: "Gamma"),
         ]);
 
-        Assert.Equal("Gamma: Error\nAlpha: Printing – 45%, 1 h 23 min left\nBeta: Ready", text);
+        Assert.Equal("Gamma: Error\nAlpha: Printing – 45%, 1\u00A0h 23\u00A0min left\nBeta: Ready", text);
     }
 
     [Fact]
@@ -227,7 +227,7 @@ public sealed class TrayToolTipFormatterTests
             Content(state: null, name: "Gamma"),
         ]);
 
-        Assert.Equal("Gamma: Připojování…\nBeta: Pozastaveno – 10\u00A0%\nAlpha: Tiskne – 45\u00A0%, zbývá 1 h 23 min", text);
+        Assert.Equal("Gamma: Připojování…\nBeta: Pozastaveno – 10\u00A0%\nAlpha: Tiskne – 45\u00A0%, zbývá 1\u00A0h 23\u00A0min", text);
     }
 
     [Fact]

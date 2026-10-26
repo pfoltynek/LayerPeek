@@ -52,7 +52,7 @@ public sealed class PrinterSimulation
         Speed = speed;
         Timing = timing ?? SimulationTiming.Default;
         _timeProvider = timeProvider;
-        bool hot = scenario is PrinterScenario.Paused or PrinterScenario.Attention or PrinterScenario.Finished;
+        bool hot = scenario is PrinterScenario.Paused or PrinterScenario.Attention or PrinterScenario.Finished or PrinterScenario.Stopped;
         long started = timeProvider.GetTimestamp();
         _phase = new Phase(
             scenario,
@@ -196,6 +196,9 @@ public sealed class PrinterSimulation
         }
     }
 
+    /// <summary>The files the simulated jobs print, in job order (job 42 prints the first).</summary>
+    public static IReadOnlyList<SimulatedFile> AllFiles => Files;
+
     /// <summary>The file of a job id (stable: the same id always has the same file).</summary>
     public static SimulatedFile FileOf(long jobId) => Files[(int)(((jobId - FirstJobId) % Files.Length + Files.Length) % Files.Length)];
 
@@ -223,6 +226,7 @@ public sealed class PrinterSimulation
             PrinterScenario.Printing or PrinterScenario.Flaky => ComputePrinting(phase, s),
             PrinterScenario.Idle or PrinterScenario.Malformed => Static("IDLE", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = Parked },
             PrinterScenario.Finished => Static("FINISHED", null, phase, sincePhase, 0, 0, Model.MaxZ) with { AxisXY = Parked },
+            PrinterScenario.Stopped => Static("STOPPED", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = Parked },
             PrinterScenario.Error => Static("ERROR", null, phase, sincePhase, 0, 0, ParkedZ) with { AxisXY = (0, 0) },
             PrinterScenario.Paused => Frozen("PAUSED", phase, sincePhase, PausedNozzleTarget, new SimulatedJob(phase.JobId, 52, 2400, 2600, FileOf(phase.JobId))) with { AxisXY = (10, 200) },
             PrinterScenario.Attention => Frozen("ATTENTION", phase, sincePhase, Model.NozzleTarget, new SimulatedJob(phase.JobId, 61, 1900, 3100, FileOf(phase.JobId))),

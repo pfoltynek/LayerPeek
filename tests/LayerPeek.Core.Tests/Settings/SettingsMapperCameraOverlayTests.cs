@@ -1,41 +1,47 @@
 using System.Text.Json;
 
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 using LayerPeek.Core.Settings.Storage;
 
 namespace LayerPeek.Core.Tests.Settings;
 
-/// <summary><c>printers[*].camera.overlay</c> (T-036) in the persisted shape.</summary>
+/// <summary><c>printers[*].camera.overlay</c> in the widget shape of settings format 2 (T-077).</summary>
 public class SettingsMapperCameraOverlayTests
 {
-    private static readonly CameraOverlayOptions Customized = new()
-    {
-        Corner = CameraOverlayCorner.TopRight,
-        Normal = CameraOverlayItems.PrinterName | CameraOverlayItems.NozzleTemperature | CameraOverlayItems.BedTemperature | CameraOverlayItems.FileName,
-        Mini = CameraOverlayItems.Progress,
-    };
+    private const string Future = "future-widget";
+
+    private static readonly CameraOverlayLayout Customized = CameraOverlayLayout.Default
+        .MoveTo(OverlayWidgetIds.Temperatures, OverlayAnchor.TopRight, 0)
+        .MoveTo(OverlayWidgetIds.Cooldown, OverlayAnchor.BottomLeft, 0)
+        .WithSize(OverlayWidgetIds.Status, OverlayWidgetSize.Small)
+        .WithSize(OverlayWidgetIds.Times, OverlayWidgetSize.Large)
+        .WithEmphasized(OverlayWidgetIds.Times, true)
+        .WithVisible(OverlayWidgetIds.PrintName, false);
 
     [Theory]
     [InlineData("")]
     [InlineData(""", "camera": { "enabled": false }""")]
     [InlineData(""", "camera": { "overlay": null }""")]
     [InlineData(""", "camera": { "overlay": { } }""")]
-    [InlineData(""", "camera": { "overlay": { "corner": null, "normal": null, "mini": null } }""")]
-    [InlineData(""", "camera": { "overlay": { "corner": "BottomLeft", "normal": ["State", "Progress", "RemainingTime"], "mini": ["RemainingTime", "State", "Progress"] } }""")]
-    public void MissingOrDefaultOverlayValuesMeanDefaults(string camera)
+    [InlineData(""", "camera": { "overlay": { "widgets": null } }""")]
+    [InlineData(""", "camera": { "overlay": { "widgets": [] } }""")]
+    [InlineData(""", "camera": { "overlay": { "widgets": [ { "id": "status" }, { "id": "times", "anchor": "BottomLeft" } ] } }""")]
+    public void MissingOrDefaultOverlayValuesMeanTheDefaultLayout(string camera)
     {
-        AppSettings settings = Load(PrinterJson(camera), out List<string> warnings);
+        AppSettings settings = Load(PrinterJson(camera), out List<string> warnings, out List<string> notices);
 
         Assert.Empty(warnings);
-        Assert.Same(CameraOverlayOptions.Default, Assert.Single(settings.Printers).Camera.Overlay);
+        Assert.Empty(notices);
+        Assert.Same(CameraOverlayLayout.Default, Assert.Single(settings.Printers).Camera.Overlay);
     }
 
     [Fact]
-    public void OverlayRoundTrips()
+    public void LayoutRoundTrips()
     {
-        AppSettings settings = WithOverlay(Customized);
+        AppSettings settings = WithLayout(Customized);
 
         AppSettings loaded = RoundTrip(settings, out List<string> warnings);
 
@@ -44,257 +50,346 @@ public class SettingsMapperCameraOverlayTests
         Assert.Equal(Customized, Assert.Single(loaded.Printers).Camera.Overlay);
     }
 
-    [Theory]
-    [InlineData(CameraOverlayCorner.TopLeft)]
-    [InlineData(CameraOverlayCorner.TopRight)]
-    [InlineData(CameraOverlayCorner.BottomLeft)]
-    [InlineData(CameraOverlayCorner.BottomRight)]
-    public void EveryCornerRoundTrips(CameraOverlayCorner corner)
-    {
-        AppSettings settings = WithOverlay(Customized with { Corner = corner });
-
-        Assert.Equal(corner, Assert.Single(RoundTrip(settings, out List<string> warnings).Printers).Camera.Overlay.Corner);
-        Assert.Empty(warnings);
-    }
-
     [Fact]
-    public void EveryItemRoundTripsAlone()
+    public void EveryAnchorSizeAndFlagRoundTrips()
     {
-        foreach (CameraOverlayItems item in CameraOverlayOptions.Items)
+        string[] ids = [.. OverlayWidgetIds.Known];
+        foreach (OverlayAnchor anchor in OverlayAnchors.All)
         {
-            AppSettings settings = WithOverlay(new CameraOverlayOptions { Normal = item, Mini = CameraOverlayOptions.AllItems & ~item });
+            foreach (OverlayWidgetSize size in (OverlayWidgetSize[])[OverlayWidgetSize.Small, OverlayWidgetSize.Medium, OverlayWidgetSize.Large])
+            {
+                for (int flags = 0; flags < 4; flags++)
+                {
+                    string id = ids[(flags + (int)size) % ids.Length];
+                    CameraOverlayLayout layout = CameraOverlayLayout.Default.MoveTo(id, anchor, 0).WithSize(id, size)
+                        .WithEmphasized(id, (flags & 1) != 0).WithVisible(id, (flags & 2) != 0);
 
-            CameraOverlayOptions loaded = Assert.Single(RoundTrip(settings, out List<string> warnings).Printers).Camera.Overlay;
+                    CameraOverlayLayout loaded = Assert.Single(RoundTrip(WithLayout(layout), out List<string> warnings).Printers).Camera.Overlay;
 
-            Assert.Empty(warnings);
-            Assert.Equal(item, loaded.Normal);
-            Assert.Equal(CameraOverlayOptions.AllItems & ~item, loaded.Mini);
+                    Assert.Empty(warnings);
+                    Assert.Equal(layout, loaded);
+                }
+            }
         }
     }
 
     [Fact]
-    public void NoItemsRoundTripAsEmptyLists()
-    {
-        CameraOverlayOptions none = new() { Normal = CameraOverlayItems.None, Mini = CameraOverlayItems.None };
-        string json = Write(WithOverlay(none));
-
-        Assert.Contains("\"normal\": []", json, StringComparison.Ordinal);
-        Assert.Equal(none, Assert.Single(Load(json, out List<string> warnings).Printers).Camera.Overlay);
-        Assert.Empty(warnings);
-    }
-
-    [Fact]
-    public void OverlayOfEnabledCameraRoundTrips()
+    public void LayoutOfEnabledCameraRoundTrips()
     {
         AppSettings settings = WithCamera(new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) { Overlay = Customized });
 
-        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
-
+        Assert.Equal(settings, RoundTrip(settings, out List<string> warnings));
         Assert.Empty(warnings);
-        Assert.Equal(settings, loaded);
     }
 
     [Fact]
-    public void DefaultOverlayIsNotWritten()
+    public void DefaultLayoutIsNotWritten()
     {
-        string json = Write(WithOverlay(CameraOverlayOptions.Default));
+        Assert.DoesNotContain("\"overlay\"", Write(WithLayout(CameraOverlayLayout.Default)), StringComparison.Ordinal);
 
-        Assert.DoesNotContain("\"overlay\"", json, StringComparison.Ordinal);
+        // Equal to the default when only the order across anchors differs.
+        IReadOnlyList<OverlayWidgetPlacement> d = CameraOverlayLayout.Default.Widgets;
+        Assert.DoesNotContain("\"overlay\"", Write(WithLayout(new CameraOverlayLayout([d[4], d[0], d[2], d[1], d[3]]))), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void DefaultOverlayWithEqualValuesIsNotWritten()
+    public void ChangedLayoutIsWrittenAsTheWholeWidgetListInLayoutOrder()
     {
-        string json = Write(WithOverlay(new CameraOverlayOptions { Corner = CameraOverlayCorner.BottomLeft, Normal = CameraOverlayOptions.DefaultItems }));
-
-        Assert.DoesNotContain("\"overlay\"", json, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void CustomizedOverlayIsWrittenWithAllValuesInDisplayOrder()
-    {
-        using JsonDocument json = JsonDocument.Parse(Write(WithOverlay(Customized)));
+        using JsonDocument json = JsonDocument.Parse(Write(WithLayout(CameraOverlayLayout.Default.WithVisible(OverlayWidgetIds.Cooldown, false))));
 
         JsonElement overlay = json.RootElement.GetProperty("printers")[0].GetProperty("camera").GetProperty("overlay");
         Assert.Equal(
-            """{"corner":"TopRight","normal":["PrinterName","NozzleTemperature","BedTemperature","FileName"],"mini":["Progress"]}""",
+            """{"widgets":[""" +
+            """{"id":"status","anchor":"TopLeft","size":"Medium","emphasized":true,"visible":true},""" +
+            """{"id":"print-name","anchor":"TopCenter","size":"Medium","emphasized":false,"visible":true},""" +
+            """{"id":"times","anchor":"BottomLeft","size":"Medium","emphasized":false,"visible":true},""" +
+            """{"id":"cooldown","anchor":"BottomLeft","size":"Medium","emphasized":false,"visible":false},""" +
+            """{"id":"temperatures","anchor":"BottomRight","size":"Medium","emphasized":false,"visible":true}]}""",
             Compact(overlay));
     }
 
     [Fact]
-    public void ChangedCornerAloneWritesTheSection()
+    public void UnknownWidgetIdIsKeptAndWrittenBack()
     {
-        using JsonDocument json = JsonDocument.Parse(Write(WithOverlay(CameraOverlayOptions.Default with { Corner = CameraOverlayCorner.TopLeft })));
+        string camera = """, "camera": { "overlay": { "widgets": [ { "id": "future-widget", "anchor": "TopRight", "size": "Large", "emphasized": true, "visible": false } ] } }""";
 
-        JsonElement overlay = json.RootElement.GetProperty("printers")[0].GetProperty("camera").GetProperty("overlay");
-        Assert.Equal("""{"corner":"TopLeft","normal":["State","Progress","RemainingTime"],"mini":["State","Progress","RemainingTime"]}""", Compact(overlay));
-    }
-
-    [Fact]
-    public void PartialOverlayKeepsOtherDefaults()
-    {
-        AppSettings settings = Load(PrinterJson(""", "camera": { "overlay": { "mini": ["PrinterName"] } }"""), out List<string> warnings);
+        AppSettings settings = Load(PrinterJson(camera), out List<string> warnings, out _);
 
         Assert.Empty(warnings);
-        Assert.Equal(CameraOverlayOptions.Default with { Mini = CameraOverlayItems.PrinterName }, Assert.Single(settings.Printers).Camera.Overlay);
+        CameraOverlayLayout layout = Assert.Single(settings.Printers).Camera.Overlay;
+        Assert.Equal(new OverlayWidgetPlacement(Future, OverlayAnchor.TopRight, OverlayWidgetSize.Large, emphasized: true, visible: false), layout.Find(Future));
+        Assert.Equal(CameraOverlayLayout.Default.Widgets, layout.Widgets.Where(static w => w.WidgetId != Future));
+        Assert.Contains("""{"id":"future-widget","anchor":"TopRight","size":"Large","emphasized":true,"visible":false}""", Compact(Write(settings)), StringComparison.Ordinal);
+        Assert.Equal(settings, RoundTrip(settings, out _));
     }
 
     [Fact]
-    public void NamesAreCaseInsensitiveTrimmedAndDuplicatesAreHarmless()
+    public void UnknownWidgetWithoutValuesUsesTheMainAnchorAndNeutralDefaults()
+    {
+        AppSettings settings = Load(PrinterJson(""", "camera": { "overlay": { "widgets": [ { "id": "future-widget" } ] } }"""), out List<string> warnings, out _);
+
+        Assert.Empty(warnings);
+        Assert.Equal(new OverlayWidgetPlacement(Future, OverlayAnchor.BottomLeft), settings.Printers[0].Camera.Overlay.Find(Future));
+    }
+
+    [Fact]
+    public void KnownWidgetsMissingFromTheListAreAddedAtTheirDefaultPlacement()
     {
         AppSettings settings = Load(
-            PrinterJson(""", "camera": { "overlay": { "corner": " topright ", "normal": [" filename", "FILENAME", "bedTemperature"] } }"""),
-            out List<string> warnings);
+            PrinterJson(""", "camera": { "overlay": { "widgets": [ { "id": "temperatures", "anchor": "BottomLeft" }, { "id": "times", "anchor": "BottomLeft", "visible": false } ] } }"""),
+            out List<string> warnings,
+            out _);
 
         Assert.Empty(warnings);
-        CameraOverlayOptions overlay = Assert.Single(settings.Printers).Camera.Overlay;
-        Assert.Equal(CameraOverlayCorner.TopRight, overlay.Corner);
-        Assert.Equal(CameraOverlayItems.FileName | CameraOverlayItems.BedTemperature, overlay.Normal);
+        CameraOverlayLayout layout = settings.Printers[0].Camera.Overlay;
+        Assert.Equal(["temperatures", "times", "cooldown"], layout.InAnchor(OverlayAnchor.BottomLeft).Select(static w => w.WidgetId));
+        Assert.Equal(CameraOverlayLayout.DefaultPlacement(OverlayWidgetIds.Status), layout.Find(OverlayWidgetIds.Status));
+        Assert.Equal(CameraOverlayLayout.DefaultPlacement(OverlayWidgetIds.PrintName), layout.Find(OverlayWidgetIds.PrintName));
+        Assert.False(layout.Find(OverlayWidgetIds.Times)!.Visible);
+    }
+
+    [Fact]
+    public void MissingValuesOfAKnownWidgetComeFromItsDefaultPlacement()
+    {
+        AppSettings settings = Load(PrinterJson(""", "camera": { "overlay": { "widgets": [ { "id": "status", "size": "Large" } ] } }"""), out List<string> warnings, out _);
+
+        Assert.Empty(warnings);
+        Assert.Equal(new OverlayWidgetPlacement(OverlayWidgetIds.Status, OverlayAnchor.TopLeft, OverlayWidgetSize.Large, emphasized: true), settings.Printers[0].Camera.Overlay.Find("status"));
+    }
+
+    [Fact]
+    public void NamesAndIdsAreCaseInsensitiveAndTrimmed()
+    {
+        AppSettings settings = Load(
+            PrinterJson(""", "camera": { "OVERLAY": { "Widgets": [ { "ID": " Status ", "Anchor": " bottomright ", "SIZE": "large", "Emphasized": false, "VISIBLE": false } ] } }"""),
+            out List<string> warnings,
+            out _);
+
+        Assert.Empty(warnings);
+        Assert.Equal(
+            new OverlayWidgetPlacement(OverlayWidgetIds.Status, OverlayAnchor.BottomRight, OverlayWidgetSize.Large, emphasized: false, visible: false),
+            settings.Printers[0].Camera.Overlay.Find("status"));
+        Assert.Equal("status", settings.Printers[0].Camera.Overlay.Find("status")!.WidgetId);
+    }
+
+    [Fact]
+    public void DuplicateWidgetKeepsTheFirstEntryWithOneWarning()
+    {
+        AppSettings settings = Load(
+            PrinterJson(""", "camera": { "overlay": { "widgets": [ { "id": "status", "anchor": "TopRight" }, { "id": "STATUS", "anchor": "BottomCenter" }, { "id": "status", "anchor": "BottomRight" }, { "id": "future-widget" }, { "id": "Future-Widget", "anchor": "TopCenter" } ] } }"""),
+            out List<string> warnings,
+            out _);
+
+        CameraOverlayLayout layout = settings.Printers[0].Camera.Overlay;
+        Assert.Equal(OverlayAnchor.TopRight, layout.Find("status")!.Anchor);
+        Assert.Equal(OverlayAnchor.BottomLeft, layout.Find(Future)!.Anchor);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("mk4", warning, StringComparison.Ordinal);
+        Assert.Contains("3 duplicate", warning, StringComparison.Ordinal);
+        Assert.DoesNotContain("future", warning, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
-    [InlineData("Middle")]
-    [InlineData("Center")]
-    [InlineData("1")]
-    [InlineData("")]
-    public void UnknownCornerUsesDefaultWithWarningWithoutEchoingIt(string value)
+    [InlineData("anchor", "\"Middle\"")]
+    [InlineData("anchor", "\"3\"")]
+    [InlineData("anchor", "3")]
+    [InlineData("anchor", "\"\"")]
+    [InlineData("anchor", "\"Top Left\"")]
+    [InlineData("size", "\"Huge\"")]
+    [InlineData("size", "\"1\"")]
+    [InlineData("size", "[]")]
+    [InlineData("emphasized", "\"yes\"")]
+    [InlineData("visible", "1")]
+    [InlineData("visible", "{ }")]
+    [InlineData("anchor", "\"\\ud800\"")]
+    [InlineData("size", "\"\\udc00x\"")]
+    public void UnknownValueFallsBackToTheDefaultWithOneWarningWithoutEchoingIt(string property, string value)
     {
         AppSettings settings = Load(
-            PrinterJson($$""", "camera": { "overlay": { "corner": "{{value}}", "mini": ["FileName"] } }"""),
-            out List<string> warnings);
+            PrinterJson($$""", "camera": { "overlay": { "widgets": [ { "id": "times", "anchor": "TopRight", "size": "Large", "emphasized": true, "visible": false, "{{property}}": {{value}} } ] } }"""),
+            out List<string> warnings,
+            out _);
 
-        CameraOverlayOptions overlay = Assert.Single(settings.Printers).Camera.Overlay;
-        Assert.Equal(CameraOverlayCorner.BottomLeft, overlay.Corner);
-        Assert.Equal(CameraOverlayItems.FileName, overlay.Mini);
-        string warning = Assert.Single(warnings);
-        Assert.Contains("overlay", warning, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("corner", warning, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("mk4", warning, StringComparison.Ordinal);
-        if (value.Length > 1)
+        OverlayWidgetPlacement times = settings.Printers[0].Camera.Overlay.Find("times")!;
+        OverlayWidgetPlacement fallback = CameraOverlayLayout.DefaultPlacement("times")!;
+        OverlayWidgetPlacement expected = new("times", OverlayAnchor.TopRight, OverlayWidgetSize.Large, emphasized: true, visible: false);
+        expected = property switch
         {
-            Assert.DoesNotContain(value, warning, StringComparison.Ordinal);
+            "anchor" => expected with { Anchor = fallback.Anchor },
+            "size" => expected with { Size = fallback.Size },
+            "emphasized" => expected with { Emphasized = fallback.Emphasized },
+            _ => expected with { Visible = fallback.Visible },
+        };
+        Assert.Equal(expected, times);
+        string warning = Assert.Single(warnings);
+        Assert.Contains("Camera overlay of printer 'mk4'", warning, StringComparison.Ordinal);
+        Assert.Contains("1 invalid widget value", warning, StringComparison.Ordinal);
+        foreach (string echoed in (string[])["Middle", "Huge", "yes", "Top Left"])
+        {
+            Assert.DoesNotContain(echoed, warning, StringComparison.Ordinal);
         }
     }
 
+    [Fact]
+    public void SeveralInvalidValuesGiveOneWarning()
+    {
+        Load(
+            PrinterJson(""", "camera": { "overlay": { "widgets": [ { "id": "times", "anchor": "x", "size": "y" }, { "id": "status", "visible": "z" } ] } }"""),
+            out List<string> warnings,
+            out _);
+
+        Assert.Contains("3 invalid widget values", Assert.Single(warnings), StringComparison.Ordinal);
+    }
+
     [Theory]
-    [InlineData("\"Humidity\"")]
-    [InlineData("\"16\"")]
-    [InlineData("\"State, Progress\"")]
-    [InlineData("\"\"")]
     [InlineData("null")]
-    public void UnknownItemIsIgnoredWithWarningAndTheOthersAreKept(string unknown)
+    [InlineData("5")]
+    [InlineData("\"status\"")]
+    [InlineData("{ }")]
+    [InlineData("{ \"id\": null }")]
+    [InlineData("{ \"id\": 5 }")]
+    [InlineData("{ \"id\": \"\" }")]
+    [InlineData("{ \"id\": \"  \" }")]
+    [InlineData("{ \"id\": \"a\\u0001b\" }")]
+    [InlineData("{ \"anchor\": \"TopLeft\" }")]
+    [InlineData("{ \"id\": \"\\ud800\" }")]
+    [InlineData("{ \"id\": \"w\\udc00\" }")]
+    public void InvalidWidgetEntryIsSkippedWithOneWarning(string entry)
     {
         AppSettings settings = Load(
-            PrinterJson($$""", "camera": { "overlay": { "normal": ["State", {{unknown}}, "FileName"] } }"""),
-            out List<string> warnings);
+            PrinterJson($$""", "camera": { "overlay": { "widgets": [ {{entry}}, { "id": "status", "anchor": "BottomCenter" } ] } }"""),
+            out List<string> warnings,
+            out _);
 
-        CameraOverlayOptions overlay = Assert.Single(settings.Printers).Camera.Overlay;
-        Assert.Equal(CameraOverlayItems.State | CameraOverlayItems.FileName, overlay.Normal);
-        Assert.Equal(CameraOverlayOptions.DefaultItems, overlay.Mini);
-        string warning = Assert.Single(warnings);
-        Assert.Contains("normal window", warning, StringComparison.Ordinal);
-        Assert.Contains("1 unknown item", warning, StringComparison.Ordinal);
-        Assert.DoesNotContain("Humidity", warning, StringComparison.Ordinal);
+        CameraOverlayLayout layout = settings.Printers[0].Camera.Overlay;
+        Assert.Equal(OverlayAnchor.BottomCenter, layout.Find("status")!.Anchor);
+        Assert.Equal(OverlayWidgetIds.Known.Count, layout.Widgets.Count);
+        Assert.Contains("1 invalid widget entry", Assert.Single(warnings), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void SeveralUnknownItemsGiveOneWarningPerList()
+    public void TooLongIdIsSkippedWithoutEchoingIt()
     {
-        AppSettings settings = Load(
-            PrinterJson(""", "camera": { "overlay": { "corner": "x", "normal": ["a", "b"], "mini": ["c", "Progress"] } }"""),
-            out List<string> warnings);
+        string id = new('w', OverlayWidgetIds.MaxLength + 1);
 
-        CameraOverlayOptions overlay = Assert.Single(settings.Printers).Camera.Overlay;
-        Assert.Equal(CameraOverlayItems.None, overlay.Normal);
-        Assert.Equal(CameraOverlayItems.Progress, overlay.Mini);
-        Assert.Equal(3, warnings.Count);
-        Assert.Contains(warnings, static warning => warning.Contains("2 unknown items", StringComparison.Ordinal));
-        Assert.Contains(warnings, static warning => warning.Contains("mini preview", StringComparison.Ordinal));
+        AppSettings settings = Load(PrinterJson($$""", "camera": { "overlay": { "widgets": [ { "id": "{{id}}" } ] } }"""), out List<string> warnings, out _);
+
+        Assert.Same(CameraOverlayLayout.Default, settings.Printers[0].Camera.Overlay);
+        Assert.DoesNotContain("www", Assert.Single(warnings), StringComparison.Ordinal);
     }
 
     [Fact]
-    public void TooLongPrinterIdIsShortenedInTheWarning()
+    public void WidgetsBeyondTheLimitAreDroppedWithOneWarning()
     {
-        string id = new('i', 100);
-        AppSettings settings = Load(
-            $$"""{ "printers": [ { "id": "{{id}}", "connectionType": "PrusaLink", "address": "a", "camera": { "overlay": { "corner": "x" } } } ] }""",
-            out List<string> warnings);
+        string entries = string.Join(", ", Enumerable.Range(0, CameraOverlayLayout.MaxWidgets + 3).Select(static i => $$"""{ "id": "w{{i}}" }"""));
 
-        Assert.Single(settings.Printers);
-        Assert.DoesNotContain(id, Assert.Single(warnings), StringComparison.Ordinal);
-    }
+        AppSettings settings = Load(PrinterJson($$""", "camera": { "overlay": { "widgets": [ {{entries}} ] } }"""), out List<string> warnings, out _);
 
-    [Fact]
-    public void OverlayOfDisabledCameraIsKept()
-    {
-        AppSettings settings = Load(
-            PrinterJson(""", "camera": { "enabled": false, "streamUrl": "rtsp://192.168.0.227/live", "overlay": { "corner": "TopLeft" } }"""),
-            out List<string> warnings);
-
-        CameraSettings camera = Assert.Single(settings.Printers).Camera;
-        Assert.Empty(warnings);
-        Assert.False(camera.Enabled);
-        Assert.Equal(CameraOverlayCorner.TopLeft, camera.Overlay.Corner);
-    }
-
-    [Fact]
-    public void OverlayWithoutAddressIsKept()
-    {
-        AppSettings settings = Load(PrinterJson(""", "camera": { "overlay": { "mini": [] } }"""), out List<string> warnings);
-
-        CameraSettings camera = Assert.Single(settings.Printers).Camera;
-        Assert.Empty(warnings);
-        Assert.Null(camera.StreamUri);
-        Assert.Equal(CameraOverlayItems.None, camera.Overlay.Mini);
-        Assert.Equal(camera, RoundTrip(settings, out _).Printers[0].Camera);
+        CameraOverlayLayout layout = settings.Printers[0].Camera.Overlay;
+        Assert.Equal(CameraOverlayLayout.MaxWidgets, layout.Widgets.Count);
+        Assert.All(OverlayWidgetIds.Known, id => Assert.True(layout.Contains(id)));
+        Assert.Contains("too many widgets", Assert.Single(warnings), StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("http://192.168.0.227/live")]
-    [InlineData("rtsp://admin:secret@192.168.0.227/live")]
-    public void OverlayIsKeptWhenAddressIsInvalidOrLosesCredentials(string url)
+    [InlineData("5")]
+    [InlineData("\"status\"")]
+    [InlineData("{ \"id\": \"status\" }")]
+    [InlineData("true")]
+    public void WidgetsThatAreNotAListGiveTheDefaultLayoutWithAWarning(string widgets)
+    {
+        AppSettings settings = Load(PrinterJson($$""", "camera": { "overlay": { "widgets": {{widgets}}, "corner": "TopRight" } }"""), out List<string> warnings, out List<string> notices);
+
+        Assert.Same(CameraOverlayLayout.Default, settings.Printers[0].Camera.Overlay);
+        Assert.Contains("widget list is invalid", Assert.Single(warnings), StringComparison.Ordinal);
+        Assert.Empty(notices);
+    }
+
+    [Theory]
+    [InlineData(""", "camera": { "overlay": 5 }""")]
+    [InlineData(""", "camera": { "overlay": [] }""")]
+    public void OverlayThatIsNotAnObjectFailsLikeOtherValues(string camera) =>
+        Assert.ThrowsAny<JsonException>(() => Load(PrinterJson(camera), out _, out _));
+
+    [Fact]
+    public void UnknownPropertiesOfTheSectionAndOfWidgetsAreIgnored()
     {
         AppSettings settings = Load(
-            PrinterJson($$""", "camera": { "enabled": true, "streamUrl": "{{url}}", "overlay": { "corner": "TopLeft" }, "window": { "startMode": "Mini" } }"""),
-            out List<string> warnings);
+            PrinterJson(""", "camera": { "overlay": { "x": { "y": [1] }, "widgets": [ { "id": "status", "options": { "a": 1 }, "anchor": "TopRight" } ] } }"""),
+            out List<string> warnings,
+            out _);
 
-        CameraSettings camera = Assert.Single(settings.Printers).Camera;
-        Assert.False(camera.Enabled);
-        Assert.Equal(CameraOverlayCorner.TopLeft, camera.Overlay.Corner);
-        Assert.Equal(CameraWindowStartMode.Mini, camera.Window.StartMode);
-        Assert.Single(warnings);
+        Assert.Empty(warnings);
+        Assert.Equal(OverlayAnchor.TopRight, settings.Printers[0].Camera.Overlay.Find("status")!.Anchor);
+    }
+
+    [Fact]
+    public void PropertyNameThatIsNoValidTextIsIgnored()
+    {
+        // A lone escaped surrogate cannot be read as a string; like any unknown property it must not fail the file.
+        AppSettings settings = Load(
+            PrinterJson(""", "camera": { "overlay": { "widgets": [ { "\ud800": 1, "id": "status", "anchor": "TopRight" } ] } }"""),
+            out List<string> warnings,
+            out _);
+
+        Assert.Empty(warnings);
+        Assert.Equal(OverlayAnchor.TopRight, settings.Printers[0].Camera.Overlay.Find("status")!.Anchor);
+    }
+
+    [Fact]
+    public void LayoutOfDisabledCameraOrInvalidAddressIsKept()
+    {
+        string widgets = """ "overlay": { "widgets": [ { "id": "status", "anchor": "TopRight" } ] } """;
+        AppSettings disabled = Load(PrinterJson($$""", "camera": { "enabled": false, "streamUrl": "rtsp://192.168.0.227/live", {{widgets}} }"""), out _, out _);
+        AppSettings invalid = Load(PrinterJson($$""", "camera": { "enabled": true, "streamUrl": "http://192.168.0.227/live", {{widgets}} }"""), out _, out _);
+        AppSettings noAddress = Load(PrinterJson($$""", "camera": { {{widgets}} }"""), out List<string> warnings, out _);
+
+        Assert.Empty(warnings);
+        foreach (AppSettings settings in (AppSettings[])[disabled, invalid, noAddress])
+        {
+            Assert.Equal(OverlayAnchor.TopRight, settings.Printers[0].Camera.Overlay.Find("status")!.Anchor);
+            Assert.False(settings.Printers[0].Camera.Enabled);
+        }
+
+        Assert.Equal(noAddress, RoundTrip(noAddress, out _));
     }
 
     [Fact]
     public void SkippedPrinterGivesNoOverlayWarning()
     {
         AppSettings settings = Load(
-            """{ "printers": [ { "id": "mk4", "connectionType": "PrusaLink", "camera": { "overlay": { "corner": "x" } } } ] }""",
-            out List<string> warnings);
+            """{ "printers": [ { "id": "mk4", "connectionType": "PrusaLink", "camera": { "overlay": { "widgets": 5 } } } ] }""",
+            out List<string> warnings,
+            out _);
 
         Assert.Empty(settings.Printers);
         Assert.Contains("skipped", Assert.Single(warnings), StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData(""", "camera": { "overlay": 5 }""")]
-    [InlineData(""", "camera": { "overlay": { "normal": "State" } }""")]
-    [InlineData(""", "camera": { "overlay": { "mini": [1] } }""")]
-    [InlineData(""", "camera": { "overlay": { "corner": 2 } }""")]
-    public void WrongJsonTypeOfOverlayFailsLikeOtherValues(string camera) =>
-        Assert.ThrowsAny<JsonException>(() => Load(PrinterJson(camera), out _));
+    [Fact]
+    public void TooLongPrinterIdIsShortenedInTheWarning()
+    {
+        string id = new('i', 100);
 
-    private static string PrinterJson(string camera) =>
+        Load(
+            $$"""{ "printers": [ { "id": "{{id}}", "connectionType": "PrusaLink", "address": "a", "camera": { "overlay": { "widgets": [ null ] } } } ] }""",
+            out List<string> warnings,
+            out _);
+
+        Assert.DoesNotContain(id, Assert.Single(warnings), StringComparison.Ordinal);
+    }
+
+    internal static string PrinterJson(string camera) =>
         $$"""{ "printers": [ { "id": "mk4", "name": "MK4", "connectionType": "PrusaLink", "address": "192.168.0.226"{{camera}} } ] }""";
 
-    private static AppSettings WithOverlay(CameraOverlayOptions overlay) => WithCamera(CameraSettings.Disabled with { Overlay = overlay });
+    internal static AppSettings WithLayout(CameraOverlayLayout layout) => WithCamera(CameraSettings.Disabled with { Overlay = layout });
 
     private static AppSettings WithCamera(CameraSettings camera) => new()
     {
         Printers = [new PrinterDefinition { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = camera }],
     };
 
-    private static string Compact(JsonElement element)
+    internal static string Compact(JsonElement element)
     {
         using MemoryStream stream = new();
         using (Utf8JsonWriter writer = new(stream))
@@ -305,15 +400,22 @@ public class SettingsMapperCameraOverlayTests
         return System.Text.Encoding.UTF8.GetString(stream.ToArray());
     }
 
-    private static string Write(AppSettings settings) =>
+    internal static string Compact(string json)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        return Compact(document.RootElement);
+    }
+
+    internal static string Write(AppSettings settings) =>
         JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
 
-    private static AppSettings RoundTrip(AppSettings settings, out List<string> warnings) => Load(Write(settings), out warnings);
+    internal static AppSettings RoundTrip(AppSettings settings, out List<string> warnings) => Load(Write(settings), out warnings, out _);
 
-    private static AppSettings Load(string json, out List<string> warnings)
+    internal static AppSettings Load(string json, out List<string> warnings, out List<string> notices)
     {
         SettingsDocument document = JsonSerializer.Deserialize(json, SettingsJsonContext.Default.SettingsDocument)!;
         warnings = [];
-        return SettingsMapper.ToSettings(document, warnings);
+        notices = [];
+        return SettingsMapper.ToSettings(document, warnings, notices);
     }
 }

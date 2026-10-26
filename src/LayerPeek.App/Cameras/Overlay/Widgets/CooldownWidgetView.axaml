@@ -1,0 +1,260 @@
+<!--
+  Content of the Cool-down card (T-088, design T-076 2.5); the card itself (background, padding, size classes, the green
+  outline once cooled down, AutomationId CameraOverlayWidget-cooldown and the screen reader name) comes from the shared
+  OverlayCardTemplate.
+  M (top down): state icon 20 + title 14 semi-bold → 8 → nozzle (cooling 22 bold, cooled 14 semi-bold) and bed 14
+     semi-bold secondary → 8 → bar 6 in OverlayCoolingBrush (cooling) → 8 → detail 12 secondary, at most 2 lines.
+  L: title 16, nozzle 28 bold, bar 8, detail 13, icons 24.
+  S: one row "❄ 87 °C · about 6 min" + bar 4 (cooling) or "⏻ Cooled down · 48 °C" (cooled down).
+  Icons: Weather Snowflake in OverlayCoolingBrush while cooling, Power in OverlayCooledBrush once cooled; the nozzle
+  (cone pointing down) and bed (line) in the colours of the Temperatures widget. The key value is the nozzle while
+  cooling and the state text once cooled down: accent colour and at least 15 bold when emphasized (T-076 1.3), within the
+  same line height. One element tree for all sizes, so that every AutomationId exists once (T-076 5.7):
+  CameraOverlayWidget-cooldown-Title / -Nozzle / -Bed / -Progress / -Detail.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+             x:Class="LayerPeek.App.Cameras.Overlay.Widgets.CooldownWidgetView"
+             x:DataType="w:CooldownWidgetViewModel">
+  <UserControl.Styles>
+    <!-- Card widths (T-076 2.5: S max 260, M 240–300, L 280–360) without the card padding (S 10, M 14, L 16 per side). -->
+    <Style Selector="Grid.cooldown">
+      <Setter Property="MinWidth" Value="212" />
+      <Setter Property="MaxWidth" Value="272" />
+    </Style>
+    <Style Selector="Border.overlayCard.small Grid.cooldown">
+      <Setter Property="MinWidth" Value="0" />
+      <Setter Property="MaxWidth" Value="240" />
+    </Style>
+    <Style Selector="Border.overlayCard.large Grid.cooldown">
+      <Setter Property="MinWidth" Value="248" />
+      <Setter Property="MaxWidth" Value="328" />
+    </Style>
+
+    <!-- State icon: S 16, M 20, L 24 (the 24 variants); the text starts 6 after it. -->
+    <Style Selector="ov|OverlayIcon.cooldownState">
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+      <Setter Property="CanvasSize" Value="20" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.cooldownSnowflake">
+      <Setter Property="Data" Value="{DynamicResource IconWeatherSnowflake20Regular}" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayCoolingBrush}" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.cooldownPower">
+      <Setter Property="Data" Value="{DynamicResource IconPower20Regular}" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayCooledBrush}" />
+    </Style>
+    <Style Selector="Border.overlayCard.small ov|OverlayIcon.cooldownState">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="Margin" Value="0,2,6,0" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownState">
+      <Setter Property="Width" Value="24" />
+      <Setter Property="Height" Value="24" />
+      <Setter Property="CanvasSize" Value="24" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownSnowflake">
+      <Setter Property="Data" Value="{DynamicResource IconWeatherSnowflake24Regular}" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownPower">
+      <Setter Property="Data" Value="{DynamicResource IconPower24Regular}" />
+    </Style>
+
+    <!-- Title: S 13 semi-bold / 20, M 14 semi-bold / 20, L 16 semi-bold / 22; at most 2 lines (long languages). -->
+    <Style Selector="Border.overlayCard TextBlock.cooldownTitle">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="MaxLines" Value="2" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    </Style>
+    <Style Selector="Border.overlayCard.small TextBlock.cooldownTitle">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.cooldownTitle">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="LineHeight" Value="22" />
+    </Style>
+
+    <!--
+      Temperature row: in M / L below the title over the whole width, the cone under the state icon (its text where the
+      title starts); in S the nozzle alone right of the state icon. Every element that spans columns also spans the star
+      column, so that it never widens the auto columns of the icon and of the S nozzle.
+    -->
+    <Style Selector="StackPanel.cooldownTemperatures">
+      <Setter Property="Grid.Row" Value="1" />
+      <Setter Property="Grid.Column" Value="0" />
+      <Setter Property="Grid.ColumnSpan" Value="3" />
+      <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+    <Style Selector="Border.overlayCard.small StackPanel.cooldownTemperatures">
+      <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="Grid.Column" Value="1" />
+      <Setter Property="Grid.ColumnSpan" Value="1" />
+      <Setter Property="Margin" Value="0" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.cooldownTemperatureIcon">
+      <Setter Property="Width" Value="16" />
+      <Setter Property="Height" Value="16" />
+      <Setter Property="CanvasSize" Value="16" />
+      <Setter Property="Margin" Value="0,0,6,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.cooldownCone">
+      <Setter Property="Margin" Value="2,0,8,0" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownTemperatureIcon">
+      <Setter Property="Width" Value="20" />
+      <Setter Property="Height" Value="20" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownCone">
+      <Setter Property="Margin" Value="2,0,8,0" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.cooldownBedIcon">
+      <Setter Property="Data" Value="{DynamicResource IconLineHorizontal1_16Filled}" />
+    </Style>
+    <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownBedIcon">
+      <Setter Property="Data" Value="{DynamicResource IconLineHorizontal1_20Filled}" />
+      <Setter Property="CanvasSize" Value="20" />
+    </Style>
+
+    <!-- Temperatures: cooled down 14 semi-bold / 20 (L 16 / 22); the cooling nozzle is the large number 22 / 28 (L 28 / 34,
+         S 15 / 20), bold. -->
+    <Style Selector="Border.overlayCard TextBlock.cooldownValue">
+      <Setter Property="FontSize" Value="14" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.cooldownValue">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="LineHeight" Value="22" />
+    </Style>
+    <Style Selector="Border.overlayCard TextBlock.cooldownValue.cooling">
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="LineHeight" Value="28" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.cooldownValue.cooling">
+      <Setter Property="FontSize" Value="28" />
+      <Setter Property="LineHeight" Value="34" />
+    </Style>
+    <Style Selector="Border.overlayCard.small TextBlock.cooldownValue.cooling">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="LineHeight" Value="20" />
+    </Style>
+
+    <!-- Bed: next to the nozzle, 16 apart, secondary. -->
+    <Style Selector="StackPanel.cooldownBed">
+      <Setter Property="Margin" Value="16,0,0,0" />
+    </Style>
+
+    <!-- Bar towards the threshold: 8 below the temperatures (S 6 below the row); heights 4 / 6 / 8 by card size. -->
+    <Style Selector="ov|OverlayProgressBar.cooldownProgress">
+      <Setter Property="Margin" Value="0,8,0,0" />
+    </Style>
+    <Style Selector="Border.overlayCard.small ov|OverlayProgressBar.cooldownProgress">
+      <Setter Property="Margin" Value="0,6,0,0" />
+    </Style>
+
+    <!-- Detail: M 12 / 16, L 13 / 18, regular, secondary, at most 2 lines; S after the nozzle, 13 semi-bold / 20, one line. -->
+    <Style Selector="Border.overlayCard TextBlock.cooldownDetail">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="LineHeight" Value="16" />
+      <Setter Property="FontWeight" Value="Normal" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+      <Setter Property="MaxLines" Value="2" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="Margin" Value="0,8,0,0" />
+      <Setter Property="Grid.Row" Value="3" />
+      <Setter Property="Grid.Column" Value="0" />
+      <Setter Property="Grid.ColumnSpan" Value="3" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.cooldownDetail">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="LineHeight" Value="18" />
+    </Style>
+    <Style Selector="Border.overlayCard.small TextBlock.cooldownDetail">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="LineHeight" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="MaxLines" Value="1" />
+      <Setter Property="Margin" Value="0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Grid.Row" Value="0" />
+      <Setter Property="Grid.Column" Value="2" />
+      <Setter Property="Grid.ColumnSpan" Value="1" />
+    </Style>
+
+    <!-- The emphasized key value: accent (shared style) and at least 15 bold, in the same line height (T-076 1.3). After
+         the size styles, so it wins. -->
+    <Style Selector="Border.overlayCard TextBlock.cooldownTitle.emphasized">
+      <Setter Property="FontSize" Value="15" />
+      <Setter Property="FontWeight" Value="Bold" />
+    </Style>
+    <Style Selector="Border.overlayCard.large TextBlock.cooldownTitle.emphasized">
+      <Setter Property="FontSize" Value="16" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid Classes="cooldown" ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto,Auto,Auto,Auto">
+    <Panel>
+      <ov:OverlayIcon Classes="cooldownState cooldownSnowflake" IsVisible="{Binding IsCooling}" />
+      <ov:OverlayIcon Classes="cooldownState cooldownPower" IsVisible="{Binding IsCooled}" />
+    </Panel>
+    <TextBlock Grid.Column="1"
+               Grid.ColumnSpan="2"
+               Classes="cooldownTitle numeric"
+               Classes.emphasized="{Binding EmphasizesHeader}"
+               AutomationProperties.AutomationId="CameraOverlayWidget-cooldown-Title"
+               Text="{Binding HeaderText}"
+               IsVisible="{Binding ShowsHeader}" />
+    <StackPanel Classes="cooldownTemperatures" Orientation="Horizontal">
+      <StackPanel Orientation="Horizontal"
+                  AutomationProperties.AutomationId="CameraOverlayWidget-cooldown-Nozzle"
+                  IsVisible="{Binding ShowsNozzle}">
+        <ov:OverlayIcon Classes="cooldownTemperatureIcon cooldownCone"
+                        Data="{DynamicResource IconCone16Filled}"
+                        Foreground="{DynamicResource OverlayNozzleBrush}"
+                        IsVisible="{Binding !IsSmall}">
+          <ov:OverlayIcon.RenderTransform>
+            <RotateTransform Angle="180" />
+          </ov:OverlayIcon.RenderTransform>
+        </ov:OverlayIcon>
+        <TextBlock Classes="cooldownValue numeric"
+                   Classes.cooling="{Binding IsCooling}"
+                   Classes.emphasized="{Binding EmphasizesNozzle}"
+                   Text="{Binding NozzleText}" />
+      </StackPanel>
+      <StackPanel Classes="cooldownBed"
+                  Orientation="Horizontal"
+                  AutomationProperties.AutomationId="CameraOverlayWidget-cooldown-Bed"
+                  IsVisible="{Binding ShowsBed}">
+        <ov:OverlayIcon Classes="cooldownTemperatureIcon cooldownBedIcon" Foreground="{DynamicResource OverlayBedBrush}" />
+        <TextBlock Classes="cooldownValue secondary numeric" Text="{Binding BedText}" />
+      </StackPanel>
+    </StackPanel>
+    <ov:OverlayProgressBar Grid.Row="2"
+                           Grid.ColumnSpan="3"
+                           Classes="cooldownProgress"
+                           Foreground="{DynamicResource OverlayCoolingBrush}"
+                           Value="{Binding Progress}"
+                           IsVisible="{Binding ShowsProgress}"
+                           AutomationProperties.AutomationId="CameraOverlayWidget-cooldown-Progress" />
+    <TextBlock Classes="cooldownDetail secondary numeric"
+               AutomationProperties.AutomationId="CameraOverlayWidget-cooldown-Detail"
+               Text="{Binding DetailText}"
+               IsVisible="{Binding ShowsDetail}" />
+  </Grid>
+</UserControl>

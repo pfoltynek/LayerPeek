@@ -6,11 +6,16 @@ namespace LayerPeek.Core.Settings.Storage;
 /// <summary>
 /// Persisted shape of <see cref="AppSettings"/>. Every value is optional: missing values fall back to defaults and
 /// invalid printer entries are skipped (see <see cref="SettingsMapper"/>) and quoted numbers are accepted.
-/// Any other value of the wrong JSON type fails deserialization, i.e. the whole file is treated as corrupted.
+/// Any other value of the wrong JSON type fails deserialization, i.e. the whole file is treated as corrupted; the values
+/// inside <see cref="CameraOverlayDocument"/> are the exception (read from raw JSON with warnings).
 /// </summary>
 internal sealed class SettingsDocument
 {
-    public const int CurrentVersion = 1;
+    /// <summary>
+    /// 2 since the overlay widgets (T-077): <c>printers[*].camera.overlay</c> holds <c>widgets</c> instead of the T-036
+    /// <c>corner</c> / <c>normal</c> / <c>mini</c>, which are converted when read and never written again.
+    /// </summary>
+    public const int CurrentVersion = 2;
 
     public int? Version { get; set; }
 
@@ -32,7 +37,21 @@ internal sealed class SettingsDocument
 
     public NotificationsDocument? Notifications { get; set; }
 
+    /// <summary>Global settings of the camera overlay (T-077); missing in older files and not written while all are the defaults.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public CameraOverlaySettingsDocument? CameraOverlay { get; set; }
+
     public List<PrinterDocument?>? Printers { get; set; }
+}
+
+internal sealed class CameraOverlaySettingsDocument
+{
+    /// <summary>
+    /// Card background opacity in whole percent, 30–95; read as a number so that fractions and out-of-range values fall
+    /// back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? BackgroundOpacityPercent { get; set; }
 }
 
 internal sealed class NotificationsDocument
@@ -54,6 +73,10 @@ internal sealed class NotificationsDocument
     public bool? Attention { get; set; }
 
     public bool? Offline { get; set; }
+
+    /// <summary>"Printer cooled down" (T-080); written only when on (the default is off), missing in older files.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CooledDown { get; set; }
 
     /// <summary>Written as a whole number; read leniently (fractions are rounded, out-of-range values clamped).</summary>
     public double? RemainingTimeMinutes { get; set; }
@@ -88,6 +111,13 @@ internal sealed class PrinterDocument
     /// <summary>Image choice (T-039); not written while automatic (the default).</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public PrinterImageDocument? Image { get; set; }
+
+    /// <summary>
+    /// Cool-down threshold of the nozzle in whole °C (T-079); missing in older files and not written while it is the
+    /// default. Read as a number so that fractions and out-of-range values fall back to the default with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CooldownThresholdCelsius { get; set; }
 }
 
 /// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>
@@ -116,27 +146,55 @@ internal sealed class CameraDocument
     public CameraWindowDocument? Window { get; set; }
 
     /// <summary>
-    /// Print overlay of the camera window (T-036); missing in older files and not written while all values are the
-    /// defaults. Never touched by <see cref="CameraCredentialScrubber"/>.
+    /// Widget layout of the camera overlay (T-077, T-036 before format 2); missing in older files and not written while it
+    /// is the default layout. Never touched by <see cref="CameraCredentialScrubber"/>; written alone by
+    /// <see cref="CameraOverlaySectionWriter"/>.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CameraOverlayDocument? Overlay { get; set; }
 }
 
-/// <summary>Every value is optional; missing values mean the defaults, unknown ones are ignored with a warning.</summary>
+/// <summary>
+/// The overlay section. Values are kept as raw JSON and read leniently by <see cref="SettingsMapper"/>: a value of the
+/// wrong type is a warning, not a corrupted file, and the old T-036 values are only inspected for the conversion.
+/// </summary>
 internal sealed class CameraOverlayDocument
 {
-    /// <summary><see cref="Cameras.CameraOverlayCorner"/> name.</summary>
-    public string? Corner { get; set; }
-
     /// <summary>
-    /// <see cref="Cameras.CameraOverlayItems"/> names of the normal window and full screen (e.g. <c>["State", "Progress"]</c>);
-    /// an empty list shows nothing, a missing one the default items.
+    /// Array of <see cref="OverlayWidgetDocument"/> objects; when present (not <see langword="null"/>), the old keys are
+    /// ignored.
     /// </summary>
-    public List<string?>? Normal { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Widgets { get; set; }
 
-    /// <summary>Item names of the mini preview, like <see cref="Normal"/>.</summary>
-    public List<string?>? Mini { get; set; }
+    /// <summary>T-036 overlay corner name (format 1); read for the conversion only, never written.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Corner { get; set; }
+
+    /// <summary>T-036 item names of the normal window (format 1); dropped by the conversion, never written.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Normal { get; set; }
+
+    /// <summary>T-036 item names of the mini preview (format 1); dropped by the conversion, never written.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Mini { get; set; }
+}
+
+/// <summary>One entry of <see cref="CameraOverlayDocument.Widgets"/> as written; reading goes through the raw JSON.</summary>
+internal sealed class OverlayWidgetDocument
+{
+    /// <summary><see cref="Cameras.Overlay.OverlayWidgetIds"/> value, or an id of a newer version.</summary>
+    public string? Id { get; set; }
+
+    /// <summary><see cref="Cameras.Overlay.OverlayAnchor"/> name.</summary>
+    public string? Anchor { get; set; }
+
+    /// <summary><see cref="Cameras.Overlay.OverlayWidgetSize"/> name.</summary>
+    public string? Size { get; set; }
+
+    public bool? Emphasized { get; set; }
+
+    public bool? Visible { get; set; }
 }
 
 /// <summary>Every value is optional; missing or invalid values fall back to the defaults (invalid ones with a warning).</summary>
@@ -202,4 +260,6 @@ internal sealed class CameraWindowLayoutDocument
     NumberHandling = JsonNumberHandling.AllowReadingFromString,
     WriteIndented = true)]
 [JsonSerializable(typeof(SettingsDocument))]
+[JsonSerializable(typeof(CameraOverlayDocument))]
+[JsonSerializable(typeof(List<OverlayWidgetDocument>))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;

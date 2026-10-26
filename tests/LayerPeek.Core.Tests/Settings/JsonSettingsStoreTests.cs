@@ -1,6 +1,7 @@
 using System.Text;
 
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -461,7 +462,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
 
         Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
         Assert.Empty(result.Warnings);
-        Assert.All(result.Settings.Printers, static printer => Assert.Same(CameraOverlayOptions.Default, printer.Camera.Overlay));
+        Assert.All(result.Settings.Printers, static printer => Assert.Same(CameraOverlayLayout.Default, printer.Camera.Overlay));
 
         // Saving it again does not add the section while the defaults are unchanged.
         await _store.SaveAsync(result.Settings, Ct);
@@ -471,12 +472,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
     [Fact]
     public async Task SaveThenLoadRoundTripsCameraOverlay()
     {
-        CameraOverlayOptions overlay = new()
-        {
-            Corner = CameraOverlayCorner.TopRight,
-            Normal = CameraOverlayOptions.AllItems,
-            Mini = CameraOverlayItems.None,
-        };
+        CameraOverlayLayout overlay = CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.TopRight).WithVisible(OverlayWidgetIds.Times, false);
         AppSettings settings = new()
         {
             Printers =
@@ -497,9 +493,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.Empty(result.Warnings);
         Assert.Equal(settings, result.Settings);
         Assert.Equal(overlay, result.Settings.Printers[0].Camera.Overlay);
-        Assert.Same(CameraOverlayOptions.Default, result.Settings.Printers[1].Camera.Overlay);
+        Assert.Same(CameraOverlayLayout.Default, result.Settings.Printers[1].Camera.Overlay);
         string json = await File.ReadAllTextAsync(FilePath, Ct);
-        Assert.Contains("\"version\": 1", json, StringComparison.Ordinal);
+        Assert.Contains("\"version\": 2", json, StringComparison.Ordinal);
         Assert.Contains("\"overlay\"", json, StringComparison.Ordinal);
     }
 
@@ -534,7 +530,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         Assert.Empty(result.Warnings);
         Assert.Equal(settings, result.Settings);
         Assert.Equal(window, result.Settings.Printers[0].Camera.Window);
-        Assert.Contains("\"version\": 1", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
+        Assert.Contains("\"version\": 2", await File.ReadAllTextAsync(FilePath, Ct), StringComparison.Ordinal);
     }
 
     [Fact]

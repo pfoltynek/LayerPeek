@@ -23,16 +23,15 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
     private static Rect BoundsIn(Control control, Visual root) =>
         new(control.TranslatePoint(default, root) ?? throw new InvalidOperationException("Not in the window."), control.Bounds.Size);
 
-    /// <summary>The mini preview at its minimum size (160 × 90).</summary>
+    /// <summary>The mini preview at its minimum size: 240 wide, the 16:9 image (135) and the info strip (33) below it (T-089).</summary>
     private static CameraWindow OpenSmallestMini(CameraHarness harness)
     {
         CameraWindow window = harness.Open();
         window.Settle();
         Assert.True(ViewModel(window).IsMini);
-        window.Width = window.MinWidth;
-        window.Height = window.MinHeight;
+        CameraHarness.ResizeMiniWithGrip(window, window.MinWidth, window.MinHeight);
         window.Settle();
-        Assert.Equal(new Size(160, 90), window.ClientSize);
+        Assert.Equal(new Size(240, 168), window.ClientSize);
         return window;
     }
 
@@ -237,17 +236,24 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
             Assert.False(window.Find<StackPanel>("CameraWindowButtons").IsKeyboardFocusWithin);
         });
 
-    /// <summary>Exactly <paramref name="left"/> and <paramref name="right"/> are shown, side by side in the top right corner.</summary>
-    private static void AssertButtons(CameraWindow window, string left, string right)
+    /// <summary>
+    /// Exactly <paramref name="ids"/> are shown, side by side in this order in the top right corner. The normal window has
+    /// "Edit layout" first (T-091, T-076 3.2), the other modes only their two buttons.
+    /// </summary>
+    private static void AssertButtons(CameraWindow window, params string[] ids)
     {
+        string[] expected = ViewModel(window).IsNormal ? ["CameraLayoutButton", .. ids] : ids;
         string[] shown = [.. window.Find<StackPanel>("CameraWindowButtons").Children
             .Where(static button => button.IsVisible)
             .Select(static button => AutomationProperties.GetAutomationId(button) ?? "")];
-        Assert.Equal([left, right], shown);
-        Rect first = BoundsIn(window.Find<Button>(left), window);
-        Rect second = BoundsIn(window.Find<Button>(right), window);
-        Assert.True(first.Right <= second.Left);
-        Assert.Equal(window.ClientSize.Width - 6, second.Right, 0.5);
+        Assert.Equal(expected, shown);
+        Rect[] bounds = [.. expected.Select(id => BoundsIn(window.Find<Button>(id), window))];
+        for (int i = 1; i < bounds.Length; i++)
+        {
+            Assert.True(bounds[i - 1].Right <= bounds[i].Left);
+        }
+
+        Assert.Equal(window.ClientSize.Width - 6, bounds[^1].Right, 0.5);
     }
 
     [Fact]
@@ -256,14 +262,12 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
         {
             await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: MiniFirst);
             (CameraWindow window, _) = await harness.OpenStreamingAsync(320, 180, 0xFF406080);
-            window.Width = window.MinWidth;
-            window.Height = window.MinHeight;
-            window.Settle();
-
             // The buttons appear while the pointer is over the window; the fade-in is skipped (it runs on real time).
             StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
             Assert.Equal(0, buttons.Opacity);
             buttons.Transitions = null;
+            CameraHarness.ResizeMiniWithGrip(window, window.MinWidth, window.MinHeight);
+            Assert.Equal(new Size(240, 168), window.ClientSize);
             window.MouseMove(new Point(40, 60), RawInputModifiers.None);
             window.Settle();
 

@@ -1,0 +1,40 @@
+<!--
+  The compact Print name row for the strip under the mini preview (T-076 4 "řádek názvu"; prepared in T-085, used by T-090):
+  the same PrintNameWidgetViewModel as the card, another template. Cube icon 16 (secondary) → 6 → title 13 semi-bold
+  (one line, shortened in the middle) → 6 → material and layer height chips (11 semi-bold, 18 high), left out from the
+  right when the row is too narrow. Not drawn in an overlay card, so the colours and fonts are set here. The row itself
+  (CameraMiniNameRow: height 34, padding 10, hidden without a job, chips by window width) belongs to T-090.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+             xmlns:w="using:LayerPeek.App.Cameras.Overlay.Widgets"
+             x:Class="LayerPeek.App.Cameras.Overlay.Widgets.PrintNameCompactView"
+             x:DataType="w:PrintNameWidgetViewModel">
+  <Grid ColumnDefinitions="Auto,*,Auto" VerticalAlignment="Center">
+    <ov:OverlayIcon Data="{DynamicResource IconCube16Regular}"
+                    CanvasSize="16"
+                    Width="16"
+                    Height="16"
+                    Margin="0,0,6,0"
+                    VerticalAlignment="Center"
+                    Foreground="{DynamicResource OverlayTextSecondaryBrush}" />
+    <TextBlock Grid.Column="1"
+               Text="{Binding Title}"
+               FontSize="13"
+               LineHeight="18"
+               FontWeight="SemiBold"
+               Foreground="{DynamicResource OverlayTextPrimaryBrush}"
+               TextWrapping="NoWrap"
+               TextTrimming="{x:Static ov:OverlayMiddleTrimming.Middle}"
+               VerticalAlignment="Center" />
+    <ov:OverlayChipsPanel Grid.Column="2" Spacing="4" Margin="6,0,0,0" IsVisible="{Binding HasChips}" VerticalAlignment="Center">
+      <ov:OverlayChip Height="18" Text="{Binding MaterialChip}" IsVisible="{Binding HasMaterial}" />
+      <ov:OverlayChip Height="18"
+                      Icon="{DynamicResource IconLayer20Regular}"
+                      IconCanvasSize="20"
+                      Text="{Binding LayerHeightChip}"
+                      IsVisible="{Binding HasLayerHeight}" />
+    </ov:OverlayChipsPanel>
+  </Grid>
+</UserControl>

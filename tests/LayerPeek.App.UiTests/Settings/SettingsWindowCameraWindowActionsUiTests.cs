@@ -64,10 +64,18 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
 
     private static CameraScreen ScreenAt(FakeScreenCatalog screens, int x) => screens.GetScreens().Single(screen => screen.Bounds.X == x);
 
-    /// <summary>Where <paramref name="layout"/> puts the window on <paramref name="screen"/> (chrome assumed before showing).</summary>
+    /// <summary>
+    /// Where <paramref name="layout"/> puts the window on <paramref name="screen"/> (chrome assumed before showing); the mini
+    /// preview's layout is its image, the 33 DIP info strip is added by the growth rule (T-089).
+    /// </summary>
     private static (PixelPoint Position, Size Size) Expected(CameraWindowLayout layout, CameraScreen screen, CameraWindowMode mode)
     {
         CameraWindowPlacement placement = CameraWindowPlanner.Place(layout, screen, CameraWindowPlanner.AssumedChrome(mode));
+        if (mode == CameraWindowMode.Mini)
+        {
+            placement = CameraMiniGeometry.FromImage(placement, screen.Scaling, screen.UsableArea, null, 33);
+        }
+
         return (new PixelPoint(placement.X, placement.Y), new Size(placement.Width, placement.Height));
     }
 
@@ -83,13 +91,13 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
     // ---- Title bar ----
 
     [Fact]
-    public Task TitleBarHasOnlyTheCloseButtonAndTheWindowStaysResizable() =>
+    public Task TitleBarHasCloseAndMaximizeButtonsAndTheWindowStaysResizable() =>
         session.RunAsync(static async scope =>
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(Printer()));
 
             Assert.False(ui.Window.CanMinimize);
-            Assert.False(ui.Window.CanMaximize);
+            Assert.True(ui.Window.CanMaximize);
             Assert.True(ui.Window.CanResize);
         });
 

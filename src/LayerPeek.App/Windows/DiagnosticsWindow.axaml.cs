@@ -6,7 +6,7 @@ namespace LayerPeek.App.Windows;
 /// <summary>
 /// Diagnostics of the configured printers (T-011). Closing it never quits the app (<c>ShutdownMode.OnExplicitShutdown</c>);
 /// its view model is disposed by <see cref="AuxiliaryWindowSlot"/> when it closes, and the chart unsubscribes when detached.
-/// Opens at the size of the settings window, shrunk to the work area of its screen like it (T-041,
+/// Opens at the size of the settings window (or its own remembered size, T-094), shrunk to the work area of its screen like it (T-041,
 /// <see cref="AuxiliaryWindowPlacement"/>).
 /// </summary>
 public sealed partial class DiagnosticsWindow : Window
@@ -19,6 +19,12 @@ public sealed partial class DiagnosticsWindow : Window
         _fitter = new WorkAreaFitter(this);
         // DataContext (DiagnosticsViewModel) is set by the creator.
     }
+
+    /// <summary>The fitting and remembering of the window size (T-094).</summary>
+    internal WorkAreaFitter Sizing => _fitter;
+
+    /// <summary>Before showing (T-094): opens with the size and maximized state remembered in <paramref name="store"/> and remembers them on closing.</summary>
+    internal void RememberSizeIn(IAuxiliaryWindowStateStore store) => _fitter.Remember(store, AuxiliaryWindowKeys.Diagnostics);
 
     protected override void OnOpened(EventArgs e)
     {

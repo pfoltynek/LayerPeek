@@ -77,17 +77,24 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <summary>Starts the app with <paramref name="settingsJson"/> and optional seeded secrets (key, secret).</summary>
     /// <param name="name">Label of the run: its log is kept as <c>log-&lt;name&gt;.txt</c> in the results folder.</param>
     /// <param name="switches">More Debug-only switches of the test mode (T-067), e.g. <see cref="AppSwitches.TestToastsVariable"/>.</param>
+    /// <param name="dataFiles">More files of the data folder (name, content), e.g. a <c>camera-windows.json</c> of an older version (T-093).</param>
     public static async Task<AppInstance> StartAsync(
         E2EFixture fixture,
         string name,
         string settingsJson,
         IReadOnlyDictionary<string, string>? secrets = null,
-        IReadOnlyDictionary<string, string>? switches = null)
+        IReadOnlyDictionary<string, string>? switches = null,
+        IReadOnlyDictionary<string, string>? dataFiles = null)
     {
         string run = Path.Combine(E2EFixture.Root, "run-" + Guid.NewGuid().ToString("N")[..12]);
         string data = Path.Combine(run, "data");
         Directory.CreateDirectory(data);
         await File.WriteAllTextAsync(Path.Combine(data, "settings.json"), settingsJson);
+        foreach ((string file, string content) in dataFiles ?? new Dictionary<string, string>())
+        {
+            await File.WriteAllTextAsync(Path.Combine(data, Path.GetFileName(file)), content);
+        }
+
         if (secrets is not null)
         {
             await File.WriteAllLinesAsync(Path.Combine(data, AppSwitches.SecretsFileName), secrets.Select(static pair => $"{pair.Key}\t{pair.Value}"));
@@ -132,6 +139,20 @@ internal sealed class AppInstance : IAsyncDisposable
         start.Environment.Remove(AppSwitches.TestCredentialPrefixVariable);
         start.Environment.Remove(AppSwitches.TestStartDelayVariable);
         return start;
+    }
+
+    /// <summary>
+    /// Quits the app (tray Quit) and starts it again with the same run folder, data folder and instance names, for what the
+    /// app remembers across a restart (T-094). From then on the new process is this app, quit and cleaned up like the first.
+    /// </summary>
+    public async Task RestartAsync()
+    {
+        await QuitAsync();
+        Process.Dispose();
+        _kinds.Clear();
+        Process = TestLaunch.Start(SecondStartInfo());
+        _quit = false;
+        await Wait.UntilAsync(async () => !Process.HasExited && await TryConnectAsync(), StartTimeout, "the instance channel of the restarted app");
     }
 
     /// <summary>A second start of the same app (same data folder and instance names).</summary>

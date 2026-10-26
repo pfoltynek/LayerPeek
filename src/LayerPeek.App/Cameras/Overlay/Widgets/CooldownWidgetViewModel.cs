@@ -1,0 +1,420 @@
+using System.ComponentModel;
+using System.Globalization;
+
+using LayerPeek.App.Resources;
+using LayerPeek.App.Tray;
+using LayerPeek.Core.Cooldown;
+using LayerPeek.Core.Printers;
+
+namespace LayerPeek.App.Cameras.Overlay.Widgets;
+
+/// <summary>
+/// What the Cool-down widget shows (T-088), already rounded like the display: two polls that look the same are equal, so
+/// nothing is posted for them. <c>default</c> (<see cref="CooldownPhase.None"/>) = nothing to show.
+/// </summary>
+/// <param name="Phase">Cooling or cooled down.</param>
+/// <param name="NozzleCelsius">Whole degrees of the nozzle.</param>
+/// <param name="BedCelsius">Whole degrees of the bed; <see langword="null"/> when the printer reports none.</param>
+/// <param name="ThresholdCelsius">The printer's threshold (T-079, T-080).</param>
+/// <param name="ProgressPercent">0–100 towards the threshold, rounded down (100 once cooled down).</param>
+/// <param name="EstimateMinutes">Minutes until the threshold, rounded up; <see langword="null"/> without a fresh estimate.</param>
+/// <param name="Outcome">Whether the print finished or was stopped (cooled down only).</param>
+/// <param name="PrintEndedLocal">When the print ended, local time to the minute (cooled down only); <see langword="null"/> when not seen.</param>
+/// <param name="CooledInMinutes">How long the cool-down took, rounded up (cooled down only); <see langword="null"/> when unknown or nothing cooled down.</param>
+public readonly record struct CooldownContent(
+    CooldownPhase Phase,
+    long NozzleCelsius,
+    long? BedCelsius,
+    int ThresholdCelsius,
+    int ProgressPercent,
+    long? EstimateMinutes,
+    CooldownPrintOutcome Outcome,
+    DateTime? PrintEndedLocal,
+    long? CooledInMinutes)
+{
+    public bool IsCooling => Phase == CooldownPhase.Cooling;
+
+    public bool IsCooled => Phase == CooldownPhase.CooledDown;
+}
+
+/// <summary>
+/// The Cool-down widget of the camera overlay (T-088, design T-076 2.5): after a finished or stopped print (not after an
+/// error) "Cooling down…" with the nozzle and bed temperatures, a blue bar towards the printer's threshold and the
+/// estimate "safe to turn off in about 6 min (nozzle below 50 °C)"; then "Cooled down – safe to turn off" with a green
+/// outline, the temperatures and "print finished at 7:52 PM · cooled down in 14 min". Only the nozzle decides (T-079).
+/// </summary>
+/// <remarks>
+/// <list type="bullet">
+/// <item>The state comes from <see cref="CooldownMonitor"/> (T-079), which also ends it at the next print, after a minute
+/// offline and when the nozzle heats again; the card hides at once for a snapshot that is unreachable or has an active
+/// job, so that it never stands next to "Offline" or a new print. A printer that showed an ended print already at the app
+/// start has no cool-down (user decision 11), so no card.</item>
+/// <item>The key value is the nozzle temperature while cooling and the state text once cooled down (T-076 Q8).</item>
+/// <item>S: one row "❄ 87 °C · about 6 min" with a bar below, or "⏻ Cooled down · 48 °C". M / L: title, temperatures,
+/// bar (cooling), detail (at most two lines).</item>
+/// <item>The estimate is shown only when the monitor has one, it is still running (counted down by the monitor from its
+/// reading, never "0 min") and the state is not older than <see cref="StaleAfter"/> (monitoring stopped): otherwise the
+/// detail names only the threshold. While an estimate is shown a clock ticks every <see cref="TickInterval"/>, so that it
+/// counts down and goes away even without new snapshots.</item>
+/// <item>Without an observed end of the print (user decision 10, <see cref="CooldownState.PrintEndedAt"/> unknown) the
+/// cooled card has no times row; a print that ended below the threshold shows only when it ended.</item>
+/// </list>
+/// It listens to the monitor's changes of its printer only while the window has it (from its creation to its disposal).
+/// </remarks>
+public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownContent>
+{
+    /// <summary>Narrowest card per size (T-076 2.5: M min 240, L min 280; S has no minimum).</summary>
+    public static readonly OverlayWidgetMinWidths MinWidths = new(0, 240, 280);
+
+    /// <summary>The age of a state beyond which its estimate is not shown (shared with the mini preview strip: <see cref="CooldownEstimate.StaleAfter"/>).</summary>
+    public static readonly TimeSpan StaleAfter = CooldownEstimate.StaleAfter;
+
+    /// <summary>How often the shown estimate is computed again without snapshots (<see cref="CooldownEstimate.TickInterval"/>).</summary>
+    public static readonly TimeSpan TickInterval = CooldownEstimate.TickInterval;
+
+    private static readonly PropertyChangedEventArgs[] PartsChanged =
+    [
+        new(nameof(HeaderText)), new(nameof(ShowsHeader)), new(nameof(EmphasizesHeader)), new(nameof(ShowsNozzle)),
+        new(nameof(EmphasizesNozzle)), new(nameof(ShowsBed)), new(nameof(DetailText)), new(nameof(ShowsDetail)),
+    ];
+
+    private readonly CooldownMonitor? _cooldown;
+    private readonly CooldownCountdown? _countdown;
+    private readonly EventHandler<string>? _onChanged;
+
+    // UI thread: the texts of the shown content.
+    private string _title = string.Empty;
+    private string _smallCooled = string.Empty;
+    private string _nozzleText = string.Empty;
+    private string _bedText = string.Empty;
+    private string _detail = string.Empty;
+    private string _smallDetail = string.Empty;
+    private double _progress;
+
+    /// <param name="context">The window's services; without its <see cref="OverlayWidgetContext.Cooldown"/> the card never shows.</param>
+    public CooldownWidgetViewModel(OverlayWidgetContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        PrinterId = context.PrinterId;
+        _cooldown = context.Cooldown;
+        if (_cooldown is not null)
+        {
+            _countdown = new CooldownCountdown(context.Time, RequestUpdate);
+            _onChanged = OnCooldownChanged;
+            _cooldown.Changed += _onChanged;
+            IsListening = true;
+        }
+    }
+
+    /// <summary>The printer of the window.</summary>
+    public string PrinterId { get; }
+
+    public bool IsCooling => ShownContent.IsCooling;
+
+    public bool IsCooled => ShownContent.IsCooled;
+
+    /// <summary>
+    /// The first row: "Cooling down…" / "Cooled down – safe to turn off"; in S once cooled "Cooled down · 48 °C" (the only
+    /// row; while cooling S starts with the nozzle).
+    /// </summary>
+    public string HeaderText => IsSmall && IsCooled ? _smallCooled : _title;
+
+    public bool ShowsHeader => !(IsSmall && IsCooling);
+
+    /// <summary>The state text is the key value once cooled down (T-076 2: accent colour when emphasized).</summary>
+    public bool EmphasizesHeader => IsEmphasized && IsCooled;
+
+    /// <summary>"87 °C": the nozzle temperature.</summary>
+    public string NozzleText
+    {
+        get => _nozzleText;
+        private set => SetProperty(ref _nozzleText, value);
+    }
+
+    /// <summary>The nozzle row (in S cooled down the temperature is part of the header).</summary>
+    public bool ShowsNozzle => !(IsSmall && IsCooled);
+
+    /// <summary>The nozzle temperature is the key value while cooling.</summary>
+    public bool EmphasizesNozzle => IsEmphasized && IsCooling;
+
+    /// <summary>"45 °C": the bed temperature (only shown, the nozzle decides).</summary>
+    public string BedText
+    {
+        get => _bedText;
+        private set => SetProperty(ref _bedText, value);
+    }
+
+    /// <summary>M / L with a known bed temperature.</summary>
+    public bool ShowsBed => !IsSmall && ShownContent.BedCelsius is not null;
+
+    /// <summary>0–100 towards the threshold (the bar is drawn while cooling).</summary>
+    public double Progress
+    {
+        get => _progress;
+        private set => SetProperty(ref _progress, value);
+    }
+
+    /// <summary>The bar towards the threshold, only while cooling.</summary>
+    public bool ShowsProgress => IsCooling;
+
+    /// <summary>
+    /// M / L: the estimate or the threshold (cooling), the times row (cooled down); S: " · about 6 min" after the nozzle
+    /// while cooling with an estimate.
+    /// </summary>
+    public string DetailText => IsSmall ? _smallDetail : _detail;
+
+    public bool ShowsDetail => DetailText.Length > 0;
+
+    /// <summary>Listens to the monitor's changes (from the creation until the window closes or the widget leaves the layout).</summary>
+    internal bool IsListening { get; private set; }
+
+    /// <summary>The clock that counts the shown estimate down runs.</summary>
+    internal bool IsTicking => _countdown?.IsTicking ?? false;
+
+    /// <summary>How many times the content was computed (tests: per snapshot, per change of the monitor and per tick).</summary>
+    internal int ComputeCount { get; private set; }
+
+    /// <summary>How many times texts were formatted (tests: only for visible changes and language switches).</summary>
+    internal int FormatCount { get; private set; }
+
+    internal long? ShownEstimateMinutes => ShownContent.EstimateMinutes;
+
+    internal long ShownNozzleCelsius => ShownContent.NozzleCelsius;
+
+    /// <summary>
+    /// The content for <paramref name="input"/> and the printer's cool-down <paramref name="state"/>: nothing without a
+    /// cool-down or a nozzle temperature, for an unreachable snapshot (or before the first) and during a job (the next
+    /// print ends the cool-down). Allocates nothing.
+    /// </summary>
+    public static CooldownContent ContentOf(in OverlayWidgetInput input, in CooldownState state)
+    {
+        if (state.Phase == CooldownPhase.None
+            || input.Snapshot is not { } snapshot
+            || !snapshot.State.IsReachable()
+            || OverlayValues.ActiveJob(snapshot) is not null
+            || OverlayValues.Temperature(new Temperature(state.NozzleCelsius ?? double.NaN, null)) is not { } nozzle)
+        {
+            return default;
+        }
+
+        long? bed = OverlayValues.Temperature(new Temperature(state.BedCelsius ?? double.NaN, null))?.Actual;
+        if (state.Phase == CooldownPhase.Cooling)
+        {
+            double progress = double.IsFinite(state.Progress) ? Math.Clamp(state.Progress, 0, 1) : 0;
+            return new CooldownContent(
+                CooldownPhase.Cooling,
+                nozzle.Actual,
+                bed,
+                state.ThresholdCelsius,
+                (int)Math.Floor(progress * 100),
+                CooldownEstimate.Minutes(state, input.Now),
+                default,
+                null,
+                null);
+        }
+
+        DateTime? ended = null;
+        long? cooledIn = null;
+        if (state.PrintEndedAt is { } endedAt)
+        {
+            DateTime local = TimeZoneInfo.ConvertTime(endedAt, input.TimeZone).DateTime;
+            ended = new DateTime(local.Ticks - (local.Ticks % TimeSpan.TicksPerMinute), DateTimeKind.Unspecified);
+            if (!state.EndedBelowThreshold && state.CooledDownAt is { } cooledAt)
+            {
+                cooledIn = ToolTipContent.CeilingMinutes(cooledAt - endedAt);
+            }
+        }
+
+        return new CooldownContent(
+            CooldownPhase.CooledDown,
+            nozzle.Actual,
+            bed,
+            state.ThresholdCelsius,
+            100,
+            null,
+            state.Outcome == CooldownPrintOutcome.Stopped ? CooldownPrintOutcome.Stopped : CooldownPrintOutcome.Finished,
+            ended,
+            cooledIn);
+    }
+
+    protected override CooldownContent ComputeContent(in OverlayWidgetInput input)
+    {
+        ComputeCount++;
+        CooldownState state = _cooldown?.GetState(PrinterId) ?? CooldownState.None;
+        CooldownContent content = ContentOf(input, state);
+        _countdown?.Set(content.EstimateMinutes is not null);
+        return content;
+    }
+
+    protected override bool HasData(in CooldownContent content) => content.Phase != CooldownPhase.None;
+
+    protected override void Format(in CooldownContent content)
+    {
+        FormatCount++;
+        _title = CooldownFormat.Title(content);
+        _smallCooled = content.IsCooled ? CooldownFormat.SmallCooled(content) : string.Empty;
+        _detail = CooldownFormat.Detail(content);
+        _smallDetail = CooldownFormat.SmallDetail(content);
+        NozzleText = CooldownFormat.Temperature(content.NozzleCelsius);
+        BedText = content.BedCelsius is { } bed ? CooldownFormat.Temperature(bed) : string.Empty;
+        Progress = content.ProgressPercent;
+        AccessibleName = CooldownFormat.AccessibleText(content);
+        OnPropertyChanged(nameof(IsCooling));
+        OnPropertyChanged(nameof(IsCooled));
+        OnPropertyChanged(nameof(ShowsProgress));
+        RaisePartsChanged();
+    }
+
+    protected override void OnPropertyChanged(PropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        switch (e.PropertyName)
+        {
+            case nameof(RenderedSize):
+            case nameof(IsEmphasized):
+                RaisePartsChanged();
+                break;
+            case nameof(HasContent):
+            case nameof(IsCooled):
+                // Only a shown "cooled down" card has the outline (also the placeholder of the layout mode has none).
+                IsOutlined = HasContent && IsCooled;
+                break;
+        }
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            if (_cooldown is not null && _onChanged is not null)
+            {
+                _cooldown.Changed -= _onChanged;
+            }
+
+            IsListening = false;
+            _countdown?.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+
+    private void RaisePartsChanged()
+    {
+        foreach (PropertyChangedEventArgs args in PartsChanged)
+        {
+            OnPropertyChanged(args);
+        }
+    }
+
+    // The monitor's thread (or whoever configures it): the state of a printer changed.
+    private void OnCooldownChanged(object? sender, string printerId)
+    {
+        if (string.Equals(printerId, PrinterId, StringComparison.OrdinalIgnoreCase))
+        {
+            RequestUpdate();
+        }
+    }
+}
+
+/// <summary>
+/// Texts of the Cool-down widget (T-088, design T-076 2.5 and 10): numbers and times in the region
+/// (<c>CurrentCulture</c>), words in the app language. UI thread, only when the shown content changed or the language
+/// switched.
+/// </summary>
+public static class CooldownFormat
+{
+    private const string Separator = " · ";
+
+    /// <summary>"87 °C" (non-breaking space before "°C").</summary>
+    public static string Temperature(long celsius) => OverlayFormat.Temperature(new OverlayTemperature(celsius, null));
+
+    /// <summary>"Cooling down…" / "Cooled down – safe to turn off".</summary>
+    public static string Title(in CooldownContent content) => content.IsCooled ? Strings.CameraOverlayCooled : Strings.CameraOverlayCooling;
+
+    /// <summary>The S card once cooled down: "Cooled down · 48 °C".</summary>
+    public static string SmallCooled(in CooldownContent content) =>
+        Format(Strings.CameraMiniCooled, content.NozzleCelsius.ToString("N0", CultureInfo.CurrentCulture));
+
+    /// <summary>
+    /// M / L: "safe to turn off in about 6 min (nozzle below 50 °C)" or without an estimate "safe to turn off once the
+    /// nozzle is below 50 °C" (cooling); the times row (cooled down; empty without an observed end of the print).
+    /// </summary>
+    public static string Detail(in CooldownContent content)
+    {
+        if (content.IsCooled)
+        {
+            return Times(content) ?? string.Empty;
+        }
+
+        string threshold = content.ThresholdCelsius.ToString("N0", CultureInfo.CurrentCulture);
+        return content.EstimateMinutes is { } minutes
+            ? Format(Strings.CameraOverlayCooldownEstimate, OverlayFormat.Duration(minutes), threshold)
+            : Format(Strings.CameraOverlayCooldownNoEstimate, threshold);
+    }
+
+    /// <summary>S while cooling with an estimate: " · about 6 min" after the nozzle; empty otherwise.</summary>
+    public static string SmallDetail(in CooldownContent content) =>
+        content.IsCooling && content.EstimateMinutes is { } minutes
+            ? Separator + Format(Strings.CameraOverlayCooldownAbout, OverlayFormat.Duration(minutes))
+            : string.Empty;
+
+    /// <summary>
+    /// "print finished at 7:52 PM · cooled down in 14 min" (or "print stopped at…"); only the end when nothing cooled down;
+    /// <see langword="null"/> without an observed end of the print (user decision 10) or while cooling.
+    /// </summary>
+    public static string? Times(in CooldownContent content)
+    {
+        string? ended = Ended(content);
+        if (ended is null)
+        {
+            return null;
+        }
+
+        return content.CooledInMinutes is { } minutes ? ended + Separator + CooledIn(minutes) : ended;
+    }
+
+    /// <summary>
+    /// "Cooling down…, Nozzle 87 °C, Bed 45 °C, safe to turn off in about 6 min (nozzle below 50 °C)" / "Cooled down – safe
+    /// to turn off, Nozzle 48 °C, Bed 39 °C, print finished at 7:52 PM, cooled down in 14 min": the words the icons stand for.
+    /// </summary>
+    public static string AccessibleText(in CooldownContent content)
+    {
+        List<string> parts = [Title(content), Strings.DiagnosticsNozzle + " " + Temperature(content.NozzleCelsius)];
+        if (content.BedCelsius is { } bed)
+        {
+            parts.Add(Strings.DiagnosticsBed + " " + Temperature(bed));
+        }
+
+        if (content.IsCooling)
+        {
+            parts.Add(Detail(content));
+        }
+        else if (Ended(content) is { } ended)
+        {
+            parts.Add(ended);
+            if (content.CooledInMinutes is { } minutes)
+            {
+                parts.Add(CooledIn(minutes));
+            }
+        }
+
+        return string.Join(", ", parts);
+    }
+
+    private static string? Ended(in CooldownContent content)
+    {
+        if (!content.IsCooled || content.PrintEndedLocal is not { } local)
+        {
+            return null;
+        }
+
+        string time = local.ToString("t", CultureInfo.CurrentCulture);
+        return Format(content.Outcome == CooldownPrintOutcome.Stopped ? Strings.CameraOverlayCooldownStoppedAt : Strings.CameraOverlayCooldownFinishedAt, time);
+    }
+
+    private static string CooledIn(long minutes) => Format(Strings.CameraOverlayCooldownCooledIn, OverlayFormat.Duration(minutes));
+
+    private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
+
+    private static string Format(string format, object? arg0, object? arg1) => string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+}

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Settings;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -36,6 +37,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     private readonly ILogger<MonitoringSession> _logger;
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
     private readonly TimeProvider _timeProvider;
+    private readonly ICameraOverlayLayoutWriter? _layoutWriter;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
 
@@ -76,13 +78,17 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// Receives the printers whose camera address lost its credentials while loading (the settings window shows it).
     /// </param>
     /// <param name="timeProvider">Clock of the delayed start (T-067); <see cref="TimeProvider.System"/> by default.</param>
+    /// <param name="layoutWriter">
+    /// Saves the overlay layouts of the layout mode of camera windows (T-091); the running settings take each saved layout.
+    /// </param>
     public MonitoringSession(
         Func<ISettingsStore> settingsStoreFactory,
         IPrinterMonitor monitor,
         IEnumerable<IMonitoringObserver> observers,
         ILogger<MonitoringSession> logger,
         RemovedCameraCredentials? removedCameraCredentials = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ICameraOverlayLayoutWriter? layoutWriter = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStoreFactory);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -100,6 +106,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         _removedCameraCredentials = removedCameraCredentials;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _monitor.ModelDetected += OnModelDetected;
+        _layoutWriter = layoutWriter;
+        if (layoutWriter is not null)
+        {
+            layoutWriter.LayoutSaved += OnLayoutSaved;
+        }
     }
 
     /// <summary>
@@ -222,6 +233,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             LogSettingsWarning(logger, warning);
         }
 
+        foreach (string notice in result.Notices)
+        {
+            LogSettingsNotice(logger, notice);
+        }
+
         // A corrupted file is cleaned as well when it is valid JSON (user decision): nothing of it is used, but the password
         // must not stay on disk.
         if (result.Status is SettingsLoadStatus.Loaded or SettingsLoadStatus.Corrupted)
@@ -335,7 +351,8 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// <summary>Same printers (id, name, address, connection type, order) and polling interval: the run can go on.</summary>
     /// <remarks>
     /// The detected model and the image choice (T-039) only change what is shown, never what is polled: a change of only
-    /// those does not restart monitoring (a background save of a detected model must not show "Connecting…").
+    /// those does not restart monitoring (a background save of a detected model must not show "Connecting…"). Neither does
+    /// the cool-down threshold (T-079): the cool-down monitor applies it with the update.
     /// </remarks>
     private static bool KeepsMonitoring(AppSettings current, AppSettings next) =>
         current.PollingInterval == next.PollingInterval
@@ -343,9 +360,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         && current.Printers.Select(WhatIsPolled).SequenceEqual(next.Printers.Select(WhatIsPolled));
 
     private static PrinterDefinition WhatIsPolled(PrinterDefinition printer) =>
-        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic
+        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic && printer.CooldownThresholdCelsius == CooldownThreshold.DefaultCelsius
             ? printer
-            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic };
+            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic, CooldownThresholdCelsius = CooldownThreshold.DefaultCelsius };
 
     /// <summary>
     /// Monitor thread: a printer of the current run reported its model (T-039, user decision 2026-10-20). Only a real
@@ -379,6 +396,42 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             // Another model: its save gets all retries again.
             _modelSaveFailures.Remove(detected.PrinterId);
             QueueModelSaveLocked(detected);
+        }
+
+        UpdateObservers(updated);
+    }
+
+    /// <summary>
+    /// The writer's thread: the layout mode of a camera window saved the overlay layout of a printer (T-091). The file has
+    /// it already; the running settings take it without a restart, so that observers (the open camera window, a window
+    /// opened later) keep it, and so do settings waiting for a restart. Settings saved afterwards replace it as usual.
+    /// </summary>
+    private void OnLayoutSaved(object? sender, CameraOverlayLayoutSavedEventArgs saved)
+    {
+        if (saved is null)
+        {
+            return;
+        }
+
+        AppSettings updated;
+        lock (_gate)
+        {
+            if (_stopping is not null || _disposed)
+            {
+                return;
+            }
+
+            if (_pending is { } pending)
+            {
+                _pending = pending.WithCameraOverlayLayout(saved.PrinterId, saved.Layout);
+            }
+
+            if (_current is not { } current || ReferenceEquals(updated = current.WithCameraOverlayLayout(saved.PrinterId, saved.Layout), current))
+            {
+                return;
+            }
+
+            _current = updated;
         }
 
         UpdateObservers(updated);
@@ -720,6 +773,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             }
 
             _monitor.ModelDetected -= OnModelDetected;
+            if (_layoutWriter is not null)
+            {
+                _layoutWriter.LayoutSaved -= OnLayoutSaved;
+            }
+
             CancelModelRetriesLocked();
 
             _disposed = true;
@@ -926,6 +984,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Settings: {Warning}")]
     private static partial void LogSettingsWarning(ILogger logger, string warning);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Settings: {Notice}")]
+    private static partial void LogSettingsNotice(ILogger logger, string notice);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Credentials were removed from the camera addresses of {Count} printer(s) in the settings file; nothing else was changed.")]
     private static partial void LogCameraCredentialsRemoved(ILogger logger, int count);

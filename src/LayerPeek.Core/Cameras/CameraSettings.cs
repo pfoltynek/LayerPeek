@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
+using LayerPeek.Core.Cameras.Overlay;
+
 namespace LayerPeek.Core.Cameras;
 
 /// <summary>
@@ -74,8 +76,11 @@ public sealed record CameraSettings
         }
     } = CameraWindowDefaults.Default;
 
-    /// <summary>What the print overlay of the camera window shows (T-036); kept while the camera is disabled or its address is invalid.</summary>
-    public CameraOverlayOptions Overlay
+    /// <summary>
+    /// The widgets drawn over the camera image and where (T-077); kept while the camera is disabled or its address is
+    /// invalid. Persisted as <c>printers[*].camera.overlay</c> (settings format 2).
+    /// </summary>
+    public CameraOverlayLayout Overlay
     {
         get;
         init
@@ -83,7 +88,7 @@ public sealed record CameraSettings
             ArgumentNullException.ThrowIfNull(value);
             field = value;
         }
-    } = CameraOverlayOptions.Default;
+    } = CameraOverlayLayout.Default;
 
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">

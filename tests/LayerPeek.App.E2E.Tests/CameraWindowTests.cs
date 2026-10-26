@@ -44,9 +44,10 @@ public sealed class CameraWindowTests(E2EFixture fixture)
         AssertNormalWindow(window, "camera normal");
         AssertCentered(window, Primary(), "camera normal");
 
-        // Mini preview: 320×180 in the bottom right corner, always on top, no taskbar button (T-037, T-040).
+        // Mini preview: the 320×180 image with the 33 DIP info strip (T-089) in the bottom right corner, always on top, no
+        // taskbar button (T-037, T-040).
         await Ui.InvokeAsync(element, "CameraMiniButton");
-        await Wait.UntilAsync(() => ClientDip(window) == (320, 180), TimeSpan.FromSeconds(10), "the mini preview size");
+        await Wait.UntilAsync(() => ClientDip(window) == (320, 213), TimeSpan.FromSeconds(10), "the mini preview size");
         await Task.Delay(500, TestContext.Current.CancellationToken);
         Screenshots.Save(window, "camera-fake-mini");
         await Wait.UntilAsync(() => IsTopmost(window), TimeSpan.FromSeconds(5), "the mini preview on top (default)");
@@ -179,10 +180,10 @@ public sealed class CameraWindowTests(E2EFixture fixture)
         await app.CloseWindowAsync(settings);
     }
 
-    /// <summary>The window is the mini preview: 320×180, in the bottom right corner of <paramref name="monitor"/>, on top, no taskbar button.</summary>
+    /// <summary>The window is the mini preview: 320×213 (image and strip), in the bottom right corner of <paramref name="monitor"/>, on top, no taskbar button.</summary>
     private static async Task ExpectMiniPreviewAsync(nint window, Native.MonitorInfo monitor, string context)
     {
-        await Wait.UntilAsync(() => ClientDip(window) == (320, 180), TimeSpan.FromSeconds(10), $"{context}: 320×180 (now {ClientDip(window)})");
+        await Wait.UntilAsync(() => ClientDip(window) == (320, 213), TimeSpan.FromSeconds(10), $"{context}: 320×213 (now {ClientDip(window)})");
         await Wait.UntilAsync(() => IsTopmost(window), TimeSpan.FromSeconds(5), $"{context}: on top");
         await Wait.UntilAsync(() => !Native.HasTaskbarButton(window), TimeSpan.FromSeconds(5), $"{context}: no taskbar button");
         Assert.True(Native.IsWindowVisible(window), $"{context}: the window is visible.");

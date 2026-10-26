@@ -1,3 +1,5 @@
+using LayerPeek.Core.Previews;
+
 namespace LayerPeek.Core.Printers;
 
 /// <summary>
@@ -18,6 +20,12 @@ public sealed record PrintJob
         get;
         init => field = string.IsNullOrWhiteSpace(value) ? null : value;
     }
+
+    /// <summary>
+    /// Where the data source keeps the G-code preview of the job, for <see cref="IPrintPreviewSource"/>;
+    /// <see langword="null"/> when the source offers none or it is unknown. Opaque outside the client that set it.
+    /// </summary>
+    public PrintPreviewReference? PreviewReference { get; init; }
 
     /// <summary>Progress in percent, always within 0–100.</summary>
     public double ProgressPercent

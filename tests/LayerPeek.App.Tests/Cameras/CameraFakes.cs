@@ -7,6 +7,16 @@ using LayerPeek.Core.Cameras;
 
 namespace LayerPeek.App.Tests.Cameras;
 
+/// <summary>Camera targets of test printers (a target exists only for a printer with an enabled camera).</summary>
+internal static class CameraTargets
+{
+    public static CameraTarget For(string id, string name, Uri streamUri, CameraWindowDefaults? window = null) =>
+        CameraTarget.From(TestPrinters.Definition(id, name) with
+        {
+            Camera = new CameraSettings(enabled: true, streamUri) { Window = window ?? CameraWindowDefaults.Default },
+        })!;
+}
+
 /// <summary>Creates <see cref="FakeCameraFeed"/>s (no network, no decoder) and lets the test drive each of them.</summary>
 internal sealed class FakeCameraFeedFactory : ICameraFeedFactory
 {

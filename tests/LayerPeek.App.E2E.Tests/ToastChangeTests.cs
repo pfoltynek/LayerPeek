@@ -379,7 +379,7 @@ public sealed class ToastChangeTests
             nameof(TestModeOsIntegrationTests.TestToastsUseTheirOwnShortcutAndQuitRemovesIt),
             nameof(TestModeOsIntegrationTests.ClearToastsModeRemovesWhatACrashedTestAppLeftAndStartsNoApp),
         ];
-        Assert.Equal(7, tests.Length);
+        Assert.Equal(8, tests.Length);
 
         foreach (string name in tests)
         {

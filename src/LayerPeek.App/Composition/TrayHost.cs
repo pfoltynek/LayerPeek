@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Cameras.Layout;
 using LayerPeek.App.Diagnostics;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
@@ -38,6 +39,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     /// <summary>A save writes a few small items in milliseconds; quitting must still stay within the overall limit.</summary>
     private static readonly TimeSpan PendingSaveTimeout = TimeSpan.FromSeconds(1);
+
+    /// <summary>How long startup waits at most for the remembered window sizes (T-094); after that they apply once read.</summary>
+    private static readonly TimeSpan WindowStateLoadTimeout = TimeSpan.FromSeconds(1);
 
     /// <summary>How long quitting waits for requests in progress through the local web proxies (T-028).</summary>
     private static readonly TimeSpan WebProxyStopTimeout = TimeSpan.FromSeconds(1);
@@ -121,6 +125,8 @@ internal sealed partial class TrayHost : IAsyncDisposable
         CancellationTokenSource backgroundWork = new();
         try
         {
+            // Remembered window sizes (T-094) are read alongside the settings: a tiny file, ready before a window can open.
+            Task windowStatesLoaded = services.GetRequiredService<IAuxiliaryWindowStateStore>().LoadAsync(CancellationToken.None);
             ILogger<MonitoringSession> sessionLogger = services.GetRequiredService<ILogger<MonitoringSession>>();
             (AppSettings initialSettings, SettingsLoadStatus loadStatus, IReadOnlyList<string> storedPrinterIds) = await Task.Run(
                 () => MonitoringSession.LoadSettingsWithStatusAsync(
@@ -129,6 +135,10 @@ internal sealed partial class TrayHost : IAsyncDisposable
                     CancellationToken.None,
                     services.GetRequiredService<RemovedCameraCredentials>()),
                 CancellationToken.None).ConfigureAwait(true);
+
+            // Never faults for file problems; a file held by another process does not delay the tray for long.
+            await windowStatesLoaded.WaitAsync(WindowStateLoadTimeout)
+                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
 
             // Before the tray view models (resolved below) format their first texts.
             services.GetRequiredService<UiLanguage>().Apply(initialSettings.Language);
@@ -225,10 +235,11 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// <summary>
     /// A view model for a new settings window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.
     /// <paramref name="screens"/>: the monitors offered for the camera window (those of the settings window);
-    /// <paramref name="cameraWindowPlacer"/>: the camera windows, opened or placed again by "Apply" (T-040).
+    /// <paramref name="cameraWindowPlacer"/>: the camera windows, opened or placed again by "Apply" (T-040);
+    /// <paramref name="layoutModeLauncher"/>: the camera windows, whose layout mode the Widgets tab starts (T-092).
     /// </summary>
-    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null) =>
-        AppServices.CreateSettingsViewModel(_services, screens, cameraWindowPlacer);
+    internal SettingsViewModel CreateSettingsViewModel(IScreenCatalog? screens = null, ICameraWindowPlacer? cameraWindowPlacer = null, ICameraLayoutModeLauncher? layoutModeLauncher = null) =>
+        AppServices.CreateSettingsViewModel(_services, screens, cameraWindowPlacer, layoutModeLauncher);
 
     /// <summary>
     /// A view model for a new camera window of <paramref name="printerId"/> (from <paramref name="saved"/> when given, else
@@ -248,6 +259,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
             _services.GetRequiredService<TrayMenuViewModel>().SetCameraWindowOpen(printerId, isOpen);
         }
     }
+
+    /// <summary>Where the settings and diagnostics windows remember their size (T-094). Valid until <see cref="StopAsync"/>.</summary>
+    internal IAuxiliaryWindowStateStore WindowStates => _services.GetRequiredService<IAuxiliaryWindowStateStore>();
 
     /// <summary>Creates loggers for UI objects outside the container.</summary>
     public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
@@ -278,6 +292,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         // settings store goes with the container. Never throws.
         await _services.GetRequiredService<ICameraMonitorPathUpdater>().WaitForPendingAsync(PendingSaveTimeout).ConfigureAwait(true);
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
+        await WaitForWindowStateAsync().ConfigureAwait(true);
         // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
         await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
 #if DEBUG
@@ -387,6 +402,28 @@ internal sealed partial class TrayHost : IAsyncDisposable
             LogCameraWindowStateFailed(ex);
         }
     }
+
+    /// <summary>The settings and diagnostics windows closed by quitting remember their size (T-094); a tiny file as well.</summary>
+    private async Task WaitForWindowStateAsync()
+    {
+        try
+        {
+            if (!await _services.GetRequiredService<IAuxiliaryWindowStateStore>().WaitForPendingSaveAsync(PendingSaveTimeout).ConfigureAwait(true))
+            {
+                LogWindowStateTimedOut(PendingSaveTimeout);
+            }
+        }
+        catch (Exception ex)
+        {
+            LogWindowStateFailed(ex);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Saving the window state did not finish within {Timeout} while quitting.")]
+    private partial void LogWindowStateTimedOut(TimeSpan timeout);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for the window state to be saved failed while quitting.")]
+    private partial void LogWindowStateFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Saving the camera window state did not finish within {Timeout} while quitting.")]
     private partial void LogCameraWindowStateTimedOut(TimeSpan timeout);

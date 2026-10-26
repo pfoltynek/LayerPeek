@@ -2,6 +2,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:LayerPeek.App.Cameras"
         xmlns:loc="using:LayerPeek.App.Localization"
+        xmlns:ov="using:LayerPeek.App.Cameras.Overlay"
+        xmlns:lay="using:LayerPeek.App.Cameras.Layout"
+        xmlns:mini="using:LayerPeek.App.Cameras.Mini"
         x:Class="LayerPeek.App.Windows.CameraWindow"
         x:DataType="vm:CameraViewModel"
         Title="{Binding Title}"
@@ -16,6 +19,25 @@
     <KeyBinding Gesture="F11" Command="{Binding ToggleFullScreenCommand}" />
     <KeyBinding Gesture="Escape" Command="{Binding EscapeCommand}" />
   </Window.KeyBindings>
+
+  <!--
+    Layout mode (T-091): the context menu of the image (right click, Menu key / Shift+F10, Ctrl+click on macOS) opens only in
+    the normal window outside the layout mode (CameraWindow.LayoutMode.cs); disabled with a tip below 480 × 300.
+  -->
+  <Window.ContextMenu>
+    <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening">
+      <MenuItem AutomationProperties.AutomationId="CameraLayoutMenuItem"
+                Header="{Binding [CameraLayoutEdit], Source={x:Static loc:LocalizedStrings.Instance}}"
+                Command="{Binding EditLayoutCommand}"
+                ToolTip.Tip="{Binding LayoutToolTip}"
+                ToolTip.ShowOnDisabled="True"
+                ToolTip.ServiceEnabled="{Binding !HasLayoutRoom}">
+        <MenuItem.Icon>
+          <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="{DynamicResource MenuFlyoutItemForeground}" />
+        </MenuItem.Icon>
+      </MenuItem>
+    </ContextMenu>
+  </Window.ContextMenu>
 
   <Window.Styles>
     <!-- The window buttons appear while the pointer is over the window or a button has keyboard focus. -->
@@ -51,43 +73,16 @@
       <Setter Property="Foreground" Value="White" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
-    <!--
-      Print overlay (T-036): in the corner chosen in the settings, 6 DIP from the edges. The window buttons (top right, two
-      of 30 DIP with 4 between in every mode: the buttons of the other two modes) never cover it: in the top right corner
-      it starts below them (6 + 30 + 4); in the top left corner it keeps their width free on the right (6 + 30 + 4 + 30 + 4)
-      and wraps instead, which matters in the narrow mini preview.
-    -->
-    <Style Selector="Border.printOverlay">
-      <Setter Property="HorizontalAlignment" Value="Left" />
-      <Setter Property="VerticalAlignment" Value="Bottom" />
-      <Setter Property="Margin" Value="6" />
-    </Style>
-    <Style Selector="Border.printOverlay.top">
-      <Setter Property="VerticalAlignment" Value="Top" />
-      <Setter Property="Margin" Value="6,6,74,6" />
-    </Style>
-    <Style Selector="Border.printOverlay.right">
-      <Setter Property="HorizontalAlignment" Value="Right" />
-    </Style>
-    <Style Selector="Border.printOverlay.top.right">
-      <Setter Property="Margin" Value="6,40,6,6" />
-    </Style>
-    <Style Selector="Border.printOverlay TextBlock">
-      <Setter Property="FontSize" Value="12" />
-    </Style>
-    <Style Selector="Border.printOverlay.right TextBlock">
-      <Setter Property="TextAlignment" Value="Right" />
-    </Style>
-    <Style Selector="Border.printOverlay TextBlock.emphasized">
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
+    <!-- Cards of the overlay widgets (T-081): colours, icons, the card and its parts. -->
+    <StyleInclude Source="avares://LayerPeek/Cameras/Overlay/OverlayStyles.axaml" />
     <!-- Resize grips of the borderless mini preview. -->
     <Style Selector="Border.grip">
       <Setter Property="Background" Value="Transparent" />
     </Style>
   </Window.Styles>
 
-  <Grid x:Name="Root" Background="Black">
+  <!-- Row 0: the image and everything over it. Row 1: the info strip of the mini preview (T-089); empty in the other modes. -->
+  <Grid x:Name="Root" Background="Black" RowDefinitions="*,Auto">
     <!-- Whole client area: double-click switches modes, dragging moves the mini preview. -->
     <Border x:Name="Surface"
             Background="Black"
@@ -97,6 +92,24 @@
             AutomationProperties.Name="{Binding [CameraImageHint], Source={x:Static loc:LocalizedStrings.Instance}}">
       <Image x:Name="Video" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="MediumQuality" />
     </Border>
+
+    <!--
+      Widget cards in six anchors (T-081, design T-076): normal window and full screen share the layout, the mini preview
+      has none. Not a pointer target, so double-click and dragging work over the cards; below the connection state and
+      the window buttons (the top right anchor starts below the buttons).
+    -->
+    <ov:OverlayAnchorsPanel x:Name="OverlayCards"
+                            AutomationProperties.AutomationId="CameraOverlay"
+                            IsVisible="{Binding Overlay.AreCardsVisible}"
+                            IsHitTestVisible="False"
+                            ClipToBounds="True">
+      <ov:OverlayAnchorItems Anchor="TopLeft" AutomationProperties.AutomationId="CameraOverlayAnchorTopLeft" ItemsSource="{Binding Overlay.TopLeft}" />
+      <ov:OverlayAnchorItems Anchor="TopCenter" AutomationProperties.AutomationId="CameraOverlayAnchorTopCenter" ItemsSource="{Binding Overlay.TopCenter}" />
+      <ov:OverlayAnchorItems Anchor="TopRight" AutomationProperties.AutomationId="CameraOverlayAnchorTopRight" ItemsSource="{Binding Overlay.TopRight}" />
+      <ov:OverlayAnchorItems Anchor="BottomLeft" AutomationProperties.AutomationId="CameraOverlayAnchorBottomLeft" ItemsSource="{Binding Overlay.BottomLeft}" />
+      <ov:OverlayAnchorItems Anchor="BottomCenter" AutomationProperties.AutomationId="CameraOverlayAnchorBottomCenter" ItemsSource="{Binding Overlay.BottomCenter}" />
+      <ov:OverlayAnchorItems Anchor="BottomRight" AutomationProperties.AutomationId="CameraOverlayAnchorBottomRight" ItemsSource="{Binding Overlay.BottomRight}" />
+    </ov:OverlayAnchorsPanel>
 
     <!-- Connection state over the last image: connecting, no signal, error with its reason. -->
     <Border Classes="overlay"
@@ -117,27 +130,11 @@
       </StackPanel>
     </Border>
 
-    <!-- Print overlay in a corner, in every mode (user decision 2026-10-18); items and corner from the settings (T-036). -->
-    <Border x:Name="PrintOverlay"
-            Classes="overlay printOverlay"
-            Classes.top="{Binding IsOverlayTop}"
-            Classes.right="{Binding IsOverlayRight}"
-            Padding="6,3"
-            AutomationProperties.AutomationId="CameraPrintOverlay"
-            IsVisible="{Binding IsPrintOverlayVisible}">
-      <ItemsControl ItemsSource="{Binding OverlayLines}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:CameraOverlayLine">
-            <TextBlock Text="{Binding Text}" Classes.emphasized="{Binding IsEmphasized}" />
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </Border>
-
     <StackPanel x:Name="WindowButtons"
                 AutomationProperties.AutomationId="CameraWindowButtons"
                 Classes="windowButtons"
                 Button.Click="OnWindowButtonClick"
+                IsVisible="{Binding !IsLayoutModeActive}"
                 Orientation="Horizontal"
                 Spacing="4"
                 Margin="6"
@@ -145,8 +142,17 @@
                 VerticalAlignment="Top">
       <!--
         Every mode shows the buttons of the other two, always in this order: normal window [full screen][mini preview],
-        mini preview [full screen][normal window], full screen [normal window][mini preview].
+        mini preview [full screen][normal window], full screen [normal window][mini preview]. The normal window has
+        "Edit layout" first (T-091, T-076 3.2); hidden while the layout mode is on.
       -->
+      <Button AutomationProperties.AutomationId="CameraLayoutButton"
+              Command="{Binding EditLayoutCommand}"
+              IsVisible="{Binding IsNormal}"
+              ToolTip.Tip="{Binding LayoutToolTip}"
+              ToolTip.ShowOnDisabled="True"
+              AutomationProperties.Name="{Binding LayoutToolTip}">
+        <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="White" />
+      </Button>
       <Button AutomationProperties.AutomationId="CameraFullScreenButton"
               Command="{Binding ShowFullScreenCommand}"
               IsVisible="{Binding !IsFullScreen}"
@@ -173,8 +179,21 @@
       </Button>
     </StackPanel>
 
-    <!-- The mini preview has no window frame: these edges resize it. -->
-    <Grid IsVisible="{Binding IsMini}" RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
+    <!--
+      Mini preview (T-089): the info strip below the image, not over it. Pressing and dragging it moves the window like the
+      image (not over its buttons, which handle their presses). Keep the mini preview parts in this region. Above the resize
+      grips (ZIndex, T-090): its toggle buttons take presses there, its own hit test leaves the other edges to the grips.
+    -->
+    <Panel Grid.Row="1" ZIndex="1" IsVisible="{Binding IsMini}">
+      <mini:CameraMiniStrip x:Name="MiniStrip"
+                            DataContext="{Binding MiniStrip}"
+                            PointerPressed="OnSurfacePointerPressed"
+                            PointerMoved="OnSurfacePointerMoved"
+                            PointerReleased="OnSurfacePointerReleased" />
+    </Panel>
+
+    <!-- The mini preview has no window frame: these edges resize it (also along the strip). -->
+    <Grid Grid.RowSpan="2" IsVisible="{Binding IsMini}" RowDefinitions="6,*,6" ColumnDefinitions="6,*,6">
       <Border Classes="grip" Grid.Row="0" Grid.Column="0" Cursor="TopLeftCorner" Tag="{x:Static WindowEdge.NorthWest}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="0" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.North}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="0" Grid.Column="2" Cursor="TopRightCorner" Tag="{x:Static WindowEdge.NorthEast}" PointerPressed="OnGripPointerPressed" />
@@ -184,5 +203,8 @@
       <Border Classes="grip" Grid.Row="2" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.South}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="2" Grid.Column="2" Cursor="BottomRightCorner" Tag="{x:Static WindowEdge.SouthEast}" PointerPressed="OnGripPointerPressed" />
     </Grid>
+
+    <!-- Layout mode (T-091): above everything while it is on; its live region for screen readers is always there. -->
+    <lay:CameraLayoutOverlay x:Name="LayoutOverlay" DataContext="{Binding LayoutMode}" />
   </Grid>
 </Window>

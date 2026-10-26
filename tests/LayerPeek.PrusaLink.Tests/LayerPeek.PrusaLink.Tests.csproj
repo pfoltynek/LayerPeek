@@ -14,6 +14,10 @@
     <None Include="Fixtures\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
+    <Compile Include="..\Shared\TestPng.cs" Link="Shared\TestPng.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\LayerPeek.PrusaLink\LayerPeek.PrusaLink.csproj" />
   </ItemGroup>
 </Project>

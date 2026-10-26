@@ -18,75 +18,6 @@ public sealed class CameraCornerOption(CameraWindowCorner value, Func<string> te
     public CameraWindowCorner Value { get; } = value;
 }
 
-/// <summary>An item of the corner selection of the print overlay (T-036).</summary>
-public sealed class CameraOverlayCornerOption(CameraOverlayCorner value, Func<string> text) : LocalizedOption(text)
-{
-    public CameraOverlayCorner Value { get; } = value;
-}
-
-/// <summary>
-/// One row of the overlay item table (T-036): the item and whether the normal window (and full screen) and the mini
-/// preview show it. UI thread only.
-/// </summary>
-public sealed class CameraOverlayItemRow : LocalizedOption
-{
-    private readonly Action _edited;
-    private bool _isNormal;
-    private bool _isMini;
-
-    internal CameraOverlayItemRow(CameraOverlayItems item, Func<string> text, bool isNormal, bool isMini, Action edited)
-        : base(text)
-    {
-        ArgumentNullException.ThrowIfNull(edited);
-        Item = item;
-        _isNormal = isNormal;
-        _isMini = isMini;
-        _edited = edited;
-    }
-
-    public CameraOverlayItems Item { get; }
-
-    /// <summary>Shown in the normal window and in full screen.</summary>
-    public bool IsNormal
-    {
-        get => _isNormal;
-        set
-        {
-            if (SetProperty(ref _isNormal, value))
-            {
-                _edited();
-            }
-        }
-    }
-
-    /// <summary>Shown in the mini preview.</summary>
-    public bool IsMini
-    {
-        get => _isMini;
-        set
-        {
-            if (SetProperty(ref _isMini, value))
-            {
-                _edited();
-            }
-        }
-    }
-
-    /// <summary>Accessible name of the normal window check box: "{item} – {column}".</summary>
-    public string NormalName => string.Concat(Text, " – ", Strings.SettingsOverlayNormalColumn);
-
-    /// <summary>Accessible name of the mini preview check box.</summary>
-    public string MiniName => string.Concat(Text, " – ", Strings.SettingsCameraWindowMini);
-
-    /// <summary>UI thread: the language changed.</summary>
-    internal void RefreshTexts()
-    {
-        RefreshText();
-        OnPropertyChanged(nameof(NormalName));
-        OnPropertyChanged(nameof(MiniName));
-    }
-}
-
 /// <summary>An item of the monitor selection of the camera window; <see langword="null"/> = the primary monitor (T-035).</summary>
 public sealed class CameraMonitorOption : LocalizedOption
 {
@@ -113,6 +44,9 @@ public static class CameraWindowSizeText
 
     /// <summary>The presets of the size box, smallest first.</summary>
     public static IReadOnlyList<string> Presets { get; } = [.. CameraWindowSize.Presets.Select(Format)];
+
+    /// <summary>The presets of the mini preview size box, smallest first.</summary>
+    public static IReadOnlyList<string> MiniPresets { get; } = [.. CameraWindowSize.MiniPresets.Select(Format)];
 
     public static string Format(CameraWindowSize size)
     {
@@ -146,6 +80,13 @@ public static class CameraWindowSizeText
     /// <summary>The size typed by the user when it is a usable window size; otherwise <see langword="null"/>.</summary>
     public static CameraWindowSize? Parse(string? text) =>
         TryParse(text, out int width, out int height) && CameraWindowSize.IsValid(width, height) ? new CameraWindowSize(width, height) : null;
+
+    /// <summary>
+    /// The size of the mini preview typed by the user when it is usable (at least <see cref="CameraWindowSize.MinMiniWidth"/>
+    /// wide, T-089 Q4); otherwise <see langword="null"/>.
+    /// </summary>
+    public static CameraWindowSize? ParseMini(string? text) =>
+        TryParse(text, out int width, out int height) && CameraWindowSize.IsValidMini(width, height) ? new CameraWindowSize(width, height) : null;
 
     private static bool TryParseNumber(ReadOnlySpan<char> text, out int value)
     {

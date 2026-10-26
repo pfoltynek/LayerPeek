@@ -51,7 +51,7 @@ public static class PrusaLinkJson
     }
 
     /// <summary>Error body of the firmware, e.g. <c>{"title": "401: Unauthorized","message":""}</c>.</summary>
-    public static string Error(string title) => Invariant($"{{\"title\": {Text(title)},\"message\":\"\"}}");
+    public static string Error(string title, string message = "") => Invariant($"{{\"title\": {Text(title)},\"message\":{Text(message)}}}");
 
     private static string Invariant(FormattableString value) => value.ToString(CultureInfo.InvariantCulture);
 

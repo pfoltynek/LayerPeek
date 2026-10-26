@@ -37,6 +37,7 @@ Po spuštění simulátor vypíše, co zadat v aplikaci, například:
 | `--password <text>` | `simulator` | heslo PrusaLink (přijímá se i jako `X-Api-Key`) |
 | `--host <ip>` | `127.0.0.1` | adresa, na které simulátor poslouchá (i `localhost`); `0.0.0.0` nebo `::` = dostupný i z jiných počítačů v síti, ovládací endpointy pak vyžadují přihlášení (viz níže) |
 | `--offline-mode <drop\|hang>` | `drop` | jak se chová offline tiskárna: `drop` spojení hned zavře, `hang` nikdy neodpoví (klient narazí na timeout) |
+| `--no-previews` | – | soubory úloh bez náhledu G-code: `/thumb/s` i `/thumb/l` vrací `404` (jako soubor jen s QOI náhledy) |
 | `--no-camera` | – | bez kamery |
 | `--camera-port <n>` | 8554 | port RTSP kamery (`0` = libovolný volný) |
 | `--clip <soubor>` | nahraný úsek z Buddy3D | vlastní klip H.264 (Annex B, `.h264`) přehrávaný ve smyčce |
@@ -61,6 +62,7 @@ Všechny tiskárny hlásí firmware `6.9.2+10123` a trysku 0,4 mm. Aplikace podl
 | `printing` | Nekonečný cyklus: ohřev 90 s (`PRINTING`, průběh 0 %, bez odhadu zbývajícího času) → tisk (průběh, zbývající čas, teploty u cíle, soubor) → `FINISHED` 2 min (chladne) → `IDLE` 1 min → další úloha s novým ID a jiným souborem |
 | `paused` | `PAUSED`: úloha zůstane, kde byla (nebo 52 %), tryska chladne na 170 °C, podložka drží teplotu |
 | `finished` | `FINISHED`: bez úlohy, tiskárna chladne |
+| `stopped` | `STOPPED` (tisk zastavený uživatelem): bez úlohy, tiskárna chladne od teplot, kde byla (T-093: vychladnutí po zastaveném tisku) |
 | `error` | `ERROR`: bez úlohy, tiskárna chladne |
 | `attention` | `ATTENTION` (např. došel filament): úloha zůstane, kde byla (nebo 61 %), teploty se drží |
 | `offline` | tiskárna neodpovídá (pod tím scénář `idle`) |
@@ -79,10 +81,11 @@ Napiš do konzole a potvrď Enterem:
 | `2 paused` | přepne tiskárnu 2 na scénář (čísla od 1) |
 | `all printing` | přepne všechny tiskárny |
 | `1 offline` / `1 online` | tiskárna přestane / znovu začne odpovídat; scénář mezitím běží dál |
+| `1 no-previews` / `all previews` | soubory úloh bez náhledu G-code (`404`) / s náhledem |
 | `camera offline` / `camera online` | kamera odpojí klienty a nepřijímá nová spojení / znovu je přijímá |
 | `help`, `quit` | nápověda, ukončení |
 
-Skripty a testy mohou tiskárnu ovládat i přes HTTP (odpovídá i offline): `GET /_simulator/state`, `POST /_simulator/scenario/<scénář>`, `POST /_simulator/offline`, `POST /_simulator/online`.
+Skripty a testy mohou tiskárnu ovládat i přes HTTP (odpovídá i offline): `GET /_simulator/state`, `POST /_simulator/scenario/<scénář>`, `POST /_simulator/offline`, `POST /_simulator/online`, `POST /_simulator/previews/off`, `POST /_simulator/previews/on`. Stav (`/_simulator/state`) obsahuje i `"previews": true/false`.
 
 - Na loopbacku (`127.0.0.1`, `::1`, `localhost`, výchozí) jsou ovládací endpointy bez přihlášení.
 - Při `--host` s jinou adresou (např. `0.0.0.0`) vyžadují stejné přihlášení jako API (Digest nebo `X-Api-Key` s heslem), aby tiskárny nemohl přepínat nikdo jiný v síti.
@@ -104,11 +107,17 @@ Pro víc tiskáren opakuj kroky 1–6 s dalšími adresami (`:8081`, `:8082`…)
 - **PrusaLink API** jako firmware Buddy 6.x (viz `docs/api/prusalink.md`): `GET /api/version`, `/api/v1/info`, `/api/v1/status`, `/api/v1/job` (bez úlohy `204`). Tvar JSON i formát čísel odpovídají fixture z `tests/LayerPeek.PrusaLink.Tests/Fixtures/firmware`. Neznámé cesty API vrací `404`, jiné metody než GET `405` (ovládání tisku se nesimuluje).
 - **Přihlášení**: HTTP Digest podle RFC 2069 (MD5, bez `qop`, realm `Printer API`), nonce platí 300 s, po vypršení přijde `401` se `stale=true`. Chyby jsou v JSON, když je `application/json` první v hlavičce `Accept`.
 - **Web**: stránka `/` bez přihlášení (jako web firmwaru) průběžně ukazuje stav tiskárny. Hodí se pro „Otevřít PrusaLink“ přes proxy aplikace (T-028).
+- **Náhled G-code** (T-086) jako firmware (`previews.cpp`, `gcode_preview.cpp`):
+  - Odkazy `file.refs` v `/api/v1/job` (`/thumb/s/usb/<soubor>`, `/thumb/l/usb/<soubor>`) vedou na skutečně obsloužené náhledy.
+  - Vyžaduje přihlášení. Odpověď je `image/png` s `ETag` (číslo v uvozovkách, stálé pro soubor). Shodný `If-None-Match` vrátí `304`.
+  - Rozměry: `/thumb/s` 16 × 16 px, `/thumb/l` 380 × 285 px (PNG ze standardních profilů Prusa). Pozor: skutečná tiskárna u souborů ze standardních profilů na `/thumb/s` vrací `404` (malý náhled je v nich jen jako QOI, viz `docs/api/prusalink.md`). Simulátor ho kvůli testům obsluhuje.
+  - Obrázky simulátor generuje sám (kruh v barvě souboru na tmavé podložce), žádné přiložené soubory ani licence.
+  - Neznámé písmeno velikosti nebo soubor vrátí `404`, jiná metoda `405`. V režimu bez náhledu (`--no-previews`, `no-previews`, `/_simulator/previews/off`) vrátí `404` „File doesn't contain preview“.
 - **Kamera** jako Buddy3D: RTSP přes TCP (interleaved), jedna stopa H.264, packetization-mode 1, SPS/PPS v proudu před každým IDR snímkem, UDP odmítne (`461`). `PLAY`, `PAUSE` a `TEARDOWN` před `SETUP` vrátí `455`, s cizí nebo chybějící relací `454`. `PAUSE` zastaví snímky do dalšího `PLAY`. Klip se přehrává ve smyčce 25 snímků/s. Každá smyčka začíná SPS + PPS + IDR a čísla sekvence i časová razítka RTP pokračují bez skoku, takže dekodér smyčku nepozná. Více klientů najednou dostává každý vlastní relaci.
 
 ## Testy
 
-- `tests/PrusaSimulator.Tests` – časový model scénářů (falešné hodiny), HTTP a Digest serveru, tvar JSON proti fixture, RTSP kamera přes vlastního jednoduchého klienta (smyčka, sekvence a časová razítka, tempo 25 snímků/s, více klientů, offline), volby příkazové řádky. Klient PrusaLink a monitor aplikace se proti simulátoru připojují beze změn (registrace `AddPrusaLink()` jako v aplikaci).
+- `tests/PrusaSimulator.Tests` – časový model scénářů (falešné hodiny), HTTP a Digest serveru, tvar JSON proti fixture, RTSP kamera přes vlastního jednoduchého klienta (smyčka, sekvence a časová razítka, tempo 25 snímků/s, více klientů, offline), náhledy G-code (`SimulatedPreviewTests`), volby příkazové řádky. Klient PrusaLink a monitor aplikace se proti simulátoru připojují beze změn (registrace `AddPrusaLink()` jako v aplikaci), včetně stažení náhledu přes `PrintPreviewCache` a jeho držení po skončení tisku.
 - `tests/LayerPeek.Camera.FFmpeg.Tests` – kameru simulátoru používají i testy FFmpeg (dřívější `FakeRtspCamera` z T-014). `SimulatedCameraTests` přehrají přes FFmpeg víc než dvě smyčky bez výpadku, dva diváky najednou a obnovu po výpadku kamery.
 - Testy používají porty přidělené systémem (`0`) a po sobě nic nenechávají.
 

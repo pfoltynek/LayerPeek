@@ -167,13 +167,15 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             ComboBox mini = ui.Find<ComboBox>("PrinterCameraWindowMiniSize");
 
             ui.Window.TypeOver(EditBox(normal), "1000x562");
-            mini.SelectedIndex = 0;
+            mini.SelectedIndex = 2;
             ui.Find<ComboBox>("PrinterCameraWindowNormalCorner").SelectedIndex = 3;
             ui.Window.Click(ui.Find<CheckBox>("PrinterCameraWindowRemember"));
             ui.Window.Settle();
 
             PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
             Assert.Equal("1000x562", printer.NormalSizeText);
+            // The default mini size stays offered after another preset was picked.
+            Assert.Equal(CameraWindowSizeText.MiniPresets, mini.Items.Cast<string>());
             Assert.Equal("640 × 360", printer.MiniSizeText);
             await ui.SaveAsync();
 
@@ -251,16 +253,12 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.Equal("PrinterTabCameraWindow", FocusedId(ui.Window));
 
             Press(ui, PhysicalKey.PageDown);
-            Assert.True(ui.Find<TabItem>("PrinterTabOverlay").IsSelected);
-            Assert.Equal("PrinterTabOverlay", FocusedId(ui.Window));
-
-            Press(ui, PhysicalKey.PageDown);
             Assert.True(ui.Find<TabItem>("PrinterTabConnection").IsSelected);
 
             Press(ui, PhysicalKey.PageUp);
-            Assert.True(ui.Find<TabItem>("PrinterTabOverlay").IsSelected);
-            Press(ui, PhysicalKey.PageUp);
             Assert.True(ui.Find<TabItem>("PrinterTabCameraWindow").IsSelected);
+            Press(ui, PhysicalKey.PageUp);
+            Assert.True(ui.Find<TabItem>("PrinterTabCamera").IsSelected);
         });
 
     [Fact]
@@ -280,7 +278,7 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             Assert.True(Ui.ShowsText(ui.Window, "BenQ PD2700U (3840 × 2160) – nicht angeschlossen"));
             Assert.True(Ui.ShowsText(ui.Window, "Oben rechts"));
             Assert.True(Ui.ShowsText(ui.Window, "Normales Fenster"));
-            Assert.Equal("Geben Sie eine Breite von 160–16384 und eine Höhe von 90–16384 ein.", ui.ShownText("PrinterCameraWindowMiniSizeError"));
+            Assert.Equal("Geben Sie eine Breite von 240–16384 und eine Höhe von 90–16384 ein.", ui.ShownText("PrinterCameraWindowMiniSizeError"));
             Assert.Equal("Kamerafenster – enthält Fehler", AutomationProperties.GetName(ui.Find<TabItem>("PrinterTabCameraWindow")));
             Assert.Equal("Mini-Vorschau – Größe", AutomationProperties.GetName(ui.Find<ComboBox>("PrinterCameraWindowMiniSize")));
             Assert.Equal("Immer im Vordergrund", ui.ShownText("PrinterCameraWindowTopmostHeader"));

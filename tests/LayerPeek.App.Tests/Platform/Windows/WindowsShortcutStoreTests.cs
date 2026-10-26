@@ -32,6 +32,18 @@ public sealed class WindowsShortcutStoreTests : IDisposable
     private static string OtherExistingTarget => typeof(WindowsShortcutStoreTests).Assembly.Location;
 
     /// <summary>
+    /// Windows paths ignore case, and the shell normalizes the drive letter ("d:\" read back as "D:\" when the tests run
+    /// from a lower-case working directory), so the target is compared like the app's own SamePath does.
+    /// </summary>
+    private static void AssertShortcut(AppShortcut expected, AppShortcut? actual)
+    {
+        Assert.NotNull(actual);
+        Assert.Equal(expected.TargetPath, actual.TargetPath, ignoreCase: true);
+        Assert.Equal(expected.AppUserModelId, actual.AppUserModelId);
+        Assert.Equal(expected.ToastActivatorClsid, actual.ToastActivatorClsid);
+    }
+
+    /// <summary>
     /// T-017: the Start menu shortcut Velopack created keeps its description and icon when the app adds its AppUserModelID
     /// and toast activator; only those properties change.
     /// </summary>
@@ -54,7 +66,7 @@ public sealed class WindowsShortcutStoreTests : IDisposable
         dynamic reread = shell.CreateShortcut(path);
         Assert.Equal("Made by the installer", (string)reread.Description);
         Assert.Equal(icon + ",3", (string)reread.IconLocation, ignoreCase: true);
-        Assert.Equal(new AppShortcut(ExistingTarget, "LayerPeek.Tests", clsid), _store.Read(path));
+        AssertShortcut(new AppShortcut(ExistingTarget, "LayerPeek.Tests", clsid), _store.Read(path));
     }
 
     /// <summary>A loaded shortcut loses the id and the activator that are left out, and keeps its description.</summary>
@@ -72,7 +84,7 @@ public sealed class WindowsShortcutStoreTests : IDisposable
 
         _store.Write(path, new AppShortcut(ExistingTarget, null, null));
 
-        Assert.Equal(new AppShortcut(ExistingTarget, null, null), _store.Read(path));
+        AssertShortcut(new AppShortcut(ExistingTarget, null, null), _store.Read(path));
         Assert.Equal("Made by the installer", (string)shell.CreateShortcut(path).Description);
     }
 

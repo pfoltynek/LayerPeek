@@ -13,6 +13,12 @@ public sealed record CameraWindowSize
     /// <summary>Same as <c>MinHeight</c> of the camera window.</summary>
     public const int MinHeight = 90;
 
+    /// <summary>
+    /// Narrowest mini preview (T-089 Q4): its info strip below the image needs this width. The size of the mini preview is
+    /// the size of its image; the strip is added below it.
+    /// </summary>
+    public const int MinMiniWidth = 240;
+
     /// <summary>Largest width or height.</summary>
     public const int MaxSize = 16384;
 
@@ -31,6 +37,13 @@ public sealed record CameraWindowSize
     public static IReadOnlyList<CameraWindowSize> Presets { get; } =
         [new(640, 360), new(960, 540), new(1280, 720), new(1920, 1080)];
 
+    /// <summary>
+    /// The presets offered for the mini preview, smallest first. They include the default mini size, so it can be picked
+    /// again after the user changed it.
+    /// </summary>
+    public static IReadOnlyList<CameraWindowSize> MiniPresets { get; } =
+        [new(320, 180), new(480, 270), new(640, 360), new(960, 540)];
+
     public int Width { get; }
 
     public int Height { get; }
@@ -38,4 +51,10 @@ public sealed record CameraWindowSize
     /// <summary>Whether <paramref name="width"/> × <paramref name="height"/> can be used as a window size.</summary>
     public static bool IsValid(int width, int height) =>
         width is >= MinWidth and <= MaxSize && height is >= MinHeight and <= MaxSize;
+
+    /// <summary>
+    /// Whether <paramref name="width"/> × <paramref name="height"/> can be used as the size of the mini preview: a window
+    /// size at least <see cref="MinMiniWidth"/> wide.
+    /// </summary>
+    public static bool IsValidMini(int width, int height) => IsValid(width, height) && width >= MinMiniWidth;
 }
