@@ -509,7 +509,7 @@
                                       AutomationProperties.AutomationId="PrinterCameraWindowMiniSize"
                                       AutomationProperties.Name="{Binding MiniSizeName}"
                                       IsEditable="True"
-                                      ItemsSource="{x:Static vm:CameraWindowSizeText.Presets}"
+                                      ItemsSource="{x:Static vm:CameraWindowSizeText.MiniPresets}"
                                       Text="{Binding MiniSizeText, Mode=TwoWay}"
                                       HorizontalAlignment="Stretch" />
                             <ComboBox Grid.Row="5"
