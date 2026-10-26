@@ -8,6 +8,39 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Camera overlay widgets instead of a single text block: Status (printer name, state, progress), Times (remaining,
+  finish time, print time), Temperatures (nozzle and bed with a small chart), Print name (title and material chips
+  read from the PrusaSlicer file name, the G-code thumbnail and the slicer estimate) and Cool-down. Each widget can be
+  shown or hidden, has a size S/M/L and can be emphasized.
+- Layout mode in the camera window: drag the widgets to one of six anchors, change their size, reset to the default
+  layout. Works with the keyboard too.
+- New Widgets tab in the settings: visibility and settings of each widget, card background opacity, "Edit layout in
+  the camera window…", reset, and applying the layout to all printers.
+- Cool-down after a finished or stopped print: the Cool-down widget shows the nozzle and bed temperatures, the
+  progress to the threshold and an estimate, then "Cooled down – you can switch it off". An optional "Printer cooled
+  down" notification (off by default). The nozzle threshold is set per printer (default 50 °C) and can be applied to
+  all printers.
+- Mini preview info strip below the image (progress bar, percentage and remaining time) instead of text over the
+  image. The print name row and a temperature chart row can be expanded or collapsed right in the mini window and stay
+  as you left them.
+- The Settings and Diagnostics windows can be maximized and remember their size and maximized state.
+
+### Changed
+
+- The camera overlay settings moved from the printer's Overlay sub-tab to the new Widgets tab. Existing overlay
+  settings (items and corner) are converted to the widget layout automatically. The settings file format is now
+  version 2. If you go back to LayerPeek 0.1.0, it only logs a warning and drops the widget layout when it saves the
+  settings.
+- Settings and Diagnostics windows are a little taller by default (780 × 532).
+- Numbers and their units (`50 °C`, `2 h 35 min`, `960 × 540`) are never split across lines.
+
+### Fixed
+
+- The mini preview size box offers its own presets (320 × 180, 480 × 270, 640 × 360, 960 × 540). Before, the default
+  320 × 180 disappeared from the list once another size was picked.
+
 ## [0.1.0] - 2026-10-24
 
 First public preview. Windows x64 only, PrusaLink only, builds are not code-signed.
