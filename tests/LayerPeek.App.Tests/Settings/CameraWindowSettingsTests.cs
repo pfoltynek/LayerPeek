@@ -120,6 +120,12 @@ public sealed class CameraWindowSettingsTests : IDisposable
         Assert.Equal(["640\u00A0×\u00A0360", "960\u00A0×\u00A0540", "1280\u00A0×\u00A0720", "1920\u00A0×\u00A01080"], CameraWindowSizeText.Presets);
     }
 
+    [Fact]
+    public void MiniSizePresetsAreTheCoreMiniPresets()
+    {
+        Assert.Equal(["320 × 180", "480 × 270", "640 × 360", "960 × 540"], CameraWindowSizeText.MiniPresets);
+    }
+
     // ---- Saving (and the data loss fixed in T-035: the window defaults were dropped on every save) ----
 
     [Fact]

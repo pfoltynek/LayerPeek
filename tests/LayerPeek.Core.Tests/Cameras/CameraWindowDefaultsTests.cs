@@ -112,6 +112,17 @@ public class CameraWindowDefaultsTests
         Assert.Equal(
             [new CameraWindowSize(640, 360), new CameraWindowSize(960, 540), new CameraWindowSize(1280, 720), new CameraWindowSize(1920, 1080)],
             CameraWindowSize.Presets);
+        Assert.Contains(CameraWindowDefaults.DefaultNormal.Size, CameraWindowSize.Presets);
+    }
+
+    [Fact]
+    public void MiniPresetsAreTheDecidedSizesAndKeepTheDefault()
+    {
+        Assert.Equal(
+            [new CameraWindowSize(320, 180), new CameraWindowSize(480, 270), new CameraWindowSize(640, 360), new CameraWindowSize(960, 540)],
+            CameraWindowSize.MiniPresets);
+        Assert.Contains(CameraWindowDefaults.DefaultMini.Size, CameraWindowSize.MiniPresets);
+        Assert.All(CameraWindowSize.MiniPresets, static size => Assert.True(CameraWindowSize.IsValidMini(size.Width, size.Height)));
     }
 
     [Fact]

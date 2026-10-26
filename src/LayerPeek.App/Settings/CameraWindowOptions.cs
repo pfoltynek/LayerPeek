@@ -45,6 +45,9 @@ public static class CameraWindowSizeText
     /// <summary>The presets of the size box, smallest first.</summary>
     public static IReadOnlyList<string> Presets { get; } = [.. CameraWindowSize.Presets.Select(Format)];
 
+    /// <summary>The presets of the mini preview size box, smallest first.</summary>
+    public static IReadOnlyList<string> MiniPresets { get; } = [.. CameraWindowSize.MiniPresets.Select(Format)];
+
     public static string Format(CameraWindowSize size)
     {
         ArgumentNullException.ThrowIfNull(size);

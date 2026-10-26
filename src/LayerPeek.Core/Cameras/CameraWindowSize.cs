@@ -37,6 +37,13 @@ public sealed record CameraWindowSize
     public static IReadOnlyList<CameraWindowSize> Presets { get; } =
         [new(640, 360), new(960, 540), new(1280, 720), new(1920, 1080)];
 
+    /// <summary>
+    /// The presets offered for the mini preview, smallest first. They include the default mini size, so it can be picked
+    /// again after the user changed it.
+    /// </summary>
+    public static IReadOnlyList<CameraWindowSize> MiniPresets { get; } =
+        [new(320, 180), new(480, 270), new(640, 360), new(960, 540)];
+
     public int Width { get; }
 
     public int Height { get; }

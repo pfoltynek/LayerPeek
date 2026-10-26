@@ -167,13 +167,15 @@ public sealed class SettingsWindowCameraWindowUiTests(HeadlessSession session)
             ComboBox mini = ui.Find<ComboBox>("PrinterCameraWindowMiniSize");
 
             ui.Window.TypeOver(EditBox(normal), "1000x562");
-            mini.SelectedIndex = 0;
+            mini.SelectedIndex = 2;
             ui.Find<ComboBox>("PrinterCameraWindowNormalCorner").SelectedIndex = 3;
             ui.Window.Click(ui.Find<CheckBox>("PrinterCameraWindowRemember"));
             ui.Window.Settle();
 
             PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
             Assert.Equal("1000x562", printer.NormalSizeText);
+            // The default mini size stays offered after another preset was picked.
+            Assert.Equal(CameraWindowSizeText.MiniPresets, mini.Items.Cast<string>());
             Assert.Equal("640 × 360", printer.MiniSizeText);
             await ui.SaveAsync();
 
