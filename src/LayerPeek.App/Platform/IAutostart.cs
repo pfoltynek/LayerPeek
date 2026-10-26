@@ -2,7 +2,7 @@ namespace LayerPeek.App.Platform;
 
 /// <summary>
 /// Whether the app starts after the user logs on (T-017; Windows: the app's own shortcut in the Startup folder, macOS:
-/// T-019). Off by default; the settings window switches it.
+/// T-019). Switched on by the install (user decision 2026-10-26); the settings window switches it.
 /// </summary>
 internal interface IAutostart
 {

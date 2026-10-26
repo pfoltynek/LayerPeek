@@ -197,7 +197,7 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 - **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. práh vychladnutí), neprůhlednost karet a
   rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
-- **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
+- **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu zapnuté,
   jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze.
 
 ### Kde jsou uložená data

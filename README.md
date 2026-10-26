@@ -196,7 +196,7 @@ submenu.
 - **Camera window:** start mode, size, monitor and always on top.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the cool-down threshold), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
-- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
+- **Startup and updates:** start LayerPeek after you sign in to Windows (on by default; only the installed version),
   and whether updates offer pre-release versions.
 
 ### Where data is stored

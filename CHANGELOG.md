@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- "Start automatically when I sign in to Windows" is on by default: the installer switches it on. Updates keep your
+  choice.
+
 ## [0.2.0] - 2026-10-26
 
 ### Added

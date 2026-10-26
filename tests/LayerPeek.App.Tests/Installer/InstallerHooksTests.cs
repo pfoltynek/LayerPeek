@@ -49,6 +49,39 @@ public sealed class InstallerHooksTests
     }
 
     [Fact]
+    public void AfterInstallSwitchesAutostartOn()
+    {
+        _autostart.Enabled = false;
+
+        Assert.Empty(Hooks().AfterInstall());
+
+        Assert.True(_autostart.Enabled);
+    }
+
+    /// <summary>The app works without autostart: a failure does not fail the install, it goes to the log.</summary>
+    [Fact]
+    public void AfterInstallDoesNotFailWhenAutostartCannotBeSwitchedOn()
+    {
+        _autostart.Enabled = false;
+        _autostart.Failure = new IOException("autostart failed");
+
+        Assert.Empty(Hooks().AfterInstall());
+
+        Assert.False(_autostart.Enabled);
+        Assert.Equal(1, _toasts.Registrations);
+        Assert.Contains(_logger.Entries, static entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Warning && entry.Exception is IOException);
+    }
+
+    [Fact]
+    public void AfterInstallWithoutAutostartRegistersToasts()
+    {
+        InstallerHooks hooks = new(_toasts, _history, _activators, _notificationSettings, Promotion(), autostart: null, Exe, _logger);
+
+        Assert.Empty(hooks.AfterInstall());
+        Assert.Equal(1, _toasts.Registrations);
+    }
+
+    [Fact]
     public void AfterInstallReportsAFailedRegistration()
     {
         _toasts.Failure = new UnauthorizedAccessException("denied");

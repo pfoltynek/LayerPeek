@@ -10,7 +10,7 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
   Podmínky:
   1. `VelopackApp.Build()…Run()` musí být první příkaz v `Main`, před `SingleInstanceGuard` (T-043).
   2. Balit s `--aumid LayerPeek` (skrytá volba `vpk`, viz bod 4), `--packTitle "LayerPeek"` a `--shortcuts StartMenuRoot` (jen Start menu, bez plochy, rozhodnuto 2026-10-21).
-  3. `ToastActivatorCLSID` do zástupce a registraci COM aktivátoru zapisuje aplikace (v hooku `--veloapp-install` a při startu). Úklid registrace, klíče notifikací a historie toastů dělá hook `--veloapp-uninstall`.
+  3. `ToastActivatorCLSID` do zástupce a registraci COM aktivátoru zapisuje aplikace (v hooku `--veloapp-install` a při startu). Úklid registrace, klíče notifikací a historie toastů dělá hook `--veloapp-uninstall`. Hook `--veloapp-install` navíc zapne spouštění po přihlášení (výchozí zapnuto, rozhodnuto 2026-10-26); běží jen při nové instalaci, takže aktualizace volbu uživatele nemění. Jeho selhání jde jen do logu, aby `Setup.exe` neukazoval varování.
   4. Kontrola aktualizací musí chytat výjimky. Dokud je repozitář soukromý, končí `HttpRequestException` 404.
   5. Kanály podle RID: `--channel win-x64` a `--channel win-arm64`.
 - **macOS (T-019): s podmínkami, rozhodne pokus na Macu.** `vpk` pro macOS běží jen na Macu a vytváří `.app`, `.pkg` a `Portable.zip`, ne `.dmg`. Dokumentace považuje podpis a notarizaci za nutné. Chování s ad-hoc podpisem dokumentace nepopisuje a tady ho nešlo ověřit. Velopack pro macOS proto zatím nedoporučuju ani nezamítám. Rozhodne se v T-019 (viz otevřené otázky).

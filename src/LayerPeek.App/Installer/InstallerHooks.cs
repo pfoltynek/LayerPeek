@@ -19,7 +19,9 @@ internal interface IToastRegistration
 /// <list type="bullet">
 /// <item><c>--veloapp-install</c>: the toast registrations of a normal start (COM activator <c>LocalServer32</c>, and the
 /// Start menu shortcut Velopack created gets the activator's <c>ToastActivatorCLSID</c>; docs/velopack.md point 4), so
-/// that clicks on toasts reach the app before it ever ran (a silent install does not start it).</item>
+/// that clicks on toasts reach the app before it ever ran (a silent install does not start it), and autostart switched on
+/// (on by default, user decision 2026-10-26). Only a new install runs this hook, so an update keeps the user's choice; a
+/// failed autostart only goes to the log, the app works without it.</item>
 /// <item><c>--veloapp-uninstall</c>: the system registrations go: the app's toasts in the notification center, the COM
 /// activator, Windows' notification settings of the app, the taskbar choice of the tray icon (T-061) and autostart. Each
 /// step runs even when an earlier one failed. The Start menu shortcut is deleted by Velopack itself; settings and passwords
@@ -79,6 +81,18 @@ internal sealed partial class InstallerHooks
     {
         List<string> failures = [];
         Step(failures, "Registering the toasts", _toasts.Register);
+        if (_autostart is { } autostart)
+        {
+            try
+            {
+                autostart.SetEnabled(true);
+            }
+            catch (Exception ex)
+            {
+                LogAutostartNotEnabled(ex);
+            }
+        }
+
         return failures;
     }
 
@@ -118,6 +132,9 @@ internal sealed partial class InstallerHooks
             LogStepFailed(ex, name);
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Install: autostart could not be switched on; the user can switch it on in the settings.")]
+    private partial void LogAutostartNotEnabled(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Uninstall: the taskbar choice of {Count} tray icon entries was cleared.")]
     private partial void LogTrayIconsCleared(int count);
