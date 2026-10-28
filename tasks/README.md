@@ -138,11 +138,12 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 
 | ID | Název | Platforma | Owner | Priorita | Závisí na |
 |---|---|---|---|---|---|
-| T-018 | macOS – ikona a menu v menu baru | macos | ui-dev | P1 | T-007, T-008 |
-| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015, T-055, T-056 |
-| T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019 |
-| T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030 |
-| T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019 |
+| T-095 | macOS – zelený build a testy (přípravný úkol, první na Macu) | macos | qa-reviewer + ui-dev | P1 | – |
+| T-018 | macOS – ikona a menu v menu baru | macos | ui-dev | P1 | T-007, T-008, T-095 |
+| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015, T-055, T-056, T-095 |
+| T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019, T-095 |
+| T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030, T-095 |
+| T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019, T-095 |
 | T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ | macos | ui-dev | P3 | T-026, T-035, T-037 |
-| T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) | macos | ui-dev | P3 | T-043, T-052 |
+| T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) | macos | ui-dev | P3 | T-043, T-052, T-095 |
 | T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |

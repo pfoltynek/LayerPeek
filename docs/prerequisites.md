@@ -112,6 +112,16 @@ Ověření (musí vypsat název instalace):
 |---|---|
 | **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install` |
 | *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis (`codesign -s -` je v Command Line Tools) – úkol T-019 |
+| *(volitelně)* **PowerShell 7** (`pwsh` na `PATH`) | pro skripty vydání (T-055, T-019) a jejich Pester testy. Instalace přes Homebrew (`brew install --cask powershell`), nebo jako dotnet global tool (`dotnet tool install --global PowerShell`, složka `~/.dotnet/tools` musí být na `PATH`). Pester 5 viz „Pester (testy skriptů)“. |
+| *(volitelně)* **Microsoft Edge** | pro E2E testy webu přes proxy (T-030, na Macu ověří T-021); bez Edge se přeskočí |
+
+**Verze SDK:** `global.json` připíná `11.0.100-rc.2.26504.105` s `"rollForward": "latestFeature"` a `"allowPrerelease": true`, takže se použije i novější nainstalované SDK stejné řady, např. `11.0.100-rc.3` (ověřeno na Macu 2026-10-28).
+
+**Nepracovat v repozitáři přes symbolický odkaz.** Když je repozitář otevřený přes cestu se symbolickým odkazem (např. `~/Code` → `/Volumes/Disk/Code`), `$PWD` drží logickou cestu přes odkaz. dotnet CLI s ní skládá relativní cestu k projektu (`src/LayerPeek.App`), ale `ProjectReference` řeší přes fyzickou cestu. Obnova NuGet pak u `LayerPeek.App` zahodí všechny odkazy na projekty a build / `dotnet publish -r osx-arm64` selže s CS0246 (`ServiceProvider`, `IHttpClientFactory`). Smazání `bin`/`obj` nepomůže. Terminál i VS Code otevírej ve fyzické cestě (nebo `cd -P <cesta>`) a ověř, že se obě cesty rovnají:
+
+```bash
+echo "$PWD"; pwd -P      # musí vypsat stejnou cestu
+```
 
 Ověření:
 
@@ -152,7 +162,7 @@ Testy skriptů pro vydání (`scripts/ReleaseTools/ReleaseTools.Tests.ps1`, `Rel
 pwsh -NoProfile -Command "Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0 -Force -SkipPublisherCheck"
 ```
 
-`-SkipPublisherCheck` je potřeba jen na Windows, kde starý Pester 3.4 má jiný podpis. Ověření: `pwsh -NoProfile -Command "Get-Module -ListAvailable Pester"` musí ukázat verzi 5 nebo vyšší. Bez `pwsh` nebo Pesteru 5+ se test `ScriptPesterTestsPass` v `dotnet test` přeskočí, neselže.
+`-SkipPublisherCheck` je potřeba jen na Windows, kde starý Pester 3.4 má jiný podpis. Na macOS stačí `pwsh -NoProfile -Command "Install-Module Pester -Scope CurrentUser -MinimumVersion 5.0.0 -Force"` (modul se uloží do `~/.local/share/powershell/Modules`). Ověření: `pwsh -NoProfile -Command "Get-Module -ListAvailable Pester"` musí ukázat verzi 5 nebo vyšší. Bez `pwsh` nebo Pesteru 5+ se test `ScriptPesterTestsPass` v `dotnet test` přeskočí, neselže.
 
 ## AOT smoke test
 
@@ -174,6 +184,7 @@ V `src/LayerPeek.App/LayerPeek.App.csproj` je nastaveno `<UseOptimizedPublish>fa
 | Chyba | Řešení |
 |---|---|
 | `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64` | chybí workload *Desktop development with C++* (viz Windows) |
+| macOS: `CS0246` u `ServiceProvider` / `IHttpClientFactory` v `LayerPeek.App` (hlavně `dotnet publish -r osx-arm64`) | repozitář je otevřený přes symbolický odkaz, `$PWD` se liší od `pwd -P` (viz macOS) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
 | `FFmpeg archive SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
