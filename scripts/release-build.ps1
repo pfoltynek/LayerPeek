@@ -39,7 +39,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
+# Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
+$repoRoot = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..')
 $solution = Join-Path $repoRoot 'LayerPeek.slnx'
 $appProject = Join-Path $repoRoot 'src' 'LayerPeek.App' 'LayerPeek.App.csproj'
 $smokeScript = Join-Path $PSScriptRoot 'aot-smoke.ps1'
