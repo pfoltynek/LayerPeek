@@ -117,11 +117,22 @@ Ověření (musí vypsat název instalace):
 
 **Verze SDK:** `global.json` připíná `11.0.100-rc.2.26504.105` s `"rollForward": "latestFeature"` a `"allowPrerelease": true`, takže se použije i novější nainstalované SDK stejné řady, např. `11.0.100-rc.3` (ověřeno na Macu 2026-10-28).
 
-**Nepracovat v repozitáři přes symbolický odkaz.** Když je repozitář otevřený přes cestu se symbolickým odkazem (např. `~/Code` → `/Volumes/Disk/Code`), `$PWD` drží logickou cestu přes odkaz. dotnet CLI s ní skládá relativní cestu k projektu (`src/LayerPeek.App`), ale `ProjectReference` řeší přes fyzickou cestu. Obnova NuGet pak u `LayerPeek.App` zahodí všechny odkazy na projekty a build / `dotnet publish -r osx-arm64` selže s CS0246 (`ServiceProvider`, `IHttpClientFactory`). Smazání `bin`/`obj` nepomůže. Terminál i VS Code otevírej ve fyzické cestě (nebo `cd -P <cesta>`) a ověř, že se obě cesty rovnají:
+**Symbolický odkaz v cestě k repozitáři.** Když je repozitář otevřený přes cestu se symbolickým odkazem (např. `~/Code` → `/Volumes/Disk/Code`), `$PWD` drží logickou cestu přes odkaz. dotnet CLI s ní skládá relativní cestu k projektu (`src/LayerPeek.App`), ale `ProjectReference` řeší přes fyzickou cestu. Obnova NuGet pak u `LayerPeek.App` zahodí všechny odkazy na projekty a build / `dotnet publish -r osx-arm64` selže s CS0246 (`ServiceProvider`, `IHttpClientFactory`). Smazání `bin`/`obj` nepomůže, absolutní fyzická cesta k projektu ano.
 
-```bash
-echo "$PWD"; pwd -P      # musí vypsat stejnou cestu
-```
+- **Skripty v `scripts/`** (`release-build.ps1`, `aot-smoke.ps1`, `release*.ps1`) si cestu k repozitáři samy převedou na fyzickou (`Resolve-PhysicalPath` v `ReleaseTools.psm1`) a dotnet dostane jen fyzické cesty. Fungují tedy odkudkoli, i přes symbolický odkaz.
+- **Ručně psané příkazy** (`dotnet build`, `dotnet publish src/LayerPeek.App …`) a VS Code potřebují, aby `$PWD` byla fyzická cesta. Jednorázově to zajistí zsh na konci `~/.zshrc`:
+
+  ```zsh
+  # Resolve symlinks in the working directory (dotnet restore breaks on symlinked paths)
+  setopt CHASE_LINKS
+  [[ "$PWD" != "$(pwd -P)" ]] && cd -P .
+  ```
+
+  VS Code otevírej ve fyzické cestě (`File → Open Folder`), aby build v IDE nešel přes odkaz. Ověření:
+
+  ```bash
+  echo "$PWD"; pwd -P      # musí vypsat stejnou cestu
+  ```
 
 Ověření:
 
@@ -184,7 +195,7 @@ V `src/LayerPeek.App/LayerPeek.App.csproj` je nastaveno `<UseOptimizedPublish>fa
 | Chyba | Řešení |
 |---|---|
 | `vswhere.exe failed to locate Visual Studio with Microsoft.VisualStudio.Component.VC.Tools.x86.x64` | chybí workload *Desktop development with C++* (viz Windows) |
-| macOS: `CS0246` u `ServiceProvider` / `IHttpClientFactory` v `LayerPeek.App` (hlavně `dotnet publish -r osx-arm64`) | repozitář je otevřený přes symbolický odkaz, `$PWD` se liší od `pwd -P` (viz macOS) |
+| macOS: `CS0246` u `ServiceProvider` / `IHttpClientFactory` v `LayerPeek.App` (hlavně `dotnet publish -r osx-arm64`) | repozitář je otevřený přes symbolický odkaz, `$PWD` se liší od `pwd -P`; skripty v `scripts/` to řeší samy, pro ruční příkazy viz macOS (`setopt CHASE_LINKS`) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
 | `FFmpeg archive SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |

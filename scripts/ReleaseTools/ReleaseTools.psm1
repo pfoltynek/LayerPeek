@@ -44,6 +44,28 @@ function Get-HostArchitecture {
     [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 }
 
+function Resolve-PhysicalPath {
+    <#
+    .SYNOPSIS Full path of an existing file or folder with every symbolic link resolved (macOS); unchanged on Windows.
+    .DESCRIPTION
+        dotnet resolves a relative or symlinked project path differently from the paths of its ProjectReferences, and
+        NuGet restore then drops all project references (CS0246 in the app). Paths handed to dotnet are therefore
+        physical. Windows keeps its previous behaviour: Resolve-Path.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $full = (Resolve-Path -LiteralPath $Path).ProviderPath
+    if ($IsWindows) { return $full }
+
+    $result = [System.IO.Path]::DirectorySeparatorChar.ToString()
+    foreach ($segment in $full.Split([System.IO.Path]::DirectorySeparatorChar, [System.StringSplitOptions]::RemoveEmptyEntries)) {
+        $candidate = Join-Path $result $segment
+        $target = (Get-Item -LiteralPath $candidate -Force).ResolveLinkTarget($true)
+        # The target may itself lie below symbolic links.
+        $result = if ($target) { Resolve-PhysicalPath $target.FullName } else { $candidate }
+    }
+    $result
+}
+
 function Get-RuntimeOs {
     <# .SYNOPSIS Operating system of a configured RID ('windows' / 'macos'). #>
     param([Parameter(Mandatory)] [string] $Runtime, $Config = $script:ReleaseRuntimes)

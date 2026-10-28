@@ -708,6 +708,48 @@ Describe 'Velopack packaging (T-017)' {
     }
 }
 
+Describe 'Physical paths (symlinked working copy)' {
+    BeforeAll {
+        $script:LinkRoot = Join-Path $script:TempRoot 'links'
+        $script:RealRepo = Join-Path $script:LinkRoot 'real' 'repo'
+        $null = New-Item -ItemType Directory -Path (Join-Path $script:RealRepo 'src' 'App')
+        if (-not $IsWindows) {
+            # ~/SourceCode -> /Volumes/Data/SourceCode, here as an absolute and a relative link, the second through the first.
+            $null = New-Item -ItemType SymbolicLink -Path (Join-Path $script:LinkRoot 'abs') -Target (Join-Path $script:LinkRoot 'real')
+            $null = New-Item -ItemType SymbolicLink -Path (Join-Path $script:LinkRoot 'rel') -Target 'abs'
+        }
+    }
+    It 'resolves every symbolic link in the path' -Skip:$IsWindows {
+        $expected = Resolve-PhysicalPath (Join-Path $script:RealRepo 'src' 'App')
+        Resolve-PhysicalPath (Join-Path $script:LinkRoot 'abs' 'repo' 'src' 'App') | Should -BeExactly $expected
+        Resolve-PhysicalPath (Join-Path $script:LinkRoot 'rel' 'repo' 'src' 'App') | Should -BeExactly $expected
+        # The temp folder itself lies below a link on macOS (/var -> /private/var).
+        $expected | Should -BeExactly (& /bin/realpath (Join-Path $script:RealRepo 'src' 'App'))
+    }
+    It 'returns a path without any symbolic link segment' -Skip:$IsWindows {
+        $path = Resolve-PhysicalPath (Join-Path $script:LinkRoot 'rel' 'repo')
+        $current = ''
+        foreach ($segment in $path.Split('/', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+            $current = "$current/$segment"
+            (Get-Item -LiteralPath $current -Force).LinkTarget | Should -BeNullOrEmpty
+        }
+    }
+    It 'keeps the Resolve-Path result on Windows' -Skip:(-not $IsWindows) {
+        $path = Join-Path $script:RealRepo 'src' '..' 'src' 'App'
+        Resolve-PhysicalPath $path | Should -BeExactly (Resolve-Path -LiteralPath $path).ProviderPath
+    }
+    It 'fails for a missing path' {
+        { Resolve-PhysicalPath (Join-Path $script:LinkRoot 'missing') } | Should -Throw
+    }
+    It 'is used for every path the scripts hand to dotnet' {
+        foreach ($name in 'release-build.ps1', 'release-upload.ps1', 'release-publish.ps1', 'release.ps1', 'aot-smoke.ps1') {
+            $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' $name) -Raw
+            $text | Should -Match 'Resolve-PhysicalPath \(Join-Path \$PSScriptRoot' -Because $name
+            $text | Should -Not -Match 'Resolve-Path \(Join-Path \$PSScriptRoot' -Because $name
+        }
+    }
+}
+
 Describe 'AOT smoke script with an existing publish folder' {
     BeforeAll {
         # A publish folder whose path holds wildcard characters ([ ]): it must be addressed literally.

@@ -58,7 +58,9 @@ if (-not $SkipShellIntegration -and (Get-Process -Name 'LayerPeek' -ErrorAction 
     exit 1
 }
 
-$project = Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App'
+Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
+# Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
+$project = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App')
 # The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.
 $ownsPublishDir = -not $PublishDir
 $publishDir = if ($ownsPublishDir) {
