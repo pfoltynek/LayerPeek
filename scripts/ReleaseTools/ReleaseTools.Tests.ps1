@@ -741,11 +741,52 @@ Describe 'Physical paths (symlinked working copy)' {
     It 'fails for a missing path' {
         { Resolve-PhysicalPath (Join-Path $script:LinkRoot 'missing') } | Should -Throw
     }
+    It 'resolves the existing beginning of a missing path with -AllowMissing' -Skip:$IsWindows {
+        $expected = Join-Path (Resolve-PhysicalPath $script:RealRepo) 'missing' 'deeper'
+        Resolve-PhysicalPath (Join-Path $script:LinkRoot 'rel' 'repo' 'missing' 'deeper') -AllowMissing | Should -BeExactly $expected
+    }
     It 'is used for every path the scripts hand to dotnet' {
         foreach ($name in 'release-build.ps1', 'release-upload.ps1', 'release-publish.ps1', 'release.ps1', 'aot-smoke.ps1') {
             $text = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' $name) -Raw
             $text | Should -Match 'Resolve-PhysicalPath \(Join-Path \$PSScriptRoot' -Because $name
             $text | Should -Not -Match 'Resolve-Path \(Join-Path \$PSScriptRoot' -Because $name
+        }
+    }
+}
+
+Describe 'Child pwsh (any installation)' {
+    BeforeAll {
+        $script:FakeHome = Join-Path $script:TempRoot 'pwsh-home'
+        $null = New-Item -ItemType Directory -Path $script:FakeHome
+        $null = New-Item -ItemType File -Path (Join-Path $script:FakeHome 'pwsh.dll')
+        $script:EmptyHome = Join-Path $script:TempRoot 'pwsh-home-empty'
+        $null = New-Item -ItemType Directory -Path $script:EmptyHome
+    }
+    It 'starts an installed pwsh directly' {
+        # Paths of the current OS: System.IO.Path splits only its own separators.
+        $path = if ($IsWindows) { 'C:\Program Files\PowerShell\7\pwsh.exe' } else { '/usr/local/bin/pwsh' }
+        @(Get-PwshCommand -ProcessPath $path -PowerShellHome $script:FakeHome) | Should -BeExactly @($path)
+    }
+    It 'starts pwsh.dll in the dotnet host for the dotnet global tool' {
+        $command = @(Get-PwshCommand -ProcessPath '/opt/dotnet/dotnet' -PowerShellHome $script:FakeHome)
+        $command.Count | Should -Be 2
+        $command | Should -BeExactly @('/opt/dotnet/dotnet', (Join-Path $script:FakeHome 'pwsh.dll'))
+    }
+    It 'fails clearly when it cannot tell how to start pwsh' {
+        { Get-PwshCommand -ProcessPath '/opt/dotnet/dotnet' -PowerShellHome $script:EmptyHome } | Should -Throw '*pwsh.dll*'
+    }
+    It 'runs the same PowerShell, passes the arguments and the exit code' {
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -Command '$PSVersionTable.PSVersion.ToString(); exit 7'
+        $LASTEXITCODE | Should -Be 7
+        $output | Should -BeExactly $PSVersionTable.PSVersion.ToString()
+    }
+    It 'passes pipeline input to the standard input of the child' {
+        $output = 'first', 'second' | Invoke-Pwsh -NoProfile -NonInteractive -Command '$input | ForEach-Object { "got $_" }'
+        $output | Should -BeExactly @('got first', 'got second')
+    }
+    It 'is used everywhere a script starts pwsh again' {
+        foreach ($file in Get-ChildItem -LiteralPath (Join-Path $script:RepoRoot 'scripts') -Recurse -Include '*.ps1', '*.psm1') {
+            Get-Content -LiteralPath $file.FullName -Raw | Should -Not -Match '&\s*\(\[Environment\]::ProcessPath\)' -Because $file.Name
         }
     }
 }
@@ -765,7 +806,7 @@ Describe 'AOT smoke script with an existing publish folder' {
         # -SkipShellIntegration: no running-instance check (other tests may start the real app meanwhile), no Start menu
         # shortcut and no toast history of the real user profile are read or changed.
         $before = @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name)
-        $output = & ([Environment]::ProcessPath) -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 -SkipShellIntegration 2>&1 | Out-String
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 -SkipShellIntegration 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 1
         # The stand-in exits at once, so the check fails because the app exited, not because nothing was found.
         $output | Should -Match 'App exited after start'

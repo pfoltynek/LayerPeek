@@ -165,7 +165,7 @@ try {
 
         if (Test-RuntimeRunnable -Runtime $rid -HostOs $hostOs -HostArchitecture $hostArchitecture) {
             $before = Get-FolderSnapshot $publishDir
-            Invoke-Native "AOT smoke test $rid" { & ([Environment]::ProcessPath) -NoProfile -File $smokeScript -Runtime $rid -PublishDir $publishDir -Seconds $SmokeSeconds }
+            Invoke-Native "AOT smoke test $rid" { Invoke-Pwsh -NoProfile -File $smokeScript -Runtime $rid -PublishDir $publishDir -Seconds $SmokeSeconds }
             if ((Get-FolderSnapshot $publishDir) -ne $before) { throw "The smoke run changed the publish folder $publishDir; it must not be packaged." }
             $smoke[$rid] = 'passed'
         }
