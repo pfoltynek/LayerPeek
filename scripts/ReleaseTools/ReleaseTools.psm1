@@ -46,24 +46,54 @@ function Get-HostArchitecture {
 
 function Resolve-PhysicalPath {
     <#
-    .SYNOPSIS Full path of an existing file or folder with every symbolic link resolved (macOS); unchanged on Windows.
+    .SYNOPSIS Full path with every symbolic link resolved (macOS); on Windows Resolve-Path (GetFullPath with -AllowMissing).
     .DESCRIPTION
         dotnet resolves a relative or symlinked project path differently from the paths of its ProjectReferences, and
         NuGet restore then drops all project references (CS0246 in the app). Paths handed to dotnet are therefore
-        physical. Windows keeps its previous behaviour: Resolve-Path.
+        physical. Windows keeps its previous behaviour. Without -AllowMissing the path must exist; with it, the
+        existing beginning of the path is resolved and the missing rest is appended unchanged.
     #>
-    param([Parameter(Mandatory)] [string] $Path)
-    $full = (Resolve-Path -LiteralPath $Path).ProviderPath
+    param([Parameter(Mandatory)] [string] $Path, [switch] $AllowMissing)
+    $full = if ($AllowMissing) { [System.IO.Path]::GetFullPath($Path) } else { (Resolve-Path -LiteralPath $Path).ProviderPath }
     if ($IsWindows) { return $full }
 
-    $result = [System.IO.Path]::DirectorySeparatorChar.ToString()
-    foreach ($segment in $full.Split([System.IO.Path]::DirectorySeparatorChar, [System.StringSplitOptions]::RemoveEmptyEntries)) {
-        $candidate = Join-Path $result $segment
-        $target = (Get-Item -LiteralPath $candidate -Force).ResolveLinkTarget($true)
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    $segments = $full.Split($separator, [System.StringSplitOptions]::RemoveEmptyEntries)
+    $result = $separator.ToString()
+    for ($i = 0; $i -lt $segments.Count; $i++) {
+        $candidate = Join-Path $result $segments[$i]
+        $item = Get-Item -LiteralPath $candidate -Force -ErrorAction Ignore
+        if (-not $item) { return Join-Path $result ($segments[$i..($segments.Count - 1)] -join $separator) }
+        $target = $item.ResolveLinkTarget($true)
         # The target may itself lie below symbolic links.
         $result = if ($target) { Resolve-PhysicalPath $target.FullName } else { $candidate }
     }
     $result
+}
+
+function Get-PwshCommand {
+    <#
+    .SYNOPSIS Executable and leading arguments that start the PowerShell running this script, however it is installed.
+    .DESCRIPTION
+        An installed pwsh (MSI, Homebrew, winget) is its own process. The dotnet global tool runs pwsh.dll inside the
+        dotnet host, so the process path is dotnet and the child needs "dotnet <PSHOME>/pwsh.dll".
+    #>
+    param([string] $ProcessPath = [Environment]::ProcessPath, [string] $PowerShellHome = $PSHOME)
+    if ([System.IO.Path]::GetFileNameWithoutExtension($ProcessPath) -eq 'pwsh') { return $ProcessPath }
+    $dll = Join-Path $PowerShellHome 'pwsh.dll'
+    if (Test-Path -LiteralPath $dll -PathType Leaf) { return $ProcessPath, $dll }
+    throw "Cannot tell how to start PowerShell again: process '$ProcessPath', no pwsh.dll in '$PowerShellHome'."
+}
+
+function Invoke-Pwsh {
+    <#
+    .SYNOPSIS Runs a child pwsh (the same PowerShell as this script) with the given arguments; sets $LASTEXITCODE.
+    .DESCRIPTION Pipeline input, if any, goes to the child's standard input; otherwise the child inherits it.
+    #>
+    $command = @(Get-PwshCommand)
+    $prefix = @($command | Select-Object -Skip 1)
+    if ($MyInvocation.ExpectingInput) { $input | & $command[0] @prefix @args }
+    else { & $command[0] @prefix @args }
 }
 
 function Get-RuntimeOs {
@@ -1228,8 +1258,9 @@ function Test-ReleaseTestToolchainSkip {
     $base = $env:LAYERPEEK_PESTER_TESTS_TEMP
     if (-not $base -or $env:LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN -ne '1') { return $false }
     $separators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-    $root = [System.IO.Path]::GetFullPath($RepoRoot).TrimEnd($separators)
-    $folder = [System.IO.Path]::GetFullPath($base).TrimEnd($separators)
+    # Both physical: the scripts resolve their repository root (Resolve-PhysicalPath), the temp folder may lie below a link.
+    $root = (Resolve-PhysicalPath $RepoRoot -AllowMissing).TrimEnd($separators)
+    $folder = (Resolve-PhysicalPath $base -AllowMissing).TrimEnd($separators)
     $comparison = if ($IsWindows -or $IsMacOS) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
     $root.StartsWith($folder + [System.IO.Path]::DirectorySeparatorChar, $comparison)
 }

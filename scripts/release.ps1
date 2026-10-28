@@ -88,7 +88,7 @@ function Invoke-ReleaseScript {
     param([Parameter(Mandatory)] [string] $Name, [string[]] $Arguments = @())
     $path = Join-Path $repoRoot 'scripts' $Name
     Write-Host "==> pwsh scripts/$Name $($Arguments -join ' ')".TrimEnd() -ForegroundColor Cyan
-    & ([Environment]::ProcessPath) -NoProfile -File $path @Arguments
+    Invoke-Pwsh -NoProfile -File $path @Arguments
     if ($LASTEXITCODE -ne 0) { throw "scripts/$Name failed with exit code $LASTEXITCODE." }
 }
 

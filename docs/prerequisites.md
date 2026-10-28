@@ -112,7 +112,7 @@ Ověření (musí vypsat název instalace):
 |---|---|
 | **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install` |
 | *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis (`codesign -s -` je v Command Line Tools) – úkol T-019 |
-| *(volitelně)* **PowerShell 7** (`pwsh` na `PATH`) | pro skripty vydání (T-055, T-019) a jejich Pester testy. Instalace přes Homebrew (`brew install --cask powershell`), nebo jako dotnet global tool (`dotnet tool install --global PowerShell`, složka `~/.dotnet/tools` musí být na `PATH`). Pester 5 viz „Pester (testy skriptů)“. |
+| *(volitelně)* **PowerShell 7** (`pwsh` na `PATH`) | pro skripty vydání (T-055, T-019) a jejich Pester testy. Instalace přes Homebrew (`brew install --cask powershell`), nebo jako dotnet global tool (`dotnet tool install --global PowerShell`, složka `~/.dotnet/tools` musí být na `PATH`). Skripty i testy fungují s oběma způsoby instalace: podřízený `pwsh` spouštějí přes `Invoke-Pwsh` (u dotnet tool `dotnet …/pwsh.dll`). Pester 5 viz „Pester (testy skriptů)“. |
 | *(volitelně)* **Microsoft Edge** | pro E2E testy webu přes proxy (T-030, na Macu ověří T-021); bez Edge se přeskočí |
 
 **Verze SDK:** `global.json` připíná `11.0.100-rc.2.26504.105` s `"rollForward": "latestFeature"` a `"allowPrerelease": true`, takže se použije i novější nainstalované SDK stejné řady, např. `11.0.100-rc.3` (ověřeno na Macu 2026-10-28).
