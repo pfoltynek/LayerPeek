@@ -5,7 +5,7 @@ status: todo
 owner: core-dev
 priority: P1
 platform: macos
-depends_on: [T-002, T-030]
+depends_on: [T-002, T-030, T-095]
 ---
 
 ## Cíl
@@ -34,6 +34,7 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
 - [ ] Izolace podle prefixu (dvě instance s různým prefixem se neovlivňují)
 - [ ] Neplatný Unicode při zápisu → `ArgumentException`; zrušený token → zrušený `Task`; argumenty `null`/prázdné → okamžitá výjimka
 - [ ] Testy po sobě uklidí vše, co vytvořily, **i po spadlém předchozím běhu**: testovací položky mají vyhrazený testovací prefix (nikdy produkční `LayerPeek`) a před během testů se odstraní všechny pozůstatky s tímto prefixem; úklid je sám ověřen testem
+- [ ] Kontrola před/po podle `docs/architecture.md` („Izolace testů na macOS“): po `dotnet test` (i po přerušeném běhu a úklidu) v Keychainu nezůstane žádná položka služeb LayerPeek / Prusa a produkční položky se nezmění
 - [ ] Zprávy výjimek ani logy neobsahují tajný údaj
 - [ ] Lokální Native AOT publish `osx-arm64` bez trim/AOT varování z kódu projektu
 - [ ] Windows build a testy beze změny chování (`WindowsCredentialSecretStore` se nemění)

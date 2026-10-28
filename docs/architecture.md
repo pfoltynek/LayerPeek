@@ -185,6 +185,19 @@ Výběr platformní implementace (`ISecretStore`, `INotificationService`) probí
 
 Konkrétní volby jsou otevřené otázky v příslušných úkolech (T-010, T-017, T-019, T-020, T-021, T-055, T-056).
 
+### Izolace testů na macOS (T-095, rozhodnuto 2026-10-28)
+
+Testy (`dotnet test`, E2E i ruční testovací běhy Debug sestavení) nesmí na macOS měnit stav skutečného uživatele. Zakázané je zapisovat do:
+- `~/Library/Application Support/LayerPeek` (nastavení, data) a `~/Library/Logs/LayerPeek` (logy) – testovací režim má vlastní datovou složku (`LAYERPEEK_TEST_DATA_DIR`, jen Debug, `AppEnvironment`);
+- `~/Library/LaunchAgents` a Login Items (`SMAppService`) – autostart v testovacím režimu jen náhradou v testovací datové složce, obdoba `AppEnvironment.AutostartShortcutPath` na Windows (T-019);
+- Keychainu mimo vyhrazený testovací prefix (nikdy produkční `LayerPeek`); pozůstatky s testovacím prefixem se uklidí i po spadlém běhu (T-021);
+- notifikací pod produkčním bundle identifikátorem – testy používají vlastní identifikátor (např. s příponou `.E2E`), doručené testovací notifikace se uklidí při ukončení i v režimu úklidu po pádu, oprávnění produkčního identifikátoru se nemění (T-020);
+- sdílených složek mimo `$TMPDIR` – sockety, zámky a testy práv a vlastnictví běží v soukromé podsložce `$TMPDIR` a po sobě ji smažou. Repozitář může ležet na svazku s `noowners` (vlastnictví se nevynucuje), takže testy práv v něm nejsou průkazné (T-053).
+
+Release AOT exe testovací režim nemá; jeho spuštění (např. AOT smoke test) zapisuje do skutečného profilu (otevřená otázka v T-095).
+
+**Kontrola před/po:** před a po běhu testů porovnat výpis (`ls -laR`, případně kontrolní součty) složek `~/Library/Application Support`, `~/Library/Logs`, `~/Library/LaunchAgents`, seznam Login Items (Nastavení systému → Obecné → Položky při přihlášení, případně `sfltool dumpbtm`) a položky Keychainu služeb LayerPeek / Prusa (`security dump-keychain`, jen atributy, bez `-d`). Rozdíl nesmí být žádný. V `$TMPDIR` smí zůstat jen rezervované složky testů (např. rozdílové obrázky snímků z `SnapshotAssert`).
+
 ## Logování
 
 Aplikace loguje přes `Microsoft.Extensions.Logging` a `[LoggerMessage]`; jediný provider je vlastní souborový `FileLogProvider` (T-024, `App/Logging`, bez NuGet balíčku, kompatibilní s Native AOT).

@@ -5,7 +5,7 @@ status: todo
 owner: ui-dev
 priority: P1
 platform: macos
-depends_on: [T-007, T-008]
+depends_on: [T-007, T-008, T-095]
 ---
 
 ## Cíl

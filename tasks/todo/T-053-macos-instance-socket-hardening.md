@@ -5,7 +5,7 @@ status: todo
 owner: ui-dev
 priority: P3
 platform: macos
-depends_on: [T-043, T-052]
+depends_on: [T-043, T-052, T-095]
 ---
 
 ## Cíl
@@ -22,13 +22,14 @@ L2:
 - **Soukromá složka pro socket:** záložní socket nedávat přímo do `$TMPDIR`, ale do vlastní podsložky (např. `LayerPeek-<uid>`) vytvořené s právy `0700` (`Directory.CreateDirectory(path, UnixFileMode.UserRead | UserWrite | UserExecute)`). Když složka už existuje, ověřit, že patří aktuálnímu uživateli, má práva `0700` a není to symbolický odkaz. Jinak ochranu jediné instance vypnout, zalogovat a aplikace poběží (stejná politika jako `InstanceLockUnavailableException` z T-043). Totéž ověření pro datovou složku, pokud je socket v ní.
 - **L4:** na Macu ověřit, že odkazy z menu a okna O aplikaci a otevření webu PrusaLink přes proxy fungují s `/usr/bin/open` (T-052).
 - Bez nového NuGet balíčku, jen `[LibraryImport]` (AOT).
+- **Izolace testů:** testy socketu, práv `0700`, cizího vlastníka a symbolického odkazu běží v soukromé podsložce pod `$TMPDIR` (ne v repozitáři: svazek s repozitářem může být připojený s `noowners`, vlastnictví se tam nevynucuje, viz T-095) a po sobě ji smažou.
 
 ## Akceptační kritéria
 - [ ] Spojení od jiného UID se odmítne (test s injektovanou kontrolou UID; na Macu skutečný test, pokud jde bez druhého uživatele, jinak ručně)
 - [ ] Záložní socket je v podsložce `0700` aktuálního uživatele; cizí, symbolickým odkazem nahrazená nebo příliš otevřená složka vypne ochranu bez pádu (testy)
 - [ ] Druhé spuštění na Macu dál předá příkaz běžící instanci (krátká i dlouhá cesta k datové složce)
 - [ ] Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)
-- [ ] Testy po sobě nic nenechají (sockety, složky, zámky)
+- [ ] Testy po sobě nic nenechají (sockety, složky, zámky); testy práv a vlastnictví běží v soukromé podsložce `$TMPDIR`, ne v repozitáři
 - [ ] Lokální Native AOT publish `osx-arm64` bez varování; Windows build a testy beze změny chování
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
