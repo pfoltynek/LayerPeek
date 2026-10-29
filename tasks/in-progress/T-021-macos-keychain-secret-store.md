@@ -99,4 +99,4 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
   - AOT publish `osx-arm64`: 0 varování MSBuild / trim / AOT (jen známé hlášky dsymutil / linkeru), exe jsem nespouštěl.
   - `tools/profile-snapshot.ps1 -Compare`: žádná změna.
 
-**Ruční kroky pro uživatele** (testy se zápisem na odemčeném Macu, heslo v produkční aplikaci, dialog Klíčenky po aktualizaci ad-hoc sestavení): souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 3 a 9.
+**Ruční kroky pro uživatele** (testy se zápisem na odemčeném Macu, heslo v produkční aplikaci, dialog Klíčenky po aktualizaci ad-hoc sestavení): souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md); nejdřív skriptem `tools/macos-verify.ps1` – kontroly `mac.keychain`, `mac.profile-unchanged`, T-105, sezení 3 a 9.

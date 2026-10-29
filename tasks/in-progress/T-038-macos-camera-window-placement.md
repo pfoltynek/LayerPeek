@@ -149,7 +149,7 @@ Ověřit a případně doladit na macOS chování z T-035 a T-037: výběr monit
   a odchod z ní, dva monitory, stabilita UUID mezi restarty a u stejných monitorů.
 
 ### Ruční ověření (uživatel)
-Souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 6 (krok J7 i v sezení 3).
+Souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md); nejdřív skriptem `tools/macos-verify.ps1` – kontroly `mac.camera-placement`, T-105, sezení 6 (krok J7 i v sezení 3).
 
 Předpoklad: `LayerPeek.app` z `.dmg` v Aplikacích (sezení 1), tiskárna s kamerou (Buddy3D v LAN, nebo simulátor
 `dotnet run --project tools/PrusaSimulator` s tiskárnou `http://127.0.0.1:<port>` a kamerou z `docs/simulator.md`).
