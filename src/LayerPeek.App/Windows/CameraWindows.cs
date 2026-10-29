@@ -20,6 +20,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     private readonly Func<CameraWindow, WindowChrome?>? _measureChrome;
     private readonly Func<CameraWindow, double, WindowChrome?>? _predictChrome;
     private readonly Func<Window, IDisposable>? _track;
+    private readonly Action? _bringAppToFront;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
@@ -32,13 +33,20 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     /// <param name="measureChrome">Frame measurement for tests (<see cref="CameraWindow.ChromeMeasurement"/>); <see langword="null"/>: the real one.</param>
     /// <param name="track">Tracks each new window before it is shown (T-043: taskbar properties, recently used windows).</param>
     /// <param name="predictChrome">Frame prediction for tests (<see cref="CameraWindow.ChromePrediction"/>); <see langword="null"/>: the real one.</param>
+    /// <param name="bringAppToFront">
+    /// Activates the app before a camera window is activated (macOS, T-019, user decision 2026-10-29: like the settings,
+    /// diagnostics and About windows, <see cref="AvaloniaAuxiliaryWindow"/>); not for a window Apply shows without
+    /// activating it. <see langword="null"/>: nothing.
+    /// </param>
     public CameraWindows(
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
         Func<Window, IDisposable>? track = null,
-        Func<CameraWindow, double, WindowChrome?>? predictChrome = null)
+        Func<CameraWindow, double, WindowChrome?>? predictChrome = null,
+        Action? bringAppToFront = null)
     {
+        _bringAppToFront = bringAppToFront;
         _measureChrome = measureChrome;
         _predictChrome = predictChrome;
         _track = track;
@@ -144,7 +152,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
                     OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: false));
                 };
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.
-                return (new AvaloniaAuxiliaryWindow(window, _track), created);
+                return (new AvaloniaAuxiliaryWindow(window, _track, _bringAppToFront), created);
             }, activate: activate);
         }
         finally

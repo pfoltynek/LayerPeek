@@ -147,6 +147,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private bool _autostartBaseline;
     private readonly IAutostart? _autostart;
     private readonly bool _autostartNeedsInstallation;
+
+    // T-019: the last switch of the autostart failed only because the user has to allow it in the settings of the OS.
+    private bool _autostartNeedsApproval;
+    private bool _showsAutostartApproval;
     private readonly string _productVersion;
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
@@ -247,6 +251,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RemovePrinterCommand = new RelayCommand(RemovePrinter, () => IsEditable && _selectedPrinter is not null);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditable);
         CancelCommand = new RelayCommand(Cancel, () => !_isSaving);
+        OpenAutostartApprovalSettingsCommand = new RelayCommand(OpenAutostartApprovalSettings, () => _showsAutostartApproval);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
     }
@@ -567,6 +572,26 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>Why the option is disabled: only the installed app can start after logon.</summary>
     public bool ShowsAutostartNeedsInstallation => _autostartNeedsInstallation;
 
+    /// <summary>
+    /// macOS (T-019, user decision 2026-10-29): Save could not switch "Open at Login" on, because the user switched LayerPeek
+    /// off in System Settings &gt; General &gt; Login Items. Next to the "could not be changed" status the window offers to
+    /// open those settings (<see cref="OpenAutostartApprovalSettingsCommand"/>); hidden again with the next status.
+    /// </summary>
+    public bool ShowsAutostartApproval
+    {
+        get => _showsAutostartApproval;
+        private set
+        {
+            if (SetProperty(ref _showsAutostartApproval, value))
+            {
+                OpenAutostartApprovalSettingsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Opens the settings of the OS where the user allows the autostart (<see cref="IAutostartApproval"/>).</summary>
+    public IRelayCommand OpenAutostartApprovalSettingsCommand { get; }
+
     /// <summary>Start after logon (T-017), off by default; switched by Save, not by the check box itself.</summary>
     public bool StartWithWindows
     {
@@ -700,9 +725,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
-    /// <summary>Switches the start after logon when it was changed; the warning for the status line when that failed.</summary>
+    /// <summary>
+    /// Switches the start after logon when it was changed; the warning for the status line when that failed. Sets
+    /// <see cref="_autostartNeedsApproval"/> for the status that follows (<see cref="Completed"/>).
+    /// </summary>
     private async Task<Func<string>?> ApplyAutostartAsync()
     {
+        _autostartNeedsApproval = false;
         if (_autostart is not { } autostart || _startWithWindows == _autostartBaseline)
         {
             return null;
@@ -719,6 +748,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         {
             // Still a change to save: the next Save tries again.
             SettingsLog.AutostartNotChanged(Logger, ex, wanted);
+            // T-019: allowed only in System Settings; the window offers to open them.
+            _autostartNeedsApproval = ex is AutostartNeedsApprovalException && autostart is IAutostartApproval;
             return static () => Strings.SettingsSavedAutostartFailed;
         }
     }
@@ -961,6 +992,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         return LanguageOptions[0];
     }
 
+    /// <summary>
+    /// T-019: System Settings &gt; General &gt; Login Items (macOS). The offer stays: after allowing LayerPeek there, Save
+    /// switches it on (the option is still to save).
+    /// </summary>
+    private void OpenAutostartApprovalSettings()
+    {
+        if (_showsAutostartApproval && _autostart is IAutostartApproval approval)
+        {
+            approval.OpenApprovalSettings();
+        }
+    }
+
     private void Cancel()
     {
         if (!_isSaving)
@@ -1195,7 +1238,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// </summary>
     private void Completed(PrinterEditorViewModel? applying, AppSettings saved, Func<string>? warning)
     {
-        ShowStatus(warning, isError: false);
+        bool offersApproval = _autostartNeedsApproval;
+        _autostartNeedsApproval = false;
+        ShowStatus(warning, isError: false, offersAutostartApproval: offersApproval);
         if (applying is null)
         {
             if (warning is null)
@@ -1442,12 +1487,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
-    private void ShowStatus(Func<string>? text, bool isError)
+    private void ShowStatus(Func<string>? text, bool isError, bool offersAutostartApproval = false)
     {
         _confirmationVersion++;
         _statusSource = text;
         StatusIsError = isError;
         StatusText = text?.Invoke();
+        ShowsAutostartApproval = offersAutostartApproval && text is not null;
     }
 
     private void OnEditableChanged()

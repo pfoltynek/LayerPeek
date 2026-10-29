@@ -151,6 +151,25 @@ internal sealed class MemoryAutostart : LayerPeek.App.Platform.IAutostart
     public void SetEnabled(bool enabled) => Enabled = Failure is null ? enabled : throw Failure;
 }
 
+/// <summary>
+/// "Open at Login" the user allows in System Settings (macOS, T-019), in memory: opening System Settings is only counted,
+/// the real ones are never opened.
+/// </summary>
+internal sealed class MemoryApprovalAutostart : LayerPeek.App.Platform.IAutostart, LayerPeek.App.Platform.IAutostartApproval
+{
+    public bool Enabled { get; set; }
+
+    public Exception? Failure { get; set; }
+
+    public int Opened { get; private set; }
+
+    public bool IsEnabled() => Enabled;
+
+    public void SetEnabled(bool enabled) => Enabled = Failure is null ? enabled : throw Failure;
+
+    public void OpenApprovalSettings() => Opened++;
+}
+
 /// <summary>Runs posted work right away (the tests call from the UI thread).</summary>
 internal sealed class InlineDispatcher : LayerPeek.App.Tray.IUiDispatcher
 {

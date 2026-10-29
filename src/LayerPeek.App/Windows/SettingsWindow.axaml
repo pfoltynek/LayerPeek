@@ -902,8 +902,12 @@
       </TabItem>
     </TabControl>
 
-    <!-- Save / Cancel and the outcome of the last save attempt. -->
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
+    <!--
+      Save / Cancel and the outcome of the last save attempt. T-019 (macOS, user decision 2026-10-29): when "Open at Login"
+      could not be switched on because the user switched LayerPeek off in System Settings, a button next to the status opens
+      System Settings > General > Login Items.
+    -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,12,0,0">
       <TextBlock AutomationProperties.AutomationId="SettingsStatus"
                  Classes="status"
                  Classes.isError="{Binding StatusIsError}"
@@ -913,13 +917,22 @@
                  VerticalAlignment="Center"
                  Margin="0,0,12,0" />
       <Button Grid.Column="1"
+              Margin="0,0,8,0"
+              VerticalAlignment="Center"
+              Content="{Binding [SettingsOpenLoginItems], Source={x:Static loc:LocalizedStrings.Instance}}"
+              ToolTip.Tip="{Binding [SettingsOpenLoginItemsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+              AutomationProperties.HelpText="{Binding [SettingsOpenLoginItemsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+              AutomationProperties.AutomationId="SettingsOpenLoginItems"
+              IsVisible="{Binding ShowsAutostartApproval}"
+              Command="{Binding OpenAutostartApprovalSettingsCommand}" />
+      <Button Grid.Column="2"
               Classes="accent"
               MinWidth="96"
               Content="{Binding [SettingsSave], Source={x:Static loc:LocalizedStrings.Instance}}"
               AutomationProperties.AutomationId="SettingsSave"
               Command="{Binding SaveCommand}"
               IsDefault="True" />
-      <Button Grid.Column="2"
+      <Button Grid.Column="3"
               MinWidth="96"
               Margin="8,0,0,0"
               Content="{Binding [SettingsCancel], Source={x:Static loc:LocalizedStrings.Instance}}"

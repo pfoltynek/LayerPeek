@@ -46,7 +46,8 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="widgets">The overlay widgets of the windows (T-081); <see langword="null"/>: the test widgets <see cref="TestOverlayWidgets.Ids"/>.</param>
     /// <param name="opacity">The global card opacity (T-077).</param>
     /// <param name="thumbnails">The G-code thumbnails of the Print name widget (T-087); <see langword="null"/>: none.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null)
+    /// <param name="bringAppToFront">Activates the app before a window is activated (macOS, T-019); <see langword="null"/>: nothing.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null)
     {
         LayoutWriter = new FakeLayoutWriter();
         States = states ?? new MemoryCameraWindowStateStore();
@@ -63,7 +64,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         // raises, on the fake clock of the windows (the estimate counts down with it).
         Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
         Cooldown.Configure(settings.Printers, settings.PollingInterval);
-        Windows = new AuxiliaryWindowFactory(track).CameraWindows(Create, screens, measureChrome, predictChrome);
+        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
 
     public CooldownMonitor Cooldown { get; }

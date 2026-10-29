@@ -808,6 +808,8 @@ $script:MacBundle = [pscustomobject]@{
     Executable    = 'LayerPeek'
     PlistTemplate = 'build/macos/Info.plist'
     IconMaster    = 'src/LayerPeek.App/Assets/AppIcon/app-icon-1024.png'
+    # T-019 (user decision 2026-10-29): 16 and 32 px from the simplified app-icon-small.svg (T-025), the pixels of app-icon.ico.
+    IconExact     = @{ 16 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-16.png'; 32 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-32.png' }
     IconFile      = 'LayerPeek.icns'
     VolumeName    = 'LayerPeek'
 }
@@ -888,22 +890,74 @@ function Get-MacIconSizes {
     $sizes
 }
 
+function Get-MacIconPlan {
+    <#
+    .SYNOPSIS
+        Where each image of the .iconset comes from (pure): the sizes with a PNG of their own in -ExactPngs (pixels -> path)
+        are copied unchanged, every other size is scaled down from -MasterPng. T-019 (user decision 2026-10-29): 16 and 32 px
+        are the simplified variant app-icon-small.svg of T-025 (the same pixels as the .ico for Windows), from 48 px on the
+        detailed one, like the .ico. Returns file name -> [pscustomobject] @{ Pixels; Source; Scale }.
+    #>
+    param([Parameter(Mandatory)] [string] $MasterPng, [hashtable] $ExactPngs = @{})
+    $plan = [ordered]@{}
+    $sizes = Get-MacIconSizes
+    foreach ($name in $sizes.Keys) {
+        $pixels = [int] $sizes[$name]
+        $exact = $ExactPngs.Keys | Where-Object { [int] $_ -eq $pixels } | Select-Object -First 1
+        $plan[$name] = if ($null -ne $exact) {
+            [pscustomobject]@{ Pixels = $pixels; Source = [string] $ExactPngs[$exact]; Scale = $false }
+        }
+        else {
+            [pscustomobject]@{ Pixels = $pixels; Source = $MasterPng; Scale = $true }
+        }
+    }
+    $plan
+}
+
+function Get-PngPixelSize {
+    <# .SYNOPSIS Width and height of a PNG from its IHDR chunk (pure, no image library); throws for anything else. #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Path).ProviderPath)
+    $signature = [byte[]] (0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+    if ($bytes.Length -lt 24 -or [System.Linq.Enumerable]::SequenceEqual([byte[]] $bytes[0..7], $signature) -eq $false -or
+        [System.Text.Encoding]::ASCII.GetString($bytes, 12, 4) -cne 'IHDR') {
+        throw "Not a PNG: $Path"
+    }
+    # Big-endian 32-bit integers (PowerShell has no spans).
+    $width = ([int] $bytes[16] -shl 24) -bor ([int] $bytes[17] -shl 16) -bor ([int] $bytes[18] -shl 8) -bor [int] $bytes[19]
+    $height = ([int] $bytes[20] -shl 24) -bor ([int] $bytes[21] -shl 16) -bor ([int] $bytes[22] -shl 8) -bor [int] $bytes[23]
+    [pscustomobject]@{ Width = $width; Height = $height }
+}
+
 function New-MacIcon {
     <#
     .SYNOPSIS
-        The .icns of the bundle from the 1024 px master PNG (T-025): every size of Get-MacIconSizes scaled down by sips,
-        then iconutil. Both are part of macOS. Works in a temporary .iconset next to the destination and deletes it.
+        The .icns of the bundle (T-019): the images of Get-MacIconPlan, the small sizes copied from -ExactPngs (their
+        size is checked), the rest scaled down from the 1024 px master PNG by sips, then iconutil. Both are part of macOS.
+        Works in a temporary .iconset next to the destination and deletes it.
     #>
-    param([Parameter(Mandatory)] [string] $MasterPng, [Parameter(Mandatory)] [string] $Destination)
+    param([Parameter(Mandatory)] [string] $MasterPng, [hashtable] $ExactPngs = @{}, [Parameter(Mandatory)] [string] $Destination)
     if (Test-Path -LiteralPath $Destination) { throw "Icon already exists: $Destination" }
+    foreach ($pixels in $ExactPngs.Keys) {
+        $size = Get-PngPixelSize $ExactPngs[$pixels]
+        if ($size.Width -ne [int] $pixels -or $size.Height -ne [int] $pixels) {
+            throw "The $pixels px icon $($ExactPngs[$pixels]) is $($size.Width) x $($size.Height) px."
+        }
+    }
     $iconset = "$([System.IO.Path]::ChangeExtension($Destination, $null).TrimEnd('.')).iconset"
     if (Test-Path -LiteralPath $iconset) { Remove-Item -LiteralPath $iconset -Recurse -Force }
     $null = New-Item -ItemType Directory -Path $iconset
     try {
-        $sizes = Get-MacIconSizes
-        foreach ($name in $sizes.Keys) {
-            $pixels = [string] $sizes[$name]
-            $null = & /usr/bin/sips -z $pixels $pixels $MasterPng --out (Join-Path $iconset $name) 2>&1
+        $plan = Get-MacIconPlan -MasterPng $MasterPng -ExactPngs $ExactPngs
+        foreach ($name in $plan.Keys) {
+            $image = $plan[$name]
+            $target = Join-Path $iconset $name
+            if (-not $image.Scale) {
+                Copy-Item -LiteralPath $image.Source -Destination $target
+                continue
+            }
+            $pixels = [string] $image.Pixels
+            $null = & /usr/bin/sips -z $pixels $pixels $image.Source --out $target 2>&1
             if ($LASTEXITCODE -ne 0) { throw "sips failed for $name (exit code $LASTEXITCODE)." }
         }
         & /usr/bin/iconutil -c icns $iconset -o $Destination

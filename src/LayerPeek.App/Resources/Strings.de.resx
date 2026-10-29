@@ -672,6 +672,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Einstellungen gespeichert. Der Start nach der Anmeldung konnte nicht geändert werden. Versuchen Sie, erneut zu speichern.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Anmeldeobjekte öffnen</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek ist in „Systemeinstellungen &gt; Allgemein &gt; Anmeldeobjekte“ ausgeschaltet. Erlauben Sie es dort und speichern Sie dann erneut.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Druck gestartet</value>
   </data>

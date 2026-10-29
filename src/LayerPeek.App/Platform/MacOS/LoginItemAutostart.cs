@@ -9,9 +9,11 @@ namespace LayerPeek.App.Platform.MacOS;
 /// <remarks>
 /// The item counts as on only when macOS will really open the app (<see cref="LoginItemStatus.Enabled"/>). An item the user
 /// switched off in System Settings (<see cref="LoginItemStatus.RequiresApproval"/>) counts as off; switching it on then
-/// reports a failure, because only the user can allow it again there (the settings window shows "could not be changed").
+/// reports a failure (<see cref="AutostartNeedsApprovalException"/>), because only the user can allow it again there: the
+/// settings window shows "could not be changed" and offers to open System Settings (<see cref="OpenApprovalSettings"/>, user
+/// decision 2026-10-29).
 /// </remarks>
-internal sealed partial class LoginItemAutostart : IAutostart
+internal sealed partial class LoginItemAutostart : IAutostart, IAutostartApproval
 {
     private readonly ILoginItemService _service;
     private readonly ILogger _logger;
@@ -53,11 +55,16 @@ internal sealed partial class LoginItemAutostart : IAutostart
                 }
 
                 status = _service.Status();
-                if (status != LoginItemStatus.Enabled)
+                if (status == LoginItemStatus.RequiresApproval)
                 {
                     // Registered, but not allowed: the user switched it off in System Settings, only they can allow it.
                     LogNeedsApproval(status);
-                    throw new LoginItemException($"The Login Item is registered, but macOS reports it as {status}; allow LayerPeek in System Settings > General > Login Items.");
+                    throw new AutostartNeedsApprovalException($"The Login Item is registered, but macOS reports it as {status}; allow LayerPeek in System Settings > General > Login Items.");
+                }
+
+                if (status != LoginItemStatus.Enabled)
+                {
+                    throw new LoginItemException($"The Login Item was registered, but macOS reports it as {status}.");
                 }
             }
         }
@@ -68,6 +75,26 @@ internal sealed partial class LoginItemAutostart : IAutostart
 
         LogSwitched(enabled);
     }
+
+    /// <inheritdoc/>
+    public void OpenApprovalSettings()
+    {
+        try
+        {
+            _service.OpenSystemSettings();
+            LogSettingsOpened();
+        }
+        catch (Exception ex)
+        {
+            LogSettingsNotOpened(ex);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "System Settings > General > Login Items opened for the Login Item.")]
+    private partial void LogSettingsOpened();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "System Settings > General > Login Items could not be opened.")]
+    private partial void LogSettingsNotOpened(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "The state of the Login Item could not be read.")]
     private partial void LogUnreadable(Exception exception);

@@ -672,6 +672,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Nastavenia sú uložené. Spúšťanie po prihlásení sa nepodarilo zmeniť. Skúste uložiť znova.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Otvoriť Položky po prihlásení</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek je vypnutý v Systémových nastaveniach &gt; Všeobecné &gt; Položky po prihlásení. Povoľte ho tam a potom uložte znova.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Tlač sa začala</value>
   </data>

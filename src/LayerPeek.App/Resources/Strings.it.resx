@@ -672,6 +672,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Impostazioni salvate. Impossibile modificare l'avvio all'accesso. Prova a salvare di nuovo.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Apri Elementi login</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek è disattivato in Impostazioni di Sistema &gt; Generali &gt; Elementi login. Consentilo lì, poi salva di nuovo.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Stampa avviata</value>
   </data>

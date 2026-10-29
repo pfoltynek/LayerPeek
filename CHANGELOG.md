@@ -14,7 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   (drag the app to Applications) and a `.tar.gz`. The builds are not notarized: the first start has to be allowed in
   **System Settings → Privacy & Security → Open Anyway** (see the README).
 - macOS: **Open at Login** in the settings (tab *Startup and updates*), using the system Login Items. Off by default.
-- macOS: windows opened from the menu bar (Settings, Diagnostics, About) come to the front with the keyboard focus.
+  When LayerPeek was turned off in System Settings → General → Login Items, the settings window offers to open that page.
+- macOS: windows opened from the menu bar (Settings, Diagnostics, About, camera) come to the front with the keyboard focus.
+- macOS: the 16 and 32 px app icon uses the simplified design, like on Windows.
 
 ## [0.2.0] - 2026-10-26
 

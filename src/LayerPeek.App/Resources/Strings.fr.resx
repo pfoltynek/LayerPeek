@@ -672,6 +672,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Paramètres enregistrés. Le démarrage à l'ouverture de session n'a pas pu être modifié. Essayez d'enregistrer à nouveau.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Ouvrir les réglages Ouverture</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek est désactivé dans Réglages Système &gt; Général &gt; Ouverture. Autorisez-le à cet endroit, puis enregistrez à nouveau.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Impression démarrée</value>
   </data>

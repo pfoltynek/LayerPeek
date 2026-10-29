@@ -22,3 +22,38 @@ internal interface IAutostart
 /// reason.
 /// </param>
 internal sealed record AutostartOption(IAutostart? Autostart, bool NeedsInstallation = false);
+
+/// <summary>
+/// The OS has the autostart, but the user switched it off in the settings of the OS, and only they can allow it there
+/// (macOS, T-019: a Login Item in the state <c>requiresApproval</c>). The settings window then offers to open those settings
+/// (<see cref="IAutostartApproval"/>, user decision 2026-10-29).
+/// </summary>
+internal sealed class AutostartNeedsApprovalException : Exception
+{
+    public AutostartNeedsApprovalException()
+    {
+    }
+
+    public AutostartNeedsApprovalException(string message)
+        : base(message)
+    {
+    }
+
+    public AutostartNeedsApprovalException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+}
+
+/// <summary>
+/// An autostart the user can allow only in the settings of the OS (macOS, T-019: System Settings &gt; General &gt; Login
+/// Items). Implemented next to <see cref="IAutostart"/> by the same object.
+/// </summary>
+internal interface IAutostartApproval
+{
+    /// <summary>
+    /// Opens the settings of the OS where the user allows the autostart; UI thread. Never throws (a failure is only logged).
+    /// The stand-in of the test mode opens nothing.
+    /// </summary>
+    void OpenApprovalSettings();
+}

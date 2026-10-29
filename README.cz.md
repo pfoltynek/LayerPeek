@@ -213,7 +213,9 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
   jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze. Na macOS: **Otevřít při přihlášení**
-  (ve výchozím stavu vypnuté, jen pro LayerPeek.app zkopírovanou z obrazu disku, např. do Aplikací).
+  (ve výchozím stavu vypnuté, jen pro LayerPeek.app zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek
+  vypnul v Nastavení systému → Obecné → Položky při přihlášení, povolit ho jde jen tam; okno nastavení nabídne tlačítko,
+  které tu stránku otevře.
 
 ### Kde jsou uložená data
 

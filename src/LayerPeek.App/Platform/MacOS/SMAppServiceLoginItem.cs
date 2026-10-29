@@ -31,6 +31,13 @@ internal sealed unsafe class SMAppServiceLoginItem : ILoginItemService
 
     public void Unregister() => Change("unregisterAndReturnError:", "unregister");
 
+    /// <summary><c>[SMAppService openSystemSettingsLoginItems]</c> (macOS 13+): System Settings &gt; General &gt; Login Items.</summary>
+    public void OpenSystemSettings() => ObjCRuntime.InAutoreleasePool(() =>
+    {
+        ObjCRuntime.SendVoid(ServiceClass(), ObjCRuntime.Selector("openSystemSettingsLoginItems"));
+        return true;
+    });
+
     private static void Change(string selector, string what) => ObjCRuntime.InAutoreleasePool(() =>
     {
         nint error = 0;
@@ -47,8 +54,15 @@ internal sealed unsafe class SMAppServiceLoginItem : ILoginItemService
     /// <exception cref="LoginItemException">ServiceManagement or <c>SMAppService</c> is not available.</exception>
     private static nint MainAppService()
     {
-        nint type = Loaded.Value ? ObjCRuntime.Class("SMAppService") : 0;
-        nint service = type == 0 ? 0 : ObjCRuntime.Send(type, ObjCRuntime.Selector("mainAppService"));
+        nint service = ObjCRuntime.Send(ServiceClass(), ObjCRuntime.Selector("mainAppService"));
         return service != 0 ? service : throw new LoginItemException("SMAppService is not available on this macOS.");
+    }
+
+    /// <summary>The class <c>SMAppService</c>.</summary>
+    /// <exception cref="LoginItemException">ServiceManagement or <c>SMAppService</c> is not available.</exception>
+    private static nint ServiceClass()
+    {
+        nint type = Loaded.Value ? ObjCRuntime.Class("SMAppService") : 0;
+        return type != 0 ? type : throw new LoginItemException("SMAppService is not available on this macOS.");
     }
 }
