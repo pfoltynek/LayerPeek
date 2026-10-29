@@ -272,13 +272,25 @@ public sealed class NamedPipeInstanceTransportTests : InstanceTransportTests
     }
 }
 
-/// <summary>The macOS transport; Unix domain sockets exist on Windows 10+ too, so its logic runs here as well.</summary>
+/// <summary>
+/// The macOS transport; Unix domain sockets exist on Windows 10+ too, so its logic runs there as well. On macOS the real
+/// credentials (T-053: peer user, owner and mode of the socket's folder) are checked in every test. All folders are in the
+/// reserved temp folders of the assembly (under <c>$TMPDIR</c>, private to the user on macOS, never the repository whose
+/// volume may not enforce owners) and removed after each test and after a crashed run.
+/// </summary>
 public sealed class UnixSocketInstanceTransportTests : InstanceTransportTests
 {
+    private const UnixFileMode Mode700 = UnixSocketInstanceTransport.PrivateDirectoryMode;
+
+    private static readonly TimeSpan WaitTimeout = TimeSpan.FromSeconds(10);
+
     private readonly string _directory = TestDirectories.NewDirectoryPath();
 
     // Short: Unix socket paths are limited (about 104 bytes); the folder of the test run is already long.
     private readonly string _socketPath = Path.Combine(TestDirectories.Root, Guid.NewGuid().ToString("N")[..8] + ".s");
+
+    // A folder of its own for the socket folders of the T-053 tests, in the short reservation (socket paths stay short).
+    private readonly string _shortDirectory = Path.Combine(TestDirectories.ShortRoot, Guid.NewGuid().ToString("N")[..8]);
 
     public UnixSocketInstanceTransportTests()
     {
@@ -288,11 +300,12 @@ public sealed class UnixSocketInstanceTransportTests : InstanceTransportTests
     protected override void CleanUp()
     {
         TestDirectories.Delete(_directory);
+        TestDirectories.Delete(_shortDirectory);
         File.Delete(_socketPath);
     }
 
     private protected override IInstanceTransport CreateTransport() =>
-        new UnixSocketInstanceTransport(Path.Combine(_directory, "instance.lock"), _socketPath);
+        new UnixSocketInstanceTransport(Path.Combine(_directory, "instance.lock"), _socketPath, FakeUnixCredentials.RealOrNull);
 
     [Fact]
     public void LockFileThatCannotBeOpenedIsNotAnotherInstance()
@@ -353,22 +366,247 @@ public sealed class UnixSocketInstanceTransportTests : InstanceTransportTests
     }
 
     [Fact]
-    public void LongDataFolderMovesTheSocketToTheTempFolder()
+    public void LongDataFolderMovesTheSocketToThePrivateFolderOfTheUser()
     {
         string data = Path.Combine(Path.GetTempPath(), new string('d', 120));
 
-        (string lockPath, string socketPath) = InstanceTransports.UnixPaths(data, "/tmp/user", "-x");
+        UnixInstancePaths paths = InstanceTransports.UnixPaths(data, "/tmp/user", 501, "-x");
 
-        Assert.Equal(Path.Combine(data, "instance-x.lock"), lockPath);
-        Assert.Equal(Path.Combine("/tmp/user", "LayerPeek-instance-x.sock"), socketPath);
+        Assert.Equal(Path.Combine(data, "instance-x.lock"), paths.LockPath);
+        Assert.Equal(Path.Combine("/tmp/user", "LayerPeek-501", "instance-x.sock"), paths.SocketPath);
+        Assert.True(paths.PrivateSocketDirectory);
+    }
+
+    [Fact]
+    public void LongDataFolderWithoutAUserIdKeepsTheOldTempSocket()
+    {
+        // Linux (no credentials): the unchecked T-043 behaviour.
+        string data = Path.Combine(Path.GetTempPath(), new string('d', 120));
+
+        UnixInstancePaths paths = InstanceTransports.UnixPaths(data, "/tmp/user", null, "-x");
+
+        Assert.Equal(Path.Combine("/tmp/user", "LayerPeek-instance-x.sock"), paths.SocketPath);
+        Assert.False(paths.PrivateSocketDirectory);
     }
 
     [Fact]
     public void ShortDataFolderKeepsTheSocketNextToTheLock()
     {
-        (string lockPath, string socketPath) = InstanceTransports.UnixPaths("/Users/me/Library/Application Support/LayerPeek", "/tmp/user", string.Empty);
+        UnixInstancePaths paths = InstanceTransports.UnixPaths("/Users/me/Library/Application Support/LayerPeek", "/tmp/user", 501, string.Empty);
 
-        Assert.Equal(Path.Combine("/Users/me/Library/Application Support/LayerPeek", "instance.lock"), lockPath);
-        Assert.Equal(Path.Combine("/Users/me/Library/Application Support/LayerPeek", "instance.sock"), socketPath);
+        Assert.Equal(Path.Combine("/Users/me/Library/Application Support/LayerPeek", "instance.lock"), paths.LockPath);
+        Assert.Equal(Path.Combine("/Users/me/Library/Application Support/LayerPeek", "instance.sock"), paths.SocketPath);
+        Assert.False(paths.PrivateSocketDirectory);
+    }
+
+    [Theory]
+    [InlineData(false, 0b111_101_101)] // 0755: the usual data folder
+    [InlineData(false, 0b111_000_000)]
+    [InlineData(true, 0b111_000_000)]
+    public void FolderOfTheUserThatNobodyElseCanWriteIsAccepted(bool privateDirectory, int mode)
+    {
+        Assert.Null(UnixSocketInstanceTransport.SocketDirectoryProblem(new UnixEntry(UnixEntryKind.Directory, (UnixFileMode)mode, 501), 501, privateDirectory));
+    }
+
+    [Theory]
+    [InlineData(false, 0b111_111_101, "open to other users")] // 0775
+    [InlineData(false, 0b111_101_111, "open to other users")] // 0757
+    [InlineData(true, 0b111_101_000, "must be 700")] // 0750
+    [InlineData(true, 0b111_000_001, "must be 700")] // 0701
+    [InlineData(true, 0b111_101_101, "must be 700")] // 0755
+    public void FolderOpenToOthersIsRefused(bool privateDirectory, int mode, string expected)
+    {
+        string? problem = UnixSocketInstanceTransport.SocketDirectoryProblem(new UnixEntry(UnixEntryKind.Directory, (UnixFileMode)mode, 501), 501, privateDirectory);
+
+        Assert.NotNull(problem);
+        Assert.Contains(expected, problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FolderOfAnotherUserOrNoFolderIsRefused()
+    {
+        Assert.Contains("another user (uid 0", UnixSocketInstanceTransport.SocketDirectoryProblem(new UnixEntry(UnixEntryKind.Directory, Mode700, 0), 501, true), StringComparison.Ordinal);
+        Assert.Contains("symbolic link", UnixSocketInstanceTransport.SocketDirectoryProblem(new UnixEntry(UnixEntryKind.SymbolicLink, Mode700, 501), 501, false), StringComparison.Ordinal);
+        Assert.Contains("not a folder", UnixSocketInstanceTransport.SocketDirectoryProblem(new UnixEntry(UnixEntryKind.Other, Mode700, 501), 501, false), StringComparison.Ordinal);
+        Assert.Contains("does not exist", UnixSocketInstanceTransport.SocketDirectoryProblem(null, 501, true), StringComparison.Ordinal);
+    }
+
+    [SupportedOSPlatform("macos")]
+    [Fact]
+    public async Task PrivateSocketFolderIsCreated700AndCarriesCommands()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The real owner and mode checks are the macOS ones.");
+        string folder = Path.Combine(_shortDirectory, "LayerPeek-" + MacUnixCredentials.Current.EffectiveUserId);
+        ReceivedCommands received = new();
+        await using GuardScope first = new(PrivateTransport(folder));
+        await using GuardScope second = new(PrivateTransport(folder));
+
+        Assert.Equal(InstanceRole.Primary, first.Guard.Start(InstanceCommand.Activate, received.Add));
+        Assert.Equal(Mode700, File.GetUnixFileMode(folder));
+        Assert.Equal(InstanceRole.Forwarded, second.Guard.Start(InstanceCommand.Activate, static _ => Assert.Fail("Not the primary.")));
+
+        Assert.Equal(InstanceCommand.Activate, await received.NextAsync(WaitTimeout));
+    }
+
+    [SupportedOSPlatform("macos")]
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SocketFolderOfAnotherUserTurnsTheGuardOff(bool privateDirectory)
+    {
+        // The folder is this user's; the credentials claim another user (no second account is needed for the test).
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The real owner and mode checks are the macOS ones.");
+        string folder = Path.Combine(_shortDirectory, "f");
+        Directory.CreateDirectory(folder, Mode700);
+        FakeUnixCredentials stranger = new() { EffectiveUserId = MacUnixCredentials.Current.EffectiveUserId + 1 };
+
+        AssertGuardOff(Transport(folder, stranger, privateDirectory), "belongs to another user");
+    }
+
+    [SupportedOSPlatform("macos")]
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SymbolicLinkInPlaceOfTheSocketFolderTurnsTheGuardOff(bool privateDirectory)
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The real owner and mode checks are the macOS ones.");
+        string target = Path.Combine(_shortDirectory, "target");
+        Directory.CreateDirectory(target, Mode700);
+        string folder = Path.Combine(_shortDirectory, "f");
+        Directory.CreateSymbolicLink(folder, target);
+
+        AssertGuardOff(Transport(folder, MacUnixCredentials.Current, privateDirectory), "symbolic link");
+
+        // Nothing went through the link: no lock file, no socket.
+        Assert.Empty(Directory.EnumerateFileSystemEntries(target));
+    }
+
+    [Theory]
+    [InlineData(true, 0b111_101_101)] // 0755
+    [InlineData(true, 0b111_000_001)] // 0701
+    [InlineData(false, 0b111_111_101)] // 0775
+    [SupportedOSPlatform("macos")]
+    public void SocketFolderOpenToOthersTurnsTheGuardOff(bool privateDirectory, int mode)
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The real owner and mode checks are the macOS ones.");
+        string folder = Path.Combine(_shortDirectory, "f");
+        Directory.CreateDirectory(folder);
+        File.SetUnixFileMode(folder, (UnixFileMode)mode);
+
+        AssertGuardOff(Transport(folder, MacUnixCredentials.Current, privateDirectory), "open to other users");
+    }
+
+    [SupportedOSPlatform("macos")]
+    [Fact]
+    public void FileInPlaceOfThePrivateFolderTurnsTheGuardOff()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The real owner and mode checks are the macOS ones.");
+        Directory.CreateDirectory(_shortDirectory);
+        string folder = Path.Combine(_shortDirectory, "f");
+        File.WriteAllText(folder, string.Empty);
+
+        AssertGuardOff(Transport(folder, MacUnixCredentials.Current, privateDirectory: true), "cannot be used");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ConnectionOfAnotherUserIsRefusedUnread(bool userKnown)
+    {
+        // The running instance sees every client as another user (or cannot tell): the command never arrives.
+        FakeUnixCredentials credentials = new();
+        uint stranger = credentials.EffectiveUserId + 1;
+        FakeUnixCredentials refusing = new() { Peer = () => userKnown ? stranger : null };
+        ReceivedCommands received = new();
+        ListLogger<SingleInstanceGuard> log = new();
+        await using GuardScope first = new(PeerTransport(refusing), log);
+        await using GuardScope second = new(PeerTransport(credentials), forwardTimeout: TimeSpan.FromSeconds(1));
+
+        Assert.Equal(InstanceRole.Primary, first.Guard.Start(InstanceCommand.Activate, received.Add));
+        Assert.Equal(InstanceRole.NotForwarded, second.Guard.Start(InstanceCommand.Activate, static _ => Assert.Fail("Not the primary.")));
+
+        Assert.True(refusing.PeerChecks > 0);
+        Assert.Contains(log.Entries, entry => entry.Message.Contains(
+            userKnown ? $"another user (uid {stranger})" : "another user (uid (null))", StringComparison.Ordinal));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => received.NextAsync(TimeSpan.FromMilliseconds(200)));
+    }
+
+    [SupportedOSPlatform("macos")]
+    [Fact]
+    public async Task RealPeerCheckSeesTheSameUser()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "getpeereid is the macOS check.");
+        Directory.CreateDirectory(_shortDirectory);
+        string path = Path.Combine(_shortDirectory, "p.s");
+        using Socket server = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        server.Bind(new UnixDomainSocketEndPoint(path));
+        server.Listen(1);
+        using Socket client = new(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        await client.ConnectAsync(new UnixDomainSocketEndPoint(path), TestContext.Current.CancellationToken);
+        using Socket accepted = await server.AcceptAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(MacUnixCredentials.Current.TryGetPeerUserId(accepted, out uint peer));
+        Assert.True(MacUnixCredentials.Current.TryGetPeerUserId(client, out uint serverUser));
+
+        Assert.Equal(MacUnixCredentials.Current.EffectiveUserId, peer);
+        Assert.Equal(MacUnixCredentials.Current.EffectiveUserId, serverUser);
+    }
+
+    [SupportedOSPlatform("macos")]
+    [Fact]
+    public void RealEntriesTellFoldersLinksFilesAndTheirOwner()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "lstat is the macOS check.");
+        MacUnixCredentials credentials = MacUnixCredentials.Current;
+        string folder = Path.Combine(_shortDirectory, "f");
+        Directory.CreateDirectory(folder, Mode700);
+        string file = Path.Combine(_shortDirectory, "file");
+        File.WriteAllText(file, string.Empty);
+        string link = Path.Combine(_shortDirectory, "link");
+        File.CreateSymbolicLink(link, folder);
+
+        Assert.Equal(new UnixEntry(UnixEntryKind.Directory, Mode700, credentials.EffectiveUserId), credentials.GetEntry(folder));
+        Assert.Equal(UnixEntryKind.Other, credentials.GetEntry(file)?.Kind);
+        Assert.Equal(credentials.EffectiveUserId, credentials.GetEntry(file)?.OwnerId);
+        Assert.Equal(UnixEntryKind.SymbolicLink, credentials.GetEntry(link)?.Kind);
+        Assert.Null(credentials.GetEntry(Path.Combine(_shortDirectory, "missing")));
+        // A system folder of root: the owner comes from the file system, not from this process.
+        Assert.Equal(0u, credentials.GetEntry("/usr")?.OwnerId);
+    }
+
+    [SupportedOSPlatform("macos")]
+    private UnixSocketInstanceTransport PrivateTransport(string folder) =>
+        Transport(folder, MacUnixCredentials.Current, privateDirectory: true);
+
+    private UnixSocketInstanceTransport Transport(string socketFolder, IUnixCredentials credentials, bool privateDirectory) =>
+        new(Path.Combine(privateDirectory ? _directory : socketFolder, "instance.lock"), Path.Combine(socketFolder, "s"), credentials, privateDirectory);
+
+    private UnixSocketInstanceTransport PeerTransport(IUnixCredentials credentials) =>
+        new(Path.Combine(_directory, "instance.lock"), _socketPath, credentials);
+
+    /// <summary>The guard runs unguarded at once (no waiting, no listener) and logs why.</summary>
+    private static void AssertGuardOff(UnixSocketInstanceTransport transport, string reason)
+    {
+        Microsoft.Extensions.Time.Testing.FakeTimeProvider time = new();
+        List<TimeSpan> sleeps = [];
+        ListLogger<SingleInstanceGuard> log = new();
+        using SingleInstanceGuard guard = new(transport, log, time, sleeps.Add);
+
+        InstanceRole role = guard.Start(InstanceCommand.Activate, static _ => { });
+
+        Assert.Equal(InstanceRole.Primary, role);
+        Assert.Null(guard.Server);
+        Assert.Empty(sleeps);
+        InstanceLockUnavailableException failure = Assert.IsType<InstanceLockUnavailableException>(
+            Assert.Single(log.Entries, entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Error).Exception);
+        Assert.Contains(reason, failure.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A guard released (and its socket removed) at the end of the test.</summary>
+    private sealed class GuardScope(IInstanceTransport transport, ListLogger<SingleInstanceGuard>? log = null, TimeSpan? forwardTimeout = null) : IAsyncDisposable
+    {
+        public SingleInstanceGuard Guard { get; } = new(transport, log ?? new ListLogger<SingleInstanceGuard>(), forwardTimeout: forwardTimeout ?? TimeSpan.FromSeconds(5));
+
+        public ValueTask DisposeAsync() => Guard.DisposeAsync();
     }
 }

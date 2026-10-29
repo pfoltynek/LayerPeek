@@ -84,6 +84,21 @@ public sealed class InstanceCommandServerTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task RefusedPeerIsLoggedWithoutContentAndTheServerGoesOn()
+    {
+        // T-053: a client of another user is closed by the listener; the server logs it and serves the next one.
+        _listener.AddFailure(new InstancePeerRefusedException(peerUserId: 777));
+        _listener.AddClient(Client("activate\n"));
+
+        Assert.Equal(InstanceCommand.Activate, await _received.NextAsync(WaitTimeout));
+        (LogLevel level, string message, Exception? exception) = Assert.Single(_logger.Entries, entry => entry.Message.Contains("another user", StringComparison.Ordinal));
+        Assert.Equal(LogLevel.Warning, level);
+        Assert.Contains("uid 777", message, StringComparison.Ordinal);
+        Assert.Null(exception);
+        Assert.DoesNotContain(_logger.Entries, entry => entry.Message.Contains("Accepting a connection", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task FailingReceiverIsLoggedAndTheServerGoesOn()
     {
         int calls = 0;
