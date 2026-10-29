@@ -160,6 +160,9 @@ internal sealed class MemoryApprovalAutostart : LayerPeek.App.Platform.IAutostar
 {
     public bool Enabled { get; set; }
 
+    /// <summary>macOS reports that only the user can allow it (the Login Item is <c>requiresApproval</c>).</summary>
+    public bool RequiresApproval { get; set; }
+
     public Exception? Failure { get; set; }
 
     public int Opened { get; private set; }
@@ -167,6 +170,8 @@ internal sealed class MemoryApprovalAutostart : LayerPeek.App.Platform.IAutostar
     public bool IsEnabled() => Enabled;
 
     public void SetEnabled(bool enabled) => Enabled = Failure is null ? enabled : throw Failure;
+
+    public bool NeedsApproval() => RequiresApproval;
 
     public void OpenApprovalSettings() => Opened++;
 }

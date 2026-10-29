@@ -678,6 +678,12 @@
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
     <value>LayerPeek jest wyłączony w Ustawieniach systemowych &gt; Ogólne &gt; Rzeczy i rozszerzenia otwierane podczas logowania. Włącz go tam, a potem zapisz ponownie.</value>
   </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Ustawienia zostały zapisane. Otwieranie podczas logowania musisz włączyć w Ustawieniach systemowych.</value>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek jest wyłączony w Ustawieniach systemowych.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Rozpoczęto drukowanie</value>
   </data>

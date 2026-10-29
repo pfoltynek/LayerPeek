@@ -10,8 +10,8 @@ namespace LayerPeek.App.Platform.MacOS;
 /// The item counts as on only when macOS will really open the app (<see cref="LoginItemStatus.Enabled"/>). An item the user
 /// switched off in System Settings (<see cref="LoginItemStatus.RequiresApproval"/>) counts as off; switching it on then
 /// reports a failure (<see cref="AutostartNeedsApprovalException"/>), because only the user can allow it again there: the
-/// settings window shows "could not be changed" and offers to open System Settings (<see cref="OpenApprovalSettings"/>, user
-/// decision 2026-10-29).
+/// settings window says so (<see cref="NeedsApproval"/>) and offers to open System Settings (<see cref="OpenApprovalSettings"/>,
+/// user decisions 2026-10-29).
 /// </remarks>
 internal sealed partial class LoginItemAutostart : IAutostart, IAutostartApproval
 {
@@ -74,6 +74,20 @@ internal sealed partial class LoginItemAutostart : IAutostart, IAutostartApprova
         }
 
         LogSwitched(enabled);
+    }
+
+    /// <inheritdoc/>
+    public bool NeedsApproval()
+    {
+        try
+        {
+            return _service.Status() == LoginItemStatus.RequiresApproval;
+        }
+        catch (Exception ex)
+        {
+            LogUnreadable(ex);
+            return false;
+        }
     }
 
     /// <inheritdoc/>

@@ -71,13 +71,15 @@ public sealed partial class SettingsWindow : Window
 
     /// <summary>
     /// T-020 (macOS): coming back to the window (e.g. from System Settings &gt; Notifications) reads the notification permission
-    /// again, so the warning goes as soon as the user turned the notifications on.
+    /// again, so the warning goes as soon as the user turned the notifications on. T-019 (macOS): the same for "Open at Login"
+    /// the user has to allow in System Settings &gt; General &gt; Login Items.
     /// </summary>
     private void OnWindowActivated(object? sender, EventArgs e)
     {
         if (_viewModel is { } viewModel)
         {
             _ = viewModel.RefreshNotificationPermissionAsync();
+            _ = viewModel.RefreshAutostartApprovalAsync();
         }
     }
 

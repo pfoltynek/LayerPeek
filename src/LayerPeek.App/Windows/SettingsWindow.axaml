@@ -902,6 +902,22 @@
                          Margin="28,0,0,0"
                          IsVisible="{Binding ShowsAutostartNeedsInstallation}"
                          Text="{Binding AutostartNeedsInstallationText}" />
+              <!--
+                T-019 (macOS, user decisions 2026-10-29): whenever macOS reports that only the user can allow "Open at Login"
+                (Login Item requiresApproval, read on opening and on every activation of the window), a short hint under the
+                option and a button that opens System Settings > General > Login Items; the full path is its tooltip.
+              -->
+              <StackPanel Margin="28,0,0,0" Spacing="6" IsVisible="{Binding ShowsAutostartApproval}">
+                <TextBlock AutomationProperties.AutomationId="SettingsOpenAtLoginNeedsApproval"
+                           Classes="hint"
+                           Text="{Binding [SettingsOpenAtLoginNeedsApproval], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <Button HorizontalAlignment="Left"
+                        Content="{Binding [SettingsOpenLoginItems], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ToolTip.Tip="{Binding [SettingsOpenLoginItemsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.HelpText="{Binding [SettingsOpenLoginItemsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.AutomationId="SettingsOpenLoginItems"
+                        Command="{Binding OpenAutostartApprovalSettingsCommand}" />
+              </StackPanel>
             </StackPanel>
             <!-- T-019: not on macOS until it has updates (user decision 2026-10-29). -->
             <StackPanel IsVisible="{Binding ShowsPrereleaseOption}">
@@ -926,12 +942,8 @@
       </TabItem>
     </TabControl>
 
-    <!--
-      Save / Cancel and the outcome of the last save attempt. T-019 (macOS, user decision 2026-10-29): when "Open at Login"
-      could not be switched on because the user switched LayerPeek off in System Settings, a button next to the status opens
-      System Settings > General > Login Items.
-    -->
-    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,12,0,0">
+    <!-- Save / Cancel and the outcome of the last save attempt. -->
+    <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto" Margin="0,12,0,0">
       <TextBlock AutomationProperties.AutomationId="SettingsStatus"
                  Classes="status"
                  Classes.isError="{Binding StatusIsError}"
@@ -941,22 +953,13 @@
                  VerticalAlignment="Center"
                  Margin="0,0,12,0" />
       <Button Grid.Column="1"
-              Margin="0,0,8,0"
-              VerticalAlignment="Center"
-              Content="{Binding [SettingsOpenLoginItems], Source={x:Static loc:LocalizedStrings.Instance}}"
-              ToolTip.Tip="{Binding [SettingsOpenLoginItemsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
-              AutomationProperties.HelpText="{Binding [SettingsOpenLoginItemsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
-              AutomationProperties.AutomationId="SettingsOpenLoginItems"
-              IsVisible="{Binding ShowsAutostartApproval}"
-              Command="{Binding OpenAutostartApprovalSettingsCommand}" />
-      <Button Grid.Column="2"
               Classes="accent"
               MinWidth="96"
               Content="{Binding [SettingsSave], Source={x:Static loc:LocalizedStrings.Instance}}"
               AutomationProperties.AutomationId="SettingsSave"
               Command="{Binding SaveCommand}"
               IsDefault="True" />
-      <Button Grid.Column="3"
+      <Button Grid.Column="2"
               MinWidth="96"
               Margin="8,0,0,0"
               Content="{Binding [SettingsCancel], Source={x:Static loc:LocalizedStrings.Instance}}"

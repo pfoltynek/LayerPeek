@@ -52,6 +52,13 @@ internal sealed class AutostartNeedsApprovalException : Exception
 internal interface IAutostartApproval
 {
     /// <summary>
+    /// Whether only the user can allow the autostart now, in the settings of the OS (macOS: the Login Item is in the state
+    /// <c>requiresApproval</c>). Read when the settings window opens and becomes active again (T-019, user decision
+    /// 2026-10-29). Never throws (an unreadable state counts as no). The stand-in of the test mode never needs approval.
+    /// </summary>
+    bool NeedsApproval();
+
+    /// <summary>
     /// Opens the settings of the OS where the user allows the autostart; UI thread. Never throws (a failure is only logged).
     /// The stand-in of the test mode opens nothing.
     /// </summary>

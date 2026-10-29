@@ -729,6 +729,12 @@
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
     <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Aktivace položek a rozšíření při přihlášení. Povolte ho tam a pak uložte znovu.</value>
   </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Nastavení je uloženo. Otevírání při přihlášení musíte povolit v Nastavení systému.</value>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek je vypnutý v Nastavení systému.</value>
+  </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Upozornění jsou v macOS vypnutá.</value>
   </data>

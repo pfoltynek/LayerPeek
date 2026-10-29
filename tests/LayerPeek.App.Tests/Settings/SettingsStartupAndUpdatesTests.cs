@@ -241,39 +241,147 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
     }
 
     /// <summary>
-    /// macOS (T-019, user decision 2026-10-29): the user switched LayerPeek off in System Settings &gt; General &gt; Login
-    /// Items. Save shows "could not be changed" and offers to open System Settings; the offer opens them (a fake: tests never
-    /// open the real ones).
+    /// macOS (T-019, user decisions 2026-10-29): the user switched LayerPeek off in System Settings &gt; General &gt; Login
+    /// Items (the Login Item needs approval). Opening the window says so on the Startup and updates tab and offers to open
+    /// System Settings; the offer opens them (a fake: tests never open the real ones).
     /// </summary>
     [Fact]
-    public async Task AnAutostartTheUserHasToAllowOffersItsSettings()
+    public async Task AnAutostartTheUserHasToAllowShowsTheHintWhenLoading()
     {
-        ApprovalAutostart autostart = new() { Failure = new AutostartNeedsApprovalException("requires approval") };
+        ApprovalAutostart autostart = new() { RequiresApproval = true };
         SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
-        Assert.False(vm.ShowsAutostartApproval);
-        Assert.False(vm.OpenAutostartApprovalSettingsCommand.CanExecute(null));
 
-        vm.StartWithWindows = true;
-        await vm.SaveCommand.ExecuteAsync(null);
-
-        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsSavedAutostartFailed, vm.StatusText);
-        Assert.False(vm.StatusIsError);
         Assert.True(vm.ShowsAutostartApproval);
         Assert.True(vm.OpenAutostartApprovalSettingsCommand.CanExecute(null));
-        Assert.True(vm.IsDirty);
+        Assert.False(vm.StartWithWindows);
+        Assert.False(vm.HasStatus);
+        Assert.False(vm.IsDirty);
 
         vm.OpenAutostartApprovalSettingsCommand.Execute(null);
         vm.OpenAutostartApprovalSettingsCommand.Execute(null);
 
         Assert.Equal(2, autostart.Opened);
-        // The offer stays with its status after a language change.
+        // The hint follows the state of the OS, not the language.
         vm.RefreshTexts();
         Assert.True(vm.ShowsAutostartApproval);
     }
 
-    /// <summary>Allowed in System Settings meanwhile: the next Save switches it on, the offer goes with the status.</summary>
     [Fact]
-    public async Task TheOfferGoesWithItsStatus()
+    public async Task AnAllowedAutostartShowsNoHint()
+    {
+        ApprovalAutostart autostart = new() { Enabled = true };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+
+        Assert.False(vm.ShowsAutostartApproval);
+        Assert.False(vm.OpenAutostartApprovalSettingsCommand.CanExecute(null));
+        vm.OpenAutostartApprovalSettingsCommand.Execute(null);
+        Assert.Equal(0, autostart.Opened);
+        Assert.Equal(1, autostart.ApprovalReads);
+    }
+
+    /// <summary>
+    /// Save could not switch it on because only the user can allow it (user decision 2026-10-29): a macOS status of its own
+    /// instead of the shared "could not be changed", and the hint on the tab.
+    /// </summary>
+    [Fact]
+    public async Task ASwitchTheUserHasToAllowSaysSoAndShowsTheHint()
+    {
+        ApprovalAutostart autostart = new() { Failure = new AutostartNeedsApprovalException("requires approval") };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+        Assert.False(vm.ShowsAutostartApproval);
+
+        vm.StartWithWindows = true;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsSavedOpenAtLoginNeedsApproval, vm.StatusText);
+        Assert.False(vm.StatusIsError);
+        Assert.True(vm.ShowsAutostartApproval);
+        Assert.True(vm.OpenAutostartApprovalSettingsCommand.CanExecute(null));
+        Assert.True(vm.IsDirty);
+        vm.RefreshTexts();
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsSavedOpenAtLoginNeedsApproval, vm.StatusText);
+    }
+
+    /// <summary>
+    /// The user allowed LayerPeek in System Settings and came back (the window becomes active): the hint goes and the option
+    /// the user has not changed shows the state of the OS, without a change to save.
+    /// </summary>
+    [Fact]
+    public async Task ComingBackAfterAllowingHidesTheHintAndShowsTheOption()
+    {
+        ApprovalAutostart autostart = new() { RequiresApproval = true };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+        List<string?> changed = [];
+        vm.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+
+        autostart.RequiresApproval = false;
+        autostart.Enabled = true;
+        await vm.RefreshAutostartApprovalAsync();
+
+        Assert.False(vm.ShowsAutostartApproval);
+        Assert.False(vm.OpenAutostartApprovalSettingsCommand.CanExecute(null));
+        Assert.True(vm.StartWithWindows);
+        Assert.Contains(nameof(SettingsViewModel.StartWithWindows), changed);
+        Assert.False(vm.IsDirty);
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Empty(autostart.Changes);
+    }
+
+    /// <summary>Switched off there again (needs approval): the hint comes back on the next activation.</summary>
+    [Fact]
+    public async Task ComingBackAfterSwitchingOffShowsTheHint()
+    {
+        ApprovalAutostart autostart = new() { Enabled = true };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+        Assert.True(vm.StartWithWindows);
+
+        autostart.Enabled = false;
+        autostart.RequiresApproval = true;
+        await vm.RefreshAutostartApprovalAsync();
+
+        Assert.True(vm.ShowsAutostartApproval);
+        Assert.False(vm.StartWithWindows);
+        Assert.False(vm.IsDirty);
+    }
+
+    /// <summary>An option the user changed in the window stays as they set it; Save switches it.</summary>
+    [Fact]
+    public async Task AnEditedOptionIsLeftToSave()
+    {
+        ApprovalAutostart autostart = new() { RequiresApproval = true };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+        vm.StartWithWindows = true;
+
+        autostart.RequiresApproval = false;
+        autostart.Enabled = true;
+        await vm.RefreshAutostartApprovalAsync();
+
+        Assert.False(vm.ShowsAutostartApproval);
+        Assert.True(vm.StartWithWindows);
+        Assert.True(vm.IsDirty);
+        await vm.SaveCommand.ExecuteAsync(null);
+        Assert.Equal([true], autostart.Changes);
+    }
+
+    /// <summary>A state that cannot be read changes nothing of the option; the hint shows what macOS reported.</summary>
+    [Fact]
+    public async Task AnUnreadableStateLeavesTheOption()
+    {
+        ApprovalAutostart autostart = new() { Enabled = true };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+
+        autostart.ReadFailure = new InvalidOperationException("XPC failed");
+        autostart.RequiresApproval = true;
+        await vm.RefreshAutostartApprovalAsync();
+
+        Assert.True(vm.ShowsAutostartApproval);
+        Assert.True(vm.StartWithWindows);
+        Assert.False(vm.IsDirty);
+    }
+
+    /// <summary>Allowed in System Settings meanwhile: the next Save switches it on, the hint goes.</summary>
+    [Fact]
+    public async Task ASwitchAfterAllowingHidesTheHint()
     {
         ApprovalAutostart autostart = new() { Failure = new AutostartNeedsApprovalException("requires approval") };
         SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
@@ -295,8 +403,25 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         Assert.Equal([true], autostart.Changes);
     }
 
+    /// <summary>Switching off an item that needs approval removes it: nothing left to allow.</summary>
     [Fact]
-    public async Task AnotherFailureOffersNoSettings()
+    public async Task SwitchingOffAfterTheHintHidesIt()
+    {
+        ApprovalAutostart autostart = new() { Enabled = true };
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+        autostart.RequiresApproval = true;
+        await vm.RefreshAutostartApprovalAsync();
+        Assert.True(vm.ShowsAutostartApproval);
+        // The OS still reports it as on for the option (a fake); the user switches it off.
+        vm.StartWithWindows = false;
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.False(vm.ShowsAutostartApproval);
+        Assert.Equal([false], autostart.Changes);
+    }
+
+    [Fact]
+    public async Task AnotherFailureKeepsTheSharedStatus()
     {
         ApprovalAutostart autostart = new() { Failure = new UnauthorizedAccessException("denied") };
         SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
@@ -308,7 +433,7 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         Assert.False(vm.ShowsAutostartApproval);
     }
 
-    /// <summary>Windows: an autostart without settings to open never offers them.</summary>
+    /// <summary>Windows: an autostart without settings to open keeps the shared status and never shows the hint.</summary>
     [Fact]
     public async Task AnAutostartWithoutApprovalSettingsOffersNone()
     {
@@ -317,14 +442,15 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
 
         vm.StartWithWindows = true;
         await vm.SaveCommand.ExecuteAsync(null);
+        await vm.RefreshAutostartApprovalAsync();
 
         Assert.Equal(LayerPeek.App.Resources.Strings.SettingsSavedAutostartFailed, vm.StatusText);
         Assert.False(vm.ShowsAutostartApproval);
     }
 
-    /// <summary>An edit that shows another status (here a validation error) hides the offer.</summary>
+    /// <summary>The hint belongs to the state of the OS: another status (here a validation error) keeps it.</summary>
     [Fact]
-    public async Task ANewStatusHidesTheOffer()
+    public async Task ANewStatusKeepsTheHint()
     {
         ApprovalAutostart autostart = new() { Failure = new AutostartNeedsApprovalException("requires approval") };
         SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
@@ -336,7 +462,40 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         await vm.SaveCommand.ExecuteAsync(null);
 
         Assert.True(vm.StatusIsError);
-        Assert.False(vm.ShowsAutostartApproval);
+        Assert.True(vm.ShowsAutostartApproval);
+    }
+
+    /// <summary>Nothing is read before loading, while Save switches the option, or after the window closed.</summary>
+    [Fact]
+    public async Task TheStateIsReadOnlyWhileTheWindowCanShowIt()
+    {
+        ApprovalAutostart autostart = new() { RequiresApproval = true };
+        _store.Data = new SettingsEditorData(new AppSettings(), SettingsLoadStatus.Loaded, [], Ids());
+        using SettingsViewModel notLoaded = new(_store, new FakeConnectionTester(), Supported, autostart: autostart, productVersion: "0.1.0");
+        await notLoaded.RefreshAutostartApprovalAsync();
+        Assert.Equal(0, autostart.ApprovalReads);
+        Assert.False(notLoaded.ShowsAutostartApproval);
+
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart);
+        Assert.Equal(1, autostart.ApprovalReads);
+        using ManualResetEventSlim release = new();
+        using ManualResetEventSlim switching = new();
+        autostart.WhileSwitching = () =>
+        {
+            switching.Set();
+            release.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+        };
+        vm.StartWithWindows = true;
+        Task save = vm.SaveCommand.ExecuteAsync(null);
+        Assert.True(switching.Wait(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken));
+        await vm.RefreshAutostartApprovalAsync();
+        Assert.Equal(1, autostart.ApprovalReads);
+        release.Set();
+        await save;
+
+        vm.Dispose();
+        await vm.RefreshAutostartApprovalAsync();
+        Assert.Equal(1, autostart.ApprovalReads);
     }
 
     [Fact]
@@ -432,21 +591,34 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
     }
 }
 
-/// <summary>An autostart the user allows in the settings of the OS (macOS, T-019), in memory: opening them is only counted.</summary>
+/// <summary>
+/// An autostart the user allows in the settings of the OS (macOS, T-019), in memory: whether it needs approval is set by the
+/// test, opening the settings is only counted.
+/// </summary>
 internal sealed class ApprovalAutostart : IAutostart, IAutostartApproval
 {
     public bool Enabled { get; set; }
 
+    public bool RequiresApproval { get; set; }
+
     public Exception? Failure { get; set; }
+
+    public Exception? ReadFailure { get; set; }
+
+    /// <summary>Runs inside <see cref="SetEnabled"/> (a switch still running).</summary>
+    public Action? WhileSwitching { get; set; }
 
     public List<bool> Changes { get; } = [];
 
     public int Opened { get; private set; }
 
-    public bool IsEnabled() => Enabled;
+    public int ApprovalReads { get; private set; }
+
+    public bool IsEnabled() => ReadFailure is not null ? throw ReadFailure : Enabled;
 
     public void SetEnabled(bool enabled)
     {
+        WhileSwitching?.Invoke();
         if (Failure is not null)
         {
             throw Failure;
@@ -454,6 +626,13 @@ internal sealed class ApprovalAutostart : IAutostart, IAutostartApproval
 
         Changes.Add(enabled);
         Enabled = enabled;
+        RequiresApproval = false;
+    }
+
+    public bool NeedsApproval()
+    {
+        ApprovalReads++;
+        return RequiresApproval;
     }
 
     public void OpenApprovalSettings() => Opened++;
