@@ -188,8 +188,9 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     }
 
     /// <summary>
-    /// "Show camera" for an open window (macOS, T-102): restores a minimized window (to full screen when it was), then
-    /// activates the app and the window like <see cref="Show"/>; a window that closed meanwhile (a stale menu item) opens.
+    /// "Show camera" for an open window (T-102, macOS and Windows): restores a minimized window (to full screen when it
+    /// was), then activates the app (macOS) and the window like <see cref="Show"/>, also a window on top (it has no Dock
+    /// icon or taskbar button to come back by); a window that closed meanwhile (a stale menu item) opens.
     /// </summary>
     /// <returns>Whether a window of the printer is open now.</returns>
     public bool BringToFront(string printerId)

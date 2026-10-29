@@ -107,7 +107,8 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
      z celé obrazovky zpět na celou obrazovku). Pravý klik na ikonu v Docku: seznam oken s názvy („Alpha – kamera“,
      „Nastavení“…; malý náhled bez rámečku tam být nemusí – zapsat).
    - Menu v menu baru → tiskárna s otevřeným oknem kamery: „Zobrazit kameru“ nad „Skrýt kameru“; okno za jinou
-     aplikací nebo minimalizované přijde dopředu s fokusem. Po zavření okna položka zmizí.
+     aplikací, minimalizované i malý náhled navrchu přijde dopředu s fokusem. Po zavření okna položka zmizí.
+     (Windows: kroky W1–W3 v T-102.)
    - Vývojové sestavení (`dotnet run`): ikona v Docku je obecná ikona spustitelného souboru – zapsat, jak vypadá.
    **Uzavírá:** T-102 kritérium 6 (a otevřené otázky v T-102).
 

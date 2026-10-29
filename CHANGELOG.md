@@ -30,14 +30,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - macOS: while a window is open (Settings, Diagnostics, About, licences, a camera window that is not always on top),
   LayerPeek has a Dock icon and is in the ⌘Tab switcher, so a window that fell behind other apps can be brought back
   (clicking the Dock icon, or the window list of its menu); with only always-on-top windows (the mini preview by
-  default) or no window it is back in the menu bar only. The menu bar menu of a printer with an open camera window also
-  has **Show camera**, which brings the window to the front.
+  default) or no window it is back in the menu bar only.
+- The menu of a printer with an open camera window (menu bar on macOS, notification area on Windows) has **Show
+  camera**, which brings the window to the front, restoring it when minimized; also a window that is always on top and
+  so has no Dock icon or taskbar button.
 
 ### Changed
 
 - Windows: a camera window has a taskbar button exactly when it is not always on top. With the default options nothing
   changes (the mini preview is on top and has none); a normal window with "Always on top" now has no taskbar button, a
-  mini preview without it now has one.
+  mini preview without it now has one. Changing "Always on top" of an open window may make it disappear and reappear
+  once (how Avalonia moves a window off the taskbar).
 
 ## [0.3.0] - 2026-10-29
 

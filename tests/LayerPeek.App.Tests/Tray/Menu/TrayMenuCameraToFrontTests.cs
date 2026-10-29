@@ -10,13 +10,13 @@ using static LayerPeek.App.Tests.Tray.TestPrinters;
 namespace LayerPeek.App.Tests.Tray.Menu;
 
 /// <summary>
-/// "Show camera" for an open camera window (macOS, T-102): right above "Hide camera" while the window is open, only with
-/// <see cref="TrayMenuOptions.CameraToFront"/> (the macOS variant is forced through the options on every OS); clicking it
-/// brings the window to the front. Windows keeps the menu of T-040.
+/// "Show camera" for an open camera window (T-102): right above "Hide camera" while the window is open, with
+/// <see cref="TrayMenuOptions.CameraToFront"/>, which the app turns on for macOS and Windows alike (user decision
+/// 2026-10-29: the same menu on both); clicking it brings the window to the front. Without the option the menu of T-040.
 /// </summary>
 public sealed class TrayMenuCameraToFrontTests : IDisposable
 {
-    private static readonly TrayMenuOptions MacOptions = TrayMenuOptions.Default with { CameraToFront = true };
+    private static readonly TrayMenuOptions AppOptions = TrayMenuOptions.ForCurrentPlatform;
 
     private readonly CultureScope _culture = new("en-US");
     private readonly FakePrinterMonitor _monitor = new();
@@ -41,16 +41,33 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     }
 
     [Fact]
-    public void OnlyTheMacOSPlatformOffersTheItem()
+    public void EveryPlatformOffersTheItem()
     {
+        // Both OSes (2026-10-29); only the bare defaults of the tests leave it out.
+        Assert.True(TrayMenuOptions.ForCurrentPlatform.CameraToFront);
         Assert.False(TrayMenuOptions.Default.CameraToFront);
-        Assert.Equal(OperatingSystem.IsMacOS(), TrayMenuOptions.ForCurrentPlatform.CameraToFront);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BothPlatformMenusAddShowCameraAboveHideCamera(bool printerIcons)
+    {
+        // The Windows menu (with printer icons, T-039) and the macOS menu (without) get the same submenu.
+        using TrayMenuViewModel viewModel = Create(AppOptions with { PrinterIcons = printerIcons }, WithCamera(Definition()));
+
+        viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+
+        Assert.Equal(
+            [TrayMenuCommand.OpenWeb, TrayMenuCommand.CameraToFront, TrayMenuCommand.Camera],
+            viewModel.PrinterItems[0].Submenu!.Select(static item => item.Command));
+        Assert.All(viewModel.PrinterItems[0].Submenu!, static item => Assert.Null(item.Icon));
     }
 
     [Fact]
     public void OpenWindowAddsShowCameraAboveHideCameraUntilItCloses()
     {
-        using TrayMenuViewModel viewModel = Create(MacOptions, WithCamera(Definition()));
+        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition()));
         Assert.Equal([TrayMenuCommand.OpenWeb, TrayMenuCommand.Camera], viewModel.PrinterItems[0].Submenu!.Select(static item => item.Command));
 
         viewModel.SetCameraWindowOpen("mk4", isOpen: true);
@@ -71,7 +88,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     }
 
     [Fact]
-    public void WindowsVariantKeepsTheMenuOfT040()
+    public void WithoutTheOptionTheMenuOfT040Stays()
     {
         using TrayMenuViewModel viewModel = Create(TrayMenuOptions.Default with { PrinterIcons = true }, WithCamera(Definition()));
 
@@ -83,7 +100,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     [Fact]
     public void OnlyThePrinterWithTheOpenWindowGetsTheItem()
     {
-        using TrayMenuViewModel viewModel = Create(MacOptions, WithCamera(Definition("a", "Alpha")), WithCamera(Definition("b", "Beta")), Definition("c", "NoCamera"));
+        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition("a", "Alpha")), WithCamera(Definition("b", "Beta")), Definition("c", "NoCamera"));
 
         viewModel.SetCameraWindowOpen("b", isOpen: true);
         // A window report for a printer without camera item changes nothing.
@@ -96,7 +113,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     [Fact]
     public void ClickBringsTheWindowToFrontAndHideCameraStillCloses()
     {
-        using TrayMenuViewModel viewModel = Create(MacOptions, WithCamera(Definition()));
+        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition()));
         using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
         viewModel.SetCameraWindowOpen("mk4", isOpen: true);
 
@@ -111,7 +128,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     [Fact]
     public void ItemWithoutPrinterDoesNothing()
     {
-        using TrayMenuViewModel viewModel = Create(MacOptions);
+        using TrayMenuViewModel viewModel = Create(AppOptions);
         using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
 
         _target.Click(new TrayMenuEntry(TrayMenuCommand.CameraToFront, "Show camera", IsEnabled: true));
@@ -125,7 +142,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     {
         using CultureScope culture = new(language);
         PrinterDefinition connect = WithCamera(new PrinterDefinition { Id = "c", Name = "Connect", ConnectionType = ConnectionType.PrusaConnect, Address = "uuid" });
-        using TrayMenuViewModel viewModel = Create(MacOptions, WithCamera(Definition("a", "Alpha")), connect);
+        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition("a", "Alpha")), connect);
         char?[] closedKeys = [.. viewModel.PrinterItems.Select(static printer => AccessKey(printer.Submenu![^1]))];
 
         viewModel.SetCameraWindowOpen("a", isOpen: true);

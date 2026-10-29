@@ -35,8 +35,9 @@ public enum TrayMenuCommand
     Camera,
 
     /// <summary>
-    /// "Show camera" next to "Hide camera" while the camera window of <see cref="TrayMenuEntry.PrinterId"/> is open (macOS
-    /// only, T-102): brings the app and the window to the front (restored when minimized); opens it when it closed meanwhile.
+    /// "Show camera" next to "Hide camera" while the camera window of <see cref="TrayMenuEntry.PrinterId"/> is open (T-102,
+    /// macOS and Windows): brings the app and the window to the front (restored when minimized, also a window on top);
+    /// opens it when it closed meanwhile.
     /// </summary>
     CameraToFront,
     About,
@@ -158,13 +159,14 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
 /// </param>
 /// <param name="CameraToFront">
 /// A printer with an open camera window also has "Show camera" (<see cref="TrayMenuCommand.CameraToFront"/>, T-102): on
-/// macOS, where its windows have no taskbar button of their own and fall behind other apps.
+/// every platform (user decision 2026-10-29: the same menu on macOS and Windows; a window on top has no Dock icon or
+/// taskbar button). Off in <see cref="Default"/> only, so that tests of the older menu stay as they were.
 /// </param>
 internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsAvailable, bool PrinterIcons = false, bool CameraToFront = false)
 {
     /// <summary>Both auxiliary windows exist: settings (T-015) and diagnostics (T-011); no printer icons.</summary>
     public static TrayMenuOptions Default { get; } = new(SettingsAvailable: true, DiagnosticsAvailable: true);
 
-    /// <summary><see cref="Default"/> with printer icons where the platform shows them (Windows) and "Show camera" for open camera windows on macOS.</summary>
-    public static TrayMenuOptions ForCurrentPlatform { get; } = Default with { PrinterIcons = OperatingSystem.IsWindows(), CameraToFront = OperatingSystem.IsMacOS() };
+    /// <summary><see cref="Default"/> with printer icons where the platform shows them (Windows) and "Show camera" for open camera windows (both OSes).</summary>
+    public static TrayMenuOptions ForCurrentPlatform { get; } = Default with { PrinterIcons = OperatingSystem.IsWindows(), CameraToFront = true };
 }
