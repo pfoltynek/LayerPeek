@@ -70,8 +70,9 @@ public sealed record CameraMonitorId
     public int Height { get; }
 
     /// <summary>
-    /// The path of the physical monitor (Windows); <see langword="null"/> on other platforms and in settings written before
-    /// it was stored. It changes when the monitor is plugged into another connector; the monitor is then found by its
+    /// The path of the physical monitor (Windows: the device path of its connector; macOS: the persistent display UUID,
+    /// T-038); <see langword="null"/> on other platforms and in settings written before it was stored. It can change when
+    /// the monitor is plugged into another connector; the monitor is then found by its
     /// name and resolution when that is unambiguous (T-071 Q5, see <see cref="CameraWindowDefaultPlacement.SelectScreen"/>).
     /// </summary>
     public string? DevicePath { get; }

@@ -1,4 +1,5 @@
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Settings;
 
@@ -22,6 +23,19 @@ public sealed class PasswordPolicyTests
         // Only constructed; the Credential Manager is not touched.
         Assert.Equal(new PasswordPolicy(true, WindowsCredentialSecretStore.MaxSecretBytes), PasswordPolicy.For(new WindowsCredentialSecretStore()));
         Assert.Equal(2560, WindowsCredentialSecretStore.MaxSecretBytes);
+    }
+
+    [Fact]
+    public void MacOsStoreAcceptsWhatWasDecidedForTheKeychain()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.Skip("macOS only.");
+            return;
+        }
+
+        // Only constructed; the Keychain is not touched. The same limit as on Windows (decided 2026-10-29).
+        Assert.Equal(new PasswordPolicy(true, 2560), PasswordPolicy.For(new KeychainSecretStore()));
     }
 
     [Fact]

@@ -44,6 +44,58 @@ function Get-HostArchitecture {
     [System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture.ToString().ToLowerInvariant()
 }
 
+function Resolve-PhysicalPath {
+    <#
+    .SYNOPSIS Full path with every symbolic link resolved (macOS); on Windows Resolve-Path (GetFullPath with -AllowMissing).
+    .DESCRIPTION
+        dotnet resolves a relative or symlinked project path differently from the paths of its ProjectReferences, and
+        NuGet restore then drops all project references (CS0246 in the app). Paths handed to dotnet are therefore
+        physical. Windows keeps its previous behaviour. Without -AllowMissing the path must exist; with it, the
+        existing beginning of the path is resolved and the missing rest is appended unchanged.
+    #>
+    param([Parameter(Mandatory)] [string] $Path, [switch] $AllowMissing)
+    $full = if ($AllowMissing) { [System.IO.Path]::GetFullPath($Path) } else { (Resolve-Path -LiteralPath $Path).ProviderPath }
+    if ($IsWindows) { return $full }
+
+    $separator = [System.IO.Path]::DirectorySeparatorChar
+    $segments = $full.Split($separator, [System.StringSplitOptions]::RemoveEmptyEntries)
+    $result = $separator.ToString()
+    for ($i = 0; $i -lt $segments.Count; $i++) {
+        $candidate = Join-Path $result $segments[$i]
+        $item = Get-Item -LiteralPath $candidate -Force -ErrorAction Ignore
+        if (-not $item) { return Join-Path $result ($segments[$i..($segments.Count - 1)] -join $separator) }
+        $target = $item.ResolveLinkTarget($true)
+        # The target may itself lie below symbolic links.
+        $result = if ($target) { Resolve-PhysicalPath $target.FullName } else { $candidate }
+    }
+    $result
+}
+
+function Get-PwshCommand {
+    <#
+    .SYNOPSIS Executable and leading arguments that start the PowerShell running this script, however it is installed.
+    .DESCRIPTION
+        An installed pwsh (MSI, Homebrew, winget) is its own process. The dotnet global tool runs pwsh.dll inside the
+        dotnet host, so the process path is dotnet and the child needs "dotnet <PSHOME>/pwsh.dll".
+    #>
+    param([string] $ProcessPath = [Environment]::ProcessPath, [string] $PowerShellHome = $PSHOME)
+    if ([System.IO.Path]::GetFileNameWithoutExtension($ProcessPath) -eq 'pwsh') { return $ProcessPath }
+    $dll = Join-Path $PowerShellHome 'pwsh.dll'
+    if (Test-Path -LiteralPath $dll -PathType Leaf) { return $ProcessPath, $dll }
+    throw "Cannot tell how to start PowerShell again: process '$ProcessPath', no pwsh.dll in '$PowerShellHome'."
+}
+
+function Invoke-Pwsh {
+    <#
+    .SYNOPSIS Runs a child pwsh (the same PowerShell as this script) with the given arguments; sets $LASTEXITCODE.
+    .DESCRIPTION Pipeline input, if any, goes to the child's standard input; otherwise the child inherits it.
+    #>
+    $command = @(Get-PwshCommand)
+    $prefix = @($command | Select-Object -Skip 1)
+    if ($MyInvocation.ExpectingInput) { $input | & $command[0] @prefix @args }
+    else { & $command[0] @prefix @args }
+}
+
 function Get-RuntimeOs {
     <# .SYNOPSIS Operating system of a configured RID ('windows' / 'macos'). #>
     param([Parameter(Mandatory)] [string] $Runtime, $Config = $script:ReleaseRuntimes)
@@ -439,8 +491,9 @@ function New-ReleaseArchive {
         try {
             [System.IO.File]::WriteAllText($list, (($files | ForEach-Object { "./$_" }) -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
             # macOS bsdtar stores extended attributes by default (--mac-metadata, AppleDouble '._*' entries such as the
-            # quarantine flag); the release archive must hold only the files themselves.
-            $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
+            # quarantine flag); the release archive must hold only the files themselves. Typed as an array: 'if' as an
+            # expression unwraps a single element into a string, and splatting a string passes each of its characters.
+            [string[]] $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
             $savedCopyFile = $env:COPYFILE_DISABLE
             if ($IsMacOS) { $env:COPYFILE_DISABLE = '1' }
             try {
@@ -745,6 +798,612 @@ function Copy-VelopackOutput {
         Copy-Item -LiteralPath (Join-Path $VelopackDirectory $name) -Destination $destination
         $destination
     }
+}
+
+# macOS packaging (T-019): LayerPeek.app built from the Native AOT publish folder by our own steps (no Velopack for macOS
+# yet, docs/velopack.md point 10), ad-hoc signed inside out, then a .dmg (hdiutil, the app and a link to /Applications,
+# user decision 2026-10-29) and a .tar.gz of the app. Fixed values; the bundle identifier is read from the Info.plist template.
+$script:MacBundle = [pscustomobject]@{
+    BundleName    = 'LayerPeek.app'
+    Executable    = 'LayerPeek'
+    PlistTemplate = 'build/macos/Info.plist'
+    # T-098: the macOS variant of the app icon on Apple's grid (824 px body with continuous corners and a drop shadow on the
+    # 1024 px canvas, app-icon-macos.svg); the Windows .ico keeps the full-size tile of app-icon.svg.
+    IconMaster    = 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-1024.png'
+    # T-019 (user decision 2026-10-29): 16 and 32 px from the simplified design (T-025 app-icon-small.svg), drawn for the
+    # macOS grid on whole pixels by T-098 (app-icon-macos-16.svg, app-icon-macos-32.svg: 12 and 26 px body).
+    IconExact     = @{ 16 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-16.png'; 32 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-32.png' }
+    # T-098: the body of the icon on Apple's grid, per 1024 px of the canvas (left/top edge and size); the rest is margin
+    # (transparent, or the drop shadow from 64 px on).
+    IconBody      = [pscustomobject]@{ Offset = 100; Size = 824 }
+    IconFile      = 'LayerPeek.icns'
+    VolumeName    = 'LayerPeek'
+    # T-026: the FFmpeg libraries built by build/macos/build-ffmpeg.sh, in Contents/MacOS next to the executable like the
+    # other native libraries (they reference each other as @loader_path/<name>), and their licence in Contents/Resources.
+    FFmpegLibraries = @('libavformat.63.dylib', 'libavcodec.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib')
+    FFmpegLicense   = 'FFmpeg-LICENSE.txt'
+    # T-097: the localized Info.plist values (NSLocalNetworkUsageDescription), <lang>.lproj/InfoPlist.strings for every app
+    # language (AppLanguages.Supported), copied to Contents/Resources; the English text is also the one of the Info.plist.
+    Localizations     = 'build/macos/Localizations'
+    LocalizedStrings  = 'InfoPlist.strings'
+    AppLanguagesSource = 'src/LayerPeek.Core/Settings/AppLanguages.cs'
+    LocalizedKeys     = @('NSLocalNetworkUsageDescription')
+}
+
+function Get-MacBundleSettings {
+    <# .SYNOPSIS The fixed values of the macOS packaging step (T-019). #>
+    $script:MacBundle
+}
+
+function Get-MacReleaseFileNames {
+    <# .SYNOPSIS The macOS files in dist: LayerPeek-<version>-<rid>.tar.gz (the archive name of the RID) and .dmg. #>
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
+    [pscustomobject]@{
+        Archive   = Get-ArchiveFileName -Version $Version -Runtime $Runtime
+        DiskImage = "LayerPeek-$Version-$Runtime.dmg"
+    }
+}
+
+function Get-PlistEntries {
+    <# .SYNOPSIS The top-level key -> value element pairs of an XML property list text (pure). #>
+    param([Parameter(Mandatory)] [string] $Text)
+    $settings = [System.Xml.XmlReaderSettings]::new()
+    # The plist DOCTYPE names Apple's DTD: never fetched.
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Ignore
+    $settings.XmlResolver = $null
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($Text), $settings)
+    try {
+        $document = [System.Xml.XmlDocument]::new()
+        $document.Load($reader)
+    }
+    finally { $reader.Dispose() }
+    $dict = $document.SelectSingleNode('/plist/dict')
+    if (-not $dict) { throw 'Not a property list with a top-level dict.' }
+    $items = @($dict.ChildNodes | Where-Object { $_.NodeType -eq [System.Xml.XmlNodeType]::Element })
+    $entries = [ordered]@{}
+    for ($i = 0; $i -lt $items.Count; $i += 2) {
+        if ($items[$i].Name -ne 'key' -or $i + 1 -ge $items.Count) { throw 'Malformed property list: every key needs a value.' }
+        $entries[$items[$i].InnerText] = $items[$i + 1]
+    }
+    $entries
+}
+
+function Get-MacBundleIdentifier {
+    <# .SYNOPSIS CFBundleIdentifier of the Info.plist template (the single source of the macOS identity of the app). #>
+    param([Parameter(Mandatory)] [string] $PlistPath)
+    $entries = Get-PlistEntries -Text (Get-Content -LiteralPath $PlistPath -Raw)
+    $id = if ($entries.Contains('CFBundleIdentifier')) { $entries['CFBundleIdentifier'].InnerText } else { $null }
+    if ($id -notmatch '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$') { throw "$PlistPath has no valid CFBundleIdentifier ('$id')." }
+    $id
+}
+
+function ConvertTo-MacInfoPlist {
+    <#
+    .SYNOPSIS
+        The Info.plist of the bundle from the template text (pure): @VERSION@ becomes the version; the result must be a
+        property list without other placeholders, with LSUIElement true and the expected executable.
+    #>
+    param([Parameter(Mandatory)] [string] $TemplateText, [Parameter(Mandatory)] [string] $Version)
+    if (-not (Test-ReleaseVersion $Version)) { throw "'$Version' is not a version in the form X.Y.Z." }
+    $text = $TemplateText.Replace('@VERSION@', $Version)
+    if ($text -match '@[A-Z_]+@') { throw "The Info.plist template has an unknown placeholder $($Matches[0])." }
+    $entries = Get-PlistEntries -Text $text
+    if (-not $entries.Contains('LSUIElement') -or $entries['LSUIElement'].Name -ne 'true') { throw 'The Info.plist template must set LSUIElement to true (no Dock icon).' }
+    if (-not $entries.Contains('CFBundleExecutable') -or $entries['CFBundleExecutable'].InnerText -cne $script:MacBundle.Executable) { throw "The Info.plist template must name the executable $($script:MacBundle.Executable)." }
+    foreach ($key in 'CFBundleShortVersionString', 'CFBundleVersion') {
+        if (-not $entries.Contains($key) -or $entries[$key].InnerText -cne $Version) { throw "The Info.plist template must take $key from the version." }
+    }
+    $text
+}
+
+function Get-MacIconSizes {
+    <# .SYNOPSIS The images of an .iconset (iconutil): file name -> pixels, 16 to 512 points at 1x and 2x (pure). #>
+    $sizes = [ordered]@{}
+    foreach ($points in 16, 32, 128, 256, 512) {
+        $sizes["icon_${points}x${points}.png"] = $points
+        $sizes["icon_${points}x${points}@2x.png"] = $points * 2
+    }
+    $sizes
+}
+
+function Get-MacIconPlan {
+    <#
+    .SYNOPSIS
+        Where each image of the .iconset comes from (pure): the sizes with a PNG of their own in -ExactPngs (pixels -> path)
+        are copied unchanged, every other size is scaled down from -MasterPng. T-019 (user decision 2026-10-29): 16 and 32 px
+        are the simplified variant (T-025 app-icon-small.svg, for the macOS grid app-icon-macos-16/32.svg of T-098), from
+        64 px on the detailed one, like the .ico from 48 px. Returns file name -> [pscustomobject] @{ Pixels; Source; Scale }.
+    #>
+    param([Parameter(Mandatory)] [string] $MasterPng, [hashtable] $ExactPngs = @{})
+    $plan = [ordered]@{}
+    $sizes = Get-MacIconSizes
+    foreach ($name in $sizes.Keys) {
+        $pixels = [int] $sizes[$name]
+        $exact = $ExactPngs.Keys | Where-Object { [int] $_ -eq $pixels } | Select-Object -First 1
+        $plan[$name] = if ($null -ne $exact) {
+            [pscustomobject]@{ Pixels = $pixels; Source = [string] $ExactPngs[$exact]; Scale = $false }
+        }
+        else {
+            [pscustomobject]@{ Pixels = $pixels; Source = $MasterPng; Scale = $true }
+        }
+    }
+    $plan
+}
+
+function Get-PngPixelSize {
+    <# .SYNOPSIS Width and height of a PNG from its IHDR chunk (pure, no image library); throws for anything else. #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Path).ProviderPath)
+    $signature = [byte[]] (0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+    if ($bytes.Length -lt 24 -or [System.Linq.Enumerable]::SequenceEqual([byte[]] $bytes[0..7], $signature) -eq $false -or
+        [System.Text.Encoding]::ASCII.GetString($bytes, 12, 4) -cne 'IHDR') {
+        throw "Not a PNG: $Path"
+    }
+    # Big-endian 32-bit integers (PowerShell has no spans).
+    $width = ([int] $bytes[16] -shl 24) -bor ([int] $bytes[17] -shl 16) -bor ([int] $bytes[18] -shl 8) -bor [int] $bytes[19]
+    $height = ([int] $bytes[20] -shl 24) -bor ([int] $bytes[21] -shl 16) -bor ([int] $bytes[22] -shl 8) -bor [int] $bytes[23]
+    [pscustomobject]@{ Width = $width; Height = $height }
+}
+
+function ConvertFrom-BmpAlpha {
+    <#
+    .SYNOPSIS
+        Width, height and the alpha channel (top-down rows, one byte per pixel) of a 32-bit BMP with an alpha mask, as
+        written by sips (pure). Throws for any other BMP.
+    #>
+    param([Parameter(Mandatory)] [byte[]] $Bytes)
+    if ($Bytes.Length -lt 54 -or $Bytes[0] -ne 0x42 -or $Bytes[1] -ne 0x4D) { throw 'Not a BMP.' }
+    $offset = [System.BitConverter]::ToInt32($Bytes, 10)
+    $header = [System.BitConverter]::ToInt32($Bytes, 14)
+    $width = [System.BitConverter]::ToInt32($Bytes, 18)
+    $height = [System.BitConverter]::ToInt32($Bytes, 22)
+    $bits = [System.BitConverter]::ToInt16($Bytes, 28)
+    $compression = [System.BitConverter]::ToInt32($Bytes, 30)
+    # BI_BITFIELDS with a V4/V5 header: the alpha mask follows the red, green and blue masks.
+    if ($bits -ne 32 -or $compression -ne 3 -or $header -lt 56) { throw "Not a 32-bit BMP with alpha ($bits bits, compression $compression)." }
+    # The alpha mask selects one byte of the little-endian pixel: 0xFF000000 the fourth, 0x000000FF the first.
+    $mask = [byte[]] $Bytes[66..69]
+    $shift = [System.Array]::IndexOf($mask, [byte] 0xFF)
+    if ($shift -lt 0 -or @($mask | Where-Object { $_ -ne 0 }).Count -ne 1) { throw "Unexpected alpha mask $(($mask | ForEach-Object { '{0:X2}' -f $_ }) -join ' ')." }
+    $rows = [Math]::Abs($height)
+    if ($offset + ($width * $rows * 4) -gt $Bytes.Length) { throw 'The BMP is shorter than its pixels.' }
+    $alpha = [byte[]]::new($width * $rows)
+    for ($y = 0; $y -lt $rows; $y++) {
+        # A positive height means bottom-up rows.
+        $source = if ($height -gt 0) { $rows - 1 - $y } else { $y }
+        $start = $offset + ($source * $width * 4) + $shift
+        for ($x = 0; $x -lt $width; $x++) { $alpha[($y * $width) + $x] = $Bytes[$start + ($x * 4)] }
+    }
+    [pscustomobject]@{ Width = $width; Height = $rows; Alpha = $alpha }
+}
+
+function Get-MacIconBodyProblems {
+    <#
+    .SYNOPSIS
+        T-098: what is wrong with one image of the macOS app icon against Apple's grid (pure): the mostly opaque pixels
+        (alpha >= 128) must form the body (IconBody of Get-MacBundleSettings: 100..924 of 1024, scaled to the size,
+        +-1 px for the pixel grid of the small sizes), the centre of the body must be opaque and the margin may only hold
+        the drop shadow (alpha at most -MaxMarginAlpha). Returns problem texts, empty when the image is right.
+    #>
+    param(
+        [Parameter(Mandatory)] [int] $Width,
+        [Parameter(Mandatory)] [int] $Height,
+        [Parameter(Mandatory)] [byte[]] $Alpha,
+        [int] $MaxMarginAlpha = 64,
+        [string] $Name = 'image'
+    )
+    if ($Width -ne $Height) { return "$Name is $Width x $Height px, not square." }
+    if ($Alpha.Length -ne $Width * $Height) { return "$Name has $($Alpha.Length) alpha values for $Width x $Height px." }
+    $body = $script:MacBundle.IconBody
+    $start = $Width * $body.Offset / 1024.0
+    $end = $Width * ($body.Offset + $body.Size) / 1024.0
+    $minX = $Width; $minY = $Height; $maxX = -1; $maxY = -1
+    for ($y = 0; $y -lt $Height; $y++) {
+        for ($x = 0; $x -lt $Width; $x++) {
+            if ($Alpha[($y * $Width) + $x] -ge 128) {
+                if ($x -lt $minX) { $minX = $x }; if ($x -gt $maxX) { $maxX = $x }
+                if ($y -lt $minY) { $minY = $y }; if ($y -gt $maxY) { $maxY = $y }
+            }
+        }
+    }
+    if ($maxX -lt 0) { return "$Name has no opaque body." }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    foreach ($edge in @(@{ Name = 'left'; Value = $minX; Expected = $start }, @{ Name = 'top'; Value = $minY; Expected = $start },
+            @{ Name = 'right'; Value = $maxX + 1; Expected = $end }, @{ Name = 'bottom'; Value = $maxY + 1; Expected = $end })) {
+        if ([Math]::Abs($edge.Value - $edge.Expected) -gt 1) {
+            $problems.Add([string]::Format([cultureinfo]::InvariantCulture, '{0}: the {1} edge of the body is at {2} px, Apple''s grid puts it at {3:0.##} px.', $Name, $edge.Name, $edge.Value, $edge.Expected))
+        }
+    }
+    $centre = [int] ($Width / 2)
+    if ($Alpha[($centre * $Width) + $centre] -ne 255) { $problems.Add("${Name}: the centre of the body is not opaque.") }
+    $margin = 0
+    for ($y = 0; $y -lt $Height; $y++) {
+        for ($x = 0; $x -lt $Width; $x++) {
+            # The pixels around the body (one pixel off its edge for anti-aliasing) are the margin.
+            if ($x -lt $minX - 1 -or $x -gt $maxX + 1 -or $y -lt $minY - 1 -or $y -gt $maxY + 1) {
+                $margin = [Math]::Max($margin, [int] $Alpha[($y * $Width) + $x])
+            }
+        }
+    }
+    if ($margin -gt $MaxMarginAlpha) { $problems.Add("${Name}: the margin around the body has alpha $margin (at most $MaxMarginAlpha, the drop shadow).") }
+    $problems
+}
+
+function Get-MacIconImageProblems {
+    <# .SYNOPSIS T-098: Get-MacIconBodyProblems of a PNG file (its alpha read through sips, part of macOS). #>
+    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [string] $WorkDirectory)
+    $bmp = Join-Path $WorkDirectory "$([guid]::NewGuid().ToString('N')).bmp"
+    try {
+        $null = & /usr/bin/sips -s format bmp $Path --out $bmp 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "sips failed for $Path (exit code $LASTEXITCODE)." }
+        $image = ConvertFrom-BmpAlpha ([System.IO.File]::ReadAllBytes($bmp))
+        Get-MacIconBodyProblems -Width $image.Width -Height $image.Height -Alpha $image.Alpha -Name (Split-Path -Leaf $Path)
+    }
+    finally { Remove-Item -LiteralPath $bmp -Force -ErrorAction SilentlyContinue }
+}
+
+function New-MacIcon {
+    <#
+    .SYNOPSIS
+        The .icns of the bundle (T-019): the images of Get-MacIconPlan, the small sizes copied from -ExactPngs (their
+        size is checked), the rest scaled down from the 1024 px master PNG by sips, then iconutil. Both are part of macOS.
+        T-098: before iconutil every image is checked against Apple's grid (Get-MacIconImageProblems: the body 824 of 1024
+        px centred, only the drop shadow in the margin). Works in a temporary .iconset next to the destination and deletes it.
+    #>
+    param([Parameter(Mandatory)] [string] $MasterPng, [hashtable] $ExactPngs = @{}, [Parameter(Mandatory)] [string] $Destination)
+    if (Test-Path -LiteralPath $Destination) { throw "Icon already exists: $Destination" }
+    foreach ($pixels in $ExactPngs.Keys) {
+        $size = Get-PngPixelSize $ExactPngs[$pixels]
+        if ($size.Width -ne [int] $pixels -or $size.Height -ne [int] $pixels) {
+            throw "The $pixels px icon $($ExactPngs[$pixels]) is $($size.Width) x $($size.Height) px."
+        }
+    }
+    $iconset = "$([System.IO.Path]::ChangeExtension($Destination, $null).TrimEnd('.')).iconset"
+    if (Test-Path -LiteralPath $iconset) { Remove-Item -LiteralPath $iconset -Recurse -Force }
+    $null = New-Item -ItemType Directory -Path $iconset
+    try {
+        $plan = Get-MacIconPlan -MasterPng $MasterPng -ExactPngs $ExactPngs
+        foreach ($name in $plan.Keys) {
+            $image = $plan[$name]
+            $target = Join-Path $iconset $name
+            if (-not $image.Scale) {
+                Copy-Item -LiteralPath $image.Source -Destination $target
+                continue
+            }
+            $pixels = [string] $image.Pixels
+            $null = & /usr/bin/sips -z $pixels $pixels $image.Source --out $target 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "sips failed for $name (exit code $LASTEXITCODE)." }
+        }
+        # T-098: every image has its size and the body on Apple's grid with the margin around it.
+        $problems = [System.Collections.Generic.List[string]]::new()
+        foreach ($name in $plan.Keys) {
+            $target = Join-Path $iconset $name
+            $size = Get-PngPixelSize $target
+            if ($size.Width -ne $plan[$name].Pixels -or $size.Height -ne $plan[$name].Pixels) {
+                $problems.Add("$name is $($size.Width) x $($size.Height) px, not $($plan[$name].Pixels) px.")
+                continue
+            }
+            foreach ($problem in @(Get-MacIconImageProblems -Path $target -WorkDirectory $iconset)) { $problems.Add($problem) }
+        }
+        if ($problems.Count -gt 0) { throw "The macOS app icon does not follow Apple's grid: $($problems -join ' ')" }
+        & /usr/bin/iconutil -c icns $iconset -o $Destination
+        if ($LASTEXITCODE -ne 0) { throw "iconutil failed with exit code $LASTEXITCODE." }
+    }
+    finally { Remove-Item -LiteralPath $iconset -Recurse -Force -ErrorAction SilentlyContinue }
+    $Destination
+}
+
+function New-MacAppBundle {
+    <#
+    .SYNOPSIS
+        LayerPeek.app in -Destination from a Native AOT publish folder: Contents/MacOS gets the code of the publish folder
+        (the executable and the native libraries, i.e. the Mach-O files) without debug symbols (Get-ArchiveFiles: no .pdb,
+        no .dSYM), Contents/Resources every other file (T-026: FFmpeg-LICENSE.txt; codesign refuses data in Contents/MacOS
+        as unsigned code) and the icon, Contents/Info.plist the template with the version, Contents/PkgInfo the package
+        type. Returns the path of the .app. Unsigned.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $PublishDirectory,
+        [Parameter(Mandatory)] [string] $Destination,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $PlistTemplate,
+        [Parameter(Mandatory)] [string] $IconFile,
+        [string] $LocalizationDirectory
+    )
+    $s = $script:MacBundle
+    $app = Join-Path $Destination $s.BundleName
+    if (Test-Path -LiteralPath $app) { throw "App bundle already exists: $app" }
+    $plist = ConvertTo-MacInfoPlist -TemplateText (Get-Content -LiteralPath $PlistTemplate -Raw) -Version $Version
+    $files = @(Get-ArchiveFiles $PublishDirectory)
+    if ($files -cnotcontains $s.Executable) { throw "The publish folder $PublishDirectory has no executable $($s.Executable)." }
+    $localized = @(if ($LocalizationDirectory) { Get-MacLocalizationFiles $LocalizationDirectory })
+    foreach ($file in $localized) {
+        if ($files | Where-Object { $_ -ieq $file }) { throw "The publish folder $PublishDirectory has a file $file, the name of a localization." }
+    }
+    $root = (Resolve-Path -LiteralPath $PublishDirectory).ProviderPath
+    $macOS = Join-Path $app 'Contents' 'MacOS'
+    $resources = Join-Path $app 'Contents' 'Resources'
+    $null = New-Item -ItemType Directory -Path $macOS, $resources
+    foreach ($file in $files) {
+        $source = Join-Path $root $file
+        $target = Join-Path ((Test-MachOFile $source) ? $macOS : $resources) $file
+        if ((Join-Path $resources $file) -ceq (Join-Path $resources $s.IconFile)) { throw "The publish folder $PublishDirectory has a file $file, the name of the icon." }
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target)
+        # File.Copy keeps the Unix permissions (the executable bits) of the source.
+        [System.IO.File]::Copy($source, $target)
+    }
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'Info.plist'), $plist, $utf8)
+    [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'PkgInfo'), 'APPL????', $utf8)
+    Copy-Item -LiteralPath $IconFile -Destination (Join-Path $resources $s.IconFile)
+    if ($localized.Count -gt 0) {
+        $localizationRoot = (Resolve-Path -LiteralPath $LocalizationDirectory).ProviderPath
+        foreach ($file in $localized) {
+            $target = Join-Path $resources $file
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target)
+            [System.IO.File]::Copy((Join-Path $localizationRoot $file), $target)
+        }
+    }
+    $app
+}
+
+function Get-AppLanguageCodes {
+    <# .SYNOPSIS The app languages of AppLanguages.Supported (C# source text, pure): the list the resx completeness test uses. #>
+    param([Parameter(Mandatory)] [string] $SourceText)
+    if ($SourceText -notmatch 'Supported\s*\{\s*get;\s*\}\s*=\s*Array\.AsReadOnly\(\[(?<list>[^\]]*)\]\)') { throw 'AppLanguages.Supported was not found.' }
+    $codes = @([regex]::Matches($Matches.list, '"(?<code>[a-z]{2,3})"') | ForEach-Object { $_.Groups['code'].Value })
+    if ($codes.Count -eq 0) { throw 'AppLanguages.Supported lists no language.' }
+    $codes
+}
+
+function ConvertFrom-StringsText {
+    <#
+    .SYNOPSIS
+        The key -> value pairs of an old-style .strings file text (pure): "key" = "value"; entries, /* */ and // comments,
+        the escapes \" \\ \n \t. Throws for anything else, so that a broken file never reaches the bundle.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Text)
+    $entries = [ordered]@{}
+    $quoted = '"(?:[^"\\]|\\.)*"'
+    $rest = $Text.TrimStart([char] 0xFEFF)
+    while ($true) {
+        $rest = $rest -replace '^(\s+|/\*[\s\S]*?\*/|//[^\n]*(\n|$))+', ''
+        if ($rest.Length -eq 0) { break }
+        if ($rest -notmatch "^(?<key>$quoted)\s*=\s*(?<value>$quoted)\s*;") { throw "Not a .strings entry: $(($rest -split "`n")[0])" }
+        $key = ConvertFrom-StringsLiteral $Matches.key
+        if ($entries.Contains($key)) { throw "The .strings text has the key $key twice." }
+        $entries[$key] = ConvertFrom-StringsLiteral $Matches.value
+        $rest = $rest.Substring($Matches[0].Length)
+    }
+    $entries
+}
+
+function ConvertFrom-StringsLiteral([string] $Literal) {
+    [regex]::Replace($Literal.Substring(1, $Literal.Length - 2), '\\(.)', {
+        param($m)
+        switch -CaseSensitive ($m.Groups[1].Value) { 'n' { "`n" } 't' { "`t" } '"' { '"' } '\' { '\' } default { throw "Unknown escape \$_ in a .strings value." } }
+    })
+}
+
+function Get-MacLocalizationFiles {
+    <#
+    .SYNOPSIS
+        The files of the localization folder (T-097), relative and sorted: only <lang>.lproj/InfoPlist.strings; anything else
+        there is refused (it would end up in Contents/Resources unchecked).
+    #>
+    param([Parameter(Mandatory)] [string] $Directory)
+    $root = (Resolve-Path -LiteralPath $Directory).ProviderPath
+    $files = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | ForEach-Object { [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/') } | Sort-Object -CaseSensitive)
+    foreach ($file in $files) {
+        if ($file -cnotmatch "^[a-z]{2,3}\.lproj/$([regex]::Escape($script:MacBundle.LocalizedStrings))$") { throw "The localization folder $Directory has an unexpected file $file." }
+    }
+    $files
+}
+
+function Get-MacLocalizationProblems {
+    <#
+    .SYNOPSIS
+        Problems of the localized Info.plist values (T-097; empty = fine): exactly one <lang>.lproj/InfoPlist.strings per app
+        language, each with a non-empty value of every localized key (-Keys) and nothing else, the English one equal to the
+        Info.plist, every key in the Info.plist too, and CFBundleLocalizations of the Info.plist = the app languages.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Directory,
+        [Parameter(Mandatory)] [string] $PlistText,
+        [Parameter(Mandatory)] [string[]] $Languages,
+        [string[]] $Keys = $script:MacBundle.LocalizedKeys
+    )
+    $entries = Get-PlistEntries -Text $PlistText
+    foreach ($key in $Keys) {
+        if (-not $entries.Contains($key) -or $entries[$key].Name -ne 'string' -or -not $entries[$key].InnerText.Trim()) { "The Info.plist has no text $key." }
+    }
+    $listed = if ($entries.Contains('CFBundleLocalizations')) { @($entries['CFBundleLocalizations'].SelectNodes('string') | ForEach-Object InnerText) } else { @() }
+    if (($listed -join ',') -cne ($Languages -join ',')) { "CFBundleLocalizations of the Info.plist ($($listed -join ', ')) is not the app languages ($($Languages -join ', '))." }
+    $files = @(Get-MacLocalizationFiles $Directory)
+    $present = @($files | ForEach-Object { ($_ -split '\.lproj/')[0] })
+    foreach ($language in $Languages) {
+        if ($present -cnotcontains $language) { "$Directory has no $language.lproj/$($script:MacBundle.LocalizedStrings)."; continue }
+        $path = Join-Path $Directory "$language.lproj" $script:MacBundle.LocalizedStrings
+        try { $strings = ConvertFrom-StringsText ([System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))) }
+        catch { "$($path): $($_.Exception.Message)"; continue }
+        foreach ($key in $Keys) {
+            if (-not $strings.Contains($key) -or -not "$($strings[$key])".Trim()) { "$path has no text $key." }
+            elseif ($language -ceq 'en' -and $entries.Contains($key) -and $strings[$key] -cne $entries[$key].InnerText) { "$path has another English $key than the Info.plist." }
+        }
+        foreach ($key in $strings.Keys) {
+            if ($Keys -cnotcontains $key) { "$path has the key $key, which is not localized." }
+        }
+    }
+    foreach ($language in $present) {
+        if ($Languages -cnotcontains $language) { "$Directory has $language.lproj, which is not an app language." }
+    }
+}
+
+function Get-MacPlistLintProblems {
+    <# .SYNOPSIS plutil -lint of Contents/Info.plist and every .strings file of the bundle; problem messages (empty = valid). #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $paths = @(Join-Path $app 'Contents' 'Info.plist') + @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents' 'Resources') -Recurse -File -Filter '*.strings' -Force | ForEach-Object FullName | Sort-Object -CaseSensitive)
+    foreach ($path in $paths) {
+        $output = & /usr/bin/plutil -lint $path 2>&1
+        if ($LASTEXITCODE -ne 0) { "plutil -lint failed for $($path): $(($output | ForEach-Object { "$_" }) -join ' ')" }
+    }
+}
+
+function Test-MachOFile {
+    <# .SYNOPSIS True for a Mach-O binary (thin 32/64-bit, either byte order, or universal): code that must be signed. #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $bytes = [byte[]]::new(4)
+        if ($stream.Read($bytes, 0, 4) -ne 4) { return $false }
+    }
+    finally { $stream.Dispose() }
+    $magic = [System.BitConverter]::ToString($bytes)
+    # feedface / feedfacf (thin, both byte orders as stored on disk) and cafebabe (universal).
+    $magic -in 'CE-FA-ED-FE', 'CF-FA-ED-FE', 'FE-ED-FA-CE', 'FE-ED-FA-CF', 'CA-FE-BA-BE'
+}
+
+function Get-MacForeignLibraryReferences {
+    <#
+    .SYNOPSIS
+        The libraries a Mach-O file loads from places a clean Mac does not have (pure): from its `otool -L` output, the
+        references under /opt/homebrew or /usr/local (Homebrew, hand-built libraries), except its own install name
+        (-InstallName, `otool -D`), which is only an identifier (libAvaloniaNative.dylib carries /usr/local/lib/... there).
+    #>
+    param([string[]] $OtoolList = @(), [string] $InstallName)
+    foreach ($line in @($OtoolList | Select-Object -Skip 1)) {
+        $reference = ("$line".Trim() -split ' \(compatibility version')[0].Trim()
+        if (-not $reference -or $reference -ceq $InstallName) { continue }
+        if ($reference -match '^(/opt/homebrew/|/usr/local/)') { $reference }
+    }
+}
+
+function Get-MacBundleLibraryProblems {
+    <#
+    .SYNOPSIS
+        Problems of the native libraries of the bundle (T-026; empty = fine): the FFmpeg libraries must be in
+        Contents/MacOS and their licence in Contents/Resources, and no Mach-O file of the bundle may load a library from
+        Homebrew or /usr/local (otool).
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $expected = @($script:MacBundle.FFmpegLibraries | ForEach-Object { "Contents/MacOS/$_" }) + "Contents/Resources/$($script:MacBundle.FFmpegLicense)"
+    foreach ($relative in $expected) {
+        if (-not (Test-Path -LiteralPath (Join-Path $app $relative) -PathType Leaf)) { "$app has no $relative (FFmpeg of the camera, build/FFmpeg.targets)." }
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents') -Recurse -File -Force | Where-Object { Test-MachOFile $_.FullName })) {
+        $list = @(& /usr/bin/otool -L $file.FullName 2>&1)
+        if ($LASTEXITCODE -ne 0) { "otool -L failed for $($file.FullName): $($list -join ' ')"; continue }
+        $id = @(& /usr/bin/otool -D $file.FullName 2>$null | Select-Object -Skip 1) | Select-Object -First 1
+        foreach ($reference in @(Get-MacForeignLibraryReferences -OtoolList $list -InstallName "$id".Trim())) {
+            "$($file.FullName) loads $reference, which a clean Mac does not have."
+        }
+    }
+}
+
+function Get-MacSigningOrder {
+    <#
+    .SYNOPSIS
+        What codesign signs, inside out: every nested Mach-O file of the bundle (native libraries; sorted) except the main
+        executable, then the bundle itself (which signs the main executable and seals Info.plist and the resources).
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $main = Join-Path $app 'Contents' 'MacOS' $script:MacBundle.Executable
+    $nested = @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents') -Recurse -File -Force |
+        Where-Object { $_.FullName -cne $main -and (Test-MachOFile $_.FullName) } |
+        ForEach-Object FullName | Sort-Object -CaseSensitive)
+    @($nested) + $app
+}
+
+function Get-MacAdHocSignArguments {
+    <#
+    .SYNOPSIS
+        The codesign arguments of an ad-hoc signature (decided 2026-10-21: no Developer ID, no notarization; T-060 later):
+        identity '-', replacing the signatures the libraries came with (SkiaSharp, HarfBuzz by their publisher), no
+        secure timestamp (an ad-hoc signature cannot have one). No hardened runtime: it only matters for notarization.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    @('--force', '--sign', '-', '--timestamp=none', $Path)
+}
+
+function Invoke-MacAdHocSign {
+    <# .SYNOPSIS Ad-hoc signs the bundle inside out (Get-MacSigningOrder). #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    foreach ($path in Get-MacSigningOrder $AppPath) {
+        $arguments = Get-MacAdHocSignArguments $path
+        $output = & /usr/bin/codesign @arguments 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "codesign failed for $($path): $($output -join ' ')" }
+    }
+}
+
+function Get-MacSignatureProblems {
+    <# .SYNOPSIS codesign --verify --deep --strict of the bundle; returns problem messages (empty = valid). #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $output = & /usr/bin/codesign --verify --deep --strict --verbose=2 $AppPath 2>&1
+    if ($LASTEXITCODE -eq 0) { return @() }
+    @("codesign --verify --deep --strict failed for $($AppPath): $(($output | ForEach-Object { "$_" }) -join ' ')")
+}
+
+function Get-MacDiskImageArguments {
+    <#
+    .SYNOPSIS
+        hdiutil create of the .dmg (pure): a compressed read-only image (UDZO) of a staging folder with the app and the link
+        to /Applications, HFS+ (readable by every supported macOS), the volume named LayerPeek.
+    #>
+    param([Parameter(Mandatory)] [string] $SourceFolder, [Parameter(Mandatory)] [string] $Destination, [string] $VolumeName = $script:MacBundle.VolumeName)
+    @('create', '-volname', $VolumeName, '-srcfolder', $SourceFolder, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-nospotlight', '-quiet', $Destination)
+}
+
+function New-MacDiskImage {
+    <#
+    .SYNOPSIS
+        The .dmg with the signed app and a link to /Applications (drag to install). The app is copied with ditto, which
+        keeps the signature intact; the staging folder is deleted. hdiutil verify checks the image. Mounts nothing.
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [Parameter(Mandatory)] [string] $Destination, [Parameter(Mandatory)] [string] $WorkDirectory)
+    if (Test-Path -LiteralPath $Destination) { throw "Disk image already exists: $Destination" }
+    $stage = Join-Path $WorkDirectory 'dmg'
+    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+    $null = New-Item -ItemType Directory -Path $stage
+    try {
+        & /usr/bin/ditto $AppPath (Join-Path $stage (Split-Path -Leaf $AppPath))
+        if ($LASTEXITCODE -ne 0) { throw "ditto failed with exit code $LASTEXITCODE." }
+        $null = New-Item -ItemType SymbolicLink -Path (Join-Path $stage 'Applications') -Target '/Applications'
+        $arguments = Get-MacDiskImageArguments -SourceFolder $stage -Destination $Destination
+        & /usr/bin/hdiutil @arguments
+        if ($LASTEXITCODE -ne 0) { throw "hdiutil create failed with exit code $LASTEXITCODE." }
+        $null = & /usr/bin/hdiutil verify -quiet $Destination 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "hdiutil verify failed for $Destination (exit code $LASTEXITCODE)." }
+    }
+    finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
+    $Destination
+}
+
+function Get-LaunchServicesAppType {
+    <#
+    .SYNOPSIS
+        The LaunchServices type of a running process from the output of 'lsappinfo list' (pure): "Foreground" (an app with
+        a Dock icon), "UIElement" (an agent app, LSUIElement: no Dock icon) or "BackgroundOnly"; $null when the process is
+        not listed (it has not checked in with LaunchServices).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $ListOutput, [Parameter(Mandatory)] [int] $ProcessId)
+    foreach ($line in $ListOutput) {
+        if ($line -match "^\s*pid = $ProcessId\b.*\btype=`"(?<type>[^`"]+)`"") { return $Matches.type }
+    }
+    $null
+}
+
+function Get-LaunchServicesRegistration {
+    <#
+    .SYNOPSIS
+        Whether LaunchServices has the bundle at exactly this path registered, from the output of 'lsregister -dump'
+        (pure). Starting an app bundle registers it; the smoke check removes a registration that its own run created.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $DumpOutput, [Parameter(Mandatory)] [string] $BundlePath)
+    $pattern = '^\s*path:\s+' + [regex]::Escape($BundlePath.TrimEnd('/')) + '/?(\s+\(0x[0-9a-f]+\))?\s*$'
+    [bool] ($DumpOutput | Where-Object { $_ -match $pattern })
 }
 
 function Get-GitRemotes {
@@ -1206,8 +1865,9 @@ function Test-ReleaseTestToolchainSkip {
     $base = $env:LAYERPEEK_PESTER_TESTS_TEMP
     if (-not $base -or $env:LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN -ne '1') { return $false }
     $separators = [char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar)
-    $root = [System.IO.Path]::GetFullPath($RepoRoot).TrimEnd($separators)
-    $folder = [System.IO.Path]::GetFullPath($base).TrimEnd($separators)
+    # Both physical: the scripts resolve their repository root (Resolve-PhysicalPath), the temp folder may lie below a link.
+    $root = (Resolve-PhysicalPath $RepoRoot -AllowMissing).TrimEnd($separators)
+    $folder = (Resolve-PhysicalPath $base -AllowMissing).TrimEnd($separators)
     $comparison = if ($IsWindows -or $IsMacOS) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
     $root.StartsWith($folder + [System.IO.Path]::DirectorySeparatorChar, $comparison)
 }
@@ -1890,6 +2550,207 @@ function Invoke-ReleasePush {
     $result = Invoke-Git $RepoRoot (@('push', '--atomic', $Remote) + $refspecs.ToArray())
     foreach ($line in @($result.Output) + @($result.Error)) { if ($line) { Write-Host "  $line" } }
     if ($result.ExitCode -ne 0) { throw "git push $Remote $($refspecs -join ' ') failed (exit code $($result.ExitCode)). Nothing is force-pushed; see docs/release.md." }
+}
+
+function Get-SmokeProfile {
+    <#
+    .SYNOPSIS
+        The places of the user profile that the Release exe writes (it has no test mode, T-095) and the journal of their
+        backup during the AOT smoke check, never anything else (on Windows only the logs below %LOCALAPPDATA%\LayerPeek,
+        which may also hold the installed app).
+    .DESCRIPTION
+        Folders: data and logs of the app; on macOS also what AppKit and the system keep under the bundle identifier
+        (T-019): ~/Library/Saved Application State/<id>.savedState, ~/Library/Caches/<id> and ~/Library/HTTPStorages/<id>.
+        Preferences (macOS): the defaults domains of the app, the bundle identifier (LayerPeek.app) and LayerPeek (the
+        executable outside a bundle). They belong to cfprefsd, so they are never moved as files: the backup exports the
+        domain and deletes it, the restore deletes what the exe wrote and imports the backup (Defaults, /usr/bin/defaults).
+    .PARAMETER ProfileRoot
+        A stand-in profile for the tests: <root>/data/LayerPeek, <root>/logs/LayerPeek, <root>/state/<id>.savedState,
+        <root>/caches/<id>, <root>/http/<id> and the domains as files <root>/prefs/<domain>.plist, which a file-based
+        stand-in of defaults changes (on every OS).
+    .PARAMETER BundleIdentifier
+        The bundle identifier; default: CFBundleIdentifier of build/macos/Info.plist.
+    #>
+    param([string] $ProfileRoot, [string] $BundleIdentifier)
+    if (-not $BundleIdentifier) { $BundleIdentifier = Get-MacBundleIdentifier (Join-Path $PSScriptRoot '..' '..' $script:MacBundle.PlistTemplate) }
+    $domains = @($BundleIdentifier, $script:MacBundle.Executable)
+    if ($ProfileRoot) {
+        $folders = @(
+            (Join-Path $ProfileRoot 'data' 'LayerPeek'),
+            (Join-Path $ProfileRoot 'logs' 'LayerPeek'),
+            (Join-Path $ProfileRoot 'state' "$BundleIdentifier.savedState"),
+            (Join-Path $ProfileRoot 'caches' $BundleIdentifier),
+            (Join-Path $ProfileRoot 'http' $BundleIdentifier))
+        $preferences = Join-Path $ProfileRoot 'prefs'
+        $defaults = { param($Verb, $Domain, $File) Invoke-StandInDefaults -Folder $preferences -Verb $Verb -Domain $Domain -File $File }.GetNewClosure()
+    }
+    elseif ($IsMacOS) {
+        $library = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Library'
+        $folders = @(
+            (Join-Path $library 'Application Support' 'LayerPeek'),
+            (Join-Path $library 'Logs' 'LayerPeek'),
+            (Join-Path $library 'Saved Application State' "$BundleIdentifier.savedState"),
+            (Join-Path $library 'Caches' $BundleIdentifier),
+            (Join-Path $library 'HTTPStorages' $BundleIdentifier))
+        $preferences = Join-Path $library 'Preferences'
+        $defaults = { param($Verb, $Domain, $File) $arguments = @($Verb, $Domain) + @($File | Where-Object { $_ }); $null = & /usr/bin/defaults @arguments 2>&1; $LASTEXITCODE }
+    }
+    elseif ($IsWindows) {
+        $folders = @(
+            (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek'),
+            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'))
+        $preferences = $null
+        $defaults = $null
+    }
+    else {
+        throw 'The AOT smoke check runs on Windows and macOS only.'
+    }
+    $prefs = if ($preferences) { @($domains | ForEach-Object { [pscustomobject]@{ Domain = $_; Path = Join-Path $preferences "$_.plist" } }) } else { @() }
+    [pscustomobject]@{ Folders = $folders; Preferences = $prefs; Defaults = $defaults; Journal = "$($folders[0]).aot-smoke-journal.json" }
+}
+
+# What the stand-in of defaults leaves after a delete (cfprefsd keeps an empty property list file).
+$script:EmptyStandInPlist = 'empty plist'
+
+function Invoke-StandInDefaults {
+    <#
+    .SYNOPSIS
+        The stand-in of /usr/bin/defaults for the tests (pure files): a domain is the file <Folder>/<domain>.plist; export
+        copies it out, import copies it in, delete leaves an empty property list behind, as cfprefsd does (seen on macOS
+        27, T-019). Exit code 1 like defaults when the domain does not exist (no file or an empty one).
+    #>
+    param([Parameter(Mandatory)] [string] $Folder, [Parameter(Mandatory)] [string] $Verb, [Parameter(Mandatory)] [string] $Domain, [string] $File)
+    $plist = Join-Path $Folder "$Domain.plist"
+    switch ($Verb) {
+        'export' { if (-not (Test-Path -LiteralPath $plist)) { return 1 }; Copy-Item -LiteralPath $plist -Destination $File; return 0 }
+        'import' { $null = New-Item -ItemType Directory -Force -Path $Folder; Copy-Item -LiteralPath $File -Destination $plist -Force; return 0 }
+        'delete' {
+            if (-not (Test-Path -LiteralPath $plist) -or (Get-Content -LiteralPath $plist -Raw) -ceq $script:EmptyStandInPlist) { return 1 }
+            [System.IO.File]::WriteAllText($plist, $script:EmptyStandInPlist)
+            return 0
+        }
+        default { throw "Unknown defaults verb $Verb." }
+    }
+}
+
+function Get-SmokePreferenceKeys {
+    <#
+    .SYNOPSIS
+        The names of the top-level keys in the output of 'defaults read <domain>' (pure; values are never kept): what the
+        Release exe wrote into its preferences, printed by the smoke check (T-019).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $DefaultsOutput)
+    @($DefaultsOutput | Where-Object { $_ -match '^ {4}(?:"(?<q>[^"]+)"|(?<k>[^\s=]+)) = ' } | ForEach-Object { if ($Matches.ContainsKey('q')) { $Matches['q'] } else { $Matches['k'] } })
+}
+
+function Get-SmokeBackupPath {
+    <# .SYNOPSIS Where the smoke check keeps a folder (or an exported domain) of the app meanwhile: next to it, so that moving it is a rename. #>
+    param([Parameter(Mandatory)] [string] $Folder)
+    "$Folder.aot-smoke-backup"
+}
+
+function Read-SmokeJournal {
+    <#
+    .SYNOPSIS
+        The entries of the journal (Kind Folder / Preferences, Path, Backup, Existed, Domain), or $null without a journal.
+        Refuses a journal whose entries are not exactly places of -SmokeProfile, so that a restore never deletes anything
+        else. A journal of format 1 (folders only) is read too.
+    #>
+    param([Parameter(Mandatory)] $SmokeProfile)
+    if (-not (Test-Path -LiteralPath $SmokeProfile.Journal -PathType Leaf)) { return $null }
+    $journal = Get-Content -LiteralPath $SmokeProfile.Journal -Raw | ConvertFrom-Json
+    $entries = foreach ($entry in @($journal.Entries)) {
+        $kind = if ($entry.PSObject.Properties['Kind']) { $entry.Kind } else { 'Folder' }
+        $known = switch ($kind) {
+            'Folder' { $SmokeProfile.Folders -ccontains $entry.Path }
+            'Preferences' { [bool] ($SmokeProfile.Preferences | Where-Object { $_.Path -ceq $entry.Path -and $_.Domain -ceq $entry.Domain }) }
+            default { $false }
+        }
+        if (-not $known -or $entry.Backup -cne (Get-SmokeBackupPath $entry.Path) -or $entry.Existed -isnot [bool]) {
+            throw "The smoke journal $($SmokeProfile.Journal) lists '$($entry.Path)', which is not a folder of the app. Nothing was changed; check it by hand."
+        }
+        [pscustomobject]@{ Kind = $kind; Path = $entry.Path; Backup = $entry.Backup; Existed = $entry.Existed; Domain = $(if ($kind -eq 'Preferences') { $entry.Domain } else { $null }) }
+    }
+    , @($entries)
+}
+
+function Backup-SmokeProfile {
+    <#
+    .SYNOPSIS
+        Before the Release exe starts: writes the journal, then moves the existing folders of the app aside (renames next
+        to them) and exports and deletes its existing defaults domains, so that the exe starts with an empty profile and
+        writes nothing into the user's data.
+    .DESCRIPTION
+        The journal is written first and records which places existed, so that Restore-SmokeProfile can finish the job
+        after a crash at any point (also in the middle of the moves). Refuses to start over a journal or a backup that is
+        already there: those belong to an interrupted run and are restored first (aot-smoke.ps1 -RestoreOnly).
+    #>
+    param([Parameter(Mandatory)] $SmokeProfile)
+    if (Test-Path -LiteralPath $SmokeProfile.Journal) { throw "A smoke journal already exists: $($SmokeProfile.Journal). Restore it first (scripts/aot-smoke.ps1 -RestoreOnly)." }
+    $places = @($SmokeProfile.Folders | ForEach-Object { [pscustomobject]@{ Kind = 'Folder'; Path = $_; Domain = $null } }) +
+        @($SmokeProfile.Preferences | ForEach-Object { [pscustomobject]@{ Kind = 'Preferences'; Path = $_.Path; Domain = $_.Domain } })
+    $entries = foreach ($place in $places) {
+        $backup = Get-SmokeBackupPath $place.Path
+        if (Test-Path -LiteralPath $backup) { throw "A backup folder exists without a journal: $backup. Nothing was moved; check it by hand." }
+        $entry = [ordered]@{ Kind = $place.Kind; Path = $place.Path; Backup = $backup; Existed = [bool] (Test-Path -LiteralPath $place.Path) }
+        if ($place.Kind -eq 'Preferences') { $entry.Domain = $place.Domain }
+        $entry
+    }
+    $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SmokeProfile.Journal)
+    $temporary = "$($SmokeProfile.Journal).tmp"
+    $document = [ordered]@{ Version = 2; Created = [DateTime]::UtcNow.ToString('o'); Entries = @($entries) }
+    [System.IO.File]::WriteAllText($temporary, ($document | ConvertTo-Json -Depth 4) + "`n", [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::Move($temporary, $SmokeProfile.Journal)
+    foreach ($entry in $entries) {
+        if (-not $entry.Existed) { continue }
+        if ($entry.Kind -eq 'Folder') {
+            # A rename only (same parent folder): never a copy that could be left half done.
+            [System.IO.Directory]::Move($entry.Path, $entry.Backup)
+            continue
+        }
+        # cfprefsd owns the domain: exported through defaults (the backup is complete before anything is deleted).
+        if ((& $SmokeProfile.Defaults 'export' $entry.Domain $entry.Backup) -ne 0 -or -not (Test-Path -LiteralPath $entry.Backup)) {
+            throw "defaults export $($entry.Domain) failed; the smoke run was not started. Restore with scripts/aot-smoke.ps1 -RestoreOnly."
+        }
+        $null = & $SmokeProfile.Defaults 'delete' $entry.Domain $null
+    }
+}
+
+function Restore-SmokeProfile {
+    <#
+    .SYNOPSIS
+        After the smoke run (or after a crash): deletes what the exe created in the places of the app and moves the
+        backups back (folders) or imports them (defaults domains). Returns $true when a journal was restored, $false when
+        there was none.
+    .DESCRIPTION
+        Idempotent, so it can finish an interrupted restore: a place whose backup is gone is already back (or was never
+        moved); a place that did not exist before the run is deleted (a defaults domain through defaults delete, also when
+        cfprefsd has not written it to disk yet). The journal is deleted last. Data that existed before the run is never
+        deleted: it is in the backup until it is moved back or imported.
+    #>
+    param([Parameter(Mandatory)] $SmokeProfile)
+    $entries = Read-SmokeJournal -SmokeProfile $SmokeProfile
+    if ($null -eq $entries) { return $false }
+    foreach ($entry in $entries) {
+        $backupExists = Test-Path -LiteralPath $entry.Backup
+        if ($entry.Existed -and -not $backupExists) { continue }
+        if ($entry.Kind -eq 'Preferences') {
+            # Whatever the exe wrote (exit code 1: there was nothing).
+            $null = & $SmokeProfile.Defaults 'delete' $entry.Domain $null
+            # cfprefsd leaves the emptied domain as an empty property list file: it did not exist before the run.
+            if (-not $entry.Existed -and (Test-Path -LiteralPath $entry.Path)) { Remove-Item -LiteralPath $entry.Path -Force }
+            if ($entry.Existed) {
+                if ((& $SmokeProfile.Defaults 'import' $entry.Domain $entry.Backup) -ne 0) { throw "defaults import $($entry.Domain) failed; the backup stays in $($entry.Backup)." }
+                Remove-Item -LiteralPath $entry.Backup -Force
+            }
+            continue
+        }
+        # Created by the exe (the user's folder is in the backup, or there was none).
+        if (Test-Path -LiteralPath $entry.Path) { Remove-Item -LiteralPath $entry.Path -Recurse -Force }
+        if ($entry.Existed) { [System.IO.Directory]::Move($entry.Backup, $entry.Path) }
+    }
+    Remove-Item -LiteralPath $SmokeProfile.Journal -Force
+    $true
 }
 
 Export-ModuleMember -Function *

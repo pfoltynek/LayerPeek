@@ -68,6 +68,12 @@ internal sealed partial class InstanceCommandServer : IAsyncDisposable, IDisposa
             {
                 return;
             }
+            catch (InstancePeerRefusedException ex)
+            {
+                // Already closed by the listener; no pause, the next client may be the user's own start.
+                LogPeerRefused(ex.PeerUserId);
+                continue;
+            }
             catch (Exception ex)
             {
                 LogAcceptFailed(ex);
@@ -161,6 +167,9 @@ internal sealed partial class InstanceCommandServer : IAsyncDisposable, IDisposa
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Acknowledging the command of another start of the app failed.")]
     private partial void LogAcknowledgeFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Refused a connection of another user (uid {PeerUserId}) to the instance channel; nothing was read.")]
+    private partial void LogPeerRefused(uint? peerUserId);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Accepting a connection from another start of the app failed.")]
     private partial void LogAcceptFailed(Exception exception);

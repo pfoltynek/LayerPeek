@@ -23,7 +23,8 @@ public readonly record struct PixelBounds(int X, int Y, int Width, int Height)
 /// <param name="IsPrimary">The primary monitor.</param>
 /// <param name="DevicePath">
 /// A path that identifies this physical monitor on its connector (Windows: <c>monitorDevicePath</c> of the display
-/// configuration); <see langword="null"/> when the platform has none. Tells two identical monitors apart (T-035 Q8).
+/// configuration; macOS: the persistent display UUID, T-038); <see langword="null"/> when the platform has none. Tells
+/// two identical monitors apart (T-035 Q8).
 /// </param>
 public sealed record CameraScreen(string DisplayName, PixelBounds Bounds, PixelBounds WorkingArea, double Scaling, bool IsPrimary, string? DevicePath = null)
 {

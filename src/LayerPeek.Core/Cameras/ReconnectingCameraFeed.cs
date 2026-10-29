@@ -260,7 +260,10 @@ public sealed partial class ReconnectingCameraFeed
     // Messages of other exceptions may contain addresses or credentials; the status gets only the type, the log the details.
     private static CameraStatus Failed(Exception exception) => new(
         CameraConnectionState.Error,
-        exception is CameraFeedException ? exception.Message : $"The camera stream failed ({exception.GetType().Name}).");
+        exception is CameraFeedException ? exception.Message : $"The camera stream failed ({exception.GetType().Name}).")
+    {
+        IsHostUnreachable = exception is CameraFeedException { IsHostUnreachable: true },
+    };
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Opening camera stream '{Address}' failed.")]
     private partial void LogOpenFailed(Exception exception, string address);

@@ -147,6 +147,17 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private bool _autostartBaseline;
     private readonly IAutostart? _autostart;
     private readonly bool _autostartNeedsInstallation;
+
+    // T-019: the autostart was read when loading, so the approval can be read again (window activated); the version
+    // discards a read overtaken by a newer one or by Save switching the autostart meanwhile.
+    private bool _autostartLoaded;
+    private int _autostartReadVersion;
+    private bool _switchingAutostart;
+
+    // T-020: the OS settings of the app's notifications (macOS) and whether they are turned off.
+    private readonly ISystemNotificationSettings? _notificationSettings;
+    private bool _showsNotificationsTurnedOff;
+    private bool _showsAutostartApproval;
     private readonly string _productVersion;
 
     /// <param name="newId">Creates ids for new printers; default: a new GUID ("N" format). Tests supply their own.</param>
@@ -180,6 +191,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// Announces a layout saved by the layout mode of a camera window, which the window takes over (T-077 Q3); default: none.
     /// </param>
     /// <param name="uiDispatcher">Brings those announcements to the UI thread; default: Avalonia's UI thread.</param>
+    /// <param name="notificationSettings">
+    /// The OS settings of the app's notifications (macOS, T-020): a warning when they are turned off, with a button that opens
+    /// them; default: none (no warning).
+    /// </param>
+    /// <param name="localNetwork">
+    /// The Local Network permission of the OS (macOS 15+, T-097): "Test connection" offers to open its settings next to the
+    /// hint; default: none.
+    /// </param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -199,7 +218,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OverlayWidgetRegistry? widgets = null,
         ICameraLayoutModeLauncher? layoutModeLauncher = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        ISystemNotificationSettings? notificationSettings = null,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -247,6 +268,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         RemovePrinterCommand = new RelayCommand(RemovePrinter, () => IsEditable && _selectedPrinter is not null);
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditable);
         CancelCommand = new RelayCommand(Cancel, () => !_isSaving);
+        OpenAutostartApprovalSettingsCommand = new RelayCommand(OpenAutostartApprovalSettings, () => _showsAutostartApproval);
+        _notificationSettings = notificationSettings;
+        LocalNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
+        OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => _showsNotificationsTurnedOff);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
     }
@@ -535,7 +560,25 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public string PrereleaseHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : Strings.SettingsOfferPrereleaseUpdatesHint;
 
     /// <summary>The reason of the disabled autostart for screen readers (T-017); <see langword="null"/> when it is available.</summary>
-    public string? AutostartHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : null;
+    public string? AutostartHelpText => _autostartNeedsInstallation ? AutostartNeedsInstallationText : null;
+
+    /// <summary>
+    /// The terms of macOS (T-019, user decision 2026-10-29): the option is "Open at Login" and is missing outside
+    /// <c>LayerPeek.app</c>; otherwise the Windows texts of T-017. Set by the composition root by OS.
+    /// </summary>
+    internal bool UsesMacTerms { get; init; }
+
+    /// <summary>
+    /// "Offer pre-release versions" is part of the tab (T-017). Not on macOS until updates exist there (T-019, user decision
+    /// 2026-10-29: without Velopack for macOS the tab has no pre-release option).
+    /// </summary>
+    public bool ShowsPrereleaseOption { get; init; } = true;
+
+    /// <summary>The text of the autostart option: "Start … Windows" (T-017) or "Open at Login" (macOS, T-019).</summary>
+    public string AutostartLabel => UsesMacTerms ? Strings.SettingsOpenAtLogin : Strings.SettingsStartWithWindows;
+
+    /// <summary>Why the autostart is disabled: only the installed app (Windows), only <c>LayerPeek.app</c> (macOS).</summary>
+    public string AutostartNeedsInstallationText => UsesMacTerms ? Strings.SettingsNeedsAppBundle : Strings.SettingsNeedsInstallation;
 
     /// <summary>The app can start after logon (T-017): Windows, installed by the installer.</summary>
     public bool IsAutostartAvailable => _autostart is not null;
@@ -548,6 +591,109 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>Why the option is disabled: only the installed app can start after logon.</summary>
     public bool ShowsAutostartNeedsInstallation => _autostartNeedsInstallation;
+
+    /// <summary>
+    /// macOS (T-019, user decisions 2026-10-29): macOS reports that only the user can allow "Open at Login", in System
+    /// Settings &gt; General &gt; Login Items (the Login Item is <c>requiresApproval</c>). The Startup and updates tab says so
+    /// under the option and offers to open those settings (<see cref="OpenAutostartApprovalSettingsCommand"/>). Read when
+    /// the window loads, whenever it becomes active again (<see cref="RefreshAutostartApprovalAsync"/>) and after Save
+    /// switched the option; never on Windows (no <see cref="IAutostartApproval"/>).
+    /// </summary>
+    public bool ShowsAutostartApproval
+    {
+        get => _showsAutostartApproval;
+        private set
+        {
+            if (SetProperty(ref _showsAutostartApproval, value))
+            {
+                OpenAutostartApprovalSettingsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Opens the settings of the OS where the user allows the autostart (<see cref="IAutostartApproval"/>).</summary>
+    public IRelayCommand OpenAutostartApprovalSettingsCommand { get; }
+
+    /// <summary>
+    /// macOS (T-020, user decision 2026-10-29): the user turned LayerPeek's notifications off in System Settings; the General
+    /// tab says so next to the notification settings and offers to open them (<see cref="OpenNotificationSettingsCommand"/>).
+    /// Read when the window loads and whenever it becomes active again (<see cref="RefreshNotificationPermissionAsync"/>).
+    /// </summary>
+    public bool ShowsNotificationsTurnedOff
+    {
+        get => _showsNotificationsTurnedOff;
+        private set
+        {
+            if (SetProperty(ref _showsNotificationsTurnedOff, value))
+            {
+                OpenNotificationSettingsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Opens the OS settings of the app's notifications (<see cref="ISystemNotificationSettings.Open"/>).</summary>
+    public IRelayCommand OpenNotificationSettingsCommand { get; }
+
+    /// <summary>
+    /// Reads again whether the OS has the app's notifications turned off (T-020); UI thread. Never throws; nothing without
+    /// <see cref="ISystemNotificationSettings"/> or after the window closed.
+    /// </summary>
+    public async Task RefreshNotificationPermissionAsync()
+    {
+        if (_notificationSettings is not { } settings || _disposed)
+        {
+            return;
+        }
+
+        bool turnedOff = await settings.AreTurnedOffAsync(LifetimeToken).ConfigureAwait(true);
+        if (!_disposed)
+        {
+            ShowsNotificationsTurnedOff = turnedOff;
+        }
+    }
+
+    /// <summary>
+    /// Reads again whether only the user can allow the autostart in the settings of the OS (T-019, macOS); UI thread. Never
+    /// throws; nothing without <see cref="IAutostartApproval"/>, before the autostart was loaded or after the window closed.
+    /// The user may have switched LayerPeek on or off there meanwhile: an option the user has not changed in the window
+    /// follows the state of the OS (it stays unchanged, not dirty); an edited option is left to Save.
+    /// </summary>
+    public async Task RefreshAutostartApprovalAsync()
+    {
+        if (_autostart is not { } autostart || autostart is not IAutostartApproval approval || !_autostartLoaded || _switchingAutostart || _disposed)
+        {
+            return;
+        }
+
+        int version = ++_autostartReadVersion;
+        (bool needsApproval, bool? enabled) = await Task.Run(() => (approval.NeedsApproval(), ReadEnabledOrNull(autostart))).ConfigureAwait(true);
+        if (_disposed || version != _autostartReadVersion || _switchingAutostart)
+        {
+            return;
+        }
+
+        ShowsAutostartApproval = needsApproval;
+        if (enabled is { } now && now != _autostartBaseline && _startWithWindows == _autostartBaseline)
+        {
+            _autostartBaseline = now;
+            _startWithWindows = now;
+            OnPropertyChanged(nameof(StartWithWindows));
+            UpdateDirty();
+        }
+    }
+
+    private bool? ReadEnabledOrNull(IAutostart autostart)
+    {
+        try
+        {
+            return autostart.IsEnabled();
+        }
+        catch (Exception ex)
+        {
+            SettingsLog.AutostartUnreadable(Logger, ex);
+            return null;
+        }
+    }
 
     /// <summary>Start after logon (T-017), off by default; switched by Save, not by the check box itself.</summary>
     public bool StartWithWindows
@@ -563,7 +709,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
-    /// <summary>Passwords can be saved on this OS (false on macOS until T-021).</summary>
+    /// <summary>Passwords can be saved on this OS (false where no secret store exists, see <see cref="PasswordPolicy"/>).</summary>
     public bool IsPasswordSupported => Policy.IsSupported;
 
     /// <summary>
@@ -594,6 +740,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     internal IConnectionTester Tester { get; }
 
     internal ICameraTester CameraTester { get; }
+
+    /// <summary>The Local Network permission of the OS (T-097): the editors open its settings next to the hint.</summary>
+    internal ILocalNetworkPrivacy LocalNetwork { get; }
 
     internal ICameraPreviewRenderer CameraPreviewRenderer { get; }
 
@@ -660,6 +809,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         {
             Populate(data);
         }
+
+        _autostartLoaded = true;
+        await RefreshAutostartApprovalAsync().ConfigureAwait(true);
+        await RefreshNotificationPermissionAsync().ConfigureAwait(true);
     }
 
     /// <summary>Whether the app starts after logon now; off when there is no autostart or it cannot be read.</summary>
@@ -682,7 +835,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
-    /// <summary>Switches the start after logon when it was changed; the warning for the status line when that failed.</summary>
+    /// <summary>
+    /// Switches the start after logon when it was changed; the warning for the status line when that failed. On macOS also
+    /// updates <see cref="ShowsAutostartApproval"/> (T-019).
+    /// </summary>
     private async Task<Func<string>?> ApplyAutostartAsync()
     {
         if (_autostart is not { } autostart || _startWithWindows == _autostartBaseline)
@@ -691,17 +847,38 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
 
         bool wanted = _startWithWindows;
+        // A read of the approval started before this switch is out of date.
+        _autostartReadVersion++;
+        _switchingAutostart = true;
         try
         {
             await Task.Run(() => autostart.SetEnabled(wanted)).ConfigureAwait(true);
             _autostartBaseline = wanted;
+            if (autostart is IAutostartApproval)
+            {
+                // Switched on: allowed; switched off: no Login Item left to allow.
+                ShowsAutostartApproval = false;
+            }
+
             return null;
         }
         catch (Exception ex)
         {
             // Still a change to save: the next Save tries again.
             SettingsLog.AutostartNotChanged(Logger, ex, wanted);
+            if (ex is AutostartNeedsApprovalException && autostart is IAutostartApproval)
+            {
+                // T-019 (user decisions 2026-10-29): only the user can allow it in System Settings; the status says so, the
+                // Startup and updates tab offers to open them.
+                ShowsAutostartApproval = true;
+                return static () => Strings.SettingsSavedOpenAtLoginNeedsApproval;
+            }
+
             return static () => Strings.SettingsSavedAutostartFailed;
+        }
+        finally
+        {
+            _switchingAutostart = false;
         }
     }
 
@@ -749,6 +926,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         OnPropertyChanged(nameof(PrereleaseHelpText));
         OnPropertyChanged(nameof(AutostartHelpText));
+        OnPropertyChanged(nameof(AutostartLabel));
+        OnPropertyChanged(nameof(AutostartNeedsInstallationText));
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -939,6 +1118,30 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
 
         return LanguageOptions[0];
+    }
+
+    /// <summary>
+    /// T-019: System Settings &gt; General &gt; Login Items (macOS). The offer stays until the window reads the state again
+    /// (it becomes active again after the user comes back) or Save switches the option.
+    /// </summary>
+    private void OpenAutostartApprovalSettings()
+    {
+        if (_showsAutostartApproval && _autostart is IAutostartApproval approval)
+        {
+            approval.OpenApprovalSettings();
+        }
+    }
+
+    /// <summary>
+    /// T-020: System Settings &gt; Notifications &gt; LayerPeek (macOS). The warning stays until the window reads the
+    /// permission again (it becomes active again after the user comes back).
+    /// </summary>
+    private void OpenNotificationSettings()
+    {
+        if (_showsNotificationsTurnedOff)
+        {
+            _notificationSettings?.Open();
+        }
     }
 
     private void Cancel()

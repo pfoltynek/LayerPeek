@@ -24,8 +24,11 @@ namespace LayerPeek.App.Windows;
 /// </para>
 /// <para>
 /// Resizing: on Windows <c>BeginResizeDrag</c> runs the system's modal size loop and returns when the user releases the
-/// grip, so the height is corrected right after it (nothing changes while dragging, so there is no flicker). Elsewhere
-/// (macOS, not verified) the correction follows once the size has not changed for <see cref="ResizeSettleTime"/> after a
+/// grip, so the height is corrected right after it (nothing changes while dragging, so there is no flicker). On macOS
+/// Avalonia.Native 12.1.4 has no resize drag (<c>BeginResizeDrag</c> does nothing) and the borderless window has no
+/// resizable edges, so the window resizes itself (<see cref="ResizesItself"/>, T-038): the grip captures the pointer, the
+/// dragged edges follow it (<see cref="CameraMiniGeometry.Resized"/>) and the height is corrected when the grip is
+/// released. Elsewhere the correction follows once the size has not changed for <see cref="ResizeSettleTime"/> after a
 /// grip was pressed. A correction never causes another one (it only sets the size it computed; the computation is
 /// idempotent, and a size that is already right is not set again).
 /// </para>
@@ -33,11 +36,21 @@ namespace LayerPeek.App.Windows;
 public sealed partial class CameraWindow
 {
     /// <summary>Without a modal size loop (not Windows): the resize counts as finished after this long without a size change.</summary>
-    private static readonly TimeSpan ResizeSettleTime = TimeSpan.FromMilliseconds(300);
+    internal static readonly TimeSpan ResizeSettleTime = TimeSpan.FromMilliseconds(300);
 
     private CameraMiniStripViewModel? _miniStrip;
     private bool _correctingMini;
     private DispatcherTimer? _resizeSettle;
+    private OwnResize? _ownResize;
+
+    /// <summary>
+    /// The mini preview follows a dragged grip itself instead of asking the system (T-038): on macOS, where Avalonia.Native
+    /// has no resize drag. Tests switch it on on other platforms.
+    /// </summary>
+    internal bool ResizesItself { get; set; } = OperatingSystem.IsMacOS();
+
+    /// <summary>A grip drag the window follows itself: the window (position in pixels, client size in DIP) and the pointer in screen pixels when it was pressed.</summary>
+    private sealed record OwnResize(Control Grip, IPointer Pointer, WindowEdge Edge, PixelPoint Start, CameraWindowPlacement Window);
 
     /// <summary>The window in the mini preview is at least this wide; the other modes at least <see cref="CameraWindowSize.MinWidth"/>.</summary>
     private static double MinWidthOf(CameraWindowMode mode) =>
@@ -55,6 +68,7 @@ public sealed partial class CameraWindow
     private void DetachMini()
     {
         _resizeSettle?.Stop();
+        EndOwnResize(correct: false);
         if (_miniStrip is not null)
         {
             _miniStrip.PropertyChanged -= OnMiniStripPropertyChanged;
@@ -108,12 +122,14 @@ public sealed partial class CameraWindow
     /// <summary>
     /// The height of the shown mini preview from its width again (aspect ratio of the stream + strip), growing away from the
     /// nearest work area edge and staying on the work area. Does nothing in the other modes, while a mode is applied, while
-    /// it corrects already, or when the window is already right.
+    /// it corrects already, while the user drags a grip the window follows itself (corrected on release), or when the
+    /// window is already right.
     /// </summary>
     private void CorrectMiniSize()
     {
         if (!_opened
             || _correctingMini
+            || _ownResize is not null
             || _applyingMode
             || WindowState != WindowState.Normal
             || _appliedMode != CameraWindowMode.Mini
@@ -172,8 +188,14 @@ public sealed partial class CameraWindow
     /// A grip of the mini preview was pressed: the system resizes the window; afterwards its height follows its width
     /// (T-089 Q1, variant a).
     /// </summary>
-    private void BeginMiniResize(WindowEdge edge, PointerPressedEventArgs e)
+    private void BeginMiniResize(Control grip, WindowEdge edge, PointerPressedEventArgs e)
     {
+        if (ResizesItself)
+        {
+            BeginOwnResize(grip, edge, e);
+            return;
+        }
+
         BeginResizeDrag(edge, e);
         if (OperatingSystem.IsWindows())
         {
@@ -186,6 +208,9 @@ public sealed partial class CameraWindow
         _resizeSettle.Stop();
         _resizeSettle.Start();
     }
+
+    /// <summary>A resize without a modal size loop (not Windows) has not settled yet; its height correction is still to come.</summary>
+    internal bool IsMiniResizeSettling => _resizeSettle?.IsEnabled == true;
 
     /// <summary>The client size changed: while a resize without a modal loop runs, its end is a moment later.</summary>
     private void OnMiniClientSizeChanged()
@@ -201,5 +226,82 @@ public sealed partial class CameraWindow
     {
         _resizeSettle?.Stop();
         CorrectMiniSize();
+    }
+
+    /// <summary>Whether a grip drag that the window follows itself is running (tests).</summary>
+    internal bool IsResizingItself => _ownResize is not null;
+
+    private void BeginOwnResize(Control grip, WindowEdge edge, PointerPressedEventArgs e)
+    {
+        EndOwnResize(correct: false);
+        _ownResize = new OwnResize(grip, e.Pointer, edge, this.PointToScreen(e.GetPosition(this)), new CameraWindowPlacement(Position.X, Position.Y, ClientSize.Width, ClientSize.Height));
+        grip.PointerMoved += OnOwnResizeMoved;
+        grip.PointerReleased += OnOwnResizeReleased;
+        grip.PointerCaptureLost += OnOwnResizeCaptureLost;
+        e.Pointer.Capture(grip);
+    }
+
+    private void OnOwnResizeMoved(object? sender, PointerEventArgs e)
+    {
+        if (_ownResize is not { } resize || e.Pointer != resize.Pointer)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || _viewModel is not { IsMini: true } || WindowState != WindowState.Normal)
+        {
+            // The release was missed (e.g. outside the window before the capture took effect): the drag is over.
+            EndOwnResize(correct: true);
+            return;
+        }
+
+        PixelPoint now = this.PointToScreen(e.GetPosition(this));
+        CameraWindowPlacement window = CameraMiniGeometry.Resized(resize.Window, resize.Edge, now.X - resize.Start.X, now.Y - resize.Start.Y, DesktopScaling, MinWidth, MinHeight);
+        if (window != new CameraWindowPlacement(Position.X, Position.Y, Width, Height))
+        {
+            SetBounds(window);
+        }
+    }
+
+    private void OnOwnResizeReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_ownResize is { } resize && e.Pointer == resize.Pointer)
+        {
+            e.Handled = true;
+            EndOwnResize(correct: true);
+        }
+    }
+
+    private void OnOwnResizeCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (_ownResize is { } resize && e.Pointer == resize.Pointer)
+        {
+            EndOwnResize(correct: true);
+        }
+    }
+
+    /// <summary>Ends a grip drag the window follows itself; with <paramref name="correct"/> the height then follows the width.</summary>
+    private void EndOwnResize(bool correct)
+    {
+        if (_ownResize is not { } resize)
+        {
+            return;
+        }
+
+        // First forget the drag: releasing the capture below raises PointerCaptureLost again.
+        _ownResize = null;
+        resize.Grip.PointerMoved -= OnOwnResizeMoved;
+        resize.Grip.PointerReleased -= OnOwnResizeReleased;
+        resize.Grip.PointerCaptureLost -= OnOwnResizeCaptureLost;
+        if (resize.Pointer.Captured == resize.Grip)
+        {
+            resize.Pointer.Capture(null);
+        }
+
+        if (correct)
+        {
+            CorrectMiniSize();
+        }
     }
 }

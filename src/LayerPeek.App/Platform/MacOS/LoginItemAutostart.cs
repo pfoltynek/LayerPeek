@@ -1,0 +1,121 @@
+using Microsoft.Extensions.Logging;
+
+namespace LayerPeek.App.Platform.MacOS;
+
+/// <summary>
+/// "Open at Login" on macOS (T-019, user decision 2026-10-29): the app's Login Item (<see cref="ILoginItemService"/>),
+/// switched by Save in the settings window like the Startup shortcut on Windows. Off by default.
+/// </summary>
+/// <remarks>
+/// The item counts as on only when macOS will really open the app (<see cref="LoginItemStatus.Enabled"/>). An item the user
+/// switched off in System Settings (<see cref="LoginItemStatus.RequiresApproval"/>) counts as off; switching it on then
+/// reports a failure (<see cref="AutostartNeedsApprovalException"/>), because only the user can allow it again there: the
+/// settings window says so (<see cref="NeedsApproval"/>) and offers to open System Settings (<see cref="OpenApprovalSettings"/>,
+/// user decisions 2026-10-29).
+/// </remarks>
+internal sealed partial class LoginItemAutostart : IAutostart, IAutostartApproval
+{
+    private readonly ILoginItemService _service;
+    private readonly ILogger _logger;
+
+    public LoginItemAutostart(ILoginItemService service, ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(service);
+        ArgumentNullException.ThrowIfNull(logger);
+        _service = service;
+        _logger = logger;
+    }
+
+    /// <summary>The Login Item behind it (composition tests).</summary>
+    internal ILoginItemService Service => _service;
+
+    public bool IsEnabled()
+    {
+        try
+        {
+            return _service.Status() == LoginItemStatus.Enabled;
+        }
+        catch (Exception ex)
+        {
+            LogUnreadable(ex);
+            return false;
+        }
+    }
+
+    public void SetEnabled(bool enabled)
+    {
+        LoginItemStatus status = _service.Status();
+        if (enabled)
+        {
+            if (status != LoginItemStatus.Enabled)
+            {
+                if (status != LoginItemStatus.RequiresApproval)
+                {
+                    _service.Register();
+                }
+
+                status = _service.Status();
+                if (status == LoginItemStatus.RequiresApproval)
+                {
+                    // Registered, but not allowed: the user switched it off in System Settings, only they can allow it.
+                    LogNeedsApproval(status);
+                    throw new AutostartNeedsApprovalException($"The Login Item is registered, but macOS reports it as {status}; allow LayerPeek in System Settings > General > Login Items.");
+                }
+
+                if (status != LoginItemStatus.Enabled)
+                {
+                    throw new LoginItemException($"The Login Item was registered, but macOS reports it as {status}.");
+                }
+            }
+        }
+        else if (status is LoginItemStatus.Enabled or LoginItemStatus.RequiresApproval)
+        {
+            _service.Unregister();
+        }
+
+        LogSwitched(enabled);
+    }
+
+    /// <inheritdoc/>
+    public bool NeedsApproval()
+    {
+        try
+        {
+            return _service.Status() == LoginItemStatus.RequiresApproval;
+        }
+        catch (Exception ex)
+        {
+            LogUnreadable(ex);
+            return false;
+        }
+    }
+
+    /// <inheritdoc/>
+    public void OpenApprovalSettings()
+    {
+        try
+        {
+            _service.OpenSystemSettings();
+            LogSettingsOpened();
+        }
+        catch (Exception ex)
+        {
+            LogSettingsNotOpened(ex);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "System Settings > General > Login Items opened for the Login Item.")]
+    private partial void LogSettingsOpened();
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "System Settings > General > Login Items could not be opened.")]
+    private partial void LogSettingsNotOpened(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The state of the Login Item could not be read.")]
+    private partial void LogUnreadable(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The Login Item is not allowed (status {Status}); it can be allowed in System Settings > General > Login Items.")]
+    private partial void LogNeedsApproval(LoginItemStatus status);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Open at Login switched on: {Enabled}.")]
+    private partial void LogSwitched(bool enabled);
+}

@@ -38,4 +38,10 @@ public enum PrinterProblem
 
     /// <summary>Something answered, but not like a printer.</summary>
     UnexpectedResponse,
+
+    /// <summary>
+    /// No connection because the operating system has no route to the address ("host unreachable"). Otherwise like
+    /// <see cref="NotReachable"/>; a platform may know a cause of its own (T-097).
+    /// </summary>
+    HostUnreachable,
 }

@@ -727,6 +727,14 @@
   <data name="SettingsNeedsInstallation" xml:space="preserve">
     <value>Available only when LayerPeek is installed with Setup.exe, not in the ZIP version.</value>
   </data>
+  <data name="SettingsOpenAtLogin" xml:space="preserve">
+    <value>Open at login</value>
+    <comment>T-019: the autostart option on macOS (Apple term of the Dock menu "Options &gt; Open at Login").</comment>
+  </data>
+  <data name="SettingsNeedsAppBundle" xml:space="preserve">
+    <value>Available only when LayerPeek is in the Applications folder, not when it is opened straight from the disk image or in a development build.</value>
+    <comment>T-019: why "Open at Login" is disabled on macOS: a development build, a translocated app or the app on the mounted .dmg.</comment>
+  </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Offer pre-release versions</value>
   </data>
@@ -735,6 +743,34 @@
   </data>
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Settings saved. Starting after sign-in could not be changed. Try saving again.</value>
+  </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Open System Settings</value>
+    <comment>T-019: macOS button under Open at login on the Startup and updates tab (next to SettingsOpenAtLoginNeedsApproval) when the user has to allow LayerPeek in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the button).</comment>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there, then save again.</value>
+    <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
+  </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Settings saved. Open at login has to be allowed in System Settings.</value>
+    <comment>T-019: macOS status after Save when Open at login could not be switched on because the user has to allow LayerPeek in System Settings (Login Item requiresApproval); Windows keeps SettingsSavedAutostartFailed.</comment>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek is turned off in System Settings.</value>
+    <comment>T-019: macOS hint under Open at login on the Startup and updates tab whenever macOS reports that the Login Item needs approval; next to the SettingsOpenLoginItems button.</comment>
+  </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Notifications are turned off in macOS.</value>
+    <comment>T-020: macOS warning on the General tab next to the notification settings when the user turned LayerPeek's notifications off in System Settings.</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Open notification settings</value>
+    <comment>T-020: macOS button next to SettingsNotificationsTurnedOff; opens System Settings &gt; Notifications &gt; LayerPeek (Apple term of the pane).</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>LayerPeek's notifications are turned off in System Settings &gt; Notifications. Turn on "Allow notifications" there.</value>
+    <comment>T-020: tooltip and screen reader help of SettingsOpenNotificationSettings (macOS).</comment>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Camera</value>
@@ -869,6 +905,15 @@
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
     <value>Build configuration and scripts (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
+    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the libraries libavcodec, libavformat, libavutil and libswscale (.dylib) in LayerPeek.app/Contents/MacOS may be replaced by a compatible FFmpeg build (the same library versions, e.g. libavcodec.63.dylib). The application then has to be signed again; an ad-hoc signature is enough.</value>
+  </data>
+  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
+    <value>The FFmpeg source release used (ffmpeg.org)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
+    <value>Build configuration and script (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>The FFmpeg licence text (FFmpeg-LICENSE.txt) was not found next to the application. The GNU LGPL 3.0 is published at https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -1262,5 +1307,21 @@
   </data>
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Enlarge the window to edit the layout.</value>
+  </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>No connection. Local Network access for LayerPeek may be turned off in System Settings &gt; Privacy &amp; Security &gt; Local Network.</value>
+    <comment>T-097: macOS 15+ only, instead of the not-reachable texts when a connection to a printer or camera in the local network failed with "no route to host", which is also what a denied Local Network permission looks like (Apple TN3179); diagnostics window detail, Test connection and camera Test results, camera window status detail (normal window and full screen; the mini preview shows CameraMiniLocalNetworkAccessMayBeOff). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
+  </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>No connection. Local Network access may be turned off.</value>
+    <comment>T-097: short form of LocalNetworkAccessMayBeOff for the status of the camera mini preview (down to 240 × 135 DIP), where the full text with the System Settings path does not fit; the normal window and full screen show the full text.</comment>
+  </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Open System Settings</value>
+    <comment>T-097: macOS 15+ button under LocalNetworkAccessMayBeOff in the diagnostics window and next to the Test connection and camera Test results; opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Same Apple wording as SettingsOpenLoginItems (another pane).</comment>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Turn on LayerPeek there.</value>
+    <comment>T-097: tooltip and screen reader help of LocalNetworkOpenSystemSettings (macOS 15+). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
   </data>
 </root>

@@ -11,6 +11,12 @@ public sealed class TrayIconPromotionTests : IDisposable
     private const string OwnExe = @"C:\Users\test\AppData\Local\LayerPeek\current\LayerPeek.exe";
     private const int Attempts = 3;
 
+    /// <summary>
+    /// Off Windows, <c>C:\...</c> is a relative file name: case, <c>.\</c> segments and the file name of a Windows path are
+    /// not normalized, so the own entry is never found and the promotion would wait for a pause nobody releases.
+    /// </summary>
+    private const string WindowsPathsOnly = "Compares Windows paths (case, .\\ segments, file names); the promotion exists only on Windows.";
+
     private readonly InMemoryNotifyIconSettings _settings = new();
     private readonly ListLogger<TrayIconPromotion> _logger = new();
 
@@ -29,6 +35,7 @@ public sealed class TrayIconPromotionTests : IDisposable
     [InlineData(null, false)]
     public void AppliesOnlyToTheAppExecutable(string? processPath, bool expected)
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsPathsOnly);
         Assert.Equal(expected, TrayIconPromotion.AppliesTo(processPath));
     }
 
@@ -59,6 +66,7 @@ public sealed class TrayIconPromotionTests : IDisposable
     [Fact]
     public async Task OtherExecutablesAreNeverTouched()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsPathsOnly);
         _settings.Add("other", @"C:\Other\LayerPeek.exe", promoted: null);
         _settings.Add("own", @"c:\users\TEST\AppData\Local\LayerPeek\.\current\LayerPeek.EXE", promoted: null);
         _settings.Add("broken", null, promoted: null);

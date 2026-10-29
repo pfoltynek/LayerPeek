@@ -13,6 +13,12 @@ public enum CameraTestOutcome
 
     /// <summary>Opening or reading the stream failed.</summary>
     Failed,
+
+    /// <summary>
+    /// "No route to host" to a camera in the local network, where the OS has a local network permission that may block it
+    /// (macOS 15+, T-097); elsewhere such a failure is <see cref="Failed"/>.
+    /// </summary>
+    LocalNetworkAccessMayBeOff,
 }
 
 /// <param name="Width">Image width in pixels (success only).</param>

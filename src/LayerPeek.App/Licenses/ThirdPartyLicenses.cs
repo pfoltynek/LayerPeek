@@ -218,11 +218,42 @@ internal static class ThirdPartyLicenses
 
         public static Uri SourceUri { get; } = new("https://ffmpeg.org/download.html");
 
-        /// <summary>The pinned BtbN build; must equal <c>LayerPeekFFmpegUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).</summary>
-        public static Uri BuildUri { get; } =
+        /// <summary>
+        /// Windows: the pinned BtbN build; must equal <c>LayerPeekFFmpegUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
+        /// </summary>
+        public static Uri WindowsBuildUri { get; } =
             new("https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip");
 
-        /// <summary>The configuration and build scripts of the BtbN builds (part of the corresponding source).</summary>
-        public static Uri BuildScriptsUri { get; } = new("https://github.com/BtbN/FFmpeg-Builds");
+        /// <summary>Windows: the configuration and build scripts of the BtbN builds (part of the corresponding source).</summary>
+        public static Uri WindowsBuildScriptsUri { get; } = new("https://github.com/BtbN/FFmpeg-Builds");
+
+        /// <summary>
+        /// macOS (T-026): the official source tarball the libraries are built from; must equal
+        /// <c>LayerPeekFFmpegMacSourceUrl</c> in <c>build/FFmpeg.targets</c> (checked by a test).
+        /// </summary>
+        public static Uri MacOSBuildUri { get; } = new("https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz");
+
+        /// <summary>Path of the macOS build script in the repository.</summary>
+        public const string MacOSBuildScriptPath = "build/macos/build-ffmpeg.sh";
+
+        /// <summary>
+        /// macOS: the build script with the exact configure line (part of the corresponding source), at the release tag of
+        /// this application version (user decision 2026-10-29: the tag, not a branch, so the link shows the script the
+        /// shipped libraries were really built with).
+        /// </summary>
+        public static Uri MacOSBuildScriptsUri { get; } =
+            MacOSBuildScriptUri(Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly));
+
+        /// <summary>
+        /// The build script at the release tag <c>v&lt;version&gt;</c> (the tag format of <c>scripts/release.ps1</c>,
+        /// <c>ConvertTo-ReleaseTag</c>); <paramref name="productVersion"/> as returned by
+        /// <see cref="Windows.AboutViewModel.ProductVersion"/> ("1.2.0", without the source revision).
+        /// </summary>
+        internal static Uri MacOSBuildScriptUri(string productVersion)
+        {
+            ArgumentException.ThrowIfNullOrWhiteSpace(productVersion);
+            string repository = Windows.AboutViewModel.RepositoryUri.AbsoluteUri.TrimEnd('/');
+            return new Uri($"{repository}/blob/v{Uri.EscapeDataString(productVersion)}/{MacOSBuildScriptPath}");
+        }
     }
 }

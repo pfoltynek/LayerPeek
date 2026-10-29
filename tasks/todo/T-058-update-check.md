@@ -24,6 +24,9 @@ Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku n
 - **Verze aplikace** z `<Version>` v kořenovém `Directory.Build.props` (jediný zdroj, T-055), stejná jako v okně O aplikaci.
 - **UI:** položka v tray menu „Je dostupná nová verze X.Y.Z“ (jen když existuje) a jednorázová notifikace pro každou novou verzi přes `INotificationService` (na macOS až s T-020). Texty přes lokalizaci z T-029 (všechny podporované jazyky).
 - Zapamatování verze, pro kterou už notifikace proběhla (v nastavení, ne v tajných údajích).
+- **Velopack pro macOS (převzato z T-019, rozhodnuto 2026-10-29):** T-019 vydává vlastní `.app` bez Velopacku (pokus a podklady v `docs/velopack.md`, bod 10). V tomto úkolu přejít na `.app` od `vpk pack` (`--plist build/macos/Info.plist`, ad-hoc podpis `--signAppIdentity -`, kanál `osx-arm64`): krok `app` v `scripts/release-build.ps1` vezme `.app` z `Portable.zip` jako vstup `.dmg` a `.tar.gz`, do vydání přibydou `.nupkg` a soubory feedu `osx-arm64` (`.pkg` se nevydává, rozhodnuto 2026-10-29). V aplikaci rozpoznat instalaci Velopacku na macOS (`UpdateMac` a `sq.version` v `Contents/MacOS`) a spouštět `VelopackApp.Run()` i tam; na záložce „Spuštění a aktualizace“ pak na macOS ukázat volbu předběžných verzí (T-019: bez Velopacku skrytá).
+  - Ověřit na Macu: aktualizace z GitHub Releases bez tokenu, Gatekeeper a atribut `com.apple.quarantine` u aktualizované `.app`, heslo správce pro `/Applications`, chování ad-hoc podpisu po aktualizaci (Keychain T-021, notifikace T-020). Výsledek zapsat do `docs/velopack.md`, bod 10.
+  - **Důsledek pro uživatele:** kdo si nainstaloval `.app` z vydání bez Velopacku (T-019), dostane aktualizace až po jedné ruční reinstalaci verze s Velopackem. Uvést v `CHANGELOG.md` a v textu vydání.
 
 ## Akceptační kritéria
 - [ ] Unit testy porovnání verzí (předběžné přípony, prefix `v`, neplatné tagy, `0.x`)
@@ -32,6 +35,7 @@ Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku n
 - [ ] Headless UI test: položka menu se zobrazí jen při dostupné nové verzi
 - [ ] Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack (ověřeno ručně)
 - [ ] Žádná nová NuGet závislost, nebo ověřená AOT/trim kompatibilita; AOT publish `win-x64` bez varování
+- [ ] macOS: `.app` od `vpk` (ad-hoc podpis, `codesign --verify --deep --strict`), `.dmg` a `.tar.gz` z ní, `.nupkg` a feed `osx-arm64` ve vydání; aktualizace na Macu ověřená a zapsaná v `docs/velopack.md`, bod 10 (převzato z T-019)
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky

@@ -657,6 +657,12 @@
   <data name="SettingsNeedsInstallation" xml:space="preserve">
     <value>Len keď je LayerPeek nainštalovaný pomocou Setup.exe, nie vo verzii ZIP.</value>
   </data>
+  <data name="SettingsOpenAtLogin" xml:space="preserve">
+    <value>Otvoriť po prihlásení</value>
+  </data>
+  <data name="SettingsNeedsAppBundle" xml:space="preserve">
+    <value>Len keď je LayerPeek v priečinku Aplikácie, nie pri otvorení priamo z obrazu disku ani vo vývojovom zostavení.</value>
+  </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Ponúkať predbežné verzie</value>
   </data>
@@ -665,6 +671,18 @@
   </data>
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Nastavenia sú uložené. Spúšťanie po prihlásení sa nepodarilo zmeniť. Skúste uložiť znova.</value>
+  </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Otvoriť Systémové nastavenia</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek je vypnutý v Systémových nastaveniach &gt; Všeobecné &gt; Položky a rozšírenia spúšťané pri prihlásení. Povoľte ho tam a potom uložte znova.</value>
+  </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Nastavenia sú uložené. Otváranie po prihlásení musíte povoliť v Systémových nastaveniach.</value>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek je vypnutý v Systémových nastaveniach.</value>
   </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Tlač sa začala</value>
@@ -716,6 +734,15 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Môžete tlačiareň vypnúť. Tryska {0} °C, prah {1} °C</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Upozornenia sú v macOS vypnuté.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Otvoriť nastavenia hlásení</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Upozornenia LayerPeeku sú vypnuté v Systémových nastaveniach &gt; Hlásenia. Zapnite tam „Povoliť hlásenia“.</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
@@ -848,6 +875,15 @@
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
     <value>Konfigurácia a skripty buildu (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
+    <value>FFmpeg je licencovaný pod GNU LGPL verzie 3 alebo novšej. Aplikácia používa neupravené vydanie FFmpeg, zostavené z oficiálnych zdrojových kódov ako LGPL build, a linkuje ho dynamicky: knižnice libavcodec, libavformat, libavutil a libswscale (.dylib) v LayerPeek.app/Contents/MacOS možno nahradiť kompatibilným buildom FFmpeg (rovnaké verzie knižníc, napr. libavcodec.63.dylib). Aplikáciu je potom potrebné znova podpísať, stačí ad-hoc podpis.</value>
+  </data>
+  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
+    <value>Použité zdrojové vydanie FFmpeg (ffmpeg.org)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
+    <value>Konfigurácia a skript buildu (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Text licencie FFmpeg (FFmpeg-LICENSE.txt) sa vedľa aplikácie nenašiel. GNU LGPL 3.0 je zverejnená na https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -1241,5 +1277,17 @@
   </data>
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Na úpravu rozloženia zväčšite okno.</value>
+  </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Bez spojenia. LayerPeek možno nemá povolený prístup k lokálnej sieti v Systémových nastaveniach &gt; Súkromie a bezpečnosť &gt; Lokálna sieť.</value>
+  </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Bez spojenia. LayerPeek možno nemá povolený prístup k lokálnej sieti.</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Otvoriť Systémové nastavenia</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Otvorí Systémové nastavenia &gt; Súkromie a bezpečnosť &gt; Lokálna sieť. Zapnite tam LayerPeek.</value>
   </data>
 </root>

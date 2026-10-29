@@ -63,7 +63,8 @@ param(
 $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
 
-$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).ProviderPath
+# Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
+$repoRoot = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..')
 $tempDir = $null
 $detached = $false
 
@@ -87,7 +88,7 @@ function Invoke-ReleaseScript {
     param([Parameter(Mandatory)] [string] $Name, [string[]] $Arguments = @())
     $path = Join-Path $repoRoot 'scripts' $Name
     Write-Host "==> pwsh scripts/$Name $($Arguments -join ' ')".TrimEnd() -ForegroundColor Cyan
-    & ([Environment]::ProcessPath) -NoProfile -File $path @Arguments
+    Invoke-Pwsh -NoProfile -File $path @Arguments
     if ($LASTEXITCODE -ne 0) { throw "scripts/$Name failed with exit code $LASTEXITCODE." }
 }
 

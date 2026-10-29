@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Printers;
 using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
@@ -129,6 +130,266 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(ScrollingViewers(failed.Window, $"{language} / autostart failed"));
             problems.AddRange(CutTexts(failed.Window, $"{language} / autostart failed"));
             failed.Window.Close();
+
+            // T-019: macOS ("Open at Login", its own reason, no pre-release option).
+            SettingsWindowHarness mac = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true);
+            mac.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            mac.Window.Settle();
+            Assert.Equal(Strings.SettingsOpenAtLogin, mac.Find<CheckBox>("SettingsStartWithWindows").Content);
+            Assert.Equal(Strings.SettingsNeedsAppBundle, mac.Find<TextBlock>("SettingsStartWithWindowsNotInstalled").Text);
+            Assert.False(mac.Find<CheckBox>("SettingsOfferPrereleaseUpdates").IsEffectivelyVisible);
+            problems.AddRange(ScrollingViewers(mac.Window, $"{language} / macOS not in LayerPeek.app"));
+            problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
+            mac.Window.Close();
+
+            // T-019 (user decisions 2026-10-29): switched off in System Settings. Opening the window shows the hint and the button
+            // under the option; Save says so in a macOS status of its own; the button opens System Settings (here only counted).
+            MemoryApprovalAutostart approval = new()
+            {
+                RequiresApproval = true,
+                Failure = new LayerPeek.App.Platform.AutostartNeedsApprovalException("requires approval"),
+            };
+            SettingsWindowHarness needsApproval = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostart: approval, macTerms: true);
+            needsApproval.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            needsApproval.Window.Settle();
+            TextBlock hint = needsApproval.Find<TextBlock>("SettingsOpenAtLoginNeedsApproval");
+            Button open = needsApproval.Find<Button>("SettingsOpenLoginItems");
+            Assert.True(hint.IsEffectivelyVisible);
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsOpenAtLoginNeedsApproval, hint.Text);
+            Assert.Equal(Strings.SettingsOpenLoginItems, open.Content);
+            Assert.Equal(Strings.SettingsOpenLoginItemsHint, AutomationProperties.GetHelpText(open));
+            problems.AddRange(ApprovalHintProblems(needsApproval, hint, open, $"{language} / macOS needs approval"));
+
+            needsApproval.ViewModel.StartWithWindows = true;
+            await needsApproval.ViewModel.SaveCommand.ExecuteAsync(null);
+            needsApproval.Window.Settle();
+            Assert.Equal(Strings.SettingsSavedOpenAtLoginNeedsApproval, needsApproval.ViewModel.StatusText);
+            Assert.True(open.IsEffectivelyVisible);
+            string context = $"{language} / macOS needs approval after Save";
+            problems.AddRange(ApprovalHintProblems(needsApproval, hint, open, context));
+            problems.AddRange(StatusRowProblems(needsApproval, context));
+            Ui.Click(needsApproval.Window, Ui.CentreOf(open, needsApproval.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, approval.Opened);
+            needsApproval.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-020 (macOS, user decision 2026-10-29): notifications turned off in System Settings put a warning and a button into the
+    /// heading row of the notifications on the General tab; in every language nothing is cut, nothing scrolls, the warning is
+    /// readable next to the heading and the button opens System Settings (here only counted). Also maximized.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task GeneralTabWithNotificationsTurnedOffFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            MemoryNotificationSettings system = new() { TurnedOff = true };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: system);
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+
+            TextBlock warning = ui.Find<TextBlock>("SettingsNotificationsTurnedOff");
+            Button open = ui.Find<Button>("SettingsOpenNotificationSettings");
+            Assert.True(warning.IsEffectivelyVisible);
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsNotificationsTurnedOff, warning.Text);
+            Assert.Equal(Strings.SettingsOpenNotificationSettings, open.Content);
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsHint, AutomationProperties.GetHelpText(open));
+            foreach (Size size in new[] { new Size(780, 532), new Size(1366, 705) })
+            {
+                ui.Window.Width = size.Width;
+                ui.Window.Height = size.Height;
+                ui.Window.Settle();
+                string context = $"{language} / notifications turned off / {size}";
+                problems.AddRange(ScrollingViewers(ui.Window, context));
+                problems.AddRange(CutTexts(ui.Window, context));
+                if (warning.TextLayout.TextLines.Count > 2)
+                {
+                    problems.Add($"{context}: the warning '{warning.Text}' takes {warning.TextLayout.TextLines.Count} lines.");
+                }
+
+                if (warning.Bounds.Width < 160)
+                {
+                    problems.Add($"{context}: the warning is only {warning.Bounds.Width:0.#} DIP wide.");
+                }
+
+                Point buttonCorner = open.TranslatePoint(new Point(open.Bounds.Width, open.Bounds.Height), ui.Window) ?? default;
+                if (buttonCorner.X > ui.Window.ClientSize.Width + 0.5)
+                {
+                    problems.Add($"{context}: the button ends at {buttonCorner.X:0.#} DIP, outside the window.");
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, system.Opened);
+
+            // Allowed again (the window became active again): warning and button go.
+            system.TurnedOff = false;
+            await ui.ViewModel.RefreshNotificationPermissionAsync();
+            ui.Window.Settle();
+            Assert.False(warning.IsEffectivelyVisible);
+            Assert.False(open.IsEffectivelyVisible);
+            ui.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-097 (macOS 15+, user decision 2026-10-29): the Local Network hint as the result of "Test connection" with the button
+    /// to System Settings under it; in every language, at the designed and a maximized size and with the name error above
+    /// (the highest printer sub-tab), nothing is cut, nothing scrolls, the hint keeps room to read and the button has its
+    /// whole text inside the window. The button opens System Settings (here only counted).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task LocalNetworkHintWithItsButtonFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            FakeLocalNetworkPrivacy privacy = new();
+            FakeConnectionTester tester = new() { Immediate = new ConnectionTestResult(ConnectionTestOutcome.LocalNetworkAccessMayBeOff) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30")), tester, autostartNeedsInstallation: true, macTerms: true, localNetwork: privacy);
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            Button open = ui.Find<Button>("PrinterOpenLocalNetworkSettings");
+            Assert.False(open.IsEffectivelyVisible);
+            await printer.TestConnectionCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            TextBlock result = ui.Find<TextBlock>("PrinterTestResult");
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.LocalNetworkAccessMayBeOff, result.Text);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettings, open.Content);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, ToolTip.GetTip(open));
+            foreach (bool nameError in (bool[])[false, true])
+            {
+                if (nameError)
+                {
+                    // An invalid name blocks a new test but keeps the shown result.
+                    printer.Name = new string('n', SettingsViewModel.MaxNameLength + 1);
+                    ui.Window.Settle();
+                    Assert.True(open.IsEffectivelyVisible);
+                }
+
+                foreach (Size size in new[] { new Size(780, 532), new Size(1366, 705) })
+                {
+                    ui.Window.Width = size.Width;
+                    ui.Window.Height = size.Height;
+                    ui.Window.Settle();
+                    string context = $"{language} / Local Network hint{(nameError ? " + name error" : string.Empty)} / {size}";
+                    problems.AddRange(ScrollingViewers(ui.Window, context));
+                    problems.AddRange(CutTexts(ui.Window, context));
+                    problems.AddRange(ButtonProblems(ui, open, "PrinterOpenLocalNetworkSettings", context));
+                    if (result.Bounds.Width < 240)
+                    {
+                        problems.Add($"{context}: the hint is only {result.Bounds.Width:0.#} DIP wide.");
+                    }
+
+                    Point resultEnd = result.TranslatePoint(new Point(0, result.Bounds.Height), ui.Window) ?? default;
+                    Point buttonTop = open.TranslatePoint(default, ui.Window) ?? default;
+                    if (buttonTop.Y < resultEnd.Y - 0.5)
+                    {
+                        problems.Add($"{context}: the button at {buttonTop.Y:0.#} DIP overlaps the hint ending at {resultEnd.Y:0.#}.");
+                    }
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, privacy.Opened);
+
+            // Another result hides it.
+            tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.NotReachable);
+            await printer.TestConnectionCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+            Assert.False(open.IsEffectivelyVisible);
+            ui.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-097 (macOS 15+, user decision 2026-10-29): the Local Network hint as the result of the camera Test with the button to
+    /// System Settings under it, also with the camera address error above; in every language at the designed and a
+    /// maximized size nothing is cut, nothing scrolls, the hint keeps room to read and the button has its whole text inside
+    /// the window under the hint. The button opens System Settings (here only counted).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task CameraLocalNetworkHintWithItsButtonFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            FakeLocalNetworkPrivacy privacy = new();
+            FakeCameraTester cameraTester = new() { Immediate = new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host.") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }), cameraTester: cameraTester, autostartNeedsInstallation: true, macTerms: true, localNetwork: privacy);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            ui.Window.Settle();
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            Button open = ui.Find<Button>("PrinterCameraOpenLocalNetworkSettings");
+            Assert.False(open.IsEffectivelyVisible);
+            await printer.TestCameraCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            TextBlock result = ui.Find<TextBlock>("PrinterCameraTestResult");
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.LocalNetworkAccessMayBeOff, result.Text);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettings, open.Content);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, ToolTip.GetTip(open));
+            foreach (bool otherError in (bool[])[false, true])
+            {
+                if (otherError)
+                {
+                    // An invalid name (the marker on the Printer sub-tab header) keeps the shown result.
+                    printer.Name = new string('n', SettingsViewModel.MaxNameLength + 1);
+                    ui.Window.Settle();
+                    Assert.True(open.IsEffectivelyVisible);
+                }
+
+                foreach (Size size in (Size[])[new Size(780, 532), new Size(1366, 705)])
+                {
+                    ui.Window.Width = size.Width;
+                    ui.Window.Height = size.Height;
+                    ui.Window.Settle();
+                    string context = $"{language} / camera Local Network hint{(otherError ? " + name error" : string.Empty)} / {size}";
+                    problems.AddRange(ScrollingViewers(ui.Window, context));
+                    problems.AddRange(CutTexts(ui.Window, context));
+                    problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
+                    problems.AddRange(ButtonProblems(ui, open, "PrinterCameraOpenLocalNetworkSettings", context));
+                    if (result.Bounds.Width < 240)
+                    {
+                        problems.Add($"{context}: the hint is only {result.Bounds.Width:0.#} DIP wide.");
+                    }
+
+                    Point resultEnd = result.TranslatePoint(new Point(0, result.Bounds.Height), ui.Window) ?? default;
+                    Point buttonTop = open.TranslatePoint(default, ui.Window) ?? default;
+                    if (buttonTop.Y < resultEnd.Y - 0.5)
+                    {
+                        problems.Add($"{context}: the button at {buttonTop.Y:0.#} DIP overlaps the hint ending at {resultEnd.Y:0.#}.");
+                    }
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, privacy.Opened);
+
+            // Another result hides it.
+            cameraTester.Immediate = new CameraTestResult(CameraTestOutcome.Failed, Reason: "Connection refused.");
+            await printer.TestCameraCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+            Assert.False(open.IsEffectivelyVisible);
+            ui.Window.Close();
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
@@ -753,6 +1014,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 ConnectionTestOutcome.PasswordUnavailable => Strings.SettingsTestPasswordUnavailable,
                 ConnectionTestOutcome.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
                 ConnectionTestOutcome.NotSupported => Strings.SettingsTestNotSupported,
+                ConnectionTestOutcome.LocalNetworkAccessMayBeOff => Strings.LocalNetworkAccessMayBeOff,
                 _ => Strings.SettingsTestUnexpectedResponse,
             };
         }
@@ -766,7 +1028,11 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         const string Reason = "Connection to tcp://192.168.0.227:554?timeout=5000000 failed: Connection timed out";
         string failed = Format(Strings.SettingsCameraTestFailed, Reason);
         string timeout = Format(Strings.SettingsCameraTestTimeout, 15);
-        return failed.Length >= timeout.Length
+        // T-097 (macOS): the local network hint instead of the reason.
+        string localNetwork = Strings.LocalNetworkAccessMayBeOff;
+        return localNetwork.Length >= failed.Length && localNetwork.Length >= timeout.Length
+            ? new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: Reason)
+            : failed.Length >= timeout.Length
             ? new CameraTestResult(CameraTestOutcome.Failed, Reason: Reason)
             : new CameraTestResult(CameraTestOutcome.Timeout);
     }
@@ -822,6 +1088,69 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
     }
 
     /// <summary>Visible single-line texts that are narrower than the text they show (cut off by their container).</summary>
+    /// <summary>
+    /// T-019: the hint and the button under "Open at login" (macOS, needs approval): nothing cut, nothing scrolls, the hint in
+    /// at most two lines and the button inside the window, with its whole text.
+    /// </summary>
+    private static IEnumerable<string> ApprovalHintProblems(SettingsWindowHarness ui, TextBlock hint, Button open, string context)
+    {
+        foreach (string problem in ScrollingViewers(ui.Window, context).Concat(CutTexts(ui.Window, context)))
+        {
+            yield return problem;
+        }
+
+        if (hint.TextLayout.TextLines.Count > 2)
+        {
+            yield return $"{context}: the hint '{hint.Text}' takes {hint.TextLayout.TextLines.Count} lines.";
+        }
+
+        foreach (string problem in ButtonProblems(ui, open, "SettingsOpenLoginItems", context))
+        {
+            yield return problem;
+        }
+    }
+
+    /// <summary>
+    /// T-019: the status line keeps room to read (no column of single words) and the buttons stay inside the window.
+    /// </summary>
+    private static IEnumerable<string> StatusRowProblems(SettingsWindowHarness ui, string context)
+    {
+        TextBlock status = ui.Find<TextBlock>("SettingsStatus");
+        if (status.Bounds.Width < 240)
+        {
+            yield return $"{context}: the status has only {status.Bounds.Width:0.#} DIP.";
+        }
+
+        foreach (string id in (string[])["SettingsSave", "SettingsCancel"])
+        {
+            foreach (string problem in ButtonProblems(ui, ui.Find<Button>(id), id, context))
+            {
+                yield return problem;
+            }
+        }
+    }
+
+    /// <summary>A button outside the window, or narrower than its text.</summary>
+    private static IEnumerable<string> ButtonProblems(SettingsWindowHarness ui, Button button, string id, string context)
+    {
+        Point? corner = button.TranslatePoint(new Point(button.Bounds.Width, button.Bounds.Height), ui.Window);
+        if (corner is not { } end || end.X > ui.Window.ClientSize.Width + 0.5 || end.Y > ui.Window.ClientSize.Height + 0.5)
+        {
+            yield return $"{context}: {id} is outside the window.";
+        }
+
+        TextBlock? text = button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+        if (text is not null)
+        {
+            TextBlock probe = new() { Text = text.Text, FontFamily = text.FontFamily, FontSize = text.FontSize, FontWeight = text.FontWeight };
+            probe.Measure(Size.Infinity);
+            if (probe.DesiredSize.Width > text.Bounds.Width + 0.5)
+            {
+                yield return $"{context}: '{text.Text}' of {id} needs {probe.DesiredSize.Width:0.#} DIP but has {text.Bounds.Width:0.#}.";
+            }
+        }
+    }
+
     private static IEnumerable<string> CutTexts(Window window, string context)
     {
         foreach (TextBlock block in window.GetVisualDescendants().OfType<TextBlock>())

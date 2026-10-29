@@ -1,0 +1,3 @@
+/* Localized Info.plist values of LayerPeek.app (T-097); copied to Contents/Resources by New-MacAppBundle. */
+/* The explanation under the title of the macOS Local Network permission dialog. */
+"NSLocalNetworkUsageDescription" = "LayerPeek łączy się z drukarkami Prusa i ich kamerami w sieci lokalnej, aby wyświetlać stan drukowania i obraz z kamery.";

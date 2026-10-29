@@ -101,6 +101,77 @@ internal sealed class AppEnvironment
     /// <summary>The stand-in for the Startup folder inside the test data folder.</summary>
     internal const string TestStartupFolderName = "Startup";
 
+    /// <summary>
+    /// The bundle identifier of <c>LayerPeek.app</c> on macOS (T-019): <c>CFBundleIdentifier</c> of build/macos/Info.plist (a
+    /// unit test keeps them equal). The macOS identity of the app: its Preferences, Saved Application State, Caches, Login
+    /// Item and (T-020) notifications.
+    /// </summary>
+    internal const string ProductionBundleIdentifier = "io.github.pfoltynek.LayerPeek";
+
+    /// <summary>
+    /// The only bundle identifier whose notifications this run may use on macOS (T-020): <see cref="ProductionBundleIdentifier"/>;
+    /// in the Debug test mode with notifications (<c>LAYERPEEK_TEST_TOASTS=1</c>) the test bundle <c>…LayerPeek.E2E</c>, otherwise
+    /// none. The notification center opens only when the running bundle has exactly this identifier, so the test mode never
+    /// posts notifications or asks for permission as the production app, and the production app never as the test bundle.
+    /// </summary>
+    public string? NotificationBundleIdentifier
+    {
+        get
+        {
+            if (!IsIsolated)
+            {
+                return ProductionBundleIdentifier;
+            }
+
+#if DEBUG
+            return TestToasts ? TestBundleIdentifier : null;
+#else
+            return null;
+#endif
+        }
+    }
+
+    /// <summary>
+    /// The command line switch of the AOT smoke test (<c>scripts/aot-smoke.ps1</c>, user decision 2026-10-29, T-020): this run
+    /// does not open the notification center of macOS at all (not even to set its delegate), so the smoke
+    /// run of the release app leaves nothing in the notification settings of the developer. Exists in Release builds (the
+    /// smoke test runs them); it only takes notifications away from the one start that carries it, never changes the
+    /// bundle identifier, and is ignored on Windows. Deliberately not under the <c>--layerpeek-e2e-</c> prefix of the test
+    /// starts (those need the test mode): a start with it is a normal production start without notifications.
+    /// </summary>
+    internal const string SkipNotificationCenterArgument = "--layerpeek-smoke-skip-notification-center";
+
+    /// <summary>
+    /// The bundle identifier whose notification center this start may open on macOS: <see cref="NotificationBundleIdentifier"/>,
+    /// or none when the start carries <see cref="SkipNotificationCenterArgument"/> (exact, case-sensitive).
+    /// </summary>
+    internal string? NotificationBundleIdentifierFor(IReadOnlyList<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return SkipsNotificationCenter(arguments) ? null : NotificationBundleIdentifier;
+    }
+
+    /// <summary>Whether the start carries <see cref="SkipNotificationCenterArgument"/>.</summary>
+    internal static bool SkipsNotificationCenter(IReadOnlyList<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return arguments.Contains(SkipNotificationCenterArgument, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The stand-in Login Item of the test mode on macOS (T-019): <c>LoginItems/LayerPeek.loginitem</c> in the test data
+    /// folder, <see langword="null"/> outside the test mode (the real Login Item of <c>SMAppService</c>).
+    /// </summary>
+    public string? TestLoginItemPath() => _dataDirectory is null ? null : TestLoginItemPathIn(_dataDirectory);
+
+    /// <summary>The stand-in Login Item inside a test data folder.</summary>
+    internal static string TestLoginItemPathIn(string dataDirectory) => Path.Combine(dataDirectory, TestLoginItemFolderName, TestLoginItemFileName);
+
+    /// <summary>The folder of the stand-in Login Item inside the test data folder.</summary>
+    internal const string TestLoginItemFolderName = "LoginItems";
+
+    internal const string TestLoginItemFileName = "LayerPeek.loginitem";
+
 #if DEBUG
     /// <summary>
     /// Debug builds only: the test data folder (absolute path). Setting it switches the app into the isolated test mode;
@@ -128,11 +199,41 @@ internal sealed class AppEnvironment
     public const string TestStartDelayVariable = "LAYERPEEK_TEST_START_DELAY_MS";
 
     /// <summary>
+    /// Debug builds only (T-099): macOS reports no active display for this many milliseconds (1 to
+    /// <see cref="MaxTestNoDisplayMilliseconds"/>) after the start, so that the end-to-end test exercises the wait for a
+    /// display (T-096) with monitoring running meanwhile, without putting the display to sleep. Other OS: no effect.
+    /// </summary>
+    public const string TestNoDisplayVariable = "LAYERPEEK_TEST_NO_DISPLAY_MS";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
-    /// the reason on stderr.
+    /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
+    /// notifications of <see cref="TestBundleIdentifier"/> (refused in any other bundle).
     /// </summary>
     public const string ClearToastsArgument = "--layerpeek-e2e-clear-toasts";
+
+    /// <summary>
+    /// Debug builds only (T-019): the command line mode that removes the stand-ins of the test mode's autostart from the test
+    /// data folder of <see cref="DataDirectoryVariable"/> after a crashed test run (the Login Item of macOS and the Startup
+    /// shortcut of Windows), and nothing else: never <c>SMAppService</c>, the user's Login Items or Startup folder, no app, no
+    /// single-instance guard, no log; exit code 0, otherwise 1 with the reason on stderr.
+    /// </summary>
+    public const string ClearAutostartArgument = "--layerpeek-e2e-clear-autostart";
+
+    /// <summary>
+    /// Debug builds only (T-020): the bundle identifier of the test bundle <c>LayerPeek E2E.app</c> the end-to-end tests of
+    /// macOS notifications build (production identifier + <c>.E2E</c>); its notifications and permission are the test's own.
+    /// </summary>
+    public const string TestBundleIdentifier = ProductionBundleIdentifier + ".E2E";
+
+    /// <summary>
+    /// Debug builds only (T-020): the command line mode of the test bundle that prints the notification permission and the
+    /// number of delivered notifications of the test bundle (<c>permission=&lt;…&gt; delivered=&lt;n&gt;</c>) and nothing else: asks
+    /// nothing, no app, no single-instance guard, no log; exit code 0, otherwise 1 with the reason on stderr. Refused
+    /// outside the test bundle.
+    /// </summary>
+    public const string NotificationStatusArgument = "--layerpeek-e2e-notification-status";
 
     /// <summary>The Start menu shortcut of the test app; also the app name Windows shows in its toasts (T-067).</summary>
     public const string TestShortcutFileName = "LayerPeek E2E.lnk";
@@ -148,6 +249,9 @@ internal sealed class AppEnvironment
 
     /// <summary>The longest start delay of the test mode.</summary>
     public const int MaxTestStartDelayMilliseconds = 60_000;
+
+    /// <summary>The longest pretended time without a display in the test mode.</summary>
+    public const int MaxTestNoDisplayMilliseconds = 120_000;
 
     /// <summary>
     /// Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch,
@@ -184,6 +288,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestStartDelayVariable"/>: how much later monitoring starts.</summary>
     public TimeSpan TestStartDelay { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestNoDisplayVariable"/>: how long macOS reports no active display.</summary>
+    public TimeSpan TestNoDisplay { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -191,8 +298,9 @@ internal sealed class AppEnvironment
     /// <param name="toasts">Real toasts as the test app (T-067).</param>
     /// <param name="credentialPrefix">The Credential Manager instead of the in-memory store, under this prefix (T-067).</param>
     /// <param name="startDelay">How much later monitoring starts (T-067).</param>
+    /// <param name="noDisplay">How long macOS reports no active display (T-099).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
-    public static AppEnvironment ForTests(string dataDirectory, bool toasts = false, string? credentialPrefix = null, TimeSpan startDelay = default)
+    public static AppEnvironment ForTests(string dataDirectory, bool toasts = false, string? credentialPrefix = null, TimeSpan startDelay = default, TimeSpan noDisplay = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -210,11 +318,17 @@ internal sealed class AppEnvironment
             throw new ArgumentOutOfRangeException(nameof(startDelay), startDelay, "The start delay of the test mode is out of range.");
         }
 
+        if (noDisplay < TimeSpan.Zero || noDisplay > TimeSpan.FromMilliseconds(MaxTestNoDisplayMilliseconds))
+        {
+            throw new ArgumentOutOfRangeException(nameof(noDisplay), noDisplay, "The time without a display of the test mode is out of range.");
+        }
+
         return new AppEnvironment(Path.GetFullPath(dataDirectory), isolated: true)
         {
             TestToasts = toasts,
             TestCredentialPrefix = credentialPrefix,
             TestStartDelay = startDelay,
+            TestNoDisplay = noDisplay,
         };
     }
 
@@ -230,10 +344,11 @@ internal sealed class AppEnvironment
         string? toasts = read(TestToastsVariable);
         string? credentialPrefix = read(TestCredentialPrefixVariable);
         string? startDelay = read(TestStartDelayVariable);
+        string? noDisplay = read(TestNoDisplayVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -248,7 +363,8 @@ internal sealed class AppEnvironment
             dataDirectory.Trim(),
             toasts: toasts == "1",
             credentialPrefix: string.IsNullOrEmpty(credentialPrefix) ? null : credentialPrefix,
-            startDelay: ParseStartDelay(startDelay));
+            startDelay: ParseMilliseconds(startDelay, TestStartDelayVariable, MaxTestStartDelayMilliseconds),
+            noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds));
     }
 
     /// <summary>Under the test root, with a name of its own after it; never the production prefix.</summary>
@@ -257,7 +373,7 @@ internal sealed class AppEnvironment
         && prefix.StartsWith(TestCredentialPrefixRoot, StringComparison.Ordinal)
         && !prefix.Any(char.IsWhiteSpace);
 
-    private static TimeSpan ParseStartDelay(string? value)
+    private static TimeSpan ParseMilliseconds(string? value, string variable, int maximum)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -265,9 +381,9 @@ internal sealed class AppEnvironment
         }
 
         if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int milliseconds)
-            || milliseconds > MaxTestStartDelayMilliseconds)
+            || milliseconds > maximum)
         {
-            throw new ArgumentException($"{TestStartDelayVariable} must be a whole number of milliseconds from 0 to {MaxTestStartDelayMilliseconds}.", nameof(value));
+            throw new ArgumentException($"{variable} must be a whole number of milliseconds from 0 to {maximum}.", nameof(value));
         }
 
         return TimeSpan.FromMilliseconds(milliseconds);

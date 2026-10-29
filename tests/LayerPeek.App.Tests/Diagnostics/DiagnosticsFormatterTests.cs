@@ -207,6 +207,8 @@ public sealed class DiagnosticsFormatterTests
         using (new CultureScope("cs-CZ"))
         {
             Assert.Equal("Tiskárna není dostupná.", DiagnosticsFormatter.Problem(PrinterProblem.NotReachable));
+            // T-097: without a local network permission (Windows) "no route to host" reads like any failed connection.
+            Assert.Equal("Tiskárna není dostupná.", DiagnosticsFormatter.Problem(PrinterProblem.HostUnreachable));
         }
     }
 }

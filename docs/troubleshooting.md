@@ -129,6 +129,43 @@ git worktree remove <ta složka>
 Ručně: podle tabulky výše se starými názvy (`PrusaTrayDiagnostic.E2E`, `Prusa Tray Diagnostic E2E.lnk`, testovací
 aktivátor `{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}`, `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests`), potom složku smazat.
 
+## Upozornění se na macOS nezobrazují
+
+- LayerPeek posílá upozornění jen jako aplikace `LayerPeek.app` (ne vývojové sestavení spuštěné přes `dotnet run`). O povolení macOS požádá až s prvním upozorněním, a to vlastním oznámením s dotazem (Volby → Povolit; přesné znění určuje macOS).
+- Když jsou upozornění v macOS vypnutá, okno Nastavení to na záložce Obecné u sekce Upozornění řekne a tlačítkem otevře Nastavení systému → Oznámení → LayerPeek. Po povolení zmizí hláška hned, jak se do okna vrátíte. Log obsahuje větu „Notifications of io.github.pfoltynek.LayerPeek are turned off in macOS“.
+- Do logu se zapíše i každá chyba macOS při zobrazení upozornění („macOS did not show a notification (code …)“).
+
+*Pro vývojáře (T-020).* Skutečné notifikace ověřuje jen E2E test na vyžádání (běžný `dotnet test` žádný bundle nestaví a o povolení nežádá):
+
+```bash
+LAYERPEEK_E2E=1 dotnet test --project tests/LayerPeek.App.Tests -- --filter-class "*MacNotificationsE2ETests"
+```
+
+Test sestaví Debug aplikaci jako `LayerPeek E2E.app` s identifikátorem `io.github.pfoltynek.LayerPeek.E2E` (ad-hoc podpis) v `artifacts/e2e-macos-notifications/` a spustí ji v testovacím režimu proti simulované tiskárně. Produkční identifikátor ani jeho povolení nepoužije.
+1. Při prvním běhu macOS požádá o povolení oznámením „LayerPeek E2E“. Test na odpověď čeká 2 minuty, jinak se přeskočí s postupem. Zvolte Povolit (nebo Nastavení systému → Oznámení → LayerPeek E2E → Povolit oznámení) a spusťte test znovu.
+2. Při uspaném displeji aplikace s uživatelským rozhraním čeká, až se displej probudí (T-096); tiskárnu sleduje a oznámení posílá už během čekání (T-099), ale tento test tak ověřen nebyl. Pouštějte ho s probuzeným displejem, případně `caffeinate -d -u -t 600 &` předem.
+3. Klik na oznámení test neumí (vyžadovalo by oprávnění Zpřístupnění). Ručně: při běžícím testu (nebo běžící `LayerPeek.app`) klikněte na oznámení – otevře se web tiskárny (v testovacím režimu se adresa jen zapíše do `opened-urls.txt`).
+4. Po pádu testu uklidí notifikace testovacího bundlu `".../LayerPeek E2E.app/Contents/MacOS/LayerPeek" --layerpeek-e2e-clear-toasts` (jen Debug, jen v testovacím bundlu). Registraci v LaunchServices odstraní `lsregister -u <cesta k bundlu>` (další běh testu odregistruje staré testovací bundly sám).
+5. Položka „LayerPeek E2E“ v Nastavení systému → Oznámení zůstane (macOS ji neumí odstranit skriptem); je to známý pozůstatek a nevadí.
+
+## LayerPeek se na macOS po startu neobjeví v menu baru (uspaný displej)
+
+- Když se LayerPeek spouští ve chvíli, kdy žádný displej není aktivní (displej uspaný, zavřené víko bez monitoru, „Otevřít při přihlášení“ během spánku displeje), počká, až se displej probudí, a teprve pak se objeví v menu baru (nejpozději asi sekundu po probuzení). Do té doby běží proces bez ikony, ale tiskárny už sleduje a posílá oznámení (T-099); klik na oznámení otevře web tiskárny. Ikona po probuzení hned ukazuje aktuální stav. Důvod: Avalonia na macOS při startu vytváří `CVDisplayLink` pro aktivní displeje a bez nich skončí chybou `kCVReturnInvalidDisplay` (-6661, „Avalonia.Native was not able to start the RenderTimer“); dřívější verze proto při startu spadly.
+- Log obsahuje „No active display (all displays asleep or none connected): the menu bar item starts once a display is active.“, hned po něm „Starting printer monitoring and notifications while waiting for an active display.“ a po probuzení „… active display(s) after …; starting the UI.“ a „The menu bar item attaches to the monitoring that already runs.“.
+- Druhý start během čekání jen předá aktivaci čekající instanci a skončí (jedna instance, T-043); čekající instance si aktivaci zapamatuje (víc startů = jedna aktivace) a po probuzení displeje udělá totéž co druhý start jindy (otevře naposledy použité okno, jinak Nastavení); v logu „The instance command Activate waits for the menu bar item …“. Ukončení přes `kill` (SIGTERM) nebo Ctrl+C čekání ukončí bez chyby a sledování tiskáren zastaví (nejdéle asi 5 s).
+- Když se displej uspí až během startu (v okně milisekund mezi kontrolou a inicializací Avalonie), může aplikace stále skončit uvedenou chybou; v logu je pak její zásobník. Spusťte ji znovu.
+- *Pro vývojáře.* `scripts/aot-smoke.ps1` ověřuje, že aplikace 10 s běží a je typu `UIElement`. S uspaným displejem už nespadne, ale čeká bez rozhraní a bez AppKitu, takže kontrola typu v LaunchServices nejspíš neprojde (neověřeno) a smoke test by ověřil jen čekání, ne start rozhraní. Smoke test (i `release-build.ps1`) proto dál pouštějte s probuzeným displejem, např. `caffeinate -d -u -i pwsh scripts/release-build.ps1` (`caffeinate` jen drží displej vzhůru, nic nenastavuje).
+- *Pro vývojáře.* Čekání bez uspání displeje ověřuje E2E test na vyžádání (T-099): `LAYERPEEK_E2E=1 caffeinate -d -u dotnet test --project tests/LayerPeek.App.Tests -- --filter-class "*MacDisplayWaitE2ETests"`. Sestaví testovací `LayerPeek E2E.app` (jako test notifikací, po sobě ho uklidí včetně registrace v LaunchServices a domény předvoleb), spustí Debug aplikaci v testovacím režimu s `LAYERPEEK_TEST_NO_DISPLAY_MS` proti simulované tiskárně a ověří sledování během čekání, připojení menu baru, jednu aktivaci po čekání a ukončení s kódem 0 (příkaz quit i SIGTERM). Notifikace nezkouší (potřebují spuštění přes LaunchServices a oprávnění testovacího bundlu). Po probuzení se krátce otevře okno Nastavení (aktivace).
+
+## Tiskárna nebo kamera na macOS není dostupná (oprávnění Místní síť)
+
+- Od macOS 15 potřebuje každá aplikace pro spojení se zařízením v místní síti oprávnění **Místní síť**. Při prvním spojení s tiskárnou nebo kamerou se macOS zeptá („„LayerPeek“ chce vyhledávat a připojovat se k zařízením v místní síti“, přesné znění určuje macOS) s vysvětlením, proč ho LayerPeek potřebuje.
+- Dokud oprávnění není povolené (dotaz ještě visí nebo bylo zamítnuto), macOS spojení hned odmítne chybou „No route to host“. LayerPeek pak u adresy v místní síti místo „Tiskárna není dostupná“ napíše „Bez spojení. LayerPeek možná nemá povolený přístup k místní síti v Nastavení systému > Soukromí a zabezpečení > Místní síť.“ (okno Diagnostika, Otestovat připojení, test kamery, okno kamery). Stejnou chybu mají i běžné příčiny (tiskárna vypnutá, jiná podsíť), proto „možná“.
+- Povolení: **Nastavení systému → Soukromí a zabezpečení → Místní síť → LayerPeek** zapnout. Spojení se pak obnoví samo při dalším pokusu. V okně Diagnostika a pod výsledkem „Otestovat připojení“ a testu kamery je u hlášky tlačítko **Otevřít Nastavení systému**, které otevře panel Místní síť (když ho macOS nezná, aspoň Soukromí a zabezpečení).
+- Log obsahuje větu „Local Network access for LayerPeek may be off (System Settings > Privacy & Security > Local Network)“, jednou za tiskárnu nebo kameru a běh.
+- Aplikace s ad-hoc podpisem (bez Developer ID, T-060): macOS podle TN3179 nemusí identitu aplikace pro toto oprávnění spolehlivě sledovat, po aktualizaci se proto může zeptat znovu.
+- Vývojové sestavení spuštěné z Terminálu (`dotnet run`, testy) se macOS neptá: procesy z Terminálu mají přístup povolený automaticky. Simulátor na `127.0.0.1` místní síť není.
+
 ## Přechod ze starého názvu PrusaTrayDiagnostic (jen vývojové počítače)
 
 Aplikace se do prvního vydání jmenovala Prusa Tray Diagnostic (T-074). Sama nic nepřevádí. Na počítači, kde běžely staré
@@ -144,7 +181,7 @@ pwsh tools/migrate-from-prusatraydiagnostic.ps1 -RemoveOld  # později: jen smaz
   staré složky zapíše značku `.migrated-to-LayerPeek`; smazat lze jen starou složku se značkou.
 - **Staré logy nekopíruje** (`%LOCALAPPDATA%\PrusaTrayDiagnostic\logs`): LayerPeek začne vlastní log. Kdo je chce
   schovat, zkopíruje si je ručně před smazáním.
-- **Pozor, LayerPeek už běžel** (např. `dotnet run`, `scripts/aot-smoke.ps1` – běží se skutečným nastavením): pak
+- **Pozor, LayerPeek už běžel** (např. `dotnet run`; `scripts/aot-smoke.ps1` od T-095 složky dat a logů po běhu vrátí do původního stavu): pak
   `%APPDATA%\LayerPeek` už existuje, skript starou složku nezkopíruje (stav `TargetExists`) a nikdy ji nesmaže
   („existed before the migration“). Kdo chce stará data, nejdřív ukončí LayerPeek, novou složku sám přesune jinam
   (nebo smaže) a skript spustí znovu.

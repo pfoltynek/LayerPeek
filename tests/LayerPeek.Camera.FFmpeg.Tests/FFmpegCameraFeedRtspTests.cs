@@ -143,6 +143,8 @@ public sealed class FFmpegCameraFeedRtspTests
 
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(15), $"Failing took {watch.Elapsed}.");
         Assert.Matches("refused|timed out", error.Message);
+        // A refused connection is not "no route to host" (T-097).
+        Assert.False(error.IsHostUnreachable);
         Assert.DoesNotContain("127.0.0.1", error.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("rtsp", error.Message, StringComparison.OrdinalIgnoreCase);
         Assert.False(feed.HoldsNativeResources);

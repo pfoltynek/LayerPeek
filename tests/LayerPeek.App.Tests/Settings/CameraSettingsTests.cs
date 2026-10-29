@@ -1,5 +1,6 @@
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tests.Tray.Menu;
 using LayerPeek.Core.Cameras;
@@ -44,6 +45,7 @@ public sealed class CameraSettingsTests : IDisposable
     private readonly FakeEditorStore _store = new();
     private readonly FakeConnectionTester _tester = new();
     private readonly FakeCameraTester _cameraTester = new();
+    private readonly FakeLocalNetworkPrivacy _localNetwork = new();
     private readonly string _directory = TestDirectories.NewDirectoryPath();
     private SettingsViewModel? _viewModel;
 
@@ -63,7 +65,7 @@ public sealed class CameraSettingsTests : IDisposable
     private async Task<SettingsViewModel> LoadAsync(IReadOnlySet<string>? removedCredentials = null, params PrinterDefinition[] printers)
     {
         _store.Data = new SettingsEditorData(new AppSettings { Printers = printers }, SettingsLoadStatus.Loaded, [], Ids(), removedCredentials);
-        SettingsViewModel vm = new(_store, _tester, Supported, cameraTester: _cameraTester);
+        SettingsViewModel vm = new(_store, _tester, Supported, cameraTester: _cameraTester, localNetwork: _localNetwork);
         _viewModel = vm;
         await vm.LoadAsync();
         return vm;
@@ -309,6 +311,55 @@ public sealed class CameraSettingsTests : IDisposable
 
         Assert.Equal(expected, printer.CameraTestResultText);
         Assert.True(printer.CameraTestFailed);
+    }
+
+    [Fact]
+    public async Task LocalNetworkHintOffersToOpenSystemSettings()
+    {
+        // T-097 (macOS 15+, user decision 2026-10-29): like next to Test connection; the fake opens nothing.
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera("rtsp://192.168.0.227/live"));
+        Assert.False(printer.ShowsCameraLocalNetworkSettings);
+        Assert.False(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
+        _cameraTester.Immediate = new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host.");
+
+        await printer.TestCameraCommand.ExecuteAsync(null);
+
+        Assert.Equal("No connection. Local Network access for LayerPeek may be turned off in System Settings > Privacy & Security > Local Network.", printer.CameraTestResultText);
+        Assert.True(printer.ShowsCameraLocalNetworkSettings);
+        Assert.False(printer.ShowsLocalNetworkSettings);
+        Assert.True(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
+        printer.OpenLocalNetworkSettingsCommand.Execute(null);
+        Assert.Equal(1, _localNetwork.Opened);
+
+        // Another result, and an edit of the tested address, hide it again.
+        _cameraTester.Immediate = new CameraTestResult(CameraTestOutcome.Failed, Reason: "Connection refused.");
+        await printer.TestCameraCommand.ExecuteAsync(null);
+        Assert.False(printer.ShowsCameraLocalNetworkSettings);
+        Assert.False(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
+        printer.OpenLocalNetworkSettingsCommand.Execute(null);
+        Assert.Equal(1, _localNetwork.Opened);
+
+        _cameraTester.Immediate = new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host.");
+        await printer.TestCameraCommand.ExecuteAsync(null);
+        Assert.True(printer.ShowsCameraLocalNetworkSettings);
+        printer.CameraUrl = "rtsp://192.168.0.228/live";
+        Assert.False(printer.ShowsCameraLocalNetworkSettings);
+        Assert.Null(printer.CameraTestResultText);
+    }
+
+    [Theory]
+    [InlineData(CameraTestOutcome.Success)]
+    [InlineData(CameraTestOutcome.Timeout)]
+    [InlineData(CameraTestOutcome.Failed)]
+    public async Task OtherCameraResultsNeverOfferTheLocalNetworkSettings(CameraTestOutcome outcome)
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync(Camera("rtsp://192.168.0.227/live"));
+        _cameraTester.Immediate = new CameraTestResult(outcome, 1280, 720, Reason: "x");
+
+        await printer.TestCameraCommand.ExecuteAsync(null);
+
+        Assert.False(printer.ShowsCameraLocalNetworkSettings);
+        Assert.False(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
     }
 
     [Fact]

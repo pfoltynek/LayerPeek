@@ -20,6 +20,7 @@ using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
+using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
 
@@ -430,7 +431,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
                 Assert.Equal(FontWeight.SemiBold, nozzle.FontWeight);
                 Assert.Equal(Primary, ColorOf(nozzle.Foreground));
                 TextBlock detail = Text(window, DetailId);
-                Assert.Equal($"print finished at 12:00 PM · cooled down in {cooledIn}\u00A0min", detail.Text);
+                Assert.Equal(CultureTime.EnUs($"print finished at 12:00 PM · cooled down in {cooledIn}\u00A0min"), detail.Text);
                 // M: 96 with one detail line (T-076 2.5: 96–112).
                 int lines = detail.TextLayout.TextLines.Count;
                 double height = large ? 14 + 24 + 8 + 22 + 8 + (lines * 18) + 14 : 12 + 20 + 8 + 20 + 8 + (lines * 16) + 12;
@@ -438,7 +439,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             }
 
             Assert.Equal(
-                $"Cooled down – safe to turn off, Nozzle {widget.ShownNozzleCelsius}{Nb}°C, Bed 40{Nb}°C, print finished at 12:00 PM, cooled down in {cooledIn}\u00A0min",
+                CultureTime.EnUs($"Cooled down – safe to turn off, Nozzle {widget.ShownNozzleCelsius}{Nb}°C, Bed 40{Nb}°C, print finished at 12:00 PM, cooled down in {cooledIn}\u00A0min"),
                 card.GetValue(AutomationProperties.NameProperty));
         });
 
@@ -450,7 +451,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             CameraWindow window = await OpenAsync(harness);
             await CoolDownAsync(harness, window, PrinterState.Stopped);
 
-            Assert.StartsWith("print stopped at 12:00 PM · cooled down in ", Text(window, DetailId).Text, StringComparison.Ordinal);
+            Assert.StartsWith(CultureTime.EnUs("print stopped at 12:00 PM · cooled down in "), Text(window, DetailId).Text, StringComparison.Ordinal);
         });
 
     [Fact]
@@ -492,7 +493,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             await Ui.UntilAsync(() => Widget(window).IsShown && Widget(window).IsCooled, "Cooled down card");
             window.Settle();
 
-            Assert.Equal("print finished at 12:00 PM", Text(window, DetailId).Text);
+            Assert.Equal(CultureTime.EnUs("print finished at 12:00 PM"), Text(window, DetailId).Text);
         });
 
     [Fact]

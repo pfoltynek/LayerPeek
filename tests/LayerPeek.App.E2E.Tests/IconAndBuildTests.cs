@@ -36,6 +36,9 @@ public sealed class IconAndBuildTests(E2EFixture fixture)
         // T-068: the test app's toast activator and the test switches in its command line.
         AppSwitches.TestToastActivatorClsid,
         AppSwitches.TestEnvironmentArgument,
+        // T-020: the macOS test bundle and its status mode.
+        AppSwitches.NotificationStatusArgument,
+        AppSwitches.TestBundleIdentifier,
     ];
 
     [Fact]

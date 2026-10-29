@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+
 using LayerPeek.App.Cameras;
 using LayerPeek.Core.Cameras;
 
@@ -257,6 +259,63 @@ public sealed class CameraMiniGeometryTests
         // Bigger than the work area: as big as it.
         Assert.Equal(Primary, CameraMiniGeometry.Grow(new PixelBounds(100, 10, 300, 192), 3000, 2000, Primary));
     }
+
+    // ---- Resizing by a grip the window follows itself (macOS, T-038) ----
+
+    private static readonly CameraWindowPlacement Dragged = new(1000, 800, 320, 213);
+
+    [Theory]
+    [InlineData(WindowEdge.East, 40, 25, 1000, 800, 360, 213)]
+    [InlineData(WindowEdge.South, 40, 25, 1000, 800, 320, 238)]
+    [InlineData(WindowEdge.SouthEast, 40, 25, 1000, 800, 360, 238)]
+    [InlineData(WindowEdge.West, -40, 25, 960, 800, 360, 213)]
+    [InlineData(WindowEdge.North, 40, -25, 1000, 775, 320, 238)]
+    [InlineData(WindowEdge.NorthWest, -40, -25, 960, 775, 360, 238)]
+    [InlineData(WindowEdge.NorthEast, 40, -25, 1000, 775, 360, 238)]
+    [InlineData(WindowEdge.SouthWest, -40, 25, 960, 800, 360, 238)]
+    [InlineData(WindowEdge.West, 30, 0, 1030, 800, 290, 213)]
+    [InlineData(WindowEdge.North, 0, 13, 1000, 813, 320, 200)]
+    public void DraggedEdgesFollowThePointerAndTheOppositeEdgesStay(WindowEdge edge, int dx, int dy, int x, int y, double width, double height)
+    {
+        CameraWindowPlacement window = CameraMiniGeometry.Resized(Dragged, edge, dx, dy, 1.0, CameraMiniGeometry.MinWidth, 90);
+
+        Assert.Equal(new CameraWindowPlacement(x, y, width, height), window);
+        // The right and the bottom edge in pixels stay unless they are dragged.
+        if (edge is WindowEdge.West or WindowEdge.NorthWest or WindowEdge.SouthWest)
+        {
+            Assert.Equal(Dragged.X + 320, window.X + (int)window.Width);
+        }
+    }
+
+    [Fact]
+    public void PointerMovesAlongTheDraggedEdgeOnlyChangeThatEdge()
+    {
+        // The east grip ignores vertical movement, the south grip horizontal movement.
+        Assert.Equal(Dragged with { Width = 330 }, CameraMiniGeometry.Resized(Dragged, WindowEdge.East, 10, 300, 1.0, CameraMiniGeometry.MinWidth, 90));
+        Assert.Equal(Dragged with { Height = 223 }, CameraMiniGeometry.Resized(Dragged, WindowEdge.South, 300, 10, 1.0, CameraMiniGeometry.MinWidth, 90));
+    }
+
+    [Fact]
+    public void ADraggedEdgeStopsAtTheMinimumSize()
+    {
+        Assert.Equal(new CameraWindowPlacement(1000, 800, CameraMiniGeometry.MinWidth, 90), CameraMiniGeometry.Resized(Dragged, WindowEdge.SouthEast, -1000, -1000, 1.0, CameraMiniGeometry.MinWidth, 90));
+        // Dragged from the left and the top, the right and the bottom edge stay where they were.
+        CameraWindowPlacement fromTopLeft = CameraMiniGeometry.Resized(Dragged, WindowEdge.NorthWest, 1000, 1000, 1.0, CameraMiniGeometry.MinWidth, 90);
+        Assert.Equal(new CameraWindowPlacement(1000 + 320 - (int)CameraMiniGeometry.MinWidth, 800 + 213 - 90, CameraMiniGeometry.MinWidth, 90), fromTopLeft);
+    }
+
+    [Fact]
+    public void PointerPixelsAreConvertedWithTheScalingOfTheMonitor()
+    {
+        // 150 %: 60 px are 40 DIP; the left edge moves by what the window gained in pixels.
+        CameraWindowPlacement window = CameraMiniGeometry.Resized(new CameraWindowPlacement(-1500, 400, 320, 180), WindowEdge.West, -60, 0, 1.5, CameraMiniGeometry.MinWidth, 90);
+
+        Assert.Equal(new CameraWindowPlacement(-1560, 400, 360, 180), window);
+    }
+
+    [Fact]
+    public void NoMovementKeepsTheWindow() =>
+        Assert.Equal(Dragged, CameraMiniGeometry.Resized(Dragged, WindowEdge.NorthWest, 0, 0, 1.0, CameraMiniGeometry.MinWidth, 90));
 
     private static PixelBounds Pixels(CameraWindowPlacement window, double scaling) => new(
         window.X,

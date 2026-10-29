@@ -169,6 +169,35 @@ public sealed class ReconnectingCameraFeedTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task HostUnreachableIsKeptInTheStatus()
+    {
+        _ = Next();
+        FakeCameraFeed stream = (await _factory.NextStreamAsync())!;
+        await _status.NextAsync();
+
+        // T-097: "no route to host" reaches the UI, which may explain it per platform.
+        stream.Fail(new CameraFeedException("Opening the stream: No route to host.") { IsHostUnreachable = true });
+
+        CameraStatus error = await _status.NextAsync();
+        Assert.Equal(CameraConnectionState.Error, error.State);
+        Assert.True(error.IsHostUnreachable);
+        Assert.Equal("Opening the stream: No route to host.", error.Reason);
+        Assert.NotEqual(new CameraStatus(CameraConnectionState.Error, error.Reason), error);
+    }
+
+    [Fact]
+    public async Task OtherFailuresAreNotHostUnreachable()
+    {
+        _ = Next();
+        FakeCameraFeed stream = (await _factory.NextStreamAsync())!;
+        await _status.NextAsync();
+
+        stream.Fail(new CameraFeedException("Opening the stream: Connection refused."));
+
+        Assert.False((await _status.NextAsync()).IsHostUnreachable);
+    }
+
+    [Fact]
     public async Task OtherExceptionReasonContainsOnlyItsType()
     {
         _ = Next();

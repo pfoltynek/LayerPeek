@@ -1,8 +1,10 @@
 using System.Collections.ObjectModel;
 
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 
 using LayerPeek.App.Localization;
+using LayerPeek.App.Platform;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
@@ -64,6 +66,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
 
     // UI thread only.
     private Dictionary<string, PrinterDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILocalNetworkPrivacy _localNetwork;
 
     // Printer to show as soon as the configured printers are known (opened from a printer submenu while monitoring was
     // starting, or a request racing a configuration change); cleared by the next printer list.
@@ -83,6 +86,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
     private string? _notice;
     private string _stateText = string.Empty;
     private string? _detailText;
+    private bool _showsLocalNetworkSettings;
     private string _lastUpdateText = string.Empty;
     private string _nozzleActualText = string.Empty;
     private string _nozzleTargetText = string.Empty;
@@ -116,7 +120,8 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         IPrinterInfoSource infoSource,
         TimeProvider clock,
         string? initialPrinterId = null,
-        CustomPrinterImages? images = null)
+        CustomPrinterImages? images = null,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(printers);
@@ -126,6 +131,8 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         ArgumentNullException.ThrowIfNull(clock);
         _monitor = monitor;
         _monitoredPrinters = printers;
+        _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
+        OpenLocalNetworkSettingsCommand = new RelayCommand(OpenLocalNetworkSettings, () => _showsLocalNetworkSettings);
         _dispatcher = dispatcher;
         _infoSource = infoSource;
         _apply = Apply;
@@ -261,6 +268,25 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
     }
 
     public bool HasDetail => _detailText is not null;
+
+    /// <summary>
+    /// macOS 15+ (T-097, user decision 2026-10-29): the detail is the Local Network hint; the window offers to open System
+    /// Settings &gt; Privacy &amp; Security &gt; Local Network (<see cref="OpenLocalNetworkSettingsCommand"/>).
+    /// </summary>
+    public bool ShowsLocalNetworkSettings
+    {
+        get => _showsLocalNetworkSettings;
+        private set
+        {
+            if (SetProperty(ref _showsLocalNetworkSettings, value))
+            {
+                OpenLocalNetworkSettingsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Opens the Local Network settings of the OS (<see cref="ILocalNetworkPrivacy.OpenSettings"/>).</summary>
+    public IRelayCommand OpenLocalNetworkSettingsCommand { get; }
 
     public string LastUpdateText
     {
@@ -758,6 +784,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         {
             StateText = TrayText.StateName(null);
             DetailText = null;
+            ShowsLocalNetworkSettings = false;
             LastUpdateText = DiagnosticsFormatter.Missing;
             NozzleActualText = NozzleTargetText = BedActualText = BedTargetText = DiagnosticsFormatter.Missing;
             HotendFanText = PrintFanText = SpeedText = FlowText = AxisZText = DiagnosticsFormatter.Missing;
@@ -765,7 +792,9 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         }
 
         StateText = TrayText.StateName(content.State);
-        DetailText = DiagnosticsFormatter.Problem(content.Problem) ?? content.Message;
+        bool localNetwork = IsLocalNetworkProblem(content.Problem);
+        DetailText = localNetwork ? Strings.LocalNetworkAccessMayBeOff : DiagnosticsFormatter.Problem(content.Problem) ?? content.Message;
+        ShowsLocalNetworkSettings = localNetwork;
         LastUpdateText = DiagnosticsFormatter.Timestamp(content.Timestamp, Clock.GetUtcNow(), Clock.LocalTimeZone);
         NozzleActualText = DiagnosticsFormatter.Temperature(content.NozzleActual);
         NozzleTargetText = DiagnosticsFormatter.TargetTemperature(content.NozzleTarget);
@@ -776,6 +805,24 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         SpeedText = DiagnosticsFormatter.Percent(content.SpeedPercent);
         FlowText = DiagnosticsFormatter.Percent(content.FlowPercent);
         AxisZText = DiagnosticsFormatter.Millimetres(content.AxisZ, DiagnosticsFormatter.AxisZDecimals);
+    }
+
+    /// <summary>
+    /// Whether the problem of the shown printer gets the Local Network hint: "no route to host" to a printer in the local
+    /// network may be the denied Local Network permission of macOS (T-097).
+    /// </summary>
+    private bool IsLocalNetworkProblem(PrinterProblem problem) =>
+        problem == PrinterProblem.HostUnreachable
+        && _selectedPrinter is { } selected
+        && _localNetwork.MayBeDenied(LocalNetworkPrivacyObserver.HostOf(_definitions.GetValueOrDefault(selected.Id)), LocalNetworkPrivacyObserver.PrinterSubject(selected.Id));
+
+    /// <summary>T-097: System Settings &gt; Privacy &amp; Security &gt; Local Network, only while the hint is shown.</summary>
+    private void OpenLocalNetworkSettings()
+    {
+        if (_showsLocalNetworkSettings)
+        {
+            _localNetwork.OpenSettings();
+        }
     }
 
     /// <summary>UI thread: cancels a pending request and asks for the information of <paramref name="printer"/>.</summary>

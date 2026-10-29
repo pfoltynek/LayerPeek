@@ -6,7 +6,9 @@ using System.Text;
 
 using Microsoft.Extensions.Time.Testing;
 
+using LayerPeek.App.Platform;
 using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
@@ -195,8 +197,38 @@ public sealed class PrusaLinkConnectionTesterTests : IDisposable
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => test.WaitAsync(TestTimeouts.Wait, Ct));
     }
 
-    private PrusaLinkConnectionTester Create(TimeProvider? time = null) =>
-        new(new SingleHandlerFactory(_printer), _secrets, time ?? TimeProvider.System, _logger);
+    [Fact]
+    public async Task NoRouteToALocalPrinterMayBeTheLocalNetworkPermission()
+    {
+        // T-097: what a denied Local Network permission of macOS 15+ looks like (EHOSTUNREACH); simulated, nothing is sent.
+        _printer.Failure = new HttpRequestException(HttpRequestError.ConnectionError, "No route to host", new SocketException((int)SocketError.HostUnreachable));
+        FakeLocalNetworkPrivacy privacy = new();
+
+        ConnectionTestResult local = await Create(localNetwork: privacy).TestAsync(LinkPrinter("a", "Alpha", "http://192.168.1.20:8080"), "pw", Ct);
+        ConnectionTestResult routed = await Create(localNetwork: privacy).TestAsync(LinkPrinter("b", "Beta", "printer.example.com"), "pw", Ct);
+        // Where the OS has no such permission (Windows, macOS 14) it stays "not reachable".
+        ConnectionTestResult elsewhere = await Create().TestAsync(LinkPrinter("a", "Alpha"), "pw", Ct);
+
+        Assert.Equal(ConnectionTestOutcome.LocalNetworkAccessMayBeOff, local.Outcome);
+        Assert.Equal(ConnectionTestOutcome.NotReachable, routed.Outcome);
+        Assert.Equal(ConnectionTestOutcome.NotReachable, elsewhere.Outcome);
+        Assert.Equal([("192.168.1.20", "printer 'a'"), ("printer.example.com", "printer 'b'")], privacy.Calls);
+    }
+
+    [Fact]
+    public async Task ARefusedConnectionIsNeverTheLocalNetworkPermission()
+    {
+        _printer.Failure = new HttpRequestException(HttpRequestError.ConnectionError, "Connection refused", new SocketException((int)SocketError.ConnectionRefused));
+        FakeLocalNetworkPrivacy privacy = new();
+
+        ConnectionTestResult result = await Create(localNetwork: privacy).TestAsync(LinkPrinter("a", "Alpha"), "pw", Ct);
+
+        Assert.Equal(ConnectionTestOutcome.NotReachable, result.Outcome);
+        Assert.Empty(privacy.Calls);
+    }
+
+    private PrusaLinkConnectionTester Create(TimeProvider? time = null, ILocalNetworkPrivacy? localNetwork = null) =>
+        new(new SingleHandlerFactory(_printer), _secrets, time ?? TimeProvider.System, _logger, localNetwork);
 
     private sealed class SingleHandlerFactory(HttpMessageHandler handler) : IHttpClientFactory
     {

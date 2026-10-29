@@ -1,45 +1,88 @@
 <Project>
   <!--
-    Native FFmpeg libraries (LGPL shared build by BtbN, pinned release, decided in T-014).
+    Native FFmpeg libraries, LGPL shared builds of the same FFmpeg version on both platforms:
+    - win-x64: the pinned LGPL shared release by BtbN (decided in T-014), downloaded.
+    - osx-arm64: built from the official FFmpeg source tarball by build/macos/build-ffmpeg.sh (T-026, decided
+      2026-10-29: BtbN does not build for macOS and Homebrew's FFmpeg is GPL). Takes about half a minute, once.
 
     Imported ONLY by src/LayerPeek.Camera.FFmpeg. The DLLs are None items with CopyToOutputDirectory and
     CopyToPublishDirectory, so every project that references the FFmpeg project (App, tests) gets them in its output
     and publish directory transitively. Do not import this file into a referencing project as well: the DLLs would be
     listed twice and publish fails with NETSDK1152 (duplicate output paths).
 
-    The archive is downloaded once into a per-user cache outside the repository, verified against the pinned SHA256
-    (the build fails on mismatch), extracted, and only the needed DLLs and the license text are kept in the cache.
-    Later builds only check the cache. Nothing is downloaded during design-time builds (IDE).
+    The archive (Windows: the binaries, macOS: the source) is downloaded once into a per-user cache outside the
+    repository, verified against the pinned SHA256 (the build fails on mismatch), extracted (macOS: and compiled), and
+    only the needed libraries and the license text are kept in the cache. Later builds only check the cache. Nothing is
+    downloaded or built during design-time builds (IDE).
 
-    Windows x64 only for now; on other platforms / runtime identifiers nothing happens (macOS: task T-026).
+    Windows x64 and macOS arm64 (host and runtime identifier) only; elsewhere nothing happens.
 
     Overridable properties:
-      LayerPeekFFmpegCacheRoot  cache root (default %LOCALAPPDATA%\LayerPeek.Build\ffmpeg\; also as environment variable)
+      LayerPeekFFmpegCacheRoot  cache root (default %LOCALAPPDATA%\LayerPeek.Build\ffmpeg\ on Windows,
+                                ~/Library/Caches/LayerPeek.Build/ffmpeg/ on macOS; also as environment variable)
       LayerPeekFFmpegEnabled    set to false to skip the native libraries entirely
   -->
   <PropertyGroup>
+    <!--
+      A new version: build/update-ffmpeg.ps1 verifies the BtbN zip (checksums.sha256 of the release, archive folder,
+      LGPL 3 licence, the libraries below) and writes these three values.
+    -->
     <LayerPeekFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</LayerPeekFFmpegUrl>
     <LayerPeekFFmpegSha256>00ab3bc8fe02554bd0fffac9968bba498d1ab7e899a4871b85fbba828a50bfcc</LayerPeekFFmpegSha256>
     <!-- Top-level folder inside the archive. -->
     <LayerPeekFFmpegArchiveFolder>ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0</LayerPeekFFmpegArchiveFolder>
 
-    <LayerPeekFFmpegEnabled Condition="'$(LayerPeekFFmpegEnabled)' == '' and $([MSBuild]::IsOSPlatform('Windows')) and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'win-x64')">true</LayerPeekFFmpegEnabled>
+    <!--
+      macOS (T-026): the official source tarball of the same release as the BtbN build above (n9.0.2 plus fixes of the
+      release/9.0 branch), the libraries avformat-63, avcodec-63, avutil-61 and swscale-10. The configure line is in
+      build/macos/build-ffmpeg.sh. FFmpeg publishes no checksums (only GPG signatures); the hash was taken on 2026-10-29
+      and matches the Homebrew formula. A new version: build/update-ffmpeg.ps1 verifies the tarball (Homebrew
+      cross-check, GPG signature when gpg is available) and writes these three values.
+    -->
+    <LayerPeekFFmpegMacSourceUrl>https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz</LayerPeekFFmpegMacSourceUrl>
+    <LayerPeekFFmpegMacSourceSha256>8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e</LayerPeekFFmpegMacSourceSha256>
+    <!-- Top-level folder inside the tarball. -->
+    <LayerPeekFFmpegMacSourceFolder>ffmpeg-9.0.2</LayerPeekFFmpegMacSourceFolder>
+    <_LayerPeekFFmpegMacBuildScript>$(MSBuildThisFileDirectory)macos/build-ffmpeg.sh</_LayerPeekFFmpegMacBuildScript>
+
+    <!-- Which libraries this build provides: "windows", "macos" or none. -->
+    <_LayerPeekFFmpegPlatform Condition="$([MSBuild]::IsOSPlatform('Windows')) and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'win-x64')">windows</_LayerPeekFFmpegPlatform>
+    <_LayerPeekFFmpegPlatform Condition="$([MSBuild]::IsOSPlatform('OSX')) and '$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64' and ('$(RuntimeIdentifier)' == '' or '$(RuntimeIdentifier)' == 'osx-arm64')">macos</_LayerPeekFFmpegPlatform>
+    <LayerPeekFFmpegEnabled Condition="'$(LayerPeekFFmpegEnabled)' == '' and '$(_LayerPeekFFmpegPlatform)' != ''">true</LayerPeekFFmpegEnabled>
+    <LayerPeekFFmpegEnabled Condition="'$(_LayerPeekFFmpegPlatform)' == ''">false</LayerPeekFFmpegEnabled>
+    <LayerPeekFFmpegCacheRoot Condition="'$(LayerPeekFFmpegCacheRoot)' == '' and '$(_LayerPeekFFmpegPlatform)' == 'macos'">$(HOME)/Library/Caches/LayerPeek.Build/ffmpeg/</LayerPeekFFmpegCacheRoot>
     <LayerPeekFFmpegCacheRoot Condition="'$(LayerPeekFFmpegCacheRoot)' == ''">$(LOCALAPPDATA)\LayerPeek.Build\ffmpeg\</LayerPeekFFmpegCacheRoot>
     <!-- Separate property: a global property (/p:) cannot be reassigned. -->
     <_LayerPeekFFmpegCacheRoot>$([MSBuild]::EnsureTrailingSlash('$(LayerPeekFFmpegCacheRoot)'))</_LayerPeekFFmpegCacheRoot>
     <!-- Keyed by the archive hash: a new pinned build never mixes with an old one. -->
     <LayerPeekFFmpegCacheDir>$(_LayerPeekFFmpegCacheRoot)$(LayerPeekFFmpegSha256)\</LayerPeekFFmpegCacheDir>
+    <!--
+      macOS: keyed by the source hash and the build script (flags, version, minimum macOS), so any change of the recipe
+      builds into a new folder.
+    -->
+    <LayerPeekFFmpegCacheDir Condition="'$(_LayerPeekFFmpegPlatform)' == 'macos'">$(_LayerPeekFFmpegCacheRoot)osx-arm64-$([MSBuild]::StableStringHash('$(LayerPeekFFmpegMacSourceSha256)|$([System.IO.File]::ReadAllText('$(_LayerPeekFFmpegMacBuildScript)'))', 'Sha256'))/</LayerPeekFFmpegCacheDir>
     <_LayerPeekFFmpegMarker>$(LayerPeekFFmpegCacheDir)verified.sha256</_LayerPeekFFmpegMarker>
+    <!-- Folder of the libraries inside the cache. -->
+    <_LayerPeekFFmpegLibraryDir>$(LayerPeekFFmpegCacheDir)bin\</_LayerPeekFFmpegLibraryDir>
+    <_LayerPeekFFmpegLibraryDir Condition="'$(_LayerPeekFFmpegPlatform)' == 'macos'">$(LayerPeekFFmpegCacheDir)lib/</_LayerPeekFFmpegLibraryDir>
   </PropertyGroup>
 
-  <ItemGroup Condition="'$(LayerPeekFFmpegEnabled)' == 'true'">
+  <ItemGroup Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and '$(_LayerPeekFFmpegPlatform)' == 'windows'">
     <_LayerPeekFFmpegLibrary Include="avformat-63.dll;avcodec-63.dll;avutil-61.dll;swscale-10.dll;swresample-7.dll" />
+  </ItemGroup>
+  <!--
+    macOS: the file names are the install names of the libraries (they reference each other as @loader_path/<name>).
+    FFmpegRuntime maps the binding's names (avformat-63 ...) to them. No swresample: nothing loads it (on Windows it is
+    only a dependency of the BtbN build).
+  -->
+  <ItemGroup Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and '$(_LayerPeekFFmpegPlatform)' == 'macos'">
+    <_LayerPeekFFmpegLibrary Include="libavformat.63.dylib;libavcodec.63.dylib;libavutil.61.dylib;libswscale.10.dylib" />
   </ItemGroup>
 
   <!-- A design-time build (IDE) downloads nothing, so it lists the files only once they are in the cache. -->
   <ItemGroup Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and ('$(DesignTimeBuild)' != 'true' or Exists('$(_LayerPeekFFmpegMarker)'))">
     <!-- Paths into the cache; the files exist once LayerPeekAcquireFFmpeg ran (before anything copies them). -->
-    <None Include="@(_LayerPeekFFmpegLibrary->'$(LayerPeekFFmpegCacheDir)bin\%(Identity)')"
+    <None Include="@(_LayerPeekFFmpegLibrary->'$(_LayerPeekFFmpegLibraryDir)%(Identity)')"
           Link="%(Filename)%(Extension)"
           CopyToOutputDirectory="PreserveNewest"
           CopyToPublishDirectory="PreserveNewest"
@@ -53,19 +96,22 @@
   </ItemGroup>
 
   <!--
-    Cache layout: <cache>\bin\*.dll, <cache>\LICENSE.txt and <cache>\verified.sha256 (the marker). A cache counts only
+    Cache layout: <cache>\bin\*.dll (macOS: <cache>/lib/*.dylib and <cache>/BUILD.txt), <cache>\LICENSE.txt and
+    <cache>\verified.sha256 (the marker). A cache counts only
     with the marker and all files. It is assembled in a staging folder (marker written last) and renamed into place in
     one step, so a crashed or concurrent build never leaves a half-filled cache that looks complete.
   -->
   <Target Name="LayerPeekAcquireFFmpeg"
           BeforeTargets="AssignTargetPaths;GetCopyToOutputDirectoryItems;GetCopyToPublishDirectoryItems;CopyFilesToOutputDirectory"
-          Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
+          Condition="'$(LayerPeekFFmpegEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(_LayerPeekFFmpegPlatform)' != ''">
     <PropertyGroup>
       <_LayerPeekFFmpegComplete>false</_LayerPeekFFmpegComplete>
-      <_LayerPeekFFmpegComplete Condition="Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swresample-7.dll')">true</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="'$(_LayerPeekFFmpegPlatform)' == 'windows' and Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)bin\avformat-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avcodec-63.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\avutil-61.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swscale-10.dll') and Exists('$(LayerPeekFFmpegCacheDir)bin\swresample-7.dll')">true</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="'$(_LayerPeekFFmpegPlatform)' == 'macos' and Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavformat.63.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavcodec.63.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavutil.61.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libswscale.10.dylib')">true</_LayerPeekFFmpegComplete>
     </PropertyGroup>
 
-    <CallTarget Targets="_LayerPeekDownloadFFmpeg" Condition="'$(_LayerPeekFFmpegComplete)' != 'true'" />
+    <CallTarget Targets="_LayerPeekDownloadFFmpeg" Condition="'$(_LayerPeekFFmpegComplete)' != 'true' and '$(_LayerPeekFFmpegPlatform)' == 'windows'" />
+    <CallTarget Targets="_LayerPeekBuildFFmpegMac" Condition="'$(_LayerPeekFFmpegComplete)' != 'true' and '$(_LayerPeekFFmpegPlatform)' == 'macos'" />
   </Target>
 
   <Target Name="_LayerPeekDownloadFFmpeg">
@@ -79,7 +125,7 @@
       <_LayerPeekFFmpegFinal>$(LayerPeekFFmpegCacheDir.TrimEnd('\'))</_LayerPeekFFmpegFinal>
       <!-- Work folders older than this belong to crashed builds (a download takes minutes, not hours). -->
       <_LayerPeekFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_LayerPeekFFmpegStaleBefore>
-      <_LayerPeekFFmpegHelp>To fix it: if the pinned release is no longer available, update LayerPeekFFmpegUrl, LayerPeekFFmpegSha256 and LayerPeekFFmpegArchiveFolder in build/FFmpeg.targets to another BtbN LGPL shared win64 build with the same library versions. Or pre-fill the cache by hand: avformat-63.dll, avcodec-63.dll, avutil-61.dll, swscale-10.dll and swresample-7.dll into $(LayerPeekFFmpegCacheDir)bin\, LICENSE.txt and a file verified.sha256 into $(LayerPeekFFmpegCacheDir); or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
+      <_LayerPeekFFmpegHelp>To fix it: if the pinned release is no longer available, update LayerPeekFFmpegUrl, LayerPeekFFmpegSha256 and LayerPeekFFmpegArchiveFolder in build/FFmpeg.targets to another BtbN LGPL shared win64 build with the same library versions (build/update-ffmpeg.ps1 -Platform windows verifies and writes them). Or pre-fill the cache by hand: avformat-63.dll, avcodec-63.dll, avutil-61.dll, swscale-10.dll and swresample-7.dll into $(LayerPeekFFmpegCacheDir)bin\, LICENSE.txt and a file verified.sha256 into $(LayerPeekFFmpegCacheDir); or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
     </PropertyGroup>
 
     <ItemGroup>
@@ -127,7 +173,7 @@
         instead - harmless, because this build's staging folder (also complete and verified) takes its place.
       - "move" nests the source inside the target when the target appeared in the meantime (a concurrent build won);
         then the nested staging folder (a name that never occurs in a cache) is removed again and the winner stays.
-      The final check below accepts whichever complete cache is in place. Windows only for now (macOS, T-026: mv).
+      The final check below accepts whichever complete cache is in place. macOS: the same with mv (_LayerPeekBuildFFmpegMac).
     -->
     <Exec Command="move &quot;$(_LayerPeekFFmpegFinal)&quot; &quot;$(_LayerPeekFFmpegWorkDir)replaced&quot;"
           Condition="'$(_LayerPeekFFmpegComplete)' != 'true' and Exists('$(_LayerPeekFFmpegFinal)')"
@@ -147,6 +193,87 @@
 
     <RemoveDir Directories="$(_LayerPeekFFmpegWorkDir)" ContinueOnError="true" />
     <OnError ExecuteTargets="_LayerPeekCleanFFmpegWorkDir" />
+  </Target>
+
+  <!--
+    macOS (T-026): download the pinned source tarball, verify it, build it with build/macos/build-ffmpeg.sh into a
+    staging folder of this build's work folder, write the marker last and rename the staging folder into place exactly
+    like the Windows target above (same stale work folder cleanup, same handling of concurrent builds, with mv).
+  -->
+  <Target Name="_LayerPeekBuildFFmpegMac">
+    <PropertyGroup>
+      <_LayerPeekFFmpegWorkDir>$(_LayerPeekFFmpegCacheRoot)tmp-$([System.DateTime]::UtcNow.ToString('yyyyMMddHHmmss'))-$([System.Guid]::NewGuid().ToString('N'))/</_LayerPeekFFmpegWorkDir>
+      <_LayerPeekFFmpegArchive>$(_LayerPeekFFmpegWorkDir)$(LayerPeekFFmpegMacSourceFolder).tar.xz</_LayerPeekFFmpegArchive>
+      <_LayerPeekFFmpegStagingName>staged-cache</_LayerPeekFFmpegStagingName>
+      <_LayerPeekFFmpegStaging>$(_LayerPeekFFmpegWorkDir)$(_LayerPeekFFmpegStagingName)</_LayerPeekFFmpegStaging>
+      <_LayerPeekFFmpegFinal>$(LayerPeekFFmpegCacheDir.TrimEnd('/'))</_LayerPeekFFmpegFinal>
+      <!-- Work folders older than this belong to crashed builds (the build takes a minute, not hours). -->
+      <_LayerPeekFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_LayerPeekFFmpegStaleBefore>
+      <_LayerPeekFFmpegHelp>To fix it: if the pinned source release is no longer available, update LayerPeekFFmpegMacSourceUrl, LayerPeekFFmpegMacSourceSha256 and LayerPeekFFmpegMacSourceFolder in build/FFmpeg.targets to another official FFmpeg 9.0.x source tarball (the same library versions). A failing compile needs the Xcode Command Line Tools (xcode-select --install); the logs (configure.log, make.log) stay in the work folder named above (a later build removes it after two hours). Or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache, or LayerPeekFFmpegEnabled=false to build without the camera libraries. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <_LayerPeekFFmpegWorkDirs Include="$([System.IO.Directory]::GetDirectories('$(_LayerPeekFFmpegCacheRoot)', 'tmp-*'))" Condition="Exists('$(_LayerPeekFFmpegCacheRoot)')" />
+      <_LayerPeekFFmpegWorkDirs>
+        <Stamp>0$([System.Text.RegularExpressions.Regex]::Match('%(Filename)', '(?&lt;=^tmp-)\d{14}').Value)</Stamp>
+      </_LayerPeekFFmpegWorkDirs>
+      <_LayerPeekFFmpegStaleDirs Include="@(_LayerPeekFFmpegWorkDirs)" Condition="'0%(Stamp)' &lt; '0$(_LayerPeekFFmpegStaleBefore)'" />
+    </ItemGroup>
+    <RemoveDir Directories="@(_LayerPeekFFmpegStaleDirs)" ContinueOnError="true" />
+
+    <!--
+      The compile needs the Xcode Command Line Tools: checked before anything is downloaded, with a dedicated error.
+      xcode-select -p fails without them (and, unlike xcrun, never opens the installer dialog), so xcrun only runs when a
+      developer folder is selected. DEVELOPER_DIR is honoured by both, as in build-ffmpeg.sh.
+    -->
+    <Exec Command="/usr/bin/xcode-select -p &gt;/dev/null 2&gt;&amp;1 &amp;&amp; /usr/bin/xcrun --find clang &gt;/dev/null 2&gt;&amp;1 &amp;&amp; /usr/bin/xcrun --find make &gt;/dev/null 2&gt;&amp;1"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_LayerPeekFFmpegToolchainExitCode" />
+    </Exec>
+    <Error Condition="'$(_LayerPeekFFmpegToolchainExitCode)' != '0'"
+           Text="The Xcode Command Line Tools are not installed (or not selected). The first build on macOS compiles the FFmpeg camera libraries from source and needs them (clang, make). To fix it: run xcode-select --install, wait for the installation to finish and build again (xcode-select -p must print a folder). To build without the camera libraries instead: dotnet build -p:LayerPeekFFmpegEnabled=false (the camera then does not work and the FFmpeg tests are skipped). See docs/prerequisites.md." />
+
+    <Message Importance="high" Text="Building FFmpeg from source (LGPL, ~12 MB download, about a minute, once) into $(LayerPeekFFmpegCacheDir) ..." />
+    <DownloadFile SourceUrl="$(LayerPeekFFmpegMacSourceUrl)" DestinationFolder="$(_LayerPeekFFmpegWorkDir)" DestinationFileName="$(LayerPeekFFmpegMacSourceFolder).tar.xz" Retries="3" RetryDelayMilliseconds="2000" ContinueOnError="true" />
+    <Error Condition="!Exists('$(_LayerPeekFFmpegArchive)')"
+           Text="Downloading the FFmpeg source from $(LayerPeekFFmpegMacSourceUrl) failed (see the message above: offline, or the release was removed). $(_LayerPeekFFmpegHelp)" />
+
+    <GetFileHash Files="$(_LayerPeekFFmpegArchive)" Algorithm="SHA256" HashEncoding="hex">
+      <Output TaskParameter="Hash" PropertyName="_LayerPeekFFmpegActualSha256" />
+    </GetFileHash>
+    <Error Condition="'$(_LayerPeekFFmpegActualSha256)' != '$(LayerPeekFFmpegMacSourceSha256)'"
+           Text="FFmpeg source SHA256 mismatch: expected $(LayerPeekFFmpegMacSourceSha256), got $(_LayerPeekFFmpegActualSha256). The download was discarded. $(_LayerPeekFFmpegHelp)" />
+
+    <!-- The script writes <staging>/lib/*.dylib, LICENSE.txt and BUILD.txt; its compiler output goes to logs. -->
+    <Exec Command="/bin/bash &quot;$(_LayerPeekFFmpegMacBuildScript)&quot; &quot;$(_LayerPeekFFmpegArchive)&quot; &quot;$(LayerPeekFFmpegMacSourceFolder)&quot; &quot;$(_LayerPeekFFmpegWorkDir)build&quot; &quot;$(_LayerPeekFFmpegStaging)&quot;"
+          IgnoreExitCode="true" IgnoreStandardErrorWarningFormat="true" StandardOutputImportance="high" StandardErrorImportance="high">
+      <Output TaskParameter="ExitCode" PropertyName="_LayerPeekFFmpegBuildExitCode" />
+    </Exec>
+    <Error Condition="'$(_LayerPeekFFmpegBuildExitCode)' != '0'"
+           Text="Building FFmpeg from source failed (exit code $(_LayerPeekFFmpegBuildExitCode), see the messages above; work folder $(_LayerPeekFFmpegWorkDir)). $(_LayerPeekFFmpegHelp)" />
+    <WriteLinesToFile File="$(_LayerPeekFFmpegStaging)/verified.sha256" Lines="$(LayerPeekFFmpegMacSourceSha256)" Overwrite="true" />
+
+    <PropertyGroup>
+      <_LayerPeekFFmpegComplete>false</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavformat.63.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavcodec.63.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavutil.61.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libswscale.10.dylib')">true</_LayerPeekFFmpegComplete>
+    </PropertyGroup>
+    <!-- Renames only, as on Windows: mv also nests the source inside an existing target folder. -->
+    <Exec Command="mv &quot;$(_LayerPeekFFmpegFinal)&quot; &quot;$(_LayerPeekFFmpegWorkDir)replaced&quot;"
+          Condition="'$(_LayerPeekFFmpegComplete)' != 'true' and Exists('$(_LayerPeekFFmpegFinal)')"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <Exec Command="mv &quot;$(_LayerPeekFFmpegStaging)&quot; &quot;$(_LayerPeekFFmpegFinal)&quot;"
+          Condition="'$(_LayerPeekFFmpegComplete)' != 'true'"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" />
+    <RemoveDir Directories="$(_LayerPeekFFmpegFinal)/$(_LayerPeekFFmpegStagingName)" Condition="Exists('$(_LayerPeekFFmpegFinal)/$(_LayerPeekFFmpegStagingName)')" ContinueOnError="true" />
+
+    <PropertyGroup>
+      <_LayerPeekFFmpegComplete>false</_LayerPeekFFmpegComplete>
+      <_LayerPeekFFmpegComplete Condition="Exists('$(_LayerPeekFFmpegMarker)') and Exists('$(LayerPeekFFmpegCacheDir)LICENSE.txt') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavformat.63.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavcodec.63.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libavutil.61.dylib') and Exists('$(LayerPeekFFmpegCacheDir)lib/libswscale.10.dylib')">true</_LayerPeekFFmpegComplete>
+    </PropertyGroup>
+    <Error Condition="'$(_LayerPeekFFmpegComplete)' != 'true'"
+           Text="The FFmpeg libraries built from source could not be moved into $(LayerPeekFFmpegCacheDir). $(_LayerPeekFFmpegHelp)" />
+
+    <RemoveDir Directories="$(_LayerPeekFFmpegWorkDir)" ContinueOnError="true" />
   </Target>
 
   <Target Name="_LayerPeekCleanFFmpegWorkDir">

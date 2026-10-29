@@ -3,6 +3,8 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 
 using LayerPeek.App.Cameras;
+using LayerPeek.App.Platform;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Cameras.Overlay;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
@@ -44,14 +46,14 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Definition(id, name) with { Camera = new CameraSettings(enabled: true, new Uri(url)) };
 
     /// <summary>A window whose overlay has the test widget (state and progress) top left.</summary>
-    private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null, ListLogger<CameraViewModel>? logger = null)
+    private CameraViewModel Create(string id = "mk4", string name = "MK4", IUiDispatcher? dispatcher = null, ListLogger<CameraViewModel>? logger = null, ILocalNetworkPrivacy? localNetwork = null)
     {
         ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
         PrinterDefinition printer = Definition(id, name) with
         {
             Camera = new CameraSettings(enabled: true, StreamUri) { Overlay = new([new("test-a", OverlayAnchor.TopLeft)]) },
         };
-        CameraViewModel viewModel = new(CameraTarget.From(printer)!, feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, (Microsoft.Extensions.Logging.ILogger<CameraViewModel>?)logger ?? NullLogger<CameraViewModel>.Instance, widgets: TestOverlayWidgets.Registry("test-a"));
+        CameraViewModel viewModel = new(CameraTarget.From(printer)!, feed, _monitor, _printers, dispatcher ?? _dispatcher, _states, _time, CameraFeedOptions.Default, (Microsoft.Extensions.Logging.ILogger<CameraViewModel>?)logger ?? NullLogger<CameraViewModel>.Instance, widgets: TestOverlayWidgets.Registry("test-a"), localNetwork: localNetwork);
         _created.Add(viewModel);
         viewModel.AttachFrameSink(_sink);
         return viewModel;
@@ -186,6 +188,56 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.Equal("Camera error", viewModel.StatusText);
         Assert.Equal("Decoding failed.", viewModel.StatusDetail);
         Assert.True(viewModel.HasFrame);
+    }
+
+    [Fact]
+    public async Task NoRouteToALocalCameraMayBeTheLocalNetworkPermission()
+    {
+        // T-097 (macOS 15+): simulated "no route to host" of FFmpeg; translated, also after a language switch.
+        FakeLocalNetworkPrivacy privacy = new();
+        CameraViewModel viewModel = Create(localNetwork: privacy);
+        viewModel.SetActive(true);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+
+        feed.Fail(new CameraFeedException("Opening the stream: No route to host.") { IsHostUnreachable = true });
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return viewModel.StatusText == "Camera error"; }, "error shown");
+
+        Assert.Equal("No connection. Local Network access for LayerPeek may be turned off in System Settings > Privacy & Security > Local Network.", viewModel.StatusDetail);
+        Assert.True(viewModel.HasStatusDetail);
+        Assert.Contains(("192.168.0.227", "the camera of printer 'mk4'"), privacy.Calls);
+        List<string?> changed = [];
+        viewModel.PropertyChanged += (_, e) => changed.Add(e.PropertyName);
+        using (new CultureScope("cs-CZ"))
+        {
+            viewModel.RefreshTexts();
+            Assert.Contains(nameof(CameraViewModel.StatusDetail), changed);
+            Assert.StartsWith("Bez spojení.", viewModel.StatusDetail, StringComparison.Ordinal);
+        }
+
+        // The mini preview shows the short form (it fits down to 240 × 135), the normal window the full text again.
+        changed.Clear();
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.Contains(nameof(CameraViewModel.StatusDetail), changed);
+        Assert.Equal("No connection. Local Network access may be turned off.", viewModel.StatusDetail);
+        changed.Clear();
+        viewModel.ShowNormalCommand.Execute(null);
+        Assert.Contains(nameof(CameraViewModel.StatusDetail), changed);
+        Assert.StartsWith("No connection. Local Network access for LayerPeek", viewModel.StatusDetail, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NoRouteToACameraKeepsTheReasonWhereThereIsNoLocalNetworkPermission()
+    {
+        CameraViewModel viewModel = Create();
+        viewModel.SetActive(true);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+
+        feed.Fail(new CameraFeedException("Opening the stream: No route to host.") { IsHostUnreachable = true });
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await Waiting.UntilAsync(() => { _dispatcher.RunAll(); return viewModel.StatusText == "Camera error"; }, "error shown");
+
+        Assert.Equal("Opening the stream: No route to host.", viewModel.StatusDetail);
     }
 
     [Fact]

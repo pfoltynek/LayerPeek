@@ -567,6 +567,43 @@ public sealed class PrusaLinkClientTests : IDisposable
     }
 
     [Fact]
+    public async Task NoRouteToHostIsOfflineWithItsOwnProblem()
+    {
+        // T-097: what a denied Local Network permission of macOS 15+ looks like to BSD sockets (EHOSTUNREACH).
+        _server.Override = static (_, _) => throw new HttpRequestException(
+            HttpRequestError.ConnectionError, "No route to host (192.168.1.20:80)", new SocketException((int)SocketError.HostUnreachable));
+
+        PrinterSnapshot snapshot = await _client.GetSnapshotAsync(Ct);
+
+        Assert.Equal(PrinterState.Offline, snapshot.State);
+        Assert.Equal(PrinterProblem.HostUnreachable, snapshot.Problem);
+        Assert.DoesNotContain("192.168.1.20", snapshot.StatusMessage, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task NoRouteToHostFailsTheInfoWithItsOwnReason()
+    {
+        _server.Override = static (_, _) => throw new HttpRequestException(
+            HttpRequestError.ConnectionError, "No route to host", new IOException("wrapped", new SocketException((int)SocketError.HostUnreachable)));
+
+        PrusaLinkInfoResult result = await _client.GetInfoAsync(Ct);
+
+        Assert.Equal(PrusaLinkFailure.HostUnreachable, result.Failure);
+        Assert.Equal(PrinterState.Offline, result.State);
+    }
+
+    [Fact]
+    public void OnlyNoRouteToHostIsHostUnreachable()
+    {
+        Assert.True(PrusaLinkClient.IsHostUnreachable(new SocketException((int)SocketError.HostUnreachable)));
+        Assert.False(PrusaLinkClient.IsHostUnreachable(new HttpRequestException("x", new SocketException((int)SocketError.ConnectionRefused))));
+        Assert.False(PrusaLinkClient.IsHostUnreachable(new HttpRequestException("x", new SocketException((int)SocketError.HostDown))));
+        Assert.False(PrusaLinkClient.IsHostUnreachable(new HttpRequestException("x", new SocketException((int)SocketError.NetworkUnreachable))));
+        Assert.False(PrusaLinkClient.IsHostUnreachable(new HttpRequestException("No route to host")));
+        Assert.Equal(PrinterProblem.HostUnreachable, PrusaLinkClient.ToProblem(PrusaLinkFailure.HostUnreachable));
+    }
+
+    [Fact]
     public async Task HttpClientTimeoutIsOffline()
     {
         _httpClient.Timeout = TimeSpan.FromMilliseconds(50);

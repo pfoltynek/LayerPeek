@@ -35,6 +35,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     private readonly ICameraMonitorPathUpdater? _monitorPaths;
     private readonly OverlayWidgetRegistry _widgets;
     private readonly PrintThumbnails? _thumbnails;
+    private readonly LayerPeek.App.Platform.ILocalNetworkPrivacy? _localNetwork;
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
@@ -46,12 +47,15 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="widgets">The overlay widgets of the windows (T-081); <see langword="null"/>: the test widgets <see cref="TestOverlayWidgets.Ids"/>.</param>
     /// <param name="opacity">The global card opacity (T-077).</param>
     /// <param name="thumbnails">The G-code thumbnails of the Print name widget (T-087); <see langword="null"/>: none.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null)
+    /// <param name="bringAppToFront">Activates the app before a window is activated (macOS, T-019); <see langword="null"/>: nothing.</param>
+    /// <param name="localNetwork">The Local Network permission of macOS 15+ (T-097, a fake); <see langword="null"/>: none (Windows).</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null)
     {
         LayoutWriter = new FakeLayoutWriter();
         States = states ?? new MemoryCameraWindowStateStore();
         _monitorPaths = monitorPaths;
         _thumbnails = thumbnails;
+        _localNetwork = localNetwork;
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
         AppSettings settings = new()
         {
@@ -63,7 +67,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         // raises, on the fake clock of the windows (the estimate counts down with it).
         Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
         Cooldown.Configure(settings.Printers, settings.PollingInterval);
-        Windows = new AuxiliaryWindowFactory(track).CameraWindows(Create, screens, measureChrome, predictChrome);
+        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
 
     public CooldownMonitor Cooldown { get; }
@@ -130,6 +134,47 @@ internal sealed class CameraHarness : IAsyncDisposable
         window.MouseUp(grip, Avalonia.Input.MouseButton.Left);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         window.Settle();
+        FinishMiniResize(window);
+    }
+
+    /// <summary>
+    /// Waits for the end of a grip resize where there is no modal size loop (not Windows, T-095): the window corrects its
+    /// height once its size has not changed for <see cref="CameraWindow.ResizeSettleTime"/>, a real-time timer of the
+    /// dispatcher. On Windows the correction already ran when the grip was released, so this returns at once.
+    /// </summary>
+    public static void FinishMiniResize(CameraWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        if (!window.IsMiniResizeSettling)
+        {
+            return;
+        }
+
+        // RunJobs never fires dispatcher timers in headless; a nested main loop does. It ends once the correction ran.
+        DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
+        using CancellationTokenSource settled = new();
+        Avalonia.Threading.DispatcherTimer poll = new(
+            TimeSpan.FromMilliseconds(10),
+            Avalonia.Threading.DispatcherPriority.Background,
+            (_, _) =>
+            {
+                if (!window.IsMiniResizeSettling || DateTime.UtcNow > deadline)
+                {
+                    settled.Cancel();
+                }
+            });
+        poll.Start();
+        try
+        {
+            Avalonia.Threading.Dispatcher.UIThread.MainLoop(settled.Token);
+        }
+        finally
+        {
+            poll.Stop();
+        }
+
+        Assert.False(window.IsMiniResizeSettling, "The resize of the mini preview did not settle.");
+        window.Settle();
     }
 
     public async ValueTask DisposeAsync()
@@ -153,7 +198,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork);
         _created.Add(viewModel);
         return viewModel;
     }

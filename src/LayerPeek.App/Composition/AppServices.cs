@@ -14,6 +14,7 @@ using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Previews;
 using LayerPeek.App.Printers;
@@ -45,7 +46,7 @@ namespace LayerPeek.App.Composition;
 /// UI-thread-only objects (tray icons) are not registered: the container may be disposed off the UI thread;
 /// <see cref="TrayHost"/> owns them instead.
 /// </summary>
-internal static class AppServices
+internal static partial class AppServices
 {
     /// <param name="loggerFactory">
     /// Logger factory owned by the caller. Registered as an instance, so disposing the container does not dispose it:
@@ -60,22 +61,33 @@ internal static class AppServices
     /// Minimum level of the file log, set from the settings (T-047); <see langword="null"/>: a level of its own, connected to
     /// nothing (tests).
     /// </param>
+    /// <param name="uiDispatcher">
+    /// The UI thread's dispatcher of the view models and observers; <see langword="null"/>: Avalonia's. Before Avalonia exists
+    /// (T-099, macOS waiting for a display): a <see cref="StartupUiDispatcher"/> that later forwards to Avalonia's.
+    /// </param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
-        LogLevelSwitch? logLevel = null) =>
-        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel);
+        LogLevelSwitch? logLevel = null,
+        IUiDispatcher? uiDispatcher = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel, uiDispatcher: uiDispatcher);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
+    /// <param name="macNotifications">
+    /// The notification center of macOS (T-020; only used on macOS when <paramref name="windows"/> is off); <see langword="null"/>:
+    /// the one <c>Program.Main</c> opened for this run (<see cref="MacUserNotificationCenter.Shared"/>, none in tests).
+    /// </param>
     internal static ServiceProvider Create(
         ILoggerFactory? loggerFactory,
         bool windows,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
-        LogLevelSwitch? logLevel = null)
+        LogLevelSwitch? logLevel = null,
+        IUserNotificationCenter? macNotifications = null,
+        IUiDispatcher? uiDispatcher = null)
     {
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
@@ -101,7 +113,15 @@ internal static class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<PrinterMonitor>>()));
 
-        services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
+        if (uiDispatcher is not null)
+        {
+            // Registered as an instance: it outlives the container (posts of late continuations still find it).
+            services.AddSingleton(uiDispatcher);
+        }
+        else
+        {
+            services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
+        }
         // Language of the texts (T-029): applied at startup before any text exists, then from every saved setting.
         services.AddSingleton(static _ => new UiLanguage());
         services.AddSingleton(static sp => new UiLanguageObserver(sp.GetRequiredService<UiLanguage>(), sp.GetRequiredService<IUiDispatcher>()));
@@ -145,7 +165,15 @@ internal static class AppServices
             sp.GetRequiredService<TimeProvider>()));
         // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written; with the
         // Debug switch of T-067 toasts of the test app with a shortcut of its own.
-        services.AddSingleton(sp => CreateNotificationService(sp, windows, env));
+        // macOS (T-020): the notification center Program.Main opened for exactly the allowed bundle, or none.
+        IUserNotificationCenter? userNotifications = !windows && OperatingSystem.IsMacOS() ? macNotifications ?? (OperatingSystem.IsMacOS() ? MacUserNotificationCenter.Shared : null) : null;
+        services.AddSingleton(sp => userNotifications is not null
+            ? new UserNotificationService(userNotifications, UiLanguage.CurrentTextCulture, sp.GetRequiredService<ILogger<UserNotificationService>>())
+            : CreateNotificationService(sp, windows, env));
+        // The warning "turned off in macOS" of the settings window and its button (T-020); the test mode never opens System Settings.
+        services.AddSingleton(sp => new SystemNotificationSettingsOption(userNotifications is null
+            ? null
+            : new MacNotificationSettings(userNotifications, OpenSystemSettings(env, sp.GetRequiredService<ILogger<MacNotificationSettings>>()), sp.GetRequiredService<ILogger<MacNotificationSettings>>())));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -166,6 +194,15 @@ internal static class AppServices
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
+        // macOS 15+ (T-097): "no route to host" to a printer or camera in the local network may be the denied Local Network
+        // permission (Apple TN3179); the UI says where to allow it, offers to open System Settings there (only outside the test
+        // mode) and the log gets one line per printer. Elsewhere never.
+        services.AddSingleton<ILocalNetworkPrivacy>(sp => OperatingSystem.IsMacOSVersionAtLeast(15)
+            ? new MacLocalNetworkPrivacy(
+                sp.GetRequiredService<ILogger<MacLocalNetworkPrivacy>>(),
+                OpenSystemSettings(env, sp.GetRequiredService<ILogger<MacLocalNetworkPrivacy>>()))
+            : NoLocalNetworkPrivacy.Instance);
+        services.AddSingleton(static sp => new LocalNetworkPrivacyObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // G-code previews (T-086 / T-087): in memory only, over the PrusaLink fetcher; told about every snapshot and the printers
         // of every run; decoded once per job and size for all camera windows. Disposed with the services.
         services.AddSingleton(static sp => new PrintPreviewCache(
@@ -198,6 +235,7 @@ internal static class AppServices
                 sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
+                sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
@@ -231,10 +269,14 @@ internal static class AppServices
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
+            sp.GetRequiredService<ILogger<PrusaLinkClient>>(),
+            sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // Start after logon (T-017), switched in the settings window: Windows only; the test mode's shortcut lives in its data
         // folder. Creating it touches nothing.
-        services.AddSingleton(sp => CreateAutostart(env, windows, sp.GetRequiredService<ILogger<StartupShortcutAutostart>>()));
+        // macOS (T-019): "Open at Login", the Login Item of SMAppService; the test mode's is a stand-in file in its data folder.
+        services.AddSingleton(sp => !windows && OperatingSystem.IsMacOS()
+            ? CreateMacAutostart(env, sp.GetRequiredService<ILogger<LoginItemAutostart>>())
+            : CreateAutostart(env, windows, sp.GetRequiredService<ILogger<StartupShortcutAutostart>>()));
         // Updates of the installed app from GitHub Releases (T-017; offered to the user by T-058). Pre-releases as the setting
         // says, until the user chose by the running version (user decision 2026-10-24).
         services.AddSingleton(sp =>
@@ -256,7 +298,24 @@ internal static class AppServices
     }
 
     /// <summary>
-    /// Windows: toasts (T-010). Other OS: notifications are silently not sent until macOS notifications (T-020) exist.
+    /// How the app opens a pane of System Settings (T-020 Notifications, T-097 Local Network): really only outside the test
+    /// mode; the test mode (never in Release builds) only logs it, like the stand-in Login Item (T-019).
+    /// </summary>
+    internal static Action<Uri> OpenSystemSettings(AppEnvironment environment, ILogger logger)
+    {
+        if (environment.IsIsolated || !OperatingSystem.IsMacOS())
+        {
+            return address => LogSystemSettingsNotOpened(logger, address.OriginalString);
+        }
+
+        return MacSystemSettings.Open;
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: System Settings is not opened ({Address}).")]
+    private static partial void LogSystemSettingsNotOpened(ILogger logger, string address);
+
+    /// <summary>
+    /// Windows: toasts (T-010). macOS: the notification center (T-020, chosen in <c>Create</c>); without it and on any other OS notifications are silently not sent.
     /// Creating the toast service starts nothing; <see cref="TrayHost"/> starts it, tests never do. The test mode shows no
     /// toasts, or (Debug switch, T-067) those of the test app with its own Start menu shortcut, never the production ones.
     /// </summary>
@@ -388,6 +447,46 @@ internal static class AppServices
             NeedsInstallation: false);
     }
 
+    /// <summary>
+    /// "Open at Login" on macOS (T-019): only the app's own executable gets it, never a test host. The test mode always
+    /// offers it with the stand-in Login Item of its data folder (user decision 2026-10-29). In production only the app
+    /// running from its <c>LayerPeek.app</c> in a permanent place gets the real Login Item of <c>SMAppService</c>; a
+    /// development build, a translocated app and the app on the mounted <c>.dmg</c> show the option disabled with the reason
+    /// (like the <c>.zip</c> on Windows).
+    /// </summary>
+    [SupportedOSPlatform("macos")]
+    internal static AutostartOption CreateMacAutostart(AppEnvironment environment, ILogger<LoginItemAutostart> logger) =>
+        CreateMacAutostart(environment, logger, Environment.ProcessPath, MacAppBundle.IsOnReadOnlyVolume, static () => new SMAppServiceLoginItem());
+
+    /// <param name="executable">The running executable.</param>
+    /// <param name="isReadOnly">Whether a folder lies on a read-only volume.</param>
+    /// <param name="loginItem">The real Login Item (created only for the app in its bundle, never in the test mode).</param>
+    internal static AutostartOption CreateMacAutostart(
+        AppEnvironment environment,
+        ILogger<LoginItemAutostart> logger,
+        string? executable,
+        Func<string, bool> isReadOnly,
+        Func<ILoginItemService> loginItem)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(isReadOnly);
+        ArgumentNullException.ThrowIfNull(loginItem);
+        if (string.IsNullOrEmpty(executable) || !string.Equals(Path.GetFileName(executable), MacAppBundle.ExecutableName, StringComparison.Ordinal))
+        {
+            return new AutostartOption(null, NeedsInstallation: false);
+        }
+
+        if (environment.TestLoginItemPath() is { } standIn)
+        {
+            return new AutostartOption(new LoginItemAutostart(new StandInLoginItem(standIn, executable), logger));
+        }
+
+        return MacAppBundle.BundleOf(executable) is { } bundle && MacAppBundle.IsPermanentLocation(bundle, isReadOnly)
+            ? new AutostartOption(new LoginItemAutostart(loginItem(), logger))
+            : new AutostartOption(null, NeedsInstallation: true);
+    }
+
     /// <summary>Velopack's updates (T-017), only in a Velopack installation (never in the test mode, never for the <c>.zip</c>).</summary>
     private static VelopackUpdateEngine? CreateUpdateEngine(AppEnvironment environment, bool windows) =>
         windows && OperatingSystem.IsWindows() && !environment.IsIsolated && VelopackInstallation.IsInstalled(Environment.ProcessPath, File.Exists)
@@ -424,7 +523,8 @@ internal static class AppServices
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
+            sp.GetRequiredService<ILogger<CameraSnapshotTester>>(),
+            localNetwork: sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
         // The widgets of the camera overlay, an explicit list (T-081).
@@ -502,7 +602,8 @@ internal static class AppServices
                 services.GetRequiredService<TelemetryHistory>(),
                 services.GetRequiredService<CooldownMonitor>(),
                 services.GetRequiredService<PrintThumbnails>(),
-                services.GetRequiredService<ICameraOverlayLayoutWriter>())
+                services.GetRequiredService<ICameraOverlayLayoutWriter>(),
+                services.GetRequiredService<ILocalNetworkPrivacy>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -535,7 +636,8 @@ internal static class AppServices
             services.GetRequiredService<IPrinterInfoSource>(),
             services.GetRequiredService<TimeProvider>(),
             initialPrinterId,
-            services.GetRequiredService<CustomPrinterImages>());
+            services.GetRequiredService<CustomPrinterImages>(),
+            services.GetRequiredService<ILocalNetworkPrivacy>());
     }
 
     /// <summary>
@@ -563,15 +665,20 @@ internal static class AppServices
             timeProvider: services.GetRequiredService<TimeProvider>(),
             autostart: services.GetRequiredService<AutostartOption>().Autostart,
             autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation,
+            notificationSettings: services.GetRequiredService<SystemNotificationSettingsOption>().Settings,
             widgets: services.GetRequiredService<OverlayWidgetRegistry>(),
             layoutModeLauncher: layoutModeLauncher,
             // A layout saved from a camera window replaces only that layout in an open settings window (T-077 Q3).
             layoutWriter: services.GetRequiredService<ICameraOverlayLayoutWriter>(),
-            uiDispatcher: services.GetRequiredService<IUiDispatcher>())
+            uiDispatcher: services.GetRequiredService<IUiDispatcher>(),
+            localNetwork: services.GetRequiredService<ILocalNetworkPrivacy>())
         {
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).
             ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
+            // macOS (T-019, user decision 2026-10-29): "Open at Login", and no pre-release option until macOS has updates.
+            UsesMacTerms = OperatingSystem.IsMacOS(),
+            ShowsPrereleaseOption = !OperatingSystem.IsMacOS(),
         };
     }
 
@@ -641,7 +748,7 @@ internal static class AppServices
 #if DEBUG
         if (environment.IsIsolated)
         {
-            // Test mode (T-044): never the user's Credential Manager; with the Debug switch of T-067 the Credential Manager
+            // Test mode (T-044): never the user's Credential Manager or Keychain; with the Debug switch of T-067 the Credential Manager
             // under a test prefix (checked by AppEnvironment), which can never be the production one. Session only (user
             // decision 2026-10-22): never written to disk nor roamed, so a crashed run leaves nothing past the logon session.
             return environment.TestCredentialPrefix is { } prefix && OperatingSystem.IsWindows()
@@ -650,9 +757,12 @@ internal static class AppServices
         }
 #endif
 
-        return OperatingSystem.IsWindows()
-            ? new WindowsCredentialSecretStore()
-            // macOS Keychain store follows in T-021; until then passwords are unavailable but the app runs.
-            : new UnsupportedSecretStore();
+        if (OperatingSystem.IsWindows())
+        {
+            return new WindowsCredentialSecretStore();
+        }
+
+        // macOS: the login Keychain (T-021). Any other OS has no store: passwords are unavailable but the app runs.
+        return OperatingSystem.IsMacOS() ? new KeychainSecretStore() : new UnsupportedSecretStore();
     }
 }

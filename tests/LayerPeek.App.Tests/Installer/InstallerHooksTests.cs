@@ -18,6 +18,9 @@ public sealed class InstallerHooksTests
 {
     private const string Exe = @"C:\Users\u\AppData\Local\LayerPeek\current\LayerPeek.exe";
 
+    /// <summary>The tray icon step recognizes the exe by its Windows file name, which only Windows splits from the path.</summary>
+    private const string WindowsTrayIconStep = "The tray icon step needs Windows paths (TrayIconPromotion.AppliesTo); it runs only on Windows.";
+
     private static readonly Guid ProductionClsid = new("EC47413C-984D-447A-866A-5F780E408DE7");
 
     private readonly FakeToastRegistration _toasts = new();
@@ -59,6 +62,7 @@ public sealed class InstallerHooksTests
     [Fact]
     public void BeforeUninstallRemovesEverySystemRegistration()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsTrayIconStep);
         _activators.Servers[ProductionClsid] = $"\"{Exe}\" -ToastActivated";
         _notificationSettings.Apps.Add("LayerPeek");
         _trayIcons.Add("1", Exe, promoted: 1);
@@ -80,6 +84,7 @@ public sealed class InstallerHooksTests
     [Fact]
     public void BeforeUninstallRunsEveryStepWhenEarlierOnesFail()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsTrayIconStep);
         _history.Failure = new InvalidOperationException("history failed");
         _activators.DeleteFailure = new UnauthorizedAccessException("activator failed");
         _notificationSettings.Failure = new IOException("settings failed");

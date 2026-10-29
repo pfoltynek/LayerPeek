@@ -17,8 +17,10 @@ namespace LayerPeek.App.UiTests.Infrastructure;
 /// <summary>
 /// Compares a window rendered by Skia with a reference PNG committed in <c>Snapshots/</c>. Deterministic: render scaling
 /// 1.0, no keyboard focus (no caret, no focus adorner), no pointer over the window, the bundled Inter font only, and the
-/// frame must be stable over further render ticks (no running animation). Set <c>LAYERPEEK_UPDATE_SNAPSHOTS=1</c> to (re)write
-/// the references instead of comparing. On a mismatch the actual frame and a diff image are written to
+/// frame must be stable over further render ticks (no running animation). Every OS has its own set of references
+/// (<see cref="ReferenceSet"/>, T-095): the same font still rasterizes differently on Windows and macOS. Set
+/// <c>LAYERPEEK_UPDATE_SNAPSHOTS=1</c> to (re)write the references of the current OS instead of comparing; the sets of other
+/// OSes are never touched. On a mismatch the actual frame and a diff image are written to
 /// <see cref="FailureDirectory"/> (swept at the start of the next run) and the path is in the assertion message.
 /// UI thread only.
 /// </summary>
@@ -56,13 +58,16 @@ public static class SnapshotAssert
     /// <summary>Reserved folder for the images of failed comparisons; nothing else is written there (besides its marker).</summary>
     public static string FailureDirectory => Reserved.Path;
 
-    /// <summary>The <c>Snapshots</c> folder of the test project in the source tree.</summary>
+    /// <summary>The <c>Snapshots</c> folder of the test project in the source tree (the root of all reference sets).</summary>
     public static string ReferenceDirectory { get; } =
         typeof(SnapshotAssert).Assembly.GetCustomAttributes<AssemblyMetadataAttribute>()
             .Single(static attribute => attribute.Key == "SnapshotDirectory").Value
         ?? throw new InvalidOperationException("The SnapshotDirectory assembly metadata is missing.");
 
     public static bool IsUpdating => Environment.GetEnvironmentVariable(UpdateVariable) == "1";
+
+    /// <summary>The folder of the references of the current OS (<see cref="ReferenceSet.Current"/>).</summary>
+    public static string CurrentReferenceDirectory => ReferenceSet.Current.DirectoryIn(ReferenceDirectory);
 
     /// <summary>Asserts that <paramref name="window"/> looks like the reference image <paramref name="name"/>.png.</summary>
     public static void Matches(Window window, string name)
@@ -83,7 +88,7 @@ public static class SnapshotAssert
             Assert.Fail($"Snapshot '{name}': the rendered frame is not stable (animation, caret or pending layout).");
         }
 
-        CompareWithReference(actual, name, MaxDifferentPixels);
+        CompareWithReference(actual, name, MaxDifferentPixels, CurrentReferenceDirectory, IsUpdating);
     }
 
     /// <summary>
@@ -95,13 +100,25 @@ public static class SnapshotAssert
     {
         ArgumentNullException.ThrowIfNull(bitmap);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        CompareWithReference(Image.FromAnyBitmap(bitmap), name, MaxDifferentIconPixels);
+        CompareWithReference(Image.FromAnyBitmap(bitmap), name, MaxDifferentIconPixels, CurrentReferenceDirectory, IsUpdating);
     }
 
-    private static void CompareWithReference(Image actual, string name, int maxDifferentPixels)
+    /// <summary>
+    /// <see cref="Matches(Bitmap, string)"/> with the references of the current OS below <paramref name="root"/> instead of
+    /// <see cref="ReferenceDirectory"/>, for the tests of the reference selection itself (a temporary folder).
+    /// </summary>
+    internal static void Matches(Bitmap bitmap, string name, string root, bool updating)
     {
-        string reference = Path.Combine(ReferenceDirectory, name + ".png");
-        if (IsUpdating)
+        ArgumentNullException.ThrowIfNull(bitmap);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(root);
+        CompareWithReference(Image.FromAnyBitmap(bitmap), name, MaxDifferentIconPixels, ReferenceSet.Current.DirectoryIn(root), updating);
+    }
+
+    private static void CompareWithReference(Image actual, string name, int maxDifferentPixels, string referenceSetDirectory, bool updating)
+    {
+        string reference = Path.Combine(referenceSetDirectory, name + ".png");
+        if (updating)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(reference)!);
             actual.Save(reference);
@@ -110,7 +127,10 @@ public static class SnapshotAssert
 
         if (!File.Exists(reference))
         {
-            Assert.Fail($"Snapshot '{name}': no reference image '{reference}'. Create it with {UpdateVariable}=1 dotnet test --project tests/LayerPeek.App.UiTests and review it.");
+            // Never a silent skip: a missing reference of this OS (e.g. a new snapshot made on the other OS) fails.
+            Assert.Fail(
+                $"Snapshot '{name}': no {ReferenceSet.Current.Name} reference image '{reference}' (every OS has its own set). "
+                + $"Create it on {ReferenceSet.Current.Name} with {UpdateVariable}=1 dotnet test --project tests/LayerPeek.App.UiTests and review it.");
         }
 
         Image expected = Image.Load(reference);
@@ -327,4 +347,27 @@ public static class SnapshotAssert
             bitmap.Save(path, new PngBitmapEncoderOptions());
         }
     }
+}
+
+/// <summary>
+/// The reference images of one OS (T-095). Windows keeps the original references directly in <c>Snapshots/</c> (unchanged
+/// files); macOS has its own copy of the whole tree, tray icons included, in <c>Snapshots/macOS/</c>. Any other OS gets a
+/// folder of its own, which does not exist yet, so its snapshots fail with a clear message.
+/// </summary>
+/// <param name="Name">Name of the OS in messages.</param>
+/// <param name="SubDirectory">Folder of the set below <c>Snapshots/</c>; empty for the root.</param>
+internal sealed record ReferenceSet(string Name, string SubDirectory)
+{
+    public static ReferenceSet Windows { get; } = new("Windows", string.Empty);
+
+    public static ReferenceSet MacOS { get; } = new("macOS", "macOS");
+
+    public static ReferenceSet Linux { get; } = new("Linux", "linux");
+
+    public static ReferenceSet Current { get; } = For(OperatingSystem.IsWindows(), OperatingSystem.IsMacOS());
+
+    internal static ReferenceSet For(bool windows, bool macOS) => windows ? Windows : macOS ? MacOS : Linux;
+
+    /// <summary>The folder of this set below the <c>Snapshots</c> folder <paramref name="root"/>.</summary>
+    public string DirectoryIn(string root) => SubDirectory.Length == 0 ? root : Path.Combine(root, SubDirectory);
 }

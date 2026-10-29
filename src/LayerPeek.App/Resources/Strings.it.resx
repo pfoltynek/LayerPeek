@@ -657,6 +657,12 @@
   <data name="SettingsNeedsInstallation" xml:space="preserve">
     <value>Disponibile solo se LayerPeek è installato con Setup.exe, non nella versione ZIP.</value>
   </data>
+  <data name="SettingsOpenAtLogin" xml:space="preserve">
+    <value>Apri al login</value>
+  </data>
+  <data name="SettingsNeedsAppBundle" xml:space="preserve">
+    <value>Disponibile solo quando LayerPeek si trova nella cartella Applicazioni, non se aperto direttamente dall'immagine disco né in una build di sviluppo.</value>
+  </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Offri versioni preliminari</value>
   </data>
@@ -665,6 +671,18 @@
   </data>
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Impostazioni salvate. Impossibile modificare l'avvio all'accesso. Prova a salvare di nuovo.</value>
+  </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Apri Impostazioni di Sistema</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek è disattivato in Impostazioni di Sistema &gt; Generali &gt; Elementi login ed estensioni. Consentilo lì, poi salva di nuovo.</value>
+  </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Impostazioni salvate. L'apertura al login deve essere consentita in Impostazioni di Sistema.</value>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek è disattivato in Impostazioni di Sistema.</value>
   </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Stampa avviata</value>
@@ -716,6 +734,15 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Puoi spegnerla. Ugello {0} °C, soglia {1} °C</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Le notifiche sono disattivate in macOS.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Apri impostazioni Notifiche</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Le notifiche di LayerPeek sono disattivate in Impostazioni di Sistema &gt; Notifiche. Attiva lì «Consenti notifiche».</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Telecamera</value>
@@ -848,6 +875,15 @@
   </data>
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
     <value>Configurazione e script di build (BtbN)</value>
+  </data>
+  <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
+    <value>FFmpeg è distribuito con licenza GNU LGPL versione 3 o successiva. L'applicazione usa una release di FFmpeg non modificata, compilata come build LGPL dal codice sorgente ufficiale, e la collega dinamicamente: le librerie libavcodec, libavformat, libavutil e libswscale (.dylib) in LayerPeek.app/Contents/MacOS possono essere sostituite con una build FFmpeg compatibile (stesse versioni delle librerie, ad es. libavcodec.63.dylib). L'applicazione va poi firmata di nuovo; basta una firma ad hoc.</value>
+  </data>
+  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
+    <value>Release del codice sorgente FFmpeg utilizzata (ffmpeg.org)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
+    <value>Configurazione e script di build (LayerPeek)</value>
   </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Il testo della licenza FFmpeg (FFmpeg-LICENSE.txt) non è stato trovato accanto all'applicazione. La GNU LGPL 3.0 è pubblicata su https://www.gnu.org/licenses/lgpl-3.0.html.</value>
@@ -1241,5 +1277,17 @@
   </data>
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Ingrandisci la finestra per modificare il layout.</value>
+  </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Nessuna connessione. L'accesso di LayerPeek alla rete locale potrebbe essere disattivato in Impostazioni di Sistema &gt; Privacy e sicurezza &gt; Rete locale.</value>
+  </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Nessuna connessione. L'accesso alla rete locale potrebbe essere disattivato.</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Apri Impostazioni di Sistema</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Apre Impostazioni di Sistema &gt; Privacy e sicurezza &gt; Rete locale. Attiva LayerPeek lì.</value>
   </data>
 </root>

@@ -232,3 +232,64 @@ internal sealed class ReceivedCommands
 
     public bool TryNext(out InstanceCommand command) => _received.Reader.TryRead(out command);
 }
+
+/// <summary>
+/// Credentials of the Unix socket transport (T-053) that can play another user: by default the real ones on macOS, elsewhere
+/// a folder that exists counts as a private folder of <see cref="EffectiveUserId"/> and every peer as this user.
+/// </summary>
+internal sealed class FakeUnixCredentials : IUnixCredentials
+{
+    private readonly IUnixCredentials? _real;
+    private int _peerChecks;
+
+    public FakeUnixCredentials()
+    {
+        _real = RealOrNull;
+        EffectiveUserId = _real?.EffectiveUserId ?? 501;
+    }
+
+    /// <summary>The real credentials on macOS, <see langword="null"/> elsewhere.</summary>
+    public static IUnixCredentials? RealOrNull
+    {
+        get
+        {
+            if (OperatingSystem.IsMacOS())
+            {
+                return MacUnixCredentials.Current;
+            }
+
+            return null;
+        }
+    }
+
+    public uint EffectiveUserId { get; init; }
+
+    /// <summary>The user of each connected client; <see langword="null"/> result: the OS cannot tell. Unset: the real one.</summary>
+    public Func<uint?>? Peer { get; init; }
+
+    public int PeerChecks => Volatile.Read(ref _peerChecks);
+
+    public bool TryGetPeerUserId(System.Net.Sockets.Socket socket, out uint userId)
+    {
+        Interlocked.Increment(ref _peerChecks);
+        if (Peer is not null)
+        {
+            uint? peer = Peer();
+            userId = peer ?? 0;
+            return peer.HasValue;
+        }
+
+        if (_real is not null)
+        {
+            return _real.TryGetPeerUserId(socket, out userId);
+        }
+
+        userId = EffectiveUserId;
+        return true;
+    }
+
+    public UnixEntry? GetEntry(string path) =>
+        _real is not null
+            ? _real.GetEntry(path)
+            : Directory.Exists(path) ? new UnixEntry(UnixEntryKind.Directory, UnixSocketInstanceTransport.PrivateDirectoryMode, EffectiveUserId) : null;
+}

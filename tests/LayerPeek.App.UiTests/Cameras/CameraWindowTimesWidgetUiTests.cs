@@ -18,6 +18,7 @@ using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
+using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
 
@@ -139,14 +140,14 @@ public sealed class CameraWindowTimesWidgetUiTests(HeadlessSession session)
 
             Assert.Equal(size, Widget(window).RenderedSize);
             Assert.True(Card(window).IsEffectivelyVisible);
-            Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min", Card(window).GetValue(AutomationProperties.NameProperty));
+            Assert.Equal(CultureTime.EnUs("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min"), Card(window).GetValue(AutomationProperties.NameProperty));
             Assert.Equal("1\u00A0h 5\u00A0min", window.Find<TextBlock>(RemainingId).Text);
             Assert.True(window.IsShown<TextBlock>(RemainingId));
             bool rows = size != OverlayWidgetSize.Small;
             Assert.Equal(rows, window.IsShown<OverlayIconText>(FinishId));
             Assert.Equal(rows, window.IsShown<OverlayIconText>(ElapsedId));
             Assert.Equal(rows, Ui.ShowsText(window, "Remaining"));
-            Assert.Equal(rows, Ui.ShowsText(window, "Done at 1:05 PM"));
+            Assert.Equal(rows, Ui.ShowsText(window, CultureTime.EnUs("Done at 1:05 PM")));
             Assert.Equal(rows, Ui.ShowsText(window, "2\u00A0h 10\u00A0min"));
             AssertFits(window, size);
 

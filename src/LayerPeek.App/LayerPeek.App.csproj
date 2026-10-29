@@ -32,8 +32,11 @@
     <NeutralLanguage>en</NeutralLanguage>
   </PropertyGroup>
   <ItemGroup>
-    <!-- The SVG sources (app icon, tray design references) and the 1024 px macOS master are not needed at runtime. -->
-    <AvaloniaResource Include="Assets\**" Exclude="Assets\**\*.svg;Assets\**\*-1024.png" />
+    <!--
+      The SVG sources (app icon, tray design references) and the images of the macOS .icns (app-icon-macos-*.png: the 1024 px
+      master and the 16 and 32 px small variant on Apple's grid, T-019, T-098) are not needed at runtime.
+    -->
+    <AvaloniaResource Include="Assets\**" Exclude="Assets\**\*.svg;Assets\AppIcon\app-icon-macos-*.png" />
   </ItemGroup>
   <ItemGroup>
     <!-- Third-party licence texts (About window), read by exact name: see Licenses/ThirdPartyLicenses.cs. -->

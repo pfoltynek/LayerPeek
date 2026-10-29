@@ -8,6 +8,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-29
+
+### Added
+
+- macOS (Apple Silicon): `LayerPeek.app` without a Dock icon (menu bar only), ad-hoc signed, distributed as a `.dmg`
+  (drag the app to Applications) and a `.tar.gz`. The builds are not notarized: the first start has to be allowed in
+  **System Settings → Privacy & Security → Open Anyway** (see the README).
+- macOS: **Open at Login** in the settings (tab *Startup and updates*), using the system Login Items. Off by default.
+  When LayerPeek was turned off in System Settings → General → Login Items, the tab says so under the option (checked
+  every time the settings window opens or comes back to the front) and offers to open System Settings; saving then
+  reports that Open at login has to be allowed there.
+- macOS: windows opened from the menu bar (Settings, Diagnostics, About, camera) come to the front with the keyboard focus.
+- macOS: the app icon follows Apple's app icon grid (a margin around the rounded square with Apple's continuous corners
+  and a soft drop shadow), so in Finder, Launchpad and System Settings it is as large as the other apps' icons; the 16
+  and 32 px sizes use the simplified design, like on Windows. The Windows icon is unchanged.
+- macOS: system notifications (User Notifications) with the same texts, sound setting and click target as on Windows; a
+  click opens the printer's web interface. macOS asks for permission with the first notification. When notifications
+  are turned off in System Settings, the *General* tab of the settings says so and offers to open System Settings →
+  Notifications.
+- macOS: the live camera stream (RTSP/H.264, e.g. Buddy3D). The app bundles its own LGPL build of FFmpeg 9.0.2,
+  compiled from the official source (software decoding), and needs no FFmpeg from Homebrew. The third-party licences
+  window links the source release and the build script used, at the release tag of the app version. Building on a Mac
+  for the first time needs the Xcode Command Line Tools (a clear build error says so when they are missing).
+- macOS 15+: the Local Network permission dialog explains why LayerPeek connects to printers and cameras on the local
+  network, in all eight app languages. When a connection to a printer or camera on the local network fails with
+  "no route to host" (what a denied permission looks like), the diagnostics window, the connection and camera tests
+  and the camera window say that Local Network access may be turned off in **System Settings → Privacy & Security →
+  Local Network**, and the log says so once per printer or camera. The diagnostics window, the connection test and
+  the camera test offer an **Open System Settings** button next to that message.
+- macOS: when LayerPeek starts while no display is active (display asleep, lid closed without a monitor, Open at Login
+  while the display sleeps), it waits and appears in the menu bar once a display wakes, instead of quitting at start.
+  Printer monitoring and notifications already run while it waits (a click on a notification opens the printer's web
+  interface); the menu bar item then shows the current state at once. Opening the app again while it waits does what
+  it always does (the last window or the settings) once the menu bar item is there.
+- Maintainers: `build/update-ffmpeg.ps1` verifies a new FFmpeg version for both platforms before it is pinned (macOS:
+  official source tarball against the Homebrew formula and the GPG signature; Windows: the BtbN zip against the
+  release's `checksums.sha256`, its folder, LGPL licence and libraries) and with `-Update` writes the pinned values.
+- macOS: the monitor chosen for a camera window is recognised by the display's persistent identifier, so the window
+  still opens on the right one of two identical monitors after macOS numbers them differently ("(1)", "(2)") at the
+  next start or reconnect, and on the built-in display after the system language changed.
+
+### Fixed
+
+- macOS: the borderless mini camera preview can be resized with its edges and corners (the window follows the
+  pointer itself; macOS offers no resize for borderless windows there). The height follows the width when the edge is
+  released, as on Windows.
+
 ## [0.2.0] - 2026-10-26
 
 ### Added
@@ -100,6 +147,7 @@ released, so the app does not migrate anything; developers who ran the old build
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pfoltynek/LayerPeek/releases/tag/v0.1.0

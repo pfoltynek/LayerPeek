@@ -42,4 +42,10 @@ public sealed record CameraStatus
     public CameraConnectionState State { get; }
 
     public string? Reason { get; }
+
+    /// <summary>
+    /// <see cref="CameraConnectionState.Error"/> because the operating system has no route to the camera's address
+    /// (<see cref="CameraFeedException.IsHostUnreachable"/>); the UI may explain it per platform (T-097).
+    /// </summary>
+    public bool IsHostUnreachable { get; init; }
 }

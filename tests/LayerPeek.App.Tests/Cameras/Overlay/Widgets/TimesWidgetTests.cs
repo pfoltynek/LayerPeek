@@ -10,6 +10,7 @@ using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
+using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
 
@@ -124,12 +125,12 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.True(widget.IsShown);
         Assert.Equal("Remaining", widget.RemainingLabel);
         Assert.Equal("1\u00A0h 5\u00A0min", widget.Remaining);
-        Assert.Equal("Done at 1:05 PM", widget.Finish);
+        Assert.Equal(CultureTime.EnUs("Done at 1:05 PM"), widget.Finish);
         Assert.Equal("2\u00A0h 10\u00A0min", widget.PrintTime);
         Assert.True(widget.HasRemaining);
         Assert.True(widget.HasFinish);
         Assert.True(widget.HasPrintTime);
-        Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min", widget.AccessibleName);
+        Assert.Equal(CultureTime.EnUs("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min"), widget.AccessibleName);
     }
 
     [Theory]
@@ -192,7 +193,7 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.True(widget.HasRemaining);
         Assert.True(widget.HasFinish);
         Assert.False(widget.HasPrintTime);
-        Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM", widget.AccessibleName);
+        Assert.Equal(CultureTime.EnUs("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM"), widget.AccessibleName);
     }
 
     [Fact]
@@ -201,7 +202,7 @@ public sealed class TimesWidgetTests : IDisposable
         TimesWidgetViewModel widget = Show(Create(), Printing(progress: 50, knownRemaining: false, elapsed: TimeSpan.FromMinutes(30)));
 
         Assert.Equal("30\u00A0min", widget.Remaining);
-        Assert.Equal("Done at 12:30 PM", widget.Finish);
+        Assert.Equal(CultureTime.EnUs("Done at 12:30 PM"), widget.Finish);
     }
 
     [Fact]
@@ -223,7 +224,7 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.Equal("5\u00A0min", widget.Remaining);
         Assert.Equal("2\u00A0min", widget.PrintTime);
         // The finish agrees with the remaining time: 12:00:20 + 4:30 = 12:04:50, rounded up to 12:05.
-        Assert.Equal("Done at 12:05 PM", widget.Finish);
+        Assert.Equal(CultureTime.EnUs("Done at 12:05 PM"), widget.Finish);
     }
 
     [Fact]
@@ -306,7 +307,7 @@ public sealed class TimesWidgetTests : IDisposable
     {
         _time.SetLocalTimeZone(TimeZoneInfo.CreateCustomTimeZone("Test+2", TimeSpan.FromHours(2), "Test+2", "Test+2"));
 
-        Assert.Equal("Done at 3:05 PM", Show(Create(), Printing()).Finish);
+        Assert.Equal(CultureTime.EnUs("Done at 3:05 PM"), Show(Create(), Printing()).Finish);
     }
 
     [Fact]
@@ -318,11 +319,11 @@ public sealed class TimesWidgetTests : IDisposable
         CameraOverlayViewModel overlay = Create();
 
         TimesWidgetViewModel widget = Show(overlay, Printing(remaining: TimeSpan.FromMinutes(200), at: evening));
-        Assert.Equal("Done October 17 at 1:20 AM", widget.Finish);
+        Assert.Equal(CultureTime.EnUs("Done October 17 at 1:20 AM"), widget.Finish);
 
         // After local midnight the same finish is today.
         widget = Show(overlay, Printing(remaining: TimeSpan.FromMinutes(70), at: evening.AddMinutes(130)));
-        Assert.Equal("Done at 1:20 AM", widget.Finish);
+        Assert.Equal(CultureTime.EnUs("Done at 1:20 AM"), widget.Finish);
     }
 
     [Fact]
@@ -363,8 +364,8 @@ public sealed class TimesWidgetTests : IDisposable
 
         Assert.Equal(label, widget.RemainingLabel);
         Assert.Equal(remaining, widget.Remaining);
-        Assert.Equal(finish, widget.Finish);
-        Assert.Equal(accessibleName, widget.AccessibleName);
+        Assert.Equal(CultureTime.EnUs(finish), widget.Finish);
+        Assert.Equal(CultureTime.EnUs(accessibleName), widget.AccessibleName);
     }
 
     [Fact]
@@ -423,7 +424,7 @@ public sealed class TimesWidgetTests : IDisposable
         Assert.False(widget.ShowsFinishRow);
         Assert.False(widget.ShowsPrintTimeRow);
         // The screen reader still gets every value.
-        Assert.Equal("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min", widget.AccessibleName);
+        Assert.Equal(CultureTime.EnUs("1\u00A0h 5\u00A0min remaining, Done at 1:05 PM, Print time: 2\u00A0h 10\u00A0min"), widget.AccessibleName);
     }
 
     [Fact]

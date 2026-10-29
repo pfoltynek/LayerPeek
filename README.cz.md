@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Poslední vydání"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platforma: Windows 10/11">
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platforma: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
   <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="Hvězdičky na GitHubu"></a>
 </p>
@@ -148,7 +148,7 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
 | Windows na ARM64 | 🚧 plánováno |
-| macOS (Apple Silicon) | 🚧 plánováno: menu bar, notifikace, Klíčenka a kamera se připravují |
+| macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
 
@@ -168,6 +168,24 @@ Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/Laye
 Odinstalace ponechá tvoje nastavení (`%APPDATA%\LayerPeek`) a hesla (Správce pověření Windows) a instalátor po sobě
 nechá vlastní log v `%LOCALAPPDATA%\velopack`. Smazat je můžeš ručně. Logy aplikace v `%LOCALAPPDATA%\LayerPeek\logs`
 se s aplikací smažou. Instalace přes verzi ZIP tuto složku také nahradí, včetně logů verze ZIP.
+
+#### macOS (Apple Silicon)
+
+- **Obraz disku** `LayerPeek-X.Y.Z-osx-arm64.dmg`: otevři ho a přetáhni **LayerPeek** do složky **Aplikace**.
+- **Archiv** `LayerPeek-X.Y.Z-osx-arm64.tar.gz`: obsahuje `LayerPeek.app`; rozbal ho a aplikaci přesuň do Aplikací.
+
+Od verze 0.3.0 vychází LayerPeek i pro macOS. Je jen v menu baru, bez ikony v Docku, a umí totéž co na Windows,
+včetně notifikací a okna kamery.
+
+> [!IMPORTANT]
+> Sestavení pro macOS mají jen ad-hoc podpis a Apple je **nenotarizoval**, takže Gatekeeper první spuštění zablokuje
+> („Apple nemůže ověřit…“). Klikni na **Hotovo**, otevři **Nastavení systému → Soukromí a zabezpečení**, u zprávy
+> o LayerPeeku klikni na **Přesto otevřít**, potvrď heslem nebo Touch ID a aplikaci otevři znovu. Pokročilí uživatelé
+> můžou místo toho stažené aplikaci odebrat příznak karantény: `xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+> Spouštěj aplikaci ze složky Aplikace, ne přímo z obrazu disku: „Otevřít při přihlášení“ funguje jen tam.
+
+Od macOS 15 se první spojení s tiskárnou nebo kamerou zeptá na přístup do **místní sítě**: klikni na **Povolit**.
+Pokud jsi ho zamítl, zapni LayerPeek v **Nastavení systému → Soukromí a zabezpečení → Místní síť**.
 
 ### 2. Zapni PrusaLink na tiskárně
 
@@ -198,15 +216,18 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
   rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
-  jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze.
+  jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze. Na macOS: **Otevřít při přihlášení**
+  (ve výchozím stavu vypnuté, jen pro LayerPeek.app zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek
+  vypnul v Nastavení systému → Obecné → Položky při přihlášení, povolit ho jde jen tam; okno nastavení nabídne tlačítko,
+  které tu stránku otevře.
 
 ### Kde jsou uložená data
 
-| Co | Kde (Windows) |
-|---|---|
-| Nastavení | `%APPDATA%\LayerPeek\settings.json` |
-| Hesla | Správce pověření Windows |
-| Logy | `%LOCALAPPDATA%\LayerPeek\logs` |
+| Co | Kde (Windows) | Kde (macOS) |
+|---|---|---|
+| Nastavení | `%APPDATA%\LayerPeek\settings.json` | `~/Library/Application Support/LayerPeek/settings.json` |
+| Hesla | Správce pověření Windows | přihlašovací Klíčenka |
+| Logy | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
 Historie teplot je jen v paměti a na disk se nikdy neukládá. Aplikace se nepřipojuje nikam jinam než k tiskárnám
 a kamerám, které přidáš.
@@ -218,7 +239,6 @@ a kamerám, které přidáš.
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
   projektu přibudou později.
-- Aplikace pro menu bar na macOS (Apple Silicon)
 - Windows na ARM64
 - Stav MMU3
 - Prusa Connect (cloud) jako volitelný druhý zdroj pro tiskárny mimo tvoji síť
@@ -251,7 +271,9 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 - Git.
 - Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
   na macOS Xcode Command Line Tools.
-- První build na Windows stáhne LGPL knihovny FFmpeg pro kameru (~77 MB, ověřené přes SHA-256).
+- První build na Windows stáhne LGPL knihovny FFmpeg pro kameru (~77 MB, ověřené přes SHA-256). Na macOS první build
+  stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a přeloží z něj LGPL build přes Xcode Command
+  Line Tools (asi minuta).
 
 Podrobnosti jsou v [docs/prerequisites.md](docs/prerequisites.md).
 
@@ -285,6 +307,8 @@ k vydání v [CHANGELOG.md](CHANGELOG.md). Jeden příkaz, `pwsh scripts/release
 provede vydání podle Gitflow (větev release, sloučení do `main` s tagem `vX.Y.Z`, sloučení zpět do `develop`), sestaví
 tag a nahraje ho do konceptu vydání na GitHubu; před každým pushem a nahráním se zeptá. Zveřejnění konceptu zůstává
 samostatný ruční krok (`scripts/release-publish.ps1`). Celý postup je v [docs/release.md](docs/release.md).
+Kontroly na Macu, které může udělat jen člověk (Gatekeeper, oprávnění macOS, otevření při přihlášení, monitory, uspaný
+displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manual-testing.md).
 
 ### Struktura projektu
 

@@ -12,6 +12,7 @@ using LayerPeek.App.Diagnostics;
 using LayerPeek.App.Diagnostics.Chart;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.App.UiTests.Infrastructure;
@@ -279,6 +280,82 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    /// <summary>
+    /// T-097 (macOS 15+, user decision 2026-10-29): the button to System Settings &gt; Privacy &amp; Security &gt; Local
+    /// Network only under the Local Network hint; in every language at the designed and a maximized size it has its whole
+    /// text inside the window and does not cover the hint; a click opens System Settings (here only counted).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task LocalNetworkButtonFitsUnderTheHintInEveryLanguage(string language) =>
+        session.RunAsync(scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            FakeLocalNetworkPrivacy privacy = new();
+            DiagnosticsWindowHarness ui = OpenWorstLocalNetwork(scope, privacy);
+            Button open = ui.Find<Button>("DiagnosticsOpenLocalNetworkSettings");
+            TextBlock detail = ui.Find<TextBlock>("DiagnosticsDetail");
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettings, open.Content);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, ToolTip.GetTip(open));
+            foreach (Size size in (Size[])[new Size(780, 532), new Size(1366, 705)])
+            {
+                ui.Window.Width = size.Width;
+                ui.Window.Height = size.Height;
+                ui.Window.Settle();
+                string context = $"{language} / Local Network hint / {size}";
+                problems.AddRange(LayoutProblems(ui.Window, context));
+                Point end = open.TranslatePoint(new Point(open.Bounds.Width, open.Bounds.Height), ui.Window) ?? default;
+                if (end.X > ui.Window.ClientSize.Width + 0.5 || end.Y > ui.Window.ClientSize.Height + 0.5)
+                {
+                    problems.Add($"{context}: the button ends at {end}, outside the window.");
+                }
+
+                TextBlock text = open.GetVisualDescendants().OfType<TextBlock>().First();
+                TextBlock probe = new() { Text = text.Text, FontFamily = text.FontFamily, FontSize = text.FontSize, FontWeight = text.FontWeight };
+                probe.Measure(Size.Infinity);
+                if (probe.DesiredSize.Width > text.Bounds.Width + 0.5)
+                {
+                    problems.Add($"{context}: '{text.Text}' needs {probe.DesiredSize.Width:0.#} DIP but has {text.Bounds.Width:0.#}.");
+                }
+
+                double detailEnd = detail.TranslatePoint(new Point(0, detail.Bounds.Height), ui.Window)!.Value.Y;
+                double buttonTop = open.TranslatePoint(default, ui.Window)!.Value.Y;
+                if (buttonTop < detailEnd - 0.5)
+                {
+                    problems.Add($"{context}: the button at {buttonTop:0.#} DIP covers the hint ending at {detailEnd:0.#}.");
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, privacy.Opened);
+
+            // The printer answers again: hint and button go.
+            ui.Monitor.Raise(Printing("a"));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            ui.Window.Settle();
+            Assert.False(open.IsEffectivelyVisible);
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task WithoutTheLocalNetworkPermissionThereIsNoButton() =>
+        session.RunAsync(static scope =>
+        {
+            DiagnosticsWindowHarness ui = DiagnosticsWindowHarness.Open(
+                scope,
+                [Link("a", "MK4S workshop")],
+                PrinterSnapshot.Unavailable("a", PrinterState.Offline, TestPrinters.Now, "The printer is not reachable.", PrinterProblem.HostUnreachable));
+
+            Assert.Equal(DiagnosticsFormatter.Problem(PrinterProblem.HostUnreachable), ui.ViewModel.DetailText);
+            Assert.False(ui.Find<Button>("DiagnosticsOpenLocalNetworkSettings").IsEffectivelyVisible);
+            return Task.CompletedTask;
+        });
+
     [Fact]
     public Task ScreenReadersGetTheNamesOfTheSelectorsDetailAndPrinterInformation() =>
         session.RunAsync(static scope =>
@@ -441,6 +518,7 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
         yield return ("long name and host name", OpenLongName);
         yield return ("worst: selector, notice, longest state, detail, failed information", static scope => OpenWorst(scope, loadedInfo: false));
         yield return ("worst with loaded information", static scope => OpenWorst(scope, loadedInfo: true));
+        yield return ("worst with the Local Network hint and its button (macOS 15+)", static scope => OpenWorstLocalNetwork(scope, new FakeLocalNetworkPrivacy()));
         yield return ("no printer", static scope => DiagnosticsWindowHarness.Open(scope, []));
         yield return ("starting", static scope => DiagnosticsWindowHarness.Open(scope, printers: null));
     }
@@ -501,6 +579,28 @@ public sealed class DiagnosticsWindowLayoutTests(HeadlessSession session)
         Assert.True(ui.ViewModel.HasNotice);
         Assert.True(ui.ViewModel.HasPrinterSelector);
         Assert.True(ui.ViewModel.HasDetail);
+        return ui;
+    }
+
+    /// <summary>
+    /// T-097 (macOS 15+): like <see cref="OpenWorst"/> (selector with long names, notice, failed information), the shown
+    /// printer offline with "no route to host" to its local address: the detail is the Local Network hint with the button to
+    /// System Settings under it.
+    /// </summary>
+    internal static DiagnosticsWindowHarness OpenWorstLocalNetwork(UiTestScope scope, FakeLocalNetworkPrivacy localNetwork)
+    {
+        PrinterSnapshot offline = PrinterSnapshot.Unavailable("a", PrinterState.Offline, TestPrinters.Now.AddDays(-1).AddMinutes(-17), "The printer is not reachable.", PrinterProblem.HostUnreachable);
+        DiagnosticsWindowHarness ui = DiagnosticsWindowHarness.OpenWithLocalNetwork(
+            scope,
+            localNetwork,
+            [Link("a", LongName), Link("b", "MK4S workshop"), Cloud("c", "Cloud XL")],
+            offline);
+        ui.FailMonitoring();
+        PrinterState longestReason = Enum.GetValues<PrinterState>().MaxBy(static state => DiagnosticsFormatter.InfoUnavailable(state).Length);
+        ui.CompleteInfo(new PrusaLinkInfoResult(longestReason, "failed", null));
+        Assert.True(ui.ViewModel.HasNotice);
+        Assert.True(ui.ViewModel.ShowsLocalNetworkSettings);
+        Assert.Equal(Strings.LocalNetworkAccessMayBeOff, ui.ViewModel.DetailText);
         return ui;
     }
 

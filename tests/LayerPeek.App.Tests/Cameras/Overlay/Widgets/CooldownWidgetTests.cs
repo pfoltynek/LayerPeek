@@ -13,6 +13,7 @@ using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
+using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
 
@@ -302,7 +303,7 @@ public sealed class CooldownWidgetTests : IDisposable
         Assert.False(widget.ShowsProgress);
         long cooledIn = (long)Math.Ceiling((state.CooledDownAt!.Value - state.PrintEndedAt!.Value).TotalMinutes);
         // The print ended at the first Finished / Stopped snapshot: 12:00:05 (UTC).
-        Assert.Equal($"{endedText} 12:00 PM · cooled down in {cooledIn}\u00A0min", widget.DetailText);
+        Assert.Equal(CultureTime.EnUs($"{endedText} 12:00 PM · cooled down in {cooledIn}\u00A0min"), widget.DetailText);
         Assert.True(widget.ShowsDetail);
     }
 
@@ -320,7 +321,7 @@ public sealed class CooldownWidgetTests : IDisposable
         CooldownWidgetViewModel widget = Widget(overlay);
         Assert.False(sawCooling);
         Assert.True(widget.IsCooled);
-        Assert.Equal("print finished at 12:00 PM", widget.DetailText);
+        Assert.Equal(CultureTime.EnUs("print finished at 12:00 PM"), widget.DetailText);
     }
 
     [Fact]
@@ -366,7 +367,7 @@ public sealed class CooldownWidgetTests : IDisposable
         Assert.Equal(39, content.BedCelsius);
         Assert.Equal(100, content.ProgressPercent);
         Assert.Null(content.EstimateMinutes);
-        Assert.Equal("print finished at 7:52 PM · cooled down in 14\u00A0min", CooldownFormat.Times(content));
+        Assert.Equal(CultureTime.EnUs("print finished at 7:52 PM · cooled down in 14\u00A0min"), CooldownFormat.Times(content));
     }
 
     [Fact]
@@ -374,9 +375,9 @@ public sealed class CooldownWidgetTests : IDisposable
     {
         CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 48, PrinterState.Stopped)), CooledState(CooldownPrintOutcome.Stopped));
 
-        Assert.Equal("print stopped at 7:52 PM · cooled down in 14\u00A0min", CooldownFormat.Times(content));
+        Assert.Equal(CultureTime.EnUs("print stopped at 7:52 PM · cooled down in 14\u00A0min"), CooldownFormat.Times(content));
         Assert.Equal(
-            $"Cooled down – safe to turn off, Nozzle 48{Nbsp}°C, Bed 39{Nbsp}°C, print stopped at 7:52 PM, cooled down in 14\u00A0min",
+            CultureTime.EnUs($"Cooled down – safe to turn off, Nozzle 48{Nbsp}°C, Bed 39{Nbsp}°C, print stopped at 7:52 PM, cooled down in 14\u00A0min"),
             CooldownFormat.AccessibleText(content));
     }
 
@@ -386,7 +387,7 @@ public sealed class CooldownWidgetTests : IDisposable
         CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 48)), CooledState(endedBelowThreshold: true, cooledIn: TimeSpan.FromSeconds(5)));
 
         Assert.Null(content.CooledInMinutes);
-        Assert.Equal("print finished at 7:52 PM", CooldownFormat.Times(content));
+        Assert.Equal(CultureTime.EnUs("print finished at 7:52 PM"), CooldownFormat.Times(content));
     }
 
     [Fact]

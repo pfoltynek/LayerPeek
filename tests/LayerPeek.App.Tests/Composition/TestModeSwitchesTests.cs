@@ -8,6 +8,8 @@ using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Notifications;
+using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Notifications;
 using LayerPeek.Core.Secrets;
 
@@ -129,6 +131,39 @@ public sealed class TestModeSwitchesTests
             environment.IgnoredTestSwitches);
     }
 
+    /// <summary>T-099: the pretended time without a display, only in the test mode, within its limit.</summary>
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData("15000", 15000)]
+    [InlineData("120000", 120000)]
+    public void NoDisplayInMilliseconds(string value, int milliseconds)
+    {
+        AppEnvironment environment = Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestNoDisplayVariable, value));
+
+        Assert.Equal("LAYERPEEK_TEST_NO_DISPLAY_MS", AppEnvironment.TestNoDisplayVariable);
+        Assert.Equal(TimeSpan.FromMilliseconds(milliseconds), environment.TestNoDisplay);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("120001")]
+    [InlineData("1.5")]
+    [InlineData("10s")]
+    public void InvalidNoDisplayIsAnInvalidTestMode(string value)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestNoDisplayVariable, value)));
+    }
+
+    [Fact]
+    public void NoDisplayOutsideTheTestModeIsIgnoredAndReported()
+    {
+        AppEnvironment environment = Read((AppEnvironment.TestNoDisplayVariable, "15000"));
+
+        Assert.False(environment.IsIsolated);
+        Assert.Equal(TimeSpan.Zero, environment.TestNoDisplay);
+        Assert.Equal([AppEnvironment.TestNoDisplayVariable], environment.IgnoredTestSwitches);
+    }
+
     [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
@@ -173,6 +208,57 @@ public sealed class TestModeSwitchesTests
         Assert.Equal(new Guid(AppEnvironment.TestToastActivatorClsid), AppEnvironment.ForTests(Folder, toasts: true).ToastActivatorClsid);
         // The test mode without toasts registers nothing with Windows.
         Assert.Null(AppEnvironment.ForTests(Folder).ToastActivatorClsid);
+    }
+
+    /// <summary>
+    /// T-020: macOS notifications only under the identity of the mode: the production bundle in production, the test bundle
+    /// (production + <c>.E2E</c>) in the test mode with notifications, none in the test mode without them. The test mode never
+    /// gets the production identifier, so it never posts notifications or asks for permission as the production app.
+    /// </summary>
+    [Fact]
+    public void EachModeHasItsOwnNotificationBundleOrNone()
+    {
+        Assert.Equal(AppEnvironment.ProductionBundleIdentifier, AppEnvironment.Production.NotificationBundleIdentifier);
+        Assert.Equal(AppEnvironment.TestBundleIdentifier, AppEnvironment.ForTests(Folder, toasts: true).NotificationBundleIdentifier);
+        Assert.Null(AppEnvironment.ForTests(Folder).NotificationBundleIdentifier);
+        Assert.Equal("io.github.pfoltynek.LayerPeek.E2E", AppEnvironment.TestBundleIdentifier);
+        foreach (AppEnvironment test in new[] { AppEnvironment.ForTests(Folder), AppEnvironment.ForTests(Folder, toasts: true), Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestToastsVariable, "1")) })
+        {
+            Assert.NotEqual(AppEnvironment.ProductionBundleIdentifier, test.NotificationBundleIdentifier);
+        }
+
+        // The switch alone (no test data folder) is ignored: production keeps its own bundle.
+        Assert.Equal(AppEnvironment.ProductionBundleIdentifier, Read((AppEnvironment.TestToastsVariable, "1")).NotificationBundleIdentifier);
+    }
+
+    [Fact]
+    public async Task TheTestModeQuitsWithoutCleaningANotificationCenterOfAnotherBundle()
+    {
+        FakeUserNotificationCenter production = new(AppEnvironment.ProductionBundleIdentifier);
+        production.Post(new UserNotificationRequest("1", "MK4", "Print paused", PlaySound: false, LaunchArgument: null));
+        using UserNotificationService service = new(production, static () => System.Globalization.CultureInfo.InvariantCulture, new ListLogger<UserNotificationService>());
+        service.Dispose();
+
+        await ServiceHost.RunTestNotificationCleanupAsync(service, new ListLogger<ServiceHost>());
+
+        Assert.Equal(0, production.Removals);
+        Assert.Equal(1, production.Delivered);
+    }
+
+    [Fact]
+    public async Task TheTestModeQuitsByRemovingTheNotificationsOfTheTestBundle()
+    {
+        FakeUserNotificationCenter test = new(AppEnvironment.TestBundleIdentifier);
+        using UserNotificationService service = new(test, static () => System.Globalization.CultureInfo.InvariantCulture, new ListLogger<UserNotificationService>());
+        service.Show(new PrintNotification { Printer = TestPrinters.Definition(), Kind = LayerPeek.Core.Events.PrintEventKind.PrintPaused, Timestamp = TestPrinters.Now });
+        await Waiting.ForAsync(() => test.Delivered == 1);
+        service.Dispose();
+
+        await ServiceHost.RunTestNotificationCleanupAsync(service, new ListLogger<ServiceHost>());
+
+        Assert.True(service.Completion.IsCompleted);
+        Assert.True(test.Removals >= 1);
+        Assert.Equal(0, test.Delivered);
     }
 
     [Fact]

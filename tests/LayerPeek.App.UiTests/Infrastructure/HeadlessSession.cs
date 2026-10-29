@@ -224,6 +224,12 @@ public sealed class HeadlessSession : IAsyncLifetime
         CultureInfo uiCulture = CultureInfo.CurrentUICulture;
         CultureInfo.CurrentCulture = SystemCulture;
         CultureInfo.CurrentUICulture = SystemCulture;
+        // The two above flow with this body only. Work posted to the UI thread from elsewhere (e.g. a camera status that
+        // the stream reports from the thread pool) runs without the body's execution context, i.e. in the default culture
+        // of the thread, which is the language of the machine (T-095: a Czech macOS showed "Bez signálu"). The default of
+        // every thread is English as well while the body runs.
+        CultureInfo.DefaultThreadCurrentCulture = SystemCulture;
+        CultureInfo.DefaultThreadCurrentUICulture = SystemCulture;
         Strings.Culture = null;
         UiTestScope scope = new(token);
         T result;
@@ -269,6 +275,8 @@ public sealed class HeadlessSession : IAsyncLifetime
             Strings.Culture = null;
             CultureInfo.CurrentCulture = culture;
             CultureInfo.CurrentUICulture = uiCulture;
+            CultureInfo.DefaultThreadCurrentCulture = null;
+            CultureInfo.DefaultThreadCurrentUICulture = null;
         }
     }
 

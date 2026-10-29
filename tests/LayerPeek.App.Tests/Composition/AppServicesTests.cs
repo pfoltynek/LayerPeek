@@ -13,9 +13,11 @@ using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
+using LayerPeek.App.Tests.Notifications;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
@@ -69,7 +71,7 @@ public sealed class AppServicesTests
     [Fact]
     public void AutostartExistsOnlyForTheInstalledApp()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Autostart exists on Windows only (macOS: T-019).");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The Windows rules of the autostart (macOS: MacAutostartCompositionTests, T-019).");
         const string installed = @"C:\Users\u\AppData\Local\LayerPeek\current\LayerPeek.exe";
         HashSet<string> files = new(StringComparer.OrdinalIgnoreCase)
         {
@@ -160,11 +162,91 @@ public sealed class AppServicesTests
     [Fact]
     public async Task OtherOperatingSystemsSilentlyDropNotifications()
     {
-        // macOS notifications follow in T-020; until then notifications are silently not sent.
+        // Without a notification center (another OS; on macOS the test host, which has no bundle, so Program.Main of the app
+        // would open none, T-020) notifications are silently not sent and the settings window gets no OS switch.
         await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: false);
 
         Assert.Same(NullNotificationService.Instance, services.GetRequiredService<INotificationService>());
+        Assert.Null(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
         AssertNotificationPipeline(services);
+    }
+
+    [Fact]
+    public async Task MacOSUsesTheNotificationCenterOfThisRun()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The notification center of macOS (T-020).");
+        FakeUserNotificationCenter center = new(AppEnvironment.ProductionBundleIdentifier);
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: false, macNotifications: center);
+
+        // Resolving asks nothing: the permission is asked with the first notification.
+        UserNotificationService notifications = Assert.IsType<UserNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.Same(center, notifications.Center);
+        Assert.IsType<MacNotificationSettings>(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+        using SettingsViewModel settings = AppServices.CreateSettingsViewModel(services);
+        Assert.False(settings.ShowsNotificationsTurnedOff);
+        Assert.Equal(0, center.AuthorizationRequests);
+        Assert.Empty(center.Posted);
+        AssertNotificationPipeline(services);
+    }
+
+    [Fact]
+    public async Task WindowsNeverUsesTheNotificationCenterOfMacOS()
+    {
+        FakeUserNotificationCenter center = new(AppEnvironment.ProductionBundleIdentifier);
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: true, macNotifications: center);
+
+        Assert.IsNotType<UserNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.Null(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+    }
+
+#if DEBUG
+    [Fact]
+    public void OnlyProductionOpensSystemSettings()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "System Settings of macOS (T-020).");
+        string folder = Path.Combine(Path.GetTempPath(), "LayerPeek.App.Tests.NoSystemSettings");
+
+        Action<Uri> production = AppServices.OpenSystemSettings(AppEnvironment.Production, NullLogger.Instance);
+        Action<Uri> testMode = AppServices.OpenSystemSettings(AppEnvironment.ForTests(folder, toasts: true), NullLogger.Instance);
+
+        Assert.Equal(nameof(MacSystemSettings.Open), production.Method.Name);
+        Assert.NotEqual(nameof(MacSystemSettings.Open), testMode.Method.Name);
+        // The stand-in of the test mode only logs: calling it opens nothing.
+        testMode(MacNotificationSettings.SettingsAddress(AppEnvironment.TestBundleIdentifier));
+        Assert.False(Directory.Exists(folder));
+    }
+
+    [Fact]
+    public async Task TestModeOnlyLogsOpeningTheLocalNetworkSettings()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOSVersionAtLeast(15), "Local Network permission of macOS 15+ (T-097).");
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            RecordingLoggerFactory logs = new();
+            await using ServiceProvider services = AppServices.Create(logs, windows: false, environment: AppEnvironment.ForTests(folder));
+
+            ILocalNetworkPrivacy privacy = services.GetRequiredService<ILocalNetworkPrivacy>();
+            Assert.IsType<MacLocalNetworkPrivacy>(privacy);
+            // The stand-in of the test mode: System Settings never opens in tests (T-020 seam).
+            privacy.OpenSettings();
+
+            Assert.Contains(logs.Messages, static m => m == "Test mode: System Settings is not opened (x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_LocalNetwork).");
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
+#endif
+
+    [Fact]
+    public async Task WithoutTheLocalNetworkPermissionThereIsNone()
+    {
+        Assert.SkipWhen(OperatingSystem.IsMacOSVersionAtLeast(15), "macOS 15+ has the Local Network permission (T-097).");
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: OperatingSystem.IsWindows());
+
+        Assert.Same(NoLocalNetworkPrivacy.Instance, services.GetRequiredService<ILocalNetworkPrivacy>());
     }
 
     private static void AssertNotificationPipeline(ServiceProvider services)
@@ -237,6 +319,11 @@ public sealed class AppServicesTests
         {
             Assert.IsType<WindowsCredentialSecretStore>(store);
         }
+        else if (OperatingSystem.IsMacOS())
+        {
+            // The production service, local login Keychain (T-021); creating it does not touch the Keychain.
+            Assert.Equal(KeychainSecretStore.DefaultServicePrefix, Assert.IsType<KeychainSecretStore>(store).Service);
+        }
         else
         {
             Assert.IsType<UnsupportedSecretStore>(store);
@@ -256,13 +343,13 @@ public sealed class AppServicesTests
         // Derived from the registered store, so the window and the store can never disagree.
         PasswordPolicy policy = services.GetRequiredService<PasswordPolicy>();
         Assert.Equal(PasswordPolicy.For(services.GetRequiredService<ISecretStore>()), policy);
-        Assert.Equal(OperatingSystem.IsWindows(), policy.IsSupported);
+        Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), policy.IsSupported);
 
         // One view model per opened window; creating it does not load anything yet (no disk access in this test).
         using SettingsViewModel first = AppServices.CreateSettingsViewModel(services);
         using SettingsViewModel second = AppServices.CreateSettingsViewModel(services);
         Assert.NotSame(first, second);
-        Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
+        Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), first.IsPasswordSupported);
         Assert.True(first.IsLoading);
     }
 
@@ -372,6 +459,24 @@ public sealed class AppServicesTests
         await services.DisposeAsync().AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         PrinterDefinition printer = new() { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.10" };
         await Assert.ThrowsAsync<ObjectDisposedException>(() => gateway.OpenAsync(printer, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>Records the messages of every logger it creates.</summary>
+    private sealed class RecordingLoggerFactory : ILoggerFactory
+    {
+        private readonly ListLogger<RecordingLoggerFactory> _logger = new();
+
+        public IEnumerable<string> Messages => _logger.Entries.Select(static e => e.Message);
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName) => _logger;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

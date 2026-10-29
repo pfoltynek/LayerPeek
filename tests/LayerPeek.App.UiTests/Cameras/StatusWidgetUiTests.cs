@@ -362,7 +362,10 @@ public sealed class StatusWidgetUiTests(HeadlessSession session)
                 "Prusa CORE One 打印机打印机打印机打印机 v2",
                 "Prusa CORE One remix cube 打印打印打印打印 v2",
                 "Prusa CORE One in the workshop upstairs 打印机打印机 v2",
-                "Prusa CORE One WWW " + rockets + " v2",
+                // Wide enough to be trimmed with any emoji font: Apple Color Emoji (macOS) draws the rockets narrower than
+                // Segoe UI Emoji, so "WWW" alone fit the medium and large cards there (T-095). 37 characters, still below
+                // MaxNameLength.
+                "Prusa CORE One WWWWWW " + rockets + " v2",
                 "Prusa CORE One upstairs " + rockets + " WWWWWWW v2",
                 "Prusa CORE One держатель книг на полке v2",
                 "Prusa CORE One WWWW 打印 держатель WWWW 打印 v2",

@@ -26,6 +26,37 @@ namespace LayerPeek.App.Tests.Composition;
 /// </summary>
 public sealed class AppEnvironmentTests
 {
+    /// <summary>
+    /// T-020 (user decision 2026-10-29): the AOT smoke test starts the app with a switch that skips the notification center of
+    /// macOS for that start only; without it production keeps its bundle. Only the exact switch counts, nothing else changes.
+    /// </summary>
+    [Theory]
+    [InlineData(new string[0], AppEnvironment.ProductionBundleIdentifier)]
+    [InlineData(new[] { AppEnvironment.SkipNotificationCenterArgument }, null)]
+    [InlineData(new[] { "--other", AppEnvironment.SkipNotificationCenterArgument }, null)]
+    [InlineData(new[] { "--LAYERPEEK-SMOKE-SKIP-NOTIFICATION-CENTER" }, AppEnvironment.ProductionBundleIdentifier)]
+    [InlineData(new[] { "--layerpeek-smoke-skip-notification-center=1" }, AppEnvironment.ProductionBundleIdentifier)]
+    public void TheSmokeSwitchOnlySkipsTheNotificationCenter(string[] arguments, string? expected)
+    {
+        Assert.Equal(expected, AppEnvironment.Production.NotificationBundleIdentifierFor(arguments));
+        Assert.Equal(expected is null, AppEnvironment.SkipsNotificationCenter(arguments));
+        // The environment itself is the same production environment either way.
+        Assert.Equal(AppEnvironment.ProductionBundleIdentifier, AppEnvironment.Production.NotificationBundleIdentifier);
+        Assert.False(AppEnvironment.Production.IsIsolated);
+    }
+
+    [Fact]
+    public void TheSmokeSwitchIsNoTestStart()
+    {
+        // A Release start with it is a normal production start (a test start without the test mode would be refused).
+        Assert.DoesNotContain("--layerpeek-e2e-", AppEnvironment.SkipNotificationCenterArgument, StringComparison.OrdinalIgnoreCase);
+#if DEBUG
+        Assert.False(AppEnvironment.IsTestStart([AppEnvironment.SkipNotificationCenterArgument], static _ => null));
+        // The test bundle skips its notification center with the switch too.
+        Assert.Null(AppEnvironment.ForTests(Path.Combine(Path.GetTempPath(), "layerpeek-skip-not-created"), toasts: true).NotificationBundleIdentifierFor([AppEnvironment.SkipNotificationCenterArgument]));
+#endif
+    }
+
     [Fact]
     public void ProductionUsesTheUserDataFolderAndIsNotIsolated()
     {
@@ -195,6 +226,11 @@ public sealed class AppEnvironmentTests
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.RecordingUrlLauncher"));
         Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.Windows.TestToastCleanup"));
         Assert.Null(typeof(AppEnvironment).GetProperty("TestToasts", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance));
+        // T-020: no test bundle, no status mode, no cleanup of the test bundle's notifications; production keeps its bundle.
+        Assert.Null(typeof(AppEnvironment).Assembly.GetType("LayerPeek.App.Platform.MacOS.TestNotificationCleanup"));
+        Assert.Null(typeof(AppEnvironment).GetField("TestBundleIdentifier", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        Assert.Null(typeof(AppEnvironment).GetField("NotificationStatusArgument", BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static));
+        Assert.Equal(AppEnvironment.ProductionBundleIdentifier, AppEnvironment.Production.NotificationBundleIdentifier);
         Assert.Same(AppEnvironment.Production, AppEnvironment.FromProcess());
     }
 #endif
@@ -232,6 +268,11 @@ public sealed class AppEnvironmentTests
             (@"StartupShortcutPath\(\)", ["Platform/Windows/AppShortcutRegistration.cs", "Composition/AppEnvironment.cs"]),
             (@"new StartupShortcutAutostart\(", ["Composition/AppServices.cs"]),
             (@"new WindowsComServerRegistry\(", ["Composition/AppServices.cs", "Platform/Windows/TestToastCleanup.cs"]),
+            // T-020: the notification center of macOS, only for the bundle identifier the environment allows (Program.Main) or
+            // the test bundle (its cleanup); System Settings only outside the test mode.
+            (@"currentNotificationCenter", ["Platform/MacOS/MacUserNotificationCenter.cs"]),
+            (@"MacUserNotificationCenter\.TryOpen\(", ["Program.cs", "Platform/MacOS/TestNotificationCleanup.cs"]),
+            (@"MacSystemSettings\.Open\b", ["Composition/AppServices.cs"]),
         ];
 
         List<string> violations = [];

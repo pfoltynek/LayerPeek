@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platform: Windows 10/11">
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platform: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
   <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="GitHub stars"></a>
 </p>
@@ -146,7 +146,7 @@ cameras.
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
 | Windows on ARM64 | 🚧 planned |
-| macOS (Apple Silicon) | 🚧 planned: menu bar, notifications, Keychain and camera are in progress |
+| macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
 
@@ -167,6 +167,24 @@ Uninstalling keeps your settings (`%APPDATA%\LayerPeek`) and passwords (Windows 
 leaves its own log in `%LOCALAPPDATA%\velopack`. You can delete them by hand. The app's logs in
 `%LOCALAPPDATA%\LayerPeek\logs` are deleted with the app. Installing over the ZIP version replaces that folder too,
 including the ZIP version's logs.
+
+#### macOS (Apple Silicon)
+
+- **Disk image** `LayerPeek-X.Y.Z-osx-arm64.dmg`: open it and drag **LayerPeek** to **Applications**.
+- **Archive** `LayerPeek-X.Y.Z-osx-arm64.tar.gz`: contains `LayerPeek.app`; unpack it and move the app to Applications.
+
+Since version 0.3.0 LayerPeek is also released for macOS. It lives in the menu bar only, without a Dock icon, and has
+the same features as on Windows, including notifications and the camera window.
+
+> [!IMPORTANT]
+> The macOS builds are only ad-hoc signed and **not notarized** by Apple, so Gatekeeper blocks the first start
+> ("Apple could not verify…"). Click **Done**, then open **System Settings → Privacy & Security**, click **Open Anyway**
+> next to the message about LayerPeek, confirm with your password or Touch ID and open the app again. Advanced users can
+> remove the quarantine flag of the downloaded app instead: `xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+> Start the app from Applications, not straight from the disk image: "Open at Login" works only there.
+
+On macOS 15 and later, the first connection to a printer or camera asks for **Local Network** access: click **Allow**.
+If you denied it, turn LayerPeek on in **System Settings → Privacy & Security → Local Network**.
 
 ### 2. Enable PrusaLink on the printer
 
@@ -197,15 +215,17 @@ submenu.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the cool-down threshold), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
 - **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
-  and whether updates offer pre-release versions.
+  and whether updates offer pre-release versions. On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of
+  the disk image, e.g. to Applications). If you turned LayerPeek off in System Settings → General → Login Items, only you can
+  allow it there again; the settings window offers a button that opens that page.
 
 ### Where data is stored
 
-| What | Where (Windows) |
-|---|---|
-| Settings | `%APPDATA%\LayerPeek\settings.json` |
-| Passwords | Windows Credential Manager |
-| Logs | `%LOCALAPPDATA%\LayerPeek\logs` |
+| What | Where (Windows) | Where (macOS) |
+|---|---|---|
+| Settings | `%APPDATA%\LayerPeek\settings.json` | `~/Library/Application Support/LayerPeek/settings.json` |
+| Passwords | Windows Credential Manager | login Keychain |
+| Logs | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
 The temperature history is kept only in memory and is never written to disk. The app makes no connections except to
 the printers and cameras you add.
@@ -216,7 +236,6 @@ the printers and cameras you add.
 - `winget install` as soon as the first release is public
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
-- macOS menu bar app (Apple Silicon)
 - Windows on ARM64
 - MMU3 status
 - Prusa Connect (cloud) as an optional second source for printers outside your network
@@ -248,7 +267,9 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
   C++* workload, on macOS the Xcode Command Line Tools.
-- The first build on Windows downloads the LGPL FFmpeg libraries for the camera (~77 MB, verified by SHA-256).
+- The first build on Windows downloads the LGPL FFmpeg libraries for the camera (~77 MB, verified by SHA-256). On
+  macOS the first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles an LGPL build
+  with the Xcode Command Line Tools (about a minute).
 
 See [docs/prerequisites.md](docs/prerequisites.md) for details (in Czech).
 
@@ -284,6 +305,8 @@ from [CHANGELOG.md](CHANGELOG.md). One command, `pwsh scripts/release.ps1 -Versi
 Gitflow release (release branch, merge into `main` with the tag `vX.Y.Z`, merge back into `develop`), builds the tag and
 uploads it into a draft GitHub release, asking before every push and upload. Publishing the draft stays a separate
 manual step (`scripts/release-publish.ps1`). See [docs/release.md](docs/release.md) for the full procedure (in Czech).
+The checks on a Mac that only a person can do (Gatekeeper, macOS permissions, Open at Login, monitors, a sleeping
+display) are collected in one walk-through in [docs/macos-manual-testing.md](docs/macos-manual-testing.md) (in Czech).
 
 ### Project structure
 

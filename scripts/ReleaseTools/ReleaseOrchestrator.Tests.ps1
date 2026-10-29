@@ -67,7 +67,8 @@ switch ($a[1]) {
     default { [Console]::Error.WriteLine("fake gh: unsupported $($a -join ' ')"); exit 99 }
 }
 '@)
-    $pwshPath = [Environment]::ProcessPath
+    # Quoted command line of the running PowerShell (an installed pwsh, or dotnet + pwsh.dll of the dotnet tool).
+    $pwshCommand = (Get-PwshCommand | ForEach-Object { "`"$_`"" }) -join ' '
     if ($IsWindows) {
         $shim = @(
             '@echo off'
@@ -81,7 +82,7 @@ switch ($a[1]) {
             'echo fake gh: unsupported %* 1>&2'
             'exit /b 99'
             ':impl'
-            "`"$pwshPath`" -NoProfile -NonInteractive -File `"$impl`" %*"
+            "$pwshCommand -NoProfile -NonInteractive -File `"$impl`" %*"
             'exit /b %ERRORLEVEL%'
         ) -join "`r`n"
         [System.IO.File]::WriteAllText((Join-Path $fakeGhDir 'gh.cmd'), $shim + "`r`n")
@@ -96,7 +97,7 @@ switch ($a[1]) {
             '  if [ "$1" = release ] && [ "$2" = view ]; then echo "release not found" >&2; exit 1; fi'
             '  echo "fake gh: unsupported $*" >&2; exit 99'
             'fi'
-            "exec `"$pwshPath`" -NoProfile -NonInteractive -File `"$impl`" `"`$@`""
+            "exec $pwshCommand -NoProfile -NonInteractive -File `"$impl`" `"`$@`""
         ) -join "`n"
         [System.IO.File]::WriteAllText($path, $shim + "`n")
         & chmod +x $path
@@ -909,12 +910,12 @@ Describe 'scripts/release.ps1 (throw-away clone)' {
         $script:S = New-ReleaseTestRepository -Name 'rs' -WithScripts
         $script:Script = Join-Path $script:S.Work 'scripts' 'release.ps1'
         function Invoke-Release([string[]] $Arguments) {
-            $output = & ([Environment]::ProcessPath) -NoProfile -NonInteractive -File $script:Script @Arguments 2>&1 | Out-String
+            $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:Script @Arguments 2>&1 | Out-String
             [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
         }
         function Invoke-ReleaseAnswering([string[]] $Answers, [string[]] $Arguments) {
             # The answers go to Read-Host through stdin, one line per confirmation.
-            $output = $Answers | & ([Environment]::ProcessPath) -NoProfile -File $script:Script @Arguments 2>&1 | Out-String
+            $output = $Answers | Invoke-Pwsh -NoProfile -File $script:Script @Arguments 2>&1 | Out-String
             [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
         }
         function Snapshot { "$(Get-AllRefs $script:S.Work)`n--`n$(Get-AllRefs $script:S.Origin)`n--`n$((G $script:S.Work status --porcelain --untracked-files=all) -join "`n")" }
@@ -1162,8 +1163,8 @@ exit 0
         $script:E = New-ReleaseTestRepository -Name 'ok' -WithScripts -BuildScript $build
         $script:EScript = Join-Path $script:E.Work 'scripts' 'release.ps1'
         function Invoke-E([string[]] $Arguments, [string[]] $Answers) {
-            $output = if ($Answers) { $Answers | & ([Environment]::ProcessPath) -NoProfile -File $script:EScript @Arguments 2>&1 | Out-String }
-            else { & ([Environment]::ProcessPath) -NoProfile -NonInteractive -File $script:EScript @Arguments 2>&1 | Out-String }
+            $output = if ($Answers) { $Answers | Invoke-Pwsh -NoProfile -File $script:EScript @Arguments 2>&1 | Out-String }
+            else { Invoke-Pwsh -NoProfile -NonInteractive -File $script:EScript @Arguments 2>&1 | Out-String }
             [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
         }
     }

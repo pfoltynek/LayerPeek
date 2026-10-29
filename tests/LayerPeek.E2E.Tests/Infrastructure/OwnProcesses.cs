@@ -19,9 +19,13 @@ internal static partial class OwnProcesses
     {
         List<Process> found = [];
         int self = Environment.ProcessId;
+        // macOS has no /proc: one ps call for all processes instead of one per process (decided 2026-10-18, T-030 Q4).
+        Dictionary<int, string>? snapshot = OperatingSystem.IsWindows() || Directory.Exists("/proc") ? null : PsCommandLines();
         foreach (Process process in Process.GetProcesses())
         {
-            string? commandLine = process.Id == self ? null : CommandLine(process.Id);
+            string? commandLine = process.Id == self ? null
+                : snapshot is not null ? snapshot.GetValueOrDefault(process.Id)
+                : CommandLine(process.Id);
             if (commandLine is not null && IsOwnCommandLine(commandLine, marker))
             {
                 found.Add(process);
@@ -123,23 +127,45 @@ internal static partial class OwnProcesses
         }
     }
 
+    /// <summary>Linux: <c>/proc/&lt;pid&gt;/cmdline</c> (macOS uses <see cref="PsCommandLines"/>).</summary>
     private static string? UnixCommandLine(int processId)
     {
         string procFile = $"/proc/{processId}/cmdline";
-        if (File.Exists(procFile))
-        {
-            return File.ReadAllText(procFile).Replace('\0', ' ');
-        }
+        return File.Exists(procFile) ? File.ReadAllText(procFile).Replace('\0', ' ') : null;
+    }
 
-        // macOS: no /proc.
-        using Process ps = Process.Start(new ProcessStartInfo("ps", ["-ww", "-o", "command=", "-p", processId.ToString(System.Globalization.CultureInfo.InvariantCulture)])
+    /// <summary>
+    /// The command lines of all processes (also of other users and without a terminal) by one
+    /// <c>ps -axww -o pid=,command=</c>: process id -> command line. A process that started after the call is missing,
+    /// like one that exited before a per-process query.
+    /// </summary>
+    internal static Dictionary<int, string> PsCommandLines()
+    {
+        using Process ps = Process.Start(new ProcessStartInfo("/bin/ps", ["-axww", "-o", "pid=,command="])
         {
             RedirectStandardOutput = true,
             UseShellExecute = false,
         })!;
         string output = ps.StandardOutput.ReadToEnd();
         ps.WaitForExit();
-        return output;
+        return ps.ExitCode == 0 ? ParsePsOutput(output) : throw new InvalidOperationException($"ps failed with exit code {ps.ExitCode}.");
+    }
+
+    /// <summary>Lines of <c>ps -o pid=,command=</c>: the right-aligned id, spaces, the command line (kept as it is).</summary>
+    internal static Dictionary<int, string> ParsePsOutput(string output)
+    {
+        Dictionary<int, string> commandLines = [];
+        foreach (string line in output.Split('\n'))
+        {
+            ReadOnlySpan<char> rest = line.AsSpan().TrimStart(' ').TrimEnd('\r');
+            int space = rest.IndexOf(' ');
+            if (space > 0 && int.TryParse(rest[..space], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int processId))
+            {
+                commandLines[processId] = rest[(space + 1)..].TrimStart(' ').ToString();
+            }
+        }
+
+        return commandLines;
     }
 
     [SupportedOSPlatform("windows")]
