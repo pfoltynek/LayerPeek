@@ -18,6 +18,7 @@ using LayerPeek.App.Windows;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
+using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
 
@@ -44,8 +45,7 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
 
     private static CameraMiniStrip StripOf(CameraWindow window) => window.Find<CameraMiniStrip>("CameraMiniInfoStrip");
 
-    private static TextBlock SummaryText(CameraWindow window) =>
-        StripOf(window).GetVisualDescendants().OfType<TextBlock>().Single(static text => text.Name == "SummaryText");
+    private static TextBlock SummaryText(CameraWindow window) => MiniStripParts.SummaryText(window);
 
     private static Image Image(CameraWindow window) => window.GetVisualDescendants().OfType<Image>().Single(static image => image.Name == "Video");
 
@@ -284,8 +284,10 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
             Assert.Equal(new Rect(strip.X, strip.Y, 320, 3), BoundsIn(progress, window));
             Assert.Equal(30, summary.Bounds.Height);
             Assert.Equal("19% · 2\u00A0h 35\u00A0min", SummaryText(window).Text);
-            Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", AutomationProperties.GetName(summary));
-            Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", ToolTip.GetTip(summary));
+            // T-103: the whole wording with the finish time (the fake clock is in UTC), whichever variant is drawn.
+            string accessible = CultureTime.EnUs("Printing, 19%, 2\u00A0h 35\u00A0min remaining, Done at 2:35 PM");
+            Assert.Equal(accessible, AutomationProperties.GetName(summary));
+            Assert.Equal(accessible, ToolTip.GetTip(summary));
             // Elements of UI Automation with their names (T-093: a plain grid or border is not one, a screen reader never read them).
             foreach (Control named in new Control[] { summary, window.Find<Border>("CameraMiniNameRow"), window.Find<Border>("CameraMiniChartRow"), progress })
             {
@@ -294,12 +296,15 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
                 Assert.Equal(AutomationProperties.GetAutomationId(named), peer.GetAutomationId());
             }
 
-            Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(summary).GetName());
+            Assert.Equal(accessible, Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(summary).GetName());
             // Room for the two 30 × 30 toggles of T-090, 2 apart, 6 from the right edge (the corner grip stays free).
             Rect reserved = BoundsIn(toggles, window);
             Assert.Equal(62, reserved.Width);
             Assert.Equal(320 - 6, reserved.Right, 0.01);
             Assert.True(BoundsIn(SummaryText(window), window).Right <= reserved.Left - 8 + 0.01);
+            // At 320 the time after the flag fits (L2), at least 8 from the toggles.
+            Assert.Equal(CultureTime.EnUs("2:35 PM"), MiniStripParts.FinishText(window)?.Text);
+            Assert.True(BoundsIn(MiniStripParts.FinishText(window)!, window).Right <= reserved.Left - 8 + 0.01);
             // Only the two toggles of T-090 take the keyboard focus.
             Assert.Equal(
                 ["CameraMiniToggleName", "CameraMiniToggleChart"],
