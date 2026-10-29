@@ -10,6 +10,7 @@ using LayerPeek.App.Composition;
 using LayerPeek.App.Installer;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
+using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.SingleInstance;
 using LayerPeek.App.Windows;
@@ -210,6 +211,12 @@ internal static partial class Program
                 }
             }
 
+            if (OperatingSystem.IsMacOS() && !WaitForMacDisplay(logging.Factory))
+            {
+                // Asked to quit while every display slept (T-096): nothing of the UI has started.
+                return 0;
+            }
+
             if (OperatingSystem.IsMacOS())
             {
                 // Before AppKit finishes launching (T-020): the delegate of the notification center must be set by then, so
@@ -251,6 +258,29 @@ internal static partial class Program
             LogToastActivatorFailed(log, ex);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Waits until a display is active (T-096): Avalonia.Native cannot start its render timer while every display sleeps and
+    /// would end the process. Only the primary instance waits (a later start forwards to it), before the notification center
+    /// and AppKit. SIGTERM and SIGINT end the wait (e.g. logout or <c>kill</c> before the display woke).
+    /// </summary>
+    /// <returns><see langword="false"/> when the process was asked to quit meanwhile.</returns>
+    [SupportedOSPlatform("macos")]
+    private static bool WaitForMacDisplay(ILoggerFactory loggers)
+    {
+        using CancellationTokenSource quit = new();
+        void OnQuitSignal(PosixSignalContext context)
+        {
+            // Handled here: the wait ends and Main returns, so the log is flushed and the single-instance guard released.
+            context.Cancel = true;
+            quit.Cancel();
+        }
+
+        using PosixSignalRegistration terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnQuitSignal);
+        using PosixSignalRegistration interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnQuitSignal);
+        StartupDisplayWait wait = new(new Platform.MacOS.MacActiveDisplays(), StartupDisplayWait.BlockingPause, loggers.CreateLogger<StartupDisplayWait>());
+        return wait.WaitForDisplay(quit.Token) != StartupDisplayWaitResult.Cancelled;
     }
 
     /// <summary>

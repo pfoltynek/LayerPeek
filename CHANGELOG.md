@@ -33,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   and the camera window say that Local Network access may be turned off in **System Settings → Privacy & Security →
   Local Network**, and the log says so once per printer or camera. The diagnostics window, the connection test and
   the camera test offer an **Open System Settings** button next to that message.
+- macOS: when LayerPeek starts while no display is active (display asleep, lid closed without a monitor, Open at Login
+  while the display sleeps), it waits and appears in the menu bar once a display wakes, instead of quitting at start.
 - Maintainers: `build/update-ffmpeg.ps1` verifies a new FFmpeg version for both platforms before it is pinned (macOS:
   official source tarball against the Homebrew formula and the GPG signature; Windows: the BtbN zip against the
   release's `checksums.sha256`, its folder, LGPL licence and libraries) and with `-Update` writes the pinned values.

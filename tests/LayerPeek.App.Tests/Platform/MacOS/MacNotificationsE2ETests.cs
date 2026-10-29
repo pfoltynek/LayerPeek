@@ -153,7 +153,8 @@ public sealed partial class MacNotificationsE2ETests
     {
         int requests = printer.RequestCount;
         await Wait.UntilAsync(() => app.HasExited || printer.RequestCount > requests, TimeSpan.FromSeconds(30), "the app to poll the printer", cancellationToken);
-        // E.g. kCVReturnInvalidDisplay (-6661) of Avalonia while the display sleeps (T-019): wake it (caffeinate -d -u).
+        // While every display sleeps the app waits for one before its UI and monitoring start (T-096) and this wait times out:
+        // wake the display (caffeinate -d -u).
         Assert.False(app.HasExited, $"The test app ended. Its log:{Environment.NewLine}{ReadLog(data)}");
         // One poll is 5 s: the next one after the switch sees the new state.
         await Task.Delay(TimeSpan.FromSeconds(7), cancellationToken);
