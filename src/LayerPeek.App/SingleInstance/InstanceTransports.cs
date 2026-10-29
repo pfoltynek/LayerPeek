@@ -65,7 +65,11 @@ internal static class InstanceTransports
 
     /// <summary>The transport of the current OS for the current user and session.</summary>
     /// <param name="environment">Where the macOS lock file lives; <see langword="null"/>: the user data folder.</param>
-    public static IInstanceTransport ForCurrentPlatform(string suffix, AppEnvironment? environment = null)
+    /// <param name="tempDirectory">
+    /// Where a socket whose path in the data folder would be too long goes; <see langword="null"/>: the user's temp folder
+    /// (tests pass a folder of their own).
+    /// </param>
+    public static IInstanceTransport ForCurrentPlatform(string suffix, AppEnvironment? environment = null, string? tempDirectory = null)
     {
         if (OperatingSystem.IsWindows())
         {
@@ -76,8 +80,18 @@ internal static class InstanceTransports
             return new NamedPipeInstanceTransport(mutexName, pipeName);
         }
 
-        (string lockPath, string socketPath) = UnixPaths((environment ?? AppEnvironment.Production).DataDirectory(), Path.GetTempPath(), suffix);
-        return new UnixSocketInstanceTransport(lockPath, socketPath);
+        // macOS checks the peer and the socket's folder (T-053). Linux (not a supported platform) keeps the unchecked
+        // T-043 behaviour; its counterparts would be SO_PEERCRED and its own struct stat layout.
+        MacUnixCredentials? credentials = null;
+        uint? userId = null;
+        if (OperatingSystem.IsMacOS())
+        {
+            credentials = MacUnixCredentials.Current;
+            userId = credentials.EffectiveUserId;
+        }
+
+        UnixInstancePaths paths = UnixPaths((environment ?? AppEnvironment.Production).DataDirectory(), tempDirectory ?? Path.GetTempPath(), userId, suffix);
+        return new UnixSocketInstanceTransport(paths.LockPath, paths.SocketPath, credentials, paths.PrivateSocketDirectory);
     }
 
     /// <summary>
@@ -92,21 +106,33 @@ internal static class InstanceTransports
     }
 
     /// <summary>
-    /// <c>instance.lock</c> and <c>instance.sock</c> in the app's data folder; the socket goes to the (per-user on macOS)
-    /// temp folder when its path would be too long for a Unix socket.
+    /// <c>instance.lock</c> and <c>instance.sock</c> in the app's data folder. When the socket's path would be too long for
+    /// a Unix socket, it goes to the temp folder: into the private folder <c>LayerPeek-&lt;uid&gt;</c> there (T-053; even a
+    /// temp folder shared by all users, like <c>/tmp</c>, then gives nobody else a way in), or, without
+    /// <paramref name="userId"/> (Linux), directly into the temp folder as before.
     /// </summary>
-    public static (string LockPath, string SocketPath) UnixPaths(string dataDirectory, string tempDirectory, string suffix)
+    public static UnixInstancePaths UnixPaths(string dataDirectory, string tempDirectory, uint? userId, string suffix)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(tempDirectory);
         ArgumentNullException.ThrowIfNull(suffix);
         string lockPath = Path.Combine(dataDirectory, $"instance{suffix}.lock");
         string socketPath = Path.Combine(dataDirectory, $"instance{suffix}.sock");
-        if (Encoding.UTF8.GetByteCount(socketPath) > MaxUnixSocketPathBytes)
+        if (Encoding.UTF8.GetByteCount(socketPath) <= MaxUnixSocketPathBytes)
         {
-            socketPath = Path.Combine(tempDirectory, $"{BaseName}-instance{suffix}.sock");
+            return new UnixInstancePaths(lockPath, socketPath, PrivateSocketDirectory: false);
         }
 
-        return (lockPath, socketPath);
+        if (userId is not { } uid)
+        {
+            return new UnixInstancePaths(lockPath, Path.Combine(tempDirectory, $"{BaseName}-instance{suffix}.sock"), PrivateSocketDirectory: false);
+        }
+
+        string folder = Path.Combine(tempDirectory, $"{BaseName}-{uid.ToString(System.Globalization.CultureInfo.InvariantCulture)}");
+        return new UnixInstancePaths(lockPath, Path.Combine(folder, $"instance{suffix}.sock"), PrivateSocketDirectory: true);
     }
 }
+
+/// <summary>Where the macOS lock file and socket live (<see cref="InstanceTransports.UnixPaths"/>).</summary>
+/// <param name="PrivateSocketDirectory">The socket's folder is the private <c>0700</c> folder of the user in the temp folder.</param>
+internal readonly record struct UnixInstancePaths(string LockPath, string SocketPath, bool PrivateSocketDirectory);

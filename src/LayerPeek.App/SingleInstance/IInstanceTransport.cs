@@ -31,6 +31,7 @@ internal interface IInstanceTransport
 internal interface IInstanceListener : IDisposable
 {
     /// <summary>Waits for the next client and returns its connection (the caller disposes it).</summary>
+    /// <exception cref="InstancePeerRefusedException">The client was refused (another user); accept the next one.</exception>
     Task<Stream> AcceptAsync(CancellationToken cancellationToken);
 }
 
@@ -53,4 +54,36 @@ internal sealed class InstanceLockUnavailableException : IOException
         : base(message, innerException)
     {
     }
+}
+
+/// <summary>
+/// A client of the listener was refused because it runs as another user (or its user cannot be told), T-053. The
+/// connection is already closed, nothing was read; the server logs it and accepts the next client.
+/// </summary>
+internal sealed class InstancePeerRefusedException : IOException
+{
+    public InstancePeerRefusedException()
+        : this(peerUserId: null)
+    {
+    }
+
+    /// <param name="peerUserId">The effective user id of the client; <see langword="null"/>: the OS could not tell.</param>
+    public InstancePeerRefusedException(uint? peerUserId)
+        : base("A process of another user connected to the instance channel.")
+    {
+        PeerUserId = peerUserId;
+    }
+
+    public InstancePeerRefusedException(string message)
+        : base(message)
+    {
+    }
+
+    public InstancePeerRefusedException(string message, Exception innerException)
+        : base(message, innerException)
+    {
+    }
+
+    /// <summary>The effective user id of the refused client; <see langword="null"/> when unknown.</summary>
+    public uint? PeerUserId { get; }
 }

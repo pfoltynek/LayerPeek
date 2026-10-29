@@ -26,7 +26,7 @@ Ikona stavu (T-007) a tray menu (T-008) fungují a jsou čitelné v menu baru ma
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování (na macOS i Windows)
 
 ## Otevřené otázky
-- Zobrazovat na macOS progress i jako text vedle ikony v menu baru?
-- Jak stavy rozlišit v monochromatické ikoně (tvar/symbol místo barvy)? Navazuje na vizuální styl z T-007.
+- ~~Progress jako text vedle ikony~~ → ne, jen ikona; průběh je v tooltipu a v menu jako na Windows (rozhodnuto 2026-10-29).
+- ~~Rozlišení stavů v monochromatické ikoně~~ → stejný základní tvar ikony, stav označí malý symbol v rohu (např. tečka = tiskne, vykřičník = chyba / pozornost, prázdné = nečinná, přeškrtnutí = odpojeno); template ikona, kterou macOS přebarví pro světlý i tmavý režim. Návrh symbolů připraví `ui-designer` (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci

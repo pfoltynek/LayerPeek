@@ -21,6 +21,15 @@ internal static class TestDirectories
 
     public static string Root => Reserved.Path;
 
+    /// <summary>
+    /// A second reservation with a short name (T-053): Unix socket paths are limited to 103 bytes, which a data folder under
+    /// <see cref="Root"/> already exceeds on macOS. Only for folders that must hold a socket; swept and removed like
+    /// <see cref="Reserved"/>.
+    /// </summary>
+    public static ReservedTempDirectory ShortReserved { get; } = ReservedTempDirectory.ForCurrentWorktree("lpt");
+
+    public static string ShortRoot => ShortReserved.Path;
+
     /// <summary>Path of a new, not yet created, unique directory under <see cref="Root"/>.</summary>
     public static string NewDirectoryPath() => Path.Combine(Root, Guid.NewGuid().ToString("N"));
 
@@ -35,46 +44,58 @@ internal static class TestDirectories
 
 /// <summary>
 /// Sweeps leftovers of crashed runs before the first test (<see cref="ReservedTempDirectory.SweepAsync"/>), creates
-/// <see cref="TestDirectories.Root"/> and removes it after the last test. Concurrent runs of this assembly in the same
+/// <see cref="TestDirectories.Root"/> and <see cref="TestDirectories.ShortRoot"/> and removes them after the last test. Concurrent runs of this assembly in the same
 /// worktree are serialized by its lock; runs in other worktrees use their own folder and lock.
 /// </summary>
 public sealed class TestDirectoriesCleanupFixture : IAsyncLifetime
 {
-    private TestRunLock? _runLock;
+    private static readonly ReservedTempDirectory[] Reservations = [TestDirectories.Reserved, TestDirectories.ShortReserved];
+
+    private readonly List<TestRunLock> _runLocks = [];
 
     public async ValueTask InitializeAsync()
     {
-        _runLock = await TestDirectories.Reserved.AcquireLockAsync(TimeSpan.FromMinutes(5));
         try
         {
-            await TestDirectories.Reserved.SweepAsync();
-            await TestDirectories.Reserved.CreateAsync();
+            // Always in the same order, so that two runs never wait for each other's second lock.
+            foreach (ReservedTempDirectory reservation in Reservations)
+            {
+                _runLocks.Add(await reservation.AcquireLockAsync(TimeSpan.FromMinutes(5)));
+                await reservation.SweepAsync();
+                await reservation.CreateAsync();
+            }
         }
         catch
         {
             // Do not keep other runs waiting when this one cannot start.
-            _runLock.Dispose();
-            _runLock = null;
+            ReleaseLocks();
             throw;
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        if (_runLock is null)
-        {
-            // Not initialized: without the lock the folder may belong to another run of this worktree.
-            return;
-        }
-
         try
         {
-            await TestDirectories.Reserved.DeleteAsync();
+            // Only the reservations whose lock this run holds: without it the folder may belong to another run.
+            for (int i = 0; i < _runLocks.Count; i++)
+            {
+                await Reservations[i].DeleteAsync();
+            }
         }
         finally
         {
-            _runLock.Dispose();
-            _runLock = null;
+            ReleaseLocks();
         }
+    }
+
+    private void ReleaseLocks()
+    {
+        foreach (TestRunLock runLock in _runLocks)
+        {
+            runLock.Dispose();
+        }
+
+        _runLocks.Clear();
     }
 }
