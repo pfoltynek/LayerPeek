@@ -241,7 +241,6 @@ a kamerám, které přidáš.
   projektu přibudou později.
 - Windows na ARM64
 - Stav MMU3
-- Prusa Connect (cloud) jako volitelný druhý zdroj pro tiskárny mimo tvoji síť
 
 Máš nápad? [Založ issue](https://github.com/pfoltynek/LayerPeek/issues).
 
@@ -316,7 +315,7 @@ displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manu
 |---|---|
 | `src/LayerPeek.Core` | doménový model, abstrakce, monitoring a detekce událostí (bez UI a bez HTTP) |
 | `src/LayerPeek.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
-| `src/LayerPeek.PrusaConnect` | klient Prusa Connect (plánováno) |
+| `src/LayerPeek.PrusaConnect` | klient Prusa Connect (pozastaveno: Prusa Connect nemá veřejné API) |
 | `src/LayerPeek.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
 | `src/LayerPeek.App` | Avalonia tray aplikace, okna, platformní kód |
 | `tests/` | unit, UI (Avalonia headless) a E2E testy v xUnit v3 |

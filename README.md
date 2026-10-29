@@ -238,7 +238,6 @@ the printers and cameras you add.
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
 - Windows on ARM64
 - MMU3 status
-- Prusa Connect (cloud) as an optional second source for printers outside your network
 
 Have an idea? [Open an issue](https://github.com/pfoltynek/LayerPeek/issues).
 
@@ -314,7 +313,7 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 |---|---|
 | `src/LayerPeek.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
-| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (planned) |
+| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (on hold: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |
