@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="License: GPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platform: Windows 10/11">
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platform: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
   <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="GitHub stars"></a>
 </p>
@@ -146,7 +146,7 @@ cameras.
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
 | Windows on ARM64 | 🚧 planned |
-| macOS (Apple Silicon) | 🚧 preview: menu bar, Keychain and Open at Login; notifications and camera are in progress |
+| macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
 
@@ -168,13 +168,13 @@ leaves its own log in `%LOCALAPPDATA%\velopack`. You can delete them by hand. Th
 `%LOCALAPPDATA%\LayerPeek\logs` are deleted with the app. Installing over the ZIP version replaces that folder too,
 including the ZIP version's logs.
 
-#### macOS (Apple Silicon, preview)
+#### macOS (Apple Silicon)
 
 - **Disk image** `LayerPeek-X.Y.Z-osx-arm64.dmg`: open it and drag **LayerPeek** to **Applications**.
 - **Archive** `LayerPeek-X.Y.Z-osx-arm64.tar.gz`: contains `LayerPeek.app`; unpack it and move the app to Applications.
 
-LayerPeek lives in the menu bar only, without a Dock icon. Notifications and the camera window are not available on
-macOS yet.
+Since version 0.3.0 LayerPeek is also released for macOS. It lives in the menu bar only, without a Dock icon, and has
+the same features as on Windows, including notifications and the camera window.
 
 > [!IMPORTANT]
 > The macOS builds are only ad-hoc signed and **not notarized** by Apple, so Gatekeeper blocks the first start
@@ -236,7 +236,6 @@ the printers and cameras you add.
 - `winget install` as soon as the first release is public
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
-- macOS menu bar app (Apple Silicon)
 - Windows on ARM64
 - MMU3 status
 - Prusa Connect (cloud) as an optional second source for printers outside your network
