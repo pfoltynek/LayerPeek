@@ -20,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   every time the settings window opens or comes back to the front) and offers to open System Settings; saving then
   reports that Open at login has to be allowed there.
 - macOS: windows opened from the menu bar (Settings, Diagnostics, About, camera) come to the front with the keyboard focus.
+- macOS: keyboard shortcuts as on other Mac apps. Camera window: **⌃⌘F** toggles full screen (F11, which macOS
+  reserves for Show Desktop and Mac keyboards send only with fn, stays as a fallback), and the full screen button and
+  the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a
+  printer (Ctrl+Tab and Ctrl+PageDown still work). Every auxiliary window (Settings, Diagnostics, About, licences,
+  camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel). Windows is unchanged.
 - macOS: the app icon follows Apple's app icon grid (a margin around the rounded square with Apple's continuous corners
   and a soft drop shadow), so in Finder, Launchpad and System Settings it is as large as the other apps' icons; the 16
   and 32 px sizes use the simplified design, like on Windows. The Windows icon is unchanged.

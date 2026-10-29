@@ -18,7 +18,13 @@ public sealed partial class DiagnosticsWindow : Window
         InitializeComponent();
         _fitter = new WorkAreaFitter(this);
         // DataContext (DiagnosticsViewModel) is set by the creator.
+        MacShortcuts.HandleCloseKeys(this, () => UsesMacShortcuts, Close, Close);
     }
+
+    /// <summary>
+    /// The macOS shortcuts (T-100): ⌘W closes the window, ⌘. is Close like Esc. Default: on macOS only; tests set it.
+    /// </summary>
+    internal bool UsesMacShortcuts { get; set; } = MacShortcuts.IsPlatformDefault;
 
     /// <summary>The fitting and remembering of the window size (T-094).</summary>
     internal WorkAreaFitter Sizing => _fitter;

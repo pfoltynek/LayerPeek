@@ -54,6 +54,9 @@ public sealed partial class CameraWindow : Window
         InitializeComponent();
         _sink = new FrameSink(this);
         // DataContext (CameraViewModel) is set by the creator.
+        // macOS (T-100): ⌘W closes the window like its close button, ⌘. is Esc, ⌃⌘F is F11 (the KeyBindings).
+        MacShortcuts.HandleCloseKeys(this, UsesMacShortcuts, Close, CancelFromKeyboard);
+        AddHandler(KeyDownEvent, OnMacFullScreenKeyDown, RoutingStrategies.Tunnel);
     }
 
     /// <summary>
@@ -193,6 +196,40 @@ public sealed partial class CameraWindow : Window
     }
 
     private void OnCloseRequested(object? sender, EventArgs e) => Close();
+
+    /// <summary>The macOS shortcuts apply (T-100): decided by the view model (<see cref="CameraViewModel.UsesMacShortcuts"/>).</summary>
+    private bool UsesMacShortcuts() => _viewModel is { UsesMacShortcuts: true };
+
+    /// <summary>⌃⌘F (macOS, T-100): the same as F11.</summary>
+    private void OnMacFullScreenKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!e.Handled && _viewModel is { UsesMacShortcuts: true } viewModel && MacShortcuts.IsToggleFullScreen(e))
+        {
+            e.Handled = true;
+            viewModel.ToggleFullScreenCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
+    /// ⌘. (macOS, T-100): what Esc does. In the layout mode it goes to the mode (the popover, a drag, a lifted card, or
+    /// discarding the changes); otherwise it leaves full screen or the mini preview (<see cref="CameraViewModel.EscapeCommand"/>).
+    /// </summary>
+    private void CancelFromKeyboard()
+    {
+        if (_viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.IsLayoutModeActive)
+        {
+            _ = LayoutOverlay.HandleEscape();
+        }
+        else if (viewModel.EscapeCommand.CanExecute(null))
+        {
+            viewModel.EscapeCommand.Execute(null);
+        }
+    }
 
     /// <summary>
     /// "Apply" in the settings (T-040): the view model's mode at the printer's defaults on their monitor (size, corner,
