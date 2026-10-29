@@ -48,7 +48,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-002 | Konfigurace tiskáren a uložení tajných údajů (hotovo; vč. Windows Credential Manager) | all | core-dev | P1 | T-001 |
 | T-003 | PrusaLink klient (hotovo) | all | core-dev | P1 | T-001 |
 | T-004 | Prusa Connect – průzkum API (spike) (hotovo) | all | architect | P1 | – |
-| T-005 | Prusa Connect klient (odloženo – bez oficiálního API) | all | core-dev | P3 | T-001, T-002, T-004 |
+| T-005 | Prusa Connect klient (vyřazeno – bez veřejného API, 2026-10-29) | all | core-dev | P3 | T-001, T-002, T-004 |
 | T-006 | Monitorovací služba (polling) (hotovo) | all | core-dev | P1 | T-001 |
 | T-007 | Tray ikona se stavem a progressem (hotovo) | all | ui-dev | P1 | T-006 |
 | T-008 | Tray menu (hotovo) | all | ui-dev | P1 | T-007 |
@@ -87,7 +87,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) | all | qa-reviewer | P2 | – |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055) | all | qa-reviewer | P3 | – |
 | T-058 | Kontrola nové verze v aplikaci (GitHub Releases) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
-| T-022 | Prusa Connect – přihlášení k účtu (UI, odloženo) | all | ui-dev | P3 | T-005, T-015 |
+| T-022 | Prusa Connect – přihlášení k účtu (UI, vyřazeno – bez veřejného API, 2026-10-29) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
 | T-076 | Widgety překryvu – návrh UI (design spec) (hotovo) | all | ui-designer | P2 | – |
 | T-077 | Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036 (hotovo) | all | core-dev | P2 | T-076 |

@@ -8,6 +8,8 @@ platform: all
 depends_on: [T-001, T-002, T-004]
 ---
 
+> **Vyřazeno z implementace (rozhodnuto 2026-10-29).** Opakované ověření 2026-10-29 potvrdilo, že Prusa Connect nemá veřejné API pro uživatelské aplikace třetích stran: oficiální je jen Camera API (nahrávání snímků) a protokol tiskáren, registrace OAuth klientů pro třetí strany neexistuje. Úkol se neimplementuje, dokud Prusa veřejné API nezveřejní. Možná budoucí alternativa: self-hosted **Prusa Connect Local** (early access, REST/SSE/MQTT) – samostatný produkt, vyžadoval by nový průzkum.
+
 ## Cíl
 Implementovat `IPrinterClient` nad cloudovým Prusa Connect podle [docs/api/prusa-connect.md](../../docs/api/prusa-connect.md). Klient jen čte data, příkazy neposílá.
 
