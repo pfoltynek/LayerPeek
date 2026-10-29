@@ -85,8 +85,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-050 | Bezpečnost – FFmpeg přijímá jen RTSP/TCP a H.264 (M1) | all | core-dev | P2 | T-014 |
 | T-051 | Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1) | all | core-dev | P3 | T-028, T-030 |
 | T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) | all | qa-reviewer | P2 | – |
-| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055) | all | qa-reviewer | P3 | – |
-| T-058 | Kontrola nové verze v aplikaci (GitHub Releases) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
+| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055; rozbor variant 2026-10-29) | all | qa-reviewer | P3 | – |
+| T-058 | Kontrola nové verze v aplikaci (GitHub Releases) + Velopack pro macOS – rozbor a varianty 2026-10-29, čeká na rozhodnutí | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, vyřazeno – bez veřejného API, 2026-10-29) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
 | T-076 | Widgety překryvu – návrh UI (design spec) (hotovo) | all | ui-designer | P2 | – |
