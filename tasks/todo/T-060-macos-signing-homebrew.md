@@ -37,6 +37,7 @@ Aplikaci pro macOS mohou instalovat i ostatní uživatelé bez ručního obcház
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
+- **Z T-108 (2026-10-29):** ad-hoc podpis s hardened runtime potřebuje `com.apple.security.cs.disable-library-validation`, jinak dyld odmítne vlastní knihovny aplikace (různé Team ID). Injekce přes `DYLD_*` je i tak zablokovaná, ale kdo může zapisovat do `/Applications/LayerPeek.app`, může vyměnit knihovnu, aniž by se změnil cdhash hlavního exe. S Developer ID (Team ID) odstranit tento entitlement a zapnout library validation; ověřit start a podpis všech knihoven.
 - **Zaplatit Apple Developer Program (99 USD/rok)? Kdy?** Bez něj úkol zůstává odložený a macOS jen pro vývojáře a testery (T-019).
 - Kdy podat žádost do oficiálního `homebrew/cask`?
 - Má `zap` mazat i uložená hesla v Keychainu (T-021)?

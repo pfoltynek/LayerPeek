@@ -1,7 +1,7 @@
 ---
 id: T-108
 title: macOS – hardened runtime v ad-hoc podpisu LayerPeek.app
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: macos
@@ -24,13 +24,13 @@ Bezpečnostní revize 2026-10-29, nález **N3** (uživatel rozhodl opravit): ad-
 - [x] `DYLD_INSERT_LIBRARIES` se u podepsané aplikace ignoruje (ověřeno sondou Native AOT se skutečnými knihovnami aplikace i testem Pester; kontrolní běh bez hardened runtime knihovnu vloží)
 - [x] Knihovny FFmpeg, Avalonia, Skia a HarfBuzz se pod hardened runtime načtou a fungují (sonda Native AOT podepsaná stejně jako vydání)
 - [x] `codesign --verify --deep --strict` projde, `codesign -d --entitlements -` ukazuje zvolené entitlements; kontroly Pester
-- [ ] `caffeinate -d -u -i pwsh scripts/release-build.ps1` projde včetně smoke testu podepsaného `LayerPeek.app` (v sandboxu agenta nešlo spustit `pwsh`, viz poznámky – musí spustit hlavní agent nebo uživatel)
-- [ ] Ruční ověření uživatelem: dialog Keychainu po přeinstalaci (viz poznámky, krok pro uživatele)
+- [x] `caffeinate -d -u -i pwsh scripts/release-build.ps1` projde včetně smoke testu podepsaného `LayerPeek.app` – spustil hlavní agent 2026-10-29 na develop (`4746ac9`): exit 0, Release testy 7 670 / 0 selhání, „Hardened runtime on every Mach-O file, entitlements: com.apple.security.cs.disable-library-validation“, oba smoke testy PASSED, `flags=0x10002(adhoc,runtime)`, profil beze změny, žádná registrace `layerpeek-rt-` v LaunchServices
+- [x] ~~Ruční ověření uživatelem: dialog Keychainu po přeinstalaci~~ → podle rozhodnutí uživatele (2026-10-29) není podmínkou uzavření; zůstává jako krok v `docs/macos-manual-testing.md`
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. **Zbytkové riziko `disable-library-validation` – přijmout?** Bez tohoto entitlementu aplikace s hardened runtime nenastartuje: library validation přijímá jen knihovny se stejným Team ID (nebo od Applu) a ad-hoc podpis Team ID nemá, dyld proto odmítne i vlastní knihovny bundlu („mapping process and mapped file (non-platform) have different Team IDs“, ověřeno). S entitlementem je hlavní cíl N3 splněný (`DYLD_INSERT_LIBRARIES` a ostatní `DYLD_*` proměnné se ignorují, protože chybí `allow-dyld-environment-variables`). Zůstává: kdo může **zapisovat do bundlu** (`/Applications/LayerPeek.app` přetažená z `.dmg` patří uživateli), může vyměnit např. `libSkiaSharp.dylib`; cdhash hlavního exe se tím nezmění, takže Keychain se nezeptá. Ochranu macOS „App Management“ (Ventura+) proti úpravám cizích aplikací jsem pro ad-hoc podepsanou aplikaci neověřil. Úplné řešení: podpis Developer ID (Team ID → library validation bez výjimky, T-060), nebo statické linkování všech nativních knihoven do exe (pro Avalonia/Skia/HarfBuzz NuGet balíčky statické knihovny pro macOS nedodávají, jen FFmpeg bychom uměli). Varianty: (a) přijmout jako dočasný stav do T-060 a zapsat do T-060, (b) jiné řešení.
-2. **Uzavření úkolu:** smí být T-108 `done` po zeleném `release-build.ps1` (spustí hlavní agent), s dialogem Keychainu jen jako zdokumentovaným krokem pro uživatele, nebo počkat na ruční ověření?
+1. ~~**Zbytkové riziko `disable-library-validation` – přijmout?**~~ → přijato jako dočasné, zapsáno do T-060 (Developer ID umožní library validation) (rozhodnuto 2026-10-29). Bez tohoto entitlementu aplikace s hardened runtime nenastartuje: library validation přijímá jen knihovny se stejným Team ID (nebo od Applu) a ad-hoc podpis Team ID nemá, dyld proto odmítne i vlastní knihovny bundlu („mapping process and mapped file (non-platform) have different Team IDs“, ověřeno). S entitlementem je hlavní cíl N3 splněný (`DYLD_INSERT_LIBRARIES` a ostatní `DYLD_*` proměnné se ignorují, protože chybí `allow-dyld-environment-variables`). Zůstává: kdo může **zapisovat do bundlu** (`/Applications/LayerPeek.app` přetažená z `.dmg` patří uživateli), může vyměnit např. `libSkiaSharp.dylib`; cdhash hlavního exe se tím nezmění, takže Keychain se nezeptá. Ochranu macOS „App Management“ (Ventura+) proti úpravám cizích aplikací jsem pro ad-hoc podepsanou aplikaci neověřil. Úplné řešení: podpis Developer ID (Team ID → library validation bez výjimky, T-060), nebo statické linkování všech nativních knihoven do exe (pro Avalonia/Skia/HarfBuzz NuGet balíčky statické knihovny pro macOS nedodávají, jen FFmpeg bychom uměli). Varianty: (a) přijmout jako dočasný stav do T-060 a zapsat do T-060, (b) jiné řešení.
+2. ~~**Uzavření úkolu:**~~ → done po zeleném `release-build.ps1`, dialog Keychainu jen jako krok pro uživatele (rozhodnuto 2026-10-29). smí být T-108 `done` po zeleném `release-build.ps1` (spustí hlavní agent), s dialogem Keychainu jen jako zdokumentovaným krokem pro uživatele, nebo počkat na ruční ověření?
 
 ## Poznámky k implementaci
 **Implementováno na Macu (2026-10-29, ui-dev; Apple Silicon, macOS 27.2, SDK `11.0.100-rc.3`).** Žádný nový NuGet balíček; nástroje (`codesign`, `clang` z Xcode Command Line Tools) jsou součástí macOS / už požadované pro Native AOT.
