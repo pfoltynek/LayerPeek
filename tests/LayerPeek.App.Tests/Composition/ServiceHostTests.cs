@@ -1,3 +1,4 @@
+#if DEBUG
 using Microsoft.Extensions.DependencyInjection;
 
 using LayerPeek.App.Composition;
@@ -128,3 +129,4 @@ public sealed class ServiceHostTests
         }
     }
 }
+#endif

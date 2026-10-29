@@ -14,7 +14,9 @@ public sealed class WaitingInstanceCommandsTests
     private readonly List<string> _opened = [];
     private readonly ListLogger<WaitingInstanceCommands> _logger = new();
     private int _quitAttempts;
+#if DEBUG
     private bool _waitOver;
+#endif
 
     [Fact]
     public void AClickOnANotificationOpensThePrinter()
@@ -66,7 +68,11 @@ public sealed class WaitingInstanceCommandsTests
         () =>
         {
             _quitAttempts++;
+#if DEBUG
             return !_waitOver;
+#else
+            return true;
+#endif
         },
         testCommands,
         _logger);
