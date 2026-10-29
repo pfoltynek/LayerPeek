@@ -150,6 +150,7 @@ internal sealed class FakePrinterSite : IAsyncDisposable
         {
             "/" or "/index.html" => File("index.html", "text/html; charset=utf-8"),
             "/app.js" => File("app.js", "text/javascript; charset=utf-8"),
+            "/sw.js" => ServiceWorkerScript(),
             "/api/version" => Json(HttpStatusCode.OK, Fixtures.Read("version")),
             "/api/v1/info" => Json(HttpStatusCode.OK, Fixtures.Read("info")),
             "/api/v1/status" => Json(HttpStatusCode.OK, Fixtures.Read("status-idle")),
@@ -218,6 +219,20 @@ internal sealed class FakePrinterSite : IAsyncDisposable
             Content = new ByteArrayContent(System.IO.File.ReadAllBytes(Path.Combine(WebDirectory, name))),
         };
         response.Content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+        return response;
+    }
+
+    /// <summary>
+    /// Tampered content (T-107): a Service Worker script that would take over the whole port, with the header that
+    /// widens its scope. The real Prusa-Link-Web has none.
+    /// </summary>
+    private static HttpResponseMessage ServiceWorkerScript()
+    {
+        HttpResponseMessage response = new(HttpStatusCode.OK)
+        {
+            Content = new StringContent("self.addEventListener('fetch', e => e.respondWith(new Response('hijacked')));", Encoding.UTF8, "text/javascript"),
+        };
+        response.Headers.TryAddWithoutValidation("Service-Worker-Allowed", "/");
         return response;
     }
 

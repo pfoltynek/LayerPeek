@@ -25,13 +25,27 @@ internal static class ProxyHeaders
     };
 
     /// <summary>
-    /// Never sent to the browser: login challenges (the browser would show its own login dialog and the web loops on
-    /// 401), cookies, and headers the proxy sets itself.
+    /// The only printer headers that reach the browser (T-107, security finding N1). An allow-list, so that headers with
+    /// browser semantics never do: <c>Service-Worker-Allowed</c>, <c>Set-Cookie</c>, <c>WWW-Authenticate</c> (the
+    /// browser would show its own login dialog and the web loops on 401), <c>Access-Control-*</c>,
+    /// <c>Content-Security-Policy</c>, <c>Refresh</c>, <c>Link</c>, <c>Clear-Site-Data</c> and anything unknown.
+    /// What the Buddy firmware sends and Prusa-Link-Web reads (details in docs/api/prusalink.md, "Lokální proxy"):
+    /// <list type="bullet">
+    /// <item><c>Content-Type</c>: every resource; required with <c>X-Content-Type-Options: nosniff</c>.</item>
+    /// <item><c>Content-Encoding</c>: the firmware serves the web's files gzip-compressed (<c>static_file.cpp</c>).</item>
+    /// <item><c>Content-Disposition</c>: <c>attachment</c> for file downloads (<c>usb_files.cpp</c>).</item>
+    /// <item><c>Cache-Control</c>, <c>ETag</c>: caching of the web's files and API answers; the web reads <c>etag</c>
+    /// (<c>auth.js</c>) and <c>cache-control</c> (<c>cameras.js</c>).</item>
+    /// <item><c>Last-Modified</c>, <c>Expires</c>: read by the web for camera snapshots (<c>cameras.js</c>).</item>
+    /// <item><c>Read-Only</c>, <c>Currently-Printing</c>: file information of <c>HEAD /api/v1/files/...</c>
+    /// (<c>file_info.cpp</c>); plain data without browser semantics.</item>
+    /// </list>
+    /// <c>Content-Length</c> and <c>Location</c> are set separately; the proxy's own headers are never taken over.
     /// </summary>
-    private static readonly HashSet<string> ResponseExcluded = new(StringComparer.OrdinalIgnoreCase)
+    private static readonly HashSet<string> ResponseAllowed = new(StringComparer.OrdinalIgnoreCase)
     {
-        "WWW-Authenticate", "Proxy-Authenticate", "Set-Cookie", "Set-Cookie2", "Content-Length", "Location",
-        ReferrerPolicy, ContentTypeOptions, ResourcePolicy,
+        "Content-Type", "Content-Encoding", "Content-Disposition", "Cache-Control", "ETag", "Last-Modified", "Expires",
+        "Read-Only", "Currently-Printing",
     };
 
     public const string ReferrerPolicy = "Referrer-Policy";
@@ -39,6 +53,26 @@ internal static class ProxyHeaders
     public const string ContentTypeOptions = "X-Content-Type-Options";
 
     public const string ResourcePolicy = "Cross-Origin-Resource-Policy";
+
+    public const string OpenerPolicy = "Cross-Origin-Opener-Policy";
+
+    public const string FrameOptions = "X-Frame-Options";
+
+    public const string ContentSecurityPolicy = "Content-Security-Policy";
+
+    /// <summary>
+    /// The proxy's own policy (T-107): no page may frame the proxy (clickjacking, also from other ports on 127.0.0.1),
+    /// and the printer's content may start no worker, in particular no Service Worker that would outlive the proxy.
+    /// Prusa-Link-Web uses neither frames nor workers. Other directives stay unrestricted (scripts, styles, images of
+    /// the web are not changed). A policy of the content itself (<c>&lt;meta&gt;</c>) can only add restrictions.
+    /// </summary>
+    public const string ContentSecurityPolicyValue = "frame-ancestors 'none'; worker-src 'none'";
+
+    /// <summary>Request header browsers send with every fetch of a Service Worker script (registration and update).</summary>
+    public const string ServiceWorker = "Service-Worker";
+
+    /// <summary>Fetch metadata: what the response is for (<c>serviceworker</c> for a Service Worker script).</summary>
+    public const string SecFetchDest = "Sec-Fetch-Dest";
 
     /// <summary>Fetch metadata of the browser: where the request comes from relative to the proxy page.</summary>
     public const string SecFetchSite = "Sec-Fetch-Site";
@@ -69,7 +103,7 @@ internal static class ProxyHeaders
     }
 
     /// <summary>
-    /// Copies the printer's headers that may reach the browser, rewrites <c>Location</c> into the proxy and adds the
+    /// Copies the allowed printer headers (<see cref="ResponseAllowed"/>), rewrites <c>Location</c> into the proxy and adds the
     /// proxy's own headers. Content-Length is set separately (it must match what is actually written).
     /// </summary>
     public static void CopyResponseHeaders(HttpResponseMessage source, HttpResponse target, ProxyLocation location)
@@ -91,7 +125,7 @@ internal static class ProxyHeaders
         foreach (KeyValuePair<string, HeaderStringValues> header in headers)
         {
             string name = header.Key;
-            if (HopByHop.Contains(name) || ResponseExcluded.Contains(name) || (connectionTokens?.Contains(name) ?? false))
+            if (!ResponseAllowed.Contains(name) || HopByHop.Contains(name) || (connectionTokens?.Contains(name) ?? false))
             {
                 continue;
             }

@@ -112,6 +112,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – jen návrh | all | ui-designer | P3 | T-092, T-103 |
 | T-106 | Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu | all | ui-dev | P2 | T-084, T-090 |
 | T-105 | Ověřovací skripty pro uživatele (`tools/macos-verify.ps1`, `tools/windows-verify.ps1`) místo ručních kroků | all | qa-reviewer | P1 | – |
+| T-107 | Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1) (implementováno; čeká ruční ověření a rozhodnutí o `*.localhost`) | all | core-dev | P2 | T-028, T-051 |
 
 ### Windows (`windows`)
 
