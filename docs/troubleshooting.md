@@ -129,6 +129,25 @@ git worktree remove <ta složka>
 Ručně: podle tabulky výše se starými názvy (`PrusaTrayDiagnostic.E2E`, `Prusa Tray Diagnostic E2E.lnk`, testovací
 aktivátor `{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}`, `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests`), potom složku smazat.
 
+## Upozornění se na macOS nezobrazují
+
+- LayerPeek posílá upozornění jen jako aplikace `LayerPeek.app` (ne vývojové sestavení spuštěné přes `dotnet run`). O povolení macOS požádá až s prvním upozorněním, a to vlastním oznámením s dotazem (Volby → Povolit; přesné znění určuje macOS).
+- Když jsou upozornění v macOS vypnutá, okno Nastavení to na záložce Obecné u sekce Upozornění řekne a tlačítkem otevře Nastavení systému → Oznámení → LayerPeek. Po povolení zmizí hláška hned, jak se do okna vrátíte. Log obsahuje větu „Notifications of io.github.pfoltynek.LayerPeek are turned off in macOS“.
+- Do logu se zapíše i každá chyba macOS při zobrazení upozornění („macOS did not show a notification (code …)“).
+
+*Pro vývojáře (T-020).* Skutečné notifikace ověřuje jen E2E test na vyžádání (běžný `dotnet test` žádný bundle nestaví a o povolení nežádá):
+
+```bash
+LAYERPEEK_E2E=1 dotnet test --project tests/LayerPeek.App.Tests -- --filter-class "*MacNotificationsE2ETests"
+```
+
+Test sestaví Debug aplikaci jako `LayerPeek E2E.app` s identifikátorem `io.github.pfoltynek.LayerPeek.E2E` (ad-hoc podpis) v `artifacts/e2e-macos-notifications/` a spustí ji v testovacím režimu proti simulované tiskárně. Produkční identifikátor ani jeho povolení nepoužije.
+1. Při prvním běhu macOS požádá o povolení oznámením „LayerPeek E2E“. Test na odpověď čeká 2 minuty, jinak se přeskočí s postupem. Zvolte Povolit (nebo Nastavení systému → Oznámení → LayerPeek E2E → Povolit oznámení) a spusťte test znovu.
+2. Uspaný displej shodí Avalonii (`kCVReturnInvalidDisplay`, T-019): test pouštějte s probuzeným displejem, případně `caffeinate -d -u -t 600 &` předem.
+3. Klik na oznámení test neumí (vyžadovalo by oprávnění Zpřístupnění). Ručně: při běžícím testu (nebo běžící `LayerPeek.app`) klikněte na oznámení – otevře se web tiskárny (v testovacím režimu se adresa jen zapíše do `opened-urls.txt`).
+4. Po pádu testu uklidí notifikace testovacího bundlu `".../LayerPeek E2E.app/Contents/MacOS/LayerPeek" --layerpeek-e2e-clear-toasts` (jen Debug, jen v testovacím bundlu). Registraci v LaunchServices odstraní `lsregister -u <cesta k bundlu>` (další běh testu odregistruje staré testovací bundly sám).
+5. Položka „LayerPeek E2E“ v Nastavení systému → Oznámení zůstane (macOS ji neumí odstranit skriptem); je to známý pozůstatek a nevadí.
+
 ## Přechod ze starého názvu PrusaTrayDiagnostic (jen vývojové počítače)
 
 Aplikace se do prvního vydání jmenovala Prusa Tray Diagnostic (T-074). Sama nic nepřevádí. Na počítači, kde běžely staré

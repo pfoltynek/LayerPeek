@@ -301,6 +301,11 @@ internal sealed partial class TrayHost : IAsyncDisposable
         Task toastThreadEnded = _testToastCleanup is not null && _services.GetRequiredService<INotificationService>() is ToastNotificationService toastService
             ? toastService.Completion
             : Task.CompletedTask;
+        // macOS (T-020): the notifications of the test bundle go when the test app quits; never those of the production app.
+        UserNotificationService? testNotifications = _services.GetRequiredService<AppEnvironment>() is { IsIsolated: true, TestToasts: true }
+            && _services.GetRequiredService<INotificationService>() is UserNotificationService userNotifications
+            ? userNotifications
+            : null;
 #endif
         try
         {
@@ -315,6 +320,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
 #if DEBUG
         await RunTestToastCleanupAsync(_testToastCleanup, toastThreadEnded, _logger).ConfigureAwait(true);
+        await RunTestNotificationCleanupAsync(testNotifications, _logger).ConfigureAwait(true);
 #endif
 
         _backgroundWork.Dispose();
@@ -357,6 +363,43 @@ internal sealed partial class TrayHost : IAsyncDisposable
             LogTestToastCleanupFailed(logger, ex);
         }
     }
+
+    /// <summary>
+    /// Debug test mode with notifications on macOS (T-020): once the notification task has ended (disposed with the
+    /// container, so it hands nothing more to macOS), the delivered and pending notifications of the test bundle are removed
+    /// and checked gone, within the quit limit. Never throws; a cleanup that cannot finish here is left to
+    /// <c>--layerpeek-e2e-clear-toasts</c> of the test bundle.
+    /// </summary>
+    internal static async Task RunTestNotificationCleanupAsync(UserNotificationService? notifications, ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(logger);
+        if (notifications is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await notifications.Completion.WaitAsync(TestToastThreadTimeout).ConfigureAwait(true);
+        }
+        catch (TimeoutException ex)
+        {
+            LogTestToastThreadStillRunning(logger, ex);
+        }
+
+        try
+        {
+            Platform.MacOS.TestNotificationCleanup cleanup = new(notifications.Center, logger);
+            _ = await Task.Run(() => cleanup.RunAsync(TestNotificationCleanupTimeout), CancellationToken.None).ConfigureAwait(true);
+        }
+        catch (ArgumentException ex)
+        {
+            // Not the test bundle: nothing is removed.
+            LogTestToastCleanupFailed(logger, ex);
+        }
+    }
+
+    private static readonly TimeSpan TestNotificationCleanupTimeout = TimeSpan.FromSeconds(2);
 
     private static readonly TimeSpan TestToastThreadTimeout = TimeSpan.FromSeconds(2);
 

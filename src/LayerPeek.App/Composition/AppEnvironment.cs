@@ -109,6 +109,56 @@ internal sealed class AppEnvironment
     internal const string ProductionBundleIdentifier = "io.github.pfoltynek.LayerPeek";
 
     /// <summary>
+    /// The only bundle identifier whose notifications this run may use on macOS (T-020): <see cref="ProductionBundleIdentifier"/>;
+    /// in the Debug test mode with notifications (<c>LAYERPEEK_TEST_TOASTS=1</c>) the test bundle <c>…LayerPeek.E2E</c>, otherwise
+    /// none. The notification center opens only when the running bundle has exactly this identifier, so the test mode never
+    /// posts notifications or asks for permission as the production app, and the production app never as the test bundle.
+    /// </summary>
+    public string? NotificationBundleIdentifier
+    {
+        get
+        {
+            if (!IsIsolated)
+            {
+                return ProductionBundleIdentifier;
+            }
+
+#if DEBUG
+            return TestToasts ? TestBundleIdentifier : null;
+#else
+            return null;
+#endif
+        }
+    }
+
+    /// <summary>
+    /// The command line switch of the AOT smoke test (<c>scripts/aot-smoke.ps1</c>, user decision 2026-10-29, T-020): this run
+    /// does not open the notification center of macOS at all (not even to set its delegate), so the smoke
+    /// run of the release app leaves nothing in the notification settings of the developer. Exists in Release builds (the
+    /// smoke test runs them); it only takes notifications away from the one start that carries it, never changes the
+    /// bundle identifier, and is ignored on Windows. Deliberately not under the <c>--layerpeek-e2e-</c> prefix of the test
+    /// starts (those need the test mode): a start with it is a normal production start without notifications.
+    /// </summary>
+    internal const string SkipNotificationCenterArgument = "--layerpeek-smoke-skip-notification-center";
+
+    /// <summary>
+    /// The bundle identifier whose notification center this start may open on macOS: <see cref="NotificationBundleIdentifier"/>,
+    /// or none when the start carries <see cref="SkipNotificationCenterArgument"/> (exact, case-sensitive).
+    /// </summary>
+    internal string? NotificationBundleIdentifierFor(IReadOnlyList<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return SkipsNotificationCenter(arguments) ? null : NotificationBundleIdentifier;
+    }
+
+    /// <summary>Whether the start carries <see cref="SkipNotificationCenterArgument"/>.</summary>
+    internal static bool SkipsNotificationCenter(IReadOnlyList<string> arguments)
+    {
+        ArgumentNullException.ThrowIfNull(arguments);
+        return arguments.Contains(SkipNotificationCenterArgument, StringComparer.Ordinal);
+    }
+
+    /// <summary>
     /// The stand-in Login Item of the test mode on macOS (T-019): <c>LoginItems/LayerPeek.loginitem</c> in the test data
     /// folder, <see langword="null"/> outside the test mode (the real Login Item of <c>SMAppService</c>).
     /// </summary>
@@ -151,7 +201,8 @@ internal sealed class AppEnvironment
     /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
-    /// the reason on stderr.
+    /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
+    /// notifications of <see cref="TestBundleIdentifier"/> (refused in any other bundle).
     /// </summary>
     public const string ClearToastsArgument = "--layerpeek-e2e-clear-toasts";
 
@@ -162,6 +213,20 @@ internal sealed class AppEnvironment
     /// single-instance guard, no log; exit code 0, otherwise 1 with the reason on stderr.
     /// </summary>
     public const string ClearAutostartArgument = "--layerpeek-e2e-clear-autostart";
+
+    /// <summary>
+    /// Debug builds only (T-020): the bundle identifier of the test bundle <c>LayerPeek E2E.app</c> the end-to-end tests of
+    /// macOS notifications build (production identifier + <c>.E2E</c>); its notifications and permission are the test's own.
+    /// </summary>
+    public const string TestBundleIdentifier = ProductionBundleIdentifier + ".E2E";
+
+    /// <summary>
+    /// Debug builds only (T-020): the command line mode of the test bundle that prints the notification permission and the
+    /// number of delivered notifications of the test bundle (<c>permission=&lt;…&gt; delivered=&lt;n&gt;</c>) and nothing else: asks
+    /// nothing, no app, no single-instance guard, no log; exit code 0, otherwise 1 with the reason on stderr. Refused
+    /// outside the test bundle.
+    /// </summary>
+    public const string NotificationStatusArgument = "--layerpeek-e2e-notification-status";
 
     /// <summary>The Start menu shortcut of the test app; also the app name Windows shows in its toasts (T-067).</summary>
     public const string TestShortcutFileName = "LayerPeek E2E.lnk";

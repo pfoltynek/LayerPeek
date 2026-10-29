@@ -729,6 +729,15 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Ya puede apagarla. Boquilla {0} °C, umbral {1} °C</value>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Las notificaciones están desactivadas en macOS.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Abrir ajustes de Notificaciones</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Las notificaciones de LayerPeek están desactivadas en Ajustes del Sistema &gt; Notificaciones. Permítalas allí.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Cámara</value>
   </data>

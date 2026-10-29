@@ -33,6 +33,7 @@ public sealed partial class SettingsWindow : Window
         // Tunnelling: before a text box or the focus navigation (Tab) sees the keys.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
         WidgetsList.AddHandler(KeyDownEvent, OnWidgetsListKeyDown, RoutingStrategies.Tunnel);
+        Activated += OnWindowActivated;
     }
 
     /// <summary>The fitting and remembering of the window size (T-094).</summary>
@@ -66,6 +67,18 @@ public sealed partial class SettingsWindow : Window
     {
         base.OnOpened(e);
         _fitter.CorrectAfterOpening();
+    }
+
+    /// <summary>
+    /// T-020 (macOS): coming back to the window (e.g. from System Settings &gt; Notifications) reads the notification permission
+    /// again, so the warning goes as soon as the user turned the notifications on.
+    /// </summary>
+    private void OnWindowActivated(object? sender, EventArgs e)
+    {
+        if (_viewModel is { } viewModel)
+        {
+            _ = viewModel.RefreshNotificationPermissionAsync();
+        }
     }
 
     protected override void OnClosing(WindowClosingEventArgs e)

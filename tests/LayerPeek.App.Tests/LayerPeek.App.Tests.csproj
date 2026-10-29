@@ -17,5 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\LayerPeek.App\LayerPeek.App.csproj" />
+    <!-- Simulated PrusaLink printer (T-045) for the on-demand E2E test of macOS notifications (T-020). -->
+    <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
   </ItemGroup>
 </Project>

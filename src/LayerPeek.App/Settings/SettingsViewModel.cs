@@ -150,6 +150,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     // T-019: the last switch of the autostart failed only because the user has to allow it in the settings of the OS.
     private bool _autostartNeedsApproval;
+
+    // T-020: the OS settings of the app's notifications (macOS) and whether they are turned off.
+    private readonly ISystemNotificationSettings? _notificationSettings;
+    private bool _showsNotificationsTurnedOff;
     private bool _showsAutostartApproval;
     private readonly string _productVersion;
 
@@ -184,6 +188,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// Announces a layout saved by the layout mode of a camera window, which the window takes over (T-077 Q3); default: none.
     /// </param>
     /// <param name="uiDispatcher">Brings those announcements to the UI thread; default: Avalonia's UI thread.</param>
+    /// <param name="notificationSettings">
+    /// The OS settings of the app's notifications (macOS, T-020): a warning when they are turned off, with a button that opens
+    /// them; default: none (no warning).
+    /// </param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -203,7 +211,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OverlayWidgetRegistry? widgets = null,
         ICameraLayoutModeLauncher? layoutModeLauncher = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
-        IUiDispatcher? uiDispatcher = null)
+        IUiDispatcher? uiDispatcher = null,
+        ISystemNotificationSettings? notificationSettings = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -252,6 +261,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         SaveCommand = new AsyncRelayCommand(SaveAsync, () => IsEditable);
         CancelCommand = new RelayCommand(Cancel, () => !_isSaving);
         OpenAutostartApprovalSettingsCommand = new RelayCommand(OpenAutostartApprovalSettings, () => _showsAutostartApproval);
+        _notificationSettings = notificationSettings;
+        OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => _showsNotificationsTurnedOff);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
     }
@@ -592,6 +603,44 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// <summary>Opens the settings of the OS where the user allows the autostart (<see cref="IAutostartApproval"/>).</summary>
     public IRelayCommand OpenAutostartApprovalSettingsCommand { get; }
 
+    /// <summary>
+    /// macOS (T-020, user decision 2026-10-29): the user turned LayerPeek's notifications off in System Settings; the General
+    /// tab says so next to the notification settings and offers to open them (<see cref="OpenNotificationSettingsCommand"/>).
+    /// Read when the window loads and whenever it becomes active again (<see cref="RefreshNotificationPermissionAsync"/>).
+    /// </summary>
+    public bool ShowsNotificationsTurnedOff
+    {
+        get => _showsNotificationsTurnedOff;
+        private set
+        {
+            if (SetProperty(ref _showsNotificationsTurnedOff, value))
+            {
+                OpenNotificationSettingsCommand.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
+    /// <summary>Opens the OS settings of the app's notifications (<see cref="ISystemNotificationSettings.Open"/>).</summary>
+    public IRelayCommand OpenNotificationSettingsCommand { get; }
+
+    /// <summary>
+    /// Reads again whether the OS has the app's notifications turned off (T-020); UI thread. Never throws; nothing without
+    /// <see cref="ISystemNotificationSettings"/> or after the window closed.
+    /// </summary>
+    public async Task RefreshNotificationPermissionAsync()
+    {
+        if (_notificationSettings is not { } settings || _disposed)
+        {
+            return;
+        }
+
+        bool turnedOff = await settings.AreTurnedOffAsync(LifetimeToken).ConfigureAwait(true);
+        if (!_disposed)
+        {
+            ShowsNotificationsTurnedOff = turnedOff;
+        }
+    }
+
     /// <summary>Start after logon (T-017), off by default; switched by Save, not by the check box itself.</summary>
     public bool StartWithWindows
     {
@@ -703,6 +752,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         {
             Populate(data);
         }
+
+        await RefreshNotificationPermissionAsync().ConfigureAwait(true);
     }
 
     /// <summary>Whether the app starts after logon now; off when there is no autostart or it cannot be read.</summary>
@@ -1001,6 +1052,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (_showsAutostartApproval && _autostart is IAutostartApproval approval)
         {
             approval.OpenApprovalSettings();
+        }
+    }
+
+    /// <summary>
+    /// T-020: System Settings &gt; Notifications &gt; LayerPeek (macOS). The warning stays until the window reads the
+    /// permission again (it becomes active again after the user comes back).
+    /// </summary>
+    private void OpenNotificationSettings()
+    {
+        if (_showsNotificationsTurnedOff)
+        {
+            _notificationSettings?.Open();
         }
     }
 

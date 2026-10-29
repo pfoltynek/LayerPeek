@@ -24,16 +24,7 @@ internal static class ToastContentBuilder
     /// <param name="textCulture">Language of the texts (the app passes <c>UiLanguage.CurrentTextCulture()</c>); numbers follow <c>CurrentCulture</c>.</param>
     public static string Build(PrintNotification notification, CultureInfo textCulture)
     {
-        ArgumentNullException.ThrowIfNull(notification);
-        ArgumentNullException.ThrowIfNull(textCulture);
-
-        string title = Clean(notification.Printer.Name);
-        if (title.Length == 0)
-        {
-            title = Clean(notification.Printer.Id);
-        }
-
-        string? fileName = string.IsNullOrWhiteSpace(notification.FileName) ? null : Clean(notification.FileName);
+        NotificationLines lines = Lines(notification, textCulture);
 
         StringBuilder xml = new(512);
         xml.Append("<toast");
@@ -47,20 +38,11 @@ internal static class ToastContentBuilder
 
         // Foreground activation: the click is delivered to the running app (ToastNotification.Activated).
         xml.Append(" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
-        AppendText(xml, title);
-        if (notification is { Kind: PrintEventKind.CooledDown, Cooldown: { } cooled })
+        AppendText(xml, lines.Title);
+        AppendText(xml, lines.Body);
+        if (lines.Detail is { } detail)
         {
-            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name.
-            AppendText(xml, CooledDownText(cooled.Outcome, textCulture));
-            AppendText(xml, Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.ThresholdCelsius));
-        }
-        else
-        {
-            AppendText(xml, EventText(notification.Kind, notification.Remaining, textCulture));
-            if (!string.IsNullOrEmpty(fileName) && notification.Kind != PrintEventKind.CooledDown)
-            {
-                AppendText(xml, fileName);
-            }
+            AppendText(xml, detail);
         }
 
         xml.Append("</binding></visual>");
@@ -72,6 +54,39 @@ internal static class ToastContentBuilder
         // Without an <audio> element Windows plays the default notification sound.
         xml.Append("</toast>");
         return xml.ToString();
+    }
+
+    /// <summary>
+    /// The texts of a notification in <paramref name="textCulture"/>, the same on every OS (Windows toast, macOS
+    /// notification, T-020): the printer name (its id when the name is empty) as the title, the event as the body and the
+    /// job file name, or for "cooled down" (T-080) the temperatures, as the detail. Printer and file names are stripped of
+    /// control characters and characters XML cannot carry, and shortened to <see cref="MaxTextLength"/>; not escaped.
+    /// </summary>
+    internal static NotificationLines Lines(PrintNotification notification, CultureInfo textCulture)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        ArgumentNullException.ThrowIfNull(textCulture);
+
+        string title = Clean(notification.Printer.Name);
+        if (title.Length == 0)
+        {
+            title = Clean(notification.Printer.Id);
+        }
+
+        if (notification is { Kind: PrintEventKind.CooledDown, Cooldown: { } cooled })
+        {
+            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name.
+            return new NotificationLines(
+                title,
+                CooledDownText(cooled.Outcome, textCulture),
+                Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.ThresholdCelsius));
+        }
+
+        string? fileName = string.IsNullOrWhiteSpace(notification.FileName) ? null : Clean(notification.FileName);
+        return new NotificationLines(
+            title,
+            EventText(notification.Kind, notification.Remaining, textCulture),
+            !string.IsNullOrEmpty(fileName) && notification.Kind != PrintEventKind.CooledDown ? fileName : null);
     }
 
     /// <summary>The body line describing the event.</summary>
@@ -172,3 +187,7 @@ internal static class ToastContentBuilder
         }
     }
 }
+
+/// <summary>The texts of one notification (<see cref="ToastContentBuilder.Lines"/>).</summary>
+/// <param name="Detail">The job file name or the temperatures; <see langword="null"/>: none.</param>
+internal sealed record NotificationLines(string Title, string Body, string? Detail);

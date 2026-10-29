@@ -52,6 +52,15 @@ internal static class AppSwitches
     /// </summary>
     public const string ClearToastsArgument = "--layerpeek-e2e-clear-toasts";
 
+    /// <summary>
+    /// Command line mode of the macOS test bundle (T-020): prints the notification permission and the delivered notifications
+    /// of the test bundle; Debug only.
+    /// </summary>
+    public const string NotificationStatusArgument = "--layerpeek-e2e-notification-status";
+
+    /// <summary>The bundle identifier of the macOS test bundle <c>LayerPeek E2E.app</c> (T-020); Debug only.</summary>
+    public const string TestBundleIdentifier = "io.github.pfoltynek.LayerPeek.E2E";
+
     /// <summary>The Start menu shortcut of the test app (T-067); the production one is "LayerPeek.lnk".</summary>
     public const string TestShortcutFileName = "LayerPeek E2E.lnk";
 

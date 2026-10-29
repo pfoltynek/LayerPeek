@@ -59,12 +59,13 @@ internal sealed class SettingsWindowHarness
         LayerPeek.App.Cameras.Overlay.OverlayWidgetRegistry? widgets = null,
         LayerPeek.App.Cameras.Layout.ICameraLayoutModeLauncher? layoutModeLauncher = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
-        bool macTerms = false)
+        bool macTerms = false,
+        LayerPeek.App.Platform.ISystemNotificationSettings? notificationSettings = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? LayerPeek.App.Composition.OverlayWidgets.CreateRegistry(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher())
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? LayerPeek.App.Composition.OverlayWidgets.CreateRegistry(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher(), notificationSettings: notificationSettings)
         {
             // T-019: the texts of macOS ("Open at Login"), without the pre-release option.
             UsesMacTerms = macTerms,
@@ -168,6 +169,21 @@ internal sealed class MemoryApprovalAutostart : LayerPeek.App.Platform.IAutostar
     public void SetEnabled(bool enabled) => Enabled = Failure is null ? enabled : throw Failure;
 
     public void OpenApprovalSettings() => Opened++;
+}
+
+/// <summary>
+/// The notification settings of macOS (T-020) in memory: whether they are turned off is set by the test, opening System
+/// Settings is only counted.
+/// </summary>
+internal sealed class MemoryNotificationSettings : LayerPeek.App.Platform.ISystemNotificationSettings
+{
+    public bool TurnedOff { get; set; }
+
+    public int Opened { get; private set; }
+
+    public Task<bool> AreTurnedOffAsync(CancellationToken cancellationToken) => Task.FromResult(TurnedOff);
+
+    public void Open() => Opened++;
 }
 
 /// <summary>Runs posted work right away (the tests call from the UI thread).</summary>

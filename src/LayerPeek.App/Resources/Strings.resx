@@ -752,6 +752,18 @@
     <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items. Allow it there, then save again.</value>
     <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Notifications are turned off in macOS.</value>
+    <comment>T-020: macOS warning on the General tab next to the notification settings when the user turned LayerPeek's notifications off in System Settings.</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Open Notification Settings</value>
+    <comment>T-020: macOS button next to SettingsNotificationsTurnedOff; opens System Settings &gt; Notifications &gt; LayerPeek (Apple term of the pane).</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>LayerPeek's notifications are turned off in System Settings &gt; Notifications. Allow them there.</value>
+    <comment>T-020: tooltip and screen reader help of SettingsOpenNotificationSettings (macOS).</comment>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Camera</value>
   </data>
