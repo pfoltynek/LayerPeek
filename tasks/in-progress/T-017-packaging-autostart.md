@@ -114,7 +114,7 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
 
 **Neověřeno:**
 
-- Klik na toast po instalaci, když aplikace neběží, a autostart po skutečném přihlášení (ruční kontrola; instalovanou aplikaci testy nespouštějí).
+- Klik na toast po instalaci, když aplikace neběží, a autostart po skutečném přihlášení (ruční kontrola; instalovanou aplikaci testy nespouštějí). Postup: skript `tools/windows-verify.ps1` (T-105) – kontroly `win.e2e-installer`, `win.install`, `win.toast-click`, `win.autostart`, `win.uninstall`; souhrnně v [`docs/windows-manual-testing.md`](../../docs/windows-manual-testing.md).
 - Interaktivní tlačítko *Repair* (jen podle zdrojového kódu Velopacku) a návratový kód zrušeného `Setup.exe` (test ho jen vypisuje).
 - ~~Smazání toastů v centru oznámení přímo~~ → ověřeno po review: testovací toast byl v historii a po odinstalaci zmizel (viz „Ověřeno po opravách“).
 - `win-arm64` (chybí MSVC ARM64, T-063/T-057). Stažení z GitHubu (SmartScreen v Edge) až při prvním vydání.

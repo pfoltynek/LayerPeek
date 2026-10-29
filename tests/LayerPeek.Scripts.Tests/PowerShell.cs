@@ -12,6 +12,9 @@ internal static class PowerShell
     /// <summary>Executable name of PowerShell 7, resolved through PATH.</summary>
     public static string Executable { get; } = OperatingSystem.IsWindows() ? "pwsh.exe" : "pwsh";
 
+    /// <summary>Whether PowerShell 7 is on PATH (the verification scripts of T-105 need nothing else).</summary>
+    public static bool IsAvailable => IsOnPath(Executable);
+
     /// <summary>
     /// Why the Pester tests cannot run on this machine (no pwsh, or no Pester 5+), or <see langword="null"/> when they
     /// can. Missing tools are a skip reason, like a missing Edge for the browser tests, not a failure.

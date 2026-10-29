@@ -7,6 +7,74 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
 
 > Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni. Když úkol přidá nebo změní ruční krok, upraví se i tady.
 
+## Nejdřív skript `tools/macos-verify.ps1` (T-105)
+
+Většinu kroků níže dělá skript sám, ostatní provede s otázkami ano / ne. Spouští ho uživatel ve **vlastním Terminálu**
+(ne agent: v sandboxu agenta je login Keychain zamčený, oprávnění TCC nejdou udělit, displej nejde uspat a nefunguje
+`sudo`). Displej musí být probuzený, proto pod `caffeinate`:
+
+```bash
+cd -P /cesta/k/LayerPeek
+pwsh tools/macos-verify.ps1 -ListChecks                         # seznam kontrol a kritérií, která uzavírají
+caffeinate -d -u -i pwsh tools/macos-verify.ps1                 # vše, interaktivně (ptá se před každým oprávněním)
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended     # jen to, co běží bez vás (nic se neptá, nic nepovoluje)
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
+```
+
+- **Výsledky:** `PASS` (ověřeno automaticky), `FAIL`, `SKIP` (vždy s důvodem, např. chybí `.dmg` nebo spí displej),
+  `MANUAL` (potvrdili jste „y“; „n“ je `FAIL`). Kód 1 při jakémkoli `FAIL`. Zpráva `report.md` a `report.json`
+  s commitem, verzí aplikace a důkazy (výstupy příkazů, logy testovací aplikace, JSON oken, obrázek ikon) je
+  v `artifacts/verify/<čas>/`. Výsledek kontroly zapište do úkolu, který uvádí sloupec „Uzavírá“.
+- **Izolace:** automatické kontroly používají Debug aplikaci v testovacím režimu jako „LayerPeek E2E.app“ (vlastní
+  identifikátor `…LayerPeek.E2E`, sestavená v `artifacts/verify-bundle/`) a simulátor na `127.0.0.1`; produkční aplikaci,
+  její profil ani oprávnění nepoužívají. Na začátku skript uloží stav profilu (`tools/profile-snapshot.ps1`) a po úklidu
+  ho porovná (`mac.profile-unchanged`; Login Items jen na vyžádání, `sfltool` chce heslo správce). Úklid na konci:
+  testovací aplikace, notifikace testovacího bundlu (`--layerpeek-e2e-clear-toasts`), náhrady Login Item v testovacích
+  složkách (`--layerpeek-e2e-clear-autostart`), registrace v LaunchServices, předvolby a cache `…LayerPeek.E2E`, položky
+  Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
+  dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
+- **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys` (po běhu vypněte).
+
+| Kontrola | Druh | Uzavírá | Sezení níže |
+|---|---|---|---|
+| `mac.build` | automaticky | T-018 krit. 4 (build na macOS), T-053 krit. 6 (část) | – |
+| `mac.test` | automaticky | T-018 krit. 4 (testy na macOS), T-095 (kontrola) | – |
+| `mac.aot-smoke` | automaticky | T-053 krit. 6 (AOT publish `osx-arm64` bez varování) | – |
+| `mac.keychain` | automaticky | T-021 krit. 1–5 a 8 (přeskočený test = `FAIL`), krit. 7 s `mac.profile-unchanged` | 3.1 |
+| `mac.dock` | automaticky | T-019 krit. 7 (bez Docku, `lsappinfo` typ `UIElement`) | 2.1 |
+| `mac.menubar` | automaticky | T-019 krit. 7 (ikona v menu baru), T-018 krit. 3 (část: Ukončit) | 2.1, 2.3 |
+| `mac.settings-front` | automaticky | T-019 krit. 8 (Nastavení, O aplikaci, Diagnostika a další spuštění nad Finderem, `lsappinfo front`) | 2.4 |
+| `mac.plist-localnetwork` | automaticky | T-097 krit. 3 (podklad: text každého jazyka, jak ho vybere NSBundle) | 4.1 |
+| `mac.gatekeeper` | automaticky | T-019 krit. 12 (část: `spctl` odmítne kopii z `.dmg` s karanténou; potřebuje `release-build.ps1`) | 1.4 |
+| `mac.notifications` | automaticky* | T-020 krit. 1 a 5 (E2E test bundlu) | 5.1 |
+| `mac.display-wait` | automaticky | T-096 krit. 1 a T-099 krit. 1 (podklad: simulované čekání) | – |
+| `mac.camera` | automaticky | T-026 krit. 1 (část: okno a trvalé RTSP spojení v normálním, malém a celoobrazovkovém režimu) | 6.1 |
+| `mac.camera-placement` | automaticky | T-038 krit. 1 (část: J2 rohy a střed 16 bodů od pracovní plochy, D1 zvolený monitor; každý připojený monitor) | 6.2 |
+| `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události) | 6.3 |
+| `mac.socket-other-user` | oprávnění (`sudo`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |
+| `mac.display-sleep` | oprávnění (uspání displeje) | T-096 krit. 1, T-099 krit. 1 a 3 | 8.1, 8.2 |
+| `mac.icons` | ručně (obrázek) | T-018 krit. 1, T-098 krit. 2 (ikony v menu baru světlé / tmavé, @1x; ikona vedle systémových) | 2.2, 2.5 |
+| `mac.menu` | ručně | T-018 krit. 1 a 3 (stavy ikony, tooltip, menu; Ukončit ze skutečného menu) | 2.2, 2.3 |
+| `mac.camera-look` | ručně | T-026 krit. 1 (obraz a překryv ve všech režimech, simulátor) | 6.1 |
+| `mac.camera-buddy3d` | ručně | T-026 krit. 1 (skutečná kamera Buddy3D; zadáte adresu RTSP) | 6.1 |
+| `mac.notification-click` | ručně | T-020 krit. 2 (klik na doručenou notifikaci testovacího bundlu otevře web) | 5.2 |
+| `mac.gatekeeper-dialog` | ručně | T-019 krit. 12 (texty dialogů), T-026 krit. 3 (podklad) | 1.2–1.4 |
+| `mac.login-item` | ručně, dva běhy | T-019 krit. 9 (po odhlášení a přihlášení) | 7 |
+| `mac.local-network` | ručně | T-097 krit. 3 a 4 (dialog Místní síť se skutečnou tiskárnou v LAN) | 4 |
+| `mac.notifications-production` | ručně | T-020 krit. 1 (ze sestavené `.app`) a 3 (hláška při vypnutých notifikacích) | 5.3 |
+| `mac.keyboard-physical` | ručně | T-100 krit. 4 (vestavěná a Logitech klávesnice, české rozložení) | 6.3 |
+| `mac.profile-unchanged` | automaticky, po úklidu | T-021 krit. 7, T-095 (kontrola před/po) | 12.7 |
+
+\* `mac.notifications` běží bez dotazu jen tehdy, když jsou notifikace „LayerPeek E2E“ už povolené; jinak se v
+interaktivním běhu zeptá (macOS pak jednou položí svou otázku), v `-Unattended` je `SKIP`.
+
+**Zůstává jen ručně podle sezení níže** (skript na ně jen odkáže nebo se zeptá): stažení `.dmg` prohlížečem a texty
+Gatekeeperu (sezení 1), odkazy a licence v O aplikaci (2.6), heslo v produkční aplikaci a Nastavení na MacBooku 13"
+(3.2, 3.3), tlačítko „Otevřít Nastavení systému“ a prvky AppKitu v jiném jazyce (4.3, 4.5), kroky J1, J3–J7 a D2–D7
+okna kamery (6.2), aktualizace přes stávající instalaci (sezení 9), `/usr/bin/open` a `PATH` (10.2), nahrání do konceptu
+vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
+
 ## Než začnete
 
 - **Mac:** Apple Silicon, macOS 15 nebo novější (dialog „Místní síť“ je od macOS 15), přihlášený uživatel s heslem
@@ -322,7 +390,8 @@ nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.
 
 ## Mimo Mac (připomínka)
 Na Windows zbývá ověřit `dotnet build` a `dotnet test` po macOS úkolech (T-095 kritérium Windows, T-018 kritérium 4,
-T-026, T-053, T-097, T-099 „Windows beze změny“) – mimo tento postup. T-101 na Windows: přegenerovat windowsovou sadu
-snímků `settings-general*.png` (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, zkontrolovat) a ručně ověřit zkušební toast, varování
-„Upozornění jsou ve Windows vypnutá.“ s tlačítkem do Nastavení → Systém → Oznámení a klik na toast (okno Nastavení na
-záložce Obecné), viz `tasks/in-progress/T-101-test-notification.md`.
+T-021, T-026, T-053, T-097, T-099, T-100 „Windows beze změny“) a instalátor s autostartem (T-017): skript
+`tools/windows-verify.ps1`, postup v [windows-manual-testing.md](windows-manual-testing.md). T-101 na Windows: přegenerovat
+windowsovou sadu snímků (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, zkontrolovat; týká se i T-103 a T-106) a ručně ověřit zkušební
+toast, varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem do Nastavení → Systém → Oznámení a klik na toast (okno
+Nastavení na záložce Obecné), viz `tasks/in-progress/T-101-test-notification.md`.

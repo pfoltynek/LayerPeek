@@ -68,7 +68,7 @@ Když aplikace na macOS startuje se zhasnutým displejem, T-096 odkládá start 
 - **Ověření 2. kola (macOS 26 / Darwin 27, arm64, 2026-10-29):** `dotnet build` 0 varování; `dotnet test` celkem 7487, 0 selhání, 7307 úspěšných, 180 přeskočeno (E2E testy bez `LAYERPEEK_E2E`). `LAYERPEEK_E2E=1 caffeinate -d -u dotnet test … --filter-class "*MacDisplayWaitE2ETests"`: 2/2 úspěšně, dvakrát po sobě (~39 s); displej zůstal probuzený, nic se neuspávalo; během běhu se krátce otevřelo okno Nastavení testovací aplikace. AOT publish `osx-arm64 -warnaserror` bez varování trim/AOT; smoke test (`caffeinate -d -u`) PASSED, `UIElement`; `profile-snapshot -Compare` (snímek před E2E testy) beze změny.
 
 ### Ověření uživatelem (doplněk k postupu v T-096)
-Souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 8.
+Souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md); nejdřív skriptem `tools/macos-verify.ps1` – kontroly `mac.display-sleep`, `mac.display-wait`, T-105, sezení 8.
 
 1. Postup T-096 body 1–3 (sestavit Release `LayerPeek.app`, `sleep 10; open -a …`, uspat displej `pmset displaysleepnow`), mít nastavenou aspoň jednu tiskárnu a během ~1–2 min spánku displeje nechat proběhnout událost tisku (např. pozastavit/dokončit tisk, nebo simulátor `tools/PrusaSimulator`).
 2. Očekávání: oznámení přijde ještě se zhasnutým displejem (vidět po probuzení v Centru oznámení); v `~/Library/Logs/LayerPeek/` věty „No active display …“, „Starting printer monitoring and notifications while waiting for an active display.“, po probuzení „… starting the UI.“ a „The menu bar item attaches to the monitoring that already runs.“; ikona v menu baru hned ukazuje stav tiskárny (ne „Spouštění…“).
