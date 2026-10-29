@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
-## [0.3.0] - unreleased
+## [0.3.1] - unreleased
 
 ### Added
 
@@ -152,7 +152,7 @@ released, so the app does not migrate anything; developers who ran the old build
 - The PrusaLink web proxy rejects write requests from other origins.
 - Native libraries are loaded only from the application folder and the system folder.
 
-[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.0...HEAD
-[0.3.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...v0.3.0
+[Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...v0.3.1
 [0.2.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pfoltynek/LayerPeek/releases/tag/v0.1.0
