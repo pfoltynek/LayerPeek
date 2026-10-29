@@ -27,8 +27,24 @@ Od macOS 15 potřebuje aplikace pro každé odchozí spojení na adresu v místn
 - [ ] Windows beze změny
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
+## Návrh textu (ui-designer 2026-10-29)
+Text se zobrazí pod nadpisem systémového dialogu (anglicky „"LayerPeek" would like to find and connect to devices on your local network.“, přesné znění v ostatních jazycích neověřeno), proto o povolení nežádá, jen vysvětluje proč. Oslovení podle zbytku aplikace (de/es/fr vykání, it tykání; pl bez zájmena), termín pro kameru jako v aplikaci (it „telecamera“). Název oprávnění v Nastavení systému → Soukromí a zabezpečení (ověřeno v lokalizaci macOS 27.2, `SecurityPrivacyExtension.appex`): Local Network / Místní síť / Lokálna sieť / Lokales Netzwerk / Red local / Réseau local / Rete locale / Sieć lokalna; panel: Privacy & Security / Soukromí a zabezpečení / Súkromie a bezpečnosť / Datenschutz & Sicherheit / Privacidad y seguridad / Confidentialité et sécurité / Privacy e sicurezza / Prywatność i ochrona.
+
+| Jazyk (`.lproj`) | `NSLocalNetworkUsageDescription` |
+|---|---|
+| en (základ v `Info.plist`) | LayerPeek connects to your Prusa printers and their cameras on your local network to show the print status and the camera view. |
+| cs | LayerPeek se připojuje k vašim tiskárnám Prusa a jejich kamerám v místní síti, aby mohl zobrazit stav tisku a obraz z kamery. |
+| sk | LayerPeek sa pripája k vašim tlačiarňam Prusa a ich kamerám v lokálnej sieti, aby mohol zobraziť stav tlače a obraz z kamery. |
+| de | LayerPeek verbindet sich mit Ihren Prusa-Druckern und deren Kameras im lokalen Netzwerk, um den Druckstatus und das Kamerabild anzuzeigen. |
+| es | LayerPeek se conecta a sus impresoras Prusa y a sus cámaras en la red local para mostrar el estado de la impresión y la imagen de la cámara. |
+| fr | LayerPeek se connecte à vos imprimantes Prusa et à leurs caméras sur le réseau local pour afficher l'état de l'impression et l'image de la caméra. |
+| it | LayerPeek si collega alle tue stampanti Prusa e alle loro telecamere sulla rete locale per mostrare lo stato della stampa e l'immagine della telecamera. |
+| pl | LayerPeek łączy się z drukarkami Prusa i ich kamerami w sieci lokalnej, aby wyświetlać stan drukowania i obraz z kamery. |
+
+Poznámky k implementaci textu: `InfoPlist.strings` v UTF-8 (nebo UTF-16), klíč a hodnota v uvozovkách, apostrof (fr, it) neescapovat, `"` uvnitř hodnoty escapovat. Text není v `Strings.*.resx` (nečte ho aplikace, ale macOS), proto ho nehlídá kontrola úplnosti překladů – přidat test/Pester, že všech 8 souborů existuje a obsahuje klíč. „Prusa“ je jen popisné označení tiskáren (jako „PrusaLink“ v aplikaci), ne logo ani ochranná známka v grafice.
+
 ## Otevřené otázky
-- Konečné znění textu ve všech jazycích (revize ui-designerem).
+- ~~Konečné znění textu ve všech jazycích (revize ui-designerem).~~ → navržené znění v 8 jazycích viz „Návrh textu“ výše (revize ui-designer 2026-10-29). Proti návrhu z T-026 jen „camera stream“ → „camera view“ (srozumitelnější pro běžného uživatele, ve všech jazycích „obraz z kamery“). Implementace v tomto úkolu.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

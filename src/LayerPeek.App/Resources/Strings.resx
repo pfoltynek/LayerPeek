@@ -728,11 +728,11 @@
     <value>Available only when LayerPeek is installed with Setup.exe, not in the ZIP version.</value>
   </data>
   <data name="SettingsOpenAtLogin" xml:space="preserve">
-    <value>Open at Login</value>
+    <value>Open at login</value>
     <comment>T-019: the autostart option on macOS (Apple term of the Dock menu "Options &gt; Open at Login").</comment>
   </data>
   <data name="SettingsNeedsAppBundle" xml:space="preserve">
-    <value>Available only in LayerPeek.app moved to the Applications folder, not in a development build or straight from the disk image.</value>
+    <value>Available only when LayerPeek is in the Applications folder, not when it is opened straight from the disk image or in a development build.</value>
     <comment>T-019: why "Open at Login" is disabled on macOS: a development build, a translocated app or the app on the mounted .dmg.</comment>
   </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
@@ -745,11 +745,11 @@
     <value>Settings saved. Starting after sign-in could not be changed. Try saving again.</value>
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
-    <value>Open Login Items Settings</value>
+    <value>Open System Settings</value>
     <comment>T-019: macOS button next to the "could not be changed" status when the user switched LayerPeek off in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the pane).</comment>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items. Allow it there, then save again.</value>
+    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there, then save again.</value>
     <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
@@ -757,11 +757,11 @@
     <comment>T-020: macOS warning on the General tab next to the notification settings when the user turned LayerPeek's notifications off in System Settings.</comment>
   </data>
   <data name="SettingsOpenNotificationSettings" xml:space="preserve">
-    <value>Open Notification Settings</value>
+    <value>Open notification settings</value>
     <comment>T-020: macOS button next to SettingsNotificationsTurnedOff; opens System Settings &gt; Notifications &gt; LayerPeek (Apple term of the pane).</comment>
   </data>
   <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
-    <value>LayerPeek's notifications are turned off in System Settings &gt; Notifications. Allow them there.</value>
+    <value>LayerPeek's notifications are turned off in System Settings &gt; Notifications. Turn on "Allow notifications" there.</value>
     <comment>T-020: tooltip and screen reader help of SettingsOpenNotificationSettings (macOS).</comment>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
@@ -899,7 +899,7 @@
     <value>Build configuration and scripts (BtbN)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
-    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the libraries libavcodec, libavformat, libavutil and libswscale (.dylib) in the application bundle may be replaced by a compatible FFmpeg build (the same library versions, e.g. libavcodec.63.dylib); the bundle then has to be signed again.</value>
+    <value>FFmpeg is licensed under the GNU LGPL version 3 or later. The application uses an unmodified FFmpeg release, compiled from the official source code as an LGPL build, and links it dynamically: the libraries libavcodec, libavformat, libavutil and libswscale (.dylib) in LayerPeek.app/Contents/MacOS may be replaced by a compatible FFmpeg build (the same library versions, e.g. libavcodec.63.dylib). The application then has to be signed again; an ad-hoc signature is enough.</value>
   </data>
   <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
     <value>The FFmpeg source release used (ffmpeg.org)</value>

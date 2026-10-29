@@ -661,7 +661,7 @@
     <value>Abrir al iniciar sesión</value>
   </data>
   <data name="SettingsNeedsAppBundle" xml:space="preserve">
-    <value>Solo disponible en LayerPeek.app movida a la carpeta Aplicaciones, no en una compilación de desarrollo ni directamente desde la imagen de disco.</value>
+    <value>Solo disponible cuando LayerPeek está en la carpeta Aplicaciones, no al abrirlo directamente desde la imagen de disco ni en una compilación de desarrollo.</value>
   </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Ofrecer versiones preliminares</value>
@@ -673,10 +673,10 @@
     <value>Configuración guardada. No se pudo cambiar el inicio al iniciar sesión. Intente guardar de nuevo.</value>
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
-    <value>Abrir Ítems de inicio</value>
+    <value>Abrir Ajustes del Sistema</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio. Permítalo allí y vuelva a guardar.</value>
+    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio y extensiones. Permítalo allí y vuelva a guardar.</value>
   </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Impresión iniciada</value>
@@ -736,7 +736,7 @@
     <value>Abrir ajustes de Notificaciones</value>
   </data>
   <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
-    <value>Las notificaciones de LayerPeek están desactivadas en Ajustes del Sistema &gt; Notificaciones. Permítalas allí.</value>
+    <value>Las notificaciones de LayerPeek están desactivadas en Ajustes del Sistema &gt; Notificaciones. Active allí «Permitir notificaciones».</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Cámara</value>
@@ -871,7 +871,7 @@
     <value>Configuración y scripts de compilación (BtbN)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
-    <value>FFmpeg se distribuye bajo la GNU LGPL versión 3 o posterior. La aplicación usa una versión de FFmpeg sin modificar, compilada como LGPL a partir del código fuente oficial, y la enlaza dinámicamente: las bibliotecas libavcodec, libavformat, libavutil y libswscale (.dylib) del paquete de la aplicación se pueden sustituir por una compilación compatible de FFmpeg (las mismas versiones de las bibliotecas, p. ej., libavcodec.63.dylib); después hay que volver a firmar el paquete.</value>
+    <value>FFmpeg se distribuye bajo la GNU LGPL versión 3 o posterior. La aplicación usa una versión de FFmpeg sin modificar, compilada como LGPL a partir del código fuente oficial, y la enlaza dinámicamente: las bibliotecas libavcodec, libavformat, libavutil y libswscale (.dylib) de LayerPeek.app/Contents/MacOS se pueden sustituir por una compilación compatible de FFmpeg (las mismas versiones de las bibliotecas, p. ej., libavcodec.63.dylib). Después hay que volver a firmar la aplicación; basta con una firma ad hoc.</value>
   </data>
   <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
     <value>Versión del código fuente de FFmpeg utilizada (ffmpeg.org)</value>

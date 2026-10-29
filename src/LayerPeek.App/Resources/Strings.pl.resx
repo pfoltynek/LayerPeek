@@ -658,10 +658,10 @@
     <value>Dostępne tylko, gdy LayerPeek został zainstalowany za pomocą Setup.exe, nie w wersji ZIP.</value>
   </data>
   <data name="SettingsOpenAtLogin" xml:space="preserve">
-    <value>Otwórz po zalogowaniu</value>
+    <value>Otwieraj podczas logowania</value>
   </data>
   <data name="SettingsNeedsAppBundle" xml:space="preserve">
-    <value>Dostępne tylko w LayerPeek.app przeniesionej do folderu Aplikacje, nie w wersji deweloperskiej ani bezpośrednio z obrazu dysku.</value>
+    <value>Dostępne tylko, gdy LayerPeek jest w folderze Aplikacje, nie po otwarciu bezpośrednio z obrazu dysku ani w wersji deweloperskiej.</value>
   </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Oferuj wersje wstępne</value>
@@ -673,10 +673,10 @@
     <value>Ustawienia zostały zapisane. Nie udało się zmienić uruchamiania po zalogowaniu. Spróbuj zapisać ponownie.</value>
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
-    <value>Otwórz ustawienia logowania</value>
+    <value>Otwórz Ustawienia systemowe</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek jest wyłączony w Ustawieniach systemowych &gt; Ogólne &gt; Rzeczy otwierane podczas logowania. Zezwól na niego tam, a potem zapisz ponownie.</value>
+    <value>LayerPeek jest wyłączony w Ustawieniach systemowych &gt; Ogólne &gt; Rzeczy i rozszerzenia otwierane podczas logowania. Włącz go tam, a potem zapisz ponownie.</value>
   </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Rozpoczęto drukowanie</value>
@@ -736,7 +736,7 @@
     <value>Otwórz ustawienia powiadomień</value>
   </data>
   <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
-    <value>Powiadomienia LayerPeek są wyłączone w Ustawieniach systemowych &gt; Powiadomienia. Zezwól na nie tam.</value>
+    <value>Powiadomienia LayerPeek są wyłączone w Ustawieniach systemowych &gt; Powiadomienia. Włącz je tam.</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
@@ -871,7 +871,7 @@
     <value>Konfiguracja i skrypty kompilacji (BtbN)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
-    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanego wydania FFmpeg, skompilowanego jako LGPL z oficjalnego kodu źródłowego, i łączy je dynamicznie: biblioteki libavcodec, libavformat, libavutil i libswscale (.dylib) w pakiecie aplikacji można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. libavcodec.63.dylib); pakiet trzeba następnie ponownie podpisać.</value>
+    <value>FFmpeg jest udostępniany na licencji GNU LGPL w wersji 3 lub nowszej. Aplikacja używa niezmodyfikowanego wydania FFmpeg, skompilowanego jako LGPL z oficjalnego kodu źródłowego, i łączy je dynamicznie: biblioteki libavcodec, libavformat, libavutil i libswscale (.dylib) w LayerPeek.app/Contents/MacOS można zastąpić zgodną kompilacją FFmpeg (te same wersje bibliotek, np. libavcodec.63.dylib). Aplikację trzeba następnie ponownie podpisać; wystarczy podpis ad hoc.</value>
   </data>
   <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
     <value>Użyte wydanie źródłowe FFmpeg (ffmpeg.org)</value>

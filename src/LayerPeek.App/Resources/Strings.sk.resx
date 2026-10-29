@@ -658,10 +658,10 @@
     <value>Len keď je LayerPeek nainštalovaný pomocou Setup.exe, nie vo verzii ZIP.</value>
   </data>
   <data name="SettingsOpenAtLogin" xml:space="preserve">
-    <value>Otvoriť pri prihlásení</value>
+    <value>Otvoriť po prihlásení</value>
   </data>
   <data name="SettingsNeedsAppBundle" xml:space="preserve">
-    <value>Len v aplikácii LayerPeek.app presunutej do priečinka Aplikácie, nie vo vývojovom zostavení ani priamo z obrazu disku.</value>
+    <value>Len keď je LayerPeek v priečinku Aplikácie, nie pri otvorení priamo z obrazu disku ani vo vývojovom zostavení.</value>
   </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Ponúkať predbežné verzie</value>
@@ -673,10 +673,10 @@
     <value>Nastavenia sú uložené. Spúšťanie po prihlásení sa nepodarilo zmeniť. Skúste uložiť znova.</value>
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
-    <value>Otvoriť Položky po prihlásení</value>
+    <value>Otvoriť Systémové nastavenia</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek je vypnutý v Systémových nastaveniach &gt; Všeobecné &gt; Položky po prihlásení. Povoľte ho tam a potom uložte znova.</value>
+    <value>LayerPeek je vypnutý v Systémových nastaveniach &gt; Všeobecné &gt; Položky a rozšírenia spúšťané pri prihlásení. Povoľte ho tam a potom uložte znova.</value>
   </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Tlač sa začala</value>
@@ -736,7 +736,7 @@
     <value>Otvoriť nastavenia hlásení</value>
   </data>
   <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
-    <value>Upozornenia LayerPeeku sú vypnuté v Systémových nastaveniach &gt; Hlásenia. Povoľte ich tam.</value>
+    <value>Upozornenia LayerPeeku sú vypnuté v Systémových nastaveniach &gt; Hlásenia. Zapnite tam „Povoliť hlásenia“.</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
@@ -871,7 +871,7 @@
     <value>Konfigurácia a skripty buildu (BtbN)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
-    <value>FFmpeg je licencovaný pod GNU LGPL verzie 3 alebo novšej. Aplikácia používa neupravené vydanie FFmpeg, zostavené z oficiálnych zdrojových kódov ako LGPL build, a linkuje ho dynamicky: knižnice libavcodec, libavformat, libavutil a libswscale (.dylib) v balíku aplikácie možno nahradiť kompatibilným buildom FFmpeg (rovnaké verzie knižníc, napr. libavcodec.63.dylib); balík je potom potrebné znova podpísať.</value>
+    <value>FFmpeg je licencovaný pod GNU LGPL verzie 3 alebo novšej. Aplikácia používa neupravené vydanie FFmpeg, zostavené z oficiálnych zdrojových kódov ako LGPL build, a linkuje ho dynamicky: knižnice libavcodec, libavformat, libavutil a libswscale (.dylib) v LayerPeek.app/Contents/MacOS možno nahradiť kompatibilným buildom FFmpeg (rovnaké verzie knižníc, napr. libavcodec.63.dylib). Aplikáciu je potom potrebné znova podpísať, stačí ad-hoc podpis.</value>
   </data>
   <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
     <value>Použité zdrojové vydanie FFmpeg (ffmpeg.org)</value>
