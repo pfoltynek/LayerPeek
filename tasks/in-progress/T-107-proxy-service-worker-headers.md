@@ -32,6 +32,7 @@ Nález N1 z bezpečnostní revize (2026-10-29), oprava odsouhlasená uživatelem
 - [ ] Ruční ověření uživatelem se skutečnou tiskárnou: web PrusaLink přes proxy se načte, zobrazí stav, umí nahrát a stáhnout soubor (Windows: Edge/Chrome; macOS: Safari).
 
 ## Otevřené otázky
+- **Rozhodnuto 2026-10-29: zůstává `127.0.0.1`** (varianta a), dokud aplikace podporuje macOS 14 a 15; znovu zvážit po zvednutí minima na macOS 26.
 - **Náhodná subdoména `<náhodné>.localhost`:** zatím nezavedena. Plně by oddělila cookies i „site“ proxy od ostatních služeb na `127.0.0.1`: podle Public Suffix List je `localhost` veřejná přípona, takže `abc.localhost` je samostatný site.
   - Chrome a Edge (Chromium) překládají `localhost` i `*.localhost` samy na loopback. Firefox to dělá od verze 84 (Mozilla bug 1220810).
   - Safari na macOS se spoléhá na systémový resolver a `*.localhost` spolehlivě funguje až od macOS 26 Tahoe (WebKit bug 160504, komentáře 19–20 z 2025-09-19, „implemented in OS frameworks below WebKit“). Na macOS 14 a 15 se překlad může dostat do DNS sítě. LayerPeek ale podporuje macOS 14+ (`LSMinimumSystemVersion` 14.0) a Safari je tam výchozí prohlížeč.
