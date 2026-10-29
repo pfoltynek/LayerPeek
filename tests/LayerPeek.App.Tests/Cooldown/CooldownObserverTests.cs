@@ -26,12 +26,12 @@ public sealed class CooldownObserverTests : IDisposable
     [Fact]
     public void AppliedSettingsConfigureThePrintersWithTheirThresholds()
     {
-        _observer.ApplySettings(new AppSettings { Printers = [Definition() with { CooldownThresholdCelsius = 80 }] });
+        _observer.ApplySettings(new AppSettings { Printers = [Definition() with { CooldownThresholds = new(80, 60) }] });
 
         RaiseEndedPrint(nozzle: 120);
 
         CooldownState state = _cooldown.GetState("mk4");
-        Assert.Equal((CooldownPhase.Cooling, 80), (state.Phase, state.ThresholdCelsius));
+        Assert.Equal((CooldownPhase.Cooling, 80, 60), (state.Phase, state.NozzleThresholdCelsius, state.BedThresholdCelsius));
     }
 
     [Fact]
@@ -53,10 +53,10 @@ public sealed class CooldownObserverTests : IDisposable
         RaiseEndedPrint(nozzle: 70);
         Assert.Equal(CooldownPhase.Cooling, _cooldown.GetState("mk4").Phase);
 
-        ((IMonitoringObserver)_observer).UpdateSettings(new AppSettings { Printers = [Definition() with { CooldownThresholdCelsius = 75 }] });
+        ((IMonitoringObserver)_observer).UpdateSettings(new AppSettings { Printers = [Definition() with { CooldownThresholds = new(75, 60) }] });
 
-        // The printer kept its state and the last two readings (72, 70 °C) meet the new threshold.
-        Assert.Equal((CooldownPhase.CooledDown, 75), (_cooldown.GetState("mk4").Phase, _cooldown.GetState("mk4").ThresholdCelsius));
+        // The printer kept its state and the last two readings (72, 70 °C; bed 55 °C) meet the new thresholds.
+        Assert.Equal((CooldownPhase.CooledDown, 75), (_cooldown.GetState("mk4").Phase, _cooldown.GetState("mk4").NozzleThresholdCelsius));
     }
 
     [Fact]

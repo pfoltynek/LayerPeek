@@ -98,11 +98,17 @@ internal static class ToastContentBuilder
 
         if (notification is { Kind: PrintEventKind.CooledDown, Cooldown: { } cooled })
         {
-            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name.
-            return new NotificationLines(
-                title,
-                CooledDownText(cooled.Outcome, textCulture),
-                Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.ThresholdCelsius));
+            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name:
+            // the nozzle and the bed with their thresholds (T-109), the nozzle alone for a printer that reports no bed.
+            string detail = cooled.BedCelsius is { } bed
+                ? Format(
+                    Text(nameof(Strings.NotificationCooledDownDetailBed), textCulture),
+                    WholeDegrees(cooled.NozzleCelsius),
+                    cooled.NozzleThresholdCelsius,
+                    WholeDegrees(bed),
+                    cooled.BedThresholdCelsius)
+                : Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.NozzleThresholdCelsius);
+            return new NotificationLines(title, CooledDownText(cooled.Outcome, textCulture), detail);
         }
 
         string? fileName = string.IsNullOrWhiteSpace(notification.FileName) ? null : Clean(notification.FileName);
@@ -155,6 +161,9 @@ internal static class ToastContentBuilder
 
     private static string Format(string format, object? arg0, object? arg1) =>
         string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+
+    private static string Format(string format, params ReadOnlySpan<object?> args) =>
+        string.Format(CultureInfo.CurrentCulture, format, args);
 
     private static void AppendText(StringBuilder xml, string text)
     {

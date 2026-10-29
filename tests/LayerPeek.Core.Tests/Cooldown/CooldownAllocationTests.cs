@@ -44,8 +44,8 @@ public sealed class CooldownAllocationTests
             CooldownTracker tracker = new();
             tracker.Process(Printing(0));
             tracker.Process(Snap(PrinterState.Finished, 5, 200, 0, 60, Job()));
-            tracker.Process(Snap(PrinterState.Finished, 10, 45, 0, 55, Job()));
-            PrinterSnapshot next = Snap(PrinterState.Finished, 15, 44, 0, 54, Job());
+            tracker.Process(Snap(PrinterState.Finished, 10, 39, 0, 38, Job()));
+            PrinterSnapshot next = Snap(PrinterState.Finished, 15, 38, 0, 37, Job());
             return AllocationProbe.Measure(() => update = tracker.Process(next));
         });
 

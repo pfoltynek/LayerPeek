@@ -1,5 +1,6 @@
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 
 namespace LayerPeek.Core.Tests.Cameras.Overlay;
@@ -406,7 +407,7 @@ public class CameraOverlayLayoutTests
     {
         CameraOverlayLayout layout = CameraOverlayLayout.Default.WithVisible("cooldown", false);
         PrinterDefinition on = Printer("a") with { Camera = new CameraSettings(enabled: true, new Uri("rtsp://10.0.0.2/live")) { Window = CameraWindowDefaults.Default with { TopmostNormal = true } } };
-        PrinterDefinition off = Printer("b") with { CooldownThresholdCelsius = 40 };
+        PrinterDefinition off = Printer("b") with { CooldownThresholds = new(45, 55) };
         PrinterDefinition already = Printer("c") with { Camera = CameraSettings.Disabled with { Overlay = layout } };
 
         IReadOnlyList<PrinterDefinition> result = CameraOverlayLayout.ApplyToAll([on, off, already], layout);
@@ -415,7 +416,7 @@ public class CameraOverlayLayoutTests
         Assert.Equal(off with { Camera = CameraSettings.Disabled with { Overlay = layout } }, result[1]);
         Assert.Same(already, result[2]);
         Assert.True(result[0].Camera.Window.TopmostNormal);
-        Assert.Equal(40, result[1].CooldownThresholdCelsius);
+        Assert.Equal(new CooldownThresholds(45, 55), result[1].CooldownThresholds);
     }
 
     [Fact]

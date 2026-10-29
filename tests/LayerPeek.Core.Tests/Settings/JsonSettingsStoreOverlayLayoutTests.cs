@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 using LayerPeek.Core.Tests.Monitoring;
@@ -54,8 +55,10 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
 
         Assert.Equal(SettingsLoadStatus.Loaded, result.Status);
         Assert.Empty(result.Warnings);
-        string notice = Assert.Single(result.Notices);
-        Assert.Contains("4 printers", notice, StringComparison.Ordinal);
+        // The overlay conversion and (T-109) the discarded former cool-down threshold.
+        Assert.Equal(2, result.Notices.Count);
+        Assert.Contains("4 printers", result.Notices[0], StringComparison.Ordinal);
+        Assert.Contains("cool-down threshold of 1 printer ", result.Notices[1], StringComparison.Ordinal);
         IReadOnlyList<PrinterDefinition> printers = result.Settings.Printers;
         Assert.Equal(CameraOverlayLayout.FromLegacyCorner(OverlayAnchor.TopRight), printers[0].Camera.Overlay);
         Assert.Same(CameraOverlayLayout.Default, printers[1].Camera.Overlay);
@@ -65,7 +68,7 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
         Assert.All(printers, static printer => Assert.All(printer.Camera.Overlay.Widgets, static w => Assert.True(w.Visible)));
 
         // Everything else of the file is read as before.
-        Assert.Equal(45, printers[0].CooldownThresholdCelsius);
+        Assert.Equal(CooldownThresholds.Default, printers[0].CooldownThresholds);
         Assert.Equal(CameraWindowStartMode.Mini, printers[0].Camera.Window.StartMode);
         Assert.Equal(CameraWindowCorner.Center, printers[0].Camera.Window.Normal.Corner);
         Assert.Equal(PrinterImageChoice.Custom, printers[2].Image);
@@ -99,7 +102,7 @@ public sealed class JsonSettingsStoreOverlayLayoutTests : IDisposable
         Assert.False(printers[3].GetProperty("camera").TryGetProperty("overlay", out _));
         Assert.DoesNotContain("\"corner\": \"TopRight\"", saved, StringComparison.Ordinal);
         Assert.DoesNotContain("PrinterName", saved, StringComparison.Ordinal);
-        Assert.Equal(45, printers[0].GetProperty("cooldownThresholdCelsius").GetInt32());
+        Assert.False(printers[0].TryGetProperty("cooldownThresholdCelsius", out _));
         Assert.Equal("Center", printers[0].GetProperty("camera").GetProperty("window").GetProperty("normal").GetProperty("corner").GetString());
 
         Assert.Empty(second.Warnings);

@@ -472,22 +472,31 @@
     <value>Impresora enfriada</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>El umbral de temperatura de la boquilla se configura por impresora en la pestaña Widgets, widget Enfriamiento.</value>
+    <value>Los umbrales de temperatura de la boquilla y la base se configuran por impresora en la pestaña Widgets, widget Enfriamiento.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Umbral de temperatura de la boquilla (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Umbral de temperatura de la base (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Boquilla (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Base (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Por debajo de esta temperatura es seguro apagar la impresora.</value>
+    <value>Con la boquilla y la base por debajo de estos valores, es seguro apagar la impresora.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Introduzca un número entero de {0} a {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Usar el umbral en todas las impresoras</value>
+    <value>Usar los umbrales en todas las impresoras</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>El umbral se copió a las demás impresoras. Se aplica al guardar.</value>
+    <value>Los umbrales se copiaron a las demás impresoras. Se aplican al guardar.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Solo hay una impresora configurada.</value>
@@ -577,7 +586,7 @@
     <value>Nombre legible de la impresión con material, altura de capa y boquilla; en tamaños mayores, con vista previa.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Al terminar una impresión, muestra cómo se enfría la boquilla y cuándo es seguro apagar la impresora.</value>
+    <value>Tras imprimir, muestra cómo se enfrían la boquilla y la base y cuándo es seguro apagar la impresora.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avisar cuando queden estos minutos de impresión (0 = desactivado)</value>
@@ -734,6 +743,9 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Ya puede apagarla. Boquilla {0} °C, umbral {1} °C</value>
+  </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Ya puede apagarla. Boquilla {0}&#160;°C (umbral {1}&#160;°C), base {2}&#160;°C (umbral {3}&#160;°C)</value>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Las notificaciones están desactivadas en macOS.</value>
@@ -1069,6 +1081,15 @@
   <data name="CameraMiniCooledAccessible" xml:space="preserve">
     <value>Enfriada – ya puede apagarla, boquilla {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Enfriada – ya puede apagarla, boquilla {0}&#160;°C, base {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Enfriando… boquilla {0}&#160;°C, base {1}&#160;°C, aprox. {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Enfriando… boquilla {0}&#160;°C, base {1}&#160;°C</value>
+  </data>
   <data name="CameraMiniFinishDayTime" xml:space="preserve">
     <value>{0}&#160;{1}</value>
   </data>
@@ -1083,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>apagado seguro cuando la boquilla baje de {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>apagado seguro en aprox. {0} (boquilla bajo {1}&#160;°C, base bajo {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>apagado seguro cuando la boquilla baje de {0}&#160;°C y la base de {1}&#160;°C</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>impresión terminada a las {0}</value>

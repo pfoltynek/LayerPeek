@@ -57,7 +57,7 @@ public sealed class UserNotificationServiceTests : IDisposable
                 Printer = Definition(),
                 Kind = PrintEventKind.CooledDown,
                 Timestamp = Now,
-                Cooldown = new CooldownEvent("mk4", Now, "benchy.bgcode", CooldownPrintOutcome.Finished, 39.6, 40),
+                Cooldown = new CooldownEvent("mk4", Now, "benchy.bgcode", CooldownPrintOutcome.Finished, 39.6, 40, 38.2, 40),
             },
         ];
         _service = Create(() => czech);

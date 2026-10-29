@@ -152,7 +152,8 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             IdleHold = TimeSpan.FromSeconds(15),
         };
         await using ToastRun run = await ToastRun.StartAsync(fixture, "toast-cooled", "en", report, cycle, cooldownThresholdCelsius: 100);
-        string detail = AppStrings.Get("en", "NotificationCooledDownDetail");
+        // The simulator reports the bed: the detail with both temperatures (T-109).
+        string detail = AppStrings.Get("en", "NotificationCooledDownDetailBed");
         ToastTexts texts = new(run.PrinterName, AppStrings.Get("en", "NotificationCooledDownFinished"), [detail[..detail.IndexOf('{', StringComparison.Ordinal)], ".bgcode"]);
         try
         {
@@ -651,13 +652,15 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             return File.Exists(path) ? File.ReadAllBytes(path) : null;
         }
 
-        /// <summary>The test settings with the printer of this run and its cool-down threshold (T-079), when given.</summary>
+        /// <summary>The test settings with the printer of this run and its cool-down thresholds (T-079, T-109), when given.</summary>
         private string Settings(string language, int? cooldownThresholdCelsius)
         {
             JsonObject settings = JsonNode.Parse(TestSettings.Json(language, [new TestPrinter(PrinterId, PrinterName, Printer.Address())]))!.AsObject();
             if (cooldownThresholdCelsius is { } threshold)
             {
-                settings["printers"]![0]!["cooldownThresholdCelsius"] = threshold;
+                // T-109: the same threshold for the nozzle and the bed.
+                settings["printers"]![0]!["cooldownNozzleThresholdCelsius"] = threshold;
+                settings["printers"]![0]!["cooldownBedThresholdCelsius"] = threshold;
             }
 
             return settings.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });

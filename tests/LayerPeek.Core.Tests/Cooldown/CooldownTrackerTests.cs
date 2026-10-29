@@ -11,7 +11,9 @@ public sealed class CooldownTrackerTests
 {
     private const double End = 5;
 
-    private readonly CooldownTracker _tracker = new();
+    // The tests before T-109 follow the nozzle alone: a bed threshold of 100 °C is never exceeded by the simulated bed
+    // (60 °C). The bed's own rules are in CooldownTrackerBedTests.
+    private readonly CooldownTracker _tracker = new(Nozzle(50));
     private readonly List<CooldownEvent> _events = [];
 
     [Theory]
@@ -26,7 +28,8 @@ public sealed class CooldownTrackerTests
         Assert.Equal(CooldownPhase.Cooling, state.Phase);
         Assert.Equal(NozzlePrintTemperature, state.NozzleCelsius);
         Assert.Equal(BedPrintTemperature, state.BedCelsius);
-        Assert.Equal(CooldownThreshold.DefaultCelsius, state.ThresholdCelsius);
+        Assert.Equal(50, state.NozzleThresholdCelsius);
+        Assert.Equal(CooldownThreshold.MaxCelsius, state.BedThresholdCelsius);
         Assert.Equal(0, state.Progress);
         Assert.Null(state.EstimatedRemaining);
         Assert.Equal(Start.AddSeconds(End), state.StartedAt);
@@ -129,7 +132,7 @@ public sealed class CooldownTrackerTests
         Assert.Equal(Start.AddSeconds(cooledAt), cooled.Timestamp);
         Assert.Equal("benchy.bgcode", cooled.FileName);
         Assert.Equal(CooldownPrintOutcome.Finished, cooled.Outcome);
-        Assert.Equal(50, cooled.ThresholdCelsius);
+        Assert.Equal(50, cooled.NozzleThresholdCelsius);
 
         CooldownState state = _tracker.State;
         Assert.Equal(CooldownPhase.CooledDown, state.Phase);
@@ -601,7 +604,7 @@ public sealed class CooldownTrackerTests
     }
 
     [Fact]
-    public void BedIsOnlyShown()
+    public void BedBelowItsThresholdIsOnlyShown()
     {
         Process(Printing(0));
         Process(Snap(PrinterState.Finished, End, 200, 0, 60, Job()));
@@ -629,16 +632,16 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Finished, 10, 75, 0, job: Job()));
         Process(Snap(PrinterState.Finished, 15, 70, 0, job: Job()));
 
-        CooldownUpdate update = _tracker.SetThreshold(80);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(80));
 
         Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
-        Assert.Equal(80, update.State.ThresholdCelsius);
-        Assert.Equal(80, _tracker.ThresholdCelsius);
+        Assert.Equal(80, update.State.NozzleThresholdCelsius);
+        Assert.Equal(80, _tracker.Thresholds.NozzleCelsius);
         CooldownEvent cooled = Assert.IsType<CooldownEvent>(update.Event);
         Assert.Equal(Start.AddSeconds(15), cooled.Timestamp);
         Assert.Equal("mk4", cooled.PrinterId);
         Assert.Equal(70, cooled.NozzleCelsius);
-        Assert.Equal(80, cooled.ThresholdCelsius);
+        Assert.Equal(80, cooled.NozzleThresholdCelsius);
     }
 
     [Fact]
@@ -649,7 +652,7 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Finished, 10, 95, 0, job: Job()));
         Process(Snap(PrinterState.Finished, 15, 75, 0, job: Job()));
 
-        CooldownUpdate update = _tracker.SetThreshold(80);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(80));
 
         Assert.Equal(CooldownPhase.Cooling, update.State.Phase);
         Assert.Null(update.Event);
@@ -663,10 +666,10 @@ public sealed class CooldownTrackerTests
         Process(Printing(0));
         RunUntilCooledDown(End);
 
-        CooldownUpdate update = _tracker.SetThreshold(CooldownThreshold.MinCelsius);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(CooldownThreshold.MinCelsius));
 
         Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
-        Assert.Equal(CooldownThreshold.MinCelsius, update.State.ThresholdCelsius);
+        Assert.Equal(CooldownThreshold.MinCelsius, update.State.NozzleThresholdCelsius);
         Assert.Null(update.Event);
     }
 
@@ -680,7 +683,7 @@ public sealed class CooldownTrackerTests
         Assert.Equal(CooldownPhase.CooledDown, Process(Snap(PrinterState.Finished, 15, 46, 0, job: Job())).Phase);
         Assert.False(_tracker.State.EndedBelowThreshold);
 
-        CooldownUpdate update = _tracker.SetThreshold(80);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(80));
 
         Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
         Assert.False(update.State.EndedBelowThreshold);
@@ -695,7 +698,7 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Finished, End, 45, 0, job: Job()));
         Assert.True(Process(Snap(PrinterState.Finished, 10, 44, 0, job: Job())).EndedBelowThreshold);
 
-        CooldownUpdate update = _tracker.SetThreshold(CooldownThreshold.MinCelsius + 10);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(CooldownThreshold.MinCelsius + 10));
 
         Assert.Equal(CooldownPhase.CooledDown, update.State.Phase);
         Assert.True(update.State.EndedBelowThreshold);
@@ -710,7 +713,7 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Finished, End, 210, 0, job: Job()));
         double before = Process(Snap(PrinterState.Finished, 10, 130, 0, job: Job())).Progress;
 
-        CooldownUpdate update = _tracker.SetThreshold(30);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(30));
 
         Assert.Equal(CooldownPhase.Cooling, update.State.Phase);
         Assert.Equal((210 - 130) / (210.0 - 30), update.State.Progress, 1e-9);
@@ -724,7 +727,7 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Finished, End, 95, 0, job: Job()));
         Process(Snap(PrinterState.Finished, 10, 97, 0, job: Job()));
 
-        CooldownUpdate update = _tracker.SetThreshold(100);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(100));
 
         Assert.InRange(update.State.Progress, 0, 1);
         Assert.False(double.IsNaN(update.State.Progress));
@@ -736,7 +739,7 @@ public sealed class CooldownTrackerTests
         Process(Printing(0));
         CooldownState state = Process(Cooling(PrinterState.Finished, End, End));
 
-        CooldownUpdate update = _tracker.SetThreshold(CooldownThreshold.DefaultCelsius);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(50));
 
         Assert.Equal(state, update.State);
         Assert.Null(update.Event);
@@ -745,23 +748,23 @@ public sealed class CooldownTrackerTests
     [Fact]
     public void ThresholdOutsideTheRangeIsRejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CooldownTracker(29));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CooldownTracker(101));
-        Assert.Throws<ArgumentOutOfRangeException>(() => _tracker.SetThreshold(29));
-        Assert.Throws<ArgumentOutOfRangeException>(() => _tracker.SetThreshold(101));
-        Assert.Equal(30, new CooldownTracker(30).ThresholdCelsius);
-        Assert.Equal(100, new CooldownTracker(100).ThresholdCelsius);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CooldownTracker(Nozzle(29)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new CooldownTracker(Nozzle(101)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _tracker.SetThresholds(Nozzle(29)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => _tracker.SetThresholds(Nozzle(101)));
+        Assert.Equal(30, new CooldownTracker(Nozzle(30)).Thresholds.NozzleCelsius);
+        Assert.Equal(100, new CooldownTracker(Nozzle(100)).Thresholds.NozzleCelsius);
     }
 
     [Fact]
     public void WithoutCoolDownTheStateIsEmpty()
     {
-        CooldownTracker tracker = new(65);
+        CooldownTracker tracker = new(Nozzle(65));
 
         Assert.Equal(CooldownState.None, tracker.State);
         Assert.Equal(CooldownState.None, tracker.Process(Snap(PrinterState.Idle, 0, 25, 0)).State);
-        Assert.Equal(65, tracker.ThresholdCelsius);
-        Assert.Equal(CooldownState.None, tracker.SetThreshold(70).State);
+        Assert.Equal(65, tracker.Thresholds.NozzleCelsius);
+        Assert.Equal(CooldownState.None, tracker.SetThresholds(Nozzle(70)).State);
     }
 
     [Fact]
@@ -824,7 +827,7 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Stopped, 10, 75, 0, job: Job()));
         Process(Snap(PrinterState.Stopped, 15, 70, 0, job: Job()));
 
-        CooldownUpdate update = _tracker.SetThreshold(80);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(80));
 
         Assert.Equal(CooldownPrintOutcome.Stopped, update.Event?.Outcome);
     }
@@ -884,7 +887,7 @@ public sealed class CooldownTrackerTests
         Process(Snap(PrinterState.Finished, 10, 75, 0, job: Job()));
         Process(Snap(PrinterState.Finished, 15, 70, 0, job: Job()));
 
-        CooldownUpdate update = _tracker.SetThreshold(80);
+        CooldownUpdate update = _tracker.SetThresholds(Nozzle(80));
 
         Assert.Equal(Start.AddSeconds(15), update.State.CooledDownAt);
         Assert.Equal(update.Event?.Timestamp, update.State.CooledDownAt);
@@ -1208,6 +1211,9 @@ public sealed class CooldownTrackerTests
 
         throw new InvalidOperationException("Did not cool down.");
     }
+
+    /// <summary>A nozzle threshold with a bed threshold the simulated bed never exceeds (the nozzle alone decides).</summary>
+    private static CooldownThresholds Nozzle(int celsius) => new(celsius, CooldownThreshold.MaxCelsius);
 
     private CooldownState Process(PrinterSnapshot snapshot)
     {

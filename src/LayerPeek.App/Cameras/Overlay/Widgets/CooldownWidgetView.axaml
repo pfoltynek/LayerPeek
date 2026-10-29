@@ -87,7 +87,7 @@
 
     <!--
       Temperature row: in M / L below the title over the whole width, the cone under the state icon (its text where the
-      title starts); in S the nozzle alone right of the state icon. Every element that spans columns also spans the star
+      title starts); in S the limiting temperature (T-109) alone right of the state icon. Every element that spans columns also spans the star
       column, so that it never widens the auto columns of the icon and of the S nozzle.
     -->
     <Style Selector="StackPanel.cooldownTemperatures">

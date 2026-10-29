@@ -16,6 +16,7 @@ using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -104,7 +105,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.Equal(Strings.CameraOverlayWidgetStatusDescription, ui.ShownText("WidgetsDetailDescription"));
             Assert.Equal(Strings.SettingsWidgetsNoSettings, ui.ShownText("WidgetsDetailNoSettings"));
             Assert.Equal(Strings.SettingsOverlayLayoutHint, ui.ShownText("WidgetsDetailLayoutHint"));
-            Assert.False(ui.Window.IsShown<NumericUpDown>("WidgetCooldownThreshold"));
+            Assert.False(ui.Window.IsShown<NumericUpDown>("WidgetCooldownNozzleThreshold"));
 
             Assert.True(ui.Window.IsShown<Grid>("WidgetsAllSection"));
             Assert.True(ui.Find<Button>("WidgetsEditLayout").IsEffectivelyEnabled);
@@ -161,7 +162,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
 
             Press(ui.Window, PhysicalKey.End);
             Assert.True(Row(ui, "cooldown").IsSelected);
-            Assert.True(ui.Window.IsShown<NumericUpDown>("WidgetCooldownThreshold"));
+            Assert.True(ui.Window.IsShown<NumericUpDown>("WidgetCooldownNozzleThreshold"));
             Press(ui.Window, PhysicalKey.Home);
             Assert.True(Row(ui, "status").IsSelected);
             Assert.Equal("WidgetsItem-status", FocusedId(ui.Window));
@@ -193,7 +194,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
 
             string[] expected =
             [
-                "WidgetsPrinter", "WidgetsList", "WidgetCooldownThreshold", "WidgetCooldownApplyAll", "WidgetCooldownNotifyLink",
+                "WidgetsPrinter", "WidgetsList", "WidgetCooldownNozzleThreshold", "WidgetCooldownBedThreshold", "WidgetCooldownApplyAll", "WidgetCooldownNotifyLink",
                 "WidgetsEditLayout", "WidgetsReset", "WidgetsApplyAll", "WidgetsOpacity", "SettingsSave", "SettingsCancel",
             ];
             Assert.Equal(expected, order.Where(id => expected.Contains(id)).Distinct());
@@ -225,7 +226,8 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             ui.Window.Click(Row(ui, "cooldown"));
             Press(ui.Window, PhysicalKey.Space);
             Assert.True(Box(ui, "cooldown").IsChecked);
-            Assert.True(ui.Find<NumericUpDown>("WidgetCooldownThreshold").IsEffectivelyEnabled);
+            Assert.True(ui.Find<NumericUpDown>("WidgetCooldownNozzleThreshold").IsEffectivelyEnabled);
+            Assert.True(ui.Find<NumericUpDown>("WidgetCooldownBedThreshold").IsEffectivelyEnabled);
         });
 
     [Fact]
@@ -276,7 +278,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.Equal("Cool-down", ui.ShownText("WidgetsDetailTitle"));
             Assert.Equal(Strings.CameraOverlayWidgetCooldownDescription, ui.ShownText("WidgetsDetailDescription"));
             Assert.IsType<CooldownWidgetSettingsViewModel>(ui.ViewModel.SelectedWidgetPanel);
-            Assert.True(ui.Window.IsShown<NumericUpDown>("WidgetCooldownThreshold"));
+            Assert.True(ui.Window.IsShown<NumericUpDown>("WidgetCooldownNozzleThreshold"));
             Assert.True(ui.Window.IsShown<Button>("WidgetCooldownApplyAll"));
             Assert.Same(
                 ui.Window.FindResource(OverlayWidgetIcons.Cooldown),
@@ -293,13 +295,27 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.Equal("Cool-down", ui.ShownText("WidgetsDetailTitle"));
             Assert.Equal(Strings.CameraOverlayWidgetCooldownDescription, ui.ShownText("WidgetsDetailDescription"));
             Assert.False(ui.Window.IsShown<TextBlock>("WidgetsDetailNoSettings"));
-            NumericUpDown threshold = ui.Find<NumericUpDown>("WidgetCooldownThreshold");
-            Assert.Equal(50m, threshold.Value);
-            Assert.Equal(30m, threshold.Minimum);
-            Assert.Equal(100m, threshold.Maximum);
+            // T-109: the nozzle and the bed threshold of the printer, side by side, 40 °C each by default.
+            NumericUpDown threshold = ui.Find<NumericUpDown>("WidgetCooldownNozzleThreshold");
+            NumericUpDown bed = ui.Find<NumericUpDown>("WidgetCooldownBedThreshold");
+            Assert.Equal(40m, threshold.Value);
+            Assert.Equal(40m, bed.Value);
+            foreach (NumericUpDown box in (ReadOnlySpan<NumericUpDown>)[threshold, bed])
+            {
+                Assert.Equal(30m, box.Minimum);
+                Assert.Equal(100m, box.Maximum);
+                Assert.Equal(Strings.SettingsCooldownThresholdHint, AutomationProperties.GetHelpText(box));
+            }
+
             Assert.Equal("Nozzle temperature threshold (°C)", AutomationProperties.GetName(threshold));
-            Assert.Equal(Strings.SettingsCooldownThresholdHint, AutomationProperties.GetHelpText(threshold));
-            Assert.Equal("Below this temperature the printer is safe to turn off.", ui.ShownText("WidgetCooldownThresholdHint"));
+            Assert.Equal("Bed temperature threshold (°C)", AutomationProperties.GetName(bed));
+            Assert.Equal("Nozzle (°C)", ui.ShownText("WidgetCooldownNozzleLabel"));
+            Assert.Equal("Bed (°C)", ui.ShownText("WidgetCooldownBedLabel"));
+            Assert.Equal(threshold.Bounds.Top, bed.Bounds.Top);
+            Assert.True(bed.Bounds.Left > threshold.Bounds.Right);
+            Assert.Equal(
+                "Once both the nozzle and the bed are at or below these temperatures, the printer is safe to turn off.",
+                ui.ShownText("WidgetCooldownThresholdHint"));
             Assert.False(ui.Window.IsShown<TextBlock>("WidgetCooldownThresholdError"));
             Assert.Equal("“Printer cooled down” notification: off", ui.ShownText("WidgetCooldownNotifyState"));
             Assert.Equal("Change on the General tab", ui.Find<HyperlinkButton>("WidgetCooldownNotifyLink").Content);
@@ -312,11 +328,13 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.Equal("Notifications are turned off.", ui.ShownText("WidgetCooldownNotifyState"));
 
             // Another printer: the same widget, its values.
-            ui.ViewModel.Printers[1].CooldownThresholdCelsius = 77;
+            ui.ViewModel.Printers[1].CooldownNozzleThresholdCelsius = 77;
+            ui.ViewModel.Printers[1].CooldownBedThresholdCelsius = 66;
             ui.ViewModel.SelectedPrinter = ui.ViewModel.Printers[1];
             ui.Window.Settle();
             Assert.True(Row(ui, "cooldown").IsSelected);
-            Assert.Equal(77m, ui.Find<NumericUpDown>("WidgetCooldownThreshold").Value);
+            Assert.Equal(77m, ui.Find<NumericUpDown>("WidgetCooldownNozzleThreshold").Value);
+            Assert.Equal(66m, ui.Find<NumericUpDown>("WidgetCooldownBedThreshold").Value);
         });
 
     [Fact]
@@ -326,7 +344,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             FakeEditorStore store = SettingsWindowHarness.StoreWith(Printer("a", "Alpha"), Printer("b", "Beta"));
             SettingsWindowHarness ui = await OpenAsync(scope, store);
             ui.Window.Click(Row(ui, "cooldown"));
-            ui.ViewModel.SelectedPrinter!.CooldownThresholdCelsius = 101;
+            ui.ViewModel.SelectedPrinter!.CooldownBedThresholdCelsius = 101;
             ui.Click("SettingsTabGeneral");
 
             await ui.SaveAsync();
@@ -348,13 +366,13 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             ui.Window.Click(Row(ui, "status"));
             Assert.True(ui.Window.IsShown<TextBlock>("WidgetsItemMarker-cooldown"));
             ui.Window.Click(Row(ui, "cooldown"));
-            ui.ViewModel.SelectedPrinter.CooldownThresholdCelsius = 64;
+            ui.ViewModel.SelectedPrinter.CooldownBedThresholdCelsius = 64;
             ui.Window.Settle();
             Assert.False(ui.Window.IsShown<TextBlock>("WidgetsItemMarker-cooldown"));
             Assert.False(ui.Window.IsShown<TextBlock>("SettingsTabWidgetsMarker"));
             Assert.Equal(Strings.SettingsCooldownThresholdHint, ui.ShownText("WidgetCooldownThresholdHint"));
             await ui.SaveAsync();
-            Assert.Equal(64, Assert.Single(store.Saves).Updated.Printers[0].CooldownThresholdCelsius);
+            Assert.Equal(new CooldownThresholds(40, 64), Assert.Single(store.Saves).Updated.Printers[0].CooldownThresholds);
         });
 
     [Fact]
@@ -370,7 +388,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.True(ui.Find<TabItem>("SettingsTabGeneral").IsSelected);
             Assert.Equal("SettingsNotifyCooledDown", FocusedId(ui.Window));
             Assert.Equal(Strings.SettingsNotifyCooledDownHelp, AutomationProperties.GetHelpText(ui.Find<CheckBox>("SettingsNotifyCooledDown")));
-            Assert.Equal("The nozzle temperature threshold is set per printer on the Widgets tab, Cool-down widget.", Strings.SettingsNotifyCooledDownHelp);
+            Assert.Equal("The nozzle and bed temperature thresholds are set per printer on the Widgets tab, Cool-down widget.", Strings.SettingsNotifyCooledDownHelp);
         });
 
     // ---- "… for all printers", Restore defaults, Edit layout ----
@@ -403,7 +421,8 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
 
             Assert.Equal(Strings.SettingsOverlayAppliedAll, ui.ShownText("SettingsStatus"));
             ui.Window.Click(Row(ui, "cooldown"));
-            ui.ViewModel.SelectedPrinter!.CooldownThresholdCelsius = 35;
+            ui.ViewModel.SelectedPrinter!.CooldownNozzleThresholdCelsius = 35;
+            ui.ViewModel.SelectedPrinter.CooldownBedThresholdCelsius = 36;
             ui.Click("WidgetCooldownApplyAll");
             Assert.Equal(Strings.SettingsCooldownAppliedAll, ui.ShownText("SettingsStatus"));
             Assert.Null(ToolTip.GetTip(ui.Find<Button>("WidgetCooldownApplyAll")));
@@ -411,7 +430,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             await ui.SaveAsync();
             AppSettings saved = Assert.Single(store.Saves).Updated;
             Assert.All(saved.Printers, static printer => Assert.Equal(CameraOverlayLayout.Default.WithVisible("print-name", visible: false), printer.Camera.Overlay));
-            Assert.All(saved.Printers, static printer => Assert.Equal(35, printer.CooldownThresholdCelsius));
+            Assert.All(saved.Printers, static printer => Assert.Equal(new CooldownThresholds(35, 36), printer.CooldownThresholds));
         });
 
     [Fact]

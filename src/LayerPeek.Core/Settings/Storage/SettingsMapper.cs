@@ -60,7 +60,8 @@ internal static class SettingsMapper
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
-                CooldownThresholdCelsius = printer.CooldownThresholdCelsius == CooldownThreshold.DefaultCelsius ? null : printer.CooldownThresholdCelsius,
+                CooldownNozzleThresholdCelsius = printer.CooldownThresholds.NozzleCelsius == CooldownThreshold.DefaultNozzleCelsius ? null : printer.CooldownThresholds.NozzleCelsius,
+                CooldownBedThresholdCelsius = printer.CooldownThresholds.BedCelsius == CooldownThreshold.DefaultBedCelsius ? null : printer.CooldownThresholds.BedCelsius,
             })],
         };
     }
@@ -76,6 +77,7 @@ internal static class SettingsMapper
         }
 
         int convertedOverlays = 0;
+        int discardedThresholds = 0;
         AppSettings settings = new()
         {
             PollingInterval = ToPollingInterval(document.PollingIntervalSeconds, warnings),
@@ -84,7 +86,7 @@ internal static class SettingsMapper
             OfferPrereleaseUpdates = document.OfferPrereleaseUpdates,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
-            Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays),
+            Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),
         };
 
         if (convertedOverlays > 0)
@@ -93,6 +95,15 @@ internal static class SettingsMapper
             notices.Add(convertedOverlays == 1
                 ? "The camera overlay settings of 1 printer were converted to the widget layout (settings format 2)."
                 : $"The camera overlay settings of {convertedOverlays} printers were converted to the widget layout (settings format 2).");
+        }
+
+        if (discardedThresholds > 0)
+        {
+            // T-109 (user decision 2026-10-29): the former single nozzle threshold is not taken over; not a warning, the
+            // file is fine. Without values; the next save drops the field.
+            notices.Add(discardedThresholds == 1
+                ? $"The former nozzle cool-down threshold of 1 printer is no longer used; the nozzle and bed thresholds start at {CooldownThreshold.DefaultNozzleCelsius} / {CooldownThreshold.DefaultBedCelsius} °C."
+                : $"The former nozzle cool-down threshold of {discardedThresholds} printers is no longer used; the nozzle and bed thresholds start at {CooldownThreshold.DefaultNozzleCelsius} / {CooldownThreshold.DefaultBedCelsius} °C.");
         }
 
         return settings;
@@ -234,7 +245,8 @@ internal static class SettingsMapper
         return corrected;
     }
 
-    private static List<PrinterDefinition> ToPrinters(List<PrinterDocument?>? documents, List<string> warnings, ref int convertedOverlays)
+    private static List<PrinterDefinition> ToPrinters(
+        List<PrinterDocument?>? documents, List<string> warnings, ref int convertedOverlays, ref int discardedThresholds)
     {
         if (documents is null)
         {
@@ -280,10 +292,17 @@ internal static class SettingsMapper
                     printer = printer with { DetectedModel = detectedModel, Image = image };
                 }
 
-                int cooldownThreshold = ToCooldownThreshold(documents[i]!.CooldownThresholdCelsius, printer.Id, warnings);
-                if (cooldownThreshold != CooldownThreshold.DefaultCelsius)
+                CooldownThresholds thresholds = new(
+                    ToCooldownThreshold(documents[i]!.CooldownNozzleThresholdCelsius, CooldownThreshold.DefaultNozzleCelsius, "nozzle", printer.Id, warnings),
+                    ToCooldownThreshold(documents[i]!.CooldownBedThresholdCelsius, CooldownThreshold.DefaultBedCelsius, "bed", printer.Id, warnings));
+                if (thresholds != CooldownThresholds.Default)
                 {
-                    printer = printer with { CooldownThresholdCelsius = cooldownThreshold };
+                    printer = printer with { CooldownThresholds = thresholds };
+                }
+
+                if (documents[i]!.LegacyCooldownThresholdCelsius is { ValueKind: not JsonValueKind.Null })
+                {
+                    discardedThresholds++;
                 }
 
                 printers.Add(printer);
@@ -404,11 +423,11 @@ internal static class SettingsMapper
     }
 
     /// <summary>Missing = the default; a fraction or a value out of range falls back to the default with a warning.</summary>
-    private static int ToCooldownThreshold(double? value, string printerId, List<string> warnings)
+    private static int ToCooldownThreshold(double? value, int defaultCelsius, string part, string printerId, List<string> warnings)
     {
         if (value is null)
         {
-            return CooldownThreshold.DefaultCelsius;
+            return defaultCelsius;
         }
 
         if (TryGetWholeNumber(value, out int celsius) && CooldownThreshold.IsValid(celsius))
@@ -417,8 +436,8 @@ internal static class SettingsMapper
         }
 
         warnings.Add(
-            $"Printer '{Shorten(printerId)}': cool-down threshold is invalid (whole number {CooldownThreshold.MinCelsius}–{CooldownThreshold.MaxCelsius} °C); {CooldownThreshold.DefaultCelsius} °C is used.");
-        return CooldownThreshold.DefaultCelsius;
+            $"Printer '{Shorten(printerId)}': {part} cool-down threshold is invalid (whole number {CooldownThreshold.MinCelsius}–{CooldownThreshold.MaxCelsius} °C); {defaultCelsius} °C is used.");
+        return defaultCelsius;
     }
 
     /// <summary>Not written while automatic (the default), so that files stay as they were.</summary>

@@ -352,7 +352,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// <remarks>
     /// The detected model and the image choice (T-039) only change what is shown, never what is polled: a change of only
     /// those does not restart monitoring (a background save of a detected model must not show "Connecting…"). Neither does
-    /// the cool-down threshold (T-079): the cool-down monitor applies it with the update.
+    /// the cool-down thresholds (T-079, T-109): the cool-down monitor applies them with the update.
     /// </remarks>
     private static bool KeepsMonitoring(AppSettings current, AppSettings next) =>
         current.PollingInterval == next.PollingInterval
@@ -360,9 +360,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         && current.Printers.Select(WhatIsPolled).SequenceEqual(next.Printers.Select(WhatIsPolled));
 
     private static PrinterDefinition WhatIsPolled(PrinterDefinition printer) =>
-        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic && printer.CooldownThresholdCelsius == CooldownThreshold.DefaultCelsius
+        printer.DetectedModel is null && printer.Image == PrinterImageChoice.Automatic && printer.CooldownThresholds == CooldownThresholds.Default
             ? printer
-            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic, CooldownThresholdCelsius = CooldownThreshold.DefaultCelsius };
+            : printer with { DetectedModel = null, Image = PrinterImageChoice.Automatic, CooldownThresholds = CooldownThresholds.Default };
 
     /// <summary>
     /// Monitor thread: a printer of the current run reported its model (T-039, user decision 2026-10-20). Only a real

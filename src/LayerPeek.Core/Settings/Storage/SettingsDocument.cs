@@ -113,11 +113,24 @@ internal sealed class PrinterDocument
     public PrinterImageDocument? Image { get; set; }
 
     /// <summary>
-    /// Cool-down threshold of the nozzle in whole °C (T-079); missing in older files and not written while it is the
+    /// Cool-down threshold of the nozzle in whole °C (T-109); missing in older files and not written while it is the
     /// default. Read as a number so that fractions and out-of-range values fall back to the default with a warning.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public double? CooldownThresholdCelsius { get; set; }
+    public double? CooldownNozzleThresholdCelsius { get; set; }
+
+    /// <summary>Cool-down threshold of the bed in whole °C (T-109); same rules as <see cref="CooldownNozzleThresholdCelsius"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CooldownBedThresholdCelsius { get; set; }
+
+    /// <summary>
+    /// The single nozzle threshold of 0.3.0 and older (T-079, <c>cooldownThresholdCelsius</c>): only read, so that the log
+    /// can say it was discarded (T-109, user decision 2026-10-29: every printer starts with the new defaults), and never
+    /// written again. Any JSON value is accepted, so that it can never make the file unreadable.
+    /// </summary>
+    [JsonPropertyName("cooldownThresholdCelsius")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? LegacyCooldownThresholdCelsius { get; set; }
 }
 
 /// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>

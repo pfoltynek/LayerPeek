@@ -472,22 +472,31 @@
     <value>Stampante raffreddata</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>La soglia di temperatura dell'ugello si imposta per ogni stampante nella scheda Widget, widget Raffreddamento.</value>
+    <value>Le soglie di temperatura di ugello e piano si impostano per ogni stampante nella scheda Widget, widget Raffreddamento.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Soglia di temperatura dell'ugello (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Soglia di temperatura del piano (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Ugello (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Piano (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Sotto questa temperatura la stampante può essere spenta in sicurezza.</value>
+    <value>Con ugello e piano sotto queste temperature, la stampante può essere spenta.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Inserisci un numero intero da {0} a {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Usa la soglia per tutte le stampanti</value>
+    <value>Usa le soglie per tutte le stampanti</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>La soglia è stata copiata nelle altre stampanti. Si applica dopo il salvataggio.</value>
+    <value>Le soglie sono state copiate nelle altre stampanti. Si applicano dopo il salvataggio.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>È configurata una sola stampante.</value>
@@ -577,7 +586,7 @@
     <value>Nome della stampa con materiale, altezza dello strato e ugello; nelle dimensioni maggiori con anteprima.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Al termine della stampa mostra il raffreddamento dell'ugello e quando la stampante può essere spenta.</value>
+    <value>Al termine della stampa mostra il raffreddamento di ugello e piano e quando la stampante può essere spenta.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avvisa quando mancano questi minuti di stampa (0 = disattivato)</value>
@@ -734,6 +743,9 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Puoi spegnerla. Ugello {0} °C, soglia {1} °C</value>
+  </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Puoi spegnerla. Ugello {0}&#160;°C (soglia {1}&#160;°C), piano {2}&#160;°C (soglia {3}&#160;°C)</value>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Le notifiche sono disattivate in macOS.</value>
@@ -1069,6 +1081,15 @@
   <data name="CameraMiniCooledAccessible" xml:space="preserve">
     <value>Raffreddata – puoi spegnerla, ugello {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Raffreddata – puoi spegnerla, ugello {0}&#160;°C, piano {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Raffreddamento… ugello {0}&#160;°C, piano {1}&#160;°C, circa {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Raffreddamento… ugello {0}&#160;°C, piano {1}&#160;°C</value>
+  </data>
   <data name="CameraMiniFinishDayTime" xml:space="preserve">
     <value>{0}&#160;{1}</value>
   </data>
@@ -1083,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>spegnimento sicuro quando l'ugello scende sotto {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>spegnimento sicuro tra circa {0} (ugello sotto {1}&#160;°C, piano sotto {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>spegnimento sicuro quando l'ugello scende sotto {0}&#160;°C e il piano sotto {1}&#160;°C</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>stampa completata alle {0}</value>

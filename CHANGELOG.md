@@ -44,6 +44,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Cool-down: a printer now counts as cooled down only when **both the nozzle and the bed** are at or below their
+  thresholds (before, only the nozzle decided). Each printer has a nozzle and a bed threshold, 40 °C each by default,
+  set in the *Cool-down* widget on the *Widgets* tab of the settings for the printer selected there, with **Use
+  thresholds for all printers**. The estimate ("about 6 min") and the progress bar follow the slower of the two. The
+  *Cool-down* widget names both thresholds, the "Printer cooled down" notification shows both temperatures, and the mini
+  preview strip shows the temperature that is still holding it up (both in its tooltip). A heater switched on again,
+  also the bed's, ends the cool-down. **Settings:** the former nozzle threshold is not taken over; every printer starts
+  with 40 °C / 40 °C (the log notes it once; older settings files still load).
 - Windows: a camera window has a taskbar button exactly when it is not always on top. With the default options nothing
   changes (the mini preview is on top and has none); a normal window with "Always on top" now has no taskbar button, a
   mini preview without it now has one. Changing "Always on top" of an open window may make it disappear and reappear

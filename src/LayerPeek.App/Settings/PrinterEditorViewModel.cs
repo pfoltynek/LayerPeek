@@ -736,12 +736,12 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
     /// <summary>
-    /// The definition to save; <see langword="null"/> while the name, address, user name, camera or cool-down threshold is
+    /// The definition to save; <see langword="null"/> while the name, address, user name, camera or a cool-down threshold is
     /// invalid.
     /// </summary>
     internal PrinterDefinition? ToDefinition() =>
         _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || BuildCamera() is not { } camera
-        || ValidCooldownThreshold is not { } cooldownThreshold
+        || ValidCooldownThresholds is not { } cooldownThresholds
             ? null
             : new PrinterDefinition
             {
@@ -753,7 +753,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 Camera = camera,
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
-                CooldownThresholdCelsius = cooldownThreshold,
+                CooldownThresholds = cooldownThresholds,
             };
 
     /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
@@ -878,7 +878,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         ResetCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCameraWindowCommand.NotifyCanExecuteChanged();
-        ApplyCooldownThresholdToAllCommand.NotifyCanExecuteChanged();
+        ApplyCooldownThresholdsToAllCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>

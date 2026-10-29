@@ -25,10 +25,10 @@ internal enum MiniStripKind
     /// <summary>An active job: the percent first, then the remaining time (printing) or the state (paused, attention…).</summary>
     Job,
 
-    /// <summary>The print ended and the nozzle cools down to the threshold (T-079).</summary>
+    /// <summary>The print ended and the nozzle and the bed cool down to their thresholds (T-079, T-109).</summary>
     Cooling,
 
-    /// <summary>The nozzle is at or below the threshold after the print.</summary>
+    /// <summary>The nozzle and the bed are at or below their thresholds after the print.</summary>
     Cooled,
 }
 
@@ -40,22 +40,33 @@ internal enum MiniStripKind
 /// <param name="State">The printer state; <see langword="null"/> before the first poll.</param>
 /// <param name="Percent">Whole percent of the active job.</param>
 /// <param name="Minutes">Remaining minutes of the printing job, or of the cool-down estimate; <see langword="null"/> when unknown.</param>
-/// <param name="NozzleCelsius">Whole degrees of the nozzle while cooling or cooled.</param>
+/// <param name="Celsius">
+/// Whole degrees of the limiting temperature while cooling or cooled (<see cref="CooldownState.Limiting"/>, T-109): the
+/// bed's while it holds the cool-down up, otherwise the nozzle's. The row shows only this one, so that the T-103 variants
+/// keep their widths.
+/// </param>
 /// <param name="Finish">
 /// When the printing job finishes, as the Times widget shows it (T-103, <see cref="OverlayValues.Finish"/>); only while
 /// printing (T-103 Q5: not while paused or waiting), <see langword="null"/> when unknown.
 /// </param>
 /// <param name="FinishDays">Local days from the snapshot to <paramref name="Finish"/> (0 = the same day).</param>
-/// <param name="CoolingPercent">0–100 towards the cool-down threshold, rounded down like the Cool-down widget (100 once cooled down).</param>
+/// <param name="CoolingPercent">0–100 towards the cool-down thresholds (the slower of the two), rounded down like the Cool-down widget (100 once cooled down).</param>
+/// <param name="NozzleCelsius">While cooling or cooled with a bed reading: whole degrees of the nozzle, for the tooltip.</param>
+/// <param name="BedCelsius">
+/// While cooling or cooled: whole degrees of the bed, for the tooltip (both temperatures, T-109); <see langword="null"/>
+/// when the printer reports none (the tooltip then names the nozzle only, as before).
+/// </param>
 internal readonly record struct MiniStripContent(
     MiniStripKind Kind,
     PrinterState? State,
     int Percent,
     long? Minutes,
-    long NozzleCelsius,
+    long Celsius,
     OverlayFinishTime? Finish = null,
     int FinishDays = 0,
-    int CoolingPercent = 0)
+    int CoolingPercent = 0,
+    long? NozzleCelsius = null,
+    long? BedCelsius = null)
 {
     /// <summary>
     /// The content for <paramref name="snapshot"/> and the cool-down state of the printer: the active job first (the next
@@ -86,9 +97,14 @@ internal readonly record struct MiniStripContent(
             && cooldown.Phase != CooldownPhase.None
             && OverlayValues.Temperature(new Temperature(cooldown.NozzleCelsius ?? double.NaN, null)) is { } nozzle)
         {
+            // T-109: the row names the limiting temperature, the tooltip both.
+            long? bed = OverlayValues.Temperature(new Temperature(cooldown.BedCelsius ?? double.NaN, null))?.Actual;
+            long limiting = cooldown.Limiting == CooldownSensor.Bed && bed is { } bedActual ? bedActual : nozzle.Actual;
+            long? tooltipNozzle = bed is null ? null : nozzle.Actual;
             if (cooldown.Phase != CooldownPhase.Cooling)
             {
-                return new MiniStripContent(MiniStripKind.Cooled, state, 0, null, nozzle.Actual, CoolingPercent: 100);
+                return new MiniStripContent(
+                    MiniStripKind.Cooled, state, 0, null, limiting, CoolingPercent: 100, NozzleCelsius: tooltipNozzle, BedCelsius: bed);
             }
 
             // T-103 Q3: the bar on the top edge shows the progress towards the threshold, as the Cool-down widget's bar.
@@ -98,8 +114,10 @@ internal readonly record struct MiniStripContent(
                 state,
                 0,
                 CooldownEstimate.Minutes(cooldown, now),
-                nozzle.Actual,
-                CoolingPercent: (int)Math.Floor(progress * 100));
+                limiting,
+                CoolingPercent: (int)Math.Floor(progress * 100),
+                NozzleCelsius: tooltipNozzle,
+                BedCelsius: bed);
         }
 
         return new MiniStripContent(MiniStripKind.State, state, 0, null, 0);
@@ -799,27 +817,37 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
 
             case MiniStripKind.Cooling:
             {
-                string degrees = Degrees(content.NozzleCelsius);
+                // The row: the limiting temperature (T-109); the tooltip: both, when the printer reports a bed.
+                string degrees = Degrees(content.Celsius);
                 MiniStripVariant shortest = new(Format(Strings.DiagnosticsTemperatureValue, degrees));
                 if (content.Minutes is not { } left)
                 {
                     string noEstimate = Format(Strings.CameraMiniCoolingNoEstimate, degrees);
-                    return new MiniStripTexts(new MiniStripVariant(noEstimate), shortest, null, noEstimate);
+                    string accessibleNoEstimate = content is { NozzleCelsius: { } n, BedCelsius: { } b }
+                        ? Format(Strings.CameraMiniCoolingAccessibleNoEstimate, Degrees(n), Degrees(b))
+                        : noEstimate;
+                    return new MiniStripTexts(new MiniStripVariant(noEstimate), shortest, null, accessibleNoEstimate);
                 }
 
                 string duration = OverlayFormat.Duration(left);
                 string full = Format(Strings.CameraMiniCooling, degrees, duration);
-                return new MiniStripTexts(new MiniStripVariant(full), new MiniStripVariant(Format(Strings.CameraMiniCoolingShort, degrees, duration)), shortest, full);
+                string accessible = content is { NozzleCelsius: { } nozzle, BedCelsius: { } bed }
+                    ? Format(Strings.CameraMiniCoolingAccessible, Degrees(nozzle), Degrees(bed), duration)
+                    : full;
+                return new MiniStripTexts(new MiniStripVariant(full), new MiniStripVariant(Format(Strings.CameraMiniCoolingShort, degrees, duration)), shortest, accessible);
             }
 
             case MiniStripKind.Cooled:
             {
-                string degrees = Degrees(content.NozzleCelsius);
+                string degrees = Degrees(content.Celsius);
+                string accessible = content is { NozzleCelsius: { } nozzle, BedCelsius: { } bed }
+                    ? Format(Strings.CameraMiniCooledAccessibleBed, Degrees(nozzle), Degrees(bed))
+                    : Format(Strings.CameraMiniCooledAccessible, degrees);
                 return new MiniStripTexts(
                     new MiniStripVariant(Strings.CameraOverlayCooled),
                     new MiniStripVariant(Format(Strings.CameraMiniCooled, degrees)),
                     null,
-                    Format(Strings.CameraMiniCooledAccessible, degrees));
+                    accessible);
             }
 
             default:
@@ -881,4 +909,7 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
 
     private static string Format(string format, object? arg0, object? arg1) => string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+
+    private static string Format(string format, object? arg0, object? arg1, object? arg2) =>
+        string.Format(CultureInfo.CurrentCulture, format, arg0, arg1, arg2);
 }

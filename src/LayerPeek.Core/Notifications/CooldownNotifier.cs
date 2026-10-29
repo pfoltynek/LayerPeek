@@ -12,7 +12,7 @@ namespace LayerPeek.Core.Notifications;
 /// <see cref="INotificationService"/> as <see cref="PrintEventKind.CooledDown"/>, when <see cref="NotificationSettings"/>
 /// enables it (<see cref="NotificationSettings.IsEnabledFor"/>) and with the sound of every information notification
 /// (<see cref="NotificationSettings.ShouldPlaySound"/>). The monitor raises the event at most once per print and never for a
-/// print whose end was not observed or that ended already below the threshold, so nothing is filtered here beyond the
+/// print whose end was not observed or that ended already below the thresholds, so nothing is filtered here beyond the
 /// settings. Nothing is notified until <see cref="Configure"/> is called.
 /// <para>
 /// Thread-safe: events arrive on the monitor's publishing threads. The notification service is called outside the lock and

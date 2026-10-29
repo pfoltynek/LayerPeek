@@ -19,7 +19,15 @@ public sealed class CooldownMonitorTests : IDisposable
 
     private static readonly TimeSpan Poll = TimeSpan.FromSeconds(PollSeconds);
 
-    private static readonly PrinterDefinition Mk4 = new() { Id = "mk4", Name = "Workshop MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.20" };
+    // The nozzle alone decides in these tests (the simulated bed never exceeds 100 °C); both together in the T-109 tests below.
+    private static readonly PrinterDefinition Mk4 = new()
+    {
+        Id = "mk4",
+        Name = "Workshop MK4",
+        ConnectionType = ConnectionType.PrusaLink,
+        Address = "192.168.1.20",
+        CooldownThresholds = Nozzle(50),
+    };
 
     private readonly EventMonitor _monitor = new();
     private readonly FakeTimeProvider _time = new(Start);
@@ -50,7 +58,7 @@ public sealed class CooldownMonitorTests : IDisposable
         CooldownState state = _cooldown.GetState("mk4");
         Assert.Equal(CooldownPhase.Cooling, state.Phase);
         Assert.Equal(NozzlePrintTemperature, state.NozzleCelsius);
-        Assert.Equal(CooldownThreshold.DefaultCelsius, state.ThresholdCelsius);
+        Assert.Equal(50, state.NozzleThresholdCelsius);
     }
 
     [Fact]
@@ -110,8 +118,8 @@ public sealed class CooldownMonitorTests : IDisposable
     [Fact]
     public void ThresholdIsPerPrinter()
     {
-        PrinterDefinition low = Mk4 with { Id = "low", CooldownThresholdCelsius = 30 };
-        PrinterDefinition high = Mk4 with { Id = "high", CooldownThresholdCelsius = 100 };
+        PrinterDefinition low = Mk4 with { Id = "low", CooldownThresholds = Nozzle(30) };
+        PrinterDefinition high = Mk4 with { Id = "high", CooldownThresholds = Nozzle(100) };
         _cooldown.Configure([low, high], Poll);
         foreach (string id in new[] { "low", "high" })
         {
@@ -134,7 +142,7 @@ public sealed class CooldownMonitorTests : IDisposable
         _changed.Clear();
 
         // The nozzle is at about 70 °C; the new threshold is above it.
-        _cooldown.Configure([Mk4 with { CooldownThresholdCelsius = 80 }], Poll);
+        _cooldown.Configure([Mk4 with { CooldownThresholds = Nozzle(80) }], Poll);
 
         Assert.Equal((CooldownPhase.CooledDown, 80), Summary(_cooldown.GetState("mk4")));
         Assert.Equal(["mk4"], _changed);
@@ -148,7 +156,7 @@ public sealed class CooldownMonitorTests : IDisposable
         _cooldown.Configure([Mk4], Poll);
         Raise(Snap(PrinterState.Idle, 0, 25, 0));
 
-        _cooldown.Configure([Mk4 with { CooldownThresholdCelsius = 70 }], Poll);
+        _cooldown.Configure([Mk4 with { CooldownThresholds = Nozzle(70) }], Poll);
 
         Assert.Equal(CooldownState.None, _cooldown.GetState("mk4"));
         Assert.Empty(_changed);
@@ -304,8 +312,9 @@ public sealed class CooldownMonitorTests : IDisposable
         Assert.True(later.Count > 10);
         Assert.Equal(_changed, later);
         Assert.Single(_cooledDown);
-        Assert.Equal(later.Count + 1, _logger.Entries.Count);
-        Assert.All(_logger.Entries, entry => Assert.Equal(LogLevel.Error, entry.Level));
+        (LogLevel Level, Exception? Exception, string Message)[] errors = [.. _logger.Entries.Where(static e => e.Level != LogLevel.Information)];
+        Assert.Equal(later.Count + 1, errors.Length);
+        Assert.All(errors, entry => Assert.Equal(LogLevel.Error, entry.Level));
         Assert.All(_logger.Entries, entry => Assert.Contains("mk4", entry.Message, StringComparison.Ordinal));
     }
 
@@ -396,7 +405,7 @@ public sealed class CooldownMonitorTests : IDisposable
         PrinterDefinition[] printers = new PrinterDefinition[PrinterCount];
         for (int i = 0; i < PrinterCount; i++)
         {
-            printers[i] = Mk4 with { Id = "p" + i, CooldownThresholdCelsius = 30 + (i * 4) };
+            printers[i] = Mk4 with { Id = "p" + i, CooldownThresholds = Nozzle(30 + (i * 4)) };
         }
 
         _cooldown.Configure(printers, Poll);
@@ -459,10 +468,76 @@ public sealed class CooldownMonitorTests : IDisposable
             Assert.Equal(CooldownPhase.CooledDown, _cooldown.GetState(printer.Id).Phase);
         }
 
-        Assert.Empty(_logger.Entries);
+        // Only the "cooled down" lines (T-109), no failure.
+        Assert.Equal(PrinterCount * 3, _logger.Entries.Count);
+        Assert.All(_logger.Entries, static entry => Assert.Equal(LogLevel.Information, entry.Level));
     }
 
-    private static (CooldownPhase Phase, int Threshold) Summary(CooldownState state) => (state.Phase, state.ThresholdCelsius);
+    // ---- T-109: nozzle and bed ----
+
+    [Fact]
+    public void BothThresholdsOfEachPrinterApplyAndTheEventCarriesBothReadings()
+    {
+        PrinterDefinition both = Mk4 with { CooldownThresholds = CooldownThresholds.Default };
+        _cooldown.Configure([both], Poll);
+        Raise(Printing(0));
+
+        // The nozzle reaches 40 °C after about 145 s, the bed only after about 233 s (τ 60 / 300 s).
+        RunCurve("mk4", End, End + 200);
+        CooldownState cooling = _cooldown.GetState("mk4");
+        Assert.Equal(CooldownPhase.Cooling, cooling.Phase);
+        Assert.Equal(CooldownSensor.Bed, cooling.Limiting);
+        Assert.Equal((40, 40), (cooling.NozzleThresholdCelsius, cooling.BedThresholdCelsius));
+        Assert.Empty(_cooledDown);
+
+        RunCurve("mk4", End, End + 300, from: End + 205);
+
+        CooldownEvent cooled = Assert.Single(_cooledDown);
+        Assert.True(cooled.NozzleCelsius <= 40);
+        Assert.True(cooled.BedCelsius <= 40);
+        Assert.Equal(CooldownThresholds.Default, cooled.Thresholds);
+        (LogLevel level, _, string message) = Assert.Single(_logger.Entries);
+        Assert.Equal(LogLevel.Information, level);
+        Assert.Contains("'mk4' cooled down", message, StringComparison.Ordinal);
+        Assert.Contains("(threshold 40 °C), bed", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void BedThresholdChangeAppliesImmediately()
+    {
+        _cooldown.Configure([Mk4 with { CooldownThresholds = new(50, 30) }], Poll);
+        Raise(Printing(0));
+        RunCurve("mk4", End, End + 150);
+        Assert.Equal(CooldownPhase.Cooling, _cooldown.GetState("mk4").Phase);
+        _changed.Clear();
+
+        // The bed is at about 45 °C now; a bed threshold above it cools the printer down with the event.
+        _cooldown.Configure([Mk4 with { CooldownThresholds = new(50, 60) }], Poll);
+
+        CooldownState state = _cooldown.GetState("mk4");
+        Assert.Equal(CooldownPhase.CooledDown, state.Phase);
+        Assert.Equal(60, state.BedThresholdCelsius);
+        Assert.Equal(["mk4"], _changed);
+        Assert.Equal(60, Assert.Single(_cooledDown).BedThresholdCelsius);
+    }
+
+    [Fact]
+    public void CoolingWithoutABedReadingLogsTheNozzleOnly()
+    {
+        _cooldown.Configure([Mk4 with { CooldownThresholds = CooldownThresholds.Default }], Poll);
+        Raise(Printing(0));
+        Raise(Snap(PrinterState.Finished, End, 200, 0, job: Job()));
+        Raise(Snap(PrinterState.Finished, 10, 39, 0, job: Job()));
+        Raise(Snap(PrinterState.Finished, 15, 38, 0, job: Job()));
+
+        Assert.Null(Assert.Single(_cooledDown).BedCelsius);
+        Assert.Contains("no bed temperature", Assert.Single(_logger.Entries).Message, StringComparison.Ordinal);
+    }
+
+    private static (CooldownPhase Phase, int Threshold) Summary(CooldownState state) => (state.Phase, state.NozzleThresholdCelsius);
+
+    /// <summary>A nozzle threshold with a bed threshold the simulated bed never exceeds (the nozzle alone decides).</summary>
+    private static CooldownThresholds Nozzle(int celsius) => new(celsius, CooldownThreshold.MaxCelsius);
 
     private void Raise(PrinterSnapshot snapshot) => _monitor.Raise(snapshot);
 

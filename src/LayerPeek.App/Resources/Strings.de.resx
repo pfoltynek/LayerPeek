@@ -472,22 +472,31 @@
     <value>Drucker abgekühlt</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Die Temperaturschwelle der Düse wird je Drucker auf der Registerkarte „Widgets“ im Widget „Abkühlung“ eingestellt.</value>
+    <value>Die Temperaturschwellen von Düse und Heizbett werden je Drucker auf der Registerkarte „Widgets“ im Widget „Abkühlung“ eingestellt.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Temperaturschwelle der Düse (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Temperaturschwelle des Heizbetts (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Düse (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Heizbett (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Unter dieser Temperatur kann der Drucker sicher ausgeschaltet werden.</value>
+    <value>Liegen Düse und Heizbett darunter, kann der Drucker sicher ausgeschaltet werden.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Geben Sie eine ganze Zahl von {0} bis {1} ein.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Schwelle für alle Drucker übernehmen</value>
+    <value>Schwellen für alle Drucker übernehmen</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>Die Schwelle wurde in die anderen Drucker übernommen. Sie gilt nach dem Speichern.</value>
+    <value>Die Schwellen wurden in die anderen Drucker übernommen. Sie gelten nach dem Speichern.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Es ist nur ein Drucker eingerichtet.</value>
@@ -577,7 +586,7 @@
     <value>Lesbarer Druckname mit Material, Schichthöhe und Düse; größere Größen zeigen eine Vorschau.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Zeigt nach dem Druckende, wie die Düse abkühlt und wann der Drucker sicher ausgeschaltet werden kann.</value>
+    <value>Zeigt nach dem Druck, wie Düse und Heizbett abkühlen und wann der Drucker sicher ausgeschaltet werden kann.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Benachrichtigen, wenn noch so viele Minuten Druckzeit verbleiben (0 = aus)</value>
@@ -734,6 +743,9 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Sie können ihn jetzt ausschalten. Düse {0} °C, Schwelle {1} °C</value>
+  </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Sie können ihn jetzt ausschalten. Düse {0}&#160;°C (Schwelle {1}&#160;°C), Heizbett {2}&#160;°C (Schwelle {3}&#160;°C)</value>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Benachrichtigungen sind in macOS ausgeschaltet.</value>
@@ -1069,6 +1081,15 @@
   <data name="CameraMiniCooledAccessible" xml:space="preserve">
     <value>Abgekühlt – Sie können ausschalten, Düse {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Abgekühlt – Sie können ausschalten, Düse {0}&#160;°C, Heizbett {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Kühlt ab… Düse {0}&#160;°C, Heizbett {1}&#160;°C, ca. {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Kühlt ab… Düse {0}&#160;°C, Heizbett {1}&#160;°C</value>
+  </data>
   <data name="CameraMiniFinishDayTime" xml:space="preserve">
     <value>{0}&#160;{1}</value>
   </data>
@@ -1083,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>sicheres Ausschalten, sobald die Düse unter {0}&#160;°C ist</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>sicheres Ausschalten in ca. {0} (Düse unter {1}&#160;°C, Heizbett unter {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>sicheres Ausschalten, sobald die Düse unter {0}&#160;°C und das Heizbett unter {1}&#160;°C ist</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>Druck abgeschlossen um {0}</value>

@@ -496,5 +496,6 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
         Assert.Equal(new Size(240, 168), window.ClientSize);
     }
 
-    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(55, 0) };
+    /// <summary>The bed stays below the bed threshold of the harness (45 °C): the nozzle decides (T-109).</summary>
+    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(44, 0) };
 }

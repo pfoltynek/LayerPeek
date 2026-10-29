@@ -67,7 +67,8 @@ public sealed class CameraWindowMiniStripFinishUiTests(HeadlessSession session)
     /// <summary>A nozzle that cools like a real one (Newton's law), so that the monitor soon has an estimate.</summary>
     private static double Newton(double seconds) => 23 + (192 * Math.Exp(-seconds / 60));
 
-    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(55, 0) };
+    /// <summary>The bed stays below the bed threshold of the harness (45 °C): the nozzle decides (T-109).</summary>
+    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(44, 0) };
 
     private static void UseLanguage(CameraHarness harness, string language, string region)
     {
@@ -207,7 +208,8 @@ public sealed class CameraWindowMiniStripFinishUiTests(HeadlessSession session)
 
             CoolDown(harness, window, CoolUntilEstimate(harness, window, PollSeconds));
             Assert.Equal("Vychladlo · 40 °C", MiniStripParts.SummaryText(window).Text);
-            Assert.Equal("Vychladlo – můžete vypnout, tryska 40 °C", ToolTip.GetTip(summary));
+            // T-109: the tooltip names both temperatures.
+            Assert.Equal("Vychladlo – můžete vypnout, tryska 40 °C, podložka 44 °C", ToolTip.GetTip(summary));
 
             // Only the drawn variant is in the automation tree of the summary.
             Avalonia.Automation.Peers.AutomationPeer panel = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(MiniStripParts.SummaryPanel(window));

@@ -13,7 +13,8 @@ namespace LayerPeek.App.Tests.Notifications;
 
 /// <summary>
 /// The "printer cooled down" toast (T-080): printer name, how the print ended and that it cooled down, then "safe to turn
-/// off" with the nozzle temperature and the threshold instead of the file name. Click and sound as for every toast.
+/// off" with the nozzle and bed temperatures and their thresholds (T-109; the nozzle alone for a printer that reports no
+/// bed) instead of the file name. Click and sound as for every toast.
 /// </summary>
 public sealed class ToastContentBuilderCooledDownTests
 {
@@ -31,6 +32,24 @@ public sealed class ToastContentBuilderCooledDownTests
         string[] texts = Texts(Build(CooledDown(outcome, nozzle: 46.7, threshold: 50)));
 
         Assert.Equal(["MK4", body, detail], texts);
+    }
+
+    [Theory]
+    [InlineData("en-US", "Safe to turn off. Nozzle 37 °C (threshold 40 °C), bed 39 °C (threshold 45 °C)")]
+    [InlineData("cs-CZ", "Můžete tiskárnu vypnout. Tryska 37 °C (práh 40 °C), podložka 39 °C (práh 45 °C)")]
+    [InlineData("sk-SK", "Môžete tlačiareň vypnúť. Tryska 37 °C (prah 40 °C), podložka 39 °C (prah 45 °C)")]
+    [InlineData("de-DE", "Sie können ihn jetzt ausschalten. Düse 37 °C (Schwelle 40 °C), Heizbett 39 °C (Schwelle 45 °C)")]
+    [InlineData("es-ES", "Ya puede apagarla. Boquilla 37 °C (umbral 40 °C), base 39 °C (umbral 45 °C)")]
+    [InlineData("fr-FR", "Vous pouvez l'éteindre. Buse 37 °C (seuil 40 °C), plateau 39 °C (seuil 45 °C)")]
+    [InlineData("it-IT", "Puoi spegnerla. Ugello 37 °C (soglia 40 °C), piano 39 °C (soglia 45 °C)")]
+    [InlineData("pl-PL", "Można ją wyłączyć. Dysza 37 °C (próg 40 °C), stół 39 °C (próg 45 °C)")]
+    public void ToastNamesBothTemperaturesAndThresholdsWithABed(string cultureName, string detail)
+    {
+        using CultureScope culture = new(cultureName);
+
+        string[] texts = Texts(Build(CooledDown(CooldownPrintOutcome.Finished, nozzle: 36.6, threshold: 40, bed: 38.5, bedThreshold: 45)));
+
+        Assert.Equal(detail, texts[2]);
     }
 
     [Fact]
@@ -92,10 +111,11 @@ public sealed class ToastContentBuilderCooledDownTests
         Assert.Equal(Definition().Id, printerId);
     }
 
-    private static PrintNotification CooledDown(CooldownPrintOutcome outcome, double nozzle, int threshold) =>
+    /// <summary>Without <paramref name="bed"/> like a printer that reports no bed temperature.</summary>
+    private static PrintNotification CooledDown(CooldownPrintOutcome outcome, double nozzle, int threshold, double? bed = null, int bedThreshold = 40) =>
         ToastContentBuilderTests.Notification(PrintEventKind.CooledDown) with
         {
-            Cooldown = new CooldownEvent(Definition().Id, Now, "benchy.bgcode", outcome, nozzle, threshold),
+            Cooldown = new CooldownEvent(Definition().Id, Now, "benchy.bgcode", outcome, nozzle, threshold, bed, bedThreshold),
         };
 
     private static XElement Build(PrintNotification notification) => XElement.Parse(ToastContentBuilder.Build(notification, CultureInfo.CurrentUICulture));
