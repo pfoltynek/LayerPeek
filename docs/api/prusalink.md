@@ -230,14 +230,35 @@ Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWe
 - Segmenty `.`/`..` (i `%2e`), `\` a `#` v cestě se odmítnou (`404`).
 - `/<token>` bez lomítka vrátí `302` na `/<token>/`.
 - K tiskárně nejdou hlavičky `Authorization`, `Proxy-Authorization`, `Cookie`, `X-Api-Key`, `Origin`, `Referer`, `Expect`, `Host` ani hop-by-hop hlavičky (včetně těch jmenovaných v `Connection`).
-- K prohlížeči nejdou `WWW-Authenticate`, `Proxy-Authenticate`, `Set-Cookie` ani hop-by-hop hlavičky.
+- K prohlížeči jdou jen hlavičky ze seznamu povolených (T-107, nález N1, `ProxyHeaders.ResponseAllowed`). Ostatní se zahodí, např. `Service-Worker-Allowed`, `Set-Cookie`, `WWW-Authenticate`, `Access-Control-*`, `Content-Security-Policy`, `Link`, `Refresh`, `Clear-Site-Data`, `Content-Location`, `Server` a jakákoli neznámá hlavička. Hop-by-hop hlavičky a hlavičky jmenované v `Connection` se zahodí i ze seznamu. Povolené jsou (firmware Buddy, `lib/WUI`, a Prusa-Link-Web `src/`, ověřeno 2026-10-29):
+
+  | Hlavička | Proč |
+  |---|---|
+  | `Content-Type` | každý prostředek; s `nosniff` je nutná |
+  | `Content-Encoding` | firmware posílá soubory webu zkomprimované (`Content-Encoding: gzip`, `link_content/static_file.cpp`) |
+  | `Content-Disposition` | `attachment` u stažení souboru (`link_content/usb_files.cpp`) |
+  | `Cache-Control` | `private, max-age=86400` u souborů webu (`static_file.cpp`); web ho čte u snímků kamery (`cameras.js`) |
+  | `ETag` | soubory, náhledy a API (`nhttp/headers.cpp`); web ho čte (`auth.js`, `eTag`) |
+  | `Last-Modified`, `Expires` | web je čte u snímků kamery (`cameras.js`) |
+  | `Read-Only`, `Currently-Printing` | informace o souboru u `HEAD /api/v1/files/...` (`nhttp/file_info.cpp`); jen data bez významu pro prohlížeč |
+
+  - `Content-Length` a `Location` nastavuje proxy sama. `Date` přidává Kestrel.
+  - Firmware `Content-Range`, `Accept-Ranges`, `Vary` ani `Content-Language` neposílá, proto na seznamu nejsou.
 - `Location` na tiskárnu se přepíše na `/<token>/...`, cizí adresy a relativní odkazy zůstanou beze změny.
-- Proxy přidá `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff` a `Cross-Origin-Resource-Policy: same-origin` (cizí stránky nemohou obsah proxy vkládat ani načítat v režimu `no-cors`; stejnojmenné hlavičky tiskárny se zahodí). U `/api/` přidá `Cache-Control: no-store`.
+- Proxy přidá ke každé odpovědi (i ke svým `404`, `421` a `403`) vlastní hlavičky. Stejnojmenné hlavičky tiskárny se zahodí. U `/api/` přidá navíc `Cache-Control: no-store`.
+  - `Referrer-Policy: no-referrer` a `X-Content-Type-Options: nosniff`.
+  - `Cross-Origin-Resource-Policy: same-origin`: cizí stránky nemohou obsah proxy vkládat ani načítat v režimu `no-cors`.
+  - `Cross-Origin-Opener-Policy: same-origin` (T-107): stránka, která proxy otevře, si neudrží odkaz na její okno.
+  - `X-Frame-Options: DENY` a `Content-Security-Policy: frame-ancestors 'none'; worker-src 'none'` (T-107): proxy nejde vložit do rámu (ani ze stránky na jiném portu `127.0.0.1`) a obsah tiskárny nespustí žádný Worker, hlavně ne Service Worker. Prusa-Link-Web nepoužívá rámy, Workery ani Service Worker (ověřeno ve zdroji, větev `master`, 2026-10-29). Ostatní direktivy CSP zůstávají volné, protože úplná politika (`script-src` apod.) by mohla web rozbít a ověřit ji jde jen se skutečnou tiskárnou. Vlastní politika obsahu (`<meta>`) může omezení jen přidat.
 
 **Odmítnuté požadavky:**
 - `Host` jiný než přesně `127.0.0.1:<port>` vrátí `421`. Chybějící nebo zdvojený `Host` odmítne už Kestrel (`400`).
 - Chybějící nebo neplatný token vrátí `404` s prázdným tělem, stejně jako jakákoli jiná neznámá cesta.
 - `CONNECT`/`TRACE` vrátí `405`, `Upgrade` (WebSocket) `501`.
+- Stažení skriptu Service Workeru (T-107, nález N1) vrátí `403` s JSON chybou a na tiskárnu nedorazí. Prohlížeč posílá `Service-Worker: script` při registraci i při každé kontrole aktualizace. Odmítne se požadavek s hlavičkou `Service-Worker` (jakákoli hodnota) nebo se `Sec-Fetch-Dest: serviceworker`.
+  - Proč: obsah na `http://127.0.0.1:<port>` pochází z firmwaru, nebo od kohokoli v LAN, kdo může měnit nešifrovaný provoz k tiskárně. Service Worker by přežil zastavení proxy a odpovídal by za cokoli, co později na stejném portu poběží.
+  - Kontrola běží po kontrole `Host` a tokenu (neplatný token dál vrací `404`). Odmítnutí se loguje (Warning) jen s id tiskárny a neprodlužuje nečinnost proxy.
+  - Druhá vrstva je `worker-src 'none'` v CSP: prohlížeč registraci odmítne dřív, než skript vůbec stáhne.
 - Zápisové požadavky z cizí stránky (T-051, nález L1) vrátí `403` s JSON chybou a na tiskárnu nedorazí. Týká se všech metod kromě `GET`, `HEAD` a `OPTIONS`, a to když:
   - `Sec-Fetch-Site` je přítomná a není přesně `same-origin` ani `none` (jiný port na `127.0.0.1` je pro prohlížeč `same-site`), **nebo**
   - `Origin` je přítomná a není přesně `http://127.0.0.1:<port>` této proxy. `Origin: null` projde jen spolu se `Sec-Fetch-Site: same-origin` (rozhodnuto 2026-10-21); s `none` nebo bez `Sec-Fetch-Site` se odmítne.
@@ -265,6 +286,10 @@ Abstrakce v Core je `IPrinterWebGateway` (`Core/Web`). Implementace `PrusaLinkWe
 - Záložky a otevřené karty po zastavení proxy (nečinnost, změna nastavení, restart aplikace) přestanou fungovat. Je nutné znovu otevřít web z menu.
 - Adresa s tokenem je v historii prohlížeče a v příkazové řádce procesu prohlížeče. Platí ale jen do zastavení proxy.
 - Klient, který se připojí přesně ve chvíli zavírání listeneru, může zůstat bez odpovědi, dokud nevyprší timeout prohlížeče. Spojení zůstane ve frontě OS a do proxy se nedostane.
+- Původ proxy je `127.0.0.1` (T-107, nález N1). Cookies nejsou oddělené podle portu, takže skript obsahu tiskárny může číst a nastavovat cookies bez `HttpOnly` ostatních služeb na `127.0.0.1`. Pro prohlížeč jsou navíc ostatní porty `127.0.0.1` „same-site“, takže jejich ochrana CSRF přes `SameSite` proti němu nefunguje. Oddělení náhodnou subdoménou `<náhodné>.localhost` se zatím nezavedlo:
+  - Chrome, Edge a Firefox (od verze 84) `*.localhost` překládají samy na loopback.
+  - Safari se spoléhá na systémový resolver. Ten `*.localhost` na loopback spolehlivě překládá až od macOS 26 (WebKit bug 160504). LayerPeek ale podporuje macOS 14 a novější.
+  - Rozhodnutí je v otevřených otázkách T-107.
 
 ## Spojení a zátěž
 

@@ -47,6 +47,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   noise is not. A target line is drawn only where it falls within its band. The chart in the Diagnostics window keeps
   its axis from 0 °C. Windows and macOS.
 
+### Security
+
+- The PrusaLink web proxy (the printer's web opened logged in from the menu) no longer lets the printer's content
+  register a Service Worker, which could have outlived the proxy on its `127.0.0.1` port: such requests are refused
+  and the proxy's policy forbids workers. Only the response headers the PrusaLink web needs are passed from the printer
+  to the browser (content type and encoding, download name, caching, file information); everything else, e.g.
+  `Service-Worker-Allowed`, `Access-Control-*`, `Link` or `Refresh`, is dropped. Other pages can no longer frame the
+  proxied web or keep a handle on its window (`X-Frame-Options`, `frame-ancestors`, `Cross-Origin-Opener-Policy`).
+
 ## [0.3.0] - 2026-10-29
 
 ### Added

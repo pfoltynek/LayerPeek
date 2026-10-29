@@ -55,7 +55,8 @@ public class WebProxyForwardingTests
         {
             receivedBody = request.Content is null ? null : await request.Content.ReadAsStringAsync(ct);
             HttpResponseMessage answer = new(HttpStatusCode.OK) { Content = new StringContent("done") };
-            answer.Headers.TryAddWithoutValidation("X-Method", request.Method.Method);
+            // ETag is one of the headers that reach the browser (T-107 allow-list).
+            answer.Headers.TryAddWithoutValidation("ETag", "\"" + request.Method.Method + "\"");
             return answer;
         };
         bool withBody = method is "POST" or "PUT" or "PATCH";
@@ -69,7 +70,7 @@ public class WebProxyForwardingTests
 
         // The printer's Digest check uses the real method (HA2), so a 200 proves it was computed with it.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal(method, Assert.Single(response.Headers.GetValues("X-Method")));
+        Assert.Equal("\"" + method + "\"", response.Headers.ETag?.Tag);
         Assert.Equal(method == "HEAD" ? string.Empty : "done", await response.Content.ReadAsStringAsync(Ct));
         Assert.Equal(withBody ? "G28" : null, receivedBody);
         RecordedRequest forwarded = context.Printer.Requests.Last();
@@ -213,7 +214,7 @@ public class WebProxyForwardingTests
         Assert.Equal("nosniff", Assert.Single(response.Headers.GetValues("X-Content-Type-Options")));
         Assert.Equal("no-store", response.Headers.CacheControl?.ToString());
         Assert.Equal("\"42\"", response.Headers.ETag?.Tag);
-        Assert.Equal("yes", Assert.Single(response.Headers.GetValues("X-Kept-Back")));
+        Assert.False(response.Headers.Contains("X-Kept-Back"));
         Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
         Assert.Equal(2, response.Content.Headers.ContentLength);
     }

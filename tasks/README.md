@@ -111,6 +111,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-103 | Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu (návrh hotový, implementace po T-101) | all | ui-designer + ui-dev | P2 | T-079, T-083, T-088, T-089, T-090, T-101 |
 | T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – jen návrh | all | ui-designer | P3 | T-092, T-103 |
 | T-106 | Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu | all | ui-dev | P2 | T-084, T-090 |
+| T-107 | Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1) (implementováno; čeká ruční ověření a rozhodnutí o `*.localhost`) | all | core-dev | P2 | T-028, T-051 |
 
 ### Windows (`windows`)
 
