@@ -25,6 +25,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   compiled from the official source (software decoding), and needs no FFmpeg from Homebrew. The third-party licences
   window links the source release and the build script used, at the release tag of the app version. Building on a Mac
   for the first time needs the Xcode Command Line Tools (a clear build error says so when they are missing).
+- Maintainers: `build/update-ffmpeg.ps1` verifies a new FFmpeg version for both platforms before it is pinned (macOS:
+  official source tarball against the Homebrew formula and the GPG signature; Windows: the BtbN zip against the
+  release's `checksums.sha256`, its folder, LGPL licence and libraries) and with `-Update` writes the pinned values.
 
 ## [0.2.0] - 2026-10-26
 

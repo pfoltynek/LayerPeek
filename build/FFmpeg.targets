@@ -23,6 +23,10 @@
       LayerPeekFFmpegEnabled    set to false to skip the native libraries entirely
   -->
   <PropertyGroup>
+    <!--
+      A new version: build/update-ffmpeg.ps1 verifies the BtbN zip (checksums.sha256 of the release, archive folder,
+      LGPL 3 licence, the libraries below) and writes these three values.
+    -->
     <LayerPeekFFmpegUrl>https://github.com/BtbN/FFmpeg-Builds/releases/download/autobuild-2026-10-17-20-51/ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0.zip</LayerPeekFFmpegUrl>
     <LayerPeekFFmpegSha256>00ab3bc8fe02554bd0fffac9968bba498d1ab7e899a4871b85fbba828a50bfcc</LayerPeekFFmpegSha256>
     <!-- Top-level folder inside the archive. -->
@@ -32,8 +36,8 @@
       macOS (T-026): the official source tarball of the same release as the BtbN build above (n9.0.2 plus fixes of the
       release/9.0 branch), the libraries avformat-63, avcodec-63, avutil-61 and swscale-10. The configure line is in
       build/macos/build-ffmpeg.sh. FFmpeg publishes no checksums (only GPG signatures); the hash was taken on 2026-10-29
-      and matches the Homebrew formula. A new version: build/macos/update-ffmpeg-source.ps1 verifies the tarball
-      (Homebrew cross-check, GPG signature when gpg is available) and writes these three values.
+      and matches the Homebrew formula. A new version: build/update-ffmpeg.ps1 verifies the tarball (Homebrew
+      cross-check, GPG signature when gpg is available) and writes these three values.
     -->
     <LayerPeekFFmpegMacSourceUrl>https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz</LayerPeekFFmpegMacSourceUrl>
     <LayerPeekFFmpegMacSourceSha256>8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e</LayerPeekFFmpegMacSourceSha256>
@@ -121,7 +125,7 @@
       <_LayerPeekFFmpegFinal>$(LayerPeekFFmpegCacheDir.TrimEnd('\'))</_LayerPeekFFmpegFinal>
       <!-- Work folders older than this belong to crashed builds (a download takes minutes, not hours). -->
       <_LayerPeekFFmpegStaleBefore>$([System.DateTime]::UtcNow.AddHours(-2).ToString('yyyyMMddHHmmss'))</_LayerPeekFFmpegStaleBefore>
-      <_LayerPeekFFmpegHelp>To fix it: if the pinned release is no longer available, update LayerPeekFFmpegUrl, LayerPeekFFmpegSha256 and LayerPeekFFmpegArchiveFolder in build/FFmpeg.targets to another BtbN LGPL shared win64 build with the same library versions. Or pre-fill the cache by hand: avformat-63.dll, avcodec-63.dll, avutil-61.dll, swscale-10.dll and swresample-7.dll into $(LayerPeekFFmpegCacheDir)bin\, LICENSE.txt and a file verified.sha256 into $(LayerPeekFFmpegCacheDir); or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
+      <_LayerPeekFFmpegHelp>To fix it: if the pinned release is no longer available, update LayerPeekFFmpegUrl, LayerPeekFFmpegSha256 and LayerPeekFFmpegArchiveFolder in build/FFmpeg.targets to another BtbN LGPL shared win64 build with the same library versions (build/update-ffmpeg.ps1 -Platform windows verifies and writes them). Or pre-fill the cache by hand: avformat-63.dll, avcodec-63.dll, avutil-61.dll, swscale-10.dll and swresample-7.dll into $(LayerPeekFFmpegCacheDir)bin\, LICENSE.txt and a file verified.sha256 into $(LayerPeekFFmpegCacheDir); or set the property or environment variable LayerPeekFFmpegCacheRoot to a folder that already holds such a cache. See docs/prerequisites.md.</_LayerPeekFFmpegHelp>
     </PropertyGroup>
 
     <ItemGroup>
