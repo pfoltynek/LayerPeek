@@ -51,6 +51,12 @@ public partial class App : Application, ITrayAppCommands
     // The logging of the process, owned by Program.Main (T-024).
     private readonly AppLogging _logging;
 
+    // Records commands that reached the UI (Debug level); set with the host.
+    private Microsoft.Extensions.Logging.ILogger? _commandLogger;
+
+    // The services Program.Main started while macOS had no active display (T-099); null on a normal start.
+    private readonly EarlyServices? _early;
+
     // The OS ended the session (desktop Exit) before the host finished starting.
     private bool _exited;
 
@@ -63,7 +69,11 @@ public partial class App : Application, ITrayAppCommands
     /// <param name="instanceCommands">Filled by the single-instance server of <c>Program.Main</c> (T-043).</param>
     /// <param name="environment">Data folder and isolation of this run (T-044).</param>
     /// <param name="logging">The logging of the process; <c>Program.Main</c> disposes it after the app ends (T-024).</param>
-    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging)
+    /// <param name="early">
+    /// The services already running (T-099: started while macOS had no active display); the tray attaches to them.
+    /// <see langword="null"/>: the app creates them (the normal start).
+    /// </param>
+    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, EarlyServices? early = null)
     {
         ArgumentNullException.ThrowIfNull(instanceCommands);
         ArgumentNullException.ThrowIfNull(environment);
@@ -71,6 +81,7 @@ public partial class App : Application, ITrayAppCommands
         _instanceCommands = instanceCommands;
         _environment = environment;
         _logging = logging;
+        _early = early;
     }
 
     public override void Initialize()
@@ -84,6 +95,9 @@ public partial class App : Application, ITrayAppCommands
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && !Design.IsDesignMode)
         {
+            // First (T-099): UI-thread work of the services that ran before Avalonia runs now, in order, then on Avalonia's
+            // dispatcher; it is the same (main) thread.
+            _early?.Dispatcher.AttachTo(new AvaloniaUiDispatcher());
             TrayIcon? trayIcon = TrayIcon.GetIcons(this) is [TrayIcon first, ..] ? first : null;
             desktop.Exit += OnDesktopExit;
             // macOS: clicking the app (Finder, Dock, Launchpad) while it runs; treated like a second start (T-043).
@@ -112,6 +126,12 @@ public partial class App : Application, ITrayAppCommands
         if (_quit is { IsQuitting: true })
         {
             return;
+        }
+
+        if (_commandLogger is { } logger)
+        {
+            // Debug level (the test mode logs it): the end-to-end test of T-099 sees when a command reached the UI.
+            LogInstanceCommandReachedUi(logger, command.Kind);
         }
 
         if (command == InstanceCommand.Activate)
@@ -170,7 +190,10 @@ public partial class App : Application, ITrayAppCommands
     /// </summary>
     private async void StartHost(IClassicDesktopStyleApplicationLifetime desktop, TrayIcon? trayIcon)
     {
-        TrayHost host = await TrayHost.StartAsync(trayIcon, this, _environment, _logging).ConfigureAwait(true);
+        // T-099: the tray attaches to the services that already run (the same monitoring session), else creates them.
+        TrayHost host = _early is { } early
+            ? AttachToEarlyServices(await early.Services.ConfigureAwait(true), trayIcon)
+            : await TrayHost.StartAsync(trayIcon, this, _environment, _logging).ConfigureAwait(true);
         if (_exited)
         {
             // The OS ended the session while the settings were loading.
@@ -186,8 +209,26 @@ public partial class App : Application, ITrayAppCommands
         _host = host;
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
         host.LanguageChanged += OnLanguageChanged;
+        _commandLogger = host.CreateLogger<App>();
         // Last: starts that came while the settings were loading are handled now.
         _instanceCommands.Attach(OnInstanceCommand, new AvaloniaUiDispatcher(), host.CreateLogger<InstanceCommandQueue>());
+    }
+
+    /// <summary>
+    /// T-099: the tray over the services that ran while macOS had no active display. A failure releases them (as
+    /// <see cref="TrayHost.StartAsync"/> does) and crashes the app like any failed start.
+    /// </summary>
+    private TrayHost AttachToEarlyServices(ServiceHost services, TrayIcon? trayIcon)
+    {
+        try
+        {
+            return TrayHost.Attach(services, trayIcon, this, _environment);
+        }
+        catch
+        {
+            services.DisposeAfterFailedStart();
+            throw;
+        }
     }
 
     /// <summary>The tray already switched; open windows format the texts of their view models again.</summary>
@@ -329,4 +370,7 @@ public partial class App : Application, ITrayAppCommands
         // dispose the logging when the OS ends the session, so the queue is written now.
         _logging.Flush(LogFlushTimeout);
     }
+
+    [Microsoft.Extensions.Logging.LoggerMessage(Level = Microsoft.Extensions.Logging.LogLevel.Debug, Message = "The instance command {Kind} reached the menu bar app.")]
+    private static partial void LogInstanceCommandReachedUi(Microsoft.Extensions.Logging.ILogger logger, InstanceCommandKind kind);
 }

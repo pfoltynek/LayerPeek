@@ -133,3 +133,6 @@ Kdy to hrozí: „Otevřít při přihlášení“ (T-019) na Macu se zavřeným
 > `CGDisplayRegisterReconfigurationCallback`/`NSApplicationDidChangeScreenParametersNotification` reports a display;
 > alternatively create the display link lazily on the first `Start()` and retry there instead of throwing. On macOS 14+
 > `NSScreen/NSView displayLinkWithTarget:selector:` (CADisplayLink) is the replacement for the deprecated CVDisplayLink.
+
+## Rozhodnutí po sloučení
+- ~~Sledovat tiskárny během čekání na displej?~~ → ano, monitoring a notifikace mají běžet i během čekání, UI se připojí po probuzení displeje; čekání bez časového limitu ponecháno. Řeší samostatný úkol T-099 (rozhodnuto 2026-10-29).

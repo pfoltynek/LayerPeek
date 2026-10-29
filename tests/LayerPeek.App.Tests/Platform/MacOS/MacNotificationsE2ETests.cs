@@ -180,7 +180,8 @@ public sealed partial class MacNotificationsE2ETests
     private static InstanceRole SendCommand(string data, string suffix, InstanceCommand command)
     {
         using SingleInstanceGuard guard = new(
-            InstanceTransports.ForCurrentPlatform(suffix, AppEnvironment.ForTests(data)),
+            // The app adds the separator to the variable's value (InstanceTransports.NameSuffix).
+            InstanceTransports.ForCurrentPlatform("-" + suffix, AppEnvironment.ForTests(data)),
             NullLogger<SingleInstanceGuard>.Instance);
         return guard.Start(command, static _ => { });
     }
@@ -312,6 +313,34 @@ public sealed partial class MacNotificationsE2ETests
             int started = 0;
             await Wait.UntilAsync(() => (started = AppProcesses().FirstOrDefault(id => !before.Contains(id))) != 0, TimeSpan.FromSeconds(20), "the test app to start", cancellationToken);
             return Process.GetProcessById(started);
+        }
+
+        /// <summary>
+        /// Starts the bundle's executable as a child of the test host in the test mode with <paramref name="variables"/>
+        /// (T-099: its exit code is known; no notifications, which need the start through LaunchServices). Other test
+        /// switches of the test host are not passed on. Its output is read and discarded.
+        /// </summary>
+        public Process StartChild(IReadOnlyDictionary<string, string> variables)
+        {
+            ArgumentNullException.ThrowIfNull(variables);
+            ProcessStartInfo start = new(Executable) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (string name in start.Environment.Keys.Where(static name => name.StartsWith("LAYERPEEK_", StringComparison.Ordinal)).ToList())
+            {
+                start.Environment.Remove(name);
+            }
+
+            SetDotnetRoot(start);
+            foreach ((string name, string value) in variables)
+            {
+                start.Environment[name] = value;
+            }
+
+            Process process = Process.Start(start) ?? throw new InvalidOperationException("The test app did not start.");
+            process.OutputDataReceived += static (_, _) => { };
+            process.ErrorDataReceived += static (_, _) => { };
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+            return process;
         }
 
         /// <summary>The processes of this bundle's executable.</summary>

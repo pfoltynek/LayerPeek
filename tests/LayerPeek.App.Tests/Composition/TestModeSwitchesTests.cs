@@ -131,6 +131,39 @@ public sealed class TestModeSwitchesTests
             environment.IgnoredTestSwitches);
     }
 
+    /// <summary>T-099: the pretended time without a display, only in the test mode, within its limit.</summary>
+    [Theory]
+    [InlineData("0", 0)]
+    [InlineData("15000", 15000)]
+    [InlineData("120000", 120000)]
+    public void NoDisplayInMilliseconds(string value, int milliseconds)
+    {
+        AppEnvironment environment = Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestNoDisplayVariable, value));
+
+        Assert.Equal("LAYERPEEK_TEST_NO_DISPLAY_MS", AppEnvironment.TestNoDisplayVariable);
+        Assert.Equal(TimeSpan.FromMilliseconds(milliseconds), environment.TestNoDisplay);
+    }
+
+    [Theory]
+    [InlineData("-1")]
+    [InlineData("120001")]
+    [InlineData("1.5")]
+    [InlineData("10s")]
+    public void InvalidNoDisplayIsAnInvalidTestMode(string value)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Read((AppEnvironment.DataDirectoryVariable, Folder), (AppEnvironment.TestNoDisplayVariable, value)));
+    }
+
+    [Fact]
+    public void NoDisplayOutsideTheTestModeIsIgnoredAndReported()
+    {
+        AppEnvironment environment = Read((AppEnvironment.TestNoDisplayVariable, "15000"));
+
+        Assert.False(environment.IsIsolated);
+        Assert.Equal(TimeSpan.Zero, environment.TestNoDisplay);
+        Assert.Equal([AppEnvironment.TestNoDisplayVariable], environment.IgnoredTestSwitches);
+    }
+
     [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {
@@ -206,7 +239,7 @@ public sealed class TestModeSwitchesTests
         using UserNotificationService service = new(production, static () => System.Globalization.CultureInfo.InvariantCulture, new ListLogger<UserNotificationService>());
         service.Dispose();
 
-        await TrayHost.RunTestNotificationCleanupAsync(service, new ListLogger<TrayHost>());
+        await ServiceHost.RunTestNotificationCleanupAsync(service, new ListLogger<ServiceHost>());
 
         Assert.Equal(0, production.Removals);
         Assert.Equal(1, production.Delivered);
@@ -221,7 +254,7 @@ public sealed class TestModeSwitchesTests
         await Waiting.ForAsync(() => test.Delivered == 1);
         service.Dispose();
 
-        await TrayHost.RunTestNotificationCleanupAsync(service, new ListLogger<TrayHost>());
+        await ServiceHost.RunTestNotificationCleanupAsync(service, new ListLogger<ServiceHost>());
 
         Assert.True(service.Completion.IsCompleted);
         Assert.True(test.Removals >= 1);

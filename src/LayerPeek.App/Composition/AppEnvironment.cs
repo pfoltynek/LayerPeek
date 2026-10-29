@@ -199,6 +199,13 @@ internal sealed class AppEnvironment
     public const string TestStartDelayVariable = "LAYERPEEK_TEST_START_DELAY_MS";
 
     /// <summary>
+    /// Debug builds only (T-099): macOS reports no active display for this many milliseconds (1 to
+    /// <see cref="MaxTestNoDisplayMilliseconds"/>) after the start, so that the end-to-end test exercises the wait for a
+    /// display (T-096) with monitoring running meanwhile, without putting the display to sleep. Other OS: no effect.
+    /// </summary>
+    public const string TestNoDisplayVariable = "LAYERPEEK_TEST_NO_DISPLAY_MS";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -243,6 +250,9 @@ internal sealed class AppEnvironment
     /// <summary>The longest start delay of the test mode.</summary>
     public const int MaxTestStartDelayMilliseconds = 60_000;
 
+    /// <summary>The longest pretended time without a display in the test mode.</summary>
+    public const int MaxTestNoDisplayMilliseconds = 120_000;
+
     /// <summary>
     /// Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch,
     /// and of a test start (<see cref="IsTestStart"/>) without the test data folder.
@@ -278,6 +288,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestStartDelayVariable"/>: how much later monitoring starts.</summary>
     public TimeSpan TestStartDelay { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestNoDisplayVariable"/>: how long macOS reports no active display.</summary>
+    public TimeSpan TestNoDisplay { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -285,8 +298,9 @@ internal sealed class AppEnvironment
     /// <param name="toasts">Real toasts as the test app (T-067).</param>
     /// <param name="credentialPrefix">The Credential Manager instead of the in-memory store, under this prefix (T-067).</param>
     /// <param name="startDelay">How much later monitoring starts (T-067).</param>
+    /// <param name="noDisplay">How long macOS reports no active display (T-099).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
-    public static AppEnvironment ForTests(string dataDirectory, bool toasts = false, string? credentialPrefix = null, TimeSpan startDelay = default)
+    public static AppEnvironment ForTests(string dataDirectory, bool toasts = false, string? credentialPrefix = null, TimeSpan startDelay = default, TimeSpan noDisplay = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -304,11 +318,17 @@ internal sealed class AppEnvironment
             throw new ArgumentOutOfRangeException(nameof(startDelay), startDelay, "The start delay of the test mode is out of range.");
         }
 
+        if (noDisplay < TimeSpan.Zero || noDisplay > TimeSpan.FromMilliseconds(MaxTestNoDisplayMilliseconds))
+        {
+            throw new ArgumentOutOfRangeException(nameof(noDisplay), noDisplay, "The time without a display of the test mode is out of range.");
+        }
+
         return new AppEnvironment(Path.GetFullPath(dataDirectory), isolated: true)
         {
             TestToasts = toasts,
             TestCredentialPrefix = credentialPrefix,
             TestStartDelay = startDelay,
+            TestNoDisplay = noDisplay,
         };
     }
 
@@ -324,10 +344,11 @@ internal sealed class AppEnvironment
         string? toasts = read(TestToastsVariable);
         string? credentialPrefix = read(TestCredentialPrefixVariable);
         string? startDelay = read(TestStartDelayVariable);
+        string? noDisplay = read(TestNoDisplayVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -342,7 +363,8 @@ internal sealed class AppEnvironment
             dataDirectory.Trim(),
             toasts: toasts == "1",
             credentialPrefix: string.IsNullOrEmpty(credentialPrefix) ? null : credentialPrefix,
-            startDelay: ParseStartDelay(startDelay));
+            startDelay: ParseMilliseconds(startDelay, TestStartDelayVariable, MaxTestStartDelayMilliseconds),
+            noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds));
     }
 
     /// <summary>Under the test root, with a name of its own after it; never the production prefix.</summary>
@@ -351,7 +373,7 @@ internal sealed class AppEnvironment
         && prefix.StartsWith(TestCredentialPrefixRoot, StringComparison.Ordinal)
         && !prefix.Any(char.IsWhiteSpace);
 
-    private static TimeSpan ParseStartDelay(string? value)
+    private static TimeSpan ParseMilliseconds(string? value, string variable, int maximum)
     {
         if (string.IsNullOrEmpty(value))
         {
@@ -359,9 +381,9 @@ internal sealed class AppEnvironment
         }
 
         if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int milliseconds)
-            || milliseconds > MaxTestStartDelayMilliseconds)
+            || milliseconds > maximum)
         {
-            throw new ArgumentException($"{TestStartDelayVariable} must be a whole number of milliseconds from 0 to {MaxTestStartDelayMilliseconds}.", nameof(value));
+            throw new ArgumentException($"{variable} must be a whole number of milliseconds from 0 to {maximum}.", nameof(value));
         }
 
         return TimeSpan.FromMilliseconds(milliseconds);
