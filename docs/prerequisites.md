@@ -62,31 +62,40 @@ macOS navíc:
 
   `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Bez `--enable-gpl` a `--enable-nonfree`, bez VideoToolbox (dekódování jen softwarově, rozhodnuto 2026-10-29), licence podle `configure`: „LGPL version 3 or later“.
 - **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). Postup je v „Nová verze FFmpeg“ níže.
-- **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 (`LayerPeekFFmpegMacSourceSha256`) a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/macos/update-ffmpeg-source.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
+- **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 (`LayerPeekFFmpegMacSourceSha256`) a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/update-ffmpeg.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
 
 ### Nová verze FFmpeg
 
 Obě platformy mají mít stejné vydání FFmpeg (stejné verze knihoven `avformat-63`, `avcodec-63`, `avutil-61`, `swscale-10`; jiná hlavní verze znamená změnu názvů knihoven v `build/FFmpeg.targets`, `build/macos/build-ffmpeg.sh` a `FFmpegRuntime`, i kontroly `^9\.0\.` ve skriptu buildu).
 
-1. **Windows:** v `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na LGPL shared win64 build BtbN nového vydání (SHA256 z `checksums.sha256` vydání BtbN) a `WindowsBuildUri` v `src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs`.
-2. **macOS:** spustit skript pro správce (PowerShell 7, běží na macOS i Windows, nic neinstaluje):
+1. **Ověřit a zapsat připnuté hodnoty** skriptem pro správce `build/update-ffmpeg.ps1` (PowerShell 7, běží na macOS i Windows, i s `pwsh` nainstalovaným jako dotnet global tool; nic neinstaluje, jen čte přes HTTPS). Výchozí `-Platform all` ověří obě platformy najednou, `-Platform macos` / `-Platform windows` jen jednu:
 
    ```bash
-   pwsh build/macos/update-ffmpeg-source.ps1 -Version 9.0.3          # jen ověří a vypíše hodnoty
-   pwsh build/macos/update-ffmpeg-source.ps1 -Version 9.0.3 -Update  # ověří a zapíše je
+   # jen ověří a vypíše hodnoty
+   pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-20-12-00 -BtbNAsset ffmpeg-n9.0.3-…-win64-lgpl-shared-9.0.zip
+   # ověří a zapíše je
+   pwsh build/update-ffmpeg.ps1 -Version 9.0.3 -BtbNTag autobuild-2026-11-20-12-00 -BtbNAsset ffmpeg-n9.0.3-…-win64-lgpl-shared-9.0.zip -Update
+   # jen jedna platforma
+   pwsh build/update-ffmpeg.ps1 -Platform macos -Version 9.0.3
    ```
 
-   Skript stáhne `https://ffmpeg.org/releases/ffmpeg-<verze>.tar.xz` do dočasné složky, spočítá SHA256 a porovná ho se vzorcem Homebrew (`https://formulae.brew.sh/api/formula/ffmpeg.json`, `urls.stable.checksum`, jen čtení přes HTTPS, Homebrew potřeba není). Vzorec musí mít přesně stejnou URL tarballu: když je Homebrew na jiné verzi, skript skončí chybou (zkusit znovu, až Homebrew verzi převezme). Když je na `PATH` `gpg`, ověří i podpis `<tarball>.asc` klíčem FFmpeg (`https://ffmpeg.org/ffmpeg-devel.asc`, otisk `FCF986EA15E6E293A5644F10B4322F04D67658D8` je ve skriptu) v dočasné domovské složce GnuPG, takže se osobní klíčenka nemění. Bez `gpg` vypíše `GPG signature: SKIPPED`. Při jakékoli neshodě skončí kódem 1 a nic nezapíše. `-Update` zapíše `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256`, `LayerPeekFFmpegMacSourceFolder` (`build/FFmpeg.targets`) a `MacOSBuildUri` (`ThirdPartyLicenses.cs`).
+   Tag a přesný název assetu jsou na stránce vydání https://github.com/BtbN/FFmpeg-Builds/releases (název obsahuje i počet commitů a hash větve, např. `n9.0.2-28-g669f5ab083`, proto se z verze odvodit nedá). Před stahováním skript zkontroluje vstupy (jen LGPL shared win64 build vydané větve, `ffmpeg-n<verze>-…-win64-lgpl-shared-<x.y>.zip`), to, že obě platformy zůstanou na stejné větvi FFmpeg (`x.y`; nová hodnota jedné platformy se porovná s novou nebo připnutou hodnotou druhé), a to, že knihovny obou platforem v `build/FFmpeg.targets` mají stejné hlavní verze (`avformat-63.dll` ↔ `libavformat.63.dylib` …).
+
+   - **macOS** (`-Version`): stáhne `https://ffmpeg.org/releases/ffmpeg-<verze>.tar.xz` do dočasné složky, spočítá SHA256 a porovná ho se vzorcem Homebrew (`https://formulae.brew.sh/api/formula/ffmpeg.json`, `urls.stable.checksum`, Homebrew potřeba není). Vzorec musí mít přesně stejnou URL tarballu: když je Homebrew na jiné verzi, skript skončí chybou a přepínač, který by to obešel, není (rozhodnuto 2026-10-29; zkusit znovu, až Homebrew verzi převezme). Když je na `PATH` `gpg`, ověří i podpis `<tarball>.asc` klíčem FFmpeg (`https://ffmpeg.org/ffmpeg-devel.asc`, otisk `FCF986EA15E6E293A5644F10B4322F04D67658D8` je ve skriptu) v dočasné domovské složce GnuPG, takže se osobní klíčenka nemění. Bez `gpg` vypíše `GPG signature: SKIPPED`. Hodnoty: `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256`, `LayerPeekFFmpegMacSourceFolder` a `MacOSBuildUri`.
+   - **Windows** (`-BtbNTag`, `-BtbNAsset`): stáhne `checksums.sha256` vydání BtbN (`https://github.com/BtbN/FFmpeg-Builds/releases/download/<tag>/checksums.sha256`, formát `sha256sum`; BtbN ho přikládá k vydáním autobuild, ověřeno 2026-10-29 na `autobuild-2026-10-17-20-51`). Když soubor chybí nebo asset neobsahuje, skript skončí chybou (nic nepřeskakuje). Pak stáhne zip (~80 MB), porovná jeho SHA256 s řádkem assetu a zkontroluje obsah bez rozbalení: jediná složka nejvyšší úrovně s názvem assetu bez `.zip` (`LayerPeekFFmpegArchiveFolder`), `LICENSE.txt` s textem LGPL 3 a `bin/<dll>` pro všechny knihovny Windows z `build/FFmpeg.targets` (`avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll`, `swresample-7.dll`). Když mají knihovny jinou hlavní verzi, chyba vypíše, které DLL v zipu jsou. Hodnoty: `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256`, `LayerPeekFFmpegArchiveFolder` a `WindowsBuildUri`.
+
+   Při jakékoli neshodě skončí kódem 1 a nezapíše nic (ani hodnoty platformy, která prošla). `-Update` zapíše hodnoty do `build/FFmpeg.targets` a `src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs`. Bez `-Update` je jen vypíše; když se shodují s připnutými, řekne to. Dočasná složka se vždy smaže.
+2. U nové větve FFmpeg upravit kontrolu verze `^9\.0\.` v `build/macos/build-ffmpeg.sh`; u každé nové verze verze, které hlídá `ThirdPartyLicensesTests` (`n9.0.2-`, `ffmpeg-9.0.2.`).
 3. Na Macu `dotnet build` (nová cache, klíč obsahuje SHA256) a `dotnet test`: testy FFmpeg ověří verze knihoven a licenci LGPL 3, testy okna licencí shodu odkazů s `build/FFmpeg.targets`. Na Windows totéž.
 4. Aktualizovat verze v dokumentaci (tento soubor, `docs/architecture.md`) a `CHANGELOG.md`.
 
-Testy skriptu (`build/macos/update-ffmpeg-source.Tests.ps1`, Pester) používají náhradní stahování, vzorec a `gpg`, síť nepotřebují.
+Testy skriptu (`build/update-ffmpeg.Tests.ps1`, Pester, běží v `dotnet test`) používají náhradní stahování, vzorec Homebrew, soubor `checksums.sha256`, malý zip a `gpg`, síť nepotřebují.
 
 ### Když stažení selže (Windows)
 
 Windows, když stažení selže (offline, nebo připnuté vydání z GitHubu zmizelo), build skončí chybou s návodem. Zrcadlo není. Možnosti:
 
-1. V `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na jiný LGPL shared win64 build BtbN se stejnými verzemi knihoven (`avformat-63` …).
+1. V `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na jiný LGPL shared win64 build BtbN se stejnými verzemi knihoven (`avformat-63` …): ověří a zapíše je `pwsh build/update-ffmpeg.ps1 -Platform windows -BtbNTag <tag> -BtbNAsset <asset> -Update` (viz „Nová verze FFmpeg“).
 2. Cache naplnit ručně: do `<cache>\<sha256>\bin\` dát `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll` a `swresample-7.dll`, do `<cache>\<sha256>\` dát `LICENSE.txt` a soubor `verified.sha256`. Ten má obsahovat jeden řádek s hodnotou `LayerPeekFFmpegSha256` z `build/FFmpeg.targets` (SHA256 archivu, ze kterého DLL pocházejí), stejně jako cache vytvořená buildem. Build zatím kontroluje jen to, že soubor existuje. Za shodu DLL s připnutým buildem odpovídá ten, kdo cache naplnil. Případně nastavit `LayerPeekFFmpegCacheRoot` na složku s takovou cache.
 
 ## Windows
