@@ -1211,6 +1211,35 @@ Describe 'macOS packaging (T-019)' {
             (& $alpha 512 930) | Should -BeGreaterThan (& $alpha 512 93) -Because 'the shadow falls below the body'
             foreach ($corner in @(@(0, 0), @(1023, 0), @(0, 1023), @(1023, 1023), @(110, 110))) { & $alpha $corner[0] $corner[1] | Should -Be 0 }
         }
+        It 'reproduces the committed macOS icon PNGs from their SVGs with tools/render-macos-icon.swift (T-098)' -Skip:(-not (Get-Command swift -ErrorAction SilentlyContinue)) {
+            $work = Join-Path $script:TempRoot "mac-icon-render-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $work
+            $null = & swift (Join-Path $script:RepoRoot 'tools' 'render-macos-icon.swift') --out $work 2>&1
+            $LASTEXITCODE | Should -Be 0
+            $assets = Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Assets' 'AppIcon'
+            foreach ($pixels in 1024, 32, 16) {
+                $name = "app-icon-macos-$pixels.png"
+                $rendered = [System.IO.File]::ReadAllBytes((Join-Path $work $name))
+                $committed = [System.IO.File]::ReadAllBytes((Join-Path $assets $name))
+                if ([System.Linq.Enumerable]::SequenceEqual($rendered, $committed)) { continue }
+                # Not the same bytes (another macOS version may encode or anti-alias differently): the same pixels within
+                # 2 per channel, decoded through sips into the same BMP format. Regenerate the PNGs when this fails.
+                $decode = {
+                    param([string] $Png)
+                    $bmp = Join-Path $work "$([guid]::NewGuid().ToString('N')).bmp"
+                    $null = & /usr/bin/sips -s format bmp $Png --out $bmp 2>&1
+                    $bytes = [System.IO.File]::ReadAllBytes($bmp)
+                    , [byte[]] $bytes[[System.BitConverter]::ToInt32($bytes, 10)..($bytes.Length - 1)]
+                }
+                [byte[]] $a = & $decode (Join-Path $work $name)
+                [byte[]] $b = & $decode (Join-Path $assets $name)
+                $a.Length | Should -Be ($pixels * $pixels * 4) -Because $name
+                $b.Length | Should -Be $a.Length -Because $name
+                $different = 0
+                for ($i = 0; $i -lt $a.Length; $i++) { if ([Math]::Abs([int] $a[$i] - [int] $b[$i]) -gt 2) { $different++ } }
+                $different | Should -Be 0 -Because "$name must be the rendering of its SVG (swift tools/render-macos-icon.swift)"
+            }
+        }
         It 'refuses a master that does not follow Apple''s grid (the full canvas of the Windows icon)' {
             $work = Join-Path $script:TempRoot "mac-icon-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
             $null = New-Item -ItemType Directory -Path $work

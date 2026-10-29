@@ -65,6 +65,7 @@ tests/
 tools/
   PrusaSimulator           dev tool: simulated PrusaLink printers + RTSP camera (docs/simulator.md); not shipped
   migrate-from-prusatraydiagnostic.ps1  one-time migration of dev machines from the former name (T-074)
+  render-macos-icon.swift  regenerates the macOS app icon PNGs from their SVGs (T-098, needs Xcode Command Line Tools)
 docs/                      architecture & API notes (Czech)
 tasks/                     task backlog (Czech), see tasks/README.md
 .claude/agents/            subagent definitions
