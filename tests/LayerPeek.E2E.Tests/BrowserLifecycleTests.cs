@@ -68,6 +68,35 @@ public sealed class BrowserLifecycleTests(EdgeFixture edge)
         Assert.False(OwnProcesses.IsOwnCommandLine($"msedge.exe --user-data-dir=\"{EdgeFixture.Root}.Other{Path.DirectorySeparatorChar}p\"", marker));
     }
 
+    [Fact]
+    public void PsOutputIsParsedIntoCommandLinesById()
+    {
+        string output = "    1 /sbin/launchd\n"
+            + "  812 /Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge --headless --user-data-dir=/tmp/a b/p\n"
+            + "65536   two  spaces inside  \n"
+            + "  not-a-pid ignored\n"
+            + "  77\n"
+            + "\n";
+
+        Dictionary<int, string> commandLines = OwnProcesses.ParsePsOutput(output);
+
+        Assert.Equal(3, commandLines.Count);
+        Assert.Equal("/sbin/launchd", commandLines[1]);
+        Assert.Equal("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge --headless --user-data-dir=/tmp/a b/p", commandLines[812]);
+        Assert.Equal("two  spaces inside  ", commandLines[65536]);
+    }
+
+    [Fact]
+    public void PsSnapshotContainsThisProcess()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "One ps call is used on macOS only (Windows: NtQueryInformationProcess, Linux: /proc).");
+
+        Dictionary<int, string> commandLines = OwnProcesses.PsCommandLines();
+
+        Assert.Contains("LayerPeek.E2E.Tests", commandLines[Environment.ProcessId], StringComparison.Ordinal);
+        Assert.True(commandLines.Count > 1);
+    }
+
     [Fact(Timeout = 120_000)]
     public async Task DisposedRigReleasesThePrinterAndProxyPorts()
     {

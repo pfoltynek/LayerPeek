@@ -7,7 +7,7 @@ namespace LayerPeek.App.Platform;
 
 /// <summary>
 /// Debug builds only: the secret store of the isolated test mode (T-044). Secrets live in memory for one run, so a test
-/// never reads or writes the user's Windows Credential Manager. A test can hand passwords in with the file
+/// never reads or writes the user's Windows Credential Manager or macOS Keychain. A test can hand passwords in with the file
 /// <see cref="SeedFileName"/> in the test data folder: one <c>key</c>, a tab and the secret per line (read once, never
 /// written).
 /// </summary>

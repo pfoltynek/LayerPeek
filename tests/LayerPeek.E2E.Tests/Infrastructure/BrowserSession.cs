@@ -14,6 +14,9 @@ internal sealed class BrowserSession : IAsyncDisposable
     /// <summary>Playwright actions (navigation, waiting for an element) fail after this instead of hanging.</summary>
     private const float ActionTimeoutMs = 20_000;
 
+    /// <summary>How often <see cref="WaitUntilReadyAsync"/> evaluates its condition.</summary>
+    private const float ReadyPollingIntervalMs = 50;
+
     private readonly IBrowserContext _context;
 
     private BrowserSession(IBrowserContext context)
@@ -64,8 +67,13 @@ internal sealed class BrowserSession : IAsyncDisposable
         return page;
     }
 
+    /// <summary>
+    /// Polls by interval, not by <c>requestAnimationFrame</c> (Playwright's default): headless Edge 156 on macOS was seen
+    /// to stop calling rAF on a page that was already ready (T-095, T-021), and the readiness of the fake web does not
+    /// depend on rendering. Same condition and timeout as before.
+    /// </summary>
     public static async Task WaitUntilReadyAsync(IPage page) =>
-        await page.WaitForFunctionAsync("() => window.e2e !== undefined && window.e2e.ready === true");
+        await page.WaitForFunctionAsync("() => window.e2e !== undefined && window.e2e.ready === true", null, new PageWaitForFunctionOptions { PollingInterval = ReadyPollingIntervalMs });
 
     public static async Task<string> TextAsync(IPage page, string id) => (await page.Locator($"#{id}").TextContentAsync()) ?? string.Empty;
 

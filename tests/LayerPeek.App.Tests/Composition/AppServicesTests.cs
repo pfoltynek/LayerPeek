@@ -13,6 +13,7 @@ using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
@@ -237,6 +238,11 @@ public sealed class AppServicesTests
         {
             Assert.IsType<WindowsCredentialSecretStore>(store);
         }
+        else if (OperatingSystem.IsMacOS())
+        {
+            // The production service, local login Keychain (T-021); creating it does not touch the Keychain.
+            Assert.Equal(KeychainSecretStore.DefaultServicePrefix, Assert.IsType<KeychainSecretStore>(store).Service);
+        }
         else
         {
             Assert.IsType<UnsupportedSecretStore>(store);
@@ -256,13 +262,13 @@ public sealed class AppServicesTests
         // Derived from the registered store, so the window and the store can never disagree.
         PasswordPolicy policy = services.GetRequiredService<PasswordPolicy>();
         Assert.Equal(PasswordPolicy.For(services.GetRequiredService<ISecretStore>()), policy);
-        Assert.Equal(OperatingSystem.IsWindows(), policy.IsSupported);
+        Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), policy.IsSupported);
 
         // One view model per opened window; creating it does not load anything yet (no disk access in this test).
         using SettingsViewModel first = AppServices.CreateSettingsViewModel(services);
         using SettingsViewModel second = AppServices.CreateSettingsViewModel(services);
         Assert.NotSame(first, second);
-        Assert.Equal(OperatingSystem.IsWindows(), first.IsPasswordSupported);
+        Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), first.IsPasswordSupported);
         Assert.True(first.IsLoading);
     }
 

@@ -3,7 +3,7 @@ using LayerPeek.Core.Secrets;
 namespace LayerPeek.App.Platform;
 
 /// <summary>
-/// <see cref="ISecretStore"/> for operating systems without an implementation yet (macOS until T-021).
+/// <see cref="ISecretStore"/> for operating systems without an implementation (neither Windows nor macOS).
 /// Every operation fails with <see cref="SecretStoreException"/>: printers that need a password report it
 /// as a problem, the rest of the app keeps working.
 /// </summary>
