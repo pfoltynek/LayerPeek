@@ -672,6 +672,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Configuración guardada. No se pudo cambiar el inicio al iniciar sesión. Intente guardar de nuevo.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Abrir Ítems de inicio</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio. Permítalo allí y vuelva a guardar.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Impresión iniciada</value>
   </data>

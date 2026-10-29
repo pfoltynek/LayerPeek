@@ -213,7 +213,8 @@ submenu.
 - **General:** how often the printers are polled, the language and detailed logging.
 - **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
   and whether updates offer pre-release versions. On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of
-  the disk image, e.g. to Applications).
+  the disk image, e.g. to Applications). If you turned LayerPeek off in System Settings → General → Login Items, only you can
+  allow it there again; the settings window offers a button that opens that page.
 
 ### Where data is stored
 

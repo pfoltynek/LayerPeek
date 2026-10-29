@@ -5,6 +5,8 @@ using Avalonia.Platform;
 
 using LayerPeek.App.Printers;
 using LayerPeek.App.UiTests.Infrastructure;
+using LayerPeek.App.UiTests.Tray;
+using LayerPeek.Tests.Shared;
 using LayerPeek.App.Windows;
 
 namespace LayerPeek.App.UiTests.Windows;
@@ -19,7 +21,7 @@ public sealed class AppIconUiTests(HeadlessSession session)
     public Task OnlyExpectedAssetsAreBundled() =>
         session.RunAsync(_ =>
         {
-            // Exact list: a new asset must be added here. The SVG sources and the macOS master stay out of the binary;
+            // Exact list: a new asset must be added here. The SVG sources and the images of the macOS .icns stay out of the binary;
             // the old tray-idle.png is gone. T-039: the printer illustrations, one PNG per illustration and size.
             Uri[] expected =
             [
@@ -63,6 +65,48 @@ public sealed class AppIconUiTests(HeadlessSession session)
             using MemoryStream png = new(large.Data(ico));
             using Bitmap image = new(png);
             Assert.Equal(new PixelSize(256, 256), image.PixelSize);
+            return Task.CompletedTask;
+        });
+
+    /// <summary>
+    /// T-019 (user decision 2026-10-29): the 16 and 32 px images of the macOS <c>.icns</c> (<c>app-icon-16.png</c>,
+    /// <c>app-icon-32.png</c>, not bundled) are the simplified variant <c>app-icon-small.svg</c>, pixel for pixel the
+    /// images of <c>app-icon.ico</c>. Regenerated together with the <c>.ico</c> when the SVG changes.
+    /// </summary>
+    [Theory]
+    [InlineData(16)]
+    [InlineData(32)]
+    public Task MacIconSmallSizesAreThePixelsOfTheAppIcon(int size) =>
+        session.RunAsync(_ =>
+        {
+            byte[] ico = ReadAppIcon();
+            IcoEntry entry = Assert.Single(IcoEntry.ReadAll(ico), e => e.Size == size);
+            Assert.False(entry.IsPng);
+            byte[] dib = entry.Data(ico);
+            int header = BitConverter.ToInt32(dib, 0);
+
+            using Bitmap png = new(Path.Combine(TestWorktree.Root, "src", "LayerPeek.App", "Assets", "AppIcon", $"app-icon-{size}.png"));
+            Assert.Equal(new PixelSize(size, size), png.PixelSize);
+            IconPixels actual = IconPixels.Read(png);
+            List<string> different = [];
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    // 32-bit BMP of the .ico: straight BGRA, bottom-up.
+                    int at = header + ((((size - 1 - y) * size) + x) * 4);
+                    Avalonia.Media.Color expected = Avalonia.Media.Color.FromArgb(dib[at + 3], dib[at + 2], dib[at + 1], dib[at]);
+                    Avalonia.Media.Color pixel = actual[x, y];
+                    // Colours of nearly transparent pixels lose precision in the premultiplied decoder.
+                    bool same = Math.Abs(expected.A - pixel.A) <= 1 && (expected.A < 128 || IconPixels.Near(expected, pixel, 2));
+                    if (!same)
+                    {
+                        different.Add($"({x}, {y}): {expected} vs {pixel}");
+                    }
+                }
+            }
+
+            Assert.True(different.Count == 0, string.Join(Environment.NewLine, different));
             return Task.CompletedTask;
         });
 

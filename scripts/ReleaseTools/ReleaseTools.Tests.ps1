@@ -802,6 +802,38 @@ Describe 'macOS packaging (T-019)' {
         $sizes['icon_16x16.png'] | Should -Be 16
         $sizes['icon_512x512@2x.png'] | Should -Be 1024
     }
+    It 'takes 16 and 32 px from their own PNGs and scales every other size from the master' {
+        $plan = Get-MacIconPlan -MasterPng 'master.png' -ExactPngs @{ 16 = 'small-16.png'; 32 = 'small-32.png' }
+        $plan.Count | Should -Be 10
+        $plan['icon_16x16.png'].Source | Should -BeExactly 'small-16.png'
+        $plan['icon_16x16.png'].Scale | Should -BeFalse
+        foreach ($name in 'icon_16x16@2x.png', 'icon_32x32.png') {
+            $plan[$name].Source | Should -BeExactly 'small-32.png'
+            $plan[$name].Scale | Should -BeFalse
+        }
+        # From 48 px on the detailed variant, like the .ico of Windows (T-025).
+        foreach ($name in 'icon_32x32@2x.png', 'icon_128x128.png', 'icon_512x512@2x.png') {
+            $plan[$name].Source | Should -BeExactly 'master.png'
+            $plan[$name].Scale | Should -BeTrue
+        }
+        $plan['icon_32x32@2x.png'].Pixels | Should -Be 64
+        @((Get-MacIconPlan -MasterPng 'master.png').Values | Where-Object { -not $_.Scale }) | Should -BeNullOrEmpty
+    }
+    It 'uses the small variant of the app icon for 16 and 32 px (T-025 app-icon-small.svg)' {
+        $mac = Get-MacBundleSettings
+        @($mac.IconExact.Keys | Sort-Object) | Should -Be @(16, 32)
+        foreach ($pixels in $mac.IconExact.Keys) {
+            $size = Get-PngPixelSize (Join-Path $script:RepoRoot $mac.IconExact[$pixels])
+            $size.Width | Should -Be $pixels
+            $size.Height | Should -Be $pixels
+        }
+        (Get-PngPixelSize (Join-Path $script:RepoRoot $mac.IconMaster)).Width | Should -Be 1024
+    }
+    It 'reads the size of a PNG from its header and refuses anything else' {
+        $notPng = Join-Path $script:TempRoot 'not-a.png'
+        New-StandInFile $notPng 'GIF89a, not a PNG at all'
+        Assert-ThrowsMatching { Get-PngPixelSize $notPng } 'Not a PNG'
+    }
     It 'builds the bundle without debug symbols, with Info.plist, PkgInfo and the icon' {
         $destination = Join-Path $script:TempRoot "mac-app-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
         $null = New-Item -ItemType Directory -Path $destination
@@ -896,6 +928,54 @@ Describe 'macOS packaging (T-019)' {
             (Get-Item -LiteralPath $icon).Length | Should -BeGreaterThan 1000
             [System.IO.File]::ReadAllBytes($icon)[0..3] | Should -BeExactly ([byte[]][char[]]'icns')
             Test-Path -LiteralPath ([System.IO.Path]::ChangeExtension($icon, 'iconset')) | Should -BeFalse
+        }
+        It 'puts the small variant into the 16 and 32 px images of the icns, not the scaled master' {
+            $mac = Get-MacBundleSettings
+            $exact = @{}
+            foreach ($pixels in $mac.IconExact.Keys) { $exact[$pixels] = Join-Path $script:RepoRoot $mac.IconExact[$pixels] }
+            $work = Join-Path $script:TempRoot "mac-icon-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $work
+            $icon = New-MacIcon -MasterPng (Join-Path $script:RepoRoot $mac.IconMaster) -ExactPngs $exact -Destination (Join-Path $work 'LayerPeek.icns')
+            # Back to an iconset; both sides through sips into the same format, so that only the pixels count.
+            $back = Join-Path $work 'back.iconset'
+            & /usr/bin/iconutil -c iconset $icon -o $back
+            $LASTEXITCODE | Should -Be 0
+            $pixels = {
+                param([string] $Png)
+                $bmp = Join-Path $work "$([guid]::NewGuid().ToString('N')).bmp"
+                $null = & /usr/bin/sips -s format bmp $Png --out $bmp 2>&1
+                $bytes = [System.IO.File]::ReadAllBytes($bmp)
+                $offset = [System.BitConverter]::ToInt32($bytes, 10)
+                , [byte[]] $bytes[$offset..($bytes.Length - 1)]
+            }
+            $same = { param([byte[]] $A, [byte[]] $B) [System.Linq.Enumerable]::SequenceEqual($A, $B) }
+            # 16 pt @2x is kept as PNG: the same pixels as app-icon-32.png.
+            & $same (& $pixels (Join-Path $back 'icon_16x16@2x.png')) (& $pixels $exact[32]) | Should -BeTrue
+            # 16 and 32 pt @1x are stored as ARGB: the same alpha everywhere, the same colour where opaque.
+            foreach ($case in @(@{ Name = 'icon_16x16.png'; Pixels = 16 }, @{ Name = 'icon_32x32.png'; Pixels = 32 })) {
+                [byte[]] $actual = & $pixels (Join-Path $back $case.Name)
+                [byte[]] $expected = & $pixels $exact[$case.Pixels]
+                $actual.Length | Should -Be ($case.Pixels * $case.Pixels * 4)
+                $expected.Length | Should -Be $actual.Length
+                $wrong = 0
+                for ($i = 0; $i -lt $expected.Length; $i += 4) {
+                    if ($actual[$i + 3] -ne $expected[$i + 3]) { $wrong++ }
+                    elseif ($expected[$i + 3] -eq 255 -and ($actual[$i] -ne $expected[$i] -or $actual[$i + 1] -ne $expected[$i + 1] -or $actual[$i + 2] -ne $expected[$i + 2])) { $wrong++ }
+                }
+                $wrong | Should -Be 0 -Because "$($case.Name) is app-icon-$($case.Pixels).png"
+            }
+            # 32 pt @2x (64 px) is the detailed variant scaled from the master, not the small one.
+            $scaled = Join-Path $work 'scaled-64.png'
+            $null = & /usr/bin/sips -z 64 64 (Join-Path $script:RepoRoot $mac.IconMaster) --out $scaled 2>&1
+            & $same (& $pixels (Join-Path $back 'icon_32x32@2x.png')) (& $pixels $scaled) | Should -BeTrue
+        }
+        It 'refuses a small PNG of another size' {
+            $work = Join-Path $script:TempRoot "mac-icon-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $work
+            $small = Join-Path $script:RepoRoot (Get-MacBundleSettings).IconExact[32]
+            Assert-ThrowsMatching { New-MacIcon -MasterPng $small -ExactPngs @{ 16 = $small } -Destination (Join-Path $work 'x.icns') } 'is 32 x 32 px'
+            Test-Path -LiteralPath (Join-Path $work 'x.icns') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $work 'x.iconset') | Should -BeFalse
         }
         It 'makes a verified disk image with the signed app and the link to Applications, and an archive of the app without AppleDouble entries' {
             $work = Join-Path $script:TempRoot "mac-dmg-$([guid]::NewGuid().ToString('N').Substring(0, 8))"

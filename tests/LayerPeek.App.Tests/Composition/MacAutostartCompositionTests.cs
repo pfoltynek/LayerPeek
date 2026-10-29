@@ -104,5 +104,9 @@ public sealed class MacAutostartCompositionTests : IDisposable
         public void Unregister()
         {
         }
+
+        public void OpenSystemSettings()
+        {
+        }
     }
 }

@@ -34,6 +34,19 @@ public sealed class StandInLoginItemTests : IDisposable
         Assert.False(File.Exists(path));
     }
 
+    /// <summary>The test mode never opens System Settings (rule "Izolace testů na macOS"): the stand-in does nothing.</summary>
+    [Fact]
+    public void OpeningSystemSettingsDoesNothing()
+    {
+        string path = AppEnvironment.TestLoginItemPathIn(_data);
+        StandInLoginItem item = new(path, "/Volumes/x/LayerPeek");
+
+        item.OpenSystemSettings();
+
+        Assert.Equal(LoginItemStatus.NotRegistered, item.Status());
+        Assert.False(Directory.Exists(_data) && Directory.EnumerateFileSystemEntries(_data).Any());
+    }
+
     [Fact]
     public void OutsideTheTestModeThereIsNoStandIn()
     {

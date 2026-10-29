@@ -723,6 +723,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Nastavení je uloženo. Spouštění po přihlášení se nepodařilo změnit. Zkuste uložit znovu.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Otevřít Položky při přihlášení</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Položky při přihlášení. Povolte ho tam a pak uložte znovu.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
   </data>

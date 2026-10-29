@@ -104,7 +104,9 @@ $packagingSteps = @(
             if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
             $bundleFolder = Join-Path $work 'bundle'
             $null = New-Item -ItemType Directory -Path $bundleFolder
-            $icon = New-MacIcon -MasterPng (Join-Path $repoRoot $mac.IconMaster) -Destination (Join-Path $work $mac.IconFile)
+            $exact = @{}
+            foreach ($pixels in $mac.IconExact.Keys) { $exact[$pixels] = Join-Path $repoRoot $mac.IconExact[$pixels] }
+            $icon = New-MacIcon -MasterPng (Join-Path $repoRoot $mac.IconMaster) -ExactPngs $exact -Destination (Join-Path $work $mac.IconFile)
             $app = New-MacAppBundle -PublishDirectory $Context.PublishDirectory -Destination $bundleFolder -Version $Context.Version `
                 -PlistTemplate (Join-Path $repoRoot $mac.PlistTemplate) -IconFile $icon
             Remove-Item -LiteralPath $icon -Force

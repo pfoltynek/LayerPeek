@@ -23,7 +23,7 @@ internal sealed class AuxiliaryWindowFactory
     /// <see langword="null"/>: they always open at the designed size.
     /// </param>
     /// <param name="bringAppToFront">
-    /// Activates the app before a settings, diagnostics or About window (macOS, T-019, <see cref="AvaloniaAuxiliaryWindow"/>);
+    /// Activates the app before a settings, diagnostics, About or camera window (macOS, T-019, <see cref="AvaloniaAuxiliaryWindow"/>);
     /// <see langword="null"/>: nothing.
     /// </param>
     public AuxiliaryWindowFactory(Func<Window, IDisposable>? track, IAuxiliaryWindowStateStore? windowStates = null, Action? bringAppToFront = null)
@@ -63,11 +63,11 @@ internal sealed class AuxiliaryWindowFactory
     public IAuxiliaryWindow About(AboutViewModel viewModel) =>
         new AvaloniaAuxiliaryWindow(new AboutWindow { DataContext = viewModel, TrackChild = _track }, _track, _bringAppToFront);
 
-    /// <summary>The camera windows of all printers.</summary>
+    /// <summary>The camera windows of all printers; an activated one brings the app to the front as well (macOS, T-019).</summary>
     public CameraWindows CameraWindows(
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
         Func<CameraWindow, double, WindowChrome?>? predictChrome = null) =>
-        new(createViewModel, screens, measureChrome, _track, predictChrome);
+        new(createViewModel, screens, measureChrome, _track, predictChrome, _bringAppToFront);
 }

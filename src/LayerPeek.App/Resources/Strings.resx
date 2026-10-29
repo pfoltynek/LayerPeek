@@ -744,6 +744,14 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Settings saved. Starting after sign-in could not be changed. Try saving again.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Open Login Items Settings</value>
+    <comment>T-019: macOS button next to the "could not be changed" status when the user switched LayerPeek off in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the pane).</comment>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items. Allow it there, then save again.</value>
+    <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Camera</value>
   </data>

@@ -672,6 +672,12 @@
   <data name="SettingsSavedAutostartFailed" xml:space="preserve">
     <value>Ustawienia zostały zapisane. Nie udało się zmienić uruchamiania po zalogowaniu. Spróbuj zapisać ponownie.</value>
   </data>
+  <data name="SettingsOpenLoginItems" xml:space="preserve">
+    <value>Otwórz ustawienia logowania</value>
+  </data>
+  <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
+    <value>LayerPeek jest wyłączony w Ustawieniach systemowych &gt; Ogólne &gt; Rzeczy otwierane podczas logowania. Zezwól na niego tam, a potem zapisz ponownie.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Rozpoczęto drukowanie</value>
   </data>

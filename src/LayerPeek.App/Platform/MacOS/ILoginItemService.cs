@@ -31,6 +31,13 @@ internal interface ILoginItemService
 
     /// <exception cref="LoginItemException">macOS refused it.</exception>
     void Unregister();
+
+    /// <summary>
+    /// Opens System Settings &gt; General &gt; Login Items, where the user allows an item in the state
+    /// <see cref="LoginItemStatus.RequiresApproval"/> (user decision 2026-10-29). The stand-in of the test mode opens nothing.
+    /// </summary>
+    /// <exception cref="LoginItemException">macOS could not open it.</exception>
+    void OpenSystemSettings();
 }
 
 /// <summary>macOS refused to change the Login Item; the message carries the code and text of its <c>NSError</c>.</summary>

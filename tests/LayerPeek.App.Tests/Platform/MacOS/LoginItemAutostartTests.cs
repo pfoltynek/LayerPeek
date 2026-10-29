@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
 
+using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.MacOS;
 
 namespace LayerPeek.App.Tests.Platform.MacOS;
@@ -61,13 +62,16 @@ public sealed class LoginItemAutostartTests
         Assert.Equal(["unregister"], _item.Calls);
     }
 
-    /// <summary>The user switched the item off in System Settings: only they can allow it again, the app reports a failure.</summary>
+    /// <summary>
+    /// The user switched the item off in System Settings: only they can allow it again, the app reports a failure the settings
+    /// window recognizes (it offers to open System Settings, user decision 2026-10-29).
+    /// </summary>
     [Fact]
     public void AnItemTheUserSwitchedOffCannotBeSwitchedOnByTheApp()
     {
         _item.Current = LoginItemStatus.RequiresApproval;
 
-        Assert.Throws<LoginItemException>(() => Autostart().SetEnabled(true));
+        Assert.Throws<AutostartNeedsApprovalException>(() => Autostart().SetEnabled(true));
         Assert.Empty(_item.Calls);
     }
 
@@ -86,8 +90,38 @@ public sealed class LoginItemAutostartTests
     {
         _item.AfterRegister = LoginItemStatus.RequiresApproval;
 
+        Assert.Throws<AutostartNeedsApprovalException>(() => Autostart().SetEnabled(true));
+        Assert.Equal(["register"], _item.Calls);
+    }
+
+    /// <summary>A registration macOS does not know afterwards is a plain failure: System Settings would not help.</summary>
+    [Fact]
+    public void ARegistrationMacOSDoesNotKnowIsAPlainFailure()
+    {
+        _item.AfterRegister = LoginItemStatus.NotFound;
+
         Assert.Throws<LoginItemException>(() => Autostart().SetEnabled(true));
         Assert.Equal(["register"], _item.Calls);
+    }
+
+    [Fact]
+    public void TheApprovalOpensSystemSettingsOfTheLoginItem()
+    {
+        LoginItemAutostart autostart = Autostart();
+
+        ((IAutostartApproval)autostart).OpenApprovalSettings();
+
+        Assert.Equal(["open settings"], _item.Calls);
+    }
+
+    [Fact]
+    public void SystemSettingsThatCannotBeOpenedAreOnlyLogged()
+    {
+        _item.OpenFailure = new LoginItemException("no SMAppService");
+
+        Autostart().OpenApprovalSettings();
+
+        Assert.Equal(["open settings"], _item.Calls);
     }
 
     [Fact]
@@ -108,6 +142,8 @@ public sealed class LoginItemAutostartTests
         public Exception? StatusFailure { get; set; }
 
         public Exception? ChangeFailure { get; set; }
+
+        public Exception? OpenFailure { get; set; }
 
         public List<string> Calls { get; } = [];
 
@@ -133,6 +169,15 @@ public sealed class LoginItemAutostartTests
             }
 
             Current = LoginItemStatus.NotRegistered;
+        }
+
+        public void OpenSystemSettings()
+        {
+            Calls.Add("open settings");
+            if (OpenFailure is { } failure)
+            {
+                throw failure;
+            }
         }
     }
 }

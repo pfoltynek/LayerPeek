@@ -23,4 +23,12 @@ internal sealed class StandInLoginItem(string path, string executable) : ILoginI
     }
 
     public void Unregister() => File.Delete(Path);
+
+    /// <summary>
+    /// Nothing: the test mode never opens System Settings (rule "Izolace testů na macOS"). The stand-in is never in the state
+    /// <see cref="LoginItemStatus.RequiresApproval"/> either, so the settings window does not offer it.
+    /// </summary>
+    public void OpenSystemSettings()
+    {
+    }
 }
