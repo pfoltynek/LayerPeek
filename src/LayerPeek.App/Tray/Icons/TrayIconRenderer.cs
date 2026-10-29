@@ -18,7 +18,7 @@ namespace LayerPeek.App.Tray.Icons;
 /// </remarks>
 internal static class TrayIconRenderer
 {
-    /// <summary>Size of the single bitmap of <see cref="RenderIcon"/> where multi-size icons are not used (macOS).</summary>
+    /// <summary>Size of the single bitmap of <see cref="RenderIcon"/> where multi-size icons are not used (neither Windows nor macOS).</summary>
     public const int SingleSize = 32;
 
     /// <param name="multiSize">One image per notification-area size (Windows); otherwise one 32 px bitmap.</param>

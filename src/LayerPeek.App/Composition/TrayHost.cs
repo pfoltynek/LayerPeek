@@ -117,8 +117,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
         // Not owned by the container: it outlives the container dispose during quit.
         ILoggerFactory loggerFactory = logging.Factory;
         ServiceProvider services = AppServices.Create(loggerFactory, environment: environment, logLevel: logging.Level);
-        // Concrete type here; the field is ITrayIconSet so that T-018 can select the macOS set by OS.
-        ColorTrayIconSet? iconSet = null;
+        ITrayIconSet? iconSet = null;
         TrayIconPresenter<WindowIcon>? iconPresenter = null;
         TrayMenuPresenter? menuPresenter = null;
         PrinterMenuIcons? menuIcons = null;
@@ -145,7 +144,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
             if (trayIcon is not null)
             {
-                iconSet = CreateIconSet();
+                // Windows: coloured multi-size icons (T-007); macOS: menu bar template icons (T-018).
+                iconSet = TrayIconSets.ForCurrentPlatform();
+                TrayIconSets.Prepare(trayIcon, iconSet);
                 iconPresenter = new TrayIconPresenter<WindowIcon>(
                     new AvaloniaTrayIconTarget(trayIcon, environment.TrayToolTipPrefix),
                     services.GetRequiredService<TrayStatusViewModel>(),
@@ -492,7 +493,4 @@ internal sealed partial class TrayHost : IAsyncDisposable
 
     /// <summary>Scaling for the tray menu icons: the menu opens as a new popup, so its monitor is not known in advance.</summary>
     private static double SystemScaling() => OperatingSystem.IsWindows() ? SystemDpiNative.GetScaling() : 1.0;
-
-    // macOS menu bar template icons follow in T-018; until then every OS uses the coloured set.
-    private static ColorTrayIconSet CreateIconSet() => new(multiSize: OperatingSystem.IsWindows());
 }
