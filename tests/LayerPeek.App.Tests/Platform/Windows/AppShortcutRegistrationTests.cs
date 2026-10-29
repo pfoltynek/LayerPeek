@@ -29,6 +29,7 @@ public sealed class AppShortcutRegistrationTests
     [Fact]
     public void TargetPathIsComparedIgnoringCaseAndNormalized()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Normalizes Windows paths (case, .\\ segments); shell links exist only on Windows.");
         AppShortcut existing = Desired with { TargetPath = @"c:\apps\PRUSA\.\LayerPeek.EXE" };
 
         Assert.Equal(ShortcutAction.UpToDate, AppShortcutRegistration.Decide(existing, Desired));

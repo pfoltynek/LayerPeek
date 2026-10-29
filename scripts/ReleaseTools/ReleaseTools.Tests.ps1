@@ -71,6 +71,31 @@ BeforeAll {
         if ($unexpected.Count -gt 0) { throw "Unexpected problems: $($unexpected -join ' / ')" }
     }
 
+    function New-StandInFile([string] $Path, [string] $Content) {
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Path)
+        [System.IO.File]::WriteAllText($Path, $Content)
+    }
+
+    # A stand-in user profile for the AOT smoke check: data (settings, an image) and logs of the app, plus a neighbour
+    # folder that must never be touched.
+    function New-SmokeStandInProfile {
+        $root = Join-Path $script:TempRoot "smoke-profile-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        New-StandInFile (Join-Path $root 'data' 'LayerPeek' 'settings.json') '{"printers":[]}'
+        New-StandInFile (Join-Path $root 'data' 'LayerPeek' 'images' 'a.png') 'png'
+        New-StandInFile (Join-Path $root 'logs' 'LayerPeek' 'LayerPeek.log') 'user log'
+        New-StandInFile (Join-Path $root 'data' 'Other' 'keep.txt') 'other app'
+        $root
+    }
+
+    # Every folder and file below $Root with the content hash: equal before and after = nothing changed.
+    function Get-TreeState([string] $Root) {
+        $prefix = $Root.TrimEnd([System.IO.Path]::DirectorySeparatorChar).Length + 1
+        @(Get-ChildItem -LiteralPath $Root -Recurse -Force | ForEach-Object {
+                $relative = $_.FullName.Substring($prefix).Replace('\', '/')
+                if ($_.PSIsContainer) { "$relative/" } else { "$relative $((Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash)" }
+            } | Sort-Object -CaseSensitive)
+    }
+
     function Assert-ThrowsMatching {
         param([Parameter(Mandatory)] [scriptblock] $Body, [Parameter(Mandatory)] [string] $Pattern)
         $message = $null
@@ -804,18 +829,158 @@ Describe 'AOT smoke script with an existing publish folder' {
     }
     It 'finds the executable in a folder with [ ] in its path and leaves the folder in place' {
         # -SkipShellIntegration: no running-instance check (other tests may start the real app meanwhile), no Start menu
-        # shortcut and no toast history of the real user profile are read or changed.
+        # shortcut and no toast history of the real user profile are read or changed; -ProfileRoot: a stand-in profile
+        # instead of the real data and log folders.
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
         $before = @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name)
-        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 -SkipShellIntegration 2>&1 | Out-String
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 5 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
         $LASTEXITCODE | Should -Be 1
         # The stand-in exits at once, so the check fails because the app exited, not because nothing was found.
         $output | Should -Match 'App exited after start'
-        $output | Should -Not -Match 'Published executable not found|already running|Toasts|shortcut'
+        $output | Should -Not -Match 'Published executable not found|already running|Toasts|shortcut|NOT restored'
         @(Get-ChildItem -LiteralPath $script:SmokeDir -Force | ForEach-Object Name) | Should -BeExactly $before
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It 'refuses -SkipShellIntegration without a stand-in profile and moves nothing' {
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $script:SmokeDir -Seconds 1 -SkipShellIntegration 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 1
+        $output | Should -Match 'needs a stand-in -ProfileRoot'
+        $output | Should -Not -Match 'Starting'
+    }
+    It 'runs the exe with an empty profile and afterwards deletes what it wrote and moves the data back' -Skip:$IsWindows {
+        # A stand-in "app" that writes into its data folder and keeps running: the smoke check passes, kills it and
+        # restores the profile. (A shell script; Windows has no stand-in exe that writes a file.)
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $publish = Join-Path $script:TempRoot "smoke-writer-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $publish
+        $exe = Join-Path $publish 'LayerPeek'
+        $data = (Get-SmokeProfile -ProfileRoot $profileRoot).Folders[0]
+        $seen = Join-Path $script:TempRoot "smoke-seen-$([guid]::NewGuid().ToString('N').Substring(0, 8)).txt"
+        # Records what it found (an empty profile: no settings.json), then writes like the app and stays alive.
+        $scriptText = "#!/bin/sh`nls -A '$data' > '$seen' 2>&1`nmkdir -p '$data'`necho exe > '$data/settings.json'`necho exe > '$data/new.txt'`nexec sleep 60`n"
+        [System.IO.File]::WriteAllText($exe, $scriptText)
+        & chmod +x $exe
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $publish -Seconds 2 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0 -Because $output
+        $output | Should -Match 'PASSED'
+        # The exe saw no data of the user, and the user's data is back unchanged without what the exe wrote.
+        Get-Content -LiteralPath $seen -Raw | Should -Match 'No such file'
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+    }
+    It '-RestoreOnly finishes the restore of an interrupted run and starts nothing' {
+        $profileRoot = New-SmokeStandInProfile
+        $profileBefore = Get-TreeState $profileRoot
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $profileRoot
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        # The exe wrote, then the script was killed before its restore.
+        New-StandInFile (Join-Path $smokeProfile.Folders[0] 'settings.json') 'exe'
+        New-StandInFile (Join-Path $smokeProfile.Folders[1] 'LayerPeek.log') 'exe log'
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -RestoreOnly -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0 -Because $output
+        $output | Should -Match 'Restored the data and log folders'
+        $output | Should -Not -Match 'Publishing|Starting'
+        Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+        $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -RestoreOnly -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
+        $LASTEXITCODE | Should -Be 0
+        $output | Should -Match 'Nothing to restore'
     }
     It 'documents -SkipShellIntegration as a test-only switch' {
         $help = Get-Help $script:SmokeScript -Parameter SkipShellIntegration
         "$($help.description.Text)" | Should -Match 'tests'
+    }
+}
+
+Describe 'AOT smoke backup of the data and log folders' {
+    It 'names the data and log folders of the app, never the installation folder' {
+        $smokeProfile = Get-SmokeProfile
+        $smokeProfile.Folders.Count | Should -Be 2
+        if ($IsMacOS) {
+            $smokeProfile.Folders[0] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Library' 'Application Support' 'LayerPeek')
+            $smokeProfile.Folders[1] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Library' 'Logs' 'LayerPeek')
+        }
+        else {
+            $smokeProfile.Folders[0] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek')
+            # Only the logs: %LOCALAPPDATA%\LayerPeek may hold the installed app (Velopack).
+            $smokeProfile.Folders[1] | Should -BeExactly (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs')
+        }
+        $smokeProfile.Journal | Should -BeExactly "$($smokeProfile.Folders[0]).aot-smoke-journal.json"
+    }
+    It 'moves existing folders aside, and afterwards deletes what the exe wrote and moves them back unchanged' {
+        $root = New-SmokeStandInProfile
+        $before = Get-TreeState $root
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        foreach ($folder in $smokeProfile.Folders) { Test-Path -LiteralPath $folder | Should -BeFalse }
+        Test-Path -LiteralPath $smokeProfile.Journal | Should -BeTrue
+        # The exe starts with an empty profile and writes its own files.
+        New-StandInFile (Join-Path $smokeProfile.Folders[0] 'settings.json') 'exe'
+        New-StandInFile (Join-Path $smokeProfile.Folders[1] 'LayerPeek.log') 'exe log'
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Get-TreeState $root | Should -BeExactly $before
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeFalse
+    }
+    It 'deletes folders that did not exist before the run' {
+        $root = Join-Path $script:TempRoot "smoke-empty-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $root
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        @(Get-ChildItem -LiteralPath $root -Recurse -Force -Directory | Where-Object Name -Like '*.aot-smoke-backup') | Should -BeNullOrEmpty
+        New-StandInFile (Join-Path $smokeProfile.Folders[0] 'settings.json') 'exe'
+        New-StandInFile (Join-Path $smokeProfile.Folders[1] 'LayerPeek.log') 'exe log'
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        foreach ($folder in $smokeProfile.Folders) { Test-Path -LiteralPath $folder | Should -BeFalse }
+        Test-Path -LiteralPath $smokeProfile.Journal | Should -BeFalse
+    }
+    It 'finishes a restore that was interrupted half way without losing the data' {
+        $root = New-SmokeStandInProfile
+        $before = Get-TreeState $root
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        New-StandInFile (Join-Path $smokeProfile.Folders[1] 'LayerPeek.log') 'exe log'
+        # The data folder is already back, the logs and the journal are not.
+        [System.IO.Directory]::Move((Get-SmokeBackupPath $smokeProfile.Folders[0]), $smokeProfile.Folders[0])
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Get-TreeState $root | Should -BeExactly $before
+    }
+    It 'finishes after a crash in the middle of the backup' {
+        $root = New-SmokeStandInProfile
+        $before = Get-TreeState $root
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        # As if the script died after the journal and the first move: the log folder was never moved.
+        [System.IO.Directory]::Move((Get-SmokeBackupPath $smokeProfile.Folders[1]), $smokeProfile.Folders[1])
+
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+        Get-TreeState $root | Should -BeExactly $before
+    }
+    It 'refuses to start over the leftovers of an interrupted run and moves nothing' {
+        $root = New-SmokeStandInProfile
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root
+        $null = New-Item -ItemType Directory -Path (Get-SmokeBackupPath $smokeProfile.Folders[1])
+        $before = Get-TreeState $root
+        Assert-ThrowsMatching { Backup-SmokeProfile -SmokeProfile $smokeProfile } 'backup folder exists without a journal'
+        Get-TreeState $root | Should -BeExactly $before
+        Remove-Item -LiteralPath (Get-SmokeBackupPath $smokeProfile.Folders[1])
+
+        Backup-SmokeProfile -SmokeProfile $smokeProfile
+        Assert-ThrowsMatching { Backup-SmokeProfile -SmokeProfile $smokeProfile } 'journal already exists'
+        Restore-SmokeProfile -SmokeProfile $smokeProfile | Should -BeTrue
+    }
+    It 'never deletes a folder that a journal lists but is not a folder of the app' {
+        $root = New-SmokeStandInProfile
+        $smokeProfile = Get-SmokeProfile -ProfileRoot $root
+        $other = Join-Path $root 'other'
+        New-StandInFile (Join-Path $other 'keep.txt') 'keep'
+        $journal = [ordered]@{ Version = 1; Entries = @([ordered]@{ Path = $other; Backup = "$other.aot-smoke-backup"; Existed = $false }) }
+        New-StandInFile $smokeProfile.Journal ($journal | ConvertTo-Json -Depth 4)
+        $before = Get-TreeState $root
+        Assert-ThrowsMatching { Restore-SmokeProfile -SmokeProfile $smokeProfile } 'not a folder of the app'
+        Get-TreeState $root | Should -BeExactly $before
     }
 }
 

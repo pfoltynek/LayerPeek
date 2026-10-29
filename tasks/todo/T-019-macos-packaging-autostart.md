@@ -42,6 +42,7 @@ Rozhodnuto 2026-10-28:
 
   Převzato z T-056 (bod 10 rozsahu spiku, na žádost uživatele 2026-10-21 přesunuto sem, T-056 ho jen odkazuje): výsledek pokusu na Macu zapsat do `docs/velopack.md`, bod 10 (dnes „D, neověřeno“), včetně toho, zda aktualizace stažená Velopackem dostane atribut `com.apple.quarantine`, a zda updater v `/Applications` žádá o oprávnění správce.
 - **Běh skriptů z T-055 na Macu (převzato z T-055, na žádost uživatele 2026-10-21; T-055 ho jen odkazuje):** na Windows ověřené jen Pester testy (`.tar.gz` přes `System32\tar.exe`, vynechání `.dSYM`). Na Macu ověřit skutečný běh `pwsh scripts/release-build.ps1` (výchozí RID `osx-arm64`): kontrola Xcode Command Line Tools přes `xcrun --find clang`, `/usr/bin/tar` s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, vynechání `.dSYM` na skutečném buildu, `SHA256SUMS-macos.txt` (`shasum -a 256 -c`) a `release-upload.ps1` do existujícího konceptu vydání (postup v `docs/release.md`, „Běh na Macu“ a „Zkušební vydání (testovací repozitář)“, krok 4).
+- **Další místa profilu, kam zapisuje Release exe (z T-095, rozhodnuto 2026-10-29):** se skutečnou `.app` a jejím bundle identifikátorem ověřit, co aplikace zapisuje mimo složky dat a logů: `~/Library/Preferences/<bundle id>.plist`, `~/Library/Saved Application State/<bundle id>.savedState`, `~/Library/Caches/<bundle id>` a případně další. Nalezená místa doplnit do `tools/profile-snapshot.ps1` (sledovat) a do zálohy a obnovy v `scripts/aot-smoke.ps1` (`Get-SmokeProfile` v `ReleaseTools.psm1`), včetně Pester testů nad zástupnou složkou.
 - **Záložka „Spuštění a aktualizace“ v nastavení (z T-017, rozhodnuto 2026-10-24: řeší se tady):** na Windows nabízí autostart (jen nainstalovaná verze) a „Nabízet předběžné verze“. Na macOS rozhodnout: název záložky, jestli se má zobrazovat, autostart jako „Otevřít při přihlášení“ přes `SMAppService` (Login Items) místo zástupce ve Startup (`IAutostart` v App, dnes na macOS `null`) a aktualizace (Velopack pro macOS, nebo jen stránka vydání podle T-058). Dnes je záložka na macOS vidět jen s volbou předběžných verzí.
 
 ## Rizika ad-hoc podpisu
@@ -62,6 +63,7 @@ Rozhodnuto 2026-10-28:
 - [ ] V testovacím režimu autostart zapisuje jen do náhrady v testovací datové složce, nikdy přes `SMAppService` / do `~/Library/LaunchAgents` (test)
 - [ ] Po `dotnet test` i po přerušeném běhu nezůstane žádný Login Item ani LaunchAgent; kontrola před/po podle `docs/architecture.md` bez rozdílu
 - [ ] Spuštění stažené `.dmg` na Macu s Gatekeeperem ověřené a postup popsaný v dokumentaci
+- [ ] Místa profilu, kam Release `.app` zapisuje mimo složky dat a logů (`~/Library/Preferences/<bundle id>.plist`, Saved Application State, Caches…), jsou zjištěná a zapsaná v `docs/architecture.md`; `tools/profile-snapshot.ps1` je sleduje a `scripts/aot-smoke.ps1` je zálohuje a obnovuje (Pester testy nad zástupnou složkou); kontrola před/po kolem AOT smoke testu bez rozdílu
 - [ ] `docs/prerequisites.md` aktuální, pokud přibyly nástroje
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 

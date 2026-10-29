@@ -16,6 +16,7 @@ public sealed class ProcessFolderLauncherTests : IDisposable
     [Fact]
     public void WindowsStartsExplorerFromTheWindowsFolder()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "C:\\Windows is a fully qualified path only on Windows.");
         ProcessStartInfo info = ProcessFolderLauncher.CreateStartInfo(@"C:\Users\me\AppData\Local\LayerPeek\logs", UrlLaunchPlatform.Windows, @"C:\Windows");
 
         Assert.Equal(@"C:\Windows" + Path.DirectorySeparatorChar + "explorer.exe", info.FileName);

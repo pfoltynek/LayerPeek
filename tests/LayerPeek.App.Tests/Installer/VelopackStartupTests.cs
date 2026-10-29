@@ -15,6 +15,9 @@ namespace LayerPeek.App.Tests.Installer;
 /// </summary>
 public sealed class VelopackStartupTests
 {
+    /// <summary>The installation layout is checked with Windows paths, whose folders only Windows splits.</summary>
+    private const string WindowsLayout = "Uses the Windows installation layout (C:\\...\\current\\LayerPeek.exe); macOS packaging is T-019.";
+
     private const string InstalledExe = @"C:\Users\u\AppData\Local\LayerPeek\current\LayerPeek.exe";
 
     private static readonly HashSet<string> InstalledFiles = new(StringComparer.OrdinalIgnoreCase)
@@ -26,6 +29,7 @@ public sealed class VelopackStartupTests
     [Fact]
     public void AnExeNextToTheVelopackManifestBelowUpdateExeIsInstalled()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsLayout);
         Assert.True(VelopackInstallation.IsInstalled(InstalledExe, InstalledFiles.Contains));
     }
 
@@ -79,6 +83,7 @@ public sealed class VelopackStartupTests
     [Fact]
     public void AnInstalledStartRunsVelopackAndContinues()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsLayout);
         List<string[]> runs = [];
 
         int? exit = VelopackStartup.Run(["-ToastActivated"], InstalledExe, InstalledFiles.Contains, runs.Add, out _);
@@ -102,6 +107,7 @@ public sealed class VelopackStartupTests
     [Fact]
     public void ANormalStartGoesOnWhenVelopackFails()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsLayout);
         InvalidOperationException broken = new("locator failed");
 
         int? exit = VelopackStartup.Run([], InstalledExe, InstalledFiles.Contains, _ => throw broken, out Exception? failure);
@@ -113,6 +119,7 @@ public sealed class VelopackStartupTests
     [Fact]
     public void AHookStartReportsAFailingVelopackToTheInstaller()
     {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), WindowsLayout);
         InvalidOperationException broken = new("locator failed");
 
         int? exit = VelopackStartup.Run(["--veloapp-install", "0.1.0"], InstalledExe, InstalledFiles.Contains, _ => throw broken, out Exception? failure);
