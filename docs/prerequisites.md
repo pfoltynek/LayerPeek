@@ -3,7 +3,7 @@
 Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spustitelný soubor bez nutnosti instalovat .NET runtime.
 
 > **Důležité:**
-> - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. Výjimka na macOS (T-026): první build přeloží knihovny FFmpeg, takže potřebuje Xcode Command Line Tools.
+> - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka na macOS (T-026): první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje Xcode Command Line Tools** (`xcode-select --install`). Bez nich build hned na začátku (nic nestahuje) skončí chybou `The Xcode Command Line Tools are not installed (or not selected). …` s návodem. Další buildy používají cache a toolchain už nepotřebují.
 > - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64` (až po T-057), `osx-arm64` (rozhodnuto 2026-10-21).
 > - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
@@ -39,7 +39,16 @@ Společné:
 
 macOS navíc:
 
-- **Stačí Xcode Command Line Tools** (`clang`, `make`, `otool`, `lipo`) a nástroje systému (`/usr/bin/tar` rozbalí `.tar.xz`). `pkg-config`, `nasm` ani Homebrew potřeba nejsou. Skript spouští `configure` a `make` s čistým prostředím (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`, bez `CFLAGS`/`LDFLAGS`/`PKG_CONFIG_PATH`), takže se do buildu nedostane nic z Homebrew. Varování `pkg-config not found` v logu `configure` je v pořádku (žádné externí knihovny se nehledají).
+- **Potřeba jsou Xcode Command Line Tools** (`clang`, `make`, `otool`, `lipo`), už pro první `dotnet build`. Build je kontroluje před stažením (`xcode-select -p`, `xcrun --find clang`, `xcrun --find make`; `xcode-select` na rozdíl od `xcrun` neotevře instalační dialog). Bez nich skončí chybou:
+
+  ```
+  error : The Xcode Command Line Tools are not installed (or not selected). The first build on macOS compiles the FFmpeg
+  camera libraries from source and needs them (clang, make). To fix it: run xcode-select --install, wait for the
+  installation to finish and build again (xcode-select -p must print a folder). To build without the camera libraries
+  instead: dotnet build -p:LayerPeekFFmpegEnabled=false …
+  ```
+
+  Ověřeno simulací (`DEVELOPER_DIR=/nonexistent`, prázdná cache): build skončí za 2 s a nic nestáhne. Jinak stačí nástroje systému (`/usr/bin/tar` rozbalí `.tar.xz`). `pkg-config`, `nasm` ani Homebrew potřeba nejsou. Skript spouští `configure` a `make` s čistým prostředím (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`, bez `CFLAGS`/`LDFLAGS`/`PKG_CONFIG_PATH`), takže se do buildu nedostane nic z Homebrew. Varování `pkg-config not found` v logu `configure` je v pořádku (žádné externí knihovny se nehledají).
 - Výsledek se kontroluje: architektura `arm64` (`lipo`) a závislosti jen na sousedních knihovnách (`@loader_path/…`) a na systému (`/usr/lib`, `/System/Library`), nikdy `/opt/homebrew` ani `/usr/local` (`otool -L`). Knihovny mají install name `@loader_path/<název>`, takže se načtou ze složky, ve které jsou (výstup buildu, publish i bundle). Minimální macOS je `14.0` jako `LSMinimumSystemVersion` v `build/macos/Info.plist` (test hlídá shodu).
 - Přesný řádek `configure` (je i v `BUILD.txt` v cache):
 
@@ -52,7 +61,28 @@ macOS navíc:
   ```
 
   `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Bez `--enable-gpl` a `--enable-nonfree`, bez VideoToolbox (dekódování jen softwarově, rozhodnuto 2026-10-29), licence podle `configure`: „LGPL version 3 or later“.
-- **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Připnutý hash je spočítaný ze staženého tarballu 2026-10-29, podpis GPG ověřený nebyl (`gpg` na stroji není).
+- **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). Postup je v „Nová verze FFmpeg“ níže.
+- **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 (`LayerPeekFFmpegMacSourceSha256`) a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/macos/update-ffmpeg-source.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
+
+### Nová verze FFmpeg
+
+Obě platformy mají mít stejné vydání FFmpeg (stejné verze knihoven `avformat-63`, `avcodec-63`, `avutil-61`, `swscale-10`; jiná hlavní verze znamená změnu názvů knihoven v `build/FFmpeg.targets`, `build/macos/build-ffmpeg.sh` a `FFmpegRuntime`, i kontroly `^9\.0\.` ve skriptu buildu).
+
+1. **Windows:** v `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na LGPL shared win64 build BtbN nového vydání (SHA256 z `checksums.sha256` vydání BtbN) a `WindowsBuildUri` v `src/LayerPeek.App/Licenses/ThirdPartyLicenses.cs`.
+2. **macOS:** spustit skript pro správce (PowerShell 7, běží na macOS i Windows, nic neinstaluje):
+
+   ```bash
+   pwsh build/macos/update-ffmpeg-source.ps1 -Version 9.0.3          # jen ověří a vypíše hodnoty
+   pwsh build/macos/update-ffmpeg-source.ps1 -Version 9.0.3 -Update  # ověří a zapíše je
+   ```
+
+   Skript stáhne `https://ffmpeg.org/releases/ffmpeg-<verze>.tar.xz` do dočasné složky, spočítá SHA256 a porovná ho se vzorcem Homebrew (`https://formulae.brew.sh/api/formula/ffmpeg.json`, `urls.stable.checksum`, jen čtení přes HTTPS, Homebrew potřeba není). Vzorec musí mít přesně stejnou URL tarballu: když je Homebrew na jiné verzi, skript skončí chybou (zkusit znovu, až Homebrew verzi převezme). Když je na `PATH` `gpg`, ověří i podpis `<tarball>.asc` klíčem FFmpeg (`https://ffmpeg.org/ffmpeg-devel.asc`, otisk `FCF986EA15E6E293A5644F10B4322F04D67658D8` je ve skriptu) v dočasné domovské složce GnuPG, takže se osobní klíčenka nemění. Bez `gpg` vypíše `GPG signature: SKIPPED`. Při jakékoli neshodě skončí kódem 1 a nic nezapíše. `-Update` zapíše `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256`, `LayerPeekFFmpegMacSourceFolder` (`build/FFmpeg.targets`) a `MacOSBuildUri` (`ThirdPartyLicenses.cs`).
+3. Na Macu `dotnet build` (nová cache, klíč obsahuje SHA256) a `dotnet test`: testy FFmpeg ověří verze knihoven a licenci LGPL 3, testy okna licencí shodu odkazů s `build/FFmpeg.targets`. Na Windows totéž.
+4. Aktualizovat verze v dokumentaci (tento soubor, `docs/architecture.md`) a `CHANGELOG.md`.
+
+Testy skriptu (`build/macos/update-ffmpeg-source.Tests.ps1`, Pester) používají náhradní stahování, vzorec a `gpg`, síť nepotřebují.
+
+### Když stažení selže (Windows)
 
 Windows, když stažení selže (offline, nebo připnuté vydání z GitHubu zmizelo), build skončí chybou s návodem. Zrcadlo není. Možnosti:
 
@@ -137,7 +167,7 @@ Ověření (musí vypsat název instalace):
 
 | Co | Poznámka |
 |---|---|
-| **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install`. Od T-026 je potřeba i pro první `dotnet build` na Macu, který s nimi přeloží knihovny FFmpeg (viz „Nativní knihovny FFmpeg“) |
+| **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install`. **Od T-026 je potřeba i pro první `dotnet build` na Macu**, který s nimi přeloží knihovny FFmpeg (viz „Nativní knihovny FFmpeg“). Bez nich build skončí chybou `The Xcode Command Line Tools are not installed (or not selected)` dřív, než cokoli stáhne |
 | *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis a balení (ověřeno v T-019 jen s Command Line Tools) |
 | nástroje systému pro balení `.app` (T-019) | `codesign`, `sips`, `iconutil`, `hdiutil`, `ditto`, `/usr/bin/tar`, `lsappinfo`, `lsregister`, `defaults` jsou součástí macOS, nic se neinstaluje. `scripts/release-build.ps1` je volá absolutní cestou. |
 | *(volitelně)* **PowerShell 7** (`pwsh` na `PATH`) | pro skripty vydání (T-055, T-019) a jejich Pester testy. Instalace přes Homebrew (`brew install --cask powershell`), nebo jako dotnet global tool (`dotnet tool install --global PowerShell`, složka `~/.dotnet/tools` musí být na `PATH`). Skripty i testy fungují s oběma způsoby instalace: podřízený `pwsh` spouštějí přes `Invoke-Pwsh` (u dotnet tool `dotnet …/pwsh.dll`). Pester 5 viz „Pester (testy skriptů)“. |
@@ -231,7 +261,8 @@ V `src/LayerPeek.App/LayerPeek.App.csproj` je nastaveno `<UseOptimizedPublish>fa
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
 | `FFmpeg archive SHA256 mismatch` / `FFmpeg source SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
-| macOS: `Building FFmpeg from source failed` | chybí Xcode Command Line Tools (`xcode-select --install`), nebo viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
+| macOS: `The Xcode Command Line Tools are not installed (or not selected)` | první `dotnet build` překládá FFmpeg: `xcode-select --install`, po instalaci build zopakovat (`xcode-select -p` musí vypsat složku). Nebo `-p:LayerPeekFFmpegEnabled=false` (bez kamery) |
+| macOS: `Building FFmpeg from source failed` | viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
 | `release-build.ps1`: `The MSVC component Microsoft.VisualStudio.Component.VC.Tools.ARM64 … is not installed` | chybí ARM64 build tools (viz „ARM64 build tools“) |
 | `release-upload.ps1`: `GitHub CLI (gh) is not installed` / `is not logged in` | viz „Vydání (GitHub CLI)“ |

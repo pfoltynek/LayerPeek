@@ -23,7 +23,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Notifications.
 - macOS: the live camera stream (RTSP/H.264, e.g. Buddy3D). The app bundles its own LGPL build of FFmpeg 9.0.2,
   compiled from the official source (software decoding), and needs no FFmpeg from Homebrew. The third-party licences
-  window links the source release and the build script used.
+  window links the source release and the build script used, at the release tag of the app version. Building on a Mac
+  for the first time needs the Xcode Command Line Tools (a clear build error says so when they are missing).
 
 ## [0.2.0] - 2026-10-26
 

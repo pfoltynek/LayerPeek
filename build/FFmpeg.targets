@@ -31,7 +31,9 @@
     <!--
       macOS (T-026): the official source tarball of the same release as the BtbN build above (n9.0.2 plus fixes of the
       release/9.0 branch), the libraries avformat-63, avcodec-63, avutil-61 and swscale-10. The configure line is in
-      build/macos/build-ffmpeg.sh. FFmpeg publishes no checksums (only GPG signatures); the hash was taken on 2026-10-29.
+      build/macos/build-ffmpeg.sh. FFmpeg publishes no checksums (only GPG signatures); the hash was taken on 2026-10-29
+      and matches the Homebrew formula. A new version: build/macos/update-ffmpeg-source.ps1 verifies the tarball
+      (Homebrew cross-check, GPG signature when gpg is available) and writes these three values.
     -->
     <LayerPeekFFmpegMacSourceUrl>https://ffmpeg.org/releases/ffmpeg-9.0.2.tar.xz</LayerPeekFFmpegMacSourceUrl>
     <LayerPeekFFmpegMacSourceSha256>8c3850283eb25fa026482078a04051e0be17347b09ef81a0849bec15a96e002e</LayerPeekFFmpegMacSourceSha256>
@@ -214,6 +216,18 @@
       <_LayerPeekFFmpegStaleDirs Include="@(_LayerPeekFFmpegWorkDirs)" Condition="'0%(Stamp)' &lt; '0$(_LayerPeekFFmpegStaleBefore)'" />
     </ItemGroup>
     <RemoveDir Directories="@(_LayerPeekFFmpegStaleDirs)" ContinueOnError="true" />
+
+    <!--
+      The compile needs the Xcode Command Line Tools: checked before anything is downloaded, with a dedicated error.
+      xcode-select -p fails without them (and, unlike xcrun, never opens the installer dialog), so xcrun only runs when a
+      developer folder is selected. DEVELOPER_DIR is honoured by both, as in build-ffmpeg.sh.
+    -->
+    <Exec Command="/usr/bin/xcode-select -p &gt;/dev/null 2&gt;&amp;1 &amp;&amp; /usr/bin/xcrun --find clang &gt;/dev/null 2&gt;&amp;1 &amp;&amp; /usr/bin/xcrun --find make &gt;/dev/null 2&gt;&amp;1"
+          IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_LayerPeekFFmpegToolchainExitCode" />
+    </Exec>
+    <Error Condition="'$(_LayerPeekFFmpegToolchainExitCode)' != '0'"
+           Text="The Xcode Command Line Tools are not installed (or not selected). The first build on macOS compiles the FFmpeg camera libraries from source and needs them (clang, make). To fix it: run xcode-select --install, wait for the installation to finish and build again (xcode-select -p must print a folder). To build without the camera libraries instead: dotnet build -p:LayerPeekFFmpegEnabled=false (the camera then does not work and the FFmpeg tests are skipped). See docs/prerequisites.md." />
 
     <Message Importance="high" Text="Building FFmpeg from source (LGPL, ~12 MB download, about a minute, once) into $(LayerPeekFFmpegCacheDir) ..." />
     <DownloadFile SourceUrl="$(LayerPeekFFmpegMacSourceUrl)" DestinationFolder="$(_LayerPeekFFmpegWorkDir)" DestinationFileName="$(LayerPeekFFmpegMacSourceFolder).tar.xz" Retries="3" RetryDelayMilliseconds="2000" ContinueOnError="true" />
