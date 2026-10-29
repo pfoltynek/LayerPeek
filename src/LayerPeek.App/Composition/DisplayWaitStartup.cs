@@ -74,7 +74,7 @@ internal sealed partial class DisplayWaitStartup<TServices>(
                 return new DisplayWaitOutcome<TServices>(result, _services);
             }
 
-            if (_services is not null)
+            if (_services is { IsFaulted: false })
             {
                 Task stopping = StopAsync(_services);
                 if (!_loop.RunUntil(stopping, _stopLimit))
@@ -108,6 +108,13 @@ internal sealed partial class DisplayWaitStartup<TServices>(
         bool cancelled = _loop.Pause(interval, cancellationToken);
         if (_services.IsFaulted)
         {
+            if (cancelled || cancellationToken.IsCancellationRequested)
+            {
+                // Asked to quit as well: quitting wins (exit code 0); the failure is still recorded.
+                LogStartFailedWhileQuitting(_services.Exception.GetBaseException());
+                return true;
+            }
+
             // Like a failed start of the UI: the app cannot run without its services.
             _services.GetAwaiter().GetResult();
         }
@@ -129,6 +136,9 @@ internal sealed partial class DisplayWaitStartup<TServices>(
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Stopping the monitoring did not finish within {Limit} while quitting; the process ends anyway.")]
     private partial void LogStopTimedOut(TimeSpan limit);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Starting the monitoring failed while the app was asked to quit; quitting.")]
+    private partial void LogStartFailedWhileQuitting(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Stopping the monitoring failed while quitting.")]
     private partial void LogStopFailed(Exception exception);

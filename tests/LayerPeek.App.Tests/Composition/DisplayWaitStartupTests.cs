@@ -158,6 +158,32 @@ public sealed class DisplayWaitStartupTests : IDisposable
         Assert.Same(before, SynchronizationContext.Current);
     }
 
+    /// <summary>Review finding 3: a failed start and a quit in the same pause end with the quit (exit code 0), the failure logged.</summary>
+    [Fact]
+    public void AQuitWinsOverAFailedStartOfTheServices()
+    {
+        using CancellationTokenSource quit = new();
+        ListLoggerFactory loggers = new();
+        ConditionDisplays displays = new(static () => false);
+        DisplayWaitStartup<FakeMonitoring> startup = new(
+            displays,
+            _loop,
+            _ =>
+            {
+                quit.Cancel();
+                return Task.FromException<FakeMonitoring>(new InvalidOperationException("No services."));
+            },
+            static _ => throw new InvalidOperationException("Never stopped: they never started."),
+            loggers,
+            Poll);
+
+        DisplayWaitOutcome<FakeMonitoring> outcome = startup.Run(quit.Token);
+
+        Assert.Equal(StartupDisplayWaitResult.Cancelled, outcome.Result);
+        Assert.Null(outcome.Services);
+        Assert.Contains(loggers.Messages, static m => m.Contains("Starting the monitoring failed while the app was asked to quit", StringComparison.Ordinal));
+    }
+
     private DisplayWaitStartup<FakeMonitoring> Create(IActiveDisplays displays, Func<IUiDispatcher, Task<FakeMonitoring>> start) =>
         new(displays, _loop, start, StopAsync, NullLoggerFactory.Instance, Poll);
 

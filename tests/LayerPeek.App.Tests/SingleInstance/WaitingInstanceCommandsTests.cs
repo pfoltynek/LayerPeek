@@ -7,46 +7,53 @@ namespace LayerPeek.App.Tests.SingleInstance;
 
 /// <summary>
 /// T-099: while the services run before the UI (macOS waiting for a display), a click on a notification opens the printer's
-/// web like a launch click; a later start is ignored; only the test mode may quit through a command.
+/// web like a launch click; a later start is kept for the UI; only the test mode may quit through a command, the UI once the wait is over.
 /// </summary>
 public sealed class WaitingInstanceCommandsTests
 {
     private readonly List<string> _opened = [];
     private readonly ListLogger<WaitingInstanceCommands> _logger = new();
-    private int _quits;
+    private int _quitAttempts;
+    private bool _waitOver;
 
     [Fact]
     public void AClickOnANotificationOpensThePrinter()
     {
         Assert.True(InstanceCommand.TryForToast("printer=xl", out InstanceCommand toast));
 
-        Create(testCommands: false).Handle(toast);
+        Assert.True(Create(testCommands: false).Handle(toast));
 
         Assert.Equal(["printer=xl"], _opened);
         Assert.Contains(_logger.Entries, static e => e.Message.Contains("opening the printer's web", StringComparison.Ordinal));
     }
 
+    /// <summary>User decision 2026-10-29: a later start is kept for the UI (it opens what it always opens, after the wait).</summary>
     [Fact]
-    public void ALaterStartIsIgnoredWhileThereIsNothingToShow()
+    public void ALaterStartIsKeptForTheUi()
     {
-        Create(testCommands: true).Handle(InstanceCommand.Activate);
+        Assert.False(Create(testCommands: true).Handle(InstanceCommand.Activate));
 
         Assert.Empty(_opened);
-        Assert.Equal(0, _quits);
-        Assert.Contains(_logger.Entries, static e => e.Level == LogLevel.Information && e.Message.Contains("Activate", StringComparison.Ordinal));
+        Assert.Equal(0, _quitAttempts);
+        Assert.Contains(_logger.Entries, static e => e.Level == LogLevel.Information && e.Message.Contains("Activate waits for the menu bar item", StringComparison.Ordinal));
     }
 
 #if DEBUG
     [Fact]
-    public void OnlyTheTestModeQuitsThroughACommand()
+    public void OnlyTheTestModeQuitsThroughACommandAndAfterTheWaitTheUiDoes()
     {
         InstanceCommand quit = new(InstanceCommandKind.Quit);
 
-        Create(testCommands: false).Handle(quit);
-        Assert.Equal(0, _quits);
+        Assert.False(Create(testCommands: false).Handle(quit));
+        Assert.Equal(0, _quitAttempts);
 
-        Create(testCommands: true).Handle(quit);
-        Assert.Equal(1, _quits);
+        Assert.True(Create(testCommands: true).Handle(quit));
+        Assert.Equal(1, _quitAttempts);
+
+        // The wait is over (review finding 2): not dropped, kept for the UI.
+        _waitOver = true;
+        Assert.False(Create(testCommands: true).Handle(quit));
+        Assert.Equal(2, _quitAttempts);
     }
 #endif
 
@@ -56,7 +63,11 @@ public sealed class WaitingInstanceCommandsTests
             _opened.Add(argument);
             return Task.CompletedTask;
         },
-        () => _quits++,
+        () =>
+        {
+            _quitAttempts++;
+            return !_waitOver;
+        },
         testCommands,
         _logger);
 }

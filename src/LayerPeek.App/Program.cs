@@ -292,6 +292,8 @@ internal static partial class Program
         using PosixSignalRegistration interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnQuitSignal);
         // Disposed before Avalonia starts: from then on AppKit runs the run loop of the main thread.
         using StartupLoop loop = new(CreateStartupRunLoop(loggers));
+        // Main thread only (the wait and the provisional handler): after the wait a test "quit" goes to the UI.
+        bool waitOver = false;
 
         Task<ServiceHost> StartServices(IUiDispatcher dispatcher)
         {
@@ -300,14 +302,14 @@ internal static partial class Program
                 async launchArgument => (await services.ConfigureAwait(true)).ActivateToast(launchArgument),
                 () =>
                 {
-                    try
+                    if (waitOver)
                     {
-                        quit.Cancel();
+                        // The UI quits once it runs (the command waits for it).
+                        return false;
                     }
-                    catch (ObjectDisposedException)
-                    {
-                        // The wait is over: the UI handles the next quit.
-                    }
+
+                    quit.Cancel();
+                    return true;
                 },
                 environment.IsIsolated,
                 loggers.CreateLogger<WaitingInstanceCommands>());
@@ -316,13 +318,23 @@ internal static partial class Program
             return services;
         }
 
+        IActiveDisplays displays = new Platform.MacOS.MacActiveDisplays();
+#if DEBUG
+        if (environment.TestNoDisplay > TimeSpan.Zero)
+        {
+            // Test mode (T-099): the end-to-end test of the wait, without putting the display to sleep.
+            displays = new PretendedNoDisplay(displays, environment.TestNoDisplay, TimeProvider.System, loggers.CreateLogger<PretendedNoDisplay>());
+        }
+#endif
+
         DisplayWaitStartup<ServiceHost> startup = new(
-            new Platform.MacOS.MacActiveDisplays(),
+            displays,
             loop,
             StartServices,
             host => host.StopAsync(WaitingQuitTimeout),
             loggers);
         DisplayWaitOutcome<ServiceHost> outcome = startup.Run(quit.Token);
+        waitOver = true;
         if (outcome.Result == StartupDisplayWaitResult.Cancelled)
         {
             commands.Close();

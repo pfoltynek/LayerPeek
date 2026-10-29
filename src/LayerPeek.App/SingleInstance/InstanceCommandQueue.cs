@@ -9,12 +9,18 @@ namespace LayerPeek.App.SingleInstance;
 /// app is still starting wait here until <see cref="Attach"/>; then each is delivered on the UI thread through the
 /// dispatcher. The same command waits only once (two quick starts activate once). After <see cref="Close"/> (quitting)
 /// commands are dropped. <see cref="Post"/> is thread-safe; the handler always runs on the UI thread.
+/// <para>
+/// T-099: while the services run before the UI (macOS waiting for a display), a provisional handler
+/// (<see cref="AttachProvisional"/>) handles what it can and keeps the rest for the app: a command it returns
+/// <see langword="false"/> for waits here again (coalesced like any waiting command) and goes to the handler of
+/// <see cref="Attach"/>, once. Nothing is dropped between the end of the wait and the app's handler.
+/// </para>
 /// </summary>
 internal sealed partial class InstanceCommandQueue
 {
     private readonly Lock _lock = new();
     private readonly List<InstanceCommand> _pending = [];
-    private Action<InstanceCommand>? _handler;
+    private Func<InstanceCommand, bool>? _handler;
     private IUiDispatcher? _dispatcher;
     private ILogger? _logger;
     private bool _provisional;
@@ -64,18 +70,30 @@ internal sealed partial class InstanceCommandQueue
     /// Attach once; only a provisional handler (<see cref="AttachProvisional"/>) may be replaced by it.
     /// </summary>
     /// <param name="logger">Records a handler failure (which never escapes into the dispatcher).</param>
-    public void Attach(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger) =>
-        AttachCore(handler, dispatcher, logger, provisional: false);
+    public void Attach(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        AttachCore(
+            command =>
+            {
+                handler(command);
+                return true;
+            },
+            dispatcher,
+            logger,
+            provisional: false);
+    }
 
     /// <summary>
     /// The services run but the UI does not yet (T-099, macOS waiting for a display): commands go to
-    /// <paramref name="handler"/> until <see cref="Attach"/> replaces it. Commands posted but not yet delivered then go to
-    /// the new handler.
+    /// <paramref name="handler"/> until <see cref="Attach"/> replaces it. A command it returns <see langword="false"/> for is
+    /// kept for the app's handler (the same command waits only once). Commands posted but not yet delivered when the app's
+    /// handler is attached go to that one.
     /// </summary>
-    public void AttachProvisional(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger) =>
+    public void AttachProvisional(Func<InstanceCommand, bool> handler, IUiDispatcher dispatcher, ILogger logger) =>
         AttachCore(handler, dispatcher, logger, provisional: true);
 
-    private void AttachCore(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger, bool provisional)
+    private void AttachCore(Func<InstanceCommand, bool> handler, IUiDispatcher dispatcher, ILogger logger, bool provisional)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -124,10 +142,13 @@ internal sealed partial class InstanceCommandQueue
         }
     }
 
-    /// <summary>UI thread: the handler attached now gets the command (the final one, when it replaced a provisional one meanwhile).</summary>
+    /// <summary>
+    /// UI thread: the handler attached now gets the command (the final one, when it replaced a provisional one meanwhile).
+    /// A command the provisional handler leaves waits for the final one.
+    /// </summary>
     private void Deliver(InstanceCommand command)
     {
-        Action<InstanceCommand>? handler;
+        Func<InstanceCommand, bool>? handler;
         ILogger? logger;
         lock (_lock)
         {
@@ -142,7 +163,10 @@ internal sealed partial class InstanceCommandQueue
 
         try
         {
-            handler(command);
+            if (!handler(command))
+            {
+                KeepForApp(handler, command);
+            }
         }
         catch (Exception ex)
         {
@@ -152,6 +176,34 @@ internal sealed partial class InstanceCommandQueue
                 LogHandlerFailed(logger, command, ex);
             }
         }
+    }
+
+    /// <summary>The provisional handler left <paramref name="command"/>: it waits for the app's handler, or goes to it now.</summary>
+    private void KeepForApp(Func<InstanceCommand, bool> provisional, InstanceCommand command)
+    {
+        IUiDispatcher? dispatcher;
+        lock (_lock)
+        {
+            if (_closed)
+            {
+                return;
+            }
+
+            if (ReferenceEquals(_handler, provisional))
+            {
+                if (!_pending.Contains(command))
+                {
+                    _pending.Add(command);
+                }
+
+                return;
+            }
+
+            // The app's handler came meanwhile.
+            dispatcher = _dispatcher;
+        }
+
+        dispatcher?.Post(() => Deliver(command));
     }
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Handling the instance command {Command} failed.")]
