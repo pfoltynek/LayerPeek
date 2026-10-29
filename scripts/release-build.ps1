@@ -10,7 +10,8 @@
     Output (artifacts/ is gitignored), recreated on every run for the version:
         artifacts/release/<version>/publish/<rid>/   Native AOT publish folder
         artifacts/release/<version>/dist/            files to upload: archives, the Velopack installer and update feed (Windows),
-                                                     later installers + SHA256SUMS-<os>.txt
+                                                     the .dmg and the .tar.gz of LayerPeek.app (macOS) + SHA256SUMS-<os>.txt
+        artifacts/release/<version>/app/<rid>/       the signed LayerPeek.app (macOS, T-019)
         artifacts/release/<version>/build-info.json  build marker (version, commit, clean tree, files) that
                                                      release-upload.ps1 checks so that no older build is uploaded
     Build all RIDs of this OS in one run: a new run deletes the previous output of the same version.
@@ -48,12 +49,13 @@ $smokeScript = Join-Path $PSScriptRoot 'aot-smoke.ps1'
 # Packaging steps, run for every RID in this order. Each step gets a context object (Version, Runtime, Os,
 # PublishDirectory, OutputDirectory), creates its files directly in OutputDirectory (dist/) and returns their paths.
 # Returned files go automatically into the checksum file, the build marker and the upload.
-# Installers are further steps (T-017: the Windows installer below, T-019: macOS .app + .dmg); the build and
+# Installers are further steps (T-017: the Windows installer, T-019: macOS .app + .dmg + .tar.gz); the build and
 # publish part above them does not change. Os limits a step to RIDs of that OS.
 $packagingSteps = @(
+    # Windows: the .zip of the publish folder. macOS packs LayerPeek.app instead (step 'app' below, T-019).
     [pscustomobject]@{
         Name   = 'archive'
-        Os     = @('windows', 'macos')
+        Os     = @('windows')
         Invoke = {
             param($Context)
             $archive = Join-Path $Context.OutputDirectory (Get-ArchiveFileName -Version $Context.Version -Runtime $Context.Runtime)
@@ -86,6 +88,43 @@ $packagingSteps = @(
             finally {
                 Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
             }
+        }
+    },
+    # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master), ad-hoc
+    # signed inside out and verified, smoke-tested as the bundle, then the .dmg (the app and a link to /Applications) and the
+    # .tar.gz of the app. The signed app stays in artifacts/release/<version>/app/<rid>/ for local use.
+    [pscustomobject]@{
+        Name   = 'app'
+        Os     = @('macos')
+        Invoke = {
+            param($Context)
+            $mac = Get-MacBundleSettings
+            $names = Get-MacReleaseFileNames -Version $Context.Version -Runtime $Context.Runtime
+            $work = Join-Path (Split-Path -Parent $Context.OutputDirectory) 'app' $Context.Runtime
+            if (Test-Path -LiteralPath $work) { Remove-Item -LiteralPath $work -Recurse -Force }
+            $bundleFolder = Join-Path $work 'bundle'
+            $null = New-Item -ItemType Directory -Path $bundleFolder
+            $icon = New-MacIcon -MasterPng (Join-Path $repoRoot $mac.IconMaster) -Destination (Join-Path $work $mac.IconFile)
+            $app = New-MacAppBundle -PublishDirectory $Context.PublishDirectory -Destination $bundleFolder -Version $Context.Version `
+                -PlistTemplate (Join-Path $repoRoot $mac.PlistTemplate) -IconFile $icon
+            Remove-Item -LiteralPath $icon -Force
+            Write-Host "==> Ad-hoc signing $app" -ForegroundColor Cyan
+            Invoke-MacAdHocSign $app
+            $problems = @(Get-MacSignatureProblems $app)
+            if ($problems.Count -gt 0) { throw ($problems -join ' ') }
+            Write-Host 'codesign --verify --deep --strict: valid'
+            if (Test-RuntimeRunnable -Runtime $Context.Runtime -HostOs $Context.Os -HostArchitecture (Get-HostArchitecture)) {
+                # The bundle itself: its Info.plist (bundle identifier, LSUIElement) and its signature are what users start.
+                $before = Get-FolderSnapshot $app
+                # Its console output must not become a returned path.
+                Invoke-Native "AOT smoke test $($Context.Runtime) (LayerPeek.app)" { Invoke-Pwsh -NoProfile -File $smokeScript -Runtime $Context.Runtime -PublishDir (Join-Path $app 'Contents' 'MacOS') -Seconds $SmokeSeconds | Out-Host }
+                if ((Get-FolderSnapshot $app) -ne $before -or @(Get-MacSignatureProblems $app).Count -gt 0) { throw "The smoke run changed $app; it must not be packaged." }
+                $smoke["$($Context.Runtime) LayerPeek.app"] = 'passed'
+            }
+            $archive = New-ReleaseArchive -SourceDirectory $bundleFolder -Destination (Join-Path $Context.OutputDirectory $names.Archive)
+            $diskImage = New-MacDiskImage -AppPath $app -Destination (Join-Path $Context.OutputDirectory $names.DiskImage) -WorkDirectory $work
+            $diskImage
+            $archive
         }
     }
 )

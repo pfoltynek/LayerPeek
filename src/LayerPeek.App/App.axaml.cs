@@ -159,7 +159,9 @@ public partial class App : Application, ITrayAppCommands
     }
 
     private IWindowShell CreateWindowShell(TrayHost host) =>
-        OperatingSystem.IsWindows() ? new WindowsWindowShell(host.CreateLogger<WindowsWindowShell>(), _environment.AppUserModelId) : NoWindowShell.Instance;
+        OperatingSystem.IsWindows() ? new WindowsWindowShell(host.CreateLogger<WindowsWindowShell>(), _environment.AppUserModelId)
+        : OperatingSystem.IsMacOS() ? new Platform.MacOS.MacWindowShell()
+        : NoWindowShell.Instance;
 
     /// <summary>
     /// The settings are loaded before the tray gets its menu (milliseconds, with the static icon from App.axaml
@@ -178,7 +180,8 @@ public partial class App : Application, ITrayAppCommands
         }
 
         _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host));
-        _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates);
+        // macOS (T-019): the menu bar app is not active when its menu opens a window; the window comes with the app to the front.
+        _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates, OperatingSystem.IsMacOS() ? Platform.MacOS.MacAppActivation.Activate : null);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());

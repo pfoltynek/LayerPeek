@@ -58,12 +58,18 @@ internal sealed class SettingsWindowHarness
         IAuxiliaryWindowStateStore? windowStates = null,
         LayerPeek.App.Cameras.Overlay.OverlayWidgetRegistry? widgets = null,
         LayerPeek.App.Cameras.Layout.ICameraLayoutModeLauncher? layoutModeLauncher = null,
-        ICameraOverlayLayoutWriter? layoutWriter = null)
+        ICameraOverlayLayoutWriter? layoutWriter = null,
+        bool macTerms = false)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? LayerPeek.App.Composition.OverlayWidgets.CreateRegistry(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher());
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? LayerPeek.App.Composition.OverlayWidgets.CreateRegistry(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher())
+        {
+            // T-019: the texts of macOS ("Open at Login"), without the pre-release option.
+            UsesMacTerms = macTerms,
+            ShowsPrereleaseOption = !macTerms,
+        };
         // Like SettingsWindowFactory: the window has a file dialog for custom printer images (T-039); by default the user cancels it.
         viewModel.ImageFilePicker = imagePicker ?? new FakeImagePicker { Content = null };
         scope.Defer(viewModel);

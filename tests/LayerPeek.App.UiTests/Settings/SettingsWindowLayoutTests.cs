@@ -130,6 +130,17 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(failed.Window, $"{language} / autostart failed"));
             failed.Window.Close();
 
+            // T-019: macOS ("Open at Login", its own reason, no pre-release option).
+            SettingsWindowHarness mac = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true);
+            mac.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            mac.Window.Settle();
+            Assert.Equal(Strings.SettingsOpenAtLogin, mac.Find<CheckBox>("SettingsStartWithWindows").Content);
+            Assert.Equal(Strings.SettingsNeedsAppBundle, mac.Find<TextBlock>("SettingsStartWithWindowsNotInstalled").Text);
+            Assert.False(mac.Find<CheckBox>("SettingsOfferPrereleaseUpdates").IsEffectivelyVisible);
+            problems.AddRange(ScrollingViewers(mac.Window, $"{language} / macOS not in LayerPeek.app"));
+            problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
+            mac.Window.Close();
+
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
 

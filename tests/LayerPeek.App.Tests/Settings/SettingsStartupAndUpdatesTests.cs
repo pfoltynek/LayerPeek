@@ -56,6 +56,49 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, _viewModel.PrereleaseHelpText);
     }
 
+    /// <summary>
+    /// T-019 (user decision 2026-10-29): on macOS the option is "Open at Login", disabled outside LayerPeek.app with its own
+    /// reason, and the tab has no pre-release option until macOS has updates.
+    /// </summary>
+    [Fact]
+    public async Task OnMacOSTheOptionUsesTheTermsOfMacOS()
+    {
+        _store.Data = new SettingsEditorData(new AppSettings(), SettingsLoadStatus.Loaded, [], Ids());
+        _viewModel = new SettingsViewModel(_store, new FakeConnectionTester(), Supported, static () => Guid.NewGuid().ToString("N"), autostart: null, autostartNeedsInstallation: true, productVersion: "0.1.0")
+        {
+            UsesMacTerms = true,
+            ShowsPrereleaseOption = false,
+        };
+        await _viewModel.LoadAsync();
+
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsOpenAtLogin, _viewModel.AutostartLabel);
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsAppBundle, _viewModel.AutostartNeedsInstallationText);
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsAppBundle, _viewModel.AutostartHelpText);
+        Assert.True(_viewModel.IsAutostartShown);
+        Assert.False(_viewModel.ShowsPrereleaseOption);
+    }
+
+    [Fact]
+    public async Task OnWindowsTheOptionKeepsItsTexts()
+    {
+        SettingsViewModel vm = await LoadAsync(new AppSettings(), autostart: _autostart);
+
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsStartWithWindows, vm.AutostartLabel);
+        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, vm.AutostartNeedsInstallationText);
+        Assert.True(vm.ShowsPrereleaseOption);
+    }
+
+    /// <summary>The composition root chooses the terms by OS.</summary>
+    [Fact]
+    public async Task TheCompositionRootChoosesTheTermsByOS()
+    {
+        await using Microsoft.Extensions.DependencyInjection.ServiceProvider services = LayerPeek.App.Composition.AppServices.Create();
+        using SettingsViewModel vm = LayerPeek.App.Composition.AppServices.CreateSettingsViewModel(services);
+
+        Assert.Equal(OperatingSystem.IsMacOS(), vm.UsesMacTerms);
+        Assert.Equal(!OperatingSystem.IsMacOS(), vm.ShowsPrereleaseOption);
+    }
+
     [Fact]
     public async Task InTheInstalledAppTheHelpTextsAreTheHints()
     {

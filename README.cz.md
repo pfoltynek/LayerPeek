@@ -148,7 +148,7 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
 | Windows na ARM64 | 🚧 plánováno |
-| macOS (Apple Silicon) | 🚧 plánováno: menu bar, notifikace, Klíčenka a kamera se připravují |
+| macOS (Apple Silicon) | 🚧 předběžná verze: menu bar, Klíčenka a otevření při přihlášení; notifikace a kamera se připravují |
 
 ## Rychlý start
 
@@ -168,6 +168,20 @@ Stáhni poslední verzi ze stránky [Releases](https://github.com/pfoltynek/Laye
 Odinstalace ponechá tvoje nastavení (`%APPDATA%\LayerPeek`) a hesla (Správce pověření Windows) a instalátor po sobě
 nechá vlastní log v `%LOCALAPPDATA%\velopack`. Smazat je můžeš ručně. Logy aplikace v `%LOCALAPPDATA%\LayerPeek\logs`
 se s aplikací smažou. Instalace přes verzi ZIP tuto složku také nahradí, včetně logů verze ZIP.
+
+#### macOS (Apple Silicon, předběžná verze)
+
+- **Obraz disku** `LayerPeek-X.Y.Z-osx-arm64.dmg`: otevři ho a přetáhni **LayerPeek** do složky **Aplikace**.
+- **Archiv** `LayerPeek-X.Y.Z-osx-arm64.tar.gz`: obsahuje `LayerPeek.app`; rozbal ho a aplikaci přesuň do Aplikací.
+
+LayerPeek je jen v menu baru, bez ikony v Docku. Notifikace a okno kamery na macOS zatím nejsou.
+
+> [!IMPORTANT]
+> Sestavení pro macOS mají jen ad-hoc podpis a Apple je **nenotarizoval**, takže Gatekeeper první spuštění zablokuje
+> („Apple nemůže ověřit…“). Klikni na **Hotovo**, otevři **Nastavení systému → Soukromí a zabezpečení**, u zprávy
+> o LayerPeeku klikni na **Přesto otevřít**, potvrď heslem nebo Touch ID a aplikaci otevři znovu. Pokročilí uživatelé
+> můžou místo toho stažené aplikaci odebrat příznak karantény: `xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+> Spouštěj aplikaci ze složky Aplikace, ne přímo z obrazu disku: „Otevřít při přihlášení“ funguje jen tam.
 
 ### 2. Zapni PrusaLink na tiskárně
 
@@ -198,15 +212,16 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
   rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
-  jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze.
+  jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze. Na macOS: **Otevřít při přihlášení**
+  (ve výchozím stavu vypnuté, jen pro LayerPeek.app zkopírovanou z obrazu disku, např. do Aplikací).
 
 ### Kde jsou uložená data
 
-| Co | Kde (Windows) |
-|---|---|
-| Nastavení | `%APPDATA%\LayerPeek\settings.json` |
-| Hesla | Správce pověření Windows |
-| Logy | `%LOCALAPPDATA%\LayerPeek\logs` |
+| Co | Kde (Windows) | Kde (macOS) |
+|---|---|---|
+| Nastavení | `%APPDATA%\LayerPeek\settings.json` | `~/Library/Application Support/LayerPeek/settings.json` |
+| Hesla | Správce pověření Windows | přihlašovací Klíčenka |
+| Logy | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
 Historie teplot je jen v paměti a na disk se nikdy neukládá. Aplikace se nepřipojuje nikam jinam než k tiskárnám
 a kamerám, které přidáš.

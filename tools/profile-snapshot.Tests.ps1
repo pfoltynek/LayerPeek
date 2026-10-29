@@ -41,7 +41,7 @@ BeforeAll {
     }
 
     function Read-StandIn([System.Collections.IDictionary] $Locations, [string[]] $Login = @(), [string[]] $Keychain = @()) {
-        Get-ProfileState -Locations $Locations -LoginItems { , [string[]] $Login }.GetNewClosure() -Credentials { $Keychain }.GetNewClosure()
+        Get-ProfileState -Locations $Locations -LoginItems { , [string[]] $Login }.GetNewClosure() -LaunchServices { , [string[]] @() } -Credentials { $Keychain }.GetNewClosure()
     }
 
     function Invoke-Quiet([scriptblock] $Action) {
@@ -70,6 +70,14 @@ Describe 'Folder state' {
         $lines | Should -Contain 'images/'
         $lines | Should -Contain "settings.json  7  $hash"
         @($lines | Where-Object { $_ -like 'images/a.png  3  *' }).Count | Should -Be 1
+    }
+    It 'lists a watched file (a Preferences plist) with its size and SHA-256' {
+        $standIn = New-StandIn
+        $plist = Join-Path (Split-Path -Parent $standIn.Data) 'io.example.app.plist'
+        @(Get-FolderState -Path $plist) | Should -BeExactly @('(missing)')
+        New-File $plist 'bplist'
+        $hash = (Get-FileHash -LiteralPath $plist -Algorithm SHA256).Hash.ToLowerInvariant()
+        @(Get-FolderState -Path $plist) | Should -BeExactly @("(file)  6  $hash")
     }
     It 'only reads: the stand-in folder is the same afterwards' {
         $standIn = New-StandIn
@@ -115,7 +123,7 @@ Describe 'Before/after comparison' {
     }
     It 'never reports a place that could not be read as a change, but names it' {
         $standIn = New-StandIn
-        $before = Get-ProfileState -Locations $standIn -LoginItems { $null } -Credentials { @() }
+        $before = Get-ProfileState -Locations $standIn -LoginItems { $null } -LaunchServices { , [string[]] @() } -Credentials { @() }
         $after = Read-StandIn $standIn -Login 'LayerPeek'
         $result = Compare-ProfileState -Before $before -After $after
         $result.Changes | Should -BeNullOrEmpty
@@ -124,7 +132,7 @@ Describe 'Before/after comparison' {
     It 'keeps an empty list apart from "not readable" through the saved file' {
         $standIn = New-StandIn
         $file = Join-Path $script:TempRoot "empty-$([guid]::NewGuid().ToString('N')).json"
-        Save-ProfileState -Path $file -State (Get-ProfileState -Locations $standIn -LoginItems { , [string[]] @() } -Credentials { @() })
+        Save-ProfileState -Path $file -State (Get-ProfileState -Locations $standIn -LoginItems { , [string[]] @() } -LaunchServices { , [string[]] @() } -Credentials { @() })
         $read = Read-ProfileState -Path $file
         , $read['Login Items'] | Should -BeOfType [string[]]
         $read['Login Items'].Count | Should -Be 0
@@ -134,6 +142,48 @@ Describe 'Before/after comparison' {
     It 'refuses a snapshot file inside the repository' {
         { Save-ProfileState -Path (Join-Path $script:RepoRoot 'snapshot.json') -State ([ordered]@{}) } | Should -Throw '*outside the repository*'
         Test-Path -LiteralPath (Join-Path $script:RepoRoot 'snapshot.json') | Should -BeFalse
+    }
+}
+
+Describe 'Places of the bundle identifier (T-019)' {
+    It 'reads the bundle identifier of build/macos/Info.plist' {
+        Get-BundleIdentifier | Should -Match '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$'
+        $plist = Join-Path $script:TempRoot "info-$([guid]::NewGuid().ToString('N')).plist"
+        New-File $plist "<plist><dict><key>CFBundleIdentifier</key>`n  <string>io.example.app</string></dict></plist>"
+        Get-BundleIdentifier -PlistPath $plist | Should -BeExactly 'io.example.app'
+    }
+    It 'watches Preferences, Saved Application State, Caches and HTTPStorages of the bundle identifier on macOS' -Skip:(-not $IsMacOS) {
+        $locations = Get-WatchedLocations -HomeDirectory '/Users/u' -BundleIdentifier 'io.example.app'
+        $locations['Preferences/io.example.app.plist'] | Should -BeExactly '/Users/u/Library/Preferences/io.example.app.plist'
+        $locations['Preferences/LayerPeek.plist'] | Should -BeExactly '/Users/u/Library/Preferences/LayerPeek.plist'
+        $locations['Saved Application State/io.example.app.savedState'] | Should -BeExactly '/Users/u/Library/Saved Application State/io.example.app.savedState'
+        $locations['Caches/io.example.app'] | Should -BeExactly '/Users/u/Library/Caches/io.example.app'
+        $locations['HTTPStorages/io.example.app'] | Should -BeExactly '/Users/u/Library/HTTPStorages/io.example.app'
+    }
+    It 'keeps only the path, identifier and name lines of LaunchServices that mention LayerPeek, without record ids' {
+        $dump = @(
+            'bundle id:                  5432'
+            'path:                       /Volumes/Data/x/artifacts/release/0.2.0/app/osx-arm64/LayerPeek.app (0x1abc)'
+            'name:                       LayerPeek'
+            'identifier:                 io.github.pfoltynek.LayerPeek (0x8000)'
+            'reg date:                   2026-10-29 10:00:00'
+            'path:                       /Applications/Safari.app (0x12)'
+        )
+        $entries = Get-LaunchServicesEntries -Dump { $dump }.GetNewClosure()
+        $entries | Should -BeExactly @(
+            'identifier: io.github.pfoltynek.LayerPeek'
+            'name: LayerPeek'
+            'path: /Volumes/Data/x/artifacts/release/0.2.0/app/osx-arm64/LayerPeek.app')
+        $none = Get-LaunchServicesEntries -Dump { 'path: /Applications/Safari.app' }
+        $null -eq $none | Should -BeFalse
+        $none.Count | Should -Be 0
+        $null -eq (Get-LaunchServicesEntries -Dump { }) | Should -BeTrue
+    }
+    It 'reports a new registration of the app with LaunchServices' {
+        $standIn = New-StandIn
+        $before = Read-StandIn $standIn
+        $after = Get-ProfileState -Locations $standIn -LoginItems { , [string[]] @() } -LaunchServices { , [string[]] @('path: /x/LayerPeek.app') } -Credentials { @() }
+        (Compare-ProfileState -Before $before -After $after).Changes | Should -Contain 'LaunchServices: + path: /x/LayerPeek.app'
     }
 }
 

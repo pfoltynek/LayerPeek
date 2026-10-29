@@ -657,6 +657,12 @@
   <data name="SettingsNeedsInstallation" xml:space="preserve">
     <value>Disponible uniquement si LayerPeek a été installé avec Setup.exe, pas dans la version ZIP.</value>
   </data>
+  <data name="SettingsOpenAtLogin" xml:space="preserve">
+    <value>Ouvrir avec la session</value>
+  </data>
+  <data name="SettingsNeedsAppBundle" xml:space="preserve">
+    <value>Disponible uniquement dans LayerPeek.app placée dans le dossier Applications, pas dans une version de développement ni directement depuis l'image disque.</value>
+  </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Proposer les versions préliminaires</value>
   </data>

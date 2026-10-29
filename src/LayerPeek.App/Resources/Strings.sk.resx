@@ -657,6 +657,12 @@
   <data name="SettingsNeedsInstallation" xml:space="preserve">
     <value>Len keď je LayerPeek nainštalovaný pomocou Setup.exe, nie vo verzii ZIP.</value>
   </data>
+  <data name="SettingsOpenAtLogin" xml:space="preserve">
+    <value>Otvoriť pri prihlásení</value>
+  </data>
+  <data name="SettingsNeedsAppBundle" xml:space="preserve">
+    <value>Len v aplikácii LayerPeek.app presunutej do priečinka Aplikácie, nie vo vývojovom zostavení ani priamo z obrazu disku.</value>
+  </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Ponúkať predbežné verzie</value>
   </data>

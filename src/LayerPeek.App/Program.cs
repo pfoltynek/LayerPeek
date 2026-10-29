@@ -58,6 +58,13 @@ internal static partial class Program
             return TestToastCleanup.RunFromCommandLine(Console.Error);
         }
 
+        if (args.Contains(AppEnvironment.ClearAutostartArgument, StringComparer.Ordinal))
+        {
+            // After a crashed test run (T-019): only the autostart stand-ins in the test data folder go; never the real Login
+            // Item or Startup shortcut, and nothing else starts (no log, no single-instance guard, no Avalonia).
+            return Platform.TestAutostartCleanup.RunFromCommandLine(Environment.GetEnvironmentVariable, Console.Error);
+        }
+
         // A start by Windows for a click on a test toast (T-068) carries the test switches on its command line: they are set
         // before anything reads them, and an invalid one refuses the start rather than starting the production app.
         bool testActivation = ToastActivatorCommandLine.HasTestEnvironment(args);
@@ -265,6 +272,10 @@ internal static partial class Program
     private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, UnhandledExceptionLogger crashes) =>
         AppBuilder.Configure(() => new App(instanceCommands, environment, logging))
             .UsePlatformDetect()
+            // macOS (T-019): a menu bar app without a Dock icon. Info.plist of LayerPeek.app has LSUIElement for the start,
+            // but Avalonia sets its own activation policy when it starts (ShowInDock true = a regular app with a Dock icon), so
+            // the accessory policy is set here too; it also keeps a development build out of the Dock.
+            .With(new MacOSPlatformOptions { ShowInDock = false })
             .LogToTrace()
             // The UI thread's dispatcher exists once the platform is set up, before the app starts.
             .AfterSetup(_ => crashes.AttachToDispatcher(Dispatcher.UIThread));

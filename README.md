@@ -146,7 +146,7 @@ cameras.
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
 | Windows on ARM64 | 🚧 planned |
-| macOS (Apple Silicon) | 🚧 planned: menu bar, notifications, Keychain and camera are in progress |
+| macOS (Apple Silicon) | 🚧 preview: menu bar, Keychain and Open at Login; notifications and camera are in progress |
 
 ## Quick start
 
@@ -167,6 +167,21 @@ Uninstalling keeps your settings (`%APPDATA%\LayerPeek`) and passwords (Windows 
 leaves its own log in `%LOCALAPPDATA%\velopack`. You can delete them by hand. The app's logs in
 `%LOCALAPPDATA%\LayerPeek\logs` are deleted with the app. Installing over the ZIP version replaces that folder too,
 including the ZIP version's logs.
+
+#### macOS (Apple Silicon, preview)
+
+- **Disk image** `LayerPeek-X.Y.Z-osx-arm64.dmg`: open it and drag **LayerPeek** to **Applications**.
+- **Archive** `LayerPeek-X.Y.Z-osx-arm64.tar.gz`: contains `LayerPeek.app`; unpack it and move the app to Applications.
+
+LayerPeek lives in the menu bar only, without a Dock icon. Notifications and the camera window are not available on
+macOS yet.
+
+> [!IMPORTANT]
+> The macOS builds are only ad-hoc signed and **not notarized** by Apple, so Gatekeeper blocks the first start
+> ("Apple could not verify…"). Click **Done**, then open **System Settings → Privacy & Security**, click **Open Anyway**
+> next to the message about LayerPeek, confirm with your password or Touch ID and open the app again. Advanced users can
+> remove the quarantine flag of the downloaded app instead: `xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+> Start the app from Applications, not straight from the disk image: "Open at Login" works only there.
 
 ### 2. Enable PrusaLink on the printer
 
@@ -197,15 +212,16 @@ submenu.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the cool-down threshold), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
 - **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
-  and whether updates offer pre-release versions.
+  and whether updates offer pre-release versions. On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of
+  the disk image, e.g. to Applications).
 
 ### Where data is stored
 
-| What | Where (Windows) |
-|---|---|
-| Settings | `%APPDATA%\LayerPeek\settings.json` |
-| Passwords | Windows Credential Manager |
-| Logs | `%LOCALAPPDATA%\LayerPeek\logs` |
+| What | Where (Windows) | Where (macOS) |
+|---|---|---|
+| Settings | `%APPDATA%\LayerPeek\settings.json` | `~/Library/Application Support/LayerPeek/settings.json` |
+| Passwords | Windows Credential Manager | login Keychain |
+| Logs | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
 The temperature history is kept only in memory and is never written to disk. The app makes no connections except to
 the printers and cameras you add.

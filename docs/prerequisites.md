@@ -111,7 +111,8 @@ Ověření (musí vypsat název instalace):
 | Co | Poznámka |
 |---|---|
 | **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install` |
-| *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis (`codesign -s -` je v Command Line Tools) – úkol T-019 |
+| *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis a balení (ověřeno v T-019 jen s Command Line Tools) |
+| nástroje systému pro balení `.app` (T-019) | `codesign`, `sips`, `iconutil`, `hdiutil`, `ditto`, `/usr/bin/tar`, `lsappinfo`, `lsregister`, `defaults` jsou součástí macOS, nic se neinstaluje. `scripts/release-build.ps1` je volá absolutní cestou. |
 | *(volitelně)* **PowerShell 7** (`pwsh` na `PATH`) | pro skripty vydání (T-055, T-019) a jejich Pester testy. Instalace přes Homebrew (`brew install --cask powershell`), nebo jako dotnet global tool (`dotnet tool install --global PowerShell`, složka `~/.dotnet/tools` musí být na `PATH`). Skripty i testy fungují s oběma způsoby instalace: podřízený `pwsh` spouštějí přes `Invoke-Pwsh` (u dotnet tool `dotnet …/pwsh.dll`). Pester 5 viz „Pester (testy skriptů)“. |
 | *(volitelně)* **Microsoft Edge** (v `/Applications`) | jen pro E2E testy webu přes proxy (`tests/LayerPeek.E2E.Tests`, T-030), stejně jako na Windows; bez Edge se přeskočí. Edge si při prvním spuštění založí vlastní soubory v `~/Library` (známý pozůstatek), viz [architecture.md](architecture.md), „Izolace testů na macOS“. Ověřeno s Edge 156.0.4314.50 (T-021). |
 
@@ -186,7 +187,9 @@ pwsh scripts/aot-smoke.ps1 -Runtime win-arm64 -Seconds 15   # jen na ARM64 Windo
 
 Skript publikuje aplikaci (Release) do dočasné složky mimo repozitář, spustí ji a ověří, že po `-Seconds` sekundách (výchozí 10) stále běží. S parametrem `-PublishDir <složka>` místo publikování ověří už hotovou publish složku a nechá ji beze změny (používá `scripts/release-build.ps1`). Pak proces ukončí a dočasnou složku smaže (i při chybě). Při neúspěchu vrací nenulový exit code a vypíše výstup aplikace. Vyžaduje PowerShell 7.2+ a nativní toolchain popsaný výše.
 
-Release exe nemá testovací režim. Skript proto těsně před jeho spuštěním odsune složky dat a logů aplikace (macOS `~/Library/Application Support/LayerPeek` a `~/Library/Logs/LayerPeek`, Windows `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\LayerPeek\logs`) vedle sebe jako `<složka>.aot-smoke-backup` a zapíše žurnál `<data>.aot-smoke-journal.json`. Aplikace tak startuje s prázdným profilem. Po jejím ukončení skript smaže, co vytvořila, a zálohy vrátí (T-095). Když skript spadne nebo se přeruší, obnovu dokončí další běh, nebo ručně `pwsh scripts/aot-smoke.ps1 -RestoreOnly`.
+Release exe nemá testovací režim. Skript proto těsně před jeho spuštěním odsune složky dat a logů aplikace (macOS `~/Library/Application Support/LayerPeek` a `~/Library/Logs/LayerPeek`, Windows `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\LayerPeek\logs`) vedle sebe jako `<složka>.aot-smoke-backup` a zapíše žurnál `<data>.aot-smoke-journal.json`. Na macOS stejně zálohuje i místa podle bundle identifikátoru (T-019): `~/Library/Saved Application State/<id>.savedState`, `~/Library/Caches/<id>`, `~/Library/HTTPStorages/<id>` a domény `defaults` `<id>` a `LayerPeek` (přes `defaults export/delete/import`, nikdy jako soubor, protože plist drží `cfprefsd`). Aplikace tak startuje s prázdným profilem. Po jejím ukončení skript smaže, co vytvořila, a zálohy vrátí (T-095). Když skript spadne nebo se přeruší, obnovu dokončí další běh, nebo ručně `pwsh scripts/aot-smoke.ps1 -RestoreOnly`.
+
+Na macOS skript navíc ověří, že aplikace běží bez ikony v Docku (`lsappinfo`, typ `UIElement`). S `-PublishDir <LayerPeek.app>/Contents/MacOS` spustí exe uvnitř bundlu (tak to dělá `release-build.ps1` po podpisu) a registraci bundlu v LaunchServices, kterou spuštění vytvoří, po běhu zase odebere (`lsregister -u`, jen když bundle předtím registrovaný nebyl).
 
 ### Proč `UseOptimizedPublish=false`
 

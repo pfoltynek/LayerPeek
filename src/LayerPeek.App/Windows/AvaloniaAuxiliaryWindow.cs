@@ -8,16 +8,22 @@ namespace LayerPeek.App.Windows;
 internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
 {
     private readonly Window _window;
+    private readonly Action? _bringAppToFront;
     private IDisposable? _tracking;
 
     /// <param name="track">
     /// Tracks the window before it is shown (T-043, <see cref="AuxiliaryWindowTracker.Track"/>); the result untracks it
     /// again when showing fails. Closing the window untracks it on its own.
     /// </param>
-    public AvaloniaAuxiliaryWindow(Window window, Func<Window, IDisposable>? track = null)
+    /// <param name="bringAppToFront">
+    /// Activates the app before the window (macOS, T-019: an agent app without a Dock icon is not active when its menu bar
+    /// extra opens a window, so the window would stay behind the active app); <see langword="null"/>: the window alone.
+    /// </param>
+    public AvaloniaAuxiliaryWindow(Window window, Func<Window, IDisposable>? track = null, Action? bringAppToFront = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         _window = window;
+        _bringAppToFront = bringAppToFront;
         _window.Closed += OnWindowClosed;
         _tracking = track?.Invoke(window);
     }
@@ -39,7 +45,11 @@ internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
         }
     }
 
-    public void Activate() => _window.Activate();
+    public void Activate()
+    {
+        _bringAppToFront?.Invoke();
+        _window.Activate();
+    }
 
     public void Close() => _window.Close();
 

@@ -12,7 +12,12 @@
 
     Watched on macOS (docs/architecture.md, "Izolace testů na macOS"):
       - ~/Library/Application Support/LayerPeek and ~/Library/Logs/LayerPeek (every file with its size and SHA-256),
+      - what macOS keeps under the bundle identifier of LayerPeek.app (T-019, CFBundleIdentifier of build/macos/Info.plist):
+        ~/Library/Preferences/<id>.plist and LayerPeek.plist (the executable outside a bundle), ~/Library/Saved Application
+        State/<id>.savedState, ~/Library/Caches/<id> and ~/Library/HTTPStorages/<id>,
       - ~/Library/LaunchAgents (every file, whoever it belongs to),
+      - LaunchServices registrations that mention LayerPeek (lsregister -dump, only those lines): running a bundle
+        registers it,
       - Login Items (sfltool dumpbtm, only the lines that mention LayerPeek); without the administrator authorization
         that sfltool asks for they are reported as not checked, never as a change,
       - names of the Keychain services that contain "LayerPeek" or "Prusa" (security dump-keychain without -d: the
@@ -55,13 +60,18 @@ $script:RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
     The watched places of this OS: name -> folder (files listed recursively) and the probes of the system stores.
 #>
 function Get-WatchedLocations {
-    param([string] $HomeDirectory = [Environment]::GetFolderPath('UserProfile'))
+    param([string] $HomeDirectory = [Environment]::GetFolderPath('UserProfile'), [string] $BundleIdentifier = (Get-BundleIdentifier))
     if ($IsMacOS) {
         $library = Join-Path $HomeDirectory 'Library'
         return [ordered]@{
-            'Application Support/LayerPeek' = Join-Path $library 'Application Support' 'LayerPeek'
-            'Logs/LayerPeek'                = Join-Path $library 'Logs' 'LayerPeek'
-            'LaunchAgents'                  = Join-Path $library 'LaunchAgents'
+            'Application Support/LayerPeek'                        = Join-Path $library 'Application Support' 'LayerPeek'
+            'Logs/LayerPeek'                                       = Join-Path $library 'Logs' 'LayerPeek'
+            "Preferences/$BundleIdentifier.plist"                  = Join-Path $library 'Preferences' "$BundleIdentifier.plist"
+            'Preferences/LayerPeek.plist'                          = Join-Path $library 'Preferences' 'LayerPeek.plist'
+            "Saved Application State/$BundleIdentifier.savedState" = Join-Path $library 'Saved Application State' "$BundleIdentifier.savedState"
+            "Caches/$BundleIdentifier"                             = Join-Path $library 'Caches' $BundleIdentifier
+            "HTTPStorages/$BundleIdentifier"                       = Join-Path $library 'HTTPStorages' $BundleIdentifier
+            'LaunchAgents'                                         = Join-Path $library 'LaunchAgents'
         }
     }
     if ($IsWindows) {
@@ -76,12 +86,43 @@ function Get-WatchedLocations {
 
 <#
 .SYNOPSIS
+    CFBundleIdentifier of build/macos/Info.plist (T-019), the macOS identity of LayerPeek.app.
+#>
+function Get-BundleIdentifier {
+    param([string] $PlistPath = (Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist'))
+    $text = Get-Content -LiteralPath $PlistPath -Raw
+    if ($text -notmatch '<key>CFBundleIdentifier</key>\s*<string>(?<id>[^<]+)</string>') { throw "No CFBundleIdentifier in $PlistPath." }
+    $Matches.id
+}
+
+<#
+.SYNOPSIS
+    LaunchServices registrations that mention LayerPeek (lsregister -dump): the trimmed lines with the name, the
+    identifier or the path, as one array (also when empty); $null when lsregister gives no output.
+#>
+function Get-LaunchServicesEntries {
+    param([scriptblock] $Dump = { & /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -dump 2>$null })
+    $output = @(& $Dump)
+    if ($output.Count -eq 0) { return $null }
+    # The record ids and dates in the lines change on every registration: only path, identifier and name are kept.
+    , [string[]] @($output | Where-Object { $_ -match '(?i)layerpeek' -and $_ -match '^\s*(path|identifier|name|bundle id|executable):' } |
+            ForEach-Object { (([string] $_).Trim() -replace '\s*\(0x[0-9a-f]+\)\s*$', '') -replace '\s+', ' ' } | Sort-Object -Unique -CaseSensitive)
+}
+
+<#
+.SYNOPSIS
     Every entry below a folder as sorted lines "relative/path/" (folder) or "relative/path  size  sha256" (file); an
     empty list when the folder does not exist, and the single line "(missing)" for a missing folder so that creating an
     empty folder is a change too.
 #>
 function Get-FolderState {
     param([Parameter(Mandatory)] [string] $Path)
+    if (Test-Path -LiteralPath $Path -PathType Leaf) {
+        # A watched file (a Preferences plist, T-019).
+        $item = Get-Item -LiteralPath $Path -Force
+        $hash = try { (Get-FileHash -LiteralPath $Path -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant() } catch { 'unreadable' }
+        return @("(file)  $($item.Length)  $hash")
+    }
     if (-not (Test-Path -LiteralPath $Path -PathType Container)) { return @('(missing)') }
     $root = (Get-Item -LiteralPath $Path -Force).FullName.TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
     $lines = foreach ($item in Get-ChildItem -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue) {
@@ -143,6 +184,7 @@ function Get-ProfileState {
     param(
         [System.Collections.IDictionary] $Locations = (Get-WatchedLocations),
         [scriptblock] $LoginItems = $(if ($IsMacOS) { { Get-MacLoginItems } } else { $null }),
+        [scriptblock] $LaunchServices = $(if ($IsMacOS) { { Get-LaunchServicesEntries } } else { $null }),
         [scriptblock] $Credentials = $(if ($IsMacOS) { { Get-MacKeychainServices } } elseif ($IsWindows) { { Get-WindowsCredentialTargets } } else { $null })
     )
     $state = [ordered]@{}
@@ -151,6 +193,10 @@ function Get-ProfileState {
         # Assigned in each branch: an 'if' expression would turn an empty list into $null ("not readable").
         $items = & $LoginItems
         if ($null -eq $items) { $state['Login Items'] = $null } else { $state['Login Items'] = [string[]] @($items) }
+    }
+    if ($LaunchServices) {
+        $entries = & $LaunchServices
+        if ($null -eq $entries) { $state['LaunchServices'] = $null } else { $state['LaunchServices'] = [string[]] @($entries) }
     }
     if ($Credentials) { $state[$(if ($IsWindows) { 'Credential Manager' } else { 'Keychain services' })] = @(& $Credentials) }
     $state

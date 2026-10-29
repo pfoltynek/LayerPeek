@@ -800,6 +800,274 @@ function Copy-VelopackOutput {
     }
 }
 
+# macOS packaging (T-019): LayerPeek.app built from the Native AOT publish folder by our own steps (no Velopack for macOS
+# yet, docs/velopack.md point 10), ad-hoc signed inside out, then a .dmg (hdiutil, the app and a link to /Applications,
+# user decision 2026-10-29) and a .tar.gz of the app. Fixed values; the bundle identifier is read from the Info.plist template.
+$script:MacBundle = [pscustomobject]@{
+    BundleName    = 'LayerPeek.app'
+    Executable    = 'LayerPeek'
+    PlistTemplate = 'build/macos/Info.plist'
+    IconMaster    = 'src/LayerPeek.App/Assets/AppIcon/app-icon-1024.png'
+    IconFile      = 'LayerPeek.icns'
+    VolumeName    = 'LayerPeek'
+}
+
+function Get-MacBundleSettings {
+    <# .SYNOPSIS The fixed values of the macOS packaging step (T-019). #>
+    $script:MacBundle
+}
+
+function Get-MacReleaseFileNames {
+    <# .SYNOPSIS The macOS files in dist: LayerPeek-<version>-<rid>.tar.gz (the archive name of the RID) and .dmg. #>
+    param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
+    [pscustomobject]@{
+        Archive   = Get-ArchiveFileName -Version $Version -Runtime $Runtime
+        DiskImage = "LayerPeek-$Version-$Runtime.dmg"
+    }
+}
+
+function Get-PlistEntries {
+    <# .SYNOPSIS The top-level key -> value element pairs of an XML property list text (pure). #>
+    param([Parameter(Mandatory)] [string] $Text)
+    $settings = [System.Xml.XmlReaderSettings]::new()
+    # The plist DOCTYPE names Apple's DTD: never fetched.
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Ignore
+    $settings.XmlResolver = $null
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($Text), $settings)
+    try {
+        $document = [System.Xml.XmlDocument]::new()
+        $document.Load($reader)
+    }
+    finally { $reader.Dispose() }
+    $dict = $document.SelectSingleNode('/plist/dict')
+    if (-not $dict) { throw 'Not a property list with a top-level dict.' }
+    $items = @($dict.ChildNodes | Where-Object { $_.NodeType -eq [System.Xml.XmlNodeType]::Element })
+    $entries = [ordered]@{}
+    for ($i = 0; $i -lt $items.Count; $i += 2) {
+        if ($items[$i].Name -ne 'key' -or $i + 1 -ge $items.Count) { throw 'Malformed property list: every key needs a value.' }
+        $entries[$items[$i].InnerText] = $items[$i + 1]
+    }
+    $entries
+}
+
+function Get-MacBundleIdentifier {
+    <# .SYNOPSIS CFBundleIdentifier of the Info.plist template (the single source of the macOS identity of the app). #>
+    param([Parameter(Mandatory)] [string] $PlistPath)
+    $entries = Get-PlistEntries -Text (Get-Content -LiteralPath $PlistPath -Raw)
+    $id = if ($entries.Contains('CFBundleIdentifier')) { $entries['CFBundleIdentifier'].InnerText } else { $null }
+    if ($id -notmatch '^[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$') { throw "$PlistPath has no valid CFBundleIdentifier ('$id')." }
+    $id
+}
+
+function ConvertTo-MacInfoPlist {
+    <#
+    .SYNOPSIS
+        The Info.plist of the bundle from the template text (pure): @VERSION@ becomes the version; the result must be a
+        property list without other placeholders, with LSUIElement true and the expected executable.
+    #>
+    param([Parameter(Mandatory)] [string] $TemplateText, [Parameter(Mandatory)] [string] $Version)
+    if (-not (Test-ReleaseVersion $Version)) { throw "'$Version' is not a version in the form X.Y.Z." }
+    $text = $TemplateText.Replace('@VERSION@', $Version)
+    if ($text -match '@[A-Z_]+@') { throw "The Info.plist template has an unknown placeholder $($Matches[0])." }
+    $entries = Get-PlistEntries -Text $text
+    if (-not $entries.Contains('LSUIElement') -or $entries['LSUIElement'].Name -ne 'true') { throw 'The Info.plist template must set LSUIElement to true (no Dock icon).' }
+    if (-not $entries.Contains('CFBundleExecutable') -or $entries['CFBundleExecutable'].InnerText -cne $script:MacBundle.Executable) { throw "The Info.plist template must name the executable $($script:MacBundle.Executable)." }
+    foreach ($key in 'CFBundleShortVersionString', 'CFBundleVersion') {
+        if (-not $entries.Contains($key) -or $entries[$key].InnerText -cne $Version) { throw "The Info.plist template must take $key from the version." }
+    }
+    $text
+}
+
+function Get-MacIconSizes {
+    <# .SYNOPSIS The images of an .iconset (iconutil): file name -> pixels, 16 to 512 points at 1x and 2x (pure). #>
+    $sizes = [ordered]@{}
+    foreach ($points in 16, 32, 128, 256, 512) {
+        $sizes["icon_${points}x${points}.png"] = $points
+        $sizes["icon_${points}x${points}@2x.png"] = $points * 2
+    }
+    $sizes
+}
+
+function New-MacIcon {
+    <#
+    .SYNOPSIS
+        The .icns of the bundle from the 1024 px master PNG (T-025): every size of Get-MacIconSizes scaled down by sips,
+        then iconutil. Both are part of macOS. Works in a temporary .iconset next to the destination and deletes it.
+    #>
+    param([Parameter(Mandatory)] [string] $MasterPng, [Parameter(Mandatory)] [string] $Destination)
+    if (Test-Path -LiteralPath $Destination) { throw "Icon already exists: $Destination" }
+    $iconset = "$([System.IO.Path]::ChangeExtension($Destination, $null).TrimEnd('.')).iconset"
+    if (Test-Path -LiteralPath $iconset) { Remove-Item -LiteralPath $iconset -Recurse -Force }
+    $null = New-Item -ItemType Directory -Path $iconset
+    try {
+        $sizes = Get-MacIconSizes
+        foreach ($name in $sizes.Keys) {
+            $pixels = [string] $sizes[$name]
+            $null = & /usr/bin/sips -z $pixels $pixels $MasterPng --out (Join-Path $iconset $name) 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "sips failed for $name (exit code $LASTEXITCODE)." }
+        }
+        & /usr/bin/iconutil -c icns $iconset -o $Destination
+        if ($LASTEXITCODE -ne 0) { throw "iconutil failed with exit code $LASTEXITCODE." }
+    }
+    finally { Remove-Item -LiteralPath $iconset -Recurse -Force -ErrorAction SilentlyContinue }
+    $Destination
+}
+
+function New-MacAppBundle {
+    <#
+    .SYNOPSIS
+        LayerPeek.app in -Destination from a Native AOT publish folder: Contents/MacOS gets the files of the publish folder
+        without debug symbols (Get-ArchiveFiles: no .pdb, no .dSYM), Contents/Info.plist the template with the version,
+        Contents/Resources the icon, Contents/PkgInfo the package type. Returns the path of the .app. Unsigned.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $PublishDirectory,
+        [Parameter(Mandatory)] [string] $Destination,
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $PlistTemplate,
+        [Parameter(Mandatory)] [string] $IconFile
+    )
+    $s = $script:MacBundle
+    $app = Join-Path $Destination $s.BundleName
+    if (Test-Path -LiteralPath $app) { throw "App bundle already exists: $app" }
+    $plist = ConvertTo-MacInfoPlist -TemplateText (Get-Content -LiteralPath $PlistTemplate -Raw) -Version $Version
+    $files = @(Get-ArchiveFiles $PublishDirectory)
+    if ($files -cnotcontains $s.Executable) { throw "The publish folder $PublishDirectory has no executable $($s.Executable)." }
+    $root = (Resolve-Path -LiteralPath $PublishDirectory).ProviderPath
+    $macOS = Join-Path $app 'Contents' 'MacOS'
+    $resources = Join-Path $app 'Contents' 'Resources'
+    $null = New-Item -ItemType Directory -Path $macOS, $resources
+    foreach ($file in $files) {
+        $target = Join-Path $macOS $file
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target)
+        # File.Copy keeps the Unix permissions (the executable bits) of the source.
+        [System.IO.File]::Copy((Join-Path $root $file), $target)
+    }
+    $utf8 = [System.Text.UTF8Encoding]::new($false)
+    [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'Info.plist'), $plist, $utf8)
+    [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'PkgInfo'), 'APPL????', $utf8)
+    Copy-Item -LiteralPath $IconFile -Destination (Join-Path $resources $s.IconFile)
+    $app
+}
+
+function Test-MachOFile {
+    <# .SYNOPSIS True for a Mach-O binary (thin 32/64-bit, either byte order, or universal): code that must be signed. #>
+    param([Parameter(Mandatory)] [string] $Path)
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $bytes = [byte[]]::new(4)
+        if ($stream.Read($bytes, 0, 4) -ne 4) { return $false }
+    }
+    finally { $stream.Dispose() }
+    $magic = [System.BitConverter]::ToString($bytes)
+    # feedface / feedfacf (thin, both byte orders as stored on disk) and cafebabe (universal).
+    $magic -in 'CE-FA-ED-FE', 'CF-FA-ED-FE', 'FE-ED-FA-CE', 'FE-ED-FA-CF', 'CA-FE-BA-BE'
+}
+
+function Get-MacSigningOrder {
+    <#
+    .SYNOPSIS
+        What codesign signs, inside out: every nested Mach-O file of the bundle (native libraries; sorted) except the main
+        executable, then the bundle itself (which signs the main executable and seals Info.plist and the resources).
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $main = Join-Path $app 'Contents' 'MacOS' $script:MacBundle.Executable
+    $nested = @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents') -Recurse -File -Force |
+        Where-Object { $_.FullName -cne $main -and (Test-MachOFile $_.FullName) } |
+        ForEach-Object FullName | Sort-Object -CaseSensitive)
+    @($nested) + $app
+}
+
+function Get-MacAdHocSignArguments {
+    <#
+    .SYNOPSIS
+        The codesign arguments of an ad-hoc signature (decided 2026-10-21: no Developer ID, no notarization; T-060 later):
+        identity '-', replacing the signatures the libraries came with (SkiaSharp, HarfBuzz by their publisher), no
+        secure timestamp (an ad-hoc signature cannot have one). No hardened runtime: it only matters for notarization.
+    #>
+    param([Parameter(Mandatory)] [string] $Path)
+    @('--force', '--sign', '-', '--timestamp=none', $Path)
+}
+
+function Invoke-MacAdHocSign {
+    <# .SYNOPSIS Ad-hoc signs the bundle inside out (Get-MacSigningOrder). #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    foreach ($path in Get-MacSigningOrder $AppPath) {
+        $arguments = Get-MacAdHocSignArguments $path
+        $output = & /usr/bin/codesign @arguments 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "codesign failed for $($path): $($output -join ' ')" }
+    }
+}
+
+function Get-MacSignatureProblems {
+    <# .SYNOPSIS codesign --verify --deep --strict of the bundle; returns problem messages (empty = valid). #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $output = & /usr/bin/codesign --verify --deep --strict --verbose=2 $AppPath 2>&1
+    if ($LASTEXITCODE -eq 0) { return @() }
+    @("codesign --verify --deep --strict failed for $($AppPath): $(($output | ForEach-Object { "$_" }) -join ' ')")
+}
+
+function Get-MacDiskImageArguments {
+    <#
+    .SYNOPSIS
+        hdiutil create of the .dmg (pure): a compressed read-only image (UDZO) of a staging folder with the app and the link
+        to /Applications, HFS+ (readable by every supported macOS), the volume named LayerPeek.
+    #>
+    param([Parameter(Mandatory)] [string] $SourceFolder, [Parameter(Mandatory)] [string] $Destination, [string] $VolumeName = $script:MacBundle.VolumeName)
+    @('create', '-volname', $VolumeName, '-srcfolder', $SourceFolder, '-fs', 'HFS+', '-format', 'UDZO', '-imagekey', 'zlib-level=9', '-nospotlight', '-quiet', $Destination)
+}
+
+function New-MacDiskImage {
+    <#
+    .SYNOPSIS
+        The .dmg with the signed app and a link to /Applications (drag to install). The app is copied with ditto, which
+        keeps the signature intact; the staging folder is deleted. hdiutil verify checks the image. Mounts nothing.
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [Parameter(Mandatory)] [string] $Destination, [Parameter(Mandatory)] [string] $WorkDirectory)
+    if (Test-Path -LiteralPath $Destination) { throw "Disk image already exists: $Destination" }
+    $stage = Join-Path $WorkDirectory 'dmg'
+    if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
+    $null = New-Item -ItemType Directory -Path $stage
+    try {
+        & /usr/bin/ditto $AppPath (Join-Path $stage (Split-Path -Leaf $AppPath))
+        if ($LASTEXITCODE -ne 0) { throw "ditto failed with exit code $LASTEXITCODE." }
+        $null = New-Item -ItemType SymbolicLink -Path (Join-Path $stage 'Applications') -Target '/Applications'
+        $arguments = Get-MacDiskImageArguments -SourceFolder $stage -Destination $Destination
+        & /usr/bin/hdiutil @arguments
+        if ($LASTEXITCODE -ne 0) { throw "hdiutil create failed with exit code $LASTEXITCODE." }
+        $null = & /usr/bin/hdiutil verify -quiet $Destination 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "hdiutil verify failed for $Destination (exit code $LASTEXITCODE)." }
+    }
+    finally { Remove-Item -LiteralPath $stage -Recurse -Force -ErrorAction SilentlyContinue }
+    $Destination
+}
+
+function Get-LaunchServicesAppType {
+    <#
+    .SYNOPSIS
+        The LaunchServices type of a running process from the output of 'lsappinfo list' (pure): "Foreground" (an app with
+        a Dock icon), "UIElement" (an agent app, LSUIElement: no Dock icon) or "BackgroundOnly"; $null when the process is
+        not listed (it has not checked in with LaunchServices).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $ListOutput, [Parameter(Mandatory)] [int] $ProcessId)
+    foreach ($line in $ListOutput) {
+        if ($line -match "^\s*pid = $ProcessId\b.*\btype=`"(?<type>[^`"]+)`"") { return $Matches.type }
+    }
+    $null
+}
+
+function Get-LaunchServicesRegistration {
+    <#
+    .SYNOPSIS
+        Whether LaunchServices has the bundle at exactly this path registered, from the output of 'lsregister -dump'
+        (pure). Starting an app bundle registers it; the smoke check removes a registration that its own run created.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $DumpOutput, [Parameter(Mandatory)] [string] $BundlePath)
+    $pattern = '^\s*path:\s+' + [regex]::Escape($BundlePath.TrimEnd('/')) + '/?(\s+\(0x[0-9a-f]+\))?\s*$'
+    [bool] ($DumpOutput | Where-Object { $_ -match $pattern })
+}
+
 function Get-GitRemotes {
     <# .SYNOPSIS Ordered dictionary remote name -> fetch URL of a repository. #>
     param([Parameter(Mandatory)] [string] $RepoRoot)
@@ -1949,34 +2217,96 @@ function Invoke-ReleasePush {
 function Get-SmokeProfile {
     <#
     .SYNOPSIS
-        The folders of the user profile that the Release exe writes (it has no test mode, T-095) and the journal of their
-        backup during the AOT smoke check: data and logs of the app, never anything else (on Windows only the logs below
-        %LOCALAPPDATA%\LayerPeek, which may also hold the installed app).
+        The places of the user profile that the Release exe writes (it has no test mode, T-095) and the journal of their
+        backup during the AOT smoke check, never anything else (on Windows only the logs below %LOCALAPPDATA%\LayerPeek,
+        which may also hold the installed app).
+    .DESCRIPTION
+        Folders: data and logs of the app; on macOS also what AppKit and the system keep under the bundle identifier
+        (T-019): ~/Library/Saved Application State/<id>.savedState, ~/Library/Caches/<id> and ~/Library/HTTPStorages/<id>.
+        Preferences (macOS): the defaults domains of the app, the bundle identifier (LayerPeek.app) and LayerPeek (the
+        executable outside a bundle). They belong to cfprefsd, so they are never moved as files: the backup exports the
+        domain and deletes it, the restore deletes what the exe wrote and imports the backup (Defaults, /usr/bin/defaults).
     .PARAMETER ProfileRoot
-        A stand-in profile for the tests: <root>/data/LayerPeek and <root>/logs/LayerPeek.
+        A stand-in profile for the tests: <root>/data/LayerPeek, <root>/logs/LayerPeek, <root>/state/<id>.savedState,
+        <root>/caches/<id>, <root>/http/<id> and the domains as files <root>/prefs/<domain>.plist, which a file-based
+        stand-in of defaults changes (on every OS).
+    .PARAMETER BundleIdentifier
+        The bundle identifier; default: CFBundleIdentifier of build/macos/Info.plist.
     #>
-    param([string] $ProfileRoot)
+    param([string] $ProfileRoot, [string] $BundleIdentifier)
+    if (-not $BundleIdentifier) { $BundleIdentifier = Get-MacBundleIdentifier (Join-Path $PSScriptRoot '..' '..' $script:MacBundle.PlistTemplate) }
+    $domains = @($BundleIdentifier, $script:MacBundle.Executable)
     if ($ProfileRoot) {
-        $data = Join-Path $ProfileRoot 'data' 'LayerPeek'
-        $logs = Join-Path $ProfileRoot 'logs' 'LayerPeek'
+        $folders = @(
+            (Join-Path $ProfileRoot 'data' 'LayerPeek'),
+            (Join-Path $ProfileRoot 'logs' 'LayerPeek'),
+            (Join-Path $ProfileRoot 'state' "$BundleIdentifier.savedState"),
+            (Join-Path $ProfileRoot 'caches' $BundleIdentifier),
+            (Join-Path $ProfileRoot 'http' $BundleIdentifier))
+        $preferences = Join-Path $ProfileRoot 'prefs'
+        $defaults = { param($Verb, $Domain, $File) Invoke-StandInDefaults -Folder $preferences -Verb $Verb -Domain $Domain -File $File }.GetNewClosure()
     }
     elseif ($IsMacOS) {
-        $userHome = [Environment]::GetFolderPath('UserProfile')
-        $data = Join-Path $userHome 'Library' 'Application Support' 'LayerPeek'
-        $logs = Join-Path $userHome 'Library' 'Logs' 'LayerPeek'
+        $library = Join-Path ([Environment]::GetFolderPath('UserProfile')) 'Library'
+        $folders = @(
+            (Join-Path $library 'Application Support' 'LayerPeek'),
+            (Join-Path $library 'Logs' 'LayerPeek'),
+            (Join-Path $library 'Saved Application State' "$BundleIdentifier.savedState"),
+            (Join-Path $library 'Caches' $BundleIdentifier),
+            (Join-Path $library 'HTTPStorages' $BundleIdentifier))
+        $preferences = Join-Path $library 'Preferences'
+        $defaults = { param($Verb, $Domain, $File) $arguments = @($Verb, $Domain) + @($File | Where-Object { $_ }); $null = & /usr/bin/defaults @arguments 2>&1; $LASTEXITCODE }
     }
     elseif ($IsWindows) {
-        $data = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek'
-        $logs = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'
+        $folders = @(
+            (Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek'),
+            (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'))
+        $preferences = $null
+        $defaults = $null
     }
     else {
         throw 'The AOT smoke check runs on Windows and macOS only.'
     }
-    [pscustomobject]@{ Folders = @($data, $logs); Journal = "$data.aot-smoke-journal.json" }
+    $prefs = if ($preferences) { @($domains | ForEach-Object { [pscustomobject]@{ Domain = $_; Path = Join-Path $preferences "$_.plist" } }) } else { @() }
+    [pscustomobject]@{ Folders = $folders; Preferences = $prefs; Defaults = $defaults; Journal = "$($folders[0]).aot-smoke-journal.json" }
+}
+
+# What the stand-in of defaults leaves after a delete (cfprefsd keeps an empty property list file).
+$script:EmptyStandInPlist = 'empty plist'
+
+function Invoke-StandInDefaults {
+    <#
+    .SYNOPSIS
+        The stand-in of /usr/bin/defaults for the tests (pure files): a domain is the file <Folder>/<domain>.plist; export
+        copies it out, import copies it in, delete leaves an empty property list behind, as cfprefsd does (seen on macOS
+        27, T-019). Exit code 1 like defaults when the domain does not exist (no file or an empty one).
+    #>
+    param([Parameter(Mandatory)] [string] $Folder, [Parameter(Mandatory)] [string] $Verb, [Parameter(Mandatory)] [string] $Domain, [string] $File)
+    $plist = Join-Path $Folder "$Domain.plist"
+    switch ($Verb) {
+        'export' { if (-not (Test-Path -LiteralPath $plist)) { return 1 }; Copy-Item -LiteralPath $plist -Destination $File; return 0 }
+        'import' { $null = New-Item -ItemType Directory -Force -Path $Folder; Copy-Item -LiteralPath $File -Destination $plist -Force; return 0 }
+        'delete' {
+            if (-not (Test-Path -LiteralPath $plist) -or (Get-Content -LiteralPath $plist -Raw) -ceq $script:EmptyStandInPlist) { return 1 }
+            [System.IO.File]::WriteAllText($plist, $script:EmptyStandInPlist)
+            return 0
+        }
+        default { throw "Unknown defaults verb $Verb." }
+    }
+}
+
+function Get-SmokePreferenceKeys {
+    <#
+    .SYNOPSIS
+        The names of the top-level keys in the output of 'defaults read <domain>' (pure; values are never kept): what the
+        Release exe wrote into its preferences, printed by the smoke check (T-019).
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $DefaultsOutput)
+    @($DefaultsOutput | Where-Object { $_ -match '^ {4}(?:"(?<q>[^"]+)"|(?<k>[^\s=]+)) = ' } | ForEach-Object { if ($Matches.ContainsKey('q')) { $Matches['q'] } else { $Matches['k'] } })
 }
 
 function Get-SmokeBackupPath {
-    <# .SYNOPSIS Where the smoke check keeps a folder of the app meanwhile: next to it, so that moving it is a rename. #>
+    <# .SYNOPSIS Where the smoke check keeps a folder (or an exported domain) of the app meanwhile: next to it, so that moving it is a rename. #>
     param([Parameter(Mandatory)] [string] $Folder)
     "$Folder.aot-smoke-backup"
 }
@@ -1984,58 +2314,81 @@ function Get-SmokeBackupPath {
 function Read-SmokeJournal {
     <#
     .SYNOPSIS
-        The entries of the journal (Path, Backup, Existed), or $null without a journal. Refuses a journal whose paths are
-        not exactly the folders of -SmokeProfile, so that a restore never deletes anything else.
+        The entries of the journal (Kind Folder / Preferences, Path, Backup, Existed, Domain), or $null without a journal.
+        Refuses a journal whose entries are not exactly places of -SmokeProfile, so that a restore never deletes anything
+        else. A journal of format 1 (folders only) is read too.
     #>
     param([Parameter(Mandatory)] $SmokeProfile)
     if (-not (Test-Path -LiteralPath $SmokeProfile.Journal -PathType Leaf)) { return $null }
     $journal = Get-Content -LiteralPath $SmokeProfile.Journal -Raw | ConvertFrom-Json
-    $entries = @($journal.Entries)
-    foreach ($entry in $entries) {
-        if ($SmokeProfile.Folders -cnotcontains $entry.Path -or $entry.Backup -cne (Get-SmokeBackupPath $entry.Path) -or $entry.Existed -isnot [bool]) {
+    $entries = foreach ($entry in @($journal.Entries)) {
+        $kind = if ($entry.PSObject.Properties['Kind']) { $entry.Kind } else { 'Folder' }
+        $known = switch ($kind) {
+            'Folder' { $SmokeProfile.Folders -ccontains $entry.Path }
+            'Preferences' { [bool] ($SmokeProfile.Preferences | Where-Object { $_.Path -ceq $entry.Path -and $_.Domain -ceq $entry.Domain }) }
+            default { $false }
+        }
+        if (-not $known -or $entry.Backup -cne (Get-SmokeBackupPath $entry.Path) -or $entry.Existed -isnot [bool]) {
             throw "The smoke journal $($SmokeProfile.Journal) lists '$($entry.Path)', which is not a folder of the app. Nothing was changed; check it by hand."
         }
+        [pscustomobject]@{ Kind = $kind; Path = $entry.Path; Backup = $entry.Backup; Existed = $entry.Existed; Domain = $(if ($kind -eq 'Preferences') { $entry.Domain } else { $null }) }
     }
-    , $entries
+    , @($entries)
 }
 
 function Backup-SmokeProfile {
     <#
     .SYNOPSIS
         Before the Release exe starts: writes the journal, then moves the existing folders of the app aside (renames next
-        to them), so that the exe starts with an empty profile and writes nothing into the user's data.
+        to them) and exports and deletes its existing defaults domains, so that the exe starts with an empty profile and
+        writes nothing into the user's data.
     .DESCRIPTION
-        The journal is written first and records which folders existed, so that Restore-SmokeProfile can finish the job
-        after a crash at any point (also in the middle of the moves). Refuses to start over a journal or a backup folder
-        that is already there: those belong to an interrupted run and are restored first (aot-smoke.ps1 -RestoreOnly).
+        The journal is written first and records which places existed, so that Restore-SmokeProfile can finish the job
+        after a crash at any point (also in the middle of the moves). Refuses to start over a journal or a backup that is
+        already there: those belong to an interrupted run and are restored first (aot-smoke.ps1 -RestoreOnly).
     #>
     param([Parameter(Mandatory)] $SmokeProfile)
     if (Test-Path -LiteralPath $SmokeProfile.Journal) { throw "A smoke journal already exists: $($SmokeProfile.Journal). Restore it first (scripts/aot-smoke.ps1 -RestoreOnly)." }
-    $entries = foreach ($folder in $SmokeProfile.Folders) {
-        $backup = Get-SmokeBackupPath $folder
+    $places = @($SmokeProfile.Folders | ForEach-Object { [pscustomobject]@{ Kind = 'Folder'; Path = $_; Domain = $null } }) +
+        @($SmokeProfile.Preferences | ForEach-Object { [pscustomobject]@{ Kind = 'Preferences'; Path = $_.Path; Domain = $_.Domain } })
+    $entries = foreach ($place in $places) {
+        $backup = Get-SmokeBackupPath $place.Path
         if (Test-Path -LiteralPath $backup) { throw "A backup folder exists without a journal: $backup. Nothing was moved; check it by hand." }
-        [ordered]@{ Path = $folder; Backup = $backup; Existed = [bool] (Test-Path -LiteralPath $folder) }
+        $entry = [ordered]@{ Kind = $place.Kind; Path = $place.Path; Backup = $backup; Existed = [bool] (Test-Path -LiteralPath $place.Path) }
+        if ($place.Kind -eq 'Preferences') { $entry.Domain = $place.Domain }
+        $entry
     }
     $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SmokeProfile.Journal)
     $temporary = "$($SmokeProfile.Journal).tmp"
-    $document = [ordered]@{ Version = 1; Created = [DateTime]::UtcNow.ToString('o'); Entries = @($entries) }
+    $document = [ordered]@{ Version = 2; Created = [DateTime]::UtcNow.ToString('o'); Entries = @($entries) }
     [System.IO.File]::WriteAllText($temporary, ($document | ConvertTo-Json -Depth 4) + "`n", [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::Move($temporary, $SmokeProfile.Journal)
     foreach ($entry in $entries) {
-        # A rename only (same parent folder): never a copy that could be left half done.
-        if ($entry.Existed) { [System.IO.Directory]::Move($entry.Path, $entry.Backup) }
+        if (-not $entry.Existed) { continue }
+        if ($entry.Kind -eq 'Folder') {
+            # A rename only (same parent folder): never a copy that could be left half done.
+            [System.IO.Directory]::Move($entry.Path, $entry.Backup)
+            continue
+        }
+        # cfprefsd owns the domain: exported through defaults (the backup is complete before anything is deleted).
+        if ((& $SmokeProfile.Defaults 'export' $entry.Domain $entry.Backup) -ne 0 -or -not (Test-Path -LiteralPath $entry.Backup)) {
+            throw "defaults export $($entry.Domain) failed; the smoke run was not started. Restore with scripts/aot-smoke.ps1 -RestoreOnly."
+        }
+        $null = & $SmokeProfile.Defaults 'delete' $entry.Domain $null
     }
 }
 
 function Restore-SmokeProfile {
     <#
     .SYNOPSIS
-        After the smoke run (or after a crash): deletes what the exe created in the folders of the app and moves the
-        backups back. Returns $true when a journal was restored, $false when there was none.
+        After the smoke run (or after a crash): deletes what the exe created in the places of the app and moves the
+        backups back (folders) or imports them (defaults domains). Returns $true when a journal was restored, $false when
+        there was none.
     .DESCRIPTION
-        Idempotent, so it can finish an interrupted restore: a folder whose backup is gone is already back (or was never
-        moved); a folder that did not exist before the run is deleted. The journal is deleted last. Data that existed
-        before the run is never deleted: it is in the backup until it is moved back.
+        Idempotent, so it can finish an interrupted restore: a place whose backup is gone is already back (or was never
+        moved); a place that did not exist before the run is deleted (a defaults domain through defaults delete, also when
+        cfprefsd has not written it to disk yet). The journal is deleted last. Data that existed before the run is never
+        deleted: it is in the backup until it is moved back or imported.
     #>
     param([Parameter(Mandatory)] $SmokeProfile)
     $entries = Read-SmokeJournal -SmokeProfile $SmokeProfile
@@ -2043,6 +2396,17 @@ function Restore-SmokeProfile {
     foreach ($entry in $entries) {
         $backupExists = Test-Path -LiteralPath $entry.Backup
         if ($entry.Existed -and -not $backupExists) { continue }
+        if ($entry.Kind -eq 'Preferences') {
+            # Whatever the exe wrote (exit code 1: there was nothing).
+            $null = & $SmokeProfile.Defaults 'delete' $entry.Domain $null
+            # cfprefsd leaves the emptied domain as an empty property list file: it did not exist before the run.
+            if (-not $entry.Existed -and (Test-Path -LiteralPath $entry.Path)) { Remove-Item -LiteralPath $entry.Path -Force }
+            if ($entry.Existed) {
+                if ((& $SmokeProfile.Defaults 'import' $entry.Domain $entry.Backup) -ne 0) { throw "defaults import $($entry.Domain) failed; the backup stays in $($entry.Backup)." }
+                Remove-Item -LiteralPath $entry.Backup -Force
+            }
+            continue
+        }
         # Created by the exe (the user's folder is in the backup, or there was none).
         if (Test-Path -LiteralPath $entry.Path) { Remove-Item -LiteralPath $entry.Path -Recurse -Force }
         if ($entry.Existed) { [System.IO.Directory]::Move($entry.Backup, $entry.Path) }

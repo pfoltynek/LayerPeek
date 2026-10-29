@@ -5,7 +5,7 @@ Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Win
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
 | `scripts/release.ps1` | **jeden příkaz** pro kroky 1–3 níže: větev `release/X.Y.Z`, sloučení do `main` + tag, sloučení zpět do `develop`, sestavení tagu a nahrání do konceptu; nikdy nezveřejňuje (viz „Vydání jedním příkazem“) | ano, jen push a koncept po potvrzení (kromě `-DryRun`) |
-| `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), `SHA256SUMS-<os>.txt` | ne |
+| `scripts/release-build.ps1` | build + testy, Native AOT publish pro RID tohoto OS, AOT smoke test, archivy, na Windows instalátor Velopack (T-017), na macOS `LayerPeek.app` + `.dmg` (T-019), `SHA256SUMS-<os>.txt` | ne |
 | `scripts/release-upload.ps1` | kontroly, vytvoření konceptu vydání (první běh) nebo nahrání do existujícího konceptu (druhý OS) | ano (kromě `-DryRun`) |
 | `scripts/release-publish.ps1` | kontroly úplnosti konceptu a jeho zveřejnění | ano (kromě `-DryRun`) |
 | `scripts/ReleaseTools/ReleaseTools.Tests.ps1` | Pester testy logiky skriptů bez sítě (spouští je i `dotnet test`, viz níže) | ne |
@@ -19,7 +19,7 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 - Vydává se jen z `main`: tagovaný commit musí být obsažený v `origin/main`.
 - První nahrání vytvoří **koncept** (`--draft`). Verze `0.x` jsou na GitHubu označené jako předběžné (`--prerelease`).
 - Poznámky k vydání jsou sekce verze z `CHANGELOG.md` (formát [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), anglicky podle `CLAUDE.md`).
-- Bez placeného podpisu: Windows soubory jsou nepodepsané, podpis macOS řeší T-019.
+- Bez placeného podpisu: Windows soubory jsou nepodepsané, macOS má jen ad-hoc podpis bez notarizace (T-019, viz „Balení pro macOS“).
 
 ## Vydání jedním příkazem (`scripts/release.ps1`, T-055)
 
@@ -54,7 +54,7 @@ pwsh scripts/release-publish.ps1 -AllowIncomplete   # jen Windows, dokud T-019 n
 git switch develop
 ```
 
-- **macOS:** do dokončení T-019 je vydání jen pro Windows, proto se zatím zveřejňuje s `-AllowIncomplete` (výchozí chování `release-publish.ps1`, které vyžaduje soubory obou OS, se nemění). Po T-019 se mezi krok 8 a zveřejnění vloží běh na Macu (krok 4 v „Postup“) a zveřejní se bez `-AllowIncomplete`.
+- **macOS:** `release.ps1` dělá jen běh na Windows. Mezi krok 8 a zveřejnění se vloží běh na Macu (krok 4 v „Postup“, T-019) a zveřejní se bez `-AllowIncomplete`. Dokud skutečné nahrání z Macu do konceptu neověří uživatel (T-019), zůstává možnost zveřejnit jen Windows s `-AllowIncomplete`.
 - **`CHANGELOG.md`:**
   - Existuje-li sekce `## [X.Y.Z]` (s `- unreleased`, jiným zástupným textem, jiným datem, i s pomlčkou `–`/`—` místo `-`), dostane nadpis `## [X.Y.Z] - <den vydání>`; `## [Unreleased]` musí být prázdná. Položky v obou sekcích najednou skript odmítne (spoj je ručně, rozhodnuto 2026-10-24).
   - Jinak se položky z `## [Unreleased]` přesunou do nové sekce `## [X.Y.Z] - <den vydání>` pod ní a nahoře zůstane `## [Unreleased]`. Prázdné podnadpisy šablony (např. `### Fixed` bez položek) a úvod bez položek (komentář) zůstanou pod `[Unreleased]`, přesunou se jen podsekce s položkami.
@@ -174,7 +174,16 @@ Smoke test spustí publikovanou aplikaci na 10 s s tvými skutečnými nastaven�
 
 ### 4. Běh na Macu
 
-Stejné příkazy na Macu (Apple Silicon), **až když běh na Windows úspěšně skončil** (souběžné běhy nejsou ošetřené). Vznikne `LayerPeek-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu. Dokud T-019 nedodá `.app` bundle, obsahuje `.tar.gz` publish složku tak, jak je (bez `.dSYM` a `.pdb`). Na macOS se archiv balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, aby neobsahoval položky AppleDouble `._*`; ověřit při T-019 výpisem `tar -tzf`.
+Stejné příkazy na Macu (Apple Silicon), **až když běh na Windows úspěšně skončil** (souběžné běhy nejsou ošetřené). Terminál musí být ve fyzické cestě k repozitáři (`echo $PWD` = `pwd -P`, viz [prerequisites.md](prerequisites.md)).
+
+```bash
+git switch --detach vX.Y.Z
+pwsh scripts/release-build.ps1                 # build, testy, publish osx-arm64, smoke test, LayerPeek.app, .dmg, .tar.gz, SHA256SUMS-macos.txt
+pwsh scripts/release-upload.ps1 -DryRun         # kontroly a výpis, co by se přidalo do konceptu
+pwsh scripts/release-upload.ps1                 # přidá soubory macOS do konceptu z běhu na Windows
+```
+
+Vznikne `LayerPeek-X.Y.Z-osx-arm64.dmg`, `LayerPeek-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu (postup sestavení viz „Balení pro macOS“ níže). Archiv se na macOS balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, takže neobsahuje položky AppleDouble `._*` (ověřeno v T-019 výpisem `tar -tzf`). Po běhu na Macu se zveřejňuje bez `-AllowIncomplete`.
 
 ### 5. Kontrola a zveřejnění
 
@@ -209,7 +218,8 @@ artifacts/release/<verze>/
   build-info.json       značka sestavení: verze, commit, čistý strom, RID, soubory a jejich SHA256, výsledek smoke testu
 ```
 
-- Archiv: `LayerPeek-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, zachová spustitelný bit).
+- Archiv: `LayerPeek-<verze>-<RID>.zip` (Windows, obsah publish složky bez nadřazené složky), `.tar.gz` (macOS, podepsaná `LayerPeek.app`, zachová spustitelný bit).
+- macOS (T-019): `LayerPeek-<verze>-osx-arm64.dmg` a podepsaná aplikace pro místní použití v `artifacts/release/<verze>/app/osx-arm64/bundle/LayerPeek.app` (nenahrává se).
 - Instalátor Velopack (jen Windows, T-017, viz „Instalátor pro Windows“ níže): `LayerPeek-<verze>-<RID>-Setup.exe` a soubory aktualizací `LayerPeek-<verze>-<RID>-full.nupkg`, `releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`. `vpk` pracuje ve vlastní složce `velopack-<RID>` vedle `dist/` a po zkopírování ji skript smaže.
 - **Ladicí symboly se nevydávají** (rozhodnuto 2026-10-21): archiv neobsahuje soubory `*.pdb` ani nic ze složek `*.dSYM` a nikam se nenahrávají. V publish složce zůstanou pro lokální ladění. Zip `win-x64` má tak asi 70 MB místo 120 MB.
 - Kontrolní součty: jeden soubor na OS, formát `sha256sum` (`<hash>  <soubor>`, LF), obsahuje všechny soubory z `dist/` tohoto běhu.
@@ -268,15 +278,40 @@ Skripty `origin` jen čtou jedním `git ls-remote`, nic nestahují ani nepushuj�
 | `PublishDirectory` | hotová a smoke testem ověřená publish složka RID |
 | `OutputDirectory` | `dist/`, sem krok uloží své soubory |
 
-Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám zapíše do `SHA256SUMS-<os>.txt` a `build-info.json`, takže je `release-upload.ps1` nahraje a `release-publish.ps1` zkontroluje bez další změny. Kroky dnes: `archive` (Windows, macOS) a `installer` (Windows, T-017, Velopack). Logika kroku `installer` je ve funkcích `Get-VelopackPackArguments`, `Get-VelopackOutputMap`, `Copy-VelopackOutput` a `Get-VelopackVersionProblems` modulu `ReleaseTools.psm1` (Pester testy).
-
-T-019 přidá krok pro macOS (`.app` + `.dmg`) a případně změní vstup archivu z publish složky na `.app` bundle. Build, publish a smoke test se tím nemění.
+Krok vrátí cesty souborů, které vytvořil přímo v `dist/`. Skript je sám zapíše do `SHA256SUMS-<os>.txt` a `build-info.json`, takže je `release-upload.ps1` nahraje a `release-publish.ps1` zkontroluje bez další změny. Kroky dnes: `archive` (Windows, `.zip`), `installer` (Windows, T-017, Velopack) a `app` (macOS, T-019: `LayerPeek.app`, `.dmg`, `.tar.gz`). Logika kroku `installer` je ve funkcích `Get-VelopackPackArguments`, `Get-VelopackOutputMap`, `Copy-VelopackOutput` a `Get-VelopackVersionProblems`, kroku `app` ve funkcích `New-MacIcon`, `New-MacAppBundle`, `Invoke-MacAdHocSign`, `Get-MacSignatureProblems` a `New-MacDiskImage` modulu `ReleaseTools.psm1` (Pester testy). Build, publish a smoke test publish složky se tím nezměnily.
 
 Poznámky pro navazující kroky:
 
 - **Názvy souborů musí být v rámci jednoho běhu jedinečné** (všechny kroky zapisují do jednoho `dist/`, skript duplicitu odmítne). Velopack (T-017, `docs/velopack.md`) pojmenovává soubory podle kanálu (`releases.<RID>.json`, `RELEASES-<RID>`), ale `Setup.exe` / `Portable.zip` je potřeba při více RID přejmenovat (např. `LayerPeek-<verze>-<RID>-Setup.exe`).
 - **Poznámky k vydání** pro krok (např. `vpk --releaseNotes`) vrací `Get-ChangelogSection` z `scripts/ReleaseTools/ReleaseTools.psm1`; krok je zapíše do dočasného souboru a ten po sobě smaže.
-- Podpis a notarizace macOS (T-060) nahradí ad-hoc podpis v balicím kroku T-019.
+- Podpis a notarizace macOS (T-060) nahradí ad-hoc podpis v balicím kroku `app` (`Get-MacAdHocSignArguments`).
+
+## Balení pro macOS (T-019)
+
+Krok `app` v `scripts/release-build.ps1` pro každý RID macOS (dnes jen `osx-arm64`), nad publish složkou, kterou už ověřil smoke test:
+
+1. **Ikona:** `LayerPeek.icns` z 1024px předlohy `src/LayerPeek.App/Assets/AppIcon/app-icon-1024.png` (`sips` na 16–1024 px a `iconutil`).
+2. **Bundle** `LayerPeek.app`: `Contents/MacOS` = soubory publish složky bez ladicích symbolů (`.pdb`, `.dSYM`), `Contents/Info.plist` = šablona `build/macos/Info.plist` s verzí z `Directory.Build.props` (`@VERSION@`), `Contents/Resources/LayerPeek.icns`, `Contents/PkgInfo`.
+   - `CFBundleIdentifier` je v šabloně (jediné místo; `AppEnvironment.ProductionBundleIdentifier` musí být stejný, hlídá unit test). **Hodnota `io.github.pfoltynek.LayerPeek` je zatím návrh, viz otevřené otázky v T-019.**
+   - `LSUIElement` = `true`: aplikace nemá ikonu v Docku ani vlastní menu aplikace, jen ikonu v menu baru. Aplikace navíc nastavuje `MacOSPlatformOptions.ShowInDock = false`, protože Avalonia při startu jinak přepne aplikaci na běžnou s ikonou v Docku.
+   - `LSMinimumSystemVersion` = `14.0` (minimum AOT binárky .NET 11, `LC_BUILD_VERSION minos`).
+3. **Ad-hoc podpis zevnitř ven** (`codesign --force --sign - --timestamp=none`): nejdřív každá vnořená Mach-O knihovna (`libAvaloniaNative`, `libSkiaSharp`, `libHarfBuzzSharp`; podpis vydavatele se nahradí), nakonec celý bundle (podepíše hlavní exe a zapečetí `Info.plist` a prostředky). Bez hardened runtime a bez entitlements (důležité až pro notarizaci, T-060). Hned potom `codesign --verify --deep --strict`.
+4. **Smoke test bundlu:** `aot-smoke.ps1 -PublishDir LayerPeek.app/Contents/MacOS` spustí exe uvnitř bundlu (tedy s bundle identifikátorem) a ověří, že běží bez ikony v Docku (`lsappinfo`, typ `UIElement`). Bundle se nesmí změnit a podpis musí dál platit.
+5. **`.tar.gz`:** `LayerPeek.app` (cesty `./LayerPeek.app/…`), bez `._*`, `.dSYM` a `.pdb`.
+6. **`.dmg`:** `hdiutil create -fs HFS+ -format UDZO` ze složky s kopií aplikace (`ditto`, podpis zůstane) a odkazem `Applications` → `/Applications` (rozhodnuto 2026-10-29), název svazku `LayerPeek`, pak `hdiutil verify`. Skript nic nepřipojuje.
+
+Velopack se pro macOS zatím nepoužívá (pokus v [velopack.md](velopack.md), bod 10), takže macOS nemá automatické aktualizace ani `.pkg`.
+
+### Co uživatel uvidí na Macu
+
+Aplikace není notarizovaná (jen ad-hoc podpis, rozhodnuto 2026-10-21), takže Gatekeeper stažený `.dmg` / `.tar.gz` nepustí bez ručního povolení:
+
+1. Otevřít `.dmg` a přetáhnout `LayerPeek` do složky Aplikace (nebo rozbalit `.tar.gz`).
+2. Spustit LayerPeek. macOS ukáže, že aplikaci nelze ověřit, a nabídne jen „Hotovo“ / „Přesunout do koše“. Zvolit „Hotovo“.
+3. **Nastavení systému → Soukromí a zabezpečení**, dole u „LayerPeek byl zablokován…“ kliknout **Přesto otevřít** a potvrdit heslem nebo Touch ID. Pak znovu **Otevřít**. Další spuštění už projdou.
+4. Alternativa pro pokročilé (Terminál, jen pro staženou aplikaci): `xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
+
+Spuštění přímo z `.dmg` nebo ze složky Stažené soubory macOS přesune aplikaci do náhodné složky jen pro čtení (App Translocation). Volba „Otevřít při přihlášení“ je tam proto neaktivní s vysvětlením; aplikaci je potřeba nejdřív přesunout do Aplikací. Přesný text dialogů na macOS 15+ a chování se staženým souborem z GitHubu ověřuje uživatel (kroky v T-019).
 
 ## Instalátor pro Windows (Velopack, T-017)
 
@@ -350,7 +385,7 @@ Invoke-Pester scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1 -Output Detaile
 
 Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ScriptPesterTestsPass`, jeden případ na soubor testů) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
-Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, `win-arm64` ve feedu). Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, `win-arm64` ve feedu). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` z předlohy a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
 
 Testy `release.ps1` (`ReleaseOrchestrator.Tests.ps1`) ověří bez sítě: kontrolu verze proti tagům, změnu `<Version>` a `CHANGELOG.md` (datum `- unreleased`, přesun z `[Unreleased]`, šablona prázdných podnadpisů, odkazy, smíšené konce řádků, pomlčky `–`/`—`, odmítnutí), plán a navázání pro každý mezistav (čistě z připravených faktů) a skutečné kroky Gitflow v dočasných repozitářích: bare „origin“ je dostupný přes adresu `https://github.com/test-owner/…` přepsanou `url.<base>.insteadOf` a konfigurace gitu je izolovaná. `gh` je falešný skript na `PATH`: `auth status` projde, `release view` vrátí „release not found“, nebo – s `LAYERPEEK_FAKE_GH_STATE` – koncept, který vytvořil `release create` (soubory s `digest`); každé volání zapíše a testy ověří, co se volalo. Mimo jiné: větev release ručně bez data, s jinou verzí, zastaralá, se stabilizačními commity a s dřívějším datem (nový commit s datem), kontrola sloučení před tagem, selhané posunutí `main` po tagu a navázání, push odmítnutý kvůli posunutému `origin/main` (atomicky, bez tagu), ref posunutý po potvrzení, sloučení zpět bez vybraného `develop`, `-Repo` v klonu s cizím `origin`, push URL jiného repozitáře. Skript `release.ps1` se spouští i celý: `-DryRun` nic nezmění ani nestáhne, ostrý běh stáhne (`--no-tags`), bez potvrzení se nic nepushne, selhání zástupného buildu vrátí strom na `develop` a další běh začne buildem, a úspěšný běh se zástupným buildem a skutečným `release-upload.ps1` skončí konceptem (falešný `gh`), na `develop` s čistým stromem, a další běh najde všech 8 kroků hotových. Testy-only přepínač `LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1` vypne kontrolu MSVC / Xcode / `vpk`, aby testy nezávisely na stroji. Platí jen spolu s `LAYERPEEK_PESTER_TESTS_TEMP` a jen pro repozitář uvnitř této složky (proměnné, které zůstanou v interaktivním `pwsh` po přerušeném `Invoke-Pester`, tak skutečný repozitář neovlivní); když platí, plán vypíše řádek `TEST MODE: toolchain check skipped`. Falešný `gh` odpovídá na čtení přímo ze shimu (`gh.cmd` / `gh`) a `pwsh` spouští jen pro stavový koncept, takže testy běží rychleji (≈ 1 min 20 s). xUnit má pro tento soubor časový limit 15 min (ostatní soubory 5 min). Skutečný build a nahrání na GitHub testy nedělají.
 
