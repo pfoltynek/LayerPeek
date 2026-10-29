@@ -108,6 +108,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-092 | Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení (hotovo) | all | ui-dev | P2 | T-077, T-080, T-081, T-091 |
 | T-094 | Okna Nastavení a Diagnostika – výchozí velikost 780 × 532, zvětšení na celou obrazovku a zapamatování velikosti (hotovo) | all | ui-dev | P2 | – |
 | T-101 | Zkušební upozornění a nový dotaz na povolení notifikací | all | ui-dev + ui-designer | P2 | T-010, T-020 |
+| T-103 | Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu (návrh hotový, implementace po T-101) | all | ui-designer + ui-dev | P2 | T-079, T-083, T-088, T-089, T-090, T-101 |
+| T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – jen návrh | all | ui-designer | P3 | T-092, T-103 |
 
 ### Windows (`windows`)
 
