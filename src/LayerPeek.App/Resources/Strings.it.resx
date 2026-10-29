@@ -1296,4 +1296,40 @@
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Apre Impostazioni di Sistema &gt; Privacy e sicurezza &gt; Rete locale. Attiva LayerPeek lì.</value>
   </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Invia notifica di prova</value>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Mostra una notifica di esempio per verificare che le notifiche di LayerPeek compaiano su questo computer.</value>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>In attesa della tua risposta: macOS chiede se LayerPeek può inviare notifiche.</value>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Notifica di prova inviata. Se non la vedi, controlla «Non disturbare» in Windows.</value>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Notifica di prova inviata. Se non la vedi, controlla «Full immersion» in macOS.</value>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Le notifiche sono disattivate da un criterio della tua organizzazione.</value>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>Impossibile inviare la notifica di prova.</value>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Notifica di prova</value>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Le notifiche di LayerPeek funzionano. Gli eventi delle stampanti appariranno così.</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Le notifiche sono disattivate in Windows.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Apri impostazioni notifiche</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>Le notifiche di LayerPeek sono disattivate in Impostazioni &gt; Sistema &gt; Notifiche. Attivale lì.</value>
+  </data>
 </root>

@@ -143,7 +143,8 @@ public partial class App : Application, ITrayAppCommands
         if (command.Kind == InstanceCommandKind.Toast && command.Argument is { } launchArgument)
         {
             // A click on a toast in the notification center (T-068): reported by Windows to this instance's toast activator,
-            // or forwarded by a start Windows made for it. Opens the printer's web like a click on the banner.
+            // or forwarded by a start Windows made for it. Opens the printer's web like a click on the banner; the test
+            // notification (T-101) the settings window on its General tab.
             _host?.ActivateToast(launchArgument);
             return;
         }
@@ -210,6 +211,10 @@ public partial class App : Application, ITrayAppCommands
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
         host.LanguageChanged += OnLanguageChanged;
         _commandLogger = host.CreateLogger<App>();
+        // T-101: a click on the test notification (from any thread) brings the settings window to the front on its General
+        // tab; one that came while the app had no UI yet (macOS waiting for a display, T-099) is handled now.
+        AvaloniaUiDispatcher settingsDispatcher = new();
+        host.AttachSettingsOpener(() => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, generalTab: true)));
         // Last: starts that came while the settings were loading are handled now.
         _instanceCommands.Attach(OnInstanceCommand, new AvaloniaUiDispatcher(), host.CreateLogger<InstanceCommandQueue>());
     }
@@ -278,7 +283,8 @@ public partial class App : Application, ITrayAppCommands
     void ITrayAppCommands.AddPrinter() => ShowSettings(addPrinter: true);
 
     /// <param name="addPrinter">"Add printer…" (T-042), see <see cref="SettingsWindowCommand.Show"/>.</param>
-    private void ShowSettings(bool addPrinter)
+    /// <param name="generalTab">A click on the test notification (T-101): the General tab.</param>
+    private void ShowSettings(bool addPrinter, bool generalTab = false)
     {
         if (_host is not { } host || _windows is not { } windows || _quit is { IsQuitting: true })
         {
@@ -292,7 +298,8 @@ public partial class App : Application, ITrayAppCommands
         SettingsWindowCommand.Show(
             _settingsWindow,
             () => windows.Settings(screens => host.CreateSettingsViewModel(screens, cameraWindows, cameraWindows)),
-            addPrinter);
+            addPrinter,
+            generalTab);
     }
 
     void ITrayAppCommands.ToggleCamera(string printerId)

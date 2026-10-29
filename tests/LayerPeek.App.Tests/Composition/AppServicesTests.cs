@@ -196,7 +196,19 @@ public sealed class AppServicesTests
         await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: true, macNotifications: center);
 
         Assert.IsNotType<UserNotificationService>(services.GetRequiredService<INotificationService>());
-        Assert.Null(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+        Assert.IsNotType<MacNotificationSettings>(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+    }
+
+    /// <summary>T-101: the settings window of Windows reads and tests through the toasts of this run, without starting them.</summary>
+    [Fact]
+    public async Task WindowsSettingsUseTheToastsOfThisRun()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Toast notifications exist only on Windows.");
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.IsType<ToastNotificationSettings>(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+        ToastNotificationService toasts = Assert.IsType<ToastNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.False(toasts.Completion.IsCompleted);
     }
 
 #if DEBUG

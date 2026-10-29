@@ -110,6 +110,27 @@ internal partial interface IToastNotification : IInspectable
     void RemoveFailed(long token);
 }
 
+/// <summary>
+/// Windows.UI.Notifications.IToastNotification2 (the same toast object): tag, group and whether only the notification center
+/// gets it. Only the tag is used (T-101); the other methods reserve their vtable slots.
+/// </summary>
+[GeneratedComInterface]
+[Guid("9DFB9FD1-143A-490E-90BF-B9FBA7132DE7")]
+internal partial interface IToastNotification2 : IInspectable
+{
+    void PutTag(nint value);
+
+    void GetTag(out nint value);
+
+    void PutGroup(nint value);
+
+    void GetGroup(out nint value);
+
+    void PutSuppressPopup([MarshalAs(UnmanagedType.U1)] bool value);
+
+    void GetSuppressPopup([MarshalAs(UnmanagedType.U1)] out bool value);
+}
+
 /// <summary>Windows.UI.Notifications.IToastActivatedEventArgs.</summary>
 [GeneratedComInterface]
 [Guid("E3BF92F3-C197-436F-8265-0625824F8DAC")]

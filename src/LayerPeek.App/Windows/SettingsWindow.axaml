@@ -809,26 +809,50 @@
             </StackPanel>
 
             <!--
-              T-020 (macOS, user decision 2026-10-29): when the user turned LayerPeek's notifications off in System Settings, the
-              heading row says so and offers to open System Settings > Notifications. In the heading row, so the tab keeps its
-              height (T-033 fit); hidden everywhere else.
+              The heading row of the notifications holds one slot on its right (T-101 design): the test notification, or, when
+              the OS turned LayerPeek's notifications off (T-020 macOS, T-101 Windows, user decisions 2026-10-29), the button
+              that opens the OS settings. The text between them is the warning or the result of the last test (never both).
+              In the heading row, so the tab keeps its height (T-033 fit). The test button is outside the part disabled by
+              "Show notifications" (it tests the OS, user decision 2026-10-29).
             -->
             <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
               <TextBlock Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
               <TextBlock Grid.Column="1"
                          AutomationProperties.AutomationId="SettingsNotificationsTurnedOff"
+                         AutomationProperties.LiveSetting="Polite"
                          Classes="error"
                          Margin="16,16,12,4"
                          VerticalAlignment="Center"
                          TextWrapping="Wrap"
-                         Text="{Binding [SettingsNotificationsTurnedOff], Source={x:Static loc:LocalizedStrings.Instance}}"
-                         IsVisible="{Binding ShowsNotificationsTurnedOff}" />
-              <Button Grid.Column="2"
+                         Text="{Binding NotificationWarningText}"
+                         IsVisible="{Binding ShowsNotificationWarning}" />
+              <TextBlock Grid.Column="1"
+                         AutomationProperties.AutomationId="SettingsTestNotificationResult"
+                         AutomationProperties.LiveSetting="Polite"
+                         Classes.error="{Binding TestNotificationResultIsError}"
+                         FontSize="12"
+                         Margin="16,16,12,4"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Text="{Binding TestNotificationResult}"
+                         IsVisible="{Binding ShowsTestNotificationResult}" />
+              <Button x:Name="TestNotificationButton"
+                      Grid.Column="2"
                       Margin="0,12,0,0"
                       VerticalAlignment="Center"
-                      Content="{Binding [SettingsOpenNotificationSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
-                      ToolTip.Tip="{Binding [SettingsOpenNotificationSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
-                      AutomationProperties.HelpText="{Binding [SettingsOpenNotificationSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      Content="{Binding [SettingsTestNotification], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      ToolTip.Tip="{Binding [SettingsTestNotificationHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding [SettingsTestNotificationHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.AutomationId="SettingsTestNotification"
+                      IsVisible="{Binding ShowsTestNotification}"
+                      Command="{Binding SendTestNotificationCommand}" />
+              <Button x:Name="OpenNotificationSettingsButton"
+                      Grid.Column="2"
+                      Margin="0,12,0,0"
+                      VerticalAlignment="Center"
+                      Content="{Binding OpenNotificationSettingsText}"
+                      ToolTip.Tip="{Binding OpenNotificationSettingsHint}"
+                      AutomationProperties.HelpText="{Binding OpenNotificationSettingsHint}"
                       AutomationProperties.AutomationId="SettingsOpenNotificationSettings"
                       IsVisible="{Binding ShowsNotificationsTurnedOff}"
                       Command="{Binding OpenNotificationSettingsCommand}" />

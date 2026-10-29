@@ -46,6 +46,19 @@ public sealed class TestNotificationCleanupTests
         Assert.Contains(_logger.Entries, static entry => entry.Message.Contains("were removed", StringComparison.Ordinal));
     }
 
+    /// <summary>T-101: the test notification of the settings window, sent by the test app, goes with the other ones.</summary>
+    [Fact]
+    public async Task TheTestNotificationOfTheTestBundleIsRemovedToo()
+    {
+        FakeUserNotificationCenter center = new(AppEnvironment.TestBundleIdentifier);
+        MacNotificationSettings settings = new(center, static _ => { }, static () => System.Globalization.CultureInfo.InvariantCulture, new ListLogger<MacNotificationSettings>());
+        Assert.Equal(LayerPeek.App.Platform.TestNotificationOutcome.Sent, await settings.SendTestAsync(playSound: false, TestContext.Current.CancellationToken));
+        Assert.Equal(1, center.Delivered);
+
+        Assert.Empty(await new TestNotificationCleanup(center, _logger).RunAsync(Short));
+        Assert.Equal(0, center.Delivered);
+    }
+
     [Fact]
     public async Task ANotificationThatArrivesLateIsRemovedByARepetition()
     {

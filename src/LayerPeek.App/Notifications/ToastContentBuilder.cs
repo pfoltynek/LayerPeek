@@ -57,6 +57,29 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>
+    /// The toast of the test notification (T-101) in <paramref name="textCulture"/>: the same shape as a printer toast (title
+    /// and one line, foreground activation), with the launch argument <see cref="ToastLaunchArgument.Settings"/>.
+    /// </summary>
+    public static string BuildTest(CultureInfo textCulture, bool playSound)
+    {
+        ArgumentNullException.ThrowIfNull(textCulture);
+        StringBuilder xml = new(384);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.Settings);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, TestNotification.Title(textCulture));
+        AppendText(xml, TestNotification.Body(textCulture));
+        xml.Append("</binding></visual>");
+        if (!playSound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
     /// The texts of a notification in <paramref name="textCulture"/>, the same on every OS (Windows toast, macOS
     /// notification, T-020): the printer name (its id when the name is empty) as the title, the event as the body and the
     /// job file name, or for "cooled down" (T-080) the temperatures, as the detail. Printer and file names are stripped of

@@ -19,6 +19,11 @@ namespace LayerPeek.App.Notifications;
 /// COM activator): the same argument again within <see cref="DuplicateWindow"/> is ignored. Disposing (the container, when
 /// the app quits) ends every wait at once; nothing opens after that.
 /// </para>
+/// <para>
+/// T-101: a click on the test notification (<see cref="ToastLaunchArgument.Settings"/>) opens no web: it brings the settings
+/// window to the front on the General tab through the opener the UI attaches (<see cref="AttachSettingsOpener"/>). A click
+/// that comes before the UI runs (macOS waiting for a display, T-099) is held, once, and honoured when the opener is attached.
+/// </para>
 /// </summary>
 internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisposable
 {
@@ -37,6 +42,10 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     private string? _recentArgument;
     private long _recentTimestamp;
 
+    // Guarded by _recentLock.
+    private Action? _settingsOpener;
+    private bool _settingsPending;
+
     // Replaced as a whole, never mutated after publishing.
     private volatile Dictionary<string, PrinterDefinition> _printers = new(StringComparer.OrdinalIgnoreCase);
 
@@ -49,10 +58,20 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
         _time = time ?? TimeProvider.System;
     }
 
-    /// <summary>Opens the web interface of the printer in <paramref name="argument"/>; never throws.</summary>
-    /// <returns><see langword="true"/> when the browser was started.</returns>
+    /// <summary>
+    /// Opens the web interface of the printer in <paramref name="argument"/>, or for the test notification the settings
+    /// window (T-101); never throws.
+    /// </summary>
+    /// <returns>
+    /// <see langword="true"/> when the browser was started, or the settings window was asked for (or waits for the UI).
+    /// </returns>
     public async Task<bool> ActivateAsync(string? argument)
     {
+        if (ToastLaunchArgument.IsSettings(argument))
+        {
+            return OpenSettings(argument);
+        }
+
         if (!ToastLaunchArgument.TryGetPrinterId(argument, out string? printerId))
         {
             LogMalformedArgument();
@@ -122,8 +141,79 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     {
     }
 
+    /// <summary>
+    /// The UI runs (T-101): <paramref name="open"/> brings the settings window to the front on the General tab (it posts to
+    /// the UI thread itself; called on any thread, never throws). A click that waited for it is handled now. Attach once.
+    /// </summary>
+    public void AttachSettingsOpener(Action open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        bool pending;
+        lock (_recentLock)
+        {
+            if (_settingsOpener is not null)
+            {
+                throw new InvalidOperationException("The settings opener is already attached.");
+            }
+
+            _settingsOpener = open;
+            pending = _settingsPending && !_stopped.Task.IsCompleted;
+            _settingsPending = false;
+        }
+
+        if (pending)
+        {
+            LogSettingsClickHonoured();
+            Invoke(open);
+        }
+    }
+
     /// <summary>The app quits: waiting clicks end without opening anything, later ones open nothing. Safe to repeat.</summary>
     public void Dispose() => _stopped.TrySetResult();
+
+    /// <summary>A click on the test notification: the settings window, now or once the UI attached its opener.</summary>
+    private bool OpenSettings(string argument)
+    {
+        if (IsRepeated(argument))
+        {
+            LogSettingsRepeated();
+            return false;
+        }
+
+        Action? open;
+        lock (_recentLock)
+        {
+            if (_stopped.Task.IsCompleted)
+            {
+                LogSettingsStopped();
+                return false;
+            }
+
+            open = _settingsOpener;
+            if (open is null)
+            {
+                // Coalesced like a waiting "activate": one window opens however often it was clicked.
+                _settingsPending = true;
+                LogSettingsClickHeld();
+                return true;
+            }
+        }
+
+        Invoke(open);
+        return true;
+    }
+
+    private void Invoke(Action open)
+    {
+        try
+        {
+            open();
+        }
+        catch (Exception ex)
+        {
+            LogSettingsFailed(ex);
+        }
+    }
 
     /// <summary>Whether the same argument came within <see cref="DuplicateWindow"/>; remembers this one otherwise.</summary>
     private bool IsRepeated(string argument)
@@ -141,6 +231,21 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
             return false;
         }
     }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A click on the test notification waits for the UI; the settings window opens once it runs.")]
+    private partial void LogSettingsClickHeld();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The UI runs: the settings window opens for a click on the test notification that waited.")]
+    private partial void LogSettingsClickHonoured();
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "A click on the test notification reported again; the settings window opened once.")]
+    private partial void LogSettingsRepeated();
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "A click on the test notification while the app quits; nothing to open.")]
+    private partial void LogSettingsStopped();
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Opening the settings window for a click on the test notification failed.")]
+    private partial void LogSettingsFailed(Exception exception);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a notification click with an unrecognized argument.")]
     private partial void LogMalformedArgument();

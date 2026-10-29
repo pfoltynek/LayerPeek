@@ -189,7 +189,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         {
             Assert.True(new UiLanguage().Apply(language));
             List<string> problems = [];
-            MemoryNotificationSettings system = new() { TurnedOff = true };
+            FakeSystemNotificationSettings system = new() { TurnedOff = true };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: system);
             ui.Click("SettingsTabGeneral");
             ui.Window.Settle();
@@ -240,6 +240,219 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
+
+    /// <summary>
+    /// T-101: the slot in the heading row of the notifications with every text it can show next to its button, in every
+    /// language, with the terms of macOS and of Windows, at the designed and a maximized size: nothing scrolls, nothing is
+    /// cut, the text takes at most two lines and keeps at least 160 DIP, and the button is inside the window with its whole
+    /// text. The test button is there while "Show notifications" is off too (user decision 2026-10-29).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task GeneralTabWithTheTestNotificationFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+
+            // macOS: the question of macOS, then sent, then a failure.
+            FakeSystemNotificationSettings mac = new() { State = LayerPeek.App.Platform.SystemNotificationState.NotAsked, AnswerGate = new TaskCompletionSource() };
+            SettingsWindowHarness macUi = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: mac);
+            macUi.Click("SettingsTabGeneral");
+            macUi.ViewModel.NotificationsEnabled = false;
+            macUi.Window.Settle();
+            Button test = macUi.Find<Button>("SettingsTestNotification");
+            Assert.True(test.IsEffectivelyVisible);
+            Assert.True(test.IsEffectivelyEnabled);
+            Assert.Equal(Strings.SettingsTestNotification, test.Content);
+            Ui.Click(macUi.Window, Ui.CentreOf(test, macUi.Window));
+            macUi.Window.Settle();
+            Assert.Equal(1, mac.Requests);
+            Assert.False(test.IsEffectivelyEnabled);
+            problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationAsking, "SettingsTestNotification", $"{language} / macOS asks"));
+            mac.AnswerGate.SetResult();
+            await WaitForTestAsync(macUi);
+            problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationSentMac, "SettingsTestNotification", $"{language} / macOS sent"));
+            mac.Outcome = LayerPeek.App.Platform.TestNotificationOutcome.Failed;
+            Ui.Click(macUi.Window, Ui.CentreOf(test, macUi.Window));
+            await WaitForTestAsync(macUi);
+            problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationFailed, "SettingsTestNotification", $"{language} / failed"));
+            Assert.Equal(LightErrorColor, ForegroundOf(macUi.Find<TextBlock>("SettingsTestNotificationResult")));
+            macUi.Window.Close();
+
+            // Windows: sent, a policy (warning, the test stays), turned off (warning and the button to Settings).
+            FakeSystemNotificationSettings windows = new();
+            SettingsWindowHarness winUi = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), notificationSettings: windows);
+            winUi.Click("SettingsTabGeneral");
+            winUi.Window.Settle();
+            Ui.Click(winUi.Window, Ui.CentreOf(winUi.Find<Button>("SettingsTestNotification"), winUi.Window));
+            await WaitForTestAsync(winUi);
+            Assert.Single(windows.Sent);
+            problems.AddRange(SlotProblems(winUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationSentWindows, "SettingsTestNotification", $"{language} / Windows sent"));
+            Assert.NotEqual(LightErrorColor, ForegroundOf(winUi.Find<TextBlock>("SettingsTestNotificationResult")));
+            windows.State = LayerPeek.App.Platform.SystemNotificationState.BlockedByPolicy;
+            await winUi.ViewModel.RefreshNotificationPermissionAsync();
+            winUi.Window.Settle();
+            Assert.False(winUi.Window.IsShown<TextBlock>("SettingsTestNotificationResult"));
+            Assert.False(winUi.Window.IsShown<Button>("SettingsOpenNotificationSettings"));
+            problems.AddRange(SlotProblems(winUi, "SettingsNotificationsTurnedOff", Strings.SettingsTestNotificationBlockedByPolicy, "SettingsTestNotification", $"{language} / policy"));
+            windows.State = LayerPeek.App.Platform.SystemNotificationState.TurnedOff;
+            await winUi.ViewModel.RefreshNotificationPermissionAsync();
+            winUi.Window.Settle();
+            Assert.False(winUi.Window.IsShown<Button>("SettingsTestNotification"));
+            Button open = winUi.Find<Button>("SettingsOpenNotificationSettings");
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsWindows, open.Content);
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsHintWindows, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsHintWindows, ToolTip.GetTip(open));
+            problems.AddRange(SlotProblems(winUi, "SettingsNotificationsTurnedOff", Strings.SettingsNotificationsTurnedOffWindows, "SettingsOpenNotificationSettings", $"{language} / Windows turned off"));
+            Ui.Click(winUi.Window, Ui.CentreOf(open, winUi.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, windows.Opened);
+            winUi.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-101 accessibility: the test button has its id, name and help; its result and the warning are polite live regions,
+    /// so a screen reader announces them.
+    /// </summary>
+    [Fact]
+    public Task TheTestNotificationIsAccessible() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+
+            Button test = ui.Find<Button>("SettingsTestNotification");
+            Assert.Equal(Strings.SettingsTestNotificationHint, AutomationProperties.GetHelpText(test));
+            Assert.Equal(Strings.SettingsTestNotificationHint, ToolTip.GetTip(test));
+            Assert.Equal(Strings.SettingsTestNotification, Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(test).GetName());
+            Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(ui.Find<TextBlock>("SettingsTestNotificationResult")));
+            Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(ui.Find<TextBlock>("SettingsNotificationsTurnedOff")));
+            // Outside the part that "Show notifications" disables.
+            ui.ViewModel.NotificationsEnabled = false;
+            ui.Window.Settle();
+            Assert.True(test.IsEffectivelyEnabled);
+        });
+
+    /// <summary>
+    /// T-101: macOS asks, the user denies: the slot switches from the test to the button to System Settings, and the focus
+    /// that was on the test button moves to that button (not to the start of the window). Allowed again, it moves back.
+    /// </summary>
+    [Fact]
+    public Task TheFocusFollowsTheSlotWhenMacOSDenies() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeSystemNotificationSettings mac = new() { State = LayerPeek.App.Platform.SystemNotificationState.NotAsked, Grants = false };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), macTerms: true, notificationSettings: mac);
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+            Button test = ui.Find<Button>("SettingsTestNotification");
+            Button open = ui.Find<Button>("SettingsOpenNotificationSettings");
+            Assert.True(test.Focus(NavigationMethod.Tab));
+
+            // Space on the focused button, as a keyboard user does.
+            Press(ui.Window, PhysicalKey.Space, RawInputModifiers.None);
+            await WaitForTestAsync(ui);
+
+            Assert.Equal(1, mac.Requests);
+            Assert.False(test.IsEffectivelyVisible);
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsNotificationsTurnedOff, ui.ShownText("SettingsNotificationsTurnedOff"));
+            Assert.Null(ui.ShownText("SettingsTestNotificationResult"));
+            Assert.Same(open, ui.Window.FocusManager?.GetFocusedElement());
+
+            mac.TurnedOff = false;
+            await ui.ViewModel.RefreshNotificationPermissionAsync();
+            ui.Window.Settle();
+            Assert.True(test.IsEffectivelyVisible);
+            Assert.Same(test, ui.Window.FocusManager?.GetFocusedElement());
+        });
+
+    /// <summary>T-101 Q4: a click on the test notification shows the General tab of a new window, and of an open one.</summary>
+    [Fact]
+    public Task AClickOnTheTestNotificationShowsTheGeneralTab() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
+            AuxiliaryWindowSlot slot = new();
+            AuxiliaryWindowFactory windows = new(track: null);
+            List<SettingsViewModel> created = [];
+            (IAuxiliaryWindow, SettingsViewModel) Create() =>
+                windows.Settings(
+                    screens =>
+                    {
+                        SettingsViewModel viewModel = new(store, new FakeConnectionTester(), SettingsWindowHarness.Supported, static () => "p1", new FakeCameraTester(), screens: screens);
+                        created.Add(viewModel);
+                        return viewModel;
+                    },
+                    () => scope.Track(new SettingsWindow()));
+
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            await created[0].LoadAsync();
+            Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
+
+            // Already open on another tab, with an edit: the same window, the edit kept, the General tab shown.
+            created[0].SelectedTabIndex = SettingsViewModel.PrintersTab;
+            created[0].SelectedPrinter!.Name = "Edited";
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            Assert.Single(created);
+            Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
+            Assert.Equal("Edited", created[0].SelectedPrinter!.Name);
+            slot.Shutdown();
+        });
+
+    /// <summary>The test of the slot finished (it may resume on the UI thread after the fake's continuation).</summary>
+    private static async Task WaitForTestAsync(SettingsWindowHarness ui)
+    {
+        if (ui.ViewModel.SendTestNotificationCommand.ExecutionTask is { } running)
+        {
+            await running;
+        }
+
+        ui.Window.Settle();
+    }
+
+    /// <summary>
+    /// T-101: the text next to the slot shows <paramref name="expected"/> and, with the button of the slot, fits at both sizes.
+    /// </summary>
+    private static List<string> SlotProblems(SettingsWindowHarness ui, string textId, string expected, string buttonId, string context)
+    {
+        List<string> problems = [];
+        Window window = ui.Window;
+        TextBlock text = ui.Find<TextBlock>(textId);
+        Button button = ui.Find<Button>(buttonId);
+        Assert.True(text.IsEffectivelyVisible, $"{context}: {textId} is not shown.");
+        Assert.True(button.IsEffectivelyVisible, $"{context}: {buttonId} is not shown.");
+        Assert.Equal(expected, text.Text);
+        foreach (Size size in new[] { new Size(780, 532), new Size(1366, 705) })
+        {
+            window.Width = size.Width;
+            window.Height = size.Height;
+            window.Settle();
+            string at = $"{context} / {size}";
+            problems.AddRange(ScrollingViewers(window, at));
+            problems.AddRange(CutTexts(window, at));
+            if (text.TextLayout.TextLines.Count > 2)
+            {
+                problems.Add($"{at}: '{text.Text}' takes {text.TextLayout.TextLines.Count} lines.");
+            }
+
+            if (text.Bounds.Width < 160)
+            {
+                problems.Add($"{at}: '{text.Text}' is only {text.Bounds.Width:0.#} DIP wide.");
+            }
+
+            problems.AddRange(ButtonProblems(ui, button, buttonId, at));
+        }
+
+        window.Width = 780;
+        window.Height = 532;
+        window.Settle();
+        return problems;
+    }
 
     /// <summary>
     /// T-097 (macOS 15+, user decision 2026-10-29): the Local Network hint as the result of "Test connection" with the button

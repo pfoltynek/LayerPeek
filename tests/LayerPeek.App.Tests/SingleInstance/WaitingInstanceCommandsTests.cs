@@ -29,6 +29,22 @@ public sealed class WaitingInstanceCommandsTests
         Assert.Contains(_logger.Entries, static e => e.Message.Contains("opening the printer's web", StringComparison.Ordinal));
     }
 
+    /// <summary>
+    /// T-101: a click on the test notification opens the settings window, which needs the UI: it waits like a later start
+    /// (user decision 2026-10-29: held like an activation and honoured after the UI attaches).
+    /// </summary>
+    [Fact]
+    public void AClickOnTheTestNotificationIsKeptForTheUi()
+    {
+        Assert.True(InstanceCommand.TryForToast("settings=general", out InstanceCommand toast));
+
+        Assert.False(Create(testCommands: false).Handle(toast));
+
+        Assert.Empty(_opened);
+        Assert.DoesNotContain(_logger.Entries, static e => e.Message.Contains("opening the printer's web", StringComparison.Ordinal));
+        Assert.Contains(_logger.Entries, static e => e.Message.Contains("Toast waits for the menu bar item", StringComparison.Ordinal));
+    }
+
     /// <summary>User decision 2026-10-29: a later start is kept for the UI (it opens what it always opens, after the wait).</summary>
     [Fact]
     public void ALaterStartIsKeptForTheUi()

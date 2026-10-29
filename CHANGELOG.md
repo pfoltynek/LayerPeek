@@ -17,6 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a
   printer (Ctrl+Tab and Ctrl+PageDown still work). Every auxiliary window (Settings, Diagnostics, About, licences,
   camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel). Windows is unchanged.
+- **Send test notification** on the *General* tab of the settings (Windows and macOS): shows a sample notification
+  the way printer events are shown, with the sound unless *Sound* is set to Off (the choice shown in the window counts,
+  even unsaved), also while *Show notifications* is unchecked. A new test notification replaces the previous one, and a
+  click on it brings the settings window to the front on the *General* tab. The result is shown next to the button:
+  sent (with a hint to check Focus / Do not disturb if nothing appears) or failed. On macOS, when LayerPeek has not
+  asked yet, the button asks for permission first (macOS asks only once; after a denial the tab offers System Settings
+  → Notifications).
+- Windows: when LayerPeek's notifications are turned off in Settings → System → Notifications, the *General* tab says
+  so and offers to open that page (checked every time the settings window opens or comes back to the front, as on
+  macOS); when a policy of the organization turned them off, the tab says that instead.
 
 ## [0.3.0] - 2026-10-29
 

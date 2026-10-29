@@ -1,3 +1,5 @@
+using LayerPeek.App.Platform.Windows;
+
 namespace LayerPeek.App.Notifications;
 
 /// <summary>
@@ -21,7 +23,15 @@ internal interface IToastPlatform
 internal interface IToastSession : IDisposable
 {
     /// <summary>Shows a toast described by <paramref name="toastXml"/> (built by <see cref="ToastContentBuilder"/>).</summary>
-    void Show(string toastXml);
+    /// <param name="tag">
+    /// The tag of the toast; a toast with the same tag replaces the earlier one in the notification center (the test
+    /// notification, T-101). <see langword="null"/>: none (every toast stays).
+    /// </param>
+    void Show(string toastXml, string? tag);
+
+    /// <summary>Whether Windows shows the toasts of the app (switched off in Settings, by policy...; T-010, T-101).</summary>
+    /// <exception cref="Exception">Windows did not say.</exception>
+    ToastNotifierSetting Setting { get; }
 }
 
 /// <summary>The toasts an app left in the notification center (WinRT on Windows), replaceable by a fake in tests.</summary>
