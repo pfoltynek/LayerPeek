@@ -781,6 +781,44 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void LocalNetworkHintOffersToOpenSystemSettingsUntilThePrinterAnswers()
+    {
+        // T-097 (user decision 2026-10-29): the button only next to the hint; the fake opens nothing.
+        Configure(Definition() with { Address = "http://192.168.1.10:8080" });
+        FakeLocalNetworkPrivacy privacy = new();
+        DiagnosticsViewModel viewModel = Create(localNetwork: privacy);
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.NotReachable));
+        _dispatcher.RunAll();
+        Assert.False(viewModel.ShowsLocalNetworkSettings);
+        Assert.False(viewModel.OpenLocalNetworkSettingsCommand.CanExecute(null));
+
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.HostUnreachable));
+        _dispatcher.RunAll();
+        Assert.True(viewModel.ShowsLocalNetworkSettings);
+        Assert.True(viewModel.OpenLocalNetworkSettingsCommand.CanExecute(null));
+        viewModel.OpenLocalNetworkSettingsCommand.Execute(null);
+        Assert.Equal(1, privacy.Opened);
+
+        _monitor.Raise(Snapshot(PrinterState.Idle));
+        _dispatcher.RunAll();
+        Assert.False(viewModel.ShowsLocalNetworkSettings);
+        viewModel.OpenLocalNetworkSettingsCommand.Execute(null);
+        Assert.Equal(1, privacy.Opened);
+    }
+
+    [Fact]
+    public void WithoutTheLocalNetworkPermissionThereIsNoButton()
+    {
+        Configure(Definition() with { Address = "http://192.168.1.10:8080" });
+        DiagnosticsViewModel viewModel = Create();
+
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.HostUnreachable));
+        _dispatcher.RunAll();
+
+        Assert.False(viewModel.ShowsLocalNetworkSettings);
+    }
+
+    [Fact]
     public void NoRouteToAPrinterIsNotReachableWhereThereIsNoLocalNetworkPermission()
     {
         // Windows and macOS 14 (no permission), and a routed address on macOS 15+.

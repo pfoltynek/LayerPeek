@@ -214,6 +214,16 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             Assert.Contains(nameof(CameraViewModel.StatusDetail), changed);
             Assert.StartsWith("Bez spojení.", viewModel.StatusDetail, StringComparison.Ordinal);
         }
+
+        // The mini preview shows the short form (it fits down to 240 × 135), the normal window the full text again.
+        changed.Clear();
+        viewModel.ShowMiniCommand.Execute(null);
+        Assert.Contains(nameof(CameraViewModel.StatusDetail), changed);
+        Assert.Equal("No connection. Local Network access may be turned off.", viewModel.StatusDetail);
+        changed.Clear();
+        viewModel.ShowNormalCommand.Execute(null);
+        Assert.Contains(nameof(CameraViewModel.StatusDetail), changed);
+        Assert.StartsWith("No connection. Local Network access for LayerPeek", viewModel.StatusDetail, StringComparison.Ordinal);
     }
 
     [Fact]

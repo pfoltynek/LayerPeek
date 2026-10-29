@@ -304,15 +304,24 @@
                             <Button AutomationProperties.AutomationId="PrinterCancelTest" Content="{Binding [SettingsCancelTest], Source={x:Static loc:LocalizedStrings.Instance}}" Command="{Binding CancelTestCommand}" IsVisible="{Binding IsTesting}" />
                             <ProgressBar IsIndeterminate="True" Width="48" MinWidth="48" VerticalAlignment="Center" IsVisible="{Binding IsTesting}" />
                           </StackPanel>
-                          <TextBlock Grid.Column="1"
-                                     AutomationProperties.AutomationId="PrinterTestResult"
-                                     Classes="result"
-                                     Classes.success="{Binding TestSucceeded}"
-                                     Classes.failure="{Binding TestFailed}"
-                                     Text="{Binding TestResultText}"
-                                     IsVisible="{Binding HasTestResult}"
-                                     VerticalAlignment="Top"
-                                     Margin="12,6,0,0" />
+                          <StackPanel Grid.Column="1" Margin="12,0,0,0" Spacing="6">
+                            <TextBlock AutomationProperties.AutomationId="PrinterTestResult"
+                                       Classes="result"
+                                       Classes.success="{Binding TestSucceeded}"
+                                       Classes.failure="{Binding TestFailed}"
+                                       Text="{Binding TestResultText}"
+                                       IsVisible="{Binding HasTestResult}"
+                                       VerticalAlignment="Top"
+                                       Margin="0,6,0,0" />
+                            <!-- macOS 15+ (T-097, user decision 2026-10-29): only under the Local Network hint. -->
+                            <Button AutomationProperties.AutomationId="PrinterOpenLocalNetworkSettings"
+                                    HorizontalAlignment="Left"
+                                    Content="{Binding [LocalNetworkOpenSystemSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    ToolTip.Tip="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    AutomationProperties.HelpText="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsVisible="{Binding ShowsLocalNetworkSettings}"
+                                    Command="{Binding OpenLocalNetworkSettingsCommand}" />
+                          </StackPanel>
                         </Grid>
                       </StackPanel>
                     </DataTemplate>
@@ -382,6 +391,14 @@
                                        Classes.failure="{Binding CameraTestFailed}"
                                        Text="{Binding CameraTestResultText}"
                                        IsVisible="{Binding HasCameraTestResult}" />
+                            <!-- macOS 15+ (T-097, user decision 2026-10-29): only under the Local Network hint. -->
+                            <Button AutomationProperties.AutomationId="PrinterCameraOpenLocalNetworkSettings"
+                                    HorizontalAlignment="Left"
+                                    Content="{Binding [LocalNetworkOpenSystemSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    ToolTip.Tip="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    AutomationProperties.HelpText="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsVisible="{Binding ShowsCameraLocalNetworkSettings}"
+                                    Command="{Binding OpenLocalNetworkSettingsCommand}" />
                           </StackPanel>
                         </Grid>
                       </StackPanel>

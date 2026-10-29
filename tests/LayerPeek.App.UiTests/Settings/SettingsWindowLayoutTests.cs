@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Printers;
 using LayerPeek.App.Tests.Settings;
 using LayerPeek.App.UiTests.Infrastructure;
@@ -234,6 +235,159 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             await ui.ViewModel.RefreshNotificationPermissionAsync();
             ui.Window.Settle();
             Assert.False(warning.IsEffectivelyVisible);
+            Assert.False(open.IsEffectivelyVisible);
+            ui.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-097 (macOS 15+, user decision 2026-10-29): the Local Network hint as the result of "Test connection" with the button
+    /// to System Settings under it; in every language, at the designed and a maximized size and with the name error above
+    /// (the highest printer sub-tab), nothing is cut, nothing scrolls, the hint keeps room to read and the button has its
+    /// whole text inside the window. The button opens System Settings (here only counted).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task LocalNetworkHintWithItsButtonFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            FakeLocalNetworkPrivacy privacy = new();
+            FakeConnectionTester tester = new() { Immediate = new ConnectionTestResult(ConnectionTestOutcome.LocalNetworkAccessMayBeOff) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30")), tester, autostartNeedsInstallation: true, macTerms: true, localNetwork: privacy);
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            Button open = ui.Find<Button>("PrinterOpenLocalNetworkSettings");
+            Assert.False(open.IsEffectivelyVisible);
+            await printer.TestConnectionCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            TextBlock result = ui.Find<TextBlock>("PrinterTestResult");
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.LocalNetworkAccessMayBeOff, result.Text);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettings, open.Content);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, ToolTip.GetTip(open));
+            foreach (bool nameError in (bool[])[false, true])
+            {
+                if (nameError)
+                {
+                    // An invalid name blocks a new test but keeps the shown result.
+                    printer.Name = new string('n', SettingsViewModel.MaxNameLength + 1);
+                    ui.Window.Settle();
+                    Assert.True(open.IsEffectivelyVisible);
+                }
+
+                foreach (Size size in new[] { new Size(780, 532), new Size(1366, 705) })
+                {
+                    ui.Window.Width = size.Width;
+                    ui.Window.Height = size.Height;
+                    ui.Window.Settle();
+                    string context = $"{language} / Local Network hint{(nameError ? " + name error" : string.Empty)} / {size}";
+                    problems.AddRange(ScrollingViewers(ui.Window, context));
+                    problems.AddRange(CutTexts(ui.Window, context));
+                    problems.AddRange(ButtonProblems(ui, open, "PrinterOpenLocalNetworkSettings", context));
+                    if (result.Bounds.Width < 240)
+                    {
+                        problems.Add($"{context}: the hint is only {result.Bounds.Width:0.#} DIP wide.");
+                    }
+
+                    Point resultEnd = result.TranslatePoint(new Point(0, result.Bounds.Height), ui.Window) ?? default;
+                    Point buttonTop = open.TranslatePoint(default, ui.Window) ?? default;
+                    if (buttonTop.Y < resultEnd.Y - 0.5)
+                    {
+                        problems.Add($"{context}: the button at {buttonTop.Y:0.#} DIP overlaps the hint ending at {resultEnd.Y:0.#}.");
+                    }
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, privacy.Opened);
+
+            // Another result hides it.
+            tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.NotReachable);
+            await printer.TestConnectionCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+            Assert.False(open.IsEffectivelyVisible);
+            ui.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-097 (macOS 15+, user decision 2026-10-29): the Local Network hint as the result of the camera Test with the button to
+    /// System Settings under it, also with the camera address error above; in every language at the designed and a
+    /// maximized size nothing is cut, nothing scrolls, the hint keeps room to read and the button has its whole text inside
+    /// the window under the hint. The button opens System Settings (here only counted).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task CameraLocalNetworkHintWithItsButtonFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            FakeLocalNetworkPrivacy privacy = new();
+            FakeCameraTester cameraTester = new() { Immediate = new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host.") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }), cameraTester: cameraTester, autostartNeedsInstallation: true, macTerms: true, localNetwork: privacy);
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            ui.Window.Settle();
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            Button open = ui.Find<Button>("PrinterCameraOpenLocalNetworkSettings");
+            Assert.False(open.IsEffectivelyVisible);
+            await printer.TestCameraCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            TextBlock result = ui.Find<TextBlock>("PrinterCameraTestResult");
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.LocalNetworkAccessMayBeOff, result.Text);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettings, open.Content);
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.LocalNetworkOpenSystemSettingsHint, ToolTip.GetTip(open));
+            foreach (bool otherError in (bool[])[false, true])
+            {
+                if (otherError)
+                {
+                    // An invalid name (the marker on the Printer sub-tab header) keeps the shown result.
+                    printer.Name = new string('n', SettingsViewModel.MaxNameLength + 1);
+                    ui.Window.Settle();
+                    Assert.True(open.IsEffectivelyVisible);
+                }
+
+                foreach (Size size in (Size[])[new Size(780, 532), new Size(1366, 705)])
+                {
+                    ui.Window.Width = size.Width;
+                    ui.Window.Height = size.Height;
+                    ui.Window.Settle();
+                    string context = $"{language} / camera Local Network hint{(otherError ? " + name error" : string.Empty)} / {size}";
+                    problems.AddRange(ScrollingViewers(ui.Window, context));
+                    problems.AddRange(CutTexts(ui.Window, context));
+                    problems.AddRange(HeadersNotOnOneRow(ui.Window, context));
+                    problems.AddRange(ButtonProblems(ui, open, "PrinterCameraOpenLocalNetworkSettings", context));
+                    if (result.Bounds.Width < 240)
+                    {
+                        problems.Add($"{context}: the hint is only {result.Bounds.Width:0.#} DIP wide.");
+                    }
+
+                    Point resultEnd = result.TranslatePoint(new Point(0, result.Bounds.Height), ui.Window) ?? default;
+                    Point buttonTop = open.TranslatePoint(default, ui.Window) ?? default;
+                    if (buttonTop.Y < resultEnd.Y - 0.5)
+                    {
+                        problems.Add($"{context}: the button at {buttonTop.Y:0.#} DIP overlaps the hint ending at {resultEnd.Y:0.#}.");
+                    }
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, privacy.Opened);
+
+            // Another result hides it.
+            cameraTester.Immediate = new CameraTestResult(CameraTestOutcome.Failed, Reason: "Connection refused.");
+            await printer.TestCameraCommand.ExecuteAsync(null);
+            ui.Window.Settle();
             Assert.False(open.IsEffectivelyVisible);
             ui.Window.Close();
 

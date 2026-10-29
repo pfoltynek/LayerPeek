@@ -298,6 +298,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(IsNormal));
             OnPropertyChanged(nameof(IsFullScreen));
             OnPropertyChanged(nameof(IsMini));
+            OnPropertyChanged(nameof(StatusDetail));
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
             // The mini preview draws no cards (T-081).
@@ -392,10 +393,12 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
     /// <summary>
     /// Why there is no image (technical English text without the address); <see langword="null"/> when none. "No route to
-    /// host" to a camera in the local network may be the denied Local Network permission of macOS (T-097): then translated.
+    /// host" to a camera in the local network may be the denied Local Network permission of macOS (T-097): then translated,
+    /// in the mini preview in its short form (the full text with the System Settings path does not fit down to 240 × 135).
     /// </summary>
     public string? StatusDetail => !IsStatusVisible ? null
-        : _status.IsHostUnreachable && _localNetwork.MayBeDenied(_streamUri.Host, $"the camera of printer '{PrinterId}'") ? Strings.LocalNetworkAccessMayBeOff
+        : _status.IsHostUnreachable && _localNetwork.MayBeDenied(_streamUri.Host, $"the camera of printer '{PrinterId}'")
+            ? IsMini ? Strings.CameraMiniLocalNetworkAccessMayBeOff : Strings.LocalNetworkAccessMayBeOff
         : _status.Reason;
 
     public bool HasStatusDetail => StatusDetail is not null;

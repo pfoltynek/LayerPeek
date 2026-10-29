@@ -1310,6 +1310,18 @@
   </data>
   <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
     <value>No connection. Local Network access for LayerPeek may be turned off in System Settings &gt; Privacy &amp; Security &gt; Local Network.</value>
-    <comment>T-097: macOS 15+ only, instead of the not-reachable texts when a connection to a printer or camera in the local network failed with "no route to host", which is also what a denied Local Network permission looks like (Apple TN3179); diagnostics window detail, Test connection and camera Test results, camera window status detail. Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
+    <comment>T-097: macOS 15+ only, instead of the not-reachable texts when a connection to a printer or camera in the local network failed with "no route to host", which is also what a denied Local Network permission looks like (Apple TN3179); diagnostics window detail, Test connection and camera Test results, camera window status detail (normal window and full screen; the mini preview shows CameraMiniLocalNetworkAccessMayBeOff). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
+  </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>No connection. Local Network access may be turned off.</value>
+    <comment>T-097: short form of LocalNetworkAccessMayBeOff for the status of the camera mini preview (down to 240 × 135 DIP), where the full text with the System Settings path does not fit; the normal window and full screen show the full text.</comment>
+  </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Open System Settings</value>
+    <comment>T-097: macOS 15+ button under LocalNetworkAccessMayBeOff in the diagnostics window and next to the Test connection and camera Test results; opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Same Apple wording as SettingsOpenLoginItems (another pane).</comment>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Turn on LayerPeek there.</value>
+    <comment>T-097: tooltip and screen reader help of LocalNetworkOpenSystemSettings (macOS 15+). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
   </data>
 </root>

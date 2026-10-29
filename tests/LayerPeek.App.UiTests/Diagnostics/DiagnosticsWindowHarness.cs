@@ -62,7 +62,17 @@ internal sealed class DiagnosticsWindowHarness
         OpenRemembering(scope, windowStates: null, printers, snapshots);
 
     /// <summary>Like <see cref="Open(UiTestScope, PrinterDefinition[], PrinterSnapshot[])"/>, remembering the size in <paramref name="windowStates"/> (T-094).</summary>
-    public static DiagnosticsWindowHarness OpenRemembering(UiTestScope scope, IAuxiliaryWindowStateStore? windowStates, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots)
+    public static DiagnosticsWindowHarness OpenRemembering(UiTestScope scope, IAuxiliaryWindowStateStore? windowStates, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots) =>
+        Open(scope, windowStates, localNetwork: null, printers, snapshots);
+
+    /// <summary>
+    /// Like <see cref="Open(UiTestScope, PrinterDefinition[], PrinterSnapshot[])"/> on macOS 15+ (T-097): "no route to host"
+    /// to a printer in the local network asks <paramref name="localNetwork"/>, a fake that never opens System Settings.
+    /// </summary>
+    public static DiagnosticsWindowHarness OpenWithLocalNetwork(UiTestScope scope, LayerPeek.App.Platform.ILocalNetworkPrivacy localNetwork, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots) =>
+        Open(scope, windowStates: null, localNetwork, printers, snapshots);
+
+    private static DiagnosticsWindowHarness Open(UiTestScope scope, IAuxiliaryWindowStateStore? windowStates, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork, PrinterDefinition[]? printers, PrinterSnapshot[] snapshots)
     {
         ArgumentNullException.ThrowIfNull(scope);
         FakePrinterMonitor monitor = new();
@@ -89,7 +99,8 @@ internal sealed class DiagnosticsWindowHarness
             new AvaloniaUiDispatcher(),
             info,
             new FixedClock(TestPrinters.Now),
-            images: new CustomPrinterImages()));
+            images: new CustomPrinterImages(),
+            localNetwork: localNetwork));
         DiagnosticsWindow window = scope.Track(new DiagnosticsWindow { DataContext = viewModel });
         if (windowStates is not null)
         {

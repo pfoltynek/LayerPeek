@@ -1,4 +1,5 @@
 using LayerPeek.App.Settings;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -1084,6 +1085,52 @@ public sealed class SettingsViewModelTests : IDisposable
     }
 
     [Fact]
+    public async Task LocalNetworkHintOffersToOpenSystemSettings()
+    {
+        // T-097 (macOS 15+, user decision 2026-10-29): only next to the Local Network hint; the fake opens nothing.
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        Assert.False(printer.ShowsLocalNetworkSettings);
+        Assert.False(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
+        _tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.LocalNetworkAccessMayBeOff);
+
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+
+        Assert.True(printer.ShowsLocalNetworkSettings);
+        Assert.True(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
+        printer.OpenLocalNetworkSettingsCommand.Execute(null);
+        Assert.Equal(1, _localNetwork.Opened);
+
+        // Another result, and an edit that clears the result, hide it again.
+        _tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.NotReachable);
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+        Assert.False(printer.ShowsLocalNetworkSettings);
+        printer.OpenLocalNetworkSettingsCommand.Execute(null);
+        Assert.Equal(1, _localNetwork.Opened);
+
+        _tester.Immediate = new ConnectionTestResult(ConnectionTestOutcome.LocalNetworkAccessMayBeOff);
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+        Assert.True(printer.ShowsLocalNetworkSettings);
+        printer.Address = "192.168.1.21";
+        Assert.False(printer.ShowsLocalNetworkSettings);
+        Assert.Null(printer.TestResultText);
+    }
+
+    [Theory]
+    [InlineData(ConnectionTestOutcome.NotReachable)]
+    [InlineData(ConnectionTestOutcome.Timeout)]
+    [InlineData(ConnectionTestOutcome.Success)]
+    public async Task OtherResultsNeverOfferTheLocalNetworkSettings(ConnectionTestOutcome outcome)
+    {
+        PrinterEditorViewModel printer = await LoadOneAsync();
+        _tester.Immediate = new ConnectionTestResult(outcome);
+
+        await printer.TestConnectionCommand.ExecuteAsync(null);
+
+        Assert.False(printer.ShowsLocalNetworkSettings);
+        Assert.False(printer.OpenLocalNetworkSettingsCommand.CanExecute(null));
+    }
+
+    [Fact]
     public async Task InvalidAddressIsReportedWithoutTesting()
     {
         PrinterEditorViewModel printer = await LoadOneAsync();
@@ -1202,12 +1249,14 @@ public sealed class SettingsViewModelTests : IDisposable
     private const string UserNameUnsupported =
         "The user name can contain only letters without diacritics, digits and common symbols, except \" and \\.";
 
+    private readonly FakeLocalNetworkPrivacy _localNetwork = new();
+
     private string NextId() => _ids.Dequeue();
 
     private SettingsViewModel Create(PasswordPolicy? policy = null)
     {
         _viewModel?.Dispose();
-        SettingsViewModel vm = new(_store, _tester, policy ?? Supported, NextId);
+        SettingsViewModel vm = new(_store, _tester, policy ?? Supported, NextId, localNetwork: _localNetwork);
         vm.CloseRequested += (_, _) => _closeRequests++;
         _viewModel = vm;
         return vm;

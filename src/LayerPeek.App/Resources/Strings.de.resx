@@ -1281,4 +1281,13 @@
   <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
     <value>Keine Verbindung. Der Zugriff von LayerPeek auf das lokale Netzwerk ist möglicherweise in „Systemeinstellungen &gt; Datenschutz &amp; Sicherheit &gt; Lokales Netzwerk“ ausgeschaltet.</value>
   </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Keine Verbindung. Der Zugriff auf das lokale Netzwerk ist möglicherweise ausgeschaltet.</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Systemeinstellungen öffnen</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Öffnet „Systemeinstellungen &gt; Datenschutz &amp; Sicherheit &gt; Lokales Netzwerk“. Schalten Sie LayerPeek dort ein.</value>
+  </data>
 </root>

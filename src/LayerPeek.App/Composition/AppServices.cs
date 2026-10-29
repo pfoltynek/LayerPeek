@@ -181,9 +181,12 @@ internal static partial class AppServices
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
         // macOS 15+ (T-097): "no route to host" to a printer or camera in the local network may be the denied Local Network
-        // permission (Apple TN3179); the UI says where to allow it and the log gets one line per printer. Elsewhere never.
-        services.AddSingleton<ILocalNetworkPrivacy>(static sp => OperatingSystem.IsMacOSVersionAtLeast(15)
-            ? new MacLocalNetworkPrivacy(sp.GetRequiredService<ILogger<MacLocalNetworkPrivacy>>())
+        // permission (Apple TN3179); the UI says where to allow it, offers to open System Settings there (only outside the test
+        // mode) and the log gets one line per printer. Elsewhere never.
+        services.AddSingleton<ILocalNetworkPrivacy>(sp => OperatingSystem.IsMacOSVersionAtLeast(15)
+            ? new MacLocalNetworkPrivacy(
+                sp.GetRequiredService<ILogger<MacLocalNetworkPrivacy>>(),
+                OpenSystemSettings(env, sp.GetRequiredService<ILogger<MacLocalNetworkPrivacy>>()))
             : NoLocalNetworkPrivacy.Instance);
         services.AddSingleton(static sp => new LocalNetworkPrivacyObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // G-code previews (T-086 / T-087): in memory only, over the PrusaLink fetcher; told about every snapshot and the printers
@@ -281,21 +284,21 @@ internal static partial class AppServices
     }
 
     /// <summary>
-    /// How the settings window opens System Settings &gt; Notifications (T-020): really only outside the test mode; the test
-    /// mode (never in Release builds) only logs it, like the stand-in Login Item (T-019).
+    /// How the app opens a pane of System Settings (T-020 Notifications, T-097 Local Network): really only outside the test
+    /// mode; the test mode (never in Release builds) only logs it, like the stand-in Login Item (T-019).
     /// </summary>
     internal static Action<Uri> OpenSystemSettings(AppEnvironment environment, ILogger logger)
     {
         if (environment.IsIsolated || !OperatingSystem.IsMacOS())
         {
-            return address => LogSystemSettingsNotOpened(logger);
+            return address => LogSystemSettingsNotOpened(logger, address.OriginalString);
         }
 
         return MacSystemSettings.Open;
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: System Settings > Notifications is not opened.")]
-    private static partial void LogSystemSettingsNotOpened(ILogger logger);
+    [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: System Settings is not opened ({Address}).")]
+    private static partial void LogSystemSettingsNotOpened(ILogger logger, string address);
 
     /// <summary>
     /// Windows: toasts (T-010). macOS: the notification center (T-020, chosen in <c>Create</c>); without it and on any other OS notifications are silently not sent.
@@ -653,7 +656,8 @@ internal static partial class AppServices
             layoutModeLauncher: layoutModeLauncher,
             // A layout saved from a camera window replaces only that layout in an open settings window (T-077 Q3).
             layoutWriter: services.GetRequiredService<ICameraOverlayLayoutWriter>(),
-            uiDispatcher: services.GetRequiredService<IUiDispatcher>())
+            uiDispatcher: services.GetRequiredService<IUiDispatcher>(),
+            localNetwork: services.GetRequiredService<ILocalNetworkPrivacy>())
         {
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).

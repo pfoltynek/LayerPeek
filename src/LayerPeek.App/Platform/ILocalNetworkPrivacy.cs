@@ -14,6 +14,13 @@ internal interface ILocalNetworkPrivacy
     /// credentials) a yes is logged with where to allow the access. Thread-safe, never throws.
     /// </summary>
     bool MayBeDenied(string? host, string subject);
+
+    /// <summary>
+    /// Opens the OS settings where the user allows the local network access (macOS: System Settings &gt; Privacy &amp; Security
+    /// &gt; Local Network; user decision 2026-10-29). Offered only next to a <see cref="MayBeDenied"/> hint. UI thread. Never
+    /// throws (a failure is only logged); the test mode opens nothing.
+    /// </summary>
+    void OpenSettings();
 }
 
 /// <summary>An OS without a local network permission (Windows, macOS 14): never.</summary>
@@ -26,4 +33,8 @@ internal sealed class NoLocalNetworkPrivacy : ILocalNetworkPrivacy
     }
 
     public bool MayBeDenied(string? host, string subject) => false;
+
+    public void OpenSettings()
+    {
+    }
 }
