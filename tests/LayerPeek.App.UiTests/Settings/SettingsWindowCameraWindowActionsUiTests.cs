@@ -212,7 +212,8 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
             Assert.True(ViewModel(alpha).IsMini);
             Assert.Equal(WindowDecorations.None, alpha.WindowDecorations);
             Assert.False(alpha.Topmost);
-            Assert.False(alpha.ShowInTaskbar);
+            // T-102 (2026-10-29): a mini preview that is not on top has a taskbar button like any other window.
+            Assert.True(alpha.ShowInTaskbar);
             AssertPlaced(alpha, Expected(new CameraWindowLayout(new CameraWindowSize(400, 225), CameraWindowCorner.TopLeft), ScreenAt(screens, -1920), CameraWindowMode.Mini));
 
             // The other printer's window stays where it was.
@@ -249,7 +250,8 @@ public sealed class SettingsWindowCameraWindowActionsUiTests(HeadlessSession ses
             Assert.True(ViewModel(window).IsNormal);
             Assert.Equal(WindowDecorations.Full, window.WindowDecorations);
             Assert.True(window.Topmost);
-            Assert.True(window.ShowInTaskbar);
+            // T-102 (2026-10-29): a window on top has no taskbar button, also the normal window.
+            Assert.False(window.ShowInTaskbar);
             AssertPlaced(window, Expected(wanted.Normal, ScreenAt(screens, -1920), CameraWindowMode.Normal));
         });
 

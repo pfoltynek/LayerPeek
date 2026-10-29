@@ -183,6 +183,9 @@ public partial class App : Application, ITrayAppCommands
         : OperatingSystem.IsMacOS() ? new Platform.MacOS.MacWindowShell()
         : NoWindowShell.Instance;
 
+    private static IAppPresence CreateAppPresence() =>
+        OperatingSystem.IsMacOS() ? new Platform.MacOS.MacAppPresence() : NoAppPresence.Instance;
+
     /// <summary>
     /// The settings are loaded before the tray gets its menu (milliseconds, with the static icon from App.axaml
     /// meanwhile), so that every text starts in the saved language. async void: a startup failure crashes the app as
@@ -202,7 +205,8 @@ public partial class App : Application, ITrayAppCommands
             return;
         }
 
-        _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host));
+        // macOS (T-102): a Dock icon while a window that is not always on top is open.
+        _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host), presence: new AppPresence(CreateAppPresence()));
         // macOS (T-019): the menu bar app is not active when its menu opens a window; the window comes with the app to the front.
         _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates, OperatingSystem.IsMacOS() ? Platform.MacOS.MacAppActivation.Activate : null);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
@@ -303,6 +307,16 @@ public partial class App : Application, ITrayAppCommands
         }
 
         CameraWindowsFor(host).Toggle(printerId);
+    }
+
+    void ITrayAppCommands.BringCameraToFront(string printerId)
+    {
+        if (_host is not { } host || _quit is { IsQuitting: true })
+        {
+            return;
+        }
+
+        CameraWindowsFor(host).BringToFront(printerId);
     }
 
     /// <summary>

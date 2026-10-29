@@ -123,6 +123,11 @@ public sealed partial class CameraWindow : Window
         {
             OnMiniClientSizeChanged();
         }
+        else if (change.Property == TopmostProperty)
+        {
+            // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence).
+            ShowInTaskbar = ShowsInTaskbar(change.GetNewValue<bool>());
+        }
 
         if (change.Property != WindowStateProperty || !_opened || _viewModel is not { } viewModel)
         {
@@ -254,7 +259,6 @@ public sealed partial class CameraWindow : Window
             WindowState = WindowState.Normal;
             // The frame first: the chrome is asked for with the window's style of the new mode.
             WindowDecorations = layoutMode == CameraWindowMode.Mini ? WindowDecorations.None : WindowDecorations.Full;
-            ShowInTaskbar = ShowsInTaskbar(mode);
             Topmost = viewModel.Defaults.IsTopmost(mode);
             ApplyMinimumSize(layoutMode);
             WindowChrome chrome = WindowChrome.None;
@@ -291,11 +295,14 @@ public sealed partial class CameraWindow : Window
     }
 
     /// <summary>
-    /// The mini preview has no taskbar button (T-040, Windows); the normal window and full screen have one. On Windows
-    /// Avalonia hides a window from the taskbar by giving it a hidden owner and shows it again by removing that owner
-    /// (hiding and showing the window once, keeping its activation).
+    /// A window that stays above other windows has no taskbar button, every other one has (T-102, user decision
+    /// 2026-10-29; before: only the mini preview had none, T-040). The mini preview is on top by default, full screen never
+    /// (T-037). <see cref="OnPropertyChanged"/> keeps <see cref="Window.ShowInTaskbar"/> in line with <see cref="Window.Topmost"/>
+    /// whenever that changes (opening, a mode switch, a saved option). On Windows Avalonia hides a window from the taskbar
+    /// by giving it a hidden owner and shows it again by removing that owner (hiding and showing the window once, keeping
+    /// its activation); on macOS the same rule decides the Dock icon (<see cref="AppPresence"/>).
     /// </summary>
-    internal static bool ShowsInTaskbar(CameraWindowMode mode) => mode != CameraWindowMode.Mini;
+    internal static bool ShowsInTaskbar(bool topmost) => !topmost;
 
     private void ApplyMode(CameraWindowMode mode)
     {
@@ -312,7 +319,6 @@ public sealed partial class CameraWindow : Window
         try
         {
             CameraWindowMode previousWindowed = _lastWindowedMode;
-            ShowInTaskbar = ShowsInTaskbar(mode);
             ApplyMinimumSize(mode);
             if (mode != CameraWindowMode.Mini)
             {
@@ -423,7 +429,6 @@ public sealed partial class CameraWindow : Window
         bool mini = viewModel.Mode == CameraWindowMode.Mini;
         // T-037: the option of the mode it opens in (full screen, switched to after opening, is never on top).
         Topmost = viewModel.IsTopmost;
-        ShowInTaskbar = ShowsInTaskbar(viewModel.Mode);
         if (mini)
         {
             // Opened as the mini preview right away, without a normal window first.

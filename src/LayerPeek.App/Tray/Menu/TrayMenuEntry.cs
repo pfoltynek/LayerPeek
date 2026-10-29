@@ -33,6 +33,12 @@ public enum TrayMenuCommand
     /// plain item "Show camera" / "Hide camera", 2026-10-22).
     /// </summary>
     Camera,
+
+    /// <summary>
+    /// "Show camera" next to "Hide camera" while the camera window of <see cref="TrayMenuEntry.PrinterId"/> is open (macOS
+    /// only, T-102): brings the app and the window to the front (restored when minimized); opens it when it closed meanwhile.
+    /// </summary>
+    CameraToFront,
     About,
     Quit,
 }
@@ -150,11 +156,15 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
 /// Printer items show the printer's picture (T-039): on Windows, where Avalonia draws the menu itself. macOS (native
 /// NSMenu) is left out until T-018 verifies it (user decision 2026-10-19).
 /// </param>
-internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsAvailable, bool PrinterIcons = false)
+/// <param name="CameraToFront">
+/// A printer with an open camera window also has "Show camera" (<see cref="TrayMenuCommand.CameraToFront"/>, T-102): on
+/// macOS, where its windows have no taskbar button of their own and fall behind other apps.
+/// </param>
+internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsAvailable, bool PrinterIcons = false, bool CameraToFront = false)
 {
     /// <summary>Both auxiliary windows exist: settings (T-015) and diagnostics (T-011); no printer icons.</summary>
     public static TrayMenuOptions Default { get; } = new(SettingsAvailable: true, DiagnosticsAvailable: true);
 
-    /// <summary><see cref="Default"/> with printer icons where the platform shows them (Windows).</summary>
-    public static TrayMenuOptions ForCurrentPlatform { get; } = Default with { PrinterIcons = OperatingSystem.IsWindows() };
+    /// <summary><see cref="Default"/> with printer icons where the platform shows them (Windows) and "Show camera" for open camera windows on macOS.</summary>
+    public static TrayMenuOptions ForCurrentPlatform { get; } = Default with { PrinterIcons = OperatingSystem.IsWindows(), CameraToFront = OperatingSystem.IsMacOS() };
 }

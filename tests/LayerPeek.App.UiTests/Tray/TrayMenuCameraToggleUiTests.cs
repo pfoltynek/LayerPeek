@@ -33,12 +33,12 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
     /// <summary>The tray menu of printers "a" and "b" (both with cameras, like the harness) on the app's tray icon.</summary>
     private sealed class Wiring : ITrayAppCommands
     {
-        private Wiring(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers)
+        private Wiring(UiTestScope scope, CameraHarness cameras, TrayMenuOptions options, params PrinterDefinition[] printers)
         {
             Cameras = cameras;
             TrayIcon icon = Assert.Single(TrayIcon.GetIcons(Application.Current!)!);
             Menu = icon.Menu!;
-            ViewModel = scope.Defer(new TrayMenuViewModel(new FakePrinterMonitor(), new AvaloniaUiDispatcher(), TestWebOpener.Create(new FakeUrlLauncher()), TrayMenuOptions.Default));
+            ViewModel = scope.Defer(new TrayMenuViewModel(new FakePrinterMonitor(), new AvaloniaUiDispatcher(), TestWebOpener.Create(new FakeUrlLauncher()), options));
             scope.Defer(new TrayMenuPresenter(new TrayMenuTarget(new AvaloniaNativeTrayMenu(icon)), ViewModel, this, NullLogger.Instance));
             cameras.Windows.OpenChanged += (_, e) => ViewModel.SetCameraWindowOpen(e.PrinterId, e.IsOpen);
             ViewModel.SetPrinters(printers);
@@ -51,7 +51,15 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
 
         public TrayMenuViewModel ViewModel { get; }
 
-        public static Wiring Create(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) => new(scope, cameras, printers);
+        public static Wiring Create(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) => new(scope, cameras, TrayMenuOptions.Default, printers);
+
+        /// <summary>The macOS menu (T-102: "Show camera" for an open window), forced on every OS.</summary>
+        public static Wiring CreateMac(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) =>
+            new(scope, cameras, TrayMenuOptions.Default with { CameraToFront = true }, printers);
+
+        /// <summary>The item at <paramref name="index"/> in the submenu of <paramref name="printerIndex"/>.</summary>
+        public NativeMenuItem SubmenuItem(int printerIndex, int index) =>
+            Assert.IsType<NativeMenuItem>(Assert.IsType<NativeMenuItem>(Menu.Items[printerIndex]).Menu!.Items[index]);
 
         /// <summary>The camera item in the submenu of <paramref name="printerIndex"/> (also of a single printer, T-042).</summary>
         public NativeMenuItem CameraItem(int printerIndex = 0) =>
@@ -80,6 +88,8 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         }
 
         public void ToggleCamera(string printerId) => Cameras.Windows.Toggle(printerId);
+
+        public void BringCameraToFront(string printerId) => Cameras.Windows.BringToFront(printerId);
 
         public void Quit()
         {
@@ -209,5 +219,64 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             // After quitting started the item opens nothing.
             Wiring.Click(tray.CameraItem());
             Assert.Empty(cameras.Windows.OpenWindows);
+        });
+
+    [Fact]
+    public Task MacMenuBringsTheOpenWindowToTheFrontAndRestoresItsFullScreen() =>
+        session.RunAsync(static async scope =>
+        {
+            List<string> activations = [];
+            await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors(), bringAppToFront: () => activations.Add("app"));
+            Wiring tray = Wiring.CreateMac(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
+            Assert.Equal(2, Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items.Count);
+
+            Wiring.Click(tray.CameraItem());
+            CameraWindow window = scope.Track(cameras.Windows.OpenWindows["a"]);
+            window.Settle();
+            // "Show camera" right above "Hide camera" (shown by the native menu without the access key marker).
+            Assert.Equal("_Show camera", tray.SubmenuItem(0, 1).Header);
+            Assert.Equal(HideCamera, tray.CameraItem().Header);
+
+            ((CameraViewModel)window.DataContext!).ToggleFullScreenCommand.Execute(null);
+            Dispatcher.UIThread.RunJobs();
+            window.WindowState = WindowState.Minimized;
+            Dispatcher.UIThread.RunJobs();
+            activations.Clear();
+
+            Wiring.Click(tray.SubmenuItem(0, 1));
+            window.Settle();
+
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            Assert.True(window.IsActive);
+            Assert.Equal(["app"], activations);
+            // Still the same single window, and the item stays while it is open.
+            Assert.Same(window, Assert.Single(cameras.Windows.OpenWindows).Value);
+            Assert.Equal("_Show camera", tray.SubmenuItem(0, 1).Header);
+
+            Wiring.Click(tray.CameraItem());
+            Assert.Empty(cameras.Windows.OpenWindows);
+            Assert.Equal(2, Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items.Count);
+            Assert.Equal(ShowCamera, tray.CameraItem().Header);
+        });
+
+    [Fact]
+    public Task MacMenuItemOfAWindowClosedMeanwhileOpensIt() =>
+        session.RunAsync(static async scope =>
+        {
+            await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
+            Wiring tray = Wiring.CreateMac(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
+            Wiring.Click(tray.CameraItem());
+            NativeMenuItem front = tray.SubmenuItem(0, 1);
+            CameraWindow window = cameras.Windows.OpenWindows["a"];
+            window.Close();
+            Dispatcher.UIThread.RunJobs();
+
+            // A click from a menu that was open while the window closed: the item is detached and does nothing.
+            Wiring.Click(front);
+            Assert.Empty(cameras.Windows.OpenWindows);
+
+            // The command itself (a stale entry) opens the window like "Show camera".
+            Assert.True(cameras.Windows.BringToFront("a"));
+            scope.Track(cameras.Windows.OpenWindows["a"]);
         });
 }

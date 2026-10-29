@@ -119,6 +119,10 @@ public sealed class TrayMenuAddPrinterUiTests(HeadlessSession session)
         {
         }
 
+        public void BringCameraToFront(string printerId)
+        {
+        }
+
         public void Quit()
         {
         }

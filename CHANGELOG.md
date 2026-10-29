@@ -17,6 +17,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a
   printer (Ctrl+Tab and Ctrl+PageDown still work). Every auxiliary window (Settings, Diagnostics, About, licences,
   camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel). Windows is unchanged.
+- macOS: while a window is open (Settings, Diagnostics, About, licences, a camera window that is not always on top),
+  LayerPeek has a Dock icon and is in the ⌘Tab switcher, so a window that fell behind other apps can be brought back
+  (clicking the Dock icon, or the window list of its menu); with only always-on-top windows (the mini preview by
+  default) or no window it is back in the menu bar only. The menu bar menu of a printer with an open camera window also
+  has **Show camera**, which brings the window to the front.
+
+### Changed
+
+- Windows: a camera window has a taskbar button exactly when it is not always on top. With the default options nothing
+  changes (the mini preview is on top and has none); a normal window with "Always on top" now has no taskbar button, a
+  mini preview without it now has one.
 
 ## [0.3.0] - 2026-10-29
 

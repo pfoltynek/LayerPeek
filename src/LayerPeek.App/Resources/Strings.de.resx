@@ -801,6 +801,9 @@
   <data name="MenuHideCamera" xml:space="preserve">
     <value>_Kamera ausblenden</value>
   </data>
+  <data name="MenuCameraToFront" xml:space="preserve">
+    <value>Kamera _anzeigen</value>
+  </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Kamera</value>
   </data>

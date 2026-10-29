@@ -71,8 +71,8 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
 
 ## Sezení 2 – Menu bar, Dock a ikony
 
-1. **Bez Docku.** Spuštěná `/Applications/LayerPeek.app`: žádná ikona v Docku ani v přepínači ⌘Tab, ikona je v menu
-   baru. **Uzavírá:** T-019 kritérium 7.
+1. **Bez Docku.** Spuštěná `/Applications/LayerPeek.app` bez otevřeného okna: žádná ikona v Docku ani v přepínači
+   ⌘Tab, ikona je v menu baru (s otevřeným oknem se ikona v Docku objeví, krok 7). **Uzavírá:** T-019 kritérium 7.
 2. **Ikona v menu baru.** Ve světlém i tmavém vzhledu (Nastavení systému → Vzhled): bez tiskárny lomítko přes
    ztlumenou ikonu; s tiskárnou (simulátor: `--scenario` podle [simulator.md](simulator.md)) nečinná / ▶ s plněním
    vrstev / ❚❚ / ✓ / ! / ×. Ikona bílá na tmavém a černá na světlém menu baru, obrácená při otevřeném menu. Na externím
@@ -91,6 +91,25 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
    failed“. Licence třetích stran: texty FFmpeg pro macOS bez „BtbN“ / „DLL“, odkazy na ffmpeg.org, tarball 9.0.2 a
    skript buildu (tag verze); plný text LGPL 3 se načte. **Uzavírá:** T-053 kritérium L4 (část b, kontrola `PATH` je
    v sezení 10), T-026 krok 4.
+
+7. **Ikona v Docku s otevřeným oknem (T-102).** Předpoklad: tiskárna s kamerou (sezení 6), výchozí volby okna kamery
+   (normální okno ne navrchu, malý náhled navrchu). Po každém kroku zapsat, zda je ikona LayerPeeku v Docku a v ⌘Tab:
+   - Bez okna: ne. Otevřít Nastavení → ano (okno zůstane vpředu s fokusem, žádné jiné okno se nepřeskládá). Zavřít →
+     ikona zmizí, fokus dostane jiná aplikace.
+   - Totéž pro Diagnostiku, O aplikaci (a Licence z ní) a okno kamery v normálním okně i na celé obrazovce.
+   - Okno kamery → malý náhled: ikona zmizí, náhled zůstane navrchu a dál reaguje (dvojklik zpět) – zapsat, zda
+     aplikace mezitím neztratila fokus. Náhled → normální okno: ikona se vrátí; zkontrolovat, že menu aplikace v menu
+     baru („LayerPeek“) jde otevřít (známá vlastnost AppKitu: po přepnutí na běžnou aplikaci se menu bar někdy obnoví
+     až po přepnutí na jinou aplikaci a zpět).
+   - Nastavení → Okno kamery: „Vždy navrchu“ u normálního okna zapnout a Použít/Uložit s otevřeným oknem kamery (jiné
+     okno zavřené) → ikona zmizí; vypnout → vrátí se. U malého náhledu „Vždy navrchu“ vypnout → náhled má ikonu v Docku.
+   - Okno kamery schovat za Safari: klik na ikonu v Docku → okna LayerPeeku vpředu (minimalizované okno se obnoví,
+     z celé obrazovky zpět na celou obrazovku). Pravý klik na ikonu v Docku: seznam oken s názvy („Alpha – kamera“,
+     „Nastavení“…; malý náhled bez rámečku tam být nemusí – zapsat).
+   - Menu v menu baru → tiskárna s otevřeným oknem kamery: „Zobrazit kameru“ nad „Skrýt kameru“; okno za jinou
+     aplikací nebo minimalizované přijde dopředu s fokusem. Po zavření okna položka zmizí.
+   - Vývojové sestavení (`dotnet run`): ikona v Docku je obecná ikona spustitelného souboru – zapsat, jak vypadá.
+   **Uzavírá:** T-102 kritérium 6 (a otevřené otázky v T-102).
 
 ## Sezení 3 – Nastavení a Keychain
 

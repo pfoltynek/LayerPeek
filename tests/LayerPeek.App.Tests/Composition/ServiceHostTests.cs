@@ -124,6 +124,10 @@ public sealed class ServiceHostTests
         {
         }
 
+        public void BringCameraToFront(string printerId)
+        {
+        }
+
         public void Quit()
         {
         }

@@ -40,6 +40,7 @@
     <Compile Include="..\LayerPeek.App.Tests\Printers\ImageFakes.cs" Link="Shared\ImageFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Diagnostics\DiagnosticsFakes.cs" Link="Shared\DiagnosticsFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Platform\FakeLocalNetworkPrivacy.cs" Link="Shared\FakeLocalNetworkPrivacy.cs" />
+    <Compile Include="..\LayerPeek.App.Tests\Platform\RecordingAppPresence.cs" Link="Shared\RecordingAppPresence.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Previews\PreviewFakes.cs" Link="Shared\PreviewFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Platform\MacOS\BlockingKeychainItems.cs" Link="Shared\BlockingKeychainItems.cs" />
     <Compile Include="..\Shared\TestPng.cs" Link="Shared\TestPng.cs" />

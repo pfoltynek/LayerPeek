@@ -158,6 +158,9 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                 case TrayMenuCommand.Camera when entry.PrinterId is { } printerId:
                     _commands.ToggleCamera(printerId);
                     break;
+                case TrayMenuCommand.CameraToFront when entry.PrinterId is { } frontId:
+                    _commands.BringCameraToFront(frontId);
+                    break;
                 case TrayMenuCommand.Settings:
                     _commands.ShowSettings();
                     break;
