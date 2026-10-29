@@ -903,8 +903,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// or the name for older settings) carries the saved value, so that an untouched choice is saved unchanged. Every other
     /// choice remembers the device paths of the other connected monitors with its name (T-071 Q5,
     /// <see cref="CameraMonitorId.FromScreen(CameraScreen, IReadOnlyList{CameraScreen})"/>). Identical monitors are separate
-    /// entries when they have device paths (Windows, T-035 Q8); without paths (other platforms) they cannot be told apart
-    /// and appear once. A monitor without a name cannot be stored and is not offered.
+    /// entries when they have device paths (Windows, T-035 Q8; macOS, T-038, where their names differ anyway: macOS
+    /// numbers them "(1)", "(2)"); without paths they cannot be told apart and appear once. A monitor without a name cannot be stored and is not offered.
     /// </summary>
     private static CameraMonitorOption[] CreateMonitorOptions(CameraMonitorId? saved, IReadOnlyList<CameraScreen> screens)
     {

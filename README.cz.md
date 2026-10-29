@@ -307,6 +307,8 @@ k vydání v [CHANGELOG.md](CHANGELOG.md). Jeden příkaz, `pwsh scripts/release
 provede vydání podle Gitflow (větev release, sloučení do `main` s tagem `vX.Y.Z`, sloučení zpět do `develop`), sestaví
 tag a nahraje ho do konceptu vydání na GitHubu; před každým pushem a nahráním se zeptá. Zveřejnění konceptu zůstává
 samostatný ruční krok (`scripts/release-publish.ps1`). Celý postup je v [docs/release.md](docs/release.md).
+Kontroly na Macu, které může udělat jen člověk (Gatekeeper, oprávnění macOS, otevření při přihlášení, monitory, uspaný
+displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manual-testing.md).
 
 ### Struktura projektu
 

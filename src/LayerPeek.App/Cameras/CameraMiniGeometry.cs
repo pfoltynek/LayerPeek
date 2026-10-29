@@ -1,3 +1,5 @@
+using Avalonia.Controls;
+
 using LayerPeek.Core.Cameras;
 
 namespace LayerPeek.App.Cameras;
@@ -113,6 +115,50 @@ internal static class CameraMiniGeometry
             Growth.Both => window.Y + (strip / 2),
             _ => window.Y,
         };
+    }
+
+    /// <summary>
+    /// The mini preview while the user drags its grip at <paramref name="edge"/> by <paramref name="dx"/> ×
+    /// <paramref name="dy"/> screen pixels from where the window was when the grip was pressed (<paramref name="start"/>:
+    /// position in pixels, client size in DIP). For platforms where the app resizes the window itself (macOS, T-038): the
+    /// dragged edges follow the pointer and the opposite edges stay; a dragged edge stops at <paramref name="minWidth"/> ×
+    /// <paramref name="minHeight"/>. The height follows the width only after the grip is released (<see cref="Correct"/>).
+    /// </summary>
+    /// <returns>The window: position in pixels, size in DIP.</returns>
+    public static CameraWindowPlacement Resized(CameraWindowPlacement start, WindowEdge edge, int dx, int dy, double scaling, double minWidth, double minHeight)
+    {
+        scaling = UsableScaling(scaling);
+        (bool west, bool east, bool north, bool south) = edge switch
+        {
+            WindowEdge.NorthWest => (true, false, true, false),
+            WindowEdge.North => (false, false, true, false),
+            WindowEdge.NorthEast => (false, true, true, false),
+            WindowEdge.West => (true, false, false, false),
+            WindowEdge.East => (false, true, false, false),
+            WindowEdge.SouthWest => (true, false, false, true),
+            WindowEdge.South => (false, false, false, true),
+            WindowEdge.SouthEast => (false, true, false, true),
+            _ => (false, false, false, false),
+        };
+
+        double width = start.Width;
+        double height = start.Height;
+        int x = start.X;
+        int y = start.Y;
+        if (east || west)
+        {
+            width = Math.Max(start.Width + ((east ? dx : -dx) / scaling), Math.Max(minWidth, 1));
+            // The right edge stays: the left one moves by what the window gained or lost.
+            x = west ? start.X - (ToPixels(width, scaling) - ToPixels(start.Width, scaling)) : start.X;
+        }
+
+        if (north || south)
+        {
+            height = Math.Max(start.Height + ((south ? dy : -dy) / scaling), Math.Max(minHeight, 1));
+            y = north ? start.Y - (ToPixels(height, scaling) - ToPixels(start.Height, scaling)) : start.Y;
+        }
+
+        return new CameraWindowPlacement(x, y, width, height);
     }
 
     /// <summary>

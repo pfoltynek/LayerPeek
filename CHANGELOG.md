@@ -43,6 +43,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Maintainers: `build/update-ffmpeg.ps1` verifies a new FFmpeg version for both platforms before it is pinned (macOS:
   official source tarball against the Homebrew formula and the GPG signature; Windows: the BtbN zip against the
   release's `checksums.sha256`, its folder, LGPL licence and libraries) and with `-Update` writes the pinned values.
+- macOS: the monitor chosen for a camera window is recognised by the display's persistent identifier, so the window
+  still opens on the right one of two identical monitors after macOS numbers them differently ("(1)", "(2)") at the
+  next start or reconnect, and on the built-in display after the system language changed.
+
+### Fixed
+
+- macOS: the borderless mini camera preview can be resized with its edges and corners (the window follows the
+  pointer itself; macOS offers no resize for borderless windows there). The height follows the width when the edge is
+  released, as on Windows.
 
 ## [0.2.0] - 2026-10-26
 

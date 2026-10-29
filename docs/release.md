@@ -183,6 +183,8 @@ pwsh scripts/release-upload.ps1 -DryRun         # kontroly a výpis, co by se p�
 pwsh scripts/release-upload.ps1                 # přidá soubory macOS do konceptu z běhu na Windows
 ```
 
+Ruční ověření macOS buildu (Gatekeeper, oprávnění, menu bar, monitory, přihlášení, uspaný displej) je souhrnně v [macos-manual-testing.md](macos-manual-testing.md).
+
 Vznikne `LayerPeek-X.Y.Z-osx-arm64.dmg`, `LayerPeek-X.Y.Z-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`, které `release-upload.ps1` přidá do existujícího konceptu (postup sestavení viz „Balení pro macOS“ níže). Archiv se na macOS balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, takže neobsahuje položky AppleDouble `._*` (ověřeno v T-019 výpisem `tar -tzf`). Po běhu na Macu se zveřejňuje bez `-AllowIncomplete`.
 
 ### 5. Kontrola a zveřejnění
