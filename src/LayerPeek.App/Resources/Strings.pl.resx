@@ -1281,6 +1281,9 @@
   <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
     <value>Brak połączenia. Dostęp LayerPeek do sieci lokalnej może być wyłączony w Ustawieniach systemowych &gt; Prywatność i ochrona &gt; Sieć lokalna.</value>
   </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Brak połączenia. Dostęp do sieci lokalnej może być wyłączony.</value>
+  </data>
   <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
     <value>Otwórz Ustawienia systemowe</value>
   </data>

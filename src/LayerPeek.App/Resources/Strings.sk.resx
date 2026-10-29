@@ -1281,6 +1281,9 @@
   <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
     <value>Bez spojenia. LayerPeek možno nemá povolený prístup k lokálnej sieti v Systémových nastaveniach &gt; Súkromie a bezpečnosť &gt; Lokálna sieť.</value>
   </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Bez spojenia. LayerPeek možno nemá povolený prístup k lokálnej sieti.</value>
+  </data>
   <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
     <value>Otvoriť Systémové nastavenia</value>
   </data>

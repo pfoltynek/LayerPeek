@@ -1281,6 +1281,9 @@
   <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
     <value>Sin conexión. Es posible que el acceso de LayerPeek a la red local esté desactivado en Ajustes del Sistema &gt; Privacidad y seguridad &gt; Red local.</value>
   </data>
+  <data name="CameraMiniLocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Sin conexión. Es posible que el acceso a la red local esté desactivado.</value>
+  </data>
   <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
     <value>Abrir Ajustes del Sistema</value>
   </data>

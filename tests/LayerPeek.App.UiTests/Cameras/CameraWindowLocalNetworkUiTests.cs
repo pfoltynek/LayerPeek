@@ -19,8 +19,8 @@ namespace LayerPeek.App.UiTests.Cameras;
 /// <summary>
 /// T-097 (macOS 15+): "no route to host" to a camera in the local network shows the Local Network hint in the status over
 /// the image. In every language the whole hint is readable (not cut, inside its status box and the image area) in the
-/// normal window down to 320 × 180 and in the mini preview at its default size and at 280 DIP. Only fakes: no network,
-/// nothing opens.
+/// normal window down to 320 × 180 (the full text with the System Settings path) and in the mini preview from its default
+/// size down to its smallest 240 × 135 (the short form, ui-designer 2026-10-29). Only fakes: no network, nothing opens.
 /// </summary>
 public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
 {
@@ -42,9 +42,8 @@ public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
             await Ui.UntilAsync(() => viewModel.StatusDetail == Strings.LocalNetworkAccessMayBeOff, "hint shown");
             Assert.Contains(("192.168.0.227", "the camera of printer 'a'"), privacy.Calls);
 
-            // The normal window from its default size down to 320 × 180; the mini preview at its default size and at 280 DIP.
-            // Not at the mini preview's smallest 240 × 135 (and in German not at 260): there the hint runs past the bottom of
-            // the status box in every language (T-097 question 1, for the review of the text by ui-designer).
+            // The normal window from its default size down to 320 × 180; the mini preview from its default size down to its
+            // smallest 240 × 135 (the full text ran past the status box there, T-097 question 1), and back to normal.
             foreach ((string name, Action setUp) in new (string, Action)[]
             {
                 ("normal 960 × 540", () => Size(window, 960, 540)),
@@ -58,12 +57,21 @@ public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
                     window.Settle();
                 }),
                 ("mini 280 × 158", () => CameraHarness.ResizeMiniWithGrip(window, 280, 191)),
+                ("mini 260 × 146", () => CameraHarness.ResizeMiniWithGrip(window, 260, 400)),
+                ("mini 240 × 135", () => CameraHarness.ResizeMiniWithGrip(window, 240, 400)),
+                ("normal again", () =>
+                {
+                    viewModel.ShowNormalCommand.Execute(null);
+                    Dispatcher.UIThread.RunJobs();
+                    window.Settle();
+                }),
             })
             {
                 setUp();
                 window.Settle();
                 Assert.True(viewModel.IsStatusVisible);
-                problems.AddRange(StatusProblems(window, $"{language} / {name}"));
+                string hint = viewModel.IsMini ? Strings.CameraMiniLocalNetworkAccessMayBeOff : Strings.LocalNetworkAccessMayBeOff;
+                problems.AddRange(StatusProblems(window, hint, $"{language} / {name}"));
             }
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
@@ -78,7 +86,7 @@ public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
     }
 
     /// <summary>The status border outside the image area (row 0), or a text of it cut or collapsed.</summary>
-    private static IEnumerable<string> StatusProblems(CameraWindow window, string context)
+    private static IEnumerable<string> StatusProblems(CameraWindow window, string hint, string context)
     {
         Border status = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Classes.Contains("overlay") && b.IsEffectivelyVisible);
         Control surface = window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "Surface");
@@ -90,9 +98,9 @@ public sealed class CameraWindowLocalNetworkUiTests(HeadlessSession session)
         }
 
         TextBlock[] texts = [.. status.GetVisualDescendants().OfType<TextBlock>().Where(static t => t.IsEffectivelyVisible)];
-        if (!texts.Any(static t => t.Text == Strings.LocalNetworkAccessMayBeOff))
+        if (!texts.Any(t => t.Text == hint))
         {
-            yield return $"{context}: the hint is not shown.";
+            yield return $"{context}: the hint '{hint}' is not shown.";
         }
 
         foreach (TextBlock text in texts)
