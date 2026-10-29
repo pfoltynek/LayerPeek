@@ -812,6 +812,10 @@ $script:MacBundle = [pscustomobject]@{
     IconExact     = @{ 16 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-16.png'; 32 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-32.png' }
     IconFile      = 'LayerPeek.icns'
     VolumeName    = 'LayerPeek'
+    # T-026: the FFmpeg libraries built by build/macos/build-ffmpeg.sh, in Contents/MacOS next to the executable like the
+    # other native libraries (they reference each other as @loader_path/<name>), and their licence in Contents/Resources.
+    FFmpegLibraries = @('libavformat.63.dylib', 'libavcodec.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib')
+    FFmpegLicense   = 'FFmpeg-LICENSE.txt'
 }
 
 function Get-MacBundleSettings {
@@ -970,9 +974,11 @@ function New-MacIcon {
 function New-MacAppBundle {
     <#
     .SYNOPSIS
-        LayerPeek.app in -Destination from a Native AOT publish folder: Contents/MacOS gets the files of the publish folder
-        without debug symbols (Get-ArchiveFiles: no .pdb, no .dSYM), Contents/Info.plist the template with the version,
-        Contents/Resources the icon, Contents/PkgInfo the package type. Returns the path of the .app. Unsigned.
+        LayerPeek.app in -Destination from a Native AOT publish folder: Contents/MacOS gets the code of the publish folder
+        (the executable and the native libraries, i.e. the Mach-O files) without debug symbols (Get-ArchiveFiles: no .pdb,
+        no .dSYM), Contents/Resources every other file (T-026: FFmpeg-LICENSE.txt; codesign refuses data in Contents/MacOS
+        as unsigned code) and the icon, Contents/Info.plist the template with the version, Contents/PkgInfo the package
+        type. Returns the path of the .app. Unsigned.
     #>
     param(
         [Parameter(Mandatory)] [string] $PublishDirectory,
@@ -992,10 +998,12 @@ function New-MacAppBundle {
     $resources = Join-Path $app 'Contents' 'Resources'
     $null = New-Item -ItemType Directory -Path $macOS, $resources
     foreach ($file in $files) {
-        $target = Join-Path $macOS $file
+        $source = Join-Path $root $file
+        $target = Join-Path ((Test-MachOFile $source) ? $macOS : $resources) $file
+        if ((Join-Path $resources $file) -ceq (Join-Path $resources $s.IconFile)) { throw "The publish folder $PublishDirectory has a file $file, the name of the icon." }
         $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target)
         # File.Copy keeps the Unix permissions (the executable bits) of the source.
-        [System.IO.File]::Copy((Join-Path $root $file), $target)
+        [System.IO.File]::Copy($source, $target)
     }
     $utf8 = [System.Text.UTF8Encoding]::new($false)
     [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'Info.plist'), $plist, $utf8)
@@ -1016,6 +1024,44 @@ function Test-MachOFile {
     $magic = [System.BitConverter]::ToString($bytes)
     # feedface / feedfacf (thin, both byte orders as stored on disk) and cafebabe (universal).
     $magic -in 'CE-FA-ED-FE', 'CF-FA-ED-FE', 'FE-ED-FA-CE', 'FE-ED-FA-CF', 'CA-FE-BA-BE'
+}
+
+function Get-MacForeignLibraryReferences {
+    <#
+    .SYNOPSIS
+        The libraries a Mach-O file loads from places a clean Mac does not have (pure): from its `otool -L` output, the
+        references under /opt/homebrew or /usr/local (Homebrew, hand-built libraries), except its own install name
+        (-InstallName, `otool -D`), which is only an identifier (libAvaloniaNative.dylib carries /usr/local/lib/... there).
+    #>
+    param([string[]] $OtoolList = @(), [string] $InstallName)
+    foreach ($line in @($OtoolList | Select-Object -Skip 1)) {
+        $reference = ("$line".Trim() -split ' \(compatibility version')[0].Trim()
+        if (-not $reference -or $reference -ceq $InstallName) { continue }
+        if ($reference -match '^(/opt/homebrew/|/usr/local/)') { $reference }
+    }
+}
+
+function Get-MacBundleLibraryProblems {
+    <#
+    .SYNOPSIS
+        Problems of the native libraries of the bundle (T-026; empty = fine): the FFmpeg libraries must be in
+        Contents/MacOS and their licence in Contents/Resources, and no Mach-O file of the bundle may load a library from
+        Homebrew or /usr/local (otool).
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $expected = @($script:MacBundle.FFmpegLibraries | ForEach-Object { "Contents/MacOS/$_" }) + "Contents/Resources/$($script:MacBundle.FFmpegLicense)"
+    foreach ($relative in $expected) {
+        if (-not (Test-Path -LiteralPath (Join-Path $app $relative) -PathType Leaf)) { "$app has no $relative (FFmpeg of the camera, build/FFmpeg.targets)." }
+    }
+    foreach ($file in @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents') -Recurse -File -Force | Where-Object { Test-MachOFile $_.FullName })) {
+        $list = @(& /usr/bin/otool -L $file.FullName 2>&1)
+        if ($LASTEXITCODE -ne 0) { "otool -L failed for $($file.FullName): $($list -join ' ')"; continue }
+        $id = @(& /usr/bin/otool -D $file.FullName 2>$null | Select-Object -Skip 1) | Select-Object -First 1
+        foreach ($reference in @(Get-MacForeignLibraryReferences -OtoolList $list -InstallName "$id".Trim())) {
+            "$($file.FullName) loads $reference, which a clean Mac does not have."
+        }
+    }
 }
 
 function Get-MacSigningOrder {

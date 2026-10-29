@@ -15,8 +15,8 @@ public sealed class LicensesViewModelTests : IDisposable
 
     public void Dispose() => _culture.Dispose();
 
-    private LicensesViewModel Create(Func<string>? version = null, Func<string?>? licenseText = null) =>
-        new(_launcher, version ?? (static () => "avcodec 63.1.102 (LGPL version 3 or later)"), licenseText ?? (static () => "GNU LESSER GENERAL PUBLIC LICENSE"));
+    private LicensesViewModel Create(Func<string>? version = null, Func<string?>? licenseText = null, bool macOS = false) =>
+        new(_launcher, version ?? (static () => "avcodec 63.1.102 (LGPL version 3 or later)"), licenseText ?? (static () => "GNU LESSER GENERAL PUBLIC LICENSE"), macOS);
 
     [Fact]
     public void ListsEveryComponentWithVersionLicenceAndProject()
@@ -98,9 +98,42 @@ public sealed class LicensesViewModelTests : IDisposable
         viewModel.OpenFFmpegBuildCommand.Execute(null);
         viewModel.OpenFFmpegBuildScriptsCommand.Execute(null);
 
-        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.BuildUri, ThirdPartyLicenses.FFmpeg.BuildScriptsUri], _launcher.Opened);
+        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.WindowsBuildUri, ThirdPartyLicenses.FFmpeg.WindowsBuildScriptsUri], _launcher.Opened);
         Assert.Equal("Licence: LGPL-3.0-or-later", viewModel.FFmpegLicenseText);
         Assert.Contains("may be replaced", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Contains("BtbN", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Equal("The FFmpeg build used (BtbN release)", viewModel.FFmpegBuildText);
+    }
+
+    [Fact]
+    public void FFmpegOnMacOSDescribesTheBuildFromTheOfficialSource()
+    {
+        // T-026: the macOS libraries are built from the official source tarball by build/macos/build-ffmpeg.sh.
+        LicensesViewModel viewModel = Create(macOS: true);
+
+        viewModel.OpenFFmpegSourceCommand.Execute(null);
+        viewModel.OpenFFmpegBuildCommand.Execute(null);
+        viewModel.OpenFFmpegBuildScriptsCommand.Execute(null);
+
+        Assert.Equal([ThirdPartyLicenses.FFmpeg.SourceUri, ThirdPartyLicenses.FFmpeg.MacOSBuildUri, ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri], _launcher.Opened);
+        Assert.Equal("Licence: LGPL-3.0-or-later", viewModel.FFmpegLicenseText);
+        Assert.Contains("may be replaced", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Contains("libavcodec.63.dylib", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.DoesNotContain("BtbN", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.DoesNotContain("DLL", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Equal("The FFmpeg source release used (ffmpeg.org)", viewModel.FFmpegBuildText);
+        Assert.Equal("Build configuration and script (LayerPeek)", viewModel.FFmpegBuildScriptsText);
+    }
+
+    [Fact]
+    public void FFmpegTextsOfTheMacOSBuildAreTranslated()
+    {
+        using CultureScope czech = new("cs-CZ");
+        LicensesViewModel viewModel = Create(macOS: true);
+
+        Assert.Contains("libavcodec.63.dylib", viewModel.FFmpegNote, StringComparison.Ordinal);
+        Assert.Equal("Použité zdrojové vydání FFmpeg (ffmpeg.org)", viewModel.FFmpegBuildText);
+        Assert.Equal("Konfigurace a skript buildu (LayerPeek)", viewModel.FFmpegBuildScriptsText);
     }
 
     [Fact]
@@ -109,16 +142,35 @@ public sealed class LicensesViewModelTests : IDisposable
         string? text = LicensesViewModel.ReadShippedFFmpegLicense();
         bool shipped = File.Exists(Path.Combine(AppContext.BaseDirectory, ThirdPartyLicenses.FFmpeg.LicenseFileName));
 
-        // On Windows x64 the build always brings FFmpeg (build/FFmpeg.targets): the licence must be next to the DLLs.
-        // Elsewhere FFmpeg is not provided yet (macOS: T-026), so a missing licence is skipped, not failed.
-        if (!(OperatingSystem.IsWindows() && RuntimeInformation.ProcessArchitecture == Architecture.X64))
+        // On Windows x64 the build always brings FFmpeg (build/FFmpeg.targets): the licence must be next to the DLLs. On
+        // macOS arm64 (T-026) it must be next to the libraries whenever the build provided them (not with
+        // LayerPeekFFmpegEnabled=false). Elsewhere FFmpeg is not provided, so a missing licence is skipped, not failed.
+        bool required = (OperatingSystem.IsWindows() && RuntimeInformation.ProcessArchitecture == Architecture.X64)
+            || (OperatingSystem.IsMacOS() && RuntimeInformation.ProcessArchitecture == Architecture.Arm64
+                && File.Exists(Path.Combine(AppContext.BaseDirectory, "libavformat.63.dylib")));
+        if (!required)
         {
-            Assert.SkipUnless(shipped, "FFmpeg is only provided for win-x64 so far.");
+            Assert.SkipUnless(shipped, "FFmpeg is only provided for win-x64 and osx-arm64 (and not with LayerPeekFFmpegEnabled=false).");
         }
 
         Assert.True(shipped, $"{ThirdPartyLicenses.FFmpeg.LicenseFileName} is missing next to the application.");
         Assert.False(string.IsNullOrWhiteSpace(text));
         Assert.Contains("LESSER GENERAL PUBLIC LICENSE", text, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FFmpegLicenceOfAMacOSBundleIsReadFromItsResources()
+    {
+        // T-026: inside LayerPeek.app the executable is in Contents/MacOS and the licence in Contents/Resources.
+        string bundle = Path.Combine(Path.GetTempPath(), "LayerPeek.app");
+        string[] paths = [.. LicensesViewModel.ShippedFFmpegLicensePaths(Path.Combine(bundle, "Contents", "MacOS") + Path.DirectorySeparatorChar)];
+
+        Assert.Equal(
+            [Path.Combine(bundle, "Contents", "MacOS", "FFmpeg-LICENSE.txt"), Path.Combine(bundle, "Contents", "Resources", "FFmpeg-LICENSE.txt")],
+            paths);
+        Assert.Equal(
+            [Path.Combine(AppContext.BaseDirectory, "FFmpeg-LICENSE.txt")],
+            LicensesViewModel.ShippedFFmpegLicensePaths(AppContext.BaseDirectory));
     }
 
     [Fact]

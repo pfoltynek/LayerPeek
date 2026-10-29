@@ -101,13 +101,15 @@ public sealed partial class LicenseItemViewModel : ObservableObject, ILanguageAw
 /// The third-party licences window (opened from About, T-014): FFmpeg (LGPL, dynamically linked, replaceable, with links
 /// to its source and the exact build used) and every other shipped component from <see cref="ThirdPartyLicenses"/>.
 /// The FFmpeg version is read off the UI thread (it loads the native libraries); a missing FFmpeg is shown, not thrown.
-/// UI thread only.
+/// The note and the build links describe the build of the platform: BtbN on Windows, the official source built by
+/// build/macos/build-ffmpeg.sh on macOS (T-026). UI thread only.
 /// </summary>
 public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
 {
     private readonly IUrlLauncher _launcher;
     private readonly Func<string> _ffmpegVersion;
     private readonly Func<string?> _ffmpegLicenseText;
+    private readonly bool _macOS;
     private bool _loadStarted;
 
     // What LoadAsync found; the texts are formatted from it in the current language (T-029).
@@ -122,7 +124,8 @@ public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
 
     /// <param name="ffmpegVersion">Version and licence of the loaded FFmpeg; throws when FFmpeg is missing.</param>
     /// <param name="ffmpegLicenseText">The shipped FFmpeg licence text; <see langword="null"/> when it is missing.</param>
-    internal LicensesViewModel(IUrlLauncher launcher, Func<string> ffmpegVersion, Func<string?> ffmpegLicenseText)
+    /// <param name="macOS">Describe the macOS build of FFmpeg; <see langword="null"/> = the running platform.</param>
+    internal LicensesViewModel(IUrlLauncher launcher, Func<string> ffmpegVersion, Func<string?> ffmpegLicenseText, bool? macOS = null)
     {
         ArgumentNullException.ThrowIfNull(launcher);
         ArgumentNullException.ThrowIfNull(ffmpegVersion);
@@ -130,6 +133,7 @@ public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
         _launcher = launcher;
         _ffmpegVersion = ffmpegVersion;
         _ffmpegLicenseText = ffmpegLicenseText;
+        _macOS = macOS ?? OperatingSystem.IsMacOS();
         Components = [.. ThirdPartyLicenses.All.Select(component => new LicenseItemViewModel(component, launcher))];
         FormatTexts();
     }
@@ -187,27 +191,51 @@ public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
         Intro = Strings.LicensesIntro;
         FFmpegHeader = Strings.LicensesFFmpegHeader;
         FFmpegLicenseText = Format(Strings.LicensesLicense, ThirdPartyLicenses.FFmpeg.License);
-        FFmpegNote = Strings.LicensesFFmpegNote;
+        FFmpegNote = _macOS ? Strings.LicensesFFmpegNoteMacOS : Strings.LicensesFFmpegNote;
         LicenseTextHeader = Strings.LicensesShowText;
         ProjectText = Strings.LicensesProject;
         FFmpegSourceText = Strings.LicensesFFmpegSource;
-        FFmpegBuildText = Strings.LicensesFFmpegBuild;
-        FFmpegBuildScriptsText = Strings.LicensesFFmpegBuildScripts;
+        FFmpegBuildText = _macOS ? Strings.LicensesFFmpegBuildMacOS : Strings.LicensesFFmpegBuild;
+        FFmpegBuildScriptsText = _macOS ? Strings.LicensesFFmpegBuildScriptsMacOS : Strings.LicensesFFmpegBuildScripts;
         CloseText = Strings.AboutClose;
     }
 
     public IReadOnlyList<LicenseItemViewModel> Components { get; }
 
-    /// <summary><c>FFmpeg-LICENSE.txt</c> next to the application; <see langword="null"/> when it is missing or unreadable.</summary>
+    /// <summary>
+    /// <c>FFmpeg-LICENSE.txt</c> of the application (<see cref="ShippedFFmpegLicensePaths"/>); <see langword="null"/> when it
+    /// is missing or unreadable.
+    /// </summary>
     internal static string? ReadShippedFFmpegLicense()
     {
-        try
+        foreach (string path in ShippedFFmpegLicensePaths(AppContext.BaseDirectory))
         {
-            return File.ReadAllText(Path.Combine(AppContext.BaseDirectory, ThirdPartyLicenses.FFmpeg.LicenseFileName));
+            try
+            {
+                return File.ReadAllText(path);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // The next place, if any.
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+        return null;
+    }
+
+    /// <summary>
+    /// Where the build puts the FFmpeg licence: next to the application (build and publish output), and inside a macOS
+    /// bundle in <c>Contents/Resources</c> when the application runs from <c>Contents/MacOS</c> (T-026: codesign accepts
+    /// only code in <c>Contents/MacOS</c>, scripts/ReleaseTools New-MacAppBundle moves data files to Resources).
+    /// </summary>
+    internal static IEnumerable<string> ShippedFFmpegLicensePaths(string baseDirectory)
+    {
+        yield return Path.Combine(baseDirectory, ThirdPartyLicenses.FFmpeg.LicenseFileName);
+
+        DirectoryInfo folder = new(Path.TrimEndingDirectorySeparator(baseDirectory));
+        if (folder is { Name: "MacOS", Parent: { Name: "Contents" } contents })
         {
-            return null;
+            yield return Path.Combine(contents.FullName, "Resources", ThirdPartyLicenses.FFmpeg.LicenseFileName);
         }
     }
 
@@ -258,8 +286,10 @@ public sealed partial class LicensesViewModel : ObservableObject, ILanguageAware
     private void OpenFFmpegSource() => _ = _launcher.OpenAsync(ThirdPartyLicenses.FFmpeg.SourceUri);
 
     [RelayCommand]
-    private void OpenFFmpegBuild() => _ = _launcher.OpenAsync(ThirdPartyLicenses.FFmpeg.BuildUri);
+    private void OpenFFmpegBuild() =>
+        _ = _launcher.OpenAsync(_macOS ? ThirdPartyLicenses.FFmpeg.MacOSBuildUri : ThirdPartyLicenses.FFmpeg.WindowsBuildUri);
 
     [RelayCommand]
-    private void OpenFFmpegBuildScripts() => _ = _launcher.OpenAsync(ThirdPartyLicenses.FFmpeg.BuildScriptsUri);
+    private void OpenFFmpegBuildScripts() =>
+        _ = _launcher.OpenAsync(_macOS ? ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri : ThirdPartyLicenses.FFmpeg.WindowsBuildScriptsUri);
 }

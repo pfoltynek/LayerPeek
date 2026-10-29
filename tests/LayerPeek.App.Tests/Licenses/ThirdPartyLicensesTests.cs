@@ -237,10 +237,69 @@ public sealed partial class ThirdPartyLicensesTests
         Match pinned = PinnedUrl().Match(targets);
 
         Assert.True(pinned.Success);
-        Assert.Equal(new Uri(pinned.Groups[1].Value), ThirdPartyLicenses.FFmpeg.BuildUri);
+        Assert.Equal(new Uri(pinned.Groups[1].Value), ThirdPartyLicenses.FFmpeg.WindowsBuildUri);
         Assert.Equal("LGPL-3.0-or-later", ThirdPartyLicenses.FFmpeg.License);
+    }
+
+    [Fact]
+    public void FFmpegMacOSBuildLinkIsThePinnedSourceTarball()
+    {
+        string targets = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "FFmpeg.targets"));
+        Match pinned = PinnedMacSourceUrl().Match(targets);
+
+        Assert.True(pinned.Success);
+        Assert.Equal(new Uri(pinned.Groups[1].Value), ThirdPartyLicenses.FFmpeg.MacOSBuildUri);
+        // The same FFmpeg release as the Windows build (n9.0.2 of BtbN).
+        Assert.Contains("ffmpeg-9.0.2.", ThirdPartyLicenses.FFmpeg.MacOSBuildUri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.Contains("n9.0.2-", ThirdPartyLicenses.FFmpeg.WindowsBuildUri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.EndsWith("/build/macos/build-ffmpeg.sh", ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.True(File.Exists(Path.Combine(RepositoryRoot, "build", "macos", "build-ffmpeg.sh")));
+    }
+
+    [Fact]
+    public void FFmpegMacOSBuildIsLgplOnlyWithoutHardwareDecoding()
+    {
+        // T-026 (user decisions 2026-10-29): LGPL only, version 3 like the BtbN build, software decoding only.
+        string script = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "macos", "build-ffmpeg.sh"));
+        Match flags = ConfigureFlags().Match(script);
+        Assert.True(flags.Success);
+        string configure = flags.Groups[1].Value;
+
+        Assert.DoesNotContain("--enable-gpl", configure, StringComparison.Ordinal);
+        Assert.DoesNotContain("--enable-nonfree", configure, StringComparison.Ordinal);
+        Assert.DoesNotContain("--enable-videotoolbox", configure, StringComparison.Ordinal);
+        Assert.Contains("--enable-version3", configure, StringComparison.Ordinal);
+        Assert.Contains("--disable-autodetect", configure, StringComparison.Ordinal);
+        Assert.Contains("--enable-shared", configure, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FFmpegMacOSBuildTargetsTheMinimumMacOSVersionOfTheBundle()
+    {
+        string script = File.ReadAllText(Path.Combine(RepositoryRoot, "build", "macos", "build-ffmpeg.sh"));
+        // The DOCTYPE names Apple's DTD: never fetched.
+        using System.Xml.XmlReader reader = System.Xml.XmlReader.Create(
+            Path.Combine(RepositoryRoot, "build", "macos", "Info.plist"),
+            new System.Xml.XmlReaderSettings { DtdProcessing = System.Xml.DtdProcessing.Ignore, XmlResolver = null });
+        XElement plist = XElement.Load(reader);
+        string minimum = plist.Element("dict")!.Elements("key").Single(static key => key.Value == "LSMinimumSystemVersion")
+            .ElementsAfterSelf().First().Value;
+
+        Match pinned = MacMinimumVersion().Match(script);
+
+        Assert.True(pinned.Success);
+        Assert.Equal(minimum, pinned.Groups[1].Value);
     }
 
     [GeneratedRegex("<LayerPeekFFmpegUrl>([^<]+)</LayerPeekFFmpegUrl>")]
     private static partial Regex PinnedUrl();
+
+    [GeneratedRegex("<LayerPeekFFmpegMacSourceUrl>([^<]+)</LayerPeekFFmpegMacSourceUrl>")]
+    private static partial Regex PinnedMacSourceUrl();
+
+    [GeneratedRegex(@"^CONFIGURE_FLAGS=\((.*?)^\)$", RegexOptions.Multiline | RegexOptions.Singleline)]
+    private static partial Regex ConfigureFlags();
+
+    [GeneratedRegex("""^MIN_MACOS="([0-9.]+)"$""", RegexOptions.Multiline)]
+    private static partial Regex MacMinimumVersion();
 }

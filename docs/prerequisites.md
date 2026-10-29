@@ -3,7 +3,7 @@
 Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spustitelný soubor bez nutnosti instalovat .NET runtime.
 
 > **Důležité:**
-> - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT.
+> - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. Výjimka na macOS (T-026): první build přeloží knihovny FFmpeg, takže potřebuje Xcode Command Line Tools.
 > - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64` (až po T-057), `osx-arm64` (rozhodnuto 2026-10-21).
 > - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
@@ -22,15 +22,42 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 
 ## Nativní knihovny FFmpeg (kamera)
 
-Projekt `LayerPeek.Camera.FFmpeg` potřebuje nativní DLL FFmpeg (LGPL build BtbN, připnutá verze). DLL nejsou v repozitáři. Stáhne je build (`build/FFmpeg.targets`):
+Projekt `LayerPeek.Camera.FFmpeg` potřebuje nativní knihovny FFmpeg 9.0.2 (LGPL verze 3 nebo novější, sdílené knihovny). Knihovny nejsou v repozitáři. Obstará je build (`build/FFmpeg.targets`), na každé platformě jinak:
 
-- **První build na Windows potřebuje internet** (~77 MB z GitHubu). Archiv se ověří podle SHA256. Při neshodě build selže.
-- Cache je mimo repozitář: `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\<sha256>\`. Další buildy fungují offline. Jinou složku nastavíš proměnnou prostředí `LayerPeekFFmpegCacheRoot`.
-- DLL a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují.
-- IDE (design-time build) nic nestahuje. Na macOS se krok zatím přeskočí (úkol T-026). Testy FFmpeg se tam přeskakují.
-- **Když stažení selže** (offline, nebo připnuté vydání z GitHubu zmizelo), build skončí chybou s návodem. Zrcadlo není. Možnosti:
-  1. V `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na jiný LGPL shared win64 build BtbN se stejnými verzemi knihoven (`avformat-63` …).
-  2. Cache naplnit ručně: do `<cache>\<sha256>\bin\` dát `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll` a `swresample-7.dll`, do `<cache>\<sha256>\` dát `LICENSE.txt` a soubor `verified.sha256`. Ten má obsahovat jeden řádek s hodnotou `LayerPeekFFmpegSha256` z `build/FFmpeg.targets` (SHA256 archivu, ze kterého DLL pocházejí), stejně jako cache vytvořená buildem. Build zatím kontroluje jen to, že soubor existuje. Za shodu DLL s připnutým buildem odpovídá ten, kdo cache naplnil. Případně nastavit `LayerPeekFFmpegCacheRoot` na složku s takovou cache.
+| | Windows (`win-x64`) | macOS (`osx-arm64`, T-026) |
+|---|---|---|
+| Zdroj | hotový LGPL shared build BtbN (`n9.0.2-28-g669f5ab083`), ~77 MB z GitHubu | oficiální zdrojový tarball `ffmpeg-9.0.2.tar.xz` z ffmpeg.org (~12 MB), sestavený skriptem `build/macos/build-ffmpeg.sh` |
+| Knihovny | `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll`, `swresample-7.dll` | `libavformat.63.dylib`, `libavcodec.63.dylib`, `libavutil.61.dylib`, `libswscale.10.dylib` (swresample aplikace nenačítá) |
+| Cache | `%LOCALAPPDATA%\LayerPeek.Build\ffmpeg\<sha256 archivu>\` | `~/Library/Caches/LayerPeek.Build/ffmpeg/osx-arm64-<klíč>/` (klíč = SHA256 ze SHA256 tarballu a obsahu skriptu buildu, takže změna příznaků nebo verze sestaví novou cache) |
+| První build | stáhne archiv | stáhne tarball a přeloží ho (na Apple Silicon asi 30–60 s) |
+
+Společné:
+
+- **První build potřebuje internet.** Archiv / tarball se ověří podle připnutého SHA256. Při neshodě build selže a stažený soubor se zahodí. Další buildy jen zkontrolují cache a fungují offline. Jinou složku cache nastavíš vlastností nebo proměnnou prostředí `LayerPeekFFmpegCacheRoot`. `LayerPeekFFmpegEnabled=false` krok vypne úplně (testy FFmpeg se pak přeskočí).
+- Knihovny a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují. V `LayerPeek.app` jsou knihovny v `Contents/MacOS` (vedle exe, jako ostatní nativní knihovny) a licence v `Contents/Resources`.
+- IDE (design-time build) nic nestahuje ani nepřekládá. Jiné RID (`win-arm64`, `osx-x64`) a Intel Mac krok přeskočí.
+
+macOS navíc:
+
+- **Stačí Xcode Command Line Tools** (`clang`, `make`, `otool`, `lipo`) a nástroje systému (`/usr/bin/tar` rozbalí `.tar.xz`). `pkg-config`, `nasm` ani Homebrew potřeba nejsou. Skript spouští `configure` a `make` s čistým prostředím (`PATH=/usr/bin:/bin:/usr/sbin:/sbin`, bez `CFLAGS`/`LDFLAGS`/`PKG_CONFIG_PATH`), takže se do buildu nedostane nic z Homebrew. Varování `pkg-config not found` v logu `configure` je v pořádku (žádné externí knihovny se nehledají).
+- Výsledek se kontroluje: architektura `arm64` (`lipo`) a závislosti jen na sousedních knihovnách (`@loader_path/…`) a na systému (`/usr/lib`, `/System/Library`), nikdy `/opt/homebrew` ani `/usr/local` (`otool -L`). Knihovny mají install name `@loader_path/<název>`, takže se načtou ze složky, ve které jsou (výstup buildu, publish i bundle). Minimální macOS je `14.0` jako `LSMinimumSystemVersion` v `build/macos/Info.plist` (test hlídá shodu).
+- Přesný řádek `configure` (je i v `BUILD.txt` v cache):
+
+  ```
+  configure --enable-shared --disable-static --enable-version3 --disable-programs --disable-doc --disable-debug
+    --disable-autodetect --disable-everything --disable-avdevice --disable-avfilter --disable-swresample
+    --enable-network --enable-protocol=tcp,file --enable-demuxer=rtsp,h264 --enable-parser=h264 --enable-decoder=h264
+    --arch=aarch64 --install-name-dir=@loader_path
+    --extra-cflags="-arch arm64 -mmacosx-version-min=14.0" --extra-ldflags="-arch arm64 -mmacosx-version-min=14.0"
+  ```
+
+  `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Bez `--enable-gpl` a `--enable-nonfree`, bez VideoToolbox (dekódování jen softwarově, rozhodnuto 2026-10-29), licence podle `configure`: „LGPL version 3 or later“.
+- **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Připnutý hash je spočítaný ze staženého tarballu 2026-10-29, podpis GPG ověřený nebyl (`gpg` na stroji není).
+
+Windows, když stažení selže (offline, nebo připnuté vydání z GitHubu zmizelo), build skončí chybou s návodem. Zrcadlo není. Možnosti:
+
+1. V `build/FFmpeg.targets` změnit `LayerPeekFFmpegUrl`, `LayerPeekFFmpegSha256` a `LayerPeekFFmpegArchiveFolder` na jiný LGPL shared win64 build BtbN se stejnými verzemi knihoven (`avformat-63` …).
+2. Cache naplnit ručně: do `<cache>\<sha256>\bin\` dát `avformat-63.dll`, `avcodec-63.dll`, `avutil-61.dll`, `swscale-10.dll` a `swresample-7.dll`, do `<cache>\<sha256>\` dát `LICENSE.txt` a soubor `verified.sha256`. Ten má obsahovat jeden řádek s hodnotou `LayerPeekFFmpegSha256` z `build/FFmpeg.targets` (SHA256 archivu, ze kterého DLL pocházejí), stejně jako cache vytvořená buildem. Build zatím kontroluje jen to, že soubor existuje. Za shodu DLL s připnutým buildem odpovídá ten, kdo cache naplnil. Případně nastavit `LayerPeekFFmpegCacheRoot` na složku s takovou cache.
 
 ## Windows
 
@@ -110,7 +137,7 @@ Ověření (musí vypsat název instalace):
 
 | Co | Poznámka |
 |---|---|
-| **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install` |
+| **Xcode Command Line Tools** | `clang` a linker pro AOT: `xcode-select --install`. Od T-026 je potřeba i pro první `dotnet build` na Macu, který s nimi přeloží knihovny FFmpeg (viz „Nativní knihovny FFmpeg“) |
 | *(volitelně)* plné Xcode | není potřeba pro AOT ani pro ad-hoc podpis a balení (ověřeno v T-019 jen s Command Line Tools) |
 | nástroje systému pro balení `.app` (T-019) | `codesign`, `sips`, `iconutil`, `hdiutil`, `ditto`, `/usr/bin/tar`, `lsappinfo`, `lsregister`, `defaults` jsou součástí macOS, nic se neinstaluje. `scripts/release-build.ps1` je volá absolutní cestou. |
 | *(volitelně)* **PowerShell 7** (`pwsh` na `PATH`) | pro skripty vydání (T-055, T-019) a jejich Pester testy. Instalace přes Homebrew (`brew install --cask powershell`), nebo jako dotnet global tool (`dotnet tool install --global PowerShell`, složka `~/.dotnet/tools` musí být na `PATH`). Skripty i testy fungují s oběma způsoby instalace: podřízený `pwsh` spouštějí přes `Invoke-Pwsh` (u dotnet tool `dotnet …/pwsh.dll`). Pester 5 viz „Pester (testy skriptů)“. |
@@ -203,7 +230,8 @@ V `src/LayerPeek.App/LayerPeek.App.csproj` je nastaveno `<UseOptimizedPublish>fa
 | macOS: `CS0246` u `ServiceProvider` / `IHttpClientFactory` v `LayerPeek.App` (hlavně `dotnet publish -r osx-arm64`) | repozitář je otevřený přes symbolický odkaz, `$PWD` se liší od `pwd -P`; skripty v `scripts/` to řeší samy, pro ruční příkazy viz macOS (`setopt CHASE_LINKS`) |
 | `xcrun: error: invalid active developer path` | chybí Xcode Command Line Tools: `xcode-select --install` |
 | Publikovaná aplikace spadne s `XamlLoadException: No precompiled XAML found` | v App csproj chybí `UseOptimizedPublish=false` (viz „AOT smoke test“) |
-| `FFmpeg archive SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
+| `FFmpeg archive SHA256 mismatch` / `FFmpeg source SHA256 mismatch` nebo chyba stahování při buildu | bez internetu není cache FFmpeg naplněná (viz „Nativní knihovny FFmpeg“); při neshodě hashe zkontroluj URL a hash v `build/FFmpeg.targets` |
+| macOS: `Building FFmpeg from source failed` | chybí Xcode Command Line Tools (`xcode-select --install`), nebo viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
 | `release-build.ps1`: `The MSVC component Microsoft.VisualStudio.Component.VC.Tools.ARM64 … is not installed` | chybí ARM64 build tools (viz „ARM64 build tools“) |
 | `release-upload.ps1`: `GitHub CLI (gh) is not installed` / `is not logged in` | viz „Vydání (GitHub CLI)“ |

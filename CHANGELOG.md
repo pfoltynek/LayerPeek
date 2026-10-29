@@ -21,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   click opens the printer's web interface. macOS asks for permission with the first notification. When notifications
   are turned off in System Settings, the *General* tab of the settings says so and offers to open System Settings →
   Notifications.
+- macOS: the live camera stream (RTSP/H.264, e.g. Buddy3D). The app bundles its own LGPL build of FFmpeg 9.0.2,
+  compiled from the official source (software decoding), and needs no FFmpeg from Homebrew. The third-party licences
+  window links the source release and the build script used.
 
 ## [0.2.0] - 2026-10-26
 

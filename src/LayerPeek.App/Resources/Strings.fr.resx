@@ -870,6 +870,15 @@
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
     <value>Configuration et scripts de compilation (BtbN)</value>
   </data>
+  <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
+    <value>FFmpeg est distribué sous licence GNU LGPL version 3 ou ultérieure. L'application utilise une version de FFmpeg non modifiée, compilée en LGPL à partir du code source officiel, et la lie dynamiquement : les bibliothèques libavcodec, libavformat, libavutil et libswscale (.dylib) du paquet de l'application peuvent être remplacées par une compilation FFmpeg compatible (mêmes versions des bibliothèques, par exemple libavcodec.63.dylib) ; le paquet doit ensuite être signé à nouveau.</value>
+  </data>
+  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
+    <value>Version source de FFmpeg utilisée (ffmpeg.org)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
+    <value>Configuration et script de compilation (LayerPeek)</value>
+  </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Le texte de la licence FFmpeg (FFmpeg-LICENSE.txt) est introuvable à côté de l'application. La GNU LGPL 3.0 est publiée sur https://www.gnu.org/licenses/lgpl-3.0.html.</value>
   </data>
