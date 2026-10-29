@@ -24,7 +24,10 @@ internal sealed record WidgetRunOptions
 
     public string Language { get; init; } = "en";
 
-    /// <summary>The printer's cool-down threshold (T-079), 30–100 °C; <see langword="null"/> = the default 50 °C.</summary>
+    /// <summary>
+    /// The printer's cool-down thresholds (T-079, T-109), 30–100 °C, used for both the nozzle and the bed;
+    /// <see langword="null"/> = the defaults 40 / 40 °C.
+    /// </summary>
     public int? CooldownThresholdCelsius { get; init; }
 
     /// <summary>The <c>camera.window</c> section; <see langword="null"/> = the defaults (normal window in the centre).</summary>
@@ -103,7 +106,8 @@ internal sealed class WidgetRun : IAsyncDisposable
         JsonObject printer = new TestPrinter(PrinterId, "Core One", address, Camera: camera, CameraWindow: options.CameraWindow).ToJson();
         if (options.CooldownThresholdCelsius is { } threshold)
         {
-            printer["cooldownThresholdCelsius"] = threshold;
+            printer["cooldownNozzleThresholdCelsius"] = threshold;
+            printer["cooldownBedThresholdCelsius"] = threshold;
         }
 
         if (options.Overlay is not null)

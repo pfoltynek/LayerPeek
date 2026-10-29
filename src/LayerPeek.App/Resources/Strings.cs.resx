@@ -186,6 +186,9 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Můžete tiskárnu vypnout. Tryska {0} °C, práh {1} °C</value>
   </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Můžete tiskárnu vypnout. Tryska {0}&#160;°C (práh {1}&#160;°C), podložka {2}&#160;°C (práh {3}&#160;°C)</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostika – LayerPeek</value>
   </data>
@@ -523,22 +526,31 @@
     <value>Tiskárna vychladla</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Práh teploty trysky se nastavuje u tiskárny na záložce Widgety, widget Vychladnutí.</value>
+    <value>Prahy teploty trysky a podložky se nastavují u tiskárny na záložce Widgety, widget Vychladnutí.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Práh teploty trysky (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Práh teploty podložky (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Tryska (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Podložka (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Pod touto teplotou je tiskárnu bezpečné vypnout.</value>
+    <value>Až tryska i podložka klesnou na tyto teploty nebo pod ně, je tiskárnu bezpečné vypnout.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Zadejte celé číslo od {0} do {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Použít práh u všech tiskáren</value>
+    <value>Použít prahy u všech tiskáren</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>Práh se zkopíroval do ostatních tiskáren. Projeví se po uložení.</value>
+    <value>Prahy se zkopírovaly do ostatních tiskáren. Projeví se po uložení.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Je nastavená jen jedna tiskárna.</value>
@@ -628,7 +640,7 @@
     <value>Čitelný název tisku s materiálem, výškou vrstvy a tryskou, ve větší velikosti s náhledem.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Po skončení tisku ukáže chladnutí trysky a kdy je tiskárnu bezpečné vypnout.</value>
+    <value>Po skončení tisku ukáže chladnutí trysky a podložky a kdy je tiskárnu bezpečné vypnout.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Upozornit, když zbývá tolik minut tisku (0 = vypnuto)</value>
@@ -1069,6 +1081,15 @@
   <data name="CameraMiniCooledAccessible" xml:space="preserve">
     <value>Vychladlo – můžete vypnout, tryska {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Vychladlo – můžete vypnout, tryska {0}&#160;°C, podložka {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Chladne… tryska {0}&#160;°C, podložka {1}&#160;°C, cca {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Chladne… tryska {0}&#160;°C, podložka {1}&#160;°C</value>
+  </data>
   <data name="CameraMiniFinishDayTime" xml:space="preserve">
     <value>{0}&#160;{1}</value>
   </data>
@@ -1083,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>bezpečné vypnutí, až tryska klesne pod {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>bezpečné vypnutí za cca {0} (tryska pod {1}&#160;°C, podložka pod {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>bezpečné vypnutí, až tryska klesne pod {0}&#160;°C a podložka pod {1}&#160;°C</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>tisk dokončen v {0}</value>

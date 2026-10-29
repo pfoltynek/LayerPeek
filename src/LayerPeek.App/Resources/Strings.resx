@@ -203,6 +203,10 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Safe to turn off. Nozzle {0} °C, threshold {1} °C</value>
   </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Safe to turn off. Nozzle {0}&#160;°C (threshold {1}&#160;°C), bed {2}&#160;°C (threshold {3}&#160;°C)</value>
+    <comment>Third line of the "cooled down" notification with a bed temperature (T-109): {0} nozzle, {1} nozzle threshold, {2} bed, {3} bed threshold.</comment>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostics – LayerPeek</value>
   </data>
@@ -540,22 +544,34 @@
     <value>Printer cooled down</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>The nozzle temperature threshold is set per printer on the Widgets tab, Cool-down widget.</value>
+    <value>The nozzle and bed temperature thresholds are set per printer on the Widgets tab, Cool-down widget.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Nozzle temperature threshold (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Bed temperature threshold (°C)</value>
+    <comment>Accessible name of the bed threshold box of the Cool-down widget settings (T-109); SettingsCooldownThreshold names the nozzle box.</comment>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Nozzle (°C)</value>
+    <comment>Visible label above the nozzle threshold box (T-109), at most 120 DIP wide.</comment>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Bed (°C)</value>
+    <comment>Visible label above the bed threshold box (T-109), at most 120 DIP wide.</comment>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Below this temperature the printer is safe to turn off.</value>
+    <value>Once both the nozzle and the bed are at or below these temperatures, the printer is safe to turn off.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Enter a whole number from {0} to {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Use threshold for all printers</value>
+    <value>Use thresholds for all printers</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>The threshold was copied to the other printers. It applies after saving.</value>
+    <value>The thresholds were copied to the other printers. They apply after saving.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Only one printer is set up.</value>
@@ -645,7 +661,7 @@
     <value>Readable print name with material, layer height and nozzle; larger sizes add a preview.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>After a print ends, shows the nozzle cooling down and when the printer is safe to turn off.</value>
+    <value>After a print ends, shows the nozzle and the bed cooling down and when the printer is safe to turn off.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notify when this many minutes of printing remain (0 = off)</value>
@@ -1104,6 +1120,18 @@
     <value>Cooled down – safe to turn off, nozzle {0}&#160;°C</value>
     <comment>Tooltip and screen reader name of the mini preview strip once cooled down (T-103): CameraOverlayCooled plus the nozzle temperature.</comment>
   </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Cooled down – safe to turn off, nozzle {0}&#160;°C, bed {1}&#160;°C</value>
+    <comment>Tooltip and screen reader name of the mini preview strip once cooled down, with a bed temperature (T-109): {0} nozzle, {1} bed.</comment>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Cooling down… nozzle {0}&#160;°C, bed {1}&#160;°C, about {2}</value>
+    <comment>Tooltip and screen reader name of the mini preview strip while cooling, with a bed temperature (T-109): {0} nozzle, {1} bed, {2} estimate. Same abbreviation as CameraMiniCooling.</comment>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Cooling down… nozzle {0}&#160;°C, bed {1}&#160;°C</value>
+    <comment>Tooltip and screen reader name of the mini preview strip while cooling without an estimate, with a bed temperature (T-109): {0} nozzle, {1} bed.</comment>
+  </data>
   <data name="CameraMiniFinishDayTime" xml:space="preserve">
     <value>{0}&#160;{1}</value>
     <comment>Mini preview strip, finish on another day within a week (T-103): {0} = abbreviated day of the week in the app language, {1} = time in the region format. The translator may change the order.</comment>
@@ -1119,6 +1147,14 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>safe to turn off once the nozzle is below {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>safe to turn off in about {0} (nozzle below {1}&#160;°C, bed below {2}&#160;°C)</value>
+    <comment>Cool-down widget detail with a bed temperature (T-109): {0} duration, {1} nozzle threshold, {2} bed threshold.</comment>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>safe to turn off once the nozzle is below {0}&#160;°C and the bed below {1}&#160;°C</value>
+    <comment>Cool-down widget detail with a bed temperature and without an estimate (T-109): {0} nozzle threshold, {1} bed threshold.</comment>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>print finished at {0}</value>

@@ -36,7 +36,7 @@ public sealed record NotificationSettings
 
     /// <summary>
     /// The printer cooled down after a print and can be turned off (T-080). Off by default (user decision 2026-10-24); the
-    /// threshold is set per printer (<see cref="Printers.PrinterDefinition.CooldownThresholdCelsius"/>).
+    /// thresholds are set per printer (<see cref="Printers.PrinterDefinition.CooldownThresholds"/>).
     /// </summary>
     public bool CooledDown { get; init; }
 

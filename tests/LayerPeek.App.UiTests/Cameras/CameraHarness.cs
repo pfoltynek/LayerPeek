@@ -68,8 +68,10 @@ internal sealed class CameraHarness : IAsyncDisposable
         ((IMonitoringObserver)Printers).ApplySettings(settings);
         // The cool-down states of the Cool-down widget and the mini preview strip (T-088, T-089) from the snapshots the test
         // raises, on the fake clock of the windows (the estimate counts down with it).
+        // The tests follow the nozzle with a bed below 45 °C: the former nozzle threshold of 50 °C and a bed threshold the bed
+        // does not exceed, so that the nozzle alone decides (T-109; the bed's own rules are tested in Core and App.Tests).
         Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
-        Cooldown.Configure(settings.Printers, settings.PollingInterval);
+        Cooldown.Configure([.. settings.Printers.Select(static p => p with { CooldownThresholds = new(50, 45) })], settings.PollingInterval);
         Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
 

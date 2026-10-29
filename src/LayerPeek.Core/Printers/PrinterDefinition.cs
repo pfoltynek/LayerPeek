@@ -99,11 +99,12 @@ public sealed record PrinterDefinition
     } = PrinterImageChoice.Automatic;
 
     /// <summary>
-    /// Nozzle temperature in whole °C at or below which the printer counts as cooled down after a print (T-079);
-    /// <see cref="CooldownThreshold.MinCelsius"/>–<see cref="CooldownThreshold.MaxCelsius"/>,
-    /// <see cref="CooldownThreshold.DefaultCelsius"/> by default.
+    /// Nozzle and bed temperatures in whole °C at or below which the printer counts as cooled down after a print (T-079,
+    /// both since T-109); each within <see cref="CooldownThreshold.MinCelsius"/>–<see cref="CooldownThreshold.MaxCelsius"/>,
+    /// <see cref="CooldownThresholds.Default"/> by default.
     /// </summary>
-    public int CooldownThresholdCelsius
+    /// <exception cref="ArgumentOutOfRangeException">A threshold is out of the range (also <c>default</c>).</exception>
+    public CooldownThresholds CooldownThresholds
     {
         get;
         init
@@ -111,7 +112,7 @@ public sealed record PrinterDefinition
             CooldownThreshold.Validate(value, nameof(value));
             field = value;
         }
-    } = CooldownThreshold.DefaultCelsius;
+    } = CooldownThresholds.Default;
 
     private static string RequireText(string value)
     {

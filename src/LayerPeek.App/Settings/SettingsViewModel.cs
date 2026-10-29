@@ -1623,10 +1623,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>
-    /// "Use threshold for all printers" of <paramref name="source"/> (T-080): its valid threshold goes to every other printer
-    /// of the window, saved with the other changes. An invalid threshold copies nothing (its error is shown).
+    /// "Use thresholds for all printers" of <paramref name="source"/> (T-080; nozzle and bed together since T-109): its valid
+    /// thresholds go to every other printer of the window, saved with the other changes. An invalid threshold copies nothing
+    /// (its error is shown).
     /// </summary>
-    internal void ApplyCooldownThresholdToAll(PrinterEditorViewModel source)
+    internal void ApplyCooldownThresholdsToAll(PrinterEditorViewModel source)
     {
         ArgumentNullException.ThrowIfNull(source);
         if (!IsEditable || Printers.Count < 2 || !Printers.Contains(source))
@@ -1634,13 +1635,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             return;
         }
 
-        if (source.ValidCooldownThreshold is not { } threshold)
+        if (source.ValidCooldownThresholds is not { } thresholds)
         {
             source.RevealErrors();
             return;
         }
 
-        ApplyToOtherPrinters(source, printer => printer.CooldownThresholdCelsius = threshold, static () => Strings.SettingsCooldownAppliedAll);
+        ApplyToOtherPrinters(source, printer => printer.SetCooldownThresholds(thresholds), static () => Strings.SettingsCooldownAppliedAll);
     }
 
     private static int Adjacent(int index, int count, bool forward) => (index + (forward ? 1 : count - 1)) % count;

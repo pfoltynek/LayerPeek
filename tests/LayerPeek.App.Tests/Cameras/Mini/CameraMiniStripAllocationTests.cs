@@ -28,7 +28,7 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
     public CameraMiniStripAllocationTests()
     {
         _cooldown = new CooldownMonitor(_monitor, TimeProvider.System, new ListLogger<CooldownMonitor>());
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()
@@ -104,7 +104,7 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
         // T-088: the estimate rule of the Cool-down widget and its countdown clock cost nothing per poll either.
         FakeTimeProvider time = new(Now);
         using CooldownMonitor cooldown = new(_monitor, time, new ListLogger<CooldownMonitor>());
-        cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
         using CameraMiniStripViewModel strip = new("mk4", _dispatcher, cooldown, clock: time);
         _monitor.SnapshotUpdated += (_, snapshot) => strip.OnSnapshot(snapshot);
         _monitor.Raise(CooldownWidgetTests.Printing());

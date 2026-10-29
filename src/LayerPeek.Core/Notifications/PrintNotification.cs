@@ -25,8 +25,8 @@ public sealed record PrintNotification
     public TimeSpan? Remaining { get; init; }
 
     /// <summary>
-    /// How the print ended, the nozzle temperature and the threshold; set for <see cref="PrintEventKind.CooledDown"/>
-    /// (T-080).
+    /// How the print ended, the nozzle and bed temperatures and their thresholds; set for
+    /// <see cref="PrintEventKind.CooledDown"/> (T-080, T-109).
     /// </summary>
     public CooldownEvent? Cooldown { get; init; }
 

@@ -98,18 +98,22 @@ public sealed class CooldownNotificationObserverTests : IDisposable
         _cooldownObserver.ApplySettings(settings);
     }
 
-    /// <summary>A print, then "finished" readings from 200 °C down to 40 °C (two below the default threshold of 50 °C).</summary>
+    /// <summary>
+    /// A print, then "finished" readings from 200 °C down to 38 °C, the bed from 60 °C to 39 °C (the last two of both at or
+    /// below the default thresholds of 40 °C, T-109).
+    /// </summary>
     private void RaiseCooledPrint()
     {
-        _monitor.Raise(Snapshot(PrinterState.Printing, Job(50)) with { Telemetry = Hot(215, 215) });
-        double[] readings = [200, 120, 70, 45, 40];
-        for (int i = 0; i < readings.Length; i++)
+        _monitor.Raise(Snapshot(PrinterState.Printing, Job(50)) with { Telemetry = Hot(215, 215, 60) });
+        double[] nozzle = [200, 120, 70, 40, 38];
+        double[] bed = [60, 55, 48, 40, 39];
+        for (int i = 0; i < nozzle.Length; i++)
         {
-            _monitor.Raise(Snapshot(PrinterState.Finished, Job(100)) with { Timestamp = Now.AddSeconds(5 * (i + 1)), Telemetry = Hot(readings[i], 0) });
+            _monitor.Raise(Snapshot(PrinterState.Finished, Job(100)) with { Timestamp = Now.AddSeconds(5 * (i + 1)), Telemetry = Hot(nozzle[i], 0, bed[i]) });
         }
     }
 
-    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(55, 0) };
+    private static Telemetry Hot(double nozzle, double target, double bed) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(bed, 0) };
 
     private sealed class RecordingNotificationService : INotificationService
     {

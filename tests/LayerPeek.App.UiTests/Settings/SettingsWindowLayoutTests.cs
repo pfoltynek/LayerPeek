@@ -1076,7 +1076,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         yield return ("widgets: cool-down threshold error", static async scope =>
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }, LinkPrinter("b", "Beta", "192.168.1.21")));
-            ui.ViewModel.Printers[0].CooldownThresholdCelsius = 120;
+            ui.ViewModel.Printers[0].CooldownBedThresholdCelsius = 120;
             await ui.ViewModel.SaveCommand.ExecuteAsync(null);
             Assert.Equal(SettingsViewModel.WidgetsTab, ui.ViewModel.SelectedTabIndex);
             Assert.NotNull(ui.ViewModel.Printers[0].CooldownThresholdError);

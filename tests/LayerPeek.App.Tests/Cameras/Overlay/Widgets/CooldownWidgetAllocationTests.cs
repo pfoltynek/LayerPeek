@@ -33,7 +33,7 @@ public sealed class CooldownWidgetAllocationTests : IDisposable
     {
         _time.SetLocalTimeZone(TimeZoneInfo.Utc);
         _cooldown = new CooldownMonitor(_monitor, _time, NullLogger<CooldownMonitor>.Instance);
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()

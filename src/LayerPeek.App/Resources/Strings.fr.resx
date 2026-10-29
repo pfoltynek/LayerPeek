@@ -472,22 +472,31 @@
     <value>Imprimante refroidie</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Le seuil de température de la buse se règle par imprimante dans l'onglet Widgets, widget Refroidissement.</value>
+    <value>Les seuils de température de la buse et du plateau se règlent par imprimante dans l'onglet Widgets, widget Refroidissement.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Seuil de température de la buse (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Seuil de température du plateau (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Buse (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Plateau (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>En dessous de cette température, l'imprimante peut être éteinte sans risque.</value>
+    <value>Sous ces températures (buse et plateau), l'imprimante peut être éteinte sans risque.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Saisissez un nombre entier de {0} à {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Appliquer le seuil à toutes les imprimantes</value>
+    <value>Appliquer les seuils à toutes les imprimantes</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>Le seuil a été copié vers les autres imprimantes. Il s'applique après l'enregistrement.</value>
+    <value>Les seuils ont été copiés vers les autres imprimantes. Ils s'appliquent après l'enregistrement.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Une seule imprimante est configurée.</value>
@@ -577,7 +586,7 @@
     <value>Nom d'impression lisible avec matériau, hauteur de couche et buse ; les grandes tailles ajoutent un aperçu.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Après la fin d'une impression, montre le refroidissement de la buse et quand l'imprimante peut être éteinte.</value>
+    <value>Après l'impression, montre le refroidissement de la buse et du plateau et quand éteindre l'imprimante.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notifier lorsqu'il reste ce nombre de minutes d'impression (0 = désactivé)</value>
@@ -734,6 +743,9 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Vous pouvez l'éteindre. Buse {0} °C, seuil {1} °C</value>
+  </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Vous pouvez l'éteindre. Buse {0}&#160;°C (seuil {1}&#160;°C), plateau {2}&#160;°C (seuil {3}&#160;°C)</value>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Les notifications sont désactivées dans macOS.</value>
@@ -1069,6 +1081,15 @@
   <data name="CameraMiniCooledAccessible" xml:space="preserve">
     <value>Refroidie – vous pouvez l'éteindre, buse {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Refroidie – vous pouvez l'éteindre, buse {0}&#160;°C, plateau {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Refroidissement… buse {0}&#160;°C, plateau {1}&#160;°C, env. {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Refroidissement… buse {0}&#160;°C, plateau {1}&#160;°C</value>
+  </data>
   <data name="CameraMiniFinishDayTime" xml:space="preserve">
     <value>{0}&#160;{1}</value>
   </data>
@@ -1083,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>extinction sûre quand la buse sera sous {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>extinction sûre dans env. {0} (buse sous {1}&#160;°C, plateau sous {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>extinction sûre quand la buse sera sous {0}&#160;°C et le plateau sous {1}&#160;°C</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>impression terminée à {0}</value>

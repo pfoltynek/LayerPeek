@@ -153,13 +153,14 @@ public sealed record AppSettings
     }
 
     /// <summary>
-    /// "Use this threshold for all printers" (T-079): these settings with <paramref name="thresholdCelsius"/> as the
-    /// cool-down threshold of every printer; the same instance when every printer already has it. Nothing else changes.
+    /// "Use these thresholds for all printers" (T-079, nozzle and bed since T-109): these settings with
+    /// <paramref name="thresholds"/> as the cool-down thresholds of every printer; the same instance when every printer
+    /// already has them. Nothing else changes.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="thresholdCelsius"/> is not a valid <see cref="Cooldown.CooldownThreshold"/>.</exception>
-    public AppSettings WithCooldownThresholdForAllPrinters(int thresholdCelsius)
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="thresholds"/> are not valid (<see cref="Cooldown.CooldownThreshold"/>).</exception>
+    public AppSettings WithCooldownThresholdsForAllPrinters(Cooldown.CooldownThresholds thresholds)
     {
-        IReadOnlyList<PrinterDefinition> printers = Cooldown.CooldownThreshold.ApplyToAll(Printers, thresholdCelsius);
+        IReadOnlyList<PrinterDefinition> printers = Cooldown.CooldownThreshold.ApplyToAll(Printers, thresholds);
         return ReferenceEquals(printers, Printers) ? this : this with { Printers = printers };
     }
 

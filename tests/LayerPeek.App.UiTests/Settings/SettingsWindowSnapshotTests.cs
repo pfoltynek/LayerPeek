@@ -315,7 +315,7 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         {
             new UiLanguage().Apply("fr");
             SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 atelier") with { Camera = new CameraSettings(enabled: true, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
-            ui.ViewModel.Printers[0].CooldownThresholdCelsius = 120;
+            ui.ViewModel.Printers[0].CooldownBedThresholdCelsius = 120;
             await ui.ViewModel.SaveCommand.ExecuteAsync(null);
             ui.Window.Settle();
 

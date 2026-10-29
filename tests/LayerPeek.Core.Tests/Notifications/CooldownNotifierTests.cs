@@ -64,8 +64,10 @@ public sealed class CooldownNotifierTests : IDisposable
         Assert.Null(notification.Remaining);
         CooldownEvent cooled = Assert.IsType<CooldownEvent>(notification.Cooldown);
         Assert.Equal(CooldownPrintOutcome.Finished, cooled.Outcome);
-        Assert.Equal(CooldownThreshold.DefaultCelsius, cooled.ThresholdCelsius);
-        Assert.InRange(cooled.NozzleCelsius, Ambient, CooldownThreshold.DefaultCelsius);
+        // T-109: both readings and thresholds.
+        Assert.Equal(CooldownThresholds.Default, cooled.Thresholds);
+        Assert.InRange(cooled.NozzleCelsius, Ambient, CooldownThreshold.DefaultNozzleCelsius);
+        Assert.InRange(cooled.BedCelsius!.Value, Ambient, CooldownThreshold.DefaultBedCelsius);
         Assert.Equal(cooled.Timestamp, notification.Timestamp);
         Assert.Equal(CooldownPhase.CooledDown, _cooldown.GetState("mk4").Phase);
     }
@@ -138,9 +140,9 @@ public sealed class CooldownNotifierTests : IDisposable
     {
         Configure([Mk4], Enabled);
         Raise(Printing(0));
-        Raise(Snap(PrinterState.Finished, End, 45, 0, job: Job()));
-        Raise(Snap(PrinterState.Finished, End + 5, 44, 0, job: Job()));
-        Raise(Snap(PrinterState.Finished, End + 10, 43, 0, job: Job()));
+        Raise(Snap(PrinterState.Finished, End, 39, 0, job: Job()));
+        Raise(Snap(PrinterState.Finished, End + 5, 38, 0, job: Job()));
+        Raise(Snap(PrinterState.Finished, End + 10, 37, 0, job: Job()));
 
         Assert.Equal(CooldownPhase.CooledDown, _cooldown.GetState("mk4").Phase);
         Assert.Empty(_service.Notifications);
@@ -270,11 +272,12 @@ public sealed class CooldownNotifierTests : IDisposable
         Assert.Empty(_service.Notifications);
 
         // The nozzle is at about 70 °C. The notifier gets the settings first, as the monitoring session does.
-        PrinterDefinition raised = Mk4 with { CooldownThresholdCelsius = 80 };
+        PrinterDefinition raised = Mk4 with { CooldownThresholds = new(80, 60) };
         Configure([raised], Enabled);
 
         PrintNotification notification = Assert.Single(_service.Notifications);
-        Assert.Equal(80, notification.Cooldown?.ThresholdCelsius);
+        Assert.Equal(80, notification.Cooldown?.NozzleThresholdCelsius);
+        Assert.Equal(60, notification.Cooldown?.BedThresholdCelsius);
         Assert.Same(raised, notification.Printer);
     }
 

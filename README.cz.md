@@ -212,8 +212,8 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 
 - **Notifikace:** které události chceš, režim zvuku a upozornění na zbývající minuty.
 - **Okno kamery:** výchozí režim, velikost, monitor a vždy navrchu.
-- **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. práh vychladnutí), neprůhlednost karet a
-  rozložení.
+- **Widgety:** které widgety se ukazují přes obraz, jejich nastavení (např. prahy vychladnutí trysky a podložky
+  u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
   jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze. Na macOS: **Otevřít při přihlášení**

@@ -37,7 +37,7 @@ public interface IOverlayWidgetSettingsHost : INotifyPropertyChanged
 {
     /// <summary>
     /// The printer of the panel as edited in the window. Its values and validation belong to it (e.g.
-    /// <see cref="PrinterEditorViewModel.CooldownThresholdCelsius"/>), so that Save, Cancel, the unsaved state and the error
+    /// <see cref="PrinterEditorViewModel.CooldownNozzleThresholdCelsius"/>), so that Save, Cancel, the unsaved state and the error
     /// markers work like for every other field.
     /// </summary>
     PrinterEditorViewModel Printer { get; }

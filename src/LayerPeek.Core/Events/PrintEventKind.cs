@@ -39,7 +39,7 @@ public enum PrintEventKind
     CredentialsRejected,
 
     /// <summary>
-    /// The nozzle cooled down to the printer's threshold after a finished or stopped print (T-080). Not detected by
+    /// The nozzle and the bed cooled down to the printer's thresholds after a finished or stopped print (T-080, T-109). Not detected by
     /// <see cref="PrintEventDetector"/> but raised by <see cref="Cooldown.CooldownMonitor"/>, at most once per print.
     /// </summary>
     CooledDown,

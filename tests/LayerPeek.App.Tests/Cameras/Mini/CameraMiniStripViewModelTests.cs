@@ -30,7 +30,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     public CameraMiniStripViewModelTests()
     {
         _cooldown = new CooldownMonitor(_monitor, TimeProvider.System, new ListLogger<CooldownMonitor>());
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()
@@ -186,7 +186,8 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
         Assert.Equal("Cooled down – safe to turn off", strip.Summary);
         Assert.Equal(new MiniStripVariant($"Cooled down · 40{Nbsp}°C"), strip.SecondVariant);
         Assert.Null(strip.ThirdVariant);
-        Assert.Equal($"Cooled down – safe to turn off, nozzle 40{Nbsp}°C", strip.AccessibleText);
+        // T-109: the tooltip names both temperatures.
+        Assert.Equal($"Cooled down – safe to turn off, nozzle 40{Nbsp}°C, bed 44{Nbsp}°C", strip.AccessibleText);
         Assert.True(strip.HasProgress);
         Assert.Equal(100, strip.Progress);
         Assert.False(strip.ShowsDot);
@@ -203,7 +204,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     [Fact]
     public void CoolDownOfAnotherPrinterPostsNothing()
     {
-        _cooldown.Configure([Definition(), Definition("other", "Other")], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition()), NozzleDecides(Definition("other", "Other"))], TimeSpan.FromSeconds(5));
         using CameraMiniStripViewModel strip = Create();
         Raise(Snapshot(PrinterState.Idle));
         int posts = _dispatcher.PostCount;
@@ -232,20 +233,21 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     [InlineData(null, "Cooling down… 87{0}°C")]
     public void CoolingShowsTheNozzleAndTheEstimateRoundedUp(double? minutes, string expected)
     {
-        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 0.3, minutes is { } m ? TimeSpan.FromMinutes(m) : null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
+        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 40, 0.3, minutes is { } m ? TimeSpan.FromMinutes(m) : null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
 
         MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now, TimeZoneInfo.Utc);
         MiniStripTexts texts = CameraMiniStripViewModel.Texts(content);
 
-        Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, minutes is null ? null : 6, 87, CoolingPercent: 30), content);
+        Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, minutes is null ? null : 6, 87, CoolingPercent: 30, NozzleCelsius: 87, BedCelsius: 45), content);
         Assert.Equal(string.Format(CultureInfo.InvariantCulture, expected, Nbsp), texts.First.Summary);
-        Assert.Equal(texts.First.Summary, texts.Accessible);
+        // T-109: the tooltip names both temperatures.
+        Assert.StartsWith($"Cooling down… nozzle 87{Nbsp}°C, bed 45{Nbsp}°C", texts.Accessible, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CoolDownIsNotShownForAnUnreachablePrinterOrWithoutATemperature()
     {
-        CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 1, null, Now, Now, CooldownPrintOutcome.Stopped, Now, Now);
+        CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 40, 1, null, Now, Now, CooldownPrintOutcome.Stopped, Now, Now);
 
         Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled, Now, TimeZoneInfo.Utc).Kind);
         Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled, Now, TimeZoneInfo.Utc).Kind);
@@ -366,5 +368,6 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     private static PrinterSnapshot Finished(int seconds, double nozzle) =>
         Snapshot(PrinterState.Finished, Job(100)) with { Timestamp = Now.AddSeconds(seconds), Telemetry = Hot(nozzle, 0) };
 
-    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(55, 0) };
+    /// <summary>The bed stays below the bed threshold of <see cref="TestPrinters.NozzleOnlyThresholds"/>: the nozzle decides.</summary>
+    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(44, 0) };
 }

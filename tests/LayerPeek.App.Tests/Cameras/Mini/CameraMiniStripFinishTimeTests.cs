@@ -178,7 +178,7 @@ public sealed class CameraMiniStripFinishTimeTests : IDisposable
     [Fact]
     public void CoolingVariantsDropTheWordThenTheEstimate()
     {
-        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 0.42, TimeSpan.FromMinutes(5.5), Now, Now, CooldownPrintOutcome.Finished, Now, null);
+        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 40, 0.42, TimeSpan.FromMinutes(5.5), Now, Now, CooldownPrintOutcome.Finished, Now, null);
 
         MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now, Utc);
         MiniStripTexts texts = CameraMiniStripViewModel.Texts(content);
@@ -187,25 +187,69 @@ public sealed class CameraMiniStripFinishTimeTests : IDisposable
         Assert.Equal(new MiniStripVariant($"Cooling down… 87{Nbsp}°C · about 6\u00A0min"), texts.First);
         Assert.Equal(new MiniStripVariant($"87{Nbsp}°C · about 6\u00A0min"), texts.Second);
         Assert.Equal(new MiniStripVariant($"87{Nbsp}°C"), texts.Third);
-        Assert.Equal(texts.First.Summary, texts.Accessible);
+        // T-109: the row keeps the limiting temperature, the tooltip names both.
+        Assert.Equal($"Cooling down… nozzle 87{Nbsp}°C, bed 45{Nbsp}°C, about 6\u00A0min", texts.Accessible);
     }
 
     [Fact]
     public void CoolingWithoutAnEstimateGoesStraightToTheTemperature()
     {
-        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, double.NaN, null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
+        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 40, double.NaN, null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
 
         MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now, Utc);
         MiniStripTexts texts = CameraMiniStripViewModel.Texts(content);
 
         Assert.Equal(0, content.CoolingPercent);
-        Assert.Equal(new MiniStripTexts(new MiniStripVariant($"Cooling down… 87{Nbsp}°C"), new MiniStripVariant($"87{Nbsp}°C"), null, $"Cooling down… 87{Nbsp}°C"), texts);
+        Assert.Equal(new MiniStripTexts(new MiniStripVariant($"Cooling down… 87{Nbsp}°C"), new MiniStripVariant($"87{Nbsp}°C"), null, $"Cooling down… nozzle 87{Nbsp}°C, bed 45{Nbsp}°C"), texts);
+    }
+
+    [Fact]
+    public void RowShowsTheBedWhileTheBedHoldsTheCoolDownUp()
+    {
+        // T-109: the nozzle is below its threshold, the bed is not; the row names the bed, the tooltip both.
+        CooldownState cooling = new(
+            CooldownPhase.Cooling, 38, 52.4, 40, 40, 0.4, TimeSpan.FromMinutes(3.2), Now, Now, CooldownPrintOutcome.Finished, Now, null, Limiting: CooldownSensor.Bed);
+
+        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now, Utc);
+        MiniStripTexts texts = CameraMiniStripViewModel.Texts(content);
+
+        Assert.Equal(52, content.Celsius);
+        Assert.Equal(40, content.CoolingPercent);
+        Assert.Equal(new MiniStripVariant($"Cooling down… 52{Nbsp}°C · about 4\u00A0min"), texts.First);
+        Assert.Equal(new MiniStripVariant($"52{Nbsp}°C · about 4\u00A0min"), texts.Second);
+        Assert.Equal(new MiniStripVariant($"52{Nbsp}°C"), texts.Third);
+        Assert.Equal($"Cooling down… nozzle 38{Nbsp}°C, bed 52{Nbsp}°C, about 4\u00A0min", texts.Accessible);
+    }
+
+    [Fact]
+    public void CooledRowShowsTheTemperatureThatLimitedLast()
+    {
+        CooldownState cooled = new(
+            CooldownPhase.CooledDown, 33, 39.6, 40, 40, 1, null, Now, Now, CooldownPrintOutcome.Finished, Now, Now, Limiting: CooldownSensor.Bed);
+
+        MiniStripTexts texts = CameraMiniStripViewModel.Texts(MiniStripContent.Of(Snapshot(PrinterState.Finished), cooled, Now, Utc));
+
+        Assert.Equal(new MiniStripVariant($"Cooled down · 40{Nbsp}°C"), texts.Second);
+        Assert.Equal($"Cooled down – safe to turn off, nozzle 33{Nbsp}°C, bed 40{Nbsp}°C", texts.Accessible);
+    }
+
+    [Fact]
+    public void WithoutABedTheTooltipNamesTheNozzleAsBefore()
+    {
+        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, null, 40, 40, 0.42, TimeSpan.FromMinutes(5.5), Now, Now, CooldownPrintOutcome.Finished, Now, null);
+        CooldownState cooled = cooling with { Phase = CooldownPhase.CooledDown, NozzleCelsius = 38, EstimatedRemaining = null, Progress = 1, CooledDownAt = Now };
+
+        MiniStripTexts coolingTexts = CameraMiniStripViewModel.Texts(MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now, Utc));
+        MiniStripTexts cooledTexts = CameraMiniStripViewModel.Texts(MiniStripContent.Of(Snapshot(PrinterState.Finished), cooled, Now, Utc));
+
+        Assert.Equal(coolingTexts.First.Summary, coolingTexts.Accessible);
+        Assert.Equal($"Cooled down – safe to turn off, nozzle 38{Nbsp}°C", cooledTexts.Accessible);
     }
 
     [Fact]
     public void CooledSaysSafeToTurnOffThenTheTemperature()
     {
-        CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 1, null, Now, Now, CooldownPrintOutcome.Finished, Now, Now);
+        CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 40, 1, null, Now, Now, CooldownPrintOutcome.Finished, Now, Now);
 
         MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooled, Now, Utc);
         MiniStripTexts texts = CameraMiniStripViewModel.Texts(content);
@@ -215,7 +259,7 @@ public sealed class CameraMiniStripFinishTimeTests : IDisposable
             new MiniStripVariant("Cooled down – safe to turn off"),
             new MiniStripVariant($"Cooled down · 48{Nbsp}°C"),
             null,
-            $"Cooled down – safe to turn off, nozzle 48{Nbsp}°C"), texts);
+            $"Cooled down – safe to turn off, nozzle 48{Nbsp}°C, bed 39{Nbsp}°C"), texts);
     }
 
     [Theory]

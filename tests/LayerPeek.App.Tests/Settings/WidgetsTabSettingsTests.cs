@@ -11,6 +11,7 @@ using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Events;
+using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
 
@@ -41,11 +42,11 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         _culture.Dispose();
     }
 
-    private static PrinterDefinition Printer(string id, string name, bool camera = true, CameraOverlayLayout? layout = null, int threshold = 50) =>
+    private static PrinterDefinition Printer(string id, string name, bool camera = true, CameraOverlayLayout? layout = null, int threshold = 50, int bedThreshold = 40) =>
         LinkPrinter(id, name, $"192.168.1.{20 + id.Length}") with
         {
             Camera = new CameraSettings(camera, StreamUri) { Overlay = layout ?? CameraOverlayLayout.Default },
-            CooldownThresholdCelsius = threshold,
+            CooldownThresholds = new(threshold, bedThreshold),
         };
 
     private async Task<SettingsViewModel> LoadAsync(OverlayWidgetRegistry? widgets, params PrinterDefinition[] printers)
@@ -384,7 +385,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
             Assert.Equal("Vychladnutí", Widget(vm, "cooldown").Name);
             Assert.Equal("Vychladnutí, zobrazený", Widget(vm, "cooldown").AutomationName);
             Assert.Equal("Widgety", vm.WidgetsTabName);
-            Assert.Equal("Po skončení tisku ukáže chladnutí trysky a kdy je tiskárnu bezpečné vypnout.", Widget(vm, "cooldown").Description);
+            Assert.Equal("Po skončení tisku ukáže chladnutí trysky a podložky a kdy je tiskárnu bezpečné vypnout.", Widget(vm, "cooldown").Description);
         }
     }
 
@@ -397,12 +398,13 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     {
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"));
         vm.SelectedWidget = Widget(vm, "cooldown");
-        Assert.Equal(50m, vm.SelectedWidgetPanel!.Printer.CooldownThresholdCelsius);
+        Assert.Equal(50m, vm.SelectedWidgetPanel!.Printer.CooldownNozzleThresholdCelsius);
+        Assert.Equal(40m, vm.SelectedWidgetPanel.Printer.CooldownBedThresholdCelsius);
 
-        vm.SelectedWidgetPanel.Printer.CooldownThresholdCelsius = celsius;
+        vm.SelectedWidgetPanel.Printer.CooldownNozzleThresholdCelsius = celsius;
 
         Assert.False(Widget(vm, "cooldown").ShowsErrorMarker);
-        Assert.Equal(celsius, (await SaveAsync(vm)).Printers[0].CooldownThresholdCelsius);
+        Assert.Equal(celsius, (await SaveAsync(vm)).Printers[0].CooldownThresholds.NozzleCelsius);
     }
 
     [Theory]
@@ -413,7 +415,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
     {
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"), Printer("b", "Beta"), Printer("c", "Gamma"));
         PrinterEditorViewModel beta = vm.Printers[1];
-        beta.CooldownThresholdCelsius = decimal.Parse(value, CultureInfo.InvariantCulture);
+        beta.CooldownNozzleThresholdCelsius = decimal.Parse(value, CultureInfo.InvariantCulture);
         vm.SelectedPrinter = vm.Printers[2];
         vm.SelectedWidget = Widget(vm, "status");
         vm.SelectedTabIndex = SettingsViewModel.GeneralTab;
@@ -432,7 +434,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         Assert.True(beta.ShowsErrorMarker);
         Assert.Equal("Enter a whole number from 30 to 100.", ((CooldownWidgetSettingsViewModel)vm.SelectedWidgetPanel!).Printer.CooldownThresholdError);
 
-        beta.CooldownThresholdCelsius = 60;
+        beta.CooldownNozzleThresholdCelsius = 60;
 
         Assert.False(Widget(vm, "cooldown").ShowsErrorMarker);
         Assert.False(vm.ShowsWidgetsErrorMarker);
@@ -446,7 +448,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         // invalid; if it were, the save would still stop on the Widgets tab.
         OverlayWidgetRegistry withoutCooldown = new([.. OverlayWidgets.CreateRegistry().Definitions.Where(static definition => definition.Id != OverlayWidgetIds.Cooldown)]);
         SettingsViewModel vm = await LoadAsync(withoutCooldown, Printer("a", "Alpha"));
-        vm.Printers[0].CooldownThresholdCelsius = 5;
+        vm.Printers[0].CooldownNozzleThresholdCelsius = 5;
 
         await vm.SaveCommand.ExecuteAsync(null);
 
@@ -461,15 +463,59 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"), Printer("b", "Beta", threshold: 80), Printer("c", "Gamma", threshold: 90));
         vm.SelectedWidget = Widget(vm, "cooldown");
         PrinterEditorViewModel alpha = vm.SelectedWidgetPanel!.Printer;
-        alpha.CooldownThresholdCelsius = 44;
+        alpha.CooldownNozzleThresholdCelsius = 44;
+        alpha.CooldownBedThresholdCelsius = 33;
 
-        alpha.ApplyCooldownThresholdToAllCommand.Execute(null);
+        alpha.ApplyCooldownThresholdsToAllCommand.Execute(null);
 
-        Assert.Equal([44m, 44m, 44m], vm.Printers.Select(static printer => printer.CooldownThresholdCelsius));
+        Assert.Equal([44m, 44m, 44m], vm.Printers.Select(static printer => printer.CooldownNozzleThresholdCelsius));
+        Assert.Equal([33m, 33m, 33m], vm.Printers.Select(static printer => printer.CooldownBedThresholdCelsius));
         Assert.Equal(Strings.SettingsCooldownAppliedAll, vm.StatusText);
         AppSettings saved = await SaveAsync(vm);
-        Assert.All(saved.Printers, static printer => Assert.Equal(44, printer.CooldownThresholdCelsius));
+        Assert.All(saved.Printers, static printer => Assert.Equal(new CooldownThresholds(44, 33), printer.CooldownThresholds));
         Assert.All(saved.Printers, static printer => Assert.Same(CameraOverlayLayout.Default, printer.Camera.Overlay));
+    }
+
+    // ---- T-109: nozzle and bed thresholds per printer, chosen with the printer picker of the tab ----
+
+    [Fact]
+    public async Task PanelShowsThePairOfThePrinterSelectedAboveTheList()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha", threshold: 45, bedThreshold: 35), Printer("b", "Beta", threshold: 60, bedThreshold: 55));
+        vm.SelectedWidget = Widget(vm, "cooldown");
+        CooldownWidgetSettingsViewModel alphaPanel = Assert.IsType<CooldownWidgetSettingsViewModel>(vm.SelectedWidgetPanel);
+        Assert.Equal((45m, 35m), (alphaPanel.Printer.CooldownNozzleThresholdCelsius, alphaPanel.Printer.CooldownBedThresholdCelsius));
+
+        vm.SelectedPrinter = vm.Printers[1];
+
+        CooldownWidgetSettingsViewModel betaPanel = Assert.IsType<CooldownWidgetSettingsViewModel>(vm.SelectedWidgetPanel);
+        Assert.NotSame(alphaPanel, betaPanel);
+        Assert.Same(vm.Printers[1], betaPanel.Printer);
+        Assert.Equal((60m, 55m), (betaPanel.Printer.CooldownNozzleThresholdCelsius, betaPanel.Printer.CooldownBedThresholdCelsius));
+
+        // Editing one printer's pair leaves the other's as it is.
+        betaPanel.Printer.CooldownBedThresholdCelsius = 50;
+        AppSettings saved = await SaveAsync(vm);
+        Assert.Equal(new CooldownThresholds(45, 35), saved.Printers[0].CooldownThresholds);
+        Assert.Equal(new CooldownThresholds(60, 50), saved.Printers[1].CooldownThresholds);
+    }
+
+    [Fact]
+    public async Task InvalidBedThresholdMarksTheCooldownWidgetAndBlocksSaving()
+    {
+        SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"), Printer("b", "Beta"));
+        vm.SelectedWidget = Widget(vm, "status");
+        vm.Printers[1].CooldownBedThresholdCelsius = null;
+        vm.SelectedTabIndex = SettingsViewModel.GeneralTab;
+
+        await vm.SaveCommand.ExecuteAsync(null);
+
+        Assert.Empty(_store.Saves);
+        Assert.Equal(SettingsViewModel.WidgetsTab, vm.SelectedTabIndex);
+        Assert.Same(vm.Printers[1], vm.SelectedPrinter);
+        Assert.Same(Widget(vm, "cooldown"), vm.SelectedWidget);
+        Assert.True(Widget(vm, "cooldown").ShowsErrorMarker);
+        Assert.Equal("Enter a whole number from 30 to 100.", ((CooldownWidgetSettingsViewModel)vm.SelectedWidgetPanel!).Printer.CooldownThresholdError);
     }
 
     // ---- Restore defaults, Use layout for all printers ----
@@ -489,7 +535,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         Assert.Equal(withFuture.ResetToDefault(), vm.Printers[0].OverlayLayout);
         Assert.NotNull(vm.Printers[0].OverlayLayout.Find("future-widget"));
         Assert.Equal(custom, vm.Printers[1].OverlayLayout);
-        Assert.Equal(70m, vm.Printers[0].CooldownThresholdCelsius);
+        Assert.Equal(70m, vm.Printers[0].CooldownNozzleThresholdCelsius);
         Assert.Equal(40, vm.OverlayOpacityPercent);
         Assert.Equal("The default layout was restored. It applies after saving.", vm.StatusText);
         Assert.False(vm.StatusIsError);
@@ -523,7 +569,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         AppSettings saved = await SaveAsync(vm);
         AppSettings original = _store.Saves[0].Original;
         Assert.Equal(original.WithCameraOverlayLayoutForAllPrinters(custom).Printers, saved.Printers);
-        Assert.Equal(80, saved.Printers[1].CooldownThresholdCelsius);
+        Assert.Equal(80, saved.Printers[1].CooldownThresholds.NozzleCelsius);
         Assert.False(saved.Printers[1].Camera.Enabled);
     }
 
@@ -673,7 +719,7 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         SettingsViewModel vm = await LoadAsync(Printer("a", "Alpha"), Printer("b", "Beta"));
         PrinterEditorViewModel alpha = vm.Printers[0];
         alpha.Name = "Alpha 2";
-        alpha.CooldownThresholdCelsius = 41;
+        alpha.CooldownNozzleThresholdCelsius = 41;
         Widget(vm, "status").IsShown = false;
         vm.OverlayOpacityPercent = 50;
         Assert.Equal(1, _announcer.Subscribers);
@@ -688,14 +734,14 @@ public sealed class WidgetsTabSettingsTests : IDisposable
         Assert.Equal(fromCamera, alpha.OverlayLayout);
         Assert.True(Widget(vm, "status").IsShown);
         Assert.Equal("Alpha 2", alpha.Name);
-        Assert.Equal(41m, alpha.CooldownThresholdCelsius);
+        Assert.Equal(41m, alpha.CooldownNozzleThresholdCelsius);
         Assert.Equal(50, vm.OverlayOpacityPercent);
         Assert.True(vm.IsDirty);
 
         AppSettings saved = await SaveAsync(vm);
         Assert.Equal(fromCamera, saved.Printers[0].Camera.Overlay);
         Assert.Equal("Alpha 2", saved.Printers[0].Name);
-        Assert.Equal(41, saved.Printers[0].CooldownThresholdCelsius);
+        Assert.Equal(41, saved.Printers[0].CooldownThresholds.NozzleCelsius);
         // The saved state knew the new layout already: it is no change of this window.
         Assert.Equal(fromCamera, _store.Saves[0].Original.Printers[0].Camera.Overlay);
         Assert.Same(CameraOverlayLayout.Default, saved.Printers[1].Camera.Overlay);
