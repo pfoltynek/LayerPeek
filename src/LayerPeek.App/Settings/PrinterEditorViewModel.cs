@@ -49,6 +49,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     // What produced the test result, so that a language switch formats it again.
     private Func<string>? _testResultSource;
     private TestResultKind _testResultKind;
+    private bool _showsLocalNetworkSettings;
 
     // Camera (T-014). The address field keeps an invalid address loaded from the file for correction.
     private bool _cameraEnabled;
@@ -123,6 +124,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _showErrors = saved is not null;
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => IsPrusaLink && !_isTesting && !_owner.IsDisposed);
         CancelTestCommand = new RelayCommand(CancelTest, () => _isTesting);
+        OpenLocalNetworkSettingsCommand = new RelayCommand(OpenLocalNetworkSettings, () => _showsLocalNetworkSettings);
         CameraSettings camera = saved?.Camera ?? CameraSettings.Disabled;
         _cameraEnabled = camera.Enabled;
         _cameraUrl = camera.StreamUri?.OriginalString ?? camera.InvalidStreamUrl ?? string.Empty;
@@ -371,6 +373,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     public bool TestSucceeded => _testResultKind == TestResultKind.Success;
 
     public bool TestFailed => _testResultKind == TestResultKind.Failure;
+
+    /// <summary>
+    /// macOS 15+ (T-097, user decision 2026-10-29): the result of "Test connection" is the Local Network hint; the button next
+    /// to it opens System Settings &gt; Privacy &amp; Security &gt; Local Network (<see cref="OpenLocalNetworkSettingsCommand"/>).
+    /// </summary>
+    public bool ShowsLocalNetworkSettings => _showsLocalNetworkSettings;
+
+    /// <summary>Opens the Local Network settings of the OS (<see cref="Platform.ILocalNetworkPrivacy.OpenSettings"/>).</summary>
+    public IRelayCommand OpenLocalNetworkSettingsCommand { get; }
 
     /// <summary>Show the camera in the tray menu (needs a valid address).</summary>
     public bool CameraEnabled
@@ -1084,7 +1095,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             ConnectionTestResult result = await _owner.Tester.TestAsync(printer, password, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
-                SetTestResult(() => Describe(result), result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure);
+                SetTestResult(
+                    () => Describe(result),
+                    result.Outcome == ConnectionTestOutcome.Success ? TestResultKind.Success : TestResultKind.Failure,
+                    localNetwork: result.Outcome == ConnectionTestOutcome.LocalNetworkAccessMayBeOff);
                 if (result.Outcome == ConnectionTestOutcome.Success)
                 {
                     // T-039: the model of the tested printer (none when its firmware does not report one).
@@ -1320,6 +1334,15 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _ => Strings.SettingsCameraErrorInvalid,
     };
 
+    /// <summary>T-097: System Settings &gt; Privacy &amp; Security &gt; Local Network, only while the hint is the result.</summary>
+    private void OpenLocalNetworkSettings()
+    {
+        if (_showsLocalNetworkSettings && !_owner.IsDisposed)
+        {
+            _owner.LocalNetwork.OpenSettings();
+        }
+    }
+
     private void CancelTest()
     {
         if (_test is { } test)
@@ -1358,7 +1381,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _ => Strings.SettingsTestUnexpectedResponse,
     };
 
-    private void SetTestResult(Func<string>? source, TestResultKind kind)
+    /// <param name="localNetwork">The result is the Local Network hint (T-097): the button to System Settings is shown.</param>
+    private void SetTestResult(Func<string>? source, TestResultKind kind, bool localNetwork = false)
     {
         _testResultSource = source;
         string? text = source?.Invoke();
@@ -1366,6 +1390,13 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         bool kindChanged = _testResultKind != kind;
         _testResultText = text;
         _testResultKind = kind;
+        if (_showsLocalNetworkSettings != localNetwork)
+        {
+            _showsLocalNetworkSettings = localNetwork;
+            OnPropertyChanged(nameof(ShowsLocalNetworkSettings));
+            OpenLocalNetworkSettingsCommand.NotifyCanExecuteChanged();
+        }
+
         if (textChanged)
         {
             OnPropertyChanged(nameof(TestResultText));

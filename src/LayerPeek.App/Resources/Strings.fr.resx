@@ -1281,4 +1281,10 @@
   <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
     <value>Aucune connexion. L'accès de LayerPeek au réseau local est peut-être désactivé dans Réglages Système &gt; Confidentialité et sécurité &gt; Réseau local.</value>
   </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Ouvrir Réglages Système</value>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Ouvre Réglages Système &gt; Confidentialité et sécurité &gt; Réseau local. Activez LayerPeek dans ces réglages.</value>
+  </data>
 </root>

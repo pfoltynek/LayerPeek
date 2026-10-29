@@ -1312,4 +1312,12 @@
     <value>No connection. Local Network access for LayerPeek may be turned off in System Settings &gt; Privacy &amp; Security &gt; Local Network.</value>
     <comment>T-097: macOS 15+ only, instead of the not-reachable texts when a connection to a printer or camera in the local network failed with "no route to host", which is also what a denied Local Network permission looks like (Apple TN3179); diagnostics window detail, Test connection and camera Test results, camera window status detail. Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
   </data>
+  <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
+    <value>Open System Settings</value>
+    <comment>T-097: macOS 15+ button under LocalNetworkAccessMayBeOff in the diagnostics window and next to the Test connection result; opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Same Apple wording as SettingsOpenLoginItems (another pane).</comment>
+  </data>
+  <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
+    <value>Opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Turn on LayerPeek there.</value>
+    <comment>T-097: tooltip and screen reader help of LocalNetworkOpenSystemSettings (macOS 15+). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
+  </data>
 </root>

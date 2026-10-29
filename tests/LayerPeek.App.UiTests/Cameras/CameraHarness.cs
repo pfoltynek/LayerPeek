@@ -35,6 +35,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     private readonly ICameraMonitorPathUpdater? _monitorPaths;
     private readonly OverlayWidgetRegistry _widgets;
     private readonly PrintThumbnails? _thumbnails;
+    private readonly LayerPeek.App.Platform.ILocalNetworkPrivacy? _localNetwork;
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
@@ -47,12 +48,14 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="opacity">The global card opacity (T-077).</param>
     /// <param name="thumbnails">The G-code thumbnails of the Print name widget (T-087); <see langword="null"/>: none.</param>
     /// <param name="bringAppToFront">Activates the app before a window is activated (macOS, T-019); <see langword="null"/>: nothing.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null)
+    /// <param name="localNetwork">The Local Network permission of macOS 15+ (T-097, a fake); <see langword="null"/>: none (Windows).</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null)
     {
         LayoutWriter = new FakeLayoutWriter();
         States = states ?? new MemoryCameraWindowStateStore();
         _monitorPaths = monitorPaths;
         _thumbnails = thumbnails;
+        _localNetwork = localNetwork;
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
         AppSettings settings = new()
         {
@@ -195,7 +198,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork);
         _created.Add(viewModel);
         return viewModel;
     }

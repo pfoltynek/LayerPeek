@@ -215,7 +215,39 @@ public sealed class AppServicesTests
         testMode(MacNotificationSettings.SettingsAddress(AppEnvironment.TestBundleIdentifier));
         Assert.False(Directory.Exists(folder));
     }
+
+    [Fact]
+    public async Task TestModeOnlyLogsOpeningTheLocalNetworkSettings()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOSVersionAtLeast(15), "Local Network permission of macOS 15+ (T-097).");
+        string folder = TestDirectories.NewDirectoryPath();
+        try
+        {
+            RecordingLoggerFactory logs = new();
+            await using ServiceProvider services = AppServices.Create(logs, windows: false, environment: AppEnvironment.ForTests(folder));
+
+            ILocalNetworkPrivacy privacy = services.GetRequiredService<ILocalNetworkPrivacy>();
+            Assert.IsType<MacLocalNetworkPrivacy>(privacy);
+            // The stand-in of the test mode: System Settings never opens in tests (T-020 seam).
+            privacy.OpenSettings();
+
+            Assert.Contains(logs.Messages, static m => m == "Test mode: System Settings is not opened (x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension?Privacy_LocalNetwork).");
+        }
+        finally
+        {
+            TestDirectories.Delete(folder);
+        }
+    }
 #endif
+
+    [Fact]
+    public async Task WithoutTheLocalNetworkPermissionThereIsNone()
+    {
+        Assert.SkipWhen(OperatingSystem.IsMacOSVersionAtLeast(15), "macOS 15+ has the Local Network permission (T-097).");
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: OperatingSystem.IsWindows());
+
+        Assert.Same(NoLocalNetworkPrivacy.Instance, services.GetRequiredService<ILocalNetworkPrivacy>());
+    }
 
     private static void AssertNotificationPipeline(ServiceProvider services)
     {
@@ -427,6 +459,24 @@ public sealed class AppServicesTests
         await services.DisposeAsync().AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         PrinterDefinition printer = new() { Id = "mk4", Name = "MK4", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.1.10" };
         await Assert.ThrowsAsync<ObjectDisposedException>(() => gateway.OpenAsync(printer, TestContext.Current.CancellationToken));
+    }
+
+    /// <summary>Records the messages of every logger it creates.</summary>
+    private sealed class RecordingLoggerFactory : ILoggerFactory
+    {
+        private readonly ListLogger<RecordingLoggerFactory> _logger = new();
+
+        public IEnumerable<string> Messages => _logger.Entries.Select(static e => e.Message);
+
+        public void AddProvider(ILoggerProvider provider)
+        {
+        }
+
+        public ILogger CreateLogger(string categoryName) => _logger;
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class TrackingLoggerFactory : ILoggerFactory

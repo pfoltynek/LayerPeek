@@ -195,6 +195,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// The OS settings of the app's notifications (macOS, T-020): a warning when they are turned off, with a button that opens
     /// them; default: none (no warning).
     /// </param>
+    /// <param name="localNetwork">
+    /// The Local Network permission of the OS (macOS 15+, T-097): "Test connection" offers to open its settings next to the
+    /// hint; default: none.
+    /// </param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -215,7 +219,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         ICameraLayoutModeLauncher? layoutModeLauncher = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
         IUiDispatcher? uiDispatcher = null,
-        ISystemNotificationSettings? notificationSettings = null)
+        ISystemNotificationSettings? notificationSettings = null,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -265,6 +270,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         CancelCommand = new RelayCommand(Cancel, () => !_isSaving);
         OpenAutostartApprovalSettingsCommand = new RelayCommand(OpenAutostartApprovalSettings, () => _showsAutostartApproval);
         _notificationSettings = notificationSettings;
+        LocalNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
         OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => _showsNotificationsTurnedOff);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
@@ -734,6 +740,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     internal IConnectionTester Tester { get; }
 
     internal ICameraTester CameraTester { get; }
+
+    /// <summary>The Local Network permission of the OS (T-097): the editors open its settings next to the hint.</summary>
+    internal ILocalNetworkPrivacy LocalNetwork { get; }
 
     internal ICameraPreviewRenderer CameraPreviewRenderer { get; }
 

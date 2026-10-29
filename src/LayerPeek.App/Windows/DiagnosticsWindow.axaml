@@ -197,6 +197,15 @@
                          Opacity="0.75"
                          TextWrapping="Wrap" />
             </Border>
+            <!-- macOS 15+ (T-097, user decision 2026-10-29): only next to the Local Network hint. -->
+            <Button AutomationProperties.AutomationId="DiagnosticsOpenLocalNetworkSettings"
+                    Margin="0,4,0,0"
+                    HorizontalAlignment="Left"
+                    Content="{Binding [LocalNetworkOpenSystemSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    ToolTip.Tip="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    AutomationProperties.HelpText="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    IsVisible="{Binding ShowsLocalNetworkSettings}"
+                    Command="{Binding OpenLocalNetworkSettingsCommand}" />
           </StackPanel>
           <StackPanel Grid.Column="4" VerticalAlignment="Top" HorizontalAlignment="Right">
             <TextBlock Text="{Binding [DiagnosticsLastUpdate], Source={x:Static loc:LocalizedStrings.Instance}}"
