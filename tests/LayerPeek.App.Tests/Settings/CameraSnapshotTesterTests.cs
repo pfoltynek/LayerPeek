@@ -2,6 +2,7 @@ using Microsoft.Extensions.Time.Testing;
 
 using LayerPeek.App.Settings;
 using LayerPeek.App.Tests.Cameras;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras;
 
@@ -100,6 +101,35 @@ public sealed class CameraSnapshotTesterTests
         CameraTestResult result = await Create().TestAsync(StreamUri, Ct).WaitAsync(TestTimeouts.Wait, Ct);
 
         Assert.Equal(new CameraTestResult(CameraTestOutcome.Failed, Reason: "No video decoder is available."), result);
+    }
+
+    [Fact]
+    public async Task NoRouteToALocalCameraMayBeTheLocalNetworkPermission()
+    {
+        // T-097: simulated "no route to host" of FFmpeg; nothing connects.
+        _factory.CreateFailure = new CameraFeedException("Opening the stream: No route to host.") { IsHostUnreachable = true };
+        FakeLocalNetworkPrivacy privacy = new();
+
+        CameraTestResult local = await new CameraSnapshotTester(_factory, _time, _logger, localNetwork: privacy).TestAsync(StreamUri, Ct).WaitAsync(TestTimeouts.Wait, Ct);
+        CameraTestResult routed = await new CameraSnapshotTester(_factory, _time, _logger, localNetwork: privacy).TestAsync(new Uri("rtsp://camera.example.com/live"), Ct).WaitAsync(TestTimeouts.Wait, Ct);
+        CameraTestResult elsewhere = await Create().TestAsync(StreamUri, Ct).WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host."), local);
+        Assert.Equal(CameraTestOutcome.Failed, routed.Outcome);
+        Assert.Equal(CameraTestOutcome.Failed, elsewhere.Outcome);
+        Assert.Equal([("192.168.0.227", CameraSnapshotTester.CameraSubject), ("camera.example.com", CameraSnapshotTester.CameraSubject)], privacy.Calls);
+    }
+
+    [Fact]
+    public async Task OtherCameraFailuresAreNeverTheLocalNetworkPermission()
+    {
+        _factory.CreateFailure = new CameraFeedException("Opening the stream: Connection refused.");
+        FakeLocalNetworkPrivacy privacy = new();
+
+        CameraTestResult result = await new CameraSnapshotTester(_factory, _time, _logger, localNetwork: privacy).TestAsync(StreamUri, Ct).WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(CameraTestOutcome.Failed, result.Outcome);
+        Assert.Empty(privacy.Calls);
     }
 
     [Fact]

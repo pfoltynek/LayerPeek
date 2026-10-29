@@ -816,6 +816,12 @@ $script:MacBundle = [pscustomobject]@{
     # other native libraries (they reference each other as @loader_path/<name>), and their licence in Contents/Resources.
     FFmpegLibraries = @('libavformat.63.dylib', 'libavcodec.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib')
     FFmpegLicense   = 'FFmpeg-LICENSE.txt'
+    # T-097: the localized Info.plist values (NSLocalNetworkUsageDescription), <lang>.lproj/InfoPlist.strings for every app
+    # language (AppLanguages.Supported), copied to Contents/Resources; the English text is also the one of the Info.plist.
+    Localizations     = 'build/macos/Localizations'
+    LocalizedStrings  = 'InfoPlist.strings'
+    AppLanguagesSource = 'src/LayerPeek.Core/Settings/AppLanguages.cs'
+    LocalizedKeys     = @('NSLocalNetworkUsageDescription')
 }
 
 function Get-MacBundleSettings {
@@ -985,7 +991,8 @@ function New-MacAppBundle {
         [Parameter(Mandatory)] [string] $Destination,
         [Parameter(Mandatory)] [string] $Version,
         [Parameter(Mandatory)] [string] $PlistTemplate,
-        [Parameter(Mandatory)] [string] $IconFile
+        [Parameter(Mandatory)] [string] $IconFile,
+        [string] $LocalizationDirectory
     )
     $s = $script:MacBundle
     $app = Join-Path $Destination $s.BundleName
@@ -993,6 +1000,10 @@ function New-MacAppBundle {
     $plist = ConvertTo-MacInfoPlist -TemplateText (Get-Content -LiteralPath $PlistTemplate -Raw) -Version $Version
     $files = @(Get-ArchiveFiles $PublishDirectory)
     if ($files -cnotcontains $s.Executable) { throw "The publish folder $PublishDirectory has no executable $($s.Executable)." }
+    $localized = @(if ($LocalizationDirectory) { Get-MacLocalizationFiles $LocalizationDirectory })
+    foreach ($file in $localized) {
+        if ($files | Where-Object { $_ -ieq $file }) { throw "The publish folder $PublishDirectory has a file $file, the name of a localization." }
+    }
     $root = (Resolve-Path -LiteralPath $PublishDirectory).ProviderPath
     $macOS = Join-Path $app 'Contents' 'MacOS'
     $resources = Join-Path $app 'Contents' 'Resources'
@@ -1009,7 +1020,118 @@ function New-MacAppBundle {
     [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'Info.plist'), $plist, $utf8)
     [System.IO.File]::WriteAllText((Join-Path $app 'Contents' 'PkgInfo'), 'APPL????', $utf8)
     Copy-Item -LiteralPath $IconFile -Destination (Join-Path $resources $s.IconFile)
+    if ($localized.Count -gt 0) {
+        $localizationRoot = (Resolve-Path -LiteralPath $LocalizationDirectory).ProviderPath
+        foreach ($file in $localized) {
+            $target = Join-Path $resources $file
+            $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target)
+            [System.IO.File]::Copy((Join-Path $localizationRoot $file), $target)
+        }
+    }
     $app
+}
+
+function Get-AppLanguageCodes {
+    <# .SYNOPSIS The app languages of AppLanguages.Supported (C# source text, pure): the list the resx completeness test uses. #>
+    param([Parameter(Mandatory)] [string] $SourceText)
+    if ($SourceText -notmatch 'Supported\s*\{\s*get;\s*\}\s*=\s*Array\.AsReadOnly\(\[(?<list>[^\]]*)\]\)') { throw 'AppLanguages.Supported was not found.' }
+    $codes = @([regex]::Matches($Matches.list, '"(?<code>[a-z]{2,3})"') | ForEach-Object { $_.Groups['code'].Value })
+    if ($codes.Count -eq 0) { throw 'AppLanguages.Supported lists no language.' }
+    $codes
+}
+
+function ConvertFrom-StringsText {
+    <#
+    .SYNOPSIS
+        The key -> value pairs of an old-style .strings file text (pure): "key" = "value"; entries, /* */ and // comments,
+        the escapes \" \\ \n \t. Throws for anything else, so that a broken file never reaches the bundle.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Text)
+    $entries = [ordered]@{}
+    $quoted = '"(?:[^"\\]|\\.)*"'
+    $rest = $Text.TrimStart([char] 0xFEFF)
+    while ($true) {
+        $rest = $rest -replace '^(\s+|/\*[\s\S]*?\*/|//[^\n]*(\n|$))+', ''
+        if ($rest.Length -eq 0) { break }
+        if ($rest -notmatch "^(?<key>$quoted)\s*=\s*(?<value>$quoted)\s*;") { throw "Not a .strings entry: $(($rest -split "`n")[0])" }
+        $key = ConvertFrom-StringsLiteral $Matches.key
+        if ($entries.Contains($key)) { throw "The .strings text has the key $key twice." }
+        $entries[$key] = ConvertFrom-StringsLiteral $Matches.value
+        $rest = $rest.Substring($Matches[0].Length)
+    }
+    $entries
+}
+
+function ConvertFrom-StringsLiteral([string] $Literal) {
+    [regex]::Replace($Literal.Substring(1, $Literal.Length - 2), '\\(.)', {
+        param($m)
+        switch -CaseSensitive ($m.Groups[1].Value) { 'n' { "`n" } 't' { "`t" } '"' { '"' } '\' { '\' } default { throw "Unknown escape \$_ in a .strings value." } }
+    })
+}
+
+function Get-MacLocalizationFiles {
+    <#
+    .SYNOPSIS
+        The files of the localization folder (T-097), relative and sorted: only <lang>.lproj/InfoPlist.strings; anything else
+        there is refused (it would end up in Contents/Resources unchecked).
+    #>
+    param([Parameter(Mandatory)] [string] $Directory)
+    $root = (Resolve-Path -LiteralPath $Directory).ProviderPath
+    $files = @(Get-ChildItem -LiteralPath $root -Recurse -File -Force | ForEach-Object { [System.IO.Path]::GetRelativePath($root, $_.FullName).Replace('\', '/') } | Sort-Object -CaseSensitive)
+    foreach ($file in $files) {
+        if ($file -cnotmatch "^[a-z]{2,3}\.lproj/$([regex]::Escape($script:MacBundle.LocalizedStrings))$") { throw "The localization folder $Directory has an unexpected file $file." }
+    }
+    $files
+}
+
+function Get-MacLocalizationProblems {
+    <#
+    .SYNOPSIS
+        Problems of the localized Info.plist values (T-097; empty = fine): exactly one <lang>.lproj/InfoPlist.strings per app
+        language, each with a non-empty value of every localized key (-Keys) and nothing else, the English one equal to the
+        Info.plist, every key in the Info.plist too, and CFBundleLocalizations of the Info.plist = the app languages.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Directory,
+        [Parameter(Mandatory)] [string] $PlistText,
+        [Parameter(Mandatory)] [string[]] $Languages,
+        [string[]] $Keys = $script:MacBundle.LocalizedKeys
+    )
+    $entries = Get-PlistEntries -Text $PlistText
+    foreach ($key in $Keys) {
+        if (-not $entries.Contains($key) -or $entries[$key].Name -ne 'string' -or -not $entries[$key].InnerText.Trim()) { "The Info.plist has no text $key." }
+    }
+    $listed = if ($entries.Contains('CFBundleLocalizations')) { @($entries['CFBundleLocalizations'].SelectNodes('string') | ForEach-Object InnerText) } else { @() }
+    if (($listed -join ',') -cne ($Languages -join ',')) { "CFBundleLocalizations of the Info.plist ($($listed -join ', ')) is not the app languages ($($Languages -join ', '))." }
+    $files = @(Get-MacLocalizationFiles $Directory)
+    $present = @($files | ForEach-Object { ($_ -split '\.lproj/')[0] })
+    foreach ($language in $Languages) {
+        if ($present -cnotcontains $language) { "$Directory has no $language.lproj/$($script:MacBundle.LocalizedStrings)."; continue }
+        $path = Join-Path $Directory "$language.lproj" $script:MacBundle.LocalizedStrings
+        try { $strings = ConvertFrom-StringsText ([System.IO.File]::ReadAllText($path, [System.Text.UTF8Encoding]::new($false, $true))) }
+        catch { "$($path): $($_.Exception.Message)"; continue }
+        foreach ($key in $Keys) {
+            if (-not $strings.Contains($key) -or -not "$($strings[$key])".Trim()) { "$path has no text $key." }
+            elseif ($language -ceq 'en' -and $entries.Contains($key) -and $strings[$key] -cne $entries[$key].InnerText) { "$path has another English $key than the Info.plist." }
+        }
+        foreach ($key in $strings.Keys) {
+            if ($Keys -cnotcontains $key) { "$path has the key $key, which is not localized." }
+        }
+    }
+    foreach ($language in $present) {
+        if ($Languages -cnotcontains $language) { "$Directory has $language.lproj, which is not an app language." }
+    }
+}
+
+function Get-MacPlistLintProblems {
+    <# .SYNOPSIS plutil -lint of Contents/Info.plist and every .strings file of the bundle; problem messages (empty = valid). #>
+    param([Parameter(Mandatory)] [string] $AppPath)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $paths = @(Join-Path $app 'Contents' 'Info.plist') + @(Get-ChildItem -LiteralPath (Join-Path $app 'Contents' 'Resources') -Recurse -File -Filter '*.strings' -Force | ForEach-Object FullName | Sort-Object -CaseSensitive)
+    foreach ($path in $paths) {
+        $output = & /usr/bin/plutil -lint $path 2>&1
+        if ($LASTEXITCODE -ne 0) { "plutil -lint failed for $($path): $(($output | ForEach-Object { "$_" }) -join ' ')" }
+    }
 }
 
 function Test-MachOFile {

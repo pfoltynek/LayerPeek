@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
 
 using LayerPeek.App.Localization;
+using LayerPeek.App.Platform;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
@@ -64,6 +65,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
 
     // UI thread only.
     private Dictionary<string, PrinterDefinition> _definitions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ILocalNetworkPrivacy _localNetwork;
 
     // Printer to show as soon as the configured printers are known (opened from a printer submenu while monitoring was
     // starting, or a request racing a configuration change); cleared by the next printer list.
@@ -116,7 +118,8 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         IPrinterInfoSource infoSource,
         TimeProvider clock,
         string? initialPrinterId = null,
-        CustomPrinterImages? images = null)
+        CustomPrinterImages? images = null,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(printers);
@@ -126,6 +129,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         ArgumentNullException.ThrowIfNull(clock);
         _monitor = monitor;
         _monitoredPrinters = printers;
+        _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
         _dispatcher = dispatcher;
         _infoSource = infoSource;
         _apply = Apply;
@@ -765,7 +769,7 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         }
 
         StateText = TrayText.StateName(content.State);
-        DetailText = DiagnosticsFormatter.Problem(content.Problem) ?? content.Message;
+        DetailText = ProblemText(content.Problem) ?? content.Message;
         LastUpdateText = DiagnosticsFormatter.Timestamp(content.Timestamp, Clock.GetUtcNow(), Clock.LocalTimeZone);
         NozzleActualText = DiagnosticsFormatter.Temperature(content.NozzleActual);
         NozzleTargetText = DiagnosticsFormatter.TargetTemperature(content.NozzleTarget);
@@ -777,6 +781,17 @@ public sealed class DiagnosticsViewModel : ObservableObject, IDisposable, ILangu
         FlowText = DiagnosticsFormatter.Percent(content.FlowPercent);
         AxisZText = DiagnosticsFormatter.Millimetres(content.AxisZ, DiagnosticsFormatter.AxisZDecimals);
     }
+
+    /// <summary>
+    /// The translated problem of the shown printer; "no route to host" to a printer in the local network may be the denied
+    /// Local Network permission of macOS (T-097).
+    /// </summary>
+    private string? ProblemText(PrinterProblem problem) =>
+        problem == PrinterProblem.HostUnreachable
+        && _selectedPrinter is { } selected
+        && _localNetwork.MayBeDenied(LocalNetworkPrivacyObserver.HostOf(_definitions.GetValueOrDefault(selected.Id)), LocalNetworkPrivacyObserver.PrinterSubject(selected.Id))
+            ? Strings.LocalNetworkAccessMayBeOff
+            : DiagnosticsFormatter.Problem(problem);
 
     /// <summary>UI thread: cancels a pending request and asks for the information of <paramref name="printer"/>.</summary>
     /// <param name="isRetry">Another attempt for the same printer; otherwise the retry allowance starts anew.</param>

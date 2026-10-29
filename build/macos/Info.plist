@@ -7,6 +7,9 @@
   Login Items, notifications of T-020); AppEnvironment.ProductionBundleIdentifier must stay equal (a unit test checks it).
   LSUIElement: an agent app without a Dock icon and without a menu bar of its own; the UI is the menu bar extra.
   LSMinimumSystemVersion is the minimum of the Native AOT binary (LC_BUILD_VERSION minos of .NET 11 for osx-arm64).
+  NSLocalNetworkUsageDescription (T-097): the explanation in the Local Network permission dialog of macOS 15+ (Apple TN3179),
+  English here; the translations are build/macos/Localizations/<lang>.lproj/InfoPlist.strings (Contents/Resources of the
+  bundle), one per app language, and CFBundleLocalizations lists the same languages.
 -->
 <plist version="1.0">
 <dict>
@@ -22,6 +25,17 @@
 	<string>io.github.pfoltynek.LayerPeek</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>en</string>
+		<string>cs</string>
+		<string>sk</string>
+		<string>de</string>
+		<string>es</string>
+		<string>fr</string>
+		<string>it</string>
+		<string>pl</string>
+	</array>
 	<key>CFBundleName</key>
 	<string>LayerPeek</string>
 	<key>CFBundlePackageType</key>
@@ -38,5 +52,7 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © Petr Foltýnek. GPL-3.0-only.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>LayerPeek connects to your Prusa printers and their cameras on your local network to show the print status and the camera view.</string>
 </dict>
 </plist>

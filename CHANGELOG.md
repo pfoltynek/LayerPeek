@@ -27,6 +27,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   compiled from the official source (software decoding), and needs no FFmpeg from Homebrew. The third-party licences
   window links the source release and the build script used, at the release tag of the app version. Building on a Mac
   for the first time needs the Xcode Command Line Tools (a clear build error says so when they are missing).
+- macOS 15+: the Local Network permission dialog explains why LayerPeek connects to printers and cameras on the local
+  network, in all eight app languages. When a connection to a printer or camera on the local network fails with
+  "no route to host" (what a denied permission looks like), the diagnostics window, the connection and camera tests
+  and the camera window say that Local Network access may be turned off in **System Settings → Privacy & Security →
+  Local Network**, and the log says so once per printer or camera.
 - Maintainers: `build/update-ffmpeg.ps1` verifies a new FFmpeg version for both platforms before it is pinned (macOS:
   official source tarball against the Homebrew formula and the GPG signature; Windows: the BtbN zip against the
   release's `checksums.sha256`, its folder, LGPL licence and libraries) and with `-Update` writes the pinned values.

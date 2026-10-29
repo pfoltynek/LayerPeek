@@ -1278,4 +1278,7 @@
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Na úpravu rozloženia zväčšite okno.</value>
   </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Bez spojenia. LayerPeek možno nemá povolený prístup k lokálnej sieti v Systémových nastaveniach &gt; Súkromie a bezpečnosť &gt; Lokálna sieť.</value>
+  </data>
 </root>

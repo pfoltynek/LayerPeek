@@ -35,4 +35,10 @@ public enum PrusaLinkFailure
 
     /// <summary>Something answered, but not like a PrusaLink printer (unexpected status code or body).</summary>
     UnexpectedResponse,
+
+    /// <summary>
+    /// No connection because the operating system has no route to the address ("no route to host"). Otherwise like
+    /// <see cref="NotReachable"/>; on macOS 15+ also what a denied Local Network permission looks like (T-097, decided in the app).
+    /// </summary>
+    HostUnreachable,
 }

@@ -1278,4 +1278,7 @@
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Agrandissez la fenêtre pour modifier la disposition.</value>
   </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Aucune connexion. L'accès de LayerPeek au réseau local est peut-être désactivé dans Réglages Système &gt; Confidentialité et sécurité &gt; Réseau local.</value>
+  </data>
 </root>

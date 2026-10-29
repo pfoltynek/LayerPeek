@@ -20,4 +20,10 @@ public sealed class CameraFeedException : Exception
         : base(message, innerException)
     {
     }
+
+    /// <summary>
+    /// The connection failed because the operating system has no route to the camera's address ("host unreachable");
+    /// a platform may know a cause of its own (T-097). Reaches the UI as <see cref="CameraStatus.IsHostUnreachable"/>.
+    /// </summary>
+    public bool IsHostUnreachable { get; init; }
 }

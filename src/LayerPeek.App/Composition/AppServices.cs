@@ -180,6 +180,12 @@ internal static partial class AppServices
         // In-memory only, one day per printer (T-012); read by the temperature chart (T-011).
         services.AddSingleton(static sp => new TelemetryHistory(logger: sp.GetRequiredService<ILogger<TelemetryHistory>>()));
         services.AddSingleton(static sp => new TelemetryHistoryObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<TelemetryHistory>()));
+        // macOS 15+ (T-097): "no route to host" to a printer or camera in the local network may be the denied Local Network
+        // permission (Apple TN3179); the UI says where to allow it and the log gets one line per printer. Elsewhere never.
+        services.AddSingleton<ILocalNetworkPrivacy>(static sp => OperatingSystem.IsMacOSVersionAtLeast(15)
+            ? new MacLocalNetworkPrivacy(sp.GetRequiredService<ILogger<MacLocalNetworkPrivacy>>())
+            : NoLocalNetworkPrivacy.Instance);
+        services.AddSingleton(static sp => new LocalNetworkPrivacyObserver(sp.GetRequiredService<IPrinterMonitor>(), sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // G-code previews (T-086 / T-087): in memory only, over the PrusaLink fetcher; told about every snapshot and the printers
         // of every run; decoded once per job and size for all camera windows. Disposed with the services.
         services.AddSingleton(static sp => new PrintPreviewCache(
@@ -212,6 +218,7 @@ internal static partial class AppServices
                 sp.GetRequiredService<CooldownNotificationObserver>(),
                 sp.GetRequiredService<CooldownObserver>(),
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
+                sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
@@ -245,7 +252,8 @@ internal static partial class AppServices
             sp.GetRequiredService<IHttpClientFactory>(),
             sp.GetRequiredService<ISecretStore>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
+            sp.GetRequiredService<ILogger<PrusaLinkClient>>(),
+            sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // Start after logon (T-017), switched in the settings window: Windows only; the test mode's shortcut lives in its data
         // folder. Creating it touches nothing.
         // macOS (T-019): "Open at Login", the Login Item of SMAppService; the test mode's is a stand-in file in its data folder.
@@ -498,7 +506,8 @@ internal static partial class AppServices
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ILogger<CameraSnapshotTester>>()));
+            sp.GetRequiredService<ILogger<CameraSnapshotTester>>(),
+            localNetwork: sp.GetRequiredService<ILocalNetworkPrivacy>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
         // The widgets of the camera overlay, an explicit list (T-081).
@@ -576,7 +585,8 @@ internal static partial class AppServices
                 services.GetRequiredService<TelemetryHistory>(),
                 services.GetRequiredService<CooldownMonitor>(),
                 services.GetRequiredService<PrintThumbnails>(),
-                services.GetRequiredService<ICameraOverlayLayoutWriter>())
+                services.GetRequiredService<ICameraOverlayLayoutWriter>(),
+                services.GetRequiredService<ILocalNetworkPrivacy>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -609,7 +619,8 @@ internal static partial class AppServices
             services.GetRequiredService<IPrinterInfoSource>(),
             services.GetRequiredService<TimeProvider>(),
             initialPrinterId,
-            services.GetRequiredService<CustomPrinterImages>());
+            services.GetRequiredService<CustomPrinterImages>(),
+            services.GetRequiredService<ILocalNetworkPrivacy>());
     }
 
     /// <summary>

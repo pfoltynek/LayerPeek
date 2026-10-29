@@ -90,7 +90,8 @@ $packagingSteps = @(
             }
         }
     },
-    # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master), checked for
+    # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master, T-097: the
+    # InfoPlist.strings of every app language, checked and linted with plutil), checked for
     # the FFmpeg libraries and for references to Homebrew (T-026), ad-hoc signed inside out (FFmpeg and the other native
     # libraries first) and verified, smoke-tested as the bundle, then the .dmg (the app and a link to /Applications) and the
     # .tar.gz of the app. The signed app stays in artifacts/release/<version>/app/<rid>/ for local use.
@@ -107,10 +108,18 @@ $packagingSteps = @(
             $null = New-Item -ItemType Directory -Path $bundleFolder
             $exact = @{}
             foreach ($pixels in $mac.IconExact.Keys) { $exact[$pixels] = Join-Path $repoRoot $mac.IconExact[$pixels] }
+            # T-097: the localized Info.plist values, one InfoPlist.strings per app language, checked before anything is built.
+            $plistTemplate = Join-Path $repoRoot $mac.PlistTemplate
+            $localizations = Join-Path $repoRoot $mac.Localizations
+            $languages = @(Get-AppLanguageCodes ([System.IO.File]::ReadAllText((Join-Path $repoRoot $mac.AppLanguagesSource))))
+            $localizationProblems = @(Get-MacLocalizationProblems -Directory $localizations -PlistText (Get-Content -LiteralPath $plistTemplate -Raw) -Languages $languages)
+            if ($localizationProblems.Count -gt 0) { throw ($localizationProblems -join ' ') }
             $icon = New-MacIcon -MasterPng (Join-Path $repoRoot $mac.IconMaster) -ExactPngs $exact -Destination (Join-Path $work $mac.IconFile)
             $app = New-MacAppBundle -PublishDirectory $Context.PublishDirectory -Destination $bundleFolder -Version $Context.Version `
-                -PlistTemplate (Join-Path $repoRoot $mac.PlistTemplate) -IconFile $icon
+                -PlistTemplate $plistTemplate -IconFile $icon -LocalizationDirectory $localizations
             Remove-Item -LiteralPath $icon -Force
+            $lintProblems = @(Get-MacPlistLintProblems $app)
+            if ($lintProblems.Count -gt 0) { throw ($lintProblems -join ' ') }
             # T-026: the FFmpeg libraries are in the bundle and nothing loads from Homebrew or /usr/local.
             $libraryProblems = @(Get-MacBundleLibraryProblems $app)
             if ($libraryProblems.Count -gt 0) { throw ($libraryProblems -join ' ') }

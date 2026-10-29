@@ -84,7 +84,8 @@ internal static class DiagnosticsFormatter
     public static string? Problem(PrinterProblem problem) => problem switch
     {
         PrinterProblem.InvalidAddress => Strings.DiagnosticsProblemInvalidAddress,
-        PrinterProblem.NotReachable => Strings.DiagnosticsProblemNotReachable,
+        // T-097: the window shows LocalNetworkAccessMayBeOff instead where ILocalNetworkPrivacy says so.
+        PrinterProblem.NotReachable or PrinterProblem.HostUnreachable => Strings.DiagnosticsProblemNotReachable,
         PrinterProblem.Timeout => Strings.SettingsTestTimeout,
         PrinterProblem.SecureConnectionFailed => Strings.DiagnosticsProblemSecureConnection,
         PrinterProblem.PasswordRejected => Strings.SettingsTestPasswordRejected,

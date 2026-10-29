@@ -751,6 +751,11 @@ Describe 'macOS packaging (T-019)' {
         $script.IndexOf('Get-MacBundleLibraryProblems $app') | Should -BeLessThan $script.IndexOf('Invoke-MacAdHocSign $app')
         # The console output of the smoke run of the bundle must not end up in the returned file list.
         $script | Should -Match "-PublishDir \(Join-Path \`$app 'Contents' 'MacOS'\) -Seconds \`$SmokeSeconds \| Out-Host"
+        # T-097: the localizations are checked before the bundle is built, copied into it and linted before signing.
+        $script.IndexOf('Get-MacLocalizationProblems') | Should -BeLessThan $script.IndexOf('New-MacAppBundle -PublishDirectory')
+        $script | Should -Match '-LocalizationDirectory \$localizations'
+        $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeGreaterThan $script.IndexOf('New-MacAppBundle -PublishDirectory')
+        $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeLessThan $script.IndexOf('Invoke-MacAdHocSign $app')
     }
     BeforeAll {
         $script:PlistTemplate = Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist'
@@ -768,6 +773,7 @@ Describe 'macOS packaging (T-019)' {
         New-StandInFile (Join-Path $script:MacPublish 'LayerPeek.dSYM' 'Contents' 'Info.plist') 'dsym'
         $script:MacIcon = Join-Path $script:TempRoot 'stand-in.icns'
         New-StandInFile $script:MacIcon 'icns'
+        $script:Localizations = Join-Path $script:RepoRoot 'build' 'macos' 'Localizations'
     }
     It 'names the macOS files after the version and the RID' {
         $names = Get-MacReleaseFileNames -Version '1.2.3' -Runtime 'osx-arm64'
@@ -849,6 +855,71 @@ Describe 'macOS packaging (T-019)' {
             ((Get-Item -LiteralPath (Join-Path $app 'Contents' 'MacOS' 'LayerPeek')).UnixFileMode -band [System.IO.UnixFileMode]::UserExecute) | Should -Not -Be 0
         }
         Assert-ThrowsMatching { New-MacAppBundle -PublishDirectory $script:MacPublish -Destination $destination -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon } 'already exists'
+    }
+    It 'builds the bundle with the InfoPlist.strings of every app language in Contents/Resources (T-097)' {
+        $destination = Join-Path $script:TempRoot "mac-l10n-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        $null = New-Item -ItemType Directory -Path $destination
+        $app = New-MacAppBundle -PublishDirectory $script:MacPublish -Destination $destination -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon -LocalizationDirectory $script:Localizations
+        $languages = @(Get-AppLanguageCodes ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'src' 'LayerPeek.Core' 'Settings' 'AppLanguages.cs'))))
+        $expected = @($languages | ForEach-Object { "Contents/Resources/$_.lproj/InfoPlist.strings" })
+        $tree = @(Get-TreeState $app | ForEach-Object { ($_ -split ' ')[0] } | Where-Object { $_ -like '*.strings' })
+        @($tree | Sort-Object -CaseSensitive) | Should -BeExactly @($expected | Sort-Object -CaseSensitive)
+        foreach ($language in $languages) {
+            $copy = [System.IO.File]::ReadAllBytes((Join-Path $app 'Contents' 'Resources' "$language.lproj" 'InfoPlist.strings'))
+            $source = [System.IO.File]::ReadAllBytes((Join-Path $script:Localizations "$language.lproj" 'InfoPlist.strings'))
+            [System.Linq.Enumerable]::SequenceEqual($copy, $source) | Should -BeTrue
+        }
+        # Without the folder (older callers) the bundle has no localizations.
+        $plain = Join-Path $destination 'plain'
+        $null = New-Item -ItemType Directory -Path $plain
+        $app = New-MacAppBundle -PublishDirectory $script:MacPublish -Destination $plain -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon
+        @(Get-TreeState $app | Where-Object { $_ -like '*.lproj*' }) | Should -BeNullOrEmpty
+    }
+    It 'has the Local Network text in the Info.plist and in every app language (T-097)' {
+        $languages = @(Get-AppLanguageCodes ([System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'src' 'LayerPeek.Core' 'Settings' 'AppLanguages.cs'))))
+        $languages | Should -BeExactly @('en', 'cs', 'sk', 'de', 'es', 'fr', 'it', 'pl')
+        $plist = Get-Content -LiteralPath $script:PlistTemplate -Raw
+        @(Get-MacLocalizationProblems -Directory $script:Localizations -PlistText $plist -Languages $languages) | Should -BeNullOrEmpty
+        (Get-PlistEntries -Text $plist)['NSLocalNetworkUsageDescription'].InnerText | Should -Match 'local network'
+        (ConvertFrom-StringsText ([System.IO.File]::ReadAllText((Join-Path $script:Localizations 'cs.lproj' 'InfoPlist.strings'))))['NSLocalNetworkUsageDescription'] | Should -Match 'místní síti'
+        (Get-MacBundleSettings).LocalizedKeys | Should -BeExactly @('NSLocalNetworkUsageDescription')
+    }
+    It 'reports a missing, empty, extra or differing localization (T-097)' {
+        $plist = Get-Content -LiteralPath $script:PlistTemplate -Raw
+        $folder = Join-Path $script:TempRoot "mac-l10n-bad-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+        New-StandInFile (Join-Path $folder 'en.lproj' 'InfoPlist.strings') '"NSLocalNetworkUsageDescription" = "Something else.";'
+        New-StandInFile (Join-Path $folder 'cs.lproj' 'InfoPlist.strings') "/* c */`n`"NSLocalNetworkUsageDescription`" = `" `";`n`"CFBundleName`" = `"X`";"
+        New-StandInFile (Join-Path $folder 'xx.lproj' 'InfoPlist.strings') '"NSLocalNetworkUsageDescription" = "x";'
+        New-StandInFile (Join-Path $folder 'de.lproj' 'InfoPlist.strings') '"NSLocalNetworkUsageDescription" = "unterminated'
+        $problems = @(Get-MacLocalizationProblems -Directory $folder -PlistText $plist -Languages @('en', 'cs', 'sk', 'de', 'es', 'fr', 'it', 'pl'))
+        @($problems | Where-Object { $_ -match 'CFBundleLocalizations|The Info\.plist has no' }) | Should -BeNullOrEmpty
+        @($problems | Where-Object { $_ -match 'another English' }).Count | Should -Be 1
+        @($problems | Where-Object { $_ -match 'cs\.lproj.InfoPlist\.strings has no text' }).Count | Should -Be 1
+        @($problems | Where-Object { $_ -match 'has the key CFBundleName, which is not localized' }).Count | Should -Be 1
+        @($problems | Where-Object { $_ -match 'Not a \.strings entry' }).Count | Should -Be 1
+        @($problems | Where-Object { $_ -match 'has no (sk|es|fr|it|pl)\.lproj' }).Count | Should -Be 5
+        @($problems | Where-Object { $_ -match 'xx\.lproj, which is not an app language' }).Count | Should -Be 1
+        $problems.Count | Should -Be 10
+        # The Info.plist must have the key and list the same languages.
+        $without = $plist.Replace('<key>NSLocalNetworkUsageDescription</key>', '<key>NSLocalNetworkUsageDescriptionX</key>').Replace("`t`t<string>pl</string>`n", '')
+        $problems = @(Get-MacLocalizationProblems -Directory $script:Localizations -PlistText $without -Languages @('en', 'cs', 'sk', 'de', 'es', 'fr', 'it', 'pl'))
+        $problems | Should -Contain 'The Info.plist has no text NSLocalNetworkUsageDescription.'
+        @($problems | Where-Object { $_ -match '^CFBundleLocalizations of the Info\.plist \(en, cs, sk, de, es, fr, it\) is not' }).Count | Should -Be 1
+        # Nothing but <lang>.lproj/InfoPlist.strings may be in the folder.
+        New-StandInFile (Join-Path $folder 'notes.txt') 'x'
+        Assert-ThrowsMatching { Get-MacLocalizationFiles $folder } 'unexpected file notes\.txt'
+    }
+    It 'reads .strings entries with comments and escapes and refuses anything else (T-097)' {
+        $entries = ConvertFrom-StringsText ("$([char] 0xFEFF)/* a */`n// b`n`"k1`" = `"l'état \`"x\`" \\ \n`";`n  `"k2`"=`"`";")
+        @($entries.Keys) | Should -BeExactly @('k1', 'k2')
+        $entries['k1'] | Should -BeExactly "l'état `"x`" \ `n"
+        $entries['k2'] | Should -BeExactly ''
+        @((ConvertFrom-StringsText '').Keys) | Should -BeNullOrEmpty
+        Assert-ThrowsMatching { ConvertFrom-StringsText '"k" = "v"' } 'Not a \.strings entry'
+        Assert-ThrowsMatching { ConvertFrom-StringsText 'k = "v";' } 'Not a \.strings entry'
+        Assert-ThrowsMatching { ConvertFrom-StringsText '"k" = "a";"k" = "b";' } 'key k twice'
+        Assert-ThrowsMatching { ConvertFrom-StringsText '"k" = "\q";' } 'Unknown escape'
+        Assert-ThrowsMatching { Get-AppLanguageCodes 'public static class X { }' } 'was not found'
     }
     It 'refuses a publish folder without the executable' {
         $empty = Join-Path $script:TempRoot "mac-empty-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -943,6 +1014,25 @@ Describe 'macOS packaging (T-019)' {
             (& /usr/bin/codesign -dv (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
             [System.IO.File]::AppendAllText((Join-Path $app 'Contents' 'Resources' 'LayerPeek.icns'), 'changed')
             @(Get-MacSignatureProblems $app).Count | Should -BeGreaterThan 0
+        }
+        It 'lints the Info.plist and the InfoPlist.strings of the bundle; signed with them it verifies strictly (T-097)' {
+            $destination = Join-Path $script:TempRoot "mac-l10n-sign-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $destination
+            $app = New-MacAppBundle -PublishDirectory $script:MacPublish -Destination $destination -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon -LocalizationDirectory $script:Localizations
+            @(Get-MacPlistLintProblems $app) | Should -BeNullOrEmpty
+            (& /usr/bin/plutil -extract NSLocalNetworkUsageDescription raw (Join-Path $app 'Contents' 'Info.plist')) | Should -Match 'local network'
+            Invoke-MacAdHocSign $app
+            @(Get-MacSignatureProblems $app) | Should -BeNullOrEmpty
+            # The localizations are sealed resources: a change breaks the signature.
+            $czech = Join-Path $app 'Contents' 'Resources' 'cs.lproj' 'InfoPlist.strings'
+            (& /usr/bin/codesign -d --verbose=4 $app 2>&1) -join "`n" | Should -Match 'Sealed Resources'
+            [System.IO.File]::AppendAllText($czech, "`n/* changed */`n")
+            @(Get-MacSignatureProblems $app).Count | Should -BeGreaterThan 0
+            # A broken file fails the lint.
+            [System.IO.File]::AppendAllText($czech, '"broken" = ')
+            $problems = @(Get-MacPlistLintProblems $app)
+            $problems.Count | Should -Be 1
+            $problems[0] | Should -Match 'plutil -lint failed for .*cs\.lproj/InfoPlist\.strings'
         }
         It 'requires the FFmpeg libraries in the bundle and signs them with it (T-026)' {
             $destination = Join-Path $script:TempRoot "mac-ffmpeg-$([guid]::NewGuid().ToString('N').Substring(0, 8))"

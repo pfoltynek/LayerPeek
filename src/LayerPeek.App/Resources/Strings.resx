@@ -1308,4 +1308,8 @@
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Enlarge the window to edit the layout.</value>
   </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>No connection. Local Network access for LayerPeek may be turned off in System Settings &gt; Privacy &amp; Security &gt; Local Network.</value>
+    <comment>T-097: macOS 15+ only, instead of the not-reachable texts when a connection to a printer or camera in the local network failed with "no route to host", which is also what a denied Local Network permission looks like (Apple TN3179); diagnostics window detail, Test connection and camera Test results, camera window status detail. Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
+  </data>
 </root>

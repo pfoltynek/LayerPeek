@@ -1,6 +1,8 @@
 using System.ComponentModel;
 
 using LayerPeek.App.Diagnostics;
+using LayerPeek.App.Platform;
+using LayerPeek.App.Tests.Platform;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.History;
@@ -764,6 +766,39 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     }
 
     [Fact]
+    public void NoRouteToALocalPrinterMayBeTheLocalNetworkPermission()
+    {
+        // T-097 (macOS 15+): the permission is named instead of "not reachable"; the question carries the host, not the snapshot.
+        Configure(Definition() with { Address = "http://192.168.1.10:8080" });
+        FakeLocalNetworkPrivacy privacy = new();
+        DiagnosticsViewModel viewModel = Create(localNetwork: privacy);
+
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.HostUnreachable));
+        _dispatcher.RunAll();
+
+        Assert.Equal("No connection. Local Network access for LayerPeek may be turned off in System Settings > Privacy & Security > Local Network.", viewModel.DetailText);
+        Assert.Contains(("192.168.1.10", "printer 'mk4'"), privacy.Calls);
+    }
+
+    [Fact]
+    public void NoRouteToAPrinterIsNotReachableWhereThereIsNoLocalNetworkPermission()
+    {
+        // Windows and macOS 14 (no permission), and a routed address on macOS 15+.
+        Configure(Definition());
+        DiagnosticsViewModel viewModel = Create();
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.HostUnreachable));
+        _dispatcher.RunAll();
+        Assert.Equal("The printer is not reachable.", viewModel.DetailText);
+        viewModel.Dispose();
+
+        Configure(Definition() with { Address = "printer.example.com" });
+        viewModel = Create(localNetwork: new FakeLocalNetworkPrivacy());
+        _monitor.Raise(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, Now, "The printer is not reachable.", PrinterProblem.HostUnreachable));
+        _dispatcher.RunAll();
+        Assert.Equal("The printer is not reachable.", viewModel.DetailText);
+    }
+
+    [Fact]
     public void FailedInfoShowsTheReasonAndIsRetriedWhenThePrinterBecomesReachable()
     {
         Configure(Definition());
@@ -1003,6 +1038,6 @@ public sealed class DiagnosticsViewModelTests : IDisposable
     private void Configure(params PrinterDefinition[] printers) =>
         ((IMonitoringObserver)_printers).ApplySettings(new AppSettings { Printers = printers });
 
-    private DiagnosticsViewModel Create(string? initialPrinterId = null) =>
-        _viewModel = new DiagnosticsViewModel(_monitor, _printers, _history, _dispatcher, _info, _clock, initialPrinterId);
+    private DiagnosticsViewModel Create(string? initialPrinterId = null, ILocalNetworkPrivacy? localNetwork = null) =>
+        _viewModel = new DiagnosticsViewModel(_monitor, _printers, _history, _dispatcher, _info, _clock, initialPrinterId, localNetwork: localNetwork);
 }
