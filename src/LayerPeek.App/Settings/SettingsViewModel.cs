@@ -148,8 +148,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private readonly IAutostart? _autostart;
     private readonly bool _autostartNeedsInstallation;
 
-    // T-019: the last switch of the autostart failed only because the user has to allow it in the settings of the OS.
-    private bool _autostartNeedsApproval;
+    // T-019: the autostart was read when loading, so the approval can be read again (window activated); the version
+    // discards a read overtaken by a newer one or by Save switching the autostart meanwhile.
+    private bool _autostartLoaded;
+    private int _autostartReadVersion;
+    private bool _switchingAutostart;
 
     // T-020: the OS settings of the app's notifications (macOS) and whether they are turned off.
     private readonly ISystemNotificationSettings? _notificationSettings;
@@ -584,9 +587,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public bool ShowsAutostartNeedsInstallation => _autostartNeedsInstallation;
 
     /// <summary>
-    /// macOS (T-019, user decision 2026-10-29): Save could not switch "Open at Login" on, because the user switched LayerPeek
-    /// off in System Settings &gt; General &gt; Login Items. Next to the "could not be changed" status the window offers to
-    /// open those settings (<see cref="OpenAutostartApprovalSettingsCommand"/>); hidden again with the next status.
+    /// macOS (T-019, user decisions 2026-10-29): macOS reports that only the user can allow "Open at Login", in System
+    /// Settings &gt; General &gt; Login Items (the Login Item is <c>requiresApproval</c>). The Startup and updates tab says so
+    /// under the option and offers to open those settings (<see cref="OpenAutostartApprovalSettingsCommand"/>). Read when
+    /// the window loads, whenever it becomes active again (<see cref="RefreshAutostartApprovalAsync"/>) and after Save
+    /// switched the option; never on Windows (no <see cref="IAutostartApproval"/>).
     /// </summary>
     public bool ShowsAutostartApproval
     {
@@ -638,6 +643,49 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (!_disposed)
         {
             ShowsNotificationsTurnedOff = turnedOff;
+        }
+    }
+
+    /// <summary>
+    /// Reads again whether only the user can allow the autostart in the settings of the OS (T-019, macOS); UI thread. Never
+    /// throws; nothing without <see cref="IAutostartApproval"/>, before the autostart was loaded or after the window closed.
+    /// The user may have switched LayerPeek on or off there meanwhile: an option the user has not changed in the window
+    /// follows the state of the OS (it stays unchanged, not dirty); an edited option is left to Save.
+    /// </summary>
+    public async Task RefreshAutostartApprovalAsync()
+    {
+        if (_autostart is not { } autostart || autostart is not IAutostartApproval approval || !_autostartLoaded || _switchingAutostart || _disposed)
+        {
+            return;
+        }
+
+        int version = ++_autostartReadVersion;
+        (bool needsApproval, bool? enabled) = await Task.Run(() => (approval.NeedsApproval(), ReadEnabledOrNull(autostart))).ConfigureAwait(true);
+        if (_disposed || version != _autostartReadVersion || _switchingAutostart)
+        {
+            return;
+        }
+
+        ShowsAutostartApproval = needsApproval;
+        if (enabled is { } now && now != _autostartBaseline && _startWithWindows == _autostartBaseline)
+        {
+            _autostartBaseline = now;
+            _startWithWindows = now;
+            OnPropertyChanged(nameof(StartWithWindows));
+            UpdateDirty();
+        }
+    }
+
+    private bool? ReadEnabledOrNull(IAutostart autostart)
+    {
+        try
+        {
+            return autostart.IsEnabled();
+        }
+        catch (Exception ex)
+        {
+            SettingsLog.AutostartUnreadable(Logger, ex);
+            return null;
         }
     }
 
@@ -753,6 +801,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             Populate(data);
         }
 
+        _autostartLoaded = true;
+        await RefreshAutostartApprovalAsync().ConfigureAwait(true);
         await RefreshNotificationPermissionAsync().ConfigureAwait(true);
     }
 
@@ -777,31 +827,49 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>
-    /// Switches the start after logon when it was changed; the warning for the status line when that failed. Sets
-    /// <see cref="_autostartNeedsApproval"/> for the status that follows (<see cref="Completed"/>).
+    /// Switches the start after logon when it was changed; the warning for the status line when that failed. On macOS also
+    /// updates <see cref="ShowsAutostartApproval"/> (T-019).
     /// </summary>
     private async Task<Func<string>?> ApplyAutostartAsync()
     {
-        _autostartNeedsApproval = false;
         if (_autostart is not { } autostart || _startWithWindows == _autostartBaseline)
         {
             return null;
         }
 
         bool wanted = _startWithWindows;
+        // A read of the approval started before this switch is out of date.
+        _autostartReadVersion++;
+        _switchingAutostart = true;
         try
         {
             await Task.Run(() => autostart.SetEnabled(wanted)).ConfigureAwait(true);
             _autostartBaseline = wanted;
+            if (autostart is IAutostartApproval)
+            {
+                // Switched on: allowed; switched off: no Login Item left to allow.
+                ShowsAutostartApproval = false;
+            }
+
             return null;
         }
         catch (Exception ex)
         {
             // Still a change to save: the next Save tries again.
             SettingsLog.AutostartNotChanged(Logger, ex, wanted);
-            // T-019: allowed only in System Settings; the window offers to open them.
-            _autostartNeedsApproval = ex is AutostartNeedsApprovalException && autostart is IAutostartApproval;
+            if (ex is AutostartNeedsApprovalException && autostart is IAutostartApproval)
+            {
+                // T-019 (user decisions 2026-10-29): only the user can allow it in System Settings; the status says so, the
+                // Startup and updates tab offers to open them.
+                ShowsAutostartApproval = true;
+                return static () => Strings.SettingsSavedOpenAtLoginNeedsApproval;
+            }
+
             return static () => Strings.SettingsSavedAutostartFailed;
+        }
+        finally
+        {
+            _switchingAutostart = false;
         }
     }
 
@@ -1044,8 +1112,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>
-    /// T-019: System Settings &gt; General &gt; Login Items (macOS). The offer stays: after allowing LayerPeek there, Save
-    /// switches it on (the option is still to save).
+    /// T-019: System Settings &gt; General &gt; Login Items (macOS). The offer stays until the window reads the state again
+    /// (it becomes active again after the user comes back) or Save switches the option.
     /// </summary>
     private void OpenAutostartApprovalSettings()
     {
@@ -1301,9 +1369,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// </summary>
     private void Completed(PrinterEditorViewModel? applying, AppSettings saved, Func<string>? warning)
     {
-        bool offersApproval = _autostartNeedsApproval;
-        _autostartNeedsApproval = false;
-        ShowStatus(warning, isError: false, offersAutostartApproval: offersApproval);
+        ShowStatus(warning, isError: false);
         if (applying is null)
         {
             if (warning is null)
@@ -1550,13 +1616,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
-    private void ShowStatus(Func<string>? text, bool isError, bool offersAutostartApproval = false)
+    private void ShowStatus(Func<string>? text, bool isError)
     {
         _confirmationVersion++;
         _statusSource = text;
         StatusIsError = isError;
         StatusText = text?.Invoke();
-        ShowsAutostartApproval = offersAutostartApproval && text is not null;
     }
 
     private void OnEditableChanged()

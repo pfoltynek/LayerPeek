@@ -141,21 +141,32 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             mac.Window.Close();
 
-            // T-019 (user decision 2026-10-29): switched off in System Settings, the status offers to open them.
-            MemoryApprovalAutostart approval = new() { Failure = new LayerPeek.App.Platform.AutostartNeedsApprovalException("requires approval") };
+            // T-019 (user decisions 2026-10-29): switched off in System Settings. Opening the window shows the hint and the button
+            // under the option; Save says so in a macOS status of its own; the button opens System Settings (here only counted).
+            MemoryApprovalAutostart approval = new()
+            {
+                RequiresApproval = true,
+                Failure = new LayerPeek.App.Platform.AutostartNeedsApprovalException("requires approval"),
+            };
             SettingsWindowHarness needsApproval = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostart: approval, macTerms: true);
             needsApproval.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            needsApproval.Window.Settle();
+            TextBlock hint = needsApproval.Find<TextBlock>("SettingsOpenAtLoginNeedsApproval");
+            Button open = needsApproval.Find<Button>("SettingsOpenLoginItems");
+            Assert.True(hint.IsEffectivelyVisible);
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsOpenAtLoginNeedsApproval, hint.Text);
+            Assert.Equal(Strings.SettingsOpenLoginItems, open.Content);
+            Assert.Equal(Strings.SettingsOpenLoginItemsHint, AutomationProperties.GetHelpText(open));
+            problems.AddRange(ApprovalHintProblems(needsApproval, hint, open, $"{language} / macOS needs approval"));
+
             needsApproval.ViewModel.StartWithWindows = true;
             await needsApproval.ViewModel.SaveCommand.ExecuteAsync(null);
             needsApproval.Window.Settle();
-            Assert.Equal(Strings.SettingsSavedAutostartFailed, needsApproval.ViewModel.StatusText);
-            Button open = needsApproval.Find<Button>("SettingsOpenLoginItems");
+            Assert.Equal(Strings.SettingsSavedOpenAtLoginNeedsApproval, needsApproval.ViewModel.StatusText);
             Assert.True(open.IsEffectivelyVisible);
-            Assert.Equal(Strings.SettingsOpenLoginItems, open.Content);
-            Assert.Equal(Strings.SettingsOpenLoginItemsHint, AutomationProperties.GetHelpText(open));
-            string context = $"{language} / macOS needs approval";
-            problems.AddRange(ScrollingViewers(needsApproval.Window, context));
-            problems.AddRange(CutTexts(needsApproval.Window, context));
+            string context = $"{language} / macOS needs approval after Save";
+            problems.AddRange(ApprovalHintProblems(needsApproval, hint, open, context));
             problems.AddRange(StatusRowProblems(needsApproval, context));
             Ui.Click(needsApproval.Window, Ui.CentreOf(open, needsApproval.Window));
             Avalonia.Threading.Dispatcher.UIThread.RunJobs();
@@ -919,8 +930,29 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
     /// <summary>Visible single-line texts that are narrower than the text they show (cut off by their container).</summary>
     /// <summary>
-    /// T-019: the status line with the button next to it keeps room to read (no column of single words) and the buttons stay
-    /// inside the window.
+    /// T-019: the hint and the button under "Open at login" (macOS, needs approval): nothing cut, nothing scrolls, the hint in
+    /// at most two lines and the button inside the window, with its whole text.
+    /// </summary>
+    private static IEnumerable<string> ApprovalHintProblems(SettingsWindowHarness ui, TextBlock hint, Button open, string context)
+    {
+        foreach (string problem in ScrollingViewers(ui.Window, context).Concat(CutTexts(ui.Window, context)))
+        {
+            yield return problem;
+        }
+
+        if (hint.TextLayout.TextLines.Count > 2)
+        {
+            yield return $"{context}: the hint '{hint.Text}' takes {hint.TextLayout.TextLines.Count} lines.";
+        }
+
+        foreach (string problem in ButtonProblems(ui, open, "SettingsOpenLoginItems", context))
+        {
+            yield return problem;
+        }
+    }
+
+    /// <summary>
+    /// T-019: the status line keeps room to read (no column of single words) and the buttons stay inside the window.
     /// </summary>
     private static IEnumerable<string> StatusRowProblems(SettingsWindowHarness ui, string context)
     {
@@ -930,24 +962,32 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             yield return $"{context}: the status has only {status.Bounds.Width:0.#} DIP.";
         }
 
-        foreach (string id in (string[])["SettingsOpenLoginItems", "SettingsSave", "SettingsCancel"])
+        foreach (string id in (string[])["SettingsSave", "SettingsCancel"])
         {
-            Button button = ui.Find<Button>(id);
-            Point? corner = button.TranslatePoint(new Point(button.Bounds.Width, button.Bounds.Height), ui.Window);
-            if (corner is not { } end || end.X > ui.Window.ClientSize.Width + 0.5 || end.Y > ui.Window.ClientSize.Height + 0.5)
+            foreach (string problem in ButtonProblems(ui, ui.Find<Button>(id), id, context))
             {
-                yield return $"{context}: {id} is outside the window.";
+                yield return problem;
             }
+        }
+    }
 
-            TextBlock? text = button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
-            if (text is not null)
+    /// <summary>A button outside the window, or narrower than its text.</summary>
+    private static IEnumerable<string> ButtonProblems(SettingsWindowHarness ui, Button button, string id, string context)
+    {
+        Point? corner = button.TranslatePoint(new Point(button.Bounds.Width, button.Bounds.Height), ui.Window);
+        if (corner is not { } end || end.X > ui.Window.ClientSize.Width + 0.5 || end.Y > ui.Window.ClientSize.Height + 0.5)
+        {
+            yield return $"{context}: {id} is outside the window.";
+        }
+
+        TextBlock? text = button.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault();
+        if (text is not null)
+        {
+            TextBlock probe = new() { Text = text.Text, FontFamily = text.FontFamily, FontSize = text.FontSize, FontWeight = text.FontWeight };
+            probe.Measure(Size.Infinity);
+            if (probe.DesiredSize.Width > text.Bounds.Width + 0.5)
             {
-                TextBlock probe = new() { Text = text.Text, FontFamily = text.FontFamily, FontSize = text.FontSize, FontWeight = text.FontWeight };
-                probe.Measure(Size.Infinity);
-                if (probe.DesiredSize.Width > text.Bounds.Width + 0.5)
-                {
-                    yield return $"{context}: '{text.Text}' of {id} needs {probe.DesiredSize.Width:0.#} DIP but has {text.Bounds.Width:0.#}.";
-                }
+                yield return $"{context}: '{text.Text}' of {id} needs {probe.DesiredSize.Width:0.#} DIP but has {text.Bounds.Width:0.#}.";
             }
         }
     }

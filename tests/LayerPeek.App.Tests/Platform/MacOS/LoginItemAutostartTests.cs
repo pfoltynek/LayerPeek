@@ -104,6 +104,31 @@ public sealed class LoginItemAutostartTests
         Assert.Equal(["register"], _item.Calls);
     }
 
+    /// <summary>
+    /// The settings window shows its hint whenever macOS reports that only the user can allow the item (T-019, user decision
+    /// 2026-10-29): only in the state <c>requiresApproval</c>; reading changes nothing.
+    /// </summary>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(1, false)]
+    [InlineData(2, true)]
+    [InlineData(3, false)]
+    public void NeedsApprovalOnlyWhenMacOSSaysSo(int status, bool needsApproval)
+    {
+        _item.Current = (LoginItemStatus)status;
+
+        Assert.Equal(needsApproval, ((IAutostartApproval)Autostart()).NeedsApproval());
+        Assert.Empty(_item.Calls);
+    }
+
+    [Fact]
+    public void AnUnreadableStatusNeedsNoApproval()
+    {
+        _item.StatusFailure = new LoginItemException("XPC failed");
+
+        Assert.False(Autostart().NeedsApproval());
+    }
+
     [Fact]
     public void TheApprovalOpensSystemSettingsOfTheLoginItem()
     {

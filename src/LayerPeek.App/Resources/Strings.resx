@@ -746,11 +746,19 @@
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
     <value>Open System Settings</value>
-    <comment>T-019: macOS button next to the "could not be changed" status when the user switched LayerPeek off in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the pane).</comment>
+    <comment>T-019: macOS button under Open at login on the Startup and updates tab (next to SettingsOpenAtLoginNeedsApproval) when the user has to allow LayerPeek in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the button).</comment>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
     <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there, then save again.</value>
     <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
+  </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Settings saved. Open at login has to be allowed in System Settings.</value>
+    <comment>T-019: macOS status after Save when Open at login could not be switched on because the user has to allow LayerPeek in System Settings (Login Item requiresApproval); Windows keeps SettingsSavedAutostartFailed.</comment>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek is turned off in System Settings.</value>
+    <comment>T-019: macOS hint under Open at login on the Startup and updates tab whenever macOS reports that the Login Item needs approval; next to the SettingsOpenLoginItems button.</comment>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Notifications are turned off in macOS.</value>

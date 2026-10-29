@@ -47,6 +47,25 @@ public sealed class StandInLoginItemTests : IDisposable
         Assert.False(Directory.Exists(_data) && Directory.EnumerateFileSystemEntries(_data).Any());
     }
 
+    /// <summary>
+    /// The settings window shows the "allow in System Settings" hint only for a Login Item that needs approval (T-019, user
+    /// decision 2026-10-29): the stand-in never does, registered or not.
+    /// </summary>
+    [Fact]
+    public void TheStandInNeverNeedsApproval()
+    {
+        string path = AppEnvironment.TestLoginItemPathIn(_data);
+        LoginItemAutostart autostart = new(new StandInLoginItem(path, "/Volumes/x/LayerPeek"), Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance);
+        Assert.False(autostart.NeedsApproval());
+
+        autostart.SetEnabled(true);
+        Assert.False(autostart.NeedsApproval());
+
+        autostart.SetEnabled(false);
+        Assert.False(autostart.NeedsApproval());
+        Assert.False(File.Exists(path));
+    }
+
     [Fact]
     public void OutsideTheTestModeThereIsNoStandIn()
     {

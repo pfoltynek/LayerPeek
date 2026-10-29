@@ -678,6 +678,12 @@
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
     <value>LayerPeek ist in „Systemeinstellungen &gt; Allgemein &gt; Anmeldeobjekte &amp; Erweiterungen“ ausgeschaltet. Erlauben Sie es dort und speichern Sie dann erneut.</value>
   </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Einstellungen gespeichert. Das Öffnen bei der Anmeldung müssen Sie in den Systemeinstellungen erlauben.</value>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek ist in den Systemeinstellungen ausgeschaltet.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Druck gestartet</value>
   </data>

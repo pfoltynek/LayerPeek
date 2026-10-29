@@ -678,6 +678,12 @@
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
     <value>LayerPeek je vypnutý v Systémových nastaveniach &gt; Všeobecné &gt; Položky a rozšírenia spúšťané pri prihlásení. Povoľte ho tam a potom uložte znova.</value>
   </data>
+  <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>Nastavenia sú uložené. Otváranie po prihlásení musíte povoliť v Systémových nastaveniach.</value>
+  </data>
+  <data name="SettingsOpenAtLoginNeedsApproval" xml:space="preserve">
+    <value>LayerPeek je vypnutý v Systémových nastaveniach.</value>
+  </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Tlač sa začala</value>
   </data>
