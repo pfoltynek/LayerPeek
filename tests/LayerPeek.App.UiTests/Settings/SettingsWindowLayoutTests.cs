@@ -860,6 +860,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
                 ConnectionTestOutcome.PasswordUnavailable => Strings.SettingsTestPasswordUnavailable,
                 ConnectionTestOutcome.UnsupportedAuthentication => Strings.SettingsTestUnsupportedAuthentication,
                 ConnectionTestOutcome.NotSupported => Strings.SettingsTestNotSupported,
+                ConnectionTestOutcome.LocalNetworkAccessMayBeOff => Strings.LocalNetworkAccessMayBeOff,
                 _ => Strings.SettingsTestUnexpectedResponse,
             };
         }
@@ -873,7 +874,11 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         const string Reason = "Connection to tcp://192.168.0.227:554?timeout=5000000 failed: Connection timed out";
         string failed = Format(Strings.SettingsCameraTestFailed, Reason);
         string timeout = Format(Strings.SettingsCameraTestTimeout, 15);
-        return failed.Length >= timeout.Length
+        // T-097 (macOS): the local network hint instead of the reason.
+        string localNetwork = Strings.LocalNetworkAccessMayBeOff;
+        return localNetwork.Length >= failed.Length && localNetwork.Length >= timeout.Length
+            ? new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: Reason)
+            : failed.Length >= timeout.Length
             ? new CameraTestResult(CameraTestOutcome.Failed, Reason: Reason)
             : new CameraTestResult(CameraTestOutcome.Timeout);
     }

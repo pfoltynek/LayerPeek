@@ -1264,6 +1264,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         CameraTestOutcome.Success => Format(Strings.SettingsCameraTestSuccess, result.Width, result.Height),
         CameraTestOutcome.Timeout => Format(Strings.SettingsCameraTestTimeout, (int)Math.Ceiling(_owner.CameraTester.Timeout.TotalSeconds)),
+        CameraTestOutcome.LocalNetworkAccessMayBeOff => Strings.LocalNetworkAccessMayBeOff,
         _ when string.IsNullOrWhiteSpace(result.Reason) => Strings.SettingsCameraTestFailedUnknown,
         _ => Format(Strings.SettingsCameraTestFailed, result.Reason),
     };
@@ -1343,6 +1344,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             string.IsNullOrWhiteSpace(result.Firmware) ? Unknown : result.Firmware),
         ConnectionTestOutcome.InvalidAddress => Strings.SettingsErrorAddressInvalid,
         ConnectionTestOutcome.NotReachable => Strings.SettingsTestNotReachable,
+        ConnectionTestOutcome.LocalNetworkAccessMayBeOff => Strings.LocalNetworkAccessMayBeOff,
         ConnectionTestOutcome.Timeout => Strings.SettingsTestTimeout,
         ConnectionTestOutcome.SecureConnectionFailed => Strings.SettingsTestSecureConnection,
         ConnectionTestOutcome.PasswordRejected => Strings.SettingsTestPasswordRejected,

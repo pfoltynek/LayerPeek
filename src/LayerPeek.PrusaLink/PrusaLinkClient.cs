@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Net;
+using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
 
@@ -284,6 +285,10 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
                 // E.g. an untrusted certificate, or https against a printer that serves plain http only.
                 LogNotReachable(tlsException, _printer.Id);
                 return new Failure(PrinterState.Offline, Messages.SecureConnectionFailed, PrusaLinkFailure.SecureConnectionFailed);
+            case HttpRequestException hostUnreachable when IsHostUnreachable(hostUnreachable):
+                // "No route to host": like any other failed connection, but a platform may know a cause of its own (T-097).
+                LogNotReachable(hostUnreachable, _printer.Id);
+                return new Failure(PrinterState.Offline, Messages.NotReachable, PrusaLinkFailure.HostUnreachable);
             case HttpRequestException httpException:
                 LogNotReachable(httpException, _printer.Id);
                 return new Failure(PrinterState.Offline, Messages.NotReachable, PrusaLinkFailure.NotReachable);
@@ -299,6 +304,20 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
             default:
                 return null;
         }
+    }
+
+    /// <summary>The connection failed with "no route to host" (EHOSTUNREACH / WSAEHOSTUNREACH), anywhere in the inner exceptions.</summary>
+    internal static bool IsHostUnreachable(Exception exception)
+    {
+        for (Exception? inner = exception; inner is not null; inner = inner.InnerException)
+        {
+            if (inner is SocketException { SocketErrorCode: SocketError.HostUnreachable })
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static PrusaLinkInfoResult InfoFailure(Failure failure) =>
@@ -320,6 +339,7 @@ public sealed partial class PrusaLinkClient : IPrinterClient, IPrinterModelSourc
         PrusaLinkFailure.PasswordUnreadable => PrinterProblem.PasswordUnreadable,
         PrusaLinkFailure.UnsupportedAuthentication => PrinterProblem.UnsupportedAuthentication,
         PrusaLinkFailure.UnexpectedResponse => PrinterProblem.UnexpectedResponse,
+        PrusaLinkFailure.HostUnreachable => PrinterProblem.HostUnreachable,
         _ => PrinterProblem.None,
     };
 

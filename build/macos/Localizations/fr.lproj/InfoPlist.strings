@@ -1,0 +1,3 @@
+/* Localized Info.plist values of LayerPeek.app (T-097); copied to Contents/Resources by New-MacAppBundle. */
+/* The explanation under the title of the macOS Local Network permission dialog. */
+"NSLocalNetworkUsageDescription" = "LayerPeek se connecte à vos imprimantes Prusa et à leurs caméras sur le réseau local pour afficher l'état de l'impression et l'image de la caméra.";

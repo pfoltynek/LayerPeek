@@ -21,6 +21,12 @@ public enum ConnectionTestOutcome
 
     /// <summary>The connection type cannot be tested (Prusa Connect, T-005).</summary>
     NotSupported,
+
+    /// <summary>
+    /// "No route to host" to a printer in the local network, where the OS has a local network permission that may block it
+    /// (macOS 15+, T-097); elsewhere such a failure is <see cref="NotReachable"/>.
+    /// </summary>
+    LocalNetworkAccessMayBeOff,
 }
 
 /// <param name="PrinterModel">Model code reported by the printer ("type.version.subversion"), when known.</param>

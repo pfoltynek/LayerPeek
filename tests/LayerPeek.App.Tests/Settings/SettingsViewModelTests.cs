@@ -1070,6 +1070,7 @@ public sealed class SettingsViewModelTests : IDisposable
     [InlineData(ConnectionTestOutcome.UnexpectedResponse, "Something answers at this address, but it does not look like a PrusaLink printer.")]
     [InlineData(ConnectionTestOutcome.InvalidAddress, AddressInvalid)]
     [InlineData(ConnectionTestOutcome.NotSupported, "Testing is not available for Prusa Connect yet.")]
+    [InlineData(ConnectionTestOutcome.LocalNetworkAccessMayBeOff, "No connection. Local Network access for LayerPeek may be turned off in System Settings > Privacy & Security > Local Network.")]
     public async Task FailedTestIsExplained(ConnectionTestOutcome outcome, string expected)
     {
         PrinterEditorViewModel printer = await LoadOneAsync();

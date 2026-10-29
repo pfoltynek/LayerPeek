@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Platform;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Secrets;
 using LayerPeek.PrusaLink;
@@ -21,8 +22,14 @@ internal sealed class PrusaLinkConnectionTester : IConnectionTester
     private readonly ISecretStore _secretStore;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<PrusaLinkClient> _logger;
+    private readonly ILocalNetworkPrivacy _localNetwork;
 
-    public PrusaLinkConnectionTester(IHttpClientFactory httpClientFactory, ISecretStore secretStore, TimeProvider timeProvider, ILogger<PrusaLinkClient> logger)
+    public PrusaLinkConnectionTester(
+        IHttpClientFactory httpClientFactory,
+        ISecretStore secretStore,
+        TimeProvider timeProvider,
+        ILogger<PrusaLinkClient> logger,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(httpClientFactory);
         ArgumentNullException.ThrowIfNull(secretStore);
@@ -32,6 +39,7 @@ internal sealed class PrusaLinkConnectionTester : IConnectionTester
         _secretStore = secretStore;
         _timeProvider = timeProvider;
         _logger = logger;
+        _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
     }
 
     public async Task<ConnectionTestResult> TestAsync(PrinterDefinition printer, string? password, CancellationToken cancellationToken)
@@ -71,6 +79,10 @@ internal sealed class PrusaLinkConnectionTester : IConnectionTester
         {
             PrusaLinkFailure.InvalidAddress => ConnectionTestOutcome.InvalidAddress,
             PrusaLinkFailure.NotReachable => ConnectionTestOutcome.NotReachable,
+            // T-097: on macOS 15+ maybe the denied Local Network permission.
+            PrusaLinkFailure.HostUnreachable => _localNetwork.MayBeDenied(LocalNetworkPrivacyObserver.HostOf(printer), LocalNetworkPrivacyObserver.PrinterSubject(printer.Id))
+                ? ConnectionTestOutcome.LocalNetworkAccessMayBeOff
+                : ConnectionTestOutcome.NotReachable,
             PrusaLinkFailure.Timeout => ConnectionTestOutcome.Timeout,
             PrusaLinkFailure.SecureConnectionFailed => ConnectionTestOutcome.SecureConnectionFailed,
             PrusaLinkFailure.PasswordRejected => ConnectionTestOutcome.PasswordRejected,

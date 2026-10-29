@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using LayerPeek.App.Cameras.Mini;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
+using LayerPeek.App.Platform;
 using LayerPeek.App.Previews;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
@@ -100,6 +101,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private readonly Action _presentFrame;
     private readonly Action _applyPrinters;
     private readonly Lock _gate = new();
+    private readonly ILocalNetworkPrivacy _localNetwork;
 
     // Guarded by _gate (read by monitor threads).
     private bool _disposed;
@@ -138,6 +140,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <param name="cooldown">The cool-down states of the Cool-down widget and the mini preview strip (T-079, T-088, T-089); <see langword="null"/> = none.</param>
     /// <param name="thumbnails">The decoded G-code thumbnails of the Print name widget (T-087); <see langword="null"/> = none.</param>
     /// <param name="layoutWriter">Saves the layout of the layout mode (T-091); <see langword="null"/> = saving fails.</param>
+    /// <param name="localNetwork">Whether "no route to host" may be the denied local network permission (T-097); <see langword="null"/> = never.</param>
     internal CameraViewModel(
         CameraTarget target,
         ReconnectingCameraFeed feed,
@@ -153,7 +156,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         TelemetryHistory? history = null,
         CooldownMonitor? cooldown = null,
         PrintThumbnails? thumbnails = null,
-        ICameraOverlayLayoutWriter? layoutWriter = null)
+        ICameraOverlayLayoutWriter? layoutWriter = null,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -165,6 +169,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         PrinterId = target.PrinterId;
         _name = target.Name;
         _streamUri = target.StreamUri;
+        _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
         _feed = feed;
         _monitor = monitor;
         _printers = printers;
@@ -261,6 +266,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(NormalToolTip));
         OnPropertyChanged(nameof(MiniToolTip));
         OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(StatusDetail));
         OnPropertyChanged(nameof(LayoutToolTip));
         Overlay.RefreshTexts();
         LayoutMode.RefreshTexts();
@@ -384,8 +390,13 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         _ => Strings.CameraConnecting,
     };
 
-    /// <summary>Why there is no image (technical English text without the address); <see langword="null"/> when none.</summary>
-    public string? StatusDetail => IsStatusVisible ? _status.Reason : null;
+    /// <summary>
+    /// Why there is no image (technical English text without the address); <see langword="null"/> when none. "No route to
+    /// host" to a camera in the local network may be the denied Local Network permission of macOS (T-097): then translated.
+    /// </summary>
+    public string? StatusDetail => !IsStatusVisible ? null
+        : _status.IsHostUnreachable && _localNetwork.MayBeDenied(_streamUri.Host, $"the camera of printer '{PrinterId}'") ? Strings.LocalNetworkAccessMayBeOff
+        : _status.Reason;
 
     public bool HasStatusDetail => StatusDetail is not null;
 

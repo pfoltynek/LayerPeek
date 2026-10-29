@@ -183,6 +183,9 @@ macOS yet.
 > remove the quarantine flag of the downloaded app instead: `xattr -dr com.apple.quarantine /Applications/LayerPeek.app`.
 > Start the app from Applications, not straight from the disk image: "Open at Login" works only there.
 
+On macOS 15 and later, the first connection to a printer or camera asks for **Local Network** access: click **Allow**.
+If you denied it, turn LayerPeek on in **System Settings → Privacy & Security → Local Network**.
+
 ### 2. Enable PrusaLink on the printer
 
 On the printer, open **Settings → Network → PrusaLink**. Check that PrusaLink is enabled and note the **user name**

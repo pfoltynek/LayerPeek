@@ -148,6 +148,15 @@ Test sestaví Debug aplikaci jako `LayerPeek E2E.app` s identifikátorem `io.git
 4. Po pádu testu uklidí notifikace testovacího bundlu `".../LayerPeek E2E.app/Contents/MacOS/LayerPeek" --layerpeek-e2e-clear-toasts` (jen Debug, jen v testovacím bundlu). Registraci v LaunchServices odstraní `lsregister -u <cesta k bundlu>` (další běh testu odregistruje staré testovací bundly sám).
 5. Položka „LayerPeek E2E“ v Nastavení systému → Oznámení zůstane (macOS ji neumí odstranit skriptem); je to známý pozůstatek a nevadí.
 
+## Tiskárna nebo kamera na macOS není dostupná (oprávnění Místní síť)
+
+- Od macOS 15 potřebuje každá aplikace pro spojení se zařízením v místní síti oprávnění **Místní síť**. Při prvním spojení s tiskárnou nebo kamerou se macOS zeptá („„LayerPeek“ chce vyhledávat a připojovat se k zařízením v místní síti“, přesné znění určuje macOS) s vysvětlením, proč ho LayerPeek potřebuje.
+- Dokud oprávnění není povolené (dotaz ještě visí nebo bylo zamítnuto), macOS spojení hned odmítne chybou „No route to host“. LayerPeek pak u adresy v místní síti místo „Tiskárna není dostupná“ napíše „Bez spojení. LayerPeek možná nemá povolený přístup k místní síti v Nastavení systému > Soukromí a zabezpečení > Místní síť.“ (okno Diagnostika, Otestovat připojení, test kamery, okno kamery). Stejnou chybu mají i běžné příčiny (tiskárna vypnutá, jiná podsíť), proto „možná“.
+- Povolení: **Nastavení systému → Soukromí a zabezpečení → Místní síť → LayerPeek** zapnout. Spojení se pak obnoví samo při dalším pokusu.
+- Log obsahuje větu „Local Network access for LayerPeek may be off (System Settings > Privacy & Security > Local Network)“, jednou za tiskárnu nebo kameru a běh.
+- Aplikace s ad-hoc podpisem (bez Developer ID, T-060): macOS podle TN3179 nemusí identitu aplikace pro toto oprávnění spolehlivě sledovat, po aktualizaci se proto může zeptat znovu.
+- Vývojové sestavení spuštěné z Terminálu (`dotnet run`, testy) se macOS neptá: procesy z Terminálu mají přístup povolený automaticky. Simulátor na `127.0.0.1` místní síť není.
+
 ## Přechod ze starého názvu PrusaTrayDiagnostic (jen vývojové počítače)
 
 Aplikace se do prvního vydání jmenovala Prusa Tray Diagnostic (T-074). Sama nic nepřevádí. Na počítači, kde běžely staré

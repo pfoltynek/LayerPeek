@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Platform;
 using LayerPeek.Core.Cameras;
 
 namespace LayerPeek.App.Settings;
@@ -18,8 +19,14 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
     private readonly ICameraFeedFactory _factory;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CameraSnapshotTester> _logger;
+    private readonly ILocalNetworkPrivacy _localNetwork;
 
-    public CameraSnapshotTester(ICameraFeedFactory factory, TimeProvider timeProvider, ILogger<CameraSnapshotTester> logger, TimeSpan? timeout = null)
+    public CameraSnapshotTester(
+        ICameraFeedFactory factory,
+        TimeProvider timeProvider,
+        ILogger<CameraSnapshotTester> logger,
+        TimeSpan? timeout = null,
+        ILocalNetworkPrivacy? localNetwork = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -27,11 +34,15 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
         _factory = factory;
         _timeProvider = timeProvider;
         _logger = logger;
+        _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
         Timeout = timeout ?? DefaultTimeout;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(Timeout, TimeSpan.Zero, nameof(timeout));
     }
 
     public TimeSpan Timeout { get; }
+
+    /// <summary>The subject of the local network log line (T-097): the address is not logged there.</summary>
+    internal const string CameraSubject = "the tested camera";
 
     public async Task<CameraTestResult> TestAsync(Uri streamUri, CancellationToken cancellationToken)
     {
@@ -62,7 +73,11 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
         {
             LogFailed(ex, address);
             // The message is meant for the user and never contains the address (ICameraFeed contract).
-            return new CameraTestResult(CameraTestOutcome.Failed, Reason: ex.Message);
+            // T-097: "no route to host" to a camera in the local network may be the denied Local Network permission (macOS 15+).
+            CameraTestOutcome outcome = ex.IsHostUnreachable && _localNetwork.MayBeDenied(streamUri.Host, CameraSubject)
+                ? CameraTestOutcome.LocalNetworkAccessMayBeOff
+                : CameraTestOutcome.Failed;
+            return new CameraTestResult(outcome, Reason: ex.Message);
         }
         catch (Exception ex)
         {

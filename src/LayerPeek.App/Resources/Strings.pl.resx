@@ -1278,4 +1278,7 @@
   <data name="CameraLayoutTooSmall" xml:space="preserve">
     <value>Powiększ okno, aby edytować układ.</value>
   </data>
+  <data name="LocalNetworkAccessMayBeOff" xml:space="preserve">
+    <value>Brak połączenia. Dostęp LayerPeek do sieci lokalnej może być wyłączony w Ustawieniach systemowych &gt; Prywatność i ochrona &gt; Sieć lokalna.</value>
+  </data>
 </root>

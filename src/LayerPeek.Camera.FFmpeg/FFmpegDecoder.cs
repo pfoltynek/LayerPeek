@@ -369,8 +369,21 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         }
 
         ThrowIfInterrupted();
-        throw new CameraFeedException($"{stage}: {Describe(result)}.");
+        throw new CameraFeedException($"{stage}: {Describe(result)}.") { IsHostUnreachable = IsHostUnreachable(result) };
     }
+
+    /// <summary>
+    /// Whether an FFmpeg result is AVERROR(EHOSTUNREACH), "no route to host", with the errno of the running OS (T-097: on
+    /// macOS 15+ also what a denied Local Network permission looks like). Windows builds report the C runtime's number or
+    /// the Winsock one (see <see cref="DescribeWindowsNetworkError"/>).
+    /// </summary>
+    internal static bool IsHostUnreachable(int result) => -result switch
+    {
+        65 when OperatingSystem.IsMacOS() => true,
+        113 when OperatingSystem.IsLinux() => true,
+        110 or 10065 when OperatingSystem.IsWindows() => true,
+        _ => false,
+    };
 
     private CameraFrame Convert()
     {
