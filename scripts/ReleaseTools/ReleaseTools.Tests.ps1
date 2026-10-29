@@ -827,8 +827,13 @@ Describe 'macOS packaging (T-019)' {
         $plan['icon_32x32@2x.png'].Pixels | Should -Be 64
         @((Get-MacIconPlan -MasterPng 'master.png').Values | Where-Object { -not $_.Scale }) | Should -BeNullOrEmpty
     }
-    It 'uses the small variant of the app icon for 16 and 32 px (T-025 app-icon-small.svg)' {
+    It 'uses the macOS variant of the app icon: the 1024 px master and the small variant for 16 and 32 px (T-098)' {
         $mac = Get-MacBundleSettings
+        $mac.IconMaster | Should -BeExactly 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-1024.png'
+        $mac.IconExact[16] | Should -BeExactly 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-16.png'
+        $mac.IconExact[32] | Should -BeExactly 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-32.png'
+        $mac.IconBody.Offset | Should -Be 100
+        $mac.IconBody.Size | Should -Be 824
         @($mac.IconExact.Keys | Sort-Object) | Should -Be @(16, 32)
         foreach ($pixels in $mac.IconExact.Keys) {
             $size = Get-PngPixelSize (Join-Path $script:RepoRoot $mac.IconExact[$pixels])
@@ -836,6 +841,68 @@ Describe 'macOS packaging (T-019)' {
             $size.Height | Should -Be $pixels
         }
         (Get-PngPixelSize (Join-Path $script:RepoRoot $mac.IconMaster)).Width | Should -Be 1024
+    }
+    It 'reads the alpha channel of a 32-bit BMP top-down, whatever the row order (T-098)' {
+        $bmp = {
+            param([int] $Height, [byte[]] $Mask)
+            # 2 x 2 px, V4 header (108 bytes) with BI_BITFIELDS; pixel alpha = 10 * (row from the top + 1) + column.
+            $bytes = [byte[]]::new(14 + 108 + 16)
+            $bytes[0] = 0x42; $bytes[1] = 0x4D
+            [System.BitConverter]::GetBytes([int] 122).CopyTo($bytes, 10)
+            [System.BitConverter]::GetBytes([int] 108).CopyTo($bytes, 14)
+            [System.BitConverter]::GetBytes([int] 2).CopyTo($bytes, 18)
+            [System.BitConverter]::GetBytes([int] $Height).CopyTo($bytes, 22)
+            [System.BitConverter]::GetBytes([int16] 32).CopyTo($bytes, 28)
+            [System.BitConverter]::GetBytes([int] 3).CopyTo($bytes, 30)
+            $Mask.CopyTo($bytes, 66)
+            $shift = [System.Array]::IndexOf($Mask, [byte] 0xFF)
+            for ($row = 0; $row -lt 2; $row++) {
+                $fromTop = if ($Height -gt 0) { 1 - $row } else { $row }
+                for ($x = 0; $x -lt 2; $x++) { $bytes[122 + ((($row * 2) + $x) * 4) + $shift] = [byte] ((10 * ($fromTop + 1)) + $x) }
+            }
+            , $bytes
+        }
+        foreach ($height in 2, -2) {
+            foreach ($mask in @([byte[]] (0, 0, 0, 0xFF), [byte[]] (0xFF, 0, 0, 0))) {
+                $image = ConvertFrom-BmpAlpha (& $bmp $height $mask)
+                $image.Width | Should -Be 2
+                $image.Height | Should -Be 2
+                $image.Alpha | Should -Be @(10, 11, 20, 21)
+            }
+        }
+        Assert-ThrowsMatching { ConvertFrom-BmpAlpha ([byte[]] [char[]] 'GIF89a, not a bitmap at all, long enough to have a header.....') } 'Not a BMP'
+        $noAlpha = & $bmp 2 ([byte[]] (0, 0, 0, 0xFF))
+        [System.BitConverter]::GetBytes([int] 0).CopyTo($noAlpha, 30)
+        Assert-ThrowsMatching { ConvertFrom-BmpAlpha $noAlpha } 'Not a 32-bit BMP with alpha'
+    }
+    It 'checks the body of a macOS icon image against Apple''s grid: 824 of 1024 px centred, only the shadow in the margin (T-098)' {
+        $image = {
+            param([int] $Size, [int] $Start, [int] $End, [byte] $Margin = 0)
+            $alpha = [byte[]]::new($Size * $Size)
+            for ($y = 0; $y -lt $Size; $y++) {
+                for ($x = 0; $x -lt $Size; $x++) {
+                    $alpha[($y * $Size) + $x] = if ($x -ge $Start -and $x -lt $End -and $y -ge $Start -and $y -lt $End) { 255 } else { $Margin }
+                }
+            }
+            , $alpha
+        }
+        @(Get-MacIconBodyProblems -Width 1024 -Height 1024 -Alpha (& $image 1024 100 924 40)) | Should -BeNullOrEmpty
+        @(Get-MacIconBodyProblems -Width 256 -Height 256 -Alpha (& $image 256 25 231)) | Should -BeNullOrEmpty
+        # The small sizes on whole pixels: 12 px body at 16 px (1.56..14.44), 26 px at 32 px (3.13..28.88).
+        @(Get-MacIconBodyProblems -Width 16 -Height 16 -Alpha (& $image 16 2 14)) | Should -BeNullOrEmpty
+        @(Get-MacIconBodyProblems -Width 32 -Height 32 -Alpha (& $image 32 3 29)) | Should -BeNullOrEmpty
+        # The old icon of T-025 (tile 960 of 1024 px) and a full-bleed square.
+        $old = @(Get-MacIconBodyProblems -Width 1024 -Height 1024 -Alpha (& $image 1024 32 992) -Name 'old.png')
+        $old.Count | Should -Be 4
+        $old[0] | Should -BeExactly "old.png: the left edge of the body is at 32 px, Apple's grid puts it at 100 px."
+        @(Get-MacIconBodyProblems -Width 32 -Height 32 -Alpha (& $image 32 0 32)).Count | Should -Be 4
+        # An opaque margin (a background instead of the shadow) and a hole in the middle.
+        @(Get-MacIconBodyProblems -Width 64 -Height 64 -Alpha (& $image 64 6 58 100)) -join ' ' | Should -Match 'margin around the body has alpha 100'
+        $hole = & $image 64 6 58
+        $hole[(32 * 64) + 32] = 0
+        @(Get-MacIconBodyProblems -Width 64 -Height 64 -Alpha $hole) -join ' ' | Should -Match 'centre of the body is not opaque'
+        @(Get-MacIconBodyProblems -Width 64 -Height 64 -Alpha ([byte[]]::new(64 * 64))) | Should -Be 'image has no opaque body.'
+        @(Get-MacIconBodyProblems -Width 64 -Height 32 -Alpha ([byte[]]::new(64 * 32))) | Should -Match 'not square'
     }
     It 'reads the size of a PNG from its header and refuses anything else' {
         $notPng = Join-Path $script:TempRoot 'not-a.png'
@@ -1063,7 +1130,7 @@ Describe 'macOS packaging (T-019)' {
         }
         It 'makes the icns from the master PNG and removes its iconset' {
             $icon = Join-Path $script:TempRoot "icon-$([guid]::NewGuid().ToString('N').Substring(0, 8)).icns"
-            New-MacIcon -MasterPng (Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Assets' 'AppIcon' 'app-icon-1024.png') -Destination $icon | Should -BeExactly $icon
+            New-MacIcon -MasterPng (Join-Path $script:RepoRoot (Get-MacBundleSettings).IconMaster) -Destination $icon | Should -BeExactly $icon
             (Get-Item -LiteralPath $icon).Length | Should -BeGreaterThan 1000
             [System.IO.File]::ReadAllBytes($icon)[0..3] | Should -BeExactly ([byte[]][char[]]'icns')
             Test-Path -LiteralPath ([System.IO.Path]::ChangeExtension($icon, 'iconset')) | Should -BeFalse
@@ -1088,7 +1155,7 @@ Describe 'macOS packaging (T-019)' {
                 , [byte[]] $bytes[$offset..($bytes.Length - 1)]
             }
             $same = { param([byte[]] $A, [byte[]] $B) [System.Linq.Enumerable]::SequenceEqual($A, $B) }
-            # 16 pt @2x is kept as PNG: the same pixels as app-icon-32.png.
+            # 16 pt @2x is kept as PNG: the same pixels as app-icon-macos-32.png.
             & $same (& $pixels (Join-Path $back 'icon_16x16@2x.png')) (& $pixels $exact[32]) | Should -BeTrue
             # 16 and 32 pt @1x are stored as ARGB: the same alpha everywhere, the same colour where opaque.
             foreach ($case in @(@{ Name = 'icon_16x16.png'; Pixels = 16 }, @{ Name = 'icon_32x32.png'; Pixels = 32 })) {
@@ -1101,12 +1168,60 @@ Describe 'macOS packaging (T-019)' {
                     if ($actual[$i + 3] -ne $expected[$i + 3]) { $wrong++ }
                     elseif ($expected[$i + 3] -eq 255 -and ($actual[$i] -ne $expected[$i] -or $actual[$i + 1] -ne $expected[$i + 1] -or $actual[$i + 2] -ne $expected[$i + 2])) { $wrong++ }
                 }
-                $wrong | Should -Be 0 -Because "$($case.Name) is app-icon-$($case.Pixels).png"
+                $wrong | Should -Be 0 -Because "$($case.Name) is app-icon-macos-$($case.Pixels).png"
             }
             # 32 pt @2x (64 px) is the detailed variant scaled from the master, not the small one.
             $scaled = Join-Path $work 'scaled-64.png'
             $null = & /usr/bin/sips -z 64 64 (Join-Path $script:RepoRoot $mac.IconMaster) --out $scaled 2>&1
             & $same (& $pixels (Join-Path $back 'icon_32x32@2x.png')) (& $pixels $scaled) | Should -BeTrue
+        }
+        It 'has every image of the icns at its size with the body on Apple''s grid and the margin around it (T-098)' {
+            $mac = Get-MacBundleSettings
+            $exact = @{}
+            foreach ($pixels in $mac.IconExact.Keys) { $exact[$pixels] = Join-Path $script:RepoRoot $mac.IconExact[$pixels] }
+            $work = Join-Path $script:TempRoot "mac-icon-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $work
+            $icon = New-MacIcon -MasterPng (Join-Path $script:RepoRoot $mac.IconMaster) -ExactPngs $exact -Destination (Join-Path $work 'LayerPeek.icns')
+            $back = Join-Path $work 'back.iconset'
+            & /usr/bin/iconutil -c iconset $icon -o $back
+            $LASTEXITCODE | Should -Be 0
+            $sizes = Get-MacIconSizes
+            @(Get-ChildItem -LiteralPath $back -File | ForEach-Object Name | Sort-Object) | Should -Be @($sizes.Keys | Sort-Object)
+            foreach ($name in $sizes.Keys) {
+                $png = Join-Path $back $name
+                $size = Get-PngPixelSize $png
+                $size.Width | Should -Be $sizes[$name] -Because $name
+                $size.Height | Should -Be $sizes[$name] -Because $name
+                @(Get-MacIconImageProblems -Path $png -WorkDirectory $work) | Should -BeNullOrEmpty -Because $name
+            }
+            # The 1024 px image: a transparent border of 100 px around the 824 px body, apart from the drop shadow
+            # (at most 22 % black, offset down) – the body is not the full canvas of the Windows icon (T-025).
+            $bmp = Join-Path $work 'master.bmp'
+            $null = & /usr/bin/sips -s format bmp (Join-Path $back 'icon_512x512@2x.png') --out $bmp 2>&1
+            $master = ConvertFrom-BmpAlpha ([System.IO.File]::ReadAllBytes($bmp))
+            $alpha = { param([int] $X, [int] $Y) [int] $master.Alpha[($Y * 1024) + $X] }
+            & $alpha 512 99 | Should -BeLessThan 64
+            & $alpha 512 100 | Should -Be 255
+            & $alpha 99 512 | Should -BeLessThan 64
+            & $alpha 100 512 | Should -Be 255
+            & $alpha 923 512 | Should -Be 255
+            & $alpha 924 512 | Should -BeLessThan 64
+            & $alpha 512 923 | Should -Be 255
+            & $alpha 512 924 | Should -BeLessThan 64
+            (& $alpha 512 930) | Should -BeGreaterThan (& $alpha 512 93) -Because 'the shadow falls below the body'
+            foreach ($corner in @(@(0, 0), @(1023, 0), @(0, 1023), @(1023, 1023), @(110, 110))) { & $alpha $corner[0] $corner[1] | Should -Be 0 }
+        }
+        It 'refuses a master that does not follow Apple''s grid (the full canvas of the Windows icon)' {
+            $work = Join-Path $script:TempRoot "mac-icon-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $work
+            # The 824 px body cropped and scaled to the whole canvas, like the tile of app-icon.svg.
+            $cropped = Join-Path $work 'cropped.png'
+            $fullBleed = Join-Path $work 'full-bleed.png'
+            $null = & /usr/bin/sips --cropToHeightWidth 824 824 (Join-Path $script:RepoRoot (Get-MacBundleSettings).IconMaster) --out $cropped 2>&1
+            $null = & /usr/bin/sips -z 1024 1024 $cropped --out $fullBleed 2>&1
+            Assert-ThrowsMatching { New-MacIcon -MasterPng $fullBleed -Destination (Join-Path $work 'x.icns') } "does not follow Apple's grid: icon_16x16.png: the left edge"
+            Test-Path -LiteralPath (Join-Path $work 'x.icns') | Should -BeFalse
+            Test-Path -LiteralPath (Join-Path $work 'x.iconset') | Should -BeFalse
         }
         It 'refuses a small PNG of another size' {
             $work = Join-Path $script:TempRoot "mac-icon-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
