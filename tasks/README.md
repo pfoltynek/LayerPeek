@@ -110,6 +110,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-101 | Zkušební upozornění a nový dotaz na povolení notifikací | all | ui-dev + ui-designer | P2 | T-010, T-020 |
 | T-103 | Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu (návrh hotový, implementace po T-101) | all | ui-designer + ui-dev | P2 | T-079, T-083, T-088, T-089, T-090, T-101 |
 | T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – jen návrh | all | ui-designer | P3 | T-092, T-103 |
+| T-106 | Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu | all | ui-dev | P2 | T-084, T-090 |
 
 ### Windows (`windows`)
 
