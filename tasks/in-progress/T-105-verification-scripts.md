@@ -49,6 +49,12 @@ sandboxu (zamčená Klíčenka, bez TCC, bez uspání displeje, bez druhého už
    macOS spustil testovací bundle bez testovacího režimu, tedy s produkčním profilem; zůstává v `mac.notifications-production`
    / ručně. Je to tak v pořádku?~~ → ano, klik při neběžící aplikaci ověří uživatel ručně s produkční aplikací v /Applications (rozhodnuto 2026-10-29).
 4. `mac.keys` nečte vybranou záložku Nastavení (bez čtení přístupnosti Avalonie); přepnutí záložky ⌘⇧] potvrzuje uživatel.
+6. Na macOS 27.2 se nepodařilo ověřit (zamčená obrazovka v relaci agenta), zda okna stavových položek (vrstva 25) patří
+   procesu aplikace, nebo jinému procesu (nově existuje `MenuBarAgent`, okno vrstvy 24 přes celý menu bar). Pokud
+   `mac.menubar` v odemčené relaci uživatele selže a `menubar-windows.json` ukáže okna vrstvy 25 jen u systémového
+   procesu, je potřeba rozhodnout jiný důkaz stavové položky (např. testovací příkaz aplikace, který ji ohlásí).
+7. Zda aplikace se zamčenou obrazovkou do celé obrazovky vůbec nevstoupí (omezení macOS), nebo jde o chybu aplikace,
+   ukáže až `mac.camera` v odemčené relaci; log aplikace neobsahuje žádnou chybu.
 5. ~~Kontrola umístění (`mac.camera-placement`) bere rám okna z CGWindowList (s titulkovým pruhem) a toleranci ±2 body od
    16 bodů. Pokud se ukáže jiný výklad „okraje 16 DIP“ na macOS, upravit toleranci nebo pravidlo.~~ → správně: 16 DIP od kraje pracovní plochy k vnějšímu rámu okna včetně titulku (rozhodnuto 2026-10-29).
 
@@ -76,3 +82,24 @@ sandboxu (zamčená Klíčenka, bez TCC, bez uspání displeje, bez druhého už
   zamítnuté), `mac.dock` / `mac.menubar` SKIP (spící displej), `mac.keychain` FAIL (zamčená Klíčenka v sandboxu – správně
   podle zadání). Swift pomocník: `screens`, `trusted`, `localized`, `icons` vyzkoušené. Profil před/po beze změny.
 - **Nové závislosti:** žádné (Swift a `swiftc` z Xcode Command Line Tools, které build na Macu už vyžaduje).
+- **Oprava po prvním bezobslužném běhu (2026-10-29, `artifacts/verify/20261029-223901`, PASS 9 / FAIL 4 / SKIP 14):**
+  obrazovka byla během celého běhu zamčená (`CGSSessionScreenIsLocked = 1` od 22:37, běh začal 22:39; vpředu
+  `loginwindow`). Tři FAIL proto nešlo posoudit (omezení relace, ne chyba aplikace):
+  - `mac.menubar`: v seznamu oken neměl žádný proces okno vrstvy 25 (ani Ovládací centrum), takže na macOS 27.2 nešlo
+    ověřit, kdo vlastní okna stavových položek. `windows.json` nebyl platný JSON – chyba skriptu: `ConvertTo-Json` v
+    rouře nezapíše prázdné pole vůbec a jednu položku jako objekt. Opraveno funkcí `ConvertTo-VerifyJsonArray` (všechny
+    důkazy s okny, obrazovkami a umístěními jsou vždy pole). Nově důkaz `menubar-windows.json` (okna vrstev 23–26 všech
+    procesů s vlastníkem, příkaz pomocníka `menubar`) a FAIL uvádí vlastníky oken vrstvy 25.
+  - `mac.settings-front`: `open -a Finder` při zamčené obrazovce Finder do popředí nedostane. Finder se nově vyvolá až
+    4× po 3 s (`Invoke-FinderToFront`) a FAIL uvádí aplikaci v popředí (název a pid).
+  - `mac.camera`: Normal a Mini prošly, FullScreen zůstal 960 × 568 bodů (okno nevstoupilo do celoobrazovkového
+    prostoru). Detekce (rám = celý rám obrazovky vč. menu baru, čekání 20 s) je správná; FAIL nově uvádí největší
+    viděné okno.
+  - Pomocník má příkaz `session` (zamčená obrazovka, relace na konzoli). Kontroly `mac.menubar`, `mac.settings-front`
+    a `mac.camera` běží v `Invoke-SessionCheck`: FAIL se změní na SKIP s důvodem a původním textem jen tehdy, když byla
+    relace omezená před kontrolou nebo po ní (`Resolve-VerifySessionResult`); v odemčené relaci zůstává FAIL.
+  - `mac.keychain` zůstává FAIL (přeskočený zápisový test se nepočítá); text nově dodá, že relace je zamčená / není na
+    konzoli a kontrolu je třeba spustit ve vlastním Terminálu.
+  - Pester: 4 nové testy (pole JSON, omezení relace, převod FAIL → SKIP, vlastníci stavových položek). Nový běh agenta
+    `-Only mac.menubar,mac.settings-front,mac.camera` (`artifacts/verify/20261029-225227`): 3× SKIP se zamčenou
+    obrazovkou, důkazy jsou platný JSON, profil před/po beze změny.

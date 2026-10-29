@@ -740,6 +740,53 @@ function Test-VerifyMenuBarItem {
     [bool] ($Windows | Where-Object { $_.layer -eq 25 -and $_.width -gt 0 -and $_.height -gt 0 })
 }
 
+function ConvertTo-VerifyJsonArray {
+    <#
+    .SYNOPSIS
+        The items as a JSON array, also for none or one item (ConvertTo-Json on the pipeline writes nothing for an empty
+        array and a single object for one item, which made the evidence files invalid or ambiguous).
+    #>
+    param([AllowNull()] [AllowEmptyCollection()] [object[]] $Items, [int] $Depth = 4)
+    ConvertTo-Json -InputObject @($Items | Where-Object { $null -ne $_ }) -Depth $Depth
+}
+
+function Get-VerifySessionLimitation {
+    <#
+    .SYNOPSIS
+        Why window checks cannot be judged in this login session, or $null. Input: the JSON object of
+        'macos-verify-helper session' (locked, onConsole, known). With a locked screen (e.g. an agent or SSH session at
+        night) no app can come to the front, the menu bar shows no status items and no window enters a full-screen Space.
+    #>
+    param([AllowNull()] $Session)
+    if (-not $Session -or -not $Session.known) { return $null }
+    if ($Session.locked) { return 'the screen is locked (CGSSessionScreenIsLocked): no app comes to the front, the menu bar shows no status items and no window enters full screen' }
+    if (-not $Session.onConsole) { return 'the login session is not on the console (fast user switching or a remote session): windows are not shown' }
+    $null
+}
+
+function Resolve-VerifySessionResult {
+    <#
+    .SYNOPSIS
+        A FAIL of a check that needs an unlocked session on the console becomes a SKIP with the reason when the session had
+        such a limitation before or after the check; the FAIL detail stays in the SKIP text, nothing is dropped. PASS, SKIP
+        and MANUAL are returned unchanged, as is a FAIL in an unlimited session.
+    #>
+    param([Parameter(Mandatory)] $Result, [AllowEmptyCollection()] [AllowNull()] [string[]] $Limitations)
+    $reason = @($Limitations | Where-Object { $_ }) | Select-Object -First 1
+    if ($Result.Status -ne 'FAIL' -or -not $reason) { return $Result }
+    New-VerifyResult SKIP "cannot be judged in this session: $reason. Run it again in your own unlocked session. Failed here: $($Result.Detail)"
+}
+
+function Get-VerifyMenuBarOwners {
+    <#
+    .SYNOPSIS
+        "owner (pid) x count" for the status item windows (layer 25) of all processes in the helper's 'menubar' list, for
+        the FAIL text of mac.menubar: shows whether this macOS version draws the status items in another process.
+    #>
+    param([Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Windows)
+    @($Windows | Where-Object { $_.layer -eq 25 } | Group-Object { "$($_.owner) ($($_.pid))" } | Sort-Object Name | ForEach-Object { "$($_.Name) x $($_.Count)" })
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Self-test (stand-in checks, stand-in prompt)
 # ---------------------------------------------------------------------------------------------------------------------
