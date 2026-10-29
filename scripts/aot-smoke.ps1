@@ -24,6 +24,8 @@
     Toasts the app shows during the run are cleared afterwards only when the notification center provably held no
     toasts of the app before the run and no other instance started meanwhile; otherwise they are left there (the
     user's own toasts are never removed) and a warning is printed. Refuses to run while LayerPeek is already running.
+    macOS: run it with an awake display (e.g. under caffeinate -d -u, which only keeps the display awake). While every
+    display sleeps the app waits for one before its UI starts (T-096), so the run would check only that wait, not the UI.
 
 .PARAMETER Runtime
     Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture.
