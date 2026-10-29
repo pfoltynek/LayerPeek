@@ -10,7 +10,13 @@ public sealed partial class LicensesWindow : Window
     {
         InitializeComponent();
         // DataContext (LicensesViewModel) is set by the creator.
+        MacShortcuts.HandleCloseKeys(this, () => UsesMacShortcuts, Close, Close);
     }
+
+    /// <summary>
+    /// The macOS shortcuts (T-100): ⌘W closes the window, ⌘. is Close like Esc. Default: on macOS only; tests set it.
+    /// </summary>
+    internal bool UsesMacShortcuts { get; set; } = MacShortcuts.IsPlatformDefault;
 
     private void OnCloseClicked(object? sender, RoutedEventArgs e) => Close();
 }

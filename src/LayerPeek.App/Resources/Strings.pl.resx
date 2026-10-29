@@ -816,6 +816,9 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Pełny ekran (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Pełny ekran (⌃⌘F)</value>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Mały podgląd, zawsze na wierzchu</value>
   </data>
@@ -830,6 +833,9 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Obraz z kamery. Dwukrotne kliknięcie przełącza pełny ekran; F11 pełny ekran, Esc powrót.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Obraz z kamery. Dwukrotne kliknięcie przełącza pełny ekran; ⌃⌘F pełny ekran, Esc powrót.</value>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licencje stron trzecich…</value>

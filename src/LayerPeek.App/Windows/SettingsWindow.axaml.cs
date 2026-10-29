@@ -16,7 +16,8 @@ namespace LayerPeek.App.Windows;
 /// <see cref="AuxiliaryWindowSlot"/> when it closes. Opens at its designed (or remembered, T-094) size, shrunk to the work area of its screen
 /// (<see cref="AuxiliaryWindowPlacement"/>, T-033). Ctrl+Tab / Ctrl+Shift+Tab switch the main tabs, Ctrl+PageDown /
 /// Ctrl+PageUp the sub-tabs of the printer form. On the Widgets tab (T-092) Space switches the visibility of the selected
-/// widget of the list.
+/// widget of the list. macOS (T-100) adds Apple's shortcuts: ⌘⇧] / ⌘⇧[ for the main tabs, ⌘⌥→ / ⌘⌥← for the sub-tabs,
+/// ⌘W and ⌘. for Cancel.
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
@@ -32,12 +33,20 @@ public sealed partial class SettingsWindow : Window
         // DataContext (SettingsViewModel) is set by the creator.
         // Tunnelling: before a text box or the focus navigation (Tab) sees the keys.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
+        // ⌘W and ⌘. (macOS, T-100) are Cancel, also for closing: the edits are discarded as with Cancel or Esc.
+        MacShortcuts.HandleCloseKeys(this, () => UsesMacShortcuts, CancelFromKeyboard, CancelFromKeyboard);
         WidgetsList.AddHandler(KeyDownEvent, OnWidgetsListKeyDown, RoutingStrategies.Tunnel);
         Activated += OnWindowActivated;
     }
 
     /// <summary>The fitting and remembering of the window size (T-094).</summary>
     internal WorkAreaFitter Sizing => _fitter;
+
+    /// <summary>
+    /// The macOS shortcuts (T-100): ⌘⇧] / ⌘⇧[, ⌘⌥→ / ⌘⌥←, ⌘W and ⌘. (next to Ctrl+Tab and Ctrl+PageDown, which stay).
+    /// Default: on macOS only; tests set it.
+    /// </summary>
+    internal bool UsesMacShortcuts { get; set; } = MacShortcuts.IsPlatformDefault;
 
     /// <summary>
     /// Before showing (T-094): opens with the size and maximized state remembered in <paramref name="store"/> and
@@ -110,7 +119,18 @@ public sealed partial class SettingsWindow : Window
 
     private void OnPreviewKeyDown(object? sender, KeyEventArgs e)
     {
-        if (_viewModel is not { } viewModel || (e.KeyModifiers & ~KeyModifiers.Shift) != KeyModifiers.Control)
+        if (_viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        if (UsesMacShortcuts && MacTabStep(viewModel, e) is { } handled)
+        {
+            e.Handled = handled;
+            return;
+        }
+
+        if ((e.KeyModifiers & ~KeyModifiers.Shift) != KeyModifiers.Control)
         {
             return;
         }
@@ -123,6 +143,34 @@ public sealed partial class SettingsWindow : Window
             Key.PageUp when !shift => viewModel.SelectAdjacentPrinterTab(forward: false) && FocusSelectedTab(PrinterTabs),
             _ => false,
         };
+    }
+
+    /// <summary>
+    /// macOS (T-100): ⌘⇧] / ⌘⇧[ switch the main tabs, ⌘⌥→ / ⌘⌥← the sub-tabs of the printer form (Mac keyboards have no
+    /// PageUp and PageDown keys). <see langword="null"/> when the key is none of them.
+    /// </summary>
+    private bool? MacTabStep(SettingsViewModel viewModel, KeyEventArgs e)
+    {
+        if (MacShortcuts.MainTabStep(e) is var main and not 0)
+        {
+            return viewModel.SelectAdjacentTab(forward: main > 0) && FocusSelectedTab(MainTabs);
+        }
+
+        if (MacShortcuts.SubTabStep(e) is var sub and not 0)
+        {
+            return viewModel.SelectAdjacentPrinterTab(forward: sub > 0) && FocusSelectedTab(PrinterTabs);
+        }
+
+        return null;
+    }
+
+    /// <summary>⌘W / ⌘. (macOS, T-100): what the Cancel button does; nothing while saving (Cancel is disabled then).</summary>
+    private void CancelFromKeyboard()
+    {
+        if (_viewModel is { } viewModel && viewModel.CancelCommand.CanExecute(null))
+        {
+            viewModel.CancelCommand.Execute(null);
+        }
     }
 
     /// <summary>

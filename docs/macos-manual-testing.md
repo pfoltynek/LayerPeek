@@ -2,7 +2,7 @@
 
 Jeden průchod všemi kroky, které na Macu může ověřit jen člověk (GUI, Gatekeeper, oprávnění macOS, přihlášení, uspaný
 displej, monitory). Kroky jsou posbírané z rozpracovaných macOS úkolů v `tasks/in-progress/` (T-095, T-053, T-018,
-T-019, T-020, T-021, T-026, T-038, T-096, T-097, T-098, T-099), bez duplicit a seřazené do sezení tak, aby na sebe
+T-019, T-020, T-021, T-026, T-038, T-096, T-097, T-098, T-099, T-100), bez duplicit a seřazené do sezení tak, aby na sebe
 navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
 > Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni. Když úkol přidá nebo změní ruční krok, upraví se i tady.
@@ -174,6 +174,21 @@ Předpoklad: tiskárna s kamerou (Buddy3D v LAN, nebo kamera simulátoru `rtsp:/
      ukáže UUID; D7 náhled mezi Retinou a monitorem @1x.
    **Uzavírá:** T-038 kritérium 1 (a otázky 1–3 v T-038), T-026 krok 1 (vždy navrchu, celá obrazovka, bez rámečku,
    tažení a změna velikosti).
+3. **Klávesové zkratky podle Applu (T-100)** – na vestavěné klávesnici Macu i na externí (např. Logitech). Pozor:
+   horní řada posílá na Macu mediální funkce, F-klávesy jdou jen s `fn` (u Logitechu s Fn Lock / Fn+Esc), a F11 má
+   macOS ve výchozím stavu pro „Zobrazit plochu“ – proto se k aplikaci nedostane. Postup:
+   - **Okno kamery:** ⌃⌘F přepne na celou obrazovku a zpět; Esc i ⌘. vrátí z celé obrazovky (a z malého náhledu do
+     normálního okna); ⌘W zavře okno ve všech třech režimech (aplikace běží dál); v režimu úprav rozvržení ⌘. zahodí
+     změny jako Esc. Tooltip tlačítka celé obrazovky ukazuje „⌃⌘F“, ne „F11“ (zkusit i jiný jazyk aplikace). F11 jako
+     záloha: jen pokud ji macOS nezabere (`fn`+F11 obvykle ukáže plochu – zapsat, co se stane).
+   - **Nastavení:** ⌘⇧] / ⌘⇧[ přepíná hlavní záložky (dokola), ⌘⌥→ / ⌘⌥← záložky tiskárny (Připojení, Kamera, Okno
+     kamery); ⌃Tab a ⌃⇧Tab fungují dál. Upravit jméno tiskárny a stisknout ⌘W (a v dalším pokusu ⌘.): okno se zavře
+     jako Zrušit, změna se neuloží. Enter = Uložit, Esc = Zrušit beze změny.
+   - **Diagnostika, O aplikaci, Licence:** ⌘W i ⌘. okno zavře (Licence zavřou jen sebe, O aplikaci zůstane).
+   - **Jiné rozložení klávesnice:** totéž s **českým** rozložením (Nastavení systému → Klávesnice → Zdroje vstupu):
+     ⌘⇧] / ⌘⇧[ = klávesy vpravo od P (na české klávesnici „ú“ a „)“); zapsat, zda přepínají záložky a zda se nestane
+     něco jiného. ⌃⌘F, ⌘W a ⌘. zkusit také.
+   **Uzavírá:** T-100 kritérium 4 (a otevřené otázky v T-100).
 
 ## Sezení 7 – Otevřít při přihlášení, odhlášení a přihlášení
 

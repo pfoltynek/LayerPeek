@@ -846,6 +846,10 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Full screen (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Full screen (⌃⌘F)</value>
+    <comment>T-100: macOS variant of CameraFullScreen (tip and accessible name of the full screen button); ⌃⌘F is the standard macOS shortcut, written with Apple's symbols in every language.</comment>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Mini preview, always on top</value>
   </data>
@@ -860,6 +864,10 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Camera image. Double-click switches full screen; F11 full screen, Esc back.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Camera image. Double-click switches full screen; ⌃⌘F full screen, Esc back.</value>
+    <comment>T-100: macOS variant of CameraImageHint (accessible name of the camera image); ⌃⌘F instead of F11.</comment>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Third-party licences…</value>

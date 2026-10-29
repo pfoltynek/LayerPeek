@@ -816,6 +816,9 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Celá obrazovka (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Celá obrazovka (⌃⌘F)</value>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Malý náhľad vždy navrchu</value>
   </data>
@@ -830,6 +833,9 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Obraz z kamery. Dvojklik prepína celú obrazovku; F11 celá obrazovka, Esc späť.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Obraz z kamery. Dvojklik prepína celú obrazovku; ⌃⌘F celá obrazovka, Esc späť.</value>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licencie tretích strán…</value>

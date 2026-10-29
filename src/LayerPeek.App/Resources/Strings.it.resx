@@ -816,6 +816,9 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Schermo intero (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Schermo intero (⌃⌘F)</value>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Anteprima piccola, sempre in primo piano</value>
   </data>
@@ -830,6 +833,9 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Immagine della telecamera. Il doppio clic attiva o disattiva lo schermo intero; F11 schermo intero, Esc indietro.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Immagine della telecamera. Il doppio clic attiva o disattiva lo schermo intero; ⌃⌘F schermo intero, Esc indietro.</value>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licenze di terze parti…</value>
