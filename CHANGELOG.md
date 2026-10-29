@@ -12,6 +12,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- macOS: keyboard shortcuts as on other Mac apps. Camera window: **⌃⌘F** toggles full screen (F11, which macOS
+  reserves for Show Desktop and Mac keyboards send only with fn, stays as a fallback), and the full screen button and
+  the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a
+  printer (Ctrl+Tab and Ctrl+PageDown still work). Every auxiliary window (Settings, Diagnostics, About, licences,
+  camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel). Windows is unchanged.
+
+## [0.3.0] - 2026-10-29
+
+### Added
+
 - macOS (Apple Silicon): `LayerPeek.app` without a Dock icon (menu bar only), ad-hoc signed, distributed as a `.dmg`
   (drag the app to Applications) and a `.tar.gz`. The builds are not notarized: the first start has to be allowed in
   **System Settings → Privacy & Security → Open Anyway** (see the README).
@@ -20,11 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   every time the settings window opens or comes back to the front) and offers to open System Settings; saving then
   reports that Open at login has to be allowed there.
 - macOS: windows opened from the menu bar (Settings, Diagnostics, About, camera) come to the front with the keyboard focus.
-- macOS: keyboard shortcuts as on other Mac apps. Camera window: **⌃⌘F** toggles full screen (F11, which macOS
-  reserves for Show Desktop and Mac keyboards send only with fn, stays as a fallback), and the full screen button and
-  the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a
-  printer (Ctrl+Tab and Ctrl+PageDown still work). Every auxiliary window (Settings, Diagnostics, About, licences,
-  camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel). Windows is unchanged.
 - macOS: the app icon follows Apple's app icon grid (a margin around the rounded square with Apple's continuous corners
   and a soft drop shadow), so in Finder, Launchpad and System Settings it is as large as the other apps' icons; the 16
   and 32 px sizes use the simplified design, like on Windows. The Windows icon is unchanged.
@@ -153,6 +158,7 @@ released, so the app does not migrate anything; developers who ran the old build
 - Native libraries are loaded only from the application folder and the system folder.
 
 [Unreleased]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.1...HEAD
-[0.3.1]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...v0.3.1
+[0.3.1]: https://github.com/pfoltynek/LayerPeek/compare/v0.3.0...v0.3.1
+[0.3.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/pfoltynek/LayerPeek/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/pfoltynek/LayerPeek/releases/tag/v0.1.0

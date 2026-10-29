@@ -20,7 +20,7 @@
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><img src="https://img.shields.io/github/v/release/pfoltynek/LayerPeek?include_prereleases&label=release" alt="Poslední vydání"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--only-blue.svg" alt="Licence: GPL-3.0-only"></a>
-  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078D4.svg" alt="Platforma: Windows 10/11">
+  <img src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%7C%20macOS%20(Apple%20Silicon)-0078D4.svg" alt="Platforma: Windows 10/11 | macOS (Apple Silicon)">
   <img src="https://img.shields.io/badge/.NET-11%20Native%20AOT-512BD4.svg" alt=".NET 11 Native AOT">
   <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="Hvězdičky na GitHubu"></a>
 </p>
@@ -148,7 +148,7 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
 | Windows na ARM64 | 🚧 plánováno |
-| macOS (Apple Silicon) | 🚧 předběžná verze: menu bar, Klíčenka a otevření při přihlášení; notifikace a kamera se připravují |
+| macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
 
@@ -169,12 +169,13 @@ Odinstalace ponechá tvoje nastavení (`%APPDATA%\LayerPeek`) a hesla (Správce 
 nechá vlastní log v `%LOCALAPPDATA%\velopack`. Smazat je můžeš ručně. Logy aplikace v `%LOCALAPPDATA%\LayerPeek\logs`
 se s aplikací smažou. Instalace přes verzi ZIP tuto složku také nahradí, včetně logů verze ZIP.
 
-#### macOS (Apple Silicon, předběžná verze)
+#### macOS (Apple Silicon)
 
 - **Obraz disku** `LayerPeek-X.Y.Z-osx-arm64.dmg`: otevři ho a přetáhni **LayerPeek** do složky **Aplikace**.
 - **Archiv** `LayerPeek-X.Y.Z-osx-arm64.tar.gz`: obsahuje `LayerPeek.app`; rozbal ho a aplikaci přesuň do Aplikací.
 
-LayerPeek je jen v menu baru, bez ikony v Docku. Notifikace a okno kamery na macOS zatím nejsou.
+Od verze 0.3.0 vychází LayerPeek i pro macOS. Je jen v menu baru, bez ikony v Docku, a umí totéž co na Windows,
+včetně notifikací a okna kamery.
 
 > [!IMPORTANT]
 > Sestavení pro macOS mají jen ad-hoc podpis a Apple je **nenotarizoval**, takže Gatekeeper první spuštění zablokuje
@@ -238,7 +239,6 @@ a kamerám, které přidáš.
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
   projektu přibudou později.
-- Aplikace pro menu bar na macOS (Apple Silicon)
 - Windows na ARM64
 - Stav MMU3
 - Prusa Connect (cloud) jako volitelný druhý zdroj pro tiskárny mimo tvoji síť
