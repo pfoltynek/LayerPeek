@@ -756,6 +756,9 @@ Describe 'macOS packaging (T-019)' {
         $script | Should -Match '-LocalizationDirectory \$localizations'
         $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeGreaterThan $script.IndexOf('New-MacAppBundle -PublishDirectory')
         $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeLessThan $script.IndexOf('Invoke-MacAdHocSign $app')
+        # T-108: the hardened runtime and the entitlements are checked after signing, before the smoke run of the bundle.
+        $script.IndexOf('Get-MacHardenedRuntimeProblems $app') | Should -BeGreaterThan $script.IndexOf('Invoke-MacAdHocSign $app')
+        $script.IndexOf('Get-MacHardenedRuntimeProblems $app') | Should -BeLessThan $script.IndexOf('-File $smokeScript')
     }
     BeforeAll {
         $script:PlistTemplate = Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist'
@@ -1034,8 +1037,39 @@ Describe 'macOS packaging (T-019)' {
         (Get-MacBundleSettings).FFmpegLibraries | Should -BeExactly @('libavformat.63.dylib', 'libavcodec.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib')
         (Get-MacBundleSettings).FFmpegLicense | Should -BeExactly 'FFmpeg-LICENSE.txt'
     }
-    It 'signs ad hoc without a timestamp and without the hardened runtime' {
-        Get-MacAdHocSignArguments '/x/LayerPeek.app' | Should -BeExactly @('--force', '--sign', '-', '--timestamp=none', '/x/LayerPeek.app')
+    It 'signs ad hoc without a timestamp, with the hardened runtime and the entitlements only when given (T-108)' {
+        Get-MacAdHocSignArguments '/x/LayerPeek.app/Contents/MacOS/libSkiaSharp.dylib' | Should -BeExactly @(
+            '--force', '--sign', '-', '--timestamp=none', '--options', 'runtime', '/x/LayerPeek.app/Contents/MacOS/libSkiaSharp.dylib')
+        Get-MacAdHocSignArguments '/x/LayerPeek.app' -Entitlements '/r/build/macos/LayerPeek.entitlements' | Should -BeExactly @(
+            '--force', '--sign', '-', '--timestamp=none', '--options', 'runtime', '--entitlements', '/r/build/macos/LayerPeek.entitlements', '/x/LayerPeek.app')
+    }
+    It 'reads the code directory flags from codesign -d (T-108)' {
+        $output = @(
+            'Executable=/x/LayerPeek.app/Contents/MacOS/LayerPeek'
+            'Identifier=io.github.pfoltynek.LayerPeek'
+            'CodeDirectory v=20500 size=3131 flags=0x10002(adhoc,runtime) hashes=87+7 location=embedded'
+            'Executable Segment flags=0x1'
+        )
+        Get-CodesignFlags $output | Should -Be 0x10002
+        Get-CodesignFlags @('CodeDirectory v=20400 size=2995 flags=0x2(adhoc) hashes=87+3 location=embedded') | Should -Be 0x2
+        Get-CodesignFlags @('Executable Segment flags=0x1') | Should -BeNullOrEmpty
+        Get-CodesignFlags @() | Should -BeNullOrEmpty
+    }
+    It 'reads the granted entitlement keys; any other value than true does not count as granted (T-108)' {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>com.apple.security.cs.disable-library-validation</key><true/><key>com.apple.security.cs.allow-jit</key><false/></dict></plist>'
+        Get-EntitlementKeys $xml | Should -BeExactly @('com.apple.security.cs.allow-jit=false', 'com.apple.security.cs.disable-library-validation')
+        @(Get-EntitlementKeys '') | Should -BeNullOrEmpty
+        @(Get-EntitlementKeys '<plist version="1.0"><dict/></plist>') | Should -BeNullOrEmpty
+        Assert-ThrowsMatching { Get-EntitlementKeys '<plist version="1.0"><array/></plist>' } 'not a plist with a dict'
+    }
+    It 'grants the main executable only what Native AOT and the ad-hoc signed libraries need (T-108)' {
+        $mac = Get-MacBundleSettings
+        $mac.EntitlementKeys | Should -BeExactly @('com.apple.security.cs.disable-library-validation')
+        $file = Join-Path $script:RepoRoot $mac.Entitlements
+        Get-MacEntitlementsPath | Should -BeExactly (Resolve-Path -LiteralPath $file).ProviderPath
+        # The file grants exactly the expected keys: never the DYLD_* variables (finding N3), JIT, unsigned executable
+        # memory or a debugger (get-task-allow).
+        Get-EntitlementKeys ([System.IO.File]::ReadAllText($file)) | Should -BeExactly $mac.EntitlementKeys
     }
     It 'builds a compressed read-only HFS+ image named LayerPeek' {
         Get-MacDiskImageArguments -SourceFolder '/w/dmg' -Destination '/d/LayerPeek-1.2.3-osx-arm64.dmg' | Should -BeExactly @(
@@ -1068,6 +1102,24 @@ Describe 'macOS packaging (T-019)' {
         @(Get-SmokePreferenceKeys @('', '{', '}')) | Should -BeNullOrEmpty
     }
     Context 'on macOS (codesign, sips, iconutil, hdiutil; nothing is mounted)' -Skip:(-not $IsMacOS) {
+        BeforeAll {
+            # A bundle whose executable starts registers with LaunchServices in the user's database (T-108): every test
+            # that starts one unregisters it, and nothing under the temporary root of the tests may stay registered.
+            $script:Lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+            function Get-TestBundleRegistrations {
+                $leaf = Split-Path -Leaf $script:TempRoot
+                @(& $script:Lsregister -dump 2>$null | ForEach-Object { "$_" } |
+                    Where-Object { $_ -cmatch '^path:\s+(.*?)(\s+\(0x[0-9a-f]+\))?$' -and $Matches[1].Contains("/$leaf/") } |
+                    ForEach-Object { $_ -creplace '^path:\s+(.*?)(\s+\(0x[0-9a-f]+\))?$', '$1' } | Sort-Object -Unique)
+            }
+            function Remove-TestBundleRegistrations {
+                foreach ($path in Get-TestBundleRegistrations) { & $script:Lsregister -u $path 2>$null }
+            }
+        }
+        AfterAll {
+            # The safety net for a test that failed before its own cleanup.
+            Remove-TestBundleRegistrations
+        }
         It 'signs a bundle ad hoc inside out and codesign verifies it strictly; a changed file breaks the seal' {
             $destination = Join-Path $script:TempRoot "mac-sign-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
             $null = New-Item -ItemType Directory -Path $destination
@@ -1079,6 +1131,18 @@ Describe 'macOS packaging (T-019)' {
             $details | Should -Match 'Signature=adhoc'
             $details | Should -Match ([regex]::Escape("Identifier=$(Get-MacBundleIdentifier $script:PlistTemplate)"))
             (& /usr/bin/codesign -dv (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
+            # T-108: the hardened runtime on the executable and the library, the entitlements on the executable only.
+            @(Get-MacHardenedRuntimeProblems $app) | Should -BeNullOrEmpty
+            (& /usr/bin/codesign -d --verbose=4 $app 2>&1) -join "`n" | Should -Match 'flags=0x10002\(adhoc,runtime\)'
+            (& /usr/bin/codesign -d --verbose=4 (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1) -join "`n" | Should -Match 'flags=0x10002\(adhoc,runtime\)'
+            @(Get-EntitlementKeys ((& /usr/bin/codesign -d --entitlements - --xml (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>$null) -join '')) | Should -BeNullOrEmpty
+            # A check against another list of entitlements, and a bundle re-signed without the runtime, are reported.
+            @(Get-MacHardenedRuntimeProblems $app -ExpectedEntitlements @('com.apple.security.cs.allow-jit'))[0] | Should -Match 'has the entitlements .*disable-library-validation.*expected exactly .*allow-jit'
+            $null = & /usr/bin/codesign --force --sign - --timestamp=none (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1
+            $problems = @(Get-MacHardenedRuntimeProblems $app)
+            $problems.Count | Should -Be 1
+            $problems[0] | Should -Match 'libSkiaSharp\.dylib is signed without the hardened runtime'
+            Invoke-MacAdHocSign $app
             [System.IO.File]::AppendAllText((Join-Path $app 'Contents' 'Resources' 'LayerPeek.icns'), 'changed')
             @(Get-MacSignatureProblems $app).Count | Should -BeGreaterThan 0
         }
@@ -1127,6 +1191,93 @@ Describe 'macOS packaging (T-019)' {
             Invoke-MacAdHocSign $app
             @(Get-MacSignatureProblems $app) | Should -BeNullOrEmpty
             (& /usr/bin/codesign -dv (Join-Path $macOS 'libavformat.63.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
+        }
+        It 'loads the ad-hoc signed libraries of the bundle under the hardened runtime and ignores DYLD_INSERT_LIBRARIES (T-108)' {
+            # A real executable and library (clang of the Xcode Command Line Tools, which the Native AOT build needs anyway):
+            # the executable dlopens the library next to it, like the app loads Avalonia, Skia, HarfBuzz and FFmpeg.
+            $destination = Join-Path $script:TempRoot "mac-runtime-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $publish = Join-Path $destination 'publish'
+            $null = New-Item -ItemType Directory -Path $publish
+            $sources = Join-Path $destination 'src'
+            $null = New-Item -ItemType Directory -Path $sources
+            [System.IO.File]::WriteAllText((Join-Path $sources 'main.c'), @'
+#include <dlfcn.h>
+#include <libgen.h>
+#include <mach-o/dyld.h>
+#include <stdio.h>
+int main(void)
+{
+    char path[4096]; uint32_t size = sizeof path; char library[4200];
+    if (_NSGetExecutablePath(path, &size) != 0) return 2;
+    snprintf(library, sizeof library, "%s/libSkiaSharp.dylib", dirname(path));
+    void *handle = dlopen(library, RTLD_NOW);
+    if (!handle) { fprintf(stderr, "%s\n", dlerror()); return 3; }
+    int (*answer)(void) = (int (*)(void))dlsym(handle, "answer");
+    printf("loaded %d\n", answer ? answer() : -1);
+    return 0;
+}
+'@)
+            [System.IO.File]::WriteAllText((Join-Path $sources 'library.c'), 'int answer(void) { return 42; }')
+            [System.IO.File]::WriteAllText((Join-Path $sources 'inject.c'), @'
+#include <stdio.h>
+#include <stdlib.h>
+__attribute__((constructor)) static void injected(void)
+{
+    const char *path = getenv("LAYERPEEK_INJECT_LOG");
+    FILE *file = path ? fopen(path, "a") : NULL;
+    if (file) { fputs("injected\n", file); fclose(file); }
+}
+'@)
+            & /usr/bin/xcrun clang -o (Join-Path $publish 'LayerPeek') (Join-Path $sources 'main.c') 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            & /usr/bin/xcrun clang -dynamiclib -o (Join-Path $publish 'libSkiaSharp.dylib') (Join-Path $sources 'library.c') 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            # Not $inject: PowerShell names are case-insensitive, the switch -Inject of Start-StandIn would hide it.
+            $injectLibrary = Join-Path $destination 'inject.dylib'
+            & /usr/bin/xcrun clang -dynamiclib -o $injectLibrary (Join-Path $sources 'inject.c') 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $null = New-Item -ItemType Directory -Path (Join-Path $destination 'bundle')
+            $app = New-MacAppBundle -PublishDirectory $publish -Destination (Join-Path $destination 'bundle') -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon
+            $exe = Join-Path $app 'Contents' 'MacOS' 'LayerPeek'
+            $log = Join-Path $destination 'inject.log'
+            function Start-StandIn([switch] $Inject) {
+                $info = [System.Diagnostics.ProcessStartInfo]::new($exe)
+                $info.RedirectStandardOutput = $true
+                $info.RedirectStandardError = $true
+                $info.UseShellExecute = $false
+                if ($Inject) {
+                    $info.Environment['DYLD_INSERT_LIBRARIES'] = $injectLibrary
+                    $info.Environment['LAYERPEEK_INJECT_LOG'] = $log
+                }
+                $process = [System.Diagnostics.Process]::Start($info)
+                $out = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
+                $process.WaitForExit()
+                # The exit code first, so that a failed check shows what the process printed.
+                "$($process.ExitCode)|$out"
+            }
+
+            try {
+                # Signed like the release: the library loads, the injected library does not.
+                Invoke-MacAdHocSign $app
+                @(Get-MacHardenedRuntimeProblems $app) | Should -BeNullOrEmpty
+                Start-StandIn -Inject | Should -Match '^0\|loaded 42'
+                Test-Path -LiteralPath $log | Should -BeFalse
+
+                # Why disable-library-validation: without it dyld refuses the ad-hoc signed library (no Team ID).
+                $none = Join-Path $destination 'none.entitlements'
+                [System.IO.File]::WriteAllText($none, '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>')
+                Invoke-MacAdHocSign $app -Entitlements $none
+                Start-StandIn | Should -Match '(?s)^3\|.*different Team IDs'
+
+                # The control: without the hardened runtime the same start loads the injected library (finding N3).
+                $null = & /usr/bin/codesign --force --sign - --timestamp=none $app 2>&1
+                Start-StandIn -Inject | Should -Match '^0\|loaded 42'
+                Test-Path -LiteralPath $log | Should -BeTrue
+            }
+            finally {
+                Remove-TestBundleRegistrations
+            }
+            @(Get-TestBundleRegistrations) | Should -BeNullOrEmpty
         }
         It 'makes the icns from the master PNG and removes its iconset' {
             $icon = Join-Path $script:TempRoot "icon-$([guid]::NewGuid().ToString('N').Substring(0, 8)).icns"

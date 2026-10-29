@@ -93,7 +93,8 @@ $packagingSteps = @(
     # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master, T-097: the
     # InfoPlist.strings of every app language, checked and linted with plutil), checked for
     # the FFmpeg libraries and for references to Homebrew (T-026), ad-hoc signed inside out (FFmpeg and the other native
-    # libraries first) and verified, smoke-tested as the bundle, then the .dmg (the app and a link to /Applications) and the
+    # libraries first) with the hardened runtime and the entitlements of build/macos/LayerPeek.entitlements (T-108) and
+    # verified, smoke-tested as the bundle (the start proves that the libraries load under the hardened runtime), then the .dmg (the app and a link to /Applications) and the
     # .tar.gz of the app. The signed app stays in artifacts/release/<version>/app/<rid>/ for local use.
     [pscustomobject]@{
         Name   = 'app'
@@ -128,6 +129,10 @@ $packagingSteps = @(
             $problems = @(Get-MacSignatureProblems $app)
             if ($problems.Count -gt 0) { throw ($problems -join ' ') }
             Write-Host 'codesign --verify --deep --strict: valid'
+            # T-108: the hardened runtime on every Mach-O file and exactly the entitlements of build/macos/LayerPeek.entitlements.
+            $runtimeProblems = @(Get-MacHardenedRuntimeProblems $app)
+            if ($runtimeProblems.Count -gt 0) { throw ($runtimeProblems -join ' ') }
+            Write-Host "Hardened runtime on every Mach-O file, entitlements: $((Get-MacBundleSettings).EntitlementKeys -join ', ')"
             if (Test-RuntimeRunnable -Runtime $Context.Runtime -HostOs $Context.Os -HostArchitecture (Get-HostArchitecture)) {
                 # The bundle itself: its Info.plist (bundle identifier, LSUIElement) and its signature are what users start.
                 $before = Get-FolderSnapshot $app

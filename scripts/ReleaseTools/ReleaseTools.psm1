@@ -828,6 +828,14 @@ $script:MacBundle = [pscustomobject]@{
     LocalizedStrings  = 'InfoPlist.strings'
     AppLanguagesSource = 'src/LayerPeek.Core/Settings/AppLanguages.cs'
     LocalizedKeys     = @('NSLocalNetworkUsageDescription')
+    # T-108: the entitlements of the main executable under the hardened runtime, and exactly the keys they must grant.
+    # Only disable-library-validation: library validation accepts only libraries of the same Team ID (or Apple's), and an
+    # ad-hoc signature has none, so with it dyld refuses every bundled library ("mapping process and mapped file
+    # (non-platform) have different Team IDs"; tried on macOS 27.2, 2026-10-29). Native AOT needs neither allow-jit nor
+    # allow-unsigned-executable-memory, and allow-dyld-environment-variables is left out on purpose: without it dyld
+    # ignores DYLD_INSERT_LIBRARIES and the other DYLD_* variables (security review 2026-10-29, finding N3).
+    Entitlements      = 'build/macos/LayerPeek.entitlements'
+    EntitlementKeys   = @('com.apple.security.cs.disable-library-validation')
 }
 
 function Get-MacBundleSettings {
@@ -1322,19 +1330,108 @@ function Get-MacAdHocSignArguments {
     .SYNOPSIS
         The codesign arguments of an ad-hoc signature (decided 2026-10-21: no Developer ID, no notarization; T-060 later):
         identity '-', replacing the signatures the libraries came with (SkiaSharp, HarfBuzz by their publisher), no
-        secure timestamp (an ad-hoc signature cannot have one). No hardened runtime: it only matters for notarization.
+        secure timestamp (an ad-hoc signature cannot have one). T-108: with the hardened runtime (--options runtime) on
+        every Mach-O file, so that dyld ignores DYLD_INSERT_LIBRARIES and the other DYLD_* variables; for the process only
+        the flag of the main executable counts, the libraries get it too as notarization (T-060) will require.
+    .PARAMETER Entitlements
+        The entitlements file; only for the bundle (= the main executable). Libraries have no entitlements.
     #>
-    param([Parameter(Mandatory)] [string] $Path)
-    @('--force', '--sign', '-', '--timestamp=none', $Path)
+    param([Parameter(Mandatory)] [string] $Path, [string] $Entitlements)
+    $arguments = @('--force', '--sign', '-', '--timestamp=none', '--options', 'runtime')
+    if ($Entitlements) { $arguments += @('--entitlements', $Entitlements) }
+    $arguments + $Path
+}
+
+function Get-MacEntitlementsPath {
+    <# .SYNOPSIS The entitlements file of the main executable (T-108), build/macos/LayerPeek.entitlements of the repository. #>
+    (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..' '..' $script:MacBundle.Entitlements)).ProviderPath
 }
 
 function Invoke-MacAdHocSign {
-    <# .SYNOPSIS Ad-hoc signs the bundle inside out (Get-MacSigningOrder). #>
-    param([Parameter(Mandatory)] [string] $AppPath)
-    foreach ($path in Get-MacSigningOrder $AppPath) {
-        $arguments = Get-MacAdHocSignArguments $path
+    <#
+    .SYNOPSIS
+        Ad-hoc signs the bundle inside out (Get-MacSigningOrder) with the hardened runtime; the bundle, which signs the
+        main executable, last and with the entitlements (T-108).
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [string] $Entitlements = (Get-MacEntitlementsPath))
+    $order = @(Get-MacSigningOrder $AppPath)
+    foreach ($path in $order) {
+        $arguments = if ($path -ceq $order[-1]) { Get-MacAdHocSignArguments $path -Entitlements $Entitlements } else { Get-MacAdHocSignArguments $path }
         $output = & /usr/bin/codesign @arguments 2>&1
         if ($LASTEXITCODE -ne 0) { throw "codesign failed for $($path): $($output -join ' ')" }
+    }
+}
+
+function Get-CodesignFlags {
+    <#
+    .SYNOPSIS
+        The code directory flags from the output of codesign -d --verbose=4 (pure; the line
+        'CodeDirectory v=20500 size=… flags=0x10002(adhoc,runtime) …'), or $null when there is none.
+    #>
+    param([AllowEmptyCollection()] [string[]] $DisplayOutput = @())
+    foreach ($line in $DisplayOutput) {
+        if ("$line" -cmatch '^CodeDirectory .*\bflags=0x([0-9a-fA-F]+)\b') { return [Convert]::ToInt64($Matches[1], 16) }
+    }
+    $null
+}
+
+function Get-EntitlementKeys {
+    <#
+    .SYNOPSIS
+        The keys an entitlements plist grants (pure): the keys whose value is <true/>, sorted; other values are returned as
+        '<key>=<element>' so that a check against an expected list fails on them. Empty text = no entitlements.
+    #>
+    param([AllowEmptyString()] [string] $PlistText)
+    if ([string]::IsNullOrWhiteSpace($PlistText)) { return @() }
+    $settings = [System.Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Ignore
+    $settings.XmlResolver = $null
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($PlistText), $settings)
+    try {
+        $document = [System.Xml.XmlDocument]::new()
+        $document.Load($reader)
+    }
+    finally {
+        $reader.Dispose()
+    }
+    $dict = $document.SelectSingleNode('/plist/dict')
+    if (-not $dict) { throw 'The entitlements are not a plist with a dict.' }
+    $children = @($dict.ChildNodes | Where-Object { $_.NodeType -eq [System.Xml.XmlNodeType]::Element })
+    $keys = for ($i = 0; $i -lt $children.Count; $i += 2) {
+        $key = $children[$i]
+        if ($key.Name -cne 'key' -or $i + 1 -ge $children.Count) { throw 'The entitlements dict is malformed.' }
+        $value = $children[$i + 1]
+        if ($value.Name -ceq 'true') { $key.InnerText } else { "$($key.InnerText)=$($value.Name)" }
+    }
+    @($keys | Sort-Object -CaseSensitive)
+}
+
+function Get-MacHardenedRuntimeProblems {
+    <#
+    .SYNOPSIS
+        Problems of the hardened runtime of the signed bundle (T-108; empty = fine): every Mach-O file (the main executable
+        and every library) is signed ad hoc with the runtime flag (0x10000), and the main executable has exactly the
+        entitlements of the settings (EntitlementKeys) - so never allow-dyld-environment-variables, allow-jit or
+        get-task-allow.
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [string[]] $ExpectedEntitlements = $script:MacBundle.EntitlementKeys)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $main = Join-Path $app 'Contents' 'MacOS' $script:MacBundle.Executable
+    $files = @(Get-MacSigningOrder $app | Select-Object -SkipLast 1) + $main
+    foreach ($file in $files) {
+        $output = @(& /usr/bin/codesign -d --verbose=4 $file 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -ne 0) { "codesign -d failed for $($file): $($output -join ' ')"; continue }
+        $flags = Get-CodesignFlags $output
+        if ($null -eq $flags) { "codesign -d shows no code directory flags for $file."; continue }
+        if (($flags -band 0x2) -eq 0) { "$file is not signed ad hoc (flags 0x$($flags.ToString('x')))." }
+        if (($flags -band 0x10000) -eq 0) { "$file is signed without the hardened runtime (flags 0x$($flags.ToString('x')), expected the runtime flag 0x10000)." }
+    }
+    $xml = @(& /usr/bin/codesign -d --entitlements - --xml $main 2>$null) -join ''
+    if ($LASTEXITCODE -ne 0) { return "codesign -d --entitlements failed for $main." }
+    $actual = @(Get-EntitlementKeys $xml)
+    $expected = @($ExpectedEntitlements | Sort-Object -CaseSensitive)
+    if (($actual -join "`n") -cne ($expected -join "`n")) {
+        "$main has the entitlements '$($actual -join ', ')', expected exactly '$($expected -join ', ')'."
     }
 }
 
