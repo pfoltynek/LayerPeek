@@ -206,7 +206,7 @@ public sealed class TestModeSwitchesTests
         using UserNotificationService service = new(production, static () => System.Globalization.CultureInfo.InvariantCulture, new ListLogger<UserNotificationService>());
         service.Dispose();
 
-        await TrayHost.RunTestNotificationCleanupAsync(service, new ListLogger<TrayHost>());
+        await ServiceHost.RunTestNotificationCleanupAsync(service, new ListLogger<ServiceHost>());
 
         Assert.Equal(0, production.Removals);
         Assert.Equal(1, production.Delivered);
@@ -221,7 +221,7 @@ public sealed class TestModeSwitchesTests
         await Waiting.ForAsync(() => test.Delivered == 1);
         service.Dispose();
 
-        await TrayHost.RunTestNotificationCleanupAsync(service, new ListLogger<TrayHost>());
+        await ServiceHost.RunTestNotificationCleanupAsync(service, new ListLogger<ServiceHost>());
 
         Assert.True(service.Completion.IsCompleted);
         Assert.True(test.Removals >= 1);

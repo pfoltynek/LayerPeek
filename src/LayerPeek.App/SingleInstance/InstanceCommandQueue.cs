@@ -17,6 +17,7 @@ internal sealed partial class InstanceCommandQueue
     private Action<InstanceCommand>? _handler;
     private IUiDispatcher? _dispatcher;
     private ILogger? _logger;
+    private bool _provisional;
     private bool _closed;
 
     /// <summary>Commands waiting for the handler (for tests).</summary>
@@ -34,7 +35,6 @@ internal sealed partial class InstanceCommandQueue
     /// <summary>Any thread: queues <paramref name="command"/>, or posts it to the UI thread once a handler is attached.</summary>
     public void Post(InstanceCommand command)
     {
-        Action<InstanceCommand> handler;
         IUiDispatcher dispatcher;
         lock (_lock)
         {
@@ -53,19 +53,29 @@ internal sealed partial class InstanceCommandQueue
                 return;
             }
 
-            handler = _handler;
             dispatcher = _dispatcher;
         }
 
-        dispatcher.Post(() => Deliver(handler, command));
+        dispatcher.Post(() => Deliver(command));
     }
 
     /// <summary>
     /// The app is ready: commands from now on (and those that waited) go to <paramref name="handler"/> on the UI thread.
-    /// Attach once.
+    /// Attach once; only a provisional handler (<see cref="AttachProvisional"/>) may be replaced by it.
     /// </summary>
     /// <param name="logger">Records a handler failure (which never escapes into the dispatcher).</param>
-    public void Attach(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger)
+    public void Attach(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger) =>
+        AttachCore(handler, dispatcher, logger, provisional: false);
+
+    /// <summary>
+    /// The services run but the UI does not yet (T-099, macOS waiting for a display): commands go to
+    /// <paramref name="handler"/> until <see cref="Attach"/> replaces it. Commands posted but not yet delivered then go to
+    /// the new handler.
+    /// </summary>
+    public void AttachProvisional(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger) =>
+        AttachCore(handler, dispatcher, logger, provisional: true);
+
+    private void AttachCore(Action<InstanceCommand> handler, IUiDispatcher dispatcher, ILogger logger, bool provisional)
     {
         ArgumentNullException.ThrowIfNull(handler);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -78,21 +88,27 @@ internal sealed partial class InstanceCommandQueue
                 return;
             }
 
-            if (_handler is not null)
+            if (_handler is not null && !_provisional)
             {
                 throw new InvalidOperationException("A handler is already attached.");
+            }
+
+            if (_handler is not null && provisional)
+            {
+                throw new InvalidOperationException("A provisional handler is already attached.");
             }
 
             _handler = handler;
             _dispatcher = dispatcher;
             _logger = logger;
+            _provisional = provisional;
             waiting = [.. _pending];
             _pending.Clear();
         }
 
         foreach (InstanceCommand command in waiting)
         {
-            dispatcher.Post(() => Deliver(handler, command));
+            dispatcher.Post(() => Deliver(command));
         }
     }
 
@@ -103,16 +119,20 @@ internal sealed partial class InstanceCommandQueue
         {
             _closed = true;
             _handler = null;
+            _provisional = false;
             _pending.Clear();
         }
     }
 
-    private void Deliver(Action<InstanceCommand> handler, InstanceCommand command)
+    /// <summary>UI thread: the handler attached now gets the command (the final one, when it replaced a provisional one meanwhile).</summary>
+    private void Deliver(InstanceCommand command)
     {
+        Action<InstanceCommand>? handler;
         ILogger? logger;
         lock (_lock)
         {
-            if (_closed || !ReferenceEquals(_handler, handler))
+            handler = _handler;
+            if (_closed || handler is null)
             {
                 return;
             }

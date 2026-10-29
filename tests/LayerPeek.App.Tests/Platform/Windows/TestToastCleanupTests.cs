@@ -207,7 +207,7 @@ public sealed class TestToastCleanupTests
         _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", AppEnvironment.TestAppUserModelId);
         TaskCompletionSource threadEnded = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        Task quitting = TrayHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger), threadEnded.Task, _logger);
+        Task quitting = ServiceHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger), threadEnded.Task, _logger);
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         Assert.False(quitting.IsCompleted);
@@ -227,7 +227,7 @@ public sealed class TestToastCleanupTests
         _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", AppEnvironment.TestAppUserModelId);
         TaskCompletionSource neverEnds = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        await TrayHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger), neverEnds.Task, _logger)
+        await ServiceHost.RunTestToastCleanupAsync(new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger), neverEnds.Task, _logger)
             .WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal([AppEnvironment.TestAppUserModelId], _history.Cleared);
@@ -240,7 +240,7 @@ public sealed class TestToastCleanupTests
     {
         TaskCompletionSource neverEnds = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-        Task quitting = TrayHost.RunTestToastCleanupAsync(null, neverEnds.Task, _logger);
+        Task quitting = ServiceHost.RunTestToastCleanupAsync(null, neverEnds.Task, _logger);
 
         Assert.True(quitting.IsCompletedSuccessfully);
         await quitting;

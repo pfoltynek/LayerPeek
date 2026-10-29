@@ -29,68 +29,42 @@ using LayerPeek.Core.Web;
 namespace LayerPeek.App.Composition;
 
 /// <summary>
-/// Owns everything that runs while the app lives: the service provider, the monitoring session, and the
-/// UI-thread-only tray objects (icon set, icon and menu presenters). Created and stopped on the UI thread; the UI
+/// Owns the UI-thread-only tray objects (icon set, icon and menu presenters) over the services of <see cref="ServiceHost"/>
+/// (the service provider and the monitoring session). Normally created together with them; on macOS without an active
+/// display (T-099) the tray attaches to the services that already run. Created and stopped on the UI thread; the UI
 /// objects are released there before anything is awaited.
 /// </summary>
 internal sealed partial class TrayHost : IAsyncDisposable
 {
     private static readonly TimeSpan DefaultStopTimeout = TimeSpan.FromSeconds(3);
 
-    /// <summary>A save writes a few small items in milliseconds; quitting must still stay within the overall limit.</summary>
-    private static readonly TimeSpan PendingSaveTimeout = TimeSpan.FromSeconds(1);
-
-    /// <summary>How long startup waits at most for the remembered window sizes (T-094); after that they apply once read.</summary>
-    private static readonly TimeSpan WindowStateLoadTimeout = TimeSpan.FromSeconds(1);
-
-    /// <summary>How long quitting waits for requests in progress through the local web proxies (T-028).</summary>
-    private static readonly TimeSpan WebProxyStopTimeout = TimeSpan.FromSeconds(1);
-
-    private readonly ILoggerFactory _loggerFactory;
-    private readonly SupportLog _supportLog;
-    private readonly ILogger<TrayHost> _logger;
+    private readonly ServiceHost _core;
     private readonly ServiceProvider _services;
-    private readonly MonitoringSession _session;
     private readonly ITrayIconSet? _iconSet;
     private readonly TrayIconPresenter<WindowIcon>? _iconPresenter;
     private readonly TrayMenuPresenter? _menuPresenter;
     private readonly PrinterMenuIcons? _menuIcons;
-    private readonly CancellationTokenSource _backgroundWork;
     private readonly UiLanguage _language;
     private readonly TrayStatusViewModel _status;
     private readonly TrayMenuViewModel _menu;
-#if DEBUG
-    private readonly TestToastCleanup? _testToastCleanup;
-#endif
     private int _stopped;
 
     private TrayHost(
-        ILoggerFactory loggerFactory,
-        SupportLog supportLog,
-        ServiceProvider services,
-        MonitoringSession session,
+        ServiceHost core,
         ITrayIconSet? iconSet,
         TrayIconPresenter<WindowIcon>? iconPresenter,
         TrayMenuPresenter? menuPresenter,
-        PrinterMenuIcons? menuIcons,
-        CancellationTokenSource backgroundWork)
+        PrinterMenuIcons? menuIcons)
     {
-        _loggerFactory = loggerFactory;
-        _supportLog = supportLog;
-        _logger = loggerFactory.CreateLogger<TrayHost>();
-        _services = services;
-        _session = session;
+        _core = core;
+        _services = core.Services;
         _iconSet = iconSet;
         _iconPresenter = iconPresenter;
         _menuPresenter = menuPresenter;
         _menuIcons = menuIcons;
-        _backgroundWork = backgroundWork;
-        _language = services.GetRequiredService<UiLanguage>();
-        _status = services.GetRequiredService<TrayStatusViewModel>();
-        _menu = services.GetRequiredService<TrayMenuViewModel>();
-#if DEBUG
-        _testToastCleanup = AppServices.CreateTestToastCleanup(services);
-#endif
+        _language = _services.GetRequiredService<UiLanguage>();
+        _status = _services.GetRequiredService<TrayStatusViewModel>();
+        _menu = _services.GetRequiredService<TrayMenuViewModel>();
         _language.Changed += OnLanguageChanged;
     }
 
@@ -99,6 +73,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
     /// open auxiliary windows have to format theirs again.
     /// </summary>
     public event EventHandler? LanguageChanged;
+
+    /// <summary>The services under the tray (T-099: the same instance that ran before the tray existed).</summary>
+    internal ServiceHost Core => _core;
 
     /// <summary>
     /// Loads the settings (off the UI thread), applies their language and only then creates the tray objects, so that the
@@ -114,34 +91,35 @@ internal sealed partial class TrayHost : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(commands);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(logging);
-        // Not owned by the container: it outlives the container dispose during quit.
-        ILoggerFactory loggerFactory = logging.Factory;
-        ServiceProvider services = AppServices.Create(loggerFactory, environment: environment, logLevel: logging.Level);
+        ServiceHost core = await ServiceHost.CreateAsync(environment, logging).ConfigureAwait(true);
+        try
+        {
+            return Attach(core, trayIcon, commands, environment);
+        }
+        catch
+        {
+            core.DisposeAfterFailedStart();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Creates the tray objects over <paramref name="core"/> (they show its current state at once) and starts monitoring
+    /// unless it already runs (T-099: started before the UI while macOS had no active display; never a second session).
+    /// Call on the UI thread.
+    /// </summary>
+    public static TrayHost Attach(ServiceHost core, TrayIcon? trayIcon, ITrayAppCommands commands, AppEnvironment environment)
+    {
+        ArgumentNullException.ThrowIfNull(core);
+        ArgumentNullException.ThrowIfNull(commands);
+        ArgumentNullException.ThrowIfNull(environment);
+        ServiceProvider services = core.Services;
         ITrayIconSet? iconSet = null;
         TrayIconPresenter<WindowIcon>? iconPresenter = null;
         TrayMenuPresenter? menuPresenter = null;
         PrinterMenuIcons? menuIcons = null;
-        CancellationTokenSource backgroundWork = new();
         try
         {
-            // Remembered window sizes (T-094) are read alongside the settings: a tiny file, ready before a window can open.
-            Task windowStatesLoaded = services.GetRequiredService<IAuxiliaryWindowStateStore>().LoadAsync(CancellationToken.None);
-            ILogger<MonitoringSession> sessionLogger = services.GetRequiredService<ILogger<MonitoringSession>>();
-            (AppSettings initialSettings, SettingsLoadStatus loadStatus, IReadOnlyList<string> storedPrinterIds) = await Task.Run(
-                () => MonitoringSession.LoadSettingsWithStatusAsync(
-                    services.GetRequiredService<ISettingsStore>,
-                    sessionLogger,
-                    CancellationToken.None,
-                    services.GetRequiredService<RemovedCameraCredentials>()),
-                CancellationToken.None).ConfigureAwait(true);
-
-            // Never faults for file problems; a file held by another process does not delay the tray for long.
-            await windowStatesLoaded.WaitAsync(WindowStateLoadTimeout)
-                .ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
-
-            // Before the tray view models (resolved below) format their first texts.
-            services.GetRequiredService<UiLanguage>().Apply(initialSettings.Language);
-
             if (trayIcon is not null)
             {
                 // Windows: coloured multi-size icons (T-007); macOS: menu bar template icons (T-018).
@@ -163,39 +141,13 @@ internal sealed partial class TrayHost : IAsyncDisposable
                 // The test mode never touches Explorer's settings of the user (T-044).
                 if (OperatingSystem.IsWindows() && !environment.IsIsolated)
                 {
-                    StartTrayIconPromotion(services, backgroundWork.Token);
+                    StartTrayIconPromotion(services, core.BackgroundWork);
                 }
             }
 
-            MonitoringSession session = services.GetRequiredService<MonitoringSession>();
-#if DEBUG
-            // The test mode may delay monitoring (T-067): the tray already exists and shows "Starting…" meanwhile.
-            session.Start(initialSettings, environment.TestStartDelay);
-#else
-            session.Start(initialSettings);
-#endif
-            // Registers the app for toasts in the background now, not with the first notification (T-010).
-            if (services.GetRequiredService<INotificationService>() is ToastNotificationService toasts)
-            {
-                toasts.Start();
-            }
-
-            // Remembered camera windows are read in the background, long before a camera window opens; never throws.
-            _ = services.GetRequiredService<ICameraWindowStateStore>().LoadAsync(CancellationToken.None);
-
-            // Custom printer images (T-039) in the background: orphans go only with really loaded settings; never throws.
-            _ = Task.Run(
-                () => PrinterImageStartup.RunAsync(
-                    services.GetRequiredService<IPrinterImageStore>,
-                    services.GetRequiredService<CustomPrinterImages>(),
-                    initialSettings,
-                    loadStatus,
-                    storedPrinterIds,
-                    services.GetRequiredService<ILogger<CustomPrinterImages>>(),
-                    backgroundWork.Token),
-                CancellationToken.None);
-
-            return new TrayHost(loggerFactory, new SupportLog(logging.Directory, logging.Flush), services, session, iconSet, iconPresenter, menuPresenter, menuIcons, backgroundWork);
+            // The normal start: monitoring starts now, after the tray exists (it shows "Starting…" meanwhile).
+            core.StartMonitoring();
+            return new TrayHost(core, iconSet, iconPresenter, menuPresenter, menuIcons);
         }
         catch
         {
@@ -203,14 +155,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
             menuIcons?.Dispose();
             iconPresenter?.Dispose();
             iconSet?.Dispose();
-            backgroundWork.Dispose();
-            services.Dispose();
             throw;
         }
     }
 
     /// <summary>Requests the monitoring to stop without waiting (e.g. the OS is ending the session).</summary>
-    public void RequestStop() => _session.RequestStop();
+    public void RequestStop() => _core.RequestStop();
 
     /// <summary>
     /// A click on a toast that reached the app through the COM toast activator (T-068): handled like a click on the banner
@@ -220,7 +170,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     {
         if (Volatile.Read(ref _stopped) == 0)
         {
-            _ = _services.GetRequiredService<ToastActivationRouter>().ActivateAsync(launchArgument);
+            _core.ActivateToast(launchArgument);
         }
     }
 
@@ -228,7 +178,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
 
     /// <summary>Content of a new About window with the support actions (T-048). Valid until <see cref="StopAsync"/>.</summary>
-    public AboutViewModel CreateAboutViewModel() => new(UrlLauncher, AppServices.CreateSupportActions(_services, _supportLog));
+    public AboutViewModel CreateAboutViewModel() => new(UrlLauncher, AppServices.CreateSupportActions(_services, _core.SupportLog));
 
     /// <summary>A view model for a new diagnostics window; the window's owner disposes it. Valid until <see cref="StopAsync"/>.</summary>
     public DiagnosticsViewModel CreateDiagnosticsViewModel(string? initialPrinterId) => AppServices.CreateDiagnosticsViewModel(_services, initialPrinterId);
@@ -265,7 +215,7 @@ internal sealed partial class TrayHost : IAsyncDisposable
     internal IAuxiliaryWindowStateStore WindowStates => _services.GetRequiredService<IAuxiliaryWindowStateStore>();
 
     /// <summary>Creates loggers for UI objects outside the container.</summary>
-    public ILogger<T> CreateLogger<T>() => _loggerFactory.CreateLogger<T>();
+    public ILogger<T> CreateLogger<T>() => _core.LoggerFactory.CreateLogger<T>();
 
     /// <summary>
     /// Stops monitoring (waiting at most <paramref name="timeout"/>) and releases everything. Call on the UI thread.
@@ -284,214 +234,10 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _menuIcons?.Dispose();
         _iconPresenter?.Dispose();
         _iconSet?.Dispose();
-        _backgroundWork.Cancel();
-
-        await WaitForPendingSaveAsync().ConfigureAwait(true);
-        // A detected model being written (T-039): a tiny atomic write; an interrupted one keeps the previous file.
-        await _session.ModelSaves.WaitAsync(PendingSaveTimeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing | ConfigureAwaitOptions.ContinueOnCapturedContext);
-        // A camera monitor path being written (user decision 2026-10-23): the same kind of tiny atomic write, before the
-        // settings store goes with the container. Never throws.
-        await _services.GetRequiredService<ICameraMonitorPathUpdater>().WaitForPendingAsync(PendingSaveTimeout).ConfigureAwait(true);
-        await WaitForCameraWindowStateAsync().ConfigureAwait(true);
-        await WaitForWindowStateAsync().ConfigureAwait(true);
-        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
-        await Task.WhenAll(_session.StopAsync(timeout), StopWebProxiesAsync()).ConfigureAwait(true);
-#if DEBUG
-        // Read before the container goes: the toast thread may still be registering the test app (writing its shortcut).
-        Task toastThreadEnded = _testToastCleanup is not null && _services.GetRequiredService<INotificationService>() is ToastNotificationService toastService
-            ? toastService.Completion
-            : Task.CompletedTask;
-        // macOS (T-020): the notifications of the test bundle go when the test app quits; never those of the production app.
-        UserNotificationService? testNotifications = _services.GetRequiredService<AppEnvironment>() is { IsIsolated: true, TestToasts: true }
-            && _services.GetRequiredService<INotificationService>() is UserNotificationService userNotifications
-            ? userNotifications
-            : null;
-#endif
-        try
-        {
-            // The session was stopped above, so disposing it (via the container) does not wait again.
-            await _services.DisposeAsync().ConfigureAwait(true);
-        }
-        catch (Exception ex)
-        {
-            // Recorded here, while the (caller-owned) logger factory is certainly alive; quitting goes on.
-            LogDisposeFailed(ex);
-        }
-
-#if DEBUG
-        await RunTestToastCleanupAsync(_testToastCleanup, toastThreadEnded, _logger).ConfigureAwait(true);
-        await RunTestNotificationCleanupAsync(testNotifications, _logger).ConfigureAwait(true);
-#endif
-
-        _backgroundWork.Dispose();
+        await _core.StopAsync(timeout).ConfigureAwait(true);
     }
 
     public ValueTask DisposeAsync() => new(StopAsync(DefaultStopTimeout));
-
-#if DEBUG
-    /// <summary>
-    /// Debug test mode with toasts (T-067): once the toast thread has ended (released, so it can no longer write the
-    /// shortcut while registering), the toasts of the test app leave the notification center and its Start menu shortcut
-    /// is deleted. Off the UI thread (WinRT, multithreaded apartment), each step within its quit limit; never throws (the
-    /// cleanup logs its own failures). A cleanup that cannot finish here is left to <c>--layerpeek-e2e-clear-toasts</c>.
-    /// </summary>
-    internal static async Task RunTestToastCleanupAsync(TestToastCleanup? cleanup, Task toastThreadEnded, ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(toastThreadEnded);
-        ArgumentNullException.ThrowIfNull(logger);
-        if (cleanup is null || !OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
-        try
-        {
-            await toastThreadEnded.WaitAsync(TestToastThreadTimeout).ConfigureAwait(true);
-        }
-        catch (TimeoutException ex)
-        {
-            // Cleaned up anyway: the hung thread most likely is in an OS call, not about to write the shortcut.
-            LogTestToastThreadStillRunning(logger, ex);
-        }
-
-        try
-        {
-            await Task.Run(cleanup.Run, CancellationToken.None).WaitAsync(TestToastCleanupTimeout).ConfigureAwait(true);
-        }
-        catch (TimeoutException ex)
-        {
-            LogTestToastCleanupFailed(logger, ex);
-        }
-    }
-
-    /// <summary>
-    /// Debug test mode with notifications on macOS (T-020): once the notification task has ended (disposed with the
-    /// container, so it hands nothing more to macOS), the delivered and pending notifications of the test bundle are removed
-    /// and checked gone, within the quit limit. Never throws; a cleanup that cannot finish here is left to
-    /// <c>--layerpeek-e2e-clear-toasts</c> of the test bundle.
-    /// </summary>
-    internal static async Task RunTestNotificationCleanupAsync(UserNotificationService? notifications, ILogger logger)
-    {
-        ArgumentNullException.ThrowIfNull(logger);
-        if (notifications is null)
-        {
-            return;
-        }
-
-        try
-        {
-            await notifications.Completion.WaitAsync(TestToastThreadTimeout).ConfigureAwait(true);
-        }
-        catch (TimeoutException ex)
-        {
-            LogTestToastThreadStillRunning(logger, ex);
-        }
-
-        try
-        {
-            Platform.MacOS.TestNotificationCleanup cleanup = new(notifications.Center, logger);
-            _ = await Task.Run(() => cleanup.RunAsync(TestNotificationCleanupTimeout), CancellationToken.None).ConfigureAwait(true);
-        }
-        catch (ArgumentException ex)
-        {
-            // Not the test bundle: nothing is removed.
-            LogTestToastCleanupFailed(logger, ex);
-        }
-    }
-
-    private static readonly TimeSpan TestNotificationCleanupTimeout = TimeSpan.FromSeconds(2);
-
-    private static readonly TimeSpan TestToastThreadTimeout = TimeSpan.FromSeconds(2);
-
-    private static readonly TimeSpan TestToastCleanupTimeout = TimeSpan.FromSeconds(1);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Test mode: the toast thread did not end while quitting; removing the toasts and the shortcut of the test app anyway.")]
-    private static partial void LogTestToastThreadStillRunning(ILogger logger, Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Test mode: removing the toasts and the shortcut of the test app did not finish while quitting.")]
-    private static partial void LogTestToastCleanupFailed(ILogger logger, Exception exception);
-#endif
-
-    /// <summary>
-    /// A save from the settings window that is still running finishes first (at most <see cref="PendingSaveTimeout"/>), so
-    /// that quitting in the middle of it does not leave a new password behind without its settings.
-    /// </summary>
-    private async Task WaitForPendingSaveAsync()
-    {
-        try
-        {
-            if (!await _services.GetRequiredService<ISettingsEditorStore>().WaitForPendingSaveAsync(PendingSaveTimeout).ConfigureAwait(true))
-            {
-                LogPendingSaveTimedOut(PendingSaveTimeout);
-            }
-        }
-        catch (Exception ex)
-        {
-            LogPendingSaveFailed(ex);
-        }
-    }
-
-    /// <summary>Camera windows closed by quitting save where they were; a tiny file, written within the same limit as settings.</summary>
-    private async Task WaitForCameraWindowStateAsync()
-    {
-        try
-        {
-            if (!await _services.GetRequiredService<ICameraWindowStateStore>().WaitForPendingSaveAsync(PendingSaveTimeout).ConfigureAwait(true))
-            {
-                LogCameraWindowStateTimedOut(PendingSaveTimeout);
-            }
-        }
-        catch (Exception ex)
-        {
-            LogCameraWindowStateFailed(ex);
-        }
-    }
-
-    /// <summary>The settings and diagnostics windows closed by quitting remember their size (T-094); a tiny file as well.</summary>
-    private async Task WaitForWindowStateAsync()
-    {
-        try
-        {
-            if (!await _services.GetRequiredService<IAuxiliaryWindowStateStore>().WaitForPendingSaveAsync(PendingSaveTimeout).ConfigureAwait(true))
-            {
-                LogWindowStateTimedOut(PendingSaveTimeout);
-            }
-        }
-        catch (Exception ex)
-        {
-            LogWindowStateFailed(ex);
-        }
-    }
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Saving the window state did not finish within {Timeout} while quitting.")]
-    private partial void LogWindowStateTimedOut(TimeSpan timeout);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for the window state to be saved failed while quitting.")]
-    private partial void LogWindowStateFailed(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Saving the camera window state did not finish within {Timeout} while quitting.")]
-    private partial void LogCameraWindowStateTimedOut(TimeSpan timeout);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for the camera window state to be saved failed while quitting.")]
-    private partial void LogCameraWindowStateFailed(Exception exception);
-
-    /// <summary>
-    /// Stops the local web proxies, waiting at most <see cref="WebProxyStopTimeout"/> for requests in progress (e.g. an
-    /// upload); after that they are stopped without waiting. Disposing the container afterwards finds none running.
-    /// Never faults.
-    /// </summary>
-    private async Task StopWebProxiesAsync()
-    {
-        try
-        {
-            using CancellationTokenSource timeout = new(WebProxyStopTimeout);
-            await _services.GetRequiredService<IPrinterWebGateway>().StopAllAsync(timeout.Token).ConfigureAwait(false);
-        }
-        catch (Exception ex)
-        {
-            LogWebProxyStopFailed(ex);
-        }
-    }
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
@@ -504,18 +250,6 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _menu.RefreshTexts();
         LanguageChanged?.Invoke(this, EventArgs.Empty);
     }
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "A settings save did not finish within {Timeout} while quitting.")]
-    private partial void LogPendingSaveTimedOut(TimeSpan timeout);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Waiting for a settings save failed while quitting.")]
-    private partial void LogPendingSaveFailed(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Warning, Message = "Stopping the web proxies failed while quitting.")]
-    private partial void LogWebProxyStopFailed(Exception exception);
-
-    [LoggerMessage(Level = LogLevel.Error, Message = "Releasing services failed while stopping.")]
-    private partial void LogDisposeFailed(Exception exception);
 
     /// <summary>
     /// In the background: shows the new tray icon on the taskbar instead of the overflow, once per executable path

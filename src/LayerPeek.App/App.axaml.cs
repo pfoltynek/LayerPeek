@@ -51,6 +51,9 @@ public partial class App : Application, ITrayAppCommands
     // The logging of the process, owned by Program.Main (T-024).
     private readonly AppLogging _logging;
 
+    // The services Program.Main started while macOS had no active display (T-099); null on a normal start.
+    private readonly EarlyServices? _early;
+
     // The OS ended the session (desktop Exit) before the host finished starting.
     private bool _exited;
 
@@ -63,7 +66,11 @@ public partial class App : Application, ITrayAppCommands
     /// <param name="instanceCommands">Filled by the single-instance server of <c>Program.Main</c> (T-043).</param>
     /// <param name="environment">Data folder and isolation of this run (T-044).</param>
     /// <param name="logging">The logging of the process; <c>Program.Main</c> disposes it after the app ends (T-024).</param>
-    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging)
+    /// <param name="early">
+    /// The services already running (T-099: started while macOS had no active display); the tray attaches to them.
+    /// <see langword="null"/>: the app creates them (the normal start).
+    /// </param>
+    internal App(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, EarlyServices? early = null)
     {
         ArgumentNullException.ThrowIfNull(instanceCommands);
         ArgumentNullException.ThrowIfNull(environment);
@@ -71,6 +78,7 @@ public partial class App : Application, ITrayAppCommands
         _instanceCommands = instanceCommands;
         _environment = environment;
         _logging = logging;
+        _early = early;
     }
 
     public override void Initialize()
@@ -84,6 +92,9 @@ public partial class App : Application, ITrayAppCommands
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop && !Design.IsDesignMode)
         {
+            // First (T-099): UI-thread work of the services that ran before Avalonia runs now, in order, then on Avalonia's
+            // dispatcher; it is the same (main) thread.
+            _early?.Dispatcher.AttachTo(new AvaloniaUiDispatcher());
             TrayIcon? trayIcon = TrayIcon.GetIcons(this) is [TrayIcon first, ..] ? first : null;
             desktop.Exit += OnDesktopExit;
             // macOS: clicking the app (Finder, Dock, Launchpad) while it runs; treated like a second start (T-043).
@@ -170,7 +181,10 @@ public partial class App : Application, ITrayAppCommands
     /// </summary>
     private async void StartHost(IClassicDesktopStyleApplicationLifetime desktop, TrayIcon? trayIcon)
     {
-        TrayHost host = await TrayHost.StartAsync(trayIcon, this, _environment, _logging).ConfigureAwait(true);
+        // T-099: the tray attaches to the services that already run (the same monitoring session), else creates them.
+        TrayHost host = _early is { } early
+            ? TrayHost.Attach(await early.Services.ConfigureAwait(true), trayIcon, this, _environment)
+            : await TrayHost.StartAsync(trayIcon, this, _environment, _logging).ConfigureAwait(true);
         if (_exited)
         {
             // The OS ended the session while the settings were loading.

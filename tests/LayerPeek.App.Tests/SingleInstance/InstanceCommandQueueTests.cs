@@ -115,4 +115,42 @@ public sealed class InstanceCommandQueueTests
 
         Assert.Equal(400, _handled.Count);
     }
+
+    /// <summary>T-099: while the services run before the UI, a provisional handler takes the commands.</summary>
+    [Fact]
+    public void AProvisionalHandlerGetsTheWaitingCommandsUntilTheAppReplacesIt()
+    {
+        List<InstanceCommand> provisional = [];
+        Assert.True(InstanceCommand.TryForToast("printer=xl", out InstanceCommand toast));
+        _queue.Post(toast);
+
+        _queue.AttachProvisional(provisional.Add, _dispatcher, _logger);
+        _dispatcher.RunAll();
+        Assert.Equal([toast], provisional);
+
+        _queue.Post(InstanceCommand.Activate);
+        // Replaced before the posted command ran: the app's handler gets it, never both.
+        _queue.Attach(_handled.Add, _dispatcher, _logger);
+        _dispatcher.RunAll();
+
+        Assert.Equal([toast], provisional);
+        Assert.Equal([InstanceCommand.Activate], _handled);
+        Assert.Throws<InvalidOperationException>(() => _queue.Attach(_handled.Add, _dispatcher, _logger));
+    }
+
+    [Fact]
+    public void AProvisionalHandlerNeverReplacesAnother()
+    {
+        _queue.AttachProvisional(_handled.Add, _dispatcher, _logger);
+
+        Assert.Throws<InvalidOperationException>(() => _queue.AttachProvisional(_handled.Add, _dispatcher, _logger));
+    }
+
+    [Fact]
+    public void AProvisionalHandlerNeverReplacesTheApp()
+    {
+        _queue.Attach(_handled.Add, _dispatcher, _logger);
+
+        Assert.Throws<InvalidOperationException>(() => _queue.AttachProvisional(_handled.Add, _dispatcher, _logger));
+    }
 }

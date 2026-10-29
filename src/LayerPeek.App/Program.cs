@@ -13,6 +13,7 @@ using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.SingleInstance;
+using LayerPeek.App.Tray;
 using LayerPeek.App.Windows;
 
 namespace LayerPeek.App;
@@ -211,20 +212,22 @@ internal static partial class Program
                 }
             }
 
-            if (OperatingSystem.IsMacOS() && !WaitForMacDisplay(logging.Factory))
-            {
-                // Asked to quit while every display slept (T-096): nothing of the UI has started.
-                return 0;
-            }
-
+            EarlyServices? early = null;
             if (OperatingSystem.IsMacOS())
             {
                 // Before AppKit finishes launching (T-020): the delegate of the notification center must be set by then, so
                 // that a click that started the app reaches it too. Clicks wait in the command queue until the app runs.
+                // Before the display wait too (T-099): the services started while it waits show notifications.
                 OpenMacNotifications(environment, args, instanceCommands, logging.Factory, log);
+
+                if (!WaitForMacDisplay(environment, logging, instanceCommands, out early))
+                {
+                    // Asked to quit while every display slept (T-096): the UI never started; the services ran and were stopped.
+                    return 0;
+                }
             }
 
-            return BuildAvaloniaApp(instanceCommands, environment, logging, crashes).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
+            return BuildAvaloniaApp(instanceCommands, environment, logging, crashes, early).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
         }
         finally
         {
@@ -260,15 +263,23 @@ internal static partial class Program
         }
     }
 
+    /// <summary>How long quitting while waiting for a display gives the printer clients (like the Quit item of the menu).</summary>
+    private static readonly TimeSpan WaitingQuitTimeout = TimeSpan.FromSeconds(3);
+
     /// <summary>
     /// Waits until a display is active (T-096): Avalonia.Native cannot start its render timer while every display sleeps and
-    /// would end the process. Only the primary instance waits (a later start forwards to it), before the notification center
-    /// and AppKit. SIGTERM and SIGINT end the wait (e.g. logout or <c>kill</c> before the display woke).
+    /// would end the process. Only the primary instance waits (a later start forwards to it), before AppKit. Meanwhile
+    /// (T-099) the services run (monitoring, notifications; <see cref="DisplayWaitStartup{TServices}"/>) and the main thread
+    /// runs their UI-thread work and its run loop; a click on a notification opens the printer's web. SIGTERM and SIGINT end
+    /// the wait (e.g. logout or <c>kill</c> before the display woke) and stop the services.
     /// </summary>
+    /// <param name="early">The services started while waiting, for the UI to attach to; <see langword="null"/> without a wait.</param>
     /// <returns><see langword="false"/> when the process was asked to quit meanwhile.</returns>
     [SupportedOSPlatform("macos")]
-    private static bool WaitForMacDisplay(ILoggerFactory loggers)
+    private static bool WaitForMacDisplay(AppEnvironment environment, AppLogging logging, InstanceCommandQueue commands, out EarlyServices? early)
     {
+        early = null;
+        ILoggerFactory loggers = logging.Factory;
         using CancellationTokenSource quit = new();
         void OnQuitSignal(PosixSignalContext context)
         {
@@ -279,9 +290,80 @@ internal static partial class Program
 
         using PosixSignalRegistration terminate = PosixSignalRegistration.Create(PosixSignal.SIGTERM, OnQuitSignal);
         using PosixSignalRegistration interrupt = PosixSignalRegistration.Create(PosixSignal.SIGINT, OnQuitSignal);
-        StartupDisplayWait wait = new(new Platform.MacOS.MacActiveDisplays(), StartupDisplayWait.BlockingPause, loggers.CreateLogger<StartupDisplayWait>());
-        return wait.WaitForDisplay(quit.Token) != StartupDisplayWaitResult.Cancelled;
+        // Disposed before Avalonia starts: from then on AppKit runs the run loop of the main thread.
+        using StartupLoop loop = new(CreateStartupRunLoop(loggers));
+
+        Task<ServiceHost> StartServices(IUiDispatcher dispatcher)
+        {
+            Task<ServiceHost> services = StartServicesAsync(environment, logging, dispatcher);
+            WaitingInstanceCommands waiting = new(
+                async launchArgument => (await services.ConfigureAwait(true)).ActivateToast(launchArgument),
+                () =>
+                {
+                    try
+                    {
+                        quit.Cancel();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // The wait is over: the UI handles the next quit.
+                    }
+                },
+                environment.IsIsolated,
+                loggers.CreateLogger<WaitingInstanceCommands>());
+            // Clicks on notifications (also the one that started the app) and later starts reach the services now.
+            commands.AttachProvisional(waiting.Handle, dispatcher, loggers.CreateLogger<InstanceCommandQueue>());
+            return services;
+        }
+
+        DisplayWaitStartup<ServiceHost> startup = new(
+            new Platform.MacOS.MacActiveDisplays(),
+            loop,
+            StartServices,
+            host => host.StopAsync(WaitingQuitTimeout),
+            loggers);
+        DisplayWaitOutcome<ServiceHost> outcome = startup.Run(quit.Token);
+        if (outcome.Result == StartupDisplayWaitResult.Cancelled)
+        {
+            commands.Close();
+            return false;
+        }
+
+        early = outcome.Services is { } started ? new EarlyServices(loop.Dispatcher, started) : null;
+        return true;
     }
+
+    /// <summary>The services of the app without the UI (T-099), started on the main thread: continuations come back to it.</summary>
+    private static async Task<ServiceHost> StartServicesAsync(AppEnvironment environment, AppLogging logging, IUiDispatcher dispatcher)
+    {
+        ServiceHost host = await ServiceHost.CreateAsync(environment, logging, dispatcher).ConfigureAwait(true);
+        host.StartMonitoring();
+        return host;
+    }
+
+    /// <summary>The <c>CFRunLoop</c> of the main thread; without it (never seen) a plain wait that handles posted work only.</summary>
+    [SupportedOSPlatform("macos")]
+    private static IStartupRunLoop CreateStartupRunLoop(ILoggerFactory loggers)
+    {
+        try
+        {
+            if (Platform.MacOS.MacStartupRunLoop.TryCreateForCurrentThread() is { } runLoop)
+            {
+                return runLoop;
+            }
+        }
+        catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException)
+        {
+            LogNoStartupRunLoop(loggers.CreateLogger(typeof(Program)), ex);
+            return new ManagedStartupRunLoop();
+        }
+
+        LogNoStartupRunLoop(loggers.CreateLogger(typeof(Program)), null);
+        return new ManagedStartupRunLoop();
+    }
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The run loop of the main thread could not be prepared; waiting for a display without it.")]
+    private static partial void LogNoStartupRunLoop(ILogger logger, Exception? exception);
 
     /// <summary>
     /// The notification center of macOS for this run (T-020), only as the bundle the environment allows
@@ -378,8 +460,8 @@ internal static partial class Program
             .UsePlatformDetect()
             .LogToTrace();
 
-    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, UnhandledExceptionLogger crashes) =>
-        AppBuilder.Configure(() => new App(instanceCommands, environment, logging))
+    private static AppBuilder BuildAvaloniaApp(InstanceCommandQueue instanceCommands, AppEnvironment environment, AppLogging logging, UnhandledExceptionLogger crashes, EarlyServices? early) =>
+        AppBuilder.Configure(() => new App(instanceCommands, environment, logging, early))
             .UsePlatformDetect()
             // macOS (T-019): a menu bar app without a Dock icon. Info.plist of LayerPeek.app has LSUIElement for the start,
             // but Avalonia sets its own activation policy when it starts (ShowInDock true = a regular app with a Dock icon), so

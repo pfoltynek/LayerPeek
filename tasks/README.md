@@ -149,4 +149,5 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-096 | macOS – start aplikace bez aktivního displeje | macos | ui-dev | P2 | T-019 |
 | T-097 | macOS – oprávnění „Místní síť“ (NSLocalNetworkUsageDescription) | macos | ui-dev | P1 | T-019, T-026 |
 | T-098 | macOS – ikona aplikace s okrajem podle Applu | macos | ui-designer | P3 | T-019, T-025 |
+| T-099 | macOS – sledování tiskáren a notifikace během čekání na displej | macos | ui-dev | P2 | T-096, T-020 |
 | T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |

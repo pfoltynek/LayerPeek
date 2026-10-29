@@ -61,13 +61,18 @@ internal static partial class AppServices
     /// Minimum level of the file log, set from the settings (T-047); <see langword="null"/>: a level of its own, connected to
     /// nothing (tests).
     /// </param>
+    /// <param name="uiDispatcher">
+    /// The UI thread's dispatcher of the view models and observers; <see langword="null"/>: Avalonia's. Before Avalonia exists
+    /// (T-099, macOS waiting for a display): a <see cref="StartupUiDispatcher"/> that later forwards to Avalonia's.
+    /// </param>
     public static ServiceProvider Create(
         ILoggerFactory? loggerFactory = null,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
-        LogLevelSwitch? logLevel = null) =>
-        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel);
+        LogLevelSwitch? logLevel = null,
+        IUiDispatcher? uiDispatcher = null) =>
+        Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel, uiDispatcher: uiDispatcher);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
     /// <param name="macNotifications">
@@ -81,7 +86,8 @@ internal static partial class AppServices
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
         LogLevelSwitch? logLevel = null,
-        IUserNotificationCenter? macNotifications = null)
+        IUserNotificationCenter? macNotifications = null,
+        IUiDispatcher? uiDispatcher = null)
     {
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
@@ -107,7 +113,15 @@ internal static partial class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<PrinterMonitor>>()));
 
-        services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
+        if (uiDispatcher is not null)
+        {
+            // Registered as an instance: it outlives the container (posts of late continuations still find it).
+            services.AddSingleton(uiDispatcher);
+        }
+        else
+        {
+            services.AddSingleton<IUiDispatcher>(static _ => new AvaloniaUiDispatcher());
+        }
         // Language of the texts (T-029): applied at startup before any text exists, then from every saved setting.
         services.AddSingleton(static _ => new UiLanguage());
         services.AddSingleton(static sp => new UiLanguageObserver(sp.GetRequiredService<UiLanguage>(), sp.GetRequiredService<IUiDispatcher>()));
