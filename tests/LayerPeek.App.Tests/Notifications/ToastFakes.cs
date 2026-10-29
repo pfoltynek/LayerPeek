@@ -1,6 +1,7 @@
 using System.Diagnostics;
 
 using LayerPeek.App.Notifications;
+using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Tests.Tray;
 
 namespace LayerPeek.App.Tests.Notifications;
@@ -51,11 +52,42 @@ internal sealed class FakeToastSession : IToastSession
 {
     private readonly Lock _lock = new();
     private readonly List<string> _shown = [];
+    private readonly List<string?> _tags = [];
     private readonly ManualResetEventSlim _gate = new(initialState: true);
     private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool _disposed;
 
     public Exception? FailNext { get; set; }
+
+    /// <summary>What <see cref="Setting"/> reports (T-101); Windows shows the toasts by default.</summary>
+    public ToastNotifierSetting CurrentSetting { get; set; } = ToastNotifierSetting.Enabled;
+
+    /// <summary>Thrown by <see cref="Setting"/> when set.</summary>
+    public Exception? SettingFailure { get; set; }
+
+    /// <summary>The thread <see cref="Setting"/> was last read on.</summary>
+    public int SettingThreadId { get; private set; }
+
+    /// <summary>The tags of <see cref="Shown"/>, in the same order.</summary>
+    public IReadOnlyList<string?> ShownTags
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return [.. _tags];
+            }
+        }
+    }
+
+    public ToastNotifierSetting Setting
+    {
+        get
+        {
+            SettingThreadId = Environment.CurrentManagedThreadId;
+            return SettingFailure is { } failure ? throw failure : CurrentSetting;
+        }
+    }
 
     public int ShowThreadId { get; private set; }
 
@@ -86,7 +118,7 @@ internal sealed class FakeToastSession : IToastSession
         return Shown;
     }
 
-    public void Show(string toastXml)
+    public void Show(string toastXml, string? tag)
     {
         ShowThreadId = Environment.CurrentManagedThreadId;
         _entered.TrySetResult();
@@ -100,6 +132,7 @@ internal sealed class FakeToastSession : IToastSession
         lock (_lock)
         {
             _shown.Add(toastXml);
+            _tags.Add(tag);
         }
     }
 

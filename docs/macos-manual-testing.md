@@ -2,7 +2,7 @@
 
 Jeden průchod všemi kroky, které na Macu může ověřit jen člověk (GUI, Gatekeeper, oprávnění macOS, přihlášení, uspaný
 displej, monitory). Kroky jsou posbírané z rozpracovaných macOS úkolů v `tasks/in-progress/` (T-095, T-053, T-018,
-T-019, T-020, T-021, T-026, T-038, T-096, T-097, T-098, T-099, T-100), bez duplicit a seřazené do sezení tak, aby na sebe
+T-019, T-020, T-021, T-026, T-038, T-096, T-097, T-098, T-099, T-100, T-101), bez duplicit a seřazené do sezení tak, aby na sebe
 navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
 > Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni. Když úkol přidá nebo změní ruční krok, upraví se i tady.
@@ -151,6 +151,20 @@ Aplikaci spouštět z Finderu (procesy z Terminálu mají přístup k místní s
    LayerPeeku (T-098). Pak Nastavení systému → Oznámení → LayerPeek vypnout a v Nastavení LayerPeeku → Obecné: červená
    hláška a tlačítko „Otevřít nastavení oznámení“, které otevře právě tuto stránku; po zapnutí a návratu do okna hláška
    zmizí. **Uzavírá:** T-020 kritéria 1 a 3.
+4. **Zkušební upozornění (T-101).** V produkční aplikaci Nastavení → Obecné, vpravo v řádku nadpisu „Upozornění“
+   tlačítko „Poslat zkušební upozornění“ (je tam i při odškrtnutém „Zobrazovat upozornění“).
+   (a) Oznámení povolená: klik → banner „Zkušební upozornění“ se zvukem (Zvuk ≠ Vypnuto; zvolit „Vypnuto“ bez uložení
+   a kliknout znovu → bez zvuku), vlevo od tlačítka šedý text „Zkušební upozornění odesláno… režim Soustředění“.
+   Druhý klik nahradí předchozí upozornění v Centru oznámení (je tam jen jedno). Klik na banner (i na položku v Centru
+   oznámení) přenese okno Nastavení do popředí na záložce Obecné, neotevře web tiskárny.
+   (b) Zamítnuto: Nastavení systému → Oznámení → LayerPeek vypnout, vrátit se do okna → místo tlačítka testu červená
+   hláška a „Otevřít nastavení oznámení“ (stav z kroku 3).
+   (c) Ještě se neptal (`notDetermined`): jen pokud lze bez zásahu do TCC, např. na čerstvém uživatelském účtu nebo po
+   novém bundle identifikátoru – **ne** `tccutil reset` na produkční identifikátor bez souhlasu uživatele. Klik → text
+   „Čekám na vaši odpověď…“ a systémový dotaz; Povolit → upozornění a „odesláno“, Nepovolit → hláška a „Otevřít nastavení
+   oznámení“, fokus z klávesnice zůstane na tomto tlačítku.
+   (d) Klik na zkušební upozornění, když okno Nastavení není otevřené (zavřít ho po odeslání) → okno se otevře na
+   záložce Obecné. **Uzavírá:** T-101 kritérium 4 (macOS).
 
 ## Sezení 6 – Kamera a monitory
 
@@ -288,4 +302,7 @@ nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.
 
 ## Mimo Mac (připomínka)
 Na Windows zbývá ověřit `dotnet build` a `dotnet test` po macOS úkolech (T-095 kritérium Windows, T-018 kritérium 4,
-T-026, T-053, T-097, T-099 „Windows beze změny“) – mimo tento postup.
+T-026, T-053, T-097, T-099 „Windows beze změny“) – mimo tento postup. T-101 na Windows: přegenerovat windowsovou sadu
+snímků `settings-general*.png` (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, zkontrolovat) a ručně ověřit zkušební toast, varování
+„Upozornění jsou ve Windows vypnutá.“ s tlačítkem do Nastavení → Systém → Oznámení a klik na toast (okno Nastavení na
+záložce Obecné), viz `tasks/in-progress/T-101-test-notification.md`.

@@ -154,6 +154,23 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-general");
         });
 
+    /// <summary>
+    /// T-101: the result "sent" next to the test button in French (the longest button and a two-line result), with the terms
+    /// of the OS of the reference set (Focus on macOS, Do not disturb on Windows).
+    /// </summary>
+    [Fact]
+    public Task GeneralTabAfterATestNotificationInFrench() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("fr");
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), macTerms: OperatingSystem.IsMacOS());
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            await ui.ViewModel.SendTestNotificationCommand.ExecuteAsync(null);
+
+            Assert.True(ui.ViewModel.ShowsTestNotificationResult);
+            SnapshotAssert.Matches(ui.Window, "settings-general-test-sent-fr");
+        });
+
     /// <summary>T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x.</summary>
     [Fact]
     public Task StartupAndUpdatesTab() =>

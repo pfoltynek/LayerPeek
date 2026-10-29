@@ -1,3 +1,6 @@
+using System.ComponentModel;
+
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -24,6 +27,9 @@ public sealed partial class SettingsWindow : Window
     private readonly WorkAreaFitter _fitter;
     private SettingsViewModel? _viewModel;
 
+    // The element that got the keyboard focus last (T-101: the slot of the notification heading moves it along).
+    private IInputElement? _lastFocused;
+
     public SettingsWindow()
     {
         InitializeComponent();
@@ -36,6 +42,7 @@ public sealed partial class SettingsWindow : Window
         // ⌘W and ⌘. (macOS, T-100) are Cancel, also for closing: the edits are discarded as with Cancel or Esc.
         MacShortcuts.HandleCloseKeys(this, () => UsesMacShortcuts, CancelFromKeyboard, CancelFromKeyboard);
         WidgetsList.AddHandler(KeyDownEvent, OnWidgetsListKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(GotFocusEvent, OnAnyGotFocus, RoutingStrategies.Bubble, handledEventsToo: true);
         Activated += OnWindowActivated;
     }
 
@@ -60,6 +67,7 @@ public sealed partial class SettingsWindow : Window
         {
             _viewModel.CloseRequested -= OnCloseRequested;
             _viewModel.NotificationSettingRequested -= OnNotificationSettingRequested;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         }
 
         _viewModel = DataContext as SettingsViewModel;
@@ -67,6 +75,7 @@ public sealed partial class SettingsWindow : Window
         {
             _viewModel.CloseRequested += OnCloseRequested;
             _viewModel.NotificationSettingRequested += OnNotificationSettingRequested;
+            _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         }
 
         base.OnDataContextChanged(e);
@@ -78,9 +87,49 @@ public sealed partial class SettingsWindow : Window
         _fitter.CorrectAfterOpening();
     }
 
+    private void OnAnyGotFocus(object? sender, FocusChangedEventArgs e) => _lastFocused = e.Source as IInputElement;
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SettingsViewModel.ShowsNotificationsTurnedOff))
+        {
+            // After the bindings hid one button of the slot and showed the other.
+            Dispatcher.UIThread.Post(MoveFocusInNotificationSlot);
+        }
+    }
+
     /// <summary>
-    /// T-020 (macOS): coming back to the window (e.g. from System Settings &gt; Notifications) reads the notification permission
-    /// again, so the warning goes as soon as the user turned the notifications on. T-019 (macOS): the same for "Open at Login"
+    /// T-101: the slot of the notification heading switched between the test button and the button to the OS settings
+    /// (e.g. macOS denied the permission the test asked for). The focus that was on the hidden button goes to the shown one,
+    /// not to the start of the window.
+    /// </summary>
+    private void MoveFocusInNotificationSlot()
+    {
+        if (_viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        (Button hidden, Button shown) = viewModel.ShowsNotificationsTurnedOff
+            ? (TestNotificationButton, OpenNotificationSettingsButton)
+            : (OpenNotificationSettingsButton, TestNotificationButton);
+        if (!ReferenceEquals(_lastFocused, hidden) || !shown.IsEffectivelyVisible)
+        {
+            return;
+        }
+
+        IInputElement? focused = FocusManager?.GetFocusedElement();
+        if (focused is null || ReferenceEquals(focused, hidden) || ReferenceEquals(focused, this) || focused is Visual { IsEffectivelyVisible: false })
+        {
+            shown.UpdateLayout();
+            shown.Focus(NavigationMethod.Tab);
+        }
+    }
+
+    /// <summary>
+    /// T-020 (macOS), T-101 (Windows): coming back to the window (e.g. from System Settings &gt; Notifications or Settings &gt;
+    /// System &gt; Notifications) reads the notification state again, so the warning goes as soon as the user turned the
+    /// notifications on. T-019 (macOS): the same for "Open at Login"
     /// the user has to allow in System Settings &gt; General &gt; Login Items.
     /// </summary>
     private void OnWindowActivated(object? sender, EventArgs e)
@@ -111,6 +160,7 @@ public sealed partial class SettingsWindow : Window
         {
             _viewModel.CloseRequested -= OnCloseRequested;
             _viewModel.NotificationSettingRequested -= OnNotificationSettingRequested;
+            _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
             _viewModel = null;
         }
 

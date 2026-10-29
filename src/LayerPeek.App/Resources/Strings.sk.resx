@@ -1296,4 +1296,40 @@
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Otvorí Systémové nastavenia &gt; Súkromie a bezpečnosť &gt; Lokálna sieť. Zapnite tam LayerPeek.</value>
   </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Poslať skúšobné upozornenie</value>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Zobrazí ukážkové upozornenie, aby ste overili, že sa upozornenia LayerPeeku na tomto počítači zobrazujú.</value>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Čaká sa na vašu odpoveď: macOS sa pýta, či môže LayerPeek posielať upozornenia.</value>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Skúšobné upozornenie bolo odoslané. Ak ho nevidíte, skontrolujte vo Windows režim Nerušiť.</value>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Skúšobné upozornenie bolo odoslané. Ak ho nevidíte, skontrolujte v macOS režim Môj čas.</value>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Upozornenia vypla politika vašej organizácie.</value>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>Skúšobné upozornenie sa nepodarilo odoslať.</value>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Skúšobné upozornenie</value>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Upozornenia z LayerPeeku fungujú. Takto budú vyzerať udalosti tlačiarní.</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Upozornenia sú vo Windows vypnuté.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Otvoriť nastavenia oznámení</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>Upozornenia LayerPeeku sú vypnuté v Nastaveniach &gt; Systém &gt; Oznámenia. Zapnite ich tam.</value>
+  </data>
 </root>

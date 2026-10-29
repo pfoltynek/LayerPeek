@@ -250,12 +250,18 @@ internal sealed class WindowsToastSession : IToastSession
         }
     }
 
-    public void Show(string toastXml)
+    public void Show(string toastXml, string? tag)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         WinRtToast toast = _factory.CreateToast(toastXml);
         try
         {
+            if (tag is not null)
+            {
+                // Before showing: a toast with the same tag (and no group) replaces the earlier one (T-101).
+                toast.SetTag(tag);
+            }
+
             toast.SubscribeActivated(_callback);
             toast.SubscribeFailed(_failedCallback);
             _notifier.Show(toast);

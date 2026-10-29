@@ -170,10 +170,10 @@ internal static partial class AppServices
         services.AddSingleton(sp => userNotifications is not null
             ? new UserNotificationService(userNotifications, UiLanguage.CurrentTextCulture, sp.GetRequiredService<ILogger<UserNotificationService>>())
             : CreateNotificationService(sp, windows, env));
-        // The warning "turned off in macOS" of the settings window and its button (T-020); the test mode never opens System Settings.
-        services.AddSingleton(sp => new SystemNotificationSettingsOption(userNotifications is null
-            ? null
-            : new MacNotificationSettings(userNotifications, OpenSystemSettings(env, sp.GetRequiredService<ILogger<MacNotificationSettings>>()), sp.GetRequiredService<ILogger<MacNotificationSettings>>())));
+        // The warning "turned off in macOS / Windows" of the settings window, its button and the test notification (T-020,
+        // T-101); the test mode never opens System Settings or Settings. Windows: only with the toasts of this run (none in the
+        // test mode without toasts).
+        services.AddSingleton(sp => new SystemNotificationSettingsOption(CreateSystemNotificationSettings(sp, userNotifications, env)));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -297,18 +297,45 @@ internal static partial class AppServices
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
     }
 
+    /// <summary>The OS notification settings of the settings window (T-020 macOS, T-101 Windows), or none.</summary>
+    private static ISystemNotificationSettings? CreateSystemNotificationSettings(IServiceProvider services, IUserNotificationCenter? macCenter, AppEnvironment environment)
+    {
+        if (macCenter is not null)
+        {
+            ILogger<MacNotificationSettings> logger = services.GetRequiredService<ILogger<MacNotificationSettings>>();
+            return new MacNotificationSettings(macCenter, OpenSystemSettings(environment, logger), UiLanguage.CurrentTextCulture, logger);
+        }
+
+        if (services.GetRequiredService<INotificationService>() is ToastNotificationService toasts)
+        {
+            ILogger<ToastNotificationSettings> logger = services.GetRequiredService<ILogger<ToastNotificationSettings>>();
+            return new ToastNotificationSettings(toasts, OpenSystemSettings(environment, logger), logger);
+        }
+
+        return null;
+    }
+
     /// <summary>
-    /// How the app opens a pane of System Settings (T-020 Notifications, T-097 Local Network): really only outside the test
-    /// mode; the test mode (never in Release builds) only logs it, like the stand-in Login Item (T-019).
+    /// How the app opens a pane of System Settings (T-020 Notifications, T-097 Local Network) or a page of Windows Settings
+    /// (T-101 Notifications): really only outside the test mode; the test mode (never in Release builds) only logs it, like
+    /// the stand-in Login Item (T-019).
     /// </summary>
     internal static Action<Uri> OpenSystemSettings(AppEnvironment environment, ILogger logger)
     {
-        if (environment.IsIsolated || !OperatingSystem.IsMacOS())
+        if (!environment.IsIsolated)
         {
-            return address => LogSystemSettingsNotOpened(logger, address.OriginalString);
+            if (OperatingSystem.IsMacOS())
+            {
+                return MacSystemSettings.Open;
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                return WindowsSystemSettings.Open;
+            }
         }
 
-        return MacSystemSettings.Open;
+        return address => LogSystemSettingsNotOpened(logger, address.OriginalString);
     }
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: System Settings is not opened ({Address}).")]

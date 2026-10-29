@@ -1296,4 +1296,40 @@
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Öffnet „Systemeinstellungen &gt; Datenschutz &amp; Sicherheit &gt; Lokales Netzwerk“. Schalten Sie LayerPeek dort ein.</value>
   </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Testbenachrichtigung senden</value>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Zeigt eine Beispielbenachrichtigung, damit Sie prüfen können, ob die Benachrichtigungen von LayerPeek auf diesem Computer erscheinen.</value>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Warten auf Ihre Antwort: macOS fragt, ob LayerPeek Mitteilungen senden darf.</value>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Testbenachrichtigung gesendet. Falls sie nicht erscheint, prüfen Sie „Nicht stören“ in Windows.</value>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Testbenachrichtigung gesendet. Falls sie nicht erscheint, prüfen Sie „Fokus“ in macOS.</value>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Benachrichtigungen wurden durch eine Richtlinie Ihrer Organisation deaktiviert.</value>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>Die Testbenachrichtigung konnte nicht gesendet werden.</value>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Testbenachrichtigung</value>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Benachrichtigungen von LayerPeek funktionieren. So sehen Druckerereignisse aus.</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Benachrichtigungen sind in Windows ausgeschaltet.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Benachrichtigungseinstellungen öffnen</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>Die Benachrichtigungen von LayerPeek sind unter „Einstellungen &gt; System &gt; Benachrichtigungen“ ausgeschaltet. Aktivieren Sie sie dort.</value>
+  </data>
 </root>

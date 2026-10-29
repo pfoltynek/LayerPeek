@@ -1296,4 +1296,40 @@
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Abre Ajustes del Sistema &gt; Privacidad y seguridad &gt; Red local. Active LayerPeek allí.</value>
   </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Enviar notificación de prueba</value>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Muestra una notificación de ejemplo para comprobar que las notificaciones de LayerPeek aparecen en este equipo.</value>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Esperando su respuesta: macOS pregunta si LayerPeek puede enviar notificaciones.</value>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Notificación de prueba enviada. Si no la ve, revise «No molestar» en Windows.</value>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Notificación de prueba enviada. Si no la ve, revise «Modos de concentración» en macOS.</value>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Las notificaciones están desactivadas por una directiva de su organización.</value>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>No se pudo enviar la notificación de prueba.</value>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Notificación de prueba</value>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Las notificaciones de LayerPeek funcionan. Así se verán los eventos de las impresoras.</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Las notificaciones están desactivadas en Windows.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Abrir configuración de notificaciones</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>Las notificaciones de LayerPeek están desactivadas en Configuración &gt; Sistema &gt; Notificaciones. Actívelas allí.</value>
+  </data>
 </root>

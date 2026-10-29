@@ -1332,4 +1332,52 @@
     <value>Opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Turn on LayerPeek there.</value>
     <comment>T-097: tooltip and screen reader help of LocalNetworkOpenSystemSettings (macOS 15+). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
   </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Send test notification</value>
+    <comment>T-101: button in the heading row of the notification section (General tab); sends a test notification.</comment>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Shows a sample notification to check that LayerPeek's notifications appear on this computer.</value>
+    <comment>T-101: tooltip and screen reader help of SettingsTestNotification.</comment>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Waiting for your answer: macOS asks whether LayerPeek may send notifications.</value>
+    <comment>T-101 (macOS): result line while macOS shows its question whether LayerPeek may send notifications. German: the macOS term is Mitteilungen.</comment>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Test notification sent. If you don't see it, check Do not disturb in Windows.</value>
+    <comment>T-101 (Windows): result line after the test toast was handed to Windows. 'Do not disturb' as named by Windows 11 in each language (Microsoft support page 'Notifications and Do Not Disturb in Windows').</comment>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Test notification sent. If you don't see it, check Focus in macOS.</value>
+    <comment>T-101 (macOS): result line after the test notification was handed to macOS. 'Focus' as named by System Settings of macOS in each language (FocusSettingsExtension, CFBundleDisplayName).</comment>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Notifications are turned off by your organization's policy.</value>
+    <comment>T-101 (Windows): warning in the heading row of the notification section when a policy of the organization turned the notifications off (the user cannot change it).</comment>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>The test notification could not be sent.</value>
+    <comment>T-101: result line when the test notification could not be sent (details in the log).</comment>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Test notification</value>
+    <comment>T-101: title of the test notification.</comment>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Notifications from LayerPeek work. Printer events will look like this.</value>
+    <comment>T-101: text of the test notification.</comment>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Notifications are turned off in Windows.</value>
+    <comment>T-101 (Windows): warning on the General tab when LayerPeek's notifications are turned off in Windows Settings (NotificationSetting DisabledForApplication / DisabledForUser).</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Open notification settings</value>
+    <comment>T-101 (Windows): button next to SettingsNotificationsTurnedOffWindows; opens Settings &gt; System &gt; Notifications (ms-settings:notifications).</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>LayerPeek's notifications are turned off in Settings &gt; System &gt; Notifications. Turn them on there.</value>
+    <comment>T-101 (Windows): tooltip and screen reader help of SettingsOpenNotificationSettingsWindows.</comment>
+  </data>
 </root>

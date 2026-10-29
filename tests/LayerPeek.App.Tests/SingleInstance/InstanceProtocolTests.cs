@@ -30,6 +30,8 @@ public sealed class InstanceProtocolTests
     [InlineData("printer=3f1c2b0a9d8e4f6a8b7c6d5e4f3a2b1c")]
     [InlineData("printer=MK4%20%C5%BElut%C3%BD%20%26%20%22co%22")]
     [InlineData("printer=a-b_c.d~e")]
+    // T-101: a click on the test notification that Windows reported to a later start.
+    [InlineData("settings=general")]
     public void ToastActivationsRoundTripInEveryBuild(string launchArgument)
     {
         Assert.True(InstanceCommand.TryForToast(launchArgument, out InstanceCommand command));
@@ -80,6 +82,8 @@ public sealed class InstanceProtocolTests
     [InlineData("printer=%20")]
     [InlineData("printer=a b")]
     [InlineData("printer=https://evil.example")]
+    [InlineData("settings=General")]
+    [InlineData("settings=printers")]
     public void OnlyWellFormedLaunchArgumentsBecomeToastCommands(string? launchArgument)
     {
         Assert.False(InstanceCommand.TryForToast(launchArgument, out _));

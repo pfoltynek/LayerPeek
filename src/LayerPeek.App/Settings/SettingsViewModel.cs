@@ -154,9 +154,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private int _autostartReadVersion;
     private bool _switchingAutostart;
 
-    // T-020: the OS settings of the app's notifications (macOS) and whether they are turned off.
+    // T-020 / T-101: the OS settings of the app's notifications (SettingsViewModel.Notifications.cs).
     private readonly ISystemNotificationSettings? _notificationSettings;
-    private bool _showsNotificationsTurnedOff;
     private bool _showsAutostartApproval;
     private readonly string _productVersion;
 
@@ -271,7 +270,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OpenAutostartApprovalSettingsCommand = new RelayCommand(OpenAutostartApprovalSettings, () => _showsAutostartApproval);
         _notificationSettings = notificationSettings;
         LocalNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
-        OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => _showsNotificationsTurnedOff);
+        OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => ShowsNotificationsTurnedOff);
+        SendTestNotificationCommand = new AsyncRelayCommand(SendTestNotificationAsync, () => CanSendTestNotification);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
     }
@@ -615,44 +615,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public IRelayCommand OpenAutostartApprovalSettingsCommand { get; }
 
     /// <summary>
-    /// macOS (T-020, user decision 2026-10-29): the user turned LayerPeek's notifications off in System Settings; the General
-    /// tab says so next to the notification settings and offers to open them (<see cref="OpenNotificationSettingsCommand"/>).
-    /// Read when the window loads and whenever it becomes active again (<see cref="RefreshNotificationPermissionAsync"/>).
-    /// </summary>
-    public bool ShowsNotificationsTurnedOff
-    {
-        get => _showsNotificationsTurnedOff;
-        private set
-        {
-            if (SetProperty(ref _showsNotificationsTurnedOff, value))
-            {
-                OpenNotificationSettingsCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
-
-    /// <summary>Opens the OS settings of the app's notifications (<see cref="ISystemNotificationSettings.Open"/>).</summary>
-    public IRelayCommand OpenNotificationSettingsCommand { get; }
-
-    /// <summary>
-    /// Reads again whether the OS has the app's notifications turned off (T-020); UI thread. Never throws; nothing without
-    /// <see cref="ISystemNotificationSettings"/> or after the window closed.
-    /// </summary>
-    public async Task RefreshNotificationPermissionAsync()
-    {
-        if (_notificationSettings is not { } settings || _disposed)
-        {
-            return;
-        }
-
-        bool turnedOff = await settings.AreTurnedOffAsync(LifetimeToken).ConfigureAwait(true);
-        if (!_disposed)
-        {
-            ShowsNotificationsTurnedOff = turnedOff;
-        }
-    }
-
-    /// <summary>
     /// Reads again whether only the user can allow the autostart in the settings of the OS (T-019, macOS); UI thread. Never
     /// throws; nothing without <see cref="IAutostartApproval"/>, before the autostart was loaded or after the window closed.
     /// The user may have switched LayerPeek on or off there meanwhile: an option the user has not changed in the window
@@ -928,6 +890,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OnPropertyChanged(nameof(AutostartHelpText));
         OnPropertyChanged(nameof(AutostartLabel));
         OnPropertyChanged(nameof(AutostartNeedsInstallationText));
+        RefreshNotificationTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -970,6 +933,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (Printers.Count == 0 && AddPrinterCommand.CanExecute(null))
         {
             AddPrinterCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
+    /// A click on the test notification (T-101): the General tab, where the test came from; edits and the selection of the
+    /// other tabs are kept. UI thread.
+    /// </summary>
+    public void ShowGeneralTab()
+    {
+        if (!_disposed)
+        {
+            SelectedTabIndex = GeneralTab;
         }
     }
 
@@ -1129,18 +1104,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (_showsAutostartApproval && _autostart is IAutostartApproval approval)
         {
             approval.OpenApprovalSettings();
-        }
-    }
-
-    /// <summary>
-    /// T-020: System Settings &gt; Notifications &gt; LayerPeek (macOS). The warning stays until the window reads the
-    /// permission again (it becomes active again after the user comes back).
-    /// </summary>
-    private void OpenNotificationSettings()
-    {
-        if (_showsNotificationsTurnedOff)
-        {
-            _notificationSettings?.Open();
         }
     }
 

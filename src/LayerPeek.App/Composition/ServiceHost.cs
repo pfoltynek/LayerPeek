@@ -197,6 +197,12 @@ internal sealed partial class ServiceHost
     }
 
     /// <summary>
+    /// The UI runs (T-101): a click on the test notification brings the settings window to the front through
+    /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
+    /// </summary>
+    public void AttachSettingsOpener(Action open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
+
+    /// <summary>
     /// Stops monitoring (waiting at most <paramref name="timeout"/>) and releases the services. The tray (if any) released
     /// its UI objects before. Call on the UI thread (the main thread before Avalonia). Safe to repeat.
     /// </summary>

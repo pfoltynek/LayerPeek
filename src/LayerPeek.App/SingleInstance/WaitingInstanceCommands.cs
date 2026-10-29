@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 
+using LayerPeek.App.Notifications;
+
 namespace LayerPeek.App.SingleInstance;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace LayerPeek.App.SingleInstance;
 /// for a display, and the hand-over until the app's handler is attached). A click on a notification opens the printer's web
 /// right away, like a click that started the app (no UI needed). Everything else is kept for the UI (user decision
 /// 2026-10-29): a later start of the app ("activate") does what it always does once the UI runs (coalesced: at most one
-/// waits). Debug test mode: "quit" ends the wait while it lasts; after the wait it goes to the UI, which quits. Runs on the
+/// waits), and so does a click on the test notification (T-101), which opens the settings window. Debug test mode: "quit" ends the wait while it lasts; after the wait it goes to the UI, which quits. Runs on the
 /// main thread (through the startup dispatcher).
 /// </summary>
 /// <param name="activateToast">Opens the printer of a notification's launch argument (waits for the services when needed).</param>
@@ -26,7 +28,7 @@ internal sealed partial class WaitingInstanceCommands(Func<string, Task> activat
     /// <returns><see langword="true"/> when handled here; <see langword="false"/>: kept for the UI.</returns>
     public bool Handle(InstanceCommand command)
     {
-        if (command.Kind == InstanceCommandKind.Toast && command.Argument is { } launchArgument)
+        if (command.Kind == InstanceCommandKind.Toast && command.Argument is { } launchArgument && !ToastLaunchArgument.IsSettings(launchArgument))
         {
             LogToastWhileWaiting();
             _ = _activateToast(launchArgument);

@@ -174,6 +174,9 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
     }
 
+    /// <summary>The settings window for a click on the test notification (T-101, <see cref="ServiceHost.AttachSettingsOpener"/>).</summary>
+    public void AttachSettingsOpener(Action open) => _core.AttachSettingsOpener(open);
+
     /// <summary>Opens web pages (About window link). Valid until <see cref="StopAsync"/>.</summary>
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
 

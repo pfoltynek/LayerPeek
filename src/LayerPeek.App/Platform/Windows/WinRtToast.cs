@@ -187,6 +187,24 @@ internal sealed class WinRtToast : IDisposable
         _activatedToken = token;
     }
 
+    /// <summary>
+    /// The tag of the toast (<c>IToastNotification2.Tag</c>, at most 64 characters): a toast of the app with the same tag
+    /// and group replaces this one in the notification center. Set it before showing.
+    /// </summary>
+    public void SetTag(string tag)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentException.ThrowIfNullOrEmpty(tag);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(tag.Length, MaxTagLength, nameof(tag));
+        // The same object, another interface of it (QueryInterface through the source-generated COM wrappers).
+        IToastNotification2 notification = (IToastNotification2)Notification;
+        using HString value = HString.Create(tag);
+        notification.PutTag(value.Handle);
+    }
+
+    /// <summary>Longest tag Windows accepts.</summary>
+    internal const int MaxTagLength = 64;
+
     /// <summary>Calls <paramref name="callback"/> when Windows reports that it did not show this toast.</summary>
     public void SubscribeFailed(ToastFailedCallback callback)
     {

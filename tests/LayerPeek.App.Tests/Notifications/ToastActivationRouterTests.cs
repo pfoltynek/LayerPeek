@@ -235,6 +235,84 @@ public sealed class ToastActivationRouterTests : IDisposable
         Assert.All(_launcher.Opened, uri => Assert.Equal(new Uri("http://192.168.1.10/"), uri));
     }
 
+    /// <summary>T-101: a click on the test notification opens no web, only the settings window.</summary>
+    [Fact]
+    public async Task TheTestNotificationOpensTheSettingsWindowAndNoWeb()
+    {
+        Apply(Definition());
+        int opened = 0;
+        _router.AttachSettingsOpener(() => opened++);
+
+        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
+
+        Assert.Equal(1, opened);
+        Assert.Empty(_launcher.Opened);
+        Assert.Empty(_launcher.OpenedSecret);
+        Assert.Empty(_gateway.Opened);
+    }
+
+    /// <summary>
+    /// T-101 / T-099: a click before the UI runs (macOS waiting for a display) needs no printers and is held, once however
+    /// often it came, until the UI attaches its opener.
+    /// </summary>
+    [Fact]
+    public async Task AClickBeforeTheUiRunsIsHeldOnceUntilTheOpenerIsAttached()
+    {
+        FakeTimeProvider time = new();
+        using ToastActivationRouter router = new(TestWebOpener.Create(_launcher, _gateway), _logger, time);
+
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
+        time.Advance(ToastActivationRouter.DuplicateWindow);
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
+        int opened = 0;
+        router.AttachSettingsOpener(() => opened++);
+
+        Assert.Equal(1, opened);
+        Assert.Contains(_logger.Entries, static e => e.Message.Contains("waits for the UI", StringComparison.Ordinal));
+        // Later clicks go straight to the window.
+        time.Advance(ToastActivationRouter.DuplicateWindow);
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
+        Assert.Equal(2, opened);
+        Assert.Throws<InvalidOperationException>(() => router.AttachSettingsOpener(() => { }));
+    }
+
+    [Fact]
+    public async Task TheSameClickOnTheTestNotificationReportedTwiceOpensOnce()
+    {
+        int opened = 0;
+        _router.AttachSettingsOpener(() => opened++);
+
+        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
+        Assert.False(await _router.ActivateAsync(ToastLaunchArgument.Settings));
+
+        Assert.Equal(1, opened);
+    }
+
+    [Fact]
+    public async Task AfterQuittingTheTestNotificationOpensNothing()
+    {
+        FakeTimeProvider time = new();
+        ToastActivationRouter router = new(TestWebOpener.Create(_launcher, _gateway), _logger, time);
+        // Held for the UI, which never came: the app quits.
+        Assert.True(await router.ActivateAsync(ToastLaunchArgument.Settings));
+        router.Dispose();
+        int opened = 0;
+        router.AttachSettingsOpener(() => opened++);
+
+        time.Advance(ToastActivationRouter.DuplicateWindow);
+        Assert.False(await router.ActivateAsync(ToastLaunchArgument.Settings));
+        Assert.Equal(0, opened);
+    }
+
+    [Fact]
+    public async Task AFailingOpenerIsOnlyLogged()
+    {
+        _router.AttachSettingsOpener(static () => throw new InvalidOperationException("no window"));
+
+        Assert.True(await _router.ActivateAsync(ToastLaunchArgument.Settings));
+        Assert.Contains(_logger.Entries, static e => e.Exception is InvalidOperationException);
+    }
+
     [Fact]
     public void NullArgumentsAreRejected()
     {
