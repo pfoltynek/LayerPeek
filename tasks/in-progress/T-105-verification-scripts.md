@@ -43,14 +43,14 @@ sandboxu (zamčená Klíčenka, bez TCC, bez uspání displeje, bez druhého už
    není k dispozici), jsou napsané podle API, ale neověřené: všechny macOS kontroly s oknem aplikace (`mac.dock`,
    `mac.menubar`, `mac.settings-front`, `mac.camera*`, `mac.keys`, `mac.display-sleep`, `mac.menu`), sudo, a celý
    `tools/windows-verify.ps1` mimo `-ListChecks` / `-SelfTest`. Úkol zůstává rozpracovaný do prvního běhu u uživatele.
-2. Výsledek MANUAL znamená „uživatel potvrdil ano“; odpověď ne je FAIL. Stačí, aby se kritérium podle MANUAL zaškrtlo,
-   nebo má správce úkolu chtít ještě výpis / snímek?
-3. `mac.notification-click` ověřuje jen klik při běžící aplikaci (testovací bundle). Klik, když aplikace neběží, by
+2. ~~Výsledek MANUAL znamená „uživatel potvrdil ano“; odpověď ne je FAIL. Stačí, aby se kritérium podle MANUAL zaškrtlo,
+   nebo má správce úkolu chtít ještě výpis / snímek?~~ → stačí odpověď uživatele „ano“, zpráva ji zaznamená s časem a kde to jde i se snímkem / logem (rozhodnuto 2026-10-29).
+3. ~~`mac.notification-click` ověřuje jen klik při běžící aplikaci (testovací bundle). Klik, když aplikace neběží, by
    macOS spustil testovací bundle bez testovacího režimu, tedy s produkčním profilem; zůstává v `mac.notifications-production`
-   / ručně. Je to tak v pořádku?
+   / ručně. Je to tak v pořádku?~~ → ano, klik při neběžící aplikaci ověří uživatel ručně s produkční aplikací v /Applications (rozhodnuto 2026-10-29).
 4. `mac.keys` nečte vybranou záložku Nastavení (bez čtení přístupnosti Avalonie); přepnutí záložky ⌘⇧] potvrzuje uživatel.
-5. Kontrola umístění (`mac.camera-placement`) bere rám okna z CGWindowList (s titulkovým pruhem) a toleranci ±2 body od
-   16 bodů. Pokud se ukáže jiný výklad „okraje 16 DIP“ na macOS, upravit toleranci nebo pravidlo.
+5. ~~Kontrola umístění (`mac.camera-placement`) bere rám okna z CGWindowList (s titulkovým pruhem) a toleranci ±2 body od
+   16 bodů. Pokud se ukáže jiný výklad „okraje 16 DIP“ na macOS, upravit toleranci nebo pravidlo.~~ → správně: 16 DIP od kraje pracovní plochy k vnějšímu rámu okna včetně titulku (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
 - **Engine (`tools/VerifyTools.psm1`):** kontrola = `New-VerifyCheck` (id `mac.*` / `win.*`, `-Closes` s ID úkolu, druh
