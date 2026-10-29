@@ -45,7 +45,7 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
    ```bash
    cd -P /cesta/k/LayerPeek
    caffeinate -d -u -i pwsh scripts/release-build.ps1
-   cd artifacts/release/0.2.0/dist && shasum -a 256 -c SHA256SUMS-macos.txt && cd -
+   cd artifacts/release/0.3.0/dist && shasum -a 256 -c SHA256SUMS-macos.txt && cd -
    ```
    **Očekávání:** skript skončí kódem 0; v `artifacts/release/<verze>/dist/` jsou `LayerPeek-<verze>-osx-arm64.dmg`,
    `.tar.gz` a `SHA256SUMS-macos.txt`, kontrola součtů „OK“; bundle je v `artifacts/release/<verze>/app/osx-arm64/`.
@@ -53,10 +53,10 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
 2. **Stažení prohlížečem (karanténa).** Aby Gatekeeper zasáhl jako u skutečného uživatele, musí `.dmg` přijít
    z prohlížeče. Buď z konceptu vydání na GitHubu (sezení 11), nebo místně:
    ```bash
-   python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/release/0.2.0/dist
+   python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/release/0.3.0/dist
    ```
    V Safari otevřít `http://127.0.0.1:8765/`, stáhnout `.dmg` i `.tar.gz`, server ukončit Ctrl+C. Kontrola:
-   `xattr -p com.apple.quarantine ~/Downloads/LayerPeek-0.2.0-osx-arm64.dmg` musí něco vypsat (jinak stáhnout z GitHubu).
+   `xattr -p com.apple.quarantine ~/Downloads/LayerPeek-0.3.0-osx-arm64.dmg` musí něco vypsat (jinak stáhnout z GitHubu).
 3. **Spuštění přímo z `.dmg`.** Otevřít `.dmg`, spustit LayerPeek z okna obrazu (ne přetažený). Zapsat přesné texty
    dialogu Gatekeeperu. Po povolení (krok 4) v Nastavení LayerPeeku → Spuštění a aktualizace: volba „Otevřít při
    přihlášení“ je **neaktivní s důvodem** (jen v Aplikacích). Aplikaci ukončit (menu → Ukončit).
