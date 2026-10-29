@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- macOS (Apple Silicon): `LayerPeek.app` without a Dock icon (menu bar only), ad-hoc signed, distributed as a `.dmg`
+  (drag the app to Applications) and a `.tar.gz`. The builds are not notarized: the first start has to be allowed in
+  **System Settings → Privacy & Security → Open Anyway** (see the README).
+- macOS: **Open at Login** in the settings (tab *Startup and updates*), using the system Login Items. Off by default.
+- macOS: windows opened from the menu bar (Settings, Diagnostics, About) come to the front with the keyboard focus.
+
 ## [0.2.0] - 2026-10-26
 
 ### Added

@@ -857,8 +857,8 @@
       </TabItem>
 
       <!--
-        T-017: start after logon (Windows only, off by default; applied by Save) and pre-release updates. A tab of its own (user
-        decision 2026-10-24): the General tab has no room left within the 800 × 600 fit of T-033.
+        T-017: start after logon (off by default; applied by Save; macOS: "Open at Login", T-019) and pre-release updates. A tab
+        of its own (user decision 2026-10-24): the General tab has no room left within the 800 × 600 fit of T-033.
       -->
       <TabItem AutomationProperties.AutomationId="SettingsTabStartupUpdates" Header="{Binding [SettingsTabStartupUpdates], Source={x:Static loc:LocalizedStrings.Instance}}">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
@@ -871,15 +871,16 @@
               <CheckBox AutomationProperties.AutomationId="SettingsStartWithWindows"
                         AutomationProperties.HelpText="{Binding AutostartHelpText}"
                         IsEnabled="{Binding IsAutostartAvailable}"
-                        Content="{Binding [SettingsStartWithWindows], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Content="{Binding AutostartLabel}"
                         IsChecked="{Binding StartWithWindows}" />
               <TextBlock AutomationProperties.AutomationId="SettingsStartWithWindowsNotInstalled"
                          Classes="hint"
                          Margin="28,0,0,0"
                          IsVisible="{Binding ShowsAutostartNeedsInstallation}"
-                         Text="{Binding [SettingsNeedsInstallation], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                         Text="{Binding AutostartNeedsInstallationText}" />
             </StackPanel>
-            <StackPanel>
+            <!-- T-019: not on macOS until it has updates (user decision 2026-10-29). -->
+            <StackPanel IsVisible="{Binding ShowsPrereleaseOption}">
               <CheckBox AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdates"
                         AutomationProperties.HelpText="{Binding PrereleaseHelpText}"
                         IsEnabled="{Binding IsPrereleaseOptionAvailable}"

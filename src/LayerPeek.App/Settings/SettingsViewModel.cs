@@ -535,7 +535,25 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public string PrereleaseHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : Strings.SettingsOfferPrereleaseUpdatesHint;
 
     /// <summary>The reason of the disabled autostart for screen readers (T-017); <see langword="null"/> when it is available.</summary>
-    public string? AutostartHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : null;
+    public string? AutostartHelpText => _autostartNeedsInstallation ? AutostartNeedsInstallationText : null;
+
+    /// <summary>
+    /// The terms of macOS (T-019, user decision 2026-10-29): the option is "Open at Login" and is missing outside
+    /// <c>LayerPeek.app</c>; otherwise the Windows texts of T-017. Set by the composition root by OS.
+    /// </summary>
+    internal bool UsesMacTerms { get; init; }
+
+    /// <summary>
+    /// "Offer pre-release versions" is part of the tab (T-017). Not on macOS until updates exist there (T-019, user decision
+    /// 2026-10-29: without Velopack for macOS the tab has no pre-release option).
+    /// </summary>
+    public bool ShowsPrereleaseOption { get; init; } = true;
+
+    /// <summary>The text of the autostart option: "Start … Windows" (T-017) or "Open at Login" (macOS, T-019).</summary>
+    public string AutostartLabel => UsesMacTerms ? Strings.SettingsOpenAtLogin : Strings.SettingsStartWithWindows;
+
+    /// <summary>Why the autostart is disabled: only the installed app (Windows), only <c>LayerPeek.app</c> (macOS).</summary>
+    public string AutostartNeedsInstallationText => UsesMacTerms ? Strings.SettingsNeedsAppBundle : Strings.SettingsNeedsInstallation;
 
     /// <summary>The app can start after logon (T-017): Windows, installed by the installer.</summary>
     public bool IsAutostartAvailable => _autostart is not null;
@@ -749,6 +767,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
         OnPropertyChanged(nameof(PrereleaseHelpText));
         OnPropertyChanged(nameof(AutostartHelpText));
+        OnPropertyChanged(nameof(AutostartLabel));
+        OnPropertyChanged(nameof(AutostartNeedsInstallationText));
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();

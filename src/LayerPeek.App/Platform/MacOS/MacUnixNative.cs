@@ -81,6 +81,21 @@ internal static unsafe partial class MacUnixNative
         return 0;
     }
 
+    /// <summary><c>EROFS</c>: the file system is read-only (a mounted disk image, a translocated app).</summary>
+    public const int ReadOnlyFileSystem = 30;
+
+    /// <summary><c>access(path, W_OK)</c> (T-019): 0 when this process may write <paramref name="path"/>, otherwise the <c>errno</c>.</summary>
+    public static int TryAccessWritable(string path)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(path);
+        return Access(path, WriteOk) == 0 ? 0 : Marshal.GetLastPInvokeError();
+    }
+
+    private const int WriteOk = 2;
+
+    [LibraryImport(LibSystem, EntryPoint = "access", SetLastError = true, StringMarshalling = StringMarshalling.Utf8)]
+    private static partial int Access(string path, int mode);
+
     [LibraryImport(LibSystem, EntryPoint = "geteuid")]
     private static partial uint GetEUid();
 

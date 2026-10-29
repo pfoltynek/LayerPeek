@@ -70,7 +70,7 @@ public sealed class AppServicesTests
     [Fact]
     public void AutostartExistsOnlyForTheInstalledApp()
     {
-        Assert.SkipUnless(OperatingSystem.IsWindows(), "Autostart exists on Windows only (macOS: T-019).");
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "The Windows rules of the autostart (macOS: MacAutostartCompositionTests, T-019).");
         const string installed = @"C:\Users\u\AppData\Local\LayerPeek\current\LayerPeek.exe";
         HashSet<string> files = new(StringComparer.OrdinalIgnoreCase)
         {

@@ -101,6 +101,27 @@ internal sealed class AppEnvironment
     /// <summary>The stand-in for the Startup folder inside the test data folder.</summary>
     internal const string TestStartupFolderName = "Startup";
 
+    /// <summary>
+    /// The bundle identifier of <c>LayerPeek.app</c> on macOS (T-019): <c>CFBundleIdentifier</c> of build/macos/Info.plist (a
+    /// unit test keeps them equal). The macOS identity of the app: its Preferences, Saved Application State, Caches, Login
+    /// Item and (T-020) notifications.
+    /// </summary>
+    internal const string ProductionBundleIdentifier = "io.github.pfoltynek.LayerPeek";
+
+    /// <summary>
+    /// The stand-in Login Item of the test mode on macOS (T-019): <c>LoginItems/LayerPeek.loginitem</c> in the test data
+    /// folder, <see langword="null"/> outside the test mode (the real Login Item of <c>SMAppService</c>).
+    /// </summary>
+    public string? TestLoginItemPath() => _dataDirectory is null ? null : TestLoginItemPathIn(_dataDirectory);
+
+    /// <summary>The stand-in Login Item inside a test data folder.</summary>
+    internal static string TestLoginItemPathIn(string dataDirectory) => Path.Combine(dataDirectory, TestLoginItemFolderName, TestLoginItemFileName);
+
+    /// <summary>The folder of the stand-in Login Item inside the test data folder.</summary>
+    internal const string TestLoginItemFolderName = "LoginItems";
+
+    internal const string TestLoginItemFileName = "LayerPeek.loginitem";
+
 #if DEBUG
     /// <summary>
     /// Debug builds only: the test data folder (absolute path). Setting it switches the app into the isolated test mode;
@@ -133,6 +154,14 @@ internal sealed class AppEnvironment
     /// the reason on stderr.
     /// </summary>
     public const string ClearToastsArgument = "--layerpeek-e2e-clear-toasts";
+
+    /// <summary>
+    /// Debug builds only (T-019): the command line mode that removes the stand-ins of the test mode's autostart from the test
+    /// data folder of <see cref="DataDirectoryVariable"/> after a crashed test run (the Login Item of macOS and the Startup
+    /// shortcut of Windows), and nothing else: never <c>SMAppService</c>, the user's Login Items or Startup folder, no app, no
+    /// single-instance guard, no log; exit code 0, otherwise 1 with the reason on stderr.
+    /// </summary>
+    public const string ClearAutostartArgument = "--layerpeek-e2e-clear-autostart";
 
     /// <summary>The Start menu shortcut of the test app; also the app name Windows shows in its toasts (T-067).</summary>
     public const string TestShortcutFileName = "LayerPeek E2E.lnk";

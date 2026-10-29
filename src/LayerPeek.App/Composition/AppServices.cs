@@ -235,7 +235,10 @@ internal static class AppServices
             sp.GetRequiredService<ILogger<PrusaLinkClient>>()));
         // Start after logon (T-017), switched in the settings window: Windows only; the test mode's shortcut lives in its data
         // folder. Creating it touches nothing.
-        services.AddSingleton(sp => CreateAutostart(env, windows, sp.GetRequiredService<ILogger<StartupShortcutAutostart>>()));
+        // macOS (T-019): "Open at Login", the Login Item of SMAppService; the test mode's is a stand-in file in its data folder.
+        services.AddSingleton(sp => !windows && OperatingSystem.IsMacOS()
+            ? CreateMacAutostart(env, sp.GetRequiredService<ILogger<LoginItemAutostart>>())
+            : CreateAutostart(env, windows, sp.GetRequiredService<ILogger<StartupShortcutAutostart>>()));
         // Updates of the installed app from GitHub Releases (T-017; offered to the user by T-058). Pre-releases as the setting
         // says, until the user chose by the running version (user decision 2026-10-24).
         services.AddSingleton(sp =>
@@ -387,6 +390,46 @@ internal static class AppServices
                 new AppShortcut(executable, environment.AppUserModelId, environment.ToastActivatorClsid),
                 logger),
             NeedsInstallation: false);
+    }
+
+    /// <summary>
+    /// "Open at Login" on macOS (T-019): only the app's own executable gets it, never a test host. The test mode always
+    /// offers it with the stand-in Login Item of its data folder (user decision 2026-10-29). In production only the app
+    /// running from its <c>LayerPeek.app</c> in a permanent place gets the real Login Item of <c>SMAppService</c>; a
+    /// development build, a translocated app and the app on the mounted <c>.dmg</c> show the option disabled with the reason
+    /// (like the <c>.zip</c> on Windows).
+    /// </summary>
+    [SupportedOSPlatform("macos")]
+    internal static AutostartOption CreateMacAutostart(AppEnvironment environment, ILogger<LoginItemAutostart> logger) =>
+        CreateMacAutostart(environment, logger, Environment.ProcessPath, MacAppBundle.IsOnReadOnlyVolume, static () => new SMAppServiceLoginItem());
+
+    /// <param name="executable">The running executable.</param>
+    /// <param name="isReadOnly">Whether a folder lies on a read-only volume.</param>
+    /// <param name="loginItem">The real Login Item (created only for the app in its bundle, never in the test mode).</param>
+    internal static AutostartOption CreateMacAutostart(
+        AppEnvironment environment,
+        ILogger<LoginItemAutostart> logger,
+        string? executable,
+        Func<string, bool> isReadOnly,
+        Func<ILoginItemService> loginItem)
+    {
+        ArgumentNullException.ThrowIfNull(environment);
+        ArgumentNullException.ThrowIfNull(logger);
+        ArgumentNullException.ThrowIfNull(isReadOnly);
+        ArgumentNullException.ThrowIfNull(loginItem);
+        if (string.IsNullOrEmpty(executable) || !string.Equals(Path.GetFileName(executable), MacAppBundle.ExecutableName, StringComparison.Ordinal))
+        {
+            return new AutostartOption(null, NeedsInstallation: false);
+        }
+
+        if (environment.TestLoginItemPath() is { } standIn)
+        {
+            return new AutostartOption(new LoginItemAutostart(new StandInLoginItem(standIn, executable), logger));
+        }
+
+        return MacAppBundle.BundleOf(executable) is { } bundle && MacAppBundle.IsPermanentLocation(bundle, isReadOnly)
+            ? new AutostartOption(new LoginItemAutostart(loginItem(), logger))
+            : new AutostartOption(null, NeedsInstallation: true);
     }
 
     /// <summary>Velopack's updates (T-017), only in a Velopack installation (never in the test mode, never for the <c>.zip</c>).</summary>
@@ -573,6 +616,9 @@ internal static class AppServices
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).
             ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
+            // macOS (T-019, user decision 2026-10-29): "Open at Login", and no pre-release option until macOS has updates.
+            UsesMacTerms = OperatingSystem.IsMacOS(),
+            ShowsPrereleaseOption = !OperatingSystem.IsMacOS(),
         };
     }
 

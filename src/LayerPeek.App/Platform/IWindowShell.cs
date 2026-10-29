@@ -2,8 +2,8 @@ namespace LayerPeek.App.Platform;
 
 /// <summary>
 /// What the OS shell needs to know about an auxiliary window (T-043), by its native handle (HWND on Windows). Windows:
-/// taskbar properties (only "Close window" in its jump list) and flashing the taskbar button. Other OSes: nothing yet
-/// (macOS: T-018). Calls never throw; UI thread.
+/// taskbar properties (only "Close window" in its jump list) and flashing the taskbar button. macOS (T-019): bringing the
+/// agent app to the front with the window. Other OSes: nothing. Calls never throw; UI thread.
 /// </summary>
 internal interface IWindowShell
 {

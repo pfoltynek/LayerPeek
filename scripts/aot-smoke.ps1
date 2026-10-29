@@ -11,10 +11,16 @@
     and restores the previous shortcut (or removes it) afterwards.
     The Release exe has no test mode, so it would write into the real data and log folders of the app
     (macOS ~/Library/Application Support/LayerPeek and ~/Library/Logs/LayerPeek, Windows %APPDATA%\LayerPeek and
-    %LOCALAPPDATA%\LayerPeek\logs). Right before the exe starts, the script writes a journal and moves the existing
-    folders aside (renamed to <folder>.aot-smoke-backup next to them, T-095); afterwards it deletes what the exe created
-    and moves them back. The app therefore starts with an empty profile and the user's data is never touched. After a
-    crash of the script the next run (or -RestoreOnly) finishes the restore first.
+    %LOCALAPPDATA%\LayerPeek\logs) and on macOS into what the system keeps under the bundle identifier (T-019:
+    ~/Library/Saved Application State/<id>.savedState, ~/Library/Caches/<id>, ~/Library/HTTPStorages/<id> and the defaults
+    domains <id> and LayerPeek in ~/Library/Preferences). Right before the exe starts, the script writes a journal and moves
+    the existing folders aside (renamed to <folder>.aot-smoke-backup next to them, T-095) and exports and deletes the
+    existing defaults domains (through defaults, never as files: cfprefsd owns them); afterwards it deletes what the exe
+    created and moves or imports them back. The app therefore starts with an empty profile and the user's data is never
+    touched. After a crash of the script the next run (or -RestoreOnly) finishes the restore first.
+    On macOS it also checks that the app runs without a Dock icon (LaunchServices type UIElement, T-019), and when the exe
+    is the one inside LayerPeek.app (-PublishDir <app>/Contents/MacOS), it removes the LaunchServices registration of the
+    bundle that the start created (only when the bundle was not registered before).
     Toasts the app shows during the run are cleared afterwards only when the notification center provably held no
     toasts of the app before the run and no other instance started meanwhile; otherwise they are left there (the
     user's own toasts are never removed) and a warning is printed. Refuses to run while LayerPeek is already running.
@@ -84,7 +90,7 @@ Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Forc
 $smokeProfile = Get-SmokeProfile -ProfileRoot $ProfileRoot
 try {
     if (Restore-SmokeProfile -SmokeProfile $smokeProfile) {
-        Write-Host 'Restored the data and log folders of the app from an interrupted smoke run.' -ForegroundColor Yellow
+        Write-Host 'Restored the data and log folders of the app (and its macOS preferences, saved state and caches) from an interrupted smoke run.' -ForegroundColor Yellow
     }
     elseif ($RestoreOnly) {
         Write-Host 'Nothing to restore: no interrupted smoke run.'
@@ -138,6 +144,17 @@ function Clear-ToastHistory {
     if ($LASTEXITCODE -ne 0) { throw "clearing the notification history failed with exit code $LASTEXITCODE" }
 }
 $toastsBefore = if ($IsWindows -and -not $SkipShellIntegration) { Get-ToastHistoryCount } else { $null }
+# macOS (T-019): the exe inside LayerPeek.app registers the bundle with LaunchServices when it starts.
+$lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+$bundle = $null
+$bundleWasRegistered = $true
+if ($IsMacOS -and -not $SkipShellIntegration -and $PublishDir) {
+    $contents = Split-Path -Parent (Resolve-Path -LiteralPath $PublishDir -ErrorAction SilentlyContinue).ProviderPath
+    if ((Split-Path -Leaf $PublishDir) -ceq 'MacOS' -and $contents -and (Split-Path -Leaf $contents) -ceq 'Contents' -and (Split-Path -Parent $contents).EndsWith('.app')) {
+        $bundle = Split-Path -Parent $contents
+        $bundleWasRegistered = Get-LaunchServicesRegistration -DumpOutput @(& $lsregister -dump 2>$null) -BundlePath $bundle
+    }
+}
 
 try {
     if ($ownsPublishDir) {
@@ -168,6 +185,13 @@ try {
         throw "App exited after start with code $($process.ExitCode).$([Environment]::NewLine)$output"
     }
 
+    if ($IsMacOS -and -not $SkipShellIntegration) {
+        # T-019: a menu bar app without a Dock icon (LSUIElement in Info.plist, the accessory policy of Avalonia).
+        $type = Get-LaunchServicesAppType -ListOutput @(& /usr/bin/lsappinfo list 2>$null) -ProcessId $process.Id
+        if ($type -cne 'UIElement') { throw "The app is not an agent app without a Dock icon: LaunchServices type '$type', expected 'UIElement'." }
+        Write-Host 'The app runs without a Dock icon (LaunchServices type UIElement).'
+    }
+
     if ($shortcut) {
         # Proves the source-generated COM interop (IShellLinkW, IPropertyStore) works in the AOT binary.
         $target = if (Test-Path -LiteralPath $shortcut) { (New-Object -ComObject WScript.Shell).CreateShortcut($shortcut).TargetPath } else { $null }
@@ -188,6 +212,13 @@ finally {
         $process.WaitForExit()
     }
     # Right after the exe ended: nothing writes into the folders any more.
+    if ($profileMoved -and $IsMacOS -and -not $ProfileRoot) {
+        # T-019: what the exe wrote into its preferences (key names only), before the restore removes it.
+        foreach ($preference in $smokeProfile.Preferences) {
+            $read = @(& /usr/bin/defaults read $preference.Domain 2>$null)
+            if ($LASTEXITCODE -eq 0) { Write-Host "Preferences the app wrote ($($preference.Domain)): $((Get-SmokePreferenceKeys $read) -join ', ')" }
+        }
+    }
     if ($profileMoved) {
         try {
             $null = Restore-SmokeProfile -SmokeProfile $smokeProfile
@@ -195,6 +226,16 @@ finally {
         catch {
             Write-Host "The data and log folders of the app were NOT restored: $_ Run 'pwsh scripts/aot-smoke.ps1 -RestoreOnly' (the backup is next to them, *.aot-smoke-backup)." -ForegroundColor Red
             $exitCode = 1
+        }
+    }
+    if ($bundle -and -not $bundleWasRegistered -and $process -and (Get-LaunchServicesRegistration -DumpOutput @(& $lsregister -dump 2>$null) -BundlePath $bundle)) {
+        # The registration this start created (the user's LaunchServices database keeps no trace of the smoke run).
+        & $lsregister -u $bundle 2>$null
+        if (Get-LaunchServicesRegistration -DumpOutput @(& $lsregister -dump 2>$null) -BundlePath $bundle) {
+            Write-Host "The LaunchServices registration of $bundle could not be removed (lsregister -u $bundle)." -ForegroundColor Yellow
+        }
+        else {
+            Write-Host "Removed the LaunchServices registration of $bundle that the start created."
         }
     }
     if ($ownsPublishDir -and (Test-Path -LiteralPath $publishDir)) {
