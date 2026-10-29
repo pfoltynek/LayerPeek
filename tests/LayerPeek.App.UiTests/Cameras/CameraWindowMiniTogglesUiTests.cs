@@ -554,7 +554,8 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
 
     /// <summary>Not a chip the chips panel left out (placed beyond its clipped right edge).</summary>
     private static bool IsDrawn(TextBlock text, CameraWindow window) =>
-        text.FindAncestorOfType<OverlayChipsPanel>() is not { } panel || BoundsIn(text, window).Left < BoundsIn(panel, window).Right;
+        (text.FindAncestorOfType<OverlayChipsPanel>() is not { } panel || BoundsIn(text, window).Left < BoundsIn(panel, window).Right)
+        && MiniStripParts.IsDrawnInSummary(text);
 
     private static Control? HitControl(CameraWindow window, Point point) => window.InputHitTest(point) as Control;
 }

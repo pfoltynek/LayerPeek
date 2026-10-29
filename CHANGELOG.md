@@ -34,6 +34,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The menu of a printer with an open camera window (menu bar on macOS, notification area on Windows) has **Show
   camera**, which brings the window to the front, restoring it when minimized; also a window that is always on top and
   so has no Dock icon or taskbar button.
+- Mini preview: the strip below the image shows when the print finishes, after a flag next to the remaining time:
+  "Done at 7:50 PM" when there is room, otherwise only "7:50 PM" (on another day of the week "Fri 7:50 PM"), and
+  in the narrowest window only in the tooltip. The time is never cut off. Only while printing (not while paused).
+- Mini preview: after a print the bar on the top edge of the strip shows how far the nozzle has cooled down (blue),
+  and once it has cooled it is full and green and the strip says "Cooled down – safe to turn off" like the Cool-down
+  widget (in a narrow window "Cooled down · 48 °C"; the tooltip always has both). While cooling, a narrow strip drops
+  the word "Cooling down…" (the snowflake icon stands for it) before the estimate.
 
 ### Changed
 

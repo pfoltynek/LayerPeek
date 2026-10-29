@@ -1059,6 +1059,15 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Enfriada · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCoolingShort" xml:space="preserve">
+    <value>{0}&#160;°C · aprox. {1}</value>
+  </data>
+  <data name="CameraMiniCooledAccessible" xml:space="preserve">
+    <value>Enfriada – ya puede apagarla, boquilla {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniFinishDayTime" xml:space="preserve">
+    <value>{0}&#160;{1}</value>
+  </data>
   <data name="CameraOverlayCooling" xml:space="preserve">
     <value>Enfriando…</value>
   </data>

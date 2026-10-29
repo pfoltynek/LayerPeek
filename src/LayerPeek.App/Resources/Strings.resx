@@ -1092,6 +1092,18 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Cooled down · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCoolingShort" xml:space="preserve">
+    <value>{0}&#160;°C · about {1}</value>
+    <comment>Mini preview strip while cooling down when the full text does not fit (T-103): nozzle temperature and the estimate; the snowflake icon stands for "Cooling down…". Same abbreviation as CameraMiniCooling.</comment>
+  </data>
+  <data name="CameraMiniCooledAccessible" xml:space="preserve">
+    <value>Cooled down – safe to turn off, nozzle {0}&#160;°C</value>
+    <comment>Tooltip and screen reader name of the mini preview strip once cooled down (T-103): CameraOverlayCooled plus the nozzle temperature.</comment>
+  </data>
+  <data name="CameraMiniFinishDayTime" xml:space="preserve">
+    <value>{0}&#160;{1}</value>
+    <comment>Mini preview strip, finish on another day within a week (T-103): {0} = abbreviated day of the week in the app language, {1} = time in the region format. The translator may change the order.</comment>
+  </data>
   <data name="CameraOverlayCooling" xml:space="preserve">
     <value>Cooling down…</value>
   </data>

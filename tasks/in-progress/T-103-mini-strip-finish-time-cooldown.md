@@ -50,24 +50,26 @@ Postup: nejdřív návrh (ui-designer, tento soubor), implementace později (ui-
 - Mimo rozsah: výběr položek pásu (T-104), widgety překryvu, notifikace (T-101), tray menu (T-102).
 
 ## Akceptační kritéria
-- [ ] Při tisku se známým časem dokončení řádek ukáže čas dokončení podle pravidel oddílu 3 (varianta L1 / L2 / L3 podle
+- [x] Při tisku se známým časem dokončení řádek ukáže čas dokončení podle pravidel oddílu 3 (varianta L1 / L2 / L3 podle
       šířky). Formát času je stejný jako ve widgetu Časy (`OverlayFormat.Finish`, region `t`, datum podle jazyka).
-- [ ] Skupina času dokončení se nikdy nezkracuje: buď je vidět celá, nebo vůbec. Text „19 % · 2 h 35 min“ se dál nikdy
+- [x] Skupina času dokončení se nikdy nezkracuje: buď je vidět celá, nebo vůbec. Text „19 % · 2 h 35 min“ se dál nikdy
       nezkracuje při šířce 240 (stávající test).
-- [ ] Chladnutí a vychladnutí: ikona ❄ / ⏻ místo tečky (oddíl 4), texty podle variant C1–C3 / K1–K2, horní pruh při
+- [x] Chladnutí a vychladnutí: ikona ❄ / ⏻ místo tečky (oddíl 4), texty podle variant C1–C3 / K1–K2, horní pruh při
       chladnutí = průběh k prahu modře, po vychladnutí plný zeleně (Q2, Q3 → A).
-- [ ] Tooltip a `AutomationProperties.Name` souhrnu obsahují celé znění včetně času dokončení a „můžete vypnout“
+- [x] Tooltip a `AutomationProperties.Name` souhrnu obsahují celé znění včetně času dokončení a „můžete vypnout“
       (oddíl 6).
-- [ ] Nové texty ve všech 8 jazycích (oddíl 8).
-- [ ] App.Tests: `MiniStripContent.Of` s časem dokončení (stejný den, jiný den, neznámý, pozastaveno), `Texts` pro všechny
+- [x] Nové texty ve všech 8 jazycích (oddíl 8).
+- [x] App.Tests: `MiniStripContent.Of` s časem dokončení (stejný den, jiný den, neznámý, pozastaveno), `Texts` pro všechny
       varianty, žádná alokace při pollu beze změny (stávající `CameraMiniStripAllocationTests`).
-- [ ] Headless UI testy: všech 8 jazyků × šířky 240, 320, 400 × stavy tisk (stejný den, jiný den, en-US AM/PM),
+- [x] Headless UI testy: všech 8 jazyků × šířky 240, 320, 400 × stavy tisk (stejný den, jiný den, en-US AM/PM),
       chladne, vychladlo: žádný text souhrnu ani času dokončení není zkrácený mimo pravidla, skupina času se nepřekrývá
       s přepínači (mezera ≥ 8), výška pásu se nemění (30).
 - [ ] Snímky: aktualizované `camera-mini-strip-printing`, `camera-mini-strip-cooled-de`, `camera-mini-strip-240-pl`
       a nové `camera-mini-strip-finish-320`, `camera-mini-strip-finish-400-es`, `camera-mini-strip-cooling-240-it`
       (Windows i `Snapshots/macOS/`), vizuálně zkontrolované.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+      *(macOS sada hotová a prohlédnutá ui-dev; zbývá: vygenerovat sadu pro Windows na Windows a vizuální kontrola
+      uživatelem, viz Poznámky k implementaci.)*
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh UI
 
@@ -323,5 +325,55 @@ Všechny otázky rozhodl uživatel 2026-10-29 (ve všech případech doporučen�
   (rozhodnuto 2026-10-29: A)
 
 ## Poznámky k implementaci
-(vyplní ui-dev po dokončení; návrh ui-designer 2026-10-29, šířky změřené dočasným headless testem s písmem Inter,
-test není v repozitáři)
+Návrh ui-designer 2026-10-29 (šířky změřené dočasným headless testem s písmem Inter, test není v repozitáři);
+implementace ui-dev 2026-10-29 na macOS (větev `feature/T-103-mini-strip-finish-time-cooldown-impl`).
+
+- **Obsah:** `MiniStripContent` má navíc `Finish` (`OverlayFinishTime?` z `OverlayValues.Finish`, jen při stavu Tiskne,
+  Q5), `FinishDays` (místní dny od snapshotu) a `CoolingPercent` (celé procento k prahu zaokrouhlené dolů jako widget,
+  po vychladnutí 100). `Of` dostává časové pásmo hodin okna (`TimeProvider.LocalTimeZone`, jako
+  `OverlayWidgetInput.TimeZone`). Porovnání zůstává levné, poll beze změny nic nealokuje ani neposílá (stávající
+  `CameraMiniStripAllocationTests` beze změny prochází i s výpočtem času dokončení).
+- **Varianty:** `CameraMiniStripViewModel.Texts` vrací `MiniStripTexts` = až tři `MiniStripVariant` (souhrn + čas za
+  vlajkou), nejdelší první, a celé znění pro tooltip / čtečku. Tisk: L1 (`OverlayFormat.Finish`), L2 (stejný den jen
+  `OverlayFormat.FinishClock`, jiný den do 6 dnů `OverlayFormat.FinishDayTime` = `CameraMiniFinishDayTime`), L3 bez
+  doplňku; ≥ 7 dnů jen L1 a L3. Chladne: C1 / C2 (`CameraMiniCoolingShort`) / C3 (`DiagnosticsTemperatureValue`),
+  bez odhadu C1 / C3. Vychladlo: K1 (`CameraOverlayCooled`) / K2 (`CameraMiniCooled`), tooltip
+  `CameraMiniCooledAccessible`. Texty se formátují jen při změně obsahu nebo jazyka.
+- **Výběr:** nový `CameraMiniSummaryPanel` (obdoba `OverlayChipsPanel`): děti jsou tři sloty (souhrn `*` + skupina
+  `⚑14 · 4 · čas` s odsazením 10) navázané kompilovanými bindingy na `FirstVariant` / `SecondVariant` / `ThirdVariant`.
+  Panel měří sloty bez omezení a vykreslí první, který se celý vejde; když žádný, poslední (vždy bez času dokončení)
+  dostane dostupnou šířku a souhrn se zkrátí „…“ (L4). Ostatní sloty leží za oříznutým pravým okrajem a nejsou ve
+  stromu automatizace. Volné místo je za doplňkem; mezi panelem a přepínači zůstává sloupec 8.
+- **Horní pruh:** třídy `cooling` / `cooled` na `CameraMiniProgress` (výplň `OverlayCoolingBrush` / `OverlayCooledBrush`
+  na podkladu `OverlayTrackBrush`), `HasProgress` platí i pro chladnutí a vychladnutí.
+- **Výsledek měření (headless, Inter) odpovídá návrhu:** 240 → L3 / C2 nebo C3 / K2 ve všech jazycích; 320 → cs L2,
+  fr L1, cs jiný den L2, cs K1, de K2; 400 → cs, es, en-US L1. Test tyto výsledky drží, pravidlo samo se ověřuje měřením.
+- **Vlajka 14 DIP** je na snímcích při 100 % čitelná (tenký tah, ale tvar vlajky je zřetelný); 16 / `Tertiary` jsem
+  nepoužil (Q6 → A).
+- **Kultura – Windows vs. macOS:**
+  - Zkratky dnů v týdnu bere `OverlayFormat.FinishDayTime` z `DateTimeFormat.GetAbbreviatedDayName` kultury jazyka
+    aplikace (specifické, jako `MonthDay`). Obě platformy používají ICU (CLDR), Windows ale systémovou ICU starší
+    verze. Na macOS: cs „pá“, sk „pi“, en „Fri“, de „Fr“, es „vie“, fr „ven.“, it „ven“, pl „pt.“. Test
+    `DayAbbreviationsOfTheLanguagesWithStableCalendarData` drží jen en / cs / de / it (stabilní v CLDR), ostatní test
+    jen kontroluje, že zkratka je v jazyce aplikace. **Na Windows neověřeno** (zejména es / pl).
+  - en-US odděluje AM/PM na macOS U+202F, na Windows mezerou (`CultureTime.EnUs` v testech); šířka se tím nemění
+    podstatně, výběr varianty je stejně měřený.
+  - Písmo: skutečná aplikace kreslí systémovým písmem (Segoe UI Variable / SF Pro), hranice variant se proto mohou
+    posunout o pár DIP; chování zůstane „celá varianta, nebo o stupeň kratší“.
+- **Testy:** App.Tests `CameraMiniStripFinishTimeTests` (obsah a varianty pro tisk stejný den / jiný den / ≥ 7 dnů /
+  neznámý / pozastaveno / vyžaduje zásah, chladne s odhadem i bez, vychladlo, bez úlohy, offline, před prvním dotazem,
+  časové pásmo, cs s 24 h, zkratky dnů ve všech 8 jazycích, nové klíče ve všech jazycích), upravené
+  `CameraMiniStripViewModelTests` (pruh chladnutí, K1, změna jazyka). UiTests `CameraWindowMiniStripFinishUiTests`
+  (8 jazyků × vlastní region i en-US × 240 / 320 / 400 × tisk stejný den, jiný den, chladne, vychladlo: první
+  varianta, která se vejde, nic nezkráceno mimo L4, čas dokončení nikdy, ≥ 8 od přepínačů, výška 33; tooltip a jméno,
+  jen vykreslená varianta ve stromu automatizace; barvy a hodnoty horního pruhu).
+- **Snímky (macOS, `Snapshots/macOS/`):** aktualizované `camera-mini-strip-printing` (L2 „⚑ 2:35 PM“),
+  `camera-mini-strip-cooled-de` (plný zelený pruh), `camera-mini-strip-rows` (tisk při 320 má nově čas dokončení);
+  nové `camera-mini-strip-finish-320` (cs, L2), `camera-mini-strip-finish-400-es` (L1), `camera-mini-strip-cooling-240-it`
+  (C2). `camera-mini-strip-240-pl` (stav Neautorizováno) se pixelově nezměnil, reference zůstává.
+  **Windows sada zatím chybí / je stará:** na Windows spustit
+  `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests` a zkontrolovat
+  `camera-mini-strip-printing`, `camera-mini-strip-cooled-de`, `camera-mini-strip-rows`, `camera-mini-strip-finish-320`,
+  `camera-mini-strip-finish-400-es`, `camera-mini-strip-cooling-240-it`. Do té doby tyto testy na Windows selžou.
+- Žádný nový balíček, žádná reflexe (kompilované bindingy, `ObjectConverters.IsNotNull`), AOT beze změny.
+- Úkol zůstává `in-progress`: chybí Windows snímky a vizuální kontrola uživatelem (kritérium Snímky).

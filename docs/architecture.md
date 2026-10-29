@@ -148,6 +148,10 @@ Jediný `Border` s řádky z T-036 nahradil systém widgetů. Otázky rozhodl u�
     - řádek grafu = kompaktní `TemperatureChart` (`CameraMiniChart`), který odebírá historii jen viditelný; aktuální teploty sloupce vlevo se počítají jen při rozbaleném grafu,
     - výška pásu `CameraMiniStripViewModel.StripHeight` (33 / 67 / 97 / 131), okno ji sleduje stávajícím dopočtem z T-089,
     - stav v `CameraWindowState.MiniRows` (`CameraMiniRows`), v souboru nepovinná pole `miniNameRow` / `miniChartRow` zapsaná jen při `true`; jiná hodnota než `true` / `false` se čte jako sbaleno a zbytek souboru zůstane platný.
+  - Implementace (T-103):
+    - `MiniStripContent` nese i čas dokončení (`OverlayFinishTime?` jen při stavu Tiskne, pásmo hodin okna), počet dnů do něj a celé procento chladnutí (horní pruh: chladne modře, vychladlo plný zeleně),
+    - view model dává až tři varianty základního řádku (`MiniStripVariant`: souhrn + čas za vlajkou), nejdelší první; `CameraMiniSummaryPanel` vykreslí první, která se celá vejde (měří v aktuálním písmu, ne pevné prahy), jinak poslední zkrácenou. Poslední varianta nikdy nemá čas dokončení, takže skupina s vlajkou je celá, nebo žádná,
+    - tooltip a jméno pro čtečku (`AccessibleText`) mají vždy celé znění („…, Hotovo v 19:50“, „Vychladlo – můžete vypnout, tryska 48 °C“).
 - **Režim rozložení (T-091):**
   - Je jen v normálním okně, vstup tlačítkem v řadě tlačítek okna a z kontextové nabídky.
   - Pracovní kopie rozložení je ve view modelu bez Avalonie. Tažení do kotev a v rámci kotvy, popover (zvýraznit, S/M/L), ovládání klávesnicí.
