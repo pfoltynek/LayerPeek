@@ -1005,6 +1005,10 @@
   <data name="CameraOverlayChartNoData" xml:space="preserve">
     <value>Brak danych</value>
   </data>
+  <data name="CameraOverlayChartRange" xml:space="preserve">
+    <value>{0}–{1}&#160;°C</value>
+    <comment>T-106: value range of one band of the large Temperatures chart, e.g. "212–218 °C". {0} = lowest, {1} = highest whole degree. En dash, no-break space before °C.</comment>
+  </data>
   <data name="CameraOverlayChartName" xml:space="preserve">
     <value>wykres z ostatnich 60 minut</value>
   </data>
