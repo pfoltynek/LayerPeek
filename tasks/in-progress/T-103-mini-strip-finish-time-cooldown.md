@@ -25,12 +25,23 @@ Postup: nejdřív návrh (ui-designer, tento soubor), implementace později (ui-
   Nejdřív návrh, implementace později (ui-dev) po sloučení T-101.
 - T-104 (později): nastavitelný obsah pásu jako u widgetů (výběr položek). Zatím jen zástupný úkol pro návrh.
 
+## Rozhodnutí k návrhu (uživatel, 2026-10-29)
+- **Q1 → A:** ikona ❄ / ⏻ zůstává místo tečky stavu jako hlavní obsah řádku po tisku (oddíl 3.2).
+- **Q2 → A:** stav „Vychladlo“ = text K1 „Vychladlo – můžete vypnout“ (když se nevejde, K2 „Vychladlo · 48 °C“),
+  zelená ikona ⏻ a plný zelený horní pruh. Bez podbarvení, bez obruby, bez nového kratšího textu.
+- **Q3 → A:** horní pruh při chladnutí ukazuje průběh k prahu v `OverlayCoolingBrush`, po vychladnutí je plný
+  v `OverlayCooledBrush`.
+- **Q4 → A:** při nedostatku místa (240) zůstává zbývající čas, čas dokončení je jen v tooltipu a pro čtečku.
+- **Q5 → A:** čas dokončení jen při stavu „Tiskne“ (pozastaveno, vyžaduje zásah, čeká: beze změny).
+- **Q6 → A:** vlajka 14 DIP v `OverlayTextSecondaryBrush`.
+- **Q7 → A:** dokončení v jiný den = zkratka dne v týdnu + čas („pá 19:50“, `CameraMiniFinishDayTime`).
+
 ## Rozsah
 - Návrh UI (oddíl Návrh UI níže): rozložení základního řádku při 240 / 320 / 400 DIP, pravidla priority a zkracování,
   ikony, barvy, tooltip a texty pro čtečku, chování podle stavu, souhra s přepínači řádků, nové texty v 8 jazycích.
 - Implementace (ui-dev, po odpovědích na Otevřené otázky a po sloučení T-101):
   - `MiniStripContent` doplnit o čas dokončení (`OverlayFinishTime?` z `OverlayValues.Finish`, časové pásmo jako
-    `OverlayWidgetInput.TimeZone`) a o průběh chladnutí (podle Q3). Obsah se dál porovnává levně; čas dokončení se mění
+    `OverlayWidgetInput.TimeZone`) a o průběh chladnutí k prahu (pro horní pruh, Q3 → A). Obsah se dál porovnává levně; čas dokončení se mění
     nejvýš jednou za minutu.
   - `CameraMiniStrip.axaml`: skupina „⚑ čas“ za textem souhrnu, výběr nejdelší varianty, která se vejde (bez zkrácení),
     zvýraznění stavu „Vychladlo“.
@@ -43,8 +54,8 @@ Postup: nejdřív návrh (ui-designer, tento soubor), implementace později (ui-
       šířky). Formát času je stejný jako ve widgetu Časy (`OverlayFormat.Finish`, region `t`, datum podle jazyka).
 - [ ] Skupina času dokončení se nikdy nezkracuje: buď je vidět celá, nebo vůbec. Text „19 % · 2 h 35 min“ se dál nikdy
       nezkracuje při šířce 240 (stávající test).
-- [ ] Chladnutí a vychladnutí: ikona ❄ / ⏻ podle oddílu 4, texty podle variant C1–C3 / K1–K2, zvýraznění stavu
-      „Vychladlo“ podle odpovědi na Q2 (a pruh podle Q3).
+- [ ] Chladnutí a vychladnutí: ikona ❄ / ⏻ místo tečky (oddíl 4), texty podle variant C1–C3 / K1–K2, horní pruh při
+      chladnutí = průběh k prahu modře, po vychladnutí plný zeleně (Q2, Q3 → A).
 - [ ] Tooltip a `AutomationProperties.Name` souhrnu obsahují celé znění včetně času dokončení a „můžete vypnout“
       (oddíl 6).
 - [ ] Nové texty ve všech 8 jazycích (oddíl 8).
@@ -76,8 +87,8 @@ Postup: nejdřív návrh (ui-designer, tento soubor), implementace později (ui-
 
 - **Ikona chladnutí v řádku už existuje** (T-089): ❄ `IconWeatherSnowflake20Regular` 16 v `OverlayCoolingBrush`,
   ⏻ `IconPower20Regular` 16 v `OverlayCooledBrush`, místo tečky stavu, s texty „Chladne… 87 °C · cca 6 min“ a
-  „Vychladlo · 48 °C“. T-103 tedy u vychladnutí **mění zvýraznění a texty**, ne samotnou přítomnost ikony
-  (viz Q1, kdyby uživatel chtěl ikonu jinde).
+  „Vychladlo · 48 °C“. T-103 tedy u vychladnutí **mění zvýraznění, texty a horní pruh**, ikona zůstává místo tečky
+  (Q1 → A).
 - Čas dokončení a chladnutí se v řádku **nikdy nepotkají**: čas dokončení je jen u aktivní úlohy (`OverlayValues.ActiveJob`),
   chladnutí jen bez ní (nový tisk chladnutí ukončí, T-079 Q2). Řádek má tedy jeden „doplňkový“ prvek podle fáze.
 
@@ -148,23 +159,23 @@ Minimální šířka 240 (W = 140), všechny jazyky:
 ┌────────────────────────┐
 │         obraz          │ 135
 ├▓▓▓▓▓░░░░░░░░░░░░░░░░░░┤ 3
-│ ● 19 % · 2 h 35 min [⬡][📈] │ 30   (L3: čas dokončení jen v tooltipu, viz Q4)
+│ ● 19 % · 2 h 35 min [⬡][📈] │ 30   (L3: čas dokončení jen v tooltipu, Q4 → A)
 └────────────────────────┘
 ```
-Pozastaveno / vyžaduje zásah (beze změny, viz Q5):
+Pozastaveno / vyžaduje zásah (beze změny, Q5 → A):
 ```
 │ ● 19 % · Pozastaveno               [⬡][📈] │
 ```
 Chladne (bez úlohy), 320 / 240:
 ```
-├▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░┤ 3  (podle Q3: průběh k prahu v OverlayCoolingBrush)
+├▒▒▒▒▒▒▒▒▒▒▒▒░░░░░░░░░░░░░░░░░░░┤ 3  (Q3 → A: průběh k prahu v OverlayCoolingBrush)
 │ ❄ Chladne… 87 °C · cca 6 min       [⬡][📈] │   C1, cs 173 ≤ 212
 │ ❄ 87 °C · cca 6 min [⬡][📈] │                 240: C2 (slovo nese ikona ❄), cs 107 ≤ 132
 ```
 Vychladlo, 320 / 240 / de 320:
 ```
-├████████████████████████████████┤ 3  (podle Q3: plný pruh v OverlayCooledBrush)
-│ ⏻ Vychladlo – můžete vypnout       [⬡][📈] │   K1, cs 178 ≤ 212; zvýraznění podle Q2
+├████████████████████████████████┤ 3  (Q3 → A: plný pruh v OverlayCooledBrush)
+│ ⏻ Vychladlo – můžete vypnout       [⬡][📈] │   K1, cs 178 ≤ 212; zvýraznění Q2 → A
 │ ⏻ Vychladlo · 48 °C [⬡][📈] │                  240: K2 (dnešní text), cs 109 ≤ 132
 │ ⏻ Abgekühlt · 48 °C                [⬡][📈] │   de 320: K1 227 > 212 → K2
 ```
@@ -183,7 +194,7 @@ Vybere se **první varianta, která se celá vejde** do W:
 | L4 | souhrn se zkrátí „…“ (dnešní chování) | skrytý | jen extrémní případy (macOS písmo, nestandardní dny) |
 
 - Pořadí důležitosti: procento > zbývající čas > čas dokončení > slovo „Hotovo v“. Nejdřív zmizí slovo (L1 → L2), pak
-  celý doplněk (L2 → L3). Zbývající čas se kvůli času dokončení nikdy neschová (alternativa v Q4).
+  celý doplněk (L2 → L3). Zbývající čas se kvůli času dokončení nikdy neschová (Q4 → A).
 - Jiný den: den v týdnu jen do 6 dnů dopředu. Dál (≥ 7 dnů, nejednoznačný den) jen L1 (celé datum), jinak L3.
 - Neznámý zbývající čas, ale známý čas dokončení (teoreticky): souhrn „19 %“, doplněk podle stejných pravidel.
 - Neznámý čas dokončení: L3 (doplněk nikdy neukazuje „–“ ani prázdnou vlajku).
@@ -211,15 +222,16 @@ K2). C1 se při 320 nevejde v fr a it (228 / 231) → C2. Při 240 vždy C2 (neb
 
 ### 4. Ikony a zvýraznění
 - Čas dokončení: `IconFlag16Regular` (Fluent UI System Icons, MIT, už v aplikaci od T-083), 14 DIP, `Secondary`.
-  Žádné nové artwork ani SVG; čitelnost 14 px ověřit na snímku (Flag má tah 1 px, při 14 se zmenší na 0,875 px –
-  pokud bude na snímku rozmazaný, použít 16 a `Tertiary`, viz Q6).
+  Žádné nové artwork ani SVG (Q6 → A). Čitelnost 14 px ověřit na snímku (Flag má tah 1 px, při 14 se zmenší na
+  0,875 px); kdyby byl na snímku nečitelný, ui-dev to nahlásí uživateli – na 16 / `Tertiary` se sám nepřepíná.
 - Chladne: beze změny ❄ 16 `OverlayCoolingBrush` (kontrast `#6CB4FF` na `#141416` ≈ 8,4 : 1, WCAG AA splněno).
-- Vychladlo: ⏻ 16 `OverlayCooledBrush` (kontrast `#6CCB5F` na `#141416` ≈ 9,0 : 1). Zvýraznění podle Q2, doporučeno:
+- Vychladlo: ⏻ 16 `OverlayCooledBrush` (kontrast `#6CCB5F` na `#141416` ≈ 9,0 : 1). Zvýraznění (Q2 → A):
   - text K1 „Vychladlo – můžete vypnout“ (stejné znění jako widget), 13 SemiBold `Primary`,
-  - **plný pruh 3 na horní hraně pásu** v `OverlayCooledBrush` (Q3), obdoba zelené obruby karty widgetu (T-076 1.1):
+  - **plný pruh 3 na horní hraně pásu** v `OverlayCooledBrush` (Q3 → A), obdoba zelené obruby karty widgetu (T-076 1.1):
     stav má tvar (plný pruh + jiný text + jiná ikona), nejen barvu.
-  - Alternativy v Q2: zelené podbarvení řádku (bílá → `#6CCB5F` 14 % přes `#141416` ≈ `#202E20`, text `Primary`
-    kontrast ≈ 14 : 1, zelená ikona ≈ 7 : 1) nebo vnitřní obruba 1,5 `OverlayCooledBrush` kolem základního řádku.
+  - Bez podbarvení řádku a bez obruby (zamítnuté alternativy Q2 B / C).
+- Chladne – horní pruh (Q3 → A): průběh k prahu (`CooldownState.Progress`, 0–100 %, stejně jako pruh widgetu)
+  ve výplni `OverlayCoolingBrush` na podkladu `OverlayTrackBrush`; po vychladnutí 100 % v `OverlayCooledBrush`.
 - Světlý / tmavý motiv: pás je vždy tmavý (`#141416`), barvy jsou společné pro oba motivy, nic dalšího netřeba.
 - Vysoký kontrast (Windows): pás a widgety používají vlastní pevné barvy už dnes (T-076); beze změny.
 
@@ -228,9 +240,9 @@ K2). C1 se při 320 nevejde v fr a it (228 / 231) → C2. Při 240 vždy C2 (neb
 |---|---|---|---|---|
 | Tiskne, čas dokončení známý | ● modrá | „19 % · 2 h 35 min“ | ⚑ čas (L1 / L2 / skrytý) | průběh tisku (akcent) |
 | Tiskne, čas neznámý | ● modrá | „19 %“ | skrytý | průběh tisku |
-| Pozastaveno, vyžaduje zásah, čeká | ● barva stavu | „19 % · Pozastaveno“ | skrytý (Q5) | průběh tisku |
-| Dokončeno / zastaveno + chladne | ❄ | C1 / C2 / C3 | – | podle Q3 (průběh k prahu modře / dnes slabý podklad) |
-| Vychladlo | ⏻ | K1 / K2 | – | podle Q3 (plný zelený / dnes slabý podklad) |
+| Pozastaveno, vyžaduje zásah, čeká | ● barva stavu | „19 % · Pozastaveno“ | skrytý (Q5 → A) | průběh tisku |
+| Dokončeno / zastaveno + chladne | ❄ | C1 / C2 / C3 | – | průběh k prahu v `OverlayCoolingBrush` |
+| Vychladlo | ⏻ | K1 / K2 | – | plný v `OverlayCooledBrush` |
 | Bez úlohy (připravena, dokončeno bez sledování chladnutí) | ● barva stavu | název stavu | – | slabý podklad |
 | Offline / chyba / neplatné údaje / před prvním dotazem | ● barva stavu | název stavu | – | slabý podklad |
 
@@ -247,13 +259,14 @@ K2). C1 se při 320 nevejde v fr a it (228 / 231) → C2. Při 240 vždy C2 (neb
   - chladne: beze změny „Chladne… 87 °C · cca 6 min“,
   - vychladlo: „Vychladlo – můžete vypnout, tryska 48 °C“ (nový `CameraMiniCooledAccessible`).
 - Ikony nemají vlastní jméno (jsou součástí obsahu souhrnu, `AccessibilityView="Content"` zůstává na souhrnu).
-- Informace nikdy jen barvou: čas dokončení má vlajku, vychladnutí jinou ikonu, jiný text a (Q3) jiný tvar pruhu.
+- Informace nikdy jen barvou: čas dokončení má vlajku, vychladnutí jinou ikonu, jiný text a plný pruh (Q3 → A).
 - Žádné nové interaktivní prvky → cílové plochy beze změny (odchylka 30 < 32 u přepínačů trvá, T-076 Q5).
 
 ### 7. Rizika podle jazyků
 - es má nejdelší „Hotovo v“ („Termina a las“, 125) a „aprox.“; při 400 se L1 ještě vejde (262 ≤ 300).
 - de: K1 „Abgekühlt – Sie können ausschalten“ (227) se při výchozí šířce 320 nevejde → K2 „Abgekühlt · 48 °C“.
-  Uživatel v de tedy uvidí „můžete vypnout“ až od ≈ 335 DIP nebo v tooltipu (Q2 alternativa: kratší text pro pás).
+  Uživatel v de tedy uvidí „můžete vypnout“ až od ≈ 335 DIP nebo v tooltipu (kratší text pro pás uživatel nezvolil,
+  Q2 → A); stav nese i zelená ikona a plný zelený pruh.
 - fr / it: C1 „Refroidissement…“ / „Raffreddamento…“ se při 320 nevejde → C2 „87 °C · env. 6 min“.
 - en-US: 12h čas je o 24 DIP širší; jiný den („Fri 10:50 PM“) se při 320 vejde jen s krátkým zbývajícím časem
   (souhrn ≤ 110 DIP, např. „19% · 9 h 59 min“), při dvoumístných hodinách a minutách („23 h 59 min“) L3.
@@ -272,19 +285,18 @@ K2). C1 se při 320 nevejde v fr a it (228 / 231) → C2. Při 240 vždy C2 (neb
 |---|---|---|---|---|
 | `CameraMiniCoolingShort` | `{0}&#160;°C · about {1}` | `{0}&#160;°C · cca {1}` | `{0}&#160;°C · cca {1}` | `{0}&#160;°C · ca. {1}` |
 | `CameraMiniCooledAccessible` | `Cooled down – safe to turn off, nozzle {0}&#160;°C` | `Vychladlo – můžete vypnout, tryska {0}&#160;°C` | `Vychladla – môžete vypnúť, tryska {0}&#160;°C` | `Abgekühlt – Sie können ausschalten, Düse {0}&#160;°C` |
-| `CameraMiniFinishDayTime` | `{0} {1}` | `{0} {1}` | `{0} {1}` | `{0} {1}` |
+| `CameraMiniFinishDayTime` | `{0}&#160;{1}` | `{0}&#160;{1}` | `{0}&#160;{1}` | `{0}&#160;{1}` |
 
 | Klíč | es | fr | it | pl |
 |---|---|---|---|---|
 | `CameraMiniCoolingShort` | `{0}&#160;°C · aprox. {1}` | `{0}&#160;°C · env. {1}` | `{0}&#160;°C · circa {1}` | `{0}&#160;°C · ok. {1}` |
 | `CameraMiniCooledAccessible` | `Enfriada – ya puede apagarla, boquilla {0}&#160;°C` | `Refroidie – vous pouvez l'éteindre, buse {0}&#160;°C` | `Raffreddata – puoi spegnerla, ugello {0}&#160;°C` | `Ostygła – można wyłączyć, dysza {0}&#160;°C` |
-| `CameraMiniFinishDayTime` | `{0} {1}` | `{0} {1}` | `{0} {1}` | `{0} {1}` |
+| `CameraMiniFinishDayTime` | `{0}&#160;{1}` | `{0}&#160;{1}` | `{0}&#160;{1}` | `{0}&#160;{1}` |
 
 - `CameraMiniFinishDayTime`: `{0}` = zkratka dne v týdnu v jazyce aplikace, `{1}` = čas podle oblasti (`t`). Komentář
   v resx: pořadí smí překladatel změnit. Mezi nimi nezalomitelná mezera (text se nezalamuje, jen kvůli konzistenci).
 - `CameraMiniCoolingShort`: stejná zkratka „cca“ jako v `CameraMiniCooling` daného jazyka.
-- Pokud Q2 dopadne alternativou „kratší text pro pás“, přibude `CameraMiniCooledShort` (návrh cs „Vychladlo – lze
-  vypnout“, de „Abgekühlt · ausschaltbar“; doplní se po odpovědi).
+- `CameraMiniCooledShort` není potřeba (Q2 → A, bez kratšího textu pro pás).
 
 ### 9. Odkazy na zásady platforem
 - Windows: Fluent typografie (Body 13 / SemiBold pro hlavní hodnotu), ikony Fluent UI System Icons 16 / 20,
@@ -295,38 +307,20 @@ K2). C1 se při 320 nevejde v fr a it (228 / 231) → C2. Při 240 vždy C2 (neb
   kultury (zkratky dnů, oddíl 7).
 
 ## Otevřené otázky
-- **Q1 – Kde má být ikona stavu vychladnutí?** Ikona ❄ / ⏻ už dnes v řádku je (místo tečky, T-089).
-  - (A) **Doporučeno:** nechat ji místo tečky jako hlavní obsah řádku po tisku; T-103 jen zvýrazní „Vychladlo“ a upraví
-    texty (oddíl 3.2). Po tisku je vychladnutí nejdůležitější informace, „Dokončeno“ přidává málo.
-  - (B) Řádek ukazuje dál stav („● Dokončeno“) a vychladnutí je doplněk vpravo od textu, stejně jako čas dokončení:
-    „● Dokončeno  ❄ 87 °C · 6 min“ / „● Dokončeno  ⏻ 48 °C“. Konzistentní „slot doplňku“, ale při 240 se doplněk vejde
-    jen zkrácený a hláška „můžete vypnout“ by byla jen v tooltipu.
-- **Q2 – Jak zvýraznit stav „Vychladlo“?**
-  - (A) **Doporučeno:** text „Vychladlo – můžete vypnout“, když se vejde (jinak „Vychladlo · 48 °C“), zelená ikona ⏻ a
-    plný zelený horní pruh (Q3).
-  - (B) Jako A + zelené podbarvení základního řádku (≈ `#202E20`).
-  - (C) Jako A + vnitřní zelená obruba 1,5 kolem základního řádku (přímá obdoba karty widgetu).
-  - (D) Kratší text jen pro pás („Vychladlo – lze vypnout“), aby se při 320 vešel i v de; nový klíč ve všech jazycích.
-- **Q3 – Horní pruh (3 DIP) po tisku?** Dnes bez úlohy jen slabý podklad.
-  - (A) **Doporučeno:** chladne = průběh k prahu v `OverlayCoolingBrush` (stejný jako pruh widgetu), vychladlo = plný
-    pruh v `OverlayCooledBrush`.
-  - (B) Jen vychladlo plný zelený, při chladnutí slabý podklad.
-  - (C) Beze změny (slabý podklad).
-- **Q4 – Co při úzkém okně (240) dřív: zbývající čas, nebo čas dokončení?** Při 240 se oba nevejdou v žádném jazyce.
-  - (A) **Doporučeno:** zbývající čas („19 % · 2 h 35 min“), čas dokončení jen v tooltipu (jako widget Časy ve velikosti
-    S, který také ukazuje jen zbývající čas).
-  - (B) „19 % · ⚑ 19:50“ – čas dokončení místo zbývajícího času.
-  - (C) Uživatel si vybere (to je pak součást T-104).
-- **Q5 – Čas dokončení i při pozastavení / vyžaduje zásah?** Dnes pás při jiném stavu než „Tiskne“ ukazuje místo
-  zbývajícího času slovo stavu a odhad tiskárny se během pauzy posouvá.
-  - (A) **Doporučeno:** ne, jen při tisku (stejné pravidlo jako zbývající čas v pásu, T-076 4).
-  - (B) Ano, jako widget Časy (ten ukazuje časy u každé aktivní úlohy).
-- **Q6 – Velikost a barva vlajky:** (A) **doporučeno** 14 DIP `Secondary` (menší než ikony přepínačů, nepletou se);
-  (B) 16 DIP `Tertiary` (ostřejší vykreslení 16px ikony, ale vizuálně blíž přepínačům). Rozhodne se i podle snímku při
-  implementaci; pokud je 14 na snímku čitelná, platí A.
-- **Q7 – Jiný den:** (A) **doporučeno** zkratka dne v týdnu „pá 19:50“ (bez nových slov, kultura je dodá);
-  (B) „zítra 19:50“ a dál zkratka dne (nový text „zítra“ v 8 jazycích); (C) krátké datum „30. 10. 19:50“ (širší,
-  ≈ 88 DIP, při 320 by v en-US vypadlo).
+Všechny otázky rozhodl uživatel 2026-10-29 (ve všech případech doporučená varianta A), viz Rozhodnutí k návrhu.
+- ~~**Q1 – Kde má být ikona stavu vychladnutí?** (A) místo tečky jako hlavní obsah řádku po tisku / (B) „● Dokončeno“ +
+  vychladnutí jako doplněk za textem.~~ (rozhodnuto 2026-10-29: A)
+- ~~**Q2 – Jak zvýraznit stav „Vychladlo“?** (A) text K1 + zelená ikona ⏻ + plný zelený horní pruh / (B) A + zelené
+  podbarvení řádku / (C) A + zelená obruba řádku / (D) kratší text jen pro pás.~~ (rozhodnuto 2026-10-29: A)
+- ~~**Q3 – Horní pruh (3 DIP) po tisku?** (A) chladne = průběh k prahu modře, vychladlo = plný zelený / (B) jen
+  vychladlo zeleně / (C) beze změny.~~ (rozhodnuto 2026-10-29: A)
+- ~~**Q4 – Co při 240 dřív: zbývající čas, nebo čas dokončení?** (A) zbývající čas, čas dokončení jen v tooltipu /
+  (B) „19 % · ⚑ 19:50“ / (C) volba uživatele (T-104).~~ (rozhodnuto 2026-10-29: A)
+- ~~**Q5 – Čas dokončení i při pozastavení / vyžaduje zásah?** (A) ne, jen při tisku / (B) ano, jako widget Časy.~~
+  (rozhodnuto 2026-10-29: A)
+- ~~**Q6 – Velikost a barva vlajky:** (A) 14 DIP `Secondary` / (B) 16 DIP `Tertiary`.~~ (rozhodnuto 2026-10-29: A)
+- ~~**Q7 – Jiný den:** (A) zkratka dne v týdnu „pá 19:50“ / (B) „zítra 19:50“ / (C) krátké datum „30. 10. 19:50“.~~
+  (rozhodnuto 2026-10-29: A)
 
 ## Poznámky k implementaci
 (vyplní ui-dev po dokončení; návrh ui-designer 2026-10-29, šířky změřené dočasným headless testem s písmem Inter,
