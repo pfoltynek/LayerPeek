@@ -1314,7 +1314,7 @@
   </data>
   <data name="LocalNetworkOpenSystemSettings" xml:space="preserve">
     <value>Open System Settings</value>
-    <comment>T-097: macOS 15+ button under LocalNetworkAccessMayBeOff in the diagnostics window and next to the Test connection result; opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Same Apple wording as SettingsOpenLoginItems (another pane).</comment>
+    <comment>T-097: macOS 15+ button under LocalNetworkAccessMayBeOff in the diagnostics window and next to the Test connection and camera Test results; opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Same Apple wording as SettingsOpenLoginItems (another pane).</comment>
   </data>
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Turn on LayerPeek there.</value>

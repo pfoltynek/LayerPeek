@@ -50,6 +50,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private Func<string>? _testResultSource;
     private TestResultKind _testResultKind;
     private bool _showsLocalNetworkSettings;
+    private bool _showsCameraLocalNetworkSettings;
 
     // Camera (T-014). The address field keeps an invalid address loaded from the file for correction.
     private bool _cameraEnabled;
@@ -124,7 +125,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _showErrors = saved is not null;
         TestConnectionCommand = new AsyncRelayCommand(TestConnectionAsync, () => IsPrusaLink && !_isTesting && !_owner.IsDisposed);
         CancelTestCommand = new RelayCommand(CancelTest, () => _isTesting);
-        OpenLocalNetworkSettingsCommand = new RelayCommand(OpenLocalNetworkSettings, () => _showsLocalNetworkSettings);
+        OpenLocalNetworkSettingsCommand = new RelayCommand(OpenLocalNetworkSettings, () => _showsLocalNetworkSettings || _showsCameraLocalNetworkSettings);
         CameraSettings camera = saved?.Camera ?? CameraSettings.Disabled;
         _cameraEnabled = camera.Enabled;
         _cameraUrl = camera.StreamUri?.OriginalString ?? camera.InvalidStreamUrl ?? string.Empty;
@@ -380,7 +381,16 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// </summary>
     public bool ShowsLocalNetworkSettings => _showsLocalNetworkSettings;
 
-    /// <summary>Opens the Local Network settings of the OS (<see cref="Platform.ILocalNetworkPrivacy.OpenSettings"/>).</summary>
+    /// <summary>
+    /// macOS 15+ (T-097, user decision 2026-10-29): the result of the camera Test is the Local Network hint; the button under
+    /// it opens System Settings &gt; Privacy &amp; Security &gt; Local Network (<see cref="OpenLocalNetworkSettingsCommand"/>).
+    /// </summary>
+    public bool ShowsCameraLocalNetworkSettings => _showsCameraLocalNetworkSettings;
+
+    /// <summary>
+    /// Opens the Local Network settings of the OS (<see cref="Platform.ILocalNetworkPrivacy.OpenSettings"/>); the button next
+    /// to the connection test and the one next to the camera test.
+    /// </summary>
     public IRelayCommand OpenLocalNetworkSettingsCommand { get; }
 
     /// <summary>Show the camera in the tray menu (needs a valid address).</summary>
@@ -1168,7 +1178,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 bool success = result.Outcome == CameraTestOutcome.Success;
                 // The text source lives as long as the result is shown: it must not keep the image's pixels alive.
                 CameraTestResult described = result with { Image = null };
-                SetCameraTestResult(() => Describe(described), success ? TestResultKind.Success : TestResultKind.Failure);
+                SetCameraTestResult(
+                    () => Describe(described),
+                    success ? TestResultKind.Success : TestResultKind.Failure,
+                    localNetwork: result.Outcome == CameraTestOutcome.LocalNetworkAccessMayBeOff);
                 if (success)
                 {
                     // The address works without the removed credentials: the notice did its job.
@@ -1283,7 +1296,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _ => Format(Strings.SettingsCameraTestFailed, result.Reason),
     };
 
-    private void SetCameraTestResult(Func<string>? source, TestResultKind kind)
+    /// <param name="localNetwork">The result is the Local Network hint (T-097): the button to System Settings is shown.</param>
+    private void SetCameraTestResult(Func<string>? source, TestResultKind kind, bool localNetwork = false)
     {
         _cameraTestResultSource = source;
         string? text = source?.Invoke();
@@ -1291,6 +1305,13 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         bool kindChanged = _cameraTestResultKind != kind;
         _cameraTestResultText = text;
         _cameraTestResultKind = kind;
+        if (_showsCameraLocalNetworkSettings != localNetwork)
+        {
+            _showsCameraLocalNetworkSettings = localNetwork;
+            OnPropertyChanged(nameof(ShowsCameraLocalNetworkSettings));
+            OpenLocalNetworkSettingsCommand.NotifyCanExecuteChanged();
+        }
+
         if (textChanged)
         {
             OnPropertyChanged(nameof(CameraTestResultText));
@@ -1334,10 +1355,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         _ => Strings.SettingsCameraErrorInvalid,
     };
 
-    /// <summary>T-097: System Settings &gt; Privacy &amp; Security &gt; Local Network, only while the hint is the result.</summary>
+    /// <summary>T-097: System Settings &gt; Privacy &amp; Security &gt; Local Network, only while the hint is a result.</summary>
     private void OpenLocalNetworkSettings()
     {
-        if (_showsLocalNetworkSettings && !_owner.IsDisposed)
+        if ((_showsLocalNetworkSettings || _showsCameraLocalNetworkSettings) && !_owner.IsDisposed)
         {
             _owner.LocalNetwork.OpenSettings();
         }

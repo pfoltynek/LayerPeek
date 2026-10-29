@@ -391,6 +391,14 @@
                                        Classes.failure="{Binding CameraTestFailed}"
                                        Text="{Binding CameraTestResultText}"
                                        IsVisible="{Binding HasCameraTestResult}" />
+                            <!-- macOS 15+ (T-097, user decision 2026-10-29): only under the Local Network hint. -->
+                            <Button AutomationProperties.AutomationId="PrinterCameraOpenLocalNetworkSettings"
+                                    HorizontalAlignment="Left"
+                                    Content="{Binding [LocalNetworkOpenSystemSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    ToolTip.Tip="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    AutomationProperties.HelpText="{Binding [LocalNetworkOpenSystemSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                    IsVisible="{Binding ShowsCameraLocalNetworkSettings}"
+                                    Command="{Binding OpenLocalNetworkSettingsCommand}" />
                           </StackPanel>
                         </Grid>
                       </StackPanel>
