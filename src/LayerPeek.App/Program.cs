@@ -48,14 +48,33 @@ internal static partial class Program
         if (args.Contains(AppEnvironment.ClearToastsArgument, StringComparer.Ordinal))
         {
             // After a crashed test run (T-067, T-068): only the toasts and the shortcut of the test app go, nothing else
-            // starts (no log, no single-instance guard, no Avalonia), so it never meets a running instance.
+            // starts (no log, no single-instance guard, no Avalonia), so it never meets a running instance. macOS (T-020): the
+            // notifications of the test bundle, only when this is the test bundle.
+            if (OperatingSystem.IsMacOS())
+            {
+                return Platform.MacOS.TestNotificationCleanup.RunFromCommandLine(Console.Error);
+            }
+
             if (!OperatingSystem.IsWindows())
             {
-                Console.Error.WriteLine("Toasts of the test mode exist on Windows only.");
+                Console.Error.WriteLine("Toasts of the test mode exist on Windows and macOS only.");
                 return 1;
             }
 
             return TestToastCleanup.RunFromCommandLine(Console.Error);
+        }
+
+        if (args.Contains(AppEnvironment.NotificationStatusArgument, StringComparer.Ordinal))
+        {
+            // The end-to-end test of macOS notifications (T-020): permission and delivered notifications of the test bundle,
+            // without asking anything; nothing else starts.
+            if (!OperatingSystem.IsMacOS())
+            {
+                Console.Error.WriteLine("The notification status exists on macOS only.");
+                return 1;
+            }
+
+            return Platform.MacOS.TestNotificationCleanup.StatusFromCommandLine(Console.Out, Console.Error);
         }
 
         if (args.Contains(AppEnvironment.ClearAutostartArgument, StringComparer.Ordinal))
@@ -191,6 +210,13 @@ internal static partial class Program
                 }
             }
 
+            if (OperatingSystem.IsMacOS())
+            {
+                // Before AppKit finishes launching (T-020): the delegate of the notification center must be set by then, so
+                // that a click that started the app reaches it too. Clicks wait in the command queue until the app runs.
+                OpenMacNotifications(environment, args, instanceCommands, logging.Factory, log);
+            }
+
             return BuildAvaloniaApp(instanceCommands, environment, logging, crashes).StartWithClassicDesktopLifetime(args, Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
         }
         finally
@@ -227,6 +253,53 @@ internal static partial class Program
         }
     }
 
+    /// <summary>
+    /// The notification center of macOS for this run (T-020), only as the bundle the environment allows
+    /// (<see cref="AppEnvironment.NotificationBundleIdentifier"/>); published for the composition root. Without it (a
+    /// development build, another bundle, the test mode without notifications) the app shows no notifications. Never throws.
+    /// </summary>
+    [SupportedOSPlatform("macos")]
+    private static void OpenMacNotifications(AppEnvironment environment, string[] args, InstanceCommandQueue commands, ILoggerFactory loggers, ILogger log)
+    {
+        if (AppEnvironment.SkipsNotificationCenter(args))
+        {
+            // The AOT smoke test (user decision 2026-10-29): the notification center is not touched at all in this run.
+            LogNoMacNotifications(log, $"started with {AppEnvironment.SkipNotificationCenterArgument}");
+            return;
+        }
+
+        try
+        {
+            Platform.MacOS.MacUserNotificationCenter? center = Platform.MacOS.MacUserNotificationCenter.TryOpen(
+                environment.NotificationBundleIdentifierFor(args),
+                Platform.MacOS.MacMainBundle.Identifier,
+                loggers.CreateLogger<Platform.MacOS.MacUserNotificationCenter>(),
+                out string? reason);
+            if (center is null)
+            {
+                LogNoMacNotifications(log, reason ?? "unknown");
+                return;
+            }
+
+            center.InstallClickHandler(click =>
+            {
+                if (click is null)
+                {
+                    LogUnknownToastClick(log);
+                    return;
+                }
+
+                PostToastClick(commands, click, log);
+            });
+            center.Publish();
+        }
+        catch (Exception ex)
+        {
+            // The app runs without notifications.
+            LogMacNotificationsFailed(log, ex);
+        }
+    }
+
     private static void PostToastClick(InstanceCommandQueue commands, string click, ILogger log)
     {
         if (InstanceCommand.TryForToast(click, out InstanceCommand toast))
@@ -248,6 +321,12 @@ internal static partial class Program
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a click on a notification with an unrecognized argument.")]
     private static partial void LogUnknownToastClick(ILogger logger);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "No system notifications in this run: {Reason}.")]
+    private static partial void LogNoMacNotifications(ILogger logger, string reason);
+
+    [LoggerMessage(Level = LogLevel.Error, Message = "Opening the notification center of macOS failed; notifications will not be shown.")]
+    private static partial void LogMacNotificationsFailed(ILogger logger, Exception exception);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "LayerPeek {Version} starting on {OperatingSystem} ({Architecture}).")]
     private static partial void LogStarted(ILogger logger, string version, string operatingSystem, Architecture architecture);

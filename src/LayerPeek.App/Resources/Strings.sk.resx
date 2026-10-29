@@ -729,6 +729,15 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Môžete tlačiareň vypnúť. Tryska {0} °C, prah {1} °C</value>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Upozornenia sú v macOS vypnuté.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Otvoriť nastavenia hlásení</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Upozornenia LayerPeeku sú vypnuté v Systémových nastaveniach &gt; Hlásenia. Povoľte ich tam.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
   </data>

@@ -791,7 +791,31 @@
               <TextBlock Classes="hint" Text="{Binding [SettingsLanguageHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
             </StackPanel>
 
-            <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            <!--
+              T-020 (macOS, user decision 2026-10-29): when the user turned LayerPeek's notifications off in System Settings, the
+              heading row says so and offers to open System Settings > Notifications. In the heading row, so the tab keeps its
+              height (T-033 fit); hidden everywhere else.
+            -->
+            <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
+              <TextBlock Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
+              <TextBlock Grid.Column="1"
+                         AutomationProperties.AutomationId="SettingsNotificationsTurnedOff"
+                         Classes="error"
+                         Margin="16,16,12,4"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Text="{Binding [SettingsNotificationsTurnedOff], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         IsVisible="{Binding ShowsNotificationsTurnedOff}" />
+              <Button Grid.Column="2"
+                      Margin="0,12,0,0"
+                      VerticalAlignment="Center"
+                      Content="{Binding [SettingsOpenNotificationSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      ToolTip.Tip="{Binding [SettingsOpenNotificationSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding [SettingsOpenNotificationSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.AutomationId="SettingsOpenNotificationSettings"
+                      IsVisible="{Binding ShowsNotificationsTurnedOff}"
+                      Command="{Binding OpenNotificationSettingsCommand}" />
+            </Grid>
             <CheckBox Grid.Row="2" AutomationProperties.AutomationId="SettingsNotificationsEnabled" Content="{Binding [SettingsNotificationsEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding NotificationsEnabled}" />
             <Grid Grid.Row="2" Grid.Column="2" ColumnDefinitions="Auto,12,*" IsEnabled="{Binding NotificationsEnabled}">
               <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsSound], Source={x:Static loc:LocalizedStrings.Instance}}" />

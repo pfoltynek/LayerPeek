@@ -729,6 +729,15 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Sie können ihn jetzt ausschalten. Düse {0} °C, Schwelle {1} °C</value>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Benachrichtigungen sind in macOS ausgeschaltet.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Mitteilungen öffnen</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Die Benachrichtigungen von LayerPeek sind in „Systemeinstellungen &gt; Mitteilungen“ ausgeschaltet. Erlauben Sie sie dort.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
   </data>

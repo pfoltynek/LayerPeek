@@ -729,6 +729,15 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Można ją wyłączyć. Dysza {0} °C, próg {1} °C</value>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Powiadomienia są wyłączone w macOS.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Otwórz ustawienia powiadomień</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Powiadomienia LayerPeek są wyłączone w Ustawieniach systemowych &gt; Powiadomienia. Zezwól na nie tam.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
   </data>

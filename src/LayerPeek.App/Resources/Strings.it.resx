@@ -729,6 +729,15 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Puoi spegnerla. Ugello {0} °C, soglia {1} °C</value>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Le notifiche sono disattivate in macOS.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Apri impostazioni Notifiche</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Le notifiche di LayerPeek sono disattivate in Impostazioni di Sistema &gt; Notifiche. Consentile lì.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Telecamera</value>
   </data>

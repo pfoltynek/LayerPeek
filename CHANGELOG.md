@@ -17,6 +17,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   When LayerPeek was turned off in System Settings → General → Login Items, the settings window offers to open that page.
 - macOS: windows opened from the menu bar (Settings, Diagnostics, About, camera) come to the front with the keyboard focus.
 - macOS: the 16 and 32 px app icon uses the simplified design, like on Windows.
+- macOS: system notifications (User Notifications) with the same texts, sound setting and click target as on Windows; a
+  click opens the printer's web interface. macOS asks for permission with the first notification. When notifications
+  are turned off in System Settings, the *General* tab of the settings says so and offers to open System Settings →
+  Notifications.
 
 ## [0.2.0] - 2026-10-26
 

@@ -729,6 +729,15 @@
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
     <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Položky při přihlášení. Povolte ho tam a pak uložte znovu.</value>
   </data>
+  <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
+    <value>Upozornění jsou v macOS vypnutá.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettings" xml:space="preserve">
+    <value>Otevřít nastavení oznámení</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
+    <value>Upozornění LayerPeeku jsou vypnutá v Nastavení systému &gt; Oznámení. Povolte je tam.</value>
+  </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
   </data>

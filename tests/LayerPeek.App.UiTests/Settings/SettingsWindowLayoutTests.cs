@@ -166,6 +166,70 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         });
 
     /// <summary>
+    /// T-020 (macOS, user decision 2026-10-29): notifications turned off in System Settings put a warning and a button into the
+    /// heading row of the notifications on the General tab; in every language nothing is cut, nothing scrolls, the warning is
+    /// readable next to the heading and the button opens System Settings (here only counted). Also maximized.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task GeneralTabWithNotificationsTurnedOffFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+            MemoryNotificationSettings system = new() { TurnedOff = true };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: system);
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+
+            TextBlock warning = ui.Find<TextBlock>("SettingsNotificationsTurnedOff");
+            Button open = ui.Find<Button>("SettingsOpenNotificationSettings");
+            Assert.True(warning.IsEffectivelyVisible);
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsNotificationsTurnedOff, warning.Text);
+            Assert.Equal(Strings.SettingsOpenNotificationSettings, open.Content);
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsHint, AutomationProperties.GetHelpText(open));
+            foreach (Size size in new[] { new Size(780, 532), new Size(1366, 705) })
+            {
+                ui.Window.Width = size.Width;
+                ui.Window.Height = size.Height;
+                ui.Window.Settle();
+                string context = $"{language} / notifications turned off / {size}";
+                problems.AddRange(ScrollingViewers(ui.Window, context));
+                problems.AddRange(CutTexts(ui.Window, context));
+                if (warning.TextLayout.TextLines.Count > 2)
+                {
+                    problems.Add($"{context}: the warning '{warning.Text}' takes {warning.TextLayout.TextLines.Count} lines.");
+                }
+
+                if (warning.Bounds.Width < 160)
+                {
+                    problems.Add($"{context}: the warning is only {warning.Bounds.Width:0.#} DIP wide.");
+                }
+
+                Point buttonCorner = open.TranslatePoint(new Point(open.Bounds.Width, open.Bounds.Height), ui.Window) ?? default;
+                if (buttonCorner.X > ui.Window.ClientSize.Width + 0.5)
+                {
+                    problems.Add($"{context}: the button ends at {buttonCorner.X:0.#} DIP, outside the window.");
+                }
+            }
+
+            Ui.Click(ui.Window, Ui.CentreOf(open, ui.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, system.Opened);
+
+            // Allowed again (the window became active again): warning and button go.
+            system.TurnedOff = false;
+            await ui.ViewModel.RefreshNotificationPermissionAsync();
+            ui.Window.Settle();
+            Assert.False(warning.IsEffectivelyVisible);
+            Assert.False(open.IsEffectivelyVisible);
+            ui.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
     /// T-094: maximized (here the client of a maximized window on 1366 × 768 and on 1920 × 1080 at 100 %), the content
     /// stretches with its * columns, nothing scrolls, nothing is cut and the headers stay on one row.
     /// </summary>

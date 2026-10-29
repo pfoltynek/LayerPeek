@@ -66,6 +66,8 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+# Arguments of every smoke start of the app (T-020): skip the notification center of macOS for this run.
+$SmokeAppArguments = @('--layerpeek-smoke-skip-notification-center')
 
 if (-not $Runtime) {
     $os = if ($IsWindows) { 'win' } elseif ($IsMacOS) { 'osx' } else { throw 'Unsupported OS; pass -Runtime explicitly.' }
@@ -105,7 +107,7 @@ if ($RestoreOnly) { exit 0 }
 $project = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App')
 # The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.
 $ownsPublishDir = -not $PublishDir
-$publishDir = if ($ownsPublishDir) {
+$publishFolder = if ($ownsPublishDir) {
     Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-aot-smoke-$([guid]::NewGuid().ToString('N'))"
 }
 elseif (Test-Path -LiteralPath $PublishDir -PathType Container) {
@@ -148,7 +150,7 @@ $toastsBefore = if ($IsWindows -and -not $SkipShellIntegration) { Get-ToastHisto
 $lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
 $bundle = $null
 $bundleWasRegistered = $true
-if ($IsMacOS -and -not $SkipShellIntegration -and $PublishDir) {
+if ($IsMacOS -and -not $SkipShellIntegration -and -not $ownsPublishDir) {
     $contents = Split-Path -Parent (Resolve-Path -LiteralPath $PublishDir -ErrorAction SilentlyContinue).ProviderPath
     if ((Split-Path -Leaf $PublishDir) -ceq 'MacOS' -and $contents -and (Split-Path -Leaf $contents) -ceq 'Contents' -and (Split-Path -Parent $contents).EndsWith('.app')) {
         $bundle = Split-Path -Parent $contents
@@ -158,15 +160,15 @@ if ($IsMacOS -and -not $SkipShellIntegration -and $PublishDir) {
 
 try {
     if ($ownsPublishDir) {
-        Write-Host "Publishing $Runtime to $publishDir ..."
-        dotnet publish $project -c Release -r $Runtime -o $publishDir
+        Write-Host "Publishing $Runtime to $publishFolder ..."
+        dotnet publish $project -c Release -r $Runtime -o $publishFolder
         if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed with exit code $LASTEXITCODE." }
     }
     else {
-        Write-Host "Checking the existing publish folder $publishDir ..."
+        Write-Host "Checking the existing publish folder $publishFolder ..."
     }
 
-    $exe = Join-Path $publishDir $exeName
+    $exe = Join-Path $publishFolder $exeName
     if (-not (Test-Path -LiteralPath $exe -PathType Leaf)) { throw "Published executable not found: $exe" }
 
     # Outside the publish folder, so that an existing (release) publish folder stays unchanged.
@@ -178,7 +180,9 @@ try {
     # backup that fails half way is restored too.
     $profileMoved = $true
     Backup-SmokeProfile -SmokeProfile $smokeProfile
-    $process = Start-Process -FilePath $exe -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    # T-020 (user decision 2026-10-29): the run never opens the notification center of macOS, so nothing lands in the
+    # notification settings of the developer (AppEnvironment.SkipNotificationCenterArgument; ignored on Windows).
+    $process = Start-Process -FilePath $exe -ArgumentList $SmokeAppArguments -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
     if ($process.WaitForExit($Seconds * 1000)) {
         $output = (Get-Content $stdout, $stderr -Raw -ErrorAction SilentlyContinue) -join [Environment]::NewLine
@@ -238,8 +242,8 @@ finally {
             Write-Host "Removed the LaunchServices registration of $bundle that the start created."
         }
     }
-    if ($ownsPublishDir -and (Test-Path -LiteralPath $publishDir)) {
-        Remove-Item -LiteralPath $publishDir -Recurse -Force -ErrorAction SilentlyContinue
+    if ($ownsPublishDir -and (Test-Path -LiteralPath $publishFolder)) {
+        Remove-Item -LiteralPath $publishFolder -Recurse -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $logDir) {
         Remove-Item -LiteralPath $logDir -Recurse -Force -ErrorAction SilentlyContinue

@@ -17,6 +17,7 @@ using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
+using LayerPeek.App.Tests.Notifications;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
@@ -161,12 +162,60 @@ public sealed class AppServicesTests
     [Fact]
     public async Task OtherOperatingSystemsSilentlyDropNotifications()
     {
-        // macOS notifications follow in T-020; until then notifications are silently not sent.
+        // Without a notification center (another OS; on macOS the test host, which has no bundle, so Program.Main of the app
+        // would open none, T-020) notifications are silently not sent and the settings window gets no OS switch.
         await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: false);
 
         Assert.Same(NullNotificationService.Instance, services.GetRequiredService<INotificationService>());
+        Assert.Null(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
         AssertNotificationPipeline(services);
     }
+
+    [Fact]
+    public async Task MacOSUsesTheNotificationCenterOfThisRun()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "The notification center of macOS (T-020).");
+        FakeUserNotificationCenter center = new(AppEnvironment.ProductionBundleIdentifier);
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: false, macNotifications: center);
+
+        // Resolving asks nothing: the permission is asked with the first notification.
+        UserNotificationService notifications = Assert.IsType<UserNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.Same(center, notifications.Center);
+        Assert.IsType<MacNotificationSettings>(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+        using SettingsViewModel settings = AppServices.CreateSettingsViewModel(services);
+        Assert.False(settings.ShowsNotificationsTurnedOff);
+        Assert.Equal(0, center.AuthorizationRequests);
+        Assert.Empty(center.Posted);
+        AssertNotificationPipeline(services);
+    }
+
+    [Fact]
+    public async Task WindowsNeverUsesTheNotificationCenterOfMacOS()
+    {
+        FakeUserNotificationCenter center = new(AppEnvironment.ProductionBundleIdentifier);
+        await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: true, macNotifications: center);
+
+        Assert.IsNotType<UserNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.Null(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+    }
+
+#if DEBUG
+    [Fact]
+    public void OnlyProductionOpensSystemSettings()
+    {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), "System Settings of macOS (T-020).");
+        string folder = Path.Combine(Path.GetTempPath(), "LayerPeek.App.Tests.NoSystemSettings");
+
+        Action<Uri> production = AppServices.OpenSystemSettings(AppEnvironment.Production, NullLogger.Instance);
+        Action<Uri> testMode = AppServices.OpenSystemSettings(AppEnvironment.ForTests(folder, toasts: true), NullLogger.Instance);
+
+        Assert.Equal(nameof(MacSystemSettings.Open), production.Method.Name);
+        Assert.NotEqual(nameof(MacSystemSettings.Open), testMode.Method.Name);
+        // The stand-in of the test mode only logs: calling it opens nothing.
+        testMode(MacNotificationSettings.SettingsAddress(AppEnvironment.TestBundleIdentifier));
+        Assert.False(Directory.Exists(folder));
+    }
+#endif
 
     private static void AssertNotificationPipeline(ServiceProvider services)
     {

@@ -1130,7 +1130,8 @@ Describe 'AOT smoke script with an existing publish folder' {
         $data = (Get-SmokeProfile -ProfileRoot $profileRoot -BundleIdentifier $script:StandInBundleId).Folders[0]
         $seen = Join-Path $script:TempRoot "smoke-seen-$([guid]::NewGuid().ToString('N').Substring(0, 8)).txt"
         # Records what it found (an empty profile: no settings.json), then writes like the app and stays alive.
-        $scriptText = "#!/bin/sh`nls -A '$data' > '$seen' 2>&1`nmkdir -p '$data'`necho exe > '$data/settings.json'`necho exe > '$data/new.txt'`nexec sleep 60`n"
+        $arguments = Join-Path $script:TempRoot "smoke-args-$([guid]::NewGuid().ToString('N').Substring(0, 8)).txt"
+        $scriptText = "#!/bin/sh`nprintf '%s\n' `"`$@`" > '$arguments'`nls -A '$data' > '$seen' 2>&1`nmkdir -p '$data'`necho exe > '$data/settings.json'`necho exe > '$data/new.txt'`nexec sleep 60`n"
         [System.IO.File]::WriteAllText($exe, $scriptText)
         & chmod +x $exe
         $output = Invoke-Pwsh -NoProfile -NonInteractive -File $script:SmokeScript -PublishDir $publish -Seconds 2 -SkipShellIntegration -ProfileRoot $profileRoot 2>&1 | Out-String
@@ -1139,6 +1140,18 @@ Describe 'AOT smoke script with an existing publish folder' {
         # The exe saw no data of the user, and the user's data is back unchanged without what the exe wrote.
         Get-Content -LiteralPath $seen -Raw | Should -Match 'No such file'
         Get-TreeState $profileRoot | Should -BeExactly $profileBefore
+        # T-020 (user decision 2026-10-29): every smoke start skips the notification center of macOS, with exactly this switch.
+        @(Get-Content -LiteralPath $arguments) | Should -BeExactly @('--layerpeek-smoke-skip-notification-center')
+    }
+    It 'passes the switch the app knows for skipping the notification center' {
+        # The same text as AppEnvironment.SkipNotificationCenterArgument (T-020), so a rename cannot silently stop working.
+        $environment = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Composition' 'AppEnvironment.cs') -Raw
+        $environment -match 'const string SkipNotificationCenterArgument = "(?<switch>[^"]+)";' | Should -BeTrue
+        $switch = $Matches['switch']
+        $switch | Should -BeExactly '--layerpeek-smoke-skip-notification-center'
+        $smoke = Get-Content -LiteralPath $script:SmokeScript -Raw
+        $smoke | Should -Match ([regex]::Escape("`$SmokeAppArguments = @('$switch')"))
+        $smoke | Should -Match 'Start-Process -FilePath \$exe -ArgumentList \$SmokeAppArguments '
     }
     It '-RestoreOnly finishes the restore of an interrupted run and starts nothing' {
         $profileRoot = New-SmokeStandInProfile

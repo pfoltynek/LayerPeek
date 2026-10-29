@@ -46,7 +46,7 @@ namespace LayerPeek.App.Composition;
 /// UI-thread-only objects (tray icons) are not registered: the container may be disposed off the UI thread;
 /// <see cref="TrayHost"/> owns them instead.
 /// </summary>
-internal static class AppServices
+internal static partial class AppServices
 {
     /// <param name="loggerFactory">
     /// Logger factory owned by the caller. Registered as an instance, so disposing the container does not dispose it:
@@ -70,13 +70,18 @@ internal static class AppServices
         Create(loggerFactory, OperatingSystem.IsWindows(), cameraFeedFactory, cameraWindowStateStore, environment, logLevel);
 
     /// <param name="windows">Use the Windows notification implementation (only effective on Windows); lets tests check the other branch.</param>
+    /// <param name="macNotifications">
+    /// The notification center of macOS (T-020; only used on macOS when <paramref name="windows"/> is off); <see langword="null"/>:
+    /// the one <c>Program.Main</c> opened for this run (<see cref="MacUserNotificationCenter.Shared"/>, none in tests).
+    /// </param>
     internal static ServiceProvider Create(
         ILoggerFactory? loggerFactory,
         bool windows,
         Func<IServiceProvider, ICameraFeedFactory>? cameraFeedFactory = null,
         Func<IServiceProvider, ICameraWindowStateStore>? cameraWindowStateStore = null,
         AppEnvironment? environment = null,
-        LogLevelSwitch? logLevel = null)
+        LogLevelSwitch? logLevel = null,
+        IUserNotificationCenter? macNotifications = null)
     {
         AppEnvironment env = environment ?? AppEnvironment.Production;
         ServiceCollection services = new();
@@ -146,7 +151,15 @@ internal static class AppServices
             sp.GetRequiredService<TimeProvider>()));
         // Test mode (T-044): no toasts, so the Start menu shortcut with the AppUserModelID (T-010) is never written; with the
         // Debug switch of T-067 toasts of the test app with a shortcut of its own.
-        services.AddSingleton(sp => CreateNotificationService(sp, windows, env));
+        // macOS (T-020): the notification center Program.Main opened for exactly the allowed bundle, or none.
+        IUserNotificationCenter? userNotifications = !windows && OperatingSystem.IsMacOS() ? macNotifications ?? (OperatingSystem.IsMacOS() ? MacUserNotificationCenter.Shared : null) : null;
+        services.AddSingleton(sp => userNotifications is not null
+            ? new UserNotificationService(userNotifications, UiLanguage.CurrentTextCulture, sp.GetRequiredService<ILogger<UserNotificationService>>())
+            : CreateNotificationService(sp, windows, env));
+        // The warning "turned off in macOS" of the settings window and its button (T-020); the test mode never opens System Settings.
+        services.AddSingleton(sp => new SystemNotificationSettingsOption(userNotifications is null
+            ? null
+            : new MacNotificationSettings(userNotifications, OpenSystemSettings(env, sp.GetRequiredService<ILogger<MacNotificationSettings>>()), sp.GetRequiredService<ILogger<MacNotificationSettings>>())));
         services.AddSingleton(static sp => new PrintEventNotifier(
             sp.GetRequiredService<IPrinterMonitor>(),
             sp.GetRequiredService<INotificationService>(),
@@ -260,7 +273,24 @@ internal static class AppServices
     }
 
     /// <summary>
-    /// Windows: toasts (T-010). Other OS: notifications are silently not sent until macOS notifications (T-020) exist.
+    /// How the settings window opens System Settings &gt; Notifications (T-020): really only outside the test mode; the test
+    /// mode (never in Release builds) only logs it, like the stand-in Login Item (T-019).
+    /// </summary>
+    internal static Action<Uri> OpenSystemSettings(AppEnvironment environment, ILogger logger)
+    {
+        if (environment.IsIsolated || !OperatingSystem.IsMacOS())
+        {
+            return address => LogSystemSettingsNotOpened(logger);
+        }
+
+        return MacSystemSettings.Open;
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Test mode: System Settings > Notifications is not opened.")]
+    private static partial void LogSystemSettingsNotOpened(ILogger logger);
+
+    /// <summary>
+    /// Windows: toasts (T-010). macOS: the notification center (T-020, chosen in <c>Create</c>); without it and on any other OS notifications are silently not sent.
     /// Creating the toast service starts nothing; <see cref="TrayHost"/> starts it, tests never do. The test mode shows no
     /// toasts, or (Debug switch, T-067) those of the test app with its own Start menu shortcut, never the production ones.
     /// </summary>
@@ -607,6 +637,7 @@ internal static class AppServices
             timeProvider: services.GetRequiredService<TimeProvider>(),
             autostart: services.GetRequiredService<AutostartOption>().Autostart,
             autostartNeedsInstallation: services.GetRequiredService<AutostartOption>().NeedsInstallation,
+            notificationSettings: services.GetRequiredService<SystemNotificationSettingsOption>().Settings,
             widgets: services.GetRequiredService<OverlayWidgetRegistry>(),
             layoutModeLauncher: layoutModeLauncher,
             // A layout saved from a camera window replaces only that layout in an open settings window (T-077 Q3).
