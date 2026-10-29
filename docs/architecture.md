@@ -174,7 +174,7 @@ Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podr
 
 | Oblast | Windows | macOS |
 |---|---|---|
-| Ikona | oznamovací oblast, barevná ikona kreslená za běhu (`ITrayIconSet`) – T-007 | menu bar, doporučená monochromatická „template“ ikona – T-018 |
+| Ikona | oznamovací oblast, barevná ikona kreslená za běhu (`ITrayIconSet`) – T-007 | menu bar, monochromatická „template“ ikona kreslená za běhu (`TemplateTrayIconSet`, `MacOSProperties.SetIsTemplateIcon`), výběr sady podle OS v `TrayIconSets` – T-018 (`docs/design/macos-tray-icons.md`) |
 | Notifikace | toast přes vlastní WinRT interop, AppUserModelID přes zástupce ve Start menu uživatele – T-010 | User Notifications (vyžaduje .app bundle) – T-020 |
 | Skrytí z docku/taskbaru | bez hlavního okna automaticky | `LSUIElement` v `Info.plist` – T-019 |
 | Autostart, balení | vlastní zástupce aplikace ve složce Startup (`IAutostart`, volba v nastavení, výchozí vypnuto), instalátor Velopack (`docs/velopack.md`, T-056): hooky instalace/odinstalace v `Installer/VelopackStartup` jako první v `Main`, aktualizace `AppUpdates` (jen v instalaci) + `.zip`, bez podpisu – T-017 | Login Items, `.app` bundle, `.dmg` + `.tar.gz`, ad-hoc podpis – T-019 |
