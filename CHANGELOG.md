@@ -27,6 +27,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Windows: when LayerPeek's notifications are turned off in Settings → System → Notifications, the *General* tab says
   so and offers to open that page (checked every time the settings window opens or comes back to the front, as on
   macOS); when a policy of the organization turned them off, the tab says that instead.
+- macOS: while a window is open (Settings, Diagnostics, About, licences, a camera window that is not always on top),
+  LayerPeek has a Dock icon and is in the ⌘Tab switcher, so a window that fell behind other apps can be brought back
+  (clicking the Dock icon, or the window list of its menu); with only always-on-top windows (the mini preview by
+  default) or no window it is back in the menu bar only. The menu bar menu of a printer with an open camera window also
+  has **Show camera**, which brings the window to the front.
+
+### Changed
+
+- Windows: a camera window has a taskbar button exactly when it is not always on top. With the default options nothing
+  changes (the mini preview is on top and has none); a normal window with "Always on top" now has no taskbar button, a
+  mini preview without it now has one.
 
 ## [0.3.0] - 2026-10-29
 

@@ -831,6 +831,10 @@
     <value>Hide _camera</value>
     <comment>Item of a printer submenu while its camera window is open; closes the window. "_" marks the access key: unique within the submenu and on the same noun as MenuShowCamera, so the key stays the same in both states.</comment>
   </data>
+  <data name="MenuCameraToFront" xml:space="preserve">
+    <value>_Show camera</value>
+    <comment>Item of a printer submenu on macOS while its camera window is open, right above MenuHideCamera (T-102); brings the window to the front. Same wording as MenuShowCamera. "_" marks the access key: unique within the submenu, so not on the noun MenuHideCamera uses (macOS menus do not show access keys).</comment>
+  </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Camera</value>
   </data>

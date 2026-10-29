@@ -801,6 +801,9 @@
   <data name="MenuHideCamera" xml:space="preserve">
     <value>Skrýt _kameru</value>
   </data>
+  <data name="MenuCameraToFront" xml:space="preserve">
+    <value>_Zobrazit kameru</value>
+  </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>
   </data>

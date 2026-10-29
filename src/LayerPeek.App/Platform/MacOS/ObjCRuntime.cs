@@ -4,7 +4,8 @@ using System.Runtime.Versioning;
 namespace LayerPeek.App.Platform.MacOS;
 
 /// <summary>
-/// The few Objective-C runtime calls of the macOS menu bar app (T-019): bringing the app to the front, the Login Item
+/// The few Objective-C runtime calls of the macOS menu bar app (T-019): bringing the app to the front, its activation policy
+/// (T-102: the Dock icon while windows are open), the Login Item
 /// of <c>SMAppService</c> and (T-020) the User Notifications framework with its delegate class registered at run time. Native AOT safe: <c>[LibraryImport]</c> by absolute path with blittable signatures, one entry
 /// point per <c>objc_msgSend</c> shape (on arm64 every message must be sent through a prototype of exactly its arguments),
 /// no Objective-C bridge, no reflection. Every object is a plain <see cref="nint"/>.
@@ -177,6 +178,11 @@ internal static unsafe partial class ObjCRuntime
     /// <summary>No result, no arguments (<c>activate</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial void SendVoid(nint receiver, nint selector);
+
+    /// <summary><c>BOOL</c> result, no arguments (<c>isActive</c>).</summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool SendBool(nint receiver, nint selector);
 
     /// <summary><c>BOOL</c> result, one pointer argument (<c>respondsToSelector:</c>, <c>registerAndReturnError:</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]

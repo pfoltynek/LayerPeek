@@ -48,7 +48,8 @@ internal static class MacAppActivation
     /// The global <c>NSApp</c> of AppKit, or 0. AppKit is looked at only when its class is already loaded, so this never
     /// loads AppKit into a process that does not use it.
     /// </summary>
-    private static unsafe nint RunningApplication()
+    /// <remarks>Also used by <see cref="MacAppPresence"/> (T-102).</remarks>
+    internal static unsafe nint RunningApplication()
     {
         if (ObjCRuntime.Class("NSApplication") == 0 || !NativeLibrary.TryLoad(AppKit, out nint appKit))
         {

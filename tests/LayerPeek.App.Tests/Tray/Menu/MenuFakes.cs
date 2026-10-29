@@ -232,5 +232,10 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public void ToggleCamera(string printerId) => CameraRequests.Add(printerId);
 
+    /// <summary>Printer ids of "Show camera" for an open window (macOS, T-102) in order.</summary>
+    public List<string> CameraToFrontRequests { get; } = [];
+
+    public void BringCameraToFront(string printerId) => CameraToFrontRequests.Add(printerId);
+
     public void Quit() => QuitCount++;
 }
