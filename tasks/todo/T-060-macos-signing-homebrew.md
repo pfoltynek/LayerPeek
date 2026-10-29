@@ -21,6 +21,7 @@ Aplikaci pro macOS mohou instalovat i ostatní uživatelé bez ručního obcház
 
 ## Rozsah
 - **Podpis:** certifikát *Developer ID Application*, hardened runtime, potřebné entitlements (síť, Keychain – T-021, notifikace – T-020); podpis celého `.app` včetně nativních knihoven FFmpeg (T-026) i `.dmg`.
+- **Keychain (z T-021, rozhodnuto 2026-10-29):** s ad-hoc podpisem ukládá `KeychainSecretStore` hesla do souborového login Keychainu (čitelný, jen když je login Keychain odemčený; je v zálohách Time Machine a přenáší ho Migration Assistant; po každé aktualizaci ad-hoc sestavení se může objevit dialog „povolit přístup“). *Data protection keychain* (`kSecUseDataProtectionKeychain`, dostupnost `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, bez dialogů ACL) potřebuje entitlement `keychain-access-groups` schválený provisioning profilem, tedy Developer ID. Při přechodu na Developer ID zvážit přesun na data protection keychain včetně migrace existujících položek z login Keychainu (rozhodne uživatel).
 - **Notarizace:** `xcrun notarytool submit --wait` a `xcrun stapler staple` pro `.app` i `.dmg` (https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution). Přihlašovací údaje (App Store Connect API klíč) jen v Keychainu vývojáře, nikdy v repozitáři ani v logu.
 - Napojení na balicí kroky skriptů T-055 / T-019 na Macu (bez CI, T-016 odložený): podpis a notarizace nahradí ad-hoc podpis.
 - Aktualizace přes Velopack na macOS, pokud to doporučí T-056 (Velopack na macOS vytváří `.pkg` a vyžaduje podpis a notarizaci).

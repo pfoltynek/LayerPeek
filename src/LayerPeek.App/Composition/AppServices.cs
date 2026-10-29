@@ -14,6 +14,7 @@ using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Previews;
 using LayerPeek.App.Printers;
@@ -641,7 +642,7 @@ internal static class AppServices
 #if DEBUG
         if (environment.IsIsolated)
         {
-            // Test mode (T-044): never the user's Credential Manager; with the Debug switch of T-067 the Credential Manager
+            // Test mode (T-044): never the user's Credential Manager or Keychain; with the Debug switch of T-067 the Credential Manager
             // under a test prefix (checked by AppEnvironment), which can never be the production one. Session only (user
             // decision 2026-10-22): never written to disk nor roamed, so a crashed run leaves nothing past the logon session.
             return environment.TestCredentialPrefix is { } prefix && OperatingSystem.IsWindows()
@@ -650,9 +651,12 @@ internal static class AppServices
         }
 #endif
 
-        return OperatingSystem.IsWindows()
-            ? new WindowsCredentialSecretStore()
-            // macOS Keychain store follows in T-021; until then passwords are unavailable but the app runs.
-            : new UnsupportedSecretStore();
+        if (OperatingSystem.IsWindows())
+        {
+            return new WindowsCredentialSecretStore();
+        }
+
+        // macOS: the login Keychain (T-021). Any other OS has no store: passwords are unavailable but the app runs.
+        return OperatingSystem.IsMacOS() ? new KeychainSecretStore() : new UnsupportedSecretStore();
     }
 }

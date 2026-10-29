@@ -563,7 +563,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
     }
 
-    /// <summary>Passwords can be saved on this OS (false on macOS until T-021).</summary>
+    /// <summary>Passwords can be saved on this OS (false where no secret store exists, see <see cref="PasswordPolicy"/>).</summary>
     public bool IsPasswordSupported => Policy.IsSupported;
 
     /// <summary>

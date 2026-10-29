@@ -1,3 +1,4 @@
+using LayerPeek.App.Tests.Platform.MacOS;
 using LayerPeek.App.Tests.Platform.Windows;
 using LayerPeek.Tests.Shared;
 
@@ -6,7 +7,7 @@ using LayerPeek.Tests.Shared;
 namespace LayerPeek.App.Tests.Platform.Windows;
 
 /// <summary>
-/// Removes all test credentials, test shortcut files (<see cref="TestShortcuts"/>) and test registry keys (<see cref="TestRegistry"/>) before the first test (leftovers of a crashed run) and after the last one.
+/// Removes all test credentials (Windows Credential Manager, macOS Keychain: <see cref="TestKeychain"/>), test shortcut files (<see cref="TestShortcuts"/>) and test registry keys (<see cref="TestRegistry"/>) before the first test (leftovers of a crashed run) and after the last one.
 /// Per-test cleanup still happens in the tests; this is the safety net. Concurrent runs of this assembly
 /// are serialized by <see cref="TestRunLock"/>.
 /// </summary>
@@ -19,7 +20,17 @@ public sealed class CredentialCleanupFixture : IAsyncLifetime
         _runLock = await TestRunLock.AcquireAsync("LayerPeek.App.Tests", TimeSpan.FromMinutes(5));
         try
         {
+            if (OperatingSystem.IsMacOS())
+            {
+                // Before the sweep: deleting a leftover must not be able to show a dialog either.
+                TestKeychain.DisallowInteraction();
+            }
+
             await SweepAsync();
+            if (OperatingSystem.IsMacOS())
+            {
+                await TestKeychain.ProbeAsync();
+            }
         }
         catch
         {
@@ -38,6 +49,11 @@ public sealed class CredentialCleanupFixture : IAsyncLifetime
         }
         finally
         {
+            if (OperatingSystem.IsMacOS())
+            {
+                TestKeychain.AllowInteraction();
+            }
+
             _runLock?.Dispose();
         }
     }
@@ -49,6 +65,10 @@ public sealed class CredentialCleanupFixture : IAsyncLifetime
             if (OperatingSystem.IsWindows())
             {
                 TestCredentials.DeleteAll();
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                TestKeychain.DeleteAll();
             }
         });
         await TestRunLock.RetryAsync("delete test shortcuts", TestShortcuts.DeleteAll);

@@ -1,6 +1,7 @@
 using System.Text;
 
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.Core.Secrets;
 
@@ -20,7 +21,7 @@ public enum PasswordProblem
 
 /// <summary>
 /// What the platform <see cref="Core.Secrets.ISecretStore"/> of this OS accepts, so that the settings window validates a
-/// password before saving and disables the password field where no store exists (macOS until T-021).
+/// password before saving and disables the password field where no store exists (an OS other than Windows and macOS).
 /// </summary>
 /// <param name="IsSupported">Passwords can be stored; <see langword="false"/> with <see cref="UnsupportedSecretStore"/>.</param>
 /// <param name="MaxBytes">Maximum password size in UTF-8 bytes.</param>
@@ -37,7 +38,7 @@ internal sealed record PasswordPolicy(bool IsSupported, int MaxBytes)
     /// can never disagree about the OS.
     /// </summary>
     /// <exception cref="NotSupportedException">
-    /// A store without a known policy: a new platform store (e.g. Keychain, T-021) must be added here.
+    /// A store without a known policy: a new platform store must be added here.
     /// </exception>
     public static PasswordPolicy For(ISecretStore store)
     {
@@ -50,6 +51,11 @@ internal sealed record PasswordPolicy(bool IsSupported, int MaxBytes)
         if (OperatingSystem.IsWindows() && store is WindowsCredentialSecretStore)
         {
             return new PasswordPolicy(IsSupported: true, WindowsCredentialSecretStore.MaxSecretBytes);
+        }
+
+        if (OperatingSystem.IsMacOS() && store is KeychainSecretStore)
+        {
+            return new PasswordPolicy(IsSupported: true, KeychainSecretStore.MaxSecretBytes);
         }
 
 #if DEBUG
