@@ -712,7 +712,7 @@
     <value>Otevřít při přihlášení</value>
   </data>
   <data name="SettingsNeedsAppBundle" xml:space="preserve">
-    <value>Jen v aplikaci LayerPeek.app přesunuté do složky Aplikace, ne ve vývojovém sestavení ani přímo z obrazu disku.</value>
+    <value>Jen když je LayerPeek ve složce Aplikace, ne při otevření přímo z obrazu disku ani ve vývojovém sestavení.</value>
   </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Nabízet předběžné verze</value>
@@ -724,10 +724,10 @@
     <value>Nastavení je uloženo. Spouštění po přihlášení se nepodařilo změnit. Zkuste uložit znovu.</value>
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
-    <value>Otevřít Položky při přihlášení</value>
+    <value>Otevřít Nastavení systému</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Položky při přihlášení. Povolte ho tam a pak uložte znovu.</value>
+    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Aktivace položek a rozšíření při přihlášení. Povolte ho tam a pak uložte znovu.</value>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Upozornění jsou v macOS vypnutá.</value>
@@ -736,7 +736,7 @@
     <value>Otevřít nastavení oznámení</value>
   </data>
   <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
-    <value>Upozornění LayerPeeku jsou vypnutá v Nastavení systému &gt; Oznámení. Povolte je tam.</value>
+    <value>Upozornění LayerPeeku jsou vypnutá v Nastavení systému &gt; Oznámení. Zapněte tam „Povolit oznámení“.</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Kamera</value>
@@ -871,7 +871,7 @@
     <value>Konfigurace a skripty buildu (BtbN)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
-    <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravené vydání FFmpeg, sestavené z oficiálních zdrojových kódů jako LGPL build, a linkuje ho dynamicky: knihovny libavcodec, libavformat, libavutil a libswscale (.dylib) v balíčku aplikace lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. libavcodec.63.dylib); balíček je pak potřeba znovu podepsat.</value>
+    <value>FFmpeg je licencovaný pod GNU LGPL verze 3 nebo novější. Aplikace používá neupravené vydání FFmpeg, sestavené z oficiálních zdrojových kódů jako LGPL build, a linkuje ho dynamicky: knihovny libavcodec, libavformat, libavutil a libswscale (.dylib) v LayerPeek.app/Contents/MacOS lze nahradit kompatibilním buildem FFmpeg (stejné verze knihoven, např. libavcodec.63.dylib). Aplikaci je pak potřeba znovu podepsat, stačí ad-hoc podpis.</value>
   </data>
   <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
     <value>Použité zdrojové vydání FFmpeg (ffmpeg.org)</value>

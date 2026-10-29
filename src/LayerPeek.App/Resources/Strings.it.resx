@@ -661,7 +661,7 @@
     <value>Apri al login</value>
   </data>
   <data name="SettingsNeedsAppBundle" xml:space="preserve">
-    <value>Disponibile solo in LayerPeek.app spostata nella cartella Applicazioni, non in una build di sviluppo né direttamente dall'immagine disco.</value>
+    <value>Disponibile solo quando LayerPeek si trova nella cartella Applicazioni, non se aperto direttamente dall'immagine disco né in una build di sviluppo.</value>
   </data>
   <data name="SettingsOfferPrereleaseUpdates" xml:space="preserve">
     <value>Offri versioni preliminari</value>
@@ -673,10 +673,10 @@
     <value>Impostazioni salvate. Impossibile modificare l'avvio all'accesso. Prova a salvare di nuovo.</value>
   </data>
   <data name="SettingsOpenLoginItems" xml:space="preserve">
-    <value>Apri Elementi login</value>
+    <value>Apri Impostazioni di Sistema</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek è disattivato in Impostazioni di Sistema &gt; Generali &gt; Elementi login. Consentilo lì, poi salva di nuovo.</value>
+    <value>LayerPeek è disattivato in Impostazioni di Sistema &gt; Generali &gt; Elementi login ed estensioni. Consentilo lì, poi salva di nuovo.</value>
   </data>
   <data name="NotificationPrintStarted" xml:space="preserve">
     <value>Stampa avviata</value>
@@ -736,7 +736,7 @@
     <value>Apri impostazioni Notifiche</value>
   </data>
   <data name="SettingsOpenNotificationSettingsHint" xml:space="preserve">
-    <value>Le notifiche di LayerPeek sono disattivate in Impostazioni di Sistema &gt; Notifiche. Consentile lì.</value>
+    <value>Le notifiche di LayerPeek sono disattivate in Impostazioni di Sistema &gt; Notifiche. Attiva lì «Consenti notifiche».</value>
   </data>
   <data name="SettingsCamera" xml:space="preserve">
     <value>Telecamera</value>
@@ -871,7 +871,7 @@
     <value>Configurazione e script di build (BtbN)</value>
   </data>
   <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
-    <value>FFmpeg è distribuito con licenza GNU LGPL versione 3 o successiva. L'applicazione usa una release di FFmpeg non modificata, compilata come build LGPL dal codice sorgente ufficiale, e la collega dinamicamente: le librerie libavcodec, libavformat, libavutil e libswscale (.dylib) nel pacchetto dell'applicazione possono essere sostituite con una build FFmpeg compatibile (stesse versioni delle librerie, ad es. libavcodec.63.dylib); il pacchetto va poi firmato di nuovo.</value>
+    <value>FFmpeg è distribuito con licenza GNU LGPL versione 3 o successiva. L'applicazione usa una release di FFmpeg non modificata, compilata come build LGPL dal codice sorgente ufficiale, e la collega dinamicamente: le librerie libavcodec, libavformat, libavutil e libswscale (.dylib) in LayerPeek.app/Contents/MacOS possono essere sostituite con una build FFmpeg compatibile (stesse versioni delle librerie, ad es. libavcodec.63.dylib). L'applicazione va poi firmata di nuovo; basta una firma ad hoc.</value>
   </data>
   <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
     <value>Release del codice sorgente FFmpeg utilizzata (ffmpeg.org)</value>
