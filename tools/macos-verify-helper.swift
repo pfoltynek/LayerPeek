@@ -6,6 +6,10 @@
 //                                    the main display, as CGWindowList), scale, main
 //   windows <pid>                    the windows of a process from CGWindowListCopyWindowInfo: number, layer, bounds,
 //                                    on screen; needs no Screen Recording permission (window titles are not read)
+//   menubar                          the menu bar level windows (layers 23 to 26) of every process with owner name and
+//                                    pid: shows who owns the status items on this macOS version (evidence only)
+//   session                          the login session as JSON: locked (the screen is locked: no window can come to the
+//                                    front, status items and full-screen Spaces are not shown) and onConsole
 //   trusted                          "true" / "false": whether this process (i.e. the terminal that started it) has the
 //                                    Accessibility permission; never asks for it
 //   key <combo>                      posts a key press, e.g. ctrl+cmd+f, cmd+w, cmd+period, cmd+shift+], escape
@@ -77,6 +81,34 @@ func windows(_ pid: Int32) {
         ])
     }
     printJSON(result)
+}
+
+func menuBarWindows() {
+    guard let list = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as? [[String: Any]] else { fail("no window list") }
+    var result: [[String: Any]] = []
+    for window in list {
+        let layer = (window[kCGWindowLayer as String] as? NSNumber)?.intValue ?? 0
+        guard (23...26).contains(layer) else { continue }
+        let bounds = window[kCGWindowBounds as String] as? [String: Any] ?? [:]
+        func number(_ key: String) -> Double { (bounds[key] as? NSNumber)?.doubleValue ?? 0 }
+        result.append([
+            "layer": layer,
+            "owner": window[kCGWindowOwnerName as String] as? String ?? "",
+            "pid": (window[kCGWindowOwnerPID as String] as? NSNumber)?.intValue ?? 0,
+            "x": number("X"), "y": number("Y"), "width": number("Width"), "height": number("Height"),
+            "onscreen": (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false,
+        ])
+    }
+    printJSON(result)
+}
+
+func session() {
+    let info = CGSessionCopyCurrentDictionary() as? [String: Any] ?? [:]
+    printJSON([
+        "locked": (info["CGSSessionScreenIsLocked"] as? NSNumber)?.boolValue ?? false,
+        "onConsole": (info[kCGSessionOnConsoleKey as String] as? NSNumber)?.boolValue ?? false,
+        "known": !info.isEmpty,
+    ])
 }
 
 func requireTrusted() {
@@ -226,10 +258,12 @@ func icons(_ output: String, _ menuBarFolder: String, _ appIcon: String, _ syste
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|trusted|key|click|localized|icons ...") }
+guard let command = arguments.first else { fail("usage: macos-verify-helper screens|windows|menubar|session|trusted|key|click|localized|icons ...") }
 switch command {
 case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
+case "menubar": menuBarWindows()
+case "session": session()
 case "trusted": print(AXIsProcessTrusted() ? "true" : "false")
 case "key" where arguments.count == 2: key(arguments[1])
 case "click" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; click(x, y)

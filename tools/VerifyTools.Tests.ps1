@@ -299,6 +299,49 @@ Describe 'macOS helpers (pure)' {
         Test-VerifyMenuBarItem @($windows[1]) | Should -BeFalse
         Get-VerifyMainWindow @($windows[0]) | Should -BeNullOrEmpty
     }
+
+    It 'writes evidence as a JSON array also for none or one item' {
+        (ConvertTo-VerifyJsonArray @() -replace '\s', '') | Should -Be '[]'
+        (ConvertTo-VerifyJsonArray $null -replace '\s', '') | Should -Be '[]'
+        $one = ConvertTo-VerifyJsonArray @([pscustomobject]@{ layer = 0; width = 960 })
+        ($one -replace '\s', '') | Should -Be '[{"layer":0,"width":960}]'
+        $list = [System.Collections.Generic.List[object]]::new()
+        $list.Add([pscustomobject]@{ a = 1 }); $list.Add([pscustomobject]@{ a = 2 })
+        ((ConvertTo-VerifyJsonArray $list) -replace '\s', '') | Should -Be '[{"a":1},{"a":2}]'
+    }
+
+    It 'tells a locked screen or a session off the console from a normal session' {
+        Get-VerifySessionLimitation ([pscustomobject]@{ known = $true; locked = $false; onConsole = $true }) | Should -BeNullOrEmpty
+        Get-VerifySessionLimitation ([pscustomobject]@{ known = $true; locked = $true; onConsole = $true }) | Should -BeLike '*screen is locked*'
+        Get-VerifySessionLimitation ([pscustomobject]@{ known = $true; locked = $false; onConsole = $false }) | Should -BeLike '*not on the console*'
+        # Unknown session (no dictionary, helper failed): no limitation claimed, the check stays a FAIL.
+        Get-VerifySessionLimitation ([pscustomobject]@{ known = $false; locked = $false; onConsole = $false }) | Should -BeNullOrEmpty
+        Get-VerifySessionLimitation $null | Should -BeNullOrEmpty
+        $parsed = '{ "known" : true, "locked" : true, "onConsole" : true }' | ConvertFrom-Json
+        Get-VerifySessionLimitation $parsed | Should -Not -BeNullOrEmpty
+    }
+
+    It 'turns only a FAIL in a limited session into a SKIP that keeps the failure text' {
+        $fail = New-VerifyResult FAIL 'no status item'
+        $skipped = Resolve-VerifySessionResult -Result $fail -Limitations @($null, 'the screen is locked')
+        $skipped.Status | Should -Be 'SKIP'
+        $skipped.Detail | Should -BeLike '*the screen is locked*'
+        $skipped.Detail | Should -BeLike '*Failed here: no status item'
+        (Resolve-VerifySessionResult -Result $fail -Limitations @($null, $null)).Status | Should -Be 'FAIL'
+        (Resolve-VerifySessionResult -Result $fail -Limitations @()).Status | Should -Be 'FAIL'
+        (Resolve-VerifySessionResult -Result (New-VerifyResult PASS 'ok') -Limitations @('the screen is locked')).Status | Should -Be 'PASS'
+    }
+
+    It 'names the owners of the status item windows of the menu bar' {
+        $menuBar = @(
+            [pscustomobject]@{ layer = 25; owner = 'ControlCenter'; pid = 527 }
+            [pscustomobject]@{ layer = 25; owner = 'ControlCenter'; pid = 527 }
+            [pscustomobject]@{ layer = 25; owner = 'BetterDisplay'; pid = 2359 }
+            [pscustomobject]@{ layer = 24; owner = 'MenuBarAgent'; pid = 480 }
+        )
+        Get-VerifyMenuBarOwners $menuBar | Should -Be @('BetterDisplay (2359) x 1', 'ControlCenter (527) x 2')
+        @(Get-VerifyMenuBarOwners @($menuBar[3])) | Should -HaveCount 0
+    }
 }
 
 Describe 'Self-test of the engine' {

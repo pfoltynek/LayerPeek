@@ -22,7 +22,9 @@
     Privacy & Security > Accessibility (switch it off there yourself).
 
     Results: PASS (checked automatically), FAIL, SKIP (with the reason), MANUAL (you confirmed it with y). Exit code 1
-    when any check failed, 2 when the script could not run.
+    when any check failed, 2 when the script could not run. The checks that need a visible desktop (mac.menubar,
+    mac.settings-front, mac.camera) report SKIP with the reason and the failure text instead of FAIL when the screen
+    was locked (or the session not on the console) before or after them: nothing can be judged there.
 
 .PARAMETER Unattended
     Never asks anything and never requests a permission: Permission and Manual checks are SKIP with the reason, Auto
@@ -108,6 +110,24 @@ function Invoke-Helper($Context, [string[]] $Arguments, [switch] $AllowFailure) 
 function Get-Screens($Context) { @((Invoke-Helper $Context @('screens')) -join "`n" | ConvertFrom-Json) }
 
 function Get-ProcessWindows($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('windows', "$ProcessId")) -join "`n" | ConvertFrom-Json) }
+
+function Get-SessionLimitation($Context) {
+    <# .SYNOPSIS Why window checks cannot be judged in this session (locked screen, not on the console), or $null. #>
+    try { Get-VerifySessionLimitation ((Invoke-Helper $Context @('session')) -join "`n" | ConvertFrom-Json) } catch { $null }
+}
+
+function Invoke-SessionCheck($Context, [scriptblock] $Body) {
+    <#
+    .SYNOPSIS
+        Runs a check that needs an unlocked session on the console (front app, status item, full-screen Space). Its FAIL
+        becomes a SKIP with the reason (and the FAIL text) when the screen was locked before or after; see
+        Resolve-VerifySessionResult.
+    #>
+    $before = Get-SessionLimitation $Context
+    $result = @(& $Body | Where-Object { $_.PSObject.TypeNames -contains 'LayerPeek.VerifyResult' })[-1]
+    if (-not $result) { $result = New-VerifyResult FAIL 'The check returned no result (a bug of the check).' }
+    Resolve-VerifySessionResult -Result $result -Limitations @($before, (Get-SessionLimitation $Context))
+}
 
 function Test-Accessibility($Context) { (Invoke-Helper $Context @('trusted')) -contains 'true' }
 
@@ -404,6 +424,28 @@ function Get-FrontProcessId {
     Get-VerifyLsappinfoPid @(& /usr/bin/lsappinfo info -only pid $asn 2>$null)
 }
 
+function Get-FrontAppText {
+    <# .SYNOPSIS "name (pid)" of the front app for a FAIL text, e.g. "loginwindow (179)" with a locked screen. #>
+    $frontId = Get-FrontProcessId
+    if (-not $frontId) { return 'none' }
+    $name = (Get-Process -Id $frontId -ErrorAction SilentlyContinue).ProcessName
+    "$(if ($name) { $name } else { '?' }) ($frontId)"
+}
+
+function Invoke-FinderToFront {
+    <#
+    .SYNOPSIS
+        Brings Finder (always running) to the front as "the other app"; asks again every 3 s for up to 12 s, because a
+        single 'open -a Finder' is sometimes lost while another app is activating. Returns whether Finder is in front.
+    #>
+    for ($attempt = 0; $attempt -lt 4; $attempt++) {
+        & /usr/bin/open -a Finder
+        $finder = @(Get-Process -Name 'Finder' -ErrorAction SilentlyContinue | ForEach-Object Id)
+        if (Wait-VerifyCondition -TimeoutSeconds 3 -Condition { $finder -contains (Get-FrontProcessId) }) { return $true }
+    }
+    $false
+}
+
 function Get-CameraWindow($Context, [int] $ProcessId) {
     # The normal window is layer 0; the mini preview (always on top) a floating level; menu bar items (25) never count.
     @(Get-ProcessWindows $Context $ProcessId | Where-Object { $_.onscreen -and $_.layer -ge 0 -and $_.layer -lt 25 -and $_.width -ge 80 -and $_.height -ge 45 } |
@@ -445,9 +487,12 @@ function Invoke-CameraModes {
             $connected = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-RtspConnections $app.Id $port).Count -gt 0 }
             Start-Sleep -Seconds 5
             $still = (Get-RtspConnections $app.Id $port).Count -gt 0
-            $null = Save-VerifyEvidence -Context $Context -Name "$($mode.ToLowerInvariant())-windows.json" -Content ((Get-ProcessWindows $Context $app.Id) | ConvertTo-Json -Depth 4)
+            $null = Save-VerifyEvidence -Context $Context -Name "$($mode.ToLowerInvariant())-windows.json" -Content (ConvertTo-VerifyJsonArray (Get-ProcessWindows $Context $app.Id))
             $null = Save-VerifyEvidence -Context $Context -Name "$($mode.ToLowerInvariant())-rtsp.txt" -Content (Get-RtspConnections $app.Id $port)
-            if (-not $opened) { $problems.Add("${mode}: no camera window$(if ($mode -eq 'FullScreen') { ' covering a whole screen' })") }
+            if (-not $opened) {
+                $seen = if ($window) { " (largest window $([math]::Round($window.width)) x $([math]::Round($window.height)) pt at $([math]::Round($window.x)),$([math]::Round($window.y)), layer $($window.layer))" } else { '' }
+                $problems.Add("${mode}: no camera window$(if ($mode -eq 'FullScreen') { ' covering a whole screen' })$seen")
+            }
             if (-not $connected -or -not $still) { $problems.Add("${mode}: no lasting RTSP connection to port $port") }
             $errors = @((Read-TestLog $data) -split "`n" | Where-Object { $_ -match ' (ERR|CRT) ' -and $_ -match '(?i)camera' })
             if ($errors.Count -gt 0) { $problems.Add("${mode}: camera errors in the log: $($errors[0])") }
@@ -568,7 +613,10 @@ $checks = @(
         if ($run.Totals.Failed -gt 0) { return New-VerifyResult FAIL (Format-Totals $run.Totals) }
         if ($run.Totals.Skipped -gt 0) {
             $reason = ($run.Skipped | Select-Object -First 1).Reason
-            return New-VerifyResult FAIL "$($run.Totals.Skipped) Keychain test(s) skipped (a skipped write test does not count): $reason"
+            # Stays a FAIL (a skipped write test never counts); the session note only says why the Keychain may be locked.
+            $session = Get-SessionLimitation $c
+            $note = if ($session) { " This session has a limitation too ($session): an agent, SSH or screen-locked session cannot unlock the Keychain; run the check in your own Terminal." } else { '' }
+            return New-VerifyResult FAIL "$($run.Totals.Skipped) Keychain test(s) skipped (a skipped write test does not count): $reason$note"
         }
         if ($left.Count -gt 0) { return New-VerifyResult FAIL "Keychain items with the test prefix were left: $($left -join ', ')" }
         New-VerifyResult PASS "$(Format-Totals $run.Totals); no LayerPeek.Tests item left in the Keychain."
@@ -593,37 +641,46 @@ $checks = @(
     New-VerifyCheck -Id 'mac.menubar' -Kind Auto -Title 'status item in the menu bar; Quit ends the app and removes it' `
         -Closes 'T-019 kritérium 7 (ikona jen v menu baru)', 'T-018 kritérium 3 (část: „Ukončit“ ukončí aplikaci)' -Action {
         param($c)
-        $data = New-TestData -Context $c
-        $app = Start-TestApp -Context $c -TestData $data
-        $shown = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { Test-VerifyMenuBarItem @(Get-ProcessWindows $c $app.Id) }
-        $null = Save-VerifyEvidence -Context $c -Name 'windows.json' -Content ((Get-ProcessWindows $c $app.Id) | ConvertTo-Json -Depth 4)
-        $code = Stop-TestApp $data $app
-        if (-not $shown) { return New-VerifyResult FAIL 'no status item (window layer 25) of the app in the menu bar.' }
-        if ($code -ne 0) { return New-VerifyResult FAIL "Quit ended the app with exit code $code." }
-        New-VerifyResult PASS 'status item shown in the menu bar; Quit (the same command as the menu item) ended the app with 0 and the item is gone.'
+        Invoke-SessionCheck $c {
+            $data = New-TestData -Context $c
+            $app = Start-TestApp -Context $c -TestData $data
+            $shown = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { Test-VerifyMenuBarItem @(Get-ProcessWindows $c $app.Id) }
+            $null = Save-VerifyEvidence -Context $c -Name 'windows.json' -Content (ConvertTo-VerifyJsonArray (Get-ProcessWindows $c $app.Id))
+            # Every process's menu bar level windows: shows who owns the status items when the app's own are missing.
+            $menuBar = @((Invoke-Helper $c @('menubar')) -join "`n" | ConvertFrom-Json)
+            $null = Save-VerifyEvidence -Context $c -Name 'menubar-windows.json' -Content (ConvertTo-VerifyJsonArray $menuBar)
+            $code = Stop-TestApp $data $app
+            if (-not $shown) {
+                $owners = @(Get-VerifyMenuBarOwners $menuBar)
+                $others = if ($owners.Count -gt 0) { "status item windows (layer 25) of: $($owners -join ', ')" } else { 'no process has a status item window (layer 25)' }
+                return New-VerifyResult FAIL "no status item (window layer 25) of the app (pid $($app.Id)) in the menu bar; $others (menubar-windows.json)."
+            }
+            if ($code -ne 0) { return New-VerifyResult FAIL "Quit ended the app with exit code $code." }
+            New-VerifyResult PASS 'status item shown in the menu bar; Quit (the same command as the menu item) ended the app with 0 and the item is gone.'
+        }
     }
 
     New-VerifyCheck -Id 'mac.settings-front' -Kind Auto -Title 'Settings, About, Diagnostics and a later start come to the front with focus over another app' `
         -Closes 'T-019 kritérium 8 (okno Nastavení v popředí s fokusem)' -Action {
         param($c)
-        $simulator = Get-Simulator $c
-        $data = New-TestData -Context $c -Simulator $simulator
-        $app = Start-TestApp -Context $c -TestData $data
-        $notes = [System.Collections.Generic.List[string]]::new()
-        try {
-            foreach ($command in 'settings', 'about', 'diagnostics', 'activate') {
-                & /usr/bin/open -a Finder
-                $finder = @(Get-Process -Name 'Finder' -ErrorAction SilentlyContinue | ForEach-Object Id)
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { $finder -contains (Get-FrontProcessId) })) { return New-VerifyResult FAIL 'Finder did not come to the front (needed as the other app).' }
-                Send-TestCommand $data $command
-                $front = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id -and (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) }
-                $null = Save-VerifyEvidence -Context $c -Name "$command-windows.json" -Content ((Get-ProcessWindows $c $app.Id) | ConvertTo-Json -Depth 4)
-                if (-not $front) { return New-VerifyResult FAIL "'$command': the app is not the front app with a window (front pid $(Get-FrontProcessId), app pid $($app.Id))." }
-                $notes.Add($command)
+        Invoke-SessionCheck $c {
+            $simulator = Get-Simulator $c
+            $data = New-TestData -Context $c -Simulator $simulator
+            $app = Start-TestApp -Context $c -TestData $data
+            $notes = [System.Collections.Generic.List[string]]::new()
+            try {
+                foreach ($command in 'settings', 'about', 'diagnostics', 'activate') {
+                    if (-not (Invoke-FinderToFront)) { return New-VerifyResult FAIL "Finder did not come to the front (needed as the other app); front app: $(Get-FrontAppText)." }
+                    Send-TestCommand $data $command
+                    $front = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id -and (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) }
+                    $null = Save-VerifyEvidence -Context $c -Name "$command-windows.json" -Content (ConvertTo-VerifyJsonArray (Get-ProcessWindows $c $app.Id))
+                    if (-not $front) { return New-VerifyResult FAIL "'$command': the app is not the front app with a window (front app $(Get-FrontAppText), app pid $($app.Id))." }
+                    $notes.Add($command)
+                }
             }
+            finally { $null = Stop-TestApp $data $app }
+            New-VerifyResult PASS "front app with an open window over Finder after: $($notes -join ', ') (the active app receives the key events)."
         }
-        finally { $null = Stop-TestApp $data $app }
-        New-VerifyResult PASS "front app with an open window over Finder after: $($notes -join ', ') (the active app receives the key events)."
     }
 
     New-VerifyCheck -Id 'mac.plist-localnetwork' -Kind Auto -Title 'NSLocalNetworkUsageDescription in every app language as macOS picks it (NSBundle)' `
@@ -735,9 +792,11 @@ $checks = @(
     New-VerifyCheck -Id 'mac.camera' -Kind Auto -Title 'camera window in normal, mini and full-screen mode with a lasting RTSP stream (simulator)' `
         -Closes 'T-026 kritérium 1 (automatická část: všechny režimy se simulátorem)' -Action {
         param($c)
-        $result = Invoke-CameraModes -Context $c
-        if ($result.Problems.Count -gt 0) { return New-VerifyResult FAIL ($result.Problems -join '; ') }
-        New-VerifyResult PASS "all modes open and stream: $($result.Notes -join '; ')"
+        Invoke-SessionCheck $c {
+            $result = Invoke-CameraModes -Context $c
+            if ($result.Problems.Count -gt 0) { return New-VerifyResult FAIL ($result.Problems -join '; ') }
+            New-VerifyResult PASS "all modes open and stream: $($result.Notes -join '; ')"
+        }
     }
 
     New-VerifyCheck -Id 'mac.camera-placement' -Kind Auto -Title 'camera window corners and centre on every connected monitor (normal and mini, 16 pt from the usable area)' `
@@ -745,7 +804,7 @@ $checks = @(
         param($c)
         $simulator = Get-Simulator $c
         $screens = @(Get-Screens $c)
-        $null = Save-VerifyEvidence -Context $c -Name 'screens.json' -Content ($screens | ConvertTo-Json -Depth 4)
+        $null = Save-VerifyEvidence -Context $c -Name 'screens.json' -Content (ConvertTo-VerifyJsonArray $screens)
         $rows = [System.Collections.Generic.List[object]]::new()
         $problems = [System.Collections.Generic.List[string]]::new()
         foreach ($screen in $screens) {
@@ -773,7 +832,7 @@ $checks = @(
                 }
             }
         }
-        $null = Save-VerifyEvidence -Context $c -Name 'placements.json' -Content ($rows | ConvertTo-Json -Depth 6)
+        $null = Save-VerifyEvidence -Context $c -Name 'placements.json' -Content (ConvertTo-VerifyJsonArray $rows -Depth 6)
         if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) of $($rows.Count) placements wrong: $($problems[0])" }
         New-VerifyResult PASS "$($rows.Count) placements on $($screens.Count) monitor(s) ($(($screens.name) -join ', ')) are 16 pt from the usable area, never under the menu bar or the Dock."
     }
