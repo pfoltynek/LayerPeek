@@ -90,7 +90,7 @@ internal interface ITrayAppCommands
     void ToggleCamera(string printerId);
 
     /// <summary>
-    /// "Show camera" while the camera window of <paramref name="printerId"/> is open (macOS, T-102): the app and the window
+    /// "Show camera" while the camera window of <paramref name="printerId"/> is open (T-102, macOS and Windows): the app and the window
     /// come to the front, a minimized window is restored; a window that closed meanwhile opens.
     /// </summary>
     void BringCameraToFront(string printerId);

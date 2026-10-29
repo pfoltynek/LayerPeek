@@ -53,9 +53,9 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
 
         public static Wiring Create(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) => new(scope, cameras, TrayMenuOptions.Default, printers);
 
-        /// <summary>The macOS menu (T-102: "Show camera" for an open window), forced on every OS.</summary>
-        public static Wiring CreateMac(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) =>
-            new(scope, cameras, TrayMenuOptions.Default with { CameraToFront = true }, printers);
+        /// <summary>The menu of the app (T-102: "Show camera" for an open window, macOS and Windows).</summary>
+        public static Wiring CreateWithCameraToFront(UiTestScope scope, CameraHarness cameras, params PrinterDefinition[] printers) =>
+            new(scope, cameras, TrayMenuOptions.Default with { CameraToFront = TrayMenuOptions.ForCurrentPlatform.CameraToFront }, printers);
 
         /// <summary>The item at <paramref name="index"/> in the submenu of <paramref name="printerIndex"/>.</summary>
         public NativeMenuItem SubmenuItem(int printerIndex, int index) =>
@@ -222,12 +222,12 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task MacMenuBringsTheOpenWindowToTheFrontAndRestoresItsFullScreen() =>
+    public Task ShowCameraBringsTheOpenWindowToTheFrontAndRestoresItsFullScreen() =>
         session.RunAsync(static async scope =>
         {
             List<string> activations = [];
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors(), bringAppToFront: () => activations.Add("app"));
-            Wiring tray = Wiring.CreateMac(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
+            Wiring tray = Wiring.CreateWithCameraToFront(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
             Assert.Equal(2, Assert.IsType<NativeMenuItem>(tray.Menu.Items[0]).Menu!.Items.Count);
 
             Wiring.Click(tray.CameraItem());
@@ -260,11 +260,11 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task MacMenuItemOfAWindowClosedMeanwhileOpensIt() =>
+    public Task ShowCameraOfAWindowClosedMeanwhileOpensIt() =>
         session.RunAsync(static async scope =>
         {
             await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors());
-            Wiring tray = Wiring.CreateMac(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
+            Wiring tray = Wiring.CreateWithCameraToFront(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha"));
             Wiring.Click(tray.CameraItem());
             NativeMenuItem front = tray.SubmenuItem(0, 1);
             CameraWindow window = cameras.Windows.OpenWindows["a"];
@@ -278,5 +278,29 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             // The command itself (a stale entry) opens the window like "Show camera".
             Assert.True(cameras.Windows.BringToFront("a"));
             scope.Track(cameras.Windows.OpenWindows["a"]);
+        });
+
+    [Fact]
+    public Task ShowCameraActivatesAMiniPreviewOnTop() =>
+        session.RunAsync(static async scope =>
+        {
+            // A window on top has no Dock icon or taskbar button (T-102): the menu is the way back to its focus.
+            await using CameraHarness cameras = new(screens: Tests.Cameras.FakeScreenCatalog.ThreeMonitors(), window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+            Wiring tray = Wiring.CreateWithCameraToFront(scope, cameras, CameraHarness.CameraPrinter("a", "Alpha", CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini }));
+            Wiring.Click(tray.CameraItem());
+            CameraWindow window = scope.Track(cameras.Windows.OpenWindows["a"]);
+            window.Settle();
+            Assert.True(window.Topmost);
+            Assert.False(window.ShowInTaskbar);
+            // Headless windows do not take the activation from each other: the activation itself is counted.
+            int activations = 0;
+            window.Activated += (_, _) => activations++;
+
+            Wiring.Click(tray.SubmenuItem(0, 1));
+            window.Settle();
+
+            Assert.True(activations > 0);
+            Assert.True(window.IsActive);
+            Assert.True(((CameraViewModel)window.DataContext!).IsMini);
         });
 }

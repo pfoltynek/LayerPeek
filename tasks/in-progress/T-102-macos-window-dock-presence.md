@@ -31,42 +31,55 @@ aplikaci, nedá se snadno vrátit.
    tím, zda je právě navrchu: s vypnutou volbou „vždy navrchu“ má ikonu v Docku / tlačítko na hlavním panelu, se
    zapnutou ne. Na obou OS stejně. Volba pro malý náhled už existuje (`TopmostMini`, T-037, výchozí zapnuto), nové
    nastavení se nepřidává.
-4. **„Zobrazit kameru“ v menu v menu baru.** U tiskárny s otevřeným oknem kamery položka „Zobrazit kameru“ / „Show
-   camera“, která přivede okno dopředu (aktivace aplikace + okna), vedle stávající položky pro zavření. Jen macOS,
-   Windows beze změny. Texty v 8 jazycích.
+4. **„Zobrazit kameru“ v menu.** U tiskárny s otevřeným oknem kamery položka „Zobrazit kameru“ / „Show camera“, která
+   přivede okno dopředu (aktivace aplikace + okna), vedle stávající položky pro zavření. Texty v 8 jazycích. Původně jen
+   macOS; **rozhodnuto 2026-10-29: i na Windows** (stejné menu na obou OS, otázka 1).
 
 ## Akceptační kritéria
 - [x] Počítadlo oken: otevření / zavření / přepnutí režimu / změna „vždy navrchu“, okna navrchu se nepočítají, po
       zavření posledního okna zpět na Accessory (unit testy s falešnou přítomností, headless UI testy se skutečnými okny)
 - [x] Windows: tlačítko na hlavním panelu přesně u oken, která nejsou navrchu, i po přepnutí režimu a po uložení volby
       s otevřeným oknem (headless UI testy)
-- [x] „Zobrazit kameru“ v menu na macOS (varianta vynucená přes `TrayMenuOptions`), na Windows ne; přístupové klávesy
+- [x] „Zobrazit kameru“ v menu na macOS i na Windows (`TrayMenuOptions.ForCurrentPlatform`); přístupové klávesy
       jedinečné v 8 jazycích (testy)
 - [x] Implementace přes ObjC runtime (`[LibraryImport]`, AOT), za rozhraním `IAppPresence` (macOS / no-op)
 - [x] Texty ve všech 8 jazycích
 - [ ] Ověřeno uživatelem na Macu: ikona v Docku a ⌘Tab se objeví / zmizí, menu Docku, klik na ikonu v Docku, fokus
       a pořadí oken (`docs/macos-manual-testing.md`, sezení 2, krok 7)
-- [ ] Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla (zejména normální okno s „vždy navrchu“ a malý
-      náhled bez něj), jinak beze změny
+- [ ] Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, „Zobrazit kameru“, blikání (oddíl „Ruční ověření
+      na Windows“, W1–W3), jinak beze změny
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
-1. **„Zobrazit kameru“ i na Windows?** Na Windows má otevřené okno (pokud není navrchu) tlačítko na hlavním panelu, takže
-   položka není nutná; menu by se ale na obou OS lišilo. Nechat jen na macOS (dnes), nebo přidat i na Windows?
-2. **Fokus po odchodu z Docku při zbývajícím okně navrchu.** Když se poslední počítané okno přepne do malého náhledu
-   (nebo zavře, zatímco je náhled otevřený), aplikace se přepne na Accessory. Pokud tím AppKit aplikaci deaktivuje,
-   implementace ji znovu aktivuje (jen když byla aktivní před změnou), aby fokus zůstal u náhledu. Neověřeno – je to
-   žádoucí, nebo má v tu chvíli fokus přejít na jinou aplikaci?
+1. ~~**„Zobrazit kameru“ i na Windows?** Na Windows má otevřené okno (pokud není navrchu) tlačítko na hlavním panelu,
+   takže položka není nutná; menu by se ale na obou OS lišilo.~~ → **ano** (rozhodnuto 2026-10-29): stejné menu na obou
+   OS, „Zobrazit kameru“ i na Windows (obnoví minimalizované okno, aktivuje ho, i okno navrchu).
+2. ~~**Fokus po odchodu z Docku při zbývajícím okně navrchu.** Když se poslední počítané okno přepne do malého náhledu
+   (nebo zavře, zatímco je náhled otevřený), aplikace se přepne na Accessory a znovu se aktivuje, pokud byla aktivní,
+   aby fokus zůstal u náhledu.~~ → **ano, ponechat** (rozhodnuto 2026-10-29): malý náhled zůstane aktivní s fokusem.
 3. **Menu bar po přepnutí na běžnou aplikaci.** Známá vlastnost AppKitu: po `setActivationPolicy:` Regular u už aktivní
    aplikace se menu aplikace v menu baru někdy neobnoví, dokud se nepřepne na jinou aplikaci a zpět (Avalonia to při
-   startu obchází aktivací Docku). Neimplementováno žádné obejití; pokud se při ručním testu projeví, rozhodnout, zda ho
-   přidat.
-4. **Ikona v Docku ve vývojovém sestavení** (`dotnet run`, bez bundlu) bude nejspíš obecná ikona spustitelného souboru, ne ikona
-   LayerPeeku. Stačí to (vývojové sestavení), nebo nastavit ikonu za běhu (`applicationIconImage`)?
-5. **Windows: blikání při změně „vždy navrchu“ s otevřeným oknem.** Avalonia na Windows skrývá okno z hlavního panelu
-   skrytým vlastníkem a okno při tom jednou skryje a znovu ukáže. Dřív se to dělo jen při přepnutí do / z malého náhledu,
-   nově i při uložení volby „vždy navrchu“ u otevřeného okna a při přepnutí normální okno navrchu ↔ celá obrazovka.
-   Neověřeno na Windows – je to přijatelné?
+   startu obchází aktivací Docku). Neimplementováno žádné obejití; zůstává otevřené, dokud ruční test neukáže, že se to
+   děje (rozhodnuto 2026-10-29).
+4. ~~**Ikona v Docku ve vývojovém sestavení** (`dotnet run`, bez bundlu) bude nejspíš obecná ikona spustitelného souboru,
+   ne ikona LayerPeeku.~~ → **stačí** (rozhodnuto 2026-10-29), ikona se za běhu nenastavuje.
+5. ~~**Windows: blikání při změně „vždy navrchu“ s otevřeným oknem.** Avalonia na Windows skrývá okno z hlavního panelu
+   skrytým vlastníkem a okno při tom jednou skryje a znovu ukáže; nově i při uložení volby „vždy navrchu“ u otevřeného
+   okna a při přepnutí normální okno navrchu ↔ celá obrazovka.~~ → **přijatelné** (rozhodnuto 2026-10-29), uživatel to
+   ověří na Windows (krok W3 níže).
+
+## Ruční ověření na Windows
+Výchozí volby okna kamery (normální okno ne navrchu, malý náhled navrchu), tiskárna s kamerou (simulátor nebo Buddy3D).
+- **W1 – tlačítko na hlavním panelu:** normální okno a celá obrazovka mají tlačítko, malý náhled ne (jako dřív).
+  V Nastavení → Okno kamery zapnout „Vždy navrchu“ u normálního okna a Použít s otevřeným oknem → tlačítko zmizí;
+  vypnout → vrátí se. U malého náhledu „Vždy navrchu“ vypnout → náhled má tlačítko. Nastavení, Diagnostika, O aplikaci
+  mají tlačítko vždy.
+- **W2 – „Zobrazit kameru“:** menu v oznamovací oblasti → tiskárna s otevřeným oknem: „Otevřít PrusaLink“, „Zobrazit
+  kameru“, „Skrýt kameru“ (přístupové klávesy: písmeno samotné spustí položku, žádné dvě stejné). Okno za jinou aplikací,
+  minimalizované (i z celé obrazovky) a malý náhled navrchu: „Zobrazit kameru“ ho přivede dopředu s fokusem (Esc
+  v okně kamery reaguje). Po zavření okna položka zmizí.
+- **W3 – blikání:** při kroku W1 a při přepnutí normální okno navrchu ↔ celá obrazovka se okno jednou krátce skryje
+  a ukáže (Avalonia, přijatelné podle otázky 5) – zapsat, jestli nedělá nic horšího (ztráta fokusu, posun, jiný monitor).
 
 ## Poznámky k implementaci
 - **Avalonia 12.1.4 (Avalonia.Native) a aktivační politika:** `MacOSPlatformOptions.ShowInDock` se použije jednou při
@@ -93,22 +106,26 @@ aplikaci, nedá se snadno vrátit.
   `ShowsInTaskbar(topmost) => !topmost`) místo režimu. S výchozími volbami se nic nemění (náhled navrchu bez tlačítka,
   normální okno a celá obrazovka s tlačítkem); nově normální okno navrchu tlačítko nemá a náhled bez „vždy navrchu“ ho
   má. Ostatní okna (Nastavení…) navrchu nikdy nejsou a tlačítko mají jako dosud.
-- **Menu:** `TrayMenuCommand.CameraToFront`, `TrayMenuOptions.CameraToFront` (`ForCurrentPlatform` = macOS). Podmenu
+- **Menu:** `TrayMenuCommand.CameraToFront`, `TrayMenuOptions.CameraToFront` (`ForCurrentPlatform` = zapnuto na obou
+  OS od rozhodnutí 2026-10-29; `Default` pro testy staršího menu vypnuto). Na Windows `BringToFront` stejně obnoví
+  minimalizované okno a aktivuje ho (`Window.Activate`; aktivace aplikace jen na macOS), i okno navrchu bez tlačítka na
+  hlavním panelu. Neověřeno na Windows, zda Windows aktivaci z menu v oznamovací oblasti vždy povolí (krok W2). Podmenu
   tiskárny s otevřeným oknem: „Otevřít PrusaLink“, **„Zobrazit kameru“**, „Skrýt kameru“ (nová položka nad skrytím;
   změna počtu položek nahradí položku tiskárny v nativním menu, což se děje jen při otevření / zavření okna). Klik →
   `ITrayAppCommands.BringCameraToFront` → `CameraWindows.BringToFront`: minimalizované okno obnoví (na celou obrazovku,
   pokud v ní bylo), pak jako `Show` aktivuje aplikaci a okno; okno zavřené mezitím otevře. Text `MenuCameraToFront` ve
   všech 8 jazycích má stejné znění jako `MenuShowCamera`, jen přístupová klávesa je jinde, aby byla v podmenu jedinečná
-  (macOS přístupové klávesy nezobrazuje): en „_Show camera“, cs „_Zobrazit kameru“, sk „_Zobraziť kameru“, de „Kamera
+  (na Windows ji písmeno samotné spustí, T-069): en „_Show camera“, cs „_Zobrazit kameru“, sk „_Zobraziť kameru“, de „Kamera
   _anzeigen“, es „_Mostrar cámara“, fr „_Afficher la caméra“, it „_Mostra telecamera“, pl „_Pokaż kamerę“.
 - **Názvy oken pro menu Docku:** okno kamery „{tiskárna} – kamera“, Nastavení, „Diagnostika – LayerPeek“, „O aplikaci
   LayerPeek“, „Licence třetích stran“ – beze změny. Malý náhled nemá rámeček, AppKit ho v seznamu oken nemusí ukázat.
 - **Testy:** `AppPresenceTests` (počítadlo), `AppPresenceUiTests` (skutečná okna: pořadí Dock → aktivace aplikace,
   přepínání režimů, okna navrchu podle voleb, uložená volba s otevřeným oknem, Nastavení / O aplikaci vedle náhledu,
   okno bez aktivace, selhané zobrazení), `CameraWindowTaskbarUiTests` (tlačítko na hlavním panelu podle `Topmost` ve
-  všech režimech a kombinacích voleb, při otevření i po uložení), `TrayMenuCameraToFrontTests` (macOS i Windows
-  varianta, klik, přístupové klávesy v 8 jazycích), `TrayMenuCameraToggleUiTests` (skutečné `NativeMenu`: obnovení
-  z minimalizované celé obrazovky, aktivace aplikace, zmizení položky). Upravené dva testy
+  všech režimech a kombinacích voleb, při otevření i po uložení), `TrayMenuCameraToFrontTests` (menu obou OS
+  s ikonami tiskáren i bez nich, bez volby menu T-040, klik, přístupové klávesy v 8 jazycích),
+  `TrayMenuCameraToggleUiTests` (skutečné `NativeMenu`: obnovení z minimalizované celé obrazovky, aktivace aplikace,
+  aktivace malého náhledu navrchu, zmizení položky). Upravené dva testy
   `SettingsWindowCameraWindowActionsUiTests` (náhled bez „vždy navrchu“ má teď tlačítko, normální okno navrchu ne).
 - **Ověřeno (macOS 27.2, Apple Silicon, 2026-10-29, headless):** `dotnet build` a `dotnet build -c Release` 0 varování,
   `dotnet test` 7615 testů, 0 selhání (180 přeskočeno). Profil uživatele beze změny (stejná místa jako
@@ -117,4 +134,8 @@ aplikaci, nedá se snadno vrátit.
   fokus a pořadí oken, menu bar po přepnutí) – ruční kroky v `docs/macos-manual-testing.md`, sezení 2, krok 7; běh na
   Windows (tlačítka na hlavním panelu, otázka 5). AOT publish nespuštěn (nové volání jsou jen další `[LibraryImport]`
   tvary stejného `objc_msgSend`, analyzátory AOT v buildu bez varování).
+- **Navazující úprava (2026-10-29, větev `feature/T-102-follow-up`):** „Zobrazit kameru“ i na Windows (otázka 1),
+  rozhodnutí k otázkám 2, 4 a 5 zapsána, kroky W1–W3. Ověřeno na macOS (headless): `dotnet build` a `dotnet build -c
+  Release` 0 varování, `dotnet test` 7706 testů, 0 selhání (181 přeskočeno), profil uživatele beze změny (stejný
+  skript v bashi). Na Windows neověřeno.
 - Bez nových balíčků.
