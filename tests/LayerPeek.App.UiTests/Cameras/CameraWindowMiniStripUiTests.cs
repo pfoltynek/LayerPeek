@@ -139,6 +139,8 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
             window.MouseUp(grip, MouseButton.Left);
             Dispatcher.UIThread.RunJobs();
             window.Settle();
+            // Without a modal size loop (not Windows) the correction comes once the resize settled: it must not set anything either.
+            CameraHarness.FinishMiniResize(window);
 
             Assert.Equal(0, changes);
             Assert.Equal(new Size(280, 191), window.ClientSize);

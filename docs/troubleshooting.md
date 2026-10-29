@@ -144,7 +144,7 @@ pwsh tools/migrate-from-prusatraydiagnostic.ps1 -RemoveOld  # později: jen smaz
   staré složky zapíše značku `.migrated-to-LayerPeek`; smazat lze jen starou složku se značkou.
 - **Staré logy nekopíruje** (`%LOCALAPPDATA%\PrusaTrayDiagnostic\logs`): LayerPeek začne vlastní log. Kdo je chce
   schovat, zkopíruje si je ručně před smazáním.
-- **Pozor, LayerPeek už běžel** (např. `dotnet run`, `scripts/aot-smoke.ps1` – běží se skutečným nastavením): pak
+- **Pozor, LayerPeek už běžel** (např. `dotnet run`; `scripts/aot-smoke.ps1` od T-095 složky dat a logů po běhu vrátí do původního stavu): pak
   `%APPDATA%\LayerPeek` už existuje, skript starou složku nezkopíruje (stav `TargetExists`) a nikdy ji nesmaže
   („existed before the migration“). Kdo chce stará data, nejdřív ukončí LayerPeek, novou složku sám přesune jinam
   (nebo smaže) a skript spustí znovu.

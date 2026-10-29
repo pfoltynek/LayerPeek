@@ -5,7 +5,8 @@ namespace LayerPeek.Scripts.Tests;
 /// <summary>
 /// Runs the Pester tests of the scripts as part of dotnet test: the release scripts
 /// (scripts/ReleaseTools/ReleaseTools.Tests.ps1 and ReleaseOrchestrator.Tests.ps1 of scripts/release.ps1, T-055) and the
-/// one-time migration from the former name (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074). Skipped when pwsh
+/// one-time migration from the former name (tools/migrate-from-prusatraydiagnostic.Tests.ps1, T-074) and the before/after
+/// check of the user profile (tools/profile-snapshot.Tests.ps1, T-095). Skipped when pwsh
 /// or Pester 5+ is not installed. The
 /// Pester run uses the reserved <see cref="TestDirectories.Root"/> as its temp root (also TEMP / TMP / TMPDIR of the
 /// child pwsh), so nothing is left behind even when pwsh is killed.
@@ -29,6 +30,7 @@ public sealed class PesterScriptTests
     [InlineData("scripts/ReleaseTools/ReleaseTools.Tests.ps1", 5)]
     [InlineData("scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1", 15)]
     [InlineData("tools/migrate-from-prusatraydiagnostic.Tests.ps1", 5)]
+    [InlineData("tools/profile-snapshot.Tests.ps1", 5)]
     public async Task ScriptPesterTestsPass(string relativePath, int timeoutMinutes)
     {
         CancellationToken cancellationToken = TestContext.Current.CancellationToken;

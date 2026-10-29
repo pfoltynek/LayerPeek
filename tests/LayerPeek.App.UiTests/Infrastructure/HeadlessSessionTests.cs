@@ -1,3 +1,5 @@
+using System.Globalization;
+
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -58,6 +60,27 @@ public sealed class HeadlessSessionTests(HeadlessSession session)
             Assert.Equal("_Quit", Strings.MenuQuit);
             Assert.Equal(ThemeVariant.Default, Application.Current!.RequestedThemeVariant);
             return Task.CompletedTask;
+        });
+
+    /// <summary>
+    /// Work posted to the UI thread from the thread pool (as camera statuses are) runs without the body's execution
+    /// context; it must see English too, not the language of the machine (T-095).
+    /// </summary>
+    [Fact]
+    public Task WorkPostedFromAnotherThreadIsInEnglishToo() =>
+        session.RunAsync(static async scope =>
+        {
+            TaskCompletionSource<string> text = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            using (ExecutionContext.SuppressFlow())
+            {
+                _ = Task.Run(static () => { }).ContinueWith(
+                    _ => Dispatcher.UIThread.Post(() => text.SetResult($"{CultureInfo.CurrentUICulture.Name} {Strings.MenuQuit}")),
+                    CancellationToken.None,
+                    TaskContinuationOptions.None,
+                    TaskScheduler.Default);
+            }
+
+            Assert.Equal("en-US _Quit", await text.Task.WaitAsync(scope.CancellationToken));
         });
 
     [Fact]

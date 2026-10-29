@@ -9,10 +9,15 @@
     folder instead (used by scripts/release-build.ps1) and leaves that folder as it is.
     On Windows it also checks that the app created its Start menu shortcut for notifications (T-010)
     and restores the previous shortcut (or removes it) afterwards.
-    The app runs with the real user settings, so it may show real toasts (e.g. a printer error found at
-    start). They are cleared afterwards only when the notification center provably held no toasts of the app
-    before the run and no other instance started meanwhile; otherwise they are left there (the user's own toasts
-    are never removed) and a warning is printed. Refuses to run while LayerPeek is already running.
+    The Release exe has no test mode, so it would write into the real data and log folders of the app
+    (macOS ~/Library/Application Support/LayerPeek and ~/Library/Logs/LayerPeek, Windows %APPDATA%\LayerPeek and
+    %LOCALAPPDATA%\LayerPeek\logs). Right before the exe starts, the script writes a journal and moves the existing
+    folders aside (renamed to <folder>.aot-smoke-backup next to them, T-095); afterwards it deletes what the exe created
+    and moves them back. The app therefore starts with an empty profile and the user's data is never touched. After a
+    crash of the script the next run (or -RestoreOnly) finishes the restore first.
+    Toasts the app shows during the run are cleared afterwards only when the notification center provably held no
+    toasts of the app before the run and no other instance started meanwhile; otherwise they are left there (the
+    user's own toasts are never removed) and a warning is printed. Refuses to run while LayerPeek is already running.
 
 .PARAMETER Runtime
     Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture.
@@ -27,12 +32,21 @@
 .PARAMETER SkipShellIntegration
     For automated tests of this script only (scripts/ReleaseTools/ReleaseTools.Tests.ps1): skips the running-instance
     check, the Start menu shortcut check and its backup/restore, and the toast history handling, so that nothing of the
-    real user profile is read or changed. A real smoke check must not use it.
+    real user profile is read or changed. Requires -ProfileRoot. A real smoke check must not use it.
+
+.PARAMETER RestoreOnly
+    Only finishes the restore of an interrupted smoke run (moves the backed up data and log folders back, deletes what
+    the exe created); publishes and starts nothing.
+
+.PARAMETER ProfileRoot
+    For automated tests of this script only: a stand-in profile folder whose data/LayerPeek and logs/LayerPeek take the
+    place of the real data and log folders of the app.
 
 .EXAMPLE
     pwsh scripts/aot-smoke.ps1
     pwsh scripts/aot-smoke.ps1 -Runtime osx-arm64 -Seconds 15
     pwsh scripts/aot-smoke.ps1 -PublishDir artifacts/release/0.1.0/publish/win-x64
+    pwsh scripts/aot-smoke.ps1 -RestoreOnly
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
@@ -40,7 +54,9 @@ param(
     [string] $Runtime,
     [string] $PublishDir,
     [ValidateRange(1, 600)] [int] $Seconds = 10,
-    [switch] $SkipShellIntegration
+    [switch] $SkipShellIntegration,
+    [switch] $RestoreOnly,
+    [string] $ProfileRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,8 +73,28 @@ if (-not $SkipShellIntegration -and (Get-Process -Name 'LayerPeek' -ErrorAction 
     Write-Host 'AOT smoke check NOT RUN: LayerPeek is already running. Quit it and run the check again.' -ForegroundColor Red
     exit 1
 }
+# The tests of this script must never move the real data of the app.
+if ($SkipShellIntegration -and -not $ProfileRoot) {
+    Write-Host 'AOT smoke check NOT RUN: -SkipShellIntegration (tests) needs a stand-in -ProfileRoot.' -ForegroundColor Red
+    exit 1
+}
 
 Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Force
+# The data and log folders of the app: moved aside while the Release exe (no test mode) runs, then moved back.
+$smokeProfile = Get-SmokeProfile -ProfileRoot $ProfileRoot
+try {
+    if (Restore-SmokeProfile -SmokeProfile $smokeProfile) {
+        Write-Host 'Restored the data and log folders of the app from an interrupted smoke run.' -ForegroundColor Yellow
+    }
+    elseif ($RestoreOnly) {
+        Write-Host 'Nothing to restore: no interrupted smoke run.'
+    }
+}
+catch {
+    Write-Host "AOT smoke check NOT RUN: the folders of an interrupted smoke run could not be restored: $_" -ForegroundColor Red
+    exit 1
+}
+if ($RestoreOnly) { exit 0 }
 # Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
 $project = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App')
 # The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.
@@ -76,6 +112,8 @@ else {
 $logDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-aot-smoke-log-$([guid]::NewGuid().ToString('N'))"
 $exeName = if ($Runtime.StartsWith('win')) { 'LayerPeek.exe' } else { 'LayerPeek' }
 $process = $null
+$profileMoved = $false
+$exitCode = 1
 # The app creates its Start menu shortcut for notifications (T-010) pointing to the temporary exe: restore the previous state afterwards.
 $shortcut = if ($IsWindows -and -not $SkipShellIntegration) { Join-Path ([Environment]::GetFolderPath('Programs')) 'LayerPeek.lnk' } else { $null }
 $shortcutBackup = if ($shortcut -and (Test-Path -LiteralPath $shortcut)) { [System.IO.File]::ReadAllBytes($shortcut) } else { $null }
@@ -119,6 +157,10 @@ try {
     $stdout = Join-Path $logDir 'smoke-stdout.txt'
     $stderr = Join-Path $logDir 'smoke-stderr.txt'
     Write-Host "Starting $exeName, expecting it to run for $Seconds s ..."
+    # Last step before the start: the folders stay moved aside as briefly as possible. Set before the call, so that a
+    # backup that fails half way is restored too.
+    $profileMoved = $true
+    Backup-SmokeProfile -SmokeProfile $smokeProfile
     $process = Start-Process -FilePath $exe -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
 
     if ($process.WaitForExit($Seconds * 1000)) {
@@ -134,16 +176,26 @@ try {
     }
 
     Write-Host "AOT smoke check PASSED: app is still running after $Seconds s." -ForegroundColor Green
-    exit 0
+    $exitCode = 0
 }
 catch {
     Write-Host "AOT smoke check FAILED: $_" -ForegroundColor Red
-    exit 1
+    $exitCode = 1
 }
 finally {
     if ($process -and -not $process.HasExited) {
         $process.Kill($true)
         $process.WaitForExit()
+    }
+    # Right after the exe ended: nothing writes into the folders any more.
+    if ($profileMoved) {
+        try {
+            $null = Restore-SmokeProfile -SmokeProfile $smokeProfile
+        }
+        catch {
+            Write-Host "The data and log folders of the app were NOT restored: $_ Run 'pwsh scripts/aot-smoke.ps1 -RestoreOnly' (the backup is next to them, *.aot-smoke-backup)." -ForegroundColor Red
+            $exitCode = 1
+        }
     }
     if ($ownsPublishDir -and (Test-Path -LiteralPath $publishDir)) {
         Remove-Item -LiteralPath $publishDir -Recurse -Force -ErrorAction SilentlyContinue
@@ -180,3 +232,5 @@ finally {
         }
     }
 }
+
+exit $exitCode

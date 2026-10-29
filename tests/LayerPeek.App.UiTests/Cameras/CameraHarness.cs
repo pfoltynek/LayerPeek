@@ -130,6 +130,47 @@ internal sealed class CameraHarness : IAsyncDisposable
         window.MouseUp(grip, Avalonia.Input.MouseButton.Left);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         window.Settle();
+        FinishMiniResize(window);
+    }
+
+    /// <summary>
+    /// Waits for the end of a grip resize where there is no modal size loop (not Windows, T-095): the window corrects its
+    /// height once its size has not changed for <see cref="CameraWindow.ResizeSettleTime"/>, a real-time timer of the
+    /// dispatcher. On Windows the correction already ran when the grip was released, so this returns at once.
+    /// </summary>
+    public static void FinishMiniResize(CameraWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        if (!window.IsMiniResizeSettling)
+        {
+            return;
+        }
+
+        // RunJobs never fires dispatcher timers in headless; a nested main loop does. It ends once the correction ran.
+        DateTime deadline = DateTime.UtcNow + TestTimeouts.Wait;
+        using CancellationTokenSource settled = new();
+        Avalonia.Threading.DispatcherTimer poll = new(
+            TimeSpan.FromMilliseconds(10),
+            Avalonia.Threading.DispatcherPriority.Background,
+            (_, _) =>
+            {
+                if (!window.IsMiniResizeSettling || DateTime.UtcNow > deadline)
+                {
+                    settled.Cancel();
+                }
+            });
+        poll.Start();
+        try
+        {
+            Avalonia.Threading.Dispatcher.UIThread.MainLoop(settled.Token);
+        }
+        finally
+        {
+            poll.Stop();
+        }
+
+        Assert.False(window.IsMiniResizeSettling, "The resize of the mini preview did not settle.");
+        window.Settle();
     }
 
     public async ValueTask DisposeAsync()

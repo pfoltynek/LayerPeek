@@ -1,6 +1,7 @@
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Printers;
+using LayerPeek.Tests.Shared;
 
 namespace LayerPeek.App.Tests.Cameras.Overlay;
 
@@ -23,8 +24,8 @@ public sealed class OverlayFormatTests : IDisposable
         Assert.Equal("1\u00A0h 5\u00A0min", OverlayFormat.Duration(65));
         Assert.Equal("1\u00A0h 5\u00A0min remaining", OverlayFormat.Remaining(65));
         Assert.Equal("Print time: 2\u00A0h 10\u00A0min", OverlayFormat.PrintTime(130));
-        Assert.Equal("Done at 1:05 PM", OverlayFormat.Finish(new(new DateTime(2026, 10, 16, 13, 5, 0), false)));
-        Assert.Equal("Done October 17 at 8:00 AM", OverlayFormat.Finish(new(new DateTime(2026, 10, 17, 8, 0, 0), true)));
+        Assert.Equal(CultureTime.EnUs("Done at 1:05 PM"), OverlayFormat.Finish(new(new DateTime(2026, 10, 16, 13, 5, 0), false)));
+        Assert.Equal(CultureTime.EnUs("Done October 17 at 8:00 AM"), OverlayFormat.Finish(new(new DateTime(2026, 10, 17, 8, 0, 0), true)));
         Assert.Equal("215 / 215 °C", OverlayFormat.Temperature(new(215, 215)));
         Assert.Equal("25 °C", OverlayFormat.Temperature(new(25, null)));
         Assert.Equal("-4 °C", OverlayFormat.Temperature(new(-4, null)));
@@ -80,7 +81,7 @@ public sealed class OverlayFormatTests : IDisposable
         using (new CultureScope(region))
         using (new UiCultureScope(language))
         {
-            Assert.Equal(expected, OverlayFormat.Finish(new(new DateTime(2026, 10, 17, 8, 0, 0), true)));
+            Assert.Equal(CultureTime.EnUs(expected), OverlayFormat.Finish(new(new DateTime(2026, 10, 17, 8, 0, 0), true)));
         }
     }
 

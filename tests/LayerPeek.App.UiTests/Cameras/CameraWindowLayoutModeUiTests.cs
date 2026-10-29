@@ -246,9 +246,17 @@ public sealed class CameraWindowLayoutModeUiTests(HeadlessSession session)
             Assert.Equal("drag a widget to an anchor", window.Find<TextBlock>("CameraLayoutHint").Text);
             Assert.False(window.IsShown<TextBlock>("CameraLayoutSaveError"));
             string[] buttons = [.. window.LayoutModeView.Root.GetVisualDescendants().OfType<Button>().Select(static button => AutomationProperties.GetAutomationId(button) ?? "")];
-            // Windows order (T-076 5.2): [Restore defaults] … [Done] [Cancel].
-            Assert.Equal(["CameraLayoutReset", "CameraLayoutDone", "CameraLayoutCancel"], buttons);
-            Assert.Equal(["Restore defaults", "Done", "Cancel"], window.LayoutModeView.Root.GetVisualDescendants().OfType<Button>().Select(static b => b.Content));
+            // T-076 5.2: Windows [Restore defaults] … [Done] [Cancel]; macOS (HIG) puts the confirming button last.
+            if (OperatingSystem.IsMacOS())
+            {
+                Assert.Equal(["CameraLayoutReset", "CameraLayoutCancel", "CameraLayoutDone"], buttons);
+                Assert.Equal(["Restore defaults", "Cancel", "Done"], window.LayoutModeView.Root.GetVisualDescendants().OfType<Button>().Select(static b => b.Content));
+            }
+            else
+            {
+                Assert.Equal(["CameraLayoutReset", "CameraLayoutDone", "CameraLayoutCancel"], buttons);
+                Assert.Equal(["Restore defaults", "Done", "Cancel"], window.LayoutModeView.Root.GetVisualDescendants().OfType<Button>().Select(static b => b.Content));
+            }
             Assert.Contains("accent", window.Find<Button>("CameraLayoutDone").Classes);
             Assert.False(window.Find<Button>("CameraLayoutDone").IsDefault);
 

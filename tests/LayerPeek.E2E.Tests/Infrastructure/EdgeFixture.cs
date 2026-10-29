@@ -44,7 +44,14 @@ public sealed class EdgeFixture : IAsyncLifetime
     private IPlaywright? _playwright;
     private IBrowser? _browser;
 
-    /// <summary>Why the browser tests cannot run (Edge not installed), or <see langword="null"/>.</summary>
+    /// <summary>
+    /// macOS (decided 2026-10-29, T-095): headless Edge 156 stops calling <c>requestAnimationFrame</c> after a few pages,
+    /// so Playwright's waits (<c>waitForFunction</c>, the "stable" check of a click) time out at random. Removed in T-021.
+    /// </summary>
+    internal const string MacOsSkipReason =
+        "Browser tests are skipped on macOS until T-021: headless Edge 156 stops calling requestAnimationFrame after a few pages, so Playwright's waits time out at random (T-095).";
+
+    /// <summary>Why the browser tests cannot run (Edge not installed, macOS until T-021), or <see langword="null"/>.</summary>
     public string? SkipReason { get; private set; }
 
     /// <summary>The driver, for tests that launch a browser of their own.</summary>
@@ -59,6 +66,13 @@ public sealed class EdgeFixture : IAsyncLifetime
         {
             await Reserved.SweepAsync();
             await Reserved.CreateAsync();
+            if (OperatingSystem.IsMacOS())
+            {
+                // Not even launched: a launch alone writes Edge's own files into ~/Library (T-095).
+                SkipReason = MacOsSkipReason;
+                return;
+            }
+
             string temp = Directory.CreateDirectory(Path.Combine(Root, "tmp")).FullName;
             _playwright = await CreatePlaywrightAsync(temp);
             (_browser, SkipReason) = await EdgeLauncher.LaunchAsync(_playwright.Chromium, new BrowserTypeLaunchOptions());

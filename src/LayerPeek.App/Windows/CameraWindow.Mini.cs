@@ -33,7 +33,7 @@ namespace LayerPeek.App.Windows;
 public sealed partial class CameraWindow
 {
     /// <summary>Without a modal size loop (not Windows): the resize counts as finished after this long without a size change.</summary>
-    private static readonly TimeSpan ResizeSettleTime = TimeSpan.FromMilliseconds(300);
+    internal static readonly TimeSpan ResizeSettleTime = TimeSpan.FromMilliseconds(300);
 
     private CameraMiniStripViewModel? _miniStrip;
     private bool _correctingMini;
@@ -186,6 +186,9 @@ public sealed partial class CameraWindow
         _resizeSettle.Stop();
         _resizeSettle.Start();
     }
+
+    /// <summary>A resize without a modal size loop (not Windows) has not settled yet; its height correction is still to come.</summary>
+    internal bool IsMiniResizeSettling => _resizeSettle?.IsEnabled == true;
 
     /// <summary>The client size changed: while a resize without a modal loop runs, its end is a moment later.</summary>
     private void OnMiniClientSizeChanged()

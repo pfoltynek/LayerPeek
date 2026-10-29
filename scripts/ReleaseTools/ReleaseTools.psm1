@@ -491,8 +491,9 @@ function New-ReleaseArchive {
         try {
             [System.IO.File]::WriteAllText($list, (($files | ForEach-Object { "./$_" }) -join "`n") + "`n", [System.Text.UTF8Encoding]::new($false))
             # macOS bsdtar stores extended attributes by default (--mac-metadata, AppleDouble '._*' entries such as the
-            # quarantine flag); the release archive must hold only the files themselves.
-            $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
+            # quarantine flag); the release archive must hold only the files themselves. Typed as an array: 'if' as an
+            # expression unwraps a single element into a string, and splatting a string passes each of its characters.
+            [string[]] $macArguments = if ($IsMacOS) { @('--no-mac-metadata') } else { @() }
             $savedCopyFile = $env:COPYFILE_DISABLE
             if ($IsMacOS) { $env:COPYFILE_DISABLE = '1' }
             try {
@@ -1943,6 +1944,111 @@ function Invoke-ReleasePush {
     $result = Invoke-Git $RepoRoot (@('push', '--atomic', $Remote) + $refspecs.ToArray())
     foreach ($line in @($result.Output) + @($result.Error)) { if ($line) { Write-Host "  $line" } }
     if ($result.ExitCode -ne 0) { throw "git push $Remote $($refspecs -join ' ') failed (exit code $($result.ExitCode)). Nothing is force-pushed; see docs/release.md." }
+}
+
+function Get-SmokeProfile {
+    <#
+    .SYNOPSIS
+        The folders of the user profile that the Release exe writes (it has no test mode, T-095) and the journal of their
+        backup during the AOT smoke check: data and logs of the app, never anything else (on Windows only the logs below
+        %LOCALAPPDATA%\LayerPeek, which may also hold the installed app).
+    .PARAMETER ProfileRoot
+        A stand-in profile for the tests: <root>/data/LayerPeek and <root>/logs/LayerPeek.
+    #>
+    param([string] $ProfileRoot)
+    if ($ProfileRoot) {
+        $data = Join-Path $ProfileRoot 'data' 'LayerPeek'
+        $logs = Join-Path $ProfileRoot 'logs' 'LayerPeek'
+    }
+    elseif ($IsMacOS) {
+        $userHome = [Environment]::GetFolderPath('UserProfile')
+        $data = Join-Path $userHome 'Library' 'Application Support' 'LayerPeek'
+        $logs = Join-Path $userHome 'Library' 'Logs' 'LayerPeek'
+    }
+    elseif ($IsWindows) {
+        $data = Join-Path ([Environment]::GetFolderPath('ApplicationData')) 'LayerPeek'
+        $logs = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'LayerPeek' 'logs'
+    }
+    else {
+        throw 'The AOT smoke check runs on Windows and macOS only.'
+    }
+    [pscustomobject]@{ Folders = @($data, $logs); Journal = "$data.aot-smoke-journal.json" }
+}
+
+function Get-SmokeBackupPath {
+    <# .SYNOPSIS Where the smoke check keeps a folder of the app meanwhile: next to it, so that moving it is a rename. #>
+    param([Parameter(Mandatory)] [string] $Folder)
+    "$Folder.aot-smoke-backup"
+}
+
+function Read-SmokeJournal {
+    <#
+    .SYNOPSIS
+        The entries of the journal (Path, Backup, Existed), or $null without a journal. Refuses a journal whose paths are
+        not exactly the folders of -SmokeProfile, so that a restore never deletes anything else.
+    #>
+    param([Parameter(Mandatory)] $SmokeProfile)
+    if (-not (Test-Path -LiteralPath $SmokeProfile.Journal -PathType Leaf)) { return $null }
+    $journal = Get-Content -LiteralPath $SmokeProfile.Journal -Raw | ConvertFrom-Json
+    $entries = @($journal.Entries)
+    foreach ($entry in $entries) {
+        if ($SmokeProfile.Folders -cnotcontains $entry.Path -or $entry.Backup -cne (Get-SmokeBackupPath $entry.Path) -or $entry.Existed -isnot [bool]) {
+            throw "The smoke journal $($SmokeProfile.Journal) lists '$($entry.Path)', which is not a folder of the app. Nothing was changed; check it by hand."
+        }
+    }
+    , $entries
+}
+
+function Backup-SmokeProfile {
+    <#
+    .SYNOPSIS
+        Before the Release exe starts: writes the journal, then moves the existing folders of the app aside (renames next
+        to them), so that the exe starts with an empty profile and writes nothing into the user's data.
+    .DESCRIPTION
+        The journal is written first and records which folders existed, so that Restore-SmokeProfile can finish the job
+        after a crash at any point (also in the middle of the moves). Refuses to start over a journal or a backup folder
+        that is already there: those belong to an interrupted run and are restored first (aot-smoke.ps1 -RestoreOnly).
+    #>
+    param([Parameter(Mandatory)] $SmokeProfile)
+    if (Test-Path -LiteralPath $SmokeProfile.Journal) { throw "A smoke journal already exists: $($SmokeProfile.Journal). Restore it first (scripts/aot-smoke.ps1 -RestoreOnly)." }
+    $entries = foreach ($folder in $SmokeProfile.Folders) {
+        $backup = Get-SmokeBackupPath $folder
+        if (Test-Path -LiteralPath $backup) { throw "A backup folder exists without a journal: $backup. Nothing was moved; check it by hand." }
+        [ordered]@{ Path = $folder; Backup = $backup; Existed = [bool] (Test-Path -LiteralPath $folder) }
+    }
+    $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $SmokeProfile.Journal)
+    $temporary = "$($SmokeProfile.Journal).tmp"
+    $document = [ordered]@{ Version = 1; Created = [DateTime]::UtcNow.ToString('o'); Entries = @($entries) }
+    [System.IO.File]::WriteAllText($temporary, ($document | ConvertTo-Json -Depth 4) + "`n", [System.Text.UTF8Encoding]::new($false))
+    [System.IO.File]::Move($temporary, $SmokeProfile.Journal)
+    foreach ($entry in $entries) {
+        # A rename only (same parent folder): never a copy that could be left half done.
+        if ($entry.Existed) { [System.IO.Directory]::Move($entry.Path, $entry.Backup) }
+    }
+}
+
+function Restore-SmokeProfile {
+    <#
+    .SYNOPSIS
+        After the smoke run (or after a crash): deletes what the exe created in the folders of the app and moves the
+        backups back. Returns $true when a journal was restored, $false when there was none.
+    .DESCRIPTION
+        Idempotent, so it can finish an interrupted restore: a folder whose backup is gone is already back (or was never
+        moved); a folder that did not exist before the run is deleted. The journal is deleted last. Data that existed
+        before the run is never deleted: it is in the backup until it is moved back.
+    #>
+    param([Parameter(Mandatory)] $SmokeProfile)
+    $entries = Read-SmokeJournal -SmokeProfile $SmokeProfile
+    if ($null -eq $entries) { return $false }
+    foreach ($entry in $entries) {
+        $backupExists = Test-Path -LiteralPath $entry.Backup
+        if ($entry.Existed -and -not $backupExists) { continue }
+        # Created by the exe (the user's folder is in the backup, or there was none).
+        if (Test-Path -LiteralPath $entry.Path) { Remove-Item -LiteralPath $entry.Path -Recurse -Force }
+        if ($entry.Existed) { [System.IO.Directory]::Move($entry.Backup, $entry.Path) }
+    }
+    Remove-Item -LiteralPath $SmokeProfile.Journal -Force
+    $true
 }
 
 Export-ModuleMember -Function *

@@ -41,6 +41,7 @@
     <Compile Include="..\LayerPeek.App.Tests\Diagnostics\DiagnosticsFakes.cs" Link="Shared\DiagnosticsFakes.cs" />
     <Compile Include="..\LayerPeek.App.Tests\Previews\PreviewFakes.cs" Link="Shared\PreviewFakes.cs" />
     <Compile Include="..\Shared\TestPng.cs" Link="Shared\TestPng.cs" />
+    <Compile Include="..\Shared\CultureTime.cs" Link="Shared\CultureTime.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

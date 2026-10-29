@@ -194,9 +194,21 @@ Testy (`dotnet test`, E2E i ruční testovací běhy Debug sestavení) nesmí na
 - notifikací pod produkčním bundle identifikátorem – testy používají vlastní identifikátor (např. s příponou `.E2E`), doručené testovací notifikace se uklidí při ukončení i v režimu úklidu po pádu, oprávnění produkčního identifikátoru se nemění (T-020);
 - sdílených složek mimo `$TMPDIR` – sockety, zámky a testy práv a vlastnictví běží v soukromé podsložce `$TMPDIR` a po sobě ji smažou. Repozitář může ležet na svazku s `noowners` (vlastnictví se nevynucuje), takže testy práv v něm nejsou průkazné (T-053).
 
-Release AOT exe testovací režim nemá; jeho spuštění (např. AOT smoke test) zapisuje do skutečného profilu (otevřená otázka v T-095).
+Release AOT exe testovací režim nemá; jeho spuštění zapisuje do skutečných složek dat a logů. `scripts/aot-smoke.ps1` (i z `release-build.ps1`) je proto těsně před spuštěním exe zapíše do žurnálu (`<data>.aot-smoke-journal.json`) a přejmenuje vedle sebe na `<složka>.aot-smoke-backup`. Exe tak startuje s prázdným profilem; po jeho ukončení skript smaže, co exe vytvořilo, a zálohy vrátí. Po pádu skriptu obnovu dokončí další běh nebo `pwsh scripts/aot-smoke.ps1 -RestoreOnly` (T-095). Týká se jen `~/Library/Application Support/LayerPeek` a `~/Library/Logs/LayerPeek` (Windows `%APPDATA%\LayerPeek` a `%LOCALAPPDATA%\LayerPeek\logs`, ne celé `%LOCALAPPDATA%\LayerPeek`, kde může být nainstalovaná aplikace). Co další exe zapíše mimo tyto složky (např. `~/Library/Preferences/<bundle id>.plist`, Saved Application State, Caches), záloha zatím nepokrývá; ověří a doplní T-019 se skutečnou `.app`.
 
-**Kontrola před/po:** před a po běhu testů porovnat výpis (`ls -laR`, případně kontrolní součty) složek `~/Library/Application Support`, `~/Library/Logs`, `~/Library/LaunchAgents`, seznam Login Items (Nastavení systému → Obecné → Položky při přihlášení, případně `sfltool dumpbtm`) a položky Keychainu služeb LayerPeek / Prusa (`security dump-keychain`, jen atributy, bez `-d`). Rozdíl nesmí být žádný. V `$TMPDIR` smí zůstat jen rezervované složky testů (např. rozdílové obrázky snímků z `SnapshotAssert`).
+**Kontrola před/po:** skript `tools/profile-snapshot.ps1` (PowerShell 7, jen čte):
+
+```bash
+pwsh tools/profile-snapshot.ps1 -Save "$TMPDIR/layerpeek-profile-before.json"   # soubor mimo repozitář
+dotnet test
+pwsh tools/profile-snapshot.ps1 -Compare "$TMPDIR/layerpeek-profile-before.json" # změna = kód 1 a výpis
+```
+
+Na macOS sleduje `~/Library/Application Support/LayerPeek`, `~/Library/Logs/LayerPeek` (soubory s velikostí a SHA-256), `~/Library/LaunchAgents`, Login Items s „LayerPeek“ (`sfltool dumpbtm`) a názvy služeb Keychainu s „LayerPeek“ / „Prusa“ (`security dump-keychain` bez `-d`, ukládají se jen názvy služeb). `sfltool dumpbtm` chce autorizaci správce. Bez ní (neinteraktivní běh) skript Login Items vypíše jako „not checked“ a nebere to jako změnu (stačí, rozhodnuto 2026-10-29); ručně je jde zkontrolovat v Nastavení systému → Obecné → Položky při přihlášení. Na Windows sleduje `%APPDATA%\LayerPeek`, `%LOCALAPPDATA%\LayerPeek`, složku Po spuštění a cíle Správce pověření s „LayerPeek“ (`cmdkey /list`). Rozdíl nesmí být žádný. V `$TMPDIR` smí zůstat jen rezervované složky testů (např. rozdílové obrázky snímků z `SnapshotAssert`).
+
+**Prohlížeč E2E testů:** `LayerPeek.E2E.Tests` spouští nainstalovaný Microsoft Edge headless s vlastním dočasným profilem. **Na macOS se do T-021 přeskakují a Edge se vůbec nespouští** (`EdgeFixture.MacOsSkipReason`, rozhodnuto 2026-10-29): headless Edge 156 na macOS po několika stránkách přestane volat `requestAnimationFrame` a čekání Playwrightu náhodně vyprší (rozbor v T-021). Edge si navíc při prvním spuštění na macOS založí vlastní soubory v profilu uživatele, i s vlastním `--user-data-dir`: `~/Library/Application Support/Microsoft Edge/Crashpad`, `~/Library/Preferences/com.microsoft.edgemac.plist` a `UBF8T346G9.com.microsoft.edgemac.widgets` v `~/Library/Application Scripts` a `~/Library/Group Containers` (zjištěno v T-095). **Známý pozůstatek, nemaže se** (rozhodnuto 2026-10-29). Nejsou to data LayerPeek a skript před/po je nesleduje.
+
+**Referenční snímky UI testů (T-095):** stejný font Inter se na Windows a macOS rasterizuje jinak, proto má každý OS vlastní sadu PNG. Windows reference zůstávají v `tests/LayerPeek.App.UiTests/Snapshots/` (včetně `TrayIcons/`), macOS má kopii celého stromu v `Snapshots/macOS/`. `SnapshotAssert` vybírá sadu podle OS (`ReferenceSet`), `LAYERPEEK_UPDATE_SNAPSHOTS=1` přepíše jen sadu aktuálního OS. Chybějící reference aktuálního OS test shodí s jasnou zprávou (nový snímek se tedy vytváří na obou OS). Nové reference je potřeba před uložením zkontrolovat okem.
 
 ## Logování
 
