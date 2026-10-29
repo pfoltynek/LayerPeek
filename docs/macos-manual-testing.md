@@ -335,6 +335,9 @@ LayerPeek nesmí běžet; tiskárna nastavená (pro krok 3 se simulátorem nebo 
    (c) při prvním čtení hesla tiskárny dialog Klíčenky „LayerPeek chce použít důvěrné informace…“ (Povolit / Vždy
    povolit / Zamítnout)? Zvolit „Povolit“ a zapsat, jestli se objeví znovu při dalším spuštění (T-021 otázka k podpisu).
    **Uzavírá:** T-097 krok 4, T-020 krok 4, T-021 (riziko ad-hoc podpisu).
+3. **Přechod na hardened runtime (T-108).** Uložit heslo tiskárny ve verzi bez T-108 (např. 0.3.0), pak nainstalovat
+   sestavení s T-108 přes ni. Očekávání: nejvýš jeden dialog Klíčenky, po „Vždy povolit“ už žádný; aplikace normálně
+   běží (menu bar, kamera, notifikace). Zapsat výsledek do `tasks/done/T-108-macos-hardened-runtime.md`.
 
 ## Sezení 10 – Vývojové sestavení (T-053)
 
