@@ -45,7 +45,7 @@ License: **GPL-3.0-only**, no CLA. Every new dependency must have a GPL-3.0-comp
 - No `BuiltInComInteropSupport`; Windows interop via `[LibraryImport]` / source-generated COM (`[GeneratedComInterface]`).
 - **Every new NuGet package must be AOT/trim compatible** — verify before proposing it and state it in the task notes.
 - Never silence trim/AOT warnings with `UnconditionalSuppressMessage` or `<NoWarn>` without a justification approved by the user.
-- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug needs neither. Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
+- AOT is compiled per OS: Windows binaries on Windows, macOS on macOS. Local Windows AOT publish requires the Visual Studio "Desktop development with C++" workload, macOS requires Xcode Command Line Tools; normal `dotnet build`/`run`/debug needs neither on Windows. On macOS the first `dotnet build` also needs the Xcode Command Line Tools, because it builds the LGPL FFmpeg libraries from source into a cache (T-026, `build/macos/build-ffmpeg.sh`). Full list: `docs/prerequisites.md` — keep it up to date when toolchain requirements change.
 
 ## Repository layout
 

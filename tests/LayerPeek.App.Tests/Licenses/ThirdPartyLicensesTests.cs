@@ -256,6 +256,29 @@ public sealed partial class ThirdPartyLicensesTests
         Assert.True(File.Exists(Path.Combine(RepositoryRoot, "build", "macos", "build-ffmpeg.sh")));
     }
 
+    [Theory]
+    [InlineData("0.2.0", "https://github.com/pfoltynek/LayerPeek/blob/v0.2.0/build/macos/build-ffmpeg.sh")]
+    [InlineData("1.10.3", "https://github.com/pfoltynek/LayerPeek/blob/v1.10.3/build/macos/build-ffmpeg.sh")]
+    [InlineData("2.0.0-beta.1", "https://github.com/pfoltynek/LayerPeek/blob/v2.0.0-beta.1/build/macos/build-ffmpeg.sh")]
+    public void FFmpegMacOSBuildScriptLinkPointsToTheReleaseTagOfTheVersion(string version, string expected)
+    {
+        // User decision 2026-10-29: the release tag vX.Y.Z of the app version, never a branch (blob/main).
+        Assert.Equal(new Uri(expected), ThirdPartyLicenses.FFmpeg.MacOSBuildScriptUri(version));
+    }
+
+    [Fact]
+    public void FFmpegMacOSBuildScriptLinkUsesTheApplicationVersion()
+    {
+        string version = LayerPeek.App.Windows.AboutViewModel.ProductVersion(typeof(ThirdPartyLicenses).Assembly);
+        XElement props = XElement.Load(Path.Combine(RepositoryRoot, "Directory.Build.props"));
+        string pinned = props.Descendants("Version").Single().Value;
+
+        Assert.Equal(pinned, version);
+        Assert.Equal(ThirdPartyLicenses.FFmpeg.MacOSBuildScriptUri(version), ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri);
+        Assert.Contains($"/blob/v{pinned}/", ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri.AbsoluteUri, StringComparison.Ordinal);
+        Assert.DoesNotContain("/blob/main/", ThirdPartyLicenses.FFmpeg.MacOSBuildScriptsUri.AbsoluteUri, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void FFmpegMacOSBuildIsLgplOnlyWithoutHardwareDecoding()
     {
