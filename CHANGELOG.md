@@ -44,8 +44,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The small temperature charts in the camera window (the *Temperatures* widget and the chart row of the mini preview)
   no longer look like flat lines: the nozzle and the bed each get their own band (nozzle on top, bed below), scaled to
   their own values over the last 60 minutes with at least 6 °C, so a fluctuation of 1–2 °C is visible while sensor
-  noise is not. A target line is drawn only where it falls within its band. The chart in the Diagnostics window keeps
-  its axis from 0 °C. Windows and macOS.
+  noise is not. A target line is drawn only where it falls within its band. In the large (L) *Temperatures* widget
+  each band shows its range next to the chart (e.g. "212–218 °C"). The chart in the Diagnostics window keeps its axis
+  from 0 °C. Windows and macOS.
 
 ## [0.3.0] - 2026-10-29
 

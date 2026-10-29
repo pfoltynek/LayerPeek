@@ -17,6 +17,12 @@
              xmlns:chart="using:LayerPeek.App.Diagnostics.Chart"
              x:Class="LayerPeek.App.Cameras.Overlay.Widgets.TemperaturesWidgetView"
              x:DataType="w:TemperaturesWidgetViewModel">
+  <UserControl.Resources>
+    <!-- Column of the band range labels of the L chart (T-106) and the matching right margin of the axis labels. -->
+    <x:Double x:Key="TemperatureChartRangeWidth">80</x:Double>
+    <Thickness x:Key="TemperatureChartRangeMargin">0,0,80,0</Thickness>
+  </UserControl.Resources>
+
   <UserControl.Styles>
     <!-- Fixed widths in M / L: the chart width (card 284 / 392 without the padding of 14 / 16 per side); S by content. -->
     <Style Selector="Border.overlayCard.medium StackPanel.temperatures">
@@ -95,6 +101,15 @@
     <Style Selector="Border.overlayCard.large chart|TemperatureChart.temperaturesChart">
       <Setter Property="Height" Value="110" />
       <Setter Property="LineThickness" Value="2" />
+      <!-- T-106: the value range of each band ("212–218 °C") in a column right of the plot, L only. 12 like the L axis
+           labels, secondary colour; the column (TemperatureChartRangeWidth) leaves at least 8 px between the plot and the
+           widest label, and the "now" label below ends where the plot ends (TemperatureChartRangeMargin). -->
+      <Setter Property="BandRangeWidth" Value="{StaticResource TemperatureChartRangeWidth}" />
+      <Setter Property="BandRangeFontSize" Value="12" />
+      <Setter Property="BandRangeBrush" Value="{DynamicResource OverlayTextSecondaryBrush}" />
+    </Style>
+    <Style Selector="Border.overlayCard.large Grid.temperatureAxisRow">
+      <Setter Property="Margin" Value="{StaticResource TemperatureChartRangeMargin}" />
     </Style>
 
     <!-- Axis labels: 11 / 14 (L 12 / 16), regular, tertiary. -->
@@ -155,8 +170,9 @@
                               BedBrush="{DynamicResource OverlayBedBrush}"
                               AxisBrush="{DynamicResource OverlayTextTertiaryBrush}"
                               GridBrush="{x:Null}"
-                              NoDataText="{Binding ChartNoData}" />
-      <Grid ColumnDefinitions="*,Auto">
+                              NoDataText="{Binding ChartNoData}"
+                              BandRangeFormat="{Binding ChartRange}" />
+      <Grid Classes="temperatureAxisRow" ColumnDefinitions="*,Auto">
         <TextBlock Classes="temperatureAxis" Text="{Binding ChartStart}" />
         <TextBlock Grid.Column="1" Classes="temperatureAxis" Text="{Binding ChartNow}" />
       </Grid>

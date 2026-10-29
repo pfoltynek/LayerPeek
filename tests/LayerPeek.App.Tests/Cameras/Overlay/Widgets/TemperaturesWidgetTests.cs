@@ -368,6 +368,26 @@ public sealed class TemperaturesWidgetTests : IDisposable
         Assert.Equal("−60\u00A0min", widget.ChartStart);
         Assert.Equal("now", widget.ChartNow);
         Assert.Equal("No data", widget.ChartNoData);
+        Assert.Equal("{0}–{1}\u00A0°C", widget.ChartRange);
+    }
+
+    [Theory]
+    [InlineData("en-US")]
+    [InlineData("cs-CZ")]
+    [InlineData("de-DE")]
+    [InlineData("es-ES")]
+    [InlineData("fr-FR")]
+    [InlineData("it-IT")]
+    [InlineData("pl-PL")]
+    [InlineData("sk-SK")]
+    public void ChartRangeIsNumbersOnlyInEveryLanguage(string culture)
+    {
+        // T-106: the band range of the L chart, "212–218 °C" with the en dash and a no-break space before °C.
+        using CultureScope scope = new(culture);
+
+        TemperaturesWidgetViewModel widget = Show(Create(), Heating());
+
+        Assert.Equal("212–218\u00A0°C", string.Format(System.Globalization.CultureInfo.CurrentCulture, widget.ChartRange, 212L, 218L));
     }
 
     [Fact]

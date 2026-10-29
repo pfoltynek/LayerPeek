@@ -46,6 +46,9 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
 
     private static readonly TimeSpan HistoryInterval = TimeSpan.FromSeconds(20);
 
+    /// <summary>The column of the band range labels of the L chart (T-106).</summary>
+    private const double RangeColumn = 80;
+
     private static readonly Color Accent = Color.Parse("#FA6831");
 
     private static readonly Color Primary = Color.Parse("#F4F4F5");
@@ -269,10 +272,11 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
                     Assert.Equal(Tertiary, ColorOf(axis.Foreground));
                 }
 
-                // "−60 min" at the left edge of the chart, "now" at its right edge.
+                // "−60 min" at the left edge of the plot, "now" at its right edge (in L left of the range labels, T-106).
                 Rect plot = BoundsInWindow(sparkline, window);
                 Assert.Equal(plot.Left, BoundsInWindow(start, window).Left, 0.5);
-                Assert.Equal(plot.Right, BoundsInWindow(now, window).Right, 0.5);
+                Assert.Equal(plot.Right - sparkline.BandRangeWidth, BoundsInWindow(now, window).Right, 0.5);
+                Assert.Equal(size == OverlayWidgetSize.Large ? RangeColumn : 0, sparkline.BandRangeWidth);
             }
         });
 
@@ -756,7 +760,99 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             Assert.True(target.Bottom < chart.ClipOf(TemperatureSeries.NozzleTarget).Top, $"{target} should lie above the band.");
         });
 
-        // ---- Snapshots ----
+        [Theory]
+    [InlineData(OverlayWidgetSize.Small)]
+    [InlineData(OverlayWidgetSize.Medium)]
+    [InlineData(OverlayWidgetSize.Large)]
+    public Task BandRangesAreShownOnlyInTheLargeCard(OverlayWidgetSize size) =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(size));
+            RecordSteadyHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+            window.Settle();
+
+            bool large = size == OverlayWidgetSize.Large;
+            foreach (TemperatureSeries series in Enum.GetValues<TemperatureSeries>())
+            {
+                bool expected = large && series is TemperatureSeries.NozzleActual or TemperatureSeries.BedActual;
+                Assert.Equal(expected, chart.BandRangeTextOf(series) is not null);
+            }
+
+            if (!large)
+            {
+                return;
+            }
+
+            // The whole degrees of each band's range: the minimum span of 6 °C around 215 and 60.
+            Assert.Equal("212–218\u00A0°C", chart.BandRangeTextOf(TemperatureSeries.NozzleActual));
+            Assert.Equal("57–63\u00A0°C", chart.BandRangeTextOf(TemperatureSeries.BedActual));
+            Assert.Equal(new Size(360 - RangeColumn, 110), new Size(chart.Data.Columns, chart.Bounds.Height));
+            foreach (TemperatureSeries series in new[] { TemperatureSeries.NozzleActual, TemperatureSeries.BedActual })
+            {
+                ValueBand band = chart.BandOf(series)!.Value;
+                Assert.Equal($"{Math.Round(band.Low, MidpointRounding.AwayFromZero)}–{Math.Round(band.High, MidpointRounding.AwayFromZero)}\u00A0°C", chart.BandRangeTextOf(series));
+                // Secondary colour, 12 like the axis labels of L.
+                Assert.Equal(Secondary, ColorOf(chart.BandRangeBrush));
+                Assert.Equal(12, chart.BandRangeFontSize);
+                // In the column right of the plot, centred on its band, never over a line.
+                Rect bounds = chart.BandRangeBoundsOf(series);
+                Rect slot = chart.ClipOf(series);
+                Assert.True(bounds.Left >= chart.Bounds.Width - RangeColumn + 8, $"{bounds} reaches into the plot.");
+                Assert.Equal(chart.Bounds.Width, bounds.Right, 0.5);
+                Assert.Equal(slot.Center.Y, bounds.Center.Y, 0.5);
+            }
+        });
+
+    [Fact]
+    public Task BandRangeOfAHeatingRampShowsTheWholeRange() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Large));
+            RecordHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+
+            ValueBand nozzle = chart.BandOf(TemperatureSeries.NozzleActual)!.Value;
+            Assert.Equal(
+                $"{Math.Round(nozzle.Low, MidpointRounding.AwayFromZero)}–{Math.Round(nozzle.High, MidpointRounding.AwayFromZero)}\u00A0°C",
+                chart.BandRangeTextOf(TemperatureSeries.NozzleActual));
+            Assert.Equal("25–60\u00A0°C", chart.BandRangeTextOf(TemperatureSeries.BedActual));
+        });
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task WidestBandRangeFitsItsColumnInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Large));
+            // Three-digit bounds with the widest digits on both bands (a heating ramp from 100 to 888 °C is not real, but
+            // it is the widest text the format can produce).
+            for (DateTimeOffset time = Now - TimeSpan.FromMinutes(50); time <= Now; time += HistoryInterval)
+            {
+                double ago = (Now - time).TotalMinutes;
+                double value = ago > 25 ? 800 : 888;
+                harness.History.Record(Heating(nozzle: value, bed: value) with { Timestamp = time });
+            }
+
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+            Assert.Equal(Strings.CameraOverlayChartRange, chart.BandRangeFormat);
+
+            foreach (TemperatureSeries series in new[] { TemperatureSeries.NozzleActual, TemperatureSeries.BedActual })
+            {
+                Assert.Equal("800–888\u00A0°C", chart.BandRangeTextOf(series));
+                Rect bounds = chart.BandRangeBoundsOf(series);
+                Assert.True(bounds.Width <= RangeColumn - 8, $"{language}: the label is {bounds.Width:0.#} px wide.");
+                Assert.True(new Rect(chart.Bounds.Size).Contains(bounds), $"{language}: {bounds} is cut off.");
+            }
+
+            AssertFits(window, OverlayWidgetSize.Large);
+        });
+
+    // ---- Snapshots ----
 
     [Theory]
     [InlineData(OverlayWidgetSize.Small, "s")]
@@ -772,16 +868,18 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             SnapshotAssert.Matches(window, "camera-widget-temperatures-" + suffix);
         });
 
-    [Fact]
-    public Task SnapshotOfSteadyTemperatures() =>
+    [Theory]
+    [InlineData(OverlayWidgetSize.Medium, "m")]
+    [InlineData(OverlayWidgetSize.Large, "l")]
+    public Task SnapshotOfSteadyTemperatures(OverlayWidgetSize size, string suffix) =>
         session.RunAsync(async scope =>
         {
-            // T-106: a fluctuation of ±1.5 °C (nozzle) and ±0.5 °C (bed) is visible in the bands.
-            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
+            // T-106: a fluctuation of ±1.5 °C (nozzle) and ±0.5 °C (bed) is visible in the bands; L shows their ranges.
+            await using CameraHarness harness = Harness(Layout(size));
             RecordSteadyHistory(harness);
             CameraWindow window = await OpenAsync(harness, Heating(), 720, 405);
 
-            SnapshotAssert.Matches(window, "camera-widget-temperatures-steady-m");
+            SnapshotAssert.Matches(window, "camera-widget-temperatures-steady-" + suffix);
         });
 
     [Fact]
