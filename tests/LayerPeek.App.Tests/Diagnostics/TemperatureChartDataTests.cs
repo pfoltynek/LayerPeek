@@ -111,6 +111,32 @@ public sealed class TemperatureChartDataTests
     }
 
     [Fact]
+    public void RangeOfEachSeriesIgnoresMissingValuesAndSamplesOutsideTheWindow()
+    {
+        Record(0, nozzle: 100, bed: 20);
+        for (int i = 10; i < 20; i++)
+        {
+            Record(i, nozzle: 214 + (i % 3), nozzleTarget: i == 12 ? 0 : 215, bed: i == 15 ? null : 59.5 + (i % 2));
+        }
+
+        _history.Record(PrinterSnapshot.Unavailable("mk4", PrinterState.Offline, T0.AddSeconds(20)));
+        _data.Update(_history, "mk4", T0.AddSeconds(5), T0.AddSeconds(20), 40);
+
+        Assert.Equal((214f, 216f), _data.GetRange(TemperatureSeries.NozzleActual));
+        Assert.Equal((215f, 215f), _data.GetRange(TemperatureSeries.NozzleTarget));
+        Assert.Equal((59.5f, 60.5f), _data.GetRange(TemperatureSeries.BedActual));
+        Assert.Equal((float.NaN, float.NaN), _data.GetRange(TemperatureSeries.BedTarget));
+
+        // A range without values has none.
+        _data.Update(_history, "mk4", T0.AddSeconds(30), T0.AddSeconds(40), 40);
+        foreach (TemperatureSeries series in Enum.GetValues<TemperatureSeries>())
+        {
+            (float min, float max) = _data.GetRange(series);
+            Assert.True(float.IsNaN(min) && float.IsNaN(max), series.ToString());
+        }
+    }
+
+    [Fact]
     public void MissingValueBreaksTheLine()
     {
         for (int i = 0; i < 20; i++)

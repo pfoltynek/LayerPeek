@@ -102,6 +102,29 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
         Assert.Equal(window.ClientSize.Height, strip.Bottom, 0.01);
     }
 
+    /// <summary>
+    /// A sample every 20 s over the 70 minutes before <c>Now</c> of a printer holding its temperatures: the nozzle
+    /// 215 °C ± 1.5 °C, the bed 60 °C ± 0.5 °C (T-106).
+    /// </summary>
+    private static void RecordSteadyHistory(CameraHarness harness)
+    {
+        for (DateTimeOffset time = Now - TimeSpan.FromMinutes(70); time <= Now; time += HistoryInterval)
+        {
+            double ago = (Now - time).TotalMinutes;
+            harness.History.Record(new PrinterSnapshot
+            {
+                PrinterId = "a",
+                State = PrinterState.Printing,
+                Timestamp = time,
+                Telemetry = new Telemetry
+                {
+                    Nozzle = new Temperature(215 + (1.5 * Math.Sin(ago / 3)), 215),
+                    Bed = new Temperature(60 + (0.5 * Math.Sin(ago / 5)), 60),
+                },
+            });
+        }
+    }
+
     /// <summary>A sample every 20 s over the 70 minutes before <c>Now</c> (the harness clock, set on opening).</summary>
     private static void RecordHistory(CameraHarness harness)
     {
@@ -438,6 +461,47 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
             // Streaming: no status card ("No signal") over the image.
             Assert.False(ViewModel(window).IsStatusVisible);
             SnapshotAssert.Matches(window, "camera-mini-strip-rows");
+        });
+
+    [Fact]
+    public Task ChartRowShowsAFluctuationOfSteadyTemperatures() =>
+        session.RunAsync(async scope =>
+        {
+            // T-106: ±1.5 °C on the nozzle and ±0.5 °C on the bed are visible in the 52 px row (two bands of 24 px).
+            (CameraHarness harness, CameraWindow window) = await OpenAsync();
+            await using CameraHarness _ = harness;
+            RecordSteadyHistory(harness);
+            window.Click(ChartToggle(window));
+            TemperatureChart chart = window.Find<TemperatureChart>("CameraMiniChart");
+            await Ui.UntilAsync(() => { window.Settle(); return !chart.ShowsNoData; }, "history drawn");
+
+            Rect nozzleBand = chart.ClipOf(TemperatureSeries.NozzleActual);
+            Rect bedBand = chart.ClipOf(TemperatureSeries.BedActual);
+            Assert.Equal(0, nozzleBand.Top);
+            Assert.Equal(24, nozzleBand.Height, 6);
+            Assert.Equal(28, bedBand.Top, 6);
+            Assert.Equal(24, bedBand.Height, 6);
+            Rect nozzle = chart.GeometryOf(TemperatureSeries.NozzleActual)!.Bounds;
+            Rect bed = chart.GeometryOf(TemperatureSeries.BedActual)!.Bounds;
+            Assert.True(nozzle.Height >= 10, $"The nozzle line spans {nozzle.Height:0.#} px.");
+            Assert.True(bed.Height >= 3, $"The bed line spans {bed.Height:0.#} px.");
+            Assert.True(nozzleBand.Contains(nozzle), $"{nozzle} outside {nozzleBand}");
+            Assert.True(bedBand.Contains(bed), $"{bed} outside {bedBand}");
+        });
+
+    [Fact]
+    public Task SnapshotOfTheChartRowWithSteadyTemperatures() =>
+        session.RunAsync(async scope =>
+        {
+            (CameraHarness harness, CameraWindow window) = await OpenAsync();
+            await using CameraHarness _ = harness;
+            RecordSteadyHistory(harness);
+            window.Click(ChartToggle(window));
+            await Ui.UntilAsync(() => { window.Settle(); return !window.Find<TemperatureChart>("CameraMiniChart").ShowsNoData; }, "history drawn");
+            HideWindowButtons(window);
+
+            Assert.False(ViewModel(window).IsStatusVisible);
+            SnapshotAssert.Matches(window, "camera-mini-strip-chart-steady");
         });
 
     [Fact]
