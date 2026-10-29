@@ -110,7 +110,7 @@ s T-018 i tak (2026-10-29).
   inicializaci platformy (`was not able to start the RenderTimer`, kód -6661) – před jakýmkoli kódem T-018, zřejmě
   bez přístupu k okennímu serveru. Snímek menu baru navíc nebyl možný (chybí oprávnění Nahrávání obrazovky). Data jen
   ve scratchpadu, profil beze změny.
-- Kroky pro ruční ověření na Macu (kritéria 1 a 3):
+- Kroky pro ruční ověření na Macu (kritéria 1 a 3; souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 2):
   1. `LAYERPEEK_TEST_DATA_DIR=<prázdná složka> LAYERPEEK_INSTANCE_SUFFIX=t018 dotnet run --project src/LayerPeek.App`
      (volitelně simulátor `tools/PrusaSimulator`, `docs/simulator.md`, a tiskárna přidaná v Nastavení).
   2. Ve světlém i tmavém režimu (Nastavení systému → Vzhled) zkontrolovat ikonu v menu baru: bez tiskárny lomítko přes

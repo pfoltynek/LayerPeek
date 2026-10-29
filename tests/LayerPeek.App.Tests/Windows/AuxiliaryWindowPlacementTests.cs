@@ -43,6 +43,33 @@ public sealed class AuxiliaryWindowPlacementTests
         Assert.Equal(new PixelPoint(x, y), bounds.Position);
     }
 
+    /// <summary>
+    /// T-038: MacBook 13" screens in points (Avalonia.Native reports <c>Scaling</c> 1 and points as pixels), work area =
+    /// <c>NSScreen.visibleFrame</c> without the menu bar (24 pt, 37 pt under the notch) and the Dock (64 pt by default,
+    /// about 140 pt at its largest; on the left 140 pt wide; hidden = 0). The window keeps its designed size, so the
+    /// settings fit without a scroll bar as at 780 × 532 (<c>SettingsWindowLayoutTests</c>).
+    /// </summary>
+    [Theory]
+    [InlineData(0, 24, 1440, 812)] // 1440 × 900 (MacBook Air 13" Intel / M1), Dock at the bottom by default
+    [InlineData(0, 24, 1440, 736)] // the same with the largest Dock
+    [InlineData(0, 24, 1440, 876)] // the same with the Dock hidden
+    [InlineData(140, 24, 1300, 876)] // the same with the largest Dock on the left
+    [InlineData(0, 37, 1470, 855)] // 1470 × 956 (MacBook Air 13" M2 and later, notch), Dock at the bottom by default
+    [InlineData(0, 37, 1470, 779)] // the same with the largest Dock
+    [InlineData(0, 37, 1280, 655)] // 1280 × 832 ("Larger text" on the same Mac) with the largest Dock
+    public void DefaultSizeIsKeptOnMacBook13InchWorkAreas(int x, int y, int width, int height)
+    {
+        PixelRect workArea = new(x, y, width, height);
+
+        AuxiliaryWindowBounds bounds = Fit(workArea, scaling: 1.0);
+
+        Assert.Equal(Default, bounds.ClientSize);
+        Assert.Equal(Default, AuxiliaryWindowPlacement.SizeBeforeShowing(Default, Min, workArea, scaling: 1.0));
+        // The whole window (with the title bar) is on the work area.
+        Assert.InRange(bounds.Position.X, x, x + width - (int)Default.Width);
+        Assert.InRange(bounds.Position.Y, y, y + height - (int)(Default.Height + TitleBar));
+    }
+
     [Fact]
     public void ScreenOf800By600ShrinksOnlyTheHeight()
     {

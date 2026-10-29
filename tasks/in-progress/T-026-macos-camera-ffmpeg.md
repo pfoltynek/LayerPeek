@@ -79,7 +79,9 @@ Zprovoznit na macOS živý stream z kamery (RTSP/H.264, Prusa Buddy3D) z T-014. 
 - `tools/profile-snapshot.ps1` před a po (kolem testů, sondy i release buildu): „No change in the watched places of the user profile.“ (Login Items „not checked“ jako dřív).
 - Headless UI testy kamery (`tests/LayerPeek.App.UiTests/Cameras`, beze změn) běží i na macOS a projdou: přepínání normální / celá obrazovka (`WindowState.FullScreen`) / malý náhled, `Topmost` a okno bez rámečku (vlastnosti okna), překryvy stavu ve všech režimech.
 
-**Neověřeno (ověří uživatel na Macu):**
+**Doplněk T-038 (2026-10-29):** malý náhled na macOS ve skutečnosti nešel úchyty zvětšit ani zmenšit (`BeginResizeDrag` je v Avalonia.Native 12.1.4 prázdná metoda a okno bez rámečku nemá měnitelné hrany); opraveno v T-038 (okno sleduje tažený úchyt samo, `CameraWindow.ResizesItself`).
+
+**Neověřeno (ověří uživatel na Macu; souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 1, 2, 4 a 6):**
 1. Skutečná kamera Buddy3D v LAN z `/Applications/LayerPeek.app` (z `.dmg`): okno kamery se stream zobrazí; F11 / dvojklik = celá obrazovka (macOS ji otevře ve vlastním prostoru, Esc vrátí); malý náhled zůstane nad ostatními okny i nad oknem v celé obrazovce jiné aplikace (`Topmost` a z-order headless test neověří), je bez rámečku, jde táhnout a měnit velikost; překryv stavu tisku je vidět ve všech třech režimech.
 2. Při prvním spojení na kameru nebo tiskárnu v LAN macOS 15+ zobrazí dotaz „Local Network“; po povolení stream běží, po zamítnutí okno ukáže „bez signálu“ (stav a nastavení v System Settings → Privacy & Security → Local Network). Případně po aktualizaci aplikace, zda se ptá znovu.
 3. Čistý Mac bez Homebrew (nebo uživatelský účet bez něj): instalace z `.dmg`, spuštění („Open Anyway“), stream funguje.

@@ -306,6 +306,8 @@ from [CHANGELOG.md](CHANGELOG.md). One command, `pwsh scripts/release.ps1 -Versi
 Gitflow release (release branch, merge into `main` with the tag `vX.Y.Z`, merge back into `develop`), builds the tag and
 uploads it into a draft GitHub release, asking before every push and upload. Publishing the draft stays a separate
 manual step (`scripts/release-publish.ps1`). See [docs/release.md](docs/release.md) for the full procedure (in Czech).
+The checks on a Mac that only a person can do (Gatekeeper, macOS permissions, Open at Login, monitors, a sleeping
+display) are collected in one walk-through in [docs/macos-manual-testing.md](docs/macos-manual-testing.md) (in Czech).
 
 ### Project structure
 

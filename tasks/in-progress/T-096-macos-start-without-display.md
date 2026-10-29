@@ -93,6 +93,8 @@ Kdy to hrozí: „Otevřít při přihlášení“ (T-019) na Macu se zavřeným
   uživatele (níže).
 
 ### Ověření uživatelem (start s uspaným displejem)
+Souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 8.
+
 1. Sestavit Release `LayerPeek.app`: `caffeinate -d -u -i pwsh scripts/release-build.ps1` (bundle v `artifacts/release/<verze>/app/osx-arm64/`); LayerPeek nesmí běžet. Pozor: Release aplikace mimo smoke test používá skutečný profil (data, logy, nastavení).
 2. V Terminálu: `sleep 10; open -a "<cesta>/LayerPeek.app"` a během 10 s uspat displej: `pmset displaysleepnow`
    (jen uspí displej, nic nemění).

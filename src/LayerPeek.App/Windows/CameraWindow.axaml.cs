@@ -631,10 +631,10 @@ public sealed partial class CameraWindow : Window
 
     private void OnGripPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (_viewModel is { IsMini: true } && sender is Control { Tag: WindowEdge edge } && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+        if (_viewModel is { IsMini: true } && sender is Control { Tag: WindowEdge edge } grip && e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
         {
             e.Handled = true;
-            BeginMiniResize(edge, e);
+            BeginMiniResize(grip, edge, e);
         }
     }
 

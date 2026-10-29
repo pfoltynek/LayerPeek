@@ -98,3 +98,5 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
   - Celý `dotnet test`: 7131 testů, 0 selhání, 6912 prošlo, 219 přeskočeno, E2E 21/21, 1 min 43 s. První běh po změně odhalil chybu v novém testu: porovnával id vláken, ale pool smí vlákno volajícího po `await` znovu použít. Test teď místo toho hlídá, zda nativní volání proběhlo uvnitř volání úložiště (`BlockingKeychainItems.FromCaller`).
   - AOT publish `osx-arm64`: 0 varování MSBuild / trim / AOT (jen známé hlášky dsymutil / linkeru), exe jsem nespouštěl.
   - `tools/profile-snapshot.ps1 -Compare`: žádná změna.
+
+**Ruční kroky pro uživatele** (testy se zápisem na odemčeném Macu, heslo v produkční aplikaci, dialog Klíčenky po aktualizaci ad-hoc sestavení): souhrnně v [`docs/macos-manual-testing.md`](../../docs/macos-manual-testing.md), sezení 3 a 9.
