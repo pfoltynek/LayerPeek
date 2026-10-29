@@ -807,9 +807,15 @@ $script:MacBundle = [pscustomobject]@{
     BundleName    = 'LayerPeek.app'
     Executable    = 'LayerPeek'
     PlistTemplate = 'build/macos/Info.plist'
-    IconMaster    = 'src/LayerPeek.App/Assets/AppIcon/app-icon-1024.png'
-    # T-019 (user decision 2026-10-29): 16 and 32 px from the simplified app-icon-small.svg (T-025), the pixels of app-icon.ico.
-    IconExact     = @{ 16 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-16.png'; 32 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-32.png' }
+    # T-098: the macOS variant of the app icon on Apple's grid (824 px body with continuous corners and a drop shadow on the
+    # 1024 px canvas, app-icon-macos.svg); the Windows .ico keeps the full-size tile of app-icon.svg.
+    IconMaster    = 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-1024.png'
+    # T-019 (user decision 2026-10-29): 16 and 32 px from the simplified design (T-025 app-icon-small.svg), drawn for the
+    # macOS grid on whole pixels by T-098 (app-icon-macos-16.svg, app-icon-macos-32.svg: 12 and 26 px body).
+    IconExact     = @{ 16 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-16.png'; 32 = 'src/LayerPeek.App/Assets/AppIcon/app-icon-macos-32.png' }
+    # T-098: the body of the icon on Apple's grid, per 1024 px of the canvas (left/top edge and size); the rest is margin
+    # (transparent, or the drop shadow from 64 px on).
+    IconBody      = [pscustomobject]@{ Offset = 100; Size = 824 }
     IconFile      = 'LayerPeek.icns'
     VolumeName    = 'LayerPeek'
     # T-026: the FFmpeg libraries built by build/macos/build-ffmpeg.sh, in Contents/MacOS next to the executable like the
@@ -905,8 +911,8 @@ function Get-MacIconPlan {
     .SYNOPSIS
         Where each image of the .iconset comes from (pure): the sizes with a PNG of their own in -ExactPngs (pixels -> path)
         are copied unchanged, every other size is scaled down from -MasterPng. T-019 (user decision 2026-10-29): 16 and 32 px
-        are the simplified variant app-icon-small.svg of T-025 (the same pixels as the .ico for Windows), from 48 px on the
-        detailed one, like the .ico. Returns file name -> [pscustomobject] @{ Pixels; Source; Scale }.
+        are the simplified variant (T-025 app-icon-small.svg, for the macOS grid app-icon-macos-16/32.svg of T-098), from
+        64 px on the detailed one, like the .ico from 48 px. Returns file name -> [pscustomobject] @{ Pixels; Source; Scale }.
     #>
     param([Parameter(Mandatory)] [string] $MasterPng, [hashtable] $ExactPngs = @{})
     $plan = [ordered]@{}
@@ -939,12 +945,110 @@ function Get-PngPixelSize {
     [pscustomobject]@{ Width = $width; Height = $height }
 }
 
+function ConvertFrom-BmpAlpha {
+    <#
+    .SYNOPSIS
+        Width, height and the alpha channel (top-down rows, one byte per pixel) of a 32-bit BMP with an alpha mask, as
+        written by sips (pure). Throws for any other BMP.
+    #>
+    param([Parameter(Mandatory)] [byte[]] $Bytes)
+    if ($Bytes.Length -lt 54 -or $Bytes[0] -ne 0x42 -or $Bytes[1] -ne 0x4D) { throw 'Not a BMP.' }
+    $offset = [System.BitConverter]::ToInt32($Bytes, 10)
+    $header = [System.BitConverter]::ToInt32($Bytes, 14)
+    $width = [System.BitConverter]::ToInt32($Bytes, 18)
+    $height = [System.BitConverter]::ToInt32($Bytes, 22)
+    $bits = [System.BitConverter]::ToInt16($Bytes, 28)
+    $compression = [System.BitConverter]::ToInt32($Bytes, 30)
+    # BI_BITFIELDS with a V4/V5 header: the alpha mask follows the red, green and blue masks.
+    if ($bits -ne 32 -or $compression -ne 3 -or $header -lt 56) { throw "Not a 32-bit BMP with alpha ($bits bits, compression $compression)." }
+    # The alpha mask selects one byte of the little-endian pixel: 0xFF000000 the fourth, 0x000000FF the first.
+    $mask = [byte[]] $Bytes[66..69]
+    $shift = [System.Array]::IndexOf($mask, [byte] 0xFF)
+    if ($shift -lt 0 -or @($mask | Where-Object { $_ -ne 0 }).Count -ne 1) { throw "Unexpected alpha mask $(($mask | ForEach-Object { '{0:X2}' -f $_ }) -join ' ')." }
+    $rows = [Math]::Abs($height)
+    if ($offset + ($width * $rows * 4) -gt $Bytes.Length) { throw 'The BMP is shorter than its pixels.' }
+    $alpha = [byte[]]::new($width * $rows)
+    for ($y = 0; $y -lt $rows; $y++) {
+        # A positive height means bottom-up rows.
+        $source = if ($height -gt 0) { $rows - 1 - $y } else { $y }
+        $start = $offset + ($source * $width * 4) + $shift
+        for ($x = 0; $x -lt $width; $x++) { $alpha[($y * $width) + $x] = $Bytes[$start + ($x * 4)] }
+    }
+    [pscustomobject]@{ Width = $width; Height = $rows; Alpha = $alpha }
+}
+
+function Get-MacIconBodyProblems {
+    <#
+    .SYNOPSIS
+        T-098: what is wrong with one image of the macOS app icon against Apple's grid (pure): the mostly opaque pixels
+        (alpha >= 128) must form the body (IconBody of Get-MacBundleSettings: 100..924 of 1024, scaled to the size,
+        +-1 px for the pixel grid of the small sizes), the centre of the body must be opaque and the margin may only hold
+        the drop shadow (alpha at most -MaxMarginAlpha). Returns problem texts, empty when the image is right.
+    #>
+    param(
+        [Parameter(Mandatory)] [int] $Width,
+        [Parameter(Mandatory)] [int] $Height,
+        [Parameter(Mandatory)] [byte[]] $Alpha,
+        [int] $MaxMarginAlpha = 64,
+        [string] $Name = 'image'
+    )
+    if ($Width -ne $Height) { return "$Name is $Width x $Height px, not square." }
+    if ($Alpha.Length -ne $Width * $Height) { return "$Name has $($Alpha.Length) alpha values for $Width x $Height px." }
+    $body = $script:MacBundle.IconBody
+    $start = $Width * $body.Offset / 1024.0
+    $end = $Width * ($body.Offset + $body.Size) / 1024.0
+    $minX = $Width; $minY = $Height; $maxX = -1; $maxY = -1
+    for ($y = 0; $y -lt $Height; $y++) {
+        for ($x = 0; $x -lt $Width; $x++) {
+            if ($Alpha[($y * $Width) + $x] -ge 128) {
+                if ($x -lt $minX) { $minX = $x }; if ($x -gt $maxX) { $maxX = $x }
+                if ($y -lt $minY) { $minY = $y }; if ($y -gt $maxY) { $maxY = $y }
+            }
+        }
+    }
+    if ($maxX -lt 0) { return "$Name has no opaque body." }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    foreach ($edge in @(@{ Name = 'left'; Value = $minX; Expected = $start }, @{ Name = 'top'; Value = $minY; Expected = $start },
+            @{ Name = 'right'; Value = $maxX + 1; Expected = $end }, @{ Name = 'bottom'; Value = $maxY + 1; Expected = $end })) {
+        if ([Math]::Abs($edge.Value - $edge.Expected) -gt 1) {
+            $problems.Add([string]::Format([cultureinfo]::InvariantCulture, '{0}: the {1} edge of the body is at {2} px, Apple''s grid puts it at {3:0.##} px.', $Name, $edge.Name, $edge.Value, $edge.Expected))
+        }
+    }
+    $centre = [int] ($Width / 2)
+    if ($Alpha[($centre * $Width) + $centre] -ne 255) { $problems.Add("${Name}: the centre of the body is not opaque.") }
+    $margin = 0
+    for ($y = 0; $y -lt $Height; $y++) {
+        for ($x = 0; $x -lt $Width; $x++) {
+            # The pixels around the body (one pixel off its edge for anti-aliasing) are the margin.
+            if ($x -lt $minX - 1 -or $x -gt $maxX + 1 -or $y -lt $minY - 1 -or $y -gt $maxY + 1) {
+                $margin = [Math]::Max($margin, [int] $Alpha[($y * $Width) + $x])
+            }
+        }
+    }
+    if ($margin -gt $MaxMarginAlpha) { $problems.Add("${Name}: the margin around the body has alpha $margin (at most $MaxMarginAlpha, the drop shadow).") }
+    $problems
+}
+
+function Get-MacIconImageProblems {
+    <# .SYNOPSIS T-098: Get-MacIconBodyProblems of a PNG file (its alpha read through sips, part of macOS). #>
+    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [string] $WorkDirectory)
+    $bmp = Join-Path $WorkDirectory "$([guid]::NewGuid().ToString('N')).bmp"
+    try {
+        $null = & /usr/bin/sips -s format bmp $Path --out $bmp 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "sips failed for $Path (exit code $LASTEXITCODE)." }
+        $image = ConvertFrom-BmpAlpha ([System.IO.File]::ReadAllBytes($bmp))
+        Get-MacIconBodyProblems -Width $image.Width -Height $image.Height -Alpha $image.Alpha -Name (Split-Path -Leaf $Path)
+    }
+    finally { Remove-Item -LiteralPath $bmp -Force -ErrorAction SilentlyContinue }
+}
+
 function New-MacIcon {
     <#
     .SYNOPSIS
         The .icns of the bundle (T-019): the images of Get-MacIconPlan, the small sizes copied from -ExactPngs (their
         size is checked), the rest scaled down from the 1024 px master PNG by sips, then iconutil. Both are part of macOS.
-        Works in a temporary .iconset next to the destination and deletes it.
+        T-098: before iconutil every image is checked against Apple's grid (Get-MacIconImageProblems: the body 824 of 1024
+        px centred, only the drop shadow in the margin). Works in a temporary .iconset next to the destination and deletes it.
     #>
     param([Parameter(Mandatory)] [string] $MasterPng, [hashtable] $ExactPngs = @{}, [Parameter(Mandatory)] [string] $Destination)
     if (Test-Path -LiteralPath $Destination) { throw "Icon already exists: $Destination" }
@@ -970,6 +1074,18 @@ function New-MacIcon {
             $null = & /usr/bin/sips -z $pixels $pixels $image.Source --out $target 2>&1
             if ($LASTEXITCODE -ne 0) { throw "sips failed for $name (exit code $LASTEXITCODE)." }
         }
+        # T-098: every image has its size and the body on Apple's grid with the margin around it.
+        $problems = [System.Collections.Generic.List[string]]::new()
+        foreach ($name in $plan.Keys) {
+            $target = Join-Path $iconset $name
+            $size = Get-PngPixelSize $target
+            if ($size.Width -ne $plan[$name].Pixels -or $size.Height -ne $plan[$name].Pixels) {
+                $problems.Add("$name is $($size.Width) x $($size.Height) px, not $($plan[$name].Pixels) px.")
+                continue
+            }
+            foreach ($problem in @(Get-MacIconImageProblems -Path $target -WorkDirectory $iconset)) { $problems.Add($problem) }
+        }
+        if ($problems.Count -gt 0) { throw "The macOS app icon does not follow Apple's grid: $($problems -join ' ')" }
         & /usr/bin/iconutil -c icns $iconset -o $Destination
         if ($LASTEXITCODE -ne 0) { throw "iconutil failed with exit code $LASTEXITCODE." }
     }
