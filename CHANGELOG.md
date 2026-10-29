@@ -64,6 +64,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `Service-Worker-Allowed`, `Access-Control-*`, `Link` or `Refresh`, is dropped. Other pages can no longer frame the
   proxied web or keep a handle on its window (`X-Frame-Options`, `frame-ancestors`, `Cross-Origin-Opener-Policy`).
 
+### Security
+
+- macOS: LayerPeek.app is signed with the hardened runtime, so macOS ignores `DYLD_INSERT_LIBRARIES` and the other
+  `DYLD_*` variables when it starts LayerPeek. Before, another program running as the same user could start LayerPeek with
+  its own library injected and read the printer passwords from the Keychain without a prompt. The only entitlement is
+  `disable-library-validation`, which the ad-hoc signed app needs to load its own bundled libraries. After updating to
+  this version, macOS may ask once more to allow LayerPeek access to its Keychain items.
+
 ## [0.3.0] - 2026-10-29
 
 ### Added
