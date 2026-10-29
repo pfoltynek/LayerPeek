@@ -870,6 +870,15 @@
   <data name="LicensesFFmpegBuildScripts" xml:space="preserve">
     <value>Konfigurácia a skripty buildu (BtbN)</value>
   </data>
+  <data name="LicensesFFmpegNoteMacOS" xml:space="preserve">
+    <value>FFmpeg je licencovaný pod GNU LGPL verzie 3 alebo novšej. Aplikácia používa neupravené vydanie FFmpeg, zostavené z oficiálnych zdrojových kódov ako LGPL build, a linkuje ho dynamicky: knižnice libavcodec, libavformat, libavutil a libswscale (.dylib) v balíku aplikácie možno nahradiť kompatibilným buildom FFmpeg (rovnaké verzie knižníc, napr. libavcodec.63.dylib); balík je potom potrebné znova podpísať.</value>
+  </data>
+  <data name="LicensesFFmpegBuildMacOS" xml:space="preserve">
+    <value>Použité zdrojové vydanie FFmpeg (ffmpeg.org)</value>
+  </data>
+  <data name="LicensesFFmpegBuildScriptsMacOS" xml:space="preserve">
+    <value>Konfigurácia a skript buildu (LayerPeek)</value>
+  </data>
   <data name="LicensesFFmpegLicenseMissing" xml:space="preserve">
     <value>Text licencie FFmpeg (FFmpeg-LICENSE.txt) sa vedľa aplikácie nenašiel. GNU LGPL 3.0 je zverejnená na https://www.gnu.org/licenses/lgpl-3.0.html.</value>
   </data>

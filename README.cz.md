@@ -268,7 +268,9 @@ Ne. Na stav se ptá jednou za pár sekund (nastavitelné), stejně jako web Prus
 - Git.
 - Jen pro **Native AOT publish**: na Windows Visual Studio Build Tools s workloadem *Desktop development with C++*,
   na macOS Xcode Command Line Tools.
-- První build na Windows stáhne LGPL knihovny FFmpeg pro kameru (~77 MB, ověřené přes SHA-256).
+- První build na Windows stáhne LGPL knihovny FFmpeg pro kameru (~77 MB, ověřené přes SHA-256). Na macOS první build
+  stáhne oficiální zdrojový kód FFmpeg (~12 MB, ověřený přes SHA-256) a přeloží z něj LGPL build přes Xcode Command
+  Line Tools (asi minuta).
 
 Podrobnosti jsou v [docs/prerequisites.md](docs/prerequisites.md).
 

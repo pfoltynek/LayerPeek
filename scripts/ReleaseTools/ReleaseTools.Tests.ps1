@@ -746,7 +746,9 @@ Describe 'macOS packaging (T-019)' {
         $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
         $script | Should -Match "Name\s+=\s+'archive'\s+Os\s+=\s+@\('windows'\)"
         $script | Should -Match "Name\s+=\s+'app'\s+Os\s+=\s+@\('macos'\)"
-        foreach ($function in 'New-MacIcon', 'New-MacAppBundle', 'Invoke-MacAdHocSign', 'Get-MacSignatureProblems', 'New-MacDiskImage', 'New-ReleaseArchive') { $script | Should -Match $function }
+        foreach ($function in 'New-MacIcon', 'New-MacAppBundle', 'Get-MacBundleLibraryProblems', 'Invoke-MacAdHocSign', 'Get-MacSignatureProblems', 'New-MacDiskImage', 'New-ReleaseArchive') { $script | Should -Match $function }
+        # T-026: the library check runs on the unsigned bundle, before signing.
+        $script.IndexOf('Get-MacBundleLibraryProblems $app') | Should -BeLessThan $script.IndexOf('Invoke-MacAdHocSign $app')
         # The console output of the smoke run of the bundle must not end up in the returned file list.
         $script | Should -Match "-PublishDir \(Join-Path \`$app 'Contents' 'MacOS'\) -Seconds \`$SmokeSeconds \| Out-Host"
     }
@@ -874,6 +876,26 @@ Describe 'macOS packaging (T-019)' {
         $order = @(Get-MacSigningOrder $app)
         $order | Should -BeExactly @((Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib'), (Resolve-Path -LiteralPath $app).ProviderPath)
     }
+    It 'finds references to Homebrew and /usr/local, but not the own install name (T-026)' {
+        $ffmpeg = @(
+            '/x/LayerPeek.app/Contents/MacOS/libavformat.63.dylib:'
+            "`t@loader_path/libavformat.63.dylib (compatibility version 63.0.0, current version 63.1.102)"
+            "`t@loader_path/libavcodec.63.dylib (compatibility version 63.0.0, current version 63.1.102)"
+            "`t/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1359.0.0)"
+            "`t/System/Library/Frameworks/CoreMedia.framework/Versions/A/CoreMedia (compatibility version 1.0.0, current version 3350.77.5)"
+        )
+        @(Get-MacForeignLibraryReferences -OtoolList $ffmpeg -InstallName '@loader_path/libavformat.63.dylib') | Should -BeNullOrEmpty
+        $homebrew = $ffmpeg + "`t/opt/homebrew/opt/x264/lib/libx264.164.dylib (compatibility version 164.0.0, current version 164.0.0)" +
+            "`t/usr/local/lib/libavcodec.62.dylib (compatibility version 62.0.0, current version 62.1.0)"
+        @(Get-MacForeignLibraryReferences -OtoolList $homebrew -InstallName '@loader_path/libavformat.63.dylib') | Should -BeExactly @(
+            '/opt/homebrew/opt/x264/lib/libx264.164.dylib', '/usr/local/lib/libavcodec.62.dylib')
+        # libAvaloniaNative.dylib names itself /usr/local/lib/libAvalonia.Native.OSX.dylib (its identifier, loaded by path).
+        $avalonia = @('/x/libAvaloniaNative.dylib:', "`t/usr/local/lib/libAvalonia.Native.OSX.dylib (compatibility version 0.0.0, current version 0.0.0)", "`t/usr/lib/libc++.1.dylib (compatibility version 1.0.0, current version 1700.255.5)")
+        @(Get-MacForeignLibraryReferences -OtoolList $avalonia -InstallName '/usr/local/lib/libAvalonia.Native.OSX.dylib') | Should -BeNullOrEmpty
+        @(Get-MacForeignLibraryReferences -OtoolList @() -InstallName '') | Should -BeNullOrEmpty
+        (Get-MacBundleSettings).FFmpegLibraries | Should -BeExactly @('libavformat.63.dylib', 'libavcodec.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib')
+        (Get-MacBundleSettings).FFmpegLicense | Should -BeExactly 'FFmpeg-LICENSE.txt'
+    }
     It 'signs ad hoc without a timestamp and without the hardened runtime' {
         Get-MacAdHocSignArguments '/x/LayerPeek.app' | Should -BeExactly @('--force', '--sign', '-', '--timestamp=none', '/x/LayerPeek.app')
     }
@@ -921,6 +943,33 @@ Describe 'macOS packaging (T-019)' {
             (& /usr/bin/codesign -dv (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
             [System.IO.File]::AppendAllText((Join-Path $app 'Contents' 'Resources' 'LayerPeek.icns'), 'changed')
             @(Get-MacSignatureProblems $app).Count | Should -BeGreaterThan 0
+        }
+        It 'requires the FFmpeg libraries in the bundle and signs them with it (T-026)' {
+            $destination = Join-Path $script:TempRoot "mac-ffmpeg-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path $destination
+            $app = New-MacAppBundle -PublishDirectory $script:MacPublish -Destination $destination -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon
+            $missing = @(Get-MacBundleLibraryProblems $app)
+            $missing.Count | Should -Be 5
+            $missing[0] | Should -Match 'no Contents/MacOS/libavformat\.63\.dylib'
+            $missing[4] | Should -Match 'no Contents/Resources/FFmpeg-LICENSE\.txt'
+            # From a publish folder like the real one: the libraries (Mach-O) go to Contents/MacOS, the licence (data, which
+            # codesign would refuse there as unsigned code) to Contents/Resources.
+            $publish = Join-Path $destination 'publish'
+            Copy-Item -LiteralPath $script:MacPublish -Destination $publish -Recurse
+            foreach ($name in (Get-MacBundleSettings).FFmpegLibraries) { Copy-Item -LiteralPath '/usr/bin/true' -Destination (Join-Path $publish $name) }
+            New-StandInFile (Join-Path $publish 'FFmpeg-LICENSE.txt') 'GNU LESSER GENERAL PUBLIC LICENSE'
+            $null = New-Item -ItemType Directory -Path (Join-Path $destination 'full')
+            $app = New-MacAppBundle -PublishDirectory $publish -Destination (Join-Path $destination 'full') -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon
+            $macOS = Join-Path $app 'Contents' 'MacOS'
+            Test-Path -LiteralPath (Join-Path $app 'Contents' 'Resources' 'FFmpeg-LICENSE.txt') | Should -BeTrue
+            Test-Path -LiteralPath (Join-Path $macOS 'FFmpeg-LICENSE.txt') | Should -BeFalse
+            @(Get-MacBundleLibraryProblems $app) | Should -BeNullOrEmpty
+            $order = @(Get-MacSigningOrder $app)
+            $order[-1] | Should -BeExactly (Resolve-Path -LiteralPath $app).ProviderPath
+            foreach ($name in 'libavcodec.63.dylib', 'libavformat.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib') { $order | Should -Contain (Join-Path $macOS $name) }
+            Invoke-MacAdHocSign $app
+            @(Get-MacSignatureProblems $app) | Should -BeNullOrEmpty
+            (& /usr/bin/codesign -dv (Join-Path $macOS 'libavformat.63.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
         }
         It 'makes the icns from the master PNG and removes its iconset' {
             $icon = Join-Path $script:TempRoot "icon-$([guid]::NewGuid().ToString('N').Substring(0, 8)).icns"

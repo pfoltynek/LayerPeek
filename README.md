@@ -265,7 +265,9 @@ No. It asks for the state every few seconds (configurable), the same way the Pru
 - Git.
 - For a **Native AOT publish** only: on Windows the Visual Studio Build Tools with the *Desktop development with
   C++* workload, on macOS the Xcode Command Line Tools.
-- The first build on Windows downloads the LGPL FFmpeg libraries for the camera (~77 MB, verified by SHA-256).
+- The first build on Windows downloads the LGPL FFmpeg libraries for the camera (~77 MB, verified by SHA-256). On
+  macOS the first build downloads the official FFmpeg source (~12 MB, verified by SHA-256) and compiles an LGPL build
+  with the Xcode Command Line Tools (about a minute).
 
 See [docs/prerequisites.md](docs/prerequisites.md) for details (in Czech).
 

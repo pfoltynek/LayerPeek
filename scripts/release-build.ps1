@@ -90,8 +90,9 @@ $packagingSteps = @(
             }
         }
     },
-    # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master), ad-hoc
-    # signed inside out and verified, smoke-tested as the bundle, then the .dmg (the app and a link to /Applications) and the
+    # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master), checked for
+    # the FFmpeg libraries and for references to Homebrew (T-026), ad-hoc signed inside out (FFmpeg and the other native
+    # libraries first) and verified, smoke-tested as the bundle, then the .dmg (the app and a link to /Applications) and the
     # .tar.gz of the app. The signed app stays in artifacts/release/<version>/app/<rid>/ for local use.
     [pscustomobject]@{
         Name   = 'app'
@@ -110,6 +111,9 @@ $packagingSteps = @(
             $app = New-MacAppBundle -PublishDirectory $Context.PublishDirectory -Destination $bundleFolder -Version $Context.Version `
                 -PlistTemplate (Join-Path $repoRoot $mac.PlistTemplate) -IconFile $icon
             Remove-Item -LiteralPath $icon -Force
+            # T-026: the FFmpeg libraries are in the bundle and nothing loads from Homebrew or /usr/local.
+            $libraryProblems = @(Get-MacBundleLibraryProblems $app)
+            if ($libraryProblems.Count -gt 0) { throw ($libraryProblems -join ' ') }
             Write-Host "==> Ad-hoc signing $app" -ForegroundColor Cyan
             Invoke-MacAdHocSign $app
             $problems = @(Get-MacSignatureProblems $app)

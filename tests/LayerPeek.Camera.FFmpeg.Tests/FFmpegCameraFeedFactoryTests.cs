@@ -57,6 +57,33 @@ public sealed class FFmpegCameraFeedFactoryTests
         string version = FFmpegCameraFeedFactory.LibraryVersion;
 
         Assert.StartsWith("avformat 63.", version, StringComparison.Ordinal);
-        Assert.Contains("LGPL", version, StringComparison.Ordinal);
+        // Both builds (BtbN on Windows, build/macos/build-ffmpeg.sh on macOS) are LGPL 3 (T-014, T-026).
+        Assert.EndsWith("(LGPL version 3 or later)", version, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("avformat-63", "libavformat.63.dylib")]
+    [InlineData("avcodec-63", "libavcodec.63.dylib")]
+    [InlineData("avutil-61", "libavutil.61.dylib")]
+    [InlineData("swscale-10", "libswscale.10.dylib")]
+    [InlineData("swresample-7", "libswresample.7.dylib")]
+    [InlineData("avfilter-12", "libavfilter.12.dylib")]
+    [InlineData("avdevice-63", "libavdevice.63.dylib")]
+    public void MacOSLibraryNamesAreTheInstallNamesOfAnFFmpegBuild(string libraryName, string fileName)
+    {
+        Assert.Equal(fileName, FFmpegRuntime.MacOSFileName(libraryName));
+    }
+
+    [Theory]
+    [InlineData("libSkiaSharp")]
+    [InlineData("avformat")]
+    [InlineData("avformat-")]
+    [InlineData("-63")]
+    [InlineData("avformat-6x")]
+    [InlineData("libavformat-63")]
+    [InlineData("other-1")]
+    public void OtherLibrariesAreLeftToTheDefaultSearch(string libraryName)
+    {
+        Assert.Null(FFmpegRuntime.MacOSFileName(libraryName));
     }
 }
