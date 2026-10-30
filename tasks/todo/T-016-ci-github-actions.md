@@ -65,6 +65,8 @@ Kolik běhů: do `develop` přibylo za posledních 30 dní asi 170 sloučení (`
 **Doporučení: dál (e), dokud uživatel nerozhodne o zveřejnění repozitáře. Pak (d) s plnou maticí Windows + macOS zdarma.** Pokud uživatel chce CI ještě před zveřejněním, pak **(a)**: jen Windows, push do `develop`/`main` a PR, `concurrency` a `paths-ignore` pro `docs/**` a `tasks/**`, odhad **300–600 min Windows měsíčně (asi 3–6 USD z 12 USD)**. Varianty (b) a (c) nedoporučuju: (b) duplikuje lokální vydání a potřebuje token v secrets, (c) přidává bezpečnostní riziko na hlavním PC a po zveřejnění se musí zrušit.
 
 ## Otevřené otázky
+**Rozhodnuto 2026-10-30 (uživatel): zatím neimplementovat.** Úkol zůstává odložený; otázky níže se otevřou, až se k CI vrátíme. Repozitář je už veřejný (minuty GitHub Actions pro veřejné repozitáře jsou zdarma).
+
 - Chceš i `ubuntu-latest` (rychlejší a levnější běh testů Core)?
   - a) **Ne, jen Windows (doporučeno).** Linux není cílová platforma. Windows minuty se do 12 USD vejdou (varianta a) a Windows ověří i App, AOT analyzátory a kód pro Windows. Minus: asi 1,7× dražší minuta než Linux.
   - b) `ubuntu-latest` jako rychlá první brána pro Core, PrusaLink, PrusaConnect a Camera.FFmpeg (bez FFmpeg, `build/FFmpeg.targets` na Linuxu nic nedělá) a Windows až potom nebo jen u PR. Plus: levnější (0,006 USD/min) a obvykle rychlejší. Minus: třetí OS k údržbě (citlivost na velikost písmen v cestách, chybějící nativní knihovny). Neověřeno, jestli se App a její testy na Linuxu vůbec sestaví.

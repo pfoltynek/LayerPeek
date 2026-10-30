@@ -11,7 +11,7 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
   1. `VelopackApp.Build()…Run()` musí být první příkaz v `Main`, před `SingleInstanceGuard` (T-043).
   2. Balit s `--aumid LayerPeek` (skrytá volba `vpk`, viz bod 4), `--packTitle "LayerPeek"` a `--shortcuts StartMenuRoot` (jen Start menu, bez plochy, rozhodnuto 2026-10-21).
   3. `ToastActivatorCLSID` do zástupce a registraci COM aktivátoru zapisuje aplikace (v hooku `--veloapp-install` a při startu). Úklid registrace, klíče notifikací a historie toastů dělá hook `--veloapp-uninstall`.
-  4. Kontrola aktualizací musí chytat výjimky. Dokud je repozitář soukromý, končí `HttpRequestException` 404.
+  4. Kontrola aktualizací musí chytat výjimky. Při 404 (dříve soukromý repozitář; od 2026-10-30 je veřejný) končí `HttpRequestException`.
   5. Kanály podle RID: `--channel win-x64` a `--channel win-arm64`.
 - **macOS (T-019): zatím ne, rozhodnutí odloženo** (pokus na Macu 2026-10-29, bod 10). `vpk` na Macu vytvoří `.app`, `.pkg` a `Portable.zip` (ne `.dmg`) a s `--signAppIdentity -` i ad-hoc podepsanou `.app`, která projde `codesign --verify --deep --strict`. Samotnou aktualizaci s ad-hoc podpisem (Gatekeeper, karanténa, oprávnění) ale lokálně ověřit nejde, proto se `.app` zatím sestavuje vlastními kroky skriptu bez Velopacku.
 - **WiX** se nepoužije (rozhodnuto 2026-10-21), protože Velopack vyhověl. Velopack sám umí vyrobit i `.msi` (`vpk pack --msi`, interně vlastní fork WiX). Pro instalaci pro jednoho uživatele to potřeba není.
@@ -156,7 +156,7 @@ dotnet vpk pack -u LayerPeek -v <Version z Directory.Build.props> -p <publish/RI
 - **Koncept (draft):** Windows běh může vytvořit koncept a Mac běh do něj přidat soubory. Klienti koncept nevidí, aktualizace se nabídne až po zveřejnění (bod 7).
 - **Jen z `main`:** Velopack větev neřeší, rozhoduje skript T-055.
 - **Poznámky k vydání:** `--releaseNotes` vloží Markdown do `.nupkg`. Aplikace je pak má v `UpdateInfo.TargetFullRelease.NotesMarkdown`, například pro dialog „co je nového“. Text vydání na GitHubu vzniká zvlášť ve skriptu T-055 a oba můžou brát stejný úsek `CHANGELOG.md`.
-- **Delta:** pro delta balíček potřebuje `vpk` předchozí plný `.nupkg` ve výstupní složce (stáhnout ho z předchozího vydání, u soukromého repozitáře s tokenem z `gh auth token` jen při sestavení, ne v aplikaci). Rozhodnuto 2026-10-21: zatím `--delta None` (každá aktualizace stáhne asi 76 MB). Vrátit se k tomu, až bude repozitář veřejný.
+- **Delta:** pro delta balíček potřebuje `vpk` předchozí plný `.nupkg` ve výstupní složce (stáhnout ho z předchozího vydání, u soukromého repozitáře s tokenem z `gh auth token` jen při sestavení, ne v aplikaci). Rozhodnuto 2026-10-21: zatím `--delta None` (každá aktualizace stáhne asi 76 MB). Vrátit se k tomu, až bude repozitář veřejný (od 2026-10-30 je; rozhodnutí o deltě je otevřené).
 - **`--noPortable`:** `Portable.zip` Velopacku (přenosná instalace se samoaktualizací) by duplikoval `.zip` z T-055. Viz otevřená otázka.
 - Kontrolní součty (`SHA256SUMS-windows.txt`) zahrnou nové soubory automaticky přes bod rozšíření.
 - Na macOS by balicí krok běžel jen na Macu (`vpk pack` s `--channel osx-arm64`) podle výsledku T-019.

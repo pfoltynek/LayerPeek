@@ -73,6 +73,8 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
   podložky dnešní „Tryska 38 °C, práh 40 °C“.
 
 ## Otevřené otázky
+**Rozhodnuto 2026-10-30 (uživatel): Q1 A (obě topení), Q5 ano (jen tryska bez teploty podložky)** – potvrzuje implementaci. Q2–Q4 čekají na revizi ui-designera.
+
 Implementace je hotová podle níže uvedených doporučení; nic z toho ji neblokuje, ale jde o UX / produktová rozhodnutí,
 která má potvrdit uživatel (Q1, Q5) a zrevidovat ui-designer (Q2–Q4).
 - **Q1 – ohřev podložky (uživatel):** T-079 ukončuje chladnutí, když se „znovu ohřívá tryska“ (cíl > 0), a sledovat ho
