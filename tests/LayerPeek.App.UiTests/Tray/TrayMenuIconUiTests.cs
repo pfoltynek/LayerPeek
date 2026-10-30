@@ -19,10 +19,11 @@ using LayerPeek.Core.Printers;
 namespace LayerPeek.App.UiTests.Tray;
 
 /// <summary>
-/// Printer icons in the tray menu (T-039, Windows): the real <see cref="NativeMenuItem.Icon"/> gets a bitmap with 16 DIP
+/// Printer icons in the tray menu (T-039 Windows, T-116 macOS): the real <see cref="NativeMenuItem.Icon"/> gets a bitmap with 16 DIP
 /// worth of pixels at the system scaling, and Avalonia's Windows tray menu (a menu flyout presenter, like the one
 /// <c>Win32 TrayIconImpl</c> opens) fits it into 16 × 16 DIP. Whether Windows shows it in the real notification-area
-/// menu stays a manual check.
+/// menu stays a manual check. On macOS the bitmap goes to a native NSMenu image of 18 × 18 pt (see
+/// <see cref="PrinterMenuIconSize"/>); how it looks there is a manual check too (T-115).
 /// </summary>
 public sealed class TrayMenuIconUiTests(HeadlessSession session)
 {
@@ -49,6 +50,31 @@ public sealed class TrayMenuIconUiTests(HeadlessSession session)
             Assert.All(printers[0].Menu!.Items.OfType<NativeMenuItem>(), static item => Assert.Null(item.Icon));
             Assert.All(menu.Items.OfType<NativeMenuItem>().Skip(2), static item => Assert.Null(item.Icon));
             Assert.Equal(pixels, icons.PixelSize);
+            return Task.CompletedTask;
+        });
+
+    [Theory]
+    [InlineData(1.0, 20)]
+    [InlineData(2.0, 48)]
+    public Task PrinterItemsGetAnIconForTheMacMenu(double backingScale, int pixels) =>
+        session.RunAsync(scope =>
+        {
+            // T-116: Avalonia.Native shows the item image at 18 × 18 pt (14 pt menu font), i.e. 18 / 36 px at @1x / @2x;
+            // the bitmap has at least that many pixels.
+            CustomPrinterImages images = new();
+            (NativeMenu menu, TrayMenuViewModel viewModel, PrinterMenuIcons icons) = Create(scope, PrinterMenuIconSize.MacOS(14, backingScale), images);
+            viewModel.SetPrinters([TestPrinters.Definition("a", "Alpha") with { DetectedModel = Mk4SCode }, TestPrinters.Definition("b", "Beta") with { Image = PrinterImageChoice.Custom }]);
+            images.Set("b", UiTestImages.Png(64, 32, 0xFFFF0000));
+            Dispatcher.UIThread.RunJobs();
+
+            NativeMenuItem[] printers = [.. menu.Items.OfType<NativeMenuItem>().Take(2)];
+            Assert.Same(PrinterBitmaps.Illustration("mk4", pixels), printers[0].Icon);
+            Assert.All(printers, item => Assert.Equal(new PixelSize(pixels, pixels), Assert.IsType<Bitmap>(item.Icon, exactMatch: false).PixelSize));
+            Assert.Equal(18, icons.Size.Size);
+            Assert.True(pixels >= 18 * backingScale);
+            // Submenu items (T-042) and the fixed items have none.
+            Assert.All(printers[0].Menu!.Items.OfType<NativeMenuItem>(), static item => Assert.Null(item.Icon));
+            Assert.All(menu.Items.OfType<NativeMenuItem>().Skip(2), static item => Assert.Null(item.Icon));
             return Task.CompletedTask;
         });
 
@@ -192,10 +218,13 @@ public sealed class TrayMenuIconUiTests(HeadlessSession session)
 
     private static PrinterPicture Custom(byte[] png) => PrinterPicture.For(PrinterImageChoice.Custom, ConnectionType.PrusaLink, null, png);
 
-    private static (NativeMenu Menu, TrayMenuViewModel ViewModel, PrinterMenuIcons Icons) Create(UiTestScope scope, double scaling, CustomPrinterImages? images = null)
+    private static (NativeMenu Menu, TrayMenuViewModel ViewModel, PrinterMenuIcons Icons) Create(UiTestScope scope, double scaling, CustomPrinterImages? images = null) =>
+        Create(scope, PrinterMenuIconSize.Windows(scaling), images);
+
+    private static (NativeMenu Menu, TrayMenuViewModel ViewModel, PrinterMenuIcons Icons) Create(UiTestScope scope, PrinterMenuIconSize size, CustomPrinterImages? images = null)
     {
         TrayIcon tray = Assert.Single(TrayIcon.GetIcons(Application.Current!)!);
-        PrinterMenuIcons icons = new(scaling);
+        PrinterMenuIcons icons = new(size);
         TrayMenuViewModel viewModel = scope.Defer(new TrayMenuViewModel(
             new FakePrinterMonitor(),
             new AvaloniaUiDispatcher(),

@@ -855,7 +855,7 @@ $checks = @(
     }
 
     New-VerifyCheck -Id 'mac.menu' -Kind Manual -Title 'menu bar icon, tooltip and menu follow the printer states; Quit from the real menu' `
-        -Closes 'T-018 kritérium 1 (stavy ikony)', 'T-018 kritérium 3 (menu se zobrazí, aktualizuje, „Ukončit“)' -Action {
+        -Closes 'T-018 kritérium 1 (stavy ikony)', 'T-018 kritérium 3 (menu se zobrazí, aktualizuje, „Ukončit“)', 'T-116 kritérium 3 (obrázky tiskáren v menu)' -Action {
         param($c)
         $simulator = Get-Simulator $c
         $data = New-TestData -Context $c -Simulator $simulator
@@ -868,12 +868,14 @@ $checks = @(
             $null = Read-VerifyText -Context $c -Question "State '$scenario' is shown now. Press Enter for the next state"
         }
         $states = Confirm-VerifyStep $c 'Did the icon, the tooltip and the menu items follow every state (also after switching System Settings > Appearance between Light and Dark)?'
+        $printerIcons = Confirm-VerifyStep $c 'Does the printer item show its coloured printer picture, sharp (also on an @1x display), readable in Light and Dark and on the highlighted item, without shifting the other items or its submenu?'
         Write-VerifyStep $c 'Now click the [E2E] menu bar icon and choose Quit.' 'Yellow'
         $quit = $app.WaitForExit(120000)
         if (-not $quit) { $null = Stop-TestApp $data $app }
         if (-not $states) { return New-VerifyResult FAIL 'the user saw a state that the icon or the menu did not follow.' }
+        if (-not $printerIcons) { return New-VerifyResult FAIL 'the user saw a printer picture in the menu that was blurred, unreadable or misaligned (T-116).' }
         if (-not $quit -or $app.ExitCode -ne 0) { return New-VerifyResult FAIL 'Quit from the menu did not end the app with 0 within 2 minutes.' }
-        New-VerifyResult MANUAL 'states confirmed by the user; Quit from the real menu ended the app with 0.'
+        New-VerifyResult MANUAL 'states and printer pictures confirmed by the user; Quit from the real menu ended the app with 0.'
     }
 
     New-VerifyCheck -Id 'mac.camera-look' -Kind Manual -Title 'you see the moving camera image and the overlay in every window mode (simulator)' `

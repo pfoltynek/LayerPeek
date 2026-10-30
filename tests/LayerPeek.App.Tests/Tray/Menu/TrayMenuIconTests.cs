@@ -90,8 +90,8 @@ public sealed class TrayMenuIconTests : IDisposable
         Assert.Null(viewModel.PrinterItems[0].Icon);
         Assert.All(viewModel.PrinterItems[0].Submenu!, static item => Assert.Null(item.Icon));
         Assert.False(TrayMenuOptions.Default.PrinterIcons);
-        // Printer icons on Windows only; macOS shows no icons in the menu (T-018 / T-042).
-        Assert.Equal(OperatingSystem.IsWindows(), TrayMenuOptions.ForCurrentPlatform.PrinterIcons);
+        // Printer icons on Windows (T-039) and macOS (T-116).
+        Assert.Equal(OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), TrayMenuOptions.ForCurrentPlatform.PrinterIcons);
     }
 
     [Fact]

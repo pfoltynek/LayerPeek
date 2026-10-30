@@ -25,6 +25,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   to Applications first. Failures (no network, the GitHub limit) are only logged. **Settings:** `checkForUpdates`
   (older files load with the check on); what the check remembers is in `update-state.json` next to the settings.
 
+- macOS: the printer items of the menu bar menu show the printer's picture, like on Windows (the model illustration or
+  the custom picture, in colour, 18 × 18 points as macOS menus draw item images, made for Retina).
+
 - macOS: keyboard shortcuts as on other Mac apps. Camera window: **⌃⌘F** toggles full screen (F11, which macOS
   reserves for Show Desktop and Mac keyboards send only with fn, stays as a fallback), and the full screen button and
   the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a

@@ -181,5 +181,5 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-102 | macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P1 | T-018, T-019, T-038 |
 | T-108 | macOS – hardened runtime v ad-hoc podpisu LayerPeek.app (bezpečnostní revize, N3) (hotovo) | macos | ui-dev | P2 | T-019, T-026 |
 | T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |
-| T-115 | Ruční ověření na Macu (sběrný úkol: `tools/macos-verify.ps1`, ruční kroky, skutečná tiskárna, vydání) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-055, T-058, T-096–T-099, T-101, T-102, T-105–T-107 |
-| T-116 | macOS – obrázky tiskáren v menu v menu baru | macos | ui-dev | P3 | T-018, T-039, T-042 |
+| T-115 | Ruční ověření na Macu (sběrný úkol: `tools/macos-verify.ps1`, ruční kroky, skutečná tiskárna, vydání) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-055, T-058, T-096–T-099, T-101, T-102, T-105–T-107, T-116 |
+| T-116 | macOS – obrázky tiskáren v menu v menu baru (hotovo; ruční ověření v T-115) | macos | ui-dev | P3 | T-018, T-039, T-042 |

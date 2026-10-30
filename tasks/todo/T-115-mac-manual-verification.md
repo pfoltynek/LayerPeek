@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: macos
-depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107]
+depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116]
 ---
 
 ## Cíl
@@ -57,6 +57,12 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
 - [ ] **T-019** (krit. „Okno Nastavení … v popředí a dostane fokus“): `mac.settings-front` = `PASS` (sezení 2.4).
 - [ ] **T-018** (krit. „Menu z T-008 se v menu baru zobrazí, aktualizuje a ‚Ukončit‘ korektně ukončí aplikaci“):
       `mac.menubar` = `PASS` a `mac.menu` potvrzeno (sezení 2.3).
+- [ ] **T-116** (krit. „Ruční kontrola na Macu: obrázky tiskáren v menu v menu baru jsou ostré na displeji @1x i @2x,
+      čitelné ve světlém i tmavém režimu i u zvýrazněné položky, nerozbijí zarovnání položek“): `mac.menu` – otázka
+      na obrázky tiskáren potvrzená (barevný obrázek 18 × 18 bodů u položky tiskárny, ostrý na Retině i na externím
+      monitoru @1x, světlý i tmavý vzhled, zvýrazněná položka, zarovnání položek a podmenu tiskárny z T-042, vlastní
+      obrázek jako čtverec) (sezení 2.3). Rozmazání na @1x zapsat (bitmapa je jedna, pro nejvyšší měřítko displejů,
+      na @1x ji AppKit zmenší) – oprava = nový úkol.
 - [ ] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
       menu bar, všechny stavy (lomítko offline, ▶ s vrstvami, ❚❚, ✓, !, ×), ostrost na monitoru @1x (při rozmazání
       zapsat; záloha je vícerozlišovací obrázek) (sezení 2.2).

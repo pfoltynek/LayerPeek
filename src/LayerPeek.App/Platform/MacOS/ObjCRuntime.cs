@@ -171,6 +171,17 @@ internal static unsafe partial class ObjCRuntime
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial nint Send(nint receiver, nint selector, nint first, nint second, nint third);
 
+    /// <summary><c>id</c> result, one <c>CGFloat</c> argument (<c>menuFontOfSize:</c>).</summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    public static partial nint SendWithCGFloat(nint receiver, nint selector, double argument);
+
+    /// <summary>
+    /// <c>CGFloat</c> result, no arguments (<c>pointSize</c>, <c>backingScaleFactor</c>): returned in a floating point
+    /// register by plain <c>objc_msgSend</c> on arm64 and x86_64 (only <c>long double</c> needs <c>objc_msgSend_fpret</c>).
+    /// </summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    public static partial double SendCGFloat(nint receiver, nint selector);
+
     /// <summary>No result, one <c>BOOL</c> argument (<c>activateIgnoringOtherApps:</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial void SendVoid(nint receiver, nint selector, byte argument);
