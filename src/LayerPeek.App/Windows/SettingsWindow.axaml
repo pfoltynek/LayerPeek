@@ -83,6 +83,16 @@
     <Style Selector="TextBlock.status.isError">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
     </Style>
+    <!--
+      T-111: every button of the window (also those of the widget panel templates, WidgetSettingsTemplates.axaml) and the
+      link buttons are at least 32 DIP high, the click target of the design (Fluent gives about 28–32). Type selectors match
+      the exact type (its StyleKey), not derived ones, so the parts inside the templates of other controls keep their theme
+      size: the RepeatButtons of NumericUpDown (ButtonSpinner), Slider and ScrollBar, the ToggleButton that reveals a
+      password; ComboBox and TabItem have no button part. SettingsWindowLayoutTests checks both.
+    -->
+    <Style Selector="Button, HyperlinkButton">
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
     <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
     <Style Selector="TabControl.main, TabControl.sub">
       <Setter Property="Padding" Value="0" />
@@ -632,10 +642,11 @@
               <!--
                 One Tab stop; arrows / Home / End select, Space switches the visibility of the selected row (code-behind).
                 The check boxes are no Tab stops; a click on one switches it and selects its row (design 5.2).
-                Design 3.2: the list asks for at most 7 rows (7 × 32 + 2) and fills the row; with more widgets it scrolls
-                inside (keeping the selected row in view) while the tab does not scroll.
+                Design 3.2: the list asks for at most 224 (7 × 32; its 2 of border cut the 7th row, T-111 Q1, so the taller
+                buttons of "All widgets" fit) and fills the row; with more widgets it scrolls inside (keeping the selected
+                row in view) while the tab does not scroll.
               -->
-              <w:CompactHeightDecorator CompactHeight="226">
+              <w:CompactHeightDecorator CompactHeight="224">
                 <!--
                   T-110 (design T-104 2): after the widgets a separator (9, not selectable, skipped by the keyboard, not in the
                   automation tree) and the "Mini preview" item without a check box (20 empty, so icons and names line up).

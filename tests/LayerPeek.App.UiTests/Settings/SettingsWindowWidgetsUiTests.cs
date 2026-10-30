@@ -630,7 +630,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             }
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
-            Assert.InRange(list.Bounds.Height, 226, sectionTop.Y);
+            Assert.InRange(list.Bounds.Height, 224, sectionTop.Y);
 
             // The keyboard brings the selected row into the list's view, and the tab does not move.
             Assert.True(Row(ui, "status").Focus(NavigationMethod.Tab));

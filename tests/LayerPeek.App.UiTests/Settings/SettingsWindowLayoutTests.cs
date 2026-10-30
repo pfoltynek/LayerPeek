@@ -99,6 +99,206 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
 
+    // ---- Button height (T-111) ----
+
+    /// <summary>The smallest height of a button of the window: its click target (T-111; ui-designer review of T-101, Q6).</summary>
+    private const double MinButtonHeight = 32;
+
+    /// <summary>
+    /// T-111: every visible button of the window (plain buttons and link buttons, not the parts inside the templates of other
+    /// controls) is at least 32 DIP high in every view and state: the states of the layout test (errors, test results, a
+    /// running camera test, the widget panels) and the states with a button of their own (T-019 Login Items, T-020 / T-101
+    /// the notification slot, T-097 the Local Network hints, a running connection test).
+    /// </summary>
+    [Fact]
+    public Task EveryButtonIsAtLeast32DipHighInEveryState() =>
+        session.RunAsync(static async scope =>
+        {
+            List<string> problems = [];
+            HashSet<string> checkedButtons = [];
+            foreach ((string state, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States().Concat(ButtonStates()))
+            {
+                SettingsWindowHarness ui = await open(scope);
+                Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+                (string, int, int) opened = ("as opened", ui.ViewModel.SelectedTabIndex, ui.ViewModel.SelectedPrinterTabIndex);
+                foreach ((string view, int tab, int printerTab) in Views.Prepend(opened))
+                {
+                    ui.ViewModel.SelectedTabIndex = tab;
+                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                    ui.Window.Settle();
+                    foreach (Button button in OwnButtons(ui.Window))
+                    {
+                        checkedButtons.Add(ButtonName(button));
+                        if (button.Bounds.Height < MinButtonHeight - 0.01)
+                        {
+                            problems.Add($"{state} / {view}: {ButtonName(button)} is {button.Bounds.Height:0.#} DIP high.");
+                        }
+                    }
+                }
+
+                ui.Window.Close();
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems.Distinct()));
+            // The check reached the buttons of every tab, the link of the Cool-down panel and the buttons of the extra states.
+            string[] expected =
+            [
+                "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterImageButton", "PrinterTestConnection", "PrinterCancelTest",
+                "PrinterOpenLocalNetworkSettings", "PrinterCameraTest", "PrinterCameraCancelTest", "PrinterCameraOpenLocalNetworkSettings",
+                "PrinterCameraWindowReset", "PrinterCameraWindowApply", "WidgetsEditLayout", "WidgetsReset", "WidgetsApplyAll",
+                "WidgetCooldownApplyAll", "WidgetCooldownNotifyLink", "SettingsTestNotification", "SettingsOpenNotificationSettings",
+                "SettingsOpenLoginItems", "SettingsSave", "SettingsCancel",
+            ];
+            Assert.Empty(expected.Except(checkedButtons));
+        });
+
+    /// <summary>
+    /// T-111: the style of the window gives only its own buttons the 32 DIP. The buttons inside the templates of other controls
+    /// (the spinner of a NumericUpDown, the reveal button of a password box, the repeat buttons of a slider or a scroll bar,
+    /// whatever a ComboBox, TabItem or TextBox has) keep the MinHeight and Height they have in a plain window with the
+    /// application theme only.
+    /// </summary>
+    [Fact]
+    public Task ButtonsInsideTheTemplatesOfOtherControlsKeepTheirSize() =>
+        session.RunAsync(static async scope =>
+        {
+            Dictionary<string, (double MinHeight, double Height)> parts = [];
+            foreach ((string _, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States().Concat(ButtonStates()))
+            {
+                SettingsWindowHarness ui = await open(scope);
+                foreach ((string _, int tab, int printerTab) in Views)
+                {
+                    ui.ViewModel.SelectedTabIndex = tab;
+                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                    ui.Window.Settle();
+                    foreach ((string key, Button part) in TemplateButtons(ui.Window))
+                    {
+                        parts[key] = (part.MinHeight, part.Height);
+                    }
+                }
+
+                ui.Window.Close();
+            }
+
+            Window plain = scope.Track(new Window
+            {
+                Width = 780,
+                Height = 532,
+                Content = new StackPanel
+                {
+                    Children =
+                    {
+                        new NumericUpDown { Value = 1 },
+                        new ComboBox { ItemsSource = (string[])["a", "b"], SelectedIndex = 0 },
+                        new TextBox { Text = "text" },
+                        new TextBox { Text = "secret", PasswordChar = '•', Classes = { "revealPasswordButton" } },
+                        new Slider { Minimum = 0, Maximum = 100, Value = 50 },
+                        new ScrollViewer { Height = 40, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible, Content = new Border { Height = 400 } },
+                        new ListBox { ItemsSource = (string[])["a", "b"] },
+                        new TabControl { Items = { new TabItem { Header = "a" }, new TabItem { Header = "b" } } },
+                    },
+                },
+            });
+            plain.Show();
+            plain.Settle();
+            Dictionary<string, (double MinHeight, double Height)> reference = [];
+            foreach ((string key, Button part) in TemplateButtons(plain))
+            {
+                reference[key] = (part.MinHeight, part.Height);
+            }
+
+            plain.Close();
+
+            Assert.NotEmpty(parts);
+            List<string> problems = [];
+            foreach ((string key, (double minHeight, double height)) in parts)
+            {
+                if (!reference.TryGetValue(key, out (double MinHeight, double Height) expected))
+                {
+                    problems.Add($"{key}: not in the plain window, add its control there.");
+                }
+                else if (!minHeight.Equals(expected.MinHeight) || !height.Equals(expected.Height))
+                {
+                    problems.Add($"{key}: MinHeight {minHeight}, Height {height}; in the plain window {expected.MinHeight}, {expected.Height}.");
+                }
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-111: the states with a button of their own that the layout states do not open: Login Items need approval (T-019),
+    /// notifications turned off (T-020), a test notification sent (T-101), the Local Network hints of both tests (T-097) and
+    /// a running connection test (Cancel).
+    /// </summary>
+    private static IEnumerable<(string Name, Func<UiTestScope, Task<SettingsWindowHarness>> Open)> ButtonStates()
+    {
+        yield return ("macOS Login Items need approval", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostart: new MemoryApprovalAutostart { RequiresApproval = true }, macTerms: true);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            return ui;
+        });
+
+        yield return ("macOS notifications turned off", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: new FakeSystemNotificationSettings { TurnedOff = true });
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            return ui;
+        });
+
+        yield return ("Windows test notification sent", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), notificationSettings: new FakeSystemNotificationSettings());
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            await ui.ViewModel.SendTestNotificationCommand.ExecuteAsync(null);
+            await WaitForTestAsync(ui);
+            Assert.True(ui.ViewModel.ShowsTestNotificationResult);
+            return ui;
+        });
+
+        yield return ("macOS Local Network hint of the connection test", static async scope =>
+        {
+            FakeConnectionTester tester = new() { Immediate = new ConnectionTestResult(ConnectionTestOutcome.LocalNetworkAccessMayBeOff) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30")), tester, autostartNeedsInstallation: true, macTerms: true, localNetwork: new FakeLocalNetworkPrivacy());
+            await ui.ViewModel.SelectedPrinter!.TestConnectionCommand.ExecuteAsync(null);
+            Assert.True(ui.ViewModel.SelectedPrinter.ShowsLocalNetworkSettings);
+            return ui;
+        });
+
+        yield return ("macOS Local Network hint of the camera test", static async scope =>
+        {
+            FakeCameraTester cameraTester = new() { Immediate = new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host.") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }), cameraTester: cameraTester, autostartNeedsInstallation: true, macTerms: true, localNetwork: new FakeLocalNetworkPrivacy());
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            await ui.ViewModel.SelectedPrinter!.TestCameraCommand.ExecuteAsync(null);
+            Assert.True(ui.ViewModel.SelectedPrinter.ShowsCameraLocalNetworkSettings);
+            return ui;
+        });
+
+        yield return ("connection test running", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), new FakeConnectionTester());
+            _ = ui.ViewModel.SelectedPrinter!.TestConnectionCommand.ExecuteAsync(null);
+            Assert.True(ui.ViewModel.SelectedPrinter.IsTesting);
+            return ui;
+        });
+    }
+
+    /// <summary>The visible buttons of the window itself (link buttons too), not the parts of the templates of other controls.</summary>
+    private static IEnumerable<Button> OwnButtons(Window window) =>
+        window.GetVisualDescendants().OfType<Button>().Where(static button => button.TemplatedParent is null && button.IsEffectivelyVisible);
+
+    /// <summary>The buttons inside the templates of other controls, keyed by templated parent, part type and name (or classes).</summary>
+    private static IEnumerable<(string Key, Button Part)> TemplateButtons(Window window) =>
+        window.GetVisualDescendants()
+            .OfType<Button>()
+            .Where(static button => button.TemplatedParent is not null)
+            .Select(static part => ($"{part.TemplatedParent!.GetType().Name} / {part.GetType().Name} {part.Name ?? string.Join('.', part.Classes)}", part));
+
+    private static string ButtonName(Button button) =>
+        AutomationProperties.GetAutomationId(button) is { Length: > 0 } id ? id : $"{button.GetType().Name} '{button.Content}'";
+
     /// <summary>
     /// T-017: the longest texts of the Startup and updates tab, without an installation (both reasons shown) and with the
     /// failed autostart in the status line next to Save / Cancel, in every language.
