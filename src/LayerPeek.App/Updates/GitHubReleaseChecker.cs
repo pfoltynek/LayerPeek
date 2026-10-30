@@ -13,7 +13,10 @@ namespace LayerPeek.App.Updates;
 /// and every <c>0.x</c> release is one (T-055). Anonymous (no token in the app, decided 2026-10-21; 60 requests an hour per IP
 /// address, the app makes about one a day). The newest release by version wins (not the newest by date): drafts are never
 /// visible anonymously and are skipped anyway, tags that are no version (<c>vX.Y.Z[-pre]</c>) are skipped, pre-releases only
-/// when asked for. Errors are exceptions for the caller to log: HTTP 403/429 (rate limit), 404, a timeout, invalid JSON.
+/// when asked for. A release counts only once it has the checksum file of the OS the app runs on
+/// (<c>SHA256SUMS-windows.txt</c> / <c>SHA256SUMS-macos.txt</c>, T-113): the OSes of one version may be published at
+/// different times, and a release without the files of this OS is skipped like a draft. Errors are exceptions for the
+/// caller to log: HTTP 403/429 (rate limit), 404, a timeout, invalid JSON.
 /// </summary>
 internal sealed class GitHubReleaseChecker : IUpdateChecker
 {
@@ -36,16 +39,20 @@ internal sealed class GitHubReleaseChecker : IUpdateChecker
 
     private readonly IHttpClientFactory _httpClients;
     private readonly Uri _apiBase;
+    private readonly ReleaseOs? _os;
 
+    /// <param name="httpClients">The factory of the named client <see cref="HttpClientName"/>.</param>
     /// <param name="apiBase">
     /// The API to ask; default <see cref="DefaultApiBase"/>. The test mode may point it to a server on the loopback
     /// (Q10 a); never configurable otherwise.
     /// </param>
-    public GitHubReleaseChecker(IHttpClientFactory httpClients, Uri? apiBase = null)
+    /// <param name="os">The OS whose files a release must have; default the OS the app runs on (tests pass another).</param>
+    public GitHubReleaseChecker(IHttpClientFactory httpClients, Uri? apiBase = null, ReleaseOs? os = null)
     {
         ArgumentNullException.ThrowIfNull(httpClients);
         _httpClients = httpClients;
         _apiBase = apiBase ?? DefaultApiBase;
+        _os = os ?? ReleaseOsExtensions.Current;
         if (!_apiBase.IsAbsoluteUri || !_apiBase.AbsolutePath.EndsWith('/'))
         {
             throw new ArgumentException("The API base must be an absolute address ending with '/'.", nameof(apiBase));
@@ -83,17 +90,26 @@ internal sealed class GitHubReleaseChecker : IUpdateChecker
         byte[] body = await response.Content.ReadAsByteArrayAsync(cancellationToken).ConfigureAwait(false);
         List<GitHubReleaseDocument?>? releases = JsonSerializer.Deserialize(body, GitHubJsonContext.Default.ListGitHubReleaseDocument)
             ?? throw new JsonException("GitHub answered null instead of a list of releases.");
-        return Newest(releases, includePrereleases);
+        return Newest(releases, includePrereleases, _os);
     }
 
-    /// <summary>The newest release by version among <paramref name="releases"/> that may be offered (pure; tests).</summary>
-    internal static UpdateRelease? Newest(IEnumerable<GitHubReleaseDocument?> releases, bool includePrereleases)
+    /// <summary>
+    /// The newest release by version among <paramref name="releases"/> that may be offered on <paramref name="os"/>
+    /// (pure; tests). <paramref name="os"/> <see langword="null"/> (an OS without releases) offers nothing.
+    /// </summary>
+    internal static UpdateRelease? Newest(IEnumerable<GitHubReleaseDocument?> releases, bool includePrereleases, ReleaseOs? os)
     {
         ArgumentNullException.ThrowIfNull(releases);
+        if (os is not { } target)
+        {
+            return null;
+        }
+
+        string checksumFile = target.ChecksumFileName();
         UpdateRelease? newest = null;
         foreach (GitHubReleaseDocument? release in releases)
         {
-            if (release is null || release.Draft || !ReleaseVersion.TryParse(release.TagName, out ReleaseVersion? version))
+            if (release is null || release.Draft || !ReleaseVersion.TryParse(release.TagName, out ReleaseVersion? version) || !release.HasAsset(checksumFile))
             {
                 continue;
             }
@@ -133,6 +149,43 @@ internal sealed class GitHubReleaseDocument
 
     [JsonPropertyName("prerelease")]
     public bool Prerelease { get; set; }
+
+    [JsonPropertyName("assets")]
+    public List<GitHubReleaseAssetDocument?>? Assets { get; set; }
+
+    /// <summary>
+    /// Whether the release has the file <paramref name="name"/> completely uploaded (GitHub's <c>state</c> is
+    /// <c>uploaded</c>; an interrupted upload stays <c>starter</c>). A missing state counts as uploaded.
+    /// </summary>
+    public bool HasAsset(string name)
+    {
+        if (Assets is null)
+        {
+            return false;
+        }
+
+        foreach (GitHubReleaseAssetDocument? asset in Assets)
+        {
+            if (asset is not null
+                && string.Equals(asset.Name, name, StringComparison.Ordinal)
+                && (asset.State is null || string.Equals(asset.State, "uploaded", StringComparison.Ordinal)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
+/// <summary>The fields of a release file (asset) the checker reads.</summary>
+internal sealed class GitHubReleaseAssetDocument
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("state")]
+    public string? State { get; set; }
 }
 
 [JsonSourceGenerationOptions(PropertyNameCaseInsensitive = false)]

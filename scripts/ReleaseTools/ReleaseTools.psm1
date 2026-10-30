@@ -575,6 +575,84 @@ function Get-UploadPlan {
     }
 }
 
+function Test-ReleaseMarkerFileName {
+    <#
+    .SYNOPSIS
+        True for the files that make an OS visible in a release: its checksum file (GitHubReleaseChecker of the app, T-113)
+        and the Velopack feed files (releases.<rid>.json, assets.<rid>.json, RELEASES-<rid>; Velopack, T-058). Added to a
+        published release (release-upload.ps1 -AddToPublished) they are uploaded only after every other file, so that no
+        app is offered a release whose packages are not there yet.
+    #>
+    param([Parameter(Mandatory)] [string] $Name)
+    [bool]($Name -cmatch '^(SHA256SUMS-[a-z]+\.txt|releases\.[^/\\]+\.json|assets\.[^/\\]+\.json|RELEASES-[^/\\]+)$')
+}
+
+function Get-AddToPublishedProblems {
+    <#
+    .SYNOPSIS
+        Pure check of release-upload.ps1 -AddToPublished (T-113): the release exists and is published, it has no checksum
+        file of the OS of the build yet (the files of an OS are added once, never replaced), and no file of the build is
+        in the release with other content or unfinished (state 'starter', no digest). Files with the same SHA256 are
+        skipped by the plan (a re-run after an interrupted upload). Returns problem messages.
+    .PARAMETER Release
+        Release as returned by Get-GitHubRelease ($null = no release).
+    .PARAMETER ChecksumFile
+        Checksum file of the build (SHA256SUMS-<os>.txt).
+    .PARAMETER Plan
+        Get-UploadPlan of the build against the assets of the release, without -Force.
+    #>
+    param(
+        $Release,
+        [Parameter(Mandatory)] [string] $Tag,
+        [Parameter(Mandatory)] [string] $ChecksumFile,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Plan
+    )
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $Release) {
+        $problems.Add("There is no release for $Tag. -AddToPublished only adds files to a published release; upload the first OS without it (docs/release.md).")
+        return $problems.ToArray()
+    }
+    if ($Release.isDraft) {
+        $problems.Add("Release $Tag is still a draft. Upload into the draft without -AddToPublished, then publish it (scripts/release-publish.ps1).")
+        return $problems.ToArray()
+    }
+    $assets = @($Release.assets)
+    if (@($assets | Where-Object { $_.name -ceq $ChecksumFile }).Count -gt 0) {
+        $problems.Add("Published release $Tag already contains $($ChecksumFile): the files of this OS are already there. -AddToPublished only adds the files of an OS that is missing and never replaces anything.")
+        return $problems.ToArray()
+    }
+    foreach ($item in @($Plan | Where-Object Action -In 'Conflict', 'Replace')) {
+        $asset = @($assets | Where-Object { $_.name -ceq $item.Name }) | Select-Object -First 1
+        $state = if ($asset -and $asset.PSObject.Properties['state']) { $asset.state } else { $null }
+        $digest = if ($asset -and $asset.PSObject.Properties['digest']) { $asset.digest } else { $null }
+        if (($state -and $state -cne 'uploaded') -or -not $digest) {
+            $problems.Add("$($item.Name) is in release $Tag, but its upload did not finish (state $($state ?? '?'), no SHA256). Nothing is overwritten: delete that file on the release page on GitHub (Edit), then re-run.")
+        }
+        else {
+            $problems.Add("$($item.Name) is in release $Tag with different content (another build?). Nothing is overwritten: check which build is right, delete the wrong file on the release page on GitHub (Edit) or rebuild, then re-run.")
+        }
+    }
+    $problems.ToArray()
+}
+
+function Get-ReleaseChecksums {
+    <#
+    .SYNOPSIS
+        Downloads the checksum files (SHA256SUMS-<os>.txt) of a release into Directory (gh release download, reads only)
+        and parses them: dictionary checksum file name -> (dictionary file name -> sha256), as Get-PublishProblems takes it.
+    #>
+    param($Release, [Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Tag, [Parameter(Mandatory)] [string] $Directory)
+    $checksums = [ordered]@{}
+    if (-not $Release) { return $checksums }
+    $sumsAssets = @($Release.assets | Where-Object { $_.name -cmatch '^SHA256SUMS-[a-z]+\.txt$' })
+    if ($sumsAssets.Count -eq 0) { return $checksums }
+    if (-not (Test-Path -LiteralPath $Directory)) { $null = New-Item -ItemType Directory -Path $Directory }
+    & gh release download $Tag --repo $Repository --pattern 'SHA256SUMS-*.txt' --dir $Directory
+    if ($LASTEXITCODE -ne 0) { throw "gh release download failed with exit code $LASTEXITCODE." }
+    foreach ($asset in $sumsAssets) { $checksums[$asset.name] = Read-Sha256Sums (Join-Path $Directory $asset.name) }
+    $checksums
+}
+
 function Get-GitHubRepository {
     <# .SYNOPSIS 'owner/repo' parsed from a GitHub remote URL (https or ssh); $null for other hosts. #>
     param([Parameter(Mandatory)] [string] $RemoteUrl)
@@ -623,20 +701,25 @@ function Get-PublishProblems {
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
         Dictionary checksum file name -> (dictionary file name -> sha256) of the downloaded checksum files.
+    .PARAMETER Published
+        The release is expected to be published already (the check after release-upload.ps1 -AddToPublished, T-113)
+        instead of a draft; every other check is the same.
     #>
     param(
         $Release,
         [Parameter(Mandatory)] [string] $Tag,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $ExpectedOs,
         [Parameter(Mandatory)] [System.Collections.IDictionary] $Checksums,
-        $Config = $script:ReleaseRuntimes
+        $Config = $script:ReleaseRuntimes,
+        [switch] $Published
     )
     $problems = [System.Collections.Generic.List[string]]::new()
     if ($null -eq $Release) {
         $problems.Add("There is no release for $Tag. Upload the build first (scripts/release-upload.ps1).")
         return $problems.ToArray()
     }
-    if (-not $Release.isDraft) { $problems.Add("Release $Tag is already published.") }
+    if ($Published) { if ($Release.isDraft) { $problems.Add("Release $Tag is a draft, not published.") } }
+    elseif (-not $Release.isDraft) { $problems.Add("Release $Tag is already published.") }
     $assets = @($Release.assets)
     if ($assets.Count -eq 0) { $problems.Add("Release $Tag has no files.") }
     foreach ($os in $ExpectedOs) {
@@ -2534,7 +2617,17 @@ function Format-ReleaseFlowPlan {
     if (-not $Plan.Published -and @($Plan.Steps | Where-Object { $_.Id -in 'Build', 'Upload' -and -not $_.Done }).Count -gt 0) {
         '           then back to develop: git switch develop'
     }
-    if ($Plan.Published) { "  Release $($Facts.Tag) is already published on GitHub." }
+    if ($Plan.Published) {
+        "  Release $($Facts.Tag) is already published on GitHub."
+        $release = $Facts.Release
+        $assets = if ($release -and $release.PSObject.Properties['assets']) { @($release.assets) } else { @() }
+        if ($release -and $Facts.ChecksumFile -and @($assets | Where-Object { $_.name -ceq $Facts.ChecksumFile }).Count -eq 0) {
+            # T-113: the other OS went first; this one is added to the published release, not by release.ps1.
+            $repoArgument = if ($Facts.RepositoryArgument) { " -Repo $($Facts.RepositoryArgument)" } else { '' }
+            "  It has no $($Facts.ChecksumFile) yet. Add the files of this OS (docs/release.md, release on two machines):"
+            "    git switch --detach $($Facts.Tag); pwsh scripts/release-build.ps1; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
+        }
+    }
     if ($Facts.PSObject.Properties['ToolchainSkipped'] -and $Facts.ToolchainSkipped) {
         '  TEST MODE: toolchain check skipped (LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1, repository inside LAYERPEEK_PESTER_TESTS_TEMP). Not for a real release.'
     }
@@ -2542,17 +2635,33 @@ function Format-ReleaseFlowPlan {
 }
 
 function Get-ReleaseNextSteps {
-    <# .SYNOPSIS Pure: the manual commands after the draft is ready. Publishing always stays a separate manual step. #>
-    param([Parameter(Mandatory)] [string] $Version, [string] $Repository)
+    <#
+    .SYNOPSIS
+        Pure: the manual commands after the draft of the first OS is ready (T-113: either OS can go first). Publishing
+        always stays a separate manual step; the other OS follows in the draft or, after an incomplete publish, in the
+        published release (release-upload.ps1 -AddToPublished, docs/release.md).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $HostOs,
+        [string] $Remote = 'origin'
+    )
     $tag = ConvertTo-ReleaseTag $Version
     $repoArgument = if ($Repository) { " -Repo $Repository" } else { '' }
+    $names = @{ windows = 'Windows'; macos = 'macOS' }
+    $this = $names[$HostOs]
+    $other = $names[$(if ($HostOs -eq 'windows') { 'macos' } else { 'windows' })]
     @(
         "Publishing is a separate manual step. Check the draft $tag on GitHub (text, files), then:"
         "  git switch --detach $tag"
         "  pwsh scripts/release-publish.ps1$repoArgument -DryRun"
-        "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # Windows only until T-019: no macOS files yet"
+        "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # only the $this files so far"
         '  git switch develop'
-        'With the macOS files (after T-019, docs/release.md step 4) publish without -AllowIncomplete.'
+        "The $other files follow on a $other machine (docs/release.md, release on two machines), without release.ps1:"
+        "  git fetch $Remote --tags; git switch --detach $tag; pwsh scripts/release-build.ps1"
+        "  pwsh scripts/release-upload.ps1$repoArgument -AddToPublished   # after the publish above"
+        "  (or before publishing: pwsh scripts/release-upload.ps1$repoArgument into the draft, then publish without -AllowIncomplete)"
     )
 }
 

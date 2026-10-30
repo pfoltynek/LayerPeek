@@ -626,6 +626,70 @@ Describe 'Publish checks' {
         # Allowed incomplete (a trial release): only the uploaded files are checked.
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
     }
+    It 'checks a published release with -Published (the check after release-upload.ps1 -AddToPublished, T-113)' {
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published)
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published) 'is a draft, not published'
+        $macOnly = @($script:Complete | Select-Object -Skip 3)
+        Assert-Problems (Get-PublishProblems -Release (Release $macOnly $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums ([ordered]@{ 'SHA256SUMS-macos.txt' = $script:MacSums }) -Published) 'no SHA256SUMS-windows.txt'
+    }
+}
+
+Describe 'Adding an OS to a published release (T-113)' {
+    BeforeAll {
+        $script:Build = @(
+            [pscustomobject]@{ Name = 'P-0.1.0-win-x64.zip'; Sha256 = '1' * 64 },
+            [pscustomobject]@{ Name = 'releases.win-x64.json'; Sha256 = 'a' * 64 },
+            [pscustomobject]@{ Name = 'SHA256SUMS-windows.txt'; Sha256 = '7' * 64 }
+        )
+        $script:MacAssets = @(
+            [pscustomobject]@{ name = 'P-0.1.0-osx-arm64.tar.gz'; state = 'uploaded'; digest = "sha256:$('2' * 64)" },
+            [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; state = 'uploaded'; digest = "sha256:$('8' * 64)" }
+        )
+        function Release([object[]] $Assets, [bool] $Draft = $false) { [pscustomobject]@{ isDraft = $Draft; assets = $Assets; url = 'https://example.invalid' } }
+        function Problems([object[]] $Assets, [bool] $Draft = $false) {
+            $plan = @(Get-UploadPlan -LocalFiles $script:Build -RemoteAssets $Assets)
+            Get-AddToPublishedProblems -Release (Release $Assets $Draft) -Tag v0.1.0 -ChecksumFile 'SHA256SUMS-windows.txt' -Plan $plan
+        }
+    }
+    It 'accepts a published release without the files of this OS' {
+        Assert-Problems (Problems $script:MacAssets)
+    }
+    It 'refuses a missing release and a draft' {
+        Assert-Problems (Get-AddToPublishedProblems -Release $null -Tag v0.1.0 -ChecksumFile 'SHA256SUMS-windows.txt' -Plan @()) 'no release for v0\.1\.0'
+        Assert-Problems (Problems $script:MacAssets $true) 'still a draft.*without -AddToPublished'
+    }
+    It 'refuses the OS whose checksum file is already there, also with identical content' {
+        $same = @($script:MacAssets) + [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; state = 'uploaded'; digest = "sha256:$('7' * 64)" }
+        Assert-Problems (Problems $same) 'already contains SHA256SUMS-windows\.txt.*never replaces'
+    }
+    It 'skips identical files of an interrupted upload' {
+        $partial = @($script:MacAssets) + [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; state = 'uploaded'; digest = "sha256:$('1' * 64)" }
+        Assert-Problems (Problems $partial)
+        @(Get-UploadPlan -LocalFiles $script:Build -RemoteAssets $partial | ForEach-Object Action) | Should -BeExactly @('Skip', 'Upload', 'Upload')
+    }
+    It 'refuses files with other content and unfinished uploads, and never plans a replacement' {
+        $bad = @($script:MacAssets) + @(
+            [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; state = 'uploaded'; digest = "sha256:$('6' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-x64.json'; state = 'starter'; digest = $null }
+        )
+        Assert-Problems (Problems $bad) 'P-0\.1\.0-win-x64\.zip is in release v0\.1\.0 with different content', 'releases\.win-x64\.json .* did not finish \(state starter, no SHA256\)'
+        $noState = @($script:MacAssets) + [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip' }
+        Assert-Problems (Problems $noState) 'did not finish \(state \?, no SHA256\)'
+    }
+    It 'tells the files that make an OS visible from the packages (<Name> = <Expected>)' -ForEach @(
+        @{ Name = 'SHA256SUMS-windows.txt'; Expected = $true }
+        @{ Name = 'SHA256SUMS-macos.txt'; Expected = $true }
+        @{ Name = 'releases.win-x64.json'; Expected = $true }
+        @{ Name = 'releases.osx-arm64.json'; Expected = $true }
+        @{ Name = 'assets.osx-arm64.json'; Expected = $true }
+        @{ Name = 'RELEASES-win-x64'; Expected = $true }
+        @{ Name = 'LayerPeek-0.1.0-win-x64.zip'; Expected = $false }
+        @{ Name = 'LayerPeek-0.1.0-win-x64-Setup.exe'; Expected = $false }
+        @{ Name = 'LayerPeek-0.1.0-osx-arm64-full.nupkg'; Expected = $false }
+        @{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Expected = $false }
+    ) {
+        Test-ReleaseMarkerFileName $Name | Should -Be $Expected
+    }
 }
 
 Describe 'Velopack packaging (T-017)' {

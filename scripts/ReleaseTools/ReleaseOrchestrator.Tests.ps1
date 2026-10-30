@@ -29,8 +29,10 @@ BeforeAll {
 
     # A fake gh first on PATH (the real gh is never called). It logs every call. "auth status" succeeds; "release view"
     # reports "release not found" unless LAYERPEEK_FAKE_GH_STATE is set and a draft was created there by
-    # "release create" (then it returns that draft as JSON, assets with sha256 digests); "release upload" adds files.
-    # Everything else fails. The shim on PATH (gh.cmd / gh) logs the call and answers the read-only cases itself; only
+    # "release create" (then it returns that draft as JSON, assets with sha256 digests and state 'uploaded'); "release
+    # upload" adds files, "release download" copies the uploaded files matching --pattern into --dir, "release edit"
+    # sets --draft / --prerelease (T-113: publish, then add the other OS). Uploaded files are kept next to the state
+    # file (<state>.files). Everything else fails. The shim on PATH (gh.cmd / gh) logs the call and answers the read-only cases itself; only
     # with LAYERPEEK_FAKE_GH_STATE it starts the pwsh implementation (outside PATH, so that "& gh" starts a process with
     # a real stderr, as the real gh), which keeps the number of pwsh starts low.
     $fakeGhDir = Join-Path $script:TempRoot 'gh'
@@ -45,8 +47,9 @@ if ($a[0] -eq 'auth') { exit 0 }
 if ($a[0] -ne 'release') { [Console]::Error.WriteLine("fake gh: unsupported $($a -join ' ')"); exit 99 }
 $tag = $a[2]; $repo = Opt '--repo'
 $state = if ($env:LAYERPEEK_FAKE_GH_STATE) { Join-Path $env:LAYERPEEK_FAKE_GH_STATE "$($repo -replace '/', '_')_$tag.json" } else { $null }
-function Files { $skip = @('--repo', '--title', '--notes-file'); $out = @(); for ($i = 3; $i -lt $a.Count; $i++) { if ($skip -contains $a[$i]) { $i++; continue }; if ($a[$i] -like '--*') { continue }; $out += $a[$i] }; $out }
-function Asset([string] $Path) { [ordered]@{ name = (Split-Path -Leaf $Path); digest = "sha256:$((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant())" } }
+function Files { $skip = @('--repo', '--title', '--notes-file', '--pattern', '--dir'); $out = @(); for ($i = 3; $i -lt $a.Count; $i++) { if ($skip -contains $a[$i]) { $i++; continue }; if ($a[$i] -like '--*') { continue }; $out += $a[$i] }; $out }
+function Asset([string] $Path) { [ordered]@{ name = (Split-Path -Leaf $Path); state = 'uploaded'; digest = "sha256:$((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant())" } }
+function Keep([string] $Path) { $dir = "$state.files"; if (-not (Test-Path -LiteralPath $dir)) { $null = New-Item -ItemType Directory -Path $dir }; Copy-Item -LiteralPath $Path -Destination $dir -Force }
 switch ($a[1]) {
     'view' {
         if ($state -and (Test-Path -LiteralPath $state)) { Get-Content -LiteralPath $state -Raw; exit 0 }
@@ -55,13 +58,29 @@ switch ($a[1]) {
     'create' {
         if (-not $state -or (Test-Path -LiteralPath $state)) { [Console]::Error.WriteLine('fake gh: create refused'); exit 98 }
         $release = [ordered]@{ tagName = $tag; name = (Opt '--title'); isDraft = $true; isPrerelease = ($a -contains '--prerelease')
-            url = "https://example.invalid/$repo/releases/tag/$tag"; assets = @(Files | ForEach-Object { Asset $_ }) }
+            url = "https://example.invalid/$repo/releases/tag/$tag"; body = [System.IO.File]::ReadAllText((Opt '--notes-file'))
+            assets = @(Files | ForEach-Object { Keep $_; Asset $_ }) }
         $release | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $state; exit 0
     }
     'upload' {
         if (-not $state -or -not (Test-Path -LiteralPath $state)) { [Console]::Error.WriteLine('fake gh: no release'); exit 97 }
         $release = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json -AsHashtable
-        foreach ($path in Files) { $release.assets = @($release.assets | Where-Object { $_.name -cne (Split-Path -Leaf $path) }) + (Asset $path) }
+        foreach ($path in Files) { Keep $path; $release.assets = @($release.assets | Where-Object { $_.name -cne (Split-Path -Leaf $path) }) + (Asset $path) }
+        $release | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $state; exit 0
+    }
+    'download' {
+        if (-not $state -or -not (Test-Path -LiteralPath $state)) { [Console]::Error.WriteLine('release not found'); exit 1 }
+        $dir = Opt '--dir'; $pattern = Opt '--pattern'
+        foreach ($file in @(Get-ChildItem -LiteralPath "$state.files" -File | Where-Object { $_.Name -like $pattern })) { Copy-Item -LiteralPath $file.FullName -Destination $dir }
+        exit 0
+    }
+    'edit' {
+        if (-not $state -or -not (Test-Path -LiteralPath $state)) { [Console]::Error.WriteLine('release not found'); exit 1 }
+        $release = Get-Content -LiteralPath $state -Raw | ConvertFrom-Json -AsHashtable
+        foreach ($arg in $a) {
+            if ($arg -match '^--draft=(true|false)$') { $release.isDraft = $Matches[1] -eq 'true' }
+            if ($arg -match '^--prerelease=(true|false)$') { $release.isPrerelease = $Matches[1] -eq 'true' }
+        }
         $release | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $state; exit 0
     }
     default { [Console]::Error.WriteLine("fake gh: unsupported $($a -join ' ')"); exit 99 }
@@ -229,6 +248,7 @@ switch ($a[1]) {
             # The real upload script (it talks to the fake gh); a stand-in build (no dotnet, no AOT): by default one
             # that fails, as a real build failing after the tag was pushed.
             Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-upload.ps1') -Destination (Join-Path $seed 'scripts')
+            Copy-Item -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'release-publish.ps1') -Destination (Join-Path $seed 'scripts')
             [System.IO.File]::WriteAllText((Join-Path $seed 'scripts' 'release-build.ps1'), $BuildScript)
         }
         $null = G $seed add --all
@@ -665,12 +685,34 @@ Describe 'Plan and resume detection (pure)' {
         $text | Should -Match 'release-upload\.ps1 -Repo o/trial -DryRun'
         $text | Should -Match 'then back to develop: git switch develop'
     }
+    It 'names the OS that went first and how the other one follows (T-113, <HostOs>)' -ForEach @(
+        @{ HostOs = 'macos'; This = 'macOS'; Other = 'Windows' }
+        @{ HostOs = 'windows'; This = 'Windows'; Other = 'macOS' }
+    ) {
+        $text = (Get-ReleaseNextSteps -Version '0.2.0' -HostOs $HostOs) -join "`n"
+        $text | Should -Match "release-publish\.ps1 -AllowIncomplete   # only the $This files so far"
+        $text | Should -Match "The $Other files follow on a $Other machine"
+        $text | Should -Match 'git fetch origin --tags; git switch --detach v0\.2\.0; pwsh scripts/release-build\.ps1'
+        $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
+        $text | Should -Not -Match 'Windows only|T-019'
+    }
+    It 'tells how to add this OS to a release that the other OS published without it (T-113)' {
+        $facts = Copy-With $script:GitDone @{ ChecksumFile = 'SHA256SUMS-windows.txt'; Release = (Release $false -Assets @([pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = 'sha256:x' })) }
+        $plan = Plan $facts
+        Assert-Problems $plan.Problems
+        $text = (Format-ReleaseFlowPlan -Plan $plan -Facts $facts) -join "`n"
+        $text | Should -Match 'already published'
+        $text | Should -Match 'It has no SHA256SUMS-windows\.txt yet'
+        $text | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
+        $with = Copy-With $facts @{ ChecksumFile = 'SHA256SUMS-macos.txt' }
+        (Format-ReleaseFlowPlan -Plan (Plan $with) -Facts $with) -join "`n" | Should -Not -Match 'AddToPublished'
+    }
     It 'prints the manual publish commands with -AllowIncomplete and never publishes itself' {
-        $text = (Get-ReleaseNextSteps -Version '0.2.0' -Repository 'o/trial') -join "`n"
+        $text = (Get-ReleaseNextSteps -Version '0.2.0' -Repository 'o/trial' -HostOs 'windows' -Remote 'trial') -join "`n"
         $text | Should -Match 'git switch --detach v0\.2\.0'
         $text | Should -Match 'release-publish\.ps1 -Repo o/trial -DryRun'
         $text | Should -Match 'release-publish\.ps1 -Repo o/trial -AllowIncomplete'
-        $text | Should -Match 'T-019'
+        $text | Should -Not -Match 'T-019'
         $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release.ps1'))
         $script | Should -Not -Match "release-publish\.ps1'"
         $script | Should -Not -Match 'gh release (edit|create|upload|delete)'
@@ -1176,6 +1218,11 @@ exit 0
         $result.Output | Should -Match 'stand-in build done'
         $result.Output | Should -Match 'Draft release v0\.2\.0 is ready: https://example\.invalid/test-owner/ok/releases/tag/v0\.2\.0'
         $result.Output | Should -Match 'release-publish\.ps1 -AllowIncomplete'
+        # T-113: the next steps name the OS of this machine (either OS can go first) and how the other one follows.
+        $this, $other = if ($IsWindows) { 'Windows', 'macOS' } else { 'macOS', 'Windows' }
+        $result.Output | Should -Match "only the $this files so far"
+        $result.Output | Should -Match "The $other files follow on a $other machine"
+        $result.Output | Should -Match 'release-upload\.ps1 -AddToPublished'
         G $script:E.Work symbolic-ref --short HEAD | Should -BeExactly 'develop'
         @(G $script:E.Work status --porcelain --untracked-files=all) | Should -BeNullOrEmpty
 
@@ -1205,6 +1252,196 @@ exit 0
         Get-AllRefs $script:E.Origin | Should -BeExactly $originRefs
         @(Get-GhCall | Select-Object -Skip $callCount | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
         G $script:E.Work symbolic-ref --short HEAD | Should -BeExactly 'develop'
+    }
+}
+
+Describe 'scripts/release-upload.ps1 -AddToPublished: release on two machines (stand-in builds, fake GitHub, T-113)' {
+    BeforeAll {
+        $null = Use-GhLog 'two'
+        $script:TwoState = Join-Path $script:TempRoot 'gh-state-two'
+        $null = New-Item -ItemType Directory -Path $script:TwoState
+        $env:LAYERPEEK_FAKE_GH_STATE = $script:TwoState
+        # The released commit v0.1.0 of the test repository: tagged, on origin/main, clean, dated changelog section.
+        $script:T = New-ReleaseTestRepository -Name 'two' -WithScripts
+        $null = G $script:T.Work switch --quiet --detach v0.1.0
+        $script:TwoRelease = Join-Path $script:TwoState 'test-owner_two_v0.1.0.json'
+
+        function Write-StandInBuild([string] $Os, [string] $Content = 'stand-in') {
+            # The output release-build.ps1 would write for HEAD on that OS (the other OS too: the marker names its OS),
+            # with the archive, the Velopack files and the checksum file.
+            $root = $script:T.Work
+            $rid = if ($Os -eq 'windows') { 'win-x64' } else { 'osx-arm64' }
+            $releaseDir = Join-Path $root 'artifacts' 'release' '0.1.0'
+            if (Test-Path -LiteralPath $releaseDir) { Remove-Item -LiteralPath $releaseDir -Recurse -Force }
+            $dist = Join-Path $releaseDir 'dist'
+            $null = New-Item -ItemType Directory -Path $dist
+            $names = @(Get-ArchiveFileName -Version '0.1.0' -Runtime $rid) + @((Get-VelopackOutputMap -Version '0.1.0' -Runtime $rid).Values)
+            if ($Os -eq 'macos') { $names += (Get-MacReleaseFileNames -Version '0.1.0' -Runtime $rid).DiskImage }
+            $names = @($names | Sort-Object -Unique)
+            foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $dist $name), "$Content $name") }
+            $sums = Get-ChecksumFileName $Os
+            $null = Write-Sha256Sums -Directory $dist -FileName $sums -Files $names
+            [ordered]@{ Version = '0.1.0'; Commit = (Get-GitHead $root); Dirty = $false; Os = $Os; Runtimes = @($rid); ChecksumFile = $sums
+                Files = @($names | ForEach-Object { [ordered]@{ Name = $_; Runtime = $rid; Step = 'stand-in'; Sha256 = (Get-FileSha256 (Join-Path $dist $_)) } }) } |
+                ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Get-BuildInfoPath $releaseDir) -Encoding utf8NoBOM
+            $names + $sums
+        }
+        function Invoke-T([string] $Name, [string[]] $Arguments = @()) {
+            $output = Invoke-Pwsh -NoProfile -NonInteractive -File (Join-Path $script:T.Work 'scripts' $Name) @Arguments 2>&1 | Out-String
+            [pscustomobject]@{ ExitCode = $LASTEXITCODE; Output = $output }
+        }
+        function Get-TwoRelease { Get-Content -LiteralPath $script:TwoRelease -Raw | ConvertFrom-Json }
+        function Set-TwoRelease([scriptblock] $Edit) {
+            $release = Get-Content -LiteralPath $script:TwoRelease -Raw | ConvertFrom-Json -AsHashtable
+            & $Edit $release
+            $release | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $script:TwoRelease
+        }
+        function Get-NewGhCall([int] $Skip) { @(Get-GhCall | Select-Object -Skip $Skip) }
+    }
+    AfterAll { $env:LAYERPEEK_FAKE_GH_STATE = $null }
+
+    It 'refuses -AddToPublished before anything is uploaded (no release yet)' {
+        $null = Write-StandInBuild 'macos'
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $result.ExitCode | Should -Be 1 -Because $result.Output
+        $result.Output | Should -Match 'There is no release for v0\.1\.0\. -AddToPublished only adds files to a published release'
+        Test-Path -LiteralPath $script:TwoRelease | Should -BeFalse
+    }
+    It 'first machine: uploads its OS into a new draft, refuses -AddToPublished into the draft and publishes with -AllowIncomplete' {
+        $macFiles = Write-StandInBuild 'macos'
+        $upload = Invoke-T 'release-upload.ps1'
+        $upload.ExitCode | Should -Be 0 -Because $upload.Output
+        $upload.Output | Should -Match 'add the other OS later with -AddToPublished'
+
+        $draft = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $draft.ExitCode | Should -Be 1 -Because $draft.Output
+        $draft.Output | Should -Match 'Release v0\.1\.0 is still a draft\. Upload into the draft without -AddToPublished'
+
+        $complete = Invoke-T 'release-publish.ps1'
+        $complete.ExitCode | Should -Be 1 -Because $complete.Output
+        $complete.Output | Should -Match 'has no SHA256SUMS-windows\.txt'
+        $publish = Invoke-T 'release-publish.ps1' @('-AllowIncomplete')
+        $publish.ExitCode | Should -Be 0 -Because $publish.Output
+        $release = Get-TwoRelease
+        $release.isDraft | Should -BeFalse
+        $release.isPrerelease | Should -BeTrue
+        @($release.assets.name | Sort-Object) | Should -BeExactly @($macFiles | Sort-Object)
+        $script:PublishedBody = $release.body
+        $script:PublishedBody | Should -Match 'First release'
+    }
+    It 'second machine: without -AddToPublished the upload into the published release is refused as before, with a hint' {
+        $null = Write-StandInBuild 'windows'
+        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1'
+        $result.ExitCode | Should -Be 1 -Because $result.Output
+        $result.Output | Should -Match 'Release v0\.1\.0 is already published \(https://example\.invalid/test-owner/two/releases/tag/v0\.1\.0\)\. Files are uploaded only into a draft release\.'
+        $result.Output | Should -Match 'pwsh scripts/release-upload\.ps1 -AddToPublished'
+        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
+        @(Get-NewGhCall $calls | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
+    }
+    It 'refuses -AddToPublished together with -Force without asking GitHub' {
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished', '-Force')
+        $result.ExitCode | Should -Be 1 -Because $result.Output
+        $result.Output | Should -Match 'cannot be combined with -Force'
+        @(Get-NewGhCall $calls) | Should -BeNullOrEmpty
+    }
+    It 'keeps every other check: a dirty tree is refused with -AddToPublished too' {
+        $extra = Join-Path $script:T.Work 'extra.txt'
+        [System.IO.File]::WriteAllText($extra, 'x')
+        try {
+            $calls = @(Get-GhCall).Count
+            $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+            $result.ExitCode | Should -Be 1 -Because $result.Output
+            $result.Output | Should -Match 'not clean'
+            @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' }) | Should -BeNullOrEmpty
+        }
+        finally { Remove-Item -LiteralPath $extra }
+    }
+    It 'dry run: lists the files of the missing OS and changes nothing' {
+        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished', '-DryRun')
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match 'Would add the windows files to the published release v0\.1\.0'
+        $result.Output | Should -Match 'SHA256SUMS-windows\.txt\s+upload'
+        $result.Output | Should -Match 'Dry run: nothing was changed on GitHub'
+        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
+        @(Get-NewGhCall $calls | Where-Object { $_ -notmatch '^(auth status|release view )' }) | Should -BeNullOrEmpty
+    }
+    It 'adds the missing OS: packages first, checksum file and feed last, text and flags unchanged, and checks the whole release' {
+        $winFiles = Write-StandInBuild 'windows'
+        $macNames = @((Get-TwoRelease).assets.name)
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match 'The windows files are added to the published release v0\.1\.0; the release is complete'
+
+        $release = Get-TwoRelease
+        $release.isDraft | Should -BeFalse
+        $release.isPrerelease | Should -BeTrue
+        $release.name | Should -BeExactly 'LayerPeek 0.1.0'
+        $release.body | Should -BeExactly $script:PublishedBody
+        @($release.assets.name | Sort-Object) | Should -BeExactly @(@($macNames) + @($winFiles) | Sort-Object)
+
+        $new = @(Get-NewGhCall $calls | Where-Object { $_ -notmatch '^(auth status|release view |release download )' })
+        $new.Count | Should -Be 2 -Because ($new -join ' / ')
+        $new[0] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
+        $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64\.zip'
+        $new[0] | Should -Match 'LayerPeek-0\.1\.0-win-x64-full\.nupkg'
+        $new[0] | Should -Not -Match 'SHA256SUMS|releases\.win-x64\.json|assets\.win-x64\.json|RELEASES-win-x64'
+        $new[1] | Should -Match '^release upload v0\.1\.0 --repo test-owner/two '
+        foreach ($marker in 'SHA256SUMS-windows.txt', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64') { $new[1] | Should -Match ([regex]::Escape($marker)) }
+        $new[1] | Should -Not -Match 'win-x64\.zip|full\.nupkg|Setup\.exe'
+        @(Get-GhCall | Where-Object { $_ -match '--clobber' }) | Should -BeNullOrEmpty
+    }
+    It 'refuses the OS whose checksum file is already in the release and changes nothing' {
+        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $result.ExitCode | Should -Be 1 -Because $result.Output
+        $result.Output | Should -Match 'Published release v0\.1\.0 already contains SHA256SUMS-windows\.txt'
+        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' }) | Should -BeNullOrEmpty
+
+        # The first OS as well: its checksum file is there from the start.
+        $null = Write-StandInBuild 'macos'
+        $mac = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $mac.ExitCode | Should -Be 1 -Because $mac.Output
+        $mac.Output | Should -Match 'already contains SHA256SUMS-macos\.txt'
+        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
+    }
+    It 'resumes an interrupted upload: identical files are skipped, only the missing ones are uploaded' {
+        $null = Write-StandInBuild 'windows'
+        Set-TwoRelease { param($r) $r.assets = @($r.assets | Where-Object { $_.name -notin 'SHA256SUMS-windows.txt', 'releases.win-x64.json' }) }
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $result.ExitCode | Should -Be 0 -Because $result.Output
+        $result.Output | Should -Match 'LayerPeek-0\.1\.0-win-x64\.zip\s+skip, identical file already uploaded'
+        $new = @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' })
+        $new.Count | Should -Be 1 -Because ($new -join ' / ')
+        $new[0] | Should -Match 'SHA256SUMS-windows\.txt'
+        $new[0] | Should -Match 'releases\.win-x64\.json'
+        $new[0] | Should -Not -Match 'win-x64\.zip|assets\.win-x64\.json'
+    }
+    It 'never overwrites a file with other content or an unfinished upload, and says what to do' -ForEach @(
+        @{ Case = 'other content'; Change = { param($a) $a.digest = "sha256:$('0' * 64)" }; Pattern = 'LayerPeek-0\.1\.0-win-x64\.zip is in release v0\.1\.0 with different content.*Nothing is overwritten' }
+        @{ Case = 'unfinished'; Change = { param($a) $a.state = 'starter'; $a.Remove('digest') }; Pattern = 'LayerPeek-0\.1\.0-win-x64\.zip is in release v0\.1\.0, but its upload did not finish \(state starter, no SHA256\)\. Nothing is overwritten' }
+    ) {
+        $null = Write-StandInBuild 'windows'
+        $assetChange = $Change
+        Set-TwoRelease { param($r)
+            $r.assets = @($r.assets | Where-Object { $_.name -cne 'SHA256SUMS-windows.txt' })
+            foreach ($asset in @($r.assets | Where-Object { $_.name -ceq 'LayerPeek-0.1.0-win-x64.zip' })) { & $assetChange $asset }
+        }
+        $before = [System.IO.File]::ReadAllText($script:TwoRelease)
+        $calls = @(Get-GhCall).Count
+        $result = Invoke-T 'release-upload.ps1' @('-AddToPublished')
+        $result.ExitCode | Should -Be 1 -Because $result.Output
+        $result.Output | Should -Match $Pattern
+        [System.IO.File]::ReadAllText($script:TwoRelease) | Should -BeExactly $before
+        @(Get-NewGhCall $calls | Where-Object { $_ -match '^release upload' }) | Should -BeNullOrEmpty
     }
 }
 

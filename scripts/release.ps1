@@ -5,6 +5,9 @@
     Never publishes: publishing stays the separate manual step scripts/release-publish.ps1 (docs/release.md).
 
 .DESCRIPTION
+    Runs on Windows or macOS, on the machine whose OS goes first (T-113); the other OS only builds the tag and uploads
+    (release-upload.ps1, or -AddToPublished after an incomplete publish).
+
     Steps (docs/release.md, "Postup" steps 1-3):
       1. release/X.Y.Z from develop with the commit "Release X.Y.Z": <Version> in Directory.Build.props, release date of
          the version in CHANGELOG.md (the section '## [X.Y.Z] - unreleased' gets the date, or the entries of
@@ -19,7 +22,8 @@
 
     All preconditions are checked first and reported at once: clean tree (untracked files included), on develop and
     equal to origin/develop, origin/main and origin/develop fetched, version X.Y.Z greater than every release tag, tag
-    not taken, CHANGELOG.md has entries for the version, gh installed and logged in, MSVC / vpk present for the build.
+    not taken, CHANGELOG.md has entries for the version, gh installed and logged in, the build toolchain present (Windows:
+    MSVC and vpk, macOS: Xcode Command Line Tools).
     A real run first fetches the release remote (git fetch --no-tags: remote-tracking branches only, no local branch or
     tag changes); -DryRun fetches nothing, reads the remote with git ls-remote and asks for git fetch when needed.
     An existing release/X.Y.Z (from an earlier run or made by hand) is checked like a new one: version, dated changelog,
@@ -134,7 +138,7 @@ try {
 
     if ($DryRun) {
         Write-Host 'Dry run: nothing was changed (no git change, no push, nothing on GitHub).' -ForegroundColor Green
-        foreach ($line in @(Get-ReleaseNextSteps -Version $Version -Repository $Repo)) { Write-Host $line }
+        foreach ($line in @(Get-ReleaseNextSteps -Version $Version -Repository $Repo -HostOs $facts.HostOs -Remote ($remote ?? 'origin'))) { Write-Host $line }
         exit 0
     }
 
@@ -204,7 +208,7 @@ try {
     if ($release -and -not $release.isDraft) { Write-Host "Release $tag is already published: $($release.url)" -ForegroundColor Green }
     else {
         Write-Host "Draft release $tag is ready: $($release ? $release.url : '?')" -ForegroundColor Green
-        foreach ($line in @(Get-ReleaseNextSteps -Version $Version -Repository $Repo)) { Write-Host $line }
+        foreach ($line in @(Get-ReleaseNextSteps -Version $Version -Repository $Repo -HostOs $facts.HostOs -Remote ($remote ?? 'origin'))) { Write-Host $line }
     }
     exit 0
 }
