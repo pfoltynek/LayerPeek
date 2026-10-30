@@ -149,14 +149,22 @@ Core + nastavení s nezaškrtnutými kritérii pásu a nahlásit to (pravidlo 6 
 - **Q2 – `SettingsWidgetsResetHelp`:** (cs) „Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů a obsah
   malého náhledu této tiskárny na výchozí.“, přeloženo do všech 8 jazyků.
 
-Nové (neblokuje, k revizi ui-designer / uživatele):
+**Rozhodnuto uživatelem 2026-10-30 (po revizi ui-designer, provedeno ve větvi `feature/design-review-fixes`):**
+- **Ikona položky „Malý náhled“ – varianta A:** ruční náhrada nahrazena oficiální cestou Fluent
+  `ic_fluent_picture_in_picture_16_regular` (stejný klíč i plátno). ✔ vyřešeno.
+- **Q-D1 – varianta A:** tooltipy / `HelpText` polí 6 a 7 jmenují tlačítko pásu jeho názvem (`CameraMiniToggleName` /
+  `CameraMiniToggleChart`) místo symbolů ⬡ / 📈, ve všech 8 jazycích. ✔ vyřešeno.
+- **Nález 1 (řádky sloupců):** jedna `Grid` se sdílenými řádky `Auto`. ✔ vyřešeno.
+- **Nález 4 (snímky):** doplnit `settings-widgets-mini-strip-camera-off-it` a `settings-widgets-mini-strip-dark`. ✔ vyřešeno.
+
+Původní znění otázek (pro historii):
 - **Ikona položky „Malý náhled“:** oficiální cesta Fluent `ic_fluent_picture_in_picture_16_regular` nebyla v offline
   relaci k dispozici (bez sítě, žádný lokální balíček ikon). `IconPictureInPicture16Regular` v `OverlayIcons.axaml` je
   zatím ručně nakreslená náhrada stejného tvaru (obrys 1, roh 2,5, malý obraz vpravo dole), v XAML označená komentářem.
   Při příští aktualizaci sady ikon ji nahradit cestou z `@fluentui/svg-icons` (stejný klíč i plátno, nic jiného se
   nemění). Potvrdit, že je to tak v pořádku.
 
-Revize ui-designer 2026-10-30 (k rozhodnutí uživatele, neblokuje):
+Revize ui-designer 2026-10-30 (rozhodnuto výše):
 - **Ikona položky „Malý náhled“ (odpověď na otázku výše):** náhrada je jako dočasná přijatelná (čitelná při 16 px).
   (A, doporučeno) nahradit ji oficiální cestou Fluent hned v tomto úkolu – cesta je teď dostupná a zapsaná v revizi
   níže, licence MIT / (B) nechat náhradu do příští aktualizace sady ikon.
@@ -262,3 +270,34 @@ Nálezy:
 5. **Informace – neověřeno:** zda čtečky (Narrator / VoiceOver) nezapočítají oddělovač do „položka x z 8“
    (`AccessibilityView=Raw` je správně, ale `PositionInSet` headless test neukáže); šířky textů na Windows (Segoe UI) –
    poznámka `MiniStripHint` má `NoWrap` + výpustku, při ≤ 60 znacích riziko malé, potvrdí Windows snímky.
+
+### Úpravy po revizi ui-designer (ui-dev, 2026-10-30, macOS; větev `feature/design-review-fixes`)
+- **Ikona:** `IconPictureInPicture16Regular` v `Cameras/Overlay/OverlayIcons.axaml` má oficiální cestu
+  `@fluentui/svg-icons` `icons/picture_in_picture_16_regular.svg` (z revize výše, „F1“ = nenulové pravidlo výplně jako
+  ostatní ikony), komentář `<!-- ic_fluent_picture_in_picture_16_regular.svg -->`. Licence MIT (Fluent UI System Icons,
+  © Microsoft), kompatibilní s GPL-3.0, text licence už je v `Licenses/Texts/mit-fluentui-system-icons.txt`; žádný balíček,
+  jen geometrie (AOT beze změny). Pozn.: hlavička souboru uvádí verzi sady 1.1.344, cesta této ikony je převzatá z revize
+  (ověřeno ui-designerem 2026-10-30), přesná verze balíčku není zapsaná.
+- **Tooltipy polí 6 a 7** (`SettingsMiniStripNameRowHelp`, `SettingsMiniStripChartRowHelp`, 8 jazyků): cs „Řádek
+  rozbalíte v malém náhledu tlačítkem „Název tisku v pásu“.“ / „… tlačítkem „Graf teplot v pásu“.“; ostatní jazyky stejně
+  s přesným názvem přepínače z `CameraMiniToggleName` / `CameraMiniToggleChart` v uvozovkách daného jazyka (fr « … »
+  s U+00A0). Test `ResetHelpMentionsTheMiniPreviewInEveryLanguage` ověřuje, že text obsahuje název přepínače a žádný
+  symbol.
+- **Panel:** `MiniStripSettings` je jedna `Grid` `*,24,*` × `Auto,Auto,Auto,Auto`, pole deklarovaná po sloupcích (pořadí
+  Tab beze změny – test `SpaceOnTheItemChangesNothingAndTabGoesThroughTheColumns` prochází), `VerticalAlignment="Top"`.
+  Nový test v `PanelFitsWithoutClippingInEveryLanguage`: řádky 1–3 obou sloupců začínají ve všech 8 jazycích na stejném
+  y (ve fr dřív 170 / 204 / 236 proti 170 / 202 / 234). Záložka se dál vejde (`SettingsWindowLayoutTests`).
+- **Nové snímky:** `settings-widgets-mini-strip-dark` (tmavý motiv, Zbývající čas vypnutý) a
+  `settings-widgets-mini-strip-camera-off-it` (kamera vypnutá, zakázaná pole, Vychladnutí vypnuté) v
+  `SettingsWindowSnapshotTests`.
+- **Snímky macOS přegenerované a prohlédnuté:** nové `settings-widgets-mini-strip-dark`,
+  `settings-widgets-mini-strip-camera-off-it`; změněné (nová ikona v seznamu, ve fr zarovnané řádky)
+  `settings-widgets`, `settings-widgets-dark`, `settings-widgets-camera-off-it`, `settings-widgets-cooldown-de`,
+  `settings-widgets-cooldown-error-fr`, `settings-widgets-mini-strip`, `settings-widgets-mini-strip-de`,
+  `settings-widgets-mini-strip-fr`.
+- **Windows (ručně, nahrazuje seznam výše):** přegenerovat a prohlédnout v `tests/LayerPeek.App.UiTests/Snapshots/`
+  nové `settings-widgets-mini-strip.png`, `settings-widgets-mini-strip-de.png`, `settings-widgets-mini-strip-fr.png`,
+  `settings-widgets-mini-strip-dark.png`, `settings-widgets-mini-strip-camera-off-it.png`,
+  `camera-mini-strip-custom-240.png`, `camera-mini-strip-no-rows-320.png`; změněné `settings-widgets.png`,
+  `settings-widgets-dark.png`, `settings-widgets-camera-off-it.png`, `settings-widgets-cooldown-de.png`,
+  `settings-widgets-cooldown-error-fr.png`. Úkol proto zůstává v `in-progress`.

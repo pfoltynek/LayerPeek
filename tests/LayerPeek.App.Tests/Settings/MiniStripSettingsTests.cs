@@ -331,8 +331,8 @@ public sealed class MiniStripSettingsTests : IDisposable
         using (new CultureScope("cs-CZ"))
         {
             Assert.Equal("Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů a obsah malého náhledu této tiskárny na výchozí.", Strings.SettingsWidgetsResetHelp);
-            Assert.Equal("Řádek rozbalíte tlačítkem ⬡ v malém náhledu.", Strings.SettingsMiniStripNameRowHelp);
-            Assert.Equal("Řádek rozbalíte tlačítkem 📈 v malém náhledu.", Strings.SettingsMiniStripChartRowHelp);
+            Assert.Equal("Řádek rozbalíte v malém náhledu tlačítkem „Název tisku v pásu“.", Strings.SettingsMiniStripNameRowHelp);
+            Assert.Equal("Řádek rozbalíte v malém náhledu tlačítkem „Graf teplot v pásu“.", Strings.SettingsMiniStripChartRowHelp);
         }
 
         // The name of the item, declined where the language needs it.
@@ -342,8 +342,11 @@ public sealed class MiniStripSettingsTests : IDisposable
             using CultureScope culture = new(language);
             string name = declined.GetValueOrDefault(language) ?? Strings.SettingsCameraWindowMini;
             Assert.Contains(name, Strings.SettingsWidgetsResetHelp, StringComparison.OrdinalIgnoreCase);
-            Assert.Contains("⬡", Strings.SettingsMiniStripNameRowHelp, StringComparison.Ordinal);
-            Assert.Contains("📈", Strings.SettingsMiniStripChartRowHelp, StringComparison.Ordinal);
+            // Q-D1 A (ui-designer review 2026-10-30): the help names the toggle of the strip by its own name, no symbol.
+            Assert.Contains(Strings.CameraMiniToggleName, Strings.SettingsMiniStripNameRowHelp, StringComparison.Ordinal);
+            Assert.Contains(Strings.CameraMiniToggleChart, Strings.SettingsMiniStripChartRowHelp, StringComparison.Ordinal);
+            Assert.DoesNotContain("⬡", Strings.SettingsMiniStripNameRowHelp, StringComparison.Ordinal);
+            Assert.DoesNotContain("📈", Strings.SettingsMiniStripChartRowHelp, StringComparison.Ordinal);
             Assert.InRange(Strings.SettingsMiniStripHint.Length, 1, 60);
         }
     }

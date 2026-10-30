@@ -5,7 +5,8 @@
   M (top down): state icon 20 + title 14 semi-bold → 8 → nozzle (cooling 22 bold, cooled 14 semi-bold) and bed 14
      semi-bold secondary → 8 → bar 6 in OverlayCoolingBrush (cooling) → 8 → detail 12 secondary, at most 2 lines.
   L: title 16, nozzle 28 bold, bar 8, detail 13, icons 24.
-  S: one row "❄ 87 °C · about 6 min" + bar 4 (cooling) or "⏻ Cooled down · 48 °C" (cooled down).
+  S: one row "❄ 87 °C · about 6 min" + bar 4 (cooling) or "⏻ Cooled down · 48 °C" (cooled down); while cooling the
+     limiting temperature (T-109) has the icon of its sensor (cone / line, 12 + 2) in front of it.
   Icons: Weather Snowflake in OverlayCoolingBrush while cooling, Power in OverlayCooledBrush once cooled; the nozzle
   (cone pointing down) and bed (line) in the colours of the Temperatures widget. The key value is the nozzle while
   cooling and the state text once cooled down: accent colour and at least 15 bold when emphasized (T-076 1.3), within the
@@ -87,8 +88,9 @@
 
     <!--
       Temperature row: in M / L below the title over the whole width, the cone under the state icon (its text where the
-      title starts); in S the limiting temperature (T-109) alone right of the state icon. Every element that spans columns also spans the star
-      column, so that it never widens the auto columns of the icon and of the S nozzle.
+      title starts); in S the limiting temperature (T-109) with its sensor icon alone right of the state icon. Every element
+      that spans columns also spans the star column, so that it never widens the auto columns of the icon and of the S
+      nozzle.
     -->
     <Style Selector="StackPanel.cooldownTemperatures">
       <Setter Property="Grid.Row" Value="1" />
@@ -121,6 +123,12 @@
     </Style>
     <Style Selector="ov|OverlayIcon.cooldownBedIcon">
       <Setter Property="Data" Value="{DynamicResource IconLineHorizontal1_16Filled}" />
+    </Style>
+    <!-- S (T-109 Q3 B, ui-designer review 2026-10-30): the sensor of the limiting temperature, 12 + 2 in front of it. -->
+    <Style Selector="Border.overlayCard.small ov|OverlayIcon.cooldownTemperatureIcon">
+      <Setter Property="Width" Value="12" />
+      <Setter Property="Height" Value="12" />
+      <Setter Property="Margin" Value="0,0,2,0" />
     </Style>
     <Style Selector="Border.overlayCard.large ov|OverlayIcon.cooldownBedIcon">
       <Setter Property="Data" Value="{DynamicResource IconLineHorizontal1_20Filled}" />
@@ -227,11 +235,14 @@
         <ov:OverlayIcon Classes="cooldownTemperatureIcon cooldownCone"
                         Data="{DynamicResource IconCone16Filled}"
                         Foreground="{DynamicResource OverlayNozzleBrush}"
-                        IsVisible="{Binding !IsSmall}">
+                        IsVisible="{Binding ShowsNozzleIcon}">
           <ov:OverlayIcon.RenderTransform>
             <RotateTransform Angle="180" />
           </ov:OverlayIcon.RenderTransform>
         </ov:OverlayIcon>
+        <ov:OverlayIcon Classes="cooldownTemperatureIcon cooldownBedIcon"
+                        Foreground="{DynamicResource OverlayBedBrush}"
+                        IsVisible="{Binding ShowsSmallBedIcon}" />
         <TextBlock Classes="cooldownValue numeric"
                    Classes.cooling="{Binding IsCooling}"
                    Classes.emphasized="{Binding EmphasizesNozzle}"

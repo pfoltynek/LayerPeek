@@ -1403,9 +1403,9 @@
     <value>Lo stato della stampante è sempre visibile.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Espandi la riga con il pulsante ⬡ nell'anteprima mini.</value>
+    <value>Espandi la riga nell'anteprima mini con il pulsante “Nome della stampa nella barra”.</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Espandi la riga con il pulsante 📈 nell'anteprima mini.</value>
+    <value>Espandi la riga nell'anteprima mini con il pulsante “Grafico delle temperature nella barra”.</value>
   </data>
 </root>

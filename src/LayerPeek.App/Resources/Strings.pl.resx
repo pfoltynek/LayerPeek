@@ -1403,9 +1403,9 @@
     <value>Stan drukarki jest zawsze widoczny.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Rozwiń wiersz przyciskiem ⬡ w małym podglądzie.</value>
+    <value>Rozwiń wiersz w małym podglądzie przyciskiem „Nazwa wydruku w pasku”.</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Rozwiń wiersz przyciskiem 📈 w małym podglądzie.</value>
+    <value>Rozwiń wiersz w małym podglądzie przyciskiem „Wykres temperatur w pasku”.</value>
   </data>
 </root>

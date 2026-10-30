@@ -1403,9 +1403,9 @@
     <value>L'état de l'imprimante est toujours affiché.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Dépliez la ligne avec le bouton ⬡ du mini-aperçu.</value>
+    <value>Dépliez la ligne dans le mini-aperçu avec le bouton « Nom de l'impression dans le bandeau ».</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Dépliez la ligne avec le bouton 📈 du mini-aperçu.</value>
+    <value>Dépliez la ligne dans le mini-aperçu avec le bouton « Graphique des températures dans le bandeau ».</value>
   </data>
 </root>

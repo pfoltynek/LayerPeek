@@ -1473,11 +1473,11 @@
     <comment>T-110: one line under the check boxes, at most 60 characters.</comment>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Expand the row with the ⬡ button in the mini preview.</value>
+    <value>Expand the row in the mini preview with the “Print name in the strip” button.</value>
     <comment>T-110: tooltip of SettingsMiniStripNameRow; the symbol stands for the cube toggle of the strip.</comment>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Expand the row with the 📈 button in the mini preview.</value>
+    <value>Expand the row in the mini preview with the “Temperature chart in the strip” button.</value>
     <comment>T-110: tooltip of SettingsMiniStripChartRow; the symbol stands for the chart toggle of the strip.</comment>
   </data>
 </root>

@@ -23,7 +23,7 @@ Při testování na Macu (2026-10-29) byla upozornění v macOS vypnutá a uživ
 ## Akceptační kritéria
 - [x] Tlačítko na Windows pošle zkušební toast (test s falešnou platformou)
 - [x] Na macOS vyvolá dotaz na povolení (`notDetermined`), při zamítnutí nabídne Nastavení systému, při povolení pošle upozornění (testy s falešnou platformou)
-- [ ] Texty v 8 jazycích, UI testy bez ořezání na obou platformách, revize ui-designerem (texty ve všech 8 jazycích a UI testy na macOS hotové; chybí běh UI testů a přegenerování snímků na Windows a revize ui-designerem)
+- [ ] Texty v 8 jazycích, UI testy bez ořezání na obou platformách, revize ui-designerem (texty ve všech 8 jazycích, UI testy na macOS a revize ui-designerem 2026-10-30 hotové, nálezy zapracované; chybí běh UI testů a přegenerování snímků na Windows)
 - [ ] Ověřeno uživatelem na Macu i Windows
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování (na macOS ano, viz poznámky; na Windows neověřeno)
 
@@ -168,7 +168,8 @@ Jen při variantě B otázky 1 (Windows bez tlačítka, jen text výsledku):
 4. ~~**Co udělá kliknutí na zkušební upozornění?**~~ (rozhodnuto 2026-10-29) Varianta A: přenese do popředí (nebo otevře) okno Nastavení na záložce Obecné; nový druh launch argumentu ověřený jako `ToastLaunchArgument.IsWellFormed` (T-068), stejnou cestou aktivace (příkaz instance / `ToastActivationRouter`) na obou OS; během čekání na displej (T-099, macOS) se podrží jako aktivace a vyřídí po připojení UI.
 5. ~~**Ověřit na lokalizovaných systémech** názvy „Nerušit“ (Windows 11) a „Soustředění/Focus“ (macOS) v 8 jazycích.~~ (rozhodnuto 2026-10-29) Ověřit (macOS z lokalizačních tabulek systému, Windows ze stránek podpory Microsoftu), texty opravit a zapsat zdroje – provedeno, viz Poznámky k implementaci.
 
-6. **Výška tlačítek v okně Nastavení (revize ui-designer 2026-10-30, mimo rozsah T-101):** tlačítka okna mají výchozí
+6. ~~**Výška tlačítek v okně Nastavení (revize ui-designer 2026-10-30, mimo rozsah T-101):**~~ (rozhodnuto uživatelem
+   2026-10-30) → samostatný úkol (založí architekt), v T-101 se neimplementuje. tlačítka okna mají výchozí
    Fluent výšku (headless macOS ≈ 28 DIP), tj. pod cílem 32 DIP pro cíl klepnutí. (A, doporučeno) samostatný úkol: styl
    `Button` s `MinHeight="32"` v `SettingsWindow.axaml` + kontrola výšek všech záložek (T-033) a přegenerování snímků /
    (B) ponechat výchozí Fluent výšku (na Windows se Segoe UI je blízko 32 DIP).
@@ -243,3 +244,18 @@ Nálezy:
    `settings-general-turned-off-de` (nejdelší varování + tlačítko) a `settings-general-test-sent-dark`.
 4. **Informace – neověřeno:** Windows (Segoe UI, Windows sada snímků, skutečný toast, `ms-settings:notifications`),
    skutečný systémový dotaz macOS a čtení výsledku VoiceOverem / Narratorem.
+
+### Úpravy po revizi ui-designer (ui-dev, 2026-10-30, macOS; větev `feature/design-review-fixes`)
+Rozhodnutí uživatele 2026-10-30: nález 1 a nález 3 zapracovat, nález 2 (Q6) → samostatný úkol.
+- **Nález 1:** `TestNotificationButton` a `OpenNotificationSettingsButton` v `Windows/SettingsWindow.axaml` mají
+  `Margin="0,8,0,4"` (dřív `0,12,0,0`); výška řádku nadpisu stejná, tlačítko o 4 DIP výš a 4 DIP od seznamu Zvuk (na
+  snímku en spodní hrana tlačítka y ≈ 180, seznam Zvuk y ≈ 185). `GeneralTabWithTheTestNotificationFitsInEveryLanguage`
+  a test T-020 prošly beze změny.
+- **Nález 3:** nové snímky `settings-general-turned-off-de` (němčina, vypnuto v systému: varování + „Mitteilungen
+  öffnen“, termíny OS dané sady jako u `settings-general-test-sent-fr`) a `settings-general-test-sent-dark` (tmavý motiv,
+  výsledek „odesláno“) v `SettingsWindowSnapshotTests`. Stav „čekám na odpověď“ snímek nemá (jen testy stromu).
+- **Snímky macOS přegenerované a prohlédnuté:** změněné `settings-general`, `settings-general-errors`,
+  `settings-general-test-sent-fr`; nové `settings-general-turned-off-de`, `settings-general-test-sent-dark`.
+- **Windows (ručně):** přegenerovat a prohlédnout v `tests/LayerPeek.App.UiTests/Snapshots/` `settings-general.png`,
+  `settings-general-errors.png`, `settings-general-test-sent-fr.png` (nový i podle původního seznamu) a nové
+  `settings-general-turned-off-de.png`, `settings-general-test-sent-dark.png`. Úkol zůstává v `in-progress`.

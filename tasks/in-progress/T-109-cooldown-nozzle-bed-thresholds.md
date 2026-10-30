@@ -51,7 +51,8 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
 - [ ] Snímky: macOS přegenerované a prohlédnuté; **Windows sadu přegenerovat na Windows** (seznam v Poznámkách).
 - [x] Dokumentace (`docs/architecture.md`, README), CHANGELOG [0.3.1].
 - [x] `dotnet build` (Debug i Release) a `dotnet test` bez chyb a varování.
-- [ ] Revize ui-designer (oddíl Otevřené otázky Q2–Q4) a potvrzení uživatele k Q1.
+- [x] Revize ui-designer (oddíl Otevřené otázky Q2–Q4) a potvrzení uživatele k Q1 (Q1 2026-10-30, Q2–Q4 2026-10-30
+      po revizi ui-designer).
 
 ## Návrh (ui-dev, 2026-10-29) – k revizi ui-designer
 - **Panel Vychladnutí na záložce Widgety:** zůstává rozvržení T-092 – výběr tiskárny nad seznamem widgetů (sdílený se
@@ -73,7 +74,25 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
   podložky dnešní „Tryska 38 °C, práh 40 °C“.
 
 ## Otevřené otázky
-**Rozhodnuto 2026-10-30 (uživatel): Q1 A (obě topení), Q5 ano (jen tryska bez teploty podložky)** – potvrzuje implementaci. Q2–Q4 čekají na revizi ui-designera.
+**Rozhodnuto 2026-10-30 (uživatel): Q1 A (obě topení), Q5 ano (jen tryska bez teploty podložky)** – potvrzuje implementaci.
+
+**Rozhodnuto 2026-10-30 (uživatel, po revizi ui-designer):**
+- **Q2 – A** (dvě pole vedle sebe, implementováno). ✔ vyřešeno.
+- **Q3 – pás A** (jen omezující teplota bez označení, implementováno); **widget S: B** – před zvýrazněnou omezující
+  teplotou ikona čidla (kužel trysky / čára podložky ve svých barvách, 12 DIP + mezera 2). ✔ provedeno ve větvi
+  `feature/design-review-fixes` (viz Poznámky).
+- **Q4 – A** (velké číslo zůstává tryska, implementováno). ✔ vyřešeno.
+- **Nález 1 revize (zvýraznění chybného pole)** → samostatný úkol (založí architekt), zde se neimplementuje. ✔ vyřešeno.
+
+Nové (neblokuje, k rozhodnutí uživatele / ui-designer), zjištěno při úpravě widgetu S 2026-10-30:
+- **QS1 – čára podložky před číslem připomíná znaménko minus.** Na snímku `camera-widget-cooldown-cooling-s-bed`
+  (macOS) se ikona podložky 12 DIP s mezerou 2 DIP před „57 °C“ čte jako „−57 °C“ (záporná teplota). Kužel trysky
+  (`camera-widget-cooldown-cooling-s`) je jednoznačný. Varianty: (A) ponechat podle revize / (B) větší mezera mezi
+  ikonou a číslem (např. 4–6 DIP jako v M / L) / (C) jiná ikona podložky ve widgetu S (např. podložka s vlnkami
+  tepla) – rozhodne ui-designer / uživatel.
+- **QS2 – S „Vychladlo“:** po vychladnutí je teplota ve widgetu S součástí textu stavu („⏻ Vychladlo · 40 °C“, jeden
+  `TextBlock`), proto tam ikona čidla zatím není (pokyn mluvil o zvýrazněné teplotě, ta je jen během chladnutí). Má
+  ikona být i v tomto stavu? (A) ne, stav je klíčová hodnota / (B) ano – rozdělit text a ikonu vložit před teplotu.
 
 **Doporučení ui-designera k Q2–Q4 (revize 2026-10-30, podrobnosti v Poznámkách; k potvrzení uživatelem):**
 - **Q2 – (A, doporučeno, implementováno) dvě pole vedle sebe** s krátkými popisky a tlačítkem vpravo. Vejde se v 8
@@ -218,3 +237,21 @@ Nálezy:
    → `RevealErrors`). Chování je bezpečné; jen konstatuji, nic neměnit (zakázané tlačítko by bez vysvětlení mátlo víc).
 3. **Informace – neověřeno:** Windows snímky (Segoe UI je širší → tlačítko „Použít prahy…“ může mít 2 řádky i v en),
    skutečný toast s podložkou.
+
+### Úpravy po revizi ui-designer (ui-dev, 2026-10-30, macOS; větev `feature/design-review-fixes`)
+- **Widget S (Q3 B):** `CooldownContent.Limiting` (`CooldownSensor`; podložka jen když omezuje a tiskárna ji hlásí).
+  `CooldownWidgetViewModel.ShowsNozzleIcon` (M / L vždy, S když omezuje tryska) a `ShowsSmallBedIcon` (S, když omezuje
+  podložka). `CooldownWidgetView.axaml`: kužel trysky (`IconCone16Filled`, `OverlayNozzleBrush`, otočený) nebo čára
+  podložky (`IconLineHorizontal1_16Filled`, `OverlayBedBrush`) před teplotou; v S 12 × 12 DIP, mezera 2 DIP (karta S
+  o 14 DIP širší, max. šířka 240 DIP beze změny). Jen během chladnutí (viz QS2). M / L beze změny.
+- **Testy:** App `CooldownWidgetTests` (ikona podle omezující teploty v S / M / L, `content.Limiting`), UI
+  `CameraWindowCooldownWidgetUiTests`: S během chladnutí má kužel 12 × 12 v barvě trysky 2 DIP před číslem; nový
+  `SmallCardShowsTheBedIconWhileTheBedLimits` (podložka omezuje → čára podložky v barvě podložky, ne kužel; karta se
+  vejde ve všech 8 jazycích) + snímek. `LongestTextsFitInEveryLanguageAndSize` (8 jazyků × S / M / L) prochází s ikonou.
+- **Snímky macOS přegenerované a prohlédnuté:** změněný `camera-widget-cooldown-cooling-s` (kužel před „150 °C“), nový
+  `camera-widget-cooldown-cooling-s-bed` (čára podložky před „57 °C“ – viz QS1). `camera-widget-cooldown-cooled-s` beze
+  změny.
+- **Windows (ručně):** přegenerovat a prohlédnout v `tests/LayerPeek.App.UiTests/Snapshots/` vedle seznamu výše také
+  změněný `camera-widget-cooldown-cooling-s.png` a nový `camera-widget-cooldown-cooling-s-bed.png`. Úkol zůstává
+  v `in-progress` (Windows snímky).
+- CHANGELOG [0.3.1] Changed: řádek o ikoně čidla ve widgetu S. `docs/architecture.md` (Vychladnutí T-088) doplněno.

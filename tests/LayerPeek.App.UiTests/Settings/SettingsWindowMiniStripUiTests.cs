@@ -233,6 +233,17 @@ public sealed class SettingsWindowMiniStripUiTests(HeadlessSession session)
                 }
             }
 
+            // ui-designer review 2026-10-30 (finding 1): the rows of both columns stay level even when a text wraps.
+            for (int row = 0; row < 3; row++)
+            {
+                double left = BoundsIn(Box(ui, Boxes[row]), ui.Window).Top;
+                double right = BoundsIn(Box(ui, Boxes[row + 4]), ui.Window).Top;
+                if (Math.Abs(left - right) > 0.5)
+                {
+                    problems.Add($"{language}: row {row + 1} starts at {left:0.#} on the left and {right:0.#} on the right.");
+                }
+            }
+
             TextBlock hint = ui.Find<TextBlock>("MiniStripHint");
             if (hint.TextLayout.TextLines.Count != 1 || hint.TextLayout.WidthIncludingTrailingWhitespace > hint.Bounds.Width + 0.5)
             {
