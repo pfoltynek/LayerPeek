@@ -473,6 +473,105 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-maximized");
         });
 
+    // ---- Invalid fields (T-112, design 8): the 2 DIP red outline, focused after Save ----
+
+    /// <summary>Only the address is invalid (empty): Save focuses it; the red outline replaces the accent of the focus.</summary>
+    [Fact]
+    public Task InvalidAddressFocusedAfterSave() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            Ui.FreezeCaret(ui.AddressBox);
+            ui.ViewModel.SelectedPrinter!.Address = string.Empty;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            Assert.True(ui.AddressBox.IsFocused);
+            SnapshotAssert.Matches(ui.Window, "settings-invalid-address-focused", keepFocus: true);
+        });
+
+    /// <summary>Only the size of the normal window is invalid: its editable ComboBox is marked, the mini preview's next to it is not.</summary>
+    [Fact]
+    public Task CameraWindowSubTabWithOnlyTheNormalSizeInvalid() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) }),
+                screens: FakeScreenCatalog.ThreeMonitors());
+            ui.ViewModel.SelectedPrinter!.NormalSizeText = "100 x 50";
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-window-error-normal-size");
+        });
+
+    /// <summary>Cool-down with only the nozzle threshold invalid: only its box is marked, the error text is the common one (Q1 A).</summary>
+    [Fact]
+    public Task WidgetsTabCooldownWithOnlyTheNozzleThresholdInvalid() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.Printers[0].CooldownNozzleThresholdCelsius = 120;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-cooldown-error-nozzle");
+        });
+
+    /// <summary>The invalid polling interval focused after Save: the TextBox inside the NumericUpDown draws no accent over the outline.</summary>
+    [Fact]
+    public Task GeneralTabWithErrorsFocusedAfterSave() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+            Avalonia.Controls.TextBox text = InnerTextBox(ui, "SettingsPollingInterval");
+            Ui.FreezeCaret(text);
+            ui.ViewModel.PollingIntervalSeconds = 0;
+            ui.ViewModel.RemainingTimeMinutes = 2000;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            Assert.True(text.IsFocused);
+            SnapshotAssert.Matches(ui.Window, "settings-general-errors-focused", keepFocus: true);
+        });
+
+    /// <summary>The Printer sub-tab with invalid address, user name and password in the dark theme.</summary>
+    [Fact]
+    public Task PrinterErrorsInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            printer.Address = "ftp://printer";
+            printer.UserName = "ma:ker";
+            printer.Password = "\uD800";
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-errors-dark");
+        });
+
+    /// <summary>The invalid NumericUpDowns of the General tab in the dark theme.</summary>
+    [Fact]
+    public Task GeneralTabWithErrorsInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            ui.ViewModel.PollingIntervalSeconds = 0;
+            ui.ViewModel.RemainingTimeMinutes = 2000;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-general-errors-dark");
+        });
+
+    private static Avalonia.Controls.TextBox InnerTextBox(SettingsWindowHarness ui, string automationId) =>
+        Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(ui.Find<Avalonia.Controls.NumericUpDown>(automationId))
+            .OfType<Avalonia.Controls.TextBox>()
+            .First(static box => box.Name == "PART_TextBox");
+
     /// <summary>A new printer with a name, no address and a user name with a colon, after a save attempt.</summary>
     private static async Task<SettingsWindowHarness> OpenWithValidationErrorsAsync(UiTestScope scope)
     {

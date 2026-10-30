@@ -52,6 +52,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- Settings: a field with an invalid value now has a red outline (2 px, also in the dark theme), so it is clear which
+  field "Fix the highlighted fields" means, e.g. the nozzle or the bed threshold of the *Cool-down* widget, which share
+  one message. After **Save** (and **Apply** of the camera window, and **Test connection** / **Test camera** refused
+  because of a field) the keyboard focus moves to the first invalid field, and screen readers (Narrator, NVDA,
+  VoiceOver) read its error as the help text of the field; a valid field gives its hint. The fields keep their size,
+  so the window still fits without scrolling.
 - Cool-down: a printer now counts as cooled down only when **both the nozzle and the bed** are at or below their
   thresholds (before, only the nozzle decided). Each printer has a nozzle and a bed threshold, 40 °C each by default,
   set in the *Cool-down* widget on the *Widgets* tab of the settings for the printer selected there, with **Use

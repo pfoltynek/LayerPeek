@@ -414,6 +414,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             if (SetProperty(ref _pollingIntervalError, value))
             {
                 OnPropertyChanged(nameof(ShowsPollingIntervalHint));
+                OnPropertyChanged(nameof(HasPollingIntervalError));
+                OnPropertyChanged(nameof(PollingIntervalHelpText));
             }
         }
     }
@@ -492,7 +494,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public string? RemainingTimeError
     {
         get => _remainingTimeError;
-        private set => SetProperty(ref _remainingTimeError, value);
+        private set
+        {
+            if (SetProperty(ref _remainingTimeError, value))
+            {
+                OnPropertyChanged(nameof(HasRemainingTimeError));
+                OnPropertyChanged(nameof(RemainingTimeHelpText));
+            }
+        }
     }
 
     public IReadOnlyList<SoundOption> SoundOptions { get; }
@@ -906,6 +915,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
 
         RefreshWidgetTexts();
+        OnPropertyChanged(nameof(PollingIntervalHelpText));
+        OnPropertyChanged(nameof(RemainingTimeHelpText));
     }
 
     /// <summary>
@@ -1200,11 +1211,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab
                     : invalid.HasCameraErrors ? CameraPrinterTab
                     : CameraWindowPrinterTab;
+                RequestFieldFocus(invalid.FirstInvalidField(SelectedPrinterTabIndex));
             }
             else
             {
                 SelectedTabIndex = WidgetsTab;
                 SelectFirstWidgetWithError(invalid);
+                RequestFieldFocus(FirstInvalidWidgetField(invalid));
             }
 
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
@@ -1215,6 +1228,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         {
             SelectedTabIndex = GeneralTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
+            RequestFieldFocus(FirstInvalidGeneralField());
             return;
         }
 

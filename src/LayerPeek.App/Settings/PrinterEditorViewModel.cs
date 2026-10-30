@@ -222,6 +222,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
             OnPropertyChanged(nameof(UserNameHint));
             OnPasswordPresentationChanged();
+            OnFieldStatesChanged();
             TestConnectionCommand.NotifyCanExecuteChanged();
             InvalidateTest();
             ValidateAddress();
@@ -1043,6 +1044,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         // Cool-down threshold (T-080): its error, the sub-tab name and the tooltip of "Use … for all printers".
         OnCooldownErrorsChanged();
         OnPropertyChanged(nameof(ApplyToAllUnavailableReason));
+
+        // T-112: the help texts of the fields (their errors and hints) for screen readers.
+        OnFieldStatesChanged();
     }
 
     /// <summary>
@@ -1080,6 +1084,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             // The explanation is at the field (shown now); the result only points there, so it is not repeated (T-033).
             RevealErrors();
             SetTestResult(static () => Strings.SettingsFixErrors, TestResultKind.Failure);
+            // T-112 Q5: the focus goes to the first invalid field of the sub-tab, so a screen reader reads its error.
+            _owner.RequestFieldFocus(this, SettingsViewModel.ConnectionPrinterTab);
             return;
         }
 
@@ -1164,6 +1170,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             SetCameraTestResult(
                 _cameraUrlProblem is not null ? static () => Strings.SettingsFixErrors : () => CameraProblemText(problem),
                 TestResultKind.Failure);
+            // T-112 Q5: with a field error, the focus goes to the camera address (its error is read out).
+            _owner.RequestFieldFocus(this, SettingsViewModel.CameraPrinterTab);
             return;
         }
 
@@ -1511,6 +1519,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsPasswordHint));
         OnPropertyChanged(nameof(ShowsCameraUrlHint));
         OnCooldownErrorsChanged();
+        OnFieldStatesChanged();
     }
 
     private static string TabName(string name, bool hasErrors) =>
@@ -1520,6 +1529,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PasswordWatermark));
         OnPropertyChanged(nameof(PasswordHint));
+        OnPropertyChanged(nameof(PasswordHelpText));
     }
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);

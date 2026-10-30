@@ -107,6 +107,60 @@
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="Padding" Value="10,0" />
     </Style>
+
+    <!--
+      T-112 (design "Návrh" 1, 7): an invalid field (class "invalid", bound to its Has…Error) has a 2 DIP outline in
+      SettingsErrorBrush around the whole control, in every state (pointer over, pressed, focused, open); the window styles
+      win over the control themes, so the red also replaces the accent of the focus. The outline is drawn by parts of the
+      templates (Fluent of Avalonia 12.1.4) that do not take part in measuring, so the field keeps its size and its text does
+      not move; also in WidgetSettingsTemplates.axaml (rendered inside this window). SettingsWindowInvalidFieldUiTests.
+    -->
+    <!-- TextBox: PART_BorderElement has no child; the content keeps its margin of the control's BorderThickness (1). -->
+    <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!-- Editable ComboBox: the border and the focus overlay have no child; its inner TextBox has no border of its own. -->
+    <Style Selector="ComboBox.invalid /template/ Border#Background, ComboBox.invalid /template/ Border#HighlightBackground">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!--
+      NumericUpDown: the border of the ButtonSpinner is measured, so 2 instead of 1 is compensated by the margin of the inner
+      TextBox (-2 instead of -1, its MinHeight stays 32): the field keeps 32 DIP and the text its place. The inner TextBox
+      overlaps the outline on the left, top and bottom and draws its own border (2 DIP accent when focused) there: red on
+      those sides, none on the right, where the divider of the ▲ button stays. The dividers of ▲ ▼ keep the theme colour
+      at 1 DIP (only the outline is red).
+    -->
+    <Style Selector="NumericUpDown.invalid /template/ ButtonSpinner#PART_Spinner">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid /template/ TextBox#PART_TextBox">
+      <Setter Property="Margin" Value="-2,-2,0,-2" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2,2,0,2" />
+    </Style>
+    <!-- The template derives the left border of ▲ ▼ from the spinner's BorderThickness: back to 1 DIP. -->
+    <Style Selector="NumericUpDown.invalid /template/ ButtonSpinner#PART_Spinner /template/ RepeatButton">
+      <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1,0,0,0" />
+    </Style>
+    <!--
+      T-112 (design 5): the keyboard focus of a NumericUpDown and of an editable ComboBox is on the TextBox of its template,
+      whose automation peer would have no name and no help text: it gets those of its control, so a screen reader reads the
+      same (with the error of an invalid field) whichever of the two it reports.
+    -->
+    <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
+      <Setter Property="AutomationProperties.Name" Value="{Binding $parent[NumericUpDown].(AutomationProperties.Name)}" />
+      <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[NumericUpDown].(AutomationProperties.HelpText)}" />
+    </Style>
+    <Style Selector="ComboBox /template/ TextBox#PART_EditableTextBox">
+      <Setter Property="AutomationProperties.Name" Value="{Binding $parent[ComboBox].(AutomationProperties.Name)}" />
+      <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[ComboBox].(AutomationProperties.HelpText)}" />
+    </Style>
   </Window.Styles>
 
   <!-- Declared in reading order, which is also the Tab order: notice, tabs with their content, then Save / Cancel. -->
@@ -250,6 +304,8 @@
                                    Grid.Column="2"
                                    AutomationProperties.AutomationId="PrinterName"
                                    AutomationProperties.Name="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                   AutomationProperties.HelpText="{Binding NameHelpText}"
+                                   Classes.invalid="{Binding HasNameError}"
                                    Text="{Binding Name}"
                                    MaxLength="200" />
                           <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -278,6 +334,8 @@
                         <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}" />
                         <TextBox AutomationProperties.AutomationId="PrinterAddress"
                                  AutomationProperties.Name="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                 AutomationProperties.HelpText="{Binding AddressHelpText}"
+                                 Classes.invalid="{Binding HasAddressError}"
                                  Text="{Binding Address}"
                                  PlaceholderText="192.168.1.20" />
                         <TextBlock AutomationProperties.AutomationId="PrinterAddressHint" Classes="hint" Text="{Binding [SettingsAddressHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsAddressHint}" />
@@ -288,6 +346,8 @@
                             <TextBlock AutomationProperties.AutomationId="PrinterUserNameLabel" Classes="label" Text="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBox AutomationProperties.AutomationId="PrinterUserName"
                                      AutomationProperties.Name="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     AutomationProperties.HelpText="{Binding UserNameHelpText}"
+                                     Classes.invalid="{Binding HasUserNameError}"
                                      Text="{Binding UserName}"
                                      MaxLength="200"
                                      IsEnabled="{Binding IsPrusaLink}" />
@@ -298,6 +358,8 @@
                             <TextBlock Classes="label" Text="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBox AutomationProperties.AutomationId="PrinterPassword"
                                      AutomationProperties.Name="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     AutomationProperties.HelpText="{Binding PasswordHelpText}"
+                                     Classes.invalid="{Binding HasPasswordError}"
                                      Text="{Binding Password}"
                                      PasswordChar="●"
                                      PlaceholderText="{Binding PasswordWatermark}"
@@ -366,7 +428,9 @@
                         <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
                                  Text="{Binding CameraUrl}"
                                  PlaceholderText="rtsp://192.168.0.227/live"
-                                 AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                                 AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                 AutomationProperties.HelpText="{Binding CameraUrlHelpText}"
+                                 Classes.invalid="{Binding HasCameraUrlError}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlHint" Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsCameraUrlHint}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
@@ -499,6 +563,8 @@
                                       Grid.Column="2"
                                       AutomationProperties.AutomationId="PrinterCameraWindowNormalSize"
                                       AutomationProperties.Name="{Binding NormalSizeName}"
+                                      AutomationProperties.HelpText="{Binding NormalSizeHelpText}"
+                                      Classes.invalid="{Binding HasNormalSizeError}"
                                       IsEditable="True"
                                       ItemsSource="{x:Static vm:CameraWindowSizeText.Presets}"
                                       Text="{Binding NormalSizeText, Mode=TwoWay}"
@@ -535,6 +601,8 @@
                                       Grid.Column="2"
                                       AutomationProperties.AutomationId="PrinterCameraWindowMiniSize"
                                       AutomationProperties.Name="{Binding MiniSizeName}"
+                                      AutomationProperties.HelpText="{Binding MiniSizeHelpText}"
+                                      Classes.invalid="{Binding HasMiniSizeError}"
                                       IsEditable="True"
                                       ItemsSource="{x:Static vm:CameraWindowSizeText.MiniPresets}"
                                       Text="{Binding MiniSizeText, Mode=TwoWay}"
@@ -813,6 +881,8 @@
               <TextBlock Classes="label" Text="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
               <NumericUpDown AutomationProperties.AutomationId="SettingsPollingInterval"
                              AutomationProperties.Name="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             AutomationProperties.HelpText="{Binding PollingIntervalHelpText}"
+                             Classes.invalid="{Binding HasPollingIntervalError}"
                              Value="{Binding PollingIntervalSeconds}"
                              Minimum="{x:Static vm:SettingsViewModel.MinPollingIntervalSeconds}"
                              Maximum="{x:Static vm:SettingsViewModel.MaxPollingIntervalSeconds}"
@@ -924,6 +994,8 @@
               <TextBlock Classes="label" Margin="0,8,0,4" TextWrapping="Wrap" Text="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}" />
               <NumericUpDown AutomationProperties.AutomationId="SettingsRemainingTime"
                              AutomationProperties.Name="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             AutomationProperties.HelpText="{Binding RemainingTimeHelpText}"
+                             Classes.invalid="{Binding HasRemainingTimeError}"
                              Value="{Binding RemainingTimeMinutes}"
                              Minimum="0"
                              Maximum="{x:Static vm:SettingsViewModel.MaxRemainingTimeMinutes}"
