@@ -510,3 +510,5 @@ Neověřeno (beze změny proti oddílu 9 návrhu): skutečný Narrator / NVDA / 
 (zaokrouhlení 2 px obrysu a spoje s 1 px dělicí čarou), vysoký kontrast Windows.
 
 Nové produktové otázky: žádné.
+
+- **Nález 1 opraven (2026-10-30, hlavní agent):** `CornerRadius="3,0,0,3"` u vnitřního `PART_BorderElement` neplatného `NumericUpDown`; růžové vyhlazené pixely u předělu ▲ ▼ zmizely (ověřeno zvětšeným výřezem `settings-general-errors-focused`). Přegenerované macOS snímky: `settings-general-errors`, `-errors-dark`, `-errors-focused`, `settings-widgets-cooldown-error-fr`, `-cooldown-error-nozzle` (na Windows přegenerovat spolu s ostatními).

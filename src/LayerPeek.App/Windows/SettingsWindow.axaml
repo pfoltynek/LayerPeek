@@ -142,6 +142,8 @@
     <Style Selector="NumericUpDown.invalid /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement">
       <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
       <Setter Property="BorderThickness" Value="2,2,0,2" />
+      <!-- Square right corners: a rounded inner corner left anti-aliased pink pixels next to the ▲ ▼ divider. -->
+      <Setter Property="CornerRadius" Value="3,0,0,3" />
     </Style>
     <!-- The template derives the left border of ▲ ▼ from the spinner's BorderThickness: back to 1 DIP. -->
     <Style Selector="NumericUpDown.invalid /template/ ButtonSpinner#PART_Spinner /template/ RepeatButton">
