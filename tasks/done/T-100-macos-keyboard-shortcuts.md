@@ -1,7 +1,7 @@
 ---
 id: T-100
 title: macOS – klávesové zkratky podle zvyklostí Applu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: macos
@@ -33,14 +33,32 @@ Při testování na Macu (2026-10-29) nefungovala v okně kamery F11 pro celou o
    bere zkratku podle logické klávesy závorky **nebo** podle fyzické klávesy na americké pozici ] / [. Apple ale v
    macOS 12+ zkratky menu pro některá rozložení sám přemapovává, takže „správná“ klávesa na české klávesnici se může
    lišit. Neověřeno – prosím vyzkoušet (docs/macos-manual-testing.md, krok 6.3) a rozhodnout, zda stačí fyzická pozice.
+   → zůstává ruční: přesunuto jako rozhodovací bod do T-115 (sezení 6.3, rozhodnutí uživatele 2026-10-30); případná
+   úprava = nový úkol.
 2. **Dostanou se ⌃⌘F, ⌘W a ⌘. vůbec k aplikaci?** Headless testy posílají klávesy přímo do Avalonie. Na skutečném Macu
    jdou zkratky s ⌘ přes `performKeyEquivalent` a systém (nebo výchozí menu aplikace Avalonie) by je mohl zachytit dřív
    (⌃⌘F / fn+F = „Celá obrazovka“, ⌘. = `cancelOperation:`). Neověřeno na Macu.
-3. **⌘. při otevřeném rozbalovacím seznamu v Nastavení** zavře celé okno jako Zrušit (Esc v té chvíli zavře jen
-   seznam). Je to v pořádku, nebo má ⌘. nejdřív zavřít jen seznam?
+   → zůstává ruční: přesunuto jako rozhodovací bod do T-115 (sezení 6.3, rozhodnutí uživatele 2026-10-30); případná
+   oprava = nový úkol.
+3. ~~**⌘. při otevřeném rozbalovacím seznamu v Nastavení** zavře celé okno jako Zrušit (Esc v té chvíli zavře jen
+   seznam). Je to v pořádku, nebo má ⌘. nejdřív zavřít jen seznam?~~ → ⌘. nejdřív zavře jen otevřený rozbalovací
+   seznam (`ComboBox`), stejně jako Esc; jinak beze změny (rozhodnuto 2026-10-30). Implementováno, viz Poznámky,
+   „Otázka 3“.
 
 ## Poznámky k implementaci
-- 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
+- 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele).
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele); otázka 3 rozhodnuta
+  a hotová, otázky 1 a 2 jsou rozhodovací body v T-115 (sezení 6.3).
+- **Otázka 3 (2026-10-30, Mac):** `SettingsWindow` předává `MacShortcuts.HandleCloseKeys` pro ⌘. vlastní akci
+  `CancelFromCommandPeriod`: když je v okně otevřený rozbalovací seznam (`ComboBox.IsDropDownOpen`, nejvýš jeden),
+  zavře jen ten a okno zůstane otevřené; jinak Zrušit jako dřív. ⌘W, Esc a ostatní okna beze změny (Diagnostika má
+  také `ComboBox`, rozhodnutí se týká jen Nastavení). UI testy `SettingsWindowMacShortcutsUiTests`:
+  `CommandPeriodClosesAnOpenDropDownFirstLikeEsc` (Esc jako vzor, ⌘. zavře jen seznam, další ⌘. = Zrušit bez uložení;
+  bez opravy test selže – ověřeno) a `CommandWClosesTheWindowAlsoWithAnOpenDropDown`. Ruční krok doplněn do
+  `docs/macos-manual-testing.md`, sezení 6.3.
+  Ověřeno 2026-10-30 (macOS 27.2, Apple Silicon): `dotnet build` a `dotnet build -c Release` 0 varování, 0 chyb;
+  `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests` 1175 prošlo, žádný snímek se
+  nezměnil (Windows snímky přegenerovat není třeba); celý `dotnet test` 8249 testů, 0 selhání, 183 přeskočeno.
 - **Sdílený pomocník** `src/LayerPeek.App/Windows/MacShortcuts.cs`: rozpoznání ⌘W, ⌘., ⌃⌘F, ⌘⇧] / ⌘⇧[ (logická
   klávesa závorky nebo fyzická klávesa `BracketRight` / `BracketLeft`), ⌘⌥→ / ⌘⌥← a `HandleCloseKeys` (tunelující
   handler ⌘W / ⌘. pro okno). ⌘ = `KeyModifiers.Meta`, ⌃ = `Control`; modifikátory se porovnávají přesně (⌘F ani ⌃F

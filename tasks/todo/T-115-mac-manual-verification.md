@@ -88,8 +88,15 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       volitelně se druhým účtem podle sezení 10.1.
 - [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
       Terminál, po běhu vypnout) a `mac.keyboard-physical` potvrzeno – vestavěná i Logitech klávesnice, české rozložení
-      (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3). Zapsat výsledek k otázkám 1 a 2 v T-100. *T-100 zůstává rozpracovaný
-      (otázky 1 a 3).*
+      (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam
+      (T-100 otázka 3, rozhodnuto 2026-10-30).
+- [ ] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
+      přepínají ⌘⇧] / ⌘⇧[ (klávesy vpravo od P, „ú“ a „)“) hlavní záložky Nastavení? Nestane se nic jiného? Zapsat
+      výsledek na vestavěné i Logitech klávesnici a rozhodnout, zda stačí fyzická pozice kláves (dnešní implementace);
+      když ne, nový úkol.
+- [ ] **T-100** (otázka 2, rozhodovací bod; sezení 6.3): dostanou se ⌃⌘F (okno kamery), ⌘W a ⌘. (všechna pomocná
+      okna) na skutečném Macu k aplikaci, nebo je dřív zachytí systém / výchozí menu aplikace (`performKeyEquivalent`,
+      „Celá obrazovka“, `cancelOperation:`)? Zapsat u každé zkratky; když některá nefunguje, nový úkol.
 - [ ] **T-019** (krit. „Spuštění stažené `.dmg` na Macu s Gatekeeperem ověřené a postup popsaný v dokumentaci“):
       `mac.gatekeeper` = `PASS` a `mac.gatekeeper-dialog` potvrzeno (stažení přes Safari z lokálního serveru, spuštění
       z `.dmg`, přetažení do Aplikací, „Přesto otevřít“, totéž s `.tar.gz`); přesné texty dialogů zapsat a porovnat

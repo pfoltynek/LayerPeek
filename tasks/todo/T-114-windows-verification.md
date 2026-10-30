@@ -94,7 +94,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
 - [ ] **T-053** (krit. „… Windows build a testy beze změny chování“): `win.build`, `win.test` a `win.aot-smoke` = `PASS`.
 - [ ] **T-097** (krit. „Windows beze změny“): `win.build`, `win.test`, `win.aot-smoke` a `win.e2e` = `PASS`.
 - [ ] **T-100** (krit. „Windows beze změny“): `win.test` a `win.e2e` = `PASS` (F11, Esc a zkratky Nastavení na Windows
-      jako dřív, tooltipy ukazují zkratky Windows). *T-100 zůstává rozpracovaný (otázky 1–3).*
+      jako dřív, tooltipy ukazují zkratky Windows).
 - [ ] **T-101** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `win.build` a `win.test` =
       `PASS`.
 - [ ] **T-058** (krit. „… AOT publish `win-x64` bez varování“): `pwsh scripts/release-build.ps1` (AOT s `-warnaserror`)

@@ -39,8 +39,9 @@ public sealed partial class SettingsWindow : Window
         // DataContext (SettingsViewModel) is set by the creator.
         // Tunnelling: before a text box or the focus navigation (Tab) sees the keys.
         AddHandler(KeyDownEvent, OnPreviewKeyDown, RoutingStrategies.Tunnel);
-        // ⌘W and ⌘. (macOS, T-100) are Cancel, also for closing: the edits are discarded as with Cancel or Esc.
-        MacShortcuts.HandleCloseKeys(this, () => UsesMacShortcuts, CancelFromKeyboard, CancelFromKeyboard);
+        // ⌘W and ⌘. (macOS, T-100) are Cancel, also for closing: the edits are discarded as with Cancel or Esc. ⌘. closes an
+        // open drop-down first, like Esc (user decision 2026-10-30).
+        MacShortcuts.HandleCloseKeys(this, () => UsesMacShortcuts, CancelFromKeyboard, CancelFromCommandPeriod);
         WidgetsList.AddHandler(KeyDownEvent, OnWidgetsListKeyDown, RoutingStrategies.Tunnel);
         AddHandler(GotFocusEvent, OnAnyGotFocus, RoutingStrategies.Bubble, handledEventsToo: true);
         Activated += OnWindowActivated;
@@ -216,6 +217,25 @@ public sealed partial class SettingsWindow : Window
 
         return null;
     }
+
+    /// <summary>
+    /// ⌘. (macOS, T-100 question 3, user decision 2026-10-30): what Esc does. An open drop-down (<see cref="ComboBox"/>) is
+    /// closed first and the window stays open; otherwise Cancel (<see cref="CancelFromKeyboard"/>). ⌘W always cancels.
+    /// </summary>
+    private void CancelFromCommandPeriod()
+    {
+        if (OpenDropDown() is { } comboBox)
+        {
+            comboBox.IsDropDownOpen = false;
+            return;
+        }
+
+        CancelFromKeyboard();
+    }
+
+    /// <summary>The drop-down of the window that is open now (at most one is), or <see langword="null"/>.</summary>
+    private ComboBox? OpenDropDown() =>
+        this.GetVisualDescendants().OfType<ComboBox>().FirstOrDefault(static comboBox => comboBox.IsDropDownOpen);
 
     /// <summary>⌘W / ⌘. (macOS, T-100): what the Cancel button does; nothing while saving (Cancel is disabled then).</summary>
     private void CancelFromKeyboard()

@@ -121,6 +121,55 @@ public sealed class SettingsWindowMacShortcutsUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task CommandPeriodClosesAnOpenDropDownFirstLikeEsc() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-100 question 3 (user decision 2026-10-30): ⌘. with an open drop-down closes only the drop-down.
+            LayerPeek.App.Tests.Settings.FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
+            SettingsWindowHarness ui = await OpenAsync(scope, mac: true, store);
+            Window window = ui.Window;
+            ComboBox comboBox = ui.Find<ComboBox>("PrinterConnectionType");
+
+            // Esc as the reference: only the drop-down closes.
+            Assert.True(comboBox.Focus());
+            comboBox.IsDropDownOpen = true;
+            window.Settle();
+            Assert.True(comboBox.IsDropDownOpen);
+            Press(window, Key.Escape, PhysicalKey.Escape, RawInputModifiers.None);
+            Assert.False(comboBox.IsDropDownOpen);
+            Assert.True(ui.IsOpen);
+
+            comboBox.IsDropDownOpen = true;
+            window.Settle();
+            Press(window, Key.OemPeriod, PhysicalKey.Period, Command, ".");
+            Assert.False(comboBox.IsDropDownOpen);
+            Assert.True(ui.IsOpen);
+            Assert.False(ui.ViewModel.IsDisposed);
+
+            // Without an open drop-down ⌘. is Cancel again.
+            PressClosing(window, Key.OemPeriod, PhysicalKey.Period, ".");
+            Assert.Empty(store.Saves);
+            Assert.False(ui.IsOpen);
+        });
+
+    [Fact]
+    public Task CommandWClosesTheWindowAlsoWithAnOpenDropDown() =>
+        session.RunAsync(static async scope =>
+        {
+            LayerPeek.App.Tests.Settings.FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
+            SettingsWindowHarness ui = await OpenAsync(scope, mac: true, store);
+            ComboBox comboBox = ui.Find<ComboBox>("PrinterConnectionType");
+            Assert.True(comboBox.Focus());
+            comboBox.IsDropDownOpen = true;
+            ui.Window.Settle();
+
+            PressClosing(ui.Window, Key.W, PhysicalKey.W, "w");
+
+            Assert.Empty(store.Saves);
+            Assert.False(ui.IsOpen);
+        });
+
+    [Fact]
     public Task CommandWWhileSavingKeepsTheWindowOpenLikeTheDisabledCancel() =>
         session.RunAsync(static async scope =>
         {
