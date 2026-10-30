@@ -392,7 +392,7 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
 
     /// <summary>
     /// T-109 Q3 B (ui-designer review 2026-10-30): while the bed holds the cool-down up, the S card shows the bed with the
-    /// line of the bed in its colour in front of it (not the cone), in every language without a cut text; snapshot in English.
+    /// heated bed icon in its colour in front of it (not the cone, not the bare line of M / L: T-109 QS1), in every language without a cut text; snapshot in English.
     /// </summary>
     [Fact]
     public Task SmallCardShowsTheBedIconWhileTheBedLimits() =>
@@ -414,7 +414,8 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             Assert.Equal(CooldownSensor.Bed, harness.Cooldown.GetState("a").Limiting);
             TextBlock value = Text(window, NozzleId);
             Assert.Equal($"{Widget(window).ShownLimitingCelsius}{Nb}°C", value.Text);
-            AssertSmallSensorIcon(window, value, "IconLineHorizontal1_16Filled", BedColor);
+            // QS1: the heated bed (plate + heat waves), not the bare line, which read as a minus sign ("−57 °C").
+            AssertSmallSensorIcon(window, value, "IconHeatedBed16Filled", BedColor);
             SnapshotAssert.Matches(window, "camera-widget-cooldown-cooling-s-bed");
 
             foreach (string language in AppLanguages.Supported)
