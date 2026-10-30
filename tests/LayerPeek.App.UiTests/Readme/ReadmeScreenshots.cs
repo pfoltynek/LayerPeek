@@ -167,7 +167,8 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
         session.RunAsync(async scope =>
         {
             ReadmeScenario.UseLanguage(language);
-            await using CameraHarness harness = await CameraHarnessAsync(Normal, HeroLayout);
+            // Without the Cool-down widget: it has nothing to show while printing (an empty placeholder card in the mode).
+            await using CameraHarness harness = await CameraHarnessAsync(Normal, HeroLayout.WithVisible(OverlayWidgetIds.Cooldown, visible: false));
             CameraWindow window = await OpenNormalAsync(harness);
             window.Click(window.Find<Button>("CameraLayoutButton"));
             Dispatcher.UIThread.RunJobs();

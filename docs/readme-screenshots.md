@@ -15,9 +15,10 @@ Generátor je volitelný test `tests/LayerPeek.App.UiTests/Readme/ReadmeScreensh
 - Obraz kamery: snímek ze skutečného záznamu kamery Buddy3D (`tests/LayerPeek.Camera.FFmpeg.Tests/Fixtures/buddy3d.h264`,
   1280 × 720), dekódovaný vlastním FFmpeg feedem aplikace z lokálního souboru (bez sítě). Okno ho dostane přes
   testovací `ICameraFeedFactory` (`StillCameraFeedFactory`), tedy stejnou cestou jako živý stream.
-- Data: scénář `ReadmeScenario` – tiskárna „CORE One“ tiskne soubor ze simulátoru (spool holder, PLA) na 60 %,
-  realistické teploty s historií od začátku tisku, náhled z G-code je PNG, který generuje simulátor
-  (`tools/PrusaSimulator`, `PreviewImages`). Žádné IP adresy, sériová čísla ani osobní údaje (adresy jsou host names
+- Data: scénář `ReadmeScenario` – tiskárna „CORE One“ tiskne na 60 % kryt baterie Makita
+  (`makita-battery-cover_0.4n_0.2mm_PLA_COREONE_2h41m.bgcode`, tedy díl, který je na záznamu kamery opravdu vidět),
+  realistické teploty s historií od začátku tisku. Náhled z G-code je PNG, který generuje simulátor
+  (`tools/PrusaSimulator`, `PreviewImages`, náhled jeho prvního souboru: plochý oranžový disk); vlastní asset nemá. Žádné IP adresy, sériová čísla ani osobní údaje (adresy jsou host names
   `*.local`).
 - Čeština: texty aplikace v češtině a formáty čísel a času podle `cs-CZ`; angličtina podle `en-US`. Čas je pevný
   (16. 10. 2026 12:00 UTC, zobrazený v UTC+2), takže výsledek je opakovatelný.
@@ -27,7 +28,7 @@ Generátor je volitelný test `tests/LayerPeek.App.UiTests/Readme/ReadmeScreensh
 | Soubor | Obsah |
 |---|---|
 | `camera-window.jpg` | okno kamery v normálním režimu, rozložení widgetů jako výchozí s teplotami ve velikosti L (hlavní obrázek) |
-| `camera-layout-mode.jpg` | režim rozložení s otevřenou nabídkou velikosti widgetu Teploty |
+| `camera-layout-mode.jpg` | režim rozložení s otevřenou nabídkou velikosti widgetu Teploty; widget Vychladnutí je vypnutý (během tisku by ukazoval jen prázdnou kartu) |
 | `widget-sizes.jpg` | widget Teploty ve velikostech S, M a L (výřezy tří vykreslení vedle sebe) |
 | `camera-mini.jpg` | malý náhled, šířka 400, s rozbaleným řádkem názvu tisku a grafu |
 | `settings-widgets.png` | nastavení, záložka Widgety, vybraný widget Vychladnutí |

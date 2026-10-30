@@ -64,12 +64,18 @@ internal static class ReadmeScenario
     public static TimeZoneInfo TimeZone => LayerPeek.App.Tests.Diagnostics.FixedClock.Zone;
 
     /// <summary>
-    /// The print file: the simulator's spool holder (PLA, 0.15 mm), a flat part like the one the recorded camera shows
-    /// under the nozzle.
+    /// The print file: the cover of the Makita battery slot, the flat part the recorded camera shows under the nozzle
+    /// (PLA, 0.2 mm). The same file name in every language.
     /// </summary>
-    public static SimulatedFile File { get; } = PrinterSimulation.AllFiles.Single(static file => file.DisplayName.StartsWith("spool-holder", StringComparison.Ordinal));
+    public const string FileName = "makita-battery-cover_0.4n_0.2mm_PLA_COREONE_2h41m.bgcode";
 
-    private static string PreviewPath => "usb/" + File.Name;
+    /// <summary>
+    /// The G-code preview of the print: the one the simulator generates for its first file (a flat disc in Prusa
+    /// orange; the simulator's previews are all flat discs and differ only in colour). No asset of its own.
+    /// </summary>
+    public static SimulatedFile PreviewFile { get; } = PrinterSimulation.AllFiles[0];
+
+    private const string PreviewPath = "usb/MAKITA~1.BGC";
 
     /// <summary>The snapshot of the print for the printer <paramref name="printerId"/> at <see cref="TestPrinters.Now"/>.</summary>
     public static PrinterSnapshot Printing(string printerId, DateTimeOffset? timestamp = null) => new()
@@ -80,7 +86,7 @@ internal static class ReadmeScenario
         Job = new PrintJob
         {
             Id = 42,
-            FileName = File.DisplayName,
+            FileName = FileName,
             ProgressPercent = Progress,
             Elapsed = Elapsed,
             Remaining = Remaining,
@@ -138,7 +144,7 @@ internal static class ReadmeScenario
     public static PrintThumbnails Thumbnails()
     {
         FakePreviewSource source = new();
-        source.Previews[PreviewPath] = PrintPreview.FromPng(PreviewImages.For(File, large: true));
+        source.Previews[PreviewPath] = PrintPreview.FromPng(PreviewImages.For(PreviewFile, large: true));
         return new PrintThumbnails(source, new AvaloniaPrintThumbnailDecoder(), new AvaloniaUiDispatcher(), new Microsoft.Extensions.Time.Testing.FakeTimeProvider(Now), NullLogger<PrintThumbnails>.Instance);
     }
 
