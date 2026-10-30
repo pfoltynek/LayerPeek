@@ -80,6 +80,9 @@ pro celé okno (varianta A z Q6).
   - B) Nechat beze změny (rozdíl 1 DIP je okem téměř neviditelný, na Windows se nejspíš neprojeví).
   - C) Řešit později samostatným úkolem pro všechna okna (Diagnostika, okno kamery) najednou.
   Pozn.: T-112 mění totéž okno v jiné větvi; varianta A sahá jen na styl, konflikt by byl nanejvýš ve snímcích.
+  **Rozhodnuto 2026-10-30 (uživatel): A.** Provedeno: setter `VerticalContentAlignment="Center"` ve stylu
+  `Button, HyperlinkButton` v `SettingsWindow.axaml`, macOS snímky `settings-*` přegenerovány (38 souborů, text
+  tlačítek ověřen na `settings-general.png`). Windows snímky přegeneruje uživatel spolu s ostatními.
 
 ## Poznámky k implementaci
 - **Zahájení:** uživatel 2026-10-30 rozhodl začít, i když závislosti T-101, T-109 a T-110 jsou ještě
