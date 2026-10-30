@@ -29,8 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   reserves for Show Desktop and Mac keyboards send only with fn, stays as a fallback), and the full screen button and
   the image description name ⌃⌘F. Settings: **⌘⇧]** / **⌘⇧[** switch the tabs, **⌘⌥→** / **⌘⌥←** the tabs of a
   printer (Ctrl+Tab and Ctrl+PageDown still work). Every auxiliary window (Settings, Diagnostics, About, licences,
-  camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel; with a drop-down list open,
-  ⌘. first closes only the list, as Esc does). Windows is unchanged.
+  camera) closes with **⌘W**, and **⌘.** works like Esc (in Settings both are Cancel; with a drop-down list open in
+  Settings or Diagnostics, ⌘. first closes only the list, as Esc does). Windows is unchanged.
 - **Send test notification** on the *General* tab of the settings (Windows and macOS): shows a sample notification
   the way printer events are shown, with the sound unless *Sound* is set to Off (the choice shown in the window counts,
   even unsaved), also while *Show notifications* is unchecked. A new test notification replaces the previous one, and a

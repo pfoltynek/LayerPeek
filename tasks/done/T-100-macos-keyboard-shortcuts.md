@@ -49,6 +49,9 @@ Při testování na Macu (2026-10-29) nefungovala v okně kamery F11 pro celou o
 - 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele).
 - Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele); otázka 3 rozhodnuta
   a hotová, otázky 1 a 2 jsou rozhodovací body v T-115 (sezení 6.3).
+- 2026-10-30 (uživatel): ⌘. s otevřeným rozbalovacím seznamem zavře nejdřív jen seznam i v okně Diagnostika (výběr
+  tiskárny). Společná logika je `MacShortcuts.TryCloseOpenDropDown`, používá ji `SettingsWindow` i `DiagnosticsWindow`;
+  UI test `DiagnosticsCommandPeriodClosesAnOpenDropDownFirstLikeEsc`.
 - **Otázka 3 (2026-10-30, Mac):** `SettingsWindow` předává `MacShortcuts.HandleCloseKeys` pro ⌘. vlastní akci
   `CancelFromCommandPeriod`: když je v okně otevřený rozbalovací seznam (`ComboBox.IsDropDownOpen`, nejvýš jeden),
   zavře jen ten a okno zůstane otevřené; jinak Zrušit jako dřív. ⌘W, Esc a ostatní okna beze změny (Diagnostika má
