@@ -95,6 +95,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   noise is not. A target line is drawn only where it falls within its band. In the large (L) *Temperatures* widget
   each band shows its range next to the chart (e.g. "212–218 °C"). The chart in the Diagnostics window keeps its axis
   from 0 °C. Windows and macOS.
+- Update check of the ZIP version and of LayerPeek.app outside Applications: a release is offered only when it already
+  has the files of the operating system LayerPeek runs on (its `SHA256SUMS-windows.txt` / `SHA256SUMS-macos.txt`), so
+  the Windows ZIP version is no longer told about a version that so far has only macOS files, and the other way round.
+  The installed versions (Velopack) already skipped such a release.
+- Releases: the Windows and macOS files of one version can be published at different times. The OS that goes first
+  publishes with `scripts/release-publish.ps1 -AllowIncomplete`; the other OS later adds its files to the published
+  release with `scripts/release-upload.ps1 -AddToPublished`, which never replaces a file, uploads the checksum file
+  and the update feed last and then checks the whole release. `scripts/release.ps1` runs on macOS as well as on
+  Windows. `release-publish.ps1 -AllowIncomplete` no longer fails with "Cannot bind argument to parameter
+  'ExpectedOs'".
 
 ### Security
 
