@@ -167,7 +167,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 |---|---|---|---|---|---|
 | T-095 | macOS – zelený build a testy (přípravný úkol, první na Macu) (hotovo; Windows v T-114) | macos | qa-reviewer + ui-dev | P1 | – |
 | T-018 | macOS – ikona a menu v menu baru (čeká na otevřenou otázku; ověření v T-114 / T-115) | macos | ui-dev | P1 | T-007, T-008, T-095 |
-| T-019 | macOS – .app bundle, distribuce a autostart (čeká na otázku 11; ověření v T-115) | macos | ui-dev | P1 | T-008, T-015, T-055, T-056, T-095 |
+| T-019 | macOS – .app bundle, distribuce a autostart (hotovo; ověření v T-115) | macos | ui-dev | P1 | T-008, T-015, T-055, T-056, T-095 |
 | T-020 | Systémové notifikace – macOS (hotovo; ruční ověření v T-115) | macos | ui-dev | P1 | T-010, T-019, T-095 |
 | T-021 | macOS – úložiště tajných údajů v Keychainu (hotovo; ověření v T-114 / T-115) | macos | core-dev | P1 | T-002, T-030, T-095 |
 | T-026 | macOS – FFmpeg pro živý stream kamery (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P3 | T-014, T-019, T-095 |

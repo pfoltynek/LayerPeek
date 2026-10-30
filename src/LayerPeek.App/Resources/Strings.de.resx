@@ -685,7 +685,7 @@
     <value>Systemeinstellungen öffnen</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek ist in „Systemeinstellungen &gt; Allgemein &gt; Anmeldeobjekte &amp; Erweiterungen“ ausgeschaltet. Erlauben Sie es dort und speichern Sie dann erneut.</value>
+    <value>LayerPeek ist in „Systemeinstellungen &gt; Allgemein &gt; Anmeldeobjekte &amp; Erweiterungen“ ausgeschaltet. Erlauben Sie es dort.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Einstellungen gespeichert. Das Öffnen bei der Anmeldung müssen Sie in den Systemeinstellungen erlauben.</value>

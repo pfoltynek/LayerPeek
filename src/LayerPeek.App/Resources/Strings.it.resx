@@ -685,7 +685,7 @@
     <value>Apri Impostazioni di Sistema</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek è disattivato in Impostazioni di Sistema &gt; Generali &gt; Elementi login ed estensioni. Consentilo lì, poi salva di nuovo.</value>
+    <value>LayerPeek è disattivato in Impostazioni di Sistema &gt; Generali &gt; Elementi login ed estensioni. Consentilo lì.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Impostazioni salvate. L'apertura al login deve essere consentita in Impostazioni di Sistema.</value>

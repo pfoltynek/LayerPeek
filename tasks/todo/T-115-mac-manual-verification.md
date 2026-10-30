@@ -54,7 +54,7 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
 - [ ] **T-021** (krit. „Kontrola před/po … v Keychainu nezůstane žádná položka“): `mac.keychain` a na konci
       `mac.profile-unchanged` = `PASS`; v aplikaci Klíčenka žádná položka `LayerPeek.Tests…`.
 - [ ] **T-019** (krit. „Aplikace běží bez ikony v Docku, ikona je jen v menu baru“): `mac.dock` a `mac.menubar` = `PASS`
-      (sezení 2.1). *T-019 zůstává rozpracovaný (otázka 11).*
+      (sezení 2.1).
 - [ ] **T-019** (krit. „Okno Nastavení … v popředí a dostane fokus“): `mac.settings-front` = `PASS` (sezení 2.4).
 - [ ] **T-018** (krit. „Menu z T-008 se v menu baru zobrazí, aktualizuje a ‚Ukončit‘ korektně ukončí aplikaci“):
       `mac.menubar` = `PASS` a `mac.menu` potvrzeno (sezení 2.3). *T-018 zůstává rozpracovaný (otázka k ikonám tiskáren
@@ -113,8 +113,10 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       Výsledky J4, J5 a J7 zapsat i do T-038 k otázkám 1–3. *T-038 zůstává rozpracovaný.*
 - [ ] **T-019** (krit. „Autostart po přihlášení funguje na macOS“): `caffeinate -d -u -i pwsh tools/macos-verify.ps1
       -Only mac.login-item` (dva běhy, mezi nimi odhlášení a přihlášení) a sezení 7.3–7.4 (vypnutí v Nastavení
-      systému → hint a tlačítko „Otevřít Nastavení systému“, zapsat stav, který macOS hlásí). Výsledek zapsat i do
-      T-019 k otázce 11. Dělat jako poslední krok bez tiskárny (odhlášení).
+      systému → hint a tlačítko „Otevřít Nastavení systému“ s nápovědou končící „Povolte ho tam.“, zapsat stav, který
+      macOS hlásí; po povolení v Nastavení systému a návratu do okna je neměněná volba zaškrtnutá bez Uložit – T-019
+      otázka 11 a, rozhodnuto 2026-10-30). Výsledek zapsat i do poznámek T-019 (bod 11). Dělat jako poslední krok bez
+      tiskárny (odhlášení).
 
 ### 4. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

@@ -685,7 +685,7 @@
     <value>Abrir Ajustes del Sistema</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio y extensiones. Permítalo allí y vuelva a guardar.</value>
+    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio y extensiones. Permítalo allí.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Configuración guardada. Debe permitir la apertura al iniciar sesión en Ajustes del Sistema.</value>

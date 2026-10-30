@@ -685,7 +685,7 @@
     <value>Ouvrir Réglages Système</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek est désactivé dans Réglages Système &gt; Général &gt; Ouverture et extensions. Autorisez-le dans ces réglages, puis enregistrez à nouveau.</value>
+    <value>LayerPeek est désactivé dans Réglages Système &gt; Général &gt; Ouverture et extensions. Autorisez-le dans ces réglages.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Paramètres enregistrés. L'ouverture avec la session doit être autorisée dans Réglages Système.</value>

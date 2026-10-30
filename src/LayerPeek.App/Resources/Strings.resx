@@ -765,7 +765,7 @@
     <comment>T-019: macOS button under Open at login on the Startup and updates tab (next to SettingsOpenAtLoginNeedsApproval) when the user has to allow LayerPeek in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the button).</comment>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there, then save again.</value>
+    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there.</value>
     <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
