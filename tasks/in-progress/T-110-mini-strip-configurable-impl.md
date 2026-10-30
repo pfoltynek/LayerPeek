@@ -156,6 +156,16 @@ Nové (neblokuje, k revizi ui-designer / uživatele):
   Při příští aktualizaci sady ikon ji nahradit cestou z `@fluentui/svg-icons` (stejný klíč i plátno, nic jiného se
   nemění). Potvrdit, že je to tak v pořádku.
 
+Revize ui-designer 2026-10-30 (k rozhodnutí uživatele, neblokuje):
+- **Ikona položky „Malý náhled“ (odpověď na otázku výše):** náhrada je jako dočasná přijatelná (čitelná při 16 px).
+  (A, doporučeno) nahradit ji oficiální cestou Fluent hned v tomto úkolu – cesta je teď dostupná a zapsaná v revizi
+  níže, licence MIT / (B) nechat náhradu do příští aktualizace sady ikon.
+- **Q-D1 – symboly ⬡ / 📈 v tooltipech polí 6 a 7:** text ukazuje jiné symboly, než jaké mají přepínače v pásu (Fluent
+  krychle a graf), 📈 je barevné emoji a čtečka čte názvy znaků. (A, doporučeno) jmenovat tlačítko jeho názvem bez
+  symbolu, např. cs „Řádek rozbalíte v malém náhledu tlačítkem Název tisku v pásu.“ / „… tlačítkem Graf teplot
+  v pásu.“ (názvy = `CameraMiniToggleName` / `CameraMiniToggleChart`) / (B) vlastní obsah tooltipu se skutečnou ikonou
+  (`OverlayIcon` + text, kompilované bindingy), `HelpText` bez symbolu / (C) ponechat, jak uživatel schválil.
+
 ## Poznámky k implementaci
 (ui-dev, 2026-10-30, macOS; větev `feature/T-110-mini-strip-configurable-impl`)
 
@@ -204,3 +214,51 @@ Nové (neblokuje, k revizi ui-designer / uživatele):
   `camera-mini-strip-no-rows-320.png`; změněné `settings-widgets.png`, `settings-widgets-dark.png`,
   `settings-widgets-camera-off-it.png`, `settings-widgets-cooldown-de.png`, `settings-widgets-cooldown-error-fr.png`.
   Do té doby tyto testy na Windows selžou. Proto úkol zůstává v `in-progress`.
+
+### Revize ui-designer (2026-10-30)
+Podklady: snímky macOS `settings-widgets-mini-strip(-de, -fr)`, `settings-widgets(-dark)`, `settings-widgets-camera-off-it`,
+`settings-widgets-cooldown-de`, `settings-widgets-cooldown-error-fr`, `camera-mini-strip-custom-240`,
+`camera-mini-strip-no-rows-320`, `camera-mini-strip-printing` (zvětšené výřezy měřené v px = DIP při 100 %), XAML
+`Settings/Widgets/WidgetSettingsTemplates.axaml` (`MiniStripSettings`), `Cameras/Overlay/OverlayIcons.axaml`,
+`Cameras/Mini/CameraMiniStrip.axaml`, `Strings.*.resx`. Aplikace se nespouštěla.
+
+**Verdikt: OK s drobnými nedostatky** (nic neblokuje uzavření po Windows snímcích).
+
+V pořádku (ověřeno na snímcích):
+- Položka „Malý náhled“: ikona i název lícují s widgety (ikona x = 52, text x = 76 ve všech třech jazycích), oddělovač
+  9 DIP přes šířku seznamu bez okrajů položky, výběr stejnou barvou jako widgety; ve tmavém motivu čitelné.
+- Panel: nadpis s ikonou + popis na 1 řádek (en / de / fr), dva sloupce `*,24,*`, poznámka pod levým sloupcem na 1 řádek,
+  nic se neořízne ani v de („Zeile mit Temperaturdiagramm“ končí 28 DIP před okrajem okna). Celá záložka se vejde
+  do 780 × 532 bez posuvníku.
+- Pás: `custom-240` (bez zbývajícího času → „● 19 % ⚑ 2:35 PM“) a `no-rows-320` (bez přepínačů, souhrn využije šířku
+  „Done at 2:35 PM“) odpovídají návrhu T-104 oddíly 3–5; výška pásu se nemění.
+
+Nálezy:
+1. **Nízká – řádky sloupců nelícují při zalomení** (`WidgetSettingsTemplates.axaml`, `MiniStripSettings`, dva nezávislé
+   `StackPanel`). Ve fr se „Refroidissement après l'impression“ a „Ligne du graphique des températures“ zalomí na 2 řádky,
+   takže pravý sloupec (170 / 204 / 236) se rozjede proti levému (170 / 202 / 234 / 266). Návrh: jedna `Grid`
+   s `RowDefinitions="Auto,Auto,Auto,Auto"` sdílenými oběma sloupci (potomci deklarovaní po sloupcích, aby pořadí Tab
+   zůstalo levý → pravý), nebo stav přijmout – čitelnost netrpí.
+2. **Nízká – symboly ⬡ / 📈 v tooltipech polí 6 a 7** (`SettingsMiniStripNameRowHelp`, `SettingsMiniStripChartRowHelp`, všech
+   8 `Strings.*.resx`, i jako `HelpText`). Skutečné přepínače v pásu kreslí Fluent ikony `IconCube16Regular`
+   a `IconDataTrending16Regular` (`CameraMiniStrip.axaml`), ne šestiúhelník a barevné emoji; 📈 se v tooltipu vykreslí
+   barevným emoji fontem a čtečka přečte „white hexagon“ / „chart increasing“. Znění schválil uživatel (Q1), proto viz
+   Otevřené otázky (Q-D1).
+3. **Nízká – náhradní ikona `IconPictureInPicture16Regular`** (`Cameras/Overlay/OverlayIcons.axaml`). Při 16 px čitelná
+   ve světlém i tmavém motivu (zvětšený výřez snímku), tloušťka obrysu 1 odpovídá ostatním ikonám Fluent Regular –
+   **jako dočasná náhrada přijatelná**. Tvar se ale od oficiální ikony liší: náhrada je rámeček 14 × 10 s malým obrazem
+   uvnitř, oficiální je rámeček 13 × 10 (1..14 × 2..12) s vyříznutým pravým dolním rohem a malým obrazem 7 × 5
+   (8..15 × 9..14), který rámeček přesahuje – opticky výraznější a typický „obraz v obraze“. Oficiální cesta je teď
+   dostupná (`@fluentui/svg-icons` `icons/picture_in_picture_16_regular.svg`, ověřeno 2026-10-30 i v repozitáři
+   microsoft/fluentui-system-icons, licence MIT – kompatibilní s GPL-3.0):
+   `F1 M1 4.5C1 3.11929 2.11929 2 3.5 2H11.5C12.8807 2 14 3.11929 14 4.5V8H13V4.5C13 3.67157 12.3284 3 11.5 3H3.5C2.67157 3 2 3.67157 2 4.5V9.5C2 10.3284 2.67157 11 3.5 11H7V12H3.5C2.11929 12 1 10.8807 1 9.5V4.5ZM9 9C8.44772 9 8 9.44772 8 10V13C8 13.5523 8.44772 14 9 14H14C14.5523 14 15 13.5523 15 13V10C15 9.44772 14.5523 9 14 9H9Z`.
+   Návrh: ui-dev nahradí cestu (stejný klíč, komentář `<!-- ic_fluent_picture_in_picture_16_regular.svg -->` jako
+   u ostatních) ještě v tomto úkolu, protože Windows snímky se stejně přegenerují; macOS snímky se seznamem widgetů
+   (`settings-widgets*`) pak přegenerovat a prohlédnout znovu.
+4. **Nízká – chybí snímek zakázaného panelu a tmavý snímek panelu.** Stav „kamera vypnutá“ s vybranou položkou „Malý
+   náhled“ a tmavý motiv panelu nejsou ve snímcích (jen v testech stromu). Návrh: doplnit
+   `settings-widgets-mini-strip-camera-off-it` a `settings-widgets-mini-strip-dark` (kontrast zakázaných polí v tmavém
+   motivu).
+5. **Informace – neověřeno:** zda čtečky (Narrator / VoiceOver) nezapočítají oddělovač do „položka x z 8“
+   (`AccessibilityView=Raw` je správně, ale `PositionInSet` headless test neukáže); šířky textů na Windows (Segoe UI) –
+   poznámka `MiniStripHint` má `NoWrap` + výpustku, při ≤ 60 znacích riziko malé, potvrdí Windows snímky.
