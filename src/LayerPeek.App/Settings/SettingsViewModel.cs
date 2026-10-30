@@ -545,28 +545,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>
     /// "Offer pre-release versions" of the updates (T-017): the saved choice, or while the user never chose, the default of
-    /// the running version (<see cref="PrereleaseUpdates"/>). Saved as a choice only once it differs from that default.
+    /// the running version (<see cref="PrereleaseUpdates"/>). Saved as a choice only once it differs from that default. Since
+    /// T-058 (Q3 a) in every distribution: the <c>.zip</c> and development builds check GitHub by the same rule.
     /// </summary>
     public bool OfferPrereleaseUpdates
     {
         get => _offerPrereleaseUpdates;
-        set
-        {
-            // Disabled without an installation (user decision 2026-10-24): a .zip or a development build gets no updates.
-            if (!_autostartNeedsInstallation)
-            {
-                SetGeneral(ref _offerPrereleaseUpdates, value);
-            }
-        }
+        set => SetGeneral(ref _offerPrereleaseUpdates, value);
     }
 
-    /// <summary>"Offer pre-release versions" can be changed: not in a <c>.zip</c> or a development build on Windows (T-017).</summary>
-    public bool IsPrereleaseOptionAvailable => !_autostartNeedsInstallation;
-
-    /// <summary>
-    /// Screen readers: a disabled check box cannot be focused, so its reason goes into the help text; otherwise the hint.
-    /// </summary>
-    public string PrereleaseHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : Strings.SettingsOfferPrereleaseUpdatesHint;
 
     /// <summary>The reason of the disabled autostart for screen readers (T-017); <see langword="null"/> when it is available.</summary>
     public string? AutostartHelpText => _autostartNeedsInstallation ? AutostartNeedsInstallationText : null;
@@ -578,8 +565,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     internal bool UsesMacTerms { get; init; }
 
     /// <summary>
-    /// "Offer pre-release versions" is part of the tab (T-017). Not on macOS until updates exist there (T-019, user decision
-    /// 2026-10-29: without Velopack for macOS the tab has no pre-release option).
+    /// "Offer pre-release versions" is part of the tab (T-017); since T-058 on macOS too (the <c>.app</c> of Velopack and the
+    /// GitHub check of a development build follow it).
     /// </summary>
     public bool ShowsPrereleaseOption { get; init; } = true;
 
@@ -895,11 +882,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             option.RefreshText();
         }
 
-        OnPropertyChanged(nameof(PrereleaseHelpText));
         OnPropertyChanged(nameof(AutostartHelpText));
         OnPropertyChanged(nameof(AutostartLabel));
         OnPropertyChanged(nameof(AutostartNeedsInstallationText));
         RefreshNotificationTexts();
+        RefreshUpdateTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -1052,6 +1039,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _selectedLanguage = FindLanguage(settings.Language);
         _debugLogging = settings.DebugLogging;
         _offerPrereleaseUpdates = PrereleaseUpdates.Offered(settings.OfferPrereleaseUpdates, _productVersion);
+        _checkForUpdates = settings.CheckForUpdates;
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
 
@@ -1457,6 +1445,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 Language = _selectedLanguage.Code,
                 DebugLogging = _debugLogging,
                 OfferPrereleaseUpdates = PrereleaseChoice(),
+                CheckForUpdates = _checkForUpdates,
 
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,

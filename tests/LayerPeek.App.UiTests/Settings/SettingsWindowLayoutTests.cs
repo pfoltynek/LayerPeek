@@ -311,9 +311,12 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(new UiLanguage().Apply(language));
             List<string> problems = [];
 
-            SettingsWindowHarness notInstalled = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true);
+            // T-058: the longest result of "Check now" (a new version) next to the button.
+            SettingsWindowHarness notInstalled = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, checkForUpdatesNow: SettingsWindowHarness.Available);
             notInstalled.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await notInstalled.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
             notInstalled.Window.Settle();
+            Assert.True(notInstalled.Find<TextBlock>("SettingsUpdateCheckResult").IsEffectivelyVisible);
             problems.AddRange(ScrollingViewers(notInstalled.Window, $"{language} / not installed"));
             problems.AddRange(CutTexts(notInstalled.Window, $"{language} / not installed"));
             notInstalled.Window.Close();
@@ -331,13 +334,23 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(failed.Window, $"{language} / autostart failed"));
             failed.Window.Close();
 
-            // T-019: macOS ("Open at Login", its own reason, no pre-release option).
-            SettingsWindowHarness mac = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true);
+            // T-019: macOS ("Open at Login", its own reason); T-058: with the pre-release option (Q3 a), a failed check and the
+            // hint to move the app to Applications first (Q8 a).
+            SettingsWindowHarness mac = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                autostartNeedsInstallation: true,
+                macTerms: true,
+                checkForUpdatesNow: static _ => Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(LayerPeek.Core.Updates.UpdateCheckOutcome.Failed, null)),
+                showsMoveToApplications: true);
             mac.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await mac.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
             mac.Window.Settle();
             Assert.Equal(Strings.SettingsOpenAtLogin, mac.Find<CheckBox>("SettingsStartWithWindows").Content);
             Assert.Equal(Strings.SettingsNeedsAppBundle, mac.Find<TextBlock>("SettingsStartWithWindowsNotInstalled").Text);
-            Assert.False(mac.Find<CheckBox>("SettingsOfferPrereleaseUpdates").IsEffectivelyVisible);
+            Assert.True(mac.Find<CheckBox>("SettingsOfferPrereleaseUpdates").IsEffectivelyVisible);
+            Assert.True(mac.Find<TextBlock>("SettingsUpdateMoveToApplications").IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsUpdateFailed, mac.Find<TextBlock>("SettingsUpdateCheckResult").Text);
             problems.AddRange(ScrollingViewers(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             mac.Window.Close();

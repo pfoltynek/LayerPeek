@@ -1408,4 +1408,49 @@
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
     <value>Rozwiń wiersz w małym podglądzie przyciskiem „Wykres temperatur w pasku”.</value>
   </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>Dostępna nowa wersja {0}</value>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Pobieranie wersji {0}…</value>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Pobiera aktualizację, zamyka LayerPeek i uruchamia nową wersję.</value>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Otwiera stronę wydania w przeglądarce.</value>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>Dostępna aktualizacja LayerPeek</value>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>Dostępna jest wersja {0}. Kliknij tutaj, aby ją pobrać.</value>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Automatycznie sprawdzaj aktualizacje</value>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Krótko po uruchomieniu, a potem raz dziennie LayerPeek pyta GitHub, czy ukazała się nowa wersja.</value>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Sprawdź teraz</value>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Od razu pyta GitHub, czy jest dostępna nowa wersja, także gdy automatyczne sprawdzanie jest wyłączone.</value>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Sprawdzanie…</value>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} jest aktualny.</value>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>Dostępna jest wersja {0}; oferuje ją menu w obszarze powiadomień.</value>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>Sprawdzanie nie powiodło się. Spróbuj ponownie później.</value>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Przenieś LayerPeek do folderu Aplikacje; wtedy będzie mógł się sam aktualizować.</value>
+  </data>
 </root>

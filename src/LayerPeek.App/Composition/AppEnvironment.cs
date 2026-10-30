@@ -206,6 +206,14 @@ internal sealed class AppEnvironment
     public const string TestNoDisplayVariable = "LAYERPEEK_TEST_NO_DISPLAY_MS";
 
     /// <summary>
+    /// Debug builds only (T-058, Q10 a): the update feed of the end-to-end test of the updates, an http address on the loopback
+    /// (<c>http://127.0.0.1:&lt;port&gt;/</c>) or an existing local folder (<see cref="Installer.UpdateSource"/>). A Velopack
+    /// installation of the test reads its Velopack feed there, any other test start the GitHub REST answer at that address.
+    /// The test mode never asks GitHub; without this switch it checks nothing.
+    /// </summary>
+    public const string TestUpdateSourceVariable = Installer.UpdateSource.TestVariable;
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -291,6 +299,9 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestNoDisplayVariable"/>: how long macOS reports no active display.</summary>
     public TimeSpan TestNoDisplay { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestUpdateSourceVariable"/>: the update feed of the test; otherwise <see langword="null"/>.</summary>
+    public Installer.UpdateSource? TestUpdateSource { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -299,8 +310,15 @@ internal sealed class AppEnvironment
     /// <param name="credentialPrefix">The Credential Manager instead of the in-memory store, under this prefix (T-067).</param>
     /// <param name="startDelay">How much later monitoring starts (T-067).</param>
     /// <param name="noDisplay">How long macOS reports no active display (T-099).</param>
+    /// <param name="updateSource">The update feed of the test (T-058).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
-    public static AppEnvironment ForTests(string dataDirectory, bool toasts = false, string? credentialPrefix = null, TimeSpan startDelay = default, TimeSpan noDisplay = default)
+    public static AppEnvironment ForTests(
+        string dataDirectory,
+        bool toasts = false,
+        string? credentialPrefix = null,
+        TimeSpan startDelay = default,
+        TimeSpan noDisplay = default,
+        Installer.UpdateSource? updateSource = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -329,6 +347,7 @@ internal sealed class AppEnvironment
             TestCredentialPrefix = credentialPrefix,
             TestStartDelay = startDelay,
             TestNoDisplay = noDisplay,
+            TestUpdateSource = updateSource,
         };
     }
 
@@ -345,10 +364,11 @@ internal sealed class AppEnvironment
         string? credentialPrefix = read(TestCredentialPrefixVariable);
         string? startDelay = read(TestStartDelayVariable);
         string? noDisplay = read(TestNoDisplayVariable);
+        string? updateSource = read(TestUpdateSourceVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -364,8 +384,15 @@ internal sealed class AppEnvironment
             toasts: toasts == "1",
             credentialPrefix: string.IsNullOrEmpty(credentialPrefix) ? null : credentialPrefix,
             startDelay: ParseMilliseconds(startDelay, TestStartDelayVariable, MaxTestStartDelayMilliseconds),
-            noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds));
+            noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds),
+            updateSource: ParseUpdateSource(updateSource));
     }
+
+    /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>
+    private static Installer.UpdateSource? ParseUpdateSource(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null
+        : Installer.UpdateSource.TryCreateForTest(value.Trim(), Directory.Exists)
+            ?? throw new ArgumentException($"{TestUpdateSourceVariable} must be an http address on the loopback or an existing absolute folder.", nameof(value));
 
     /// <summary>Under the test root, with a name of its own after it; never the production prefix.</summary>
     private static bool IsTestCredentialPrefix(string prefix) =>

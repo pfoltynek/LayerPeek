@@ -26,6 +26,7 @@ internal static class SettingsMapper
             Language = settings.Language,
             DebugLogging = settings.DebugLogging,
             OfferPrereleaseUpdates = settings.OfferPrereleaseUpdates,
+            CheckForUpdates = settings.CheckForUpdates,
             Notifications = new NotificationsDocument
             {
                 Enabled = notifications.Enabled,
@@ -85,6 +86,7 @@ internal static class SettingsMapper
             Language = ToLanguage(document.Language, warnings),
             DebugLogging = document.DebugLogging ?? false,
             OfferPrereleaseUpdates = document.OfferPrereleaseUpdates,
+            CheckForUpdates = document.CheckForUpdates ?? true,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),

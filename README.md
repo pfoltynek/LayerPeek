@@ -215,10 +215,15 @@ submenu.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the nozzle and bed cool-down thresholds of each
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
-- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
-  and whether updates offer pre-release versions. On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of
-  the disk image, e.g. to Applications). If you turned LayerPeek off in System Settings → General → Login Items, only you can
-  allow it there again; the settings window offers a button that opens that page.
+- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version).
+  On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of the disk image, e.g. to Applications).
+  If you turned LayerPeek off in System Settings → General → Login Items, only you can allow it there again; the
+  settings window offers a button that opens that page. **Check for updates automatically** (on by default: shortly
+  after the start and then once a day LayerPeek asks GitHub for a new version), whether updates offer pre-release
+  versions, and **Check now**. A new version shows up as an item in the tray / menu bar menu and once as a
+  notification: the installed Windows version and LayerPeek.app on macOS download it, quit and start the new version;
+  the ZIP version opens the release page. On macOS the app updates itself only from a permanent place such as
+  Applications, not straight from the disk image or Downloads.
 
 ### Where data is stored
 
@@ -228,12 +233,13 @@ submenu.
 | Passwords | Windows Credential Manager | login Keychain |
 | Logs | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
-The temperature history is kept only in memory and is never written to disk. The app makes no connections except to
-the printers and cameras you add.
+The temperature history is kept only in memory and is never written to disk. What the update check remembers (when it
+last checked, the newest version it found) is in `update-state.json` next to the settings. The app makes no connections
+except to the printers and cameras you add and, unless you switch the update check off, to GitHub (the list of
+LayerPeek releases, without any account or token, and the download of an update you start).
 
 ## Roadmap
 
-- Update check in the app, with a one-click update of the installed version
 - `winget install` as soon as the first release is public
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.

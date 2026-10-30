@@ -22,6 +22,7 @@ using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
+using LayerPeek.App.Updates;
 using LayerPeek.App.Windows;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
@@ -158,7 +159,9 @@ internal static partial class AppServices
             sp.GetRequiredService<IUiDispatcher>(),
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<TrayMenuOptions>(),
-            sp.GetRequiredService<CustomPrinterImages>()));
+            sp.GetRequiredService<CustomPrinterImages>(),
+            // T-058: "A new version X.Y.Z is available" while one is offered.
+            sp.GetRequiredService<UpdateOffer>()));
         services.AddSingleton(static sp => new ToastActivationRouter(
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<ILogger<ToastActivationRouter>>(),
@@ -239,6 +242,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
+                // T-058: automatic checks, pre-releases and the notification switches of the update check.
+                sp.GetRequiredService<UpdateOffer>(),
             ],
             sp.GetRequiredService<ILogger<MonitoringSession>>(),
             sp.GetRequiredService<RemovedCameraCredentials>(),
@@ -277,17 +282,7 @@ internal static partial class AppServices
         services.AddSingleton(sp => !windows && OperatingSystem.IsMacOS()
             ? CreateMacAutostart(env, sp.GetRequiredService<ILogger<LoginItemAutostart>>())
             : CreateAutostart(env, windows, sp.GetRequiredService<ILogger<StartupShortcutAutostart>>()));
-        // Updates of the installed app from GitHub Releases (T-017; offered to the user by T-058). Pre-releases as the setting
-        // says, until the user chose by the running version (user decision 2026-10-24).
-        services.AddSingleton(sp =>
-        {
-            string version = AboutViewModel.ProductVersion(typeof(AppServices).Assembly);
-            MonitoringSession session = sp.GetRequiredService<MonitoringSession>();
-            return new AppUpdates(
-                CreateUpdateEngine(env, windows),
-                () => PrereleaseUpdates.Offered(session.CurrentSettings?.OfferPrereleaseUpdates, version),
-                sp.GetRequiredService<ILogger<AppUpdates>>());
-        });
+        AddUpdates(services, env, windows);
 
         AddCameras(services, cameraFeedFactory ?? CreateCameraFeedFactory, cameraWindowStateStore ?? CreateCameraWindowStateStore);
         // Size and maximized state of the settings and diagnostics windows (T-094, windows.json): app state, not settings.
@@ -514,11 +509,138 @@ internal static partial class AppServices
             : new AutostartOption(null, NeedsInstallation: true);
     }
 
-    /// <summary>Velopack's updates (T-017), only in a Velopack installation (never in the test mode, never for the <c>.zip</c>).</summary>
-    private static VelopackUpdateEngine? CreateUpdateEngine(AppEnvironment environment, bool windows) =>
-        windows && OperatingSystem.IsWindows() && !environment.IsIsolated && VelopackInstallation.IsInstalled(Environment.ProcessPath, File.Exists)
-            ? new VelopackUpdateEngine()
-            : null;
+    /// <summary>
+    /// The update check (T-058): the checker of this distribution (Q5 a), the remembered state in <c>update-state.json</c>, the
+    /// service with its timer (Q1 a) and the offer the UI shows. Nothing is checked before monitoring hands over the first
+    /// settings; creating the services touches no files and no network.
+    /// </summary>
+    private static void AddUpdates(ServiceCollection services, AppEnvironment environment, bool windows)
+    {
+        string version = AboutViewModel.ProductVersion(typeof(AppServices).Assembly);
+        // GitHub asks for a User-Agent; the system proxy is used (the request goes to the internet, unlike the printers').
+        services.AddHttpClient(GitHubReleaseChecker.HttpClientName, client => GitHubReleaseChecker.ConfigureClient(client, version))
+            .RemoveAllLoggers();
+        services.AddSingleton(sp => CreateUpdateInstallation(environment, windows, sp.GetRequiredService<ILogger<AppUpdates>>()));
+        services.AddSingleton(static sp => CreateUpdateStateStore(sp));
+        services.AddSingleton(sp =>
+        {
+            UpdateInstallation installation = sp.GetRequiredService<UpdateInstallation>();
+            IUpdateChecker checker = (IUpdateChecker?)installation.Installer
+                ?? CreateReleaseChecker(environment, sp.GetRequiredService<IHttpClientFactory>());
+            return new UpdateCheckService(
+                checker,
+                ReleaseVersion.TryParse(version, out ReleaseVersion? running) ? running : ReleaseVersion.Parse("0.0.0"),
+                sp.GetRequiredService<IUpdateStateStore>(),
+                sp.GetRequiredService<INotificationService>(),
+                sp.GetRequiredService<TimeProvider>(),
+                sp.GetRequiredService<ILogger<UpdateCheckService>>(),
+                UpdateTimings(environment));
+        });
+        services.AddSingleton(static sp =>
+        {
+            UpdateInstallation installation = sp.GetRequiredService<UpdateInstallation>();
+            return new UpdateOffer(
+                sp.GetRequiredService<UpdateCheckService>(),
+                installation.Installer,
+                installation.NeedsMoveToApplications,
+                sp.GetRequiredService<IUrlLauncher>(),
+                sp.GetRequiredService<ILogger<UpdateOffer>>());
+        });
+    }
+
+    /// <summary>How the running copy updates (T-017, T-058).</summary>
+    /// <param name="Installer">Velopack's updates of an installation that can update itself; <see langword="null"/> otherwise.</param>
+    /// <param name="NeedsMoveToApplications">A macOS <c>.app</c> of Velopack that runs translocated or from the <c>.dmg</c> (Q8 a).</param>
+    internal sealed record UpdateInstallation(AppUpdates? Installer, bool NeedsMoveToApplications);
+
+    /// <summary>
+    /// Velopack's updates only in a Velopack installation: on Windows (T-017) and, since T-058, on macOS in a permanent place
+    /// (a translocated app or one on the mounted <c>.dmg</c> cannot replace itself, Q8 a). Never in the test mode, except with
+    /// the update feed of the end-to-end test (Q10 a), never for the <c>.zip</c> or a development build.
+    /// </summary>
+    private static UpdateInstallation CreateUpdateInstallation(AppEnvironment environment, bool windows, ILogger<AppUpdates> logger)
+    {
+        string? executable = Environment.ProcessPath;
+        UpdateSource? testSource = null;
+#if DEBUG
+        testSource = environment.TestUpdateSource;
+#endif
+        if (environment.IsIsolated && testSource is null)
+        {
+            return new UpdateInstallation(null, NeedsMoveToApplications: false);
+        }
+
+        if (windows && OperatingSystem.IsWindows() && VelopackInstallation.IsInstalled(executable, File.Exists))
+        {
+            return new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(testSource), logger), NeedsMoveToApplications: false);
+        }
+
+        if (!windows && OperatingSystem.IsMacOS() && VelopackInstallation.IsInstalledMac(executable, File.Exists))
+        {
+            return MacAppBundle.BundleOf(executable) is { } bundle && MacAppBundle.IsPermanentLocation(bundle, MacAppBundle.IsOnReadOnlyVolume)
+                ? new UpdateInstallation(new AppUpdates(new VelopackUpdateEngine(testSource), logger), NeedsMoveToApplications: false)
+                : new UpdateInstallation(null, NeedsMoveToApplications: true);
+        }
+
+        return new UpdateInstallation(null, NeedsMoveToApplications: false);
+    }
+
+    /// <summary>
+    /// The GitHub REST checker of the <c>.zip</c> and development builds; in the test mode only the address of the test
+    /// feed on the loopback (Q10 a), otherwise a checker that never asks anyone.
+    /// </summary>
+    private static IUpdateChecker CreateReleaseChecker(AppEnvironment environment, IHttpClientFactory httpClients)
+    {
+        if (!environment.IsIsolated)
+        {
+            // Only the app's own executable asks GitHub, never a test host that composes the production services.
+            return IsAppExecutable(Environment.ProcessPath) ? new GitHubReleaseChecker(httpClients) : NoUpdateChecker.Instance;
+        }
+
+#if DEBUG
+        if (environment.TestUpdateSource is { Address: { } address })
+        {
+            return new GitHubReleaseChecker(httpClients, address);
+        }
+#endif
+
+        return NoUpdateChecker.Instance;
+    }
+
+    /// <summary>Whether <paramref name="executable"/> is the app (<c>LayerPeek</c>, <c>LayerPeek.exe</c>), not a test host.</summary>
+    internal static bool IsAppExecutable(string? executable) =>
+        !string.IsNullOrEmpty(executable)
+        && string.Equals(Path.GetFileNameWithoutExtension(executable), MacAppBundle.ExecutableName, StringComparison.OrdinalIgnoreCase)
+        && (Path.GetExtension(executable).Length == 0 || string.Equals(Path.GetExtension(executable), ".exe", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>The test mode with an update feed checks right after the start; everything else follows Q1 a.</summary>
+    private static UpdateCheckTimings UpdateTimings(AppEnvironment environment)
+    {
+#if DEBUG
+        if (environment.TestUpdateSource is not null)
+        {
+            return UpdateCheckTimings.Default with { StartDelay = TimeSpan.FromSeconds(2) };
+        }
+#endif
+
+        return UpdateCheckTimings.Default;
+    }
+
+    private static IUpdateStateStore CreateUpdateStateStore(IServiceProvider services)
+    {
+        try
+        {
+            return new JsonUpdateStateStore(
+                services.GetRequiredService<AppEnvironment>().DataDirectory(),
+                services.GetRequiredService<TimeProvider>(),
+                services.GetRequiredService<ILogger<JsonUpdateStateStore>>());
+        }
+        catch (InvalidOperationException)
+        {
+            // No per-user data folder: the state is remembered for this run only.
+            return new MemoryUpdateStateStore();
+        }
+    }
 
     /// <summary>
     /// The video decoder of the camera windows and of the camera test (T-014): FFmpeg. This is the only place that chooses
@@ -703,9 +825,11 @@ internal static partial class AppServices
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).
             ImageStartDirectory = environment.IsIsolated ? environment.DataDirectory() : null,
-            // macOS (T-019, user decision 2026-10-29): "Open at Login", and no pre-release option until macOS has updates.
+            // macOS (T-019, user decision 2026-10-29): "Open at Login". T-058: the pre-release option on every OS (Q3 a).
             UsesMacTerms = OperatingSystem.IsMacOS(),
-            ShowsPrereleaseOption = !OperatingSystem.IsMacOS(),
+            // T-058: "Check now" (Q4 a) and the hint to move the macOS app to Applications first (Q8 a).
+            CheckForUpdatesNow = services.GetRequiredService<UpdateOffer>().CheckNowAsync,
+            ShowsMoveToApplications = services.GetRequiredService<UpdateOffer>().NeedsMoveToApplications,
         };
     }
 

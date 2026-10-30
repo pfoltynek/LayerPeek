@@ -216,10 +216,15 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
   u každé tiskárny), neprůhlednost karet a rozložení.
 - **Obecné:** jak často se aplikace ptá tiskáren na stav, jazyk a podrobné logování.
 - **Spuštění a aktualizace:** spouštění LayerPeeku po přihlášení do Windows (ve výchozím stavu vypnuté,
-  jen v nainstalované verzi) a jestli aktualizace nabízejí předběžné verze. Na macOS: **Otevřít při přihlášení**
-  (ve výchozím stavu vypnuté, jen pro LayerPeek.app zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek
-  vypnul v Nastavení systému → Obecné → Položky při přihlášení, povolit ho jde jen tam; okno nastavení nabídne tlačítko,
-  které tu stránku otevře.
+  jen v nainstalované verzi). Na macOS: **Otevřít při přihlášení** (ve výchozím stavu vypnuté, jen pro LayerPeek.app
+  zkopírovanou z obrazu disku, např. do Aplikací). Pokud jsi LayerPeek vypnul v Nastavení systému → Obecné → Položky
+  při přihlášení, povolit ho jde jen tam; okno nastavení nabídne tlačítko, které tu stránku otevře. **Automaticky
+  kontrolovat aktualizace** (ve výchozím stavu zapnuté: krátce po spuštění a pak jednou denně se LayerPeek zeptá
+  GitHubu na novou verzi), jestli aktualizace nabízejí předběžné verze a **Zkontrolovat teď**. Nová verze se ukáže jako
+  položka v nabídce v oznamovací oblasti / menu baru a jednou jako notifikace: nainstalovaná verze pro Windows
+  a LayerPeek.app na macOS ji stáhnou, ukončí se a spustí novou verzi; verze ZIP otevře stránku vydání. Na macOS se
+  aplikace aktualizuje sama jen z trvalého místa, např. ze složky Aplikace, ne přímo z obrazu disku nebo ze Stažených
+  souborů.
 
 ### Kde jsou uložená data
 
@@ -229,12 +234,13 @@ jméno ani heslo do adresy nepiš. Klikni na **Otestovat kameru**, ulož a v pod
 | Hesla | Správce pověření Windows | přihlašovací Klíčenka |
 | Logy | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
-Historie teplot je jen v paměti a na disk se nikdy neukládá. Aplikace se nepřipojuje nikam jinam než k tiskárnám
-a kamerám, které přidáš.
+Historie teplot je jen v paměti a na disk se nikdy neukládá. Co si pamatuje kontrola aktualizací (kdy naposledy
+kontrolovala, nejnovější nalezenou verzi), je v `update-state.json` vedle nastavení. Aplikace se nepřipojuje nikam
+jinam než k tiskárnám a kamerám, které přidáš, a pokud kontrolu aktualizací nevypneš, ke GitHubu (seznam vydání
+LayerPeeku, bez účtu a tokenu, a stažení aktualizace, kterou spustíš).
 
 ## Plán
 
-- Kontrola nové verze v aplikaci a aktualizace nainstalované verze jedním kliknutím
 - `winget install` hned po zveřejnění prvního vydání
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory

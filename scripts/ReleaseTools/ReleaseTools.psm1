@@ -616,8 +616,9 @@ function Get-PublishProblems {
     <#
     .SYNOPSIS
         Pure check before a draft release is published: it exists, is a draft, has the checksum file of every
-        expected OS, every file listed in the checksum files is uploaded with the listed SHA256, no other file is
-        uploaded and no file of a runtime that must not be uploaded (win-arm64 until T-057) is there.
+        expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every file
+        listed in the checksum files is uploaded with the listed SHA256, no other file is uploaded and no file of a
+        runtime that must not be uploaded (win-arm64 until T-057) is there.
     .PARAMETER Release
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
@@ -640,7 +641,12 @@ function Get-PublishProblems {
     if ($assets.Count -eq 0) { $problems.Add("Release $Tag has no files.") }
     foreach ($os in $ExpectedOs) {
         $sums = Get-ChecksumFileName $os
-        if (-not (@($assets | Where-Object { $_.name -ceq $sums }))) { $problems.Add("Release $Tag has no $($sums): the $os build is not uploaded yet.") }
+        if (-not (@($assets | Where-Object { $_.name -ceq $sums }))) { $problems.Add("Release $Tag has no $($sums): the $os build is not uploaded yet."); continue }
+        # T-017 / T-058: without its feed an installation of the RID never finds the release (Windows and macOS update through Velopack).
+        foreach ($rid in @($Config.Keys | Where-Object { $Config[$_].Uploadable -and $Config[$_].Os -eq $os })) {
+            $feed = "releases.$rid.json"
+            if (-not (@($assets | Where-Object { $_.name -ceq $feed }))) { $problems.Add("Release $Tag has no $($feed): installations of $rid would not find the update.") }
+        }
     }
     $listed = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($sumsName in $Checksums.Keys) {
@@ -679,6 +685,9 @@ function Test-RuntimeFileName {
 
 # Velopack packaging (T-017, docs/velopack.md point 12). Fixed by the user: package id, title and AppUserModelID
 # 'LayerPeek', Start menu shortcut only, one channel per RID, no deltas yet, no Portable.zip (the archive step makes the .zip).
+# macOS (T-058, decision Q9 a): vpk packs the finished LayerPeek.app of the 'app' step and signs it ad hoc with the hardened
+# runtime and build/macos/LayerPeek.entitlements; its Portable.zip is the source of the .dmg and the .tar.gz, the .pkg is
+# never made (--noInst, decided 2026-10-29).
 $script:Velopack = [pscustomobject]@{
     PackId    = 'LayerPeek'
     Title     = 'LayerPeek'
@@ -703,19 +712,36 @@ function Get-VelopackSetupFileName {
 function Get-VelopackOutputMap {
     <#
     .SYNOPSIS
-        The files vpk pack writes for one RID (channel = RID) and their names in dist: the feed files and the package keep
-        Velopack's names (the update client looks them up by these names), only Setup.exe is renamed. Ordered
-        dictionary vpk name -> dist name.
+        The files vpk pack writes for one RID (channel = RID) that go into dist, and their names there: the feed files and the
+        package keep Velopack's names (the update client looks them up by these names), only Setup.exe (Windows) is renamed.
+        Ordered dictionary vpk name -> dist name. macOS (T-058) has no installer: the feed and the package only.
     #>
     param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
     $id = $script:Velopack.PackId
-    [ordered]@{
+    $map = [ordered]@{
         "$id-$Version-$Runtime-full.nupkg" = "$id-$Version-$Runtime-full.nupkg"
         "releases.$Runtime.json"           = "releases.$Runtime.json"
         "assets.$Runtime.json"             = "assets.$Runtime.json"
         "RELEASES-$Runtime"                = "RELEASES-$Runtime"
-        "$id-$Runtime-Setup.exe"           = Get-VelopackSetupFileName -Version $Version -Runtime $Runtime
     }
+    if ((Get-RuntimeOs $Runtime) -eq 'windows') { $map["$id-$Runtime-Setup.exe"] = Get-VelopackSetupFileName -Version $Version -Runtime $Runtime }
+    $map
+}
+
+function Get-VelopackPortableFileName {
+    <#
+    .SYNOPSIS
+        The Portable.zip vpk writes for a macOS RID (T-058): the signed LayerPeek.app, unpacked by the 'app' step as the source
+        of the .dmg and the .tar.gz; never uploaded itself.
+    #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    "$($script:Velopack.PackId)-$Runtime-Portable.zip"
+}
+
+function Get-VelopackWorkFileNames {
+    <# .SYNOPSIS The files vpk must write for the RID that stay in its work folder (macOS: Portable.zip; Windows: none). #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    if ((Get-RuntimeOs $Runtime) -eq 'macos') { @(Get-VelopackPortableFileName $Runtime) } else { @() }
 }
 
 function Get-VelopackPackArguments {
@@ -753,6 +779,78 @@ function Get-VelopackPackArguments {
     )
 }
 
+function Get-VelopackMacPackArguments {
+    <#
+    .SYNOPSIS
+        The arguments of 'dotnet vpk' for a macOS RID (pure; T-058, decision Q9 a): the finished LayerPeek.app as --packDir
+        (its Info.plist, icon, localizations and libraries stay as the 'app' step built them), signed ad hoc by vpk (deep, with
+        the hardened runtime) with exactly the entitlements of T-108, channel and runtime = RID, release notes from a file,
+        no deltas, no .pkg, no update check of vpk itself.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [Parameter(Mandatory)] [string] $AppPath,
+        [Parameter(Mandatory)] [string] $OutputDirectory,
+        [Parameter(Mandatory)] [string] $ReleaseNotesFile,
+        [Parameter(Mandatory)] [string] $Entitlements
+    )
+    $v = $script:Velopack
+    @(
+        'vpk', '--skip-updates', 'pack',
+        '--packId', $v.PackId,
+        '--packVersion', $Version,
+        '--packDir', $AppPath,
+        '--mainExe', $script:MacBundle.Executable,
+        '--packTitle', $v.Title,
+        '--packAuthors', $v.Authors,
+        '--channel', $Runtime,
+        '-r', $Runtime,
+        '--releaseNotes', $ReleaseNotesFile,
+        '--delta', 'None',
+        '--noInst',
+        '--signAppIdentity', '-',
+        '--signEntitlements', $Entitlements,
+        '--outputDir', $OutputDirectory
+    )
+}
+
+function Expand-ZipWithDitto {
+    <#
+    .SYNOPSIS
+        Unpacks a zip (Portable.zip, a .nupkg) into a new folder with ditto, which keeps the symbolic links and permissions of
+        a bundle. Returns the folder.
+    #>
+    param([Parameter(Mandatory)] [string] $ZipPath, [Parameter(Mandatory)] [string] $Destination)
+    if (Test-Path -LiteralPath $Destination) { throw "Folder already exists: $Destination" }
+    $null = New-Item -ItemType Directory -Path $Destination
+    $output = & /usr/bin/ditto -x -k $ZipPath $Destination 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "ditto failed for $($ZipPath): $($output -join ' ')" }
+    $Destination
+}
+
+function Get-MacVelopackBundleProblems {
+    <#
+    .SYNOPSIS
+        Problems of the .app of vpk (T-058; empty = fine): the updater UpdateMac and the manifest sq.version are in
+        Contents/MacOS (what the app and Velopack's locator recognize as an installation), and the manifest names the
+        package, the version and the channel of this build.
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
+    $macOS = Join-Path $AppPath 'Contents' 'MacOS'
+    $updater = Join-Path $macOS 'UpdateMac'
+    $manifest = Join-Path $macOS 'sq.version'
+    if (-not (Test-Path -LiteralPath $updater -PathType Leaf)) { "$AppPath has no Contents/MacOS/UpdateMac (the updater of Velopack)." }
+    if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { "$AppPath has no Contents/MacOS/sq.version (the manifest of Velopack)."; return }
+    [xml] $nuspec = Get-Content -LiteralPath $manifest -Raw
+    $metadata = $nuspec.package.metadata
+    $expected = [ordered]@{ id = $script:Velopack.PackId; version = $Version; channel = $Runtime }
+    foreach ($key in $expected.Keys) {
+        $actual = "$($metadata.$key)"
+        if ($actual -cne $expected[$key]) { "$manifest has $key '$actual', expected '$($expected[$key])'." }
+    }
+}
+
 function Get-VelopackVersionProblems {
     <#
     .SYNOPSIS
@@ -777,8 +875,9 @@ function Get-VelopackVersionProblems {
 function Copy-VelopackOutput {
     <#
     .SYNOPSIS
-        Checks that vpk wrote exactly the expected files (no Portable.zip, no delta) and copies them into dist under their
-        dist names. Returns the dist paths. Throws on missing or unexpected files, or when a dist file already exists.
+        Checks that vpk wrote exactly the expected files (Windows: no Portable.zip; macOS: Portable.zip, which stays in the work
+        folder, but no .pkg; never a delta) and copies the dist files into dist under their dist names. Returns the dist paths.
+        Throws on missing or unexpected files, or when a dist file already exists.
     #>
     param(
         [Parameter(Mandatory)] [string] $VelopackDirectory,
@@ -787,9 +886,10 @@ function Copy-VelopackOutput {
         [Parameter(Mandatory)] [string] $Runtime
     )
     $map = Get-VelopackOutputMap -Version $Version -Runtime $Runtime
+    $work = @(Get-VelopackWorkFileNames $Runtime)
     $found = @(Get-ChildItem -LiteralPath $VelopackDirectory -File -Force | ForEach-Object Name)
-    $missing = @($map.Keys | Where-Object { $found -cnotcontains $_ })
-    $extra = @($found | Where-Object { -not $map.Contains($_) })
+    $missing = @(@($map.Keys) + $work | Where-Object { $found -cnotcontains $_ })
+    $extra = @($found | Where-Object { -not $map.Contains($_) -and $work -cnotcontains $_ })
     if ($missing.Count -gt 0) { throw "vpk did not create $($missing -join ', ') in $VelopackDirectory." }
     if ($extra.Count -gt 0) { throw "vpk created unexpected files in $($VelopackDirectory): $($extra -join ', ')." }
     foreach ($name in $map.Keys) {

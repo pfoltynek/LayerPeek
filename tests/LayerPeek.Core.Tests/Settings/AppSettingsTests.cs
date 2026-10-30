@@ -132,6 +132,15 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void TheUpdateCheckIsOnByDefaultAndPartOfEquality()
+    {
+        Assert.True(AppSettings.Default.CheckForUpdates);
+        Assert.NotEqual(new AppSettings(), new AppSettings { CheckForUpdates = false });
+        Assert.Equal(new AppSettings { CheckForUpdates = false }, new AppSettings { CheckForUpdates = false });
+        Assert.NotEqual(new AppSettings().GetHashCode(), new AppSettings { CheckForUpdates = false }.GetHashCode());
+    }
+
+    [Fact]
     public void PrereleaseChoiceIsUnsetByDefaultAndPartOfEquality()
     {
         Assert.Null(AppSettings.Default.OfferPrereleaseUpdates);

@@ -1408,4 +1408,49 @@
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
     <value>Die Zeile klappen Sie in der Mini-Vorschau mit der Schaltfläche „Temperaturdiagramm in der Leiste“ auf.</value>
   </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>Neue Version {0} verfügbar</value>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Version {0} wird heruntergeladen…</value>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Lädt das Update herunter, beendet LayerPeek und startet die neue Version.</value>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Öffnet die Release-Seite im Browser.</value>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>LayerPeek-Update verfügbar</value>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>Version {0} ist verfügbar. Hier klicken, um sie zu erhalten.</value>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Automatisch nach Updates suchen</value>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Kurz nach dem Start und dann einmal täglich fragt LayerPeek bei GitHub nach, ob eine neue Version erschienen ist.</value>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Jetzt prüfen</value>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Fragt jetzt bei GitHub nach, ob eine neue Version verfügbar ist, auch wenn die automatische Suche aus ist.</value>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Wird geprüft…</value>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} ist aktuell.</value>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>Version {0} ist verfügbar; das Menü im Infobereich bietet sie an.</value>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>Die Prüfung ist fehlgeschlagen. Versuchen Sie es später erneut.</value>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Verschieben Sie LayerPeek in den Ordner „Programme“; dann kann es sich selbst aktualisieren.</value>
+  </data>
 </root>
