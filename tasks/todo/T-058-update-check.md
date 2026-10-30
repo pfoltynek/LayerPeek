@@ -103,7 +103,8 @@ Celkem odhadem **4–5 sezení vývojáře** a **1 sezení ručního ověření 
 | F | macOS ruční ověření (Gatekeeper, `/Applications`, Keychain, notifikace, GitHub bez tokenu) a zápis do `docs/velopack.md`, bod 10, plus text do `CHANGELOG.md` a textu vydání (důsledek pro 0.3.0) | macos | qa-reviewer (+ uživatel) | S | E, Q7 |
 
 ## Otevřené otázky
-**Rozhodnuto 2026-10-30 (uživatel): Q1 a, Q2 a, Q3 a, Q4 a, Q5 a, Q6 a, Q7 a, Q8 a, Q9 a, Q10 a** – vše podle doporučení. K Q7: 0.3.0 je vydaná (předběžné vydání 2026-10-29, jen soubory pro macOS); na vydanou 0.3.0 se nesahá, věta o jednorázové ruční reinstalaci přijde do vydání s T-058.
+**Rozhodnuto 2026-10-30 (uživatel): Q1 a, Q2 a, Q3 a, Q4 a, Q5 a, Q6 a, Q7 a, Q8 a, Q9 a, Q10 a** – vše podle doporučení.
+**Rozhodnuto 2026-10-30 (uživatel): T-058 jde do verze 0.3.1** (macOS přejde na Velopack v 0.3.1). **E2E test aktualizace smí agent spouštět** jen v dočasné složce (scratchpad / temp): balíčky i nainstalovaná aplikace mimo `/Applications`, izolovaný testovací režim (`LAYERPEEK_TEST_DATA_DIR`, `LAYERPEEK_INSTANCE_SUFFIX`, testovací bundle id), bez Login Items, síť jen 127.0.0.1; po testu vše smazat včetně registrace v LaunchServices (`lsregister -u`). K Q7: 0.3.0 je vydaná (předběžné vydání 2026-10-29, jen soubory pro macOS); na vydanou 0.3.0 se nesahá, věta o jednorázové ruční reinstalaci přijde do vydání s T-058.
 
 Ke každé otázce jsou varianty (příprava 2026-10-29). Doporučená varianta je označená **(doporučeno)**. Rozhoduje uživatel.
 
