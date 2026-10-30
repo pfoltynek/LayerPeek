@@ -54,6 +54,8 @@ zveřejněného vydání nahrát odmítne („already published“), takže nejd
   skončila hláškou „Release v0.3.0 has no releases.osx-arm64.json“ (soubory by už byly nahrané, kód 1). Doplnění
   Windows k 0.3.0 tímto postupem proto nejde bez ručního obejití. Návrh: ověřit ručně zkušebním vydáním v testovacím
   repozitáři (docs/release.md, „Zkouška doplnění druhého OS“), nebo poprvé ostře u 0.3.1. Rozhodnutí: uživatel.
+  **Rozhodnuto 2026-10-30 (uživatel): poprvé ostře u 0.3.1** (Mac zveřejní s `-AllowIncomplete`, Windows doplní
+  `-AddToPublished`). K 0.3.0 se soubory Windows tímto postupem nedoplňují.
 - **Q2 – staré vydání bez součtů:** zveřejněné `v0.1.0` a `v0.2.0` nemají `SHA256SUMS-windows.txt` (jen `.zip` a
   `Setup.exe`), takže je `GitHubReleaseChecker` už nikdy nenabídne. Regrese to není (kontrola aktualizací je až od
   0.3.0/0.3.1, tedy novější než obě), jen pro úplnost: doplnit jim součty, nebo nechat? Návrh: nechat.
