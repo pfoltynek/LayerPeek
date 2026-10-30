@@ -93,7 +93,7 @@ Nové (neblokuje, k rozhodnutí uživatele / ui-designer), zjištěno při úpra
 - **QS2 → rozhodnuto 2026-10-30 (uživatel): ikona jen během chladnutí (ponechat).** Původně: S „Vychladlo“:** po vychladnutí je teplota ve widgetu S součástí textu stavu („⏻ Vychladlo · 40 °C“, jeden
   `TextBlock`), proto tam ikona čidla zatím není (pokyn mluvil o zvýrazněné teplotě, ta je jen během chladnutí). Má
   ikona být i v tomto stavu? (A) ne, stav je klíčová hodnota / (B) ano – rozdělit text a ikonu vložit před teplotu.
-- **QS3 (nové, ui-designer 2026-10-30, neblokuje):** vyhřívaná podložka (QS1) je jen na kartě S; M / L ponechávají
+- **QS3 → rozhodnuto 2026-10-30 (uživatel): A, vyhřívaná podložka jen na kartě S.** Původně (ui-designer 2026-10-30): vyhřívaná podložka (QS1) je jen na kartě S; M / L ponechávají
   čáru podložky (vedlejší údaj za velkým číslem, 16 / 20 DIP, mezera 6 DIP – znaménko nepřipomíná; čára je legendou
   grafu widgetu Teploty). (A, doporučeno) ponechat / (B) vyhřívaná podložka i v M / L widgetu Vychladnutí (stejná ve
   všech velikostech, ale jiná než ve widgetu Teploty) / (C) všude včetně widgetu Teploty a pásu (ztratí vazbu na čáru
