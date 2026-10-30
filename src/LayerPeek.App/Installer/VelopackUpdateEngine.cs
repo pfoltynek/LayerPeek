@@ -45,11 +45,16 @@ internal sealed class VelopackUpdateEngine : IUpdateEngine
         return state.Manager.DownloadUpdatesAsync(state.Info, progress: null, cancellationToken);
     }
 
+    /// <summary>Whether the updater starts the app again after applying (always, except with the feed of a test).</summary>
+    internal bool RestartsAfterUpdate => _testSource is null;
+
     public void ApplyOnExit(AvailableUpdate update)
     {
         State state = StateOf(update);
-        // Silent (no Velopack window), started again afterwards; the updater waits until this process has exited.
-        state.Manager.WaitExitThenApplyUpdates(state.Info.TargetFullRelease, silent: true, restart: true, restartArgs: []);
+        // Silent (no Velopack window), started again afterwards; the updater waits until this process has exited. The test
+        // mode (Q10 a) never restarts: on macOS the updater starts the app through LaunchServices (open -n), which would start
+        // it without the isolated test mode; the end-to-end test starts the updated app itself.
+        state.Manager.WaitExitThenApplyUpdates(state.Info.TargetFullRelease, silent: true, restart: RestartsAfterUpdate, restartArgs: []);
     }
 
     private IUpdateSource CreateSource(bool prereleases) => _testSource switch

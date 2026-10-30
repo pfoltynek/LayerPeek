@@ -76,11 +76,14 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IDisposable
     /// <summary><see cref="Available"/> or <see cref="IsInstalling"/> changed (any thread).</summary>
     public event EventHandler? Changed;
 
-    /// <summary>The normal quit of the app (the tray menu's Quit), used after a Velopack download; set once by the UI.</summary>
+    /// <summary>
+    /// How the app quits after a Velopack download: macOS while it waits for a display (T-099) ends the wait; once the UI runs
+    /// it replaces that with the tray menu's Quit. Without one (the moment before either attached) a click does nothing.
+    /// </summary>
     public void AttachQuit(Func<Task> quit)
     {
         ArgumentNullException.ThrowIfNull(quit);
-        _quit = quit;
+        Volatile.Write(ref _quit, quit);
     }
 
     /// <summary>The manual check of the settings window (Q4 a). Never throws except when cancelled.</summary>
@@ -105,8 +108,14 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IDisposable
             return await _urls.OpenAsync(release.ReleasePage).ConfigureAwait(false);
         }
 
-        if (_installing || _quit is not { } quit)
+        if (_installing)
         {
+            return false;
+        }
+
+        if (Volatile.Read(ref _quit) is not { } quit)
+        {
+            LogNoQuit();
             return false;
         }
 
@@ -191,6 +200,9 @@ internal sealed partial class UpdateOffer : IMonitoringObserver, IDisposable
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The update was clicked, but no update is offered any more.")]
     private partial void LogNothingOffered();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The update was clicked before the app can quit for it; nothing happens.")]
+    private partial void LogNoQuit();
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Starting the offered update failed.")]
     private partial void LogRunFailed(Exception exception);

@@ -219,10 +219,9 @@ public partial class App : Application, ITrayAppCommands
         // tab; one that came while the app had no UI yet (macOS waiting for a display, T-099) is handled now.
         AvaloniaUiDispatcher settingsDispatcher = new();
         host.AttachSettingsOpener(() => settingsDispatcher.Post(() => ShowSettings(addPrinter: false, generalTab: true)));
-        // T-058: the update (the release page, or download, quit and restart of a Velopack installation) after the normal quit
-        // of the Quit item; a click on the update notification starts it like the menu item.
+        // T-058: the update of a Velopack installation quits through the normal quit of the Quit item from now on (a click on
+        // the update notification reaches the update with the services, ServiceHost).
         host.UpdateOffer.AttachQuit(() => _quit?.QuitAsync() ?? Task.CompletedTask);
-        host.AttachUpdateOpener(() => settingsDispatcher.Post(() => ((ITrayAppCommands)this).InstallUpdate()));
         // Last: starts that came while the settings were loading are handled now.
         _instanceCommands.Attach(OnInstanceCommand, new AvaloniaUiDispatcher(), host.CreateLogger<InstanceCommandQueue>());
     }

@@ -49,7 +49,7 @@ internal sealed partial class WaitingInstanceCommands(Func<string, Task> activat
         return false;
     }
 
-    [LoggerMessage(Level = LogLevel.Information, Message = "A click on a notification while waiting for an active display: opening the printer's web.")]
+    [LoggerMessage(Level = LogLevel.Information, Message = "A click on a notification while waiting for an active display: handled now (a printer's web, or the update).")]
     private partial void LogToastWhileWaiting();
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The instance command {Kind} waits for the menu bar item (it starts once a display is active).")]

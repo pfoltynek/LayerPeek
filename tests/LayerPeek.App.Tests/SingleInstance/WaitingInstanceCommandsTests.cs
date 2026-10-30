@@ -26,7 +26,7 @@ public sealed class WaitingInstanceCommandsTests
         Assert.True(Create(testCommands: false).Handle(toast));
 
         Assert.Equal(["printer=xl"], _opened);
-        Assert.Contains(_logger.Entries, static e => e.Message.Contains("opening the printer's web", StringComparison.Ordinal));
+        Assert.Contains(_logger.Entries, static e => e.Message.Contains("A click on a notification while waiting", StringComparison.Ordinal));
     }
 
     /// <summary>
@@ -41,7 +41,7 @@ public sealed class WaitingInstanceCommandsTests
         Assert.False(Create(testCommands: false).Handle(toast));
 
         Assert.Empty(_opened);
-        Assert.DoesNotContain(_logger.Entries, static e => e.Message.Contains("opening the printer's web", StringComparison.Ordinal));
+        Assert.DoesNotContain(_logger.Entries, static e => e.Message.Contains("A click on a notification while waiting", StringComparison.Ordinal));
         Assert.Contains(_logger.Entries, static e => e.Message.Contains("Toast waits for the menu bar item", StringComparison.Ordinal));
     }
 
