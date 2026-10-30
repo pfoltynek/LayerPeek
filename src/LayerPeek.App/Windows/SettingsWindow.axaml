@@ -642,10 +642,11 @@
               <!--
                 One Tab stop; arrows / Home / End select, Space switches the visibility of the selected row (code-behind).
                 The check boxes are no Tab stops; a click on one switches it and selects its row (design 5.2).
-                Design 3.2: the list asks for at most 7 rows (7 × 32 + 2) and fills the row; with more widgets it scrolls
-                inside (keeping the selected row in view) while the tab does not scroll.
+                Design 3.2: the list asks for at most 224 (7 × 32; its 2 of border cut the 7th row, T-111 Q1, so the taller
+                buttons of "All widgets" fit) and fills the row; with more widgets it scrolls inside (keeping the selected
+                row in view) while the tab does not scroll.
               -->
-              <w:CompactHeightDecorator CompactHeight="226">
+              <w:CompactHeightDecorator CompactHeight="224">
                 <!--
                   T-110 (design T-104 2): after the widgets a separator (9, not selectable, skipped by the keyboard, not in the
                   automation tree) and the "Mini preview" item without a check box (20 empty, so icons and names line up).

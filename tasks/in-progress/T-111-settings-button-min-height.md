@@ -41,7 +41,7 @@ pro celé okno (varianta A z Q6).
       podmínku nesplňují.
 - [x] Vnitřní tlačítka šablon (`NumericUpDown`, `ComboBox`, `TabItem`, `TextBox`) mají stejnou velikost jako před
       úpravou. Test nebo porovnání snímků to potvrdí.
-- [ ] Stávající testy rozložení (`EverythingFitsWithoutScrollingInEveryState`,
+- [x] Stávající testy rozložení (`EverythingFitsWithoutScrollingInEveryState`,
       `GeneralTabWithTheTestNotificationFitsInEveryLanguage`, `GeneralTabWithNotificationsTurnedOffFitsInEveryLanguage`,
       `StartupAndUpdatesTabFitsInEveryLanguage`, `LocalNetworkHintWithItsButtonFitsInEveryLanguage`,
       `CameraLocalNetworkHintWithItsButtonFitsInEveryLanguage`, `MaximizedWindowStretchesWithoutScrollingOrCutTexts`
@@ -61,28 +61,17 @@ pro celé okno (varianta A z Q6).
       harnessu (`SettingsWindowHarness`, `DiagnosticsWindowHarness`) s úložištěm v paměti nebo ve vyhrazených
       testovacích složkách (`TestDirectories` / `ReservedTempDirectory`). Případné spuštění aplikace jen
       s `LAYERPEEK_TEST_DATA_DIR` a `LAYERPEEK_INSTANCE_SUFFIX` (Debug). Žádná síť mimo loopback.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 - (rozhodnuto 2026-10-30: styl `MinHeight` 32 pro celé okno, varianta A z T-101 Q6)
-- **Q1 (2026-10-30, ui-dev): záložka Widgety s 10 widgety se nevejde o 1 DIP.** Tři tlačítka sekce „Všechny widgety“
-  (Upravit rozložení…, Obnovit výchozí, Rozložení pro všechny tiskárny) jsou teď o 2 DIP vyšší, sekce má 149 místo
-  143 DIP. Se skutečnými widgety (5 + Malý náhled) se záložka vejde ve všech jazycích a stavech
-  (`EverythingFitsWithoutScrollingInEveryState` prochází), ale návrhový případ 3.2 „víc widgetů, seznam roluje uvnitř,
-  záložka ne“ (`SettingsWindowWidgetsUiTests.ManyWidgetsScrollInsideTheListWhileTheTabFits`, 10 widgetů, seznam
-  vyžaduje `CompactHeight` 226) dnes ve všech 8 jazycích selže: obsah záložky 423 DIP ve viewportu 422 DIP. Okno jsem
-  nezvětšoval, test jsem neměnil; větev má tedy 8 selhávajících případů tohoto testu. Možnosti (rozhodne uživatel,
-  případně s ui-designerem):
-  - A) `CompactHeight` seznamu widgetů 226 → 224 (7 × 32 bez rámečku 2 DIP; 7. řádek při rolování o 2 DIP oříznutý),
-    uvolní 2 DIP.
-  - B) Mezera mezi třemi tlačítky sekce „Všechny widgety“ 8 → 4 DIP (na mřížce 4), uvolní 8 DIP; tlačítka budou
-    blíž u sebe.
-  - C) Horní okraj nadpisu „Všechny widgety“ 16 → 12 DIP jen u této sekce (na mřížce 4), uvolní 4 DIP.
-  - D) Mezera mezi řádkem s výběrem tiskárny a seznamem 12 → 8 DIP, uvolní 4 DIP.
-  - E) Tlačítka sekce „Všechny widgety“ ze stylu vyjmout (zůstanou na výšce Fluent, asi 30 DIP na macOS) – proti
-    cíli úkolu.
-  - F) Zvětšit výchozí výšku okna (mění T-094 / T-041, obě okna by se musela změnit spolu) – zadání to nepřipouští bez
-    rozhodnutí uživatele.
+- **Q1 (2026-10-30, ui-dev) – VYŘEŠENO: uživatel 2026-10-30 zvolil variantu A.** Záložka Widgety s 10 widgety se po
+  zvýšení tlačítek sekce „Všechny widgety“ (sekce 149 místo 143 DIP) nevešla o 1 DIP (obsah 423 DIP ve viewportu
+  422 DIP, `ManyWidgetsScrollInsideTheListWhileTheTabFits` selhal ve všech 8 jazycích). Zvažované možnosti: A) `CompactHeight`
+  seznamu widgetů 226 → 224, B) mezera mezi tlačítky sekce 8 → 4, C) horní okraj nadpisu sekce 16 → 12, D) mezera nad
+  seznamem 12 → 8, E) vyjmout tlačítka sekce ze stylu, F) zvětšit okno. Provedeno A: `CompactHeight="224"`
+  (7 × 32, rámeček seznamu 2 DIP sedmý řádek při rolování ořízne), test hlídá spodní mez 224, `docs/architecture.md`
+  upraveno.
 
 ## Poznámky k implementaci
 - **Zahájení:** uživatel 2026-10-30 rozhodl začít, i když závislosti T-101, T-109 a T-110 jsou ještě
@@ -108,8 +97,11 @@ pro celé okno (varianta A z Q6).
     aplikace. Snímky to potvrzují také: u `settings-widgets-cooldown-*` se pixely mění až od řádku 327 (pod
     `NumericUpDown`), u `settings-general*` pole a pole se šipkami jen posunuté o 2 DIP.
 - **Výsledky:** `dotnet build` (Debug i Release) 0 varování, 0 chyb. `dotnet test` (macOS): 8021 celkem, 7831 úspěšných,
-  182 přeskočených, **8 selhávajících** – jen `ManyWidgetsScrollInsideTheListWhileTheTabFits` ve všech 8 jazycích (viz
-  Q1). Všechny ostatní testy rozložení (všechny jazyky), velikosti okna Nastavení i Diagnostika prochází.
+  182 přeskočených, 8 selhávajících (`ManyWidgetsScrollInsideTheListWhileTheTabFits`, Q1). Po variantě A z Q1:
+  8021 celkem, 7839 úspěšných, 182 přeskočených, **0 selhávajících**; všechny testy rozložení (všechny jazyky)
+  a velikosti oken Nastavení i Diagnostika prochází.
+- **Q1 varianta A:** `CompactHeight` seznamu widgetů 226 → 224 nemění žádný snímek (macOS ani Windows): se skutečnými
+  widgety je seznam nižší než 224, mez se uplatní jen při víc widgetech (test s 10 widgety).
 - **Snímky macOS** (přegenerované, každý prohlédnutý vedle původního): `settings-camera-notice`,
   `settings-camera-preview-4x3-de`, `settings-camera-preview`, `settings-camera-window-errors-fr`,
   `settings-camera-window-off-cs`, `settings-camera-window`, `settings-camera`, `settings-errors-fr`,
@@ -134,7 +126,7 @@ pro celé okno (varianta A z Q6).
 **ČEKÁ** – revizi spustí hlavní agent. Do té doby jen vlastní kontrola ui-dev (2026-10-30) podle kritérií úkolu:
 výšky tlačítek ≥ 32 DIP všude (test), mezery na mřížce 4/8 se nezměnily (mění se jen výška tlačítek), žádné tlačítko se
 nedotýká sousedního prvku (nejmenší mezera 4 DIP u tlačítek v záhlaví oznámení, nález 1 T-101 platí dál), vnitřní
-tlačítka šablon beze změny. Otevřený je jen případ 10 widgetů (Q1).
+tlačítka šablon beze změny. Případ 10 widgetů vyřešen variantou A z Q1.
 
 Podklady: revize ui-designer v `tasks/in-progress/T-101-test-notification.md` (sekce `### Revize ui-designer
 (2026-10-30)`, nálezy 1 a 2, otázka Q6). Závislost na T-101, T-109 a T-110 je jen kvůli pořadí: všechny tři mění
