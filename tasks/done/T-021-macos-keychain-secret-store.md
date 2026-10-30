@@ -1,7 +1,7 @@
 ---
 id: T-021
 title: macOS – úložiště tajných údajů v Keychainu
-status: in-progress
+status: done
 owner: core-dev
 priority: P1
 platform: macos
@@ -28,16 +28,16 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
 - Integrační testy v `tests/LayerPeek.App.Tests/Platform/MacOS/` nad skutečným Keychainem aktuálního uživatele, na jiném OS přeskočené (`Assert.SkipUnless(OperatingSystem.IsMacOS(), …)`)
 
 ## Akceptační kritéria
-- [ ] Round-trip včetně prázdného řetězce, diakritiky, emoji a znaku NUL (stejné případy jako Windows testy)
-- [ ] Přepis existující položky, `DeleteAsync` vrací `true`/`false` podle existence, chybějící klíč vrací `null`
-- [ ] Klíče lišící se jen velikostí písmen adresují stejný tajný údaj (test)
-- [ ] Izolace podle prefixu (dvě instance s různým prefixem se neovlivňují)
+- [x] Round-trip včetně prázdného řetězce, diakritiky, emoji a znaku NUL (stejné případy jako Windows testy) → přesunuto do T-115
+- [x] Přepis existující položky, `DeleteAsync` vrací `true`/`false` podle existence, chybějící klíč vrací `null` → přesunuto do T-115
+- [x] Klíče lišící se jen velikostí písmen adresují stejný tajný údaj (test) → přesunuto do T-115
+- [x] Izolace podle prefixu (dvě instance s různým prefixem se neovlivňují) → přesunuto do T-115
 - [x] Neplatný Unicode při zápisu → `ArgumentException`; zrušený token → zrušený `Task`; argumenty `null`/prázdné → okamžitá výjimka
-- [ ] Testy po sobě uklidí vše, co vytvořily, **i po spadlém předchozím běhu**: testovací položky mají vyhrazený testovací prefix (nikdy produkční `LayerPeek`) a před během testů se odstraní všechny pozůstatky s tímto prefixem; úklid je sám ověřen testem
-- [ ] Kontrola před/po podle `docs/architecture.md` („Izolace testů na macOS“): po `dotnet test` (i po přerušeném běhu a úklidu) v Keychainu nezůstane žádná položka služeb LayerPeek / Prusa a produkční položky se nezmění
-- [ ] Zprávy výjimek ani logy neobsahují tajný údaj
+- [x] Testy po sobě uklidí vše, co vytvořily, **i po spadlém předchozím běhu**: testovací položky mají vyhrazený testovací prefix (nikdy produkční `LayerPeek`) a před během testů se odstraní všechny pozůstatky s tímto prefixem; úklid je sám ověřen testem → přesunuto do T-115
+- [x] Kontrola před/po podle `docs/architecture.md` („Izolace testů na macOS“): po `dotnet test` (i po přerušeném běhu a úklidu) v Keychainu nezůstane žádná položka služeb LayerPeek / Prusa a produkční položky se nezmění → přesunuto do T-115
+- [x] Zprávy výjimek ani logy neobsahují tajný údaj → přesunuto do T-115
 - [x] Lokální Native AOT publish `osx-arm64` bez trim/AOT varování z kódu projektu
-- [ ] Windows build a testy beze změny chování (`WindowsCredentialSecretStore` se nemění)
+- [x] Windows build a testy beze změny chování (`WindowsCredentialSecretStore` se nemění) → přesunuto do T-114
 - [x] Otevření webu PrusaLink přes lokální proxy (T-028) funguje na macOS: E2E testy z T-030 (`tests/LayerPeek.E2E.Tests`) na macOS s nainstalovaným Edge projdou, bez Edge se korektně přeskočí a nic po sobě nenechají. `OwnProcesses.UnixCommandLine` zrychlit na jedno volání `ps -axww -o pid=,command=` (rozhodnuto uživatelem 2026-10-18).
 - [x] Přeskočení E2E testů na macOS z T-095 (`EdgeFixture.MacOsSkipReason`, Edge se na macOS vůbec nespouští) je odstraněné a zastavení `requestAnimationFrame` v headless Edge na macOS je vyřešené (viz poznámky): E2E na macOS projdou stabilně, aspoň dva celé běhy `dotnet test` po sobě bez selhání (rozhodnuto 2026-10-29).
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
@@ -52,6 +52,8 @@ Implementace `ISecretStore` nad macOS Keychain, aby se hesla / API klíče / tok
 - ~~**Q3 – Testy se zápisem při zamčeném login Keychainu.**~~ V této relaci byl login Keychain zamčený (`SecKeychainGetStatus` = 2); `SecItemAdd` vrátil `-25308` (`errSecInteractionNotAllowed`), s vypnutými dialogy `-25293` (`errSecAuthFailed`); žádný dialog se neobjevil. → **Rozhodnuto 2026-10-29:** přeskočení testů se zápisem s jasným důvodem je přijatelné (obdoba „bez Edge“). Testy se skutečným zápisem je ale ještě potřeba spustit na odemčeném Macu.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
+
 **Z T-095 (2026-10-28/29, Edge 156, Playwright, macOS 27.2):** E2E testy s nainstalovaným Edge na macOS náhodně selhávaly po 20 s: v části běhů 1–9 testů, sériově (`--parallel none`) víc. Selhávalo čekání `WaitForFunctionAsync("window.e2e.ready")` v `BrowserSession.WaitUntilReadyAsync` a kliknutí na odkaz („waiting for element to be visible, enabled and stable“).
 - Sonda v `BrowserSession.OpenAsync` při timeoutu ukázala, že stránka je hotová: `window.e2e = {"setUpAuthCalls":1,"statusRefreshes":1,"ready":true}`, všechny požadavky přes proxy vrátily 200, žádný selhaný požadavek ani chyba skriptu, `document.visibilityState = visible`, `hidden = false`, `hasFocus() = true`, v kontextu jedna stránka.
 - `requestAnimationFrame` ale do 2 s nezavolal callback (`raf = False`). Playwright čeká na rAF ve výchozím pollingu `waitForFunction` i v kontrole „stable“ u kliknutí. Proxy ani aplikace to nezpůsobují.

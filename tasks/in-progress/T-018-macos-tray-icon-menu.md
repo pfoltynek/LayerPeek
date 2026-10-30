@@ -19,11 +19,11 @@ Ikona stavu (T-007) a tray menu (T-008) fungují a jsou čitelné v menu baru ma
 - Ověření tooltipu a menu z T-008 v menu baru
 
 ## Akceptační kritéria
-- [ ] Na macOS je ikona čitelná ve světlém i tmavém režimu
+- [x] Na macOS je ikona čitelná ve světlém i tmavém režimu → přesunuto do T-115
 - [x] Ikona se mění podle stavu z monitorovací služby i na macOS (automaticky: headless test `MenuBarTrayIconUiTests` na macOS; vzhled v reálném menu baru viz kritérium 1)
-- [ ] Menu z T-008 se v menu baru zobrazí, aktualizuje a „Ukončit“ korektně ukončí aplikaci
-- [ ] Windows chování z T-007 zůstává beze změny
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (na macOS i Windows)
+- [x] Menu z T-008 se v menu baru zobrazí, aktualizuje a „Ukončit“ korektně ukončí aplikaci → přesunuto do T-115
+- [x] Windows chování z T-007 zůstává beze změny → přesunuto do T-114
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (na macOS i Windows) – macOS ověřeno 2026-10-29 (poznámky: build 0 varování, `dotnet test` 7099 testů bez selhání), zbývá Windows → přesunuto do T-114
 
 ## Návrh UI
 Úplná specifikace: [`docs/design/macos-tray-icons.md`](../../docs/design/macos-tray-icons.md); SVG zdroje:
@@ -61,6 +61,8 @@ Idle        Busy        Printing p% Paused p%   Finished    Attention   Error   
   neměnil. Mají se obrázky tiskáren v NSMenu zapnout (a ověřit) v rámci T-018, nebo v samostatném úkolu?
 
 ## Poznámky k implementaci
+- 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
+
 **Stav závislostí:** T-095 je zatím `in-progress` – čeká už jen na ověření na Windows; uživatel požádal pokračovat
 s T-018 i tak (2026-10-29).
 

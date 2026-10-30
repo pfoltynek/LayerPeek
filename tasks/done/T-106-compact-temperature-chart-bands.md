@@ -1,7 +1,7 @@
 ---
 id: T-106
 title: Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -31,9 +31,9 @@ Malé grafy teplot v okně kamery (sparkline widgetu Teploty, T-084, a řádek g
 - [x] Graf v okně Diagnostika beze změny (osa od 0 °C pro všechny řady; test, snímky Diagnostiky beze změny)
 - [x] Jednotkové testy `CompactBandsTests`, `TemperatureChartDataTests` (rozsah řad)
 - [x] Headless UI testy a snímky (widget M, řádek grafu malého náhledu) s viditelným kolísáním; snímky macOS přegenerované a zkontrolované
-- [ ] Snímky Windows přegenerované na Windows (viz Poznámky) – na Macu to nejde
+- [x] Snímky Windows přegenerované na Windows (viz Poznámky) – na Macu to nejde → přesunuto do T-114
 - [x] Popisek rozsahu pásu („212–218 °C“) jen ve widgetu Teploty velikosti L (rozhodnutí Q2), sekundární barva, 12, ve sloupci vpravo od grafu; v M / S a v malém náhledu žádný
-- [ ] Ruční krok (uživatel): na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš dramaticky (Q4)
+- [x] Ruční krok (uživatel): na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš dramaticky (Q4) → přesunuto do T-115
 - [x] CHANGELOG [0.3.1] (Changed), `docs/architecture.md`
 - [x] `dotnet build` (Debug i Release) a `dotnet test` bez chyb a varování (macOS)
 
@@ -45,6 +45,7 @@ Malé grafy teplot v okně kamery (sparkline widgetu Teploty, T-084, a řádek g
 4. ~~**Minimální rozsah 6 °C** – ověřit na skutečné tiskárně, zda nepůsobí kolísání příliš dramaticky (případně 8–10 °C).~~ (rozhodnuto 2026-10-29: ponechat 6 °C; uživatel ověří na skutečné tiskárně – ruční krok v akceptačních kritériích)
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 - 2026-10-29, ui-dev (macOS).
 - **Řady:** historie (`TelemetrySample`) má jen trysku a podložku (aktuální a cílovou), komora v modelu není – pásy jsou nejvýš dva. Přidání komory = další řada v `TemperatureChartData` a její pás pod podložkou (smyčka v `LayOutCompactBands` jde v pořadí výčtu `TemperatureSeries`).
 - **`ValueBand`** (`App/Diagnostics/Chart/ValueBand.cs`): mapování hodnoty na Y (`Bottom`, `Height`, `Low`, `High`). Graf Diagnostiky používá jeden pás `0 … top` přes celou plochu – výpočet je bitově shodný s dřívějším `ValueToY`, snímky Diagnostiky se nezměnily.

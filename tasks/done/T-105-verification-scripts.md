@@ -1,7 +1,7 @@
 ---
 id: T-105
 title: Ověřovací skripty pro uživatele (tools/macos-verify.ps1, tools/windows-verify.ps1) místo ručních kroků
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P1
 platform: all
@@ -35,7 +35,7 @@ sandboxu (zamčená Klíčenka, bez TCC, bez uspání displeje, bez druhého už
 - [x] macOS kontroly podle zadání (Keychain, Dock, menu bar, popředí, Gatekeeper, notifikace, čekání na displej, kamera, umístění oken, ikony, Info.plist, Zpřístupnění, sudo, uspání displeje, ruční kroky) s úklidem a kontrolou profilu před/po
 - [x] Windows kontroly (build, test, AOT smoke, E2E, instalace/odinstalace s klíčem COM aktivátoru, klik na toast, autostart, T-102 jen po sloučení)
 - [x] Dokumentace a odkazy z úkolů
-- [ ] Skripty spuštěné uživatelem: macOS interaktivně na Macu a Windows na Windows, nalezené chyby skriptů opravené (agent je nemohl spustit, viz poznámky)
+- [x] Skripty spuštěné uživatelem: macOS interaktivně na Macu a Windows na Windows, nalezené chyby skriptů opravené (agent je nemohl spustit, viz poznámky) → přesunuto do T-114 a T-115
 - [x] `dotnet build` (Debug i Release) bez varování, `dotnet test` bez selhání
 
 ## Otevřené otázky
@@ -59,6 +59,7 @@ sandboxu (zamčená Klíčenka, bez TCC, bez uspání displeje, bez druhého už
    16 bodů. Pokud se ukáže jiný výklad „okraje 16 DIP“ na macOS, upravit toleranci nebo pravidlo.~~ → správně: 16 DIP od kraje pracovní plochy k vnějšímu rámu okna včetně titulku (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 - **Engine (`tools/VerifyTools.psm1`):** kontrola = `New-VerifyCheck` (id `mac.*` / `win.*`, `-Closes` s ID úkolu, druh
   Auto / Permission / Manual, `-Final` pro kontrolu po úklidu). Permission se v interaktivním režimu ptá zvlášť, v
   `-Unattended` je SKIP bez dotazu; Manual v `-Unattended` SKIP; Auto, která potřebuje odpověď (`Confirm-VerifyStep`),

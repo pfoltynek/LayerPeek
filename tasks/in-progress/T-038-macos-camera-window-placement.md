@@ -19,7 +19,7 @@ Ověřit a případně doladit na macOS chování z T-035 a T-037: výběr monit
 - Nastavení bez posuvníku (T-033) na MacBooku 13" (1440×900 / 1470×956 bodů).
 
 ## Akceptační kritéria
-- [ ] Ruční ověření na macOS s jedním a se dvěma monitory, výsledky v poznámkách
+- [x] Ruční ověření na macOS s jedním a se dvěma monitory, výsledky v poznámkách → přesunuto do T-115
 - [x] Případné opravy pokryté testy (App.Tests / App.UiTests) – identifikace monitoru UUID displeje (`AvaloniaScreenCatalogTests`, `MacDisplayUuidTests`), změna velikosti malého náhledu na macOS (`CameraMiniGeometryTests`, `CameraWindowMiniOwnResizeUiTests`), velikost nastavení na MacBooku 13" (`AuxiliaryWindowPlacementTests`)
 - [x] `dotnet build` a `dotnet test` na macOS bez chyb a varování
 
@@ -51,6 +51,7 @@ Ověřit a případně doladit na macOS chování z T-035 a T-037: výběr monit
    přizpůsobit texty / rozložení (ui-designer), nebo aplikaci dodávat Inter i na macOS (rozhodnutí produktu)?
 
 ## Poznámky k implementaci
+- 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
 
 ### Zjištění ze zdrojů Avalonie 12.1.4 (tag `12.1.4`, `native/Avalonia.Native/src/OSX`, `src/Avalonia.Native`)
 - **`Screen.DisplayName`** = `NSScreen.localizedName` (`Screens.mm`, od macOS 10.15). Je to název, který ukazuje

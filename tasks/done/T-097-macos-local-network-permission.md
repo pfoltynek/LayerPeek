@@ -1,7 +1,7 @@
 ---
 id: T-097
 title: macOS – oprávnění „Místní síť“ (NSLocalNetworkUsageDescription)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: macos
@@ -22,9 +22,9 @@ Od macOS 15 potřebuje aplikace pro každé odchozí spojení na adresu v místn
 ## Akceptační kritéria
 - [x] `Info.plist` obsahuje `NSLocalNetworkUsageDescription`, `.app` obsahuje `InfoPlist.strings` pro všech 8 jazyků (test / Pester)
 - [x] Podepsaný bundle projde `codesign --verify --deep --strict`
-- [ ] Dialog „Místní síť“ ukáže text v jazyce systému (ověřeno uživatelem na Macu)
-- [ ] Odepřené oprávnění nezpůsobí pád a je srozumitelně ohlášeno
-- [ ] Windows beze změny
+- [x] Dialog „Místní síť“ ukáže text v jazyce systému (ověřeno uživatelem na Macu) → přesunuto do T-115
+- [x] Odepřené oprávnění nezpůsobí pád a je srozumitelně ohlášeno → přesunuto do T-115
+- [x] Windows beze změny → přesunuto do T-114
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh textu (ui-designer 2026-10-29)
@@ -82,6 +82,7 @@ Normální okno / celá obrazovka            Malý náhled 240 × 135 (nejmenš�
 6. ~~**Krátká hláška v malém náhledu kamery.**~~ → (a) krátká varianta jen v malém náhledu; texty z otázky 1 (plná hláška, tlačítko, popis tlačítka) i krátká varianta schváleny beze změny (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 
 ### Implementace (ui-dev) – 2026-10-29
 

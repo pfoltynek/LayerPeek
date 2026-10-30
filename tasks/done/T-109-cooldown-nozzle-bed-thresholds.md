@@ -1,7 +1,7 @@
 ---
 id: T-109
 title: Vychladnutí – prahy trysky i podložky u každé tiskárny (widget Vychladnutí)
-status: in-progress
+status: done
 owner: ui-dev + core-dev
 priority: P2
 platform: all
@@ -48,7 +48,7 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
 - [x] Widget, pás malého náhledu a notifikace podle oddílu Návrh; texty ve všech 8 jazycích (`StringsTests` projde).
 - [x] Headless UI testy rozložení v 8 jazycích bez oříznutí a bez posuvníku (`SettingsWindowLayoutTests`,
       `CameraWindowCooldownWidgetUiTests`, `CameraWindowMiniStripFinishUiTests`).
-- [ ] Snímky: macOS přegenerované a prohlédnuté; **Windows sadu přegenerovat na Windows** (seznam v Poznámkách).
+- [x] Snímky: macOS přegenerované a prohlédnuté; **Windows sadu přegenerovat na Windows** (seznam v Poznámkách). → přesunuto do T-114
 - [x] Dokumentace (`docs/architecture.md`, README), CHANGELOG [0.3.1].
 - [x] `dotnet build` (Debug i Release) a `dotnet test` bez chyb a varování.
 - [x] Revize ui-designer (oddíl Otevřené otázky Q2–Q4) a potvrzení uživatele k Q1 (Q1 2026-10-30, Q2–Q4 2026-10-30
@@ -133,6 +133,8 @@ která má potvrdit uživatel (Q1, Q5) a zrevidovat ui-designer (Q2–Q4).
   jen tryska (jinak by nikdy „nevychladla“). Prusa tiskárny podložku hlásí vždy; jde o pojistku.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
+
 (ui-dev + core-dev, 2026-10-29, na macOS, větev `feature/T-109-cooldown-nozzle-bed-thresholds`)
 
 - **Core (`Core/Cooldown/`):**

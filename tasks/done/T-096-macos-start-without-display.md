@@ -1,7 +1,7 @@
 ---
 id: T-096
 title: macOS – start aplikace bez aktivního displeje
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: macos
@@ -21,7 +21,7 @@ Kdy to hrozí: „Otevřít při přihlášení“ (T-019) na Macu se zavřeným
 - Izolace testů podle `docs/architecture.md` („Izolace testů na macOS“); start Release aplikace jen přes `scripts/aot-smoke.ps1` se zálohou a obnovou profilu.
 
 ## Akceptační kritéria
-- [ ] Start s uspaným displejem nezpůsobí pád; aplikace se po probuzení displeje objeví v menu baru (ověřeno) – implementováno a pokryto testy s fakes; skutečný start s uspaným displejem čeká na ověření uživatelem (postup níže)
+- [x] Start s uspaným displejem nezpůsobí pád; aplikace se po probuzení displeje objeví v menu baru (ověřeno) – implementováno a pokryto testy s fakes; skutečný start s uspaným displejem čeká na ověření uživatelem (postup níže) → přesunuto do T-115
 - [x] Smoke test (`aot-smoke.ps1`) projde i bez `caffeinate`, nebo je důvod zdokumentovaný
 - [x] Windows beze změny chování (z kódu: vše za `OperatingSystem.IsMacOS()`; na Windows nespuštěno)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
@@ -30,6 +30,7 @@ Kdy to hrozí: „Otevřít při přihlášení“ (T-019) na Macu se zavřeným
 - (žádné; vzniklo rozhodnutím 2026-10-29 k otázce 8 v T-019)
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele)
 
 ### Příčina (Avalonia 12.1.4, ověřeno ve zdrojích tagu `12.1.4`, commit `2d79ba5`)
 - `AvaloniaNativePlatform.DoInitialize` (`src/Avalonia.Native/AvaloniaNativePlatform.cs`) napevno registruje

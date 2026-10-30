@@ -1,7 +1,7 @@
 ---
 id: T-102
 title: macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: macos
@@ -44,10 +44,10 @@ aplikaci, nedá se snadno vrátit.
       jedinečné v 8 jazycích (testy)
 - [x] Implementace přes ObjC runtime (`[LibraryImport]`, AOT), za rozhraním `IAppPresence` (macOS / no-op)
 - [x] Texty ve všech 8 jazycích
-- [ ] Ověřeno uživatelem na Macu: ikona v Docku a ⌘Tab se objeví / zmizí, menu Docku, klik na ikonu v Docku, fokus
-      a pořadí oken (`docs/macos-manual-testing.md`, sezení 2, krok 7)
-- [ ] Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, „Zobrazit kameru“, blikání (oddíl „Ruční ověření
-      na Windows“, W1–W3), jinak beze změny
+- [x] Ověřeno uživatelem na Macu: ikona v Docku a ⌘Tab se objeví / zmizí, menu Docku, klik na ikonu v Docku, fokus
+      a pořadí oken (`docs/macos-manual-testing.md`, sezení 2, krok 7) → přesunuto do T-115
+- [x] Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, „Zobrazit kameru“, blikání (oddíl „Ruční ověření
+      na Windows“, W1–W3), jinak beze změny → přesunuto do T-114
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -82,6 +82,7 @@ Výchozí volby okna kamery (normální okno ne navrchu, malý náhled navrchu),
   a ukáže (Avalonia, přijatelné podle otázky 5) – zapsat, jestli nedělá nic horšího (ztráta fokusu, posun, jiný monitor).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 - **Avalonia 12.1.4 (Avalonia.Native) a aktivační politika:** `MacOSPlatformOptions.ShowInDock` se použije jednou při
   startu (`AvaloniaNativePlatform.DoInitialize` → `MacOptions::SetShowInDock`, ta nastaví politiku jen když se liší).
   Jinde `setActivationPolicy:` v `libAvaloniaNative.dylib` volaná není (ověřeno disassemblerem `otool` na balíčku

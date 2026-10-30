@@ -1,7 +1,7 @@
 ---
 id: T-058
 title: Kontrola nové verze v aplikaci (GitHub Releases)
-status: in-progress
+status: done
 owner: core-dev + ui-dev
 priority: P3
 platform: all
@@ -33,9 +33,9 @@ Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku n
 - [x] Testy klienta GitHub API s nahranými JSON fixtures a falešným `HttpMessageHandler` (žádná reálná síť), včetně 403, 404, timeoutu a neplatného JSON
 - [x] Testy služby: nová verze → událost + jedna notifikace; stejná / starší verze → nic; opakovaná kontrola stejné verze → žádná další notifikace
 - [x] Headless UI test: položka menu se zobrazí jen při dostupné nové verzi
-- [ ] Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack (ověřeno ručně) – automaticky ověřeno: klik na položku (headless UI test, příkaz `InstallUpdate`), otevření stránky vydání (unit test `UpdateOffer`) a klik na notifikaci jako příkaz instance → stažení, ukončení a aktualizace přes Velopack na macOS (E2E `MacUpdateE2ETests`). **Zbývá ručně:** skutečný klik v menu a na banner notifikace na Windows a na macOS, aktualizace instalace Velopacku na Windows
-- [ ] Žádná nová NuGet závislost, nebo ověřená AOT/trim kompatibilita; AOT publish `win-x64` bez varování – žádná nová závislost; AOT publish `osx-arm64` s `-warnaserror` bez varování trimmingu/AOT (2026-10-30). **Zbývá:** AOT publish `win-x64` (jen na Windows)
-- [ ] macOS: `.app` od `vpk` (ad-hoc podpis, `codesign --verify --deep --strict`), `.dmg` a `.tar.gz` z ní, `.nupkg` a feed `osx-arm64` ve vydání; aktualizace na Macu ověřená a zapsaná v `docs/velopack.md`, bod 10 (převzato z T-019) – krok `app` přepsaný, `vpk` ověřené na skutečném bundlu 0.3.1 a Pester testem (skutečné `vpk`), aktualizace ověřená E2E v dočasné složce a zapsaná v bodu 10. **Zbývá:** celý běh `pwsh scripts/release-build.ps1` na Macu (agent ho v izolovaném worktree nespustil) a ruční body (Gatekeeper, `/Applications` se standardním účtem, Klíčenka, notifikace, GitHub bez tokenu, restart přes `open -n`)
+- [x] Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack (ověřeno ručně) – automaticky ověřeno: klik na položku (headless UI test, příkaz `InstallUpdate`), otevření stránky vydání (unit test `UpdateOffer`) a klik na notifikaci jako příkaz instance → stažení, ukončení a aktualizace přes Velopack na macOS (E2E `MacUpdateE2ETests`). **Zbývá ručně:** skutečný klik v menu a na banner notifikace na Windows a na macOS, aktualizace instalace Velopacku na Windows → přesunuto do T-114 a T-115
+- [x] Žádná nová NuGet závislost, nebo ověřená AOT/trim kompatibilita; AOT publish `win-x64` bez varování – žádná nová závislost; AOT publish `osx-arm64` s `-warnaserror` bez varování trimmingu/AOT (2026-10-30). **Zbývá:** AOT publish `win-x64` (jen na Windows) → přesunuto do T-114
+- [x] macOS: `.app` od `vpk` (ad-hoc podpis, `codesign --verify --deep --strict`), `.dmg` a `.tar.gz` z ní, `.nupkg` a feed `osx-arm64` ve vydání; aktualizace na Macu ověřená a zapsaná v `docs/velopack.md`, bod 10 (převzato z T-019) – krok `app` přepsaný, `vpk` ověřené na skutečném bundlu 0.3.1 a Pester testem (skutečné `vpk`), aktualizace ověřená E2E v dočasné složce a zapsaná v bodu 10. **Zbývá:** celý běh `pwsh scripts/release-build.ps1` na Macu (agent ho v izolovaném worktree nespustil) a ruční body (Gatekeeper, `/Applications` se standardním účtem, Klíčenka, notifikace, GitHub bez tokenu, restart přes `open -n`) → přesunuto do T-115
 - [x] `dotnet build` a `dotnet test` bez chyb a varování (macOS; Windows snapshoty záložky Spuštění a aktualizace je potřeba přegenerovat na Windows)
 
 ## Rozbor (příprava 2026-10-29)
@@ -161,6 +161,8 @@ Ke každé otázce jsou varianty (příprava 2026-10-29). Doporučená varianta 
   - c) Proměnná prostředí platná i v produkci. Minus: kdokoli pod stejným uživatelem by přesměroval aktualizace na vlastní balíček. Nedoporučuju.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
+
 Stav 2026-10-30 (ui-dev agent, macOS, větev `feature/T-058-update-check`). **Uživatel schválil začít T-058 už teď**, přestože T-055 je v `in-progress` jen kvůli ručním kritériím zkušebního vydání na GitHubu (skripty T-055 jsou hotové). Cílová verze 0.3.1 (rozhodnuto 2026-10-30), repozitář je veřejný.
 
 **Core (`src/LayerPeek.Core/Updates`):**

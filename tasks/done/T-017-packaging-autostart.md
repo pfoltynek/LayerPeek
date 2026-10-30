@@ -1,7 +1,7 @@
 ---
 id: T-017
 title: Balení a distribuce, autostart – Windows
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: windows
@@ -41,10 +41,10 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
 - [x] Testy (rozhodnuto 2026-10-24): unit testy (pořadí `VelopackApp.Run()` v `Main`, logika hooků, autostart, volba předběžných verzí), Pester testy balicího kroku Velopack a E2E test skutečné instalace a odinstalace `Setup.exe --silent` přes `tools/run-e2e.ps1` (se žurnálem obnovy). E2E ověří AUMID, `ToastActivatorCLSID`, registraci COM a úklid po odinstalaci.
 - [x] Postup sestavení a vydání pro Windows zdokumentovaný v `docs/release.md` (z T-055), včetně varování SmartScreen u nepodepsané aplikace
 - [x] Instalátor `win-x64` nainstaluje aplikaci bez admin práv, zástupce má AUMID `LayerPeek` a `ToastActivatorCLSID` (ověřeno)
-- [ ] Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý (vydává se až po T-057; spuštění na ARM64 zatím nejde ověřit, uživatel nemá zařízení)
+- [x] Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý (vydává se až po T-057; spuštění na ARM64 zatím nejde ověřit, uživatel nemá zařízení) → přesunuto do T-114
 - [x] Odinstalace nezanechá zástupce, klíč notifikací, toasty ani hodnotu `IsPromoted` z T-061 (ověřeno)
-- [ ] Odinstalace smaže registraci COM aktivátoru toastů `HKCU\Software\Classes\CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}` z T-068 (ověřeno); po instalaci kliknutí na toast v centru oznámení otevře web tiskárny, i když aplikace neběží (ověřeno)
-- [ ] Autostart po přihlášení funguje na Windows (ověřeno)
+- [x] Odinstalace smaže registraci COM aktivátoru toastů `HKCU\Software\Classes\CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}` z T-068 (ověřeno); po instalaci kliknutí na toast v centru oznámení otevře web tiskárny, i když aplikace neběží (ověřeno) → přesunuto do T-114
+- [x] Autostart po přihlášení funguje na Windows (ověřeno) → přesunuto do T-114
 - [x] Nový NuGet balíček (Velopack) je ověřeně AOT/trim kompatibilní (T-056), AOT publish bez varování
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -83,6 +83,7 @@ Podklad: `docs/velopack.md` (T-056). Velopack pro Windows je přijatý (rozhodnu
   - ~~Přepis zástupce~~ → u existujícího zástupce měnit jen AUMID a `ToastActivatorCLSID` (popis, ikona a další vlastnosti Velopacku zůstanou), s testem (rozhodnuto 2026-10-24).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
 
 **Hotovo (2026-10-24, ui-dev; nic necommitováno):**
 

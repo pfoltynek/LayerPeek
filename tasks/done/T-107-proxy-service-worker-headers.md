@@ -1,7 +1,7 @@
 ---
 id: T-107
 title: Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1)
-status: in-progress
+status: done
 owner: core-dev
 priority: P2
 platform: all
@@ -29,7 +29,7 @@ Nález N1 z bezpečnostní revize (2026-10-29), oprava odsouhlasená uživatelem
 - [x] Posouzení `*.localhost` je zdokumentované, rozhodnutí je v otevřených otázkách.
 - [x] Dokumentace a CHANGELOG doplněny.
 - [x] `dotnet build` (Debug i Release) a `dotnet test` bez chyb a varování.
-- [ ] Ruční ověření uživatelem se skutečnou tiskárnou: web PrusaLink přes proxy se načte, zobrazí stav, umí nahrát a stáhnout soubor (Windows: Edge/Chrome; macOS: Safari).
+- [x] Ruční ověření uživatelem se skutečnou tiskárnou: web PrusaLink přes proxy se načte, zobrazí stav, umí nahrát a stáhnout soubor (Windows: Edge/Chrome; macOS: Safari). → přesunuto do T-114 a T-115
 
 ## Otevřené otázky
 - **Rozhodnuto 2026-10-29: zůstává `127.0.0.1`** (varianta a), dokud aplikace podporuje macOS 14 a 15; znovu zvážit po zvednutí minima na macOS 26.
@@ -45,6 +45,7 @@ Nález N1 z bezpečnostní revize (2026-10-29), oprava odsouhlasená uživatelem
   - Doporučení agenta: a), dokud LayerPeek podporuje macOS < 26. Rozhodne uživatel.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 - **Service Worker:** `PrusaLinkWebProxy.IsServiceWorkerScript` běží v `HandleAsync` po kontrole `Host`, tokenu a původu (T-051).
   - Odmítne hlavičku `Service-Worker` s jakoukoli hodnotou a `Sec-Fetch-Dest: serviceworker` (bez ohledu na velikost písmen).
   - Odpověď je `403` s JSON chybou `ProxyErrors.ServiceWorker`, na tiskárnu nic nejde.
