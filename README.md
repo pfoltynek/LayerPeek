@@ -6,13 +6,14 @@
 <p align="center"><i>for Prusa printers</i></p>
 
 <p align="center">
-  <b>Watch your Prusa printers live, right from the system tray.</b><br>
+  <b>Watch your Prusa printers live, right from the system tray or the menu bar.</b><br>
   Real-time camera, print progress and notifications over your local network. No cloud, no account, no browser tab.
 </p>
 
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><b>Download</b></a> ·
   <a href="#quick-start">Quick start</a> ·
+  <a href="#see-it-in-action">Screenshots</a> ·
   <a href="#features">Features</a> ·
   <a href="README.cz.md">Česky</a>
 </p>
@@ -25,70 +26,121 @@
   <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="GitHub stars"></a>
 </p>
 
-<!--
-  SCREENSHOT (hero): docs/images/camera-overlay.png
-  Camera window in normal mode during a real print, overlay with progress, temperatures and finish time.
-  Recommended 1600×900 px, PNG, no personal data in the file name or the printer name.
 <p align="center">
-  <img src="docs/images/camera-overlay.png" alt="Live camera window with print progress overlay" width="800">
+  <img src="docs/images/en/camera-window.jpg" alt="LayerPeek camera window during a print: live picture of a Prusa CORE One with widgets for the status, print name, remaining time and temperatures" width="860">
 </p>
--->
 
 ---
 
 You start a 9-hour print and go back to work. Is the first layer sticking? Did the spool tangle? How long is left?
 Normally you walk to the printer, or open a browser tab and keep reloading it.
 
-**LayerPeek** puts the answer one glance away. The tray icon shows the state and progress of every
-printer. A click opens a **live camera window** with the print progress, temperatures and the finish time on top of the
-picture. When something happens, a **system notification** tells you right away: print finished, printer needs
-attention, error, printer offline.
+**LayerPeek** puts the answer one glance away. The icon in the Windows notification area or the macOS menu bar shows
+the state and progress of every printer. A click opens a **live camera window** with the print progress, temperatures
+and the finish time right on the picture. When something happens, a **system notification** tells you right away:
+print finished, printer needs attention, error, printer offline.
 
 It talks to your printers **directly over your local network** through PrusaLink, the API built into the printer
-firmware. Nothing leaves your network: no cloud service, no account, no telemetry.
+firmware. Your camera picture and print data stay on your network: no cloud service, no account, no telemetry.
 
 > [!NOTE]
 > This is an independent community project. It is **not** an official product of Prusa Research and is not affiliated
 > with or endorsed by Prusa Research a.s. *Prusa*, *PrusaLink* and *Prusa Connect* are trademarks of their respective
 > owners.
 
+## What it's good for
+
+- **Long prints.** Start a 9-hour print and forget about it. LayerPeek reminds you a few minutes before the end, tells
+  you when the print is done and, if you want, when the printer has cooled down and can be switched off.
+- **Keeping an eye on it while you work.** The mini preview sits in a corner of your screen, always on top, with the
+  progress, time left and finish time below the picture. Spaghetti or a failed first layer? You see it immediately.
+- **A print farm.** Add as many printers as you have. One icon shows the most important state, every printer has its
+  own submenu, camera window and widget layout.
+- **Peace of mind away from the desk.** Native notifications on Windows and macOS for finished, paused and stopped
+  prints, errors, "needs attention" and printers going offline.
+- **Privacy.** Everything happens on your local network. It works even when your internet is down, and the camera
+  picture never goes through somebody else's server.
+
 ## Why you'll like it
 
 - 🎥 **Live camera, not snapshots.** Real-time RTSP/H.264 stream from the Prusa Buddy3D camera (or any RTSP camera),
-  decoded locally with FFmpeg. A compact always-on-top window can sit in the corner of your screen while you work.
-- 🏠 **Local network only.** The app talks to the printers on your LAN. It works even when your internet is down, and
-  your camera picture never goes through somebody else's server.
-- 🔔 **You hear about it when it matters.** Native Windows notifications for finished, paused and stopped prints,
-  errors, "needs attention" and printers going offline, plus a reminder a few minutes before the print ends.
-- 🖨️ **Your whole print farm in one icon.** Add as many printers as you have. One combined icon shows the most
-  important state, and each printer has its own submenu.
+  decoded locally with FFmpeg.
+- 🧩 **Widgets you arrange yourself.** Status, times, temperatures with a chart, print name with the G-code preview
+  and cool-down, each in three sizes, placed by drag and drop right in the camera window, per printer.
+- 🔔 **You hear about it when it matters.** Native notifications on Windows and macOS, plus a reminder a few minutes
+  before the print ends.
+- 🖨️ **Your whole print farm in one icon.** One combined icon shows the most important state, and each printer has
+  its own submenu.
 - 🪶 **Tiny and quiet.** A single native executable (Native AOT), no .NET runtime to install, no main window, no
-  background service. It just lives in the tray.
-- 🔒 **Safe with your passwords.** Passwords go to the Windows Credential Manager. The PrusaLink web interface opens
-  already signed in, and your password is never handed to the browser.
+  background service. It just lives in the notification area on Windows and in the menu bar on macOS.
+- 🔒 **Safe with your passwords.** Passwords go to the Windows Credential Manager or the macOS Keychain. The PrusaLink
+  web interface opens already signed in, and your password is never handed to the browser.
 - 🌍 **Speaks your language.** English, Czech, Slovak, German, Spanish, French, Italian and Polish.
 - 💚 **Free and open source** under GPL-3.0. No ads, no subscription, no "pro" version.
 
-## Screenshots
+## See it in action
 
-<!--
-  SCREENSHOTS: add the files to docs/images/ and remove this comment wrapper.
-  Recommended: PNG, 100 % or 150 % display scaling, light Windows theme, no real IP addresses or serial numbers.
+### Widgets: your information, where you want it
 
-| Tray menu | Mini camera window |
+The camera window shows the picture with **widget cards** on top. Pick which widgets each printer shows, choose a
+size, **S**, **M** or **L**, and drag them to any of six places right in the camera window (**Edit layout**). A highlighted
+card stands out with the accent colour, and the card opacity keeps the text readable on a bright picture.
+
+<p align="center">
+  <img src="docs/images/en/camera-layout-mode.jpg" alt="Layout mode of the camera window: widget cards in their zones and the size popover of the Temperatures widget with S, M and L" width="860">
+</p>
+
+The same widget in its three sizes, here the temperatures: S shows the values, M adds the chart of the last hour, L
+the labels and the temperature range.
+
+<p align="center">
+  <img src="docs/images/en/widget-sizes.jpg" alt="The Temperatures widget in sizes S, M and L over the camera picture" width="860">
+</p>
+
+| Widget | Shows |
 |---|---|
-| <img src="docs/images/tray-menu.png" alt="Tray menu with two printers" width="380"> | <img src="docs/images/camera-mini.png" alt="Compact always-on-top camera window" width="380"> |
+| **Status** | printer name, state and progress |
+| **Times** | time left, when the print will be done, print time |
+| **Temperatures** | nozzle and bed (actual / target) with a chart of the last 60 minutes |
+| **Print name** | the file name without the slicer clutter, material, layer height, nozzle and the G-code preview |
+| **Cool-down** | after the print: how far the nozzle and bed have cooled and when it is safe to switch off |
 
-| Notification | Diagnostics |
+### Normal window or mini preview
+
+The **normal window** is for a proper look: any size, any monitor, full screen with F11 (⌃⌘F on macOS). The **mini
+preview** is for the rest of the day: a small window that stays on top of your other windows, with an info strip below
+the picture (progress, time left, finish time) and two rows you can fold out, the print name and the temperature
+chart. One click switches between them.
+
+<p align="center">
+  <img src="docs/images/en/camera-mini.jpg" alt="Mini preview with the info strip, the print name row and the temperature chart row" width="400">
+</p>
+
+### Settings
+
+Everything is set in one window: printers and cameras, widgets per printer, notifications, polling, language, start
+at sign-in and updates.
+
+| Widgets | Printers |
 |---|---|
-| <img src="docs/images/notification.png" alt="Print finished notification" width="380"> | <img src="docs/images/diagnostics.png" alt="Diagnostics window with the temperature chart" width="380"> |
--->
+| <img src="docs/images/en/settings-widgets.png" alt="Settings, Widgets tab: widgets of the CORE One, the cool-down thresholds and the card opacity" width="420"> | <img src="docs/images/en/settings-printers.png" alt="Settings, Printers tab with three printers and their pictures" width="420"> |
 
-*Screenshots are coming with the first release.*
+### Diagnostics
+
+Temperatures, fans, speed, flow, Z height, firmware and a temperature chart of the last 30 minutes, 2 hours or 24
+hours.
+
+<p align="center">
+  <img src="docs/images/en/diagnostics.png" alt="Diagnostics window of a CORE One with the temperature history of the print" width="620">
+</p>
+
+<sub>The screenshots are generated from the app itself (headless rendering of the real windows, a frame of a real
+Buddy3D camera recording and simulated printer data), see [docs/readme-screenshots.md](docs/readme-screenshots.md)
+(in Czech).</sub>
 
 ## Features
 
-### In the tray
+### In the notification area / menu bar
 
 - The icon shows the printer state: idle, printing (the icon fills up as the print progresses), paused, finished,
   needs attention, error, offline. The tooltip shows the details: progress, time left and file name.
@@ -100,7 +152,7 @@ firmware. Nothing leaves your network: no cloud service, no account, no telemetr
   temperatures with a small chart, print name with the G-code thumbnail, and cool-down after the print. You choose the
   widgets, their size and where they sit: drag them right in the camera window.
 - Three modes: **normal**, **mini** (a small preview that stays on top of other windows, with an info strip below the
-  image) and **full screen** (F11).
+  image whose content you choose) and **full screen** (F11, on macOS ⌃⌘F).
 - Per printer: start mode, size, position, monitor and "always on top". The window can remember where you left it.
 - Reconnects automatically when the camera or Wi-Fi drops out.
 
@@ -193,7 +245,8 @@ On the printer, open **Settings → Network → PrusaLink**. Check that PrusaLin
 
 ### 3. Add the printer
 
-1. A Prusa icon appears in the system tray. On Windows you may need to pin it from the hidden-icons area (`^`).
+1. A Prusa icon appears in the Windows notification area or the macOS menu bar. On Windows you may need to pin it
+   from the hidden-icons area (`^`).
 2. Open the tray menu, choose **Add printer…** and fill in:
    - **Name:** any name you like.
    - **Address:** an IP address or host name, e.g. `192.168.1.20` or `http://prusa-mk4.local`.
@@ -212,12 +265,18 @@ submenu.
 
 - **Notifications:** which events you want, the sound mode and the "minutes remaining" reminder.
 - **Camera window:** start mode, size, monitor and always on top.
-- **Widgets:** which overlay widgets are shown, their settings (e.g. the cool-down threshold), card opacity and layout.
+- **Widgets:** which overlay widgets are shown, their settings (e.g. the nozzle and bed cool-down thresholds of each
+  printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
-- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version),
-  and whether updates offer pre-release versions. On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of
-  the disk image, e.g. to Applications). If you turned LayerPeek off in System Settings → General → Login Items, only you can
-  allow it there again; the settings window offers a button that opens that page.
+- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version).
+  On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of the disk image, e.g. to Applications).
+  If you turned LayerPeek off in System Settings → General → Login Items, only you can allow it there again; the
+  settings window offers a button that opens that page. **Check for updates automatically** (on by default: shortly
+  after the start and then once a day LayerPeek asks GitHub for a new version), whether updates offer pre-release
+  versions, and **Check now**. A new version shows up as an item in the tray / menu bar menu and once as a
+  notification: the installed Windows version and LayerPeek.app on macOS download it, quit and start the new version;
+  the ZIP version opens the release page. On macOS the app updates itself only from a permanent place such as
+  Applications, not straight from the disk image or Downloads.
 
 ### Where data is stored
 
@@ -227,18 +286,18 @@ submenu.
 | Passwords | Windows Credential Manager | login Keychain |
 | Logs | `%LOCALAPPDATA%\LayerPeek\logs` | `~/Library/Logs/LayerPeek` |
 
-The temperature history is kept only in memory and is never written to disk. The app makes no connections except to
-the printers and cameras you add.
+The temperature history is kept only in memory and is never written to disk. What the update check remembers (when it
+last checked, the newest version it found) is in `update-state.json` next to the settings. The app makes no connections
+except to the printers and cameras you add and, unless you switch the update check off, to GitHub (the list of
+LayerPeek releases, without any account or token, and the download of an update you start).
 
 ## Roadmap
 
-- Update check in the app, with a one-click update of the installed version
 - `winget install` as soon as the first release is public
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
 - Windows on ARM64
 - MMU3 status
-- Prusa Connect (cloud) as an optional second source for printers outside your network
 
 Have an idea? [Open an issue](https://github.com/pfoltynek/LayerPeek/issues).
 
@@ -304,7 +363,9 @@ SHA-256 checksums, GitHub release). The version comes from `<Version>` in `Direc
 from [CHANGELOG.md](CHANGELOG.md). One command, `pwsh scripts/release.ps1 -Version X.Y.Z` (try `-DryRun` first), runs the
 Gitflow release (release branch, merge into `main` with the tag `vX.Y.Z`, merge back into `develop`), builds the tag and
 uploads it into a draft GitHub release, asking before every push and upload. Publishing the draft stays a separate
-manual step (`scripts/release-publish.ps1`). See [docs/release.md](docs/release.md) for the full procedure (in Czech).
+manual step (`scripts/release-publish.ps1`). It runs on Windows or macOS, whichever goes first; the other OS can add
+its files later, also to the already published release (`scripts/release-upload.ps1 -AddToPublished`). See
+[docs/release.md](docs/release.md) for the full procedure (in Czech).
 The checks on a Mac that only a person can do (Gatekeeper, macOS permissions, Open at Login, monitors, a sleeping
 display) are collected in one walk-through in [docs/macos-manual-testing.md](docs/macos-manual-testing.md) (in Czech).
 
@@ -314,7 +375,7 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 |---|---|
 | `src/LayerPeek.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
-| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (planned) |
+| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (on hold: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |

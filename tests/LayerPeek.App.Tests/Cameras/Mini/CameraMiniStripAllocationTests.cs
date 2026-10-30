@@ -4,6 +4,7 @@ using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Mini;
 using LayerPeek.App.Tests.Cameras.Overlay.Widgets;
 using LayerPeek.App.Tests.Tray;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.Tests.Allocation;
@@ -28,7 +29,7 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
     public CameraMiniStripAllocationTests()
     {
         _cooldown = new CooldownMonitor(_monitor, TimeProvider.System, new ListLogger<CooldownMonitor>());
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()
@@ -99,12 +100,26 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
     }
 
     [Fact]
+    public void CustomItemsAllocateNothingForASnapshotThatChangesOnlyHiddenValues()
+    {
+        // T-110: with the percentage, the bar and both times off, their changes are not even part of the content;
+        // the switched-off chart row computes no temperatures although it is remembered as expanded.
+        CameraMiniStripSettings items = new() { Percent = false, ProgressBar = false, Remaining = false, Finish = false, ChartRow = false };
+        using CameraMiniStripViewModel strip = new("mk4", _dispatcher, _cooldown, rows: new CameraMiniRows(true, true), items: items);
+        PrinterSnapshot first = Printing(42.1, 64.2, 214.6);
+        PrinterSnapshot second = Printing(57.9, 31.9, 150);
+        AssertNothingAllocatedOrPosted(strip, first, second, string.Empty);
+        Assert.Equal("Printing", strip.Summary);
+        Assert.False(strip.ShowsChartRow);
+    }
+
+    [Fact]
     public void CoolingPollsWithTheSameMinutesAllocateNothing()
     {
         // T-088: the estimate rule of the Cool-down widget and its countdown clock cost nothing per poll either.
         FakeTimeProvider time = new(Now);
         using CooldownMonitor cooldown = new(_monitor, time, new ListLogger<CooldownMonitor>());
-        cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
         using CameraMiniStripViewModel strip = new("mk4", _dispatcher, cooldown, clock: time);
         _monitor.SnapshotUpdated += (_, snapshot) => strip.OnSnapshot(snapshot);
         _monitor.Raise(CooldownWidgetTests.Printing());

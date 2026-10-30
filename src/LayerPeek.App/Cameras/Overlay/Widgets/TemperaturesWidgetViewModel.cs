@@ -50,6 +50,7 @@ public sealed class TemperaturesWidgetViewModel : OverlayWidgetViewModel<Tempera
     private string _chartStart = string.Empty;
     private string _chartNow = string.Empty;
     private string _chartNoData = string.Empty;
+    private string _chartRange = string.Empty;
     private bool _hasNozzle;
     private bool _hasBed;
 
@@ -126,6 +127,13 @@ public sealed class TemperaturesWidgetViewModel : OverlayWidgetViewModel<Tempera
         private set => SetProperty(ref _chartNoData, value);
     }
 
+    /// <summary>Format of the value range of a chart band, "{0}–{1} °C" (drawn only in L, T-106).</summary>
+    public string ChartRange
+    {
+        get => _chartRange;
+        private set => SetProperty(ref _chartRange, value);
+    }
+
     public bool HasNozzle
     {
         get => _hasNozzle;
@@ -171,6 +179,7 @@ public sealed class TemperaturesWidgetViewModel : OverlayWidgetViewModel<Tempera
         ChartStart = Strings.CameraOverlayChartStart;
         ChartNow = Strings.CameraOverlayChartNow;
         ChartNoData = Strings.CameraOverlayChartNoData;
+        ChartRange = Strings.CameraOverlayChartRange;
         AccessibleName = AccessibleText(content, ShowsChart);
     }
 

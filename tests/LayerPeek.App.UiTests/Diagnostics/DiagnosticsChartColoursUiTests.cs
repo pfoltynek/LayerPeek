@@ -59,5 +59,29 @@ public sealed class DiagnosticsChartColoursUiTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    [Fact]
+    public Task FullChartKeepsOneAxisFromZeroForAllSeries() =>
+        session.RunAsync(scope =>
+        {
+            // T-106 gives only the compact chart its bands: the diagnostics chart keeps 0 °C at the bottom of the plot and
+            // the same axis for the nozzle, the bed and their targets.
+            DiagnosticsWindowHarness ui = DiagnosticsWindowLayoutTests.OpenPrinting(scope);
+            TemperatureChart chart = ui.Find<TemperatureChart>("DiagnosticsChart");
+            ValueBand axis = chart.BandOf(TemperatureSeries.NozzleActual)!.Value;
+
+            Assert.Equal(0, axis.Low);
+            Assert.True(axis.High >= ChartScale.MinimumTop);
+            Assert.True(axis.Height > 150, $"The axis is {axis.Height:0.#} px high.");
+            foreach (TemperatureSeries series in Enum.GetValues<TemperatureSeries>())
+            {
+                Assert.Equal(axis, chart.BandOf(series));
+                Assert.Equal(chart.ClipOf(TemperatureSeries.NozzleActual), chart.ClipOf(series));
+            }
+
+            Assert.Equal(axis.Bottom, chart.ClipOf(TemperatureSeries.BedActual).Bottom, 6);
+            Assert.Equal(axis.Top, chart.ClipOf(TemperatureSeries.BedActual).Top, 6);
+            return Task.CompletedTask;
+        });
+
     private static Color ColorOf(IBrush? brush) => Assert.IsType<ISolidColorBrush>(brush, exactMatch: false).Color;
 }

@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
-    Publishes the draft GitHub release of the tag vX.Y.Z after the Windows and macOS files are uploaded.
+    Publishes the draft GitHub release of the tag vX.Y.Z after the Windows and macOS files (or, with -AllowIncomplete, the
+    files of one OS) are uploaded.
 
 .DESCRIPTION
     The separate, explicit last step of a release (docs/release.md). Runs the same git checks as
@@ -22,7 +23,9 @@
     Runs every check and prints what would be published; changes nothing on GitHub.
 
 .PARAMETER AllowIncomplete
-    Publishes even when the files of an OS are missing (e.g. no macOS build yet). Every uploaded file is still checked.
+    Publishes even when the files of an OS are missing (e.g. the other OS follows later on another machine). Every
+    uploaded file is still checked. The files of the missing OS are added to the published release later with
+    scripts/release-upload.ps1 -AddToPublished (T-113, docs/release.md).
 
 .EXAMPLE
     pwsh scripts/release-publish.ps1 -DryRun
@@ -55,19 +58,11 @@ try {
 
     $config = Get-ReleaseRuntimeConfig
     $release = Get-GitHubRelease -Repository $preflight.Repository -Tag $tag
-    $checksums = [ordered]@{}
-    if ($release) {
-        $sumsAssets = @($release.assets | Where-Object { $_.name -cmatch '^SHA256SUMS-[a-z]+\.txt$' })
-        if ($sumsAssets.Count -gt 0) {
-            $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-sums-$([guid]::NewGuid().ToString('N'))"
-            $null = New-Item -ItemType Directory -Path $downloadDir
-            & gh release download $tag --repo $preflight.Repository --pattern 'SHA256SUMS-*.txt' --dir $downloadDir
-            if ($LASTEXITCODE -ne 0) { throw "gh release download failed with exit code $LASTEXITCODE." }
-            foreach ($asset in $sumsAssets) { $checksums[$asset.name] = Read-Sha256Sums (Join-Path $downloadDir $asset.name) }
-        }
-    }
+    $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-sums-$([guid]::NewGuid().ToString('N'))"
+    $checksums = Get-ReleaseChecksums -Release $release -Repository $preflight.Repository -Tag $tag -Directory $downloadDir
 
-    $expectedOs = if ($AllowIncomplete) { @() } else { @($config.Values | Where-Object Uploadable | ForEach-Object Os | Sort-Object -Unique) }
+    # @(...) around the whole if: an if whose branch outputs an empty array yields $null, which -ExpectedOs refuses.
+    $expectedOs = @(if (-not $AllowIncomplete) { $config.Values | Where-Object Uploadable | ForEach-Object Os | Sort-Object -Unique })
     $problems = [System.Collections.Generic.List[string]]::new()
     foreach ($problem in @(Get-PublishProblems -Release $release -Tag $tag -ExpectedOs $expectedOs -Checksums $checksums -Config $config)) { $problems.Add($problem) }
     if ($problems.Count -gt 0) {

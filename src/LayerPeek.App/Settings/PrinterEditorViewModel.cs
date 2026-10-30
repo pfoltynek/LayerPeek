@@ -146,6 +146,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
         _overlayLayout = camera.Overlay;
+        InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
         InitializeImage(saved, storedCustomImage);
         FormatCellNames();
@@ -221,6 +222,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
 
             OnPropertyChanged(nameof(UserNameHint));
             OnPasswordPresentationChanged();
+            OnFieldStatesChanged();
             TestConnectionCommand.NotifyCanExecuteChanged();
             InvalidateTest();
             ValidateAddress();
@@ -736,12 +738,12 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     internal bool HasNewPassword => IsPasswordEnabled && _password.Length > 0;
 
     /// <summary>
-    /// The definition to save; <see langword="null"/> while the name, address, user name, camera or cool-down threshold is
+    /// The definition to save; <see langword="null"/> while the name, address, user name, camera or a cool-down threshold is
     /// invalid.
     /// </summary>
     internal PrinterDefinition? ToDefinition() =>
         _nameProblem is not null || _addressProblem is not null || _userNameProblem is not null || BuildCamera() is not { } camera
-        || ValidCooldownThreshold is not { } cooldownThreshold
+        || ValidCooldownThresholds is not { } cooldownThresholds
             ? null
             : new PrinterDefinition
             {
@@ -753,7 +755,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 Camera = camera,
                 DetectedModel = EffectiveDetectedModel,
                 Image = _imageChoice,
-                CooldownThresholdCelsius = cooldownThreshold,
+                CooldownThresholds = cooldownThresholds,
             };
 
     /// <summary>The user name that is saved and tested: the field for PrusaLink, the saved one otherwise.</summary>
@@ -767,15 +769,16 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private CameraSettings? BuildCamera() => BuildWindow() is { } window ? BuildCamera(window) : null;
 
     /// <summary>
-    /// The camera with the address as entered, <paramref name="window"/> and the widget layout as edited (T-092);
+    /// The camera with the address as entered, <paramref name="window"/>, the widget layout (T-092) and the mini strip (T-110) as edited;
     /// <see langword="null"/> when the address blocks saving.
     /// </summary>
     private CameraSettings? BuildCamera(CameraWindowDefaults window)
     {
         CameraOverlayLayout layout = _overlayLayout;
+        CameraMiniStripSettings strip = _miniStrip;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -786,14 +789,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         if (problem == CameraUrlProblem.Missing)
         {
             // No address and the default window and layout: the shared "no camera" value.
-            return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay
+            return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay && strip == CameraSettings.Disabled.MiniStrip
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip };
         }
         catch (ArgumentException)
         {
@@ -878,7 +881,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         ResetCameraWindowCommand.NotifyCanExecuteChanged();
         ApplyCameraWindowCommand.NotifyCanExecuteChanged();
-        ApplyCooldownThresholdToAllCommand.NotifyCanExecuteChanged();
+        ApplyCooldownThresholdsToAllCommand.NotifyCanExecuteChanged();
     }
 
     /// <summary>A save after "Factory settings" forgot the remembered camera window.</summary>
@@ -1041,6 +1044,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         // Cool-down threshold (T-080): its error, the sub-tab name and the tooltip of "Use … for all printers".
         OnCooldownErrorsChanged();
         OnPropertyChanged(nameof(ApplyToAllUnavailableReason));
+
+        // T-112: the help texts of the fields (their errors and hints) for screen readers.
+        OnFieldStatesChanged();
     }
 
     /// <summary>
@@ -1078,6 +1084,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             // The explanation is at the field (shown now); the result only points there, so it is not repeated (T-033).
             RevealErrors();
             SetTestResult(static () => Strings.SettingsFixErrors, TestResultKind.Failure);
+            // T-112 Q5: the focus goes to the first invalid field of the sub-tab, so a screen reader reads its error.
+            _owner.RequestFieldFocus(this, SettingsViewModel.ConnectionPrinterTab);
             return;
         }
 
@@ -1162,6 +1170,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
             SetCameraTestResult(
                 _cameraUrlProblem is not null ? static () => Strings.SettingsFixErrors : () => CameraProblemText(problem),
                 TestResultKind.Failure);
+            // T-112 Q5: with a field error, the focus goes to the camera address (its error is read out).
+            _owner.RequestFieldFocus(this, SettingsViewModel.CameraPrinterTab);
             return;
         }
 
@@ -1509,6 +1519,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         OnPropertyChanged(nameof(ShowsPasswordHint));
         OnPropertyChanged(nameof(ShowsCameraUrlHint));
         OnCooldownErrorsChanged();
+        OnFieldStatesChanged();
     }
 
     private static string TabName(string name, bool hasErrors) =>
@@ -1518,6 +1529,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(PasswordWatermark));
         OnPropertyChanged(nameof(PasswordHint));
+        OnPropertyChanged(nameof(PasswordHelpText));
     }
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);

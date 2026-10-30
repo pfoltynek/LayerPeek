@@ -13,6 +13,7 @@ using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
+using LayerPeek.Core.Settings;
 using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
@@ -42,7 +43,7 @@ public sealed class CooldownWidgetTests : IDisposable
     {
         _time.SetLocalTimeZone(TimeZoneInfo.Utc);
         _cooldown = new CooldownMonitor(_monitor, _time, new ListLogger<CooldownMonitor>());
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(PollSeconds));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(PollSeconds));
     }
 
     public void Dispose()
@@ -87,7 +88,7 @@ public sealed class CooldownWidgetTests : IDisposable
         double progress = 0.6,
         TimeSpan? remaining = null,
         DateTimeOffset? updatedAt = null) =>
-        new(CooldownPhase.Cooling, nozzle, bed, threshold, progress, remaining, Now, updatedAt ?? Now, CooldownPrintOutcome.Finished, Now, null);
+        new(CooldownPhase.Cooling, nozzle, bed, threshold, 40, progress, remaining, Now, updatedAt ?? Now, CooldownPrintOutcome.Finished, Now, null);
 
     private static CooldownState CooledState(
         CooldownPrintOutcome outcome = CooldownPrintOutcome.Finished,
@@ -101,6 +102,7 @@ public sealed class CooldownWidgetTests : IDisposable
             48.3,
             bed,
             50,
+            40,
             1,
             null,
             Now,
@@ -266,7 +268,7 @@ public sealed class CooldownWidgetTests : IDisposable
         // From the highest reading since the end (215) to the threshold, rounded down to whole percent.
         Assert.Equal(Math.Floor((215 - Newton(5)) / (215 - 50) * 100), widget.Progress);
         Assert.True(widget.ShowsDetail);
-        Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C", widget.DetailText);
+        Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C and the bed below 45{Nbsp}°C", widget.DetailText);
     }
 
     [Fact]
@@ -278,7 +280,7 @@ public sealed class CooldownWidgetTests : IDisposable
 
         CooldownWidgetViewModel widget = Widget(overlay);
         long minutes = (long)Math.Ceiling(_cooldown.GetState("mk4").EstimatedRemaining!.Value.TotalMinutes);
-        Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nbsp}°C)", widget.DetailText);
+        Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nbsp}°C, bed below 45{Nbsp}°C)", widget.DetailText);
     }
 
     [Theory]
@@ -486,10 +488,10 @@ public sealed class CooldownWidgetTests : IDisposable
     {
         CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 87)), CoolingState(remaining: TimeSpan.FromMinutes(5.5)));
 
-        Assert.Equal($"safe to turn off in about 6\u00A0min (nozzle below 50{Nbsp}°C)", CooldownFormat.Detail(content));
+        Assert.Equal($"safe to turn off in about 6\u00A0min (nozzle below 50{Nbsp}°C, bed below 40{Nbsp}°C)", CooldownFormat.Detail(content));
         Assert.Equal(" · about 6\u00A0min", CooldownFormat.SmallDetail(content));
         Assert.Equal(
-            $"Cooling down…, Nozzle 87{Nbsp}°C, Bed 45{Nbsp}°C, safe to turn off in about 6\u00A0min (nozzle below 50{Nbsp}°C)",
+            $"Cooling down…, Nozzle 87{Nbsp}°C, Bed 45{Nbsp}°C, safe to turn off in about 6\u00A0min (nozzle below 50{Nbsp}°C, bed below 40{Nbsp}°C)",
             CooldownFormat.AccessibleText(content));
     }
 
@@ -501,7 +503,7 @@ public sealed class CooldownWidgetTests : IDisposable
             CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 87)), CoolingState(remaining: remaining));
 
             Assert.Null(content.EstimateMinutes);
-            Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C", CooldownFormat.Detail(content));
+            Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C and the bed below 40{Nbsp}°C", CooldownFormat.Detail(content));
             Assert.Equal(string.Empty, CooldownFormat.SmallDetail(content));
         }
     }
@@ -534,14 +536,14 @@ public sealed class CooldownWidgetTests : IDisposable
         if (minutes > 0)
         {
             Assert.NotEqual(before, widget.DetailText);
-            Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nbsp}°C)", widget.DetailText);
+            Assert.Equal($"safe to turn off in about {minutes}\u00A0min (nozzle below 50{Nbsp}°C, bed below 45{Nbsp}°C)", widget.DetailText);
         }
 
         // Past the estimate: no "0 min", only the threshold, and the clock stops ticking.
         _time.Advance(remaining);
         _dispatcher.RunAll();
 
-        Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C", widget.DetailText);
+        Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C and the bed below 45{Nbsp}°C", widget.DetailText);
         Assert.False(widget.IsTicking);
     }
 
@@ -593,12 +595,86 @@ public sealed class CooldownWidgetTests : IDisposable
     {
         CameraOverlayViewModel overlay = Create();
         CoolUntil(15);
-        Assert.Contains($"below 50{Nbsp}°C", Widget(overlay).DetailText, StringComparison.Ordinal);
+        Assert.Equal($"safe to turn off once the nozzle is below 50{Nbsp}°C and the bed below 45{Nbsp}°C", Widget(overlay).DetailText);
 
-        _cooldown.Configure([Definition() with { CooldownThresholdCelsius = 65 }], TimeSpan.FromSeconds(PollSeconds));
+        _cooldown.Configure([Definition() with { CooldownThresholds = new(65, 35) }], TimeSpan.FromSeconds(PollSeconds));
         _dispatcher.RunAll();
 
-        Assert.Contains($"below 65{Nbsp}°C", Widget(overlay).DetailText, StringComparison.Ordinal);
+        Assert.Equal($"safe to turn off once the nozzle is below 65{Nbsp}°C and the bed below 35{Nbsp}°C", Widget(overlay).DetailText);
+    }
+
+    // ---- T-109: nozzle and bed ----
+
+    [Theory]
+    [InlineData(OverlayWidgetSize.Small, "54")]
+    [InlineData(OverlayWidgetSize.Medium, "38")]
+    [InlineData(OverlayWidgetSize.Large, "38")]
+    public void WhileTheBedHoldsTheCoolDownUpTheSmallCardShowsTheBed(OverlayWidgetSize size, string shown)
+    {
+        // The default thresholds (40 / 40 °C): the nozzle is below, the bed is not.
+        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(PollSeconds));
+        CameraOverlayViewModel overlay = Create(size);
+        Raise(Printing());
+        Raise(Ended(5, 39, bed: 55));
+        Raise(Ended(10, 38, bed: 54));
+
+        CooldownWidgetViewModel widget = Widget(overlay);
+        Assert.True(widget.IsCooling);
+        Assert.Equal(CooldownSensor.Bed, _cooldown.GetState("mk4").Limiting);
+        Assert.Equal(38, widget.ShownNozzleCelsius);
+        Assert.Equal(54, widget.ShownLimitingCelsius);
+        Assert.Equal($"{shown}{Nbsp}°C", widget.NozzleText);
+        // T-109 Q3 B (ui-designer review 2026-10-30): S has the bed line in front of the bed temperature, M / L the cone.
+        Assert.Equal(size != OverlayWidgetSize.Small, widget.ShowsNozzleIcon);
+        Assert.Equal(size == OverlayWidgetSize.Small, widget.ShowsSmallBedIcon);
+        if (size != OverlayWidgetSize.Small)
+        {
+            Assert.Equal($"54{Nbsp}°C", widget.BedText);
+            Assert.Equal($"safe to turn off once the nozzle is below 40{Nbsp}°C and the bed below 40{Nbsp}°C", widget.DetailText);
+            Assert.Equal(
+                $"Cooling down…, Nozzle 38{Nbsp}°C, Bed 54{Nbsp}°C, safe to turn off once the nozzle is below 40{Nbsp}°C and the bed below 40{Nbsp}°C",
+                widget.AccessibleName);
+        }
+    }
+
+    [Fact]
+    public void SmallCooledCardShowsTheTemperatureThatLimitedLast()
+    {
+        CooldownState cooled = CooledState(bed: 39.6) with { NozzleCelsius = 31, Limiting = CooldownSensor.Bed };
+
+        CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 31)), cooled);
+
+        Assert.Equal(31, content.NozzleCelsius);
+        Assert.Equal(40, content.LimitingCelsius);
+        Assert.Equal(CooldownSensor.Bed, content.Limiting);
+        Assert.Equal($"Cooled down · 40{Nbsp}°C", CooldownFormat.SmallCooled(content));
+    }
+
+    [Fact]
+    public void ProgressIsTheSlowerOfTheTwo()
+    {
+        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(PollSeconds));
+        CameraOverlayViewModel overlay = Create();
+        Raise(Printing());
+        Raise(Ended(5, 200, bed: 60));
+        // Nozzle (200 − 100) / (200 − 40) = 62 %, bed (60 − 55) / (60 − 40) = 25 %.
+        Raise(Ended(10, 100, bed: 55));
+
+        Assert.Equal(25, Widget(overlay).Progress);
+    }
+
+    [Fact]
+    public void BedThresholdIsShownInTheDetailOfEveryLanguage()
+    {
+        CooldownContent content = CooldownWidgetViewModel.ContentOf(Input(Ended(0, 87)), CoolingState(remaining: TimeSpan.FromMinutes(5.5)) with { BedThresholdCelsius = 35 });
+        foreach (string language in AppLanguages.Supported)
+        {
+            using UiCultureScope culture = new(language);
+
+            Assert.Contains($"35{Nbsp}°C", CooldownFormat.Detail(content), StringComparison.Ordinal);
+            Assert.Contains($"50{Nbsp}°C", CooldownFormat.Detail(content), StringComparison.Ordinal);
+            Assert.Contains($"35{Nbsp}°C", CooldownFormat.Detail(content with { EstimateMinutes = null }), StringComparison.Ordinal);
+        }
     }
 
     // ---- Sizes and emphasis ----
@@ -613,6 +689,8 @@ public sealed class CooldownWidgetTests : IDisposable
         long minutes = (long)Math.Ceiling(_cooldown.GetState("mk4").EstimatedRemaining!.Value.TotalMinutes);
         Assert.False(widget.ShowsHeader);
         Assert.True(widget.ShowsNozzle);
+        Assert.True(widget.ShowsNozzleIcon);
+        Assert.False(widget.ShowsSmallBedIcon);
         Assert.False(widget.ShowsBed);
         Assert.True(widget.ShowsProgress);
         Assert.True(widget.ShowsDetail);
@@ -718,7 +796,7 @@ public sealed class CooldownWidgetTests : IDisposable
     [Fact]
     public void CoolDownOfAnotherPrinterPostsNothing()
     {
-        _cooldown.Configure([Definition(), Definition("other", "Other")], TimeSpan.FromSeconds(PollSeconds));
+        _cooldown.Configure([NozzleDecides(Definition()), NozzleDecides(Definition("other", "Other"))], TimeSpan.FromSeconds(PollSeconds));
         CameraOverlayViewModel overlay = Create();
         Raise(Snapshot(PrinterState.Idle));
         int posts = _dispatcher.PostCount;
@@ -746,7 +824,7 @@ public sealed class CooldownWidgetTests : IDisposable
             overlay.RefreshTexts();
 
             Assert.Equal("Chladne…", widget.HeaderText);
-            Assert.Equal($"bezpečné vypnutí, až tryska klesne pod 50{Nbsp}°C", widget.DetailText);
+            Assert.Equal($"bezpečné vypnutí, až tryska klesne pod 50{Nbsp}°C a podložka pod 45{Nbsp}°C", widget.DetailText);
             Assert.StartsWith("Chladne…, Tryska ", widget.AccessibleName, StringComparison.Ordinal);
 
             CoolUntil(200);

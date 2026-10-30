@@ -575,6 +575,84 @@ function Get-UploadPlan {
     }
 }
 
+function Test-ReleaseMarkerFileName {
+    <#
+    .SYNOPSIS
+        True for the files that make an OS visible in a release: its checksum file (GitHubReleaseChecker of the app, T-113)
+        and the Velopack feed files (releases.<rid>.json, assets.<rid>.json, RELEASES-<rid>; Velopack, T-058). Added to a
+        published release (release-upload.ps1 -AddToPublished) they are uploaded only after every other file, so that no
+        app is offered a release whose packages are not there yet.
+    #>
+    param([Parameter(Mandatory)] [string] $Name)
+    [bool]($Name -cmatch '^(SHA256SUMS-[a-z]+\.txt|releases\.[^/\\]+\.json|assets\.[^/\\]+\.json|RELEASES-[^/\\]+)$')
+}
+
+function Get-AddToPublishedProblems {
+    <#
+    .SYNOPSIS
+        Pure check of release-upload.ps1 -AddToPublished (T-113): the release exists and is published, it has no checksum
+        file of the OS of the build yet (the files of an OS are added once, never replaced), and no file of the build is
+        in the release with other content or unfinished (state 'starter', no digest). Files with the same SHA256 are
+        skipped by the plan (a re-run after an interrupted upload). Returns problem messages.
+    .PARAMETER Release
+        Release as returned by Get-GitHubRelease ($null = no release).
+    .PARAMETER ChecksumFile
+        Checksum file of the build (SHA256SUMS-<os>.txt).
+    .PARAMETER Plan
+        Get-UploadPlan of the build against the assets of the release, without -Force.
+    #>
+    param(
+        $Release,
+        [Parameter(Mandatory)] [string] $Tag,
+        [Parameter(Mandatory)] [string] $ChecksumFile,
+        [Parameter(Mandatory)] [AllowEmptyCollection()] [object[]] $Plan
+    )
+    $problems = [System.Collections.Generic.List[string]]::new()
+    if ($null -eq $Release) {
+        $problems.Add("There is no release for $Tag. -AddToPublished only adds files to a published release; upload the first OS without it (docs/release.md).")
+        return $problems.ToArray()
+    }
+    if ($Release.isDraft) {
+        $problems.Add("Release $Tag is still a draft. Upload into the draft without -AddToPublished, then publish it (scripts/release-publish.ps1).")
+        return $problems.ToArray()
+    }
+    $assets = @($Release.assets)
+    if (@($assets | Where-Object { $_.name -ceq $ChecksumFile }).Count -gt 0) {
+        $problems.Add("Published release $Tag already contains $($ChecksumFile): the files of this OS are already there. -AddToPublished only adds the files of an OS that is missing and never replaces anything.")
+        return $problems.ToArray()
+    }
+    foreach ($item in @($Plan | Where-Object Action -In 'Conflict', 'Replace')) {
+        $asset = @($assets | Where-Object { $_.name -ceq $item.Name }) | Select-Object -First 1
+        $state = if ($asset -and $asset.PSObject.Properties['state']) { $asset.state } else { $null }
+        $digest = if ($asset -and $asset.PSObject.Properties['digest']) { $asset.digest } else { $null }
+        if (($state -and $state -cne 'uploaded') -or -not $digest) {
+            $problems.Add("$($item.Name) is in release $Tag, but its upload did not finish (state $($state ?? '?'), no SHA256). Nothing is overwritten: delete that file on the release page on GitHub (Edit), then re-run.")
+        }
+        else {
+            $problems.Add("$($item.Name) is in release $Tag with different content (another build?). Nothing is overwritten: check which build is right, delete the wrong file on the release page on GitHub (Edit) or rebuild, then re-run.")
+        }
+    }
+    $problems.ToArray()
+}
+
+function Get-ReleaseChecksums {
+    <#
+    .SYNOPSIS
+        Downloads the checksum files (SHA256SUMS-<os>.txt) of a release into Directory (gh release download, reads only)
+        and parses them: dictionary checksum file name -> (dictionary file name -> sha256), as Get-PublishProblems takes it.
+    #>
+    param($Release, [Parameter(Mandatory)] [string] $Repository, [Parameter(Mandatory)] [string] $Tag, [Parameter(Mandatory)] [string] $Directory)
+    $checksums = [ordered]@{}
+    if (-not $Release) { return $checksums }
+    $sumsAssets = @($Release.assets | Where-Object { $_.name -cmatch '^SHA256SUMS-[a-z]+\.txt$' })
+    if ($sumsAssets.Count -eq 0) { return $checksums }
+    if (-not (Test-Path -LiteralPath $Directory)) { $null = New-Item -ItemType Directory -Path $Directory }
+    & gh release download $Tag --repo $Repository --pattern 'SHA256SUMS-*.txt' --dir $Directory
+    if ($LASTEXITCODE -ne 0) { throw "gh release download failed with exit code $LASTEXITCODE." }
+    foreach ($asset in $sumsAssets) { $checksums[$asset.name] = Read-Sha256Sums (Join-Path $Directory $asset.name) }
+    $checksums
+}
+
 function Get-GitHubRepository {
     <# .SYNOPSIS 'owner/repo' parsed from a GitHub remote URL (https or ssh); $null for other hosts. #>
     param([Parameter(Mandatory)] [string] $RemoteUrl)
@@ -616,31 +694,42 @@ function Get-PublishProblems {
     <#
     .SYNOPSIS
         Pure check before a draft release is published: it exists, is a draft, has the checksum file of every
-        expected OS, every file listed in the checksum files is uploaded with the listed SHA256, no other file is
-        uploaded and no file of a runtime that must not be uploaded (win-arm64 until T-057) is there.
+        expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every file
+        listed in the checksum files is uploaded with the listed SHA256, no other file is uploaded and no file of a
+        runtime that must not be uploaded (win-arm64 until T-057) is there.
     .PARAMETER Release
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
         Dictionary checksum file name -> (dictionary file name -> sha256) of the downloaded checksum files.
+    .PARAMETER Published
+        The release is expected to be published already (the check after release-upload.ps1 -AddToPublished, T-113)
+        instead of a draft; every other check is the same.
     #>
     param(
         $Release,
         [Parameter(Mandatory)] [string] $Tag,
         [Parameter(Mandatory)] [AllowEmptyCollection()] [string[]] $ExpectedOs,
         [Parameter(Mandatory)] [System.Collections.IDictionary] $Checksums,
-        $Config = $script:ReleaseRuntimes
+        $Config = $script:ReleaseRuntimes,
+        [switch] $Published
     )
     $problems = [System.Collections.Generic.List[string]]::new()
     if ($null -eq $Release) {
         $problems.Add("There is no release for $Tag. Upload the build first (scripts/release-upload.ps1).")
         return $problems.ToArray()
     }
-    if (-not $Release.isDraft) { $problems.Add("Release $Tag is already published.") }
+    if ($Published) { if ($Release.isDraft) { $problems.Add("Release $Tag is a draft, not published.") } }
+    elseif (-not $Release.isDraft) { $problems.Add("Release $Tag is already published.") }
     $assets = @($Release.assets)
     if ($assets.Count -eq 0) { $problems.Add("Release $Tag has no files.") }
     foreach ($os in $ExpectedOs) {
         $sums = Get-ChecksumFileName $os
-        if (-not (@($assets | Where-Object { $_.name -ceq $sums }))) { $problems.Add("Release $Tag has no $($sums): the $os build is not uploaded yet.") }
+        if (-not (@($assets | Where-Object { $_.name -ceq $sums }))) { $problems.Add("Release $Tag has no $($sums): the $os build is not uploaded yet."); continue }
+        # T-017 / T-058: without its feed an installation of the RID never finds the release (Windows and macOS update through Velopack).
+        foreach ($rid in @($Config.Keys | Where-Object { $Config[$_].Uploadable -and $Config[$_].Os -eq $os })) {
+            $feed = "releases.$rid.json"
+            if (-not (@($assets | Where-Object { $_.name -ceq $feed }))) { $problems.Add("Release $Tag has no $($feed): installations of $rid would not find the update.") }
+        }
     }
     $listed = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($sumsName in $Checksums.Keys) {
@@ -679,6 +768,9 @@ function Test-RuntimeFileName {
 
 # Velopack packaging (T-017, docs/velopack.md point 12). Fixed by the user: package id, title and AppUserModelID
 # 'LayerPeek', Start menu shortcut only, one channel per RID, no deltas yet, no Portable.zip (the archive step makes the .zip).
+# macOS (T-058, decision Q9 a): vpk packs the finished LayerPeek.app of the 'app' step and signs it ad hoc with the hardened
+# runtime and build/macos/LayerPeek.entitlements; its Portable.zip is the source of the .dmg and the .tar.gz, the .pkg is
+# never made (--noInst, decided 2026-10-29).
 $script:Velopack = [pscustomobject]@{
     PackId    = 'LayerPeek'
     Title     = 'LayerPeek'
@@ -703,19 +795,36 @@ function Get-VelopackSetupFileName {
 function Get-VelopackOutputMap {
     <#
     .SYNOPSIS
-        The files vpk pack writes for one RID (channel = RID) and their names in dist: the feed files and the package keep
-        Velopack's names (the update client looks them up by these names), only Setup.exe is renamed. Ordered
-        dictionary vpk name -> dist name.
+        The files vpk pack writes for one RID (channel = RID) that go into dist, and their names there: the feed files and the
+        package keep Velopack's names (the update client looks them up by these names), only Setup.exe (Windows) is renamed.
+        Ordered dictionary vpk name -> dist name. macOS (T-058) has no installer: the feed and the package only.
     #>
     param([Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
     $id = $script:Velopack.PackId
-    [ordered]@{
+    $map = [ordered]@{
         "$id-$Version-$Runtime-full.nupkg" = "$id-$Version-$Runtime-full.nupkg"
         "releases.$Runtime.json"           = "releases.$Runtime.json"
         "assets.$Runtime.json"             = "assets.$Runtime.json"
         "RELEASES-$Runtime"                = "RELEASES-$Runtime"
-        "$id-$Runtime-Setup.exe"           = Get-VelopackSetupFileName -Version $Version -Runtime $Runtime
     }
+    if ((Get-RuntimeOs $Runtime) -eq 'windows') { $map["$id-$Runtime-Setup.exe"] = Get-VelopackSetupFileName -Version $Version -Runtime $Runtime }
+    $map
+}
+
+function Get-VelopackPortableFileName {
+    <#
+    .SYNOPSIS
+        The Portable.zip vpk writes for a macOS RID (T-058): the signed LayerPeek.app, unpacked by the 'app' step as the source
+        of the .dmg and the .tar.gz; never uploaded itself.
+    #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    "$($script:Velopack.PackId)-$Runtime-Portable.zip"
+}
+
+function Get-VelopackWorkFileNames {
+    <# .SYNOPSIS The files vpk must write for the RID that stay in its work folder (macOS: Portable.zip; Windows: none). #>
+    param([Parameter(Mandatory)] [string] $Runtime)
+    if ((Get-RuntimeOs $Runtime) -eq 'macos') { @(Get-VelopackPortableFileName $Runtime) } else { @() }
 }
 
 function Get-VelopackPackArguments {
@@ -753,6 +862,78 @@ function Get-VelopackPackArguments {
     )
 }
 
+function Get-VelopackMacPackArguments {
+    <#
+    .SYNOPSIS
+        The arguments of 'dotnet vpk' for a macOS RID (pure; T-058, decision Q9 a): the finished LayerPeek.app as --packDir
+        (its Info.plist, icon, localizations and libraries stay as the 'app' step built them), signed ad hoc by vpk (deep, with
+        the hardened runtime) with exactly the entitlements of T-108, channel and runtime = RID, release notes from a file,
+        no deltas, no .pkg, no update check of vpk itself.
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [Parameter(Mandatory)] [string] $Runtime,
+        [Parameter(Mandatory)] [string] $AppPath,
+        [Parameter(Mandatory)] [string] $OutputDirectory,
+        [Parameter(Mandatory)] [string] $ReleaseNotesFile,
+        [Parameter(Mandatory)] [string] $Entitlements
+    )
+    $v = $script:Velopack
+    @(
+        'vpk', '--skip-updates', 'pack',
+        '--packId', $v.PackId,
+        '--packVersion', $Version,
+        '--packDir', $AppPath,
+        '--mainExe', $script:MacBundle.Executable,
+        '--packTitle', $v.Title,
+        '--packAuthors', $v.Authors,
+        '--channel', $Runtime,
+        '-r', $Runtime,
+        '--releaseNotes', $ReleaseNotesFile,
+        '--delta', 'None',
+        '--noInst',
+        '--signAppIdentity', '-',
+        '--signEntitlements', $Entitlements,
+        '--outputDir', $OutputDirectory
+    )
+}
+
+function Expand-ZipWithDitto {
+    <#
+    .SYNOPSIS
+        Unpacks a zip (Portable.zip, a .nupkg) into a new folder with ditto, which keeps the symbolic links and permissions of
+        a bundle. Returns the folder.
+    #>
+    param([Parameter(Mandatory)] [string] $ZipPath, [Parameter(Mandatory)] [string] $Destination)
+    if (Test-Path -LiteralPath $Destination) { throw "Folder already exists: $Destination" }
+    $null = New-Item -ItemType Directory -Path $Destination
+    $output = & /usr/bin/ditto -x -k $ZipPath $Destination 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "ditto failed for $($ZipPath): $($output -join ' ')" }
+    $Destination
+}
+
+function Get-MacVelopackBundleProblems {
+    <#
+    .SYNOPSIS
+        Problems of the .app of vpk (T-058; empty = fine): the updater UpdateMac and the manifest sq.version are in
+        Contents/MacOS (what the app and Velopack's locator recognize as an installation), and the manifest names the
+        package, the version and the channel of this build.
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [Parameter(Mandatory)] [string] $Version, [Parameter(Mandatory)] [string] $Runtime)
+    $macOS = Join-Path $AppPath 'Contents' 'MacOS'
+    $updater = Join-Path $macOS 'UpdateMac'
+    $manifest = Join-Path $macOS 'sq.version'
+    if (-not (Test-Path -LiteralPath $updater -PathType Leaf)) { "$AppPath has no Contents/MacOS/UpdateMac (the updater of Velopack)." }
+    if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { "$AppPath has no Contents/MacOS/sq.version (the manifest of Velopack)."; return }
+    [xml] $nuspec = Get-Content -LiteralPath $manifest -Raw
+    $metadata = $nuspec.package.metadata
+    $expected = [ordered]@{ id = $script:Velopack.PackId; version = $Version; channel = $Runtime }
+    foreach ($key in $expected.Keys) {
+        $actual = "$($metadata.$key)"
+        if ($actual -cne $expected[$key]) { "$manifest has $key '$actual', expected '$($expected[$key])'." }
+    }
+}
+
 function Get-VelopackVersionProblems {
     <#
     .SYNOPSIS
@@ -777,8 +958,9 @@ function Get-VelopackVersionProblems {
 function Copy-VelopackOutput {
     <#
     .SYNOPSIS
-        Checks that vpk wrote exactly the expected files (no Portable.zip, no delta) and copies them into dist under their
-        dist names. Returns the dist paths. Throws on missing or unexpected files, or when a dist file already exists.
+        Checks that vpk wrote exactly the expected files (Windows: no Portable.zip; macOS: Portable.zip, which stays in the work
+        folder, but no .pkg; never a delta) and copies the dist files into dist under their dist names. Returns the dist paths.
+        Throws on missing or unexpected files, or when a dist file already exists.
     #>
     param(
         [Parameter(Mandatory)] [string] $VelopackDirectory,
@@ -787,9 +969,10 @@ function Copy-VelopackOutput {
         [Parameter(Mandatory)] [string] $Runtime
     )
     $map = Get-VelopackOutputMap -Version $Version -Runtime $Runtime
+    $work = @(Get-VelopackWorkFileNames $Runtime)
     $found = @(Get-ChildItem -LiteralPath $VelopackDirectory -File -Force | ForEach-Object Name)
-    $missing = @($map.Keys | Where-Object { $found -cnotcontains $_ })
-    $extra = @($found | Where-Object { -not $map.Contains($_) })
+    $missing = @(@($map.Keys) + $work | Where-Object { $found -cnotcontains $_ })
+    $extra = @($found | Where-Object { -not $map.Contains($_) -and $work -cnotcontains $_ })
     if ($missing.Count -gt 0) { throw "vpk did not create $($missing -join ', ') in $VelopackDirectory." }
     if ($extra.Count -gt 0) { throw "vpk created unexpected files in $($VelopackDirectory): $($extra -join ', ')." }
     foreach ($name in $map.Keys) {
@@ -828,6 +1011,14 @@ $script:MacBundle = [pscustomobject]@{
     LocalizedStrings  = 'InfoPlist.strings'
     AppLanguagesSource = 'src/LayerPeek.Core/Settings/AppLanguages.cs'
     LocalizedKeys     = @('NSLocalNetworkUsageDescription')
+    # T-108: the entitlements of the main executable under the hardened runtime, and exactly the keys they must grant.
+    # Only disable-library-validation: library validation accepts only libraries of the same Team ID (or Apple's), and an
+    # ad-hoc signature has none, so with it dyld refuses every bundled library ("mapping process and mapped file
+    # (non-platform) have different Team IDs"; tried on macOS 27.2, 2026-10-29). Native AOT needs neither allow-jit nor
+    # allow-unsigned-executable-memory, and allow-dyld-environment-variables is left out on purpose: without it dyld
+    # ignores DYLD_INSERT_LIBRARIES and the other DYLD_* variables (security review 2026-10-29, finding N3).
+    Entitlements      = 'build/macos/LayerPeek.entitlements'
+    EntitlementKeys   = @('com.apple.security.cs.disable-library-validation')
 }
 
 function Get-MacBundleSettings {
@@ -1322,19 +1513,108 @@ function Get-MacAdHocSignArguments {
     .SYNOPSIS
         The codesign arguments of an ad-hoc signature (decided 2026-10-21: no Developer ID, no notarization; T-060 later):
         identity '-', replacing the signatures the libraries came with (SkiaSharp, HarfBuzz by their publisher), no
-        secure timestamp (an ad-hoc signature cannot have one). No hardened runtime: it only matters for notarization.
+        secure timestamp (an ad-hoc signature cannot have one). T-108: with the hardened runtime (--options runtime) on
+        every Mach-O file, so that dyld ignores DYLD_INSERT_LIBRARIES and the other DYLD_* variables; for the process only
+        the flag of the main executable counts, the libraries get it too as notarization (T-060) will require.
+    .PARAMETER Entitlements
+        The entitlements file; only for the bundle (= the main executable). Libraries have no entitlements.
     #>
-    param([Parameter(Mandatory)] [string] $Path)
-    @('--force', '--sign', '-', '--timestamp=none', $Path)
+    param([Parameter(Mandatory)] [string] $Path, [string] $Entitlements)
+    $arguments = @('--force', '--sign', '-', '--timestamp=none', '--options', 'runtime')
+    if ($Entitlements) { $arguments += @('--entitlements', $Entitlements) }
+    $arguments + $Path
+}
+
+function Get-MacEntitlementsPath {
+    <# .SYNOPSIS The entitlements file of the main executable (T-108), build/macos/LayerPeek.entitlements of the repository. #>
+    (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..' '..' $script:MacBundle.Entitlements)).ProviderPath
 }
 
 function Invoke-MacAdHocSign {
-    <# .SYNOPSIS Ad-hoc signs the bundle inside out (Get-MacSigningOrder). #>
-    param([Parameter(Mandatory)] [string] $AppPath)
-    foreach ($path in Get-MacSigningOrder $AppPath) {
-        $arguments = Get-MacAdHocSignArguments $path
+    <#
+    .SYNOPSIS
+        Ad-hoc signs the bundle inside out (Get-MacSigningOrder) with the hardened runtime; the bundle, which signs the
+        main executable, last and with the entitlements (T-108).
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [string] $Entitlements = (Get-MacEntitlementsPath))
+    $order = @(Get-MacSigningOrder $AppPath)
+    foreach ($path in $order) {
+        $arguments = if ($path -ceq $order[-1]) { Get-MacAdHocSignArguments $path -Entitlements $Entitlements } else { Get-MacAdHocSignArguments $path }
         $output = & /usr/bin/codesign @arguments 2>&1
         if ($LASTEXITCODE -ne 0) { throw "codesign failed for $($path): $($output -join ' ')" }
+    }
+}
+
+function Get-CodesignFlags {
+    <#
+    .SYNOPSIS
+        The code directory flags from the output of codesign -d --verbose=4 (pure; the line
+        'CodeDirectory v=20500 size=… flags=0x10002(adhoc,runtime) …'), or $null when there is none.
+    #>
+    param([AllowEmptyCollection()] [string[]] $DisplayOutput = @())
+    foreach ($line in $DisplayOutput) {
+        if ("$line" -cmatch '^CodeDirectory .*\bflags=0x([0-9a-fA-F]+)\b') { return [Convert]::ToInt64($Matches[1], 16) }
+    }
+    $null
+}
+
+function Get-EntitlementKeys {
+    <#
+    .SYNOPSIS
+        The keys an entitlements plist grants (pure): the keys whose value is <true/>, sorted; other values are returned as
+        '<key>=<element>' so that a check against an expected list fails on them. Empty text = no entitlements.
+    #>
+    param([AllowEmptyString()] [string] $PlistText)
+    if ([string]::IsNullOrWhiteSpace($PlistText)) { return @() }
+    $settings = [System.Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [System.Xml.DtdProcessing]::Ignore
+    $settings.XmlResolver = $null
+    $reader = [System.Xml.XmlReader]::Create([System.IO.StringReader]::new($PlistText), $settings)
+    try {
+        $document = [System.Xml.XmlDocument]::new()
+        $document.Load($reader)
+    }
+    finally {
+        $reader.Dispose()
+    }
+    $dict = $document.SelectSingleNode('/plist/dict')
+    if (-not $dict) { throw 'The entitlements are not a plist with a dict.' }
+    $children = @($dict.ChildNodes | Where-Object { $_.NodeType -eq [System.Xml.XmlNodeType]::Element })
+    $keys = for ($i = 0; $i -lt $children.Count; $i += 2) {
+        $key = $children[$i]
+        if ($key.Name -cne 'key' -or $i + 1 -ge $children.Count) { throw 'The entitlements dict is malformed.' }
+        $value = $children[$i + 1]
+        if ($value.Name -ceq 'true') { $key.InnerText } else { "$($key.InnerText)=$($value.Name)" }
+    }
+    @($keys | Sort-Object -CaseSensitive)
+}
+
+function Get-MacHardenedRuntimeProblems {
+    <#
+    .SYNOPSIS
+        Problems of the hardened runtime of the signed bundle (T-108; empty = fine): every Mach-O file (the main executable
+        and every library) is signed ad hoc with the runtime flag (0x10000), and the main executable has exactly the
+        entitlements of the settings (EntitlementKeys) - so never allow-dyld-environment-variables, allow-jit or
+        get-task-allow.
+    #>
+    param([Parameter(Mandatory)] [string] $AppPath, [string[]] $ExpectedEntitlements = $script:MacBundle.EntitlementKeys)
+    $app = (Resolve-Path -LiteralPath $AppPath).ProviderPath
+    $main = Join-Path $app 'Contents' 'MacOS' $script:MacBundle.Executable
+    $files = @(Get-MacSigningOrder $app | Select-Object -SkipLast 1) + $main
+    foreach ($file in $files) {
+        $output = @(& /usr/bin/codesign -d --verbose=4 $file 2>&1 | ForEach-Object { "$_" })
+        if ($LASTEXITCODE -ne 0) { "codesign -d failed for $($file): $($output -join ' ')"; continue }
+        $flags = Get-CodesignFlags $output
+        if ($null -eq $flags) { "codesign -d shows no code directory flags for $file."; continue }
+        if (($flags -band 0x2) -eq 0) { "$file is not signed ad hoc (flags 0x$($flags.ToString('x')))." }
+        if (($flags -band 0x10000) -eq 0) { "$file is signed without the hardened runtime (flags 0x$($flags.ToString('x')), expected the runtime flag 0x10000)." }
+    }
+    $xml = @(& /usr/bin/codesign -d --entitlements - --xml $main 2>$null) -join ''
+    if ($LASTEXITCODE -ne 0) { return "codesign -d --entitlements failed for $main." }
+    $actual = @(Get-EntitlementKeys $xml)
+    $expected = @($ExpectedEntitlements | Sort-Object -CaseSensitive)
+    if (($actual -join "`n") -cne ($expected -join "`n")) {
+        "$main has the entitlements '$($actual -join ', ')', expected exactly '$($expected -join ', ')'."
     }
 }
 
@@ -2337,7 +2617,17 @@ function Format-ReleaseFlowPlan {
     if (-not $Plan.Published -and @($Plan.Steps | Where-Object { $_.Id -in 'Build', 'Upload' -and -not $_.Done }).Count -gt 0) {
         '           then back to develop: git switch develop'
     }
-    if ($Plan.Published) { "  Release $($Facts.Tag) is already published on GitHub." }
+    if ($Plan.Published) {
+        "  Release $($Facts.Tag) is already published on GitHub."
+        $release = $Facts.Release
+        $assets = if ($release -and $release.PSObject.Properties['assets']) { @($release.assets) } else { @() }
+        if ($release -and $Facts.ChecksumFile -and @($assets | Where-Object { $_.name -ceq $Facts.ChecksumFile }).Count -eq 0) {
+            # T-113: the other OS went first; this one is added to the published release, not by release.ps1.
+            $repoArgument = if ($Facts.RepositoryArgument) { " -Repo $($Facts.RepositoryArgument)" } else { '' }
+            "  It has no $($Facts.ChecksumFile) yet. Add the files of this OS (docs/release.md, release on two machines):"
+            "    git switch --detach $($Facts.Tag); pwsh scripts/release-build.ps1; pwsh scripts/release-upload.ps1$repoArgument -AddToPublished; git switch develop"
+        }
+    }
     if ($Facts.PSObject.Properties['ToolchainSkipped'] -and $Facts.ToolchainSkipped) {
         '  TEST MODE: toolchain check skipped (LAYERPEEK_RELEASE_TEST_SKIP_TOOLCHAIN=1, repository inside LAYERPEEK_PESTER_TESTS_TEMP). Not for a real release.'
     }
@@ -2345,17 +2635,33 @@ function Format-ReleaseFlowPlan {
 }
 
 function Get-ReleaseNextSteps {
-    <# .SYNOPSIS Pure: the manual commands after the draft is ready. Publishing always stays a separate manual step. #>
-    param([Parameter(Mandatory)] [string] $Version, [string] $Repository)
+    <#
+    .SYNOPSIS
+        Pure: the manual commands after the draft of the first OS is ready (T-113: either OS can go first). Publishing
+        always stays a separate manual step; the other OS follows in the draft or, after an incomplete publish, in the
+        published release (release-upload.ps1 -AddToPublished, docs/release.md).
+    #>
+    param(
+        [Parameter(Mandatory)] [string] $Version,
+        [string] $Repository,
+        [Parameter(Mandatory)] [ValidateSet('windows', 'macos')] [string] $HostOs,
+        [string] $Remote = 'origin'
+    )
     $tag = ConvertTo-ReleaseTag $Version
     $repoArgument = if ($Repository) { " -Repo $Repository" } else { '' }
+    $names = @{ windows = 'Windows'; macos = 'macOS' }
+    $this = $names[$HostOs]
+    $other = $names[$(if ($HostOs -eq 'windows') { 'macos' } else { 'windows' })]
     @(
         "Publishing is a separate manual step. Check the draft $tag on GitHub (text, files), then:"
         "  git switch --detach $tag"
         "  pwsh scripts/release-publish.ps1$repoArgument -DryRun"
-        "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # Windows only until T-019: no macOS files yet"
+        "  pwsh scripts/release-publish.ps1$repoArgument -AllowIncomplete   # only the $this files so far"
         '  git switch develop'
-        'With the macOS files (after T-019, docs/release.md step 4) publish without -AllowIncomplete.'
+        "The $other files follow on a $other machine (docs/release.md, release on two machines), without release.ps1:"
+        "  git fetch $Remote --tags; git switch --detach $tag; pwsh scripts/release-build.ps1"
+        "  pwsh scripts/release-upload.ps1$repoArgument -AddToPublished   # after the publish above"
+        "  (or before publishing: pwsh scripts/release-upload.ps1$repoArgument into the draft, then publish without -AllowIncomplete)"
     )
 }
 

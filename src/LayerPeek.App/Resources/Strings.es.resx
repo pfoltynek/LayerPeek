@@ -472,22 +472,31 @@
     <value>Impresora enfriada</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>El umbral de temperatura de la boquilla se configura por impresora en la pestaña Widgets, widget Enfriamiento.</value>
+    <value>Los umbrales de temperatura de la boquilla y la base se configuran por impresora en la pestaña Widgets, widget Enfriamiento.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Umbral de temperatura de la boquilla (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Umbral de temperatura de la base (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Boquilla (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Base (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Por debajo de esta temperatura es seguro apagar la impresora.</value>
+    <value>Con la boquilla y la base por debajo de estos valores, es seguro apagar la impresora.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Introduzca un número entero de {0} a {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Usar el umbral en todas las impresoras</value>
+    <value>Usar los umbrales en todas las impresoras</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>El umbral se copió a las demás impresoras. Se aplica al guardar.</value>
+    <value>Los umbrales se copiaron a las demás impresoras. Se aplican al guardar.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Solo hay una impresora configurada.</value>
@@ -532,7 +541,7 @@
     <value>Guarde primero los ajustes.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Restablece la visibilidad, la posición, el orden, el tamaño y el resaltado de los widgets de esta impresora.</value>
+    <value>Restablece la visibilidad, la posición, el orden, el tamaño y el resaltado de los widgets y el contenido de la vista mini de esta impresora.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Se restauró el diseño predeterminado. Se aplica al guardar.</value>
@@ -577,7 +586,7 @@
     <value>Nombre legible de la impresión con material, altura de capa y boquilla; en tamaños mayores, con vista previa.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Al terminar una impresión, muestra cómo se enfría la boquilla y cuándo es seguro apagar la impresora.</value>
+    <value>Tras imprimir, muestra cómo se enfrían la boquilla y la base y cuándo es seguro apagar la impresora.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Avisar cuando queden estos minutos de impresión (0 = desactivado)</value>
@@ -676,7 +685,7 @@
     <value>Abrir Ajustes del Sistema</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio y extensiones. Permítalo allí y vuelva a guardar.</value>
+    <value>LayerPeek está desactivado en Ajustes del Sistema &gt; General &gt; Ítems de inicio y extensiones. Permítalo allí.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Configuración guardada. Debe permitir la apertura al iniciar sesión en Ajustes del Sistema.</value>
@@ -734,6 +743,9 @@
   </data>
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Ya puede apagarla. Boquilla {0} °C, umbral {1} °C</value>
+  </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Ya puede apagarla. Boquilla {0}&#160;°C (umbral {1}&#160;°C), base {2}&#160;°C (umbral {3}&#160;°C)</value>
   </data>
   <data name="SettingsNotificationsTurnedOff" xml:space="preserve">
     <value>Las notificaciones están desactivadas en macOS.</value>
@@ -801,6 +813,9 @@
   <data name="MenuHideCamera" xml:space="preserve">
     <value>Ocultar _cámara</value>
   </data>
+  <data name="MenuCameraToFront" xml:space="preserve">
+    <value>_Mostrar cámara</value>
+  </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – cámara</value>
   </data>
@@ -816,6 +831,9 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Pantalla completa (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Pantalla completa (⌃⌘F)</value>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Vista previa pequeña, siempre encima</value>
   </data>
@@ -830,6 +848,9 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Imagen de la cámara. Doble clic alterna la pantalla completa; F11 pantalla completa, Esc volver.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Imagen de la cámara. Doble clic alterna la pantalla completa; ⌃⌘F pantalla completa, Esc volver.</value>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licencias de terceros…</value>
@@ -996,6 +1017,10 @@
   <data name="CameraOverlayChartNoData" xml:space="preserve">
     <value>Sin datos</value>
   </data>
+  <data name="CameraOverlayChartRange" xml:space="preserve">
+    <value>{0}–{1}&#160;°C</value>
+    <comment>T-106: value range of one band of the large Temperatures chart, e.g. "212–218 °C". {0} = lowest, {1} = highest whole degree. En dash, no-break space before °C.</comment>
+  </data>
   <data name="CameraOverlayChartName" xml:space="preserve">
     <value>gráfico de los últimos 60 minutos</value>
   </data>
@@ -1050,6 +1075,24 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Enfriada · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCoolingShort" xml:space="preserve">
+    <value>{0}&#160;°C · aprox. {1}</value>
+  </data>
+  <data name="CameraMiniCooledAccessible" xml:space="preserve">
+    <value>Enfriada – ya puede apagarla, boquilla {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Enfriada – ya puede apagarla, boquilla {0}&#160;°C, base {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Enfriando… boquilla {0}&#160;°C, base {1}&#160;°C, aprox. {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Enfriando… boquilla {0}&#160;°C, base {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniFinishDayTime" xml:space="preserve">
+    <value>{0}&#160;{1}</value>
+  </data>
   <data name="CameraOverlayCooling" xml:space="preserve">
     <value>Enfriando…</value>
   </data>
@@ -1061,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>apagado seguro cuando la boquilla baje de {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>apagado seguro en aprox. {0} (boquilla bajo {1}&#160;°C, base bajo {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>apagado seguro cuando la boquilla baje de {0}&#160;°C y la base de {1}&#160;°C</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>impresión terminada a las {0}</value>
@@ -1289,5 +1338,119 @@
   </data>
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Abre Ajustes del Sistema &gt; Privacidad y seguridad &gt; Red local. Active LayerPeek allí.</value>
+  </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Enviar notificación de prueba</value>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Muestra una notificación de ejemplo para comprobar que las notificaciones de LayerPeek aparecen en este equipo.</value>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Esperando su respuesta: macOS pregunta si LayerPeek puede enviar notificaciones.</value>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Notificación de prueba enviada. Si no la ve, revise «No molestar» en Windows.</value>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Notificación de prueba enviada. Si no la ve, revise «Modos de concentración» en macOS.</value>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Las notificaciones están desactivadas por una directiva de su organización.</value>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>No se pudo enviar la notificación de prueba.</value>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Notificación de prueba</value>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Las notificaciones de LayerPeek funcionan. Así se verán los eventos de las impresoras.</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Las notificaciones están desactivadas en Windows.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Abrir configuración de notificaciones</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>Las notificaciones de LayerPeek están desactivadas en Configuración &gt; Sistema &gt; Notificaciones. Actívelas allí.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>La franja de información bajo la imagen de la vista mini. Elija qué muestra.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Barra de progreso arriba</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Porcentaje</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Tiempo restante</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Hora de finalización</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Enfriamiento tras imprimir</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Fila del nombre de impresión</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Fila del gráfico de temperaturas</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>El estado de la impresora se muestra siempre.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Despliegue la fila en la vista mini con el botón «Nombre de la impresión en la franja».</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Despliegue la fila en la vista mini con el botón «Gráfico de temperaturas en la franja».</value>
+  </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>Nueva versión {0} disponible</value>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Descargando la versión {0}…</value>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Descarga la actualización, cierra LayerPeek e inicia la nueva versión.</value>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Abre la página de la versión en el navegador.</value>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>Actualización de LayerPeek disponible</value>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>La versión {0} está disponible. Haz clic aquí para obtenerla.</value>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Buscar actualizaciones automáticamente</value>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Poco después del inicio y luego una vez al día, LayerPeek pregunta a GitHub si se ha publicado una nueva versión.</value>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Comprobar ahora</value>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Pregunta ahora a GitHub si hay una nueva versión, aunque la búsqueda automática esté desactivada.</value>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Comprobando…</value>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} está actualizado.</value>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>La versión {0} está disponible; el menú del área de notificación la ofrece.</value>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>La comprobación ha fallado. Inténtalo más tarde.</value>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Mueve LayerPeek a la carpeta Aplicaciones; después podrá actualizarse solo.</value>
   </data>
 </root>

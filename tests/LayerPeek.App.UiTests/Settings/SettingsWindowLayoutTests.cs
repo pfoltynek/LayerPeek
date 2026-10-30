@@ -99,6 +99,206 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
 
+    // ---- Button height (T-111) ----
+
+    /// <summary>The smallest height of a button of the window: its click target (T-111; ui-designer review of T-101, Q6).</summary>
+    private const double MinButtonHeight = 32;
+
+    /// <summary>
+    /// T-111: every visible button of the window (plain buttons and link buttons, not the parts inside the templates of other
+    /// controls) is at least 32 DIP high in every view and state: the states of the layout test (errors, test results, a
+    /// running camera test, the widget panels) and the states with a button of their own (T-019 Login Items, T-020 / T-101
+    /// the notification slot, T-097 the Local Network hints, a running connection test).
+    /// </summary>
+    [Fact]
+    public Task EveryButtonIsAtLeast32DipHighInEveryState() =>
+        session.RunAsync(static async scope =>
+        {
+            List<string> problems = [];
+            HashSet<string> checkedButtons = [];
+            foreach ((string state, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States().Concat(ButtonStates()))
+            {
+                SettingsWindowHarness ui = await open(scope);
+                Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
+                (string, int, int) opened = ("as opened", ui.ViewModel.SelectedTabIndex, ui.ViewModel.SelectedPrinterTabIndex);
+                foreach ((string view, int tab, int printerTab) in Views.Prepend(opened))
+                {
+                    ui.ViewModel.SelectedTabIndex = tab;
+                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                    ui.Window.Settle();
+                    foreach (Button button in OwnButtons(ui.Window))
+                    {
+                        checkedButtons.Add(ButtonName(button));
+                        if (button.Bounds.Height < MinButtonHeight - 0.01)
+                        {
+                            problems.Add($"{state} / {view}: {ButtonName(button)} is {button.Bounds.Height:0.#} DIP high.");
+                        }
+                    }
+                }
+
+                ui.Window.Close();
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems.Distinct()));
+            // The check reached the buttons of every tab, the link of the Cool-down panel and the buttons of the extra states.
+            string[] expected =
+            [
+                "SettingsAddPrinter", "SettingsRemovePrinter", "PrinterImageButton", "PrinterTestConnection", "PrinterCancelTest",
+                "PrinterOpenLocalNetworkSettings", "PrinterCameraTest", "PrinterCameraCancelTest", "PrinterCameraOpenLocalNetworkSettings",
+                "PrinterCameraWindowReset", "PrinterCameraWindowApply", "WidgetsEditLayout", "WidgetsReset", "WidgetsApplyAll",
+                "WidgetCooldownApplyAll", "WidgetCooldownNotifyLink", "SettingsTestNotification", "SettingsOpenNotificationSettings",
+                "SettingsOpenLoginItems", "SettingsSave", "SettingsCancel",
+            ];
+            Assert.Empty(expected.Except(checkedButtons));
+        });
+
+    /// <summary>
+    /// T-111: the style of the window gives only its own buttons the 32 DIP. The buttons inside the templates of other controls
+    /// (the spinner of a NumericUpDown, the reveal button of a password box, the repeat buttons of a slider or a scroll bar,
+    /// whatever a ComboBox, TabItem or TextBox has) keep the MinHeight and Height they have in a plain window with the
+    /// application theme only.
+    /// </summary>
+    [Fact]
+    public Task ButtonsInsideTheTemplatesOfOtherControlsKeepTheirSize() =>
+        session.RunAsync(static async scope =>
+        {
+            Dictionary<string, (double MinHeight, double Height)> parts = [];
+            foreach ((string _, Func<UiTestScope, Task<SettingsWindowHarness>> open) in States().Concat(ButtonStates()))
+            {
+                SettingsWindowHarness ui = await open(scope);
+                foreach ((string _, int tab, int printerTab) in Views)
+                {
+                    ui.ViewModel.SelectedTabIndex = tab;
+                    ui.ViewModel.SelectedPrinterTabIndex = printerTab;
+                    ui.Window.Settle();
+                    foreach ((string key, Button part) in TemplateButtons(ui.Window))
+                    {
+                        parts[key] = (part.MinHeight, part.Height);
+                    }
+                }
+
+                ui.Window.Close();
+            }
+
+            Window plain = scope.Track(new Window
+            {
+                Width = 780,
+                Height = 532,
+                Content = new StackPanel
+                {
+                    Children =
+                    {
+                        new NumericUpDown { Value = 1 },
+                        new ComboBox { ItemsSource = (string[])["a", "b"], SelectedIndex = 0 },
+                        new TextBox { Text = "text" },
+                        new TextBox { Text = "secret", PasswordChar = '•', Classes = { "revealPasswordButton" } },
+                        new Slider { Minimum = 0, Maximum = 100, Value = 50 },
+                        new ScrollViewer { Height = 40, VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Visible, Content = new Border { Height = 400 } },
+                        new ListBox { ItemsSource = (string[])["a", "b"] },
+                        new TabControl { Items = { new TabItem { Header = "a" }, new TabItem { Header = "b" } } },
+                    },
+                },
+            });
+            plain.Show();
+            plain.Settle();
+            Dictionary<string, (double MinHeight, double Height)> reference = [];
+            foreach ((string key, Button part) in TemplateButtons(plain))
+            {
+                reference[key] = (part.MinHeight, part.Height);
+            }
+
+            plain.Close();
+
+            Assert.NotEmpty(parts);
+            List<string> problems = [];
+            foreach ((string key, (double minHeight, double height)) in parts)
+            {
+                if (!reference.TryGetValue(key, out (double MinHeight, double Height) expected))
+                {
+                    problems.Add($"{key}: not in the plain window, add its control there.");
+                }
+                else if (!minHeight.Equals(expected.MinHeight) || !height.Equals(expected.Height))
+                {
+                    problems.Add($"{key}: MinHeight {minHeight}, Height {height}; in the plain window {expected.MinHeight}, {expected.Height}.");
+                }
+            }
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-111: the states with a button of their own that the layout states do not open: Login Items need approval (T-019),
+    /// notifications turned off (T-020), a test notification sent (T-101), the Local Network hints of both tests (T-097) and
+    /// a running connection test (Cancel).
+    /// </summary>
+    private static IEnumerable<(string Name, Func<UiTestScope, Task<SettingsWindowHarness>> Open)> ButtonStates()
+    {
+        yield return ("macOS Login Items need approval", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostart: new MemoryApprovalAutostart { RequiresApproval = true }, macTerms: true);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            return ui;
+        });
+
+        yield return ("macOS notifications turned off", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: new FakeSystemNotificationSettings { TurnedOff = true });
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            return ui;
+        });
+
+        yield return ("Windows test notification sent", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), notificationSettings: new FakeSystemNotificationSettings());
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            await ui.ViewModel.SendTestNotificationCommand.ExecuteAsync(null);
+            await WaitForTestAsync(ui);
+            Assert.True(ui.ViewModel.ShowsTestNotificationResult);
+            return ui;
+        });
+
+        yield return ("macOS Local Network hint of the connection test", static async scope =>
+        {
+            FakeConnectionTester tester = new() { Immediate = new ConnectionTestResult(ConnectionTestOutcome.LocalNetworkAccessMayBeOff) };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop", "192.168.1.30")), tester, autostartNeedsInstallation: true, macTerms: true, localNetwork: new FakeLocalNetworkPrivacy());
+            await ui.ViewModel.SelectedPrinter!.TestConnectionCommand.ExecuteAsync(null);
+            Assert.True(ui.ViewModel.SelectedPrinter.ShowsLocalNetworkSettings);
+            return ui;
+        });
+
+        yield return ("macOS Local Network hint of the camera test", static async scope =>
+        {
+            FakeCameraTester cameraTester = new() { Immediate = new CameraTestResult(CameraTestOutcome.LocalNetworkAccessMayBeOff, Reason: "Opening the stream: No route to host.") };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }), cameraTester: cameraTester, autostartNeedsInstallation: true, macTerms: true, localNetwork: new FakeLocalNetworkPrivacy());
+            ui.ViewModel.SelectedPrinterTabIndex = SettingsViewModel.CameraPrinterTab;
+            await ui.ViewModel.SelectedPrinter!.TestCameraCommand.ExecuteAsync(null);
+            Assert.True(ui.ViewModel.SelectedPrinter.ShowsCameraLocalNetworkSettings);
+            return ui;
+        });
+
+        yield return ("connection test running", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), new FakeConnectionTester());
+            _ = ui.ViewModel.SelectedPrinter!.TestConnectionCommand.ExecuteAsync(null);
+            Assert.True(ui.ViewModel.SelectedPrinter.IsTesting);
+            return ui;
+        });
+    }
+
+    /// <summary>The visible buttons of the window itself (link buttons too), not the parts of the templates of other controls.</summary>
+    private static IEnumerable<Button> OwnButtons(Window window) =>
+        window.GetVisualDescendants().OfType<Button>().Where(static button => button.TemplatedParent is null && button.IsEffectivelyVisible);
+
+    /// <summary>The buttons inside the templates of other controls, keyed by templated parent, part type and name (or classes).</summary>
+    private static IEnumerable<(string Key, Button Part)> TemplateButtons(Window window) =>
+        window.GetVisualDescendants()
+            .OfType<Button>()
+            .Where(static button => button.TemplatedParent is not null)
+            .Select(static part => ($"{part.TemplatedParent!.GetType().Name} / {part.GetType().Name} {part.Name ?? string.Join('.', part.Classes)}", part));
+
+    private static string ButtonName(Button button) =>
+        AutomationProperties.GetAutomationId(button) is { Length: > 0 } id ? id : $"{button.GetType().Name} '{button.Content}'";
+
     /// <summary>
     /// T-017: the longest texts of the Startup and updates tab, without an installation (both reasons shown) and with the
     /// failed autostart in the status line next to Save / Cancel, in every language.
@@ -111,9 +311,12 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.True(new UiLanguage().Apply(language));
             List<string> problems = [];
 
-            SettingsWindowHarness notInstalled = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true);
+            // T-058: the longest result of "Check now" (a new version) next to the button.
+            SettingsWindowHarness notInstalled = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, checkForUpdatesNow: SettingsWindowHarness.Available);
             notInstalled.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await notInstalled.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
             notInstalled.Window.Settle();
+            Assert.True(notInstalled.Find<TextBlock>("SettingsUpdateCheckResult").IsEffectivelyVisible);
             problems.AddRange(ScrollingViewers(notInstalled.Window, $"{language} / not installed"));
             problems.AddRange(CutTexts(notInstalled.Window, $"{language} / not installed"));
             notInstalled.Window.Close();
@@ -131,13 +334,23 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(failed.Window, $"{language} / autostart failed"));
             failed.Window.Close();
 
-            // T-019: macOS ("Open at Login", its own reason, no pre-release option).
-            SettingsWindowHarness mac = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true);
+            // T-019: macOS ("Open at Login", its own reason); T-058: with the pre-release option (Q3 a), a failed check and the
+            // hint to move the app to Applications first (Q8 a).
+            SettingsWindowHarness mac = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                autostartNeedsInstallation: true,
+                macTerms: true,
+                checkForUpdatesNow: static _ => Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(LayerPeek.Core.Updates.UpdateCheckOutcome.Failed, null)),
+                showsMoveToApplications: true);
             mac.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await mac.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
             mac.Window.Settle();
             Assert.Equal(Strings.SettingsOpenAtLogin, mac.Find<CheckBox>("SettingsStartWithWindows").Content);
             Assert.Equal(Strings.SettingsNeedsAppBundle, mac.Find<TextBlock>("SettingsStartWithWindowsNotInstalled").Text);
-            Assert.False(mac.Find<CheckBox>("SettingsOfferPrereleaseUpdates").IsEffectivelyVisible);
+            Assert.True(mac.Find<CheckBox>("SettingsOfferPrereleaseUpdates").IsEffectivelyVisible);
+            Assert.True(mac.Find<TextBlock>("SettingsUpdateMoveToApplications").IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsUpdateFailed, mac.Find<TextBlock>("SettingsUpdateCheckResult").Text);
             problems.AddRange(ScrollingViewers(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             mac.Window.Close();
@@ -189,7 +402,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         {
             Assert.True(new UiLanguage().Apply(language));
             List<string> problems = [];
-            MemoryNotificationSettings system = new() { TurnedOff = true };
+            FakeSystemNotificationSettings system = new() { TurnedOff = true };
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: system);
             ui.Click("SettingsTabGeneral");
             ui.Window.Settle();
@@ -240,6 +453,219 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
+
+    /// <summary>
+    /// T-101: the slot in the heading row of the notifications with every text it can show next to its button, in every
+    /// language, with the terms of macOS and of Windows, at the designed and a maximized size: nothing scrolls, nothing is
+    /// cut, the text takes at most two lines and keeps at least 160 DIP, and the button is inside the window with its whole
+    /// text. The test button is there while "Show notifications" is off too (user decision 2026-10-29).
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task GeneralTabWithTheTestNotificationFitsInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            List<string> problems = [];
+
+            // macOS: the question of macOS, then sent, then a failure.
+            FakeSystemNotificationSettings mac = new() { State = LayerPeek.App.Platform.SystemNotificationState.NotAsked, AnswerGate = new TaskCompletionSource() };
+            SettingsWindowHarness macUi = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), autostartNeedsInstallation: true, macTerms: true, notificationSettings: mac);
+            macUi.Click("SettingsTabGeneral");
+            macUi.ViewModel.NotificationsEnabled = false;
+            macUi.Window.Settle();
+            Button test = macUi.Find<Button>("SettingsTestNotification");
+            Assert.True(test.IsEffectivelyVisible);
+            Assert.True(test.IsEffectivelyEnabled);
+            Assert.Equal(Strings.SettingsTestNotification, test.Content);
+            Ui.Click(macUi.Window, Ui.CentreOf(test, macUi.Window));
+            macUi.Window.Settle();
+            Assert.Equal(1, mac.Requests);
+            Assert.False(test.IsEffectivelyEnabled);
+            problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationAsking, "SettingsTestNotification", $"{language} / macOS asks"));
+            mac.AnswerGate.SetResult();
+            await WaitForTestAsync(macUi);
+            problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationSentMac, "SettingsTestNotification", $"{language} / macOS sent"));
+            mac.Outcome = LayerPeek.App.Platform.TestNotificationOutcome.Failed;
+            Ui.Click(macUi.Window, Ui.CentreOf(test, macUi.Window));
+            await WaitForTestAsync(macUi);
+            problems.AddRange(SlotProblems(macUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationFailed, "SettingsTestNotification", $"{language} / failed"));
+            Assert.Equal(LightErrorColor, ForegroundOf(macUi.Find<TextBlock>("SettingsTestNotificationResult")));
+            macUi.Window.Close();
+
+            // Windows: sent, a policy (warning, the test stays), turned off (warning and the button to Settings).
+            FakeSystemNotificationSettings windows = new();
+            SettingsWindowHarness winUi = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), notificationSettings: windows);
+            winUi.Click("SettingsTabGeneral");
+            winUi.Window.Settle();
+            Ui.Click(winUi.Window, Ui.CentreOf(winUi.Find<Button>("SettingsTestNotification"), winUi.Window));
+            await WaitForTestAsync(winUi);
+            Assert.Single(windows.Sent);
+            problems.AddRange(SlotProblems(winUi, "SettingsTestNotificationResult", Strings.SettingsTestNotificationSentWindows, "SettingsTestNotification", $"{language} / Windows sent"));
+            Assert.NotEqual(LightErrorColor, ForegroundOf(winUi.Find<TextBlock>("SettingsTestNotificationResult")));
+            windows.State = LayerPeek.App.Platform.SystemNotificationState.BlockedByPolicy;
+            await winUi.ViewModel.RefreshNotificationPermissionAsync();
+            winUi.Window.Settle();
+            Assert.False(winUi.Window.IsShown<TextBlock>("SettingsTestNotificationResult"));
+            Assert.False(winUi.Window.IsShown<Button>("SettingsOpenNotificationSettings"));
+            problems.AddRange(SlotProblems(winUi, "SettingsNotificationsTurnedOff", Strings.SettingsTestNotificationBlockedByPolicy, "SettingsTestNotification", $"{language} / policy"));
+            windows.State = LayerPeek.App.Platform.SystemNotificationState.TurnedOff;
+            await winUi.ViewModel.RefreshNotificationPermissionAsync();
+            winUi.Window.Settle();
+            Assert.False(winUi.Window.IsShown<Button>("SettingsTestNotification"));
+            Button open = winUi.Find<Button>("SettingsOpenNotificationSettings");
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsWindows, open.Content);
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsHintWindows, AutomationProperties.GetHelpText(open));
+            Assert.Equal(Strings.SettingsOpenNotificationSettingsHintWindows, ToolTip.GetTip(open));
+            problems.AddRange(SlotProblems(winUi, "SettingsNotificationsTurnedOff", Strings.SettingsNotificationsTurnedOffWindows, "SettingsOpenNotificationSettings", $"{language} / Windows turned off"));
+            Ui.Click(winUi.Window, Ui.CentreOf(open, winUi.Window));
+            Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal(1, windows.Opened);
+            winUi.Window.Close();
+
+            Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
+        });
+
+    /// <summary>
+    /// T-101 accessibility: the test button has its id, name and help; its result and the warning are polite live regions,
+    /// so a screen reader announces them.
+    /// </summary>
+    [Fact]
+    public Task TheTestNotificationIsAccessible() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")));
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+
+            Button test = ui.Find<Button>("SettingsTestNotification");
+            Assert.Equal(Strings.SettingsTestNotificationHint, AutomationProperties.GetHelpText(test));
+            Assert.Equal(Strings.SettingsTestNotificationHint, ToolTip.GetTip(test));
+            Assert.Equal(Strings.SettingsTestNotification, Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(test).GetName());
+            Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(ui.Find<TextBlock>("SettingsTestNotificationResult")));
+            Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(ui.Find<TextBlock>("SettingsNotificationsTurnedOff")));
+            // Outside the part that "Show notifications" disables.
+            ui.ViewModel.NotificationsEnabled = false;
+            ui.Window.Settle();
+            Assert.True(test.IsEffectivelyEnabled);
+        });
+
+    /// <summary>
+    /// T-101: macOS asks, the user denies: the slot switches from the test to the button to System Settings, and the focus
+    /// that was on the test button moves to that button (not to the start of the window). Allowed again, it moves back.
+    /// </summary>
+    [Fact]
+    public Task TheFocusFollowsTheSlotWhenMacOSDenies() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeSystemNotificationSettings mac = new() { State = LayerPeek.App.Platform.SystemNotificationState.NotAsked, Grants = false };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")), macTerms: true, notificationSettings: mac);
+            ui.Click("SettingsTabGeneral");
+            ui.Window.Settle();
+            Button test = ui.Find<Button>("SettingsTestNotification");
+            Button open = ui.Find<Button>("SettingsOpenNotificationSettings");
+            Assert.True(test.Focus(NavigationMethod.Tab));
+
+            // Space on the focused button, as a keyboard user does.
+            Press(ui.Window, PhysicalKey.Space, RawInputModifiers.None);
+            await WaitForTestAsync(ui);
+
+            Assert.Equal(1, mac.Requests);
+            Assert.False(test.IsEffectivelyVisible);
+            Assert.True(open.IsEffectivelyVisible);
+            Assert.Equal(Strings.SettingsNotificationsTurnedOff, ui.ShownText("SettingsNotificationsTurnedOff"));
+            Assert.Null(ui.ShownText("SettingsTestNotificationResult"));
+            Assert.Same(open, ui.Window.FocusManager?.GetFocusedElement());
+
+            mac.TurnedOff = false;
+            await ui.ViewModel.RefreshNotificationPermissionAsync();
+            ui.Window.Settle();
+            Assert.True(test.IsEffectivelyVisible);
+            Assert.Same(test, ui.Window.FocusManager?.GetFocusedElement());
+        });
+
+    /// <summary>T-101 Q4: a click on the test notification shows the General tab of a new window, and of an open one.</summary>
+    [Fact]
+    public Task AClickOnTheTestNotificationShowsTheGeneralTab() =>
+        session.RunAsync(static async scope =>
+        {
+            FakeEditorStore store = SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha"));
+            AuxiliaryWindowSlot slot = new();
+            AuxiliaryWindowFactory windows = new(track: null);
+            List<SettingsViewModel> created = [];
+            (IAuxiliaryWindow, SettingsViewModel) Create() =>
+                windows.Settings(
+                    screens =>
+                    {
+                        SettingsViewModel viewModel = new(store, new FakeConnectionTester(), SettingsWindowHarness.Supported, static () => "p1", new FakeCameraTester(), screens: screens);
+                        created.Add(viewModel);
+                        return viewModel;
+                    },
+                    () => scope.Track(new SettingsWindow()));
+
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            await created[0].LoadAsync();
+            Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
+
+            // Already open on another tab, with an edit: the same window, the edit kept, the General tab shown.
+            created[0].SelectedTabIndex = SettingsViewModel.PrintersTab;
+            created[0].SelectedPrinter!.Name = "Edited";
+            SettingsWindowCommand.Show(slot, Create, addPrinter: false, generalTab: true);
+            Assert.Single(created);
+            Assert.Equal(SettingsViewModel.GeneralTab, created[0].SelectedTabIndex);
+            Assert.Equal("Edited", created[0].SelectedPrinter!.Name);
+            slot.Shutdown();
+        });
+
+    /// <summary>The test of the slot finished (it may resume on the UI thread after the fake's continuation).</summary>
+    private static async Task WaitForTestAsync(SettingsWindowHarness ui)
+    {
+        if (ui.ViewModel.SendTestNotificationCommand.ExecutionTask is { } running)
+        {
+            await running;
+        }
+
+        ui.Window.Settle();
+    }
+
+    /// <summary>
+    /// T-101: the text next to the slot shows <paramref name="expected"/> and, with the button of the slot, fits at both sizes.
+    /// </summary>
+    private static List<string> SlotProblems(SettingsWindowHarness ui, string textId, string expected, string buttonId, string context)
+    {
+        List<string> problems = [];
+        Window window = ui.Window;
+        TextBlock text = ui.Find<TextBlock>(textId);
+        Button button = ui.Find<Button>(buttonId);
+        Assert.True(text.IsEffectivelyVisible, $"{context}: {textId} is not shown.");
+        Assert.True(button.IsEffectivelyVisible, $"{context}: {buttonId} is not shown.");
+        Assert.Equal(expected, text.Text);
+        foreach (Size size in new[] { new Size(780, 532), new Size(1366, 705) })
+        {
+            window.Width = size.Width;
+            window.Height = size.Height;
+            window.Settle();
+            string at = $"{context} / {size}";
+            problems.AddRange(ScrollingViewers(window, at));
+            problems.AddRange(CutTexts(window, at));
+            if (text.TextLayout.TextLines.Count > 2)
+            {
+                problems.Add($"{at}: '{text.Text}' takes {text.TextLayout.TextLines.Count} lines.");
+            }
+
+            if (text.Bounds.Width < 160)
+            {
+                problems.Add($"{at}: '{text.Text}' is only {text.Bounds.Width:0.#} DIP wide.");
+            }
+
+            problems.AddRange(ButtonProblems(ui, button, buttonId, at));
+        }
+
+        window.Width = 780;
+        window.Height = 532;
+        window.Settle();
+        return problems;
+    }
 
     /// <summary>
     /// T-097 (macOS 15+, user decision 2026-10-29): the Local Network hint as the result of "Test connection" with the button
@@ -863,7 +1289,7 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         yield return ("widgets: cool-down threshold error", static async scope =>
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }, LinkPrinter("b", "Beta", "192.168.1.21")));
-            ui.ViewModel.Printers[0].CooldownThresholdCelsius = 120;
+            ui.ViewModel.Printers[0].CooldownBedThresholdCelsius = 120;
             await ui.ViewModel.SaveCommand.ExecuteAsync(null);
             Assert.Equal(SettingsViewModel.WidgetsTab, ui.ViewModel.SelectedTabIndex);
             Assert.NotNull(ui.ViewModel.Printers[0].CooldownThresholdError);
@@ -875,6 +1301,22 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
         {
             SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
             SelectCooldown(ui);
+            return ui;
+        });
+
+        // T-110 (design T-104 2): the "Mini preview" panel with its seven check boxes (texts may wrap to 2 lines) and the
+        // one-line hint must fit the 228 high panel in every language; also with the camera off (disabled check boxes).
+        yield return ("widgets: mini preview selected", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }, LinkPrinter("b", "Beta", "192.168.1.21")));
+            SelectMiniStrip(ui);
+            return ui;
+        });
+
+        yield return ("widgets: camera off, mini preview selected", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SelectMiniStrip(ui);
             return ui;
         });
 
@@ -900,6 +1342,13 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(SettingsViewModel.GeneralTab, ui.ViewModel.SelectedTabIndex);
             return ui;
         });
+    }
+
+    /// <summary>The "Mini preview" item on the Widgets tab (T-110).</summary>
+    private static void SelectMiniStrip(SettingsWindowHarness ui)
+    {
+        ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+        ui.Window.Settle();
     }
 
     /// <summary>The Cool-down widget on the Widgets tab.</summary>

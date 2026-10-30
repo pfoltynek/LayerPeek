@@ -8,19 +8,23 @@ namespace LayerPeek.App.Windows;
 /// <summary>
 /// Every auxiliary window passes through <see cref="Track"/> right after it is created, before it is shown (T-043): the
 /// OS shell gets its properties (Windows: only "Close window" in its jump list) and the window joins
-/// <see cref="Recent"/>, which a second start of the app uses. UI thread only.
+/// <see cref="Recent"/>, which a second start of the app uses; while it is open and not on top it counts for the Dock
+/// icon of the app (<see cref="AppPresence"/>, macOS, T-102). UI thread only.
 /// </summary>
 internal sealed class AuxiliaryWindowTracker
 {
     private readonly IWindowShell _shell;
     private readonly Func<Window, nint> _handleOf;
+    private readonly AppPresence? _presence;
 
     /// <param name="handleOf">The native handle of a window; default: <see cref="TopLevel.TryGetPlatformHandle"/>.</param>
-    public AuxiliaryWindowTracker(IWindowShell shell, Func<Window, nint>? handleOf = null)
+    /// <param name="presence">Counts the windows that are not on top (T-102); <see langword="null"/>: nothing is counted.</param>
+    public AuxiliaryWindowTracker(IWindowShell shell, Func<Window, nint>? handleOf = null, AppPresence? presence = null)
     {
         ArgumentNullException.ThrowIfNull(shell);
         _shell = shell;
         _handleOf = handleOf ?? DefaultHandleOf;
+        _presence = presence;
     }
 
     public RecentWindows Recent { get; } = new();
@@ -33,7 +37,8 @@ internal sealed class AuxiliaryWindowTracker
     public IDisposable Track(Window window)
     {
         ArgumentNullException.ThrowIfNull(window);
-        AvaloniaRecentWindow tracked = new(window, _shell, _handleOf(window));
+        // Counted before it is shown (T-102): on macOS the app is in the Dock when the window comes to the front.
+        AvaloniaRecentWindow tracked = new(window, _shell, _handleOf(window), _presence);
         // Shown without the focus (T-040: Apply opens the camera window): used only once activated.
         Recent.Track(tracked, used: window.ShowActivated);
         return tracked;
@@ -47,6 +52,7 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
 {
     private readonly IWindowShell _shell;
     private readonly nint _handle;
+    private readonly AppPresence? _presence;
     private bool _released;
 
     // The state a minimized window returns to (e.g. full screen of a camera window).
@@ -55,13 +61,16 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
     /// <param name="handle">
     /// Captured at creation: once the window closed it no longer reports its handle, but the shell must still be told.
     /// </param>
-    public AvaloniaRecentWindow(Window window, IWindowShell shell, nint handle)
+    /// <param name="presence">Counts the window while it is open and not on top (T-102); <see langword="null"/>: not counted.</param>
+    public AvaloniaRecentWindow(Window window, IWindowShell shell, nint handle, AppPresence? presence = null)
     {
         Window = window;
         _shell = shell;
         _handle = handle;
+        _presence = presence;
         _restoreState = RestoreStateOf(window);
         _shell.Prepare(_handle);
+        _presence?.Set(this, window.Topmost);
         window.Activated += OnActivated;
         window.Closed += OnClosed;
         window.PropertyChanged += OnPropertyChanged;
@@ -119,6 +128,11 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
         {
             _restoreState = state;
         }
+        else if (e.Property == Window.TopmostProperty)
+        {
+            // A mode switch of a camera window (mini preview ↔ normal) or a saved "always on top" option (T-037).
+            _presence?.Set(this, e.GetNewValue<bool>());
+        }
     }
 
     private void OnActivated(object? sender, EventArgs e) => Activated?.Invoke(this, EventArgs.Empty);
@@ -137,6 +151,7 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
         Window.Closed -= OnClosed;
         Window.PropertyChanged -= OnPropertyChanged;
         _shell.Release(_handle);
+        _presence?.Remove(this);
         // RecentWindows drops it.
         Closed?.Invoke(this, EventArgs.Empty);
     }

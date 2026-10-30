@@ -63,6 +63,12 @@ public sealed record AppSettings
     public bool? OfferPrereleaseUpdates { get; init; }
 
     /// <summary>
+    /// "Check for updates automatically" (T-058, decision Q2 a: on by default): shortly after the start and then once a day the
+    /// app asks GitHub for a newer version. Off: no automatic request; the manual check of the settings window still works.
+    /// </summary>
+    public bool CheckForUpdates { get; init; } = true;
+
+    /// <summary>
     /// Opacity of the background of the overlay widget cards in whole percent (T-077): one value for the camera windows of
     /// all printers, within <see cref="CameraOverlayOpacity.MinPercent"/>–<see cref="CameraOverlayOpacity.MaxPercent"/>,
     /// <see cref="CameraOverlayOpacity.DefaultPercent"/> by default.
@@ -153,13 +159,14 @@ public sealed record AppSettings
     }
 
     /// <summary>
-    /// "Use this threshold for all printers" (T-079): these settings with <paramref name="thresholdCelsius"/> as the
-    /// cool-down threshold of every printer; the same instance when every printer already has it. Nothing else changes.
+    /// "Use these thresholds for all printers" (T-079, nozzle and bed since T-109): these settings with
+    /// <paramref name="thresholds"/> as the cool-down thresholds of every printer; the same instance when every printer
+    /// already has them. Nothing else changes.
     /// </summary>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="thresholdCelsius"/> is not a valid <see cref="Cooldown.CooldownThreshold"/>.</exception>
-    public AppSettings WithCooldownThresholdForAllPrinters(int thresholdCelsius)
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="thresholds"/> are not valid (<see cref="Cooldown.CooldownThreshold"/>).</exception>
+    public AppSettings WithCooldownThresholdsForAllPrinters(Cooldown.CooldownThresholds thresholds)
     {
-        IReadOnlyList<PrinterDefinition> printers = Cooldown.CooldownThreshold.ApplyToAll(Printers, thresholdCelsius);
+        IReadOnlyList<PrinterDefinition> printers = Cooldown.CooldownThreshold.ApplyToAll(Printers, thresholds);
         return ReferenceEquals(printers, Printers) ? this : this with { Printers = printers };
     }
 
@@ -209,12 +216,13 @@ public sealed record AppSettings
         && string.Equals(Language, other.Language, StringComparison.Ordinal)
         && DebugLogging == other.DebugLogging
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
+        && CheckForUpdates == other.CheckForUpdates
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
     public override int GetHashCode() =>
-        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
+        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CheckForUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

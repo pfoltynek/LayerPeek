@@ -130,6 +130,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     private int _stateRemoveCount;
     private CameraStatus _status = CameraStatus.Connecting;
     private bool _hasFrame;
+    private bool _usesMacShortcuts = Windows.MacShortcuts.IsPlatformDefault;
 
     // Thread of the ending run (runs never overlap) and the UI thread (cleared by a shown frame): the last failure that
     // ended a run by itself, as "type: message", so that a repeated one is logged briefly.
@@ -219,7 +220,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // T-091: the layout mode edits the overlay's layout.
         CreateLayoutMode(layoutWriter, logger);
         // T-089: the info strip below the image of the mini preview.
-        MiniStrip = CreateMiniStrip(dispatcher, cooldown, history, timeProvider, state.MiniRows);
+        MiniStrip = CreateMiniStrip(dispatcher, cooldown, history, timeProvider, state.MiniRows, target.Printer.Camera.MiniStrip);
 
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
@@ -265,6 +266,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(Title));
         OnPropertyChanged(nameof(NormalToolTip));
         OnPropertyChanged(nameof(MiniToolTip));
+        OnPropertyChanged(nameof(FullScreenToolTip));
+        OnPropertyChanged(nameof(ImageHint));
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusDetail));
         OnPropertyChanged(nameof(LayoutToolTip));
@@ -337,6 +340,30 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     public string MiniToolTip => _defaults.TopmostMini ? Strings.CameraMini : Strings.CameraMiniPlain;
 
     /// <summary>
+    /// The shortcuts of macOS (T-100, user decision 2026-10-29): ⌃⌘F toggles full screen (F11 stays as a fallback), ⌘W
+    /// closes the window and ⌘. is Esc; the texts name ⌃⌘F instead of F11. Default: on macOS only; tests set it.
+    /// </summary>
+    internal bool UsesMacShortcuts
+    {
+        get => _usesMacShortcuts;
+        set
+        {
+            if (_usesMacShortcuts != value)
+            {
+                _usesMacShortcuts = value;
+                OnPropertyChanged(nameof(FullScreenToolTip));
+                OnPropertyChanged(nameof(ImageHint));
+            }
+        }
+    }
+
+    /// <summary>Tip (and accessible name) of the full screen button with its shortcut: F11, ⌃⌘F on macOS (T-100).</summary>
+    public string FullScreenToolTip => _usesMacShortcuts ? Strings.CameraFullScreenMac : Strings.CameraFullScreen;
+
+    /// <summary>The accessible name of the image with the shortcuts: F11, ⌃⌘F on macOS (T-100).</summary>
+    public string ImageHint => _usesMacShortcuts ? Strings.CameraImageHintMac : Strings.CameraImageHint;
+
+    /// <summary>
     /// Where the normal window was (remembered, or earlier in this window); <see langword="null"/> = the window places it
     /// from <see cref="Defaults"/>.
     /// </summary>
@@ -365,7 +392,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     }
 
     /// <summary>
-    /// F11: into full screen from the normal window or the mini preview; out of full screen back to the mode it was entered
+    /// F11 (and ⌃⌘F on macOS, T-100): into full screen from the normal window or the mini preview; out of full screen back to the mode it was entered
     /// from (the normal window when the window opened in full screen).
     /// </summary>
     public IRelayCommand ToggleFullScreenCommand { get; }
@@ -849,6 +876,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         // The layout, the printer (name…) and the global card opacity apply to the open window right away, in place (T-081).
         Overlay.ApplySettings(target.Printer, target.Overlay, state.CameraOverlayOpacityPercent);
+        // T-110: what the mini strip shows, in place too; the window follows the strip height (T-089).
+        MiniStrip.ApplySettings(target.Printer.Camera.MiniStrip);
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

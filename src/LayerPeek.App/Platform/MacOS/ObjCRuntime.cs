@@ -4,7 +4,8 @@ using System.Runtime.Versioning;
 namespace LayerPeek.App.Platform.MacOS;
 
 /// <summary>
-/// The few Objective-C runtime calls of the macOS menu bar app (T-019): bringing the app to the front, the Login Item
+/// The few Objective-C runtime calls of the macOS menu bar app (T-019): bringing the app to the front, its activation policy
+/// (T-102: the Dock icon while windows are open), the Login Item
 /// of <c>SMAppService</c> and (T-020) the User Notifications framework with its delegate class registered at run time. Native AOT safe: <c>[LibraryImport]</c> by absolute path with blittable signatures, one entry
 /// point per <c>objc_msgSend</c> shape (on arm64 every message must be sent through a prototype of exactly its arguments),
 /// no Objective-C bridge, no reflection. Every object is a plain <see cref="nint"/>.
@@ -170,6 +171,17 @@ internal static unsafe partial class ObjCRuntime
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial nint Send(nint receiver, nint selector, nint first, nint second, nint third);
 
+    /// <summary><c>id</c> result, one <c>CGFloat</c> argument (<c>menuFontOfSize:</c>).</summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    public static partial nint SendWithCGFloat(nint receiver, nint selector, double argument);
+
+    /// <summary>
+    /// <c>CGFloat</c> result, no arguments (<c>pointSize</c>, <c>backingScaleFactor</c>): returned in a floating point
+    /// register by plain <c>objc_msgSend</c> on arm64 and x86_64 (only <c>long double</c> needs <c>objc_msgSend_fpret</c>).
+    /// </summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    public static partial double SendCGFloat(nint receiver, nint selector);
+
     /// <summary>No result, one <c>BOOL</c> argument (<c>activateIgnoringOtherApps:</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial void SendVoid(nint receiver, nint selector, byte argument);
@@ -177,6 +189,11 @@ internal static unsafe partial class ObjCRuntime
     /// <summary>No result, no arguments (<c>activate</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial void SendVoid(nint receiver, nint selector);
+
+    /// <summary><c>BOOL</c> result, no arguments (<c>isActive</c>).</summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    [return: MarshalAs(UnmanagedType.U1)]
+    public static partial bool SendBool(nint receiver, nint selector);
 
     /// <summary><c>BOOL</c> result, one pointer argument (<c>respondsToSelector:</c>, <c>registerAndReturnError:</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]

@@ -8,6 +8,8 @@ platform: all
 depends_on: [T-005, T-015]
 ---
 
+> **Vyřazeno z implementace (rozhodnuto 2026-10-29).** Opakované ověření 2026-10-29 potvrdilo, že Prusa Connect nemá veřejné API pro uživatelské aplikace třetích stran: oficiální je jen Camera API (nahrávání snímků) a protokol tiskáren, registrace OAuth klientů pro třetí strany neexistuje. Úkol se neimplementuje, dokud Prusa veřejné API nezveřejní. Možná budoucí alternativa: self-hosted **Prusa Connect Local** (early access, REST/SSE/MQTT) – samostatný produkt, vyžadoval by nový průzkum.
+
 ## Cíl
 Uživatel se z okna nastavení přihlásí ke svému Prusa Account a vybere tiskárny z Connectu, které chce sledovat. Postup přihlášení je popsaný v [docs/api/prusa-connect.md](../../docs/api/prusa-connect.md).
 

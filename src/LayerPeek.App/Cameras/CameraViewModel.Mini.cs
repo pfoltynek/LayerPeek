@@ -1,5 +1,6 @@
 using LayerPeek.App.Cameras.Mini;
 using LayerPeek.App.Tray;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 
@@ -32,11 +33,12 @@ public sealed partial class CameraViewModel
 
     /// <summary>
     /// The strip of the mini preview with the rows remembered for the printer (T-090; also with "remember last placement"
-    /// off, which is only about the position and size).
+    /// off, which is only about the position and size) and the items of the printer's settings (T-110).
     /// </summary>
-    private CameraMiniStripViewModel CreateMiniStrip(IUiDispatcher dispatcher, CooldownMonitor? cooldown, TelemetryHistory? history, TimeProvider clock, CameraMiniRows rows)
+    private CameraMiniStripViewModel CreateMiniStrip(
+        IUiDispatcher dispatcher, CooldownMonitor? cooldown, TelemetryHistory? history, TimeProvider clock, CameraMiniRows rows, CameraMiniStripSettings items)
     {
-        CameraMiniStripViewModel strip = new(PrinterId, dispatcher, cooldown, history, clock, rows);
+        CameraMiniStripViewModel strip = new(PrinterId, dispatcher, cooldown, history, clock, rows, items);
         strip.RowsChanged += OnMiniRowsChanged;
         return strip;
     }

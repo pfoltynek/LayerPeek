@@ -297,7 +297,16 @@ internal static partial class Program
 
         Task<ServiceHost> StartServices(IUiDispatcher dispatcher)
         {
-            Task<ServiceHost> services = StartServicesAsync(environment, logging, dispatcher);
+            Task<ServiceHost> services = StartServicesAsync(environment, logging, dispatcher, () =>
+            {
+                // T-058: an update downloaded while waiting quits like the test command "quit" (the UI replaces it once it runs).
+                if (!waitOver)
+                {
+                    quit.Cancel();
+                }
+
+                return Task.CompletedTask;
+            });
             WaitingInstanceCommands waiting = new(
                 async launchArgument => (await services.ConfigureAwait(true)).ActivateToast(launchArgument),
                 () =>
@@ -346,9 +355,11 @@ internal static partial class Program
     }
 
     /// <summary>The services of the app without the UI (T-099), started on the main thread: continuations come back to it.</summary>
-    private static async Task<ServiceHost> StartServicesAsync(AppEnvironment environment, AppLogging logging, IUiDispatcher dispatcher)
+    /// <param name="quitForUpdate">How an update downloaded meanwhile quits the app (T-058).</param>
+    private static async Task<ServiceHost> StartServicesAsync(AppEnvironment environment, AppLogging logging, IUiDispatcher dispatcher, Func<Task> quitForUpdate)
     {
         ServiceHost host = await ServiceHost.CreateAsync(environment, logging, dispatcher).ConfigureAwait(true);
+        host.UpdateOffer.AttachQuit(quitForUpdate);
         host.StartMonitoring();
         return host;
     }

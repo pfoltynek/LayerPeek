@@ -83,6 +83,18 @@
     <Style Selector="TextBlock.status.isError">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
     </Style>
+    <!--
+      T-111: every button of the window (also those of the widget panel templates, WidgetSettingsTemplates.axaml) and the
+      link buttons are at least 32 DIP high, the click target of the design (Fluent gives about 28–32). Type selectors match
+      the exact type (its StyleKey), not derived ones, so the parts inside the templates of other controls keep their theme
+      size: the RepeatButtons of NumericUpDown (ButtonSpinner), Slider and ScrollBar, the ToggleButton that reveals a
+      password; ComboBox and TabItem have no button part. SettingsWindowLayoutTests checks both.
+    -->
+    <Style Selector="Button, HyperlinkButton">
+      <Setter Property="MinHeight" Value="32" />
+      <!-- Fluent Button stretches its content, which leaves the text above the middle of the taller button. -->
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
     <Style Selector="TabControl.main, TabControl.sub">
       <Setter Property="Padding" Value="0" />
@@ -96,6 +108,62 @@
       <Setter Property="FontSize" Value="14" />
       <Setter Property="MinHeight" Value="32" />
       <Setter Property="Padding" Value="10,0" />
+    </Style>
+
+    <!--
+      T-112 (design "Návrh" 1, 7): an invalid field (class "invalid", bound to its Has…Error) has a 2 DIP outline in
+      SettingsErrorBrush around the whole control, in every state (pointer over, pressed, focused, open); the window styles
+      win over the control themes, so the red also replaces the accent of the focus. The outline is drawn by parts of the
+      templates (Fluent of Avalonia 12.1.4) that do not take part in measuring, so the field keeps its size and its text does
+      not move; also in WidgetSettingsTemplates.axaml (rendered inside this window). SettingsWindowInvalidFieldUiTests.
+    -->
+    <!-- TextBox: PART_BorderElement has no child; the content keeps its margin of the control's BorderThickness (1). -->
+    <Style Selector="TextBox.invalid /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!-- Editable ComboBox: the border and the focus overlay have no child; its inner TextBox has no border of its own. -->
+    <Style Selector="ComboBox.invalid /template/ Border#Background, ComboBox.invalid /template/ Border#HighlightBackground">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <!--
+      NumericUpDown: the border of the ButtonSpinner is measured, so 2 instead of 1 is compensated by the margin of the inner
+      TextBox (-2 instead of -1, its MinHeight stays 32): the field keeps 32 DIP and the text its place. The inner TextBox
+      overlaps the outline on the left, top and bottom and draws its own border (2 DIP accent when focused) there: red on
+      those sides, none on the right, where the divider of the ▲ button stays. The dividers of ▲ ▼ keep the theme colour
+      at 1 DIP (only the outline is red).
+    -->
+    <Style Selector="NumericUpDown.invalid /template/ ButtonSpinner#PART_Spinner">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid /template/ TextBox#PART_TextBox">
+      <Setter Property="Margin" Value="-2,-2,0,-2" />
+    </Style>
+    <Style Selector="NumericUpDown.invalid /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement">
+      <Setter Property="BorderBrush" Value="{DynamicResource SettingsErrorBrush}" />
+      <Setter Property="BorderThickness" Value="2,2,0,2" />
+      <!-- Square right corners: a rounded inner corner left anti-aliased pink pixels next to the ▲ ▼ divider. -->
+      <Setter Property="CornerRadius" Value="3,0,0,3" />
+    </Style>
+    <!-- The template derives the left border of ▲ ▼ from the spinner's BorderThickness: back to 1 DIP. -->
+    <Style Selector="NumericUpDown.invalid /template/ ButtonSpinner#PART_Spinner /template/ RepeatButton">
+      <Setter Property="BorderBrush" Value="{DynamicResource TextControlBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1,0,0,0" />
+    </Style>
+    <!--
+      T-112 (design 5): the keyboard focus of a NumericUpDown and of an editable ComboBox is on the TextBox of its template,
+      whose automation peer would have no name and no help text: it gets those of its control, so a screen reader reads the
+      same (with the error of an invalid field) whichever of the two it reports.
+    -->
+    <Style Selector="NumericUpDown /template/ TextBox#PART_TextBox">
+      <Setter Property="AutomationProperties.Name" Value="{Binding $parent[NumericUpDown].(AutomationProperties.Name)}" />
+      <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[NumericUpDown].(AutomationProperties.HelpText)}" />
+    </Style>
+    <Style Selector="ComboBox /template/ TextBox#PART_EditableTextBox">
+      <Setter Property="AutomationProperties.Name" Value="{Binding $parent[ComboBox].(AutomationProperties.Name)}" />
+      <Setter Property="AutomationProperties.HelpText" Value="{Binding $parent[ComboBox].(AutomationProperties.HelpText)}" />
     </Style>
   </Window.Styles>
 
@@ -240,6 +308,8 @@
                                    Grid.Column="2"
                                    AutomationProperties.AutomationId="PrinterName"
                                    AutomationProperties.Name="{Binding [SettingsName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                   AutomationProperties.HelpText="{Binding NameHelpText}"
+                                   Classes.invalid="{Binding HasNameError}"
                                    Text="{Binding Name}"
                                    MaxLength="200" />
                           <TextBlock Grid.Row="2" Grid.Column="2" Grid.ColumnSpan="3" AutomationProperties.AutomationId="PrinterNameError" Classes="error" Text="{Binding NameError}" IsVisible="{Binding NameError, Converter={x:Static ObjectConverters.IsNotNull}}" />
@@ -268,6 +338,8 @@
                         <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}" />
                         <TextBox AutomationProperties.AutomationId="PrinterAddress"
                                  AutomationProperties.Name="{Binding [SettingsAddress], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                 AutomationProperties.HelpText="{Binding AddressHelpText}"
+                                 Classes.invalid="{Binding HasAddressError}"
                                  Text="{Binding Address}"
                                  PlaceholderText="192.168.1.20" />
                         <TextBlock AutomationProperties.AutomationId="PrinterAddressHint" Classes="hint" Text="{Binding [SettingsAddressHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsAddressHint}" />
@@ -278,6 +350,8 @@
                             <TextBlock AutomationProperties.AutomationId="PrinterUserNameLabel" Classes="label" Text="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBox AutomationProperties.AutomationId="PrinterUserName"
                                      AutomationProperties.Name="{Binding [SettingsUserName], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     AutomationProperties.HelpText="{Binding UserNameHelpText}"
+                                     Classes.invalid="{Binding HasUserNameError}"
                                      Text="{Binding UserName}"
                                      MaxLength="200"
                                      IsEnabled="{Binding IsPrusaLink}" />
@@ -288,6 +362,8 @@
                             <TextBlock Classes="label" Text="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}" />
                             <TextBox AutomationProperties.AutomationId="PrinterPassword"
                                      AutomationProperties.Name="{Binding [SettingsPassword], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     AutomationProperties.HelpText="{Binding PasswordHelpText}"
+                                     Classes.invalid="{Binding HasPasswordError}"
                                      Text="{Binding Password}"
                                      PasswordChar="●"
                                      PlaceholderText="{Binding PasswordWatermark}"
@@ -356,7 +432,9 @@
                         <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
                                  Text="{Binding CameraUrl}"
                                  PlaceholderText="rtsp://192.168.0.227/live"
-                                 AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                                 AutomationProperties.Name="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                 AutomationProperties.HelpText="{Binding CameraUrlHelpText}"
+                                 Classes.invalid="{Binding HasCameraUrlError}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlHint" Classes="hint" Text="{Binding [SettingsCameraUrlHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsCameraUrlHint}" />
                         <TextBlock AutomationProperties.AutomationId="PrinterCameraUrlError" Classes="error" Text="{Binding CameraUrlError}" IsVisible="{Binding CameraUrlError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
@@ -489,6 +567,8 @@
                                       Grid.Column="2"
                                       AutomationProperties.AutomationId="PrinterCameraWindowNormalSize"
                                       AutomationProperties.Name="{Binding NormalSizeName}"
+                                      AutomationProperties.HelpText="{Binding NormalSizeHelpText}"
+                                      Classes.invalid="{Binding HasNormalSizeError}"
                                       IsEditable="True"
                                       ItemsSource="{x:Static vm:CameraWindowSizeText.Presets}"
                                       Text="{Binding NormalSizeText, Mode=TwoWay}"
@@ -525,6 +605,8 @@
                                       Grid.Column="2"
                                       AutomationProperties.AutomationId="PrinterCameraWindowMiniSize"
                                       AutomationProperties.Name="{Binding MiniSizeName}"
+                                      AutomationProperties.HelpText="{Binding MiniSizeHelpText}"
+                                      Classes.invalid="{Binding HasMiniSizeError}"
                                       IsEditable="True"
                                       ItemsSource="{x:Static vm:CameraWindowSizeText.MiniPresets}"
                                       Text="{Binding MiniSizeText, Mode=TwoWay}"
@@ -632,24 +714,41 @@
               <!--
                 One Tab stop; arrows / Home / End select, Space switches the visibility of the selected row (code-behind).
                 The check boxes are no Tab stops; a click on one switches it and selects its row (design 5.2).
-                Design 3.2: the list asks for at most 7 rows (7 × 32 + 2) and fills the row; with more widgets it scrolls
-                inside (keeping the selected row in view) while the tab does not scroll.
+                Design 3.2: the list asks for at most 224 (7 × 32; its 2 of border cut the 7th row, T-111 Q1, so the taller
+                buttons of "All widgets" fit) and fills the row; with more widgets it scrolls inside (keeping the selected
+                row in view) while the tab does not scroll.
               -->
-              <w:CompactHeightDecorator CompactHeight="226">
+              <w:CompactHeightDecorator CompactHeight="224">
+                <!--
+                  T-110 (design T-104 2): after the widgets a separator (9, not selectable, skipped by the keyboard, not in the
+                  automation tree) and the "Mini preview" item without a check box (20 empty, so icons and names line up).
+                -->
                 <ListBox x:Name="WidgetsList"
                          AutomationProperties.AutomationId="WidgetsList"
                          AutomationProperties.Name="{Binding [SettingsWidgetsListName], Source={x:Static loc:LocalizedStrings.Instance}}"
-                         ItemsSource="{Binding Widgets}"
-                         SelectedItem="{Binding SelectedWidget}">
+                         ItemsSource="{Binding WidgetsListEntries}"
+                         SelectedItem="{Binding SelectedWidgetsListEntry}">
                   <ListBox.ItemContainerTheme>
-                    <ControlTheme x:DataType="w:WidgetItemViewModel" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                      <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='WidgetsItem-{0}'}" />
+                    <ControlTheme x:DataType="w:WidgetsListEntry" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                      <Setter Property="AutomationProperties.AutomationId" Value="{Binding AutomationId}" />
                       <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
-                      <Setter Property="MinHeight" Value="32" />
+                      <Setter Property="AutomationProperties.AccessibilityView" Value="{Binding AccessibilityView}" />
+                      <Setter Property="IsEnabled" Value="{Binding IsSelectable}" />
+                      <Setter Property="Focusable" Value="{Binding IsSelectable}" />
+                      <Setter Property="MinHeight" Value="{Binding RowHeight}" />
                       <Setter Property="Padding" Value="8,0" />
                     </ControlTheme>
                   </ListBox.ItemContainerTheme>
-                  <ListBox.ItemTemplate>
+                  <ListBox.DataTemplates>
+                    <DataTemplate x:DataType="w:WidgetsSeparatorEntry">
+                      <Separator Height="1" Margin="0,4" />
+                    </DataTemplate>
+                    <DataTemplate x:DataType="w:MiniStripListEntry">
+                      <Grid ColumnDefinitions="20,8,16,8,*" Height="32">
+                        <w:WidgetIcon Grid.Column="2" Width="16" Height="16" VerticalAlignment="Center" IconKey="{Binding IconKey}" />
+                        <TextBlock Grid.Column="4" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                      </Grid>
+                    </DataTemplate>
                     <DataTemplate x:DataType="w:WidgetItemViewModel">
                       <Grid ColumnDefinitions="Auto,8,16,8,*,Auto" Height="32">
                         <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsVisible-{0}'}"
@@ -672,30 +771,30 @@
                                    IsVisible="{Binding ShowsErrorMarker}" />
                       </Grid>
                     </DataTemplate>
-                  </ListBox.ItemTemplate>
+                  </ListBox.DataTemplates>
                 </ListBox>
               </w:CompactHeightDecorator>
 
               <!-- The panel of the selected widget (design 4): title with icon, one-sentence description, its settings. -->
               <StackPanel Grid.Column="2"
                           AutomationProperties.AutomationId="WidgetsDetail"
-                          AutomationProperties.Name="{Binding SelectedWidget.Name, FallbackValue={x:Null}}">
+                          AutomationProperties.Name="{Binding SelectedWidgetsListEntry.Name, FallbackValue={x:Null}}">
                 <Grid ColumnDefinitions="20,8,*">
-                  <w:WidgetIcon Width="20" Height="20" VerticalAlignment="Center" IconKey="{Binding SelectedWidget.IconKey, FallbackValue={x:Null}}" />
+                  <w:WidgetIcon Width="20" Height="20" VerticalAlignment="Center" IconKey="{Binding SelectedWidgetsListEntry.IconKey, FallbackValue={x:Null}}" />
                   <TextBlock Grid.Column="2"
                              AutomationProperties.AutomationId="WidgetsDetailTitle"
                              Classes="section"
                              Margin="0"
                              VerticalAlignment="Center"
                              TextTrimming="CharacterEllipsis"
-                             Text="{Binding SelectedWidget.Name, FallbackValue={x:Null}}" />
+                             Text="{Binding SelectedWidgetsListEntry.Name, FallbackValue={x:Null}}" />
                 </Grid>
                 <TextBlock AutomationProperties.AutomationId="WidgetsDetailDescription"
                            Classes="hint"
                            MaxLines="2"
                            TextTrimming="CharacterEllipsis"
-                           Text="{Binding SelectedWidget.Description, FallbackValue={x:Null}}"
-                           IsVisible="{Binding SelectedWidget.HasDescription, FallbackValue=False}" />
+                           Text="{Binding SelectedWidgetsListEntry.Description, FallbackValue={x:Null}}"
+                           IsVisible="{Binding SelectedWidgetsListEntry.HasDescription, FallbackValue=False}" />
                 <StackPanel Margin="0,12,0,0" IsVisible="{Binding ShowsNoWidgetSettings}">
                   <TextBlock AutomationProperties.AutomationId="WidgetsDetailNoSettings"
                              TextWrapping="Wrap"
@@ -708,6 +807,10 @@
                 <ContentControl Margin="0,12,0,0"
                                 Content="{Binding SelectedWidgetPanel}"
                                 IsVisible="{Binding SelectedWidgetPanel, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <!-- T-110: the panel of the "Mini preview" item (WidgetSettingsTemplates.axaml, MiniStripSettings). -->
+                <ContentControl Margin="0,12,0,0"
+                                Content="{Binding MiniStripPanel}"
+                                IsVisible="{Binding MiniStripPanel, Converter={x:Static ObjectConverters.IsNotNull}}" />
               </StackPanel>
             </Grid>
 
@@ -782,6 +885,8 @@
               <TextBlock Classes="label" Text="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
               <NumericUpDown AutomationProperties.AutomationId="SettingsPollingInterval"
                              AutomationProperties.Name="{Binding [SettingsPollingInterval], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             AutomationProperties.HelpText="{Binding PollingIntervalHelpText}"
+                             Classes.invalid="{Binding HasPollingIntervalError}"
                              Value="{Binding PollingIntervalSeconds}"
                              Minimum="{x:Static vm:SettingsViewModel.MinPollingIntervalSeconds}"
                              Maximum="{x:Static vm:SettingsViewModel.MaxPollingIntervalSeconds}"
@@ -809,26 +914,51 @@
             </StackPanel>
 
             <!--
-              T-020 (macOS, user decision 2026-10-29): when the user turned LayerPeek's notifications off in System Settings, the
-              heading row says so and offers to open System Settings > Notifications. In the heading row, so the tab keeps its
-              height (T-033 fit); hidden everywhere else.
+              The heading row of the notifications holds one slot on its right (T-101 design): the test notification, or, when
+              the OS turned LayerPeek's notifications off (T-020 macOS, T-101 Windows, user decisions 2026-10-29), the button
+              that opens the OS settings. The text between them is the warning or the result of the last test (never both).
+              In the heading row, so the tab keeps its height (T-033 fit). The test button is outside the part disabled by
+              "Show notifications" (it tests the OS, user decision 2026-10-29). The buttons keep 4 DIP below them, so they
+              belong to the heading and not to the Sound row under it (ui-designer review 2026-10-30).
             -->
             <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
               <TextBlock Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
               <TextBlock Grid.Column="1"
                          AutomationProperties.AutomationId="SettingsNotificationsTurnedOff"
+                         AutomationProperties.LiveSetting="Polite"
                          Classes="error"
                          Margin="16,16,12,4"
                          VerticalAlignment="Center"
                          TextWrapping="Wrap"
-                         Text="{Binding [SettingsNotificationsTurnedOff], Source={x:Static loc:LocalizedStrings.Instance}}"
-                         IsVisible="{Binding ShowsNotificationsTurnedOff}" />
-              <Button Grid.Column="2"
-                      Margin="0,12,0,0"
+                         Text="{Binding NotificationWarningText}"
+                         IsVisible="{Binding ShowsNotificationWarning}" />
+              <TextBlock Grid.Column="1"
+                         AutomationProperties.AutomationId="SettingsTestNotificationResult"
+                         AutomationProperties.LiveSetting="Polite"
+                         Classes.error="{Binding TestNotificationResultIsError}"
+                         FontSize="12"
+                         Margin="16,16,12,4"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Text="{Binding TestNotificationResult}"
+                         IsVisible="{Binding ShowsTestNotificationResult}" />
+              <Button x:Name="TestNotificationButton"
+                      Grid.Column="2"
+                      Margin="0,8,0,4"
                       VerticalAlignment="Center"
-                      Content="{Binding [SettingsOpenNotificationSettings], Source={x:Static loc:LocalizedStrings.Instance}}"
-                      ToolTip.Tip="{Binding [SettingsOpenNotificationSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
-                      AutomationProperties.HelpText="{Binding [SettingsOpenNotificationSettingsHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      Content="{Binding [SettingsTestNotification], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      ToolTip.Tip="{Binding [SettingsTestNotificationHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding [SettingsTestNotificationHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.AutomationId="SettingsTestNotification"
+                      IsVisible="{Binding ShowsTestNotification}"
+                      Command="{Binding SendTestNotificationCommand}" />
+              <Button x:Name="OpenNotificationSettingsButton"
+                      Grid.Column="2"
+                      Margin="0,8,0,4"
+                      VerticalAlignment="Center"
+                      Content="{Binding OpenNotificationSettingsText}"
+                      ToolTip.Tip="{Binding OpenNotificationSettingsHint}"
+                      AutomationProperties.HelpText="{Binding OpenNotificationSettingsHint}"
                       AutomationProperties.AutomationId="SettingsOpenNotificationSettings"
                       IsVisible="{Binding ShowsNotificationsTurnedOff}"
                       Command="{Binding OpenNotificationSettingsCommand}" />
@@ -868,6 +998,8 @@
               <TextBlock Classes="label" Margin="0,8,0,4" TextWrapping="Wrap" Text="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}" />
               <NumericUpDown AutomationProperties.AutomationId="SettingsRemainingTime"
                              AutomationProperties.Name="{Binding [SettingsRemainingTime], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             AutomationProperties.HelpText="{Binding RemainingTimeHelpText}"
+                             Classes.invalid="{Binding HasRemainingTimeError}"
                              Value="{Binding RemainingTimeMinutes}"
                              Minimum="0"
                              Maximum="{x:Static vm:SettingsViewModel.MaxRemainingTimeMinutes}"
@@ -898,15 +1030,16 @@
       </TabItem>
 
       <!--
-        T-017: start after logon (off by default; applied by Save; macOS: "Open at Login", T-019) and pre-release updates. A tab
-        of its own (user decision 2026-10-24): the General tab has no room left within the 800 × 600 fit of T-033.
+        T-017: start after logon (off by default; applied by Save; macOS: "Open at Login", T-019) and pre-release updates; T-058:
+        the update check. A tab of its own (user decision 2026-10-24): the General tab has no room left within the 800 × 600 fit
+        of T-033.
       -->
       <TabItem AutomationProperties.AutomationId="SettingsTabStartupUpdates" Header="{Binding [SettingsTabStartupUpdates], Source={x:Static loc:LocalizedStrings.Instance}}">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
           <StackPanel Spacing="12">
             <!--
-              Only the installed app (user decision 2026-10-24): a .zip or a development build shows both options disabled with
-              the reason, which is also their help text (a disabled check box cannot be focused).
+              Only the installed app (user decision 2026-10-24): a .zip or a development build shows the autostart disabled with
+              the reason, which is also its help text (a disabled check box cannot be focused).
             -->
             <StackPanel IsVisible="{Binding IsAutostartShown}">
               <CheckBox AutomationProperties.AutomationId="SettingsStartWithWindows"
@@ -936,24 +1069,53 @@
                         Command="{Binding OpenAutostartApprovalSettingsCommand}" />
               </StackPanel>
             </StackPanel>
-            <!-- T-019: not on macOS until it has updates (user decision 2026-10-29). -->
+            <!--
+              T-058: the update check, on by default (Q2 a), and pre-releases by the same rule in every distribution and on
+              every OS (Q3 a). "Check now" with its result next to it (Q4 a, like the test notification of T-101; the text
+              wraps for long translations). macOS: a translocated app or one on the .dmg is told to move to Applications (Q8 a).
+            -->
+            <StackPanel>
+              <CheckBox AutomationProperties.AutomationId="SettingsCheckForUpdates"
+                        AutomationProperties.HelpText="{Binding [SettingsCheckForUpdatesHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Content="{Binding [SettingsCheckForUpdates], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        IsChecked="{Binding CheckForUpdates}" />
+              <TextBlock AutomationProperties.AutomationId="SettingsCheckForUpdatesHint"
+                         Classes="hint"
+                         Margin="28,0,0,0"
+                         Text="{Binding [SettingsCheckForUpdatesHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+            </StackPanel>
             <StackPanel IsVisible="{Binding ShowsPrereleaseOption}">
               <CheckBox AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdates"
-                        AutomationProperties.HelpText="{Binding PrereleaseHelpText}"
-                        IsEnabled="{Binding IsPrereleaseOptionAvailable}"
+                        AutomationProperties.HelpText="{Binding [SettingsOfferPrereleaseUpdatesHint], Source={x:Static loc:LocalizedStrings.Instance}}"
                         Content="{Binding [SettingsOfferPrereleaseUpdates], Source={x:Static loc:LocalizedStrings.Instance}}"
                         IsChecked="{Binding OfferPrereleaseUpdates}" />
               <TextBlock AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdatesHint"
                          Classes="hint"
                          Margin="28,0,0,0"
-                         IsVisible="{Binding IsPrereleaseOptionAvailable}"
                          Text="{Binding [SettingsOfferPrereleaseUpdatesHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
-              <TextBlock AutomationProperties.AutomationId="SettingsOfferPrereleaseUpdatesNotInstalled"
-                         Classes="hint"
-                         Margin="28,0,0,0"
-                         IsVisible="{Binding ShowsAutostartNeedsInstallation}"
-                         Text="{Binding [SettingsNeedsInstallation], Source={x:Static loc:LocalizedStrings.Instance}}" />
             </StackPanel>
+            <Grid ColumnDefinitions="Auto,*" IsVisible="{Binding ShowsCheckForUpdatesNow}">
+              <Button AutomationProperties.AutomationId="SettingsCheckForUpdatesNow"
+                      VerticalAlignment="Center"
+                      Content="{Binding [SettingsCheckNow], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      ToolTip.Tip="{Binding [SettingsCheckNowHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      AutomationProperties.HelpText="{Binding [SettingsCheckNowHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                      Command="{Binding CheckForUpdatesNowCommand}" />
+              <TextBlock Grid.Column="1"
+                         AutomationProperties.AutomationId="SettingsUpdateCheckResult"
+                         AutomationProperties.LiveSetting="Polite"
+                         Classes.error="{Binding UpdateCheckResultIsError}"
+                         FontSize="12"
+                         Margin="12,0,0,0"
+                         VerticalAlignment="Center"
+                         TextWrapping="Wrap"
+                         Text="{Binding UpdateCheckResultText}"
+                         IsVisible="{Binding ShowsUpdateCheckResult}" />
+            </Grid>
+            <TextBlock AutomationProperties.AutomationId="SettingsUpdateMoveToApplications"
+                       Classes="hint"
+                       IsVisible="{Binding ShowsMoveToApplications}"
+                       Text="{Binding [SettingsUpdateMoveToApplications], Source={x:Static loc:LocalizedStrings.Instance}}" />
           </StackPanel>
         </ScrollViewer>
       </TabItem>

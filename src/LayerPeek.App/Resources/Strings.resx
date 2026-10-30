@@ -203,6 +203,10 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Safe to turn off. Nozzle {0} °C, threshold {1} °C</value>
   </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Safe to turn off. Nozzle {0}&#160;°C (threshold {1}&#160;°C), bed {2}&#160;°C (threshold {3}&#160;°C)</value>
+    <comment>Third line of the "cooled down" notification with a bed temperature (T-109): {0} nozzle, {1} nozzle threshold, {2} bed, {3} bed threshold.</comment>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostics – LayerPeek</value>
   </data>
@@ -540,22 +544,34 @@
     <value>Printer cooled down</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>The nozzle temperature threshold is set per printer on the Widgets tab, Cool-down widget.</value>
+    <value>The nozzle and bed temperature thresholds are set per printer on the Widgets tab, Cool-down widget.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Nozzle temperature threshold (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Bed temperature threshold (°C)</value>
+    <comment>Accessible name of the bed threshold box of the Cool-down widget settings (T-109); SettingsCooldownThreshold names the nozzle box.</comment>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Nozzle (°C)</value>
+    <comment>Visible label above the nozzle threshold box (T-109), at most 120 DIP wide.</comment>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Bed (°C)</value>
+    <comment>Visible label above the bed threshold box (T-109), at most 120 DIP wide.</comment>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Below this temperature the printer is safe to turn off.</value>
+    <value>Once both the nozzle and the bed are at or below these temperatures, the printer is safe to turn off.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Enter a whole number from {0} to {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Use threshold for all printers</value>
+    <value>Use thresholds for all printers</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>The threshold was copied to the other printers. It applies after saving.</value>
+    <value>The thresholds were copied to the other printers. They apply after saving.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Only one printer is set up.</value>
@@ -600,7 +616,7 @@
     <value>Save the settings first.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Restores the visibility, position, order, size and highlighting of this printer's widgets.</value>
+    <value>Restores the visibility, position, order, size and highlighting of this printer's widgets and the content of its mini preview.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>The default layout was restored. It applies after saving.</value>
@@ -645,7 +661,7 @@
     <value>Readable print name with material, layer height and nozzle; larger sizes add a preview.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>After a print ends, shows the nozzle cooling down and when the printer is safe to turn off.</value>
+    <value>After a print ends, shows the nozzle and the bed cooling down and when the printer is safe to turn off.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Notify when this many minutes of printing remain (0 = off)</value>
@@ -749,7 +765,7 @@
     <comment>T-019: macOS button under Open at login on the Startup and updates tab (next to SettingsOpenAtLoginNeedsApproval) when the user has to allow LayerPeek in System Settings; opens System Settings &gt; General &gt; Login Items (Apple term of the button).</comment>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there, then save again.</value>
+    <value>LayerPeek is turned off in System Settings &gt; General &gt; Login Items &amp; Extensions. Allow it there.</value>
     <comment>T-019: tooltip and screen reader help of SettingsOpenLoginItems (macOS).</comment>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
@@ -831,6 +847,10 @@
     <value>Hide _camera</value>
     <comment>Item of a printer submenu while its camera window is open; closes the window. "_" marks the access key: unique within the submenu and on the same noun as MenuShowCamera, so the key stays the same in both states.</comment>
   </data>
+  <data name="MenuCameraToFront" xml:space="preserve">
+    <value>_Show camera</value>
+    <comment>Item of a printer submenu on macOS while its camera window is open, right above MenuHideCamera (T-102); brings the window to the front. Same wording as MenuShowCamera. "_" marks the access key: unique within the submenu, so not on the noun MenuHideCamera uses (macOS menus do not show access keys).</comment>
+  </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Camera</value>
   </data>
@@ -846,6 +866,10 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Full screen (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Full screen (⌃⌘F)</value>
+    <comment>T-100: macOS variant of CameraFullScreen (tip and accessible name of the full screen button); ⌃⌘F is the standard macOS shortcut, written with Apple's symbols in every language.</comment>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Mini preview, always on top</value>
   </data>
@@ -860,6 +884,10 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Camera image. Double-click switches full screen; F11 full screen, Esc back.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Camera image. Double-click switches full screen; ⌃⌘F full screen, Esc back.</value>
+    <comment>T-100: macOS variant of CameraImageHint (accessible name of the camera image); ⌃⌘F instead of F11.</comment>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Third-party licences…</value>
@@ -1026,6 +1054,10 @@
   <data name="CameraOverlayChartNoData" xml:space="preserve">
     <value>No data</value>
   </data>
+  <data name="CameraOverlayChartRange" xml:space="preserve">
+    <value>{0}–{1}&#160;°C</value>
+    <comment>T-106: value range of one band of the large Temperatures chart, e.g. "212–218 °C". {0} = lowest, {1} = highest whole degree. En dash, no-break space before °C.</comment>
+  </data>
   <data name="CameraOverlayChartName" xml:space="preserve">
     <value>chart of the last 60 minutes</value>
   </data>
@@ -1080,6 +1112,30 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Cooled down · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCoolingShort" xml:space="preserve">
+    <value>{0}&#160;°C · about {1}</value>
+    <comment>Mini preview strip while cooling down when the full text does not fit (T-103): nozzle temperature and the estimate; the snowflake icon stands for "Cooling down…". Same abbreviation as CameraMiniCooling.</comment>
+  </data>
+  <data name="CameraMiniCooledAccessible" xml:space="preserve">
+    <value>Cooled down – safe to turn off, nozzle {0}&#160;°C</value>
+    <comment>Tooltip and screen reader name of the mini preview strip once cooled down (T-103): CameraOverlayCooled plus the nozzle temperature.</comment>
+  </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Cooled down – safe to turn off, nozzle {0}&#160;°C, bed {1}&#160;°C</value>
+    <comment>Tooltip and screen reader name of the mini preview strip once cooled down, with a bed temperature (T-109): {0} nozzle, {1} bed.</comment>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Cooling down… nozzle {0}&#160;°C, bed {1}&#160;°C, about {2}</value>
+    <comment>Tooltip and screen reader name of the mini preview strip while cooling, with a bed temperature (T-109): {0} nozzle, {1} bed, {2} estimate. Same abbreviation as CameraMiniCooling.</comment>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Cooling down… nozzle {0}&#160;°C, bed {1}&#160;°C</value>
+    <comment>Tooltip and screen reader name of the mini preview strip while cooling without an estimate, with a bed temperature (T-109): {0} nozzle, {1} bed.</comment>
+  </data>
+  <data name="CameraMiniFinishDayTime" xml:space="preserve">
+    <value>{0}&#160;{1}</value>
+    <comment>Mini preview strip, finish on another day within a week (T-103): {0} = abbreviated day of the week in the app language, {1} = time in the region format. The translator may change the order.</comment>
+  </data>
   <data name="CameraOverlayCooling" xml:space="preserve">
     <value>Cooling down…</value>
   </data>
@@ -1091,6 +1147,14 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>safe to turn off once the nozzle is below {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>safe to turn off in about {0} (nozzle below {1}&#160;°C, bed below {2}&#160;°C)</value>
+    <comment>Cool-down widget detail with a bed temperature (T-109): {0} duration, {1} nozzle threshold, {2} bed threshold.</comment>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>safe to turn off once the nozzle is below {0}&#160;°C and the bed below {1}&#160;°C</value>
+    <comment>Cool-down widget detail with a bed temperature and without an estimate (T-109): {0} nozzle threshold, {1} bed threshold.</comment>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>print finished at {0}</value>
@@ -1323,5 +1387,157 @@
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Opens System Settings &gt; Privacy &amp; Security &gt; Local Network. Turn on LayerPeek there.</value>
     <comment>T-097: tooltip and screen reader help of LocalNetworkOpenSystemSettings (macOS 15+). Apple terms of the pane: Privacy &amp; Security &gt; Local Network.</comment>
+  </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Send test notification</value>
+    <comment>T-101: button in the heading row of the notification section (General tab); sends a test notification.</comment>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Shows a sample notification to check that LayerPeek's notifications appear on this computer.</value>
+    <comment>T-101: tooltip and screen reader help of SettingsTestNotification.</comment>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Waiting for your answer: macOS asks whether LayerPeek may send notifications.</value>
+    <comment>T-101 (macOS): result line while macOS shows its question whether LayerPeek may send notifications. German: the macOS term is Mitteilungen.</comment>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Test notification sent. If you don't see it, check Do not disturb in Windows.</value>
+    <comment>T-101 (Windows): result line after the test toast was handed to Windows. 'Do not disturb' as named by Windows 11 in each language (Microsoft support page 'Notifications and Do Not Disturb in Windows').</comment>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Test notification sent. If you don't see it, check Focus in macOS.</value>
+    <comment>T-101 (macOS): result line after the test notification was handed to macOS. 'Focus' as named by System Settings of macOS in each language (FocusSettingsExtension, CFBundleDisplayName).</comment>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Notifications are turned off by your organization's policy.</value>
+    <comment>T-101 (Windows): warning in the heading row of the notification section when a policy of the organization turned the notifications off (the user cannot change it).</comment>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>The test notification could not be sent.</value>
+    <comment>T-101: result line when the test notification could not be sent (details in the log).</comment>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Test notification</value>
+    <comment>T-101: title of the test notification.</comment>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Notifications from LayerPeek work. Printer events will look like this.</value>
+    <comment>T-101: text of the test notification.</comment>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Notifications are turned off in Windows.</value>
+    <comment>T-101 (Windows): warning on the General tab when LayerPeek's notifications are turned off in Windows Settings (NotificationSetting DisabledForApplication / DisabledForUser).</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Open notification settings</value>
+    <comment>T-101 (Windows): button next to SettingsNotificationsTurnedOffWindows; opens Settings &gt; System &gt; Notifications (ms-settings:notifications).</comment>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>LayerPeek's notifications are turned off in Settings &gt; System &gt; Notifications. Turn them on there.</value>
+    <comment>T-101 (Windows): tooltip and screen reader help of SettingsOpenNotificationSettingsWindows.</comment>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>The info strip under the mini preview image. Choose what it shows.</value>
+    <comment>T-110: description of the Mini preview item on the Widgets tab (at most 2 lines).</comment>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Progress bar at the top</value>
+    <comment>T-110: check box, the 3 DIP progress bar on the top edge of the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Percentage</value>
+    <comment>T-110: check box, the job percentage in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Time remaining</value>
+    <comment>T-110: check box, the remaining time in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Finish time</value>
+    <comment>T-110: check box, the finish time in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Cool-down after printing</value>
+    <comment>T-110: check box, the cool-down after the print in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Print name row</value>
+    <comment>T-110: check box, the print name row (toggle with the cube icon) of the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Temperature chart row</value>
+    <comment>T-110: check box, the temperature chart row (toggle with the chart icon) of the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>The printer state is always shown in the strip.</value>
+    <comment>T-110: one line under the check boxes, at most 60 characters.</comment>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Expand the row in the mini preview with the “Print name in the strip” button.</value>
+    <comment>T-110: tooltip of SettingsMiniStripNameRow; the symbol stands for the cube toggle of the strip.</comment>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Expand the row in the mini preview with the “Temperature chart in the strip” button.</value>
+    <comment>T-110: tooltip of SettingsMiniStripChartRow; the symbol stands for the chart toggle of the strip.</comment>
+  </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>New version {0} available</value>
+    <comment>T-058: tray menu item while a newer version is offered, right above About; {0} = the version (0.3.2). Plain text, no access key.</comment>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Downloading version {0}…</value>
+    <comment>T-058: the same item (disabled) while the update of an installed app downloads; {0} = the version.</comment>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Downloads the update, quits LayerPeek and starts the new version.</value>
+    <comment>T-058: tooltip of the update item in an installed app (Velopack): what a click does.</comment>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Opens the release page in the browser.</value>
+    <comment>T-058: tooltip of the update item without self-update (.zip, development build): what a click does.</comment>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>LayerPeek update available</value>
+    <comment>T-058: title of the notification about a new version (shown once per version).</comment>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>Version {0} is available. Click here to get it.</value>
+    <comment>T-058: text of the notification about a new version; {0} = the version. A click does what the tray menu item does.</comment>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Check for updates automatically</value>
+    <comment>T-058: check box on the Startup and updates tab (Q2 a, on by default).</comment>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Shortly after the start and then once a day, LayerPeek asks GitHub whether a new version was released.</value>
+    <comment>T-058: hint under SettingsCheckForUpdates: when and where the app asks.</comment>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Check now</value>
+    <comment>T-058: button on the Startup and updates tab (Q4 a): checks for a new version now.</comment>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Asks GitHub now whether a new version is available, also while automatic checks are off.</value>
+    <comment>T-058: tooltip of SettingsCheckNow.</comment>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Checking…</value>
+    <comment>T-058: next to SettingsCheckNow while the check runs.</comment>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} is up to date.</value>
+    <comment>T-058: result of the check; {0} = the running version.</comment>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>Version {0} is available; the tray menu offers it.</value>
+    <comment>T-058: result of the check; {0} = the new version. The tray menu then offers it.</comment>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>The check failed. Try again later.</value>
+    <comment>T-058: result of the check when it failed (no network, GitHub limit); details in the log.</comment>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Move LayerPeek to the Applications folder; then it can update itself.</value>
+    <comment>T-058 (macOS, Q8 a): hint on the Startup and updates tab when the app runs from the disk image or Downloads (translocated) and cannot update itself.</comment>
   </data>
 </root>

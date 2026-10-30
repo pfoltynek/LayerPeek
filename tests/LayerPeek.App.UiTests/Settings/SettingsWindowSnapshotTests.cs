@@ -154,17 +154,74 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-general");
         });
 
-    /// <summary>T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x.</summary>
+    /// <summary>
+    /// T-101: the result "sent" next to the test button in French (the longest button and a two-line result), with the terms
+    /// of the OS of the reference set (Focus on macOS, Do not disturb on Windows).
+    /// </summary>
+    [Fact]
+    public Task GeneralTabAfterATestNotificationInFrench() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("fr");
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), macTerms: OperatingSystem.IsMacOS());
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            await ui.ViewModel.SendTestNotificationCommand.ExecuteAsync(null);
+
+            Assert.True(ui.ViewModel.ShowsTestNotificationResult);
+            SnapshotAssert.Matches(ui.Window, "settings-general-test-sent-fr");
+        });
+
+    /// <summary>
+    /// T-101 (ui-designer review 2026-10-30): notifications turned off in the OS, in German (the longest warning) with the
+    /// button that opens the OS settings, with the terms of the OS of the reference set.
+    /// </summary>
+    [Fact]
+    public Task GeneralTabWithNotificationsTurnedOffInGerman() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("de");
+            FakeSystemNotificationSettings system = new() { TurnedOff = true };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 Werkstatt")), macTerms: OperatingSystem.IsMacOS(), notificationSettings: system);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+
+            Assert.True(ui.Window.IsShown<Avalonia.Controls.Button>("SettingsOpenNotificationSettings"));
+            SnapshotAssert.Matches(ui.Window, "settings-general-turned-off-de");
+        });
+
+    /// <summary>T-101 (ui-designer review 2026-10-30): the result "sent" next to the test button in the dark theme.</summary>
+    [Fact]
+    public Task GeneralTabAfterATestNotificationInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), macTerms: OperatingSystem.IsMacOS());
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            await ui.ViewModel.SendTestNotificationCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            Assert.True(ui.ViewModel.ShowsTestNotificationResult);
+            SnapshotAssert.Matches(ui.Window, "settings-general-test-sent-dark");
+        });
+
+    /// <summary>
+    /// T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x; T-058: the automatic
+    /// update check (on by default) and "Check now" with its result (a new version).
+    /// </summary>
     [Fact]
     public Task StartupAndUpdatesTab() =>
         session.RunAsync(static async scope =>
         {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), checkForUpdatesNow: SettingsWindowHarness.Available);
             ui.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await ui.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
+            ui.Window.Settle();
 
             Assert.True(ui.ViewModel.IsAutostartAvailable);
             Assert.False(ui.ViewModel.StartWithWindows);
             Assert.True(ui.ViewModel.OfferPrereleaseUpdates);
+            Assert.True(ui.ViewModel.CheckForUpdates);
+            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsUpdateAvailable.Replace("{0}", "0.3.2", StringComparison.Ordinal), ui.ShownText("SettingsUpdateCheckResult"));
             SnapshotAssert.Matches(ui.Window, "settings-startup-updates");
         });
 
@@ -179,9 +236,8 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
 
             Assert.False(ui.ViewModel.IsAutostartAvailable);
             Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, ui.ShownText("SettingsStartWithWindowsNotInstalled"));
-            // The hint about pre-releases would mislead without an installation: only the reason is shown.
-            Assert.Null(ui.ShownText("SettingsOfferPrereleaseUpdatesHint"));
-            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, ui.ShownText("SettingsOfferPrereleaseUpdatesNotInstalled"));
+            // T-058 (Q3 a): pre-releases are offered without an installation too (the GitHub check follows the option).
+            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsOfferPrereleaseUpdatesHint, ui.ShownText("SettingsOfferPrereleaseUpdatesHint"));
             SnapshotAssert.Matches(ui.Window, "settings-startup-updates-not-installed");
         });
 
@@ -280,6 +336,57 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-widgets-dark");
         });
 
+    /// <summary>T-110 (design T-104 2): the "Mini preview" item with its panel, one item off.</summary>
+    [Theory]
+    [InlineData("en", "settings-widgets-mini-strip")]
+    [InlineData("de", "settings-widgets-mini-strip-de")]
+    [InlineData("fr", "settings-widgets-mini-strip-fr")]
+    public Task WidgetsTabMiniStrip(string language, string snapshot) =>
+        session.RunAsync(async scope =>
+        {
+            new UiLanguage().Apply(language);
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
+                scope,
+                LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) { MiniStrip = new CameraMiniStripSettings { Remaining = false } } },
+                LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, snapshot);
+        });
+
+    /// <summary>T-110 (ui-designer review 2026-10-30): the "Mini preview" panel in the dark theme, one item off.</summary>
+    [Fact]
+    public Task WidgetsTabMiniStripInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
+                scope,
+                LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) { MiniStrip = new CameraMiniStripSettings { Remaining = false } } },
+                LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-mini-strip-dark");
+        });
+
+    /// <summary>T-110 (ui-designer review 2026-10-30): the "Mini preview" panel with the camera off (disabled fields), in Italian.</summary>
+    [Fact]
+    public Task WidgetsTabMiniStripWithTheCameraOffInItalian() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("it");
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
+                scope,
+                LinkPrinter("a", "MK4 officina") with { Camera = new CameraSettings(enabled: false, StreamUri) { MiniStrip = new CameraMiniStripSettings { Cooldown = false } } },
+                LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-mini-strip-camera-off-it");
+        });
+
     [Fact]
     public Task WidgetsTabCooldownWithASinglePrinterInGerman() =>
         session.RunAsync(static async scope =>
@@ -298,7 +405,7 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
         {
             new UiLanguage().Apply("fr");
             SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 atelier") with { Camera = new CameraSettings(enabled: true, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
-            ui.ViewModel.Printers[0].CooldownThresholdCelsius = 120;
+            ui.ViewModel.Printers[0].CooldownBedThresholdCelsius = 120;
             await ui.ViewModel.SaveCommand.ExecuteAsync(null);
             ui.Window.Settle();
 
@@ -371,6 +478,105 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
 
             SnapshotAssert.Matches(ui.Window, "settings-maximized");
         });
+
+    // ---- Invalid fields (T-112, design 8): the 2 DIP red outline, focused after Save ----
+
+    /// <summary>Only the address is invalid (empty): Save focuses it; the red outline replaces the accent of the focus.</summary>
+    [Fact]
+    public Task InvalidAddressFocusedAfterSave() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            Ui.FreezeCaret(ui.AddressBox);
+            ui.ViewModel.SelectedPrinter!.Address = string.Empty;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            Assert.True(ui.AddressBox.IsFocused);
+            SnapshotAssert.Matches(ui.Window, "settings-invalid-address-focused", keepFocus: true);
+        });
+
+    /// <summary>Only the size of the normal window is invalid: its editable ComboBox is marked, the mini preview's next to it is not.</summary>
+    [Fact]
+    public Task CameraWindowSubTabWithOnlyTheNormalSizeInvalid() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(
+                scope,
+                SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) }),
+                screens: FakeScreenCatalog.ThreeMonitors());
+            ui.ViewModel.SelectedPrinter!.NormalSizeText = "100 x 50";
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-camera-window-error-normal-size");
+        });
+
+    /// <summary>Cool-down with only the nozzle threshold invalid: only its box is marked, the error text is the common one (Q1 A).</summary>
+    [Fact]
+    public Task WidgetsTabCooldownWithOnlyTheNozzleThresholdInvalid() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWidgetsAsync(scope, LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) }, LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.Printers[0].CooldownNozzleThresholdCelsius = 120;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-cooldown-error-nozzle");
+        });
+
+    /// <summary>The invalid polling interval focused after Save: the TextBox inside the NumericUpDown draws no accent over the outline.</summary>
+    [Fact]
+    public Task GeneralTabWithErrorsFocusedAfterSave() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+            Avalonia.Controls.TextBox text = InnerTextBox(ui, "SettingsPollingInterval");
+            Ui.FreezeCaret(text);
+            ui.ViewModel.PollingIntervalSeconds = 0;
+            ui.ViewModel.RemainingTimeMinutes = 2000;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            Assert.True(text.IsFocused);
+            SnapshotAssert.Matches(ui.Window, "settings-general-errors-focused", keepFocus: true);
+        });
+
+    /// <summary>The Printer sub-tab with invalid address, user name and password in the dark theme.</summary>
+    [Fact]
+    public Task PrinterErrorsInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            PrinterEditorViewModel printer = ui.ViewModel.SelectedPrinter!;
+            printer.Address = "ftp://printer";
+            printer.UserName = "ma:ker";
+            printer.Password = "\uD800";
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-errors-dark");
+        });
+
+    /// <summary>The invalid NumericUpDowns of the General tab in the dark theme.</summary>
+    [Fact]
+    public Task GeneralTabWithErrorsInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            ui.ViewModel.PollingIntervalSeconds = 0;
+            ui.ViewModel.RemainingTimeMinutes = 2000;
+            await ui.ViewModel.SaveCommand.ExecuteAsync(null);
+
+            SnapshotAssert.Matches(ui.Window, "settings-general-errors-dark");
+        });
+
+    private static Avalonia.Controls.TextBox InnerTextBox(SettingsWindowHarness ui, string automationId) =>
+        Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(ui.Find<Avalonia.Controls.NumericUpDown>(automationId))
+            .OfType<Avalonia.Controls.TextBox>()
+            .First(static box => box.Name == "PART_TextBox");
 
     /// <summary>A new printer with a name, no address and a user name with a colon, after a save attempt.</summary>
     private static async Task<SettingsWindowHarness> OpenWithValidationErrorsAsync(UiTestScope scope)

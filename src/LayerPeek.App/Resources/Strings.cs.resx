@@ -186,6 +186,9 @@
   <data name="NotificationCooledDownDetail" xml:space="preserve">
     <value>Můžete tiskárnu vypnout. Tryska {0} °C, práh {1} °C</value>
   </data>
+  <data name="NotificationCooledDownDetailBed" xml:space="preserve">
+    <value>Můžete tiskárnu vypnout. Tryska {0}&#160;°C (práh {1}&#160;°C), podložka {2}&#160;°C (práh {3}&#160;°C)</value>
+  </data>
   <data name="DiagnosticsTitle" xml:space="preserve">
     <value>Diagnostika – LayerPeek</value>
   </data>
@@ -523,22 +526,31 @@
     <value>Tiskárna vychladla</value>
   </data>
   <data name="SettingsNotifyCooledDownHelp" xml:space="preserve">
-    <value>Práh teploty trysky se nastavuje u tiskárny na záložce Widgety, widget Vychladnutí.</value>
+    <value>Prahy teploty trysky a podložky se nastavují u tiskárny na záložce Widgety, widget Vychladnutí.</value>
   </data>
   <data name="SettingsCooldownThreshold" xml:space="preserve">
     <value>Práh teploty trysky (°C)</value>
   </data>
+  <data name="SettingsCooldownBedThreshold" xml:space="preserve">
+    <value>Práh teploty podložky (°C)</value>
+  </data>
+  <data name="SettingsCooldownNozzleLabel" xml:space="preserve">
+    <value>Tryska (°C)</value>
+  </data>
+  <data name="SettingsCooldownBedLabel" xml:space="preserve">
+    <value>Podložka (°C)</value>
+  </data>
   <data name="SettingsCooldownThresholdHint" xml:space="preserve">
-    <value>Pod touto teplotou je tiskárnu bezpečné vypnout.</value>
+    <value>Až tryska i podložka klesnou na tyto teploty nebo pod ně, je tiskárnu bezpečné vypnout.</value>
   </data>
   <data name="SettingsCooldownThresholdError" xml:space="preserve">
     <value>Zadejte celé číslo od {0} do {1}.</value>
   </data>
   <data name="SettingsCooldownApplyAll" xml:space="preserve">
-    <value>Použít práh u všech tiskáren</value>
+    <value>Použít prahy u všech tiskáren</value>
   </data>
   <data name="SettingsCooldownAppliedAll" xml:space="preserve">
-    <value>Práh se zkopíroval do ostatních tiskáren. Projeví se po uložení.</value>
+    <value>Prahy se zkopírovaly do ostatních tiskáren. Projeví se po uložení.</value>
   </data>
   <data name="SettingsOverlayApplyAllSingle" xml:space="preserve">
     <value>Je nastavená jen jedna tiskárna.</value>
@@ -583,7 +595,7 @@
     <value>Nejdřív nastavení uložte.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů této tiskárny na výchozí.</value>
+    <value>Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů a obsah malého náhledu této tiskárny na výchozí.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Obnoveno výchozí rozložení. Projeví se po uložení.</value>
@@ -628,7 +640,7 @@
     <value>Čitelný název tisku s materiálem, výškou vrstvy a tryskou, ve větší velikosti s náhledem.</value>
   </data>
   <data name="CameraOverlayWidgetCooldownDescription" xml:space="preserve">
-    <value>Po skončení tisku ukáže chladnutí trysky a kdy je tiskárnu bezpečné vypnout.</value>
+    <value>Po skončení tisku ukáže chladnutí trysky a podložky a kdy je tiskárnu bezpečné vypnout.</value>
   </data>
   <data name="SettingsRemainingTime" xml:space="preserve">
     <value>Upozornit, když zbývá tolik minut tisku (0 = vypnuto)</value>
@@ -727,7 +739,7 @@
     <value>Otevřít Nastavení systému</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Aktivace položek a rozšíření při přihlášení. Povolte ho tam a pak uložte znovu.</value>
+    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Aktivace položek a rozšíření při přihlášení. Povolte ho tam.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Nastavení je uloženo. Otevírání při přihlášení musíte povolit v Nastavení systému.</value>
@@ -801,6 +813,9 @@
   <data name="MenuHideCamera" xml:space="preserve">
     <value>Skrýt _kameru</value>
   </data>
+  <data name="MenuCameraToFront" xml:space="preserve">
+    <value>_Zobrazit kameru</value>
+  </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>
   </data>
@@ -816,6 +831,9 @@
   <data name="CameraFullScreen" xml:space="preserve">
     <value>Celá obrazovka (F11)</value>
   </data>
+  <data name="CameraFullScreenMac" xml:space="preserve">
+    <value>Celá obrazovka (⌃⌘F)</value>
+  </data>
   <data name="CameraMini" xml:space="preserve">
     <value>Malý náhled vždy navrchu</value>
   </data>
@@ -830,6 +848,9 @@
   </data>
   <data name="CameraImageHint" xml:space="preserve">
     <value>Obraz z kamery. Dvojklik přepíná celou obrazovku; F11 celá obrazovka, Esc zpět.</value>
+  </data>
+  <data name="CameraImageHintMac" xml:space="preserve">
+    <value>Obraz z kamery. Dvojklik přepíná celou obrazovku; ⌃⌘F celá obrazovka, Esc zpět.</value>
   </data>
   <data name="AboutThirdPartyLicenses" xml:space="preserve">
     <value>Licence třetích stran…</value>
@@ -996,6 +1017,10 @@
   <data name="CameraOverlayChartNoData" xml:space="preserve">
     <value>Žádná data</value>
   </data>
+  <data name="CameraOverlayChartRange" xml:space="preserve">
+    <value>{0}–{1}&#160;°C</value>
+    <comment>T-106: value range of one band of the large Temperatures chart, e.g. "212–218 °C". {0} = lowest, {1} = highest whole degree. En dash, no-break space before °C.</comment>
+  </data>
   <data name="CameraOverlayChartName" xml:space="preserve">
     <value>graf posledních 60 minut</value>
   </data>
@@ -1050,6 +1075,24 @@
   <data name="CameraMiniCooled" xml:space="preserve">
     <value>Vychladlo · {0}&#160;°C</value>
   </data>
+  <data name="CameraMiniCoolingShort" xml:space="preserve">
+    <value>{0}&#160;°C · cca {1}</value>
+  </data>
+  <data name="CameraMiniCooledAccessible" xml:space="preserve">
+    <value>Vychladlo – můžete vypnout, tryska {0}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCooledAccessibleBed" xml:space="preserve">
+    <value>Vychladlo – můžete vypnout, tryska {0}&#160;°C, podložka {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniCoolingAccessible" xml:space="preserve">
+    <value>Chladne… tryska {0}&#160;°C, podložka {1}&#160;°C, cca {2}</value>
+  </data>
+  <data name="CameraMiniCoolingAccessibleNoEstimate" xml:space="preserve">
+    <value>Chladne… tryska {0}&#160;°C, podložka {1}&#160;°C</value>
+  </data>
+  <data name="CameraMiniFinishDayTime" xml:space="preserve">
+    <value>{0}&#160;{1}</value>
+  </data>
   <data name="CameraOverlayCooling" xml:space="preserve">
     <value>Chladne…</value>
   </data>
@@ -1061,6 +1104,12 @@
   </data>
   <data name="CameraOverlayCooldownNoEstimate" xml:space="preserve">
     <value>bezpečné vypnutí, až tryska klesne pod {0}&#160;°C</value>
+  </data>
+  <data name="CameraOverlayCooldownEstimateBed" xml:space="preserve">
+    <value>bezpečné vypnutí za cca {0} (tryska pod {1}&#160;°C, podložka pod {2}&#160;°C)</value>
+  </data>
+  <data name="CameraOverlayCooldownNoEstimateBed" xml:space="preserve">
+    <value>bezpečné vypnutí, až tryska klesne pod {0}&#160;°C a podložka pod {1}&#160;°C</value>
   </data>
   <data name="CameraOverlayCooldownFinishedAt" xml:space="preserve">
     <value>tisk dokončen v {0}</value>
@@ -1289,5 +1338,119 @@
   </data>
   <data name="LocalNetworkOpenSystemSettingsHint" xml:space="preserve">
     <value>Otevře Nastavení systému &gt; Soukromí a zabezpečení &gt; Místní síť. Zapněte tam LayerPeek.</value>
+  </data>
+  <data name="SettingsTestNotification" xml:space="preserve">
+    <value>Poslat zkušební upozornění</value>
+  </data>
+  <data name="SettingsTestNotificationHint" xml:space="preserve">
+    <value>Zobrazí ukázkové upozornění, abyste ověřili, že se upozornění LayerPeeku na tomto počítači zobrazují.</value>
+  </data>
+  <data name="SettingsTestNotificationAsking" xml:space="preserve">
+    <value>Čekám na vaši odpověď: macOS se ptá, jestli smí LayerPeek posílat upozornění.</value>
+  </data>
+  <data name="SettingsTestNotificationSentWindows" xml:space="preserve">
+    <value>Zkušební upozornění odesláno. Pokud ho nevidíte, zkontrolujte ve Windows režim Nerušit.</value>
+  </data>
+  <data name="SettingsTestNotificationSentMac" xml:space="preserve">
+    <value>Zkušební upozornění odesláno. Pokud ho nevidíte, zkontrolujte v macOS režim Soustředění.</value>
+  </data>
+  <data name="SettingsTestNotificationBlockedByPolicy" xml:space="preserve">
+    <value>Upozornění vypnula zásada vaší organizace.</value>
+  </data>
+  <data name="SettingsTestNotificationFailed" xml:space="preserve">
+    <value>Zkušební upozornění se nepodařilo odeslat.</value>
+  </data>
+  <data name="NotificationTestTitle" xml:space="preserve">
+    <value>Zkušební upozornění</value>
+  </data>
+  <data name="NotificationTestBody" xml:space="preserve">
+    <value>Upozornění z LayerPeeku fungují. Takto budou vypadat události tiskáren.</value>
+  </data>
+  <data name="SettingsNotificationsTurnedOffWindows" xml:space="preserve">
+    <value>Upozornění jsou ve Windows vypnutá.</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsWindows" xml:space="preserve">
+    <value>Otevřít nastavení oznámení</value>
+  </data>
+  <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
+    <value>Upozornění LayerPeeku jsou vypnutá v Nastavení &gt; Systém &gt; Oznámení. Zapněte je tam.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>Informační pás pod obrazem malého náhledu kamery. Vyberte, co v něm bude.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Pruh průběhu nahoře</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Procento</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Zbývající čas</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Čas dokončení</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Vychladnutí po tisku</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Řádek názvu tisku</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Řádek grafu teplot</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>Stav tiskárny je v pásu vidět vždy.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Řádek rozbalíte v malém náhledu tlačítkem „Název tisku v pásu“.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Řádek rozbalíte v malém náhledu tlačítkem „Graf teplot v pásu“.</value>
+  </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>Je dostupná nová verze {0}</value>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Stahuje se verze {0}…</value>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Stáhne aktualizaci, ukončí LayerPeek a spustí novou verzi.</value>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Otevře stránku vydání v prohlížeči.</value>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>Je dostupná aktualizace LayerPeeku</value>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>Je dostupná verze {0}. Klikněte sem a získejte ji.</value>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Automaticky kontrolovat aktualizace</value>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Krátce po spuštění a pak jednou denně se LayerPeek zeptá GitHubu, zda vyšla nová verze.</value>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Zkontrolovat teď</value>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Hned se zeptá GitHubu, zda je dostupná nová verze, i když je automatická kontrola vypnutá.</value>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Kontroluje se…</value>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} je aktuální.</value>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>Je dostupná verze {0}, nabízí ji nabídka v oznamovací oblasti.</value>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>Kontrola selhala. Zkuste to později.</value>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.</value>
   </data>
 </root>

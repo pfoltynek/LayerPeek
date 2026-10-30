@@ -8,7 +8,7 @@ namespace LayerPeek.App.Notifications;
 /// here (at most <see cref="MaxPending"/>): a start by Windows first waits for its click (<see cref="WaitForFirst"/>) to
 /// forward it to a running instance, or handles it itself once it runs. Thread-safe; <see cref="Receive"/> never throws.
 /// The argument is only passed on, never interpreted here: <see cref="ToastActivationRouter"/> accepts nothing but a
-/// printer id.
+/// printer id or the argument of the test notification (T-101).
 /// </summary>
 internal sealed partial class ToastActivationInbox
 {

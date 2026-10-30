@@ -21,6 +21,6 @@ Zobrazit stav jednotky MMU3 (aktivní slot, filamenty, chyby MMU) u tiskáren, k
 
 ## Otevřené otázky
 - Které informace o MMU jsou pro uživatele důležité (aktivní slot, typ/barva filamentu, chyby, počítadla)?
-- Pokud data poskytuje jen Prusa Connect (odložený, T-005), stojí to za to?
+- Pokud data poskytuje jen Prusa Connect (vyřazený – bez veřejného API, T-005), stojí to za to?
 
 ## Poznámky k implementaci

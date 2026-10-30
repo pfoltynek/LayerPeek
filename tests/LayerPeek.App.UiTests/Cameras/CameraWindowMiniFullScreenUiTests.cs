@@ -39,7 +39,8 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
     public Task MiniPreviewShowsFullScreenNextToBackToTheNormalWindow() =>
         session.RunAsync(async scope =>
         {
-            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: MiniFirst);
+            // The tip of Windows (F11) on every OS; that of macOS: CameraWindowMacShortcutsUiTests (T-100).
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: MiniFirst, macShortcuts: false);
             CameraWindow window = OpenSmallestMini(harness);
 
             Button fullScreen = window.Find<Button>("CameraFullScreenButton");

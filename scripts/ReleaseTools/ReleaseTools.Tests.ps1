@@ -574,13 +574,15 @@ Describe 'Upload plan' {
 
 Describe 'Publish checks' {
     BeforeAll {
-        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64 }
-        $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64 }
+        $script:WinSums = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64; 'releases.win-x64.json' = 'a' * 64 }
+        $script:MacSums = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64; 'releases.osx-arm64.json' = 'b' * 64 }
         $script:Complete = @(
             [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('1' * 64)" },
             [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; digest = "sha256:$('7' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-x64.json'; digest = "sha256:$('a' * 64)" },
             [pscustomobject]@{ name = 'P-0.1.0-osx-arm64.tar.gz'; digest = "sha256:$('2' * 64)" },
-            [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = "sha256:$('8' * 64)" }
+            [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; digest = "sha256:$('8' * 64)" },
+            [pscustomobject]@{ name = 'releases.osx-arm64.json'; digest = "sha256:$('b' * 64)" }
         )
         $script:BothSums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums; 'SHA256SUMS-macos.txt' = $script:MacSums }
         function Release([object[]] $Assets, [bool] $Draft = $true) { [pscustomobject]@{ isDraft = $Draft; assets = $Assets; url = 'https://example.invalid' } }
@@ -593,7 +595,7 @@ Describe 'Publish checks' {
         Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) 'already published'
     }
     It 'refuses a draft without the macOS files unless incomplete releases are allowed' {
-        $windowsOnly = @($script:Complete | Select-Object -First 2)
+        $windowsOnly = @($script:Complete | Select-Object -First 3)
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = $script:WinSums }
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) 'no SHA256SUMS-macos.txt'
         Assert-Problems (Get-PublishProblems -Release (Release $windowsOnly) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
@@ -606,6 +608,87 @@ Describe 'Publish checks' {
         $assets[0] = [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; digest = "sha256:$('6' * 64)" }
         Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums) `
             'P-0.1.0-osx-arm64.tar.gz is listed .* but not uploaded', 'Uploaded P-0.1.0-win-x64.zip does not match', 'stray.txt is uploaded but not listed', 'P-0.1.0-win-arm64.zip is uploaded but not listed', 'P-0.1.0-win-arm64.zip belongs to win-arm64'
+    }
+    It 'refuses a draft without the Velopack feed of a released RID (T-058: <Feed>)' -ForEach @(
+        @{ Feed = 'releases.win-x64.json' },
+        @{ Feed = 'releases.osx-arm64.json' }
+    ) {
+        $feed = $Feed
+        $assets = @($script:Complete | Where-Object name -CNE $feed)
+        $sums = [ordered]@{
+            'SHA256SUMS-windows.txt' = [ordered]@{ 'P-0.1.0-win-x64.zip' = '1' * 64 }
+            'SHA256SUMS-macos.txt'   = [ordered]@{ 'P-0.1.0-osx-arm64.tar.gz' = '2' * 64 }
+        }
+        $sums['SHA256SUMS-windows.txt']['releases.win-x64.json'] = 'a' * 64
+        $sums['SHA256SUMS-macos.txt']['releases.osx-arm64.json'] = 'b' * 64
+        $sums[$(if ($feed -match 'win') { 'SHA256SUMS-windows.txt' } else { 'SHA256SUMS-macos.txt' })].Remove($feed)
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $sums) "no $([regex]::Escape($feed)): installations of"
+        # Allowed incomplete (a trial release): only the uploaded files are checked.
+        Assert-Problems (Get-PublishProblems -Release (Release $assets) -Tag v0.1.0 -ExpectedOs @() -Checksums $sums)
+    }
+    It 'checks a published release with -Published (the check after release-upload.ps1 -AddToPublished, T-113)' {
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published)
+        Assert-Problems (Get-PublishProblems -Release (Release $script:Complete) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums $script:BothSums -Published) 'is a draft, not published'
+        $macOnly = @($script:Complete | Select-Object -Skip 3)
+        Assert-Problems (Get-PublishProblems -Release (Release $macOnly $false) -Tag v0.1.0 -ExpectedOs windows, macos -Checksums ([ordered]@{ 'SHA256SUMS-macos.txt' = $script:MacSums }) -Published) 'no SHA256SUMS-windows.txt'
+    }
+}
+
+Describe 'Adding an OS to a published release (T-113)' {
+    BeforeAll {
+        $script:Build = @(
+            [pscustomobject]@{ Name = 'P-0.1.0-win-x64.zip'; Sha256 = '1' * 64 },
+            [pscustomobject]@{ Name = 'releases.win-x64.json'; Sha256 = 'a' * 64 },
+            [pscustomobject]@{ Name = 'SHA256SUMS-windows.txt'; Sha256 = '7' * 64 }
+        )
+        $script:MacAssets = @(
+            [pscustomobject]@{ name = 'P-0.1.0-osx-arm64.tar.gz'; state = 'uploaded'; digest = "sha256:$('2' * 64)" },
+            [pscustomobject]@{ name = 'SHA256SUMS-macos.txt'; state = 'uploaded'; digest = "sha256:$('8' * 64)" }
+        )
+        function Release([object[]] $Assets, [bool] $Draft = $false) { [pscustomobject]@{ isDraft = $Draft; assets = $Assets; url = 'https://example.invalid' } }
+        function Problems([object[]] $Assets, [bool] $Draft = $false) {
+            $plan = @(Get-UploadPlan -LocalFiles $script:Build -RemoteAssets $Assets)
+            Get-AddToPublishedProblems -Release (Release $Assets $Draft) -Tag v0.1.0 -ChecksumFile 'SHA256SUMS-windows.txt' -Plan $plan
+        }
+    }
+    It 'accepts a published release without the files of this OS' {
+        Assert-Problems (Problems $script:MacAssets)
+    }
+    It 'refuses a missing release and a draft' {
+        Assert-Problems (Get-AddToPublishedProblems -Release $null -Tag v0.1.0 -ChecksumFile 'SHA256SUMS-windows.txt' -Plan @()) 'no release for v0\.1\.0'
+        Assert-Problems (Problems $script:MacAssets $true) 'still a draft.*without -AddToPublished'
+    }
+    It 'refuses the OS whose checksum file is already there, also with identical content' {
+        $same = @($script:MacAssets) + [pscustomobject]@{ name = 'SHA256SUMS-windows.txt'; state = 'uploaded'; digest = "sha256:$('7' * 64)" }
+        Assert-Problems (Problems $same) 'already contains SHA256SUMS-windows\.txt.*never replaces'
+    }
+    It 'skips identical files of an interrupted upload' {
+        $partial = @($script:MacAssets) + [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; state = 'uploaded'; digest = "sha256:$('1' * 64)" }
+        Assert-Problems (Problems $partial)
+        @(Get-UploadPlan -LocalFiles $script:Build -RemoteAssets $partial | ForEach-Object Action) | Should -BeExactly @('Skip', 'Upload', 'Upload')
+    }
+    It 'refuses files with other content and unfinished uploads, and never plans a replacement' {
+        $bad = @($script:MacAssets) + @(
+            [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip'; state = 'uploaded'; digest = "sha256:$('6' * 64)" },
+            [pscustomobject]@{ name = 'releases.win-x64.json'; state = 'starter'; digest = $null }
+        )
+        Assert-Problems (Problems $bad) 'P-0\.1\.0-win-x64\.zip is in release v0\.1\.0 with different content', 'releases\.win-x64\.json .* did not finish \(state starter, no SHA256\)'
+        $noState = @($script:MacAssets) + [pscustomobject]@{ name = 'P-0.1.0-win-x64.zip' }
+        Assert-Problems (Problems $noState) 'did not finish \(state \?, no SHA256\)'
+    }
+    It 'tells the files that make an OS visible from the packages (<Name> = <Expected>)' -ForEach @(
+        @{ Name = 'SHA256SUMS-windows.txt'; Expected = $true }
+        @{ Name = 'SHA256SUMS-macos.txt'; Expected = $true }
+        @{ Name = 'releases.win-x64.json'; Expected = $true }
+        @{ Name = 'releases.osx-arm64.json'; Expected = $true }
+        @{ Name = 'assets.osx-arm64.json'; Expected = $true }
+        @{ Name = 'RELEASES-win-x64'; Expected = $true }
+        @{ Name = 'LayerPeek-0.1.0-win-x64.zip'; Expected = $false }
+        @{ Name = 'LayerPeek-0.1.0-win-x64-Setup.exe'; Expected = $false }
+        @{ Name = 'LayerPeek-0.1.0-osx-arm64-full.nupkg'; Expected = $false }
+        @{ Name = 'LayerPeek-0.1.0-osx-arm64.dmg'; Expected = $false }
+    ) {
+        Test-ReleaseMarkerFileName $Name | Should -Be $Expected
     }
 }
 
@@ -652,6 +735,69 @@ Describe 'Velopack packaging (T-017)' {
         @($map.Keys) | Should -BeExactly @('LayerPeek-0.1.0-win-x64-full.nupkg', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64', 'LayerPeek-win-x64-Setup.exe')
         @($map.Values) | Should -BeExactly @('LayerPeek-0.1.0-win-x64-full.nupkg', 'releases.win-x64.json', 'assets.win-x64.json', 'RELEASES-win-x64', 'LayerPeek-0.1.0-win-x64-Setup.exe')
         Get-VelopackSetupFileName -Version '0.1.0' -Runtime 'win-arm64' | Should -BeExactly 'LayerPeek-0.1.0-win-arm64-Setup.exe'
+    }
+    It 'gives macOS the feed and the package but no installer (T-058)' {
+        $map = Get-VelopackOutputMap -Version '0.1.0' -Runtime 'osx-arm64'
+        @($map.Keys) | Should -BeExactly @('LayerPeek-0.1.0-osx-arm64-full.nupkg', 'releases.osx-arm64.json', 'assets.osx-arm64.json', 'RELEASES-osx-arm64')
+        @($map.Values) | Should -BeExactly @($map.Keys)
+        Get-VelopackPortableFileName 'osx-arm64' | Should -BeExactly 'LayerPeek-osx-arm64-Portable.zip'
+        @(Get-VelopackWorkFileNames 'osx-arm64') | Should -BeExactly @('LayerPeek-osx-arm64-Portable.zip')
+        @(Get-VelopackWorkFileNames 'win-x64') | Should -BeNullOrEmpty
+    }
+    It 'packs the finished macOS app, signed ad hoc by vpk with the entitlements of T-108 (T-058, <Name> <Value>)' -ForEach @(
+        @{ Name = '--packId'; Value = 'LayerPeek' },
+        @{ Name = '--packTitle'; Value = 'LayerPeek' },
+        @{ Name = '--mainExe'; Value = 'LayerPeek' },
+        @{ Name = '--packDir'; Value = '/w/bundle/LayerPeek.app' },
+        @{ Name = '--channel'; Value = 'osx-arm64' },
+        @{ Name = '-r'; Value = 'osx-arm64' },
+        @{ Name = '--delta'; Value = 'None' },
+        @{ Name = '--signAppIdentity'; Value = '-' },
+        @{ Name = '--signEntitlements'; Value = '/repo/build/macos/LayerPeek.entitlements' },
+        @{ Name = '--releaseNotes'; Value = '/w/notes.md' },
+        @{ Name = '--outputDir'; Value = '/w/out' },
+        @{ Name = '--packVersion'; Value = '0.3.1' }
+    ) {
+        $arguments = Get-VelopackMacPackArguments -Version '0.3.1' -Runtime 'osx-arm64' -AppPath '/w/bundle/LayerPeek.app' -OutputDirectory '/w/out' `
+            -ReleaseNotesFile '/w/notes.md' -Entitlements '/repo/build/macos/LayerPeek.entitlements'
+        Option $arguments $Name | Should -BeExactly $Value
+    }
+    It 'makes no .pkg and keeps the bundle of the app step (no --plist, --icon or --bundleId) on macOS (T-058)' {
+        $arguments = Get-VelopackMacPackArguments -Version '0.3.1' -Runtime 'osx-arm64' -AppPath 'a' -OutputDirectory 'o' -ReleaseNotesFile 'n' -Entitlements 'e'
+        $arguments[0..2] | Should -BeExactly @('vpk', '--skip-updates', 'pack')
+        $arguments | Should -Contain '--noInst'
+        $arguments | Should -Not -Contain '--noPortable'
+        ($arguments -join ' ') | Should -Not -Match '--plist|--icon|--bundleId|--signDisableDeep|--notaryProfile|--aumid|--shortcuts'
+    }
+    It 'keeps Portable.zip of macOS in the work folder and refuses a .pkg (T-058)' {
+        $work = Join-Path $script:TempRoot 'vpk-mac'
+        $dist = Join-Path $script:TempRoot 'vpk-mac-dist'
+        $null = New-Item -ItemType Directory -Path $work, $dist
+        $names = @((Get-VelopackOutputMap -Version '0.3.1' -Runtime 'osx-arm64').Keys) + (Get-VelopackPortableFileName 'osx-arm64')
+        foreach ($name in $names) { [System.IO.File]::WriteAllText((Join-Path $work $name), $name) }
+
+        $copied = @(Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $dist -Version '0.3.1' -Runtime 'osx-arm64')
+
+        @($copied | ForEach-Object { Split-Path -Leaf $_ }) | Should -BeExactly @((Get-VelopackOutputMap -Version '0.3.1' -Runtime 'osx-arm64').Values)
+        Test-Path -LiteralPath (Join-Path $dist 'LayerPeek-osx-arm64-Portable.zip') | Should -BeFalse
+        Get-ChildItem -LiteralPath $dist -File | Remove-Item
+        [System.IO.File]::WriteAllText((Join-Path $work 'LayerPeek-osx-arm64.pkg'), 'x')
+        Assert-ThrowsMatching { Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $dist -Version '0.3.1' -Runtime 'osx-arm64' } 'unexpected files.*\.pkg'
+        Remove-Item -LiteralPath (Join-Path $work 'LayerPeek-osx-arm64.pkg'), (Join-Path $work 'LayerPeek-osx-arm64-Portable.zip')
+        Assert-ThrowsMatching { Copy-VelopackOutput -VelopackDirectory $work -OutputDirectory $dist -Version '0.3.1' -Runtime 'osx-arm64' } 'did not create LayerPeek-osx-arm64-Portable.zip'
+    }
+    It 'reads the Velopack manifest of the app and reports a missing updater or another version (T-058)' {
+        $app = Join-Path $script:TempRoot 'vpk-manifest' 'LayerPeek.app'
+        $macOS = Join-Path $app 'Contents' 'MacOS'
+        $null = New-Item -ItemType Directory -Path $macOS
+        $nuspec = '<?xml version="1.0" encoding="utf-8"?><package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd"><metadata><id>LayerPeek</id><version>0.3.1</version><channel>osx-arm64</channel></metadata></package>'
+        [System.IO.File]::WriteAllText((Join-Path $macOS 'sq.version'), $nuspec)
+        Assert-Problems (Get-MacVelopackBundleProblems -AppPath $app -Version '0.3.1' -Runtime 'osx-arm64') 'no Contents/MacOS/UpdateMac'
+        New-StandInFile (Join-Path $macOS 'UpdateMac') 'updater'
+        Assert-Problems (Get-MacVelopackBundleProblems -AppPath $app -Version '0.3.1' -Runtime 'osx-arm64')
+        Assert-Problems (Get-MacVelopackBundleProblems -AppPath $app -Version '0.3.2' -Runtime 'osx-arm64') "has version '0.3.1', expected '0.3.2'"
+        Remove-Item -LiteralPath (Join-Path $macOS 'sq.version')
+        Assert-Problems (Get-MacVelopackBundleProblems -AppPath $app -Version '0.3.1' -Runtime 'osx-arm64') 'no Contents/MacOS/sq.version'
     }
     It 'gives every file of win-x64 and win-arm64 its own name (both can be in one release)' {
         $x64 = @((Get-VelopackOutputMap -Version '0.1.0' -Runtime 'win-x64').Values) + (Get-ArchiveFileName -Version '0.1.0' -Runtime 'win-x64')
@@ -719,7 +865,8 @@ Describe 'Velopack packaging (T-017)' {
             )
         }
         $sums = [ordered]@{ 'SHA256SUMS-windows.txt' = [ordered]@{ $name = '4' * 64 } }
-        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs windows -Checksums $sums) "belongs to win-arm64"
+        # Without expected OS: only the files are checked (a complete Windows draft would also need releases.win-x64.json).
+        Assert-Problems (Get-PublishProblems -Release $release -Tag v0.1.0 -ExpectedOs @() -Checksums $sums) "belongs to win-arm64"
     }
     It 'tells the files of a RID apart (<Name> / <Runtime> = <Expected>)' -ForEach @(
         @{ Name = 'releases.win-x64.json'; Runtime = 'win-arm64'; Expected = $false },
@@ -746,16 +893,30 @@ Describe 'macOS packaging (T-019)' {
         $script = [System.IO.File]::ReadAllText((Join-Path $script:RepoRoot 'scripts' 'release-build.ps1'))
         $script | Should -Match "Name\s+=\s+'archive'\s+Os\s+=\s+@\('windows'\)"
         $script | Should -Match "Name\s+=\s+'app'\s+Os\s+=\s+@\('macos'\)"
-        foreach ($function in 'New-MacIcon', 'New-MacAppBundle', 'Get-MacBundleLibraryProblems', 'Invoke-MacAdHocSign', 'Get-MacSignatureProblems', 'New-MacDiskImage', 'New-ReleaseArchive') { $script | Should -Match $function }
-        # T-026: the library check runs on the unsigned bundle, before signing.
-        $script.IndexOf('Get-MacBundleLibraryProblems $app') | Should -BeLessThan $script.IndexOf('Invoke-MacAdHocSign $app')
-        # The console output of the smoke run of the bundle must not end up in the returned file list.
-        $script | Should -Match "-PublishDir \(Join-Path \`$app 'Contents' 'MacOS'\) -Seconds \`$SmokeSeconds \| Out-Host"
-        # T-097: the localizations are checked before the bundle is built, copied into it and linted before signing.
+        foreach ($function in 'New-MacIcon', 'New-MacAppBundle', 'Get-MacBundleLibraryProblems', 'Get-VelopackMacPackArguments', 'Copy-VelopackOutput', 'Get-MacSignatureProblems', 'Get-MacVelopackBundleProblems', 'New-MacDiskImage', 'New-ReleaseArchive') { $script | Should -Match $function }
+        # T-058 (Q9 a): vpk signs the bundle; the script does not sign it itself any more.
+        $script | Should -Not -Match 'Invoke-MacAdHocSign'
+        # T-026: the library check runs on the unsigned bundle, before vpk signs it.
+        $script.IndexOf('Get-MacBundleLibraryProblems $app') | Should -BeLessThan $script.IndexOf('Get-VelopackMacPackArguments')
+        # The console output of vpk and of the smoke run of the bundle must not end up in the returned file list.
+        $script | Should -Match "-PublishDir \(Join-Path \`$signed 'Contents' 'MacOS'\) -Seconds \`$SmokeSeconds \| Out-Host"
+        ([regex]::Matches($script, 'dotnet @arguments \| Out-Host')).Count | Should -Be 2
+        $script | Should -Match '-Entitlements \(Get-MacEntitlementsPath\)'
+        # T-097: the localizations are checked before the bundle is built, copied into it and linted before vpk signs it.
         $script.IndexOf('Get-MacLocalizationProblems') | Should -BeLessThan $script.IndexOf('New-MacAppBundle -PublishDirectory')
         $script | Should -Match '-LocalizationDirectory \$localizations'
         $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeGreaterThan $script.IndexOf('New-MacAppBundle -PublishDirectory')
-        $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeLessThan $script.IndexOf('Invoke-MacAdHocSign $app')
+        $script.IndexOf('Get-MacPlistLintProblems $app') | Should -BeLessThan $script.IndexOf('Get-VelopackMacPackArguments')
+        # T-108 / T-058: the hardened runtime of the app of Portable.zip and of the .nupkg, before the smoke run of the bundle.
+        $script | Should -Match 'Get-MacHardenedRuntimeProblems \$signed'
+        $script | Should -Match "Get-MacHardenedRuntimeProblems \(Join-Path \`$packageFolder 'lib' 'app'\)"
+        $script.IndexOf('Get-MacHardenedRuntimeProblems $signed') | Should -BeGreaterThan $script.IndexOf('Get-VelopackMacPackArguments')
+        $script.IndexOf('Get-MacHardenedRuntimeProblems $signed') | Should -BeLessThan $script.IndexOf('-File $smokeScript')
+        # The .dmg and the .tar.gz are made from the app of vpk.
+        $script | Should -Match 'New-ReleaseArchive -SourceDirectory \$portableFolder'
+        $script | Should -Match 'New-MacDiskImage -AppPath \$signed'
+        # vpk is restored on macOS too.
+        $script | Should -Match "hostOs -in 'windows', 'macos'"
     }
     BeforeAll {
         $script:PlistTemplate = Join-Path $script:RepoRoot 'build' 'macos' 'Info.plist'
@@ -1034,8 +1195,39 @@ Describe 'macOS packaging (T-019)' {
         (Get-MacBundleSettings).FFmpegLibraries | Should -BeExactly @('libavformat.63.dylib', 'libavcodec.63.dylib', 'libavutil.61.dylib', 'libswscale.10.dylib')
         (Get-MacBundleSettings).FFmpegLicense | Should -BeExactly 'FFmpeg-LICENSE.txt'
     }
-    It 'signs ad hoc without a timestamp and without the hardened runtime' {
-        Get-MacAdHocSignArguments '/x/LayerPeek.app' | Should -BeExactly @('--force', '--sign', '-', '--timestamp=none', '/x/LayerPeek.app')
+    It 'signs ad hoc without a timestamp, with the hardened runtime and the entitlements only when given (T-108)' {
+        Get-MacAdHocSignArguments '/x/LayerPeek.app/Contents/MacOS/libSkiaSharp.dylib' | Should -BeExactly @(
+            '--force', '--sign', '-', '--timestamp=none', '--options', 'runtime', '/x/LayerPeek.app/Contents/MacOS/libSkiaSharp.dylib')
+        Get-MacAdHocSignArguments '/x/LayerPeek.app' -Entitlements '/r/build/macos/LayerPeek.entitlements' | Should -BeExactly @(
+            '--force', '--sign', '-', '--timestamp=none', '--options', 'runtime', '--entitlements', '/r/build/macos/LayerPeek.entitlements', '/x/LayerPeek.app')
+    }
+    It 'reads the code directory flags from codesign -d (T-108)' {
+        $output = @(
+            'Executable=/x/LayerPeek.app/Contents/MacOS/LayerPeek'
+            'Identifier=io.github.pfoltynek.LayerPeek'
+            'CodeDirectory v=20500 size=3131 flags=0x10002(adhoc,runtime) hashes=87+7 location=embedded'
+            'Executable Segment flags=0x1'
+        )
+        Get-CodesignFlags $output | Should -Be 0x10002
+        Get-CodesignFlags @('CodeDirectory v=20400 size=2995 flags=0x2(adhoc) hashes=87+3 location=embedded') | Should -Be 0x2
+        Get-CodesignFlags @('Executable Segment flags=0x1') | Should -BeNullOrEmpty
+        Get-CodesignFlags @() | Should -BeNullOrEmpty
+    }
+    It 'reads the granted entitlement keys; any other value than true does not count as granted (T-108)' {
+        $xml = '<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd"><plist version="1.0"><dict><key>com.apple.security.cs.disable-library-validation</key><true/><key>com.apple.security.cs.allow-jit</key><false/></dict></plist>'
+        Get-EntitlementKeys $xml | Should -BeExactly @('com.apple.security.cs.allow-jit=false', 'com.apple.security.cs.disable-library-validation')
+        @(Get-EntitlementKeys '') | Should -BeNullOrEmpty
+        @(Get-EntitlementKeys '<plist version="1.0"><dict/></plist>') | Should -BeNullOrEmpty
+        Assert-ThrowsMatching { Get-EntitlementKeys '<plist version="1.0"><array/></plist>' } 'not a plist with a dict'
+    }
+    It 'grants the main executable only what Native AOT and the ad-hoc signed libraries need (T-108)' {
+        $mac = Get-MacBundleSettings
+        $mac.EntitlementKeys | Should -BeExactly @('com.apple.security.cs.disable-library-validation')
+        $file = Join-Path $script:RepoRoot $mac.Entitlements
+        Get-MacEntitlementsPath | Should -BeExactly (Resolve-Path -LiteralPath $file).ProviderPath
+        # The file grants exactly the expected keys: never the DYLD_* variables (finding N3), JIT, unsigned executable
+        # memory or a debugger (get-task-allow).
+        Get-EntitlementKeys ([System.IO.File]::ReadAllText($file)) | Should -BeExactly $mac.EntitlementKeys
     }
     It 'builds a compressed read-only HFS+ image named LayerPeek' {
         Get-MacDiskImageArguments -SourceFolder '/w/dmg' -Destination '/d/LayerPeek-1.2.3-osx-arm64.dmg' | Should -BeExactly @(
@@ -1068,6 +1260,24 @@ Describe 'macOS packaging (T-019)' {
         @(Get-SmokePreferenceKeys @('', '{', '}')) | Should -BeNullOrEmpty
     }
     Context 'on macOS (codesign, sips, iconutil, hdiutil; nothing is mounted)' -Skip:(-not $IsMacOS) {
+        BeforeAll {
+            # A bundle whose executable starts registers with LaunchServices in the user's database (T-108): every test
+            # that starts one unregisters it, and nothing under the temporary root of the tests may stay registered.
+            $script:Lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+            function Get-TestBundleRegistrations {
+                $leaf = Split-Path -Leaf $script:TempRoot
+                @(& $script:Lsregister -dump 2>$null | ForEach-Object { "$_" } |
+                    Where-Object { $_ -cmatch '^path:\s+(.*?)(\s+\(0x[0-9a-f]+\))?$' -and $Matches[1].Contains("/$leaf/") } |
+                    ForEach-Object { $_ -creplace '^path:\s+(.*?)(\s+\(0x[0-9a-f]+\))?$', '$1' } | Sort-Object -Unique)
+            }
+            function Remove-TestBundleRegistrations {
+                foreach ($path in Get-TestBundleRegistrations) { & $script:Lsregister -u $path 2>$null }
+            }
+        }
+        AfterAll {
+            # The safety net for a test that failed before its own cleanup.
+            Remove-TestBundleRegistrations
+        }
         It 'signs a bundle ad hoc inside out and codesign verifies it strictly; a changed file breaks the seal' {
             $destination = Join-Path $script:TempRoot "mac-sign-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
             $null = New-Item -ItemType Directory -Path $destination
@@ -1079,8 +1289,61 @@ Describe 'macOS packaging (T-019)' {
             $details | Should -Match 'Signature=adhoc'
             $details | Should -Match ([regex]::Escape("Identifier=$(Get-MacBundleIdentifier $script:PlistTemplate)"))
             (& /usr/bin/codesign -dv (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
+            # T-108: the hardened runtime on the executable and the library, the entitlements on the executable only.
+            @(Get-MacHardenedRuntimeProblems $app) | Should -BeNullOrEmpty
+            (& /usr/bin/codesign -d --verbose=4 $app 2>&1) -join "`n" | Should -Match 'flags=0x10002\(adhoc,runtime\)'
+            (& /usr/bin/codesign -d --verbose=4 (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1) -join "`n" | Should -Match 'flags=0x10002\(adhoc,runtime\)'
+            @(Get-EntitlementKeys ((& /usr/bin/codesign -d --entitlements - --xml (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>$null) -join '')) | Should -BeNullOrEmpty
+            # A check against another list of entitlements, and a bundle re-signed without the runtime, are reported.
+            @(Get-MacHardenedRuntimeProblems $app -ExpectedEntitlements @('com.apple.security.cs.allow-jit'))[0] | Should -Match 'has the entitlements .*disable-library-validation.*expected exactly .*allow-jit'
+            $null = & /usr/bin/codesign --force --sign - --timestamp=none (Join-Path $app 'Contents' 'MacOS' 'libSkiaSharp.dylib') 2>&1
+            $problems = @(Get-MacHardenedRuntimeProblems $app)
+            $problems.Count | Should -Be 1
+            $problems[0] | Should -Match 'libSkiaSharp\.dylib is signed without the hardened runtime'
+            Invoke-MacAdHocSign $app
             [System.IO.File]::AppendAllText((Join-Path $app 'Contents' 'Resources' 'LayerPeek.icns'), 'changed')
             @(Get-MacSignatureProblems $app).Count | Should -BeGreaterThan 0
+        }
+        It 'packs a bundle with vpk: ad hoc, hardened runtime and the entitlements of T-108 in Portable.zip and the .nupkg (T-058)' {
+            Push-Location $script:RepoRoot
+            try { $null = & dotnet vpk --help 2>&1; $restored = $LASTEXITCODE -eq 0 }
+            finally { Pop-Location }
+            if (-not $restored) { Set-ItResult -Skipped -Because 'vpk is not restored (dotnet tool restore)'; return }
+            $destination = Join-Path $script:TempRoot "mac-vpk-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $null = New-Item -ItemType Directory -Path (Join-Path $destination 'bundle'), (Join-Path $destination 'out')
+            $app = New-MacAppBundle -PublishDirectory $script:MacPublish -Destination (Join-Path $destination 'bundle') -Version '0.3.1' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon
+            $notes = New-TempFile "mac-vpk-notes-$([guid]::NewGuid().ToString('N').Substring(0, 8)).md" '- Notes.'
+            $arguments = Get-VelopackMacPackArguments -Version '0.3.1' -Runtime 'osx-arm64' -AppPath $app -OutputDirectory (Join-Path $destination 'out') -ReleaseNotesFile $notes -Entitlements (Get-MacEntitlementsPath)
+            Push-Location $script:RepoRoot
+            try { $output = & dotnet @arguments 2>&1; $exit = $LASTEXITCODE }
+            finally { Pop-Location }
+            $exit | Should -Be 0 -Because ($output -join "`n")
+
+            $dist = Join-Path $destination 'dist'
+            $null = New-Item -ItemType Directory -Path $dist
+            $feed = @(Copy-VelopackOutput -VelopackDirectory (Join-Path $destination 'out') -OutputDirectory $dist -Version '0.3.1' -Runtime 'osx-arm64')
+            $feed.Count | Should -Be 4
+            (Get-Content -LiteralPath (Join-Path $dist 'releases.osx-arm64.json') -Raw | ConvertFrom-Json).Assets[0].FileName | Should -BeExactly 'LayerPeek-0.3.1-osx-arm64-full.nupkg'
+            $portable = Expand-ZipWithDitto -ZipPath (Join-Path $destination 'out' 'LayerPeek-osx-arm64-Portable.zip') -Destination (Join-Path $destination 'portable')
+            $signed = Join-Path $portable 'LayerPeek.app'
+            $package = Expand-ZipWithDitto -ZipPath (Join-Path $dist 'LayerPeek-0.3.1-osx-arm64-full.nupkg') -Destination (Join-Path $destination 'package')
+
+            @(Get-MacSignatureProblems $signed) | Should -BeNullOrEmpty
+            @(Get-MacVelopackBundleProblems -AppPath $signed -Version '0.3.1' -Runtime 'osx-arm64') | Should -BeNullOrEmpty
+            @(Get-MacHardenedRuntimeProblems $signed) | Should -BeNullOrEmpty
+            @(Get-MacHardenedRuntimeProblems (Join-Path $package 'lib' 'app')) | Should -BeNullOrEmpty
+            (& /usr/bin/codesign -d --verbose=4 (Join-Path $signed 'Contents' 'MacOS' 'UpdateMac') 2>&1) -join "`n" | Should -Match 'flags=0x10002\(adhoc,runtime\)'
+            # The Info.plist of the app step is kept (bundle identifier, LSUIElement, version).
+            (& /usr/bin/plutil -extract CFBundleIdentifier raw (Join-Path $signed 'Contents' 'Info.plist')) | Should -BeExactly (Get-MacBundleIdentifier $script:PlistTemplate)
+            (& /usr/bin/plutil -extract CFBundleShortVersionString raw (Join-Path $signed 'Contents' 'Info.plist')) | Should -BeExactly '0.3.1'
+            # The .tar.gz of the app keeps the manifest link and verifies after unpacking.
+            $archive = New-ReleaseArchive -SourceDirectory $portable -Destination (Join-Path $destination 'LayerPeek-0.3.1-osx-arm64.tar.gz')
+            $unpacked = Join-Path $destination 'unpacked'
+            $null = New-Item -ItemType Directory -Path $unpacked
+            & /usr/bin/tar -xzf $archive -C $unpacked
+            $LASTEXITCODE | Should -Be 0
+            @(Get-MacSignatureProblems (Join-Path $unpacked 'LayerPeek.app')) | Should -BeNullOrEmpty
+            (Get-Item -LiteralPath (Join-Path $unpacked 'LayerPeek.app' 'Contents' 'MacOS' 'sq.version')).LinkType | Should -BeExactly 'SymbolicLink'
         }
         It 'lints the Info.plist and the InfoPlist.strings of the bundle; signed with them it verifies strictly (T-097)' {
             $destination = Join-Path $script:TempRoot "mac-l10n-sign-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
@@ -1127,6 +1390,93 @@ Describe 'macOS packaging (T-019)' {
             Invoke-MacAdHocSign $app
             @(Get-MacSignatureProblems $app) | Should -BeNullOrEmpty
             (& /usr/bin/codesign -dv (Join-Path $macOS 'libavformat.63.dylib') 2>&1) -join "`n" | Should -Match 'Signature=adhoc'
+        }
+        It 'loads the ad-hoc signed libraries of the bundle under the hardened runtime and ignores DYLD_INSERT_LIBRARIES (T-108)' {
+            # A real executable and library (clang of the Xcode Command Line Tools, which the Native AOT build needs anyway):
+            # the executable dlopens the library next to it, like the app loads Avalonia, Skia, HarfBuzz and FFmpeg.
+            $destination = Join-Path $script:TempRoot "mac-runtime-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+            $publish = Join-Path $destination 'publish'
+            $null = New-Item -ItemType Directory -Path $publish
+            $sources = Join-Path $destination 'src'
+            $null = New-Item -ItemType Directory -Path $sources
+            [System.IO.File]::WriteAllText((Join-Path $sources 'main.c'), @'
+#include <dlfcn.h>
+#include <libgen.h>
+#include <mach-o/dyld.h>
+#include <stdio.h>
+int main(void)
+{
+    char path[4096]; uint32_t size = sizeof path; char library[4200];
+    if (_NSGetExecutablePath(path, &size) != 0) return 2;
+    snprintf(library, sizeof library, "%s/libSkiaSharp.dylib", dirname(path));
+    void *handle = dlopen(library, RTLD_NOW);
+    if (!handle) { fprintf(stderr, "%s\n", dlerror()); return 3; }
+    int (*answer)(void) = (int (*)(void))dlsym(handle, "answer");
+    printf("loaded %d\n", answer ? answer() : -1);
+    return 0;
+}
+'@)
+            [System.IO.File]::WriteAllText((Join-Path $sources 'library.c'), 'int answer(void) { return 42; }')
+            [System.IO.File]::WriteAllText((Join-Path $sources 'inject.c'), @'
+#include <stdio.h>
+#include <stdlib.h>
+__attribute__((constructor)) static void injected(void)
+{
+    const char *path = getenv("LAYERPEEK_INJECT_LOG");
+    FILE *file = path ? fopen(path, "a") : NULL;
+    if (file) { fputs("injected\n", file); fclose(file); }
+}
+'@)
+            & /usr/bin/xcrun clang -o (Join-Path $publish 'LayerPeek') (Join-Path $sources 'main.c') 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            & /usr/bin/xcrun clang -dynamiclib -o (Join-Path $publish 'libSkiaSharp.dylib') (Join-Path $sources 'library.c') 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            # Not $inject: PowerShell names are case-insensitive, the switch -Inject of Start-StandIn would hide it.
+            $injectLibrary = Join-Path $destination 'inject.dylib'
+            & /usr/bin/xcrun clang -dynamiclib -o $injectLibrary (Join-Path $sources 'inject.c') 2>&1 | Out-Null
+            $LASTEXITCODE | Should -Be 0
+            $null = New-Item -ItemType Directory -Path (Join-Path $destination 'bundle')
+            $app = New-MacAppBundle -PublishDirectory $publish -Destination (Join-Path $destination 'bundle') -Version '1.2.3' -PlistTemplate $script:PlistTemplate -IconFile $script:MacIcon
+            $exe = Join-Path $app 'Contents' 'MacOS' 'LayerPeek'
+            $log = Join-Path $destination 'inject.log'
+            function Start-StandIn([switch] $Inject) {
+                $info = [System.Diagnostics.ProcessStartInfo]::new($exe)
+                $info.RedirectStandardOutput = $true
+                $info.RedirectStandardError = $true
+                $info.UseShellExecute = $false
+                if ($Inject) {
+                    $info.Environment['DYLD_INSERT_LIBRARIES'] = $injectLibrary
+                    $info.Environment['LAYERPEEK_INJECT_LOG'] = $log
+                }
+                $process = [System.Diagnostics.Process]::Start($info)
+                $out = $process.StandardOutput.ReadToEnd() + $process.StandardError.ReadToEnd()
+                $process.WaitForExit()
+                # The exit code first, so that a failed check shows what the process printed.
+                "$($process.ExitCode)|$out"
+            }
+
+            try {
+                # Signed like the release: the library loads, the injected library does not.
+                Invoke-MacAdHocSign $app
+                @(Get-MacHardenedRuntimeProblems $app) | Should -BeNullOrEmpty
+                Start-StandIn -Inject | Should -Match '^0\|loaded 42'
+                Test-Path -LiteralPath $log | Should -BeFalse
+
+                # Why disable-library-validation: without it dyld refuses the ad-hoc signed library (no Team ID).
+                $none = Join-Path $destination 'none.entitlements'
+                [System.IO.File]::WriteAllText($none, '<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><dict/></plist>')
+                Invoke-MacAdHocSign $app -Entitlements $none
+                Start-StandIn | Should -Match '(?s)^3\|.*different Team IDs'
+
+                # The control: without the hardened runtime the same start loads the injected library (finding N3).
+                $null = & /usr/bin/codesign --force --sign - --timestamp=none $app 2>&1
+                Start-StandIn -Inject | Should -Match '^0\|loaded 42'
+                Test-Path -LiteralPath $log | Should -BeTrue
+            }
+            finally {
+                Remove-TestBundleRegistrations
+            }
+            @(Get-TestBundleRegistrations) | Should -BeNullOrEmpty
         }
         It 'makes the icns from the master PNG and removes its iconset' {
             $icon = Join-Path $script:TempRoot "icon-$([guid]::NewGuid().ToString('N').Substring(0, 8)).icns"

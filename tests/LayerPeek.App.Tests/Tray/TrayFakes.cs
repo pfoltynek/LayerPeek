@@ -235,6 +235,15 @@ internal static class TestPrinters
     public static PrinterSnapshot Snapshot(PrinterState state, PrintJob? job = null, string printerId = "mk4") =>
         new() { PrinterId = printerId, State = state, Timestamp = Now, Job = job };
 
+    /// <summary>
+    /// The cool-down thresholds of the tests written before T-109 that follow the nozzle curve with a constant bed of about
+    /// 40 °C: the former nozzle threshold of 50 °C and a bed threshold the bed never exceeds, so that the nozzle alone decides.
+    /// </summary>
+    public static readonly LayerPeek.Core.Cooldown.CooldownThresholds NozzleOnlyThresholds = new(50, 45);
+
+    /// <summary><paramref name="printer"/> with <see cref="NozzleOnlyThresholds"/>.</summary>
+    public static PrinterDefinition NozzleDecides(PrinterDefinition printer) => printer with { CooldownThresholds = NozzleOnlyThresholds };
+
     public static PrintJob Job(double progress, TimeSpan? remaining = null, string? fileName = "benchy.bgcode") =>
         new() { ProgressPercent = progress, Remaining = remaining, FileName = fileName };
 

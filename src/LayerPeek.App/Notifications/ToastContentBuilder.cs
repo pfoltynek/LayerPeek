@@ -57,6 +57,53 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>
+    /// The toast about a new version (T-058) in <paramref name="textCulture"/>: title and one line like the test notification,
+    /// with the launch argument <see cref="ToastLaunchArgument.Update"/>.
+    /// </summary>
+    public static string BuildUpdate(UpdateNotification notification, CultureInfo textCulture)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        ArgumentNullException.ThrowIfNull(textCulture);
+        StringBuilder xml = new(384);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.Update);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, UpdateNotificationText.Title(textCulture));
+        AppendText(xml, UpdateNotificationText.Body(Clean(notification.Version), textCulture));
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
+    /// The toast of the test notification (T-101) in <paramref name="textCulture"/>: the same shape as a printer toast (title
+    /// and one line, foreground activation), with the launch argument <see cref="ToastLaunchArgument.Settings"/>.
+    /// </summary>
+    public static string BuildTest(CultureInfo textCulture, bool playSound)
+    {
+        ArgumentNullException.ThrowIfNull(textCulture);
+        StringBuilder xml = new(384);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.Settings);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, TestNotification.Title(textCulture));
+        AppendText(xml, TestNotification.Body(textCulture));
+        xml.Append("</binding></visual>");
+        if (!playSound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
     /// The texts of a notification in <paramref name="textCulture"/>, the same on every OS (Windows toast, macOS
     /// notification, T-020): the printer name (its id when the name is empty) as the title, the event as the body and the
     /// job file name, or for "cooled down" (T-080) the temperatures, as the detail. Printer and file names are stripped of
@@ -75,11 +122,17 @@ internal static class ToastContentBuilder
 
         if (notification is { Kind: PrintEventKind.CooledDown, Cooldown: { } cooled })
         {
-            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name.
-            return new NotificationLines(
-                title,
-                CooledDownText(cooled.Outcome, textCulture),
-                Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.ThresholdCelsius));
+            // T-080: how the print ended and that the printer cooled down, then the temperatures instead of the file name:
+            // the nozzle and the bed with their thresholds (T-109), the nozzle alone for a printer that reports no bed.
+            string detail = cooled.BedCelsius is { } bed
+                ? Format(
+                    Text(nameof(Strings.NotificationCooledDownDetailBed), textCulture),
+                    WholeDegrees(cooled.NozzleCelsius),
+                    cooled.NozzleThresholdCelsius,
+                    WholeDegrees(bed),
+                    cooled.BedThresholdCelsius)
+                : Format(Text(nameof(Strings.NotificationCooledDownDetail), textCulture), WholeDegrees(cooled.NozzleCelsius), cooled.NozzleThresholdCelsius);
+            return new NotificationLines(title, CooledDownText(cooled.Outcome, textCulture), detail);
         }
 
         string? fileName = string.IsNullOrWhiteSpace(notification.FileName) ? null : Clean(notification.FileName);
@@ -132,6 +185,9 @@ internal static class ToastContentBuilder
 
     private static string Format(string format, object? arg0, object? arg1) =>
         string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+
+    private static string Format(string format, params ReadOnlySpan<object?> args) =>
+        string.Format(CultureInfo.CurrentCulture, format, args);
 
     private static void AppendText(StringBuilder xml, string text)
     {

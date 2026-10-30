@@ -154,9 +154,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private int _autostartReadVersion;
     private bool _switchingAutostart;
 
-    // T-020: the OS settings of the app's notifications (macOS) and whether they are turned off.
+    // T-020 / T-101: the OS settings of the app's notifications (SettingsViewModel.Notifications.cs).
     private readonly ISystemNotificationSettings? _notificationSettings;
-    private bool _showsNotificationsTurnedOff;
     private bool _showsAutostartApproval;
     private readonly string _productVersion;
 
@@ -271,7 +270,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         OpenAutostartApprovalSettingsCommand = new RelayCommand(OpenAutostartApprovalSettings, () => _showsAutostartApproval);
         _notificationSettings = notificationSettings;
         LocalNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
-        OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => _showsNotificationsTurnedOff);
+        OpenNotificationSettingsCommand = new RelayCommand(OpenNotificationSettings, () => ShowsNotificationsTurnedOff);
+        SendTestNotificationCommand = new AsyncRelayCommand(SendTestNotificationAsync, () => CanSendTestNotification);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
     }
@@ -414,6 +414,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             if (SetProperty(ref _pollingIntervalError, value))
             {
                 OnPropertyChanged(nameof(ShowsPollingIntervalHint));
+                OnPropertyChanged(nameof(HasPollingIntervalError));
+                OnPropertyChanged(nameof(PollingIntervalHelpText));
             }
         }
     }
@@ -492,7 +494,14 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     public string? RemainingTimeError
     {
         get => _remainingTimeError;
-        private set => SetProperty(ref _remainingTimeError, value);
+        private set
+        {
+            if (SetProperty(ref _remainingTimeError, value))
+            {
+                OnPropertyChanged(nameof(HasRemainingTimeError));
+                OnPropertyChanged(nameof(RemainingTimeHelpText));
+            }
+        }
     }
 
     public IReadOnlyList<SoundOption> SoundOptions { get; }
@@ -536,28 +545,15 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>
     /// "Offer pre-release versions" of the updates (T-017): the saved choice, or while the user never chose, the default of
-    /// the running version (<see cref="PrereleaseUpdates"/>). Saved as a choice only once it differs from that default.
+    /// the running version (<see cref="PrereleaseUpdates"/>). Saved as a choice only once it differs from that default. Since
+    /// T-058 (Q3 a) in every distribution: the <c>.zip</c> and development builds check GitHub by the same rule.
     /// </summary>
     public bool OfferPrereleaseUpdates
     {
         get => _offerPrereleaseUpdates;
-        set
-        {
-            // Disabled without an installation (user decision 2026-10-24): a .zip or a development build gets no updates.
-            if (!_autostartNeedsInstallation)
-            {
-                SetGeneral(ref _offerPrereleaseUpdates, value);
-            }
-        }
+        set => SetGeneral(ref _offerPrereleaseUpdates, value);
     }
 
-    /// <summary>"Offer pre-release versions" can be changed: not in a <c>.zip</c> or a development build on Windows (T-017).</summary>
-    public bool IsPrereleaseOptionAvailable => !_autostartNeedsInstallation;
-
-    /// <summary>
-    /// Screen readers: a disabled check box cannot be focused, so its reason goes into the help text; otherwise the hint.
-    /// </summary>
-    public string PrereleaseHelpText => _autostartNeedsInstallation ? Strings.SettingsNeedsInstallation : Strings.SettingsOfferPrereleaseUpdatesHint;
 
     /// <summary>The reason of the disabled autostart for screen readers (T-017); <see langword="null"/> when it is available.</summary>
     public string? AutostartHelpText => _autostartNeedsInstallation ? AutostartNeedsInstallationText : null;
@@ -569,8 +565,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     internal bool UsesMacTerms { get; init; }
 
     /// <summary>
-    /// "Offer pre-release versions" is part of the tab (T-017). Not on macOS until updates exist there (T-019, user decision
-    /// 2026-10-29: without Velopack for macOS the tab has no pre-release option).
+    /// "Offer pre-release versions" is part of the tab (T-017); since T-058 on macOS too (the <c>.app</c> of Velopack and the
+    /// GitHub check of a development build follow it).
     /// </summary>
     public bool ShowsPrereleaseOption { get; init; } = true;
 
@@ -613,44 +609,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
     /// <summary>Opens the settings of the OS where the user allows the autostart (<see cref="IAutostartApproval"/>).</summary>
     public IRelayCommand OpenAutostartApprovalSettingsCommand { get; }
-
-    /// <summary>
-    /// macOS (T-020, user decision 2026-10-29): the user turned LayerPeek's notifications off in System Settings; the General
-    /// tab says so next to the notification settings and offers to open them (<see cref="OpenNotificationSettingsCommand"/>).
-    /// Read when the window loads and whenever it becomes active again (<see cref="RefreshNotificationPermissionAsync"/>).
-    /// </summary>
-    public bool ShowsNotificationsTurnedOff
-    {
-        get => _showsNotificationsTurnedOff;
-        private set
-        {
-            if (SetProperty(ref _showsNotificationsTurnedOff, value))
-            {
-                OpenNotificationSettingsCommand.NotifyCanExecuteChanged();
-            }
-        }
-    }
-
-    /// <summary>Opens the OS settings of the app's notifications (<see cref="ISystemNotificationSettings.Open"/>).</summary>
-    public IRelayCommand OpenNotificationSettingsCommand { get; }
-
-    /// <summary>
-    /// Reads again whether the OS has the app's notifications turned off (T-020); UI thread. Never throws; nothing without
-    /// <see cref="ISystemNotificationSettings"/> or after the window closed.
-    /// </summary>
-    public async Task RefreshNotificationPermissionAsync()
-    {
-        if (_notificationSettings is not { } settings || _disposed)
-        {
-            return;
-        }
-
-        bool turnedOff = await settings.AreTurnedOffAsync(LifetimeToken).ConfigureAwait(true);
-        if (!_disposed)
-        {
-            ShowsNotificationsTurnedOff = turnedOff;
-        }
-    }
 
     /// <summary>
     /// Reads again whether only the user can allow the autostart in the settings of the OS (T-019, macOS); UI thread. Never
@@ -924,10 +882,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             option.RefreshText();
         }
 
-        OnPropertyChanged(nameof(PrereleaseHelpText));
         OnPropertyChanged(nameof(AutostartHelpText));
         OnPropertyChanged(nameof(AutostartLabel));
         OnPropertyChanged(nameof(AutostartNeedsInstallationText));
+        RefreshNotificationTexts();
+        RefreshUpdateTexts();
 
         Notice = _noticeSource?.Invoke();
         StatusText = _statusSource?.Invoke();
@@ -943,6 +902,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         }
 
         RefreshWidgetTexts();
+        OnPropertyChanged(nameof(PollingIntervalHelpText));
+        OnPropertyChanged(nameof(RemainingTimeHelpText));
     }
 
     /// <summary>
@@ -970,6 +931,18 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (Printers.Count == 0 && AddPrinterCommand.CanExecute(null))
         {
             AddPrinterCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
+    /// A click on the test notification (T-101): the General tab, where the test came from; edits and the selection of the
+    /// other tabs are kept. UI thread.
+    /// </summary>
+    public void ShowGeneralTab()
+    {
+        if (!_disposed)
+        {
+            SelectedTabIndex = GeneralTab;
         }
     }
 
@@ -1066,6 +1039,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _selectedLanguage = FindLanguage(settings.Language);
         _debugLogging = settings.DebugLogging;
         _offerPrereleaseUpdates = PrereleaseUpdates.Offered(settings.OfferPrereleaseUpdates, _productVersion);
+        _checkForUpdates = settings.CheckForUpdates;
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
 
@@ -1129,18 +1103,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         if (_showsAutostartApproval && _autostart is IAutostartApproval approval)
         {
             approval.OpenApprovalSettings();
-        }
-    }
-
-    /// <summary>
-    /// T-020: System Settings &gt; Notifications &gt; LayerPeek (macOS). The warning stays until the window reads the
-    /// permission again (it becomes active again after the user comes back).
-    /// </summary>
-    private void OpenNotificationSettings()
-    {
-        if (_showsNotificationsTurnedOff)
-        {
-            _notificationSettings?.Open();
         }
     }
 
@@ -1237,11 +1199,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 SelectedPrinterTabIndex = invalid.HasConnectionErrors ? ConnectionPrinterTab
                     : invalid.HasCameraErrors ? CameraPrinterTab
                     : CameraWindowPrinterTab;
+                RequestFieldFocus(invalid.FirstInvalidField(SelectedPrinterTabIndex));
             }
             else
             {
                 SelectedTabIndex = WidgetsTab;
                 SelectFirstWidgetWithError(invalid);
+                RequestFieldFocus(FirstInvalidWidgetField(invalid));
             }
 
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
@@ -1252,6 +1216,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         {
             SelectedTabIndex = GeneralTab;
             ShowStatus(static () => Strings.SettingsFixErrors, isError: true);
+            RequestFieldFocus(FirstInvalidGeneralField());
             return;
         }
 
@@ -1480,6 +1445,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 Language = _selectedLanguage.Code,
                 DebugLogging = _debugLogging,
                 OfferPrereleaseUpdates = PrereleaseChoice(),
+                CheckForUpdates = _checkForUpdates,
 
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
@@ -1660,10 +1626,11 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     }
 
     /// <summary>
-    /// "Use threshold for all printers" of <paramref name="source"/> (T-080): its valid threshold goes to every other printer
-    /// of the window, saved with the other changes. An invalid threshold copies nothing (its error is shown).
+    /// "Use thresholds for all printers" of <paramref name="source"/> (T-080; nozzle and bed together since T-109): its valid
+    /// thresholds go to every other printer of the window, saved with the other changes. An invalid threshold copies nothing
+    /// (its error is shown).
     /// </summary>
-    internal void ApplyCooldownThresholdToAll(PrinterEditorViewModel source)
+    internal void ApplyCooldownThresholdsToAll(PrinterEditorViewModel source)
     {
         ArgumentNullException.ThrowIfNull(source);
         if (!IsEditable || Printers.Count < 2 || !Printers.Contains(source))
@@ -1671,13 +1638,13 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
             return;
         }
 
-        if (source.ValidCooldownThreshold is not { } threshold)
+        if (source.ValidCooldownThresholds is not { } thresholds)
         {
             source.RevealErrors();
             return;
         }
 
-        ApplyToOtherPrinters(source, printer => printer.CooldownThresholdCelsius = threshold, static () => Strings.SettingsCooldownAppliedAll);
+        ApplyToOtherPrinters(source, printer => printer.SetCooldownThresholds(thresholds), static () => Strings.SettingsCooldownAppliedAll);
     }
 
     private static int Adjacent(int index, int count, bool forward) => (index + (forward ? 1 : count - 1)) % count;

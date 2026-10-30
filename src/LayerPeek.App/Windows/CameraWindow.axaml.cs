@@ -45,6 +45,7 @@ public sealed partial class CameraWindow : Window
     private CameraWindowMode _lastWindowedMode = CameraWindowMode.Normal;
     private bool _applyingMode;
     private bool _opened;
+    private bool _closed;
 
     // Mini preview: the press that may become a move once the pointer travels MoveThreshold.
     private (PointerPressedEventArgs Pressed, Point Origin)? _pendingMove;
@@ -54,6 +55,9 @@ public sealed partial class CameraWindow : Window
         InitializeComponent();
         _sink = new FrameSink(this);
         // DataContext (CameraViewModel) is set by the creator.
+        // macOS (T-100): ⌘W closes the window like its close button, ⌘. is Esc, ⌃⌘F is F11 (the KeyBindings).
+        MacShortcuts.HandleCloseKeys(this, UsesMacShortcuts, Close, CancelFromKeyboard);
+        AddHandler(KeyDownEvent, OnMacFullScreenKeyDown, RoutingStrategies.Tunnel);
     }
 
     /// <summary>
@@ -111,6 +115,9 @@ public sealed partial class CameraWindow : Window
             ApplyMode(viewModel.Mode);
             viewModel.SetActive(WindowState != WindowState.Minimized);
         }
+
+        // macOS: the mini preview opened on top joins every Space (T-038).
+        UpdateSpaces();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -119,6 +126,13 @@ public sealed partial class CameraWindow : Window
         if (change.Property == ClientSizeProperty)
         {
             OnMiniClientSizeChanged();
+        }
+        else if (change.Property == TopmostProperty)
+        {
+            // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence).
+            ShowInTaskbar = ShowsInTaskbar(change.GetNewValue<bool>());
+            // macOS (T-038): also before a mode switch goes on, e.g. full screen needs the flags of a normal window back.
+            UpdateSpaces();
         }
 
         if (change.Property != WindowStateProperty || !_opened || _viewModel is not { } viewModel)
@@ -142,6 +156,8 @@ public sealed partial class CameraWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // The native window is gone: nothing is written to it any more (T-038).
+        _closed = true;
         if (_viewModel is { } viewModel)
         {
             // Stops the stream right away; the slot disposes the view model next (which persists the window state).
@@ -194,6 +210,40 @@ public sealed partial class CameraWindow : Window
 
     private void OnCloseRequested(object? sender, EventArgs e) => Close();
 
+    /// <summary>The macOS shortcuts apply (T-100): decided by the view model (<see cref="CameraViewModel.UsesMacShortcuts"/>).</summary>
+    private bool UsesMacShortcuts() => _viewModel is { UsesMacShortcuts: true };
+
+    /// <summary>⌃⌘F (macOS, T-100): the same as F11.</summary>
+    private void OnMacFullScreenKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!e.Handled && _viewModel is { UsesMacShortcuts: true } viewModel && MacShortcuts.IsToggleFullScreen(e))
+        {
+            e.Handled = true;
+            viewModel.ToggleFullScreenCommand.Execute(null);
+        }
+    }
+
+    /// <summary>
+    /// ⌘. (macOS, T-100): what Esc does. In the layout mode it goes to the mode (the popover, a drag, a lifted card, or
+    /// discarding the changes); otherwise it leaves full screen or the mini preview (<see cref="CameraViewModel.EscapeCommand"/>).
+    /// </summary>
+    private void CancelFromKeyboard()
+    {
+        if (_viewModel is not { } viewModel)
+        {
+            return;
+        }
+
+        if (viewModel.IsLayoutModeActive)
+        {
+            _ = LayoutOverlay.HandleEscape();
+        }
+        else if (viewModel.EscapeCommand.CanExecute(null))
+        {
+            viewModel.EscapeCommand.Execute(null);
+        }
+    }
+
     /// <summary>
     /// "Apply" in the settings (T-040): the view model's mode at the printer's defaults on their monitor (size, corner,
     /// always on top), wherever the window is now; full screen places the normal window on that monitor first. A
@@ -217,7 +267,6 @@ public sealed partial class CameraWindow : Window
             WindowState = WindowState.Normal;
             // The frame first: the chrome is asked for with the window's style of the new mode.
             WindowDecorations = layoutMode == CameraWindowMode.Mini ? WindowDecorations.None : WindowDecorations.Full;
-            ShowInTaskbar = ShowsInTaskbar(mode);
             Topmost = viewModel.Defaults.IsTopmost(mode);
             ApplyMinimumSize(layoutMode);
             WindowChrome chrome = WindowChrome.None;
@@ -245,6 +294,7 @@ public sealed partial class CameraWindow : Window
             _applyingMode = false;
         }
 
+        UpdateSpaces();
         viewModel.SetActive(WindowState != WindowState.Minimized);
         if (_placedBeforeMeasuring is not null)
         {
@@ -254,11 +304,14 @@ public sealed partial class CameraWindow : Window
     }
 
     /// <summary>
-    /// The mini preview has no taskbar button (T-040, Windows); the normal window and full screen have one. On Windows
-    /// Avalonia hides a window from the taskbar by giving it a hidden owner and shows it again by removing that owner
-    /// (hiding and showing the window once, keeping its activation).
+    /// A window that stays above other windows has no taskbar button, every other one has (T-102, user decision
+    /// 2026-10-29; before: only the mini preview had none, T-040). The mini preview is on top by default, full screen never
+    /// (T-037). <see cref="OnPropertyChanged"/> keeps <see cref="Window.ShowInTaskbar"/> in line with <see cref="Window.Topmost"/>
+    /// whenever that changes (opening, a mode switch, a saved option). On Windows Avalonia hides a window from the taskbar
+    /// by giving it a hidden owner and shows it again by removing that owner (hiding and showing the window once, keeping
+    /// its activation); on macOS the same rule decides the Dock icon (<see cref="AppPresence"/>).
     /// </summary>
-    internal static bool ShowsInTaskbar(CameraWindowMode mode) => mode != CameraWindowMode.Mini;
+    internal static bool ShowsInTaskbar(bool topmost) => !topmost;
 
     private void ApplyMode(CameraWindowMode mode)
     {
@@ -275,7 +328,6 @@ public sealed partial class CameraWindow : Window
         try
         {
             CameraWindowMode previousWindowed = _lastWindowedMode;
-            ShowInTaskbar = ShowsInTaskbar(mode);
             ApplyMinimumSize(mode);
             if (mode != CameraWindowMode.Mini)
             {
@@ -316,6 +368,7 @@ public sealed partial class CameraWindow : Window
             _applyingMode = false;
         }
 
+        UpdateSpaces();
         EnsureOnScreen();
     }
 
@@ -386,7 +439,6 @@ public sealed partial class CameraWindow : Window
         bool mini = viewModel.Mode == CameraWindowMode.Mini;
         // T-037: the option of the mode it opens in (full screen, switched to after opening, is never on top).
         Topmost = viewModel.IsTopmost;
-        ShowInTaskbar = ShowsInTaskbar(viewModel.Mode);
         if (mini)
         {
             // Opened as the mini preview right away, without a normal window first.

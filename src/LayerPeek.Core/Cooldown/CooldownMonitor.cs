@@ -7,8 +7,8 @@ namespace LayerPeek.Core.Cooldown;
 
 /// <summary>
 /// Cool-down state of every configured printer (T-079): runs the snapshots of <see cref="IPrinterMonitor"/> through one
-/// <see cref="CooldownTracker"/> per printer, with the threshold of each printer
-/// (<see cref="PrinterDefinition.CooldownThresholdCelsius"/>). Nothing is tracked until <see cref="Configure"/> is called.
+/// <see cref="CooldownTracker"/> per printer, with the nozzle and bed thresholds of each printer
+/// (<see cref="PrinterDefinition.CooldownThresholds"/>, T-109). Nothing is tracked until <see cref="Configure"/> is called.
 /// <para>
 /// Thread-safe: the monitor publishes printers concurrently, each printer's snapshots in order. Tracking is serialized
 /// under a lock (cheap, no I/O, no allocation per snapshot); <see cref="Changed"/> and <see cref="CooledDown"/> are raised
@@ -42,7 +42,7 @@ public sealed partial class CooldownMonitor : IDisposable
 
     /// <summary>
     /// The state of a printer changed (id as configured); read it with <see cref="GetState"/>. Raised for every change
-    /// while cooling (temperatures, progress, estimate), when a cool-down starts or ends, when the threshold of a cooling
+    /// while cooling (temperatures, progress, estimate), when a cool-down starts or ends, when the thresholds of a cooling
     /// printer changes and when a cooling printer is forgotten by <see cref="Configure"/>.
     /// </summary>
     public event EventHandler<string>? Changed;
@@ -51,9 +51,9 @@ public sealed partial class CooldownMonitor : IDisposable
     public event EventHandler<CooldownEvent>? CooledDown;
 
     /// <summary>
-    /// Tracks <paramref name="printers"/> from now on, each with its own threshold. Call before every monitoring run and
+    /// Tracks <paramref name="printers"/> from now on, each with its own thresholds. Call before every monitoring run and
     /// whenever the settings change. Printers that stay configured and point to the same machine (a rename keeps it) keep
-    /// their state, and a changed threshold applies right away (see <see cref="CooldownTracker.SetThreshold"/>). Removed
+    /// their state, and changed thresholds apply right away (see <see cref="CooldownTracker.SetThresholds"/>). Removed
     /// printers and printers whose address or connection type changed are forgotten. <paramref name="pollingInterval"/>
     /// applies to every printer (see <see cref="CooldownTracker.PollingInterval"/>).
     /// </summary>
@@ -91,7 +91,7 @@ public sealed partial class CooldownMonitor : IDisposable
                 if (_entries.TryGetValue(printer.Id, out Entry? entry) && IsSameMachine(entry.Printer, printer))
                 {
                     CooldownState before = entry.Tracker.State;
-                    CooldownUpdate update = entry.Tracker.SetThreshold(printer.CooldownThresholdCelsius);
+                    CooldownUpdate update = entry.Tracker.SetThresholds(printer.CooldownThresholds);
                     entry.Printer = printer;
                     if (update.State != before)
                     {
@@ -105,7 +105,7 @@ public sealed partial class CooldownMonitor : IDisposable
                 }
                 else
                 {
-                    entry = new Entry(printer, new CooldownTracker(printer.CooldownThresholdCelsius, _options));
+                    entry = new Entry(printer, new CooldownTracker(printer.CooldownThresholds, _options));
                 }
 
                 entry.Tracker.PollingInterval = pollingInterval;
@@ -259,6 +259,16 @@ public sealed partial class CooldownMonitor : IDisposable
 
     private void RaiseCooledDown(CooldownEvent cooledDown)
     {
+        // Diagnostics (T-109): both readings and thresholds, whether or not anyone listens (the notification is optional).
+        if (cooledDown.BedCelsius is { } bed)
+        {
+            LogCooledDown(cooledDown.PrinterId, cooledDown.NozzleCelsius, cooledDown.NozzleThresholdCelsius, bed, cooledDown.BedThresholdCelsius);
+        }
+        else
+        {
+            LogCooledDownWithoutBed(cooledDown.PrinterId, cooledDown.NozzleCelsius, cooledDown.NozzleThresholdCelsius);
+        }
+
         EventHandler<CooldownEvent>? handlers = CooledDown;
         if (handlers is null || IsDisposed())
         {
@@ -285,6 +295,16 @@ public sealed partial class CooldownMonitor : IDisposable
             return _disposed;
         }
     }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Printer '{PrinterId}' cooled down: nozzle {NozzleCelsius:0.0} °C (threshold {NozzleThresholdCelsius} °C), bed {BedCelsius:0.0} °C (threshold {BedThresholdCelsius} °C).")]
+    private partial void LogCooledDown(string printerId, double nozzleCelsius, int nozzleThresholdCelsius, double bedCelsius, int bedThresholdCelsius);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Printer '{PrinterId}' cooled down: nozzle {NozzleCelsius:0.0} °C (threshold {NozzleThresholdCelsius} °C), no bed temperature reported.")]
+    private partial void LogCooledDownWithoutBed(string printerId, double nozzleCelsius, int nozzleThresholdCelsius);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Cool-down tracking of printer '{PrinterId}' failed for a snapshot.")]
     private partial void LogProcessFailed(Exception exception, string printerId);

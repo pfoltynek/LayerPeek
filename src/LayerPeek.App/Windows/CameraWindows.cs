@@ -187,6 +187,25 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
         return Show(printerId);
     }
 
+    /// <summary>
+    /// "Show camera" for an open window (T-102, macOS and Windows): restores a minimized window (to full screen when it
+    /// was), then activates the app (macOS) and the window like <see cref="Show"/>, also a window on top (it has no Dock
+    /// icon or taskbar button to come back by); a window that closed meanwhile (a stale menu item) opens.
+    /// </summary>
+    /// <returns>Whether a window of the printer is open now.</returns>
+    public bool BringToFront(string printerId)
+    {
+        if (!_shutDown
+            && !string.IsNullOrWhiteSpace(printerId)
+            && _open.TryGetValue(printerId, out CameraWindow? open)
+            && open.WindowState == WindowState.Minimized)
+        {
+            open.WindowState = open.DataContext is CameraViewModel { Mode: CameraWindowMode.FullScreen } ? WindowState.FullScreen : WindowState.Normal;
+        }
+
+        return Show(printerId);
+    }
+
     /// <inheritdoc/>
     public bool ApplySettings(PrinterDefinition printer)
     {

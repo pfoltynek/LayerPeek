@@ -1,6 +1,7 @@
 <!--
   The info strip below the image of the mini preview (T-089, T-090, design T-076 4). Opaque, not affected by the card
-  opacity. Rows from the top: the 3 DIP progress bar on the top edge, the 30 DIP summary row with the two toggle buttons
+  opacity. Rows from the top: the 3 DIP progress bar on the top edge (the job, or the cool-down after it, T-103), the
+  30 DIP summary row (the first variant that fits whole: summary, flag and finish time, T-103) with the two toggle buttons
   (CameraMiniToggles: 2 × 30 + 2, 6 from the right edge, so the corner grip stays free), the print name row (34, only while
   expanded and there is a job) and the temperature chart row (64, while expanded). Pressing or dragging the strip outside
   of buttons moves the window like the image (the window handles the pointer events). The strip lies above the window's
@@ -76,6 +77,47 @@
     <Style Selector="ov|OverlayProgressBar.idle">
       <Setter Property="Background" Value="#0FFFFFFF" />
     </Style>
+    <!-- T-103 Q3: while cooling the progress towards the threshold in blue, once cooled down full in green. -->
+    <Style Selector="ov|OverlayProgressBar.cooling">
+      <Setter Property="Foreground" Value="{DynamicResource OverlayCoolingBrush}" />
+    </Style>
+    <Style Selector="ov|OverlayProgressBar.cooled">
+      <Setter Property="Foreground" Value="{DynamicResource OverlayCooledBrush}" />
+    </Style>
+    <!--
+      A variant of the summary row (T-103 1): the summary 13 semi-bold primary (may be trimmed only in the last variant),
+      10, then the flag group: Flag 14 secondary, 4, the finish time 13 semi-bold secondary, never trimmed.
+    -->
+    <Style Selector="TextBlock.miniSummary">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayTextPrimaryBrush}" />
+      <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="StackPanel.miniFinish">
+      <Setter Property="Orientation" Value="Horizontal" />
+      <Setter Property="Spacing" Value="4" />
+      <Setter Property="Margin" Value="10,0,0,0" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ov|OverlayIcon.miniFlag">
+      <Setter Property="Width" Value="14" />
+      <Setter Property="Height" Value="14" />
+      <Setter Property="CanvasSize" Value="16" />
+      <Setter Property="Data" Value="{DynamicResource IconFlag16Regular}" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayTextSecondaryBrush}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="TextBlock.miniFinishText">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource OverlayTextSecondaryBrush}" />
+      <Setter Property="TextTrimming" Value="None" />
+      <Setter Property="TextWrapping" Value="NoWrap" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
     <!-- The name row's chips by the window width (T-076 4): material from 320, the layer height from 400. -->
     <Style Selector="Border#NameRow ov|OverlayChipsPanel">
       <Setter Property="MaxCount" Value="0" />
@@ -112,18 +154,24 @@
                            AutomationProperties.AccessibilityView="Content"
                            AutomationProperties.AutomationId="CameraMiniProgress"
                            Value="{Binding Progress}"
-                           Classes.idle="{Binding !HasProgress}" />
+                           Classes.idle="{Binding !HasProgress}"
+                           Classes.cooling="{Binding ShowsCoolingIcon}"
+                           Classes.cooled="{Binding ShowsCooledIcon}" />
 
-    <!-- Summary row: left 10, dot 8 (or icon 16) + 6, text, 8, toggles 62, right 6 (at 240 wide the text has 140). -->
-    <Grid Grid.Row="1" ColumnDefinitions="10,Auto,6,*,8,62,6">
+    <!--
+      Summary row: left 10, dot 8 (or icon 16) + 6, the summary panel, 8, toggles 62, right 6 (at 240 wide the panel has
+      140). The panel draws the first variant that fits whole (T-103 3): "summary 10 ⚑14 4 time", the free room after it.
+      T-110: a row switched off in the settings has no toggle (IsVisible, so it is neither a Tab stop nor in the automation
+      tree): with one toggle 30 (W = width − 68), with none the toggle column gives way to a 10 margin (W = width − 34).
+    -->
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto">
       <!-- The summary itself (tooltip and name of the whole content); the toggles are beside it, not inside. -->
       <Grid Grid.Column="0"
-            Grid.ColumnSpan="5"
             AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniSummary"
             AutomationProperties.Name="{Binding AccessibleText}"
             ToolTip.Tip="{Binding AccessibleText}"
-            ColumnDefinitions="10,Auto,6,*,8">
+            ColumnDefinitions="10,Auto,6,*">
         <Panel Grid.Column="1" VerticalAlignment="Center">
           <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDot}" />
           <ov:OverlayIcon Width="16"
@@ -139,27 +187,43 @@
                           Foreground="{DynamicResource OverlayCooledBrush}"
                           IsVisible="{Binding ShowsCooledIcon}" />
         </Panel>
-        <TextBlock x:Name="SummaryText"
-                   Grid.Column="3"
-                   Classes="numeric"
-                   Text="{Binding Summary}"
-                   FontSize="13"
-                   FontWeight="SemiBold"
-                   Foreground="{DynamicResource OverlayTextPrimaryBrush}"
-                   TextTrimming="CharacterEllipsis"
-                   TextWrapping="NoWrap"
-                   VerticalAlignment="Center" />
+        <mini:CameraMiniSummaryPanel x:Name="SummaryPanel" Grid.Column="3" VerticalAlignment="Stretch">
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center">
+            <TextBlock x:Name="SummaryText" Classes="numeric miniSummary" Text="{Binding FirstVariant.Summary}" />
+            <StackPanel Grid.Column="1" Classes="miniFinish" IsVisible="{Binding FirstVariant.HasFinish}">
+              <ov:OverlayIcon Classes="miniFlag" />
+              <TextBlock x:Name="FinishText" Classes="numeric miniFinishText" Text="{Binding FirstVariant.Finish}" />
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center" IsVisible="{Binding SecondVariant, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock x:Name="SummaryText2" Classes="numeric miniSummary" Text="{Binding SecondVariant.Summary}" />
+            <StackPanel Grid.Column="1" Classes="miniFinish" IsVisible="{Binding SecondVariant.HasFinish}">
+              <ov:OverlayIcon Classes="miniFlag" />
+              <TextBlock x:Name="FinishText2" Classes="numeric miniFinishText" Text="{Binding SecondVariant.Finish}" />
+            </StackPanel>
+          </Grid>
+          <Grid ColumnDefinitions="*,Auto" VerticalAlignment="Center" IsVisible="{Binding ThirdVariant, Converter={x:Static ObjectConverters.IsNotNull}}">
+            <TextBlock x:Name="SummaryText3" Classes="numeric miniSummary" Text="{Binding ThirdVariant.Summary}" />
+            <StackPanel Grid.Column="1" Classes="miniFinish" IsVisible="{Binding ThirdVariant.HasFinish}">
+              <ov:OverlayIcon Classes="miniFlag" />
+              <TextBlock x:Name="FinishText3" Classes="numeric miniFinishText" Text="{Binding ThirdVariant.Finish}" />
+            </StackPanel>
+          </Grid>
+        </mini:CameraMiniSummaryPanel>
       </Grid>
       <!-- T-090: Tab between them, Space / Enter toggles; a press never starts dragging the window (the button handles it). -->
       <StackPanel x:Name="Toggles"
-                  Grid.Column="5"
+                  Grid.Column="1"
+                  Margin="8,0,6,0"
                   AutomationProperties.AutomationId="CameraMiniToggles"
+                  IsVisible="{Binding ShowsToggles}"
                   Orientation="Horizontal"
                   Spacing="2">
         <ToggleButton x:Name="NameToggle"
                       Theme="{StaticResource MiniToggleTheme}"
                       AutomationProperties.AutomationId="CameraMiniToggleName"
                       AutomationProperties.Name="{Binding NameToggleName}"
+                      IsVisible="{Binding IsNameRowAvailable}"
                       ToolTip.Tip="{Binding NameToggleTip}"
                       IsChecked="{Binding IsNameRowExpanded}">
           <ov:OverlayIcon Width="16"
@@ -172,6 +236,7 @@
                       Theme="{StaticResource MiniToggleTheme}"
                       AutomationProperties.AutomationId="CameraMiniToggleChart"
                       AutomationProperties.Name="{Binding ChartToggleName}"
+                      IsVisible="{Binding IsChartRowAvailable}"
                       ToolTip.Tip="{Binding ChartToggleTip}"
                       IsChecked="{Binding IsChartRowExpanded}">
           <ov:OverlayIcon Width="16"
@@ -181,6 +246,8 @@
                           Foreground="{Binding $parent[ToggleButton].Foreground}" />
         </ToggleButton>
       </StackPanel>
+      <!-- Without toggles: the right margin of the summary row like the left one. -->
+      <Border Grid.Column="2" Width="10" IsVisible="{Binding !ShowsToggles}" />
     </Grid>
 
     <!-- Print name row (34): the compact Print name template (T-085), left 10; disappears without a job. -->
@@ -206,7 +273,7 @@
     <Border Grid.Row="3"
             Height="64"
             Padding="10,6"
-            IsVisible="{Binding IsChartRowExpanded}"
+            IsVisible="{Binding ShowsChartRow}"
             AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniChartRow"
             AutomationProperties.Name="{Binding ChartAccessibleText}">

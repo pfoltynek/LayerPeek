@@ -1,11 +1,85 @@
 # Ruční ověření na macOS (souhrnný postup)
 
 Jeden průchod všemi kroky, které na Macu může ověřit jen člověk (GUI, Gatekeeper, oprávnění macOS, přihlášení, uspaný
-displej, monitory). Kroky jsou posbírané z rozpracovaných macOS úkolů v `tasks/in-progress/` (T-095, T-053, T-018,
-T-019, T-020, T-021, T-026, T-038, T-096, T-097, T-098, T-099), bez duplicit a seřazené do sezení tak, aby na sebe
-navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
+displej, monitory). Kroky jsou posbírané z macOS úkolů (T-095, T-053, T-018, T-019, T-020, T-021, T-026, T-038, T-096,
+T-097, T-098, T-099, T-100, T-101, T-102, T-116), bez duplicit a seřazené do sezení tak, aby na sebe navazovaly. Podrobnosti
+a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
-> Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni. Když úkol přidá nebo změní ruční krok, upraví se i tady.
+Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
+[T-115 „Ruční ověření na Macu“](../tasks/todo/T-115-mac-manual-verification.md) (rozhodnutí uživatele); původní úkoly
+jsou uzavřené. Protějšek pro Windows je
+T-114 ([windows-manual-testing.md](windows-manual-testing.md)).
+
+> Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni, odkazy na T-114 / T-115 doplněny 2026-10-30. Když úkol
+> přidá nebo změní ruční krok, upraví se i tady.
+
+## Nejdřív skript `tools/macos-verify.ps1` (T-105)
+
+Většinu kroků níže dělá skript sám, ostatní provede s otázkami ano / ne. Spouští ho uživatel ve **vlastním Terminálu**
+(ne agent: v sandboxu agenta je login Keychain zamčený, oprávnění TCC nejdou udělit, displej nejde uspat a nefunguje
+`sudo`). Displej musí být probuzený, proto pod `caffeinate`:
+
+```bash
+cd -P /cesta/k/LayerPeek
+pwsh tools/macos-verify.ps1 -ListChecks                         # seznam kontrol a kritérií, která uzavírají
+caffeinate -d -u -i pwsh tools/macos-verify.ps1                 # vše, interaktivně (ptá se před každým oprávněním)
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended     # jen to, co běží bez vás (nic se neptá, nic nepovoluje)
+caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
+```
+
+- **Výsledky:** `PASS` (ověřeno automaticky), `FAIL`, `SKIP` (vždy s důvodem, např. chybí `.dmg` nebo spí displej),
+  `MANUAL` (potvrdili jste „y“; „n“ je `FAIL`). Kód 1 při jakémkoli `FAIL`. Zpráva `report.md` a `report.json`
+  s commitem, verzí aplikace a důkazy (výstupy příkazů, logy testovací aplikace, JSON oken, obrázek ikon) je
+  v `artifacts/verify/<čas>/`. Výsledek kontroly zapište do úkolu, který uvádí sloupec „Uzavírá“.
+- **Izolace:** automatické kontroly používají Debug aplikaci v testovacím režimu jako „LayerPeek E2E.app“ (vlastní
+  identifikátor `…LayerPeek.E2E`, sestavená v `artifacts/verify-bundle/`) a simulátor na `127.0.0.1`; produkční aplikaci,
+  její profil ani oprávnění nepoužívají. Na začátku skript uloží stav profilu (`tools/profile-snapshot.ps1`) a po úklidu
+  ho porovná (`mac.profile-unchanged`; Login Items jen na vyžádání, `sfltool` chce heslo správce). Úklid na konci:
+  testovací aplikace, notifikace testovacího bundlu (`--layerpeek-e2e-clear-toasts`), náhrady Login Item v testovacích
+  složkách (`--layerpeek-e2e-clear-autostart`), registrace v LaunchServices, předvolby a cache `…LayerPeek.E2E`, položky
+  Klíčenky s prefixem `LayerPeek.Tests`, dočasné složky. Řízené ruční kroky s `/Applications/LayerPeek.app` nabídnou
+  dočasné odsunutí profilu LayerPeek (žurnál `scripts/aot-smoke.ps1`, obnova i `pwsh scripts/aot-smoke.ps1 -RestoreOnly`).
+- **Známé pozůstatky:** položka „LayerPeek E2E“ v Nastavení systému → Oznámení; Terminál v Soukromí a zabezpečení →
+  Zpřístupnění, pokud jste ho povolili pro `mac.keys` (po běhu vypněte).
+
+| Kontrola | Druh | Uzavírá | Sezení níže |
+|---|---|---|---|
+| `mac.build` | automaticky | T-018 krit. 4 (build na macOS), T-053 krit. 6 (část) | – |
+| `mac.test` | automaticky | T-018 krit. 4 (testy na macOS), T-095 (kontrola) | – |
+| `mac.aot-smoke` | automaticky | T-053 krit. 6 (AOT publish `osx-arm64` bez varování) | – |
+| `mac.keychain` | automaticky | T-021 krit. 1–5 a 8 (přeskočený test = `FAIL`), krit. 7 s `mac.profile-unchanged` | 3.1 |
+| `mac.dock` | automaticky | T-019 krit. 7 (bez Docku, `lsappinfo` typ `UIElement`) | 2.1 |
+| `mac.menubar` | automaticky | T-019 krit. 7 (ikona v menu baru), T-018 krit. 3 (část: Ukončit) | 2.1, 2.3 |
+| `mac.settings-front` | automaticky | T-019 krit. 8 (Nastavení, O aplikaci, Diagnostika a další spuštění nad Finderem, `lsappinfo front`) | 2.4 |
+| `mac.plist-localnetwork` | automaticky | T-097 krit. 3 (podklad: text každého jazyka, jak ho vybere NSBundle) | 4.1 |
+| `mac.gatekeeper` | automaticky | T-019 krit. 12 (část: `spctl` odmítne kopii z `.dmg` s karanténou; potřebuje `release-build.ps1`) | 1.4 |
+| `mac.notifications` | automaticky* | T-020 krit. 1 a 5 (E2E test bundlu) | 5.1 |
+| `mac.display-wait` | automaticky | T-096 krit. 1 a T-099 krit. 1 (podklad: simulované čekání) | – |
+| `mac.camera` | automaticky | T-026 krit. 1 (část: okno a trvalé RTSP spojení v normálním, malém a celoobrazovkovém režimu) | 6.1 |
+| `mac.camera-placement` | automaticky | T-038 krit. 1 (část: J2 rohy a střed 16 bodů od pracovní plochy, D1 zvolený monitor; každý připojený monitor) | 6.2 |
+| `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události) | 6.3 |
+| `mac.socket-other-user` | oprávnění (`sudo`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |
+| `mac.display-sleep` | oprávnění (uspání displeje) | T-096 krit. 1, T-099 krit. 1 a 3 | 8.1, 8.2 |
+| `mac.icons` | ručně (obrázek) | T-018 krit. 1, T-098 krit. 2 (ikony v menu baru světlé / tmavé, @1x; ikona vedle systémových) | 2.2, 2.5 |
+| `mac.menu` | ručně | T-018 krit. 1 a 3 (stavy ikony, tooltip, menu; Ukončit ze skutečného menu), T-116 krit. 3 (obrázky tiskáren v menu) | 2.2, 2.3 |
+| `mac.camera-look` | ručně | T-026 krit. 1 (obraz a překryv ve všech režimech, simulátor) | 6.1 |
+| `mac.camera-buddy3d` | ručně | T-026 krit. 1 (skutečná kamera Buddy3D; zadáte adresu RTSP) | 6.1 |
+| `mac.notification-click` | ručně | T-020 krit. 2 (klik na doručenou notifikaci testovacího bundlu otevře web) | 5.2 |
+| `mac.gatekeeper-dialog` | ručně | T-019 krit. 12 (texty dialogů), T-026 krit. 3 (podklad) | 1.2–1.4 |
+| `mac.login-item` | ručně, dva běhy | T-019 krit. 9 (po odhlášení a přihlášení) | 7 |
+| `mac.local-network` | ručně | T-097 krit. 3 a 4 (dialog Místní síť se skutečnou tiskárnou v LAN) | 4 |
+| `mac.notifications-production` | ručně | T-020 krit. 1 (ze sestavené `.app`) a 3 (hláška při vypnutých notifikacích) | 5.3 |
+| `mac.keyboard-physical` | ručně | T-100 krit. 4 (vestavěná a Logitech klávesnice, české rozložení) | 6.3 |
+| `mac.profile-unchanged` | automaticky, po úklidu | T-021 krit. 7, T-095 (kontrola před/po) | 12.7 |
+
+\* `mac.notifications` běží bez dotazu jen tehdy, když jsou notifikace „LayerPeek E2E“ už povolené; jinak se v
+interaktivním běhu zeptá (macOS pak jednou položí svou otázku), v `-Unattended` je `SKIP`.
+
+**Zůstává jen ručně podle sezení níže** (skript na ně jen odkáže nebo se zeptá): stažení `.dmg` prohlížečem a texty
+Gatekeeperu (sezení 1), odkazy a licence v O aplikaci (2.6), heslo v produkční aplikaci a Nastavení na MacBooku 13"
+(3.2, 3.3), tlačítko „Otevřít Nastavení systému“ a prvky AppKitu v jiném jazyce (4.3, 4.5), kroky J1, J3–J7 a D2–D7
+okna kamery (6.2), aktualizace přes stávající instalaci (sezení 9), `/usr/bin/open` a `PATH` (10.2), nahrání do konceptu
+vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
 
 ## Než začnete
 
@@ -33,8 +107,9 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
   po dobu běhu (ukončí ho Ctrl+C nebo `kill %1`).
 
 ### Kam hlásit výsledky
-- Do úkolu, který krok uzavírá (uvedeno u každého kroku jako **Uzavírá**), do jeho poznámek (sekce „Výsledky ručního
-  ověření“, pokud ji úkol má), s verzí macOS a datem. Zaškrtnutí kritéria nechte na agentovi / správci úkolu.
+- Do poznámek sběrného úkolu T-115 (bod podle úkolu a kritéria, které krok uzavírá – uvedeno u každého kroku jako
+  **Uzavírá**), s verzí macOS a datem. Výsledky rozhodovacích bodů (T-038 otázky 2–3, T-100 otázky 1–2) i do
+  poznámek původního úkolu. Zaškrtnutí nechte na agentovi / správci úkolu.
 - Při chybě přiložte výňatek z `~/Library/Logs/LayerPeek/LayerPeek.log` (okno **O aplikaci → Otevřít složku s logy**;
   starší `LayerPeek.1.log` …). U E2E testů výstup `dotnet test`. Přesné texty systémových dialogů opište (nebo
   snímek obrazovky bez osobních údajů).
@@ -45,7 +120,7 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
    ```bash
    cd -P /cesta/k/LayerPeek
    caffeinate -d -u -i pwsh scripts/release-build.ps1
-   cd artifacts/release/0.3.0/dist && shasum -a 256 -c SHA256SUMS-macos.txt && cd -
+   cd artifacts/release/0.3.1/dist && shasum -a 256 -c SHA256SUMS-macos.txt && cd -
    ```
    **Očekávání:** skript skončí kódem 0; v `artifacts/release/<verze>/dist/` jsou `LayerPeek-<verze>-osx-arm64.dmg`,
    `.tar.gz` a `SHA256SUMS-macos.txt`, kontrola součtů „OK“; bundle je v `artifacts/release/<verze>/app/osx-arm64/`.
@@ -53,10 +128,10 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
 2. **Stažení prohlížečem (karanténa).** Aby Gatekeeper zasáhl jako u skutečného uživatele, musí `.dmg` přijít
    z prohlížeče. Buď z konceptu vydání na GitHubu (sezení 11), nebo místně:
    ```bash
-   python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/release/0.3.0/dist
+   python3 -m http.server 8765 --bind 127.0.0.1 --directory artifacts/release/0.3.1/dist
    ```
    V Safari otevřít `http://127.0.0.1:8765/`, stáhnout `.dmg` i `.tar.gz`, server ukončit Ctrl+C. Kontrola:
-   `xattr -p com.apple.quarantine ~/Downloads/LayerPeek-0.3.0-osx-arm64.dmg` musí něco vypsat (jinak stáhnout z GitHubu).
+   `xattr -p com.apple.quarantine ~/Downloads/LayerPeek-0.3.1-osx-arm64.dmg` musí něco vypsat (jinak stáhnout z GitHubu).
 3. **Spuštění přímo z `.dmg`.** Otevřít `.dmg`, spustit LayerPeek z okna obrazu (ne přetažený). Zapsat přesné texty
    dialogu Gatekeeperu. Po povolení (krok 4) v Nastavení LayerPeeku → Spuštění a aktualizace: volba „Otevřít při
    přihlášení“ je **neaktivní s důvodem** (jen v Aplikacích). Aplikaci ukončit (menu → Ukončit).
@@ -71,8 +146,8 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
 
 ## Sezení 2 – Menu bar, Dock a ikony
 
-1. **Bez Docku.** Spuštěná `/Applications/LayerPeek.app`: žádná ikona v Docku ani v přepínači ⌘Tab, ikona je v menu
-   baru. **Uzavírá:** T-019 kritérium 7.
+1. **Bez Docku.** Spuštěná `/Applications/LayerPeek.app` bez otevřeného okna: žádná ikona v Docku ani v přepínači
+   ⌘Tab, ikona je v menu baru (s otevřeným oknem se ikona v Docku objeví, krok 7). **Uzavírá:** T-019 kritérium 7.
 2. **Ikona v menu baru.** Ve světlém i tmavém vzhledu (Nastavení systému → Vzhled): bez tiskárny lomítko přes
    ztlumenou ikonu; s tiskárnou (simulátor: `--scenario` podle [simulator.md](simulator.md)) nečinná / ▶ s plněním
    vrstev / ❚❚ / ✓ / ! / ×. Ikona bílá na tmavém a černá na světlém menu baru, obrácená při otevřeném menu. Na externím
@@ -80,6 +155,10 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
    kritérium 1.
 3. **Menu a tooltip.** Najetí: tooltip se stavem tiskárny. Klik: menu (tiskárny, Diagnostika…, Nastavení…, O aplikaci,
    Ukončit), položky se mění se stavem. „Ukončit“ aplikaci ukončí a ikona zmizí. **Uzavírá:** T-018 kritérium 3.
+   **Obrázky tiskáren (T-116):** u položky tiskárny barevný obrázek tiskárny (18 × 18 bodů, macOS ho nepřebarví) –
+   ostrý na Retině i na externím monitoru @1x, čitelný ve světlém i tmavém vzhledu i u zvýrazněné položky (najetí
+   myší); položky menu a podmenu tiskárny (T-042) zůstanou zarovnané, text položek bez obrázku nepřeskočí. Vlastní
+   obrázek tiskárny (Nastavení → tiskárna → Obrázek) se zobrazí jako čtverec. **Uzavírá:** T-116 kritérium 3.
 4. **Okna do popředí.** Aktivní jiná aplikace (Finder s oknem): z menu Nastavení → okno je nahoře a psaní jde do něj.
    Totéž s oknem už otevřeným a schovaným za jinou aplikací, a pro Diagnostiku, O aplikaci a okno kamery.
    **Uzavírá:** T-019 kritérium 8.
@@ -91,6 +170,26 @@ navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen p
    failed“. Licence třetích stran: texty FFmpeg pro macOS bez „BtbN“ / „DLL“, odkazy na ffmpeg.org, tarball 9.0.2 a
    skript buildu (tag verze); plný text LGPL 3 se načte. **Uzavírá:** T-053 kritérium L4 (část b, kontrola `PATH` je
    v sezení 10), T-026 krok 4.
+
+7. **Ikona v Docku s otevřeným oknem (T-102).** Předpoklad: tiskárna s kamerou (sezení 6), výchozí volby okna kamery
+   (normální okno ne navrchu, malý náhled navrchu). Po každém kroku zapsat, zda je ikona LayerPeeku v Docku a v ⌘Tab:
+   - Bez okna: ne. Otevřít Nastavení → ano (okno zůstane vpředu s fokusem, žádné jiné okno se nepřeskládá). Zavřít →
+     ikona zmizí, fokus dostane jiná aplikace.
+   - Totéž pro Diagnostiku, O aplikaci (a Licence z ní) a okno kamery v normálním okně i na celé obrazovce.
+   - Okno kamery → malý náhled: ikona zmizí, náhled zůstane navrchu a dál reaguje (dvojklik zpět) – zapsat, zda
+     aplikace mezitím neztratila fokus. Náhled → normální okno: ikona se vrátí; zkontrolovat, že menu aplikace v menu
+     baru („LayerPeek“) jde otevřít (známá vlastnost AppKitu: po přepnutí na běžnou aplikaci se menu bar někdy obnoví
+     až po přepnutí na jinou aplikaci a zpět).
+   - Nastavení → Okno kamery: „Vždy navrchu“ u normálního okna zapnout a Použít/Uložit s otevřeným oknem kamery (jiné
+     okno zavřené) → ikona zmizí; vypnout → vrátí se. U malého náhledu „Vždy navrchu“ vypnout → náhled má ikonu v Docku.
+   - Okno kamery schovat za Safari: klik na ikonu v Docku → okna LayerPeeku vpředu (minimalizované okno se obnoví,
+     z celé obrazovky zpět na celou obrazovku). Pravý klik na ikonu v Docku: seznam oken s názvy („Alpha – kamera“,
+     „Nastavení“…; malý náhled bez rámečku tam být nemusí – zapsat).
+   - Menu v menu baru → tiskárna s otevřeným oknem kamery: „Zobrazit kameru“ nad „Skrýt kameru“; okno za jinou
+     aplikací, minimalizované i malý náhled navrchu přijde dopředu s fokusem. Po zavření okna položka zmizí.
+     (Windows: kroky W1–W3 v T-102.)
+   - Vývojové sestavení (`dotnet run`): ikona v Docku je obecná ikona spustitelného souboru – zapsat, jak vypadá.
+   **Uzavírá:** T-102 kritérium 6 (a otevřené otázky v T-102).
 
 ## Sezení 3 – Nastavení a Keychain
 
@@ -151,6 +250,20 @@ Aplikaci spouštět z Finderu (procesy z Terminálu mají přístup k místní s
    LayerPeeku (T-098). Pak Nastavení systému → Oznámení → LayerPeek vypnout a v Nastavení LayerPeeku → Obecné: červená
    hláška a tlačítko „Otevřít nastavení oznámení“, které otevře právě tuto stránku; po zapnutí a návratu do okna hláška
    zmizí. **Uzavírá:** T-020 kritéria 1 a 3.
+4. **Zkušební upozornění (T-101).** V produkční aplikaci Nastavení → Obecné, vpravo v řádku nadpisu „Upozornění“
+   tlačítko „Poslat zkušební upozornění“ (je tam i při odškrtnutém „Zobrazovat upozornění“).
+   (a) Oznámení povolená: klik → banner „Zkušební upozornění“ se zvukem (Zvuk ≠ Vypnuto; zvolit „Vypnuto“ bez uložení
+   a kliknout znovu → bez zvuku), vlevo od tlačítka šedý text „Zkušební upozornění odesláno… režim Soustředění“.
+   Druhý klik nahradí předchozí upozornění v Centru oznámení (je tam jen jedno). Klik na banner (i na položku v Centru
+   oznámení) přenese okno Nastavení do popředí na záložce Obecné, neotevře web tiskárny.
+   (b) Zamítnuto: Nastavení systému → Oznámení → LayerPeek vypnout, vrátit se do okna → místo tlačítka testu červená
+   hláška a „Otevřít nastavení oznámení“ (stav z kroku 3).
+   (c) Ještě se neptal (`notDetermined`): jen pokud lze bez zásahu do TCC, např. na čerstvém uživatelském účtu nebo po
+   novém bundle identifikátoru – **ne** `tccutil reset` na produkční identifikátor bez souhlasu uživatele. Klik → text
+   „Čekám na vaši odpověď…“ a systémový dotaz; Povolit → upozornění a „odesláno“, Nepovolit → hláška a „Otevřít nastavení
+   oznámení“, fokus z klávesnice zůstane na tomto tlačítku.
+   (d) Klik na zkušební upozornění, když okno Nastavení není otevřené (zavřít ho po odeslání) → okno se otevře na
+   záložce Obecné. **Uzavírá:** T-101 kritérium 4 (macOS).
 
 ## Sezení 6 – Kamera a monitory
 
@@ -158,13 +271,13 @@ Předpoklad: tiskárna s kamerou (Buddy3D v LAN, nebo kamera simulátoru `rtsp:/
 
 1. **Stream ve všech režimech.** Okno kamery z menu: obraz běží v normálním okně, na celé obrazovce i v malém náhledu,
    překryv stavu tisku je vidět ve všech třech. **Uzavírá:** T-026 kritéria 1 a 3 (s krokem 1.4 na čistém Macu).
-2. **Umístění, monitor, „vždy navrchu“, celá obrazovka** – kroky z [T-038](../tasks/in-progress/T-038-macos-camera-window-placement.md)
+2. **Umístění, monitor, „vždy navrchu“, celá obrazovka** – kroky z [T-038](../tasks/done/T-038-macos-camera-window-placement.md)
    („Ruční ověření“), stručně:
    - **Jeden monitor:** J1 název a rozlišení monitoru v bodech (stejné po restartu aplikace); J2 rohy a střed pro
      normální okno i náhled 16 bodů od kraje pracovní plochy, nikdy pod menu barem / Dockem (Dock dole, vlevo, skrytý),
      posun okna po otevření ano / ne; J3 náhled bez rámečku, přesun tažením, **změna velikosti všemi 8 hranami a rohy**,
-     výška podle poměru stran po uvolnění; J4 „vždy navrchu“ nad Finderem / Safari, **náhled nad aplikací na celé
-     obrazovce a na jiné ploše – zapsat, co se stane**; J5 celá obrazovka (F11 / dvojklik / tlačítko, vlastní plocha,
+     výška podle poměru stran po uvolnění; J4 „vždy navrchu“ nad Finderem / Safari, **malý náhled navrchu je vidět
+     nad aplikací na celé obrazovce i na každé jiné ploše** (T-038 otázka 1 b); J5 celá obrazovka (F11 / dvojklik / tlačítko, vlastní plocha,
      Esc, zelené tlačítko), **z celé obrazovky rovnou do náhledu** a „Použít“ během celé obrazovky – zapsat velikost
      a polohu náhledu; J6 zapamatování polohy po restartu; J7 nastavení na MacBooku 13" (sezení 3).
    - **Dva monitory:** D1 okno, náhled i celá obrazovka na zvoleném externím monitoru; D2 monitor nad / vlevo; D3
@@ -174,6 +287,24 @@ Předpoklad: tiskárna s kamerou (Buddy3D v LAN, nebo kamera simulátoru `rtsp:/
      ukáže UUID; D7 náhled mezi Retinou a monitorem @1x.
    **Uzavírá:** T-038 kritérium 1 (a otázky 1–3 v T-038), T-026 krok 1 (vždy navrchu, celá obrazovka, bez rámečku,
    tažení a změna velikosti).
+3. **Klávesové zkratky podle Applu (T-100)** – na vestavěné klávesnici Macu i na externí (např. Logitech). Pozor:
+   horní řada posílá na Macu mediální funkce, F-klávesy jdou jen s `fn` (u Logitechu s Fn Lock / Fn+Esc), a F11 má
+   macOS ve výchozím stavu pro „Zobrazit plochu“ – proto se k aplikaci nedostane. Postup:
+   - **Okno kamery:** ⌃⌘F přepne na celou obrazovku a zpět; Esc i ⌘. vrátí z celé obrazovky (a z malého náhledu do
+     normálního okna); ⌘W zavře okno ve všech třech režimech (aplikace běží dál); v režimu úprav rozvržení ⌘. zahodí
+     změny jako Esc. Tooltip tlačítka celé obrazovky ukazuje „⌃⌘F“, ne „F11“ (zkusit i jiný jazyk aplikace). F11 jako
+     záloha: jen pokud ji macOS nezabere (`fn`+F11 obvykle ukáže plochu – zapsat, co se stane).
+   - **Nastavení:** ⌘⇧] / ⌘⇧[ přepíná hlavní záložky (dokola), ⌘⌥→ / ⌘⌥← záložky tiskárny (Připojení, Kamera, Okno
+     kamery); ⌃Tab a ⌃⇧Tab fungují dál. Upravit jméno tiskárny a stisknout ⌘W (a v dalším pokusu ⌘.): okno se zavře
+     jako Zrušit, změna se neuloží. Enter = Uložit, Esc = Zrušit beze změny. S otevřeným rozbalovacím seznamem (např.
+     typ připojení tiskárny) ⌘. zavře jen seznam jako Esc a okno zůstane otevřené (T-100 otázka 3, rozhodnuto
+     2026-10-30); další ⌘. je Zrušit. ⌘W zavře okno i s otevřeným seznamem. Stejně v Diagnostice s otevřeným výběrem
+     tiskárny (aspoň dvě tiskárny): ⌘. zavře jen seznam, další ⌘. okno.
+   - **Diagnostika, O aplikaci, Licence:** ⌘W i ⌘. okno zavře (Licence zavřou jen sebe, O aplikaci zůstane).
+   - **Jiné rozložení klávesnice:** totéž s **českým** rozložením (Nastavení systému → Klávesnice → Zdroje vstupu):
+     ⌘⇧] / ⌘⇧[ = klávesy vpravo od P (na české klávesnici „ú“ a „)“); zapsat, zda přepínají záložky a zda se nestane
+     něco jiného. ⌃⌘F, ⌘W a ⌘. zkusit také.
+   **Uzavírá:** T-100 kritérium 4; výsledek rozhodne otázky 1 a 2 z T-100 (body v T-115).
 
 ## Sezení 7 – Otevřít při přihlášení, odhlášení a přihlášení
 
@@ -218,6 +349,9 @@ LayerPeek nesmí běžet; tiskárna nastavená (pro krok 3 se simulátorem nebo 
    (c) při prvním čtení hesla tiskárny dialog Klíčenky „LayerPeek chce použít důvěrné informace…“ (Povolit / Vždy
    povolit / Zamítnout)? Zvolit „Povolit“ a zapsat, jestli se objeví znovu při dalším spuštění (T-021 otázka k podpisu).
    **Uzavírá:** T-097 krok 4, T-020 krok 4, T-021 (riziko ad-hoc podpisu).
+3. **Přechod na hardened runtime (T-108).** Uložit heslo tiskárny ve verzi bez T-108 (např. 0.3.0), pak nainstalovat
+   sestavení s T-108 přes ni. Očekávání: nejvýš jeden dialog Klíčenky, po „Vždy povolit“ už žádný; aplikace normálně
+   běží (menu bar, kamera, notifikace). Zapsat výsledek do `tasks/done/T-108-macos-hardened-runtime.md`.
 
 ## Sezení 10 – Vývojové sestavení (T-053)
 
@@ -272,5 +406,7 @@ nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.
    zůstat (s úplným úklidem „No change“, Login Items bez autorizace „not checked“).
 
 ## Mimo Mac (připomínka)
-Na Windows zbývá ověřit `dotnet build` a `dotnet test` po macOS úkolech (T-095 kritérium Windows, T-018 kritérium 4,
-T-026, T-053, T-097, T-099 „Windows beze změny“) – mimo tento postup.
+Vše, co zbývá ověřit na Windows (build a testy po macOS úkolech, windowsová sada snímků z T-101, T-103, T-106, T-109–T-112
+a T-058, instalátor s autostartem z T-017, zkušební toast z T-101, hlavní panel z T-102, web přes proxy z T-107), je ve
+sběrném úkolu [T-114 „Ověření na Windows“](../tasks/todo/T-114-windows-verification.md): skript
+`tools/windows-verify.ps1`, postup v [windows-manual-testing.md](windows-manual-testing.md).

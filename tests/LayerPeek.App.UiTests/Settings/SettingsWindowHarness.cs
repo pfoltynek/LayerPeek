@@ -38,8 +38,20 @@ internal sealed class SettingsWindowHarness
 
     public bool IsOpen => Window.IsVisible;
 
+    /// <summary>The manual update check of the window (T-058) that always finds the running version up to date.</summary>
+    internal static Task<LayerPeek.Core.Updates.UpdateCheckResult> UpToDate(CancellationToken cancellationToken) =>
+        Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(LayerPeek.Core.Updates.UpdateCheckOutcome.UpToDate, null));
+
+    /// <summary>The manual update check (T-058) that finds version 0.3.2.</summary>
+    internal static Task<LayerPeek.Core.Updates.UpdateCheckResult> Available(CancellationToken cancellationToken) =>
+        Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(
+            LayerPeek.Core.Updates.UpdateCheckOutcome.UpdateAvailable,
+            new LayerPeek.Core.Updates.UpdateRelease(LayerPeek.Core.Updates.ReleaseVersion.Parse("0.3.2"), LayerPeek.Core.Updates.UpdateRelease.PageFor(LayerPeek.Core.Updates.ReleaseVersion.Parse("0.3.2")), IsPrerelease: true)));
+
     /// <summary>
-    /// Opens and loads the window; new printers get the ids "p1", "p2"... in order. The Widgets tab lists the widgets of the
+    /// Opens and loads the window; new printers get the ids "p1", "p2"... in order. The OS shows the notifications
+    /// (<see cref="FakeSystemNotificationSettings"/>, T-101: the test button is in the heading of the notifications) unless
+    /// <paramref name="notificationSettings"/> says otherwise. The Widgets tab lists the widgets of the
     /// app's registration (with the Cool-down panel, T-088) unless <paramref name="widgets"/> says otherwise; announced
     /// layouts are taken over right away.
     /// </summary>
@@ -61,16 +73,21 @@ internal sealed class SettingsWindowHarness
         ICameraOverlayLayoutWriter? layoutWriter = null,
         bool macTerms = false,
         LayerPeek.App.Platform.ISystemNotificationSettings? notificationSettings = null,
-        LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null)
+        LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null,
+        Func<CancellationToken, Task<LayerPeek.Core.Updates.UpdateCheckResult>>? checkForUpdatesNow = null,
+        bool showsMoveToApplications = false)
     {
         ArgumentNullException.ThrowIfNull(scope);
         AuxiliaryWindowSlot slot = new();
         Queue<string> ids = new(["p1", "p2", "p3"]);
-        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? LayerPeek.App.Composition.OverlayWidgets.CreateRegistry(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher(), notificationSettings: notificationSettings, localNetwork: localNetwork)
+        SettingsViewModel viewModel = new(store, tester ?? new FakeConnectionTester(), policy ?? Supported, ids.Dequeue, cameraTester ?? new FakeCameraTester(), screens: screens, cameraWindowStates: cameraWindowStates, cameraWindowPlacer: cameraWindowPlacer, autostart: autostartNeedsInstallation ? null : autostart ?? new MemoryAutostart(), autostartNeedsInstallation: autostartNeedsInstallation, productVersion: "0.1.0", widgets: widgets ?? LayerPeek.App.Composition.OverlayWidgets.CreateRegistry(), layoutModeLauncher: layoutModeLauncher ?? new FakeLayoutModeLauncher(), layoutWriter: layoutWriter, uiDispatcher: new InlineDispatcher(), notificationSettings: notificationSettings ?? new FakeSystemNotificationSettings(), localNetwork: localNetwork)
         {
-            // T-019: the texts of macOS ("Open at Login"), without the pre-release option.
+            // T-019: the texts of macOS ("Open at Login"). T-058: the pre-release option on every OS (Q3 a), "Check now" (Q4 a,
+            // by default "up to date") and the macOS hint to move the app first (Q8 a).
             UsesMacTerms = macTerms,
-            ShowsPrereleaseOption = !macTerms,
+            ShowsPrereleaseOption = true,
+            CheckForUpdatesNow = checkForUpdatesNow ?? UpToDate,
+            ShowsMoveToApplications = showsMoveToApplications,
         };
         // Like SettingsWindowFactory: the window has a file dialog for custom printer images (T-039); by default the user cancels it.
         viewModel.ImageFilePicker = imagePicker ?? new FakeImagePicker { Content = null };
@@ -175,21 +192,6 @@ internal sealed class MemoryApprovalAutostart : LayerPeek.App.Platform.IAutostar
     public bool NeedsApproval() => RequiresApproval;
 
     public void OpenApprovalSettings() => Opened++;
-}
-
-/// <summary>
-/// The notification settings of macOS (T-020) in memory: whether they are turned off is set by the test, opening System
-/// Settings is only counted.
-/// </summary>
-internal sealed class MemoryNotificationSettings : LayerPeek.App.Platform.ISystemNotificationSettings
-{
-    public bool TurnedOff { get; set; }
-
-    public int Opened { get; private set; }
-
-    public Task<bool> AreTurnedOffAsync(CancellationToken cancellationToken) => Task.FromResult(TurnedOff);
-
-    public void Open() => Opened++;
 }
 
 /// <summary>Runs posted work right away (the tests call from the UI thread).</summary>

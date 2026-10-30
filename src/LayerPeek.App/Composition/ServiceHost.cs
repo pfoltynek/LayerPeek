@@ -125,6 +125,12 @@ internal sealed partial class ServiceHost
 
             // Before the tray view models (resolved by the tray or the monitoring session) format their first texts.
             services.GetRequiredService<UiLanguage>().Apply(initialSettings.Language);
+            // T-058: a click on the update notification starts the update with the services, also while macOS waits for a
+            // display (T-099, like a click on a printer notification opens its web then); the quit after the download is the
+            // one of whoever runs the app at that moment (the wait, then the UI: UpdateOffer.AttachQuit).
+            Updates.UpdateOffer updates = services.GetRequiredService<Updates.UpdateOffer>();
+            IUiDispatcher dispatcher = services.GetRequiredService<IUiDispatcher>();
+            services.GetRequiredService<ToastActivationRouter>().AttachUpdateOpener(() => dispatcher.Post(() => _ = updates.RunAsync()));
             return new ServiceHost(loggerFactory, logging, environment, services, initialSettings, loadStatus, storedPrinterIds, backgroundWork);
         }
         catch
@@ -195,6 +201,15 @@ internal sealed partial class ServiceHost
             _ = Services.GetRequiredService<ToastActivationRouter>().ActivateAsync(launchArgument);
         }
     }
+
+    /// <summary>
+    /// The UI runs (T-101): a click on the test notification brings the settings window to the front through
+    /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
+    /// </summary>
+    public void AttachSettingsOpener(Action open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
+
+    /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window.</summary>
+    public Updates.UpdateOffer UpdateOffer => Services.GetRequiredService<Updates.UpdateOffer>();
 
     /// <summary>
     /// Stops monitoring (waiting at most <paramref name="timeout"/>) and releases the services. The tray (if any) released

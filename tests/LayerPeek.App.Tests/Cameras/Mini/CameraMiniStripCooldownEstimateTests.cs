@@ -31,7 +31,7 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
     public CameraMiniStripCooldownEstimateTests()
     {
         _cooldown = new CooldownMonitor(_monitor, _time, new ListLogger<CooldownMonitor>());
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(PollSeconds));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(PollSeconds));
     }
 
     public void Dispose()
@@ -41,7 +41,7 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
     }
 
     private static CooldownState Cooling(TimeSpan? remaining, DateTimeOffset updatedAt) =>
-        new(CooldownPhase.Cooling, 87.4, 45, 50, 0.3, remaining, Now, updatedAt, CooldownPrintOutcome.Finished, Now, null);
+        new(CooldownPhase.Cooling, 87.4, 45, 50, 40, 0.3, remaining, Now, updatedAt, CooldownPrintOutcome.Finished, Now, null);
 
     /// <summary>A strip on the fake clock that gets the snapshots of its printer after the cool-down monitor.</summary>
     private CameraMiniStripViewModel Create()
@@ -87,10 +87,10 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
     [Fact]
     public void ExpiredEstimateShowsOnlyTheNozzleNeverZeroMinutes()
     {
-        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), Cooling(TimeSpan.Zero, Now), Now);
+        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), Cooling(TimeSpan.Zero, Now), Now, TimeZoneInfo.Utc);
 
-        Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, null, 87), content);
-        Assert.Equal($"Cooling down… 87{Nbsp}°C", CameraMiniStripViewModel.Texts(content).Summary);
+        Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, null, 87, CoolingPercent: 30, NozzleCelsius: 87, BedCelsius: 45), content);
+        Assert.Equal($"Cooling down… 87{Nbsp}°C", CameraMiniStripViewModel.Texts(content).First.Summary);
     }
 
     [Fact]
@@ -99,8 +99,8 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
         // Monitoring stopped: the same rule and the same limit as the Cool-down widget.
         CooldownState state = Cooling(TimeSpan.FromMinutes(30), Now);
 
-        Assert.Equal(30, MiniStripContent.Of(Snapshot(PrinterState.Finished), state, Now + CooldownEstimate.StaleAfter).Minutes);
-        Assert.Null(MiniStripContent.Of(Snapshot(PrinterState.Finished), state, Now + CooldownEstimate.StaleAfter + TimeSpan.FromSeconds(1)).Minutes);
+        Assert.Equal(30, MiniStripContent.Of(Snapshot(PrinterState.Finished), state, Now + CooldownEstimate.StaleAfter, TimeZoneInfo.Utc).Minutes);
+        Assert.Null(MiniStripContent.Of(Snapshot(PrinterState.Finished), state, Now + CooldownEstimate.StaleAfter + TimeSpan.FromSeconds(1), TimeZoneInfo.Utc).Minutes);
     }
 
     [Fact]
@@ -112,7 +112,7 @@ public sealed class CameraMiniStripCooldownEstimateTests : IDisposable
             {
                 CooldownState state = Cooling(remaining, Now);
 
-                Assert.Equal(CooldownEstimate.Minutes(state, now), MiniStripContent.Of(Snapshot(PrinterState.Finished), state, now).Minutes);
+                Assert.Equal(CooldownEstimate.Minutes(state, now), MiniStripContent.Of(Snapshot(PrinterState.Finished), state, now, TimeZoneInfo.Utc).Minutes);
             }
         }
     }

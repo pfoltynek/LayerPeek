@@ -10,8 +10,9 @@
     Output (artifacts/ is gitignored), recreated on every run for the version:
         artifacts/release/<version>/publish/<rid>/   Native AOT publish folder
         artifacts/release/<version>/dist/            files to upload: archives, the Velopack installer and update feed (Windows),
-                                                     the .dmg and the .tar.gz of LayerPeek.app (macOS) + SHA256SUMS-<os>.txt
-        artifacts/release/<version>/app/<rid>/       the signed LayerPeek.app (macOS, T-019)
+                                                     the .dmg and the .tar.gz of LayerPeek.app and the Velopack package and
+                                                     update feed (macOS, T-058) + SHA256SUMS-<os>.txt
+        artifacts/release/<version>/app/<rid>/       the signed LayerPeek.app of vpk (macOS, T-019, T-058: portable/)
         artifacts/release/<version>/build-info.json  build marker (version, commit, clean tree, files) that
                                                      release-upload.ps1 checks so that no older build is uploaded
     Build all RIDs of this OS in one run: a new run deletes the previous output of the same version.
@@ -49,7 +50,7 @@ $smokeScript = Join-Path $PSScriptRoot 'aot-smoke.ps1'
 # Packaging steps, run for every RID in this order. Each step gets a context object (Version, Runtime, Os,
 # PublishDirectory, OutputDirectory), creates its files directly in OutputDirectory (dist/) and returns their paths.
 # Returned files go automatically into the checksum file, the build marker and the upload.
-# Installers are further steps (T-017: the Windows installer, T-019: macOS .app + .dmg + .tar.gz); the build and
+# Installers are further steps (T-017: the Windows installer, T-019/T-058: macOS .app of vpk + .dmg + .tar.gz + feed); the build and
 # publish part above them does not change. Os limits a step to RIDs of that OS.
 $packagingSteps = @(
     # Windows: the .zip of the publish folder. macOS packs LayerPeek.app instead (step 'app' below, T-019).
@@ -91,10 +92,14 @@ $packagingSteps = @(
         }
     },
     # T-019: LayerPeek.app (Info.plist with the bundle identifier and LSUIElement, icon from the 1024 px master, T-097: the
-    # InfoPlist.strings of every app language, checked and linted with plutil), checked for
-    # the FFmpeg libraries and for references to Homebrew (T-026), ad-hoc signed inside out (FFmpeg and the other native
-    # libraries first) and verified, smoke-tested as the bundle, then the .dmg (the app and a link to /Applications) and the
-    # .tar.gz of the app. The signed app stays in artifacts/release/<version>/app/<rid>/ for local use.
+    # InfoPlist.strings of every app language, checked and linted with plutil), checked for the FFmpeg libraries and for
+    # references to Homebrew (T-026). T-058 (decision Q9 a): vpk packs that finished bundle and signs it ad hoc inside out
+    # with the hardened runtime and the entitlements of build/macos/LayerPeek.entitlements (T-108), adding the updater
+    # UpdateMac and the manifest sq.version; the .app of its Portable.zip is what users get: verified (codesign --verify
+    # --deep --strict, hardened runtime, Velopack manifest), smoke-tested as the bundle, then the .dmg (the app and a link to
+    # /Applications) and the .tar.gz of it. The .app inside the .nupkg (what an update installs) gets the hardened-runtime
+    # check too. dist gets the .dmg, the .tar.gz, the .nupkg and the feed of the osx-arm64 channel; no .pkg, no Portable.zip.
+    # The signed app stays in artifacts/release/<version>/app/<rid>/portable/ for local use.
     [pscustomobject]@{
         Name   = 'app'
         Os     = @('macos')
@@ -123,23 +128,49 @@ $packagingSteps = @(
             # T-026: the FFmpeg libraries are in the bundle and nothing loads from Homebrew or /usr/local.
             $libraryProblems = @(Get-MacBundleLibraryProblems $app)
             if ($libraryProblems.Count -gt 0) { throw ($libraryProblems -join ' ') }
-            Write-Host "==> Ad-hoc signing $app" -ForegroundColor Cyan
-            Invoke-MacAdHocSign $app
-            $problems = @(Get-MacSignatureProblems $app)
+
+            # T-058: vpk signs and packs the bundle (its own folder next to dist/, deleted afterwards except the app).
+            $velopack = Join-Path $work 'velopack'
+            $null = New-Item -ItemType Directory -Path (Join-Path $velopack 'out')
+            $notes = Join-Path $velopack 'release-notes.md'
+            $text = Get-ChangelogSection -Path (Join-Path $repoRoot 'CHANGELOG.md') -Version $Context.Version -AllowUndated
+            [System.IO.File]::WriteAllText($notes, $text + "`n", [System.Text.UTF8Encoding]::new($false))
+            $arguments = Get-VelopackMacPackArguments -Version $Context.Version -Runtime $Context.Runtime -AppPath $app `
+                -OutputDirectory (Join-Path $velopack 'out') -ReleaseNotesFile $notes -Entitlements (Get-MacEntitlementsPath)
+            Write-Host "==> Ad-hoc signing and packing $app (vpk)" -ForegroundColor Cyan
+            # A local tool: dotnet finds .config/dotnet-tools.json from the current folder. Its console output must not become
+            # a returned path.
+            Push-Location $repoRoot
+            try { Invoke-Native "vpk pack $($Context.Runtime)" { dotnet @arguments | Out-Host } }
+            finally { Pop-Location }
+            $feed = @(Copy-VelopackOutput -VelopackDirectory (Join-Path $velopack 'out') -OutputDirectory $Context.OutputDirectory -Version $Context.Version -Runtime $Context.Runtime)
+            $portableFolder = Expand-ZipWithDitto -ZipPath (Join-Path $velopack 'out' (Get-VelopackPortableFileName $Context.Runtime)) -Destination (Join-Path $work 'portable')
+            $signed = Join-Path $portableFolder $mac.BundleName
+            $packageFolder = Expand-ZipWithDitto -ZipPath (Join-Path $Context.OutputDirectory @((Get-VelopackOutputMap -Version $Context.Version -Runtime $Context.Runtime).Keys)[0]) -Destination (Join-Path $velopack 'package')
+            Remove-Item -LiteralPath $bundleFolder -Recurse -Force
+
+            $problems = @(Get-MacSignatureProblems $signed) + @(Get-MacPlistLintProblems $signed) + @(Get-MacVelopackBundleProblems -AppPath $signed -Version $Context.Version -Runtime $Context.Runtime)
             if ($problems.Count -gt 0) { throw ($problems -join ' ') }
-            Write-Host 'codesign --verify --deep --strict: valid'
+            Write-Host 'codesign --verify --deep --strict: valid; UpdateMac and sq.version present'
+            # T-108: the hardened runtime on every Mach-O file and exactly the entitlements of build/macos/LayerPeek.entitlements,
+            # in the app users install and in the app an update installs (the .nupkg).
+            $runtimeProblems = @(Get-MacHardenedRuntimeProblems $signed) + @(Get-MacHardenedRuntimeProblems (Join-Path $packageFolder 'lib' 'app'))
+            if ($runtimeProblems.Count -gt 0) { throw ($runtimeProblems -join ' ') }
+            Write-Host "Hardened runtime on every Mach-O file (Portable.zip and .nupkg), entitlements: $($mac.EntitlementKeys -join ', ')"
+            Remove-Item -LiteralPath $velopack -Recurse -Force
             if (Test-RuntimeRunnable -Runtime $Context.Runtime -HostOs $Context.Os -HostArchitecture (Get-HostArchitecture)) {
                 # The bundle itself: its Info.plist (bundle identifier, LSUIElement) and its signature are what users start.
-                $before = Get-FolderSnapshot $app
+                $before = Get-FolderSnapshot $signed
                 # Its console output must not become a returned path.
-                Invoke-Native "AOT smoke test $($Context.Runtime) (LayerPeek.app)" { Invoke-Pwsh -NoProfile -File $smokeScript -Runtime $Context.Runtime -PublishDir (Join-Path $app 'Contents' 'MacOS') -Seconds $SmokeSeconds | Out-Host }
-                if ((Get-FolderSnapshot $app) -ne $before -or @(Get-MacSignatureProblems $app).Count -gt 0) { throw "The smoke run changed $app; it must not be packaged." }
+                Invoke-Native "AOT smoke test $($Context.Runtime) (LayerPeek.app)" { Invoke-Pwsh -NoProfile -File $smokeScript -Runtime $Context.Runtime -PublishDir (Join-Path $signed 'Contents' 'MacOS') -Seconds $SmokeSeconds | Out-Host }
+                if ((Get-FolderSnapshot $signed) -ne $before -or @(Get-MacSignatureProblems $signed).Count -gt 0) { throw "The smoke run changed $signed; it must not be packaged." }
                 $smoke["$($Context.Runtime) LayerPeek.app"] = 'passed'
             }
-            $archive = New-ReleaseArchive -SourceDirectory $bundleFolder -Destination (Join-Path $Context.OutputDirectory $names.Archive)
-            $diskImage = New-MacDiskImage -AppPath $app -Destination (Join-Path $Context.OutputDirectory $names.DiskImage) -WorkDirectory $work
+            $archive = New-ReleaseArchive -SourceDirectory $portableFolder -Destination (Join-Path $Context.OutputDirectory $names.Archive)
+            $diskImage = New-MacDiskImage -AppPath $signed -Destination (Join-Path $Context.OutputDirectory $names.DiskImage) -WorkDirectory $work
             $diskImage
             $archive
+            $feed
         }
     }
 )
@@ -181,8 +212,9 @@ try {
     # Fails before the long build when the AOT toolchain of a requested RID is missing (shared with scripts/release.ps1).
     $toolchainProblems = @(Get-NativeToolchainProblems -Runtimes $runtimes -HostOs $hostOs)
     if ($toolchainProblems.Count -gt 0) { throw ($toolchainProblems -join ' ') }
-    if ($hostOs -eq 'windows') {
-        # The Velopack installer step (T-017): vpk pinned in .config/dotnet-tools.json, the same version as the NuGet package.
+    # The Velopack steps (T-017 Windows installer, T-058 macOS app): vpk pinned in .config/dotnet-tools.json, the same version
+    # as the NuGet package.
+    if ($hostOs -in 'windows', 'macos') {
         $velopackProblems = @(Get-VelopackVersionProblems -PackagesPropsPath (Join-Path $repoRoot 'Directory.Packages.props') -ToolManifestPath (Join-Path $repoRoot '.config' 'dotnet-tools.json'))
         if ($velopackProblems.Count -gt 0) { throw ($velopackProblems -join ' ') }
         Push-Location $repoRoot

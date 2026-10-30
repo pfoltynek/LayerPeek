@@ -46,6 +46,8 @@ public sealed class TemperatureChartData
 
     private readonly ChartColumn[][] _series = [[], [], [], []];
     private readonly int[] _seriesCounts = new int[SeriesCount];
+    private readonly float[] _seriesMin = new float[SeriesCount];
+    private readonly float[] _seriesMax = new float[SeriesCount];
     private TelemetrySample[] _samples = [];
     private TelemetryHistory? _history;
     private string? _printerId;
@@ -131,6 +133,18 @@ public sealed class TemperatureChartData
         return _series[index].AsSpan(0, _seriesCounts[index]);
     }
 
+    /// <summary>
+    /// Lowest and highest value of <paramref name="series"/> in the range of the last <see cref="Update"/>; both NaN when
+    /// the series has no value there (the compact chart scales each band by this, T-106).
+    /// </summary>
+    public (float Min, float Max) GetRange(TemperatureSeries series)
+    {
+        int index = (int)series;
+        ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(series));
+        ArgumentOutOfRangeException.ThrowIfGreaterThanOrEqual(index, SeriesCount, nameof(series));
+        return (_seriesMin[index], _seriesMax[index]);
+    }
+
     private static float ValueOf(in TelemetrySample sample, int series) => series switch
     {
         0 => sample.NozzleActual,
@@ -200,6 +214,8 @@ public sealed class TemperatureChartData
         int columns = Columns;
         EnsureColumnBuffers(columns);
         Array.Clear(_seriesCounts);
+        _seriesMin.AsSpan().Fill(float.NaN);
+        _seriesMax.AsSpan().Fill(float.NaN);
 
         long fromTicks = From.UtcTicks;
         double span = To.UtcTicks - fromTicks;
@@ -237,6 +253,16 @@ public sealed class TemperatureChartData
                 {
                     // Also replaces the initial NaN.
                     max = value;
+                }
+
+                if (!(value >= _seriesMin[s]))
+                {
+                    _seriesMin[s] = value;
+                }
+
+                if (!(value <= _seriesMax[s]))
+                {
+                    _seriesMax[s] = value;
                 }
 
                 if (accumulator.Column == column)

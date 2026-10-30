@@ -70,4 +70,38 @@ public sealed class ToastLaunchArgumentTests
         Assert.Throws<ArgumentException>(() => ToastLaunchArgument.ForPrinter(" "));
         Assert.Throws<ArgumentNullException>(() => ToastLaunchArgument.ForPrinter(null!));
     }
+
+    /// <summary>T-101: the test notification carries exactly this argument; it names no printer.</summary>
+    [Fact]
+    public void TheArgumentOfTheTestNotificationIsWellFormedButNoPrinter()
+    {
+        Assert.Equal("settings=general", ToastLaunchArgument.Settings);
+        Assert.True(ToastLaunchArgument.IsSettings(ToastLaunchArgument.Settings));
+        Assert.True(ToastLaunchArgument.IsWellFormed(ToastLaunchArgument.Settings));
+        Assert.False(ToastLaunchArgument.TryGetPrinterId(ToastLaunchArgument.Settings, out _));
+    }
+
+    /// <summary>T-101: only the exact text opens the settings; anything near it is refused like any foreign argument (T-068).</summary>
+    [Theory]
+    [InlineData("settings=General")]
+    [InlineData("SETTINGS=general")]
+    [InlineData("settings=general ")]
+    [InlineData(" settings=general")]
+    [InlineData("settings=")]
+    [InlineData("settings")]
+    [InlineData("settings=printers")]
+    [InlineData("settings=general&printer=mk4")]
+    [InlineData("settings=general\n")]
+    public void NothingButTheExactArgumentOfTheTestNotificationIsAccepted(string argument)
+    {
+        Assert.False(ToastLaunchArgument.IsSettings(argument));
+        Assert.False(ToastLaunchArgument.IsWellFormed(argument));
+    }
+
+    [Fact]
+    public void NoPrinterIdProducesTheArgumentOfTheTestNotification()
+    {
+        Assert.False(ToastLaunchArgument.IsSettings(ToastLaunchArgument.ForPrinter("settings=general")));
+        Assert.False(ToastLaunchArgument.IsSettings(ToastLaunchArgument.ForPrinter("general")));
+    }
 }

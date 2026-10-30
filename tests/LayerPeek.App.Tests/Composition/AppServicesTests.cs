@@ -53,8 +53,9 @@ public sealed class AppServicesTests
     }
 
     /// <summary>
-    /// T-017: only the app's own exe may create the autostart shortcut, and updates exist only in a Velopack installation;
-    /// the test host is neither, so nothing here can touch the Startup folder or GitHub.
+    /// T-017: only the app's own exe may create the autostart shortcut, and Velopack updates exist only in a Velopack
+    /// installation; T-058: only the app's own exe asks GitHub. The test host is neither, so nothing here can touch the
+    /// Startup folder or the network: the offer opens release pages and a check fails without a request.
     /// </summary>
     [Fact]
     public async Task OutsideTheInstalledAppThereIsNoAutostartAndNoUpdate()
@@ -62,9 +63,12 @@ public sealed class AppServicesTests
         await using ServiceProvider services = AppServices.Create();
 
         Assert.Null(services.GetRequiredService<LayerPeek.App.Platform.AutostartOption>().Autostart);
-        LayerPeek.App.Installer.AppUpdates updates = services.GetRequiredService<LayerPeek.App.Installer.AppUpdates>();
-        Assert.False(updates.IsAvailable);
-        Assert.Null(await updates.CheckAsync(TestContext.Current.CancellationToken));
+        LayerPeek.App.Updates.UpdateOffer updates = services.GetRequiredService<LayerPeek.App.Updates.UpdateOffer>();
+        Assert.Equal(LayerPeek.App.Updates.UpdateAction.OpenReleasePage, updates.Action);
+        Assert.False(updates.NeedsMoveToApplications);
+        Assert.Null(updates.Available);
+        LayerPeek.Core.Updates.UpdateCheckResult result = await updates.CheckNowAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(LayerPeek.Core.Updates.UpdateCheckOutcome.Failed, result.Outcome);
     }
 
     /// <summary>User decision 2026-10-24: start after logon only for the app installed by the installer.</summary>
@@ -196,7 +200,19 @@ public sealed class AppServicesTests
         await using ServiceProvider services = AppServices.Create(loggerFactory: null, windows: true, macNotifications: center);
 
         Assert.IsNotType<UserNotificationService>(services.GetRequiredService<INotificationService>());
-        Assert.Null(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+        Assert.IsNotType<MacNotificationSettings>(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+    }
+
+    /// <summary>T-101: the settings window of Windows reads and tests through the toasts of this run, without starting them.</summary>
+    [Fact]
+    public async Task WindowsSettingsUseTheToastsOfThisRun()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Toast notifications exist only on Windows.");
+        await using ServiceProvider services = AppServices.Create();
+
+        Assert.IsType<ToastNotificationSettings>(services.GetRequiredService<SystemNotificationSettingsOption>().Settings);
+        ToastNotificationService toasts = Assert.IsType<ToastNotificationService>(services.GetRequiredService<INotificationService>());
+        Assert.False(toasts.Completion.IsCompleted);
     }
 
 #if DEBUG

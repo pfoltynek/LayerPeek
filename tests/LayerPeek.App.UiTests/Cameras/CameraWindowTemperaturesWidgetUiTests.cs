@@ -46,6 +46,9 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
 
     private static readonly TimeSpan HistoryInterval = TimeSpan.FromSeconds(20);
 
+    /// <summary>The column of the band range labels of the L chart (T-106).</summary>
+    private const double RangeColumn = 80;
+
     private static readonly Color Accent = Color.Parse("#FA6831");
 
     private static readonly Color Primary = Color.Parse("#F4F4F5");
@@ -111,6 +114,19 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
                 Timestamp = time,
                 Telemetry = new Telemetry { Nozzle = new Temperature(nozzle, ago > 60 ? 0 : 215), Bed = new Temperature(ago > 58 ? 25 : 60, ago > 60 ? 0 : 60) },
             });
+        }
+    }
+
+    /// <summary>
+    /// A sample every 20 s over the 70 minutes before <see cref="TestPrinters.Now"/> of a printer holding its
+    /// temperatures: the nozzle 215 °C ± 1.5 °C, the bed 60 °C ± 0.5 °C (without a bed when <paramref name="withBed"/> is false).
+    /// </summary>
+    private static void RecordSteadyHistory(CameraHarness harness, bool withBed = true)
+    {
+        for (DateTimeOffset time = Now - TimeSpan.FromMinutes(70); time <= Now; time += HistoryInterval)
+        {
+            double ago = (Now - time).TotalMinutes;
+            harness.History.Record(Heating(nozzle: 215 + (1.5 * Math.Sin(ago / 3)), bed: 60 + (0.5 * Math.Sin(ago / 5)), withBed: withBed) with { Timestamp = time });
         }
     }
 
@@ -256,10 +272,11 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
                     Assert.Equal(Tertiary, ColorOf(axis.Foreground));
                 }
 
-                // "−60 min" at the left edge of the chart, "now" at its right edge.
+                // "−60 min" at the left edge of the plot, "now" at its right edge (in L left of the range labels, T-106).
                 Rect plot = BoundsInWindow(sparkline, window);
                 Assert.Equal(plot.Left, BoundsInWindow(start, window).Left, 0.5);
-                Assert.Equal(plot.Right, BoundsInWindow(now, window).Right, 0.5);
+                Assert.Equal(plot.Right - sparkline.BandRangeWidth, BoundsInWindow(now, window).Right, 0.5);
+                Assert.Equal(size == OverlayWidgetSize.Large ? RangeColumn : 0, sparkline.BandRangeWidth);
             }
         });
 
@@ -630,6 +647,211 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             AssertFits(window, OverlayWidgetSize.Large);
         });
 
+    // ---- Bands of the compact chart (T-106) ----
+
+    [Fact]
+    public Task SparklineGivesEachSeriesItsOwnBandWhereAFluctuationIsVisible() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
+            RecordSteadyHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+
+            // Nozzle on top, bed below, 4 px apart, the 64 px split evenly.
+            Rect nozzleBand = chart.ClipOf(TemperatureSeries.NozzleActual);
+            Rect bedBand = chart.ClipOf(TemperatureSeries.BedActual);
+            Assert.Equal(new Rect(0, 0, 256, 30), nozzleBand);
+            Assert.Equal(new Rect(0, 34, 256, 30), bedBand);
+            Assert.Equal(nozzleBand, chart.ClipOf(TemperatureSeries.NozzleTarget));
+            Assert.Equal(bedBand, chart.ClipOf(TemperatureSeries.BedTarget));
+
+            // ±1.5 °C around 215 and ±0.5 °C around 60 fill a good part of their bands (on the axis from 0 °C they were
+            // under 1 px), each line inside its own band.
+            Rect nozzle = chart.GeometryOf(TemperatureSeries.NozzleActual)!.Bounds;
+            Rect bed = chart.GeometryOf(TemperatureSeries.BedActual)!.Bounds;
+            Assert.True(nozzle.Height >= 12, $"The nozzle line spans {nozzle.Height:0.#} px.");
+            Assert.True(bed.Height >= 4, $"The bed line spans {bed.Height:0.#} px.");
+            Assert.True(nozzleBand.Contains(nozzle), $"{nozzle} outside {nozzleBand}");
+            Assert.True(bedBand.Contains(bed), $"{bed} outside {bedBand}");
+            // The range is the minimum span centred on the data.
+            ValueBand nozzleScale = chart.BandOf(TemperatureSeries.NozzleActual)!.Value;
+            Assert.Equal(CompactBands.MinimumSpan, nozzleScale.High - nozzleScale.Low, 3);
+            Assert.Equal(215, (nozzleScale.High + nozzleScale.Low) / 2, 1);
+            // The target (215) is the dashed line in the middle of the nozzle band.
+            Assert.Equal(nozzleScale.ToY(215), chart.GeometryOf(TemperatureSeries.NozzleTarget)!.Bounds.Center.Y, 1);
+        });
+
+    [Fact]
+    public Task HeatingRampScalesTheBandToTheWholeRange() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
+            RecordHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+
+            ValueBand nozzle = chart.BandOf(TemperatureSeries.NozzleActual)!.Value;
+            Assert.Equal(chart.Data.GetRange(TemperatureSeries.NozzleActual).Min, nozzle.Low, 3);
+            Assert.Equal(chart.Data.GetRange(TemperatureSeries.NozzleActual).Max, nozzle.High, 3);
+            Assert.True(nozzle.High - nozzle.Low > 150);
+            ValueBand bed = chart.BandOf(TemperatureSeries.BedActual)!.Value;
+            Assert.Equal(25, bed.Low, 3);
+            Assert.Equal(60, bed.High, 3);
+        });
+
+    [Fact]
+    public Task OnlySeriesWithValuesGetABand() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
+            RecordSteadyHistory(harness, withBed: false);
+            CameraWindow window = await OpenAsync(harness, Heating(withBed: false));
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+
+            // Without a bed the nozzle has the whole height.
+            Assert.Equal(new Rect(0, 0, 256, 64), chart.ClipOf(TemperatureSeries.NozzleActual));
+            Assert.Null(chart.BandOf(TemperatureSeries.BedActual));
+            Assert.Null(chart.GeometryOf(TemperatureSeries.BedActual));
+            Assert.False(chart.ShowsNoData);
+        });
+
+    [Fact]
+    public Task BandsStayPutWhileTheSameSeriesHaveValues() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
+            RecordSteadyHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+            Rect nozzleBand = chart.ClipOf(TemperatureSeries.NozzleActual);
+            Rect bedBand = chart.ClipOf(TemperatureSeries.BedActual);
+            int rebuilds = chart.SeriesRebuilds;
+
+            // A new sample without a bed value: the bed still has values in the hour, the layout does not change.
+            harness.Time.Advance(TimeSpan.FromSeconds(20));
+            harness.History.Record(Heating(nozzle: 215.4, withBed: false) with { Timestamp = Now.AddSeconds(20) });
+            window.Settle();
+            window.Settle();
+            Assert.Equal(rebuilds + 1, chart.SeriesRebuilds);
+
+            Assert.Equal(nozzleBand, chart.ClipOf(TemperatureSeries.NozzleActual));
+            Assert.Equal(bedBand, chart.ClipOf(TemperatureSeries.BedActual));
+        });
+
+    [Fact]
+    public Task TargetFarFromTheActualValuesIsClippedToTheBand() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Medium));
+            // Heating has just been switched on: the nozzle is still at 25 °C, the target 215 °C.
+            for (DateTimeOffset time = Now - TimeSpan.FromMinutes(5); time <= Now; time += HistoryInterval)
+            {
+                harness.History.Record(Heating(nozzle: 25, nozzleTarget: 215, bed: 25, bedTarget: 0) with { Timestamp = time });
+            }
+
+            CameraWindow window = await OpenAsync(harness, Heating(nozzle: 25, bed: 25, bedTarget: 0));
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+
+            // The band follows the actual values; the target lies above it and is cut away by the band's clip.
+            ValueBand nozzle = chart.BandOf(TemperatureSeries.NozzleActual)!.Value;
+            Assert.Equal(25, (nozzle.Low + nozzle.High) / 2, 3);
+            Rect target = chart.GeometryOf(TemperatureSeries.NozzleTarget)!.Bounds;
+            Assert.True(target.Bottom < chart.ClipOf(TemperatureSeries.NozzleTarget).Top, $"{target} should lie above the band.");
+        });
+
+        [Theory]
+    [InlineData(OverlayWidgetSize.Small)]
+    [InlineData(OverlayWidgetSize.Medium)]
+    [InlineData(OverlayWidgetSize.Large)]
+    public Task BandRangesAreShownOnlyInTheLargeCard(OverlayWidgetSize size) =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(size));
+            RecordSteadyHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+            window.Settle();
+
+            bool large = size == OverlayWidgetSize.Large;
+            foreach (TemperatureSeries series in Enum.GetValues<TemperatureSeries>())
+            {
+                bool expected = large && series is TemperatureSeries.NozzleActual or TemperatureSeries.BedActual;
+                Assert.Equal(expected, chart.BandRangeTextOf(series) is not null);
+            }
+
+            if (!large)
+            {
+                return;
+            }
+
+            // The whole degrees of each band's range: the minimum span of 6 °C around 215 and 60.
+            Assert.Equal("212–218\u00A0°C", chart.BandRangeTextOf(TemperatureSeries.NozzleActual));
+            Assert.Equal("57–63\u00A0°C", chart.BandRangeTextOf(TemperatureSeries.BedActual));
+            Assert.Equal(new Size(360 - RangeColumn, 110), new Size(chart.Data.Columns, chart.Bounds.Height));
+            foreach (TemperatureSeries series in new[] { TemperatureSeries.NozzleActual, TemperatureSeries.BedActual })
+            {
+                ValueBand band = chart.BandOf(series)!.Value;
+                Assert.Equal($"{Math.Round(band.Low, MidpointRounding.AwayFromZero)}–{Math.Round(band.High, MidpointRounding.AwayFromZero)}\u00A0°C", chart.BandRangeTextOf(series));
+                // Secondary colour, 12 like the axis labels of L.
+                Assert.Equal(Secondary, ColorOf(chart.BandRangeBrush));
+                Assert.Equal(12, chart.BandRangeFontSize);
+                // In the column right of the plot, centred on its band, never over a line.
+                Rect bounds = chart.BandRangeBoundsOf(series);
+                Rect slot = chart.ClipOf(series);
+                Assert.True(bounds.Left >= chart.Bounds.Width - RangeColumn + 8, $"{bounds} reaches into the plot.");
+                Assert.Equal(chart.Bounds.Width, bounds.Right, 0.5);
+                Assert.Equal(slot.Center.Y, bounds.Center.Y, 0.5);
+            }
+        });
+
+    [Fact]
+    public Task BandRangeOfAHeatingRampShowsTheWholeRange() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Large));
+            RecordHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+
+            ValueBand nozzle = chart.BandOf(TemperatureSeries.NozzleActual)!.Value;
+            Assert.Equal(
+                $"{Math.Round(nozzle.Low, MidpointRounding.AwayFromZero)}–{Math.Round(nozzle.High, MidpointRounding.AwayFromZero)}\u00A0°C",
+                chart.BandRangeTextOf(TemperatureSeries.NozzleActual));
+            Assert.Equal("25–60\u00A0°C", chart.BandRangeTextOf(TemperatureSeries.BedActual));
+        });
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public Task WidestBandRangeFitsItsColumnInEveryLanguage(string language) =>
+        session.RunAsync(async scope =>
+        {
+            Assert.True(new UiLanguage().Apply(language));
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Large));
+            // Three-digit bounds with the widest digits on both bands (a heating ramp from 100 to 888 °C is not real, but
+            // it is the widest text the format can produce).
+            for (DateTimeOffset time = Now - TimeSpan.FromMinutes(50); time <= Now; time += HistoryInterval)
+            {
+                double ago = (Now - time).TotalMinutes;
+                double value = ago > 25 ? 800 : 888;
+                harness.History.Record(Heating(nozzle: value, bed: value) with { Timestamp = time });
+            }
+
+            CameraWindow window = await OpenAsync(harness, Heating());
+            TemperatureChart chart = window.Find<TemperatureChart>(ChartId);
+            Assert.Equal(Strings.CameraOverlayChartRange, chart.BandRangeFormat);
+
+            foreach (TemperatureSeries series in new[] { TemperatureSeries.NozzleActual, TemperatureSeries.BedActual })
+            {
+                Assert.Equal("800–888\u00A0°C", chart.BandRangeTextOf(series));
+                Rect bounds = chart.BandRangeBoundsOf(series);
+                Assert.True(bounds.Width <= RangeColumn - 8, $"{language}: the label is {bounds.Width:0.#} px wide.");
+                Assert.True(new Rect(chart.Bounds.Size).Contains(bounds), $"{language}: {bounds} is cut off.");
+            }
+
+            AssertFits(window, OverlayWidgetSize.Large);
+        });
+
     // ---- Snapshots ----
 
     [Theory]
@@ -644,6 +866,20 @@ public sealed class CameraWindowTemperaturesWidgetUiTests(HeadlessSession sessio
             CameraWindow window = await OpenAsync(harness, Heating(), 720, 405);
 
             SnapshotAssert.Matches(window, "camera-widget-temperatures-" + suffix);
+        });
+
+    [Theory]
+    [InlineData(OverlayWidgetSize.Medium, "m")]
+    [InlineData(OverlayWidgetSize.Large, "l")]
+    public Task SnapshotOfSteadyTemperatures(OverlayWidgetSize size, string suffix) =>
+        session.RunAsync(async scope =>
+        {
+            // T-106: a fluctuation of ±1.5 °C (nozzle) and ±0.5 °C (bed) is visible in the bands; L shows their ranges.
+            await using CameraHarness harness = Harness(Layout(size));
+            RecordSteadyHistory(harness);
+            CameraWindow window = await OpenAsync(harness, Heating(), 720, 405);
+
+            SnapshotAssert.Matches(window, "camera-widget-temperatures-steady-" + suffix);
         });
 
     [Fact]

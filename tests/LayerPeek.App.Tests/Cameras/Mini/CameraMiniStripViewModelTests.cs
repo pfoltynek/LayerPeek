@@ -7,6 +7,7 @@ using LayerPeek.App.Tests.Tray;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
+using LayerPeek.Tests.Shared;
 
 using static LayerPeek.App.Tests.Tray.TestPrinters;
 
@@ -29,7 +30,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     public CameraMiniStripViewModelTests()
     {
         _cooldown = new CooldownMonitor(_monitor, TimeProvider.System, new ListLogger<CooldownMonitor>());
-        _cooldown.Configure([Definition()], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition())], TimeSpan.FromSeconds(5));
     }
 
     public void Dispose()
@@ -50,7 +51,8 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     /// <summary>A strip that gets the snapshots of its printer after the cool-down monitor, like the camera window in the app.</summary>
     private CameraMiniStripViewModel Create()
     {
-        CameraMiniStripViewModel strip = new("mk4", _dispatcher, _cooldown);
+        // The system clock in UTC: finish times do not depend on the machine (T-103).
+        CameraMiniStripViewModel strip = new("mk4", _dispatcher, _cooldown, clock: UtcSystemClock.Instance);
         _monitor.SnapshotUpdated += (_, snapshot) =>
         {
             if (snapshot.PrinterId == "mk4")
@@ -91,7 +93,11 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
         Raise(Printing(19.9, TimeSpan.FromMinutes(154.2)));
 
         Assert.Equal("19% · 2\u00A0h 35\u00A0min", strip.Summary);
-        Assert.Equal("Printing, 19%, 2\u00A0h 35\u00A0min remaining", strip.AccessibleText);
+        // T-103: the finish time (12:00 + 2 h 34.2 min, rounded up to the minute) in the full wording of the Times widget.
+        Assert.Equal(CultureTime.EnUs("Printing, 19%, 2\u00A0h 35\u00A0min remaining, Done at 2:35 PM"), strip.AccessibleText);
+        Assert.Equal(new MiniStripVariant("19% · 2\u00A0h 35\u00A0min", CultureTime.EnUs("Done at 2:35 PM")), strip.FirstVariant);
+        Assert.Equal(new MiniStripVariant("19% · 2\u00A0h 35\u00A0min", CultureTime.EnUs("2:35 PM")), strip.SecondVariant);
+        Assert.Equal(new MiniStripVariant("19% · 2\u00A0h 35\u00A0min"), strip.ThirdVariant);
         Assert.Same(OverlayStateBrushes.Active, strip.DotBrush);
         Assert.True(strip.HasProgress);
         Assert.Equal(19, strip.Progress);
@@ -165,15 +171,25 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
         Assert.False(strip.ShowsDot);
         Assert.True(strip.ShowsCoolingIcon);
         Assert.False(strip.ShowsCooledIcon);
-        Assert.False(strip.HasProgress);
+        // T-103 Q3: the bar shows the progress towards the threshold, from the first reading of the cool-down (200 → 50 °C).
+        Assert.True(strip.HasProgress);
+        Assert.Equal(0, strip.Progress);
+        Raise(Finished(10, 120));
+        Assert.Equal(53, strip.Progress);
 
-        foreach ((int seconds, double nozzle) in new[] { (10, 120.0), (15, 70.0), (20, 45.0), (25, 40.0) })
+        foreach ((int seconds, double nozzle) in new[] { (15, 70.0), (20, 45.0), (25, 40.0) })
         {
             Raise(Finished(seconds, nozzle));
         }
 
-        Assert.Equal($"Cooled down · 40{Nbsp}°C", strip.Summary);
-        Assert.Equal(strip.Summary, strip.AccessibleText);
+        // T-103 Q2: "safe to turn off" like the widget, the temperature in the shorter variant and the tooltip; the bar full.
+        Assert.Equal("Cooled down – safe to turn off", strip.Summary);
+        Assert.Equal(new MiniStripVariant($"Cooled down · 40{Nbsp}°C"), strip.SecondVariant);
+        Assert.Null(strip.ThirdVariant);
+        // T-109: the tooltip names both temperatures.
+        Assert.Equal($"Cooled down – safe to turn off, nozzle 40{Nbsp}°C, bed 44{Nbsp}°C", strip.AccessibleText);
+        Assert.True(strip.HasProgress);
+        Assert.Equal(100, strip.Progress);
         Assert.False(strip.ShowsDot);
         Assert.False(strip.ShowsCoolingIcon);
         Assert.True(strip.ShowsCooledIcon);
@@ -188,7 +204,7 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     [Fact]
     public void CoolDownOfAnotherPrinterPostsNothing()
     {
-        _cooldown.Configure([Definition(), Definition("other", "Other")], TimeSpan.FromSeconds(5));
+        _cooldown.Configure([NozzleDecides(Definition()), NozzleDecides(Definition("other", "Other"))], TimeSpan.FromSeconds(5));
         using CameraMiniStripViewModel strip = Create();
         Raise(Snapshot(PrinterState.Idle));
         int posts = _dispatcher.PostCount;
@@ -217,28 +233,29 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     [InlineData(null, "Cooling down… 87{0}°C")]
     public void CoolingShowsTheNozzleAndTheEstimateRoundedUp(double? minutes, string expected)
     {
-        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 0.3, minutes is { } m ? TimeSpan.FromMinutes(m) : null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
+        CooldownState cooling = new(CooldownPhase.Cooling, 87.4, 45, 50, 40, 0.3, minutes is { } m ? TimeSpan.FromMinutes(m) : null, Now, Now, CooldownPrintOutcome.Finished, Now, null);
 
-        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now);
-        (string summary, string accessible) = CameraMiniStripViewModel.Texts(content);
+        MiniStripContent content = MiniStripContent.Of(Snapshot(PrinterState.Finished), cooling, Now, TimeZoneInfo.Utc);
+        MiniStripTexts texts = CameraMiniStripViewModel.Texts(content);
 
-        Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, minutes is null ? null : 6, 87), content);
-        Assert.Equal(string.Format(CultureInfo.InvariantCulture, expected, Nbsp), summary);
-        Assert.Equal(summary, accessible);
+        Assert.Equal(new MiniStripContent(MiniStripKind.Cooling, PrinterState.Finished, 0, minutes is null ? null : 6, 87, CoolingPercent: 30, NozzleCelsius: 87, BedCelsius: 45), content);
+        Assert.Equal(string.Format(CultureInfo.InvariantCulture, expected, Nbsp), texts.First.Summary);
+        // T-109: the tooltip names both temperatures.
+        Assert.StartsWith($"Cooling down… nozzle 87{Nbsp}°C, bed 45{Nbsp}°C", texts.Accessible, StringComparison.Ordinal);
     }
 
     [Fact]
     public void CoolDownIsNotShownForAnUnreachablePrinterOrWithoutATemperature()
     {
-        CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 1, null, Now, Now, CooldownPrintOutcome.Stopped, Now, Now);
+        CooldownState cooled = new(CooldownPhase.CooledDown, 48, 39, 50, 40, 1, null, Now, Now, CooldownPrintOutcome.Stopped, Now, Now);
 
-        Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled, Now).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled, Now).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(null, cooled, Now).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = null }, Now).Kind);
-        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = double.NaN }, Now).Kind);
+        Assert.Equal(MiniStripKind.Cooled, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled, Now, TimeZoneInfo.Utc).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Offline), cooled, Now, TimeZoneInfo.Utc).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(null, cooled, Now, TimeZoneInfo.Utc).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = null }, Now, TimeZoneInfo.Utc).Kind);
+        Assert.Equal(MiniStripKind.State, MiniStripContent.Of(Snapshot(PrinterState.Stopped), cooled with { NozzleCelsius = double.NaN }, Now, TimeZoneInfo.Utc).Kind);
         // An active job wins: the next print ended the cool-down.
-        Assert.Equal(MiniStripKind.Job, MiniStripContent.Of(Printing(), cooled, Now).Kind);
+        Assert.Equal(MiniStripKind.Job, MiniStripContent.Of(Printing(), cooled, Now, TimeZoneInfo.Utc).Kind);
     }
 
     [Fact]
@@ -296,11 +313,13 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
             strip.RefreshTexts();
 
             Assert.Equal($"19{Nbsp}% · 2\u00A0h 35\u00A0min", strip.Summary);
-            Assert.Equal($"Tiskne, 19{Nbsp}%, Zbývá 2\u00A0h 35\u00A0min", strip.AccessibleText);
+            Assert.Equal(CultureTime.EnUs($"Tiskne, 19{Nbsp}%, Zbývá 2\u00A0h 35\u00A0min, Hotovo v 2:35 PM"), strip.AccessibleText);
+            Assert.Equal(CultureTime.EnUs("2:35 PM"), strip.SecondVariant?.Finish);
         }
 
         strip.RefreshTexts();
         Assert.Equal("19% · 2\u00A0h 35\u00A0min", strip.Summary);
+        Assert.Equal(CultureTime.EnUs("Done at 2:35 PM"), strip.FirstVariant.Finish);
     }
 
     [Fact]
@@ -349,5 +368,6 @@ public sealed class CameraMiniStripViewModelTests : IDisposable
     private static PrinterSnapshot Finished(int seconds, double nozzle) =>
         Snapshot(PrinterState.Finished, Job(100)) with { Timestamp = Now.AddSeconds(seconds), Telemetry = Hot(nozzle, 0) };
 
-    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(55, 0) };
+    /// <summary>The bed stays below the bed threshold of <see cref="TestPrinters.NozzleOnlyThresholds"/>: the nozzle decides.</summary>
+    private static Telemetry Hot(double nozzle, double target) => new() { Nozzle = new Temperature(nozzle, target), Bed = new Temperature(44, 0) };
 }

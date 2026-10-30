@@ -323,6 +323,10 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
         response.Headers[ProxyHeaders.ContentTypeOptions] = "nosniff";
         // Other pages (also other ports on 127.0.0.1) cannot embed or read anything of the proxy as no-cors content.
         response.Headers[ProxyHeaders.ResourcePolicy] = "same-origin";
+        // T-107: no other page keeps a handle on a proxy window, frames it, and the content starts no (Service) Worker.
+        response.Headers[ProxyHeaders.OpenerPolicy] = "same-origin";
+        response.Headers[ProxyHeaders.FrameOptions] = "DENY";
+        response.Headers[ProxyHeaders.ContentSecurityPolicy] = ProxyHeaders.ContentSecurityPolicyValue;
 
         // DNS rebinding: only the exact loopback authority of this listener is accepted.
         StringValues host = context.Request.Headers.Host;
@@ -346,6 +350,13 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
         {
             LogForeignWriteRejected(context.Request.Method, reason, _printer.Id);
             await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ProxyErrors.ForeignPage).ConfigureAwait(false);
+            return;
+        }
+
+        if (IsServiceWorkerScript(context.Request))
+        {
+            LogServiceWorkerRejected(_printer.Id);
+            await WriteErrorAsync(context, StatusCodes.Status403Forbidden, ProxyErrors.ServiceWorker).ConfigureAwait(false);
             return;
         }
 
@@ -401,6 +412,19 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
 
         return null;
     }
+
+    /// <summary>
+    /// Whether the browser fetches a Service Worker script (security finding N1, T-107). Content of the printer (firmware
+    /// or anyone who can change the plain-HTTP traffic to it) could otherwise register a Service Worker on
+    /// <c>127.0.0.1:&lt;port&gt;</c> that outlives the proxy and answers for whatever listens on that port later. Browsers
+    /// send <c>Service-Worker: script</c> with every fetch of the script (registration and every update check) and
+    /// <c>Sec-Fetch-Dest: serviceworker</c>; either one, with any value, is refused. Prusa-Link-Web registers no
+    /// Service Worker.
+    /// </summary>
+    private static bool IsServiceWorkerScript(HttpRequest request) =>
+        request.Headers.ContainsKey(ProxyHeaders.ServiceWorker)
+        || (request.Headers.TryGetValue(ProxyHeaders.SecFetchDest, out StringValues destination)
+            && destination.Any(static value => string.Equals(value?.Trim(), "serviceworker", StringComparison.OrdinalIgnoreCase)));
 
     /// <summary>Splits <c>/&lt;token&gt;&lt;rest&gt;</c>; false when the token is missing or wrong.</summary>
     private bool TrySplitTarget(string rawTarget, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out string? rest)
@@ -818,6 +842,9 @@ internal sealed partial class PrusaLinkWebProxy : IDisposable
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Web proxy: a {Method} request from another web page was rejected (header {Header}) (printer '{PrinterId}').")]
     private partial void LogForeignWriteRejected(string method, string header, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "Web proxy: the printer's content tried to register a Service Worker; the request was rejected (printer '{PrinterId}').")]
+    private partial void LogServiceWorkerRejected(string printerId);
 
     [LoggerMessage(Level = LogLevel.Debug, Message = "Web proxy: {Method} {Path} was aborted because the proxy stopped (printer '{PrinterId}').")]
     private partial void LogAbortedByStop(string method, string path, string printerId);

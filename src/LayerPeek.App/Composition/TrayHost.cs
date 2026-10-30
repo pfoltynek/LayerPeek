@@ -12,6 +12,7 @@ using LayerPeek.App.Localization;
 using LayerPeek.App.Logging;
 using LayerPeek.App.Notifications;
 using LayerPeek.App.Platform;
+using LayerPeek.App.Platform.MacOS;
 using LayerPeek.App.Platform.Windows;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Settings;
@@ -130,8 +131,8 @@ internal sealed partial class TrayHost : IAsyncDisposable
                     services.GetRequiredService<TrayStatusViewModel>(),
                     iconSet.GetIcon,
                     services.GetRequiredService<ILogger<TrayIconPresenter<WindowIcon>>>());
-                // Printer icons (T-039) only where the platform shows them (Windows), sized for the system scaling.
-                menuIcons = services.GetRequiredService<TrayMenuOptions>().PrinterIcons ? new PrinterMenuIcons(SystemScaling()) : null;
+                // Printer icons (T-039 Windows, T-116 macOS), sized for the platform's menu and display scaling.
+                menuIcons = services.GetRequiredService<TrayMenuOptions>().PrinterIcons ? new PrinterMenuIcons(MenuIconSize()) : null;
                 menuPresenter = new TrayMenuPresenter(
                     new TrayMenuTarget(new AvaloniaNativeTrayMenu(trayIcon, menuIcons)),
                     services.GetRequiredService<TrayMenuViewModel>(),
@@ -173,6 +174,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
             _core.ActivateToast(launchArgument);
         }
     }
+
+    /// <summary>The settings window for a click on the test notification (T-101, <see cref="ServiceHost.AttachSettingsOpener"/>).</summary>
+    public void AttachSettingsOpener(Action open) => _core.AttachSettingsOpener(open);
+
+    /// <summary>The update the app offers (T-058): the menu item, the notification and the settings window. Valid until <see cref="StopAsync"/>.</summary>
+    internal Updates.UpdateOffer UpdateOffer => _services.GetRequiredService<Updates.UpdateOffer>();
 
     /// <summary>Opens web pages (About window link). Valid until <see cref="StopAsync"/>.</summary>
     public IUrlLauncher UrlLauncher => _services.GetRequiredService<IUrlLauncher>();
@@ -268,6 +275,12 @@ internal sealed partial class TrayHost : IAsyncDisposable
         _ = Task.Run(() => promotion.PromoteAsync(executablePath, cancellationToken), CancellationToken.None);
     }
 
-    /// <summary>Scaling for the tray menu icons: the menu opens as a new popup, so its monitor is not known in advance.</summary>
-    private static double SystemScaling() => OperatingSystem.IsWindows() ? SystemDpiNative.GetScaling() : 1.0;
+    /// <summary>
+    /// Size of the tray menu icons. Windows: the system scaling, the menu opens as a new popup, so its monitor is not known
+    /// in advance. macOS: the NSMenu image size of Avalonia.Native for the menu font, at the highest display scaling.
+    /// </summary>
+    private static PrinterMenuIconSize MenuIconSize() =>
+        OperatingSystem.IsWindows() ? PrinterMenuIconSize.Windows(SystemDpiNative.GetScaling())
+        : OperatingSystem.IsMacOS() ? PrinterMenuIconSize.MacOS(MacMenuMetrics.MenuFontPointSize(), MacMenuMetrics.HighestBackingScaleFactor())
+        : PrinterMenuIconSize.Windows(1.0);
 }

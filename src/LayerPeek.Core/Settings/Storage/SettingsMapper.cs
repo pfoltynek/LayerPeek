@@ -26,6 +26,7 @@ internal static class SettingsMapper
             Language = settings.Language,
             DebugLogging = settings.DebugLogging,
             OfferPrereleaseUpdates = settings.OfferPrereleaseUpdates,
+            CheckForUpdates = settings.CheckForUpdates,
             Notifications = new NotificationsDocument
             {
                 Enabled = notifications.Enabled,
@@ -57,10 +58,12 @@ internal static class SettingsMapper
                     StreamUrl = printer.Camera.StreamUri?.OriginalString ?? printer.Camera.InvalidStreamUrl,
                     Window = ToDocument(printer.Camera.Window),
                     Overlay = ToDocument(printer.Camera.Overlay),
+                    MiniStrip = ToDocument(printer.Camera.MiniStrip),
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
-                CooldownThresholdCelsius = printer.CooldownThresholdCelsius == CooldownThreshold.DefaultCelsius ? null : printer.CooldownThresholdCelsius,
+                CooldownNozzleThresholdCelsius = printer.CooldownThresholds.NozzleCelsius == CooldownThreshold.DefaultNozzleCelsius ? null : printer.CooldownThresholds.NozzleCelsius,
+                CooldownBedThresholdCelsius = printer.CooldownThresholds.BedCelsius == CooldownThreshold.DefaultBedCelsius ? null : printer.CooldownThresholds.BedCelsius,
             })],
         };
     }
@@ -76,15 +79,17 @@ internal static class SettingsMapper
         }
 
         int convertedOverlays = 0;
+        int discardedThresholds = 0;
         AppSettings settings = new()
         {
             PollingInterval = ToPollingInterval(document.PollingIntervalSeconds, warnings),
             Language = ToLanguage(document.Language, warnings),
             DebugLogging = document.DebugLogging ?? false,
             OfferPrereleaseUpdates = document.OfferPrereleaseUpdates,
+            CheckForUpdates = document.CheckForUpdates ?? true,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
-            Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays),
+            Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),
         };
 
         if (convertedOverlays > 0)
@@ -93,6 +98,15 @@ internal static class SettingsMapper
             notices.Add(convertedOverlays == 1
                 ? "The camera overlay settings of 1 printer were converted to the widget layout (settings format 2)."
                 : $"The camera overlay settings of {convertedOverlays} printers were converted to the widget layout (settings format 2).");
+        }
+
+        if (discardedThresholds > 0)
+        {
+            // T-109 (user decision 2026-10-29): the former single nozzle threshold is not taken over; not a warning, the
+            // file is fine. Without values; the next save drops the field.
+            notices.Add(discardedThresholds == 1
+                ? $"The former nozzle cool-down threshold of 1 printer is no longer used; the nozzle and bed thresholds start at {CooldownThreshold.DefaultNozzleCelsius} / {CooldownThreshold.DefaultBedCelsius} °C."
+                : $"The former nozzle cool-down threshold of {discardedThresholds} printers is no longer used; the nozzle and bed thresholds start at {CooldownThreshold.DefaultNozzleCelsius} / {CooldownThreshold.DefaultBedCelsius} °C.");
         }
 
         return settings;
@@ -234,7 +248,8 @@ internal static class SettingsMapper
         return corrected;
     }
 
-    private static List<PrinterDefinition> ToPrinters(List<PrinterDocument?>? documents, List<string> warnings, ref int convertedOverlays)
+    private static List<PrinterDefinition> ToPrinters(
+        List<PrinterDocument?>? documents, List<string> warnings, ref int convertedOverlays, ref int discardedThresholds)
     {
         if (documents is null)
         {
@@ -267,6 +282,12 @@ internal static class SettingsMapper
                     camera = camera with { Overlay = overlay };
                 }
 
+                CameraMiniStripSettings miniStrip = ToMiniStrip(documents[i]!.Camera?.MiniStrip, printer.Id, warnings);
+                if (!ReferenceEquals(miniStrip, CameraMiniStripSettings.Default))
+                {
+                    camera = camera with { MiniStrip = miniStrip };
+                }
+
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
                 if (!ReferenceEquals(camera, CameraSettings.Disabled))
                 {
@@ -280,10 +301,17 @@ internal static class SettingsMapper
                     printer = printer with { DetectedModel = detectedModel, Image = image };
                 }
 
-                int cooldownThreshold = ToCooldownThreshold(documents[i]!.CooldownThresholdCelsius, printer.Id, warnings);
-                if (cooldownThreshold != CooldownThreshold.DefaultCelsius)
+                CooldownThresholds thresholds = new(
+                    ToCooldownThreshold(documents[i]!.CooldownNozzleThresholdCelsius, CooldownThreshold.DefaultNozzleCelsius, "nozzle", printer.Id, warnings),
+                    ToCooldownThreshold(documents[i]!.CooldownBedThresholdCelsius, CooldownThreshold.DefaultBedCelsius, "bed", printer.Id, warnings));
+                if (thresholds != CooldownThresholds.Default)
                 {
-                    printer = printer with { CooldownThresholdCelsius = cooldownThreshold };
+                    printer = printer with { CooldownThresholds = thresholds };
+                }
+
+                if (documents[i]!.LegacyCooldownThresholdCelsius is { ValueKind: not JsonValueKind.Null })
+                {
+                    discardedThresholds++;
                 }
 
                 printers.Add(printer);
@@ -404,11 +432,11 @@ internal static class SettingsMapper
     }
 
     /// <summary>Missing = the default; a fraction or a value out of range falls back to the default with a warning.</summary>
-    private static int ToCooldownThreshold(double? value, string printerId, List<string> warnings)
+    private static int ToCooldownThreshold(double? value, int defaultCelsius, string part, string printerId, List<string> warnings)
     {
         if (value is null)
         {
-            return CooldownThreshold.DefaultCelsius;
+            return defaultCelsius;
         }
 
         if (TryGetWholeNumber(value, out int celsius) && CooldownThreshold.IsValid(celsius))
@@ -417,8 +445,8 @@ internal static class SettingsMapper
         }
 
         warnings.Add(
-            $"Printer '{Shorten(printerId)}': cool-down threshold is invalid (whole number {CooldownThreshold.MinCelsius}–{CooldownThreshold.MaxCelsius} °C); {CooldownThreshold.DefaultCelsius} °C is used.");
-        return CooldownThreshold.DefaultCelsius;
+            $"Printer '{Shorten(printerId)}': {part} cool-down threshold is invalid (whole number {CooldownThreshold.MinCelsius}–{CooldownThreshold.MaxCelsius} °C); {defaultCelsius} °C is used.");
+        return defaultCelsius;
     }
 
     /// <summary>Not written while automatic (the default), so that files stay as they were.</summary>
@@ -578,6 +606,129 @@ internal static class SettingsMapper
         }
 
         return new CameraOverlayDocument { Widgets = JsonSerializer.SerializeToElement(widgets, SettingsJsonContext.Default.ListOverlayWidgetDocument) };
+    }
+
+    /// <summary>
+    /// Only the items that are off are written (T-110, Q9 A); nothing while all are on, so that files stay as they were.
+    /// </summary>
+    internal static JsonElement? ToDocument(CameraMiniStripSettings strip)
+    {
+        if (strip == CameraMiniStripSettings.Default)
+        {
+            return null;
+        }
+
+        CameraMiniStripDocument document = new()
+        {
+            ProgressBar = OffOrNull(strip.ProgressBar),
+            Percent = OffOrNull(strip.Percent),
+            Remaining = OffOrNull(strip.Remaining),
+            Finish = OffOrNull(strip.Finish),
+            Cooldown = OffOrNull(strip.Cooldown),
+            NameRow = OffOrNull(strip.NameRow),
+            ChartRow = OffOrNull(strip.ChartRow),
+        };
+        return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.CameraMiniStripDocument);
+
+        static bool? OffOrNull(bool on) => on ? null : false;
+    }
+
+    /// <summary>
+    /// The mini strip section read leniently (T-110): a missing section or item is on; an item whose value is not
+    /// <see langword="true"/> / <see langword="false"/> is on with one warning naming the item (never the value); a section
+    /// that is no object turns everything on with one warning. Property names are matched case-insensitively and the last of
+    /// duplicates wins, like the rest of the file; unknown names (a newer version) are ignored.
+    /// </summary>
+    private static CameraMiniStripSettings ToMiniStrip(JsonElement? section, string printerId, List<string> warnings)
+    {
+        if (section is not { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } value)
+        {
+            return CameraMiniStripSettings.Default;
+        }
+
+        string subject = $"Mini preview strip of printer '{Shorten(printerId)}'";
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            warnings.Add($"{subject}: the section is invalid; every item is shown.");
+            return CameraMiniStripSettings.Default;
+        }
+
+        bool progressBar = true, percent = true, remaining = true, finish = true, cooldown = true, nameRow = true, chartRow = true;
+        SortedSet<string>? invalid = null;
+        foreach (JsonProperty property in value.EnumerateObject())
+        {
+            string? name = NameOf(property)?.ToUpperInvariant();
+            ref bool target = ref progressBar;
+            string key;
+            switch (name)
+            {
+                case "PROGRESSBAR":
+                    key = "progressBar";
+                    break;
+                case "PERCENT":
+                    target = ref percent;
+                    key = "percent";
+                    break;
+                case "REMAINING":
+                    target = ref remaining;
+                    key = "remaining";
+                    break;
+                case "FINISH":
+                    target = ref finish;
+                    key = "finish";
+                    break;
+                case "COOLDOWN":
+                    target = ref cooldown;
+                    key = "cooldown";
+                    break;
+                case "NAMEROW":
+                    target = ref nameRow;
+                    key = "nameRow";
+                    break;
+                case "CHARTROW":
+                    target = ref chartRow;
+                    key = "chartRow";
+                    break;
+                default:
+                    continue;
+            }
+
+            switch (property.Value.ValueKind)
+            {
+                case JsonValueKind.True:
+                    target = true;
+                    invalid?.Remove(key);
+                    break;
+                case JsonValueKind.False:
+                    target = false;
+                    invalid?.Remove(key);
+                    break;
+                default:
+                    target = true;
+                    (invalid ??= new SortedSet<string>(StringComparer.Ordinal)).Add(key);
+                    break;
+            }
+        }
+
+        if (invalid is not null)
+        {
+            foreach (string key in invalid)
+            {
+                warnings.Add($"{subject}: '{key}' is not true or false; the item is shown.");
+            }
+        }
+
+        CameraMiniStripSettings strip = new()
+        {
+            ProgressBar = progressBar,
+            Percent = percent,
+            Remaining = remaining,
+            Finish = finish,
+            Cooldown = cooldown,
+            NameRow = nameRow,
+            ChartRow = chartRow,
+        };
+        return strip == CameraMiniStripSettings.Default ? CameraMiniStripSettings.Default : strip;
     }
 
     /// <summary>

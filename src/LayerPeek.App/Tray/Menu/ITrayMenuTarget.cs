@@ -89,5 +89,17 @@ internal interface ITrayAppCommands
     /// </summary>
     void ToggleCamera(string printerId);
 
+    /// <summary>
+    /// "Show camera" while the camera window of <paramref name="printerId"/> is open (T-102, macOS and Windows): the app and the window
+    /// come to the front, a minimized window is restored; a window that closed meanwhile opens.
+    /// </summary>
+    void BringCameraToFront(string printerId);
+
+    /// <summary>
+    /// "A new version X.Y.Z is available" (T-058): the release page, or in a Velopack installation download, quit normally and
+    /// start the new version.
+    /// </summary>
+    void InstallUpdate();
+
     void Quit();
 }

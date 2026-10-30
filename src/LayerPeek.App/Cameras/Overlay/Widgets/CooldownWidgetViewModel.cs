@@ -15,7 +15,17 @@ namespace LayerPeek.App.Cameras.Overlay.Widgets;
 /// <param name="Phase">Cooling or cooled down.</param>
 /// <param name="NozzleCelsius">Whole degrees of the nozzle.</param>
 /// <param name="BedCelsius">Whole degrees of the bed; <see langword="null"/> when the printer reports none.</param>
-/// <param name="ThresholdCelsius">The printer's threshold (T-079, T-080).</param>
+/// <param name="NozzleThresholdCelsius">The printer's nozzle threshold (T-079, T-080, T-109).</param>
+/// <param name="BedThresholdCelsius">The printer's bed threshold (T-109).</param>
+/// <param name="LimitingCelsius">
+/// Whole degrees of the temperature that holds the cool-down up (<see cref="CooldownState.Limiting"/>, T-109): the key value
+/// of the small card.
+/// </param>
+/// <param name="Limiting">
+/// Whose temperature <paramref name="LimitingCelsius"/> is: the bed only when it holds the cool-down up and the printer
+/// reports it, otherwise the nozzle (the sensor icon in front of the key value of the small card, ui-designer review
+/// 2026-10-30).
+/// </param>
 /// <param name="ProgressPercent">0–100 towards the threshold, rounded down (100 once cooled down).</param>
 /// <param name="EstimateMinutes">Minutes until the threshold, rounded up; <see langword="null"/> without a fresh estimate.</param>
 /// <param name="Outcome">Whether the print finished or was stopped (cooled down only).</param>
@@ -25,7 +35,10 @@ public readonly record struct CooldownContent(
     CooldownPhase Phase,
     long NozzleCelsius,
     long? BedCelsius,
-    int ThresholdCelsius,
+    int NozzleThresholdCelsius,
+    int BedThresholdCelsius,
+    long LimitingCelsius,
+    CooldownSensor Limiting,
     int ProgressPercent,
     long? EstimateMinutes,
     CooldownPrintOutcome Outcome,
@@ -39,9 +52,10 @@ public readonly record struct CooldownContent(
 
 /// <summary>
 /// The Cool-down widget of the camera overlay (T-088, design T-076 2.5): after a finished or stopped print (not after an
-/// error) "Cooling down…" with the nozzle and bed temperatures, a blue bar towards the printer's threshold and the
-/// estimate "safe to turn off in about 6 min (nozzle below 50 °C)"; then "Cooled down – safe to turn off" with a green
-/// outline, the temperatures and "print finished at 7:52 PM · cooled down in 14 min". Only the nozzle decides (T-079).
+/// error) "Cooling down…" with the nozzle and bed temperatures, a blue bar towards the printer's thresholds and the
+/// estimate "safe to turn off in about 6 min (nozzle below 40 °C, bed below 40 °C)"; then "Cooled down – safe to turn off"
+/// with a green outline, the temperatures and "print finished at 7:52 PM · cooled down in 14 min". The nozzle and the bed
+/// decide together; the bar and the estimate follow the slower of the two (T-109).
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
@@ -50,8 +64,10 @@ public readonly record struct CooldownContent(
 /// job, so that it never stands next to "Offline" or a new print. A printer that showed an ended print already at the app
 /// start has no cool-down (user decision 11), so no card.</item>
 /// <item>The key value is the nozzle temperature while cooling and the state text once cooled down (T-076 Q8).</item>
-/// <item>S: one row "❄ 87 °C · about 6 min" with a bar below, or "⏻ Cooled down · 48 °C". M / L: title, temperatures,
-/// bar (cooling), detail (at most two lines).</item>
+/// <item>S: one row "❄ 87 °C · about 6 min" with a bar below, or "⏻ Cooled down · 48 °C", with the limiting temperature
+/// (T-109: the bed's when it holds the cool-down up, like the mini preview strip); while cooling the icon of its sensor
+/// (nozzle cone / bed line) stands in front of it. M / L: title, nozzle and bed, bar
+/// (cooling), detail with both thresholds (at most two lines).</item>
 /// <item>The estimate is shown only when the monitor has one, it is still running (counted down by the monitor from its
 /// reading, never "0 min") and the state is not older than <see cref="StaleAfter"/> (monitoring stopped): otherwise the
 /// detail names only the threshold. While an estimate is shown a clock ticks every <see cref="TickInterval"/>, so that it
@@ -74,8 +90,9 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
 
     private static readonly PropertyChangedEventArgs[] PartsChanged =
     [
-        new(nameof(HeaderText)), new(nameof(ShowsHeader)), new(nameof(EmphasizesHeader)), new(nameof(ShowsNozzle)),
-        new(nameof(EmphasizesNozzle)), new(nameof(ShowsBed)), new(nameof(DetailText)), new(nameof(ShowsDetail)),
+        new(nameof(HeaderText)), new(nameof(ShowsHeader)), new(nameof(EmphasizesHeader)), new(nameof(NozzleText)), new(nameof(ShowsNozzle)),
+        new(nameof(EmphasizesNozzle)), new(nameof(ShowsNozzleIcon)), new(nameof(ShowsSmallBedIcon)), new(nameof(ShowsBed)),
+        new(nameof(DetailText)), new(nameof(ShowsDetail)),
     ];
 
     private readonly CooldownMonitor? _cooldown;
@@ -86,6 +103,7 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     private string _title = string.Empty;
     private string _smallCooled = string.Empty;
     private string _nozzleText = string.Empty;
+    private string _limitingText = string.Empty;
     private string _bedText = string.Empty;
     private string _detail = string.Empty;
     private string _smallDetail = string.Empty;
@@ -124,12 +142,11 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     /// <summary>The state text is the key value once cooled down (T-076 2: accent colour when emphasized).</summary>
     public bool EmphasizesHeader => IsEmphasized && IsCooled;
 
-    /// <summary>"87 °C": the nozzle temperature.</summary>
-    public string NozzleText
-    {
-        get => _nozzleText;
-        private set => SetProperty(ref _nozzleText, value);
-    }
+    /// <summary>
+    /// "87 °C": the nozzle temperature; in S the limiting temperature (T-109), which is the bed's while the bed holds the
+    /// cool-down up.
+    /// </summary>
+    public string NozzleText => IsSmall ? _limitingText : _nozzleText;
 
     /// <summary>The nozzle row (in S cooled down the temperature is part of the header).</summary>
     public bool ShowsNozzle => !(IsSmall && IsCooled);
@@ -137,7 +154,17 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     /// <summary>The nozzle temperature is the key value while cooling.</summary>
     public bool EmphasizesNozzle => IsEmphasized && IsCooling;
 
-    /// <summary>"45 °C": the bed temperature (only shown, the nozzle decides).</summary>
+    /// <summary>
+    /// The nozzle cone in front of the temperature: always in M / L; in S only while the nozzle is the limiting temperature
+    /// (T-109 Q3 B, ui-designer review 2026-10-30: the accent colour of the key value is close to the nozzle colour, so the
+    /// icon, not the colour, says whose temperature it is).
+    /// </summary>
+    public bool ShowsNozzleIcon => !IsSmall || ShownContent.Limiting != CooldownSensor.Bed;
+
+    /// <summary>S: the bed line in front of the limiting temperature while the bed holds the cool-down up.</summary>
+    public bool ShowsSmallBedIcon => IsSmall && ShownContent.Limiting == CooldownSensor.Bed;
+
+    /// <summary>"45 °C": the bed temperature (it decides together with the nozzle, T-109).</summary>
     public string BedText
     {
         get => _bedText;
@@ -181,6 +208,8 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
 
     internal long ShownNozzleCelsius => ShownContent.NozzleCelsius;
 
+    internal long ShownLimitingCelsius => ShownContent.LimitingCelsius;
+
     /// <summary>
     /// The content for <paramref name="input"/> and the printer's cool-down <paramref name="state"/>: nothing without a
     /// cool-down or a nozzle temperature, for an unreachable snapshot (or before the first) and during a job (the next
@@ -198,6 +227,8 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
         }
 
         long? bed = OverlayValues.Temperature(new Temperature(state.BedCelsius ?? double.NaN, null))?.Actual;
+        CooldownSensor sensor = state.Limiting == CooldownSensor.Bed && bed is not null ? CooldownSensor.Bed : CooldownSensor.Nozzle;
+        long limiting = sensor == CooldownSensor.Bed && bed is { } bedActual ? bedActual : nozzle.Actual;
         if (state.Phase == CooldownPhase.Cooling)
         {
             double progress = double.IsFinite(state.Progress) ? Math.Clamp(state.Progress, 0, 1) : 0;
@@ -205,7 +236,10 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
                 CooldownPhase.Cooling,
                 nozzle.Actual,
                 bed,
-                state.ThresholdCelsius,
+                state.NozzleThresholdCelsius,
+                state.BedThresholdCelsius,
+                limiting,
+                sensor,
                 (int)Math.Floor(progress * 100),
                 CooldownEstimate.Minutes(state, input.Now),
                 default,
@@ -229,7 +263,10 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
             CooldownPhase.CooledDown,
             nozzle.Actual,
             bed,
-            state.ThresholdCelsius,
+            state.NozzleThresholdCelsius,
+            state.BedThresholdCelsius,
+            limiting,
+            sensor,
             100,
             null,
             state.Outcome == CooldownPrintOutcome.Stopped ? CooldownPrintOutcome.Stopped : CooldownPrintOutcome.Finished,
@@ -255,7 +292,8 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
         _smallCooled = content.IsCooled ? CooldownFormat.SmallCooled(content) : string.Empty;
         _detail = CooldownFormat.Detail(content);
         _smallDetail = CooldownFormat.SmallDetail(content);
-        NozzleText = CooldownFormat.Temperature(content.NozzleCelsius);
+        _nozzleText = CooldownFormat.Temperature(content.NozzleCelsius);
+        _limitingText = CooldownFormat.Temperature(content.LimitingCelsius);
         BedText = content.BedCelsius is { } bed ? CooldownFormat.Temperature(bed) : string.Empty;
         Progress = content.ProgressPercent;
         AccessibleName = CooldownFormat.AccessibleText(content);
@@ -331,13 +369,14 @@ public static class CooldownFormat
     /// <summary>"Cooling down…" / "Cooled down – safe to turn off".</summary>
     public static string Title(in CooldownContent content) => content.IsCooled ? Strings.CameraOverlayCooled : Strings.CameraOverlayCooling;
 
-    /// <summary>The S card once cooled down: "Cooled down · 48 °C".</summary>
+    /// <summary>The S card once cooled down: "Cooled down · 48 °C" with the limiting temperature (T-109).</summary>
     public static string SmallCooled(in CooldownContent content) =>
-        Format(Strings.CameraMiniCooled, content.NozzleCelsius.ToString("N0", CultureInfo.CurrentCulture));
+        Format(Strings.CameraMiniCooled, content.LimitingCelsius.ToString("N0", CultureInfo.CurrentCulture));
 
     /// <summary>
-    /// M / L: "safe to turn off in about 6 min (nozzle below 50 °C)" or without an estimate "safe to turn off once the
-    /// nozzle is below 50 °C" (cooling); the times row (cooled down; empty without an observed end of the print).
+    /// M / L: "safe to turn off in about 6 min (nozzle below 40 °C, bed below 40 °C)" or without an estimate "safe to turn
+    /// off once the nozzle is below 40 °C and the bed below 40 °C" (cooling; both thresholds, T-109, the nozzle's alone for a
+    /// printer that reports no bed); the times row (cooled down; empty without an observed end of the print).
     /// </summary>
     public static string Detail(in CooldownContent content)
     {
@@ -346,10 +385,18 @@ public static class CooldownFormat
             return Times(content) ?? string.Empty;
         }
 
-        string threshold = content.ThresholdCelsius.ToString("N0", CultureInfo.CurrentCulture);
+        string nozzle = content.NozzleThresholdCelsius.ToString("N0", CultureInfo.CurrentCulture);
+        if (content.BedCelsius is null)
+        {
+            return content.EstimateMinutes is { } nozzleMinutes
+                ? Format(Strings.CameraOverlayCooldownEstimate, OverlayFormat.Duration(nozzleMinutes), nozzle)
+                : Format(Strings.CameraOverlayCooldownNoEstimate, nozzle);
+        }
+
+        string bed = content.BedThresholdCelsius.ToString("N0", CultureInfo.CurrentCulture);
         return content.EstimateMinutes is { } minutes
-            ? Format(Strings.CameraOverlayCooldownEstimate, OverlayFormat.Duration(minutes), threshold)
-            : Format(Strings.CameraOverlayCooldownNoEstimate, threshold);
+            ? Format(Strings.CameraOverlayCooldownEstimateBed, OverlayFormat.Duration(minutes), nozzle, bed)
+            : Format(Strings.CameraOverlayCooldownNoEstimateBed, nozzle, bed);
     }
 
     /// <summary>S while cooling with an estimate: " · about 6 min" after the nozzle; empty otherwise.</summary>
@@ -374,7 +421,7 @@ public static class CooldownFormat
     }
 
     /// <summary>
-    /// "Cooling down…, Nozzle 87 °C, Bed 45 °C, safe to turn off in about 6 min (nozzle below 50 °C)" / "Cooled down – safe
+    /// "Cooling down…, Nozzle 87 °C, Bed 45 °C, safe to turn off in about 6 min (nozzle below 40 °C, bed below 40 °C)" / "Cooled down – safe
     /// to turn off, Nozzle 48 °C, Bed 39 °C, print finished at 7:52 PM, cooled down in 14 min": the words the icons stand for.
     /// </summary>
     public static string AccessibleText(in CooldownContent content)
@@ -417,4 +464,7 @@ public static class CooldownFormat
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);
 
     private static string Format(string format, object? arg0, object? arg1) => string.Format(CultureInfo.CurrentCulture, format, arg0, arg1);
+
+    private static string Format(string format, object? arg0, object? arg1, object? arg2) =>
+        string.Format(CultureInfo.CurrentCulture, format, arg0, arg1, arg2);
 }

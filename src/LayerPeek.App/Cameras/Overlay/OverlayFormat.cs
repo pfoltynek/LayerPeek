@@ -53,10 +53,24 @@ public static class OverlayFormat
     /// <summary>"Done at 1:05 PM", or with the date on another day: "Done October 17 at 8:00 AM".</summary>
     public static string Finish(OverlayFinishTime finish)
     {
-        string time = finish.Local.ToString("t", CultureInfo.CurrentCulture);
+        string time = FinishClock(finish);
         return finish.IsOnAnotherDay
             ? Format(Strings.CameraOverlayFinishDateTime, MonthDay(finish.Local), time)
             : Format(Strings.CameraOverlayFinishTime, time);
+    }
+
+    /// <summary>"1:05 PM" / "13:05": the time of <paramref name="finish"/> alone, in the region (the mini preview strip, T-103).</summary>
+    public static string FinishClock(OverlayFinishTime finish) => finish.Local.ToString("t", CultureInfo.CurrentCulture);
+
+    /// <summary>
+    /// "Fri 1:05 PM" / "pá 13:05" (T-103 Q7): the abbreviated day of the week in the app language (like the month names
+    /// of <see cref="Finish"/>, T-036 Q3) and the time in the region.
+    /// </summary>
+    public static string FinishDayTime(OverlayFinishTime finish)
+    {
+        CultureInfo language = LanguageCulture();
+        string day = language.DateTimeFormat.GetAbbreviatedDayName(finish.Local.DayOfWeek);
+        return Format(Strings.CameraMiniFinishDayTime, day, FinishClock(finish));
     }
 
     /// <summary>"215 / 215 °C" while heating, "25 °C" with the heater off.</summary>
@@ -154,10 +168,16 @@ public static class OverlayFormat
     /// </summary>
     private static string MonthDay(DateTime date)
     {
+        CultureInfo culture = LanguageCulture();
+        return date.ToString(culture.DateTimeFormat.MonthDayPattern, culture);
+    }
+
+    /// <summary>The culture of the app language with calendar data (month and day names).</summary>
+    private static CultureInfo LanguageCulture()
+    {
         CultureInfo language = UiLanguage.CurrentTextCulture();
         // The neutral language ("cs") has no calendar data of its own on every platform; its default region does.
-        CultureInfo culture = language.IsNeutralCulture ? CultureInfo.CreateSpecificCulture(language.Name) : language;
-        return date.ToString(culture.DateTimeFormat.MonthDayPattern, culture);
+        return language.IsNeutralCulture ? CultureInfo.CreateSpecificCulture(language.Name) : language;
     }
 
     private static string Format(string format, object? arg0) => string.Format(CultureInfo.CurrentCulture, format, arg0);

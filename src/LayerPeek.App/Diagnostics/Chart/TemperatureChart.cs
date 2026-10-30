@@ -35,7 +35,12 @@ namespace LayerPeek.App.Diagnostics.Chart;
 /// Compact mode: no axes, labels or grid (the plot is the whole control), a fixed range of
 /// <see cref="CompactTimeWindow"/> ending now, and a sample buffer sized to that range instead of the whole history.
 /// The look of the lines comes from <see cref="LineThickness"/> and <see cref="TargetOpacity"/>; "no data" is drawn in
-/// <see cref="AxisBrush"/>. The control draws no background.
+/// <see cref="AxisBrush"/>. The control draws no background. Instead of the value axis from 0 °C, every series with
+/// values in the hour gets its own band (nozzle on top, bed below), scaled to its own minimum and maximum with at least
+/// <see cref="CompactBands.MinimumSpan"/> (T-106), so that a fluctuation of 1–2 °C is visible. A target is drawn in the
+/// band of its series, clipped to it: the band is scaled to the actual values only, so a target far away from them
+/// (e.g. at the start of heating) is not drawn instead of squeezing the actual line flat. Which bands exist depends on
+/// which series have values in the hour, so the layout changes only when a series enters or leaves that range.
 /// </para>
 /// </remarks>
 public sealed class TemperatureChart : Control
@@ -79,6 +84,18 @@ public sealed class TemperatureChart : Control
     public static readonly StyledProperty<double> TargetOpacityProperty =
         AvaloniaProperty.Register<TemperatureChart, double>(nameof(TargetOpacity), 1, coerce: CoerceOpacity);
 
+    public static readonly StyledProperty<double> BandRangeWidthProperty =
+        AvaloniaProperty.Register<TemperatureChart, double>(nameof(BandRangeWidth), 0, coerce: CoerceBandRangeWidth);
+
+    public static readonly StyledProperty<string?> BandRangeFormatProperty =
+        AvaloniaProperty.Register<TemperatureChart, string?>(nameof(BandRangeFormat));
+
+    public static readonly StyledProperty<IBrush?> BandRangeBrushProperty =
+        AvaloniaProperty.Register<TemperatureChart, IBrush?>(nameof(BandRangeBrush), Brushes.Gray);
+
+    public static readonly StyledProperty<double> BandRangeFontSizeProperty =
+        AvaloniaProperty.Register<TemperatureChart, double>(nameof(BandRangeFontSize), 12, coerce: CoerceFontSize);
+
     private const double LeftMargin = 56;
     private const double RightMargin = 12;
     private const double TopMargin = 8;
@@ -98,6 +115,10 @@ public sealed class TemperatureChart : Control
     private readonly List<Visual> _ancestors = [];
     private readonly StreamGeometry?[] _series = new StreamGeometry?[TemperatureChartData.SeriesCount];
     private readonly IPen?[] _seriesPens = new IPen?[TemperatureChartData.SeriesCount];
+
+    // The value-to-pixel mapping of each series and the rectangle it is clipped to (the plot, or its band when compact).
+    private readonly ValueBand?[] _bands = new ValueBand?[TemperatureChartData.SeriesCount];
+    private readonly Rect[] _bandClips = new Rect[TemperatureChartData.SeriesCount];
 
     // Labels are created once per axis value / tick time and reused across redraws.
     private readonly ChartLabelCache<double, FormattedText> _valueLabels;
@@ -125,6 +146,12 @@ public sealed class TemperatureChart : Control
     private TimeZoneInfo _labelZone = TimeZoneInfo.Utc;
     private StreamGeometry? _valueGrid;
     private FormattedText? _noDataLabel;
+
+    // Range labels of the compact bands (T-106, L widget only): text, whole degrees it shows, and where it is drawn.
+    private readonly FormattedText?[] _rangeLabels = new FormattedText?[TemperatureChartData.SeriesCount];
+    private readonly string?[] _rangeTexts = new string?[TemperatureChartData.SeriesCount];
+    private readonly (long Low, long High)[] _rangeLabelValues = new (long, long)[TemperatureChartData.SeriesCount];
+    private readonly Point[] _rangeLabelOrigins = new Point[TemperatureChartData.SeriesCount];
     private bool _showNoData;
     private IPen? _gridPen;
 
@@ -142,7 +169,11 @@ public sealed class TemperatureChart : Control
             NoDataTextProperty,
             IsCompactProperty,
             LineThicknessProperty,
-            TargetOpacityProperty);
+            TargetOpacityProperty,
+            BandRangeWidthProperty,
+            BandRangeFormatProperty,
+            BandRangeBrushProperty,
+            BandRangeFontSizeProperty);
     }
 
     public TemperatureChart()
@@ -241,6 +272,46 @@ public sealed class TemperatureChart : Control
         set => SetValue(TargetOpacityProperty, value);
     }
 
+    /// <summary>
+    /// Compact mode only: width of a column at the right edge, next to the plot, that shows the value range of every band
+    /// (<see cref="BandRangeFormat"/>, T-106); 0 = no column and no range labels (default). The large Temperatures widget
+    /// uses it; the plot is narrower by this width, so a label never covers a line.
+    /// </summary>
+    public double BandRangeWidth
+    {
+        get => GetValue(BandRangeWidthProperty);
+        set => SetValue(BandRangeWidthProperty, value);
+    }
+
+    /// <summary>Composite format of a band's range label: {0} = lowest, {1} = highest whole degree of the band.</summary>
+    public string? BandRangeFormat
+    {
+        get => GetValue(BandRangeFormatProperty);
+        set => SetValue(BandRangeFormatProperty, value);
+    }
+
+    public IBrush? BandRangeBrush
+    {
+        get => GetValue(BandRangeBrushProperty);
+        set => SetValue(BandRangeBrushProperty, value);
+    }
+
+    public double BandRangeFontSize
+    {
+        get => GetValue(BandRangeFontSizeProperty);
+        set => SetValue(BandRangeFontSizeProperty, value);
+    }
+
+    /// <summary>The text of a series' range label of the last render (tests); <see langword="null"/> when none is drawn.</summary>
+    internal string? BandRangeTextOf(TemperatureSeries series) => _rangeLabels[(int)series] is null ? null : _rangeTexts[(int)series];
+
+    /// <summary>Where the range label of a series is drawn (tests): its bounds in the control.</summary>
+    internal Rect BandRangeBoundsOf(TemperatureSeries series) =>
+        _rangeLabels[(int)series] is { } label ? new Rect(_rangeLabelOrigins[(int)series], new Size(label.WidthIncludingTrailingWhitespace, label.Height)) : default;
+
+    /// <summary>Range labels are drawn: compact, a column for them and a format.</summary>
+    private bool ShowsBandRanges => IsCompact && BandRangeWidth > 0 && !string.IsNullOrEmpty(BandRangeFormat);
+
     /// <summary>The prepared data of the last render (tests).</summary>
     internal TemperatureChartData Data => _data;
 
@@ -259,6 +330,18 @@ public sealed class TemperatureChart : Control
     /// <summary>The pen a series is drawn with; <see langword="null"/> before the first render or without a brush.</summary>
     internal IPen? SeriesPenOf(TemperatureSeries series) => _seriesPens[(int)series];
 
+    /// <summary>
+    /// The value-to-pixel mapping a series was last drawn with (tests): the axis from 0 °C over the plot, or the series'
+    /// band when compact; <see langword="null"/> when the series has no band (no data).
+    /// </summary>
+    internal ValueBand? BandOf(TemperatureSeries series) => _bands[(int)series];
+
+    /// <summary>The line geometry of a series of the last render (tests); <see langword="null"/> when not drawn.</summary>
+    internal Geometry? GeometryOf(TemperatureSeries series) => _series[(int)series];
+
+    /// <summary>The rectangle a series was last clipped to (tests): the plot, or the series' band when compact.</summary>
+    internal Rect ClipOf(TemperatureSeries series) => _bandClips[(int)series];
+
     /// <summary>The shown range: <see cref="CompactTimeWindow"/> in the compact mode, otherwise <see cref="TimeWindow"/>.</summary>
     private TimeSpan EffectiveTimeWindow => IsCompact ? CompactTimeWindow : TimeWindow;
 
@@ -266,7 +349,7 @@ public sealed class TemperatureChart : Control
     {
         bool compact = IsCompact;
         Rect plot = compact
-            ? new Rect(Bounds.Size)
+            ? new Rect(0, 0, ShowsBandRanges ? Bounds.Width - BandRangeWidth : Bounds.Width, Bounds.Height)
             : new(LeftMargin, TopMargin, Bounds.Width - LeftMargin - RightMargin, Bounds.Height - TopMargin - BottomMargin);
         if (plot.Width < 1 || plot.Height < 1)
         {
@@ -300,7 +383,8 @@ public sealed class TemperatureChart : Control
         if (layoutChanged || dataChanged)
         {
             RebuildTimeAxis(plot, compact);
-            RebuildSeries(plot, top, hasData);
+            RebuildSeries(plot, top, hasData, compact);
+            RebuildBandRanges();
         }
 
         _plot = plot;
@@ -334,15 +418,25 @@ public sealed class TemperatureChart : Control
         using (context.PushClip(_plot))
         {
             // Targets below actual values, bed below nozzle.
-            DrawSeries(context, TemperatureSeries.BedTarget);
-            DrawSeries(context, TemperatureSeries.NozzleTarget);
-            DrawSeries(context, TemperatureSeries.BedActual);
-            DrawSeries(context, TemperatureSeries.NozzleActual);
+            DrawSeries(context, TemperatureSeries.BedTarget, compact);
+            DrawSeries(context, TemperatureSeries.NozzleTarget, compact);
+            DrawSeries(context, TemperatureSeries.BedActual, compact);
+            DrawSeries(context, TemperatureSeries.NozzleActual, compact);
+        }
+
+        for (int s = 0; s < TemperatureChartData.SeriesCount; s++)
+        {
+            if (_rangeLabels[s] is { } rangeLabel)
+            {
+                context.DrawText(rangeLabel, _rangeLabelOrigins[s]);
+            }
         }
 
         if (_showNoData && _noDataLabel is not null)
         {
-            context.DrawText(_noDataLabel, new Point(_plot.Center.X - (_noDataLabel.Width / 2), _plot.Center.Y - (_noDataLabel.Height / 2)));
+            // Compact: in the middle of the whole control, also when a column for range labels narrows the plot.
+            Point centre = compact ? new Rect(Bounds.Size).Center : _plot.Center;
+            context.DrawText(_noDataLabel, new Point(centre.X - (_noDataLabel.Width / 2), centre.Y - (_noDataLabel.Height / 2)));
         }
     }
 
@@ -393,6 +487,15 @@ public sealed class TemperatureChart : Control
             _noDataLabel = null;
             _visualsDirty = true;
         }
+        else if (property == BandRangeFormatProperty || property == BandRangeBrushProperty || property == BandRangeFontSizeProperty)
+        {
+            ClearRangeLabels();
+            _visualsDirty = true;
+        }
+        else if (property == BandRangeWidthProperty)
+        {
+            _visualsDirty = true;
+        }
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
@@ -431,10 +534,16 @@ public sealed class TemperatureChart : Control
     private static double CoerceLineThickness(AvaloniaObject sender, double value) =>
         double.IsFinite(value) && value > 0 ? value : 1;
 
+    private static double CoerceBandRangeWidth(AvaloniaObject sender, double value) =>
+        double.IsFinite(value) && value > 0 ? value : 0;
+
+    private static double CoerceFontSize(AvaloniaObject sender, double value) =>
+        double.IsFinite(value) && value > 0 ? value : 12;
+
     private static double CoerceOpacity(AvaloniaObject sender, double value) =>
         double.IsFinite(value) ? Math.Clamp(value, 0, 1) : 1;
 
-    private static StreamGeometry BuildSeries(ReadOnlySpan<ChartColumn> columns, Rect plot, double top)
+    private static StreamGeometry BuildSeries(ReadOnlySpan<ChartColumn> columns, double left, in ValueBand band)
     {
         StreamGeometry geometry = new();
         using StreamGeometryContext line = geometry.Open();
@@ -442,8 +551,8 @@ public sealed class TemperatureChart : Control
         for (int i = 0; i < columns.Length; i++)
         {
             ChartColumn column = columns[i];
-            double x = plot.Left + column.Column + 0.5;
-            Point first = new(x, ValueToY(column.First, plot, top));
+            double x = left + column.Column + 0.5;
+            Point first = new(x, band.ToY(column.First));
             if (!open || column.StartsLine)
             {
                 if (open)
@@ -469,9 +578,9 @@ public sealed class TemperatureChart : Control
             if (column.Max > column.Min)
             {
                 // The column's whole range, so that no peak disappears in decimation.
-                line.LineTo(new Point(x, ValueToY(column.Max, plot, top)));
-                line.LineTo(new Point(x, ValueToY(column.Min, plot, top)));
-                line.LineTo(new Point(x, ValueToY(column.Last, plot, top)));
+                line.LineTo(new Point(x, band.ToY(column.Max)));
+                line.LineTo(new Point(x, band.ToY(column.Min)));
+                line.LineTo(new Point(x, band.ToY(column.Last)));
             }
         }
 
@@ -483,7 +592,16 @@ public sealed class TemperatureChart : Control
         return geometry;
     }
 
-    private static double ValueToY(double value, Rect plot, double top) => plot.Bottom - (value / top * plot.Height);
+    /// <summary>The value axis of the full chart: 0 °C at the bottom of the plot, <paramref name="top"/> at its top.</summary>
+    private static ValueBand FullAxis(Rect plot, double top) => new(plot.Bottom, plot.Height, 0, top);
+
+    /// <summary>The actual series whose band a target series shares (a series is its own).</summary>
+    private static TemperatureSeries BandSeriesOf(TemperatureSeries series) => series switch
+    {
+        TemperatureSeries.NozzleTarget => TemperatureSeries.NozzleActual,
+        TemperatureSeries.BedTarget => TemperatureSeries.BedActual,
+        _ => series,
+    };
 
     private static FormattedText Label(string text, IBrush? brush, double fontSize) =>
         new(text, CultureInfo.CurrentCulture, FlowDirection.LeftToRight, Typeface.Default, fontSize, brush ?? Brushes.Gray);
@@ -576,12 +694,23 @@ public sealed class TemperatureChart : Control
         InvalidateVisual();
     }
 
-    private void DrawSeries(DrawingContext context, TemperatureSeries series)
+    private void DrawSeries(DrawingContext context, TemperatureSeries series, bool compact)
     {
         int index = (int)series;
         if (_series[index] is { } geometry && _seriesPens[index] is { } pen)
         {
-            context.DrawGeometry(null, pen, geometry);
+            if (compact)
+            {
+                // A line (a target in particular) never strays into the neighbouring band.
+                using (context.PushClip(_bandClips[index]))
+                {
+                    context.DrawGeometry(null, pen, geometry);
+                }
+            }
+            else
+            {
+                context.DrawGeometry(null, pen, geometry);
+            }
         }
     }
 
@@ -627,6 +756,92 @@ public sealed class TemperatureChart : Control
         _valueLabels.Clear();
         _timeLabels.Clear();
         _noDataLabel = null;
+        ClearRangeLabels();
+    }
+
+    private void ClearRangeLabels() => Array.Clear(_rangeLabels);
+
+    /// <summary>
+    /// Range labels of the compact bands (T-106): "212–218 °C" in whole degrees, right-aligned in the
+    /// <see cref="BandRangeWidth"/> column and vertically centred on the band. A label is created only when the degrees
+    /// it shows (or the format, brush, culture) change; otherwise it is only moved.
+    /// </summary>
+    private void RebuildBandRanges()
+    {
+        bool show = ShowsBandRanges && !_showNoData;
+        for (int s = 0; s < TemperatureChartData.SeriesCount; s++)
+        {
+            TemperatureSeries series = (TemperatureSeries)s;
+            if (!show || BandSeriesOf(series) != series || _bands[s] is not { } band)
+            {
+                _rangeLabels[s] = null;
+                continue;
+            }
+
+            (long Low, long High) degrees = ((long)Math.Round(band.Low, MidpointRounding.AwayFromZero), (long)Math.Round(band.High, MidpointRounding.AwayFromZero));
+            if (_rangeLabels[s] is null || _rangeLabelValues[s] != degrees)
+            {
+                string text = string.Format(CultureInfo.CurrentCulture, BandRangeFormat!, degrees.Low, degrees.High);
+                _rangeLabels[s] = Label(text, BandRangeBrush, BandRangeFontSize);
+                _rangeTexts[s] = text;
+                _rangeLabelValues[s] = degrees;
+            }
+
+            FormattedText label = _rangeLabels[s]!;
+            Rect slot = _bandClips[s];
+            double y = Math.Clamp(slot.Center.Y - (label.Height / 2), 0, Math.Max(0, Bounds.Height - label.Height));
+            _rangeLabelOrigins[s] = new Point(Math.Floor(Bounds.Width - label.WidthIncludingTrailingWhitespace), Math.Round(y));
+        }
+    }
+
+    /// <summary>
+    /// Bands of the compact chart (T-106): one per actual series with values in the range, nozzle on top, each scaled to
+    /// its own values (<see cref="CompactBands"/>) and inset by half the line thickness; a target shares the band of its
+    /// series. Returns <see langword="false"/> when no series has a value (nothing to draw). Allocation-free.
+    /// </summary>
+    private bool LayOutCompactBands(Rect plot)
+    {
+        Array.Clear(_bands);
+        (float nozzleMin, float nozzleMax) = _data.GetRange(TemperatureSeries.NozzleActual);
+        (float bedMin, float bedMax) = _data.GetRange(TemperatureSeries.BedActual);
+        bool hasNozzle = CompactBands.TryGetRange(nozzleMin, nozzleMax, out _, out _);
+        bool hasBed = CompactBands.TryGetRange(bedMin, bedMax, out _, out _);
+        int count = (hasNozzle ? 1 : 0) + (hasBed ? 1 : 0);
+        if (count == 0)
+        {
+            return false;
+        }
+
+        int slot = 0;
+        double inset = LineThickness / 2;
+        for (int s = 0; s < TemperatureChartData.SeriesCount; s++)
+        {
+            TemperatureSeries series = (TemperatureSeries)s;
+            if (BandSeriesOf(series) != series)
+            {
+                continue;
+            }
+
+            (float min, float max) = _data.GetRange(series);
+            (double slotTop, double slotHeight) = CompactBands.Slot(Math.Min(slot, count - 1), count, plot.Top, plot.Height);
+            if (!CompactBands.TryCreate(min, max, slotTop, slotHeight, inset, out ValueBand band))
+            {
+                continue;
+            }
+
+            slot++;
+            Rect clip = new(plot.Left, slotTop, plot.Width, slotHeight);
+            for (int t = 0; t < TemperatureChartData.SeriesCount; t++)
+            {
+                if (BandSeriesOf((TemperatureSeries)t) == series)
+                {
+                    _bands[t] = band;
+                    _bandClips[t] = clip;
+                }
+            }
+        }
+
+        return true;
     }
 
     /// <summary>Horizontal grid lines and °C labels; only when the value range or the size changed. None when compact.</summary>
@@ -639,13 +854,14 @@ public sealed class TemperatureChart : Control
             return;
         }
 
+        ValueBand axis = FullAxis(plot, top);
         StreamGeometry grid = new();
         using (StreamGeometryContext lines = grid.Open())
         {
             for (int i = 0; i * step <= top + (step / 2); i++)
             {
                 double value = i * step;
-                double y = Math.Round(ValueToY(value, plot, top)) + 0.5;
+                double y = Math.Round(axis.ToY(value)) + 0.5;
                 lines.BeginFigure(new Point(plot.Left, y), isFilled: false);
                 lines.LineTo(new Point(plot.Right, y));
                 lines.EndFigure(false);
@@ -685,13 +901,24 @@ public sealed class TemperatureChart : Control
     }
 
     /// <summary>Line geometries of the series; with every data change (the only per-poll allocation besides a new tick label).</summary>
-    private void RebuildSeries(Rect plot, double top, bool hasData)
+    private void RebuildSeries(Rect plot, double top, bool hasData, bool compact)
     {
         SeriesRebuilds++;
+        if (compact)
+        {
+            hasData = hasData && LayOutCompactBands(plot);
+        }
+        else
+        {
+            ValueBand axis = FullAxis(plot, top);
+            Array.Fill(_bands, axis);
+            Array.Fill(_bandClips, plot);
+        }
+
         for (int s = 0; s < TemperatureChartData.SeriesCount; s++)
         {
             ReadOnlySpan<ChartColumn> columns = _data.GetColumns((TemperatureSeries)s);
-            _series[s] = hasData && !columns.IsEmpty ? BuildSeries(columns, plot, top) : null;
+            _series[s] = hasData && !columns.IsEmpty && _bands[s] is { } band ? BuildSeries(columns, plot.Left, band) : null;
         }
 
         _showNoData = !hasData;

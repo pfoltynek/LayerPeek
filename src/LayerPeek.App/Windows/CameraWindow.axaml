@@ -14,14 +14,18 @@
         MinHeight="90"
         Background="Black"
         WindowStartupLocation="CenterScreen">
-  <!-- F11 toggles full screen; Esc leaves full screen to the mode it was entered from (normal window or mini preview) and the mini preview to the normal window. -->
+  <!--
+    F11 toggles full screen; Esc leaves full screen to the mode it was entered from (normal window or mini preview) and the
+    mini preview to the normal window. macOS (T-100) adds ⌃⌘F, ⌘. (= Esc) and ⌘W in CameraWindow.axaml.cs.
+  -->
   <Window.KeyBindings>
     <KeyBinding Gesture="F11" Command="{Binding ToggleFullScreenCommand}" />
     <KeyBinding Gesture="Escape" Command="{Binding EscapeCommand}" />
   </Window.KeyBindings>
 
   <!--
-    Layout mode (T-091): the context menu of the image (right click, Menu key / Shift+F10, Ctrl+click on macOS) opens only in
+    Layout mode (T-091): the context menu of the image (right click; Menu key / Shift+F10 on Windows; ⌃-click on macOS, whose
+    texts never mention the keys of Windows, T-100) opens only in
     the normal window outside the layout mode (CameraWindow.LayoutMode.cs); disabled with a tip below 480 × 300.
   -->
   <Window.ContextMenu>
@@ -89,7 +93,7 @@
             PointerPressed="OnSurfacePointerPressed"
             PointerMoved="OnSurfacePointerMoved"
             PointerReleased="OnSurfacePointerReleased"
-            AutomationProperties.Name="{Binding [CameraImageHint], Source={x:Static loc:LocalizedStrings.Instance}}">
+            AutomationProperties.Name="{Binding ImageHint}">
       <Image x:Name="Video" Stretch="Uniform" RenderOptions.BitmapInterpolationMode="MediumQuality" />
     </Border>
 
@@ -156,8 +160,8 @@
       <Button AutomationProperties.AutomationId="CameraFullScreenButton"
               Command="{Binding ShowFullScreenCommand}"
               IsVisible="{Binding !IsFullScreen}"
-              ToolTip.Tip="{Binding [CameraFullScreen], Source={x:Static loc:LocalizedStrings.Instance}}"
-              AutomationProperties.Name="{Binding [CameraFullScreen], Source={x:Static loc:LocalizedStrings.Instance}}">
+              ToolTip.Tip="{Binding FullScreenToolTip}"
+              AutomationProperties.Name="{Binding FullScreenToolTip}">
         <Path Classes="icon" Data="M1,5 V1 H5 M11,1 H15 V5 M15,11 V15 H11 M5,15 H1 V11" />
       </Button>
       <Button AutomationProperties.AutomationId="CameraNormalButton"

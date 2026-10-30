@@ -20,6 +20,15 @@
     Files already uploaded with identical content are skipped, so a re-run after a failed upload is safe.
     Reads the remote with git ls-remote only: nothing is fetched or pushed.
 
+    With -AddToPublished (T-113) the files of the OS of this build are added to the PUBLISHED release instead, when
+    the other OS went first (docs/release.md, release on two machines). All the checks above still apply, and it also
+    refuses when the release is missing or still a draft, already contains the checksum file of this OS, or contains
+    a file of this build with other content or unfinished (state 'starter'). Nothing is ever replaced; identical files
+    are skipped (a re-run after an interrupted upload). The checksum file and the Velopack feed files are uploaded
+    last, so that no app sees the OS in the release before its packages are there. The release text and its
+    pre-release flag are never changed. Afterwards the whole release is checked like release-publish.ps1 does
+    (every file listed in the checksum files with its SHA256, nothing else, no win-arm64).
+
 .PARAMETER Repo
     GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another
     repository (e.g. a trial repository, docs/release.md) needs its own git remote; the tag and main branch checks then
@@ -29,19 +38,26 @@
     Runs every check and prints what would be created or uploaded; changes nothing on GitHub.
 
 .PARAMETER Force
-    Replaces already uploaded files whose content differs (gh release upload --clobber).
+    Replaces already uploaded files whose content differs (gh release upload --clobber). Drafts only: never together
+    with -AddToPublished.
+
+.PARAMETER AddToPublished
+    Adds the files of the OS of this build to the published release that does not have them yet (T-113). Never
+    replaces anything.
 
 .EXAMPLE
     pwsh scripts/release-upload.ps1 -DryRun
     pwsh scripts/release-upload.ps1
     pwsh scripts/release-upload.ps1 -Repo pfoltynek/LayerPeek-release-trial -DryRun
+    pwsh scripts/release-upload.ps1 -AddToPublished -DryRun
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
 param(
     [string] $Repo,
     [switch] $DryRun,
-    [switch] $Force
+    [switch] $Force,
+    [switch] $AddToPublished
 )
 
 $ErrorActionPreference = 'Stop'
@@ -50,8 +66,13 @@ Import-Module (Join-Path $PSScriptRoot 'ReleaseTools' 'ReleaseTools.psm1') -Forc
 # Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
 $repoRoot = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..')
 $notesFile = $null
+$downloadDir = $null
 
 try {
+    if ($AddToPublished -and $Force) {
+        Write-Problems -Problems @('-AddToPublished never replaces a file, so it cannot be combined with -Force.') -Action 'Upload'
+        exit 1
+    }
     $preflight = Get-ReleasePreflight -RepoRoot $repoRoot -Repository $Repo
     $version = $preflight.Version
     $tag = $preflight.Tag
@@ -79,11 +100,19 @@ try {
 
     # Reads the release (drafts included); nothing is changed yet.
     $release = Get-GitHubRelease -Repository $preflight.Repository -Tag $tag
-    if ($release -and -not $release.isDraft) {
-        Write-Problems -Problems @("Release $tag is already published ($($release.url)). Files are uploaded only into a draft release.") -Action 'Upload'
+    if (-not $AddToPublished -and $release -and -not $release.isDraft) {
+        $repoArgument = if ($Repo) { " -Repo $Repo" } else { '' }
+        Write-Problems -Problems @("Release $tag is already published ($($release.url)). Files are uploaded only into a draft release. To add the files of an OS that the published release does not have yet: pwsh scripts/release-upload.ps1$repoArgument -AddToPublished (docs/release.md).") -Action 'Upload'
         exit 1
     }
     $plan = @(Get-UploadPlan -LocalFiles $localFiles -RemoteAssets @($release ? $release.assets : @()) -Force:$Force)
+    if ($AddToPublished) {
+        $addProblems = @(Get-AddToPublishedProblems -Release $release -Tag $tag -ChecksumFile $output.BuildInfo.ChecksumFile -Plan $plan)
+        if ($addProblems.Count -gt 0) {
+            Write-Problems -Problems $addProblems -Action 'Upload'
+            exit 1
+        }
+    }
     $conflicts = @($plan | Where-Object Action -EQ 'Conflict')
     if ($conflicts.Count -gt 0) {
         Write-Problems -Problems @("Already uploaded with different content: $($conflicts.Name -join ', '). Re-run with -Force to replace them.") -Action 'Upload'
@@ -92,7 +121,8 @@ try {
 
     $prerelease = Test-PrereleaseVersion $version
     $prefix = if ($DryRun) { 'Would' } else { 'Will' }
-    if ($release) { Write-Host "$prefix upload into the existing draft release $tag ($($release.url)):" }
+    if ($AddToPublished) { Write-Host "$prefix add the $($output.BuildInfo.Os) files to the published release $tag ($($release.url)); its text and pre-release flag stay as they are, the checksum file and the Velopack feed go last:" }
+    elseif ($release) { Write-Host "$prefix upload into the existing draft release $tag ($($release.url)):" }
     else { Write-Host "$prefix create the draft release $tag (pre-release: $($prerelease ? 'yes' : 'no'), notes from CHANGELOG.md section [$version]) with:" }
     foreach ($item in $plan) {
         $label = switch ($item.Action) { 'Upload' { 'upload' } 'Replace' { 'replace (-Force)' } 'Skip' { 'skip, identical file already uploaded' } }
@@ -101,8 +131,10 @@ try {
     $toUpload = @($plan | Where-Object Action -In 'Upload', 'Replace' | ForEach-Object { Join-Path $distDir $_.Name })
 
     if ($DryRun) {
-        Write-Host 'Release notes:'
-        Write-Host ($notes -replace '(?m)^', '  | ')
+        if (-not $AddToPublished) {
+            Write-Host 'Release notes:'
+            Write-Host ($notes -replace '(?m)^', '  | ')
+        }
         Write-Host 'Dry run: nothing was changed on GitHub.' -ForegroundColor Green
         exit 0
     }
@@ -116,6 +148,17 @@ try {
         & gh @arguments @toUpload
         if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE. Re-run the script: files already uploaded are skipped." }
     }
+    elseif ($AddToPublished) {
+        # The packages first, the files that make the OS visible (checksum file, Velopack feed) in a second call.
+        $packages = @($toUpload | Where-Object { -not (Test-ReleaseMarkerFileName (Split-Path -Leaf $_)) })
+        $markers = @($toUpload | Where-Object { Test-ReleaseMarkerFileName (Split-Path -Leaf $_) })
+        foreach ($group in @{ Files = $packages }, @{ Files = $markers }) {
+            if ($group.Files.Count -eq 0) { continue }
+            $files = $group.Files
+            & gh release upload $tag --repo $preflight.Repository @files
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE. Re-run the script with -AddToPublished: files already uploaded are skipped." }
+        }
+    }
     elseif ($toUpload.Count -gt 0) {
         $arguments = @('release', 'upload', $tag, '--repo', $preflight.Repository)
         if (@($plan | Where-Object Action -EQ 'Replace').Count -gt 0) { $arguments += '--clobber' }
@@ -126,7 +169,23 @@ try {
         Write-Host 'Nothing to upload: the draft already contains all files.'
     }
 
-    Write-Host "Draft release $tag updated. Upload the build of the other OS, then publish: pwsh scripts/release-publish.ps1" -ForegroundColor Green
+    if ($AddToPublished) {
+        # The same check as release-publish.ps1, of the published release (T-113).
+        $after = Get-GitHubRelease -Repository $preflight.Repository -Tag $tag
+        $downloadDir = Join-Path ([System.IO.Path]::GetTempPath()) "layerpeek-release-sums-$([guid]::NewGuid().ToString('N'))"
+        $checksums = Get-ReleaseChecksums -Release $after -Repository $preflight.Repository -Tag $tag -Directory $downloadDir
+        $config = Get-ReleaseRuntimeConfig
+        $expectedOs = @($config.Values | Where-Object Uploadable | ForEach-Object Os | Sort-Object -Unique)
+        $check = @(Get-PublishProblems -Release $after -Tag $tag -ExpectedOs $expectedOs -Checksums $checksums -Config $config -Published)
+        if ($check.Count -gt 0) {
+            Write-Problems -Problems $check -Action "Check of the published release $tag"
+            Write-Host 'The files of this build are uploaded, but the release is not complete or not consistent. Fix it by hand (docs/release.md).' -ForegroundColor Red
+            exit 1
+        }
+        Write-Host "The $($output.BuildInfo.Os) files are added to the published release $tag; the release is complete and every file matches its checksum file: $($after.url)" -ForegroundColor Green
+        exit 0
+    }
+    Write-Host "Draft release $tag updated. Upload the build of the other OS, then publish: pwsh scripts/release-publish.ps1 (or publish with -AllowIncomplete and add the other OS later with -AddToPublished, docs/release.md)" -ForegroundColor Green
     exit 0
 }
 catch {
@@ -135,4 +194,5 @@ catch {
 }
 finally {
     if ($notesFile -and (Test-Path -LiteralPath $notesFile)) { Remove-Item -LiteralPath $notesFile -Force -ErrorAction SilentlyContinue }
+    if ($downloadDir -and (Test-Path -LiteralPath $downloadDir)) { Remove-Item -LiteralPath $downloadDir -Recurse -Force -ErrorAction SilentlyContinue }
 }

@@ -90,6 +90,20 @@ public sealed record CameraSettings
         }
     } = CameraOverlayLayout.Default;
 
+    /// <summary>
+    /// What the info strip of the mini preview shows (T-110); kept while the camera is disabled or its address is invalid.
+    /// Persisted as <c>printers[*].camera.miniStrip</c> (only the items that are off).
+    /// </summary>
+    public CameraMiniStripSettings MiniStrip
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = CameraMiniStripSettings.Default;
+
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="streamUrl"/> is empty (no address), valid (use the constructor) or contains credentials
@@ -254,9 +268,10 @@ public sealed record CameraSettings
         && string.Equals(StreamUri?.OriginalString, other.StreamUri?.OriginalString, StringComparison.Ordinal)
         && string.Equals(InvalidStreamUrl, other.InvalidStreamUrl, StringComparison.Ordinal)
         && Window == other.Window
-        && Overlay == other.Overlay;
+        && Overlay == other.Overlay
+        && MiniStrip == other.MiniStrip;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip);
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -267,7 +282,8 @@ public sealed record CameraSettings
             .Append(", StreamUrlProblem = ").Append(StreamUrlProblem)
             .Append(", CredentialsRemoved = ").Append(CredentialsRemoved)
             .Append(", Window = ").Append(Window)
-            .Append(", Overlay = ").Append(Overlay);
+            .Append(", Overlay = ").Append(Overlay)
+            .Append(", MiniStrip = ").Append(MiniStrip);
         return true;
     }
 }

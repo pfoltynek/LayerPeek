@@ -21,7 +21,8 @@ public sealed class CameraWindowLanguageTests(HeadlessSession session)
     public Task SwitchTranslatesTitleStatusButtonsAndOverlayCardsOfEveryOpenWindow() =>
         session.RunAsync(static async scope =>
         {
-            await using CameraHarness harness = new(overlay: new([new("test-a", Core.Cameras.Overlay.OverlayAnchor.TopLeft)]));
+            // The texts of Windows (F11) on every OS; those of macOS: CameraWindowMacShortcutsUiTests (T-100).
+            await using CameraHarness harness = new(overlay: new([new("test-a", Core.Cameras.Overlay.OverlayAnchor.TopLeft)]), macShortcuts: false);
             CameraWindow alpha = harness.Open("a");
             CameraWindow beta = harness.Open("b");
             await harness.Factory.WaitForFeedAsync(2);

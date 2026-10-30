@@ -7,7 +7,8 @@ namespace LayerPeek.Core.Settings.Storage;
 /// Persisted shape of <see cref="AppSettings"/>. Every value is optional: missing values fall back to defaults and
 /// invalid printer entries are skipped (see <see cref="SettingsMapper"/>) and quoted numbers are accepted.
 /// Any other value of the wrong JSON type fails deserialization, i.e. the whole file is treated as corrupted; the values
-/// inside <see cref="CameraOverlayDocument"/> are the exception (read from raw JSON with warnings).
+/// inside <see cref="CameraOverlayDocument"/> and <see cref="CameraDocument.MiniStrip"/> are the exception (read from raw
+/// JSON with warnings).
 /// </summary>
 internal sealed class SettingsDocument
 {
@@ -34,6 +35,9 @@ internal sealed class SettingsDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? OfferPrereleaseUpdates { get; set; }
+
+    /// <summary>"Check for updates automatically" (T-058); missing in older files, which load with the default (on).</summary>
+    public bool? CheckForUpdates { get; set; }
 
     public NotificationsDocument? Notifications { get; set; }
 
@@ -113,11 +117,24 @@ internal sealed class PrinterDocument
     public PrinterImageDocument? Image { get; set; }
 
     /// <summary>
-    /// Cool-down threshold of the nozzle in whole °C (T-079); missing in older files and not written while it is the
+    /// Cool-down threshold of the nozzle in whole °C (T-109); missing in older files and not written while it is the
     /// default. Read as a number so that fractions and out-of-range values fall back to the default with a warning.
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public double? CooldownThresholdCelsius { get; set; }
+    public double? CooldownNozzleThresholdCelsius { get; set; }
+
+    /// <summary>Cool-down threshold of the bed in whole °C (T-109); same rules as <see cref="CooldownNozzleThresholdCelsius"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? CooldownBedThresholdCelsius { get; set; }
+
+    /// <summary>
+    /// The single nozzle threshold of 0.3.0 and older (T-079, <c>cooldownThresholdCelsius</c>): only read, so that the log
+    /// can say it was discarded (T-109, user decision 2026-10-29: every printer starts with the new defaults), and never
+    /// written again. Any JSON value is accepted, so that it can never make the file unreadable.
+    /// </summary>
+    [JsonPropertyName("cooldownThresholdCelsius")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? LegacyCooldownThresholdCelsius { get; set; }
 }
 
 /// <summary>Missing or invalid values mean the automatic image (invalid ones with a warning).</summary>
@@ -152,6 +169,43 @@ internal sealed class CameraDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CameraOverlayDocument? Overlay { get; set; }
+
+    /// <summary>
+    /// What the info strip of the mini preview shows (T-110): an object of <see cref="CameraMiniStripDocument"/> values;
+    /// missing in older files and not written while every item is on. Kept as raw JSON and read leniently by
+    /// <see cref="SettingsMapper"/> (a value of the wrong type is a warning, not a corrupted file). Not the old
+    /// <c>overlay.mini</c> of T-036.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? MiniStrip { get; set; }
+}
+
+/// <summary>
+/// <see cref="CameraDocument.MiniStrip"/> as written: only the items that are off (<see langword="false"/>); a missing item
+/// is on. Reading goes through the raw JSON.
+/// </summary>
+internal sealed class CameraMiniStripDocument
+{
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ProgressBar { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Percent { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Remaining { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Finish { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Cooldown { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? NameRow { get; set; }
+
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? ChartRow { get; set; }
 }
 
 /// <summary>
@@ -262,4 +316,5 @@ internal sealed class CameraWindowLayoutDocument
 [JsonSerializable(typeof(SettingsDocument))]
 [JsonSerializable(typeof(CameraOverlayDocument))]
 [JsonSerializable(typeof(List<OverlayWidgetDocument>))]
+[JsonSerializable(typeof(CameraMiniStripDocument))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;

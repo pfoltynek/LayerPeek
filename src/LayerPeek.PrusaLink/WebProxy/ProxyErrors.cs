@@ -28,6 +28,9 @@ internal static class ProxyErrors
     public static readonly byte[] ForeignPage =
         """{"title":"403: Forbidden","message":"LayerPeek does not forward changes requested by another web page."}"""u8.ToArray();
 
+    public static readonly byte[] ServiceWorker =
+        """{"title":"403: Forbidden","message":"LayerPeek does not allow Service Workers for the printer's web."}"""u8.ToArray();
+
     public static readonly byte[] NotReachable =
         """{"title":"502: Bad Gateway","message":"The printer is not reachable."}"""u8.ToArray();
 

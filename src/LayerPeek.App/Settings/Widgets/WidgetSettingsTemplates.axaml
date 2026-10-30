@@ -1,7 +1,8 @@
 <!--
   The views of the widget settings panels of the Widgets tab (T-092, design 6): one DataTemplate per panel view model
   (x:DataType, compiled bindings), added to SettingsWindow.DataTemplates, where a ContentControl with the selected panel
-  picks the template by type (no reflection, Native AOT). The text styles (label, hint, error) come from the window.
+  picks the template by type (no reflection, Native AOT). The text styles (label, hint, error) and the 32 DIP minimum
+  height of the buttons and link buttons (T-111) come from the window.
   A new widget with settings = its panel view model, its template here and its factory in the registration.
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
@@ -11,31 +12,55 @@
                     xmlns:loc="using:LayerPeek.App.Localization"
                     x:Class="LayerPeek.App.Settings.Widgets.WidgetSettingsTemplates">
   <!--
-    Cool-down (design 4.3, the threshold section of T-080): label, the threshold box (120) and "Use threshold for all
-    printers" on one row, the hint or (instead of it, T-033 pattern) the error, then the state of the "Printer cooled down"
-    notification and the link to the General tab, where its switch is (Q3). Enabled also while the camera is off.
+    Cool-down (design 4.3, the threshold section of T-080; nozzle and bed since T-109): the labels "Nozzle (°C)" and
+    "Bed (°C)" above their boxes (120 each, 12 apart) and "Use thresholds for all printers" right of them on the row of the
+    boxes, the hint or (instead of it, T-033 pattern) one error for both, then the state of the "Printer cooled down"
+    notification and the link to the General tab, where its switch is (Q3). The values belong to the printer selected
+    above the list (per printer, T-109). Enabled also while the camera is off. T-112: each invalid box on its own gets the
+  2 DIP red outline (class "invalid", style in SettingsWindow.axaml) and the common error as its help text.
   -->
   <DataTemplate x:Key="CooldownWidgetSettings" x:DataType="w:CooldownWidgetSettingsViewModel">
     <StackPanel>
-      <TextBlock Classes="label"
-                 TextWrapping="Wrap"
-                 Text="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}" />
-      <Grid ColumnDefinitions="120,12,Auto">
-        <NumericUpDown AutomationProperties.AutomationId="WidgetCooldownThreshold"
+      <Grid ColumnDefinitions="120,12,120,12,Auto" RowDefinitions="Auto,Auto">
+        <TextBlock Classes="label"
+                   AutomationProperties.AutomationId="WidgetCooldownNozzleLabel"
+                   TextWrapping="Wrap"
+                   Text="{Binding [SettingsCooldownNozzleLabel], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        <TextBlock Grid.Column="2"
+                   Classes="label"
+                   AutomationProperties.AutomationId="WidgetCooldownBedLabel"
+                   TextWrapping="Wrap"
+                   Text="{Binding [SettingsCooldownBedLabel], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        <NumericUpDown Grid.Row="1"
+                       AutomationProperties.AutomationId="WidgetCooldownNozzleThreshold"
                        AutomationProperties.Name="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}"
-                       AutomationProperties.HelpText="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
-                       Value="{Binding Printer.CooldownThresholdCelsius}"
+                       AutomationProperties.HelpText="{Binding Printer.NozzleThresholdHelpText}"
+                       Classes.invalid="{Binding Printer.HasNozzleThresholdError}"
+                       Value="{Binding Printer.CooldownNozzleThresholdCelsius}"
                        Minimum="{x:Static vm:PrinterEditorViewModel.MinCooldownThresholdCelsius}"
                        Maximum="{x:Static vm:PrinterEditorViewModel.MaxCooldownThresholdCelsius}"
                        Increment="1"
                        FormatString="0"
                        VerticalAlignment="Top" />
-        <Button Grid.Column="2"
+        <NumericUpDown Grid.Row="1"
+                       Grid.Column="2"
+                       AutomationProperties.AutomationId="WidgetCooldownBedThreshold"
+                       AutomationProperties.Name="{Binding [SettingsCooldownBedThreshold], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       AutomationProperties.HelpText="{Binding Printer.BedThresholdHelpText}"
+                       Classes.invalid="{Binding Printer.HasBedThresholdError}"
+                       Value="{Binding Printer.CooldownBedThresholdCelsius}"
+                       Minimum="{x:Static vm:PrinterEditorViewModel.MinCooldownThresholdCelsius}"
+                       Maximum="{x:Static vm:PrinterEditorViewModel.MaxCooldownThresholdCelsius}"
+                       Increment="1"
+                       FormatString="0"
+                       VerticalAlignment="Top" />
+        <Button Grid.Row="1"
+                Grid.Column="4"
                 AutomationProperties.AutomationId="WidgetCooldownApplyAll"
                 AutomationProperties.Name="{Binding [SettingsCooldownApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}"
-                MaxWidth="376"
+                MaxWidth="240"
                 VerticalAlignment="Top"
-                Command="{Binding Printer.ApplyCooldownThresholdToAllCommand}"
+                Command="{Binding Printer.ApplyCooldownThresholdsToAllCommand}"
                 ToolTip.Tip="{Binding Printer.ApplyToAllUnavailableReason}"
                 ToolTip.ShowOnDisabled="True">
           <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsCooldownApplyAll], Source={x:Static loc:LocalizedStrings.Instance}}" />
@@ -56,11 +81,98 @@
                  Text="{Binding NotifyStateText}" />
       <HyperlinkButton AutomationProperties.AutomationId="WidgetCooldownNotifyLink"
                        Margin="0,4,0,0"
-                       MinHeight="32"
                        Padding="0"
                        VerticalContentAlignment="Center"
                        Command="{Binding ShowNotificationSettingCommand}"
                        Content="{Binding [SettingsWidgetsNotifyLink], Source={x:Static loc:LocalizedStrings.Instance}}" />
+    </StackPanel>
+  </DataTemplate>
+  <!--
+    Mini preview (T-110, design T-104 2): what the info strip of the mini preview shows, for the printer selected above the
+    list. Two columns (*, 24, *): left the summary row while printing (1–4), right after the print and the rows below it
+    (5–7), in the order of the strip; Tab goes down the left column, then the right one (the children are declared column by
+    column). One grid with rows shared by both columns, so the rows stay level when a text wraps (ui-designer review
+    2026-10-30). Check boxes 32 high, the text may wrap to 2 lines. Under them one hint line. Disabled while the camera is
+    off (the values stay).
+  -->
+  <DataTemplate x:Key="MiniStripSettings" x:DataType="w:MiniStripSettingsViewModel">
+    <StackPanel>
+      <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto">
+        <CheckBox Grid.Row="0"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripProgressBar"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripProgressBar], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripProgressBar}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripProgressBar], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+        <CheckBox Grid.Row="1"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripPercent"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripPercent], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripPercent}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripPercent], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+        <CheckBox Grid.Row="2"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripRemaining"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripRemaining], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripRemaining}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripRemaining], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+        <CheckBox Grid.Row="3"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripFinish"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripFinish], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripFinish}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripFinish], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+        <CheckBox Grid.Row="0" Grid.Column="2"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripCooldown"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripCooldown], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripCooldown}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripCooldown], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+        <CheckBox Grid.Row="1" Grid.Column="2"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripNameRow"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripNameRow], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  AutomationProperties.HelpText="{Binding [SettingsMiniStripNameRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  ToolTip.Tip="{Binding [SettingsMiniStripNameRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  ToolTip.ShowOnDisabled="True"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripNameRow}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripNameRow], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+        <CheckBox Grid.Row="2" Grid.Column="2"
+                  VerticalAlignment="Top"
+                  AutomationProperties.AutomationId="MiniStripChartRow"
+                  AutomationProperties.Name="{Binding [SettingsMiniStripChartRow], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  AutomationProperties.HelpText="{Binding [SettingsMiniStripChartRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  ToolTip.Tip="{Binding [SettingsMiniStripChartRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                  ToolTip.ShowOnDisabled="True"
+                  MinHeight="32"
+                  IsEnabled="{Binding CanEdit}"
+                  IsChecked="{Binding Printer.MiniStripChartRow}">
+          <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripChartRow], Source={x:Static loc:LocalizedStrings.Instance}}" />
+        </CheckBox>
+      </Grid>
+      <TextBlock AutomationProperties.AutomationId="MiniStripHint"
+                 Classes="hint"
+                 TextWrapping="NoWrap"
+                 TextTrimming="CharacterEllipsis"
+                 Text="{Binding [SettingsMiniStripHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
     </StackPanel>
   </DataTemplate>
 </ResourceDictionary>
