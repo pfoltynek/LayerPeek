@@ -96,6 +96,8 @@ Postup: nejdřív ui-designer napíše krátký design spec (sekce `## Návrh` v
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
+**Rozhodnuto 2026-10-30 (uživatel): Q1 A (červený rámeček, text chyby beze změny), Q2 A (chyba místo nápovědy, T-033), Q3 A (fokus na první neplatné pole), Q4 A (vlastní třída `invalid` řízená vlastnostmi `Has…Error`)** – vše podle doporučení.
+
 1. **Jak označit chybné pole?** (blokuje návrh)
    - (A, doporučeno) **Okraj pole** v `SettingsErrorBrush`, text chyby zůstává na místě nápovědy jako dnes (vzor T-033).
      U Vychladnutí se zvýrazní jen chybné pole, společná zpráva zůstane beze změny. Nejmenší zásah, žádné nové
