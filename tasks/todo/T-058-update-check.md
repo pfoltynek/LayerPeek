@@ -13,14 +13,14 @@ Aplikace na Windows i macOS sama zjistí, že na GitHub Releases (`github.com/pf
 
 Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku na Windows, může kontrolu a samotnou aktualizaci převzít Velopack (`UpdateManager` s `GithubSource`). Tento úkol pak buď kontrolu předá Velopacku, nebo jen nabídne „Aktualizovat“ místo otevření stránky vydání – podle doporučení T-056 a odpovědi na otázku níže. Bez Velopacku (archivy, macOS) klik otevře stránku vydání v prohlížeči.
 
-> **Omezení:** kontrola bez tokenu funguje až po zveřejnění repozitáře (rozhodnutí uživatele 2026-10-21: repozitář bude později veřejný, token se do aplikace neukládá). Dokud je repozitář soukromý, API vrátí 404 – aplikace to musí snést tiše (jen záznam v logu, žádná chyba pro uživatele).
+> **Omezení:** kontrola běží bez tokenu (rozhodnutí uživatele 2026-10-21, token se do aplikace neukládá). Repozitář je veřejný (ověřeno 2026-10-30, `GET /repos/pfoltynek/LayerPeek/releases` anonymně vrací 200); koncepty vydání (draft) anonymní API nevidí. Případné 404 musí aplikace snést tiše (jen záznam v logu, žádná chyba pro uživatele).
 
 ## Rozsah
 - **Core** (bez HTTP specifik): abstrakce `IUpdateChecker` (nejnovější vydání: verze, URL stránky vydání, příznak předběžného vydání), porovnání verzí SemVer 2 (tagy `vX.Y.Z`, předběžné přípony) a služba, která kontrolu spouští periodicky a událostí hlásí novou verzi. Čas a časovač přes abstrakci (testy bez čekání).
 - **Implementace v App** (HTTP specifika do Core nepatří): GitHub REST API (https://docs.github.com/en/rest/releases/releases).
   - `GET /repos/pfoltynek/LayerPeek/releases/latest` vrací jen nejnovější zveřejněné vydání, které **není** koncept ani předběžné. Protože všechna vydání `0.x` jsou předběžná (`--prerelease`, T-055), tento endpoint by nic nenašel → pro předběžná vydání je potřeba `GET /repos/{owner}/{repo}/releases` (seznam) a výběr podle verze. Volba podle odpovědi na otázku o předběžných verzích.
   - `HttpClient` přes `IHttpClientFactory`, hlavička `User-Agent` (GitHub ji vyžaduje), `Accept: application/vnd.github+json`, timeout, bez autentizace (limit 60 dotazů za hodinu na IP adresu). JSON jen přes source-generated `JsonSerializerContext`.
-  - Chyby sítě, 403 (limit), 404 (soukromý repozitář) a neplatná data se jen zalogují.
+  - Chyby sítě, 403 (limit), 404 (např. smazaný nebo přejmenovaný repozitář) a neplatná data se jen zalogují.
 - **Verze aplikace** z `<Version>` v kořenovém `Directory.Build.props` (jediný zdroj, T-055), stejná jako v okně O aplikaci.
 - **UI:** položka v tray menu „Je dostupná nová verze X.Y.Z“ (jen když existuje) a jednorázová notifikace pro každou novou verzi přes `INotificationService` (na macOS až s T-020). Texty přes lokalizaci z T-029 (všechny podporované jazyky).
 - Zapamatování verze, pro kterou už notifikace proběhla (v nastavení, ne v tajných údajích).
@@ -46,7 +46,7 @@ Připravil architekt jako podklad pro rozhodnutí uživatele. Nic z toho není r
 
 | Distribuce | Co v aplikaci existuje | Co uživatel dostane |
 |---|---|---|
-| **Windows, instalace Velopack** (`Setup.exe`, T-017) | `VelopackStartup` (hooky), `AppUpdates` + `VelopackUpdateEngine` (`GithubSource`, kanál = RID, `prerelease` podle `PrereleaseUpdates.Offered`) registrované v DI jen v instalaci a mimo testovací režim. Stažení a `WaitExitThenApplyUpdates` po běžném ukončení. Unit testy s `FakeUpdateEngine`. Volba „Nabízet předběžné verze“ na záložce Spuštění a aktualizace je vidět a funguje. | **Nic.** `AppUpdates.CheckAsync` nikdo nevolá: chybí časovač, položka v menu i notifikace. Dokud je repozitář soukromý, kontrola navíc skončí 404 (`docs/velopack.md`, bod 7). |
+| **Windows, instalace Velopack** (`Setup.exe`, T-017) | `VelopackStartup` (hooky), `AppUpdates` + `VelopackUpdateEngine` (`GithubSource`, kanál = RID, `prerelease` podle `PrereleaseUpdates.Offered`) registrované v DI jen v instalaci a mimo testovací režim. Stažení a `WaitExitThenApplyUpdates` po běžném ukončení. Unit testy s `FakeUpdateEngine`. Volba „Nabízet předběžné verze“ na záložce Spuštění a aktualizace je vidět a funguje. | **Nic.** `AppUpdates.CheckAsync` nikdo nevolá: chybí časovač, položka v menu i notifikace. (Repozitář je od 2026-10-30 ověřeně veřejný, 404 kvůli soukromému repozitáři už nehrozí.) |
 | **Windows `.zip`** (T-055) | Žádný engine (`AppUpdates.IsAvailable == false`). Volba předběžných verzí je neaktivní s textem „jen v nainstalované verzi“ (`IsPrereleaseOptionAvailable`). | Nic. O nové verzi se dozví jen z GitHubu. |
 | **macOS `.dmg` / `.tar.gz`** (T-019, vydáno v 0.3.0) | Vlastní `LayerPeek.app` bez `UpdateMac` a `sq.version`. `CreateUpdateEngine` vrací engine jen na Windows. Volba předběžných verzí je skrytá (`ShowsPrereleaseOption`). | Nic: žádná kontrola ani aktualizace. |
 
@@ -103,6 +103,8 @@ Celkem odhadem **4–5 sezení vývojáře** a **1 sezení ručního ověření 
 | F | macOS ruční ověření (Gatekeeper, `/Applications`, Keychain, notifikace, GitHub bez tokenu) a zápis do `docs/velopack.md`, bod 10, plus text do `CHANGELOG.md` a textu vydání (důsledek pro 0.3.0) | macos | qa-reviewer (+ uživatel) | S | E, Q7 |
 
 ## Otevřené otázky
+**Rozhodnuto 2026-10-30 (uživatel): Q1 a, Q2 a, Q3 a, Q4 a, Q5 a, Q6 a, Q7 a, Q8 a, Q9 a, Q10 a** – vše podle doporučení. K Q7: 0.3.0 je vydaná (předběžné vydání 2026-10-29, jen soubory pro macOS); na vydanou 0.3.0 se nesahá, věta o jednorázové ruční reinstalaci přijde do vydání s T-058.
+
 Ke každé otázce jsou varianty (příprava 2026-10-29). Doporučená varianta je označená **(doporučeno)**. Rozhoduje uživatel.
 
 - **Q1** Jak často kontrolovat (např. při startu a pak jednou za 24 h)?

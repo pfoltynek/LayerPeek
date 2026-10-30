@@ -273,6 +273,8 @@ přidala S–M a u Q8 B i zvětšení okna nastavení.
   variant o pár DIP (T-103 oddíl 0).
 
 ## Otevřené otázky
+**Rozhodnuto 2026-10-30 (uživatel): Q1 A, Q2 A, Q3 A (včetně dílčích (a) slabý podklad a (c) ne v tooltipu), Q4 A, Q5 A, Q6 A, Q7 A, Q8 A, Q9 A, Q10 A** – vše podle doporučení.
+
 Návrh připraven 2026-10-29 (ui-designer). U každé otázky je doporučená varianta označená „(doporučeno)“; nic z toho
 není rozhodnuté. Odpověď stačí jako „Q1 A, Q2 A, …“.
 - **Q1 – Kde se pás nastavuje?**
