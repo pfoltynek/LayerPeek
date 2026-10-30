@@ -1,7 +1,7 @@
 ---
 id: T-112
 title: Okno Nastavení – zvýraznění chybného pole a přístupný stav chyby
-status: todo
+status: in-progress
 owner: ui-designer + ui-dev
 priority: P3
 platform: all
@@ -65,35 +65,35 @@ Postup: nejdřív ui-designer napíše krátký design spec (sekce `## Návrh` v
 ## Akceptační kritéria
 - [x] Sekce `## Návrh` od ui-designera je zapsaná v tomto úkolu (vzor okraje, stavy, motivy, přístupnost, Vychladnutí)
       dřív, než začne implementace.
-- [ ] Každé pole z tabulky výše se při zobrazené chybě odliší podle návrhu (headless test ověří třídu nebo okraj
+- [x] Každé pole z tabulky výše se při zobrazené chybě odliší podle návrhu (headless test ověří třídu nebo okraj
       v barvě `SettingsErrorBrush`). Po opravě hodnoty se zvýraznění odstraní. Platné pole zvýrazněné není, stejně
       jako chybné pole před `RevealErrors()`.
-- [ ] Vychladnutí: při chybě jen v prahu podložky je zvýrazněné jen pole podložky, při chybě jen v prahu trysky jen
+- [x] Vychladnutí: při chybě jen v prahu podložky je zvýrazněné jen pole podložky, při chybě jen v prahu trysky jen
       pole trysky, při obou chybách obě pole. Text chyby odpovídá rozhodnutí v Otázce 1.
-- [ ] Při fokusu na chybné pole čtečka obrazovky dostane text chyby (headless test čte vlastnost automatizace
+- [x] Při fokusu na chybné pole čtečka obrazovky dostane text chyby (headless test čte vlastnost automatizace
       zvolenou v návrhu). U platného pole dostane nápovědu jako dnes.
-- [ ] Zvýraznění nemění výšku ani šířku pole. `EverythingFitsWithoutScrollingInEveryState`,
+- [x] Zvýraznění nemění výšku ani šířku pole. `EverythingFitsWithoutScrollingInEveryState`,
       `ErrorReplacesTheHintOfItsFieldOnly`, `PollingIntervalErrorReplacesItsHint`,
       `SaveWithACameraErrorOpensTheCameraSubTabWithItsMarker`, `MarkersOnAllSubTabHeadersStillFitOnOneRow` a testy
       záložky Widgety projdou ve všech jazycích. Okno zůstává 780 × 532 bez posuvníku.
-- [ ] Nový headless test, který pro každé pole z tabulky vyvolá chybu a ověří zvýraznění i stav pro čtečku. Při
+- [x] Nový headless test, který pro každé pole z tabulky vyvolá chybu a ověří zvýraznění i stav pro čtečku. Při
       přidání nového validovaného pole bez zvýraznění test selže (např. kontrolou, že každý viditelný `TextBlock.error`
       má zvýrazněné pole).
-- [ ] Barva okraje má kontrast aspoň 3 : 1 k pozadí ve světlém i tmavém motivu (WCAG 2.2, 1.4.11). Výpočet uvede
+- [x] Barva okraje má kontrast aspoň 3 : 1 k pozadí ve světlém i tmavém motivu (WCAG 2.2, 1.4.11). Výpočet uvede
       ui-designer v návrhu.
-- [ ] Nové nebo změněné řetězce jsou ve všech `Strings.*.resx` (en, cs, de, es, fr, it, pl, sk), žádný nechybí.
+- [x] Nové nebo změněné řetězce jsou ve všech `Strings.*.resx` (en, cs, de, es, fr, it, pl, sk), žádný nechybí.
 - [ ] Snímky: macOS sada (`tests/LayerPeek.App.UiTests/Snapshots/macOS/`) přegenerována a prohlédnuta zde
       (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`). Nové snímky chybových stavů
       aspoň: Tiskárna (adresa), Okno kamery (velikost), Vychladnutí (jen podložka, fr), Obecné, tmavý motiv. Windows
       sadu (`Snapshots/`) přegeneruje uživatel ručně na Windows. Seznam změněných a nových souborů se zapíše do
-      Poznámek k implementaci.
+      Poznámek k implementaci. *(macOS hotovo 2026-10-30, Windows čeká na uživatele.)*
 - [ ] Revize ui-designer po implementaci zapsaná v úkolu.
-- [ ] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
+- [x] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
       `windows.json`, logy v `%APPDATA%` / `~/Library/Application Support/LayerPeek`). Headless testy běží
       v `SettingsWindowHarness` s úložištěm v paměti nebo ve vyhrazených testovacích složkách (`TestDirectories` /
       `ReservedTempDirectory`). Případné spuštění aplikace jen s `LAYERPEEK_TEST_DATA_DIR`
       a `LAYERPEEK_INSTANCE_SUFFIX` (Debug). Žádná síť mimo loopback.
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh
 Autor: ui-designer, 2026-10-30. Vychází z rozhodnutí Q1 A, Q2 A, Q3 A a Q4 A. Podklady: XAML `SettingsWindow.axaml`
@@ -391,7 +391,75 @@ Snímky macOS (`Snapshots/macOS/`), přegenerovat a prohlédnout:
      motivu, takže by bylo nutné nejdřív ověřit `PlatformSettings.GetColorValues().ContrastPreference` a postup.
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+ui-dev, 2026-10-30, macOS (branch `feature/T-112-settings-invalid-field-highlight`).
+
+**Start před dokončením závislostí:** uživatel 2026-10-30 rozhodl začít, i když T-101, T-109, T-110 a T-111 jsou ještě
+v `tasks/in-progress/`. Jejich kód je v `develop` (e1183ed), čekají jen na snímky Windows / revizi ui-designer.
+
+**Stav:** úkol zůstává v `in-progress`. Chybí jen Windows snímky (přegeneruje uživatel na Windows) a revize ui-designer.
+
+Co je hotové (podle `## Návrh`, rozhodnutí Q1–Q7 vše A):
+- **View modely:** `PrinterEditorViewModel.FieldStates.cs` – `HasNameError`, `HasAddressError`, `HasUserNameError`,
+  `HasPasswordError`, `HasCameraUrlError`, `HasNormalSizeError`, `HasMiniSizeError`, `HasNozzleThresholdError`,
+  `HasBedThresholdError` (platí přesně, když je vidět text chyby) a `…HelpText` podle tabulky z oddílu 5.
+  `SettingsViewModel.FieldStates.cs` – `HasPollingIntervalError`, `HasRemainingTimeError`, `PollingIntervalHelpText`,
+  `RemainingTimeHelpText`, událost `FieldFocusRequested` (automation id pole, konstanty v `SettingsFieldIds`). Stávající
+  `HasCooldownThresholdError` (blokuje uložení, zobrazená i nezobrazená) zůstal beze změny.
+- **Fokus (Q3, Q5):** `SaveAsync` (Uložit i Použít) po výběru záložky / podzáložky požádá o první chybné pole v pořadí
+  z oddílu 4. Widgety jen tehdy, když je vybraný panel Vychladnutí. Odmítnuté Otestovat připojení / Otestovat kameru
+  požádá o první chybné pole své podzáložky, jen když je ta podzáložka té tiskárny právě vidět. `SettingsWindow` pole
+  najde průchodem vizuálního stromu podle `AutomationId` (bez reflexe) s `DispatcherPriority.Loaded`. Zaostří
+  `PART_TextBox` / `PART_EditableTextBox` s `NavigationMethod.Tab`, jen když je pole viditelné a povolené.
+- **Styly (`SettingsWindow.axaml`)**, části šablon ověřené výpisem vizuálního stromu v headless testu a jmény v
+  `Avalonia.Themes.Fluent.dll` 12.1.4:
+  - `TextBox.invalid /template/ Border#PART_BorderElement`: 2, `SettingsErrorBrush`.
+  - `ComboBox.invalid /template/ Border#Background` a `Border#HighlightBackground`: 2, `SettingsErrorBrush`.
+  - `NumericUpDown.invalid`: `ButtonSpinner#PART_Spinner` 2, `SettingsErrorBrush`. Vnitřní `TextBox#PART_TextBox`
+    `Margin="-2,-2,0,-2"` (místo −1) a jeho `Border#PART_BorderElement` `2,2,0,2` v červené barvě, takže akcent fokusu
+    nepřekreslí obrys a vpravo nekreslí čáru. Šablona odvozuje levý okraj tlačítek ▲ ▼ z `BorderThickness` spinneru,
+    proto mají `RepeatButton` ve stavu `invalid` znovu `1,0,0,0` a `TextControlBorderBrush`.
+  - Vnitřní `TextBox` v `NumericUpDown` a `ComboBox` dostane `AutomationProperties.Name` a `HelpText` rodiče
+    kompilovaným bindingem `$parent[NumericUpDown]` / `$parent[ComboBox]`. `TemplateBinding` v obyčejném `Style`
+    kompilátor XAML odmítne (AVLN3000).
+- **Odchylka od drátěného modelu (pro revizi):** u chybného `NumericUpDown` jsou tlačítka ▲ ▼ uvnitř silnějšího obrysu
+  o 2 DIP nižší (28 místo 30). Dělicí čára a šipky jsou o 1 DIP vlevo. Rozměr pole a poloha textu se nemění, ověřuje to test.
+- **Řetězce:** žádné nové ani změněné (Q1 A), `.resx` beze změny. Bez `LiveSetting` (Q6 A), bez vysokého kontrastu (Q7 A).
+- **Testy:** nový `tests/LayerPeek.App.UiTests/Settings/SettingsWindowInvalidFieldUiTests.cs` (43 testů):
+  - teorie přes 11 polí: třída a obrys 2 DIP v `#C42B1C` po Uložit, při fokusu, při najetí myší a v klidu, po opravě
+    zmizí; ochrana proti zapomenutému poli pro každou zobrazenou chybu;
+  - neodhalená chyba nové tiskárny se nezvýrazní;
+  - Vychladnutí: jen podložka, jen tryska, obě;
+  - tmavý motiv (`#FF99A4`);
+  - zakázané pole bez třídy (kamera vypnutá, Prusa Connect);
+  - teorie přes 11 polí: `Bounds.Size` a poloha `PART_TextPresenter` stejné v platném i chybném stavu, s fokusem
+    i bez něj;
+  - fokus a `HelpText` peeru **fokusovaného** prvku po Uložit (adresa + heslo → Adresa, jen Okno kamery →
+    `PART_EditableTextBox`, Obecné → `PART_TextBox` intervalu, Vychladnutí → podložka);
+  - fokus po odmítnutém Otestovat připojení a Otestovat kameru;
+  - nápovědy platných polí a změna jazyka;
+  - ochrana ve všech 8 jazycích.
+
+  Mutační kontrola: bez vyrovnání okraje `NumericUpDown` nebo bez `Classes.invalid` u hesla testy selžou.
+- **Snímky a kurzor:** `SnapshotAssert.Matches` nejdřív vyřídí čekající práci (fokus po Uložit), pak fokus zruší.
+  Nový `Matches(..., keepFocus: true)` fokus ponechá a `Ui.FreezeCaret` (interval blikání jeden den) zajistí stabilní
+  kurzor.
+- **Snímky macOS** (`Snapshots/macOS/`), přegenerované a prohlédnuté. Obrys jsem změřil v pixelech: 2 px `#C42B1C`,
+  resp. `#FF99A4`; dělicí čáry `NumericUpDown` 1 px `#666666`, resp. `#999999`.
+  - změněné: `settings-validation`, `settings-validation-cs`, `settings-errors-fr`, `settings-camera-window-errors-fr`,
+    `settings-widgets-cooldown-error-fr`, `settings-general-errors`;
+  - nové: `settings-invalid-address-focused`, `settings-camera-window-error-normal-size`,
+    `settings-widgets-cooldown-error-nozzle`, `settings-general-errors-focused`, `settings-errors-dark`,
+    `settings-general-errors-dark`.
+- **Snímky Windows** (`Snapshots/`), přegeneruje uživatel na Windows (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test
+  --project tests/LayerPeek.App.UiTests`) a prohlédne:
+  - změněné: `settings-validation.png`, `settings-validation-cs.png`, `settings-errors-fr.png`,
+    `settings-camera-window-errors-fr.png`, `settings-widgets-cooldown-error-fr.png`, `settings-general-errors.png`;
+  - nové (do té doby na Windows selžou jako chybějící reference): `settings-invalid-address-focused.png`,
+    `settings-camera-window-error-normal-size.png`, `settings-widgets-cooldown-error-nozzle.png`,
+    `settings-general-errors-focused.png`, `settings-errors-dark.png`, `settings-general-errors-dark.png`.
+- **Ověřeno na macOS:** `dotnet build` i `dotnet build -c Release` bez varování. Celý `dotnet test`: 8070 testů,
+  0 selhání, 182 přeskočených. Aplikace se nespouštěla (pravidlo bezpečného sandboxu), vše ověřují headless testy.
+- **Neověřeno:** skutečný Narrator / NVDA / VoiceOver (jen headless peer), Windows, DPI 125–175 % a vysoký kontrast.
 
 Podklady: revize ui-designer v `tasks/in-progress/T-109-cooldown-nozzle-bed-thresholds.md` (sekce `### Revize
 ui-designer (2026-10-30)`, nálezy 1 a 2 – tlačítko „Použít prahy…“ zůstává při chybě povolené, beze změny).

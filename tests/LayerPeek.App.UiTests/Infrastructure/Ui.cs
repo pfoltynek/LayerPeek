@@ -70,6 +70,16 @@ public static class Ui
         window.Settle();
     }
 
+    /// <summary>
+    /// Keeps the caret of <paramref name="box"/> from blinking (an interval of a day) for a snapshot with the focus in it
+    /// (T-112); set before the box gets the focus, so the caret is shown from then on.
+    /// </summary>
+    public static void FreezeCaret(TextBox box)
+    {
+        ArgumentNullException.ThrowIfNull(box);
+        box.CaretBlinkInterval = TimeSpan.FromDays(1);
+    }
+
     /// <summary>Focuses <paramref name="box"/>, selects its text with Ctrl+A and types <paramref name="text"/> over it.</summary>
     public static void TypeOver(this Window window, TextBox box, string text)
     {

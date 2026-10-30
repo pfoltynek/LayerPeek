@@ -16,7 +16,7 @@ namespace LayerPeek.App.UiTests.Infrastructure;
 
 /// <summary>
 /// Compares a window rendered by Skia with a reference PNG committed in <c>Snapshots/</c>. Deterministic: render scaling
-/// 1.0, no keyboard focus (no caret, no focus adorner), no pointer over the window, the bundled Inter font only, and the
+/// 1.0, no keyboard focus (no caret, no focus adorner; unless a test keeps it, T-112), no pointer over the window, the bundled Inter font only, and the
 /// frame must be stable over further render ticks (no running animation). Every OS has its own set of references
 /// (<see cref="ReferenceSet"/>, T-095): the same font still rasterizes differently on Windows and macOS. Set
 /// <c>LAYERPEEK_UPDATE_SNAPSHOTS=1</c> to (re)write the references of the current OS instead of comparing; the sets of other
@@ -70,12 +70,25 @@ public static class SnapshotAssert
     public static string CurrentReferenceDirectory => ReferenceSet.Current.DirectoryIn(ReferenceDirectory);
 
     /// <summary>Asserts that <paramref name="window"/> looks like the reference image <paramref name="name"/>.png.</summary>
-    public static void Matches(Window window, string name)
+    public static void Matches(Window window, string name) => Matches(window, name, keepFocus: false);
+
+    /// <summary>
+    /// <see cref="Matches(Window, string)"/>; with <paramref name="keepFocus"/> the keyboard focus stays where it is (T-112:
+    /// an invalid field focused after Save), for which the test must keep the caret from blinking
+    /// (<see cref="Ui.FreezeCaret"/>) or have the text selected.
+    /// </summary>
+    public static void Matches(Window window, string name, bool keepFocus)
     {
         ArgumentNullException.ThrowIfNull(window);
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         window.SetRenderScaling(1.0);
-        window.FocusManager?.Focus(null);
+        // Posted work first (e.g. the focus the window moves to an invalid field after Save, T-112), then no focus.
+        window.Settle();
+        if (!keepFocus)
+        {
+            window.FocusManager?.Focus(null);
+        }
+
         window.Settle();
         AssertOnlyBundledFont(window);
 

@@ -20,7 +20,7 @@ namespace LayerPeek.App.Windows;
 /// (<see cref="AuxiliaryWindowPlacement"/>, T-033). Ctrl+Tab / Ctrl+Shift+Tab switch the main tabs, Ctrl+PageDown /
 /// Ctrl+PageUp the sub-tabs of the printer form. On the Widgets tab (T-092) Space switches the visibility of the selected
 /// widget of the list. macOS (T-100) adds Apple's shortcuts: ⌘⇧] / ⌘⇧[ for the main tabs, ⌘⌥→ / ⌘⌥← for the sub-tabs,
-/// ⌘W and ⌘. for Cancel.
+/// ⌘W and ⌘. for Cancel. T-112: a failed Save and a refused test focus the first invalid field (<see cref="OnFieldFocusRequested"/>).
 /// </summary>
 public sealed partial class SettingsWindow : Window
 {
@@ -68,6 +68,7 @@ public sealed partial class SettingsWindow : Window
             _viewModel.CloseRequested -= OnCloseRequested;
             _viewModel.NotificationSettingRequested -= OnNotificationSettingRequested;
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.FieldFocusRequested -= OnFieldFocusRequested;
         }
 
         _viewModel = DataContext as SettingsViewModel;
@@ -76,6 +77,7 @@ public sealed partial class SettingsWindow : Window
             _viewModel.CloseRequested += OnCloseRequested;
             _viewModel.NotificationSettingRequested += OnNotificationSettingRequested;
             _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+            _viewModel.FieldFocusRequested += OnFieldFocusRequested;
         }
 
         base.OnDataContextChanged(e);
@@ -161,6 +163,7 @@ public sealed partial class SettingsWindow : Window
             _viewModel.CloseRequested -= OnCloseRequested;
             _viewModel.NotificationSettingRequested -= OnNotificationSettingRequested;
             _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+            _viewModel.FieldFocusRequested -= OnFieldFocusRequested;
             _viewModel = null;
         }
 
@@ -255,6 +258,46 @@ public sealed partial class SettingsWindow : Window
                 target.BringIntoView();
             }
         });
+    }
+
+    /// <summary>
+    /// T-112 (design 4): the first invalid field of the view the view model just selected gets the keyboard focus, once the
+    /// (sub-)tab and its content are shown. As if reached with Tab (<see cref="NavigationMethod.Tab"/>: <c>:focus-visible</c>,
+    /// the text selected), so a screen reader reads its name, value and error (its help text). A NumericUpDown and an editable
+    /// ComboBox are focused in the TextBox of their template, which holds the keyboard focus. Nothing happens when the field
+    /// is not shown or disabled then (the status line still says what is wrong).
+    /// </summary>
+    private void OnFieldFocusRequested(object? sender, string automationId) =>
+        Dispatcher.UIThread.Post(() => FocusField(automationId), DispatcherPriority.Loaded);
+
+    private void FocusField(string automationId)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        UpdateLayout();
+        Control? field = this.GetVisualDescendants().OfType<Control>()
+            .FirstOrDefault(control => Avalonia.Automation.AutomationProperties.GetAutomationId(control) == automationId);
+        if (field is not { IsEffectivelyVisible: true, IsEffectivelyEnabled: true })
+        {
+            return;
+        }
+
+        string? part = field switch
+        {
+            NumericUpDown => "PART_TextBox",
+            ComboBox { IsEditable: true } => "PART_EditableTextBox",
+            _ => null,
+        };
+        InputElement? target = part is null ? field
+            : field.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(box => box.Name == part);
+        if (target is not null)
+        {
+            field.BringIntoView();
+            target.Focus(NavigationMethod.Tab);
+        }
     }
 
     /// <summary>

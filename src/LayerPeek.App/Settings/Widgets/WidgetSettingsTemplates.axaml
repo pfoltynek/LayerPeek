@@ -16,7 +16,8 @@
     "Bed (°C)" above their boxes (120 each, 12 apart) and "Use thresholds for all printers" right of them on the row of the
     boxes, the hint or (instead of it, T-033 pattern) one error for both, then the state of the "Printer cooled down"
     notification and the link to the General tab, where its switch is (Q3). The values belong to the printer selected
-    above the list (per printer, T-109). Enabled also while the camera is off.
+    above the list (per printer, T-109). Enabled also while the camera is off. T-112: each invalid box on its own gets the
+  2 DIP red outline (class "invalid", style in SettingsWindow.axaml) and the common error as its help text.
   -->
   <DataTemplate x:Key="CooldownWidgetSettings" x:DataType="w:CooldownWidgetSettingsViewModel">
     <StackPanel>
@@ -33,7 +34,8 @@
         <NumericUpDown Grid.Row="1"
                        AutomationProperties.AutomationId="WidgetCooldownNozzleThreshold"
                        AutomationProperties.Name="{Binding [SettingsCooldownThreshold], Source={x:Static loc:LocalizedStrings.Instance}}"
-                       AutomationProperties.HelpText="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       AutomationProperties.HelpText="{Binding Printer.NozzleThresholdHelpText}"
+                       Classes.invalid="{Binding Printer.HasNozzleThresholdError}"
                        Value="{Binding Printer.CooldownNozzleThresholdCelsius}"
                        Minimum="{x:Static vm:PrinterEditorViewModel.MinCooldownThresholdCelsius}"
                        Maximum="{x:Static vm:PrinterEditorViewModel.MaxCooldownThresholdCelsius}"
@@ -44,7 +46,8 @@
                        Grid.Column="2"
                        AutomationProperties.AutomationId="WidgetCooldownBedThreshold"
                        AutomationProperties.Name="{Binding [SettingsCooldownBedThreshold], Source={x:Static loc:LocalizedStrings.Instance}}"
-                       AutomationProperties.HelpText="{Binding [SettingsCooldownThresholdHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                       AutomationProperties.HelpText="{Binding Printer.BedThresholdHelpText}"
+                       Classes.invalid="{Binding Printer.HasBedThresholdError}"
                        Value="{Binding Printer.CooldownBedThresholdCelsius}"
                        Minimum="{x:Static vm:PrinterEditorViewModel.MinCooldownThresholdCelsius}"
                        Maximum="{x:Static vm:PrinterEditorViewModel.MaxCooldownThresholdCelsius}"
