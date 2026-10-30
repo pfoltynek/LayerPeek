@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace LayerPeek.App.Windows;
 
@@ -114,5 +115,21 @@ internal static class MacShortcuts
                 }
             },
             RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>
+    /// ⌘. with an open drop-down (<see cref="ComboBox"/>) of <paramref name="window"/> closes only the drop-down, like Esc
+    /// (T-100 question 3, user decision 2026-10-30); <see langword="false"/> when none is open (at most one is).
+    /// </summary>
+    internal static bool TryCloseOpenDropDown(Window window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        if (window.GetVisualDescendants().OfType<ComboBox>().FirstOrDefault(static comboBox => comboBox.IsDropDownOpen) is not { } open)
+        {
+            return false;
+        }
+
+        open.IsDropDownOpen = false;
+        return true;
     }
 }

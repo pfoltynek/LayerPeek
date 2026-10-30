@@ -294,7 +294,8 @@ Předpoklad: tiskárna s kamerou (Buddy3D v LAN, nebo kamera simulátoru `rtsp:/
      kamery); ⌃Tab a ⌃⇧Tab fungují dál. Upravit jméno tiskárny a stisknout ⌘W (a v dalším pokusu ⌘.): okno se zavře
      jako Zrušit, změna se neuloží. Enter = Uložit, Esc = Zrušit beze změny. S otevřeným rozbalovacím seznamem (např.
      typ připojení tiskárny) ⌘. zavře jen seznam jako Esc a okno zůstane otevřené (T-100 otázka 3, rozhodnuto
-     2026-10-30); další ⌘. je Zrušit. ⌘W zavře okno i s otevřeným seznamem.
+     2026-10-30); další ⌘. je Zrušit. ⌘W zavře okno i s otevřeným seznamem. Stejně v Diagnostice s otevřeným výběrem
+     tiskárny (aspoň dvě tiskárny): ⌘. zavře jen seznam, další ⌘. okno.
    - **Diagnostika, O aplikaci, Licence:** ⌘W i ⌘. okno zavře (Licence zavřou jen sebe, O aplikaci zůstane).
    - **Jiné rozložení klávesnice:** totéž s **českým** rozložením (Nastavení systému → Klávesnice → Zdroje vstupu):
      ⌘⇧] / ⌘⇧[ = klávesy vpravo od P (na české klávesnici „ú“ a „)“); zapsat, zda přepínají záložky a zda se nestane

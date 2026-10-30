@@ -101,6 +101,39 @@ public sealed class AuxiliaryWindowMacShortcutsUiTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    [Fact]
+    public Task DiagnosticsCommandPeriodClosesAnOpenDropDownFirstLikeEsc() =>
+        session.RunAsync(scope =>
+        {
+            // User decision 2026-10-30: like the settings window, ⌘. with an open drop-down closes only the drop-down.
+            DiagnosticsWindowHarness ui = DiagnosticsWindowHarness.Open(scope, [TestPrinters.Definition("a", "Alpha"), TestPrinters.Definition("b", "Beta")]);
+            ui.Window.UsesMacShortcuts = true;
+            ComboBox selector = ui.Find<ComboBox>("DiagnosticsPrinterSelector");
+            Assert.True(selector.IsVisible);
+            Assert.True(selector.Focus());
+            selector.IsDropDownOpen = true;
+            ui.Window.Settle();
+            Assert.True(selector.IsDropDownOpen);
+
+            Press(ui.Window, "⌘.", closes: false);
+            Assert.False(selector.IsDropDownOpen);
+            Assert.True(ui.Window.IsVisible);
+
+            // Without an open drop-down ⌘. closes the window again; ⌘W closes it also with an open drop-down.
+            Press(ui.Window, "⌘.", closes: true);
+            Assert.False(ui.Window.IsVisible);
+
+            DiagnosticsWindowHarness again = DiagnosticsWindowHarness.Open(scope, [TestPrinters.Definition("a", "Alpha"), TestPrinters.Definition("b", "Beta")]);
+            again.Window.UsesMacShortcuts = true;
+            ComboBox selectorAgain = again.Find<ComboBox>("DiagnosticsPrinterSelector");
+            Assert.True(selectorAgain.Focus());
+            selectorAgain.IsDropDownOpen = true;
+            again.Window.Settle();
+            Press(again.Window, "⌘W", closes: true);
+            Assert.False(again.Window.IsVisible);
+            return Task.CompletedTask;
+        });
+
     [Theory]
     [MemberData(nameof(Keys))]
     public Task WindowsVariantKeepsTheWindowsOpen(string shortcut) =>

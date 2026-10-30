@@ -224,18 +224,11 @@ public sealed partial class SettingsWindow : Window
     /// </summary>
     private void CancelFromCommandPeriod()
     {
-        if (OpenDropDown() is { } comboBox)
+        if (!MacShortcuts.TryCloseOpenDropDown(this))
         {
-            comboBox.IsDropDownOpen = false;
-            return;
+            CancelFromKeyboard();
         }
-
-        CancelFromKeyboard();
     }
-
-    /// <summary>The drop-down of the window that is open now (at most one is), or <see langword="null"/>.</summary>
-    private ComboBox? OpenDropDown() =>
-        this.GetVisualDescendants().OfType<ComboBox>().FirstOrDefault(static comboBox => comboBox.IsDropDownOpen);
 
     /// <summary>⌘W / ⌘. (macOS, T-100): what the Cancel button does; nothing while saving (Cancel is disabled then).</summary>
     private void CancelFromKeyboard()

@@ -1,7 +1,7 @@
 ---
 id: T-113
 title: Oddělené vydání macOS a Windows pod jednou verzí
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: all
@@ -45,7 +45,7 @@ zveřejněného vydání nahrát odmítne („already published“), takže nejd
 - [x] `release.ps1` na macOS projde testy orchestrace; výpis dalších kroků odpovídá OS.
 - [x] `docs/release.md` popisuje postup na dvou počítačích.
 - [x] `dotnet build` (Debug i Release) bez varování, `dotnet test` bez chyb, profil beze změny.
-- [ ] Ruční ověření uživatelem: doplnění souborů Windows k vydané 0.3.0 (nebo zkušební vydání v testovacím repozitáři).
+- [x] Ruční ověření uživatelem: doplnění souborů Windows k vydané 0.3.0 (nebo zkušební vydání v testovacím repozitáři). → přesunuto do T-114 a T-115 (ověří se ostře u 0.3.1, Q1)
 
 ## Otevřené otázky
 - **Q1 – ruční ověření na 0.3.0:** tag `v0.3.0` obsahuje staré skripty (bez `-AddToPublished`; `release-upload.ps1` je
@@ -59,8 +59,10 @@ zveřejněného vydání nahrát odmítne („already published“), takže nejd
 - **Q2 – staré vydání bez součtů:** zveřejněné `v0.1.0` a `v0.2.0` nemají `SHA256SUMS-windows.txt` (jen `.zip` a
   `Setup.exe`), takže je `GitHubReleaseChecker` už nikdy nenabídne. Regrese to není (kontrola aktualizací je až od
   0.3.0/0.3.1, tedy novější než obě), jen pro úplnost: doplnit jim součty, nebo nechat? Návrh: nechat.
+  **Rozhodnuto 2026-10-30 (uživatel): nechat**, na stará vydání se nesahá.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele).
 - **`release-upload.ps1 -AddToPublished`** (název přepínače zvolen implementací): stejné kontroly jako dřív
   (`Get-ReleasePreflight`, značka sestavení, součty), navíc čistá funkce `Get-AddToPublishedProblems` v
   `ReleaseTools.psm1`: vydání musí existovat a být zveřejněné, nesmí mít `SHA256SUMS-<os>.txt` OS buildu, soubor
