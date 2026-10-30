@@ -1,7 +1,8 @@
 <!--
   The views of the widget settings panels of the Widgets tab (T-092, design 6): one DataTemplate per panel view model
   (x:DataType, compiled bindings), added to SettingsWindow.DataTemplates, where a ContentControl with the selected panel
-  picks the template by type (no reflection, Native AOT). The text styles (label, hint, error) come from the window.
+  picks the template by type (no reflection, Native AOT). The text styles (label, hint, error) and the 32 DIP minimum
+  height of the buttons and link buttons (T-111) come from the window.
   A new widget with settings = its panel view model, its template here and its factory in the registration.
 -->
 <ResourceDictionary xmlns="https://github.com/avaloniaui"
@@ -77,7 +78,6 @@
                  Text="{Binding NotifyStateText}" />
       <HyperlinkButton AutomationProperties.AutomationId="WidgetCooldownNotifyLink"
                        Margin="0,4,0,0"
-                       MinHeight="32"
                        Padding="0"
                        VerticalContentAlignment="Center"
                        Command="{Binding ShowNotificationSettingCommand}"

@@ -83,6 +83,16 @@
     <Style Selector="TextBlock.status.isError">
       <Setter Property="Foreground" Value="{DynamicResource SettingsErrorBrush}" />
     </Style>
+    <!--
+      T-111: every button of the window (also those of the widget panel templates, WidgetSettingsTemplates.axaml) and the
+      link buttons are at least 32 DIP high, the click target of the design (Fluent gives about 28–32). Type selectors match
+      the exact type (its StyleKey), not derived ones, so the parts inside the templates of other controls keep their theme
+      size: the RepeatButtons of NumericUpDown (ButtonSpinner), Slider and ScrollBar, the ToggleButton that reveals a
+      password; ComboBox and TabItem have no button part. SettingsWindowLayoutTests checks both.
+    -->
+    <Style Selector="Button, HyperlinkButton">
+      <Setter Property="MinHeight" Value="32" />
+    </Style>
     <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
     <Style Selector="TabControl.main, TabControl.sub">
       <Setter Property="Padding" Value="0" />
