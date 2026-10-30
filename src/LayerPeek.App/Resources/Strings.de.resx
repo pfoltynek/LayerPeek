@@ -1403,9 +1403,9 @@
     <value>Der Druckerstatus ist in der Leiste immer sichtbar.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Die Zeile klappen Sie mit der Schaltfläche ⬡ in der Mini-Vorschau auf.</value>
+    <value>Die Zeile klappen Sie in der Mini-Vorschau mit der Schaltfläche „Druckname in der Leiste“ auf.</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Die Zeile klappen Sie mit der Schaltfläche 📈 in der Mini-Vorschau auf.</value>
+    <value>Die Zeile klappen Sie in der Mini-Vorschau mit der Schaltfläche „Temperaturdiagramm in der Leiste“ auf.</value>
   </data>
 </root>

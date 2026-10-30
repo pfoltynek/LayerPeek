@@ -624,6 +624,9 @@ public sealed class CooldownWidgetTests : IDisposable
         Assert.Equal(38, widget.ShownNozzleCelsius);
         Assert.Equal(54, widget.ShownLimitingCelsius);
         Assert.Equal($"{shown}{Nbsp}°C", widget.NozzleText);
+        // T-109 Q3 B (ui-designer review 2026-10-30): S has the bed line in front of the bed temperature, M / L the cone.
+        Assert.Equal(size != OverlayWidgetSize.Small, widget.ShowsNozzleIcon);
+        Assert.Equal(size == OverlayWidgetSize.Small, widget.ShowsSmallBedIcon);
         if (size != OverlayWidgetSize.Small)
         {
             Assert.Equal($"54{Nbsp}°C", widget.BedText);
@@ -643,6 +646,7 @@ public sealed class CooldownWidgetTests : IDisposable
 
         Assert.Equal(31, content.NozzleCelsius);
         Assert.Equal(40, content.LimitingCelsius);
+        Assert.Equal(CooldownSensor.Bed, content.Limiting);
         Assert.Equal($"Cooled down · 40{Nbsp}°C", CooldownFormat.SmallCooled(content));
     }
 
@@ -685,6 +689,8 @@ public sealed class CooldownWidgetTests : IDisposable
         long minutes = (long)Math.Ceiling(_cooldown.GetState("mk4").EstimatedRemaining!.Value.TotalMinutes);
         Assert.False(widget.ShowsHeader);
         Assert.True(widget.ShowsNozzle);
+        Assert.True(widget.ShowsNozzleIcon);
+        Assert.False(widget.ShowsSmallBedIcon);
         Assert.False(widget.ShowsBed);
         Assert.True(widget.ShowsProgress);
         Assert.True(widget.ShowsDetail);

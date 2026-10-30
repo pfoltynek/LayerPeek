@@ -88,13 +88,13 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
         Telemetry = new Telemetry { Nozzle = new Temperature(215, 215), Bed = new Temperature(60, 60) },
     };
 
-    private static PrinterSnapshot Ended(double seconds, double nozzle, PrinterState state = PrinterState.Finished, bool withBed = true) => new()
+    private static PrinterSnapshot Ended(double seconds, double nozzle, PrinterState state = PrinterState.Finished, bool withBed = true, double bed = 40.4) => new()
     {
         PrinterId = "a",
         State = state,
         Timestamp = Now.AddSeconds(seconds),
         Job = Job(100),
-        Telemetry = new Telemetry { Nozzle = new Temperature(nozzle, 0), Bed = withBed ? new Temperature(40.4, 0) : null },
+        Telemetry = new Telemetry { Nozzle = new Temperature(nozzle, 0), Bed = withBed ? new Temperature(bed, 0) : null },
     };
 
     private static CameraHarness Harness(CameraOverlayLayout layout, int threshold = 50)
@@ -256,6 +256,9 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
                 Assert.Equal(FontWeight.SemiBold, detail.FontWeight);
                 Assert.Equal(46, Card(window).Bounds.Height, 0.5);
                 Assert.Equal(BoundsInWindow(nozzle, window).Center.Y, BoundsInWindow(detail, window).Center.Y, 1);
+
+                // T-109 Q3 B (ui-designer review 2026-10-30): the cone of the nozzle, 12 in its colour, 2 before the number.
+                AssertSmallSensorIcon(window, nozzle, "IconCone16Filled", NozzleColor);
             }
             else
             {
@@ -372,6 +375,55 @@ public sealed class CameraWindowCooldownWidgetUiTests(HeadlessSession session)
             await Ui.UntilAsync(() => Widget(window).ShownEstimateMinutes is null, "estimate gone");
             window.Settle();
             Assert.Equal($"safe to turn off once the nozzle is below 30{Nb}°C and the bed below 45{Nb}°C", Text(window, DetailId).Text);
+        });
+
+    /// <summary>The single sensor icon in front of the S temperature: its geometry, 12 × 12, its colour, 2 before the text.</summary>
+    private static void AssertSmallSensorIcon(CameraWindow window, TextBlock value, string geometry, Color color)
+    {
+        OverlayIcon icon = Assert.Single(Icons(window.Find<Control>(NozzleId)));
+        Assert.Same(window.FindResource(geometry), icon.Data);
+        Assert.Equal(new Size(12, 12), icon.Bounds.Size);
+        Assert.Equal(color, ColorOf(icon.Foreground));
+        // Layout bounds in their shared row (the cone is drawn turned by 180°, which a translated corner would mirror).
+        Assert.Same(value.GetVisualParent(), icon.GetVisualParent());
+        Assert.Equal(2, value.Bounds.Left - icon.Bounds.Right, 0.5);
+        Assert.Equal(value.Bounds.Center.Y, icon.Bounds.Center.Y, 1);
+    }
+
+    /// <summary>
+    /// T-109 Q3 B (ui-designer review 2026-10-30): while the bed holds the cool-down up, the S card shows the bed with the
+    /// line of the bed in its colour in front of it (not the cone), in every language without a cut text; snapshot in English.
+    /// </summary>
+    [Fact]
+    public Task SmallCardShowsTheBedIconWhileTheBedLimits() =>
+        session.RunAsync(async scope =>
+        {
+            await using CameraHarness harness = Harness(Layout(OverlayWidgetSize.Small));
+            CameraWindow window = await OpenAsync(harness, 720, 405);
+
+            // The nozzle is below its 50 °C at once, the bed (threshold 45 °C) cools slowly from 60 °C.
+            Raise(harness, Printing());
+            for (double t = PollSeconds; harness.Cooldown.GetState("a").EstimatedRemaining is null; t += PollSeconds)
+            {
+                Assert.True(t < 200, "no estimate");
+                Raise(harness, Ended(t, 35 - (t / 100), bed: 45 + (15 * Math.Exp(-t / 120))));
+            }
+
+            await Ui.UntilAsync(() => Widget(window).IsShown && Widget(window).ShownEstimateMinutes is not null, "Cool-down card with the estimate");
+            window.Settle();
+            Assert.Equal(CooldownSensor.Bed, harness.Cooldown.GetState("a").Limiting);
+            TextBlock value = Text(window, NozzleId);
+            Assert.Equal($"{Widget(window).ShownLimitingCelsius}{Nb}°C", value.Text);
+            AssertSmallSensorIcon(window, value, "IconLineHorizontal1_16Filled", BedColor);
+            SnapshotAssert.Matches(window, "camera-widget-cooldown-cooling-s-bed");
+
+            foreach (string language in AppLanguages.Supported)
+            {
+                Assert.True(new UiLanguage().Apply(language));
+                ViewModel(window).RefreshTexts();
+                window.Settle();
+                AssertFits(window, OverlayWidgetSize.Small);
+            }
         });
 
     // ---- Cooled down ----

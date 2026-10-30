@@ -833,7 +833,8 @@
               the OS turned LayerPeek's notifications off (T-020 macOS, T-101 Windows, user decisions 2026-10-29), the button
               that opens the OS settings. The text between them is the warning or the result of the last test (never both).
               In the heading row, so the tab keeps its height (T-033 fit). The test button is outside the part disabled by
-              "Show notifications" (it tests the OS, user decision 2026-10-29).
+              "Show notifications" (it tests the OS, user decision 2026-10-29). The buttons keep 4 DIP below them, so they
+              belong to the heading and not to the Sound row under it (ui-designer review 2026-10-30).
             -->
             <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
               <TextBlock Classes="section" Text="{Binding [SettingsNotifications], Source={x:Static loc:LocalizedStrings.Instance}}" />
@@ -858,7 +859,7 @@
                          IsVisible="{Binding ShowsTestNotificationResult}" />
               <Button x:Name="TestNotificationButton"
                       Grid.Column="2"
-                      Margin="0,12,0,0"
+                      Margin="0,8,0,4"
                       VerticalAlignment="Center"
                       Content="{Binding [SettingsTestNotification], Source={x:Static loc:LocalizedStrings.Instance}}"
                       ToolTip.Tip="{Binding [SettingsTestNotificationHint], Source={x:Static loc:LocalizedStrings.Instance}}"
@@ -868,7 +869,7 @@
                       Command="{Binding SendTestNotificationCommand}" />
               <Button x:Name="OpenNotificationSettingsButton"
                       Grid.Column="2"
-                      Margin="0,12,0,0"
+                      Margin="0,8,0,4"
                       VerticalAlignment="Center"
                       Content="{Binding OpenNotificationSettingsText}"
                       ToolTip.Tip="{Binding OpenNotificationSettingsHint}"

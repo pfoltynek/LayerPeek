@@ -1403,9 +1403,9 @@
     <value>Stav tiskárny je v pásu vidět vždy.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Řádek rozbalíte tlačítkem ⬡ v malém náhledu.</value>
+    <value>Řádek rozbalíte v malém náhledu tlačítkem „Název tisku v pásu“.</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Řádek rozbalíte tlačítkem 📈 v malém náhledu.</value>
+    <value>Řádek rozbalíte v malém náhledu tlačítkem „Graf teplot v pásu“.</value>
   </data>
 </root>

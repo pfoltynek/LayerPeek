@@ -60,6 +60,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   preview strip shows the temperature that is still holding it up (both in its tooltip). A heater switched on again,
   also the bed's, ends the cool-down. **Settings:** the former nozzle threshold is not taken over; every printer starts
   with 40 °C / 40 °C (the log notes it once; older settings files still load).
+- Cool-down widget, small (S) size: while cooling, the temperature has the icon of its sensor in front of it (the
+  nozzle cone or the bed line, in their colours), so it is clear whether the nozzle or the bed is holding the cool-down
+  up.
 - Windows: a camera window has a taskbar button exactly when it is not always on top. With the default options nothing
   changes (the mini preview is on top and has none); a normal window with "Always on top" now has no taskbar button, a
   mini preview without it now has one. Changing "Always on top" of an open window may make it disappear and reappear

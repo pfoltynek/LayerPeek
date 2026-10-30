@@ -1403,9 +1403,9 @@
     <value>El estado de la impresora se muestra siempre.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Despliegue la fila con el botón ⬡ de la vista mini.</value>
+    <value>Despliegue la fila en la vista mini con el botón «Nombre de la impresión en la franja».</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Despliegue la fila con el botón 📈 de la vista mini.</value>
+    <value>Despliegue la fila en la vista mini con el botón «Gráfico de temperaturas en la franja».</value>
   </data>
 </root>

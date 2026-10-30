@@ -1403,9 +1403,9 @@
     <value>Stav tlačiarne je v páse viditeľný vždy.</value>
   </data>
   <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
-    <value>Riadok rozbalíte tlačidlom ⬡ v malom náhľade.</value>
+    <value>Riadok rozbalíte v malom náhľade tlačidlom „Názov tlače v páse“.</value>
   </data>
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
-    <value>Riadok rozbalíte tlačidlom 📈 v malom náhľade.</value>
+    <value>Riadok rozbalíte v malom náhľade tlačidlom „Graf teplôt v páse“.</value>
   </data>
 </root>

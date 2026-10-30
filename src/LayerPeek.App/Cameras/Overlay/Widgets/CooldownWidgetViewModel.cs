@@ -21,6 +21,11 @@ namespace LayerPeek.App.Cameras.Overlay.Widgets;
 /// Whole degrees of the temperature that holds the cool-down up (<see cref="CooldownState.Limiting"/>, T-109): the key value
 /// of the small card.
 /// </param>
+/// <param name="Limiting">
+/// Whose temperature <paramref name="LimitingCelsius"/> is: the bed only when it holds the cool-down up and the printer
+/// reports it, otherwise the nozzle (the sensor icon in front of the key value of the small card, ui-designer review
+/// 2026-10-30).
+/// </param>
 /// <param name="ProgressPercent">0–100 towards the threshold, rounded down (100 once cooled down).</param>
 /// <param name="EstimateMinutes">Minutes until the threshold, rounded up; <see langword="null"/> without a fresh estimate.</param>
 /// <param name="Outcome">Whether the print finished or was stopped (cooled down only).</param>
@@ -33,6 +38,7 @@ public readonly record struct CooldownContent(
     int NozzleThresholdCelsius,
     int BedThresholdCelsius,
     long LimitingCelsius,
+    CooldownSensor Limiting,
     int ProgressPercent,
     long? EstimateMinutes,
     CooldownPrintOutcome Outcome,
@@ -59,7 +65,8 @@ public readonly record struct CooldownContent(
 /// start has no cool-down (user decision 11), so no card.</item>
 /// <item>The key value is the nozzle temperature while cooling and the state text once cooled down (T-076 Q8).</item>
 /// <item>S: one row "❄ 87 °C · about 6 min" with a bar below, or "⏻ Cooled down · 48 °C", with the limiting temperature
-/// (T-109: the bed's when it holds the cool-down up, like the mini preview strip). M / L: title, nozzle and bed, bar
+/// (T-109: the bed's when it holds the cool-down up, like the mini preview strip); while cooling the icon of its sensor
+/// (nozzle cone / bed line) stands in front of it. M / L: title, nozzle and bed, bar
 /// (cooling), detail with both thresholds (at most two lines).</item>
 /// <item>The estimate is shown only when the monitor has one, it is still running (counted down by the monitor from its
 /// reading, never "0 min") and the state is not older than <see cref="StaleAfter"/> (monitoring stopped): otherwise the
@@ -84,7 +91,8 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
     private static readonly PropertyChangedEventArgs[] PartsChanged =
     [
         new(nameof(HeaderText)), new(nameof(ShowsHeader)), new(nameof(EmphasizesHeader)), new(nameof(NozzleText)), new(nameof(ShowsNozzle)),
-        new(nameof(EmphasizesNozzle)), new(nameof(ShowsBed)), new(nameof(DetailText)), new(nameof(ShowsDetail)),
+        new(nameof(EmphasizesNozzle)), new(nameof(ShowsNozzleIcon)), new(nameof(ShowsSmallBedIcon)), new(nameof(ShowsBed)),
+        new(nameof(DetailText)), new(nameof(ShowsDetail)),
     ];
 
     private readonly CooldownMonitor? _cooldown;
@@ -145,6 +153,16 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
 
     /// <summary>The nozzle temperature is the key value while cooling.</summary>
     public bool EmphasizesNozzle => IsEmphasized && IsCooling;
+
+    /// <summary>
+    /// The nozzle cone in front of the temperature: always in M / L; in S only while the nozzle is the limiting temperature
+    /// (T-109 Q3 B, ui-designer review 2026-10-30: the accent colour of the key value is close to the nozzle colour, so the
+    /// icon, not the colour, says whose temperature it is).
+    /// </summary>
+    public bool ShowsNozzleIcon => !IsSmall || ShownContent.Limiting != CooldownSensor.Bed;
+
+    /// <summary>S: the bed line in front of the limiting temperature while the bed holds the cool-down up.</summary>
+    public bool ShowsSmallBedIcon => IsSmall && ShownContent.Limiting == CooldownSensor.Bed;
 
     /// <summary>"45 °C": the bed temperature (it decides together with the nozzle, T-109).</summary>
     public string BedText
@@ -209,7 +227,8 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
         }
 
         long? bed = OverlayValues.Temperature(new Temperature(state.BedCelsius ?? double.NaN, null))?.Actual;
-        long limiting = state.Limiting == CooldownSensor.Bed && bed is { } bedActual ? bedActual : nozzle.Actual;
+        CooldownSensor sensor = state.Limiting == CooldownSensor.Bed && bed is not null ? CooldownSensor.Bed : CooldownSensor.Nozzle;
+        long limiting = sensor == CooldownSensor.Bed && bed is { } bedActual ? bedActual : nozzle.Actual;
         if (state.Phase == CooldownPhase.Cooling)
         {
             double progress = double.IsFinite(state.Progress) ? Math.Clamp(state.Progress, 0, 1) : 0;
@@ -220,6 +239,7 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
                 state.NozzleThresholdCelsius,
                 state.BedThresholdCelsius,
                 limiting,
+                sensor,
                 (int)Math.Floor(progress * 100),
                 CooldownEstimate.Minutes(state, input.Now),
                 default,
@@ -246,6 +266,7 @@ public sealed class CooldownWidgetViewModel : OverlayWidgetViewModel<CooldownCon
             state.NozzleThresholdCelsius,
             state.BedThresholdCelsius,
             limiting,
+            sensor,
             100,
             null,
             state.Outcome == CooldownPrintOutcome.Stopped ? CooldownPrintOutcome.Stopped : CooldownPrintOutcome.Finished,

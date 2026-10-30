@@ -171,6 +171,39 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-general-test-sent-fr");
         });
 
+    /// <summary>
+    /// T-101 (ui-designer review 2026-10-30): notifications turned off in the OS, in German (the longest warning) with the
+    /// button that opens the OS settings, with the terms of the OS of the reference set.
+    /// </summary>
+    [Fact]
+    public Task GeneralTabWithNotificationsTurnedOffInGerman() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("de");
+            FakeSystemNotificationSettings system = new() { TurnedOff = true };
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 Werkstatt")), macTerms: OperatingSystem.IsMacOS(), notificationSettings: system);
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            ui.Window.Settle();
+
+            Assert.True(ui.Window.IsShown<Avalonia.Controls.Button>("SettingsOpenNotificationSettings"));
+            SnapshotAssert.Matches(ui.Window, "settings-general-turned-off-de");
+        });
+
+    /// <summary>T-101 (ui-designer review 2026-10-30): the result "sent" next to the test button in the dark theme.</summary>
+    [Fact]
+    public Task GeneralTabAfterATestNotificationInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), macTerms: OperatingSystem.IsMacOS());
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            ui.ViewModel.SelectedTabIndex = SettingsViewModel.GeneralTab;
+            await ui.ViewModel.SendTestNotificationCommand.ExecuteAsync(null);
+            ui.Window.Settle();
+
+            Assert.True(ui.ViewModel.ShowsTestNotificationResult);
+            SnapshotAssert.Matches(ui.Window, "settings-general-test-sent-dark");
+        });
+
     /// <summary>T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x.</summary>
     [Fact]
     public Task StartupAndUpdatesTab() =>
@@ -314,6 +347,38 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             ui.Window.Settle();
 
             SnapshotAssert.Matches(ui.Window, snapshot);
+        });
+
+    /// <summary>T-110 (ui-designer review 2026-10-30): the "Mini preview" panel in the dark theme, one item off.</summary>
+    [Fact]
+    public Task WidgetsTabMiniStripInTheDarkTheme() =>
+        session.RunAsync(static async scope =>
+        {
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
+                scope,
+                LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) { MiniStrip = new CameraMiniStripSettings { Remaining = false } } },
+                LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.Window.RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
+            ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-mini-strip-dark");
+        });
+
+    /// <summary>T-110 (ui-designer review 2026-10-30): the "Mini preview" panel with the camera off (disabled fields), in Italian.</summary>
+    [Fact]
+    public Task WidgetsTabMiniStripWithTheCameraOffInItalian() =>
+        session.RunAsync(static async scope =>
+        {
+            new UiLanguage().Apply("it");
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
+                scope,
+                LinkPrinter("a", "MK4 officina") with { Camera = new CameraSettings(enabled: false, StreamUri) { MiniStrip = new CameraMiniStripSettings { Cooldown = false } } },
+                LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, "settings-widgets-mini-strip-camera-off-it");
         });
 
     [Fact]
