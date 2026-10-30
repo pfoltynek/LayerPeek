@@ -91,7 +91,7 @@ Tasks are Markdown files in `tasks/{todo,in-progress,done}/T-XXX-slug.md` (forma
 3. `git mv` the task to `tasks/in-progress/`, set `status: in-progress`.
 4. Implement + tests. `dotnet build` and `dotnet test` must pass with zero warnings.
 5. Tick acceptance criteria, add a short `## Poznámky k implementaci`, `git mv` to `tasks/done/`, set `status: done`.
-6. Never mark a task done with failing tests or unticked criteria — leave it in progress and report why.
+6. Never mark a task done with failing tests or unticked criteria — leave it in progress and report why. Exception: a criterion that only needs manual verification by the user or a check on the other OS may be moved into a collector verification task (T-114 Windows, T-115 Mac); the origin task is then marked done with the moved item ticked and annotated "→ přesunuto do T-11x" (format in `tasks/README.md`).
 7. When the user asks, commit on the feature branch and merge it into `develop` with `git merge --no-ff`, then delete the feature branch.
 
 ## Git workflow (Gitflow)

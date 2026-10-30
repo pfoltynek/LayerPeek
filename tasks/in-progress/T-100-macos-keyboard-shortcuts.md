@@ -23,8 +23,8 @@ Při testování na Macu (2026-10-29) nefungovala v okně kamery F11 pro celou o
 - [x] ⌃⌘F přepíná celou obrazovku v okně kamery na macOS, F11 a Esc fungují dál (test)
 - [x] Zkratky Nastavení a ⌘W / ⌘. fungují na macOS podle rozsahu (testy)
 - [x] Texty se zkratkami ukazují na macOS zkratky macOS ve všech 8 jazycích, na Windows beze změny (testy, UI testy bez ořezání)
-- [ ] Ověřeno uživatelem na Macu (včetně Logitech klávesnice)
-- [ ] Windows beze změny
+- [x] Ověřeno uživatelem na Macu (včetně Logitech klávesnice) → přesunuto do T-115
+- [x] Windows beze změny → přesunuto do T-114
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -40,6 +40,7 @@ Při testování na Macu (2026-10-29) nefungovala v okně kamery F11 pro celou o
    seznam). Je to v pořádku, nebo má ⌘. nejdřív zavřít jen seznam?
 
 ## Poznámky k implementaci
+- 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
 - **Sdílený pomocník** `src/LayerPeek.App/Windows/MacShortcuts.cs`: rozpoznání ⌘W, ⌘., ⌃⌘F, ⌘⇧] / ⌘⇧[ (logická
   klávesa závorky nebo fyzická klávesa `BracketRight` / `BracketLeft`), ⌘⌥→ / ⌘⌥← a `HandleCloseKeys` (tunelující
   handler ⌘W / ⌘. pro okno). ⌘ = `KeyModifiers.Meta`, ⌃ = `Control`; modifikátory se porovnávají přesně (⌘F ani ⌃F

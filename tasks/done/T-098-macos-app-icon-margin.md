@@ -1,7 +1,7 @@
 ---
 id: T-098
 title: macOS – ikona aplikace s okrajem podle Applu
-status: in-progress
+status: done
 owner: ui-designer
 priority: P3
 platform: macos
@@ -19,7 +19,7 @@ Ikona aplikace (`app-icon.svg` / `app-icon-1024.png` z T-025) vyplňuje skoro ce
 
 ## Akceptační kritéria
 - [x] `.icns` obsahuje variantu s okrajem ve všech velikostech, test / Pester kontroluje rozměry
-- [ ] V Docku a Finderu působí stejně velká jako systémové aplikace (ověřeno uživatelem)
+- [x] V Docku a Finderu působí stejně velká jako systémové aplikace (ověřeno uživatelem) → přesunuto do T-115
 - [x] Windows ikona beze změny
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -65,6 +65,7 @@ Vzhled (včetně 16 px) schválil uživatel 2026-10-29.
 4. ~~**16 px:** hlava bez mezery mezi chladičem a blokem (a), nebo bez chladiče (b)?~~ → varianta (a) (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele)
 - **Assety** (`src/LayerPeek.App/Assets/AppIcon/`): `app-icon-macos.svg` (1024, tělo s lemem, obsah z `app-icon.svg` zmenšený maticí 3,43333 kolem středu, krk a tryska o kus překryté se sousedy, aby se mezi nimi nevykreslil šev vyhlazování; stín jako filtr `feGaussianBlur`/`feOffset`/`feFlood`), `app-icon-macos-32.svg` a `app-icon-macos-16.svg` (celé pixely, bez stínu) a z nich `app-icon-macos-1024.png`, `-32.png`, `-16.png`. Cesty spojitých rohů jsou rozepsané Bézierovy křivky (rozšířená rekonstrukce spojitého rohu `UIBezierPath`, koeficienty v násobcích poloměru), vnitřní hrana lemu má poloměr o šířku lemu menší (rovnoměrný lem). Barvy jako T-025. Žádná nová závislost, licence beze změny (vlastní grafika).
 - **Jak vznikají PNG:** `swift tools/render-macos-icon.swift` (přidáno po rozhodnutí 2026-10-29; z libovolné složky, potřebuje jen macOS a Xcode Command Line Tools) vykreslí `app-icon-macos.svg` → `app-icon-macos-1024.png` a `app-icon-macos-32/16.svg` → přesné PNG systémovým rendererem (CoreSVG přes `NSImage`) do bitmapy sRGB 8 bit s alfou, bez převodu barev a bez metadat; `--out <složka>` zapíše jinam. Výstup je deterministický: na macOS 27.2 dal bajtově stejné PNG jako commitnuté. Pester test (`reproduces the committed macOS icon PNGs…`, jen na macOS a se `swift`) skript spustí do dočasné složky a porovná bajty; kdyby jiná verze macOS kódovala nebo vyhlazovala jinak, porovná pixely (±2 na kanál) a při rozdílu selže s výzvou PNG vygenerovat znovu (ověřeno úmyslně změněným PNG: test selhal, 216 rozdílných hodnot). Kontrola rendereru: `app-icon-small.svg` vykreslené takto se od PNG z T-025 (Svg.Skia) liší jen vyhlazením rohů (59 z 1 024 pixelů při 32 px), plné barvy shodné. Při změně SVG stačí skript spustit znovu.
 - **Odstraněno:** `app-icon-1024.png`, `app-icon-16.png`, `app-icon-32.png` (jen zdroj `.icns`, viz otázka 1). Výjimka v csproj je teď `Assets\AppIcon\app-icon-macos-*.png` (nejsou `AvaloniaResource`).

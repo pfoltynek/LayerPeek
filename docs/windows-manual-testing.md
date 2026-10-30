@@ -5,7 +5,13 @@ T-053, T-097, T-100), instalátor Velopack s kliknutím na toast a autostart po 
 hlavního panelu z T-102 (až bude hotové). Vše provede skript `tools/windows-verify.ps1` (T-105); ručně zbývá jen to, na co
 se zeptá.
 
-> Stav: sepsáno 2026-10-29. Když úkol přidá nebo změní ruční krok na Windows, upraví se skript i tento soubor.
+Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
+[T-114 „Ověření na Windows“](../tasks/todo/T-114-windows-verification.md) (rozhodnutí uživatele), včetně přegenerování
+windowsové sady snímků UI se seznamem souborů podle původních úkolů. Protějšek pro Mac je T-115
+([macos-manual-testing.md](macos-manual-testing.md)).
+
+> Stav: sepsáno 2026-10-29, odkaz na T-114 doplněn 2026-10-30. Když úkol přidá nebo změní ruční krok na Windows, upraví
+> se skript i tento soubor.
 
 ## Než začnete
 

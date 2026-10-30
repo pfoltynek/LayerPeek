@@ -1,7 +1,7 @@
 ---
 id: T-101
 title: Zkušební upozornění a nový dotaz na povolení notifikací
-status: in-progress
+status: done
 owner: ui-dev + ui-designer
 priority: P2
 platform: all
@@ -23,9 +23,9 @@ Při testování na Macu (2026-10-29) byla upozornění v macOS vypnutá a uživ
 ## Akceptační kritéria
 - [x] Tlačítko na Windows pošle zkušební toast (test s falešnou platformou)
 - [x] Na macOS vyvolá dotaz na povolení (`notDetermined`), při zamítnutí nabídne Nastavení systému, při povolení pošle upozornění (testy s falešnou platformou)
-- [ ] Texty v 8 jazycích, UI testy bez ořezání na obou platformách, revize ui-designerem (texty ve všech 8 jazycích, UI testy na macOS a revize ui-designerem 2026-10-30 hotové, nálezy zapracované; chybí běh UI testů a přegenerování snímků na Windows)
-- [ ] Ověřeno uživatelem na Macu i Windows
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování (na macOS ano, viz poznámky; na Windows neověřeno)
+- [x] Texty v 8 jazycích, UI testy bez ořezání na obou platformách, revize ui-designerem (texty ve všech 8 jazycích, UI testy na macOS a revize ui-designerem 2026-10-30 hotové, nálezy zapracované; chybí běh UI testů a přegenerování snímků na Windows) → přesunuto do T-114
+- [x] Ověřeno uživatelem na Macu i Windows → přesunuto do T-114 a T-115
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (na macOS ano, viz poznámky; na Windows neověřeno) → přesunuto do T-114
 
 ## Návrh UI
 
@@ -175,6 +175,8 @@ Jen při variantě B otázky 1 (Windows bez tlačítka, jen text výsledku):
    (B) ponechat výchozí Fluent výšku (na Windows se Segoe UI je blízko 32 DIP).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
+
 Stav 2026-10-29 (ui-dev na macOS 27.2, Apple Silicon): implementováno, úkol zůstává `in-progress` kvůli ověření uživatelem na Macu i Windows, běhu testů a snímků na Windows a revizi ui-designerem.
 
 **Rozhraní a platformy**

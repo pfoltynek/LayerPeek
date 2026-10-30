@@ -1,11 +1,17 @@
 # Ruční ověření na macOS (souhrnný postup)
 
 Jeden průchod všemi kroky, které na Macu může ověřit jen člověk (GUI, Gatekeeper, oprávnění macOS, přihlášení, uspaný
-displej, monitory). Kroky jsou posbírané z rozpracovaných macOS úkolů v `tasks/in-progress/` (T-095, T-053, T-018,
-T-019, T-020, T-021, T-026, T-038, T-096, T-097, T-098, T-099, T-100, T-101), bez duplicit a seřazené do sezení tak, aby na sebe
-navazovaly. Podrobnosti a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
+displej, monitory). Kroky jsou posbírané z macOS úkolů (T-095, T-053, T-018, T-019, T-020, T-021, T-026, T-038, T-096,
+T-097, T-098, T-099, T-100, T-101, T-102), bez duplicit a seřazené do sezení tak, aby na sebe navazovaly. Podrobnosti
+a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
-> Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni. Když úkol přidá nebo změní ruční krok, upraví se i tady.
+Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
+[T-115 „Ruční ověření na Macu“](../tasks/todo/T-115-mac-manual-verification.md) (rozhodnutí uživatele); původní úkoly
+jsou uzavřené, kromě T-018, T-019, T-038 a T-100, které čekají na odpovědi na otevřené otázky. Protějšek pro Windows je
+T-114 ([windows-manual-testing.md](windows-manual-testing.md)).
+
+> Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni, odkazy na T-114 / T-115 doplněny 2026-10-30. Když úkol
+> přidá nebo změní ruční krok, upraví se i tady.
 
 ## Nejdřív skript `tools/macos-verify.ps1` (T-105)
 
@@ -101,8 +107,9 @@ vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
   po dobu běhu (ukončí ho Ctrl+C nebo `kill %1`).
 
 ### Kam hlásit výsledky
-- Do úkolu, který krok uzavírá (uvedeno u každého kroku jako **Uzavírá**), do jeho poznámek (sekce „Výsledky ručního
-  ověření“, pokud ji úkol má), s verzí macOS a datem. Zaškrtnutí kritéria nechte na agentovi / správci úkolu.
+- Do poznámek sběrného úkolu T-115 (bod podle úkolu a kritéria, které krok uzavírá – uvedeno u každého kroku jako
+  **Uzavírá**), s verzí macOS a datem. U T-018, T-019, T-038 a T-100 i do poznámek původního úkolu (výsledek pomůže
+  rozhodnout jejich otevřené otázky). Zaškrtnutí nechte na agentovi / správci úkolu.
 - Při chybě přiložte výňatek z `~/Library/Logs/LayerPeek/LayerPeek.log` (okno **O aplikaci → Otevřít složku s logy**;
   starší `LayerPeek.1.log` …). U E2E testů výstup `dotnet test`. Přesné texty systémových dialogů opište (nebo
   snímek obrazovky bez osobních údajů).
@@ -392,9 +399,7 @@ nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.
    zůstat (s úplným úklidem „No change“, Login Items bez autorizace „not checked“).
 
 ## Mimo Mac (připomínka)
-Na Windows zbývá ověřit `dotnet build` a `dotnet test` po macOS úkolech (T-095 kritérium Windows, T-018 kritérium 4,
-T-021, T-026, T-053, T-097, T-099, T-100 „Windows beze změny“) a instalátor s autostartem (T-017): skript
-`tools/windows-verify.ps1`, postup v [windows-manual-testing.md](windows-manual-testing.md). T-101 na Windows: přegenerovat
-windowsovou sadu snímků (`LAYERPEEK_UPDATE_SNAPSHOTS=1`, zkontrolovat; týká se i T-103 a T-106) a ručně ověřit zkušební
-toast, varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem do Nastavení → Systém → Oznámení a klik na toast (okno
-Nastavení na záložce Obecné), viz `tasks/in-progress/T-101-test-notification.md`.
+Vše, co zbývá ověřit na Windows (build a testy po macOS úkolech, windowsová sada snímků z T-101, T-103, T-106, T-109–T-112
+a T-058, instalátor s autostartem z T-017, zkušební toast z T-101, hlavní panel z T-102, web přes proxy z T-107), je ve
+sběrném úkolu [T-114 „Ověření na Windows“](../tasks/todo/T-114-windows-verification.md): skript
+`tools/windows-verify.ps1`, postup v [windows-manual-testing.md](windows-manual-testing.md).

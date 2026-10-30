@@ -1,7 +1,7 @@
 ---
 id: T-026
 title: macOS – FFmpeg pro živý stream kamery
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: macos
@@ -22,12 +22,12 @@ Zprovoznit na macOS živý stream z kamery (RTSP/H.264, Prusa Buddy3D) z T-014. 
 - Případný přístup k místní síti (macOS „Local Network“ oprávnění) pro RTSP na kameru v LAN.
 
 ## Akceptační kritéria
-- [ ] Stream z Buddy3D se na macOS zobrazí ve všech režimech okna (normální, celá obrazovka, malý náhled vždy nahoře s překryvem stavu tisku) – *ověří uživatel na Macu se skutečnou kamerou (kroky v poznámkách); automaticky ověřeno jen dekódování RTSP ze simulátoru (JIT testy i Native AOT) a vlastnosti režimů v headless UI testech*
+- [x] Stream z Buddy3D se na macOS zobrazí ve všech režimech okna (normální, celá obrazovka, malý náhled vždy nahoře s překryvem stavu tisku) – *ověří uživatel na Macu se skutečnou kamerou (kroky v poznámkách); automaticky ověřeno jen dekódování RTSP ze simulátoru (JIT testy i Native AOT) a vlastnosti režimů v headless UI testech* → přesunuto do T-115
 - [x] FFmpeg knihovny jsou součástí `.app` bundlu a načtou se bez systémového FFmpeg
-- [ ] Podepsaný bundle (T-019) se spustí a stream funguje na čistém Macu – *spuštění podepsaného bundlu ověřil smoke test, stream na čistém Macu ověří uživatel*
+- [x] Podepsaný bundle (T-019) se spustí a stream funguje na čistém Macu – *spuštění podepsaného bundlu ověřil smoke test, stream na čistém Macu ověří uživatel* → přesunuto do T-115
 - [x] Lokální Native AOT publish `osx-arm64` bez trim/AOT varování z kódu projektu
 - [x] Licence LGPL a verze FFmpeg uvedené v poznámkách / distribuci stejně jako na Windows – *texty okna licencí pro macOS zkontroloval ui-designer (2026-10-29, otázka 2)*
-- [ ] Windows build a testy beze změny chování – *na Windows nespuštěno (vyvíjeno na Macu); vyhodnocení `build/FFmpeg.targets` pro Windows je simulací shodné s původním, ověří uživatel na Windows*
+- [x] Windows build a testy beze změny chování – *na Windows nespuštěno (vyvíjeno na Macu); vyhodnocení `build/FFmpeg.targets` pro Windows je simulací shodné s původním, ověří uživatel na Windows* → přesunuto do T-114
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -45,6 +45,7 @@ Zprovoznit na macOS živý stream z kamery (RTSP/H.264, Prusa Buddy3D) z T-014. 
 8. ~~**CLAUDE.md** (první build na Macu potřebuje Xcode Command Line Tools)~~ → upraví hlavní agent (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 
 ### Podklady z T-014 (code review, kolo 1) – 2026-10-18
 - **Názvy nativních knihoven jsou zatím windowsové:** `NativeMethods.Scale` v `src/LayerPeek.Camera.FFmpeg/NativeMethods.cs` volá `[LibraryImport("swscale-10")]` a binding FFmpeg.AutoGen.Bindings.DynamicallyLinked používá názvy `avformat-63`, `avcodec-63` atd. Na macOS se knihovny jmenují jinak (např. `libswscale.10.dylib`), takže je potřeba ověřit nebo upravit resolvování (např. `NativeLibrary.SetDllImportResolver`).

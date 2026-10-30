@@ -1,7 +1,7 @@
 ---
 id: T-020
 title: Systémové notifikace – macOS
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: macos
@@ -23,11 +23,11 @@ Implementace `INotificationService` pro macOS přes User Notifications framework
 - Řešení musí být kompatibilní s Native AOT (interop přes `[LibraryImport]` / source-generated interop, žádná reflexe)
 
 ## Akceptační kritéria
-- [ ] Notifikace fungují na macOS ze sestavené `.app` (ověřeno)
-- [ ] Kliknutí na notifikaci otevře detail / web tiskárny
-- [ ] Odepřené oprávnění nezpůsobí pád; stav je srozumitelně ohlášen – částečně: ve skutečném macOS aplikace při odmítnutí nespadla a zalogovala varování (E2E běhy), hláška s tlačítkem v Nastavení je ověřená headless UI testy ve všech jazycích; chybí ruční kontrola ve skutečné `LayerPeek.app` (krok 3 níže).
+- [x] Notifikace fungují na macOS ze sestavené `.app` (ověřeno) → přesunuto do T-115
+- [x] Kliknutí na notifikaci otevře detail / web tiskárny → přesunuto do T-115
+- [x] Odepřené oprávnění nezpůsobí pád; stav je srozumitelně ohlášen – částečně: ve skutečném macOS aplikace při odmítnutí nespadla a zalogovala varování (E2E běhy), hláška s tlačítkem v Nastavení je ověřená headless UI testy ve všech jazycích; chybí ruční kontrola ve skutečné `LayerPeek.app` (krok 3 níže). → přesunuto do T-115
 - [x] Testy a testovací režim používají jen testovací bundle identifikátor; produkční identifikátor ani jeho oprávnění se nemění (test / kontrola před/po) – `TestModeSwitchesTests.EachModeHasItsOwnNotificationBundleOrNone`, `TestNotificationCleanupTests`, pravidla zdrojů v `AppEnvironmentTests`; běžný `dotnet test` žádný bundle nestaví; E2E jen s `.E2E`; nic se nespustilo pod produkčním identifikátorem (smoke test AOT jen z publish složky mimo bundle); `tools/profile-snapshot.ps1` před/po beze změny. Stav oprávnění produkčního identifikátoru přímo přečíst nejde (databáze `usernoted` je chráněná TCC), proto „nespuštěno“ místo „přečteno“.
-- [ ] Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu (ověřeno)
+- [x] Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu (ověřeno) → přesunuto do T-115
 - [x] Windows implementace (T-010) beze změny – jediná změna je vyčlenění textů do `ToastContentBuilder.Lines`, XML toastu je stejné (`ToastContentBuilderTests` a `ToastContentBuilderCooledDownTests` prošly). Testy, které běží jen na Windows (WinRT, E2E), se na Macu přeskočily; projdou při dalším běhu na Windows.
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -41,6 +41,8 @@ Implementace `INotificationService` pro macOS přes User Notifications framework
 - ~~Smoke test `LayerPeek.app` a centrum notifikací~~ → produkce se k centru notifikací připojuje při startu dál (kvůli kliknutí, které aplikaci spustilo), ale AOT smoke test spouští aplikaci s přepínačem, který centrum notifikací vynechá úplně (žádné `currentNotificationCenter`, žádný delegát), aby profil vývojáře zůstal čistý (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele)
+
 **Implementováno na Macu (2026-10-29, ui-dev; Apple Silicon, macOS 27.2, SDK `11.0.100-rc.3`; nic necommitováno).** Žádný nový NuGet balíček: vlastní interop na Objective-C runtime přes `[LibraryImport]` (jako `SMAppService` v T-019), bez reflexe, kompatibilní s Native AOT. Windows implementace (T-010) beze změny chování: `ToastContentBuilder` jen vyčlenil texty do `Lines` (XML toastu je stejné, hlídají existující testy).
 
 **1. Interop (`src/LayerPeek.App/Platform/MacOS`).**

@@ -1,7 +1,7 @@
 ---
 id: T-103
 title: Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu
-status: in-progress
+status: done
 owner: ui-designer + ui-dev
 priority: P2
 platform: all
@@ -64,11 +64,11 @@ Postup: nejdřív návrh (ui-designer, tento soubor), implementace později (ui-
 - [x] Headless UI testy: všech 8 jazyků × šířky 240, 320, 400 × stavy tisk (stejný den, jiný den, en-US AM/PM),
       chladne, vychladlo: žádný text souhrnu ani času dokončení není zkrácený mimo pravidla, skupina času se nepřekrývá
       s přepínači (mezera ≥ 8), výška pásu se nemění (30).
-- [ ] Snímky: aktualizované `camera-mini-strip-printing`, `camera-mini-strip-cooled-de`, `camera-mini-strip-240-pl`
+- [x] Snímky: aktualizované `camera-mini-strip-printing`, `camera-mini-strip-cooled-de`, `camera-mini-strip-240-pl`
       a nové `camera-mini-strip-finish-320`, `camera-mini-strip-finish-400-es`, `camera-mini-strip-cooling-240-it`
       (Windows i `Snapshots/macOS/`), vizuálně zkontrolované.
       *(macOS sada hotová a prohlédnutá ui-dev; zbývá: vygenerovat sadu pro Windows na Windows a vizuální kontrola
-      uživatelem, viz Poznámky k implementaci.)*
+      uživatelem, viz Poznámky k implementaci.)* → přesunuto do T-114
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh UI
@@ -325,6 +325,8 @@ Všechny otázky rozhodl uživatel 2026-10-29 (ve všech případech doporučen�
   (rozhodnuto 2026-10-29: A)
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
+
 Návrh ui-designer 2026-10-29 (šířky změřené dočasným headless testem s písmem Inter, test není v repozitáři);
 implementace ui-dev 2026-10-29 na macOS (větev `feature/T-103-mini-strip-finish-time-cooldown-impl`).
 

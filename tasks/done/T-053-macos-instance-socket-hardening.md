@@ -1,7 +1,7 @@
 ---
 id: T-053
 title: macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: macos
@@ -25,14 +25,14 @@ L2:
 - **Izolace testů:** testy socketu, práv `0700`, cizího vlastníka a symbolického odkazu běží v soukromé podsložce pod `$TMPDIR` (ne v repozitáři: svazek s repozitářem může být připojený s `noowners`, vlastnictví se tam nevynucuje, viz T-095) a po sobě ji smažou.
 
 ## Akceptační kritéria
-- [ ] Spojení od jiného UID se odmítne (test s injektovanou kontrolou UID; na Macu skutečný test, pokud jde bez druhého uživatele, jinak ručně)
-  - automatická část hotová (injektovaný test + skutečný test se stejným UID); ruční test s druhým uživatelem **neověřen**, viz poznámky
+- [x] Spojení od jiného UID se odmítne (test s injektovanou kontrolou UID; na Macu skutečný test, pokud jde bez druhého uživatele, jinak ručně)
+  - automatická část hotová (injektovaný test + skutečný test se stejným UID); ruční test s druhým uživatelem **neověřen**, viz poznámky → přesunuto do T-115
 - [x] Záložní socket je v podsložce `0700` aktuálního uživatele; cizí, symbolickým odkazem nahrazená nebo příliš otevřená složka vypne ochranu bez pádu (testy)
 - [x] Druhé spuštění na Macu dál předá příkaz běžící instanci (krátká i dlouhá cesta k datové složce)
-- [ ] Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)
+- [x] Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4) → přesunuto do T-115
 - [x] Testy po sobě nic nenechají (sockety, složky, zámky); testy práv a vlastnictví běží v soukromé podsložce `$TMPDIR`, ne v repozitáři
-- [ ] Lokální Native AOT publish `osx-arm64` bez varování; Windows build a testy beze změny chování
-  - AOT `osx-arm64` hotovo (0 varování); Windows build a testy **neověřeny** (vyvíjeno jen na Macu)
+- [x] Lokální Native AOT publish `osx-arm64` bez varování; Windows build a testy beze změny chování
+  - AOT `osx-arm64` hotovo (0 varování); Windows build a testy **neověřeny** (vyvíjeno jen na Macu) → přesunuto do T-114
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -40,6 +40,7 @@ L2:
 - ~~umask `002`~~ → ochrana se vypne a zaloguje, aplikace běží; složku neopravuje (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
 - **Závislost T-095:** T-095 je zatím v `in-progress` jen kvůli čekajícímu ověření na Windows. Uživatel výslovně požádal začít T-053 hned.
 - **Kontrola protistrany (L2):** `UnixSocketInstanceTransport.Listener.AcceptAsync` po `Accept` zjistí UID klienta. Když se liší od `geteuid()` nebo ho OS nevrátí, spojení zavře bez čtení a vyhodí `InstancePeerRefusedException`. `InstanceCommandServer` to zaloguje jako varování („Refused a connection of another user (uid N)…“, bez obsahu a bez výjimky) a hned přijímá další spojení, bez pauzy 500 ms jako u jiných chyb `Accept`.
 - **Volba API:** `getpeereid` z libc přes `[LibraryImport]` (`Platform/MacOS/MacUnixNative.cs`), ne `LOCAL_PEERCRED` přes `Socket.GetRawSocketOption`. Je to dokumentovaná funkce s pevnou signaturou (macOS ji sám staví na `LOCAL_PEERCRED`), takže v kódu není natvrdo rozložení `struct xucred`. Knihovna se načítá absolutní cestou `/usr/lib/libSystem.B.dylib`, ne holým jménem `libc`, které .NET nejdřív hledá vedle aplikace. Vlastníka a typ složky zjišťuje `lstat` (.NET veřejné API pro vlastníka souboru nemá): na arm64 symbol `lstat`, na x64 `lstat$INODE64`, z `struct stat` se čte jen `st_mode` (offset 4) a `st_uid` (offset 16), buffer má rezervu 256 B. Na x64 **neověřeno**, není k dispozici Intel Mac.

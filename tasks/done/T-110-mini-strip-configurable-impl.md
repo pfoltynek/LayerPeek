@@ -1,7 +1,7 @@
 ---
 id: T-110
 title: Malý náhled – nastavitelný obsah pásu (implementace návrhu T-104)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: all
@@ -120,12 +120,12 @@ Core + nastavení s nezaškrtnutými kritérii pásu a nahlásit to (pravidlo 6 
       žádná tiskárna; pás 240 / 320 / 400 × 8 jazyků pro nevýchozí kombinace (bez přepínačů, bez zbývajícího času,
       minimum) – souhrn se nepřekrývá s přepínači (mezera ≥ 8), skryté přepínače nejsou v Tab ani ve stromu
       automatizace, výška pásu podle `StripHeight`; po Uložit se otevřené malé okno změní.
-- [ ] Snímky: nové `settings-widgets-mini-strip`, `settings-widgets-mini-strip-de`, `settings-widgets-mini-strip-fr`,
+- [x] Snímky: nové `settings-widgets-mini-strip`, `settings-widgets-mini-strip-de`, `settings-widgets-mini-strip-fr`,
       `camera-mini-strip-custom-240`, `camera-mini-strip-no-rows-320`; stávající `settings-widgets*` aktualizované
       (oddělovač a nová položka v seznamu). **macOS sadu (`Snapshots/macOS/`) přegenerovat a prohlédnout zde**
       (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`). **Windows sadu
       (`Snapshots/`) přegenerovat ručně na Windows** – seznam změněných a nových souborů zapsat do Poznámek
-      k implementaci; do té doby tyto testy na Windows selžou (stejně jako u T-103 / T-109).
+      k implementaci; do té doby tyto testy na Windows selžou (stejně jako u T-103 / T-109). *(macOS sada přegenerovaná a prohlédnutá, viz Poznámky k implementaci; zbývá Windows.)* → přesunuto do T-114
 - [x] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
       logy v `%APPDATA%` / `~/Library/Application Support/LayerPeek`). Testy mapperu a store pracují v paměti nebo ve
       vyhrazených testovacích složkách (`TestDirectories` / `ReservedTempDirectory`), headless testy ve svém harnessu
@@ -175,6 +175,8 @@ Revize ui-designer 2026-10-30 (rozhodnuto výše):
   (`OverlayIcon` + text, kompilované bindingy), `HelpText` bez symbolu / (C) ponechat, jak uživatel schválil.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
+
 (ui-dev, 2026-10-30, macOS; větev `feature/T-110-mini-strip-configurable-impl`)
 
 - **Core:** `CameraMiniStripSettings` (`Core/Cameras`), `CameraSettings.MiniStrip` (i v `Equals` / `GetHashCode` /

@@ -1,7 +1,7 @@
 ---
 id: T-055
 title: Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: all
@@ -48,16 +48,16 @@ Rozhodnutí uživatele (2026-10-21):
 - [x] `win-arm64` je ve výchozím stavu vypnutý a skript jeho soubory nenahraje. *(Ověřeno Pester testy „builds win-x64 … by default (win-arm64 off until T-057)“, „never uploads win-arm64 until T-057“, „refuses a build containing win-arm64 until T-057“ a „refuses missing, different, unlisted and win-arm64 files“: 4/4 prošly 2026-10-21, odškrtnuto se souhlasem uživatele.)* Druhá část kritéria – „po výslovném zapnutí ho sestaví a zabalí stejně jako `win-x64`“ (potřebuje MSVC ARM64) – **přesunuta do T-063** (na žádost uživatele 2026-10-21).
 - [x] AOT publish Windows RID bez trim/AOT varování z kódu projektu. Smoke test nativního RID prošel.
 - [x] `<Version>0.1.0</Version>` je v kořenovém `Directory.Build.props`. Verze ve výstupních souborech, ve vlastnostech exe a v okně O aplikaci je stejná a pochází odtud.
-- [ ] Vydání verze `0.x` je na GitHubu označené jako předběžné.
+- [x] Vydání verze `0.x` je na GitHubu označené jako předběžné. (stav 2026-10-30: `v0.1.0` a `v0.3.0` předběžné, `v0.2.0` ne) → přesunuto do T-115
 - [x] Publikace odmítne špinavý strom, commit bez tagu, tag neodpovídající verzi i tag, který není na `origin` (ověřeno ručně nebo testem skriptu, výsledek zapsaný v poznámkách).
-- [ ] Režim nanečisto vypíše plánované nahrání a na GitHubu nic nezmění.
-- [ ] Zkušební vydání (např. předběžný tag na testovacím commitu, po ověření smazané i s vydáním) ukázalo vytvoření vydání a následné přidání souborů druhým během (na Windows lze simulovat druhým během s jiným RID).
+- [x] Režim nanečisto vypíše plánované nahrání a na GitHubu nic nezmění. → přesunuto do T-115
+- [x] Zkušební vydání (např. předběžný tag na testovacím commitu, po ověření smazané i s vydáním) ukázalo vytvoření vydání a následné přidání souborů druhým během (na Windows lze simulovat druhým během s jiným RID). → přesunuto do T-114 a T-115
 - [x] Bod rozšíření pro instalátory je popsaný v `docs/release.md` (jak T-017 / T-019 přidají krok).
 - [x] `docs/release.md` a `docs/prerequisites.md` aktuální (česky).
 - [x] Běh na macOS (`osx-arm64`, `.tar.gz`, `SHA256SUMS-macos.txt`, přidání do existujícího vydání) se ověřuje na Macu v rámci T-019; zde stačí, že skript na Windows RID `osx-arm64` srozumitelně odmítne.
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 - [x] Orchestrátor `scripts/release.ps1` (lokálně, bez GitHubu): kontroly předem najednou, `-DryRun` nic nezmění, kroky Gitflow s lokálním „origin“, potvrzení před pushem, navázání po přerušení i po selhání buildu, návrat na `develop`, úklid dočasných souborů. *(Ověřeno 2026-10-24: Pester `ReleaseOrchestrator.Tests.ps1` 102/102 (po opravách z obou revizí) a `-DryRun` na tomto repozitáři a v dočasném klonu, viz poznámky.)*
-- [ ] Orchestrátor ve zkušebním vydání (testovací repozitář, `-Repo`): push `main` + tagu a `develop`, koncept na GitHubu, opakovaný běh po přerušení buildu naváže, běh po dokončení nic nedělá.
+- [x] Orchestrátor ve zkušebním vydání (testovací repozitář, `-Repo`): push `main` + tagu a `develop`, koncept na GitHubu, opakovaný běh po přerušení buildu naváže, běh po dokončení nic nedělá. → přesunuto do T-115
 
 ## Otevřené otázky
 - ~~Zdroj verze~~ → `<Version>` v kořenovém `Directory.Build.props`, skript ověří shodu s tagem `vX.Y.Z`. První verze `0.1.0` (rozhodnuto 2026-10-21).
@@ -82,6 +82,8 @@ Rozhodnutí uživatele (2026-10-21):
   4. ~~Styl potvrzení?~~ → beze změny: push `main` + tagu napsáním verze, push `develop` a koncept `y/N` (rozhodnuto 2026-10-24).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele)
+
 Stav: **in-progress** – skripty hotové a ověřené na Windows lokálně (build i testy zelené), zbývá ověření s GitHubem (zkušební vydání v testovacím repozitáři). `win-arm64` (MSVC ARM64) je přesunutý do T-063 a běh na Macu do T-019 (rozdělení na žádost uživatele 2026-10-21), na Mac ani ARM64 tento úkol nečeká. Viz „Neověřeno“.
 
 **Soubory**

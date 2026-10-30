@@ -1,7 +1,7 @@
 ---
 id: T-112
 title: Okno Nastavení – zvýraznění chybného pole a přístupný stav chyby
-status: in-progress
+status: done
 owner: ui-designer + ui-dev
 priority: P3
 platform: all
@@ -82,11 +82,11 @@ Postup: nejdřív ui-designer napíše krátký design spec (sekce `## Návrh` v
 - [x] Barva okraje má kontrast aspoň 3 : 1 k pozadí ve světlém i tmavém motivu (WCAG 2.2, 1.4.11). Výpočet uvede
       ui-designer v návrhu.
 - [x] Nové nebo změněné řetězce jsou ve všech `Strings.*.resx` (en, cs, de, es, fr, it, pl, sk), žádný nechybí.
-- [ ] Snímky: macOS sada (`tests/LayerPeek.App.UiTests/Snapshots/macOS/`) přegenerována a prohlédnuta zde
+- [x] Snímky: macOS sada (`tests/LayerPeek.App.UiTests/Snapshots/macOS/`) přegenerována a prohlédnuta zde
       (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`). Nové snímky chybových stavů
       aspoň: Tiskárna (adresa), Okno kamery (velikost), Vychladnutí (jen podložka, fr), Obecné, tmavý motiv. Windows
       sadu (`Snapshots/`) přegeneruje uživatel ručně na Windows. Seznam změněných a nových souborů se zapíše do
-      Poznámek k implementaci. *(macOS hotovo 2026-10-30, Windows čeká na uživatele.)*
+      Poznámek k implementaci. *(macOS hotovo 2026-10-30, Windows čeká na uživatele.)* → přesunuto do T-114
 - [x] Revize ui-designer po implementaci zapsaná v úkolu. *(2026-10-30, viz `### Revize ui-designer (po implementaci)`.)*
 - [x] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
       `windows.json`, logy v `%APPDATA%` / `~/Library/Application Support/LayerPeek`). Headless testy běží
@@ -391,6 +391,8 @@ Snímky macOS (`Snapshots/macOS/`), přegenerovat a prohlédnout:
      motivu, takže by bylo nutné nejdřív ověřit `PlatformSettings.GetColorValues().ContrastPreference` a postup.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
+
 ui-dev, 2026-10-30, macOS (branch `feature/T-112-settings-invalid-field-highlight`).
 
 **Start před dokončením závislostí:** uživatel 2026-10-30 rozhodl začít, i když T-101, T-109, T-110 a T-111 jsou ještě

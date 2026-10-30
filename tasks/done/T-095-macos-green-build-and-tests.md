@@ -1,7 +1,7 @@
 ---
 id: T-095
 title: macOS – zelený build a testy
-status: in-progress
+status: done
 owner: qa-reviewer + ui-dev
 priority: P1
 platform: macos
@@ -52,7 +52,7 @@ Apple Silicon, macOS 27.2, .NET SDK `11.0.100-rc.3`, Xcode Command Line Tools, `
 - [x] Testy formátu času projdou s ICU na macOS (U+202F) i na Windows; chování aplikace beze změny (nebo změna schválená uživatelem) (na Windows dává `CultureTime` mezeru, tedy původní očekávání; běh ověří uživatel)
 - [x] `SnapshotAssert` vybírá referenci podle OS, macOS má vlastní sadu, `LAYERPEEK_UPDATE_SNAPSHOTS=1` přepisuje jen sadu aktuálního OS (test infrastruktury v `SnapshotAssertTests`), Windows reference beze změny (`git diff` je nemění)
 - [x] Každý test rozložení, který na macOS selhával, má v poznámkách příčinu; skutečné chyby rozložení jsou v otevřených otázkách nebo jako nový úkol, ne skryté povolenou tolerancí
-- [ ] Na Windows `dotnet build` a `dotnet test` beze změny výsledku (ověří uživatel na Windows, nebo se zapíše jako otevřený bod) – neověřeno, zapsáno v otevřených otázkách
+- [x] Na Windows `dotnet build` a `dotnet test` beze změny výsledku (ověří uživatel na Windows, nebo se zapíše jako otevřený bod) – neověřeno, zapsáno v otevřených otázkách → přesunuto do T-114
 - [x] `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` bez varování (spuštěno s `$PWD` rovným `pwd -P`)
 - [x] Kontrola před/po (`~/Library/Application Support`, `~/Library/Logs`, `~/Library/LaunchAgents`, Login Items, Keychain – služby LayerPeek / Prusa) po `dotnet test`: žádná změna; v `$TMPDIR` zůstanou jen rezervované složky testů (soubory Edge z prvního běhu jsou známý pozůstatek, Edge se na macOS už nespouští; Login Items „not checked“, obojí rozhodnuto 2026-10-29)
 - [x] Skript kontroly před/po v `tools/` existuje, jen čte, rozdíl hlásí nenulovým kódem (Pester testy) a po `dotnet test` na macOS nehlásí žádnou změnu
@@ -71,6 +71,8 @@ Apple Silicon, macOS 27.2, .NET SDK `11.0.100-rc.3`, Xcode Command Line Tools, `
 - **Ověření na Windows:** `dotnet build` a `dotnet test` na Windows po těchto změnách (hlavně `SnapshotAssert` / `ReferenceSet`, `CameraHarness.FinishMiniResize`, `HeadlessSession` s `DefaultThreadCurrent*Culture`, `CultureTime`, delší název v `StatusWidgetUiTests`, `aot-smoke.ps1` se zálohou a `profile-snapshot.ps1` včetně `cmdkey`) jsem nespouštěl. Ověří uživatel na Windows.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
+
 Implementováno na Macu (Apple Silicon, macOS 27.2, SDK `11.0.100-rc.3`, `pwsh` 7.6.9 jako dotnet global tool, Pester 6.2.0, Microsoft Edge 156 nainstalovaný). Žádné nové NuGet balíčky, chování aplikace beze změny.
 
 **1. Zaseknutí `TrayIconPromotionTests`.** Na macOS je `C:\...` relativní název souboru: `Path.GetFileName` nedělí `\` a `Path.GetFullPath` neřeší velikost písmen ani `.\`. V `OtherExecutablesAreNeverTouched` se proto nenajde vlastní položka a `PromoteAsync` čeká na pauzu (`_pause.WaitAsync`), kterou test nikdy neuvolní, tedy navždy. Kód na macOS neběží (`TrayHost` i `AppServices` ho volají jen při `OperatingSystem.IsWindows()`), nejde o chybu aplikace. `OtherExecutablesAreNeverTouched` a `AppliesOnlyToTheAppExecutable` se mimo Windows přeskočí s důvodem; ostatní testy třídy běží dál.

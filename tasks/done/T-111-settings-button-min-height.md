@@ -1,7 +1,7 @@
 ---
 id: T-111
 title: Okno Nastavení – minimální výška tlačítek 32 DIP
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: all
@@ -51,10 +51,10 @@ pro celé okno (varianta A z Q6).
       výchozí velikost (T-041, T-094).
 - [x] Pokud se záložka do výchozí velikosti nevejde, úkol se **nezavírá**. Problém se zapíše do Otevřených otázek
       (zvětšit okno, nebo zhustit záložku – rozhodne uživatel).
-- [ ] Snímky: macOS sada (`tests/LayerPeek.App.UiTests/Snapshots/macOS/`, `settings-*`) přegenerována a prohlédnuta zde
+- [x] Snímky: macOS sada (`tests/LayerPeek.App.UiTests/Snapshots/macOS/`, `settings-*`) přegenerována a prohlédnuta zde
       (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`). Windows sadu
       (`Snapshots/`) přegeneruje uživatel ručně na Windows. Seznam změněných souborů se zapíše do Poznámek
-      k implementaci. Do té doby snímkové testy na Windows selžou (stejně jako u T-103 / T-109 / T-110).
+      k implementaci. Do té doby snímkové testy na Windows selžou (stejně jako u T-103 / T-109 / T-110). *(macOS sada přegenerovaná a prohlédnutá, viz Poznámky k implementaci a Q2; zbývá Windows.)* → přesunuto do T-114
 - [x] Revize ui-designer zapsaná v úkolu, verdikt OK, nebo nálezy vyřešené či přesunuté do Otevřených otázek.
 - [x] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
       `windows.json`, logy v `%APPDATA%` / `~/Library/Application Support/LayerPeek`). Headless testy běží ve svém
@@ -85,6 +85,7 @@ pro celé okno (varianta A z Q6).
   tlačítek ověřen na `settings-general.png`). Windows snímky přegeneruje uživatel spolu s ostatními.
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 (rozhodnutí uživatele)
 - **Zahájení:** uživatel 2026-10-30 rozhodl začít, i když závislosti T-101, T-109 a T-110 jsou ještě
   v `tasks/in-progress/` (jejich kód je sloučený v `develop`, čekají jen na snímky z Windows).
 - **Styl:** v `Window.Styles` okna `SettingsWindow.axaml` styl `Button, HyperlinkButton` s `MinHeight` 32. Platí i pro

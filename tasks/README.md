@@ -24,6 +24,21 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 - `depends_on` – seznam ID, které musí být v `done/`; úkoly `macos` závisí na svém sdíleném / Windows protějšku
 - `## Otevřené otázky` – co musí rozhodnout uživatel. Úkol s nezodpovězenou otázkou, která blokuje implementaci, se neimplementuje.
 
+## Sběrné ověřovací úkoly (rozhodnutí uživatele 2026-10-30)
+
+Kritérium, které už potřebuje jen ruční ověření uživatelem nebo kontrolu na druhém OS, se smí přesunout do sběrného
+ověřovacího úkolu: **T-114 „Ověření na Windows“** (Windows) nebo **T-115 „Ruční ověření na Macu“** (Mac).
+
+- V původním úkolu se kritérium odškrtne, původní text zůstane a na konec se připíše „→ přesunuto do T-114“ /
+  „→ přesunuto do T-115“ (u obou OS „→ přesunuto do T-114 a T-115“). Do `## Poznámky k implementaci` přibude řádek
+  „Uzavřeno RRRR-MM-DD: zbývající ruční ověření přesunuto do T-11x (rozhodnutí uživatele)“ a úkol se uzavře (`status: done`,
+  `git mv` do `done/`).
+- Ve sběrném úkolu má každý bod zaškrtávací pole, původní úkol a kritérium a krátký konkrétní postup (kontrola
+  `tools/macos-verify.ps1` / `tools/windows-verify.ps1` nebo sezení v `docs/macos-manual-testing.md` /
+  `docs/windows-manual-testing.md`). U přegenerování snímků UI seznam souborů podle původního úkolu.
+- Přesunout nejde nedokončená práce (kód, dokumentace, rozhodnutí) ani kritérium úkolu, který blokuje nezodpovězená
+  otevřená otázka – takový úkol zůstává v `in-progress/`. Chyba nalezená při ověření = nový úkol.
+
 ## Větve (Gitflow)
 
 - Každý úkol má vlastní větev `feature/T-XXX-kratky-nazev` (stejný název jako soubor úkolu), založenou z `develop`.
@@ -84,9 +99,9 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-049 | Podpora – kopírování informací do schránky | all | ui-dev | P3 | T-048 |
 | T-050 | Bezpečnost – FFmpeg přijímá jen RTSP/TCP a H.264 (M1) | all | core-dev | P2 | T-014 |
 | T-051 | Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1) | all | core-dev | P3 | T-028, T-030 |
-| T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) | all | qa-reviewer | P2 | – |
+| T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) (hotovo; zkušební vydání v T-114 / T-115) | all | qa-reviewer | P2 | – |
 | T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055; rozbor variant 2026-10-29) | all | qa-reviewer | P3 | – |
-| T-058 | Kontrola nové verze v aplikaci (GitHub Releases) + Velopack pro macOS – rozbor a varianty 2026-10-29, čeká na rozhodnutí | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
+| T-058 | Kontrola nové verze v aplikaci (GitHub Releases) + Velopack pro macOS (hotovo; ruční ověření v T-114 / T-115) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
 | T-022 | Prusa Connect – přihlášení k účtu (UI, vyřazeno – bez veřejného API, 2026-10-29) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
 | T-076 | Widgety překryvu – návrh UI (design spec) (hotovo) | all | ui-designer | P2 | – |
@@ -107,16 +122,17 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-091 | Režim rozložení v okně kamery (jen normální okno, vstup i z nastavení) (hotovo) | all | ui-dev | P2 | T-077, T-082, T-083 |
 | T-092 | Záložka Widgety v nastavení – seznam widgetů s vlastním nastavením, globální neprůhlednost, úprava rozložení (hotovo) | all | ui-dev | P2 | T-077, T-080, T-081, T-091 |
 | T-094 | Okna Nastavení a Diagnostika – výchozí velikost 780 × 532, zvětšení na celou obrazovku a zapamatování velikosti (hotovo) | all | ui-dev | P2 | – |
-| T-101 | Zkušební upozornění a nový dotaz na povolení notifikací | all | ui-dev + ui-designer | P2 | T-010, T-020 |
-| T-103 | Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu (návrh hotový, implementace po T-101) | all | ui-designer + ui-dev | P2 | T-079, T-083, T-088, T-089, T-090, T-101 |
+| T-101 | Zkušební upozornění a nový dotaz na povolení notifikací (hotovo; ověření v T-114 / T-115) | all | ui-dev + ui-designer | P2 | T-010, T-020 |
+| T-103 | Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu (hotovo; Windows snímky v T-114) | all | ui-designer + ui-dev | P2 | T-079, T-083, T-088, T-089, T-090, T-101 |
 | T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – návrh (hotovo, rozhodnuto 2026-10-30, implementace T-110) | all | ui-designer | P3 | T-092, T-103 |
-| T-106 | Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu | all | ui-dev | P2 | T-084, T-090 |
-| T-105 | Ověřovací skripty pro uživatele (`tools/macos-verify.ps1`, `tools/windows-verify.ps1`) místo ručních kroků | all | qa-reviewer | P1 | – |
-| T-107 | Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1) (implementováno; čeká ruční ověření a rozhodnutí o `*.localhost`) | all | core-dev | P2 | T-028, T-051 |
-| T-109 | Vychladnutí – prahy trysky i podložky u každé tiskárny (widget Vychladnutí) (implementováno; čeká Windows snímky, revizi ui-designer a potvrzení Q1/Q5) | all | ui-dev + core-dev | P2 | T-079, T-080, T-088, T-092, T-103 |
-| T-110 | Malý náhled – nastavitelný obsah pásu (implementace návrhu T-104) (implementováno; čeká Windows snímky) | all | ui-dev | P3 | T-104, T-103, T-109 |
-| T-111 | Okno Nastavení – minimální výška tlačítek 32 DIP (z revize T-101) | all | ui-dev | P3 | T-101, T-109, T-110 |
-| T-112 | Okno Nastavení – zvýraznění chybného pole a přístupný stav chyby (z revize T-109; čeká na otázky 1–4) | all | ui-designer + ui-dev | P3 | T-101, T-109, T-110, T-111 |
+| T-106 | Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu (hotovo; Windows snímky v T-114, tiskárna v T-115) | all | ui-dev | P2 | T-084, T-090 |
+| T-105 | Ověřovací skripty pro uživatele (`tools/macos-verify.ps1`, `tools/windows-verify.ps1`) místo ručních kroků (hotovo; první běh v T-114 / T-115) | all | qa-reviewer | P1 | – |
+| T-107 | Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1) (hotovo; ruční ověření v T-114 / T-115) | all | core-dev | P2 | T-028, T-051 |
+| T-109 | Vychladnutí – prahy trysky i podložky u každé tiskárny (widget Vychladnutí) (hotovo; Windows snímky v T-114) | all | ui-dev + core-dev | P2 | T-079, T-080, T-088, T-092, T-103 |
+| T-110 | Malý náhled – nastavitelný obsah pásu (implementace návrhu T-104) (hotovo; Windows snímky v T-114) | all | ui-dev | P3 | T-104, T-103, T-109 |
+| T-111 | Okno Nastavení – minimální výška tlačítek 32 DIP (z revize T-101) (hotovo; Windows snímky v T-114) | all | ui-dev | P3 | T-101, T-109, T-110 |
+| T-112 | Okno Nastavení – zvýraznění chybného pole a přístupný stav chyby (z revize T-109) (hotovo; Windows snímky v T-114) | all | ui-designer + ui-dev | P3 | T-101, T-109, T-110, T-111 |
+| T-113 | Oddělené vydání macOS a Windows pod jednou verzí | all | qa-reviewer | P2 | T-055, T-058 |
 
 ### Windows (`windows`)
 
@@ -126,7 +142,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-056 | Velopack – ověření použitelnosti pro instalátor a aktualizace (spike) (hotovo) | windows | ui-dev | P2 | – |
 | T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) | windows | core-dev | P2 | – |
 | T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) | windows | qa-reviewer | P2 | T-055, T-056 |
-| T-017 | Balení a distribuce, autostart – Windows | windows | ui-dev | P2 | T-008, T-055, T-056 |
+| T-017 | Balení a distribuce, autostart – Windows (hotovo; ověření v T-114) | windows | ui-dev | P2 | T-008, T-055, T-056 |
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
 | T-044 | End-to-end testy skutečné aplikace na Windows (UI Automation) (hotovo) | windows | qa-reviewer | P2 | T-040, T-041, T-042, T-043 |
@@ -143,24 +159,26 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-072 | E2E – jump list oken a druhé spuštění přes shell (popředí, blikání) | windows | qa-reviewer | P2 | T-044 |
 | T-073 | E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření | windows | qa-reviewer | P2 | T-067, T-068, T-069, T-070, T-071, T-072 |
 | T-093 | E2E – widgety překryvu, malý náhled, režim rozložení + AOT (hotovo) | windows | qa-reviewer | P2 | T-080, T-087, T-088, T-090, T-091, T-092 |
+| T-114 | Ověření na Windows (sběrný úkol: build a testy po macOS úkolech, Windows snímky, instalátor, ruční kontroly) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109–T-112 |
 
 ### macOS (`macos`) – jen na Macu, později
 
 | ID | Název | Platforma | Owner | Priorita | Závisí na |
 |---|---|---|---|---|---|
-| T-095 | macOS – zelený build a testy (přípravný úkol, první na Macu) | macos | qa-reviewer + ui-dev | P1 | – |
-| T-018 | macOS – ikona a menu v menu baru | macos | ui-dev | P1 | T-007, T-008, T-095 |
-| T-019 | macOS – .app bundle, distribuce a autostart | macos | ui-dev | P1 | T-008, T-015, T-055, T-056, T-095 |
-| T-020 | Systémové notifikace – macOS | macos | ui-dev | P1 | T-010, T-019, T-095 |
-| T-021 | macOS – úložiště tajných údajů v Keychainu | macos | core-dev | P1 | T-002, T-030, T-095 |
-| T-026 | macOS – FFmpeg pro živý stream kamery | macos | ui-dev | P3 | T-014, T-019, T-095 |
-| T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ | macos | ui-dev | P3 | T-026, T-035, T-037 |
-| T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) | macos | ui-dev | P3 | T-043, T-052, T-095 |
-| T-096 | macOS – start aplikace bez aktivního displeje | macos | ui-dev | P2 | T-019 |
-| T-097 | macOS – oprávnění „Místní síť“ (NSLocalNetworkUsageDescription) | macos | ui-dev | P1 | T-019, T-026 |
-| T-098 | macOS – ikona aplikace s okrajem podle Applu | macos | ui-designer | P3 | T-019, T-025 |
-| T-099 | macOS – sledování tiskáren a notifikace během čekání na displej | macos | ui-dev | P2 | T-096, T-020 |
-| T-100 | macOS – klávesové zkratky podle zvyklostí Applu | macos | ui-dev | P2 | T-018, T-038 |
-| T-102 | macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu | macos | ui-dev | P1 | T-018, T-019, T-038 |
+| T-095 | macOS – zelený build a testy (přípravný úkol, první na Macu) (hotovo; Windows v T-114) | macos | qa-reviewer + ui-dev | P1 | – |
+| T-018 | macOS – ikona a menu v menu baru (čeká na otevřenou otázku; ověření v T-114 / T-115) | macos | ui-dev | P1 | T-007, T-008, T-095 |
+| T-019 | macOS – .app bundle, distribuce a autostart (čeká na otázku 11; ověření v T-115) | macos | ui-dev | P1 | T-008, T-015, T-055, T-056, T-095 |
+| T-020 | Systémové notifikace – macOS (hotovo; ruční ověření v T-115) | macos | ui-dev | P1 | T-010, T-019, T-095 |
+| T-021 | macOS – úložiště tajných údajů v Keychainu (hotovo; ověření v T-114 / T-115) | macos | core-dev | P1 | T-002, T-030, T-095 |
+| T-026 | macOS – FFmpeg pro živý stream kamery (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P3 | T-014, T-019, T-095 |
+| T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ (čeká na otázky 1–3; ověření v T-115) | macos | ui-dev | P3 | T-026, T-035, T-037 |
+| T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P3 | T-043, T-052, T-095 |
+| T-096 | macOS – start aplikace bez aktivního displeje (hotovo; ruční ověření v T-115) | macos | ui-dev | P2 | T-019 |
+| T-097 | macOS – oprávnění „Místní síť“ (NSLocalNetworkUsageDescription) (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P1 | T-019, T-026 |
+| T-098 | macOS – ikona aplikace s okrajem podle Applu (hotovo; ruční ověření v T-115) | macos | ui-designer | P3 | T-019, T-025 |
+| T-099 | macOS – sledování tiskáren a notifikace během čekání na displej (hotovo; ruční ověření v T-115) | macos | ui-dev | P2 | T-096, T-020 |
+| T-100 | macOS – klávesové zkratky podle zvyklostí Applu (čeká na otázky 1–3; ověření v T-114 / T-115) | macos | ui-dev | P2 | T-018, T-038 |
+| T-102 | macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P1 | T-018, T-019, T-038 |
 | T-108 | macOS – hardened runtime v ad-hoc podpisu LayerPeek.app (bezpečnostní revize, N3) (hotovo) | macos | ui-dev | P2 | T-019, T-026 |
 | T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |
+| T-115 | Ruční ověření na Macu (sběrný úkol: `tools/macos-verify.ps1`, ruční kroky, skutečná tiskárna, vydání) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-055, T-058, T-096–T-099, T-101, T-102, T-105–T-107 |

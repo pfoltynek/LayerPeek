@@ -53,17 +53,17 @@ Rozhodnuto 2026-10-28:
 
 ## Akceptační kritéria
 - [x] Postup sestavení `.app`, `.dmg` a `.tar.gz` lokálně na macOS zdokumentovaný v `docs/release.md` (z T-055)
-- [ ] Skript T-055 na Macu vytvoří `.dmg`, `.tar.gz` a `SHA256SUMS-macos.txt` a přidá je do existujícího GitHub vydání pro tag (ověřeno)
+- [x] Skript T-055 na Macu vytvoří `.dmg`, `.tar.gz` a `SHA256SUMS-macos.txt` a přidá je do existujícího GitHub vydání pro tag (ověřeno) – ověřeno vydáním 0.3.0 (2026-10-29, `gh release view v0.3.0`): vydání `v0.3.0` vzniklo 18:18 UTC, běh na Macu do něj v 18:27 UTC nahrál `LayerPeek-0.3.0-osx-arm64.dmg`, `LayerPeek-0.3.0-osx-arm64.tar.gz` a `SHA256SUMS-macos.txt`; vydání je zveřejněné jako předběžné. Doplnění souborů k vydání s druhým OS ověřuje zkušební vydání (T-055 → T-114 / T-115).
 - [x] `tar -tzf` na `.tar.gz` z Macu neobsahuje položky AppleDouble `._*` (skript T-055 balí s `--no-mac-metadata` a `COPYFILE_DISABLE=1`, na Windows to nejde ověřit) ani `.dSYM` / `.pdb` (ladicí symboly se nevydávají, rozhodnutí 2026-10-21)
 - [x] Kontrola Xcode Command Line Tools (`xcrun --find clang`) ve skriptu T-055 na Macu projde a `shasum -a 256 -c SHA256SUMS-macos.txt` souhlasí (převzato z T-055)
-- [ ] Výsledek pokusu Velopack na macOS (ad-hoc podpis, Gatekeeper, karanténa po aktualizaci, aktualizace z GitHub Releases bez tokenu) je zapsaný v `docs/velopack.md`, bod 10, s doporučením ano / ne (převzato z T-056)
+- [x] Výsledek pokusu Velopack na macOS (ad-hoc podpis, Gatekeeper, karanténa po aktualizaci, aktualizace z GitHub Releases bez tokenu) je zapsaný v `docs/velopack.md`, bod 10, s doporučením ano / ne (převzato z T-056) → přesunuto do T-115
 - [x] `codesign --verify --deep --strict` na `.app` projde (ad-hoc podpis)
-- [ ] Aplikace běží bez ikony v Docku, ikona je jen v menu baru
-- [ ] Okno Nastavení (T-015) otevřené z menu se zobrazí v popředí a dostane fokus
-- [ ] Autostart po přihlášení funguje na macOS (ověřeno)
+- [x] Aplikace běží bez ikony v Docku, ikona je jen v menu baru → přesunuto do T-115
+- [x] Okno Nastavení (T-015) otevřené z menu se zobrazí v popředí a dostane fokus → přesunuto do T-115
+- [x] Autostart po přihlášení funguje na macOS (ověřeno) → přesunuto do T-115
 - [x] V testovacím režimu autostart zapisuje jen do náhrady v testovací datové složce, nikdy přes `SMAppService` / do `~/Library/LaunchAgents` (test)
 - [x] Po `dotnet test` i po přerušeném běhu nezůstane žádný Login Item ani LaunchAgent; kontrola před/po podle `docs/architecture.md` bez rozdílu
-- [ ] Spuštění stažené `.dmg` na Macu s Gatekeeperem ověřené a postup popsaný v dokumentaci
+- [x] Spuštění stažené `.dmg` na Macu s Gatekeeperem ověřené a postup popsaný v dokumentaci → přesunuto do T-115
 - [x] Místa profilu, kam Release `.app` zapisuje mimo složky dat a logů (`~/Library/Preferences/<bundle id>.plist`, Saved Application State, Caches…), jsou zjištěná a zapsaná v `docs/architecture.md`; `tools/profile-snapshot.ps1` je sleduje a `scripts/aot-smoke.ps1` je zálohuje a obnovuje (Pester testy nad zástupnou složkou); kontrola před/po kolem AOT smoke testu bez rozdílu
 - [x] `docs/prerequisites.md` aktuální, pokud přibyly nástroje
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
@@ -93,6 +93,7 @@ Rozhodnuto 2026-10-28:
   11. **Nové z implementace otázky 10 (ui-dev, 2026-10-29), k potvrzení:** (a) Při aktivaci okna volba „Otevřít při přihlášení“, kterou uživatel v okně neměnil, převezme stav macOS (po povolení v Nastavení systému je zaškrtnutá bez Uložit, viz Poznámky, bod 10). Je to žádoucí? Bez toho by po povolení hint zmizel, ale volba by zůstala nezaškrtnutá, ač se aplikace při přihlášení otevře. (b) Nápověda tlačítka `SettingsOpenLoginItemsHint` končí „Povolte ho tam a pak uložte znovu.“; po (a) je „uložte znovu“ potřeba jen tehdy, když uživatel volbu v okně změnil (jinak Uložit jen zavře okno). Nechat, nebo zkrátit na „Povolte ho tam.“ (8 jazyků, ui-designer)? (c) Hint má styl `hint` (šedý, jako důvod neaktivní volby) podle návrhu ui-designera, upozornění na vypnutá oznámení z T-020 má styl `error`. Sjednotit?
 
 ## Poznámky k implementaci
+- 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
 
 **Implementováno na Macu (2026-10-29, ui-dev; Apple Silicon, macOS 27.2, SDK `11.0.100-rc.3`, `pwsh` 7.6.9, Pester 6.2.0; nic necommitováno).** Žádný nový NuGet balíček (interop s Objective-C runtime a ServiceManagement přes `[LibraryImport]`, nástroje balení jsou součástí macOS).
 

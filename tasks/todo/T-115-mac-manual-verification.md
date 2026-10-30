@@ -1,0 +1,184 @@
+---
+id: T-115
+title: Ruční ověření na Macu
+status: todo
+owner: qa-reviewer
+priority: P1
+platform: macos
+depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107]
+---
+
+## Cíl
+Sběrný úkol se vším, co na Macu musí ověřit uživatel sám (GUI, oprávnění macOS, Gatekeeper, uspaný displej, monitory,
+skutečná tiskárna, vydání na GitHubu). Vznikl rozhodnutím uživatele 2026-10-30: rozpracované úkoly, kterým chybělo jen
+ruční ověření, se uzavřely a zbývající body se přesunuly sem (v původním úkolu odškrtnuté s „→ přesunuto do T-115“).
+Protějšek pro Windows je T-114.
+
+Body jsou seřazené tak, aby šly projít v jednom sezení: nejdřív příprava, pak jeden běh skriptu
+`tools/macos-verify.ps1`, potom ruční kroky bez tiskárny, kroky se skutečnou tiskárnou a nakonec vydání.
+Podrobný postup a očekávání jsou v [docs/macos-manual-testing.md](../../docs/macos-manual-testing.md) (dále „sezení N.M“);
+u každého bodu je původní úkol a kritérium.
+
+Body z úkolů, které zůstaly v `tasks/in-progress/` kvůli nezodpovězeným otevřeným otázkám (T-018, T-019, T-038, T-100),
+jsou tu také, aby šlo všechno projít najednou. Výsledek u nich pomůže otázky rozhodnout; tyto úkoly proto nejsou
+v `depends_on`.
+
+## Rozsah
+- Před začátkem: „Než začnete“ v `docs/macos-manual-testing.md` (Apple Silicon, macOS 15+, externí monitor, Terminál
+  ve fyzické cestě `cd -P`, záloha profilu LayerPeek, `pwsh tools/profile-snapshot.ps1 -Save`).
+- Výsledky (verze macOS, datum, výňatek z `artifacts/verify/<čas>/report.md`, přesné texty dialogů) zapsat do
+  `## Poznámky k implementaci` tohoto úkolu. U bodů z úkolů, které zůstaly rozpracované, i do poznámek toho úkolu.
+- Každý `FAIL` nebo nalezená chyba = nový úkol (nebo oprava skriptu v rámci T-105 jako nový úkol). Bod se odškrtne až
+  po úspěšném ověření.
+- Hesla, API klíče ani heslo správce nikdy nevkládat do chatu ani do úkolů.
+
+## Akceptační kritéria
+
+### 1. Příprava
+- [ ] **T-058** (krit. „macOS: `.app` od `vpk`…“, část „celý běh `release-build.ps1` na Macu“): LayerPeek neběží,
+      `caffeinate -d -u -i pwsh scripts/release-build.ps1` skončí kódem 0; v `artifacts/release/<verze>/dist/` jsou
+      `.dmg`, `.tar.gz`, `SHA256SUMS-macos.txt`, `.nupkg` a soubory feedu `osx-arm64` (`releases.osx-arm64.json`,
+      `assets.osx-arm64.json`, `RELEASES-osx-arm64`); `shasum -a 256 -c SHA256SUMS-macos.txt` = OK (sezení 1.1).
+      Výstup potřebují `mac.gatekeeper*` a oddíl 5.
+
+### 2. Skript `tools/macos-verify.ps1` (jeden interaktivní běh)
+Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak
+`caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Skip mac.local-network,mac.camera-buddy3d,mac.login-item`
+(tiskárna je v oddílu 4, odhlášení v oddílu 3). Externí monitor připojit předem (`mac.camera-placement`, ostrost
+ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
+- [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): skript proběhl celý interaktivně; nalezené chyby
+      skriptu zapsané a opravené (nový úkol). Zapsat i odpovědi na otázky 6 (okna vrstvy 25 v `menubar-windows.json`
+      u `mac.menubar`) a 7 (celá obrazovka se zamčenou obrazovkou u `mac.camera`) z T-105.
+- [ ] **T-021** (krit. round-trip, přepis / `DeleteAsync` / `null`, velikost písmen, izolace prefixu, úklid po pádu,
+      zprávy bez tajného údaje): `mac.keychain` = `PASS` s **0 přeskočenými** testy (sezení 3.1).
+- [ ] **T-021** (krit. „Kontrola před/po … v Keychainu nezůstane žádná položka“): `mac.keychain` a na konci
+      `mac.profile-unchanged` = `PASS`; v aplikaci Klíčenka žádná položka `LayerPeek.Tests…`.
+- [ ] **T-019** (krit. „Aplikace běží bez ikony v Docku, ikona je jen v menu baru“): `mac.dock` a `mac.menubar` = `PASS`
+      (sezení 2.1). *T-019 zůstává rozpracovaný (otázka 11).*
+- [ ] **T-019** (krit. „Okno Nastavení … v popředí a dostane fokus“): `mac.settings-front` = `PASS` (sezení 2.4).
+- [ ] **T-018** (krit. „Menu z T-008 se v menu baru zobrazí, aktualizuje a ‚Ukončit‘ korektně ukončí aplikaci“):
+      `mac.menubar` = `PASS` a `mac.menu` potvrzeno (sezení 2.3). *T-018 zůstává rozpracovaný (otázka k ikonám tiskáren
+      v NSMenu).*
+- [ ] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
+      menu bar, všechny stavy (lomítko offline, ▶ s vrstvami, ❚❚, ✓, !, ×), ostrost na monitoru @1x (při rozmazání
+      zapsat; záloha je vícerozlišovací obrázek) (sezení 2.2).
+- [ ] **T-098** (krit. „V Docku a Finderu působí stejně velká jako systémové aplikace“): `mac.icons` (obrázek vedle
+      systémových ikon) a pohled ve Finderu, Launchpadu a Nastavení systému (sezení 2.5).
+- [ ] **T-020** (krit. „Notifikace fungují na macOS ze sestavené `.app`“): `mac.notifications` = `PASS` (testovací bundle)
+      a `mac.notifications-production` potvrzeno (`/Applications/LayerPeek.app`, banner s názvem tiskárny, zvuk podle
+      nastavení, ikona LayerPeeku) (sezení 5.1, 5.3).
+- [ ] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
+      `mac.notifications` = `PASS` (sezení 5.1).
+- [ ] **T-020** (krit. „Kliknutí na notifikaci otevře detail / web tiskárny“): `mac.notification-click` potvrzeno
+      (aplikace běží); navíc ručně klik na oznámení v Centru oznámení, když produkční aplikace neběží – macOS ji spustí
+      a otevře web tiskárny (sezení 5.2, rozhodnutí T-105 otázka 3).
+- [ ] **T-020** (krit. „Odepřené oprávnění nezpůsobí pád; stav je srozumitelně ohlášen“): `mac.notifications-production`
+      – po vypnutí v Nastavení systému → Oznámení červená hláška a tlačítko „Otevřít nastavení oznámení“ v Nastavení →
+      Obecné, po zapnutí hláška zmizí, aplikace nespadne (sezení 5.3).
+- [ ] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
+      potvrzeno; v logu „No active display …“ a „… starting the UI.“ (sezení 8.1).
+- [ ] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
+      `mac.display-sleep` potvrzeno; navíc ručně sezení 8.2 (událost tisku ze simulátoru během spánku displeje →
+      oznámení přijde ještě se zhasnutým displejem, ikona po probuzení hned ukazuje stav).
+- [ ] **T-026** (krit. „Stream … ve všech režimech okna“, část se simulátorem): `mac.camera` = `PASS` a `mac.camera-look`
+      potvrzeno (normální okno, celá obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1).
+- [ ] **T-038** (krit. „Ruční ověření … s jedním a se dvěma monitory“, automatická část J2 a D1): `mac.camera-placement`
+      = `PASS` na každém připojeném monitoru. *T-038 zůstává rozpracovaný (otázky 1–3).*
+- [ ] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
+      volitelně se druhým účtem podle sezení 10.1.
+- [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
+      Terminál, po běhu vypnout) a `mac.keyboard-physical` potvrzeno – vestavěná i Logitech klávesnice, české rozložení
+      (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3). Zapsat výsledek k otázkám 1 a 2 v T-100. *T-100 zůstává rozpracovaný
+      (otázky 1 a 3).*
+- [ ] **T-019** (krit. „Spuštění stažené `.dmg` na Macu s Gatekeeperem ověřené a postup popsaný v dokumentaci“):
+      `mac.gatekeeper` = `PASS` a `mac.gatekeeper-dialog` potvrzeno (stažení přes Safari z lokálního serveru, spuštění
+      z `.dmg`, přetažení do Aplikací, „Přesto otevřít“, totéž s `.tar.gz`); přesné texty dialogů zapsat a porovnat
+      s `docs/release.md`, „Co uživatel uvidí na Macu“ (sezení 1.2–1.4).
+
+### 3. Ručně na Macu (bez skutečné tiskárny, stačí simulátor)
+- [ ] **T-102** (krit. „Ověřeno uživatelem na Macu: ikona v Docku a ⌘Tab …“): sezení 2.7 – ikona v Docku a ⌘Tab se
+      objeví / zmizí podle oken, menu Docku se seznamem oken, klik na ikonu v Docku, fokus a pořadí oken, „Zobrazit
+      kameru“ v menu. Zapsat i otázku 3 z T-102 (obnoví se menu aplikace v menu baru po přepnutí na běžnou aplikaci?);
+      když ne, nový úkol.
+- [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část macOS): sezení 5.4 (a)–(d) – zkušební upozornění se
+      zvukem i bez, nahrazení v Centru oznámení, klik přenese Nastavení na záložku Obecné, stav „zamítnuto“ s hláškou,
+      `notDetermined` jen bez zásahu do TCC.
+- [ ] **T-053** (krit. „Ručně na Macu: `/usr/bin/open` otevírá odkazy a web PrusaLink přes proxy (L4)“): sezení 10.2
+      (falešné `open` v `PATH` se nespustí, web PrusaLink simulátoru přes proxy přihlášený, odkazy v O aplikaci se
+      otevřou) a sezení 2.6 (odkazy a licence v O aplikaci).
+- [ ] **T-097** (otázka 5, „uživatel to ověří při ručním testu“): sezení 4.5 – jazyk LayerPeeku jiný než jazyk systému;
+      zapsat, v jakém jazyce jsou prvky AppKitu (výběr obrázku tiskárny, kontextové menu textového pole).
+- [ ] **T-038** (krit. „Ruční ověření na macOS s jedním a se dvěma monitory, výsledky v poznámkách“, ruční část):
+      kroky J1, J3–J7 a D2–D7 z T-038 („Ruční ověření“, sezení 6.2; J7 = Nastavení na MacBooku 13", sezení 3.3).
+      Výsledky J4, J5 a J7 zapsat i do T-038 k otázkám 1–3. *T-038 zůstává rozpracovaný.*
+- [ ] **T-019** (krit. „Autostart po přihlášení funguje na macOS“): `caffeinate -d -u -i pwsh tools/macos-verify.ps1
+      -Only mac.login-item` (dva běhy, mezi nimi odhlášení a přihlášení) a sezení 7.3–7.4 (vypnutí v Nastavení
+      systému → hint a tlačítko „Otevřít Nastavení systému“, zapsat stav, který macOS hlásí). Výsledek zapsat i do
+      T-019 k otázce 11. Dělat jako poslední krok bez tiskárny (odhlášení).
+
+### 4. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti)
+Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
+- [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2)
+      a `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.local-network` – dialog aspoň v češtině
+      a angličtině, přesné znění zapsat (sezení 4.1).
+- [ ] **T-097** (krit. „Odepřené oprávnění nezpůsobí pád a je srozumitelně ohlášeno“): „Nepovolovat“ → aplikace
+      nespadne; Diagnostika, Otestovat připojení, test kamery a okno kamery (i malý náhled s krátkou hláškou) ukážou
+      hlášku o místní síti, v logu „Local Network access for LayerPeek may be off“; po povolení se spojení obnoví samo
+      (sezení 4.2, 4.4).
+- [ ] **T-097** (otázka 3, ověření adresy panelu): tlačítko „Otevřít Nastavení systému“ v Diagnostice, u „Otestovat
+      připojení“ a u testu kamery otevře Soukromí a zabezpečení → Místní síť; zapsat, která adresa funguje (sezení 4.3).
+- [ ] **T-026** (krit. „Stream z Buddy3D se na macOS zobrazí ve všech režimech okna“): `caffeinate -d -u -i pwsh
+      tools/macos-verify.ps1 -Only mac.camera-buddy3d` – normální okno, celá obrazovka, malý náhled navrchu s překryvem
+      stavu tisku (sezení 6.1).
+- [ ] **T-026** (krit. „Podepsaný bundle (T-019) se spustí a stream funguje na čistém Macu“): `LayerPeek.app` z `.dmg`
+      na účtu nebo Macu bez Homebrew a bez .NET SDK se spustí a stream Buddy3D běží (sezení 1.4 a 6.1).
+- [ ] **T-106** (krit. „Ruční krok: na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš
+      dramaticky“): widget Teploty M a L a řádek grafu malého náhledu během ustáleného tisku; když působí dramaticky,
+      zapsat a založit úkol (návrh 8–10 °C, rozhodne uživatel).
+- [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část macOS): Safari, menu tiskárny → Otevřít
+      web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje soubor a stáhne soubor; v konzoli Safari žádná
+      chyba kvůli Service Workeru nebo hlavičkám proxy.
+
+### 5. Vydání (zapisuje na GitHub – jen s výslovným souhlasem uživatele, postup `docs/release.md`)
+- [ ] **T-055** (krit. „Režim nanečisto vypíše plánované nahrání a na GitHubu nic nezmění“): `pwsh
+      scripts/release-upload.ps1 -DryRun` (a `pwsh scripts/release.ps1 -Version X.Y.Z -DryRun`) vypíše plánované
+      soubory; `gh release view vX.Y.Z --json assets,isDraft` před a po stejné.
+- [ ] **T-055** (krit. „Orchestrátor ve zkušebním vydání“): v testovacím repozitáři (`-Repo`, `docs/release.md`,
+      „Zkušební vydání (testovací repozitář)“) `release.ps1` pushne `main` + tag a `develop`, vytvoří koncept,
+      po přerušeném buildu naváže a běh po dokončení nic neudělá.
+- [ ] **T-055** (krit. „Zkušební vydání … vytvoření vydání a následné přidání souborů druhým během“, část macOS): ve
+      stejném zkušebním vydání běh na Macu vytvoří koncept a nahraje soubory macOS; druhý běh (Windows) doplní své
+      soubory – viz T-114. Postup „Zkouška doplnění druhého OS (T-113)“ v `docs/release.md`; souvisí s otázkou 1 v T-113.
+- [ ] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
+      `gh release view vX.Y.Z --json isPrerelease` = `true`. Pozor: stav 2026-10-30 – `v0.1.0` a `v0.3.0` jsou
+      předběžné, **`v0.2.0` ne** (označené „Latest“); zjistit proč (ruční změna na GitHubu, nebo chyba skriptu) a zapsat.
+- [ ] **T-058** (krit. „macOS: … ruční body“, Gatekeeper): první spuštění `.dmg` staženého prohlížečem z GitHub vydání
+      (Gatekeeper, „Přesto otevřít“) a App Translocation (spuštění přímo z `.dmg`: záložka Spuštění a aktualizace ukáže
+      „Přesuňte LayerPeek do složky Aplikace…“, klik na novou verzi otevře jen stránku vydání).
+- [ ] **T-058** (krit. „macOS: … ruční body“, aktualizace): nainstalovaná `/Applications/LayerPeek.app` najde novější
+      vydání z GitHub Releases **bez tokenu** (feed `releases.osx-arm64.json`), aktualizace proběhne s účtem správce
+      i se **standardním účtem** (zapsat případný dialog AppleScriptu / heslo) a aplikace se po ní sama spustí
+      (`open -n`).
+- [ ] **T-058** (krit. „Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci“, část macOS):
+      skutečný klik na položku „Je dostupná nová verze X.Y.Z“ v menu baru a na banner notifikace o nové verzi.
+- [ ] **T-058** (krit. „macOS: … ruční body“, Klíčenka a notifikace) + **T-021** (otázka k podpisu) + **T-020** (riziko
+      ad-hoc podpisu): po aktualizaci nebo přetažení nové `.app` přes starou (sezení 9.1–9.2) zapsat: dialog Klíčenky
+      „LayerPeek chce použít důvěrné informace…“ ano / ne, a po „Povolit“ znovu při dalším startu?; zůstalo povolení
+      oznámení?; ptá se macOS znovu na Místní síť?
+- [ ] **T-019** (krit. „Výsledek pokusu Velopack na macOS … zapsaný v `docs/velopack.md`, bod 10“): výsledky tří
+      předchozích bodů zapsané v `docs/velopack.md`, bod 10 (odstavec „Stále neověřeno“ aktualizovaný), doporučení
+      platí, nebo je upravené.
+
+### 6. Úklid a závěr
+- [ ] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
+      volby uživatele, Klíčenka, změny systému vrácené); `pwsh tools/profile-snapshot.ps1 -Compare` ukáže jen to, co
+      mělo zůstat.
+- [ ] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; u T-018, T-019,
+      T-038 a T-100 doplněné poznámky k jejich otevřeným otázkám.
+
+## Otevřené otázky
+- (žádné vlastní; otevřené otázky původních úkolů zůstávají v nich: T-018, T-019 otázka 11, T-038 otázky 1–3, T-100
+  otázky 1–3, T-113 otázka 1)
+
+## Poznámky k implementaci
+(vyplní agent / uživatel po ověření)

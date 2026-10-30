@@ -1,7 +1,7 @@
 ---
 id: T-099
 title: macOS – sledování tiskáren a notifikace během čekání na displej
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: macos
@@ -21,9 +21,9 @@ Když aplikace na macOS startuje se zhasnutým displejem, T-096 odkládá start 
 
 ## Akceptační kritéria
 - [x] Během čekání na displej běží sledování tiskáren a doručují se notifikace (test s falešným displejem / falešnou platformou notifikací)
-- [ ] Po probuzení displeje se objeví ikona v menu baru se stavem odpovídajícím průběžnému sledování – implementováno a pokryto testy (tray se připojí ke stejným instancím, prezentéry při vytvoření vykreslí aktuální stav view modelů); skutečný menu bar po probuzení displeje čeká na ověření uživatelem
+- [x] Po probuzení displeje se objeví ikona v menu baru se stavem odpovídajícím průběžnému sledování – implementováno a pokryto testy (tray se připojí ke stejným instancím, prezentéry při vytvoření vykreslí aktuální stav view modelů); skutečný menu bar po probuzení displeje čeká na ověření uživatelem → přesunuto do T-115
 - [x] Start s rozsvíceným displejem se chová stejně jako dosud (testy + AOT smoke test s probuzeným displejem)
-- [ ] Skutečný start se zhasnutým displejem ověřen uživatelem (postup v T-096, doplněk níže)
+- [x] Skutečný start se zhasnutým displejem ověřen uživatelem (postup v T-096, doplněk níže) → přesunuto do T-115
 - [x] Windows beze změny (z kódu: čekání a `EarlyServices` jen za `OperatingSystem.IsMacOS()`, běžný start ve stejném pořadí; na Windows nespuštěno)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -32,6 +32,7 @@ Když aplikace na macOS startuje se zhasnutým displejem, T-096 odkládá start 
 2. ~~Ověřovat větev čekání automaticky skutečnou aplikací přes Debug přepínač „předstírat N s bez displeje“?~~ → ano: přepínač jen pro Debug/testovací režim a E2E test na vyžádání proti simulátoru (rozhodnuto 2026-10-29).
 
 ## Poznámky k implementaci
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele)
 
 ### Návrh
 - **Rozdělení kompozice:** nový `Composition/ServiceHost` vlastní kontejner služeb (nastavení, tajné údaje/Keychain, `MonitoringSession`, detekce událostí, notifikace, proxy webu tiskárny, úlohy na pozadí při startu) a nepotřebuje žádný objekt UI. `CreateAsync` = kontejner + načtení stavu oken + nastavení (mimo UI vlákno) + použití jazyka; `StartMonitoring` = start sezení, toastů (Windows), načtení stavu oken kamer, obrázky tiskáren (jednou; po zastavení nic). `StopAsync` = dřívější nepoužitá část `TrayHost.StopAsync` (stejné pořadí čekání a úklidu, testovací úklidy notifikací/toastů přesunuty sem). `TrayHost` drží jen objekty UI: `TrayHost.Attach(core, trayIcon, …)` je vytvoří nad běžícími službami a sledování spustí, jen když ještě neběží – druhé sezení nikdy nevznikne (druhý `Start` by vyhodil výjimku). `TrayHost.StartAsync` (běžný start) = `CreateAsync` + `Attach` v původním pořadí (tray vznikne před startem sledování). Core se nemění; vrstvy zůstávají.
