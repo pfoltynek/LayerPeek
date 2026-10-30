@@ -292,12 +292,14 @@ Předpoklad: tiskárna s kamerou (Buddy3D v LAN, nebo kamera simulátoru `rtsp:/
      záloha: jen pokud ji macOS nezabere (`fn`+F11 obvykle ukáže plochu – zapsat, co se stane).
    - **Nastavení:** ⌘⇧] / ⌘⇧[ přepíná hlavní záložky (dokola), ⌘⌥→ / ⌘⌥← záložky tiskárny (Připojení, Kamera, Okno
      kamery); ⌃Tab a ⌃⇧Tab fungují dál. Upravit jméno tiskárny a stisknout ⌘W (a v dalším pokusu ⌘.): okno se zavře
-     jako Zrušit, změna se neuloží. Enter = Uložit, Esc = Zrušit beze změny.
+     jako Zrušit, změna se neuloží. Enter = Uložit, Esc = Zrušit beze změny. S otevřeným rozbalovacím seznamem (např.
+     typ připojení tiskárny) ⌘. zavře jen seznam jako Esc a okno zůstane otevřené (T-100 otázka 3, rozhodnuto
+     2026-10-30); další ⌘. je Zrušit. ⌘W zavře okno i s otevřeným seznamem.
    - **Diagnostika, O aplikaci, Licence:** ⌘W i ⌘. okno zavře (Licence zavřou jen sebe, O aplikaci zůstane).
    - **Jiné rozložení klávesnice:** totéž s **českým** rozložením (Nastavení systému → Klávesnice → Zdroje vstupu):
      ⌘⇧] / ⌘⇧[ = klávesy vpravo od P (na české klávesnici „ú“ a „)“); zapsat, zda přepínají záložky a zda se nestane
      něco jiného. ⌃⌘F, ⌘W a ⌘. zkusit také.
-   **Uzavírá:** T-100 kritérium 4 (a otevřené otázky v T-100).
+   **Uzavírá:** T-100 kritérium 4; výsledek rozhodne otázky 1 a 2 z T-100 (body v T-115).
 
 ## Sezení 7 – Otevřít při přihlášení, odhlášení a přihlášení
 
