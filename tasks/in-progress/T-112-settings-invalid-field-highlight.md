@@ -87,7 +87,7 @@ Postup: nejdřív ui-designer napíše krátký design spec (sekce `## Návrh` v
       aspoň: Tiskárna (adresa), Okno kamery (velikost), Vychladnutí (jen podložka, fr), Obecné, tmavý motiv. Windows
       sadu (`Snapshots/`) přegeneruje uživatel ručně na Windows. Seznam změněných a nových souborů se zapíše do
       Poznámek k implementaci. *(macOS hotovo 2026-10-30, Windows čeká na uživatele.)*
-- [ ] Revize ui-designer po implementaci zapsaná v úkolu.
+- [x] Revize ui-designer po implementaci zapsaná v úkolu. *(2026-10-30, viz `### Revize ui-designer (po implementaci)`.)*
 - [x] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
       `windows.json`, logy v `%APPDATA%` / `~/Library/Application Support/LayerPeek`). Headless testy běží
       v `SettingsWindowHarness` s úložištěm v paměti nebo ve vyhrazených testovacích složkách (`TestDirectories` /
@@ -464,3 +464,49 @@ Co je hotové (podle `## Návrh`, rozhodnutí Q1–Q7 vše A):
 Podklady: revize ui-designer v `tasks/in-progress/T-109-cooldown-nozzle-bed-thresholds.md` (sekce `### Revize
 ui-designer (2026-10-30)`, nálezy 1 a 2 – tlačítko „Použít prahy…“ zůstává při chybě povolené, beze změny).
 Závislost na T-111 je kvůli pořadí: oba úkoly mění styly `SettingsWindow.axaml` a snímky `settings-*`.
+
+### Revize ui-designer (po implementaci)
+ui-designer, 2026-10-30, `develop` 3536a00 (commit f9705f6), macOS. Kód ani XAML jsem neměnil.
+
+**Verdikt: schváleno.** Implementace odpovídá `## Návrh` (oddíly 1–8). Žádný nález neblokuje dokončení úkolu. Zbývá jen
+Windows sada snímků (kritérium Snímky), kterou přegeneruje uživatel.
+
+Co jsem prověřil:
+- **Snímky macOS**, všech 12 (6 změněných, 6 nových), prohlédnuté celé. U změněných jsem je porovnal po pixelech s verzí
+  před f9705f6. Zvětšené výřezy (6×–12×) jsem udělal u adresy, názvu (fr), `NumericUpDown` intervalu dotazování (v klidu,
+  s fokusem, tmavý motiv) a u spojů obrysu s dělicí čarou.
+- **Obrys 2 px dovnitř:** `TextBox` adresy má ve `settings-validation` obrys na y 181–182 a 211–212 a na x 216–217
+  v `#C42B1C`. Předtím měl 1 px `#666666` na y 181 / 212. Vnější rozměr je tedy stejný (32 px) a glyfy placeholderu
+  i textu jsou na stejných pixelech. Tmavý motiv: `#FF99A4` 2 px (`settings-errors-dark`,
+  `settings-general-errors-dark`). Dlouhý text názvu (fr) se ořízne před obrysem, obrys nepřekreslí.
+- **`NumericUpDown`:** pole má dál výšku 32 px (y 75–106) a šířku x 16–175. Číslice „0“ zůstává na x 27–34. Dělicí
+  čára ▲ je 1 px `#666666` / `#999999` na x 106 (předtím 107), šipky jsou o 1 px vlevo, spoj s červeným obrysem
+  nahoře i dole je čistý (T-spoj bez mezery). **Odchylku přijímám** (▲▼ uvnitř obrysu 28 místo 30 DIP, čára o 1 DIP
+  vlevo): v zoomu není rozpoznatelná, ovládací prvek se nezvětšil a tlačítka byla pod 32 DIP už předtím (30, Fluent
+  výchozí). Hlavní cesta je psaní a šipky klávesnice.
+- **Fokus + chyba** (`settings-invalid-address-focused`, `settings-general-errors-focused`): obrys zůstává červený
+  2 px, akcent fokusu se nikde neprokreslí (ani akcentový rámeček vnitřního `PART_TextBox`). Fokus ukazuje kurzor
+  a u `NumericUpDown` výběr textu (`NavigationMethod.Tab`), jak návrh počítal.
+- **Vychladnutí:** `settings-widgets-cooldown-error-fr` (jen podložka) a `…-nozzle` (jen tryska) zvýrazní jen chybné
+  pole, společná zpráva je beze změny pod oběma poli. Chybné pole se tedy pozná i bez barvy (tloušťka).
+- **Okno kamery:** `settings-camera-window-error-normal-size` a `…-errors-fr`: obrys celého editovatelného `ComboBox`
+  včetně šipky, sousední platné pole zůstává 1 px šedé. Bez posuvníku i se dvěma dvouřádkovými chybami (fr).
+- **Styly v `SettingsWindow.axaml`:** selektory míří na neměřené části šablon (`PART_BorderElement`, `Background`,
+  `HighlightBackground`), u `ButtonSpinner` je vyrovnání okraje okomentované. Pořadí stylů okna proti
+  `ControlTheme` drží červenou při najetí myší i fokusu, což kryjí testy. Přenos `Name` / `HelpText` na vnitřní
+  `TextBox` přes kompilovaný `$parent[NumericUpDown]` / `$parent[ComboBox]` je AOT bezpečný. Důvod, proč ne
+  `TemplateBinding` (AVLN3000), je zapsaný.
+- **`dotnet test --project tests/LayerPeek.App.UiTests`:** 1172 / 1172 úspěšných (macOS, 2026-10-30).
+
+Nálezy:
+
+| # | Soubor / prvek | Závažnost | Popis | Oprava |
+|---|---|---|---|---|
+| 1 | `SettingsWindow.axaml`, `NumericUpDown.invalid /template/ TextBox#PART_TextBox /template/ Border#PART_BorderElement` | kosmetická, nízká | Na pravém konci vnitřního `TextBox` vzniká u horní a dolní hrany (x 103–105, y 77 a 104 ve `settings-general-errors*`) 2–3 px růžový antialiasing. Jde o vnitřní oblouk zaobleného rohu okraje `2,2,0,2`. Při 100 % není pouhým okem vidět, při 150–200 % na Windows může být patrný jako drobná skvrna u dělicí čáry. | Volitelně ve stejném stylu `CornerRadius="3,0,0,3"` (vpravo hranatý roh u dělicí čáry). Pak ověřit zoomem `settings-general-errors-focused`. Neblokuje, klidně později. |
+| 2 | `SettingsWindow.axaml`, styly `NumericUpDown /template/ TextBox#PART_TextBox` a `ComboBox /template/ TextBox#PART_EditableTextBox` | informativní | Vnější prvek i vnitřní `TextBox` mají teď stejný `Name` / `HelpText`. Narrator v režimu procházení (scan mode) může název přečíst dvakrát (skupina + editační pole). Při fokusu klávesou se čte jen fokusovaný vnitřní prvek, tedy správně. | Nic teď. Ověřit při ruční zkoušce s Narratorem / VoiceOverem (stejně jako zbytek přístupnosti). |
+| 3 | Windows sada `Snapshots/` | proces | Nové snímky na Windows zatím chybí (selžou jako chybějící reference). | Uživatel přegeneruje na Windows a prohlédne hlavně `settings-general-errors-focused` a `settings-camera-window-error-normal-size` (jiné vyhlazování písma i hran). |
+
+Neověřeno (beze změny proti oddílu 9 návrhu): skutečný Narrator / NVDA / VoiceOver, Windows a DPI 125 / 150 / 175 %
+(zaokrouhlení 2 px obrysu a spoje s 1 px dělicí čarou), vysoký kontrast Windows.
+
+Nové produktové otázky: žádné.
