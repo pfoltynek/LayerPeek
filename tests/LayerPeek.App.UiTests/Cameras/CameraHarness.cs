@@ -37,6 +37,7 @@ internal sealed class CameraHarness : IAsyncDisposable
     private readonly PrintThumbnails? _thumbnails;
     private readonly LayerPeek.App.Platform.ILocalNetworkPrivacy? _localNetwork;
     private readonly bool? _macShortcuts;
+    private readonly ICameraFeedFactory _feeds;
 
     /// <param name="screens">Monitors of the camera windows (T-035); <see langword="null"/>: the headless screen.</param>
     /// <param name="window">Window defaults of the printers with a camera; <see langword="null"/>: the defaults.</param>
@@ -52,8 +53,11 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="localNetwork">The Local Network permission of macOS 15+ (T-097, a fake); <see langword="null"/>: none (Windows).</param>
     /// <param name="macShortcuts">The shortcuts and texts of macOS (T-100) or of Windows; <see langword="null"/>: those of the OS the tests run on.</param>
     /// <param name="miniStrip">What the mini preview strip of the printers with a camera shows (T-110); <see langword="null"/>: everything.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null)
+    /// <param name="feeds">The camera connections of the windows; <see langword="null"/>: <see cref="Factory"/> (fakes the test drives).</param>
+    /// <param name="first">Changes the definition of the first printer ("a"), e.g. its name (README screenshots); <see langword="null"/>: none.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null)
     {
+        _feeds = feeds ?? Factory;
         _macShortcuts = macShortcuts;
         LayoutWriter = new FakeLayoutWriter();
         States = states ?? new MemoryCameraWindowStateStore();
@@ -63,7 +67,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
         AppSettings settings = new()
         {
-            Printers = [CameraPrinter("a", "Alpha", window, overlay, miniStrip), CameraPrinter("b", "Beta", window, overlay, miniStrip), TestPrinters.Definition("c", "NoCamera")],
+            Printers = [(first ?? (static p => p))(CameraPrinter("a", "Alpha", window, overlay, miniStrip)), CameraPrinter("b", "Beta", window, overlay, miniStrip), TestPrinters.Definition("c", "NoCamera")],
             CameraOverlayOpacityPercent = opacity,
         };
         ((IMonitoringObserver)Printers).ApplySettings(settings);
@@ -224,7 +228,7 @@ internal sealed class CameraHarness : IAsyncDisposable
             return null;
         }
 
-        ReconnectingCameraFeed feed = new(Factory, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        ReconnectingCameraFeed feed = new(_feeds, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
         CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork);
         if (_macShortcuts is { } mac)
         {

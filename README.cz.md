@@ -6,13 +6,14 @@
 <p align="center"><i>pro tiskárny Prusa</i></p>
 
 <p align="center">
-  <b>Sleduj své tiskárny Prusa živě, přímo z oznamovací oblasti.</b><br>
+  <b>Sleduj své tiskárny Prusa živě, přímo z oznamovací oblasti nebo z řádku nabídek.</b><br>
   Kamera v reálném čase, průběh tisku a notifikace přes lokální síť. Bez cloudu, bez účtu, bez otevřené záložky v prohlížeči.
 </p>
 
 <p align="center">
   <a href="https://github.com/pfoltynek/LayerPeek/releases"><b>Stáhnout</b></a> ·
   <a href="#rychlý-start">Rychlý start</a> ·
+  <a href="#jak-to-vypadá">Snímky</a> ·
   <a href="#funkce">Funkce</a> ·
   <a href="README.md">English</a>
 </p>
@@ -25,70 +26,120 @@
   <a href="https://github.com/pfoltynek/LayerPeek/stargazers"><img src="https://img.shields.io/github/stars/pfoltynek/LayerPeek?style=social" alt="Hvězdičky na GitHubu"></a>
 </p>
 
-<!--
-  SNÍMEK (hlavní): docs/images/camera-overlay.png
-  Okno kamery v normálním režimu během skutečného tisku, překryv s průběhem, teplotami a časem dokončení.
-  Doporučeno 1600×900 px, PNG, bez osobních údajů v názvu souboru a v názvu tiskárny.
 <p align="center">
-  <img src="docs/images/camera-overlay.png" alt="Živé okno kamery s překryvnými údaji o tisku" width="800">
+  <img src="docs/images/cs/camera-window.jpg" alt="Okno kamery LayerPeek během tisku: živý obraz z tiskárny Prusa CORE One s widgety stavu, názvu tisku, zbývajícího času a teplot" width="860">
 </p>
--->
 
 ---
 
 Spustíš devítihodinový tisk a vrátíš se k práci. Drží první vrstva? Nezamotala se cívka? Kolik ještě zbývá?
 Obvykle se jdeš podívat k tiskárně, nebo máš otevřenou záložku v prohlížeči a pořád ji obnovuješ.
 
-**LayerPeek** ti odpověď dá na jeden pohled. Ikona v oznamovací oblasti ukazuje stav a průběh tisku
-všech tiskáren. Jedním kliknutím otevřeš **živé okno kamery** s průběhem tisku, teplotami a časem dokončení přímo
-v obraze. Když se něco stane, hned přijde **systémová notifikace**: tisk je hotový, tiskárna vyžaduje zásah, chyba,
-tiskárna je offline.
+**LayerPeek** ti odpověď dá na jeden pohled. Ikona v oznamovací oblasti Windows nebo v řádku nabídek macOS ukazuje
+stav a průběh tisku všech tiskáren. Jedním kliknutím otevřeš **živé okno kamery** s průběhem tisku, teplotami a časem
+dokončení přímo v obraze. Když se něco stane, hned přijde **systémová notifikace**: tisk je hotový, tiskárna vyžaduje
+zásah, chyba, tiskárna je offline.
 
-S tiskárnami komunikuje **přímo přes lokální síť** pomocí PrusaLink, API zabudovaného ve firmwaru tiskárny. Nic
-neopouští tvoji síť: žádná cloudová služba, žádný účet, žádná telemetrie.
+S tiskárnami komunikuje **přímo přes lokální síť** pomocí PrusaLink, API zabudovaného ve firmwaru tiskárny. Obraz
+z kamery i údaje o tisku zůstávají ve tvé síti: žádná cloudová služba, žádný účet, žádná telemetrie.
 
 > [!NOTE]
 > Jde o nezávislý komunitní projekt. **Není** to oficiální produkt společnosti Prusa Research a s Prusa Research a.s.
 > nijak nesouvisí. *Prusa*, *PrusaLink* a *Prusa Connect* jsou ochranné známky svých vlastníků.
 
+## K čemu se hodí
+
+- **Dlouhé tisky.** Spusť devítihodinový tisk a nemysli na něj. LayerPeek ti pár minut před koncem připomene, že tisk
+  končí, dá vědět, až je hotový, a když chceš, i až tiskárna vychladne a můžeš ji vypnout.
+- **Dohled při práci.** Malý náhled sedí v rohu obrazovky vždy navrchu a pod obrazem ukazuje průběh, zbývající čas
+  a čas dokončení. Špagety nebo nepovedená první vrstva? Uvidíš to hned.
+- **Tiskárenská farma.** Přidej tolik tiskáren, kolik máš. Jedna ikona ukazuje nejdůležitější stav, každá tiskárna má
+  vlastní podmenu, okno kamery i rozložení widgetů.
+- **Klid, i když nejsi u stolu.** Nativní notifikace na Windows i macOS při dokončení, pozastavení a zastavení tisku,
+  při chybě, když tiskárna vyžaduje zásah nebo přestane odpovídat.
+- **Soukromí.** Všechno se děje v tvé lokální síti. Funguje to, i když nejde internet, a obraz z kamery nikdy neteče
+  přes cizí server.
+
 ## Proč se ti bude líbit
 
 - 🎥 **Živá kamera, ne jednotlivé snímky.** Stream RTSP/H.264 v reálném čase z kamery Prusa Buddy3D (nebo jiné RTSP
-  kamery), dekódovaný lokálně přes FFmpeg. Malé okno vždy navrchu může zůstat v rohu obrazovky, zatímco pracuješ.
-- 🏠 **Jen lokální síť.** Aplikace mluví s tiskárnami ve tvé síti. Funguje, i když nejde internet, a obraz z kamery
-  nikdy neteče přes cizí server.
-- 🔔 **Dozvíš se to, když na tom záleží.** Nativní notifikace Windows při dokončení, pozastavení a zastavení tisku,
-  při chybě, když tiskárna vyžaduje zásah nebo přestane odpovídat, a připomínka pár minut před koncem tisku.
-- 🖨️ **Celá tiskárenská farma v jedné ikoně.** Přidej tolik tiskáren, kolik máš. Společná ikona ukazuje
-  nejdůležitější stav a každá tiskárna má vlastní podmenu.
+  kamery), dekódovaný lokálně přes FFmpeg.
+- 🧩 **Widgety si rozmístíš sám.** Stav, časy, teploty s grafem, název tisku s náhledem z G-code a chladnutí, každý ve
+  třech velikostech, rozmístěné přetažením přímo v okně kamery, pro každou tiskárnu zvlášť.
+- 🔔 **Dozvíš se to, když na tom záleží.** Nativní notifikace na Windows i macOS a připomínka pár minut před koncem
+  tisku.
+- 🖨️ **Celá tiskárenská farma v jedné ikoně.** Společná ikona ukazuje nejdůležitější stav a každá tiskárna má
+  vlastní podmenu.
 - 🪶 **Malá a tichá.** Jeden nativní spustitelný soubor (Native AOT), žádný .NET k instalaci, žádné hlavní okno,
-  žádná služba na pozadí. Prostě žije v oznamovací oblasti.
-- 🔒 **Bezpečná k heslům.** Hesla jsou ve Správci pověření Windows. Webové rozhraní PrusaLink se otevře rovnou
-  přihlášené a heslo se do prohlížeče nikdy nepředává.
+  žádná služba na pozadí. Prostě žije v oznamovací oblasti Windows nebo v řádku nabídek macOS.
+- 🔒 **Bezpečná k heslům.** Hesla jsou ve Správci pověření Windows nebo v Klíčence macOS. Webové rozhraní PrusaLink se
+  otevře rovnou přihlášené a heslo se do prohlížeče nikdy nepředává.
 - 🌍 **Mluví tvým jazykem.** Angličtina, čeština, slovenština, němčina, španělština, francouzština, italština
   a polština.
 - 💚 **Zdarma a open source** pod GPL-3.0. Žádné reklamy, žádné předplatné, žádná „pro“ verze.
 
-## Snímky obrazovky
+## Jak to vypadá
 
-<!--
-  SNÍMKY: přidej soubory do docs/images/ a odstraň obal tohoto komentáře.
-  Doporučeno: PNG, měřítko zobrazení 100 % nebo 150 %, světlý motiv Windows, žádné skutečné IP adresy ani sériová čísla.
+### Widgety: tvoje údaje tam, kde je chceš
 
-| Menu v oznamovací oblasti | Malé okno kamery |
+Okno kamery ukazuje obraz a přes něj **karty widgetů**. Vyber, které widgety má každá tiskárna, zvol velikost **S**,
+**M** nebo **L** a přetáhni je na kterékoli ze šesti míst přímo v okně kamery (**Upravit rozložení**). Zvýrazněná
+karta vynikne barvou akcentu a neprůhlednost karet udrží text čitelný i na světlém obrazu.
+
+<p align="center">
+  <img src="docs/images/cs/camera-layout-mode.jpg" alt="Režim rozložení okna kamery: karty widgetů v zónách a nabídka velikosti widgetu Teploty s volbami S, M a L" width="860">
+</p>
+
+Jeden widget ve třech velikostech, tady teploty: S ukazuje hodnoty, M přidá graf za poslední hodinu, L popisky
+a rozsah teplot.
+
+<p align="center">
+  <img src="docs/images/cs/widget-sizes.jpg" alt="Widget Teploty ve velikostech S, M a L přes obraz z kamery" width="860">
+</p>
+
+| Widget | Ukazuje |
 |---|---|
-| <img src="docs/images/tray-menu.png" alt="Menu se dvěma tiskárnami" width="380"> | <img src="docs/images/camera-mini.png" alt="Malé okno kamery vždy navrchu" width="380"> |
+| **Stav** | název tiskárny, stav a průběh |
+| **Časy** | zbývající čas, kdy bude tisk hotový, dobu tisku |
+| **Teploty** | trysku a podložku (skutečná / cílová) s grafem za posledních 60 minut |
+| **Název tisku** | název souboru bez nadbytečných údajů ze sliceru, materiál, výšku vrstvy, trysku a náhled z G-code |
+| **Vychladnutí** | po tisku: jak vychladla tryska a podložka a kdy je tiskárnu bezpečné vypnout |
 
-| Notifikace | Diagnostika |
+### Normální okno, nebo malý náhled
+
+**Normální okno** je na pořádný pohled: libovolná velikost, libovolný monitor, celá obrazovka klávesou F11 (na macOS
+⌃⌘F). **Malý náhled** je na zbytek dne: malé okno, které zůstává nad ostatními okny, s informačním pásem pod obrazem
+(průběh, zbývající čas, čas dokončení) a dvěma řádky, které můžeš rozbalit: název tisku a graf teplot. Mezi oběma
+přepneš jedním kliknutím.
+
+<p align="center">
+  <img src="docs/images/cs/camera-mini.jpg" alt="Malý náhled s informačním pásem, řádkem s názvem tisku a řádkem s grafem teplot" width="400">
+</p>
+
+### Nastavení
+
+Všechno nastavíš v jednom okně: tiskárny a kamery, widgety pro každou tiskárnu, notifikace, interval dotazování,
+jazyk, spuštění po přihlášení a aktualizace.
+
+| Widgety | Tiskárny |
 |---|---|
-| <img src="docs/images/notification.png" alt="Notifikace o dokončení tisku" width="380"> | <img src="docs/images/diagnostics.png" alt="Okno diagnostiky s grafem teplot" width="380"> |
--->
+| <img src="docs/images/cs/settings-widgets.png" alt="Nastavení, záložka Widgety: widgety tiskárny CORE One, prahy vychladnutí a neprůhlednost karet" width="420"> | <img src="docs/images/cs/settings-printers.png" alt="Nastavení, záložka Tiskárny se třemi tiskárnami a jejich obrázky" width="420"> |
 
-*Snímky obrazovky přibudou s prvním vydáním.*
+### Diagnostika
+
+Teploty, ventilátory, rychlost, průtok, výška osy Z, firmware a graf teplot za posledních 30 minut, 2 hodiny nebo 24
+hodin.
+
+<p align="center">
+  <img src="docs/images/cs/diagnostics.png" alt="Okno diagnostiky tiskárny CORE One s historií teplot během tisku" width="620">
+</p>
+
+<sub>Snímky vznikají přímo z aplikace (vykreslení skutečných oken bez zobrazení na obrazovce, snímek ze skutečného
+záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screenshots.md](docs/readme-screenshots.md).</sub>
 
 ## Funkce
 
-### V oznamovací oblasti
+### V oznamovací oblasti / řádku nabídek
 
 - Ikona ukazuje stav tiskárny: nečinná, tiskne (ikona se s průběhem tisku postupně plní), pozastaveno, hotovo,
   vyžaduje zásah, chyba, offline. Podrobnosti jsou v tooltipu: průběh, zbývající čas a název souboru.
@@ -100,7 +151,7 @@ neopouští tvoji síť: žádná cloudová služba, žádný účet, žádná t
   s malým grafem, název tisku s náhledem z G-code a chladnutí po tisku. Widgety, jejich velikost i místo si vybereš
   sám, přetáhneš je přímo v okně kamery.
 - Tři režimy: **normální**, **malý náhled** (zůstává nad ostatními okny, pod obrazem má informační pás, jehož obsah si
-  vybereš) a **celá obrazovka** (F11).
+  vybereš) a **celá obrazovka** (F11, na macOS ⌃⌘F).
 - Pro každou tiskárnu zvlášť: výchozí režim, velikost, umístění, monitor a „vždy navrchu“. Okno si umí pamatovat,
   kde jsi ho nechal.
 - Po výpadku kamery nebo Wi-Fi se samo znovu připojí.
@@ -194,7 +245,8 @@ Na tiskárně otevři **Nastavení → Síť → PrusaLink**. Zkontroluj, že je
 
 ### 3. Přidej tiskárnu
 
-1. V oznamovací oblasti se objeví ikona Prusa. Na Windows ji možná budeš muset připnout ze skrytých ikon (`^`).
+1. V oznamovací oblasti Windows nebo v řádku nabídek macOS se objeví ikona Prusa. Na Windows ji možná budeš muset
+   připnout ze skrytých ikon (`^`).
 2. V menu ikony zvol **Přidat tiskárnu…** a vyplň:
    - **Název:** libovolné pojmenování.
    - **Adresa:** IP adresa nebo název počítače, např. `192.168.1.20` nebo `http://prusa-mk4.local`.

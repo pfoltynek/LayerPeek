@@ -23,6 +23,12 @@
   <ItemGroup>
     <!-- Reference images of the snapshot tests live in the source tree (updated with LAYERPEEK_UPDATE_SNAPSHOTS=1). -->
     <AssemblyMetadata Include="SnapshotDirectory" Value="$(MSBuildProjectDirectory)$([System.IO.Path]::DirectorySeparatorChar)Snapshots" />
+    <!-- The README screenshots (opt-in generator, LAYERPEEK_README_SCREENSHOTS=1) are written to docs/images. -->
+    <AssemblyMetadata Include="ReadmeImageDirectory" Value="$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../docs/images'))" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The recorded Buddy3D clip of T-014, the camera picture of the README screenshots; linked, not copied. -->
+    <None Include="..\LayerPeek.Camera.FFmpeg.Tests\Fixtures\buddy3d.h264" Link="Fixtures\buddy3d.h264" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
@@ -52,5 +58,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\LayerPeek.App\LayerPeek.App.csproj" />
+    <!-- The G-code previews of the simulated print files (T-086) for the README screenshots, instead of a test-only copy. -->
+    <ProjectReference Include="..\..\tools\PrusaSimulator\PrusaSimulator.csproj" />
   </ItemGroup>
 </Project>
