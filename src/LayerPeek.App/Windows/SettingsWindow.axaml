@@ -92,6 +92,8 @@
     -->
     <Style Selector="Button, HyperlinkButton">
       <Setter Property="MinHeight" Value="32" />
+      <!-- Fluent Button stretches its content, which leaves the text above the middle of the taller button. -->
+      <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
     <!-- Main tabs smaller than the Fluent default (24 px / 48 DIP), printer sub-tabs smaller still. -->
     <Style Selector="TabControl.main, TabControl.sub">

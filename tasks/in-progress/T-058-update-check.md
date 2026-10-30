@@ -113,6 +113,7 @@ Celkem odhadem **4–5 sezení vývojáře** a **1 sezení ručního ověření 
 - **N7 – App Translocation (Q8 a):** přeložená `.app` nebo `.app` z `.dmg` se dál ptá GitHub REST API a klik otevře stránku vydání; záložka ukáže „Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.“ (Zadání Q8 a říká „aktualizaci nenabízet“; nabízí se stránka vydání, ne aktualizace.) Souhlasí?
 - **N8 – log a mezipaměť Velopacku na macOS:** nainstalovaná `.app` při každém startu vytvoří `~/Library/Logs/velopack_LayerPeek.log` a balíčky stahuje do `~/Library/Caches/velopack/LayerPeek` (jako `%LOCALAPPDATA%\velopack` na Windows, přijato 2026-10-24). Přijmout i pro macOS?
 
+**Rozhodnuto 2026-10-30 (uživatel): N1–N8 ponechat tak, jak jsou implementované.**
 **Rozhodnuto 2026-10-30 (uživatel): Q1 a, Q2 a, Q3 a, Q4 a, Q5 a, Q6 a, Q7 a, Q8 a, Q9 a, Q10 a** – vše podle doporučení.
 **Rozhodnuto 2026-10-30 (uživatel): T-058 jde do verze 0.3.1** (macOS přejde na Velopack v 0.3.1). **E2E test aktualizace smí agent spouštět** jen v dočasné složce (scratchpad / temp): balíčky i nainstalovaná aplikace mimo `/Applications`, izolovaný testovací režim (`LAYERPEEK_TEST_DATA_DIR`, `LAYERPEEK_INSTANCE_SUFFIX`, testovací bundle id), bez Login Items, síť jen 127.0.0.1; po testu vše smazat včetně registrace v LaunchServices (`lsregister -u`). K Q7: 0.3.0 je vydaná (předběžné vydání 2026-10-29, jen soubory pro macOS); na vydanou 0.3.0 se nesahá, věta o jednorázové ruční reinstalaci přijde do vydání s T-058.
 
