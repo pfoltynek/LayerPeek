@@ -4,6 +4,7 @@ using LayerPeek.App.Cameras;
 using LayerPeek.App.Cameras.Mini;
 using LayerPeek.App.Tests.Cameras.Overlay.Widgets;
 using LayerPeek.App.Tests.Tray;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 using LayerPeek.Tests.Allocation;
@@ -96,6 +97,20 @@ public sealed class CameraMiniStripAllocationTests : IDisposable
         PrinterSnapshot first = Printing(42.1, 64.2, 214.6);
         PrinterSnapshot second = Printing(42.9, 64.9, 150);
         AssertNothingAllocatedOrPosted(strip, first, second, string.Empty);
+    }
+
+    [Fact]
+    public void CustomItemsAllocateNothingForASnapshotThatChangesOnlyHiddenValues()
+    {
+        // T-110: with the percentage, the bar and both times off, their changes are not even part of the content;
+        // the switched-off chart row computes no temperatures although it is remembered as expanded.
+        CameraMiniStripSettings items = new() { Percent = false, ProgressBar = false, Remaining = false, Finish = false, ChartRow = false };
+        using CameraMiniStripViewModel strip = new("mk4", _dispatcher, _cooldown, rows: new CameraMiniRows(true, true), items: items);
+        PrinterSnapshot first = Printing(42.1, 64.2, 214.6);
+        PrinterSnapshot second = Printing(57.9, 31.9, 150);
+        AssertNothingAllocatedOrPosted(strip, first, second, string.Empty);
+        Assert.Equal("Printing", strip.Summary);
+        Assert.False(strip.ShowsChartRow);
     }
 
     [Fact]

@@ -541,7 +541,7 @@
     <value>Enregistrez d'abord les paramètres.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Rétablit la visibilité, la position, l'ordre, la taille et la mise en évidence des widgets de cette imprimante.</value>
+    <value>Rétablit la visibilité, la position, l'ordre, la taille et la mise en évidence des widgets et le contenu du mini-aperçu de cette imprimante.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>La disposition par défaut a été rétablie. Elle s'applique après l'enregistrement.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Les notifications de LayerPeek sont désactivées dans Paramètres &gt; Système &gt; Notifications. Activez-les à cet endroit.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>Le bandeau d'informations sous l'image du mini-aperçu. Choisissez ce qu'il affiche.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Barre de progression en haut</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Pourcentage</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Temps restant</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Heure de fin</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Refroidissement après l'impression</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Ligne du nom de l'impression</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Ligne du graphique des températures</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>L'état de l'imprimante est toujours affiché.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Dépliez la ligne avec le bouton ⬡ du mini-aperçu.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Dépliez la ligne avec le bouton 📈 du mini-aperçu.</value>
   </data>
 </root>

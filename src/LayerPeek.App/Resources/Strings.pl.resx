@@ -541,7 +541,7 @@
     <value>Najpierw zapisz ustawienia.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Przywraca domyślną widoczność, położenie, kolejność, rozmiar i wyróżnienie widżetów tej drukarki.</value>
+    <value>Przywraca domyślną widoczność, położenie, kolejność, rozmiar i wyróżnienie widżetów oraz zawartość małego podglądu tej drukarki.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Przywrócono domyślny układ. Zostanie zastosowany po zapisaniu.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Powiadomienia LayerPeek są wyłączone w Ustawieniach &gt; System &gt; Powiadomienia. Włącz je tam.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>Pasek informacji pod obrazem małego podglądu. Wybierz, co ma pokazywać.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Pasek postępu u góry</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Procent</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Pozostały czas</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Godzina zakończenia</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Stygnięcie po wydruku</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Wiersz nazwy wydruku</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Wiersz wykresu temperatur</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>Stan drukarki jest zawsze widoczny.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Rozwiń wiersz przyciskiem ⬡ w małym podglądzie.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Rozwiń wiersz przyciskiem 📈 w małym podglądzie.</value>
   </data>
 </root>

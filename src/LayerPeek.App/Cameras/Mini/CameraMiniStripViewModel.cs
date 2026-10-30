@@ -56,6 +56,10 @@ internal enum MiniStripKind
 /// While cooling or cooled: whole degrees of the bed, for the tooltip (both temperatures, T-109); <see langword="null"/>
 /// when the printer reports none (the tooltip then names the nozzle only, as before).
 /// </param>
+/// <param name="HidesPercent">
+/// The percentage of the active job is switched off for the strip (T-110): neither the row nor the tooltip names it
+/// (<paramref name="Percent"/> then only feeds the progress bar, 0 when that is off too).
+/// </param>
 internal readonly record struct MiniStripContent(
     MiniStripKind Kind,
     PrinterState? State,
@@ -66,7 +70,8 @@ internal readonly record struct MiniStripContent(
     int FinishDays = 0,
     int CoolingPercent = 0,
     long? NozzleCelsius = null,
-    long? BedCelsius = null)
+    long? BedCelsius = null,
+    bool HidesPercent = false)
 {
     /// <summary>
     /// The content for <paramref name="snapshot"/> and the cool-down state of the printer: the active job first (the next
@@ -75,24 +80,37 @@ internal readonly record struct MiniStripContent(
     /// "0 min", none for a stale state), the finish time those of the Times widget in <paramref name="zone"/> (the local
     /// time zone of the window's clock). Allocates nothing.
     /// </summary>
-    public static MiniStripContent Of(PrinterSnapshot? snapshot, in CooldownState cooldown, DateTimeOffset now, TimeZoneInfo zone)
+    public static MiniStripContent Of(PrinterSnapshot? snapshot, in CooldownState cooldown, DateTimeOffset now, TimeZoneInfo zone) =>
+        Of(snapshot, cooldown, now, zone, CameraMiniStripSettings.Default);
+
+    /// <summary>
+    /// The content as <see cref="Of(PrinterSnapshot?, in CooldownState, DateTimeOffset, TimeZoneInfo)"/>, without the items
+    /// switched off in <paramref name="items"/> (T-110, design T-104 1 and 3): no remaining time, no finish time, no
+    /// cool-down (the state name instead), the percentage marked hidden; values that nothing shows are left at their
+    /// defaults, so that their changes post nothing. Allocates nothing.
+    /// </summary>
+    public static MiniStripContent Of(PrinterSnapshot? snapshot, in CooldownState cooldown, DateTimeOffset now, TimeZoneInfo zone, CameraMiniStripSettings items)
     {
         ArgumentNullException.ThrowIfNull(zone);
+        ArgumentNullException.ThrowIfNull(items);
         PrinterState? state = snapshot?.State;
         if (OverlayValues.ActiveJob(snapshot) is { } job)
         {
             // The remaining time and the finish time only while printing; otherwise the state stands next to the percent
             // (T-076 4, T-103 Q5).
             bool printing = state == PrinterState.Printing;
-            long? remaining = printing ? OverlayValues.RemainingMinutes(job) : null;
-            OverlayFinishTime? finish = printing ? OverlayValues.Finish(snapshot!, zone) : null;
+            long? remaining = printing && items.Remaining ? OverlayValues.RemainingMinutes(job) : null;
+            OverlayFinishTime? finish = printing && items.Finish ? OverlayValues.Finish(snapshot!, zone) : null;
             int days = finish is { IsOnAnotherDay: true } at
                 ? (int)Math.Clamp((at.Local.Date - TimeZoneInfo.ConvertTime(snapshot!.Timestamp, zone).Date).TotalDays, int.MinValue, int.MaxValue)
                 : 0;
-            return new MiniStripContent(MiniStripKind.Job, state, OverlayValues.ProgressPercent(job), remaining, 0, finish, days);
+            int percent = items.Percent || items.ProgressBar ? OverlayValues.ProgressPercent(job) : 0;
+            return new MiniStripContent(MiniStripKind.Job, state, percent, remaining, 0, finish, days, HidesPercent: !items.Percent);
         }
 
-        if (snapshot is not null
+        // T-110: with the cool-down switched off the strip shows the state name after the print, as without tracking.
+        if (items.Cooldown
+            && snapshot is not null
             && snapshot.State.IsReachable()
             && cooldown.Phase != CooldownPhase.None
             && OverlayValues.Temperature(new Temperature(cooldown.NozzleCelsius ?? double.NaN, null)) is { } nozzle)
@@ -104,7 +122,7 @@ internal readonly record struct MiniStripContent(
             if (cooldown.Phase != CooldownPhase.Cooling)
             {
                 return new MiniStripContent(
-                    MiniStripKind.Cooled, state, 0, null, limiting, CoolingPercent: 100, NozzleCelsius: tooltipNozzle, BedCelsius: bed);
+                    MiniStripKind.Cooled, state, 0, null, limiting, CoolingPercent: items.ProgressBar ? 100 : 0, NozzleCelsius: tooltipNozzle, BedCelsius: bed);
             }
 
             // T-103 Q3: the bar on the top edge shows the progress towards the threshold, as the Cool-down widget's bar.
@@ -115,7 +133,7 @@ internal readonly record struct MiniStripContent(
                 0,
                 CooldownEstimate.Minutes(cooldown, now),
                 limiting,
-                CoolingPercent: (int)Math.Floor(progress * 100),
+                CoolingPercent: items.ProgressBar ? (int)Math.Floor(progress * 100) : 0,
                 NozzleCelsius: tooltipNozzle,
                 BedCelsius: bed);
         }
@@ -212,6 +230,9 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private readonly Action _apply;
     private readonly Lock _gate = new();
 
+    // Written on the UI thread under _gate; read under _gate or on the UI thread.
+    private CameraMiniStripSettings _items;
+
     // Guarded by _gate.
     private PrinterSnapshot? _snapshot;
     private MiniStripContent _computed;
@@ -236,6 +257,7 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private bool _nameExpanded;
     private bool _chartExpanded;
     private bool _showsNameRow;
+    private bool _showsChartRow;
     private double _stripHeight = CollapsedHeight;
     private MiniChartValues _chartShown;
     private bool _hasChartShown;
@@ -257,6 +279,7 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     /// <param name="history">The telemetry history of the chart row (T-090); <see langword="null"/>: the chart says "No data".</param>
     /// <param name="clock">The clock of the chart row; <see langword="null"/>: the system clock.</param>
     /// <param name="rows">The rows expanded when the window opens (remembered per printer; default both collapsed).</param>
+    /// <param name="items">What the strip shows (T-110, the printer's settings); <see langword="null"/>: everything.</param>
     /// <remarks>Shows "Connecting…" until <see cref="ShowCurrent"/> or the first <see cref="OnSnapshot"/>.</remarks>
     internal CameraMiniStripViewModel(
         string printerId,
@@ -264,11 +287,13 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         CooldownMonitor? cooldown,
         TelemetryHistory? history = null,
         TimeProvider? clock = null,
-        CameraMiniRows rows = default)
+        CameraMiniRows rows = default,
+        CameraMiniStripSettings? items = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
         ArgumentNullException.ThrowIfNull(dispatcher);
         _printerId = printerId;
+        _items = items ?? CameraMiniStripSettings.Default;
         _dispatcher = dispatcher;
         _cooldown = cooldown;
         History = history;
@@ -276,7 +301,7 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         _apply = ApplyPosted;
         _nameExpanded = rows.Name;
         _chartExpanded = rows.Chart;
-        _chartComputing = rows.Chart;
+        _chartComputing = rows.Chart && _items.ChartRow;
         if (_cooldown is not null)
         {
             // T-088: a shown estimate counts down with the window clock also while no snapshots arrive.
@@ -292,8 +317,8 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     public event EventHandler? RowsChanged;
 
     /// <summary>
-    /// Height of the whole strip (DIP): <see cref="CollapsedHeight"/> plus the shown name row and the expanded chart row;
-    /// the window follows it with its height.
+    /// Height of the whole strip (DIP): <see cref="CollapsedHeight"/> plus the shown name row and the shown chart row (only
+    /// rows switched on in the settings count, T-110); the window follows it with its height.
     /// </summary>
     public double StripHeight
     {
@@ -411,15 +436,16 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
             }
 
             MiniChartValues values;
+            bool computing;
             lock (_gate)
             {
                 // From now on (or no longer) the polls compute the temperatures; the current ones are shown right away.
-                _chartComputing = value;
+                _chartComputing = computing = value && _items.ChartRow;
                 _chartComputed = values = MiniChartValues.Of(_snapshot);
             }
 
             _chartExpanded = value;
-            if (value)
+            if (computing)
             {
                 FormatChart(values);
             }
@@ -434,12 +460,37 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         }
     }
 
-    /// <summary>The name row is drawn: expanded and a job with a file name (T-090 Q4: it disappears without a job).</summary>
+    /// <summary>
+    /// The name row is drawn: switched on in the settings (T-110), expanded and a job with a file name (T-090 Q4: it
+    /// disappears without a job).
+    /// </summary>
     public bool ShowsNameRow
     {
         get => _showsNameRow;
         private set => SetProperty(ref _showsNameRow, value);
     }
+
+    /// <summary>The chart row is drawn: switched on in the settings (T-110) and expanded.</summary>
+    public bool ShowsChartRow
+    {
+        get => _showsChartRow;
+        private set => SetProperty(ref _showsChartRow, value);
+    }
+
+    /// <summary>
+    /// The print name row is switched on in the settings (T-110, Q4 A): its toggle button is shown; off, the toggle is not
+    /// in the window at all (<c>IsVisible</c>) and the row never shows. The remembered expansion stays either way.
+    /// </summary>
+    public bool IsNameRowAvailable => _items.NameRow;
+
+    /// <summary>The temperature chart row is switched on in the settings (T-110): its toggle button is shown.</summary>
+    public bool IsChartRowAvailable => _items.ChartRow;
+
+    /// <summary>At least one row toggle is shown; without any the summary row ends 10 from the edge (T-104 3: W = width − 34).</summary>
+    public bool ShowsToggles => _items.NameRow || _items.ChartRow;
+
+    /// <summary>What the strip shows (T-110, the printer's settings).</summary>
+    internal CameraMiniStripSettings Items => _items;
 
     /// <summary>The Print name widget whose compact template is the name row (T-085 <see cref="PrintNameCompactView"/>).</summary>
     public PrintNameWidgetViewModel NameRow => _name;
@@ -606,6 +657,44 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         }
     }
 
+    /// <summary>
+    /// UI thread: the settings of the printer were saved (T-110): the content is computed again without the switched-off
+    /// items, the toggles appear or disappear and the strip height follows (the window with it). The remembered expansion
+    /// of the rows is kept (a row switched on again comes back as it was) and <see cref="RowsChanged"/> is not raised.
+    /// </summary>
+    internal void ApplySettings(CameraMiniStripSettings items)
+    {
+        ArgumentNullException.ThrowIfNull(items);
+        lock (_gate)
+        {
+            if (_disposed || items == _items)
+            {
+                return;
+            }
+
+            _items = items;
+            bool computing = _chartExpanded && items.ChartRow;
+            if (computing && !_chartComputing)
+            {
+                _chartComputed = MiniChartValues.Of(_snapshot);
+            }
+
+            _chartComputing = computing;
+            ComputeLocked();
+            if (!computing)
+            {
+                _hasChartShown = false;
+            }
+        }
+
+        // The content may be equal while what it shows is not (the progress bar): formatted again in any case.
+        _hasShown = false;
+        OnPropertyChanged(nameof(IsNameRowAvailable));
+        OnPropertyChanged(nameof(IsChartRowAvailable));
+        OnPropertyChanged(nameof(ShowsToggles));
+        ApplyPosted();
+    }
+
     /// <summary>The language changed: the shown content is formatted again.</summary>
     public void RefreshTexts()
     {
@@ -684,7 +773,7 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     private bool ComputeLocked()
     {
         CooldownState cooldown = _cooldown?.GetState(_printerId) ?? CooldownState.None;
-        MiniStripContent content = MiniStripContent.Of(_snapshot, cooldown, Clock.GetUtcNow(), Clock.LocalTimeZone);
+        MiniStripContent content = MiniStripContent.Of(_snapshot, cooldown, Clock.GetUtcNow(), Clock.LocalTimeZone, _items);
         _countdown?.Set(content.Kind == MiniStripKind.Cooling && content.Minutes is not null);
         bool changed = false;
         if (!_hasComputed || content != _computed)
@@ -694,9 +783,14 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
             changed = true;
         }
 
-        // The name widget reads only the snapshot; in the mini preview it never asks for a thumbnail (T-087).
-        OverlayWidgetInput input = default(OverlayWidgetInput) with { Snapshot = _snapshot, Mode = CameraWindowMode.Mini };
-        changed |= _name.Compute(input);
+        // The name widget reads only the snapshot; in the mini preview it never asks for a thumbnail (T-087). A name row
+        // switched off in the settings costs nothing per poll (computed again once it is switched on, ApplySettings).
+        if (_items.NameRow)
+        {
+            OverlayWidgetInput input = default(OverlayWidgetInput) with { Snapshot = _snapshot, Mode = CameraWindowMode.Mini };
+            changed |= _name.Compute(input);
+        }
+
         if (_chartComputing)
         {
             MiniChartValues values = MiniChartValues.Of(_snapshot);
@@ -749,8 +843,9 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
     /// <summary>Which rows are drawn, the strip height and the toggle tooltips that depend on them.</summary>
     private void UpdateRows()
     {
-        ShowsNameRow = _nameExpanded && _name.IsShown;
-        StripHeight = CollapsedHeight + (_showsNameRow ? NameRowHeight : 0) + (_chartExpanded ? ChartRowHeight : 0);
+        ShowsNameRow = _items.NameRow && _nameExpanded && _name.IsShown;
+        ShowsChartRow = _items.ChartRow && _chartExpanded;
+        StripHeight = CollapsedHeight + (_showsNameRow ? NameRowHeight : 0) + (_showsChartRow ? ChartRowHeight : 0);
         NameToggleTip = !_nameExpanded ? Strings.CameraMiniShowName : _showsNameRow ? Strings.CameraMiniHideName : Strings.CameraMiniNameNoJob;
         ChartToggleTip = _chartExpanded ? Strings.CameraMiniHideChart : Strings.CameraMiniShowChart;
     }
@@ -787,10 +882,22 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         {
             case MiniStripKind.Job when content.State == PrinterState.Printing:
             {
-                // "19 % · 2 h 35 min" / "Printing, 19 %, 2 h 35 min remaining".
-                string percent = OverlayFormat.Percent(content.Percent);
-                string summary = content.Minutes is { } minutes ? string.Concat(percent, Separator, OverlayFormat.Duration(minutes)) : percent;
-                string accessible = content.Minutes is { } left ? string.Concat(state, ", ", percent, ", ", OverlayFormat.Remaining(left)) : string.Concat(state, ", ", percent);
+                // "19 % · 2 h 35 min" / "Printing, 19 %, 2 h 35 min remaining". T-110: without the switched-off items; with
+                // neither the percentage nor the remaining time the state name ("Printing").
+                string? percent = content.HidesPercent ? null : OverlayFormat.Percent(content.Percent);
+                string summary = (percent, content.Minutes) switch
+                {
+                    ({ } p, { } minutes) => string.Concat(p, Separator, OverlayFormat.Duration(minutes)),
+                    ({ } p, null) => p,
+                    (null, { } minutes) => OverlayFormat.Duration(minutes),
+                    _ => state,
+                };
+                string accessible = percent is null ? state : string.Concat(state, ", ", percent);
+                if (content.Minutes is { } left)
+                {
+                    accessible = string.Concat(accessible, ", ", OverlayFormat.Remaining(left));
+                }
+
                 if (content.Finish is not { } finish)
                 {
                     return new MiniStripTexts(new MiniStripVariant(summary), null, null, accessible);
@@ -807,6 +914,10 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
                     ? new MiniStripTexts(new MiniStripVariant(summary, full), without, null, accessible)
                     : new MiniStripTexts(new MiniStripVariant(summary, full), new MiniStripVariant(summary, clock), without, accessible);
             }
+
+            case MiniStripKind.Job when content.HidesPercent:
+                // T-110: "Paused" without the percentage.
+                return new MiniStripTexts(new MiniStripVariant(state), null, null, state);
 
             case MiniStripKind.Job:
             {
@@ -866,13 +977,15 @@ public sealed class CameraMiniStripViewModel : ObservableObject, IDisposable
         Summary = texts.First.Summary;
         AccessibleText = texts.Accessible;
         DotBrush = OverlayStateBrushes.For(content.State);
-        Progress = content.Kind switch
+        // T-110 (Q3 a): a progress bar switched off is always the faint track; the strip keeps its height.
+        bool bar = _items.ProgressBar;
+        Progress = !bar ? 0 : content.Kind switch
         {
             MiniStripKind.Job => content.Percent,
             MiniStripKind.Cooling or MiniStripKind.Cooled => content.CoolingPercent,
             _ => 0,
         };
-        HasProgress = content.Kind != MiniStripKind.State;
+        HasProgress = bar && content.Kind != MiniStripKind.State;
         if (kindChanged)
         {
             OnPropertyChanged(nameof(ShowsDot));

@@ -41,6 +41,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   and once it has cooled it is full and green and the strip says "Cooled down – safe to turn off" like the Cool-down
   widget (in a narrow window "Cooled down · 48 °C"; the tooltip always has both). While cooling, a narrow strip drops
   the word "Cooling down…" (the snowflake icon stands for it) before the estimate.
+- Mini preview: choose what its info strip shows, per printer, under **Mini preview** at the end of the list on the
+  *Widgets* tab of the settings: the progress bar at the top, the percentage, the time remaining, the finish time, the
+  cool-down after printing, and the print name and temperature chart rows (all on by default, as before). The printer
+  state is always shown. A row that is switched off has no button in the strip, which leaves more room for the rest
+  (e.g. without the remaining time the finish time fits even the narrowest window); the tooltip names only what is on.
+  An open mini preview changes as soon as the settings are saved. *Restore defaults* and *Use layout for all printers*
+  include these choices. **Settings:** stored as `printers[*].camera.miniStrip` (only the items that are off); older
+  settings files load unchanged.
 
 ### Changed
 

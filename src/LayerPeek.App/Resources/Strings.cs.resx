@@ -595,7 +595,7 @@
     <value>Nejdřív nastavení uložte.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů této tiskárny na výchozí.</value>
+    <value>Vrátí viditelnost, polohu, pořadí, velikost a zvýraznění widgetů a obsah malého náhledu této tiskárny na výchozí.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Obnoveno výchozí rozložení. Projeví se po uložení.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Upozornění LayerPeeku jsou vypnutá v Nastavení &gt; Systém &gt; Oznámení. Zapněte je tam.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>Informační pás pod obrazem malého náhledu kamery. Vyberte, co v něm bude.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Pruh průběhu nahoře</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Procento</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Zbývající čas</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Čas dokončení</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Vychladnutí po tisku</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Řádek názvu tisku</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Řádek grafu teplot</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>Stav tiskárny je v pásu vidět vždy.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Řádek rozbalíte tlačítkem ⬡ v malém náhledu.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Řádek rozbalíte tlačítkem 📈 v malém náhledu.</value>
   </data>
 </root>

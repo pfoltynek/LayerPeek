@@ -541,7 +541,7 @@
     <value>Speichern Sie zuerst die Einstellungen.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Setzt Sichtbarkeit, Position, Reihenfolge, Größe und Hervorhebung der Widgets dieses Druckers auf den Standard zurück.</value>
+    <value>Setzt Sichtbarkeit, Position, Reihenfolge, Größe und Hervorhebung der Widgets und den Inhalt der Mini-Vorschau dieses Druckers auf den Standard zurück.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Das Standardlayout wurde wiederhergestellt. Es gilt nach dem Speichern.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Die Benachrichtigungen von LayerPeek sind unter „Einstellungen &gt; System &gt; Benachrichtigungen“ ausgeschaltet. Aktivieren Sie sie dort.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>Die Infoleiste unter dem Bild der Mini-Vorschau. Wählen Sie, was sie zeigt.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Fortschrittsbalken oben</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Prozent</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Restzeit</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Fertigstellungszeit</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Abkühlung nach dem Druck</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Zeile mit Druckname</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Zeile mit Temperaturdiagramm</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>Der Druckerstatus ist in der Leiste immer sichtbar.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Die Zeile klappen Sie mit der Schaltfläche ⬡ in der Mini-Vorschau auf.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Die Zeile klappen Sie mit der Schaltfläche 📈 in der Mini-Vorschau auf.</value>
   </data>
 </root>

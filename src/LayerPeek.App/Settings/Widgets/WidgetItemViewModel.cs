@@ -1,7 +1,5 @@
 using System.Globalization;
 
-using CommunityToolkit.Mvvm.ComponentModel;
-
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Resources;
@@ -14,7 +12,7 @@ namespace LayerPeek.App.Settings.Widgets;
 /// is that of the printer's edited layout (<see cref="PrinterEditorViewModel.OverlayLayout"/>), shared by the normal window
 /// and full screen. UI thread only.
 /// </summary>
-public sealed class WidgetItemViewModel : ObservableObject
+public sealed class WidgetItemViewModel : WidgetsListEntry
 {
     private readonly SettingsViewModel _owner;
 
@@ -31,16 +29,16 @@ public sealed class WidgetItemViewModel : ObservableObject
     /// <summary>The widget id (automation ids <c>WidgetsItem-{id}</c>, <c>WidgetsVisible-{id}</c>, <c>WidgetsItemMarker-{id}</c>).</summary>
     public string Id => Definition.Id;
 
+    public override string AutomationId => "WidgetsItem-" + Id;
+
     /// <summary>The widget name in the current language.</summary>
-    public string Name => LocalizedStrings.Instance[Definition.NameKey];
+    public override string Name => LocalizedStrings.Instance[Definition.NameKey];
 
     /// <summary>The one-sentence description of the panel (design 4.1); empty when the widget declares none.</summary>
-    public string Description => Definition.DescriptionKey is { } key ? LocalizedStrings.Instance[key] : string.Empty;
-
-    public bool HasDescription => Definition.DescriptionKey is not null;
+    public override string Description => Definition.DescriptionKey is { } key ? LocalizedStrings.Instance[key] : string.Empty;
 
     /// <summary>The resource key of the icon (<see cref="IOverlayWidgetDefinition.IconKey"/>); <see langword="null"/> = none.</summary>
-    public string? IconKey => Definition.IconKey;
+    public override string? IconKey => Definition.IconKey;
 
     /// <summary>The widget has a settings panel of its own; otherwise its panel says it has no other settings.</summary>
     public bool HasSettings => Definition.Settings is not null;
@@ -63,13 +61,10 @@ public sealed class WidgetItemViewModel : ObservableObject
     public bool ShowsErrorMarker => _owner.SelectedPrinter is { } printer && Definition.Settings?.HasError(printer) == true;
 
     /// <summary>Accessible name of the row: "{name}, shown" / "{name}, hidden" (design 5.2).</summary>
-    public string AutomationName => Format(IsShown ? Strings.SettingsWidgetsItemShown : Strings.SettingsWidgetsItemHidden, Name);
+    public override string AutomationName => Format(IsShown ? Strings.SettingsWidgetsItemShown : Strings.SettingsWidgetsItemHidden, Name);
 
     /// <summary>Accessible name of the check box: "Show the {name} widget".</summary>
     public string ShowName => Format(Strings.SettingsWidgetsShowName, Name);
-
-    /// <summary>The selected printer, its layout, camera, errors or the language changed: everything is read again.</summary>
-    internal void Refresh() => OnPropertyChanged(string.Empty);
 
     private static string Format(string format, string name) => string.Format(CultureInfo.CurrentCulture, format, name);
 }

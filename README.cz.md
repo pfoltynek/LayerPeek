@@ -99,8 +99,8 @@ neopouští tvoji síť: žádná cloudová služba, žádný účet, žádná t
 - Živý RTSP stream s widgety přes obraz: stav (název, stav, průběh), časy (zbývá, dokončení, doba tisku), teploty
   s malým grafem, název tisku s náhledem z G-code a chladnutí po tisku. Widgety, jejich velikost i místo si vybereš
   sám, přetáhneš je přímo v okně kamery.
-- Tři režimy: **normální**, **malý náhled** (zůstává nad ostatními okny, pod obrazem má informační pás) a **celá
-  obrazovka** (F11).
+- Tři režimy: **normální**, **malý náhled** (zůstává nad ostatními okny, pod obrazem má informační pás, jehož obsah si
+  vybereš) a **celá obrazovka** (F11).
 - Pro každou tiskárnu zvlášť: výchozí režim, velikost, umístění, monitor a „vždy navrchu“. Okno si umí pamatovat,
   kde jsi ho nechal.
 - Po výpadku kamery nebo Wi-Fi se samo znovu připojí.

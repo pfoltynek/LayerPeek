@@ -220,7 +220,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         // T-091: the layout mode edits the overlay's layout.
         CreateLayoutMode(layoutWriter, logger);
         // T-089: the info strip below the image of the mini preview.
-        MiniStrip = CreateMiniStrip(dispatcher, cooldown, history, timeProvider, state.MiniRows);
+        MiniStrip = CreateMiniStrip(dispatcher, cooldown, history, timeProvider, state.MiniRows, target.Printer.Camera.MiniStrip);
 
         // Subscribed before reading the current state: a change in between only causes one more (idempotent) update.
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
@@ -876,6 +876,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         // The layout, the printer (name…) and the global card opacity apply to the open window right away, in place (T-081).
         Overlay.ApplySettings(target.Printer, target.Overlay, state.CameraOverlayOpacityPercent);
+        // T-110: what the mini strip shows, in place too; the window follows the strip height (T-089).
+        MiniStrip.ApplySettings(target.Printer.Camera.MiniStrip);
 
         if (!string.Equals(_streamUri.OriginalString, target.StreamUri.OriginalString, StringComparison.Ordinal))
         {

@@ -84,4 +84,80 @@
                        Content="{Binding [SettingsWidgetsNotifyLink], Source={x:Static loc:LocalizedStrings.Instance}}" />
     </StackPanel>
   </DataTemplate>
+  <!--
+    Mini preview (T-110, design T-104 2): what the info strip of the mini preview shows, for the printer selected above the
+    list. Two columns (*, 24, *): left the summary row while printing (1–4), right after the print and the rows below it
+    (5–7), in the order of the strip; Tab goes down the left column, then the right one. Check boxes 32 high, the text may
+    wrap to 2 lines. Under them one hint line. Disabled while the camera is off (the values stay).
+  -->
+  <DataTemplate x:Key="MiniStripSettings" x:DataType="w:MiniStripSettingsViewModel">
+    <StackPanel>
+      <Grid ColumnDefinitions="*,24,*">
+        <StackPanel>
+          <CheckBox AutomationProperties.AutomationId="MiniStripProgressBar"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripProgressBar], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripProgressBar}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripProgressBar], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+          <CheckBox AutomationProperties.AutomationId="MiniStripPercent"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripPercent], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripPercent}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripPercent], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+          <CheckBox AutomationProperties.AutomationId="MiniStripRemaining"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripRemaining], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripRemaining}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripRemaining], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+          <CheckBox AutomationProperties.AutomationId="MiniStripFinish"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripFinish], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripFinish}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripFinish], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+        </StackPanel>
+        <StackPanel Grid.Column="2">
+          <CheckBox AutomationProperties.AutomationId="MiniStripCooldown"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripCooldown], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripCooldown}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripCooldown], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+          <CheckBox AutomationProperties.AutomationId="MiniStripNameRow"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripNameRow], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    AutomationProperties.HelpText="{Binding [SettingsMiniStripNameRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    ToolTip.Tip="{Binding [SettingsMiniStripNameRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    ToolTip.ShowOnDisabled="True"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripNameRow}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripNameRow], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+          <CheckBox AutomationProperties.AutomationId="MiniStripChartRow"
+                    AutomationProperties.Name="{Binding [SettingsMiniStripChartRow], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    AutomationProperties.HelpText="{Binding [SettingsMiniStripChartRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    ToolTip.Tip="{Binding [SettingsMiniStripChartRowHelp], Source={x:Static loc:LocalizedStrings.Instance}}"
+                    ToolTip.ShowOnDisabled="True"
+                    MinHeight="32"
+                    IsEnabled="{Binding CanEdit}"
+                    IsChecked="{Binding Printer.MiniStripChartRow}">
+            <TextBlock TextWrapping="Wrap" Text="{Binding [SettingsMiniStripChartRow], Source={x:Static loc:LocalizedStrings.Instance}}" />
+          </CheckBox>
+        </StackPanel>
+      </Grid>
+      <TextBlock AutomationProperties.AutomationId="MiniStripHint"
+                 Classes="hint"
+                 TextWrapping="NoWrap"
+                 TextTrimming="CharacterEllipsis"
+                 Text="{Binding [SettingsMiniStripHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+    </StackPanel>
+  </DataTemplate>
 </ResourceDictionary>

@@ -100,7 +100,7 @@ firmware. Nothing leaves your network: no cloud service, no account, no telemetr
   temperatures with a small chart, print name with the G-code thumbnail, and cool-down after the print. You choose the
   widgets, their size and where they sit: drag them right in the camera window.
 - Three modes: **normal**, **mini** (a small preview that stays on top of other windows, with an info strip below the
-  image) and **full screen** (F11).
+  image whose content you choose) and **full screen** (F11).
 - Per printer: start mode, size, position, monitor and "always on top". The window can remember where you left it.
 - Reconnects automatically when the camera or Wi-Fi drops out.
 

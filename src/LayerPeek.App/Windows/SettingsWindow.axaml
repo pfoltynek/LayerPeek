@@ -636,20 +636,36 @@
                 inside (keeping the selected row in view) while the tab does not scroll.
               -->
               <w:CompactHeightDecorator CompactHeight="226">
+                <!--
+                  T-110 (design T-104 2): after the widgets a separator (9, not selectable, skipped by the keyboard, not in the
+                  automation tree) and the "Mini preview" item without a check box (20 empty, so icons and names line up).
+                -->
                 <ListBox x:Name="WidgetsList"
                          AutomationProperties.AutomationId="WidgetsList"
                          AutomationProperties.Name="{Binding [SettingsWidgetsListName], Source={x:Static loc:LocalizedStrings.Instance}}"
-                         ItemsSource="{Binding Widgets}"
-                         SelectedItem="{Binding SelectedWidget}">
+                         ItemsSource="{Binding WidgetsListEntries}"
+                         SelectedItem="{Binding SelectedWidgetsListEntry}">
                   <ListBox.ItemContainerTheme>
-                    <ControlTheme x:DataType="w:WidgetItemViewModel" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                      <Setter Property="AutomationProperties.AutomationId" Value="{Binding Id, StringFormat='WidgetsItem-{0}'}" />
+                    <ControlTheme x:DataType="w:WidgetsListEntry" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                      <Setter Property="AutomationProperties.AutomationId" Value="{Binding AutomationId}" />
                       <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}" />
-                      <Setter Property="MinHeight" Value="32" />
+                      <Setter Property="AutomationProperties.AccessibilityView" Value="{Binding AccessibilityView}" />
+                      <Setter Property="IsEnabled" Value="{Binding IsSelectable}" />
+                      <Setter Property="Focusable" Value="{Binding IsSelectable}" />
+                      <Setter Property="MinHeight" Value="{Binding RowHeight}" />
                       <Setter Property="Padding" Value="8,0" />
                     </ControlTheme>
                   </ListBox.ItemContainerTheme>
-                  <ListBox.ItemTemplate>
+                  <ListBox.DataTemplates>
+                    <DataTemplate x:DataType="w:WidgetsSeparatorEntry">
+                      <Separator Height="1" Margin="0,4" />
+                    </DataTemplate>
+                    <DataTemplate x:DataType="w:MiniStripListEntry">
+                      <Grid ColumnDefinitions="20,8,16,8,*" Height="32">
+                        <w:WidgetIcon Grid.Column="2" Width="16" Height="16" VerticalAlignment="Center" IconKey="{Binding IconKey}" />
+                        <TextBlock Grid.Column="4" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Text="{Binding Name}" ToolTip.Tip="{Binding Name}" />
+                      </Grid>
+                    </DataTemplate>
                     <DataTemplate x:DataType="w:WidgetItemViewModel">
                       <Grid ColumnDefinitions="Auto,8,16,8,*,Auto" Height="32">
                         <CheckBox AutomationProperties.AutomationId="{Binding Id, StringFormat='WidgetsVisible-{0}'}"
@@ -672,30 +688,30 @@
                                    IsVisible="{Binding ShowsErrorMarker}" />
                       </Grid>
                     </DataTemplate>
-                  </ListBox.ItemTemplate>
+                  </ListBox.DataTemplates>
                 </ListBox>
               </w:CompactHeightDecorator>
 
               <!-- The panel of the selected widget (design 4): title with icon, one-sentence description, its settings. -->
               <StackPanel Grid.Column="2"
                           AutomationProperties.AutomationId="WidgetsDetail"
-                          AutomationProperties.Name="{Binding SelectedWidget.Name, FallbackValue={x:Null}}">
+                          AutomationProperties.Name="{Binding SelectedWidgetsListEntry.Name, FallbackValue={x:Null}}">
                 <Grid ColumnDefinitions="20,8,*">
-                  <w:WidgetIcon Width="20" Height="20" VerticalAlignment="Center" IconKey="{Binding SelectedWidget.IconKey, FallbackValue={x:Null}}" />
+                  <w:WidgetIcon Width="20" Height="20" VerticalAlignment="Center" IconKey="{Binding SelectedWidgetsListEntry.IconKey, FallbackValue={x:Null}}" />
                   <TextBlock Grid.Column="2"
                              AutomationProperties.AutomationId="WidgetsDetailTitle"
                              Classes="section"
                              Margin="0"
                              VerticalAlignment="Center"
                              TextTrimming="CharacterEllipsis"
-                             Text="{Binding SelectedWidget.Name, FallbackValue={x:Null}}" />
+                             Text="{Binding SelectedWidgetsListEntry.Name, FallbackValue={x:Null}}" />
                 </Grid>
                 <TextBlock AutomationProperties.AutomationId="WidgetsDetailDescription"
                            Classes="hint"
                            MaxLines="2"
                            TextTrimming="CharacterEllipsis"
-                           Text="{Binding SelectedWidget.Description, FallbackValue={x:Null}}"
-                           IsVisible="{Binding SelectedWidget.HasDescription, FallbackValue=False}" />
+                           Text="{Binding SelectedWidgetsListEntry.Description, FallbackValue={x:Null}}"
+                           IsVisible="{Binding SelectedWidgetsListEntry.HasDescription, FallbackValue=False}" />
                 <StackPanel Margin="0,12,0,0" IsVisible="{Binding ShowsNoWidgetSettings}">
                   <TextBlock AutomationProperties.AutomationId="WidgetsDetailNoSettings"
                              TextWrapping="Wrap"
@@ -708,6 +724,10 @@
                 <ContentControl Margin="0,12,0,0"
                                 Content="{Binding SelectedWidgetPanel}"
                                 IsVisible="{Binding SelectedWidgetPanel, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <!-- T-110: the panel of the "Mini preview" item (WidgetSettingsTemplates.axaml, MiniStripSettings). -->
+                <ContentControl Margin="0,12,0,0"
+                                Content="{Binding MiniStripPanel}"
+                                IsVisible="{Binding MiniStripPanel, Converter={x:Static ObjectConverters.IsNotNull}}" />
               </StackPanel>
             </Grid>
 

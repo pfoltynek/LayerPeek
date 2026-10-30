@@ -297,6 +297,25 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-widgets-dark");
         });
 
+    /// <summary>T-110 (design T-104 2): the "Mini preview" item with its panel, one item off.</summary>
+    [Theory]
+    [InlineData("en", "settings-widgets-mini-strip")]
+    [InlineData("de", "settings-widgets-mini-strip-de")]
+    [InlineData("fr", "settings-widgets-mini-strip-fr")]
+    public Task WidgetsTabMiniStrip(string language, string snapshot) =>
+        session.RunAsync(async scope =>
+        {
+            new UiLanguage().Apply(language);
+            SettingsWindowHarness ui = await OpenWidgetsAsync(
+                scope,
+                LinkPrinter("a", "MK4 workshop") with { Camera = new CameraSettings(enabled: true, StreamUri) { MiniStrip = new CameraMiniStripSettings { Remaining = false } } },
+                LinkPrinter("b", "Beta", "192.168.1.21"));
+            ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+            ui.Window.Settle();
+
+            SnapshotAssert.Matches(ui.Window, snapshot);
+        });
+
     [Fact]
     public Task WidgetsTabCooldownWithASinglePrinterInGerman() =>
         session.RunAsync(static async scope =>

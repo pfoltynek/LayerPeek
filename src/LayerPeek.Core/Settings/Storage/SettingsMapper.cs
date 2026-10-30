@@ -57,6 +57,7 @@ internal static class SettingsMapper
                     StreamUrl = printer.Camera.StreamUri?.OriginalString ?? printer.Camera.InvalidStreamUrl,
                     Window = ToDocument(printer.Camera.Window),
                     Overlay = ToDocument(printer.Camera.Overlay),
+                    MiniStrip = ToDocument(printer.Camera.MiniStrip),
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
@@ -277,6 +278,12 @@ internal static class SettingsMapper
                 if (!ReferenceEquals(overlay, CameraOverlayLayout.Default))
                 {
                     camera = camera with { Overlay = overlay };
+                }
+
+                CameraMiniStripSettings miniStrip = ToMiniStrip(documents[i]!.Camera?.MiniStrip, printer.Id, warnings);
+                if (!ReferenceEquals(miniStrip, CameraMiniStripSettings.Default))
+                {
+                    camera = camera with { MiniStrip = miniStrip };
                 }
 
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.
@@ -597,6 +604,129 @@ internal static class SettingsMapper
         }
 
         return new CameraOverlayDocument { Widgets = JsonSerializer.SerializeToElement(widgets, SettingsJsonContext.Default.ListOverlayWidgetDocument) };
+    }
+
+    /// <summary>
+    /// Only the items that are off are written (T-110, Q9 A); nothing while all are on, so that files stay as they were.
+    /// </summary>
+    internal static JsonElement? ToDocument(CameraMiniStripSettings strip)
+    {
+        if (strip == CameraMiniStripSettings.Default)
+        {
+            return null;
+        }
+
+        CameraMiniStripDocument document = new()
+        {
+            ProgressBar = OffOrNull(strip.ProgressBar),
+            Percent = OffOrNull(strip.Percent),
+            Remaining = OffOrNull(strip.Remaining),
+            Finish = OffOrNull(strip.Finish),
+            Cooldown = OffOrNull(strip.Cooldown),
+            NameRow = OffOrNull(strip.NameRow),
+            ChartRow = OffOrNull(strip.ChartRow),
+        };
+        return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.CameraMiniStripDocument);
+
+        static bool? OffOrNull(bool on) => on ? null : false;
+    }
+
+    /// <summary>
+    /// The mini strip section read leniently (T-110): a missing section or item is on; an item whose value is not
+    /// <see langword="true"/> / <see langword="false"/> is on with one warning naming the item (never the value); a section
+    /// that is no object turns everything on with one warning. Property names are matched case-insensitively and the last of
+    /// duplicates wins, like the rest of the file; unknown names (a newer version) are ignored.
+    /// </summary>
+    private static CameraMiniStripSettings ToMiniStrip(JsonElement? section, string printerId, List<string> warnings)
+    {
+        if (section is not { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } value)
+        {
+            return CameraMiniStripSettings.Default;
+        }
+
+        string subject = $"Mini preview strip of printer '{Shorten(printerId)}'";
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            warnings.Add($"{subject}: the section is invalid; every item is shown.");
+            return CameraMiniStripSettings.Default;
+        }
+
+        bool progressBar = true, percent = true, remaining = true, finish = true, cooldown = true, nameRow = true, chartRow = true;
+        SortedSet<string>? invalid = null;
+        foreach (JsonProperty property in value.EnumerateObject())
+        {
+            string? name = NameOf(property)?.ToUpperInvariant();
+            ref bool target = ref progressBar;
+            string key;
+            switch (name)
+            {
+                case "PROGRESSBAR":
+                    key = "progressBar";
+                    break;
+                case "PERCENT":
+                    target = ref percent;
+                    key = "percent";
+                    break;
+                case "REMAINING":
+                    target = ref remaining;
+                    key = "remaining";
+                    break;
+                case "FINISH":
+                    target = ref finish;
+                    key = "finish";
+                    break;
+                case "COOLDOWN":
+                    target = ref cooldown;
+                    key = "cooldown";
+                    break;
+                case "NAMEROW":
+                    target = ref nameRow;
+                    key = "nameRow";
+                    break;
+                case "CHARTROW":
+                    target = ref chartRow;
+                    key = "chartRow";
+                    break;
+                default:
+                    continue;
+            }
+
+            switch (property.Value.ValueKind)
+            {
+                case JsonValueKind.True:
+                    target = true;
+                    invalid?.Remove(key);
+                    break;
+                case JsonValueKind.False:
+                    target = false;
+                    invalid?.Remove(key);
+                    break;
+                default:
+                    target = true;
+                    (invalid ??= new SortedSet<string>(StringComparer.Ordinal)).Add(key);
+                    break;
+            }
+        }
+
+        if (invalid is not null)
+        {
+            foreach (string key in invalid)
+            {
+                warnings.Add($"{subject}: '{key}' is not true or false; the item is shown.");
+            }
+        }
+
+        CameraMiniStripSettings strip = new()
+        {
+            ProgressBar = progressBar,
+            Percent = percent,
+            Remaining = remaining,
+            Finish = finish,
+            Cooldown = cooldown,
+            NameRow = nameRow,
+            ChartRow = chartRow,
+        };
+        return strip == CameraMiniStripSettings.Default ? CameraMiniStripSettings.Default : strip;
     }
 
     /// <summary>
