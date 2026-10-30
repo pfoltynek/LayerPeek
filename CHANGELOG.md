@@ -10,7 +10,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [0.3.1] - unreleased
 
+> **macOS 0.3.0:** that version cannot update itself: drag the new LayerPeek.app from the 0.3.1 disk image over the old
+> one once (settings and saved passwords stay). From 0.3.1 on, LayerPeek updates itself.
+
 ### Added
+
+- **Update check** (Windows and macOS): shortly after the start and then once a day LayerPeek asks GitHub whether a new
+  version was released (anonymously, one request a day). A newer version appears as **New version X.Y.Z available** in
+  the tray / menu bar menu (above *About*) and once per version as a notification. A click does the update: the
+  installed Windows version and LayerPeek.app on macOS download it, quit normally and start the new version; the ZIP
+  version and development builds open the release page. The *Startup and updates* tab has **Check for updates
+  automatically** (on by default), **Offer pre-release versions** (now also in the ZIP version and on macOS) and **Check
+  now** with its result next to it. A LayerPeek.app that runs straight from the disk image or Downloads is told to move
+  to Applications first. Failures (no network, the GitHub limit) are only logged. **Settings:** `checkForUpdates`
+  (older files load with the check on); what the check remembers is in `update-state.json` next to the settings.
 
 - macOS: keyboard shortcuts as on other Mac apps. Camera window: **⌃⌘F** toggles full screen (F11, which macOS
   reserves for Show Desktop and Mac keyboards send only with fn, stays as a fallback), and the full screen button and
@@ -51,6 +64,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   settings files load unchanged.
 
 ### Changed
+
+- macOS: LayerPeek.app is packed and signed by Velopack (still ad hoc, with the hardened runtime and the entitlements of
+  0.3.0), so that it can update itself; the release also carries the Velopack package and update feed of `osx-arm64`.
+  The `.dmg` and `.tar.gz` stay; there is no `.pkg`.
 
 - Cool-down: a printer now counts as cooled down only when **both the nozzle and the bed** are at or below their
   thresholds (before, only the nozzle decided). Each printer has a nozzle and a bed threshold, 40 °C each by default,

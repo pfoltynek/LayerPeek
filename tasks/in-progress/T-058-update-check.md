@@ -29,14 +29,14 @@ Vztah k Velopacku (T-056, T-017): pokud aplikace běží z instalace Velopacku n
   - **Důsledek pro uživatele:** kdo si nainstaloval `.app` z vydání bez Velopacku (T-019), dostane aktualizace až po jedné ruční reinstalaci verze s Velopackem. Uvést v `CHANGELOG.md` a v textu vydání.
 
 ## Akceptační kritéria
-- [ ] Unit testy porovnání verzí (předběžné přípony, prefix `v`, neplatné tagy, `0.x`)
-- [ ] Testy klienta GitHub API s nahranými JSON fixtures a falešným `HttpMessageHandler` (žádná reálná síť), včetně 403, 404, timeoutu a neplatného JSON
-- [ ] Testy služby: nová verze → událost + jedna notifikace; stejná / starší verze → nic; opakovaná kontrola stejné verze → žádná další notifikace
-- [ ] Headless UI test: položka menu se zobrazí jen při dostupné nové verzi
-- [ ] Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack (ověřeno ručně)
-- [ ] Žádná nová NuGet závislost, nebo ověřená AOT/trim kompatibilita; AOT publish `win-x64` bez varování
-- [ ] macOS: `.app` od `vpk` (ad-hoc podpis, `codesign --verify --deep --strict`), `.dmg` a `.tar.gz` z ní, `.nupkg` a feed `osx-arm64` ve vydání; aktualizace na Macu ověřená a zapsaná v `docs/velopack.md`, bod 10 (převzato z T-019)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Unit testy porovnání verzí (předběžné přípony, prefix `v`, neplatné tagy, `0.x`)
+- [x] Testy klienta GitHub API s nahranými JSON fixtures a falešným `HttpMessageHandler` (žádná reálná síť), včetně 403, 404, timeoutu a neplatného JSON
+- [x] Testy služby: nová verze → událost + jedna notifikace; stejná / starší verze → nic; opakovaná kontrola stejné verze → žádná další notifikace
+- [x] Headless UI test: položka menu se zobrazí jen při dostupné nové verzi
+- [ ] Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack (ověřeno ručně) – automaticky ověřeno: klik na položku (headless UI test, příkaz `InstallUpdate`), otevření stránky vydání (unit test `UpdateOffer`) a klik na notifikaci jako příkaz instance → stažení, ukončení a aktualizace přes Velopack na macOS (E2E `MacUpdateE2ETests`). **Zbývá ručně:** skutečný klik v menu a na banner notifikace na Windows a na macOS, aktualizace instalace Velopacku na Windows
+- [ ] Žádná nová NuGet závislost, nebo ověřená AOT/trim kompatibilita; AOT publish `win-x64` bez varování – žádná nová závislost; AOT publish `osx-arm64` s `-warnaserror` bez varování trimmingu/AOT (2026-10-30). **Zbývá:** AOT publish `win-x64` (jen na Windows)
+- [ ] macOS: `.app` od `vpk` (ad-hoc podpis, `codesign --verify --deep --strict`), `.dmg` a `.tar.gz` z ní, `.nupkg` a feed `osx-arm64` ve vydání; aktualizace na Macu ověřená a zapsaná v `docs/velopack.md`, bod 10 (převzato z T-019) – krok `app` přepsaný, `vpk` ověřené na skutečném bundlu 0.3.1 a Pester testem (skutečné `vpk`), aktualizace ověřená E2E v dočasné složce a zapsaná v bodu 10. **Zbývá:** celý běh `pwsh scripts/release-build.ps1` na Macu (agent ho v izolovaném worktree nespustil) a ruční body (Gatekeeper, `/Applications` se standardním účtem, Klíčenka, notifikace, GitHub bez tokenu, restart přes `open -n`)
+- [x] `dotnet build` a `dotnet test` bez chyb a varování (macOS; Windows snapshoty záložky Spuštění a aktualizace je potřeba přegenerovat na Windows)
 
 ## Rozbor (příprava 2026-10-29)
 
@@ -103,6 +103,16 @@ Celkem odhadem **4–5 sezení vývojáře** a **1 sezení ručního ověření 
 | F | macOS ruční ověření (Gatekeeper, `/Applications`, Keychain, notifikace, GitHub bez tokenu) a zápis do `docs/velopack.md`, bod 10, plus text do `CHANGELOG.md` a textu vydání (důsledek pro 0.3.0) | macos | qa-reviewer (+ uživatel) | S | E, Q7 |
 
 ## Otevřené otázky
+**Nové otázky z implementace (2026-10-30, ui-dev agent), k potvrzení uživatelem:**
+- **N1 – kde se pamatuje stav kontroly:** zadání říká „v nastavení“; implementace ukládá čas poslední kontroly, nalezené vydání a verzi poslední notifikace do vlastního souboru `update-state.json` vedle `settings.json` (stav aplikace jako `windows.json`, T-094). Důvod: zápis do `settings.json` na pozadí by se tloukl s uložením okna nastavení (to přepisuje celý soubor ze své kopie) a vyžadoval další bajtově zachovávající zapisovač jako `DetectedModelWriter`. V `settings.json` je jen volba `checkForUpdates`. Ponechat?
+- **N2 – umístění položky v menu:** „Je dostupná nová verze X.Y.Z“ je v poslední skupině přímo nad „O aplikaci“, bez klávesové zkratky, s tooltipem podle akce. Jinak (nahoře nad tiskárnami, nad Diagnostikou)?
+- **N3 – notifikace a hlavní vypínač notifikací:** při vypnutém „Zobrazovat notifikace“ se notifikace o nové verzi neukáže a verze se bere jako oznámená (po zapnutí se už neukáže). Zvuk jen při volbě zvuku „Všechny“. Souhlasí?
+- **N4 – selhání stažení (Velopack):** když stažení nebo naplánování aktualizace selže, otevře se místo toho stránka vydání, aby se klik „neztratil“. Souhlasí?
+- **N5 – tlačítko na záložce:** „Zkontrolovat teď“ ukáže jen výsledek („Je dostupná verze X.Y.Z, nabízí ji nabídka v oznamovací oblasti“); tlačítko „Aktualizovat“ přímo na záložce není. Přidat?
+- **N6 – vypnutá automatická kontrola:** dříve nalezená verze (z `update-state.json`) se v menu nabízí dál i s vypnutou automatickou kontrolou (žádný dotaz na síť to není). Skrýt ji?
+- **N7 – App Translocation (Q8 a):** přeložená `.app` nebo `.app` z `.dmg` se dál ptá GitHub REST API a klik otevře stránku vydání; záložka ukáže „Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.“ (Zadání Q8 a říká „aktualizaci nenabízet“; nabízí se stránka vydání, ne aktualizace.) Souhlasí?
+- **N8 – log a mezipaměť Velopacku na macOS:** nainstalovaná `.app` při každém startu vytvoří `~/Library/Logs/velopack_LayerPeek.log` a balíčky stahuje do `~/Library/Caches/velopack/LayerPeek` (jako `%LOCALAPPDATA%\velopack` na Windows, přijato 2026-10-24). Přijmout i pro macOS?
+
 **Rozhodnuto 2026-10-30 (uživatel): Q1 a, Q2 a, Q3 a, Q4 a, Q5 a, Q6 a, Q7 a, Q8 a, Q9 a, Q10 a** – vše podle doporučení.
 **Rozhodnuto 2026-10-30 (uživatel): T-058 jde do verze 0.3.1** (macOS přejde na Velopack v 0.3.1). **E2E test aktualizace smí agent spouštět** jen v dočasné složce (scratchpad / temp): balíčky i nainstalovaná aplikace mimo `/Applications`, izolovaný testovací režim (`LAYERPEEK_TEST_DATA_DIR`, `LAYERPEEK_INSTANCE_SUFFIX`, testovací bundle id), bez Login Items, síť jen 127.0.0.1; po testu vše smazat včetně registrace v LaunchServices (`lsregister -u`). K Q7: 0.3.0 je vydaná (předběžné vydání 2026-10-29, jen soubory pro macOS); na vydanou 0.3.0 se nesahá, věta o jednorázové ruční reinstalaci přijde do vydání s T-058.
 
@@ -150,4 +160,31 @@ Ke každé otázce jsou varianty (příprava 2026-10-29). Doporučená varianta 
   - c) Proměnná prostředí platná i v produkci. Minus: kdokoli pod stejným uživatelem by přesměroval aktualizace na vlastní balíček. Nedoporučuju.
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+Stav 2026-10-30 (ui-dev agent, macOS, větev `feature/T-058-update-check`). **Uživatel schválil začít T-058 už teď**, přestože T-055 je v `in-progress` jen kvůli ručním kritériím zkušebního vydání na GitHubu (skripty T-055 jsou hotové). Cílová verze 0.3.1 (rozhodnuto 2026-10-30), repozitář je veřejný.
+
+**Core (`src/LayerPeek.Core/Updates`):**
+- `ReleaseVersion` – SemVer 2.0.0 (prefix `v`/`V`, předběžné identifikátory, build metadata se neporovnávají, bez úvodních nul, max. 128 znaků).
+- `IUpdateChecker`, `UpdateRelease` (verze, stránka vydání jen https na github.com – `GitHubReleasePage`, příznak předběžného vydání).
+- `UpdateCheckService` – Q1 a: první kontrola 90 s po startu, pak jednou za 24 h od uložené poslední **úspěšné** kontroly; časovač přes `TimeProvider` se dívá každou hodinu (neúspěšná kontrola se zkusí za hodinu, uspání a restart nevadí, hodiny posunuté o víc než hodinu dozadu = žádná kontrola). Jedna kontrola najednou, ruční kontrola (`CheckNowAsync`) i s vypnutou automatickou. Jedna notifikace na verzi (vyšší než naposledy oznámená). Změna volby předběžných verzí hned stáhne nabízenou předběžnou verzi a (se zapnutou automatickou kontrolou) zkontroluje znovu.
+- `JsonUpdateStateStore` – `update-state.json` (viz N1). `AppSettings.CheckForUpdates` (Q2 a, výchozí `true`, součást rovnosti; `checkForUpdates` v `settings.json`, starší soubory se načtou se zapnutou kontrolou).
+- `INotificationService.ShowUpdateAvailable(UpdateNotification)` – výchozí implementace nic (platformy bez notifikací).
+
+**App:**
+- `Updates/GitHubReleaseChecker` – `GET https://api.github.com/repos/pfoltynek/LayerPeek/releases?per_page=30`, anonymně, `User-Agent: LayerPeek/<verze>`, `Accept: application/vnd.github+json`, `X-GitHub-Api-Version: 2022-11-28`, timeout 30 s, max. 1 MB, systémová proxy; source-generated `GitHubJsonContext`. Nejvyšší verze (ne nejnovější datum), koncepty a neplatné tagy přeskočí, předběžné jen na požádání (příznak GitHubu **nebo** přípona verze). 403/429 (limit, hlásí zbývající a reset), 404, jiné kódy, timeout a neplatný JSON jsou výjimky, služba je jen zaloguje. Ptá se jen vlastní exe aplikace (`AppServices.IsAppExecutable`), testovací hostitelé nikdy. Fixture `tests/LayerPeek.App.Tests/Fixtures/github-releases-2026-10-30.json` je nahraná skutečná odpověď (0.3.0 a 0.1.0 předběžné, **0.2.0 ne**).
+- `Installer/AppUpdates` – teď `IUpdateChecker` instalace Velopacku (Q5 a); `ApplyAsync` stáhne nalezené vydání (nebo ho nejdřív znovu najde, když přišlo z minulého běhu), naplánuje `UpdateExe` a běžně ukončí aplikaci (Q6 a).
+- `Updates/UpdateOffer` – pozorovatel nastavení (`UpdatePreferences`: automatická kontrola, předběžné verze, hlavní vypínač notifikací, zvuk jen při „Všechny“), akce kliknutí (stránka vydání / aktualizace Velopacku, při selhání stažení stránka vydání – N4), `NeedsMoveToApplications` (Q8 a).
+- Menu: `TrayMenuCommand.Update`, položka „Je dostupná nová verze X.Y.Z“ nad „O aplikaci“ (N2), během stahování neaktivní „Stahuje se verze X.Y.Z…“; `ITrayAppCommands.InstallUpdate`.
+- Notifikace: pevný argument `update=available` (`ToastLaunchArgument.Update`) a identifikátor `layerpeek-update-available` (novější nahradí starší), toast na Windows i `UNUserNotificationCenter` na macOS; klik jde přes `ToastActivationRouter` k akci, kterou `ServiceHost` připojí hned se službami – funguje i během čekání macOS na displej (T-099). Ukončení po stažení dodá nejdřív čekání (`Program.WaitForMacDisplay`), pak UI (Quit z menu).
+- Záložka Spuštění a aktualizace (`SettingsViewModel.Updates.cs`, jen tato záložka v XAML): „Automaticky kontrolovat aktualizace“ s nápovědou, „Nabízet předběžné verze“ všude (Q3 a; dřív ve `.zip` neaktivní a na macOS skrytá), „Zkontrolovat teď“ s výsledkem vedle (Q4 a: kontroluje se… / aktuální / dostupná verze / selhala), na macOS pokyn k přesunu do Aplikací (Q8 a). Texty v 8 jazycích (15 nových klíčů). Rozložení ověřeno testem vejití ve všech jazycích; macOS snapshoty `settings-startup-updates.png` a `settings-startup-updates-not-installed.png` přegenerované a zkontrolované. **Windows snapshoty těchže dvou obrázků je potřeba přegenerovat na Windows.**
+- Velopack na macOS: `VelopackInstallation.IsInstalledMac` (`UpdateMac` + `sq.version` v `Contents/MacOS`), `VelopackStartup` spouští `VelopackApp.Run()` i na macOS (bez hooků), `VelopackUpdateEngine` pro oba OS. Instalace, která se umí aktualizovat: Windows instalace, macOS `.app` od `vpk` na trvalém místě (`MacAppBundle.IsPermanentLocation`).
+- Testovací režim (Q10 a): `LAYERPEEK_TEST_UPDATE_SOURCE` (jen Debug, jen s testovací datovou složkou, jen `http://` na loopback adrese nebo existující absolutní složka, jinak start odmítnut); bez něj testovací režim nic nekontroluje (`NoUpdateChecker`). S testovacím feedem kontrola 2 s po startu a **bez restartu po aktualizaci** (`UpdateMac` spouští aplikaci přes `open -n`, tedy bez testovacích proměnných).
+
+**Skripty vydání (Q9 a):** krok `app` v `scripts/release-build.ps1` balí hotovou `LayerPeek.app` přes `vpk pack` (`--noInst`, `--signAppIdentity -`, `--signEntitlements build/macos/LayerPeek.entitlements`, kanál `osx-arm64`), `.app` z `Portable.zip` ověří (`codesign --verify --deep --strict`, lint, manifest, hardened runtime; hardened runtime i u `.app` z `.nupkg`), spustí AOT smoke test a udělá z ní `.dmg` a `.tar.gz`. Do `dist` jde i `.nupkg` a feed `osx-arm64` (`.pkg` ani `Portable.zip` ne). `vpk` se obnovuje i na macOS. `release-publish.ps1` (`Get-PublishProblems`) vyžaduje u každého očekávaného OS i `releases.<RID>.json` vydávaných RID. Pester: argumenty, mapa výstupu, `Portable.zip`, manifest, feed a na macOS skutečné `vpk pack` náhradního bundlu (přeskočí se, když `vpk` není obnovené). Licence: žádný nový balíček (Velopack 1.2.161, MIT, už v projektu; `vpk` 1.2.161 lokální nástroj z `.config/dotnet-tools.json`, MIT).
+
+**Ověření na macOS (2026-10-30, Apple Silicon, macOS 27.2):**
+- `dotnet build` (Debug i Release) bez varování; `dotnet test` celé řešení bez chyb (počty v reportu agenta); AOT publish `osx-arm64` s `-warnaserror` bez varování trimmingu/AOT.
+- `vpk pack` skutečného bundlu 0.3.1 (kopie z `artifacts/` hlavního checkoutu do scratchpadu): entitlements přesně podle T-108, `adhoc,runtime` u všech Mach-O včetně `UpdateMac`, Info.plist beze změny; zápisy `vpk` mimo výstup: jen `$TMPDIR/velopack` (prázdná složka, smazána) a telemetrie `dotnet`.
+- E2E `MacUpdateE2ETests` (`LAYERPEEK_E2E=1 dotnet test --project tests/LayerPeek.App.Tests -- --filter-method "*MacUpdateE2ETests*"`) prošel: vše v dočasné složce testů (ne `/Applications`), testovací bundle id, testovací režim, `HOME` v dočasné složce, žádná síť (feed jako místní složka), žádné Login Items ani notifikace. Výsledky v `docs/velopack.md`, bod 10 („Výsledek T-058“). Registrace v LaunchServices se po testu odstraní (`lsregister -u`) a test to ověří.
+- Kontrola profilu před a po (ekvivalent `tools/profile-snapshot.ps1` jen ke čtení, protože `pwsh` agent v izolovaném worktree spustit nesměl; rozšířený o místa testovacího bundle id, `~/Library/Caches/velopack` a logy Velopacku): beze změny.
+
+**Neověřeno (ručně):** Windows celé (build/testy na Windows, AOT `win-x64`, snapshoty, toast a klik na něj, aktualizace instalace Velopacku), celý `release-build.ps1` na Macu, první spuštění staženého `.dmg` (Gatekeeper, App Translocation), aktualizace v `/Applications` se standardním účtem, Klíčenka a povolení notifikací po aktualizaci, čtení feedu z GitHub Releases bez tokenu, restart po aktualizaci přes `open -n`.
