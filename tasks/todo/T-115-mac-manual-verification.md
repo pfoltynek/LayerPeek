@@ -57,8 +57,7 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       (sezení 2.1). *T-019 zůstává rozpracovaný (otázka 11).*
 - [ ] **T-019** (krit. „Okno Nastavení … v popředí a dostane fokus“): `mac.settings-front` = `PASS` (sezení 2.4).
 - [ ] **T-018** (krit. „Menu z T-008 se v menu baru zobrazí, aktualizuje a ‚Ukončit‘ korektně ukončí aplikaci“):
-      `mac.menubar` = `PASS` a `mac.menu` potvrzeno (sezení 2.3). *T-018 zůstává rozpracovaný (otázka k ikonám tiskáren
-      v NSMenu).*
+      `mac.menubar` = `PASS` a `mac.menu` potvrzeno (sezení 2.3).
 - [ ] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
       menu bar, všechny stavy (lomítko offline, ▶ s vrstvami, ❚❚, ✓, !, ×), ostrost na monitoru @1x (při rozmazání
       zapsat; záloha je vícerozlišovací obrázek) (sezení 2.2).

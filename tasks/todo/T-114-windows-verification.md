@@ -86,7 +86,6 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `profile-snapshot.ps1` s `cmdkey`; viz otázka „Ověření na Windows“ v T-095).
 - [ ] **T-018** (krit. „Windows chování z T-007 zůstává beze změny“ a „`dotnet build` a `dotnet test` … na macOS
       i Windows“, část Windows): `win.build`, `win.test` a `win.e2e` = `PASS`; `Snapshots/TrayIcons/` beze změny.
-      *T-018 zůstává rozpracovaný (otázka k ikonám tiskáren v NSMenu).*
 - [ ] **T-021** (krit. „Windows build a testy beze změny chování“): `win.build` a `win.test` = `PASS`
       (`WindowsCredentialSecretStore` a jeho testy beze změny).
 - [ ] **T-026** (krit. „Windows build a testy beze změny chování“): `win.build`, `win.test` a `win.e2e` = `PASS`;
