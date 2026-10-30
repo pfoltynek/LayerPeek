@@ -72,7 +72,14 @@ internal sealed class DiagnosticsWindowHarness
     public static DiagnosticsWindowHarness OpenWithLocalNetwork(UiTestScope scope, LayerPeek.App.Platform.ILocalNetworkPrivacy localNetwork, PrinterDefinition[]? printers, params PrinterSnapshot[] snapshots) =>
         Open(scope, windowStates: null, localNetwork, printers, snapshots);
 
-    private static DiagnosticsWindowHarness Open(UiTestScope scope, IAuxiliaryWindowStateStore? windowStates, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork, PrinterDefinition[]? printers, PrinterSnapshot[] snapshots)
+    /// <summary>
+    /// Like <see cref="Open(UiTestScope, PrinterDefinition[], PrinterSnapshot[])"/> with the chart history that
+    /// <paramref name="recordHistory"/> leaves behind for each printer of <paramref name="snapshots"/> (README screenshots).
+    /// </summary>
+    public static DiagnosticsWindowHarness OpenWithHistory(UiTestScope scope, Action<TelemetryHistory, string> recordHistory, PrinterDefinition[] printers, params PrinterSnapshot[] snapshots) =>
+        Open(scope, windowStates: null, localNetwork: null, printers, snapshots, recordHistory);
+
+    private static DiagnosticsWindowHarness Open(UiTestScope scope, IAuxiliaryWindowStateStore? windowStates, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork, PrinterDefinition[]? printers, PrinterSnapshot[] snapshots, Action<TelemetryHistory, string>? recordHistory = null)
     {
         ArgumentNullException.ThrowIfNull(scope);
         FakePrinterMonitor monitor = new();
@@ -86,7 +93,7 @@ internal sealed class DiagnosticsWindowHarness
 
         foreach (PrinterSnapshot snapshot in snapshots)
         {
-            RecordHistory(history, snapshot.PrinterId);
+            (recordHistory ?? RecordHistory)(history, snapshot.PrinterId);
             monitor.Raise(snapshot);
         }
 
