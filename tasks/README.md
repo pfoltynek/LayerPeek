@@ -171,7 +171,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-020 | Systémové notifikace – macOS (hotovo; ruční ověření v T-115) | macos | ui-dev | P1 | T-010, T-019, T-095 |
 | T-021 | macOS – úložiště tajných údajů v Keychainu (hotovo; ověření v T-114 / T-115) | macos | core-dev | P1 | T-002, T-030, T-095 |
 | T-026 | macOS – FFmpeg pro živý stream kamery (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P3 | T-014, T-019, T-095 |
-| T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ (čeká na otázky 1–3; ověření v T-115) | macos | ui-dev | P3 | T-026, T-035, T-037 |
+| T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ (hotovo; malý náhled na všech plochách; ověření a otázky 2–3 v T-115) | macos | ui-dev | P3 | T-026, T-035, T-037 |
 | T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P3 | T-043, T-052, T-095 |
 | T-096 | macOS – start aplikace bez aktivního displeje (hotovo; ruční ověření v T-115) | macos | ui-dev | P2 | T-019 |
 | T-097 | macOS – oprávnění „Místní síť“ (NSLocalNetworkUsageDescription) (hotovo; ověření v T-114 / T-115) | macos | ui-dev | P1 | T-019, T-026 |
