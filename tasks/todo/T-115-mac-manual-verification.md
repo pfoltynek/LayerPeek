@@ -34,11 +34,13 @@ zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných krok
 ## Akceptační kritéria
 
 ### 1. Příprava
-- [ ] **T-058** (krit. „macOS: `.app` od `vpk`…“, část „celý běh `release-build.ps1` na Macu“): LayerPeek neběží,
+- [x] **T-058** (krit. „macOS: `.app` od `vpk`…“, část „celý běh `release-build.ps1` na Macu“): LayerPeek neběží,
       `caffeinate -d -u -i pwsh scripts/release-build.ps1` skončí kódem 0; v `artifacts/release/<verze>/dist/` jsou
       `.dmg`, `.tar.gz`, `SHA256SUMS-macos.txt`, `.nupkg` a soubory feedu `osx-arm64` (`releases.osx-arm64.json`,
       `assets.osx-arm64.json`, `RELEASES-osx-arm64`); `shasum -a 256 -c SHA256SUMS-macos.txt` = OK (sezení 1.1).
       Výstup potřebují `mac.gatekeeper*` a oddíl 5.
+      Ověřeno 2026-10-30 (agent, `develop` 33a2678, verze 0.3.1): kód 0, všech 7 souborů v `dist/`, `shasum -c` = OK,
+      `codesign --verify --deep --strict` platný, hardened runtime u všech Mach-O, AOT smoke test `.app` prošel (UIElement).
 
 ### 2. Skript `tools/macos-verify.ps1` (jeden interaktivní běh)
 Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak
