@@ -19,9 +19,8 @@ Body jsou seřazené tak, aby šly projít v jednom sezení: nejdřív příprav
 Podrobný postup a očekávání jsou v [docs/macos-manual-testing.md](../../docs/macos-manual-testing.md) (dále „sezení N.M“);
 u každého bodu je původní úkol a kritérium.
 
-Body z úkolů, které zůstaly v `tasks/in-progress/` kvůli nezodpovězeným otevřeným otázkám (T-018, T-019, T-038, T-100),
-jsou tu také, aby šlo všechno projít najednou. Výsledek u nich pomůže otázky rozhodnout; tyto úkoly proto nejsou
-v `depends_on`.
+T-018, T-019, T-038 a T-100 se uzavřely 2026-10-30 po rozhodnutí jejich otevřených otázek. Rozhodovací body, které
+zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných kroků.
 
 ## Rozsah
 - Před začátkem: „Než začnete“ v `docs/macos-manual-testing.md` (Apple Silicon, macOS 15+, externí monitor, Terminál
@@ -170,10 +169,11 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       po přerušeném buildu naváže a běh po dokončení nic neudělá.
 - [ ] **T-055** (krit. „Zkušební vydání … vytvoření vydání a následné přidání souborů druhým během“, část macOS): ve
       stejném zkušebním vydání běh na Macu vytvoří koncept a nahraje soubory macOS; druhý běh (Windows) doplní své
-      soubory – viz T-114. Postup „Zkouška doplnění druhého OS (T-113)“ v `docs/release.md`; souvisí s otázkou 1 v T-113.
+      soubory – viz T-114. Postup „Zkouška doplnění druhého OS (T-113)“ v `docs/release.md`; **rozhodnuto 2026-10-30 (uživatel, T-113 Q1): doplnění druhého OS se poprvé ověří ostře u 0.3.1** (Mac zveřejní,
+      Windows doplní); zkušební vydání je volitelné.
 - [ ] **T-055** (krit. „Vydání verze `0.x` je na GitHubu označené jako předběžné“): po příštím vydání
       `gh release view vX.Y.Z --json isPrerelease` = `true`. Pozor: stav 2026-10-30 – `v0.1.0` a `v0.3.0` jsou
-      předběžné, **`v0.2.0` ne** (označené „Latest“); zjistit proč (ruční změna na GitHubu, nebo chyba skriptu) a zapsat.
+      předběžné, **`v0.2.0` ne** (označené „Latest“); **rozhodnuto 2026-10-30 (uživatel): `v0.2.0` nechat beze změny**; bod se týká jen nových vydání.
 - [ ] **T-058** (krit. „macOS: … ruční body“, Gatekeeper): první spuštění `.dmg` staženého prohlížečem z GitHub vydání
       (Gatekeeper, „Přesto otevřít“) a App Translocation (spuštění přímo z `.dmg`: záložka Spuštění a aktualizace ukáže
       „Přesuňte LayerPeek do složky Aplikace…“, klik na novou verzi otevře jen stránku vydání).
@@ -195,12 +195,11 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
       volby uživatele, Klíčenka, změny systému vrácené); `pwsh tools/profile-snapshot.ps1 -Compare` ukáže jen to, co
       mělo zůstat.
-- [ ] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; u T-018, T-019,
-      T-038 a T-100 doplněné poznámky k jejich otevřeným otázkám.
+- [ ] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
+      T-038 a T-100 zapsané i do jejich poznámek.
 
 ## Otevřené otázky
-- (žádné vlastní; otevřené otázky původních úkolů zůstávají v nich: T-018, T-019 otázka 11, T-038 otázky 1–3, T-100
-  otázky 1–3, T-113 otázka 1)
+- (žádné vlastní; rozhodovací body T-038 otázky 2–3 a T-100 otázky 1–2 jsou u kroků výše)
 
 ## Poznámky k implementaci
 (vyplní agent / uživatel po ověření)

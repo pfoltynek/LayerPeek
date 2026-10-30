@@ -7,7 +7,7 @@ a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
 Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
 [T-115 „Ruční ověření na Macu“](../tasks/todo/T-115-mac-manual-verification.md) (rozhodnutí uživatele); původní úkoly
-jsou uzavřené, kromě T-018, T-019, T-038 a T-100, které čekají na odpovědi na otevřené otázky. Protějšek pro Windows je
+jsou uzavřené. Protějšek pro Windows je
 T-114 ([windows-manual-testing.md](windows-manual-testing.md)).
 
 > Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni, odkazy na T-114 / T-115 doplněny 2026-10-30. Když úkol
@@ -108,8 +108,8 @@ vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
 
 ### Kam hlásit výsledky
 - Do poznámek sběrného úkolu T-115 (bod podle úkolu a kritéria, které krok uzavírá – uvedeno u každého kroku jako
-  **Uzavírá**), s verzí macOS a datem. U T-018, T-019, T-038 a T-100 i do poznámek původního úkolu (výsledek pomůže
-  rozhodnout jejich otevřené otázky). Zaškrtnutí nechte na agentovi / správci úkolu.
+  **Uzavírá**), s verzí macOS a datem. Výsledky rozhodovacích bodů (T-038 otázky 2–3, T-100 otázky 1–2) i do
+  poznámek původního úkolu. Zaškrtnutí nechte na agentovi / správci úkolu.
 - Při chybě přiložte výňatek z `~/Library/Logs/LayerPeek/LayerPeek.log` (okno **O aplikaci → Otevřít složku s logy**;
   starší `LayerPeek.1.log` …). U E2E testů výstup `dotnet test`. Přesné texty systémových dialogů opište (nebo
   snímek obrazovky bez osobních údajů).

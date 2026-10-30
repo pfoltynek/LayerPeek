@@ -14,8 +14,8 @@ sady snímků UI, instalátor, autostart, chování specifické pro Windows a ru
 2026-10-30: rozpracované úkoly, kterým chybělo jen ověření na druhém OS nebo ruční ověření, se uzavřely a zbývající body
 se přesunuly sem (v původním úkolu odškrtnuté s „→ přesunuto do T-114“). Protějšek pro Mac je T-115.
 
-Body pocházejí i z úkolů `macos` (T-021, T-026, T-053, T-095, T-097, T-102, uzavřené 2026-10-30) a z úkolů, které
-zůstaly rozpracované kvůli otevřeným otázkám (T-018, T-100). Podle `tasks/README.md` úkol `windows` na úkolech `macos`
+Body pocházejí i z úkolů `macos` (T-021, T-026, T-053, T-095, T-097, T-102, uzavřené 2026-10-30) a z úkolů T-018 a T-100
+(uzavřené 2026-10-30 po rozhodnutí otevřených otázek). Podle `tasks/README.md` úkol `windows` na úkolech `macos`
 nezávisí, proto nejsou v `depends_on`.
 
 Postup: [docs/windows-manual-testing.md](../../docs/windows-manual-testing.md) a skript `tools/windows-verify.ps1`.
@@ -136,10 +136,10 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
 
 ### 6. Závěr
 - [ ] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; profil vrácený
-      (`win.uninstall`, případně `pwsh tools/windows-verify.ps1 -RestoreOnly`); u T-018 a T-100 doplněné poznámky.
+      (`win.uninstall`, případně `pwsh tools/windows-verify.ps1 -RestoreOnly`).
 
 ## Otevřené otázky
-- (žádné vlastní; otevřené otázky původních úkolů zůstávají v nich: T-018, T-100 otázky 1–3, T-113 otázka 1)
+- (žádné vlastní; T-113 Q1 rozhodnuto 2026-10-30: doplnění druhého OS se poprvé ověří ostře u 0.3.1)
 
 ## Poznámky k implementaci
 (vyplní agent / uživatel po ověření)
