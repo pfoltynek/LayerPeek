@@ -74,6 +74,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - macOS: LayerPeek.app is packed and signed by Velopack (still ad hoc, with the hardened runtime and the entitlements of
   0.3.0), so that it can update itself; the release also carries the Velopack package and update feed of `osx-arm64`.
   The `.dmg` and `.tar.gz` stay; there is no `.pkg`.
+- macOS: the help text of **Open System Settings** under *Open at login* (shown when LayerPeek is turned off in System
+  Settings > General > Login Items & Extensions) now only says to allow it there; saving again is not needed, because
+  an unchanged *Open at login* option takes over the state of macOS when the settings window comes back to the front.
 - Cool-down: a printer now counts as cooled down only when **both the nozzle and the bed** are at or below their
   thresholds (before, only the nozzle decided). Each printer has a nozzle and a bed threshold, 40 °C each by default,
   set in the *Cool-down* widget on the *Widgets* tab of the settings for the printer selected there, with **Use

@@ -739,7 +739,7 @@
     <value>Otevřít Nastavení systému</value>
   </data>
   <data name="SettingsOpenLoginItemsHint" xml:space="preserve">
-    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Aktivace položek a rozšíření při přihlášení. Povolte ho tam a pak uložte znovu.</value>
+    <value>LayerPeek je vypnutý v Nastavení systému &gt; Obecné &gt; Aktivace položek a rozšíření při přihlášení. Povolte ho tam.</value>
   </data>
   <data name="SettingsSavedOpenAtLoginNeedsApproval" xml:space="preserve">
     <value>Nastavení je uloženo. Otevírání při přihlášení musíte povolit v Nastavení systému.</value>
