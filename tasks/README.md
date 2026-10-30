@@ -115,6 +115,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-107 | Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1) (implementováno; čeká ruční ověření a rozhodnutí o `*.localhost`) | all | core-dev | P2 | T-028, T-051 |
 | T-109 | Vychladnutí – prahy trysky i podložky u každé tiskárny (widget Vychladnutí) (implementováno; čeká Windows snímky, revizi ui-designer a potvrzení Q1/Q5) | all | ui-dev + core-dev | P2 | T-079, T-080, T-088, T-092, T-103 |
 | T-110 | Malý náhled – nastavitelný obsah pásu (implementace návrhu T-104) (implementováno; čeká Windows snímky) | all | ui-dev | P3 | T-104, T-103, T-109 |
+| T-111 | Okno Nastavení – minimální výška tlačítek 32 DIP (z revize T-101) | all | ui-dev | P3 | T-101, T-109, T-110 |
+| T-112 | Okno Nastavení – zvýraznění chybného pole a přístupný stav chyby (z revize T-109; čeká na otázky 1–4) | all | ui-designer + ui-dev | P3 | T-101, T-109, T-110, T-111 |
 
 ### Windows (`windows`)
 
