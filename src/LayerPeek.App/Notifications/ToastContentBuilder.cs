@@ -57,6 +57,30 @@ internal static class ToastContentBuilder
     }
 
     /// <summary>
+    /// The toast about a new version (T-058) in <paramref name="textCulture"/>: title and one line like the test notification,
+    /// with the launch argument <see cref="ToastLaunchArgument.Update"/>.
+    /// </summary>
+    public static string BuildUpdate(UpdateNotification notification, CultureInfo textCulture)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        ArgumentNullException.ThrowIfNull(textCulture);
+        StringBuilder xml = new(384);
+        xml.Append("<toast launch=\"");
+        AppendEscaped(xml, ToastLaunchArgument.Update);
+        xml.Append("\" activationType=\"foreground\"><visual><binding template=\"ToastGeneric\">");
+        AppendText(xml, UpdateNotificationText.Title(textCulture));
+        AppendText(xml, UpdateNotificationText.Body(Clean(notification.Version), textCulture));
+        xml.Append("</binding></visual>");
+        if (!notification.PlaySound)
+        {
+            xml.Append("<audio silent=\"true\"/>");
+        }
+
+        xml.Append("</toast>");
+        return xml.ToString();
+    }
+
+    /// <summary>
     /// The toast of the test notification (T-101) in <paramref name="textCulture"/>: the same shape as a printer toast (title
     /// and one line, foreground activation), with the launch argument <see cref="ToastLaunchArgument.Settings"/>.
     /// </summary>

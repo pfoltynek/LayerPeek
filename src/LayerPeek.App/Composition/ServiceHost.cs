@@ -203,6 +203,12 @@ internal sealed partial class ServiceHost
     public void AttachSettingsOpener(Action open) => Services.GetRequiredService<ToastActivationRouter>().AttachSettingsOpener(open);
 
     /// <summary>
+    /// The UI runs (T-058): a click on the notification about a new version starts the update action through
+    /// <paramref name="open"/> (any thread; it posts to the UI thread itself); one that came earlier is handled now. Once.
+    /// </summary>
+    public void AttachUpdateOpener(Action open) => Services.GetRequiredService<ToastActivationRouter>().AttachUpdateOpener(open);
+
+    /// <summary>
     /// Stops monitoring (waiting at most <paramref name="timeout"/>) and releases the services. The tray (if any) released
     /// its UI objects before. Call on the UI thread (the main thread before Avalonia). Safe to repeat.
     /// </summary>

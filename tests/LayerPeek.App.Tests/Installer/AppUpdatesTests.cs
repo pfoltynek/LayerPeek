@@ -1,50 +1,47 @@
 using LayerPeek.App.Installer;
 using LayerPeek.App.Tests.Tray;
+using LayerPeek.Core.Updates;
 
 namespace LayerPeek.App.Tests.Installer;
 
 /// <summary>
-/// The Velopack update wiring of T-017 (the menu item and the notification are T-058): every failure of a check counts as
-/// "no update" (while the repository is private GitHub answers 404), pre-releases follow the setting, and an update is
-/// applied only after the app quit normally (its state saved), because Velopack ends every process of the installation.
+/// The Velopack update wiring of T-017 as the update checker of an installation (T-058): a failed check throws for the update
+/// service to log, pre-releases are asked for as told, and an update is applied only after the app quit normally (its state
+/// saved), because Velopack ends every process of the installation.
 /// </summary>
 public sealed class AppUpdatesTests
 {
     private readonly FakeUpdateEngine _engine = new();
     private readonly ListLogger<AppUpdates> _logger = new();
-    private bool _prereleases = true;
-
-    [Fact]
-    public void UpdatesExistOnlyInAVelopackInstallation()
-    {
-        Assert.True(Updates().IsAvailable);
-        Assert.False(new AppUpdates(null, () => true, _logger).IsAvailable);
-    }
-
-    [Fact]
-    public async Task OutsideAnInstallationThereIsNeverAnUpdate()
-    {
-        Assert.Null(await new AppUpdates(null, () => true, _logger).CheckAsync(TestContext.Current.CancellationToken));
-    }
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task TheCheckAsksForPrereleasesAsTheSettingSays(bool prereleases)
+    public async Task TheCheckAsksForPrereleasesAsTold(bool prereleases)
     {
-        _prereleases = prereleases;
         _engine.Next = new AvailableUpdate("0.2.0", "notes");
 
-        AvailableUpdate? update = await Updates().CheckAsync(TestContext.Current.CancellationToken);
+        UpdateRelease? release = await Updates().CheckAsync(prereleases, TestContext.Current.CancellationToken);
 
-        Assert.Equal("0.2.0", update?.Version);
+        Assert.Equal(ReleaseVersion.Parse("0.2.0"), release?.Version);
         Assert.Equal([prereleases], _engine.Checks);
+    }
+
+    [Fact]
+    public async Task TheReleasePageIsTheTagOnGitHub()
+    {
+        _engine.Next = new AvailableUpdate("0.4.0-beta.2", null);
+
+        UpdateRelease? release = await Updates().CheckAsync(true, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new Uri("https://github.com/pfoltynek/LayerPeek/releases/tag/v0.4.0-beta.2"), release?.ReleasePage);
+        Assert.True(release?.IsPrerelease);
     }
 
     [Fact]
     public async Task NoUpdateIsNull()
     {
-        Assert.Null(await Updates().CheckAsync(TestContext.Current.CancellationToken));
+        Assert.Null(await Updates().CheckAsync(true, TestContext.Current.CancellationToken));
     }
 
     public static TheoryData<Exception> CheckFailures => new()
@@ -54,37 +51,36 @@ public sealed class AppUpdatesTests
         new TaskCanceledException("timeout"),
         new System.Text.Json.JsonException("broken feed"),
         new InvalidOperationException("anything"),
-        new NotSupportedException("anything else"),
     };
 
     [Theory]
     [MemberData(nameof(CheckFailures))]
-    public async Task EveryFailureOfTheCheckMeansNoUpdate(Exception failure)
+    public async Task AFailedCheckThrowsForTheServiceToLog(Exception failure)
     {
         _engine.CheckFailure = failure;
 
-        Assert.Null(await Updates().CheckAsync(TestContext.Current.CancellationToken));
-        Assert.Contains(_logger.Entries, entry => entry.Level == Microsoft.Extensions.Logging.LogLevel.Information && entry.Exception == failure);
+        Exception thrown = await Assert.ThrowsAnyAsync<Exception>(() => Updates().CheckAsync(true, TestContext.Current.CancellationToken));
+        Assert.Same(failure, thrown);
     }
 
     [Fact]
-    public async Task ACancelledCheckIsCancelled()
+    public async Task AFeedVersionThatIsNoSemanticVersionFailsTheCheck()
     {
-        using CancellationTokenSource cancel = new();
-        await cancel.CancelAsync();
-        _engine.CheckFailure = new OperationCanceledException(cancel.Token);
+        _engine.Next = new AvailableUpdate("0.2", null);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => Updates().CheckAsync(cancel.Token));
+        await Assert.ThrowsAsync<FormatException>(() => Updates().CheckAsync(true, TestContext.Current.CancellationToken));
     }
 
     [Fact]
     public async Task ApplyingDownloadsSchedulesTheUpdaterAndThenQuits()
     {
-        AvailableUpdate update = new("0.2.0", null);
+        _engine.Next = new AvailableUpdate("0.2.0", null);
+        AppUpdates updates = Updates();
+        UpdateRelease release = (await updates.CheckAsync(false, TestContext.Current.CancellationToken))!;
         List<string> steps = [];
         _engine.Steps = steps;
 
-        bool applied = await Updates().ApplyAsync(update, () =>
+        bool applied = await updates.ApplyAsync(release, includePrereleases: false, () =>
         {
             steps.Add("quit");
             return Task.CompletedTask;
@@ -93,15 +89,49 @@ public sealed class AppUpdatesTests
         Assert.True(applied);
         // The updater waits for this process to exit: the quit saves the state first (T-017, docs/velopack.md point 5).
         Assert.Equal(["download 0.2.0", "apply on exit 0.2.0", "quit"], steps);
+        // The update of the check, no second check.
+        Assert.Single(_engine.Checks);
+    }
+
+    [Fact]
+    public async Task AReleaseRememberedFromAnEarlierRunIsCheckedAgainFirst()
+    {
+        _engine.Next = new AvailableUpdate("0.2.0", null);
+        List<string> steps = [];
+        _engine.Steps = steps;
+
+        bool applied = await Updates().ApplyAsync(Release("0.2.0"), includePrereleases: true, () => Task.CompletedTask, TestContext.Current.CancellationToken);
+
+        Assert.True(applied);
+        Assert.Equal([true], _engine.Checks);
+        Assert.Equal(["download 0.2.0", "apply on exit 0.2.0"], steps);
+    }
+
+    [Fact]
+    public async Task AReleaseNoLongerInTheFeedIsNotApplied()
+    {
+        _engine.Next = new AvailableUpdate("0.3.0", null);
+        bool quit = false;
+
+        bool applied = await Updates().ApplyAsync(Release("0.2.0"), includePrereleases: true, () =>
+        {
+            quit = true;
+            return Task.CompletedTask;
+        }, TestContext.Current.CancellationToken);
+
+        Assert.False(applied);
+        Assert.False(quit);
+        Assert.Empty(_engine.Scheduled);
     }
 
     [Fact]
     public async Task AFailedDownloadNeitherSchedulesNorQuits()
     {
+        _engine.Next = new AvailableUpdate("0.2.0", null);
         _engine.DownloadFailure = new HttpRequestException("gone");
         bool quit = false;
 
-        bool applied = await Updates().ApplyAsync(new AvailableUpdate("0.2.0", null), () =>
+        bool applied = await Updates().ApplyAsync(Release("0.2.0"), true, () =>
         {
             quit = true;
             return Task.CompletedTask;
@@ -117,10 +147,13 @@ public sealed class AppUpdatesTests
     {
         using CancellationTokenSource cancel = new();
         await cancel.CancelAsync();
+        _engine.Next = new AvailableUpdate("0.2.0", null);
         _engine.DownloadFailure = new OperationCanceledException(cancel.Token);
+        AppUpdates updates = Updates();
+        UpdateRelease release = (await updates.CheckAsync(true, TestContext.Current.CancellationToken))!;
         bool quit = false;
 
-        bool applied = await Updates().ApplyAsync(new AvailableUpdate("0.2.0", null), () =>
+        bool applied = await updates.ApplyAsync(release, true, () =>
         {
             quit = true;
             return Task.CompletedTask;
@@ -135,25 +168,11 @@ public sealed class AppUpdatesTests
     [Fact]
     public async Task AFailedSchedulingDoesNotQuit()
     {
+        _engine.Next = new AvailableUpdate("0.2.0", null);
         _engine.ApplyFailure = new IOException("Update.exe missing");
         bool quit = false;
 
-        bool applied = await Updates().ApplyAsync(new AvailableUpdate("0.2.0", null), () =>
-        {
-            quit = true;
-            return Task.CompletedTask;
-        }, TestContext.Current.CancellationToken);
-
-        Assert.False(applied);
-        Assert.False(quit);
-    }
-
-    [Fact]
-    public async Task OutsideAnInstallationNothingIsApplied()
-    {
-        bool quit = false;
-
-        bool applied = await new AppUpdates(null, () => true, _logger).ApplyAsync(new AvailableUpdate("0.2.0", null), () =>
+        bool applied = await Updates().ApplyAsync(Release("0.2.0"), true, () =>
         {
             quit = true;
             return Task.CompletedTask;
@@ -169,7 +188,10 @@ public sealed class AppUpdatesTests
         Assert.Equal("https://github.com/pfoltynek/LayerPeek", AppUpdates.RepositoryUrl);
     }
 
-    private AppUpdates Updates() => new(_engine, () => _prereleases, _logger);
+    private static UpdateRelease Release(string version) =>
+        new(ReleaseVersion.Parse(version), UpdateRelease.PageFor(ReleaseVersion.Parse(version)), IsPrerelease: false);
+
+    private AppUpdates Updates() => new(_engine, _logger);
 
     private sealed class FakeUpdateEngine : IUpdateEngine
     {

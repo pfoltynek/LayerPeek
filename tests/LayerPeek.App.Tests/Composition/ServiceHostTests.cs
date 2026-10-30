@@ -128,6 +128,10 @@ public sealed class ServiceHostTests
         {
         }
 
+        public void InstallUpdate()
+        {
+        }
+
         public void Quit()
         {
         }

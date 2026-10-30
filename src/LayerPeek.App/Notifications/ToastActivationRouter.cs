@@ -24,6 +24,10 @@ namespace LayerPeek.App.Notifications;
 /// window to the front on the General tab through the opener the UI attaches (<see cref="AttachSettingsOpener"/>). A click
 /// that comes before the UI runs (macOS waiting for a display, T-099) is held, once, and honoured when the opener is attached.
 /// </para>
+/// <para>
+/// T-058: a click on the notification about a new version (<see cref="ToastLaunchArgument.Update"/>) starts the update action
+/// the UI attaches (<see cref="AttachUpdateOpener"/>), held the same way until it is attached.
+/// </para>
 /// </summary>
 internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisposable
 {
@@ -45,6 +49,8 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
     // Guarded by _recentLock.
     private Action? _settingsOpener;
     private bool _settingsPending;
+    private Action? _updateOpener;
+    private bool _updatePending;
 
     // Replaced as a whole, never mutated after publishing.
     private volatile Dictionary<string, PrinterDefinition> _printers = new(StringComparer.OrdinalIgnoreCase);
@@ -70,6 +76,11 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
         if (ToastLaunchArgument.IsSettings(argument))
         {
             return OpenSettings(argument);
+        }
+
+        if (ToastLaunchArgument.IsUpdate(argument))
+        {
+            return OpenUpdate(argument);
         }
 
         if (!ToastLaunchArgument.TryGetPrinterId(argument, out string? printerId))
@@ -168,6 +179,34 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
         }
     }
 
+    /// <summary>
+    /// The UI runs (T-058): <paramref name="open"/> starts the update action (the release page, or the update of a Velopack
+    /// installation; it posts to the UI thread itself, called on any thread, never throws). A click that waited for it is
+    /// handled now. Attach once.
+    /// </summary>
+    public void AttachUpdateOpener(Action open)
+    {
+        ArgumentNullException.ThrowIfNull(open);
+        bool pending;
+        lock (_recentLock)
+        {
+            if (_updateOpener is not null)
+            {
+                throw new InvalidOperationException("The update opener is already attached.");
+            }
+
+            _updateOpener = open;
+            pending = _updatePending && !_stopped.Task.IsCompleted;
+            _updatePending = false;
+        }
+
+        if (pending)
+        {
+            LogUpdateClickHonoured();
+            Invoke(open);
+        }
+    }
+
     /// <summary>The app quits: waiting clicks end without opening anything, later ones open nothing. Safe to repeat.</summary>
     public void Dispose() => _stopped.TrySetResult();
 
@@ -195,6 +234,36 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
                 // Coalesced like a waiting "activate": one window opens however often it was clicked.
                 _settingsPending = true;
                 LogSettingsClickHeld();
+                return true;
+            }
+        }
+
+        Invoke(open);
+        return true;
+    }
+
+    /// <summary>A click on the update notification: the update action, now or once the UI attached its opener.</summary>
+    private bool OpenUpdate(string argument)
+    {
+        if (IsRepeated(argument))
+        {
+            LogUpdateRepeated();
+            return false;
+        }
+
+        Action? open;
+        lock (_recentLock)
+        {
+            if (_stopped.Task.IsCompleted)
+            {
+                return false;
+            }
+
+            open = _updateOpener;
+            if (open is null)
+            {
+                _updatePending = true;
+                LogUpdateClickHeld();
                 return true;
             }
         }
@@ -246,6 +315,15 @@ internal sealed partial class ToastActivationRouter : IMonitoringObserver, IDisp
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Opening the settings window for a click on the test notification failed.")]
     private partial void LogSettingsFailed(Exception exception);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "A click on the update notification waits for the UI; the update starts once it runs.")]
+    private partial void LogUpdateClickHeld();
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "The UI runs: the update starts for a click on the update notification that waited.")]
+    private partial void LogUpdateClickHonoured();
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "A click on the update notification reported again; the update started once.")]
+    private partial void LogUpdateRepeated();
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Ignored a notification click with an unrecognized argument.")]
     private partial void LogMalformedArgument();

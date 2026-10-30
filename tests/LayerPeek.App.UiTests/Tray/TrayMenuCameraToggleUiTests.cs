@@ -91,6 +91,10 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
 
         public void BringCameraToFront(string printerId) => Cameras.Windows.BringToFront(printerId);
 
+        public void InstallUpdate()
+        {
+        }
+
         public void Quit()
         {
         }

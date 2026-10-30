@@ -95,5 +95,11 @@ internal interface ITrayAppCommands
     /// </summary>
     void BringCameraToFront(string printerId);
 
+    /// <summary>
+    /// "A new version X.Y.Z is available" (T-058): the release page, or in a Velopack installation download, quit normally and
+    /// start the new version.
+    /// </summary>
+    void InstallUpdate();
+
     void Quit();
 }

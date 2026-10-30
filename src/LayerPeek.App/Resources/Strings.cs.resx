@@ -1408,4 +1408,49 @@
   <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
     <value>Řádek rozbalíte v malém náhledu tlačítkem „Graf teplot v pásu“.</value>
   </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>Je dostupná nová verze {0}</value>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Stahuje se verze {0}…</value>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Stáhne aktualizaci, ukončí LayerPeek a spustí novou verzi.</value>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Otevře stránku vydání v prohlížeči.</value>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>Je dostupná aktualizace LayerPeeku</value>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>Je dostupná verze {0}. Klikněte sem a získejte ji.</value>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Automaticky kontrolovat aktualizace</value>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Krátce po spuštění a pak jednou denně se LayerPeek zeptá GitHubu, zda vyšla nová verze.</value>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Zkontrolovat teď</value>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Hned se zeptá GitHubu, zda je dostupná nová verze, i když je automatická kontrola vypnutá.</value>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Kontroluje se…</value>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} je aktuální.</value>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>Je dostupná verze {0}, nabízí ji nabídka v oznamovací oblasti.</value>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>Kontrola selhala. Zkuste to později.</value>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.</value>
+  </data>
 </root>

@@ -204,17 +204,24 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
             SnapshotAssert.Matches(ui.Window, "settings-general-test-sent-dark");
         });
 
-    /// <summary>T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x.</summary>
+    /// <summary>
+    /// T-017: start after logon (shown as on Windows) and pre-release updates, on by default for 0.x; T-058: the automatic
+    /// update check (on by default) and "Check now" with its result (a new version).
+    /// </summary>
     [Fact]
     public Task StartupAndUpdatesTab() =>
         session.RunAsync(static async scope =>
         {
-            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")));
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4 workshop")), checkForUpdatesNow: SettingsWindowHarness.Available);
             ui.ViewModel.SelectedTabIndex = SettingsViewModel.StartupUpdatesTab;
+            await ui.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
+            ui.Window.Settle();
 
             Assert.True(ui.ViewModel.IsAutostartAvailable);
             Assert.False(ui.ViewModel.StartWithWindows);
             Assert.True(ui.ViewModel.OfferPrereleaseUpdates);
+            Assert.True(ui.ViewModel.CheckForUpdates);
+            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsUpdateAvailable.Replace("{0}", "0.3.2", StringComparison.Ordinal), ui.ShownText("SettingsUpdateCheckResult"));
             SnapshotAssert.Matches(ui.Window, "settings-startup-updates");
         });
 
@@ -229,9 +236,8 @@ public sealed class SettingsWindowSnapshotTests(HeadlessSession session)
 
             Assert.False(ui.ViewModel.IsAutostartAvailable);
             Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, ui.ShownText("SettingsStartWithWindowsNotInstalled"));
-            // The hint about pre-releases would mislead without an installation: only the reason is shown.
-            Assert.Null(ui.ShownText("SettingsOfferPrereleaseUpdatesHint"));
-            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, ui.ShownText("SettingsOfferPrereleaseUpdatesNotInstalled"));
+            // T-058 (Q3 a): pre-releases are offered without an installation too (the GitHub check follows the option).
+            Assert.Equal(LayerPeek.App.Resources.Strings.SettingsOfferPrereleaseUpdatesHint, ui.ShownText("SettingsOfferPrereleaseUpdatesHint"));
             SnapshotAssert.Matches(ui.Window, "settings-startup-updates-not-installed");
         });
 

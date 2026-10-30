@@ -63,6 +63,12 @@ public sealed record AppSettings
     public bool? OfferPrereleaseUpdates { get; init; }
 
     /// <summary>
+    /// "Check for updates automatically" (T-058, decision Q2 a: on by default): shortly after the start and then once a day the
+    /// app asks GitHub for a newer version. Off: no automatic request; the manual check of the settings window still works.
+    /// </summary>
+    public bool CheckForUpdates { get; init; } = true;
+
+    /// <summary>
     /// Opacity of the background of the overlay widget cards in whole percent (T-077): one value for the camera windows of
     /// all printers, within <see cref="CameraOverlayOpacity.MinPercent"/>–<see cref="CameraOverlayOpacity.MaxPercent"/>,
     /// <see cref="CameraOverlayOpacity.DefaultPercent"/> by default.
@@ -210,12 +216,13 @@ public sealed record AppSettings
         && string.Equals(Language, other.Language, StringComparison.Ordinal)
         && DebugLogging == other.DebugLogging
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
+        && CheckForUpdates == other.CheckForUpdates
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
     public override int GetHashCode() =>
-        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
+        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CheckForUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

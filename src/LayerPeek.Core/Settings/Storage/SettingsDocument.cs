@@ -36,6 +36,9 @@ internal sealed class SettingsDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? OfferPrereleaseUpdates { get; set; }
 
+    /// <summary>"Check for updates automatically" (T-058); missing in older files, which load with the default (on).</summary>
+    public bool? CheckForUpdates { get; set; }
+
     public NotificationsDocument? Notifications { get; set; }
 
     /// <summary>Global settings of the camera overlay (T-077); missing in older files and not written while all are the defaults.</summary>

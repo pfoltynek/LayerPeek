@@ -1480,4 +1480,64 @@
     <value>Expand the row in the mini preview with the “Temperature chart in the strip” button.</value>
     <comment>T-110: tooltip of SettingsMiniStripChartRow; the symbol stands for the chart toggle of the strip.</comment>
   </data>
+  <data name="MenuUpdateAvailable" xml:space="preserve">
+    <value>New version {0} available</value>
+    <comment>T-058: tray menu item while a newer version is offered, right above About; {0} = the version (0.3.2). Plain text, no access key.</comment>
+  </data>
+  <data name="MenuUpdateDownloading" xml:space="preserve">
+    <value>Downloading version {0}…</value>
+    <comment>T-058: the same item (disabled) while the update of an installed app downloads; {0} = the version.</comment>
+  </data>
+  <data name="MenuUpdateInstallHint" xml:space="preserve">
+    <value>Downloads the update, quits LayerPeek and starts the new version.</value>
+    <comment>T-058: tooltip of the update item in an installed app (Velopack): what a click does.</comment>
+  </data>
+  <data name="MenuUpdateOpenPageHint" xml:space="preserve">
+    <value>Opens the release page in the browser.</value>
+    <comment>T-058: tooltip of the update item without self-update (.zip, development build): what a click does.</comment>
+  </data>
+  <data name="NotificationUpdateTitle" xml:space="preserve">
+    <value>LayerPeek update available</value>
+    <comment>T-058: title of the notification about a new version (shown once per version).</comment>
+  </data>
+  <data name="NotificationUpdateBody" xml:space="preserve">
+    <value>Version {0} is available. Click here to get it.</value>
+    <comment>T-058: text of the notification about a new version; {0} = the version. A click does what the tray menu item does.</comment>
+  </data>
+  <data name="SettingsCheckForUpdates" xml:space="preserve">
+    <value>Check for updates automatically</value>
+    <comment>T-058: check box on the Startup and updates tab (Q2 a, on by default).</comment>
+  </data>
+  <data name="SettingsCheckForUpdatesHint" xml:space="preserve">
+    <value>Shortly after the start and then once a day, LayerPeek asks GitHub whether a new version was released.</value>
+    <comment>T-058: hint under SettingsCheckForUpdates: when and where the app asks.</comment>
+  </data>
+  <data name="SettingsCheckNow" xml:space="preserve">
+    <value>Check now</value>
+    <comment>T-058: button on the Startup and updates tab (Q4 a): checks for a new version now.</comment>
+  </data>
+  <data name="SettingsCheckNowHint" xml:space="preserve">
+    <value>Asks GitHub now whether a new version is available, also while automatic checks are off.</value>
+    <comment>T-058: tooltip of SettingsCheckNow.</comment>
+  </data>
+  <data name="SettingsUpdateChecking" xml:space="preserve">
+    <value>Checking…</value>
+    <comment>T-058: next to SettingsCheckNow while the check runs.</comment>
+  </data>
+  <data name="SettingsUpdateUpToDate" xml:space="preserve">
+    <value>LayerPeek {0} is up to date.</value>
+    <comment>T-058: result of the check; {0} = the running version.</comment>
+  </data>
+  <data name="SettingsUpdateAvailable" xml:space="preserve">
+    <value>Version {0} is available; the tray menu offers it.</value>
+    <comment>T-058: result of the check; {0} = the new version. The tray menu then offers it.</comment>
+  </data>
+  <data name="SettingsUpdateFailed" xml:space="preserve">
+    <value>The check failed. Try again later.</value>
+    <comment>T-058: result of the check when it failed (no network, GitHub limit); details in the log.</comment>
+  </data>
+  <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
+    <value>Move LayerPeek to the Applications folder; then it can update itself.</value>
+    <comment>T-058 (macOS, Q8 a): hint on the Startup and updates tab when the app runs from the disk image or Downloads (translocated) and cannot update itself.</comment>
+  </data>
 </root>

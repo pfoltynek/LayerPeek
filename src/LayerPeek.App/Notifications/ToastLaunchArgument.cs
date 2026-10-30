@@ -7,7 +7,8 @@ namespace LayerPeek.App.Notifications;
 /// so it contains no characters that need XML escaping); the address is looked up at click time, so a click on an old
 /// toast opens the current address and a removed printer opens nothing. The test notification of the settings window
 /// (T-101) carries the fixed <see cref="Settings"/> instead: its click brings the settings window to the front on the
-/// General tab. Nothing else is ever accepted (<see cref="IsWellFormed"/>).
+/// General tab; the notification about a new version (T-058) carries the fixed <see cref="Update"/>. Nothing else is ever
+/// accepted (<see cref="IsWellFormed"/>).
 /// </summary>
 internal static class ToastLaunchArgument
 {
@@ -23,7 +24,16 @@ internal static class ToastLaunchArgument
     /// </summary>
     public const string Settings = "settings=general";
 
+    /// <summary>
+    /// The argument of the notification about a new version (T-058): start the update action (the release page, or the update
+    /// of a Velopack installation). Exactly this text; no printer id can produce it.
+    /// </summary>
+    public const string Update = "update=available";
+
     private const string PrinterPrefix = "printer=";
+
+    /// <summary>Whether <paramref name="argument"/> is exactly <see cref="Update"/> (the update notification, T-058).</summary>
+    public static bool IsUpdate([NotNullWhen(true)] string? argument) => string.Equals(argument, Update, StringComparison.Ordinal);
 
     /// <summary>Whether <paramref name="argument"/> is exactly <see cref="Settings"/> (the test notification, T-101).</summary>
     public static bool IsSettings([NotNullWhen(true)] string? argument) => string.Equals(argument, Settings, StringComparison.Ordinal);
@@ -63,7 +73,7 @@ internal static class ToastLaunchArgument
     /// </summary>
     public static bool IsWellFormed([NotNullWhen(true)] string? argument)
     {
-        if (IsSettings(argument))
+        if (IsSettings(argument) || IsUpdate(argument))
         {
             return true;
         }

@@ -46,20 +46,18 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         Assert.False(_viewModel.StartWithWindows);
         Assert.False(_viewModel.IsDirty);
 
-        // User decision 2026-10-24: "Offer pre-release versions" is disabled too, with the same reason.
-        Assert.False(_viewModel.IsPrereleaseOptionAvailable);
+        // T-058 (Q3 a): "Offer pre-release versions" works without an installation too (the GitHub check follows it).
         _viewModel.OfferPrereleaseUpdates = false;
-        Assert.True(_viewModel.OfferPrereleaseUpdates);
-        Assert.False(_viewModel.IsDirty);
+        Assert.False(_viewModel.OfferPrereleaseUpdates);
+        Assert.True(_viewModel.IsDirty);
 
         // Screen readers: a disabled check box cannot be focused, so the reason is its help text.
         Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, _viewModel.AutostartHelpText);
-        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsNeedsInstallation, _viewModel.PrereleaseHelpText);
     }
 
     /// <summary>
     /// T-019 (user decision 2026-10-29): on macOS the option is "Open at Login", disabled outside LayerPeek.app with its own
-    /// reason, and the tab has no pre-release option until macOS has updates.
+    /// reason. The pre-release option can still be hidden by the composition root (since T-058 it never is).
     /// </summary>
     [Fact]
     public async Task OnMacOSTheOptionUsesTheTermsOfMacOS()
@@ -97,17 +95,18 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         using SettingsViewModel vm = LayerPeek.App.Composition.AppServices.CreateSettingsViewModel(services);
 
         Assert.Equal(OperatingSystem.IsMacOS(), vm.UsesMacTerms);
-        Assert.Equal(!OperatingSystem.IsMacOS(), vm.ShowsPrereleaseOption);
+        // T-058 (Q3 a): the pre-release option on every OS; "Check now" (Q4 a); the test host is no .app to move.
+        Assert.True(vm.ShowsPrereleaseOption);
+        Assert.True(vm.ShowsCheckForUpdatesNow);
+        Assert.False(vm.ShowsMoveToApplications);
     }
 
     [Fact]
-    public async Task InTheInstalledAppTheHelpTextsAreTheHints()
+    public async Task InTheInstalledAppTheAutostartNeedsNoHelpText()
     {
         SettingsViewModel vm = await LoadAsync(new AppSettings());
 
-        Assert.True(vm.IsPrereleaseOptionAvailable);
         Assert.Null(vm.AutostartHelpText);
-        Assert.Equal(LayerPeek.App.Resources.Strings.SettingsOfferPrereleaseUpdatesHint, vm.PrereleaseHelpText);
     }
 
     [Fact]
@@ -122,7 +121,7 @@ public sealed class SettingsStartupAndUpdatesTests : IDisposable
         _viewModel.RefreshTexts();
 
         Assert.Contains(nameof(SettingsViewModel.AutostartHelpText), changes);
-        Assert.Contains(nameof(SettingsViewModel.PrereleaseHelpText), changes);
+        Assert.Contains(nameof(SettingsViewModel.UpdateCheckResultText), changes);
     }
 
     [Fact]

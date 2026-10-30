@@ -4,6 +4,7 @@ using LayerPeek.App.Localization;
 using LayerPeek.App.Platform;
 using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
+using LayerPeek.App.Updates;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -25,6 +26,9 @@ namespace LayerPeek.App.Tray.Menu;
 /// <see cref="TrayMenuEntry"/> really differs, so the platform menu is never rebuilt on a poll. The fixed items are
 /// replaced as a whole (and the platform menu rebuilt) only on a language switch; enabling or disabling "Diagnostics…"
 /// changes that one entry (<see cref="FixedItemChanged"/>), updated in place so that an open menu stays as it is.
+/// T-058: while a new version is offered (<see cref="UpdateOffer"/>), "A new version X.Y.Z is available" stands right above
+/// "About…"; it appearing or disappearing replaces the fixed items (a rebuild, once per found version), its text changing
+/// while an update downloads updates it in place.
 /// <see cref="PrinterItems"/> and <see cref="FixedItems"/> change on the UI thread only.
 /// </summary>
 internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, IDisposable, ILanguageAware
@@ -38,6 +42,10 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private readonly Lock _gate = new();
     private readonly CancellationTokenSource _disposing = new();
     private readonly CustomPrinterImages? _images;
+    private readonly UpdateOffer? _updates;
+
+    // UI thread only: the update item shown now (T-058), or null.
+    private TrayMenuEntry? _updateEntry;
 
     // UI thread only (after construction). _openCameras: printers whose camera window is open (their camera item reads
     // "Hide camera").
@@ -57,7 +65,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     private bool _disposed;
 
     /// <param name="images">Stored custom printer images for the printer icons (T-039); <see langword="null"/>: illustrations only.</param>
-    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, PrinterWebOpener webOpener, TrayMenuOptions options, CustomPrinterImages? images = null)
+    /// <param name="updates">The update the app offers (T-058); <see langword="null"/>: no update item.</param>
+    public TrayMenuViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, PrinterWebOpener webOpener, TrayMenuOptions options, CustomPrinterImages? images = null, UpdateOffer? updates = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(dispatcher);
@@ -69,6 +78,8 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         _diagnosticsAvailable = options.DiagnosticsAvailable;
         _options = options;
         _apply = Apply;
+        _updates = updates;
+        _updateEntry = UpdateEntry();
         FixedItems = CreateFixedItems();
         _items = [MessageEntry(Strings.ToolTipStarting)];
         PrinterItems = new ReadOnlyObservableCollection<TrayMenuEntry>(_items);
@@ -77,6 +88,11 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
         if (_images is not null && options.PrinterIcons)
         {
             _images.Changed += OnImagesChanged;
+        }
+
+        if (_updates is not null)
+        {
+            _updates.Changed += OnUpdateChanged;
         }
     }
 
@@ -260,9 +276,73 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
 
         // A pending flip of "Diagnostics…" is applied here too; the menu is still rebuilt only once.
         Apply(notifyFixedItems: false);
+        _updateEntry = UpdateEntry();
         FixedItems = CreateFixedItems();
         FixedItemsChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    /// <summary>The offered update changed (any thread): the item is formatted again on the UI thread.</summary>
+    private void OnUpdateChanged(object? sender, EventArgs e) => _dispatcher.Post(RefreshUpdateEntry);
+
+    /// <summary>UI thread (T-058): shows, hides or updates the update item.</summary>
+    private void RefreshUpdateEntry()
+    {
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                return;
+            }
+        }
+
+        TrayMenuEntry? entry = UpdateEntry();
+        if (Equals(entry, _updateEntry))
+        {
+            return;
+        }
+
+        bool sameLayout = (entry is null) == (_updateEntry is null);
+        _updateEntry = entry;
+        if (sameLayout && entry is not null)
+        {
+            // The download started or ended: the same item with another text, in place (an open menu stays open).
+            int index = UpdateIndex;
+            TrayMenuEntry[] items = [.. FixedItems];
+            items[index] = entry;
+            FixedItems = items;
+            FixedItemChanged?.Invoke(this, index);
+            return;
+        }
+
+        FixedItems = CreateFixedItems();
+        FixedItemsChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// UI thread. "A new version X.Y.Z is available" while one is offered (disabled with "Downloading…" while a Velopack update
+    /// downloads); its tooltip says what a click does. Plain text: the version is no menu text with an access key.
+    /// </summary>
+    private TrayMenuEntry? UpdateEntry()
+    {
+        if (_updates?.Available is not { } release)
+        {
+            return null;
+        }
+
+        string version = release.Version.ToString();
+        if (_updates.IsInstalling)
+        {
+            return new TrayMenuEntry(TrayMenuCommand.Update, Format(Strings.MenuUpdateDownloading, version), IsEnabled: false);
+        }
+
+        string toolTip = _updates.Action == UpdateAction.InstallAndRestart ? Strings.MenuUpdateInstallHint : Strings.MenuUpdateOpenPageHint;
+        return new TrayMenuEntry(TrayMenuCommand.Update, Format(Strings.MenuUpdateAvailable, version), IsEnabled: true, toolTip);
+    }
+
+    /// <summary>Index of the update item in <see cref="FixedItems"/> (right above "About…").</summary>
+    private const int UpdateIndex = 3;
+
+    private static string Format(string format, string version) => string.Format(System.Globalization.CultureInfo.CurrentCulture, format, version);
 
     /// <summary>
     /// UI thread: the camera window of <paramref name="printerId"/> opened or closed (by the menu, its close button, the
@@ -304,6 +384,11 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             _images.Changed -= OnImagesChanged;
         }
 
+        if (_updates is not null)
+        {
+            _updates.Changed -= OnUpdateChanged;
+        }
+
         lock (_gate)
         {
             if (_disposed)
@@ -322,15 +407,24 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
     /// <summary>Index of "Diagnostics…" in <see cref="FixedItems"/>.</summary>
     private const int DiagnosticsIndex = 0;
 
-    /// <summary>UI thread.</summary>
-    private TrayMenuEntry[] CreateFixedItems() =>
-    [
-        DiagnosticsEntry(),
-        new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, _options.SettingsAvailable) { HasAccessKey = true },
-        TrayMenuEntry.Separator,
-        new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true) { HasAccessKey = true },
-        new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true) { HasAccessKey = true },
-    ];
+    /// <summary>UI thread. The update item (T-058) right above "About…" while a new version is offered.</summary>
+    private TrayMenuEntry[] CreateFixedItems()
+    {
+        List<TrayMenuEntry> items =
+        [
+            DiagnosticsEntry(),
+            new TrayMenuEntry(TrayMenuCommand.Settings, Strings.MenuSettings, _options.SettingsAvailable) { HasAccessKey = true },
+            TrayMenuEntry.Separator,
+        ];
+        if (_updateEntry is { } update)
+        {
+            items.Add(update);
+        }
+
+        items.Add(new TrayMenuEntry(TrayMenuCommand.About, Strings.MenuAbout, IsEnabled: true) { HasAccessKey = true });
+        items.Add(new TrayMenuEntry(TrayMenuCommand.Quit, Strings.MenuQuit, IsEnabled: true) { HasAccessKey = true });
+        return [.. items];
+    }
 
     /// <summary>UI thread. "Diagnostics…" has no printer: the window has its own printer combo (2026-10-21).</summary>
     private TrayMenuEntry DiagnosticsEntry() =>

@@ -1,7 +1,7 @@
 ---
 id: T-058
 title: Kontrola nové verze v aplikaci (GitHub Releases)
-status: todo
+status: in-progress
 owner: core-dev + ui-dev
 priority: P3
 platform: all

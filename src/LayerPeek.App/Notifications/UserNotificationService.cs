@@ -34,7 +34,7 @@ internal sealed partial class UserNotificationService : INotificationService, ID
     private readonly Func<CultureInfo> _textCulture;
     private readonly Func<string> _newIdentifier;
     private readonly ILogger<UserNotificationService> _logger;
-    private readonly Channel<PrintNotification> _pending = Channel.CreateBounded<PrintNotification>(
+    private readonly Channel<object> _pending = Channel.CreateBounded<object>(
         new BoundedChannelOptions(MaxPending) { FullMode = BoundedChannelFullMode.Wait, SingleReader = true });
 
     private readonly CancellationTokenSource _stop = new();
@@ -98,6 +98,29 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         LogDropped(notification.Kind, notification.Printer.Id);
     }
 
+    /// <summary>
+    /// The notification about a new version (T-058), queued like a printer notification, with the fixed identifier
+    /// <see cref="UpdateNotificationText.Identifier"/> (a newer one replaces it) and the launch argument
+    /// <see cref="ToastLaunchArgument.Update"/>.
+    /// </summary>
+    public void ShowUpdateAvailable(UpdateNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -127,9 +150,16 @@ internal sealed partial class UserNotificationService : INotificationService, ID
             CancellationToken stop = _stop.Token;
             while (await _pending.Reader.WaitToReadAsync(stop).ConfigureAwait(false))
             {
-                while (!stop.IsCancellationRequested && _pending.Reader.TryRead(out PrintNotification? notification))
+                while (!stop.IsCancellationRequested && _pending.Reader.TryRead(out object? notification))
                 {
-                    await ShowNowAsync(notification, stop).ConfigureAwait(false);
+                    if (notification is UpdateNotification update)
+                    {
+                        await ShowUpdateNowAsync(update, stop).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await ShowNowAsync((PrintNotification)notification, stop).ConfigureAwait(false);
+                    }
                 }
             }
         }
@@ -183,6 +213,41 @@ internal sealed partial class UserNotificationService : INotificationService, ID
             LogShowFailed(ex, notification.Kind, notification.Printer.Id);
         }
     }
+
+    private async Task ShowUpdateNowAsync(UpdateNotification notification, CancellationToken stop)
+    {
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            CultureInfo culture = _textCulture();
+            stop.ThrowIfCancellationRequested();
+            _center.Post(new UserNotificationRequest(
+                UpdateNotificationText.Identifier,
+                UpdateNotificationText.Title(culture),
+                UpdateNotificationText.Body(notification.Version, culture),
+                notification.PlaySound,
+                ToastLaunchArgument.Update));
+            LogUpdateShown(notification.Version);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogUpdateShowFailed(ex, notification.Version);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the new version {Version}.")]
+    private partial void LogUpdateShown(string version);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the new version {Version} could not be shown.")]
+    private partial void LogUpdateShowFailed(Exception exception, string version);
 
     /// <summary>Asks the OS (the user only the first time); a denial or a failure is logged when it changes.</summary>
     private async Task<bool> IsAllowedAsync(CancellationToken stop)

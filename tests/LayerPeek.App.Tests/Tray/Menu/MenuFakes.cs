@@ -237,5 +237,10 @@ internal sealed class FakeAppCommands : ITrayAppCommands
 
     public void BringCameraToFront(string printerId) => CameraToFrontRequests.Add(printerId);
 
+    /// <summary>Clicks on "A new version X.Y.Z is available" (T-058).</summary>
+    public int InstallUpdateCount { get; private set; }
+
+    public void InstallUpdate() => InstallUpdateCount++;
+
     public void Quit() => QuitCount++;
 }

@@ -273,6 +273,35 @@ public class SettingsMapperTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void TheAutomaticUpdateCheckRoundTrips(bool check)
+    {
+        AppSettings settings = new() { CheckForUpdates = check };
+
+        string json = JsonSerializer.Serialize(SettingsMapper.ToDocument(settings), SettingsJsonContext.Default.SettingsDocument);
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Contains($"\"checkForUpdates\": {(check ? "true" : "false")}", json, StringComparison.Ordinal);
+        Assert.Empty(warnings);
+        Assert.Equal(check, loaded.CheckForUpdates);
+        Assert.Equal(settings, loaded);
+    }
+
+    /// <summary>T-058 (Q2 a): files of older versions have no such value; the check is on by default.</summary>
+    [Theory]
+    [InlineData("""{ "version": 1, "pollingIntervalSeconds": 5, "printers": [] }""")]
+    [InlineData("""{ "checkForUpdates": null }""")]
+    public void FileWithoutTheUpdateCheckLoadsWithItOn(string json)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.True(settings.CheckForUpdates);
+        Assert.True(AppSettings.Default.CheckForUpdates);
+    }
+
+    [Theory]
     [InlineData("""{ "version": 1, "pollingIntervalSeconds": 5, "printers": [] }""")]
     [InlineData("""{ "offerPrereleaseUpdates": null }""")]
     public void FileWithoutPrereleaseChoiceLoadsUnset(string json)

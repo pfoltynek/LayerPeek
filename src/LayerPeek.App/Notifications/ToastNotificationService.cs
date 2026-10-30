@@ -52,7 +52,8 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     // Guarded by _gate.
-    private readonly Queue<PrintNotification> _pending = new();
+    // PrintNotification or UpdateNotification (T-058), in the order they came.
+    private readonly Queue<object> _pending = new();
     private readonly Queue<SettingsRequest> _requests = new();
     private bool _started;
     private bool _unavailable;
@@ -120,6 +121,23 @@ internal sealed partial class ToastNotificationService : INotificationService, I
         }
 
         LogDropped(notification.Kind, notification.Printer.Id);
+    }
+
+    /// <summary>The toast about a new version (T-058), queued like a printer toast; tagged, so a newer one replaces it.</summary>
+    public void ShowUpdateAvailable(UpdateNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || _unavailable || _pending.Count >= MaxPending)
+            {
+                return;
+            }
+
+            _pending.Enqueue(notification);
+            EnsureStarted();
+            Monitor.Pulse(_gate);
+        }
     }
 
     /// <summary>
@@ -216,7 +234,7 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
             try
             {
-                while (TryTake(out PrintNotification? notification, out SettingsRequest? request))
+                while (TryTake(out object? notification, out SettingsRequest? request))
                 {
                     if (request is not null)
                     {
@@ -224,7 +242,14 @@ internal sealed partial class ToastNotificationService : INotificationService, I
                     }
                     else
                     {
-                        ShowNow(session, notification!);
+                        if (notification is UpdateNotification update)
+                        {
+                            ShowUpdate(session, update);
+                        }
+                        else
+                        {
+                            ShowNow(session, (PrintNotification)notification!);
+                        }
                     }
                 }
             }
@@ -278,7 +303,7 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     /// <summary>The next request of a settings window, otherwise the next notification; waits for one.</summary>
     /// <returns><see langword="false"/> once disposed.</returns>
-    private bool TryTake(out PrintNotification? notification, out SettingsRequest? request)
+    private bool TryTake(out object? notification, out SettingsRequest? request)
     {
         lock (_gate)
         {
@@ -378,6 +403,19 @@ internal sealed partial class ToastNotificationService : INotificationService, I
         }
     }
 
+    private void ShowUpdate(IToastSession session, UpdateNotification notification)
+    {
+        try
+        {
+            session.Show(ToastContentBuilder.BuildUpdate(notification, _textCulture()), UpdateNotificationText.Identifier);
+            LogUpdateShown(notification.Version);
+        }
+        catch (Exception ex)
+        {
+            LogUpdateShowFailed(ex, notification.Version);
+        }
+    }
+
     private void ShowNow(IToastSession session, PrintNotification notification)
     {
         try
@@ -436,6 +474,12 @@ internal sealed partial class ToastNotificationService : INotificationService, I
 
     [LoggerMessage(Level = LogLevel.Information, Message = "The test notification was handed to Windows (sound: {PlaySound}).")]
     private partial void LogTestShown(bool playSound);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Toast shown for the new version {Version}.")]
+    private partial void LogUpdateShown(string version);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The toast for the new version {Version} could not be shown.")]
+    private partial void LogUpdateShowFailed(Exception exception, string version);
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Showing the test notification failed.")]
     private partial void LogTestFailed(Exception exception);

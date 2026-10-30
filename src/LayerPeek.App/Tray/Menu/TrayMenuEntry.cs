@@ -41,6 +41,12 @@ public enum TrayMenuCommand
     /// </summary>
     CameraToFront,
     About,
+
+    /// <summary>
+    /// "A new version X.Y.Z is available" (T-058), only while one is offered: the release page, or the update of a Velopack
+    /// installation.
+    /// </summary>
+    Update,
     Quit,
 }
 

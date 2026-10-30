@@ -12,8 +12,9 @@ namespace LayerPeek.App.Installer;
 /// The first thing <c>Program.Main</c> does after the DLL search restriction (T-017, T-052): inside a Velopack installation
 /// <c>VelopackApp.Run()</c>, which runs the installer hooks and ends the process for them before the single-instance guard
 /// (T-043), without UI and also while the app runs (verified in T-056). Outside an installation Velopack is not created at
-/// all: its locator would write a log into <c>%LOCALAPPDATA%\velopack</c> on every development, test and <c>.zip</c> start.
-/// Windows only for now (macOS packaging is T-019).
+/// all: its locator would write a log into <c>%LOCALAPPDATA%\velopack</c> (macOS: <c>~/Library/Logs</c>) on every development,
+/// test and <c>.zip</c> start. Windows since T-017; macOS since T-058 (the <c>.app</c> of <c>vpk</c>, without installer hooks:
+/// a macOS installation is a bundle copied by the user, Velopack has nothing to install or uninstall there).
 /// </summary>
 internal static class VelopackStartup
 {
@@ -30,23 +31,35 @@ internal static class VelopackStartup
     {
         ArgumentNullException.ThrowIfNull(args);
         failure = null;
-        if (!OperatingSystem.IsWindows())
+        if (OperatingSystem.IsWindows())
         {
-            return null;
+            return Run(args, Environment.ProcessPath, File.Exists, RunVelopack, out failure);
         }
 
-        return Run(args, Environment.ProcessPath, File.Exists, RunVelopack, out failure);
+        if (OperatingSystem.IsMacOS())
+        {
+            return Run(args, Environment.ProcessPath, File.Exists, RunVelopackMac, out failure, VelopackInstallation.IsInstalledMac);
+        }
+
+        return null;
     }
 
     /// <param name="executablePath">The running exe.</param>
     /// <param name="fileExists">Whether a file exists.</param>
     /// <param name="runVelopack">Runs Velopack with the arguments (in the app: <c>VelopackApp.Run()</c> with the hooks).</param>
-    internal static int? Run(string[] args, string? executablePath, Func<string, bool> fileExists, Action<string[]> runVelopack, out Exception? failure)
+    /// <param name="isInstalled">The installation check of the OS; default: Windows (<see cref="VelopackInstallation.IsInstalled"/>).</param>
+    internal static int? Run(
+        string[] args,
+        string? executablePath,
+        Func<string, bool> fileExists,
+        Action<string[]> runVelopack,
+        out Exception? failure,
+        Func<string?, Func<string, bool>, bool>? isInstalled = null)
     {
         ArgumentNullException.ThrowIfNull(args);
         ArgumentNullException.ThrowIfNull(runVelopack);
         failure = null;
-        if (!VelopackInstallation.IsInstalled(executablePath, fileExists))
+        if (!(isInstalled ?? VelopackInstallation.IsInstalled)(executablePath, fileExists))
         {
             // A hook start of a copy that is not installed must neither start the app nor touch the installed app's state.
             return VelopackInstallation.IsHookStart(args) ? 0 : null;
@@ -88,6 +101,17 @@ internal static class VelopackStartup
             .SetAutoApplyOnStartup(false)
             .OnAfterInstallFastCallback(_ => RunHook("install", static hooks => hooks.AfterInstall()))
             .OnBeforeUninstallFastCallback(_ => RunHook("uninstall", static hooks => hooks.BeforeUninstall()))
+            .Run();
+
+    /// <summary>
+    /// macOS (T-058): no hooks (nothing is installed or uninstalled there); the start after an update is a normal start.
+    /// Updates are applied only by the primary instance after it saved its state (<see cref="AppUpdates"/>).
+    /// </summary>
+    [SupportedOSPlatform("macos")]
+    private static void RunVelopackMac(string[] args) =>
+        VelopackApp.Build()
+            .SetArgs(args)
+            .SetAutoApplyOnStartup(false)
             .Run();
 
     /// <summary>
