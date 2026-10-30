@@ -146,6 +146,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
         _overlayLayout = camera.Overlay;
+        InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
         InitializeImage(saved, storedCustomImage);
         FormatCellNames();
@@ -767,15 +768,16 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     private CameraSettings? BuildCamera() => BuildWindow() is { } window ? BuildCamera(window) : null;
 
     /// <summary>
-    /// The camera with the address as entered, <paramref name="window"/> and the widget layout as edited (T-092);
+    /// The camera with the address as entered, <paramref name="window"/>, the widget layout (T-092) and the mini strip (T-110) as edited;
     /// <see langword="null"/> when the address blocks saving.
     /// </summary>
     private CameraSettings? BuildCamera(CameraWindowDefaults window)
     {
         CameraOverlayLayout layout = _overlayLayout;
+        CameraMiniStripSettings strip = _miniStrip;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -786,14 +788,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         if (problem == CameraUrlProblem.Missing)
         {
             // No address and the default window and layout: the shared "no camera" value.
-            return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay
+            return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay && strip == CameraSettings.Disabled.MiniStrip
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip };
         }
         catch (ArgumentException)
         {

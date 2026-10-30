@@ -616,7 +616,7 @@
     <value>Save the settings first.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Restores the visibility, position, order, size and highlighting of this printer's widgets.</value>
+    <value>Restores the visibility, position, order, size and highlighting of this printer's widgets and the content of its mini preview.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>The default layout was restored. It applies after saving.</value>
@@ -1435,5 +1435,49 @@
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>LayerPeek's notifications are turned off in Settings &gt; System &gt; Notifications. Turn them on there.</value>
     <comment>T-101 (Windows): tooltip and screen reader help of SettingsOpenNotificationSettingsWindows.</comment>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>The info strip under the mini preview image. Choose what it shows.</value>
+    <comment>T-110: description of the Mini preview item on the Widgets tab (at most 2 lines).</comment>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Progress bar at the top</value>
+    <comment>T-110: check box, the 3 DIP progress bar on the top edge of the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Percentage</value>
+    <comment>T-110: check box, the job percentage in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Time remaining</value>
+    <comment>T-110: check box, the remaining time in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Finish time</value>
+    <comment>T-110: check box, the finish time in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Cool-down after printing</value>
+    <comment>T-110: check box, the cool-down after the print in the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Print name row</value>
+    <comment>T-110: check box, the print name row (toggle with the cube icon) of the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Temperature chart row</value>
+    <comment>T-110: check box, the temperature chart row (toggle with the chart icon) of the mini preview strip.</comment>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>The printer state is always shown in the strip.</value>
+    <comment>T-110: one line under the check boxes, at most 60 characters.</comment>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Expand the row with the ⬡ button in the mini preview.</value>
+    <comment>T-110: tooltip of SettingsMiniStripNameRow; the symbol stands for the cube toggle of the strip.</comment>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Expand the row with the 📈 button in the mini preview.</value>
+    <comment>T-110: tooltip of SettingsMiniStripChartRow; the symbol stands for the chart toggle of the strip.</comment>
   </data>
 </root>

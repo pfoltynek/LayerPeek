@@ -541,7 +541,7 @@
     <value>Guarde primero los ajustes.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Restablece la visibilidad, la posición, el orden, el tamaño y el resaltado de los widgets de esta impresora.</value>
+    <value>Restablece la visibilidad, la posición, el orden, el tamaño y el resaltado de los widgets y el contenido de la vista mini de esta impresora.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Se restauró el diseño predeterminado. Se aplica al guardar.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Las notificaciones de LayerPeek están desactivadas en Configuración &gt; Sistema &gt; Notificaciones. Actívelas allí.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>La franja de información bajo la imagen de la vista mini. Elija qué muestra.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Barra de progreso arriba</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Porcentaje</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Tiempo restante</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Hora de finalización</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Enfriamiento tras imprimir</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Fila del nombre de impresión</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Fila del gráfico de temperaturas</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>El estado de la impresora se muestra siempre.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Despliegue la fila con el botón ⬡ de la vista mini.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Despliegue la fila con el botón 📈 de la vista mini.</value>
   </data>
 </root>

@@ -90,7 +90,8 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.False(ui.Window.IsShown<TextBlock>("WidgetsNoPrinters"));
             ListBox list = ui.Find<ListBox>("WidgetsList");
             Assert.Equal("Camera window widgets", AutomationProperties.GetName(list));
-            Assert.Equal(5, list.ItemCount);
+            // The widgets, the separator and the "Mini preview" item (T-110).
+            Assert.Equal(7, list.ItemCount);
             Assert.Equal([true, false, true, true, true], WidgetIds.Select(id => Box(ui, id).IsChecked == true));
             Assert.Equal("Times, hidden", AutomationProperties.GetName(Row(ui, "times")));
             Assert.Equal("Show the Times widget", AutomationProperties.GetName(Box(ui, "times")));
@@ -98,7 +99,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.False(ui.Window.IsShown<TextBlock>("WidgetsItemMarker-cooldown"));
             // Every widget icon is found in the icon resources (a valid IconKey).
             Assert.All(list.GetVisualDescendants().OfType<WidgetIcon>(), static icon => Assert.NotNull(icon.Data));
-            Assert.Equal(5, list.GetVisualDescendants().OfType<WidgetIcon>().Count());
+            Assert.Equal(6, list.GetVisualDescendants().OfType<WidgetIcon>().Count());
 
             Assert.Equal("Status", AutomationProperties.GetName(ui.Find<StackPanel>("WidgetsDetail")));
             Assert.Equal("Status", ui.ShownText("WidgetsDetailTitle"));
@@ -160,9 +161,15 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Press(ui.Window, PhysicalKey.Space);
             Assert.True(Box(ui, "times").IsChecked);
 
+            // T-110: End selects the "Mini preview" item; the arrows skip the separator.
             Press(ui.Window, PhysicalKey.End);
+            Assert.True(Row(ui, "miniStrip").IsSelected);
+            Press(ui.Window, PhysicalKey.ArrowUp);
             Assert.True(Row(ui, "cooldown").IsSelected);
             Assert.True(ui.Window.IsShown<NumericUpDown>("WidgetCooldownNozzleThreshold"));
+            Press(ui.Window, PhysicalKey.ArrowDown);
+            Assert.True(Row(ui, "miniStrip").IsSelected);
+            Assert.Equal("WidgetsItem-miniStrip", FocusedId(ui.Window));
             Press(ui.Window, PhysicalKey.Home);
             Assert.True(Row(ui, "status").IsSelected);
             Assert.Equal("WidgetsItem-status", FocusedId(ui.Window));
@@ -605,7 +612,7 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Assert.Equal(new Size(780, 532), ui.Window.ClientSize);
 
             ListBox list = ui.Find<ListBox>("WidgetsList");
-            Assert.Equal(10, list.ItemCount);
+            Assert.Equal(12, list.ItemCount);
             ScrollViewer page = ui.Window.GetVisualDescendants().OfType<ScrollViewer>().Single(static viewer => viewer.Name == "WidgetsScroll");
             ScrollViewer rows = list.GetVisualDescendants().OfType<ScrollViewer>().First();
             List<string> problems = [.. Overflow(ui, $"{language} / 10 widgets")];
@@ -638,10 +645,11 @@ public sealed class SettingsWindowWidgetsUiTests(HeadlessSession session)
             Press(ui.Window, PhysicalKey.Home);
             AssertShownInTheList(ui, list, "status");
             Assert.Equal(0, rows.Offset.Y);
+            // T-110: End goes to the "Mini preview" item below the separator.
             Press(ui.Window, PhysicalKey.End);
-            AssertShownInTheList(ui, list, ui.ViewModel.Widgets[9].Id);
+            AssertShownInTheList(ui, list, "miniStrip");
             Press(ui.Window, PhysicalKey.ArrowUp);
-            AssertShownInTheList(ui, list, ui.ViewModel.Widgets[8].Id);
+            AssertShownInTheList(ui, list, ui.ViewModel.Widgets[9].Id);
             Assert.Equal(0, page.Offset.Y);
 
             // One Tab stop: from the list straight to the next control after it.

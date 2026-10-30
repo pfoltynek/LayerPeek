@@ -541,7 +541,7 @@
     <value>Najprv nastavenia uložte.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Vráti viditeľnosť, polohu, poradie, veľkosť a zvýraznenie widgetov tejto tlačiarne na predvolené.</value>
+    <value>Vráti viditeľnosť, polohu, poradie, veľkosť a zvýraznenie widgetov a obsah malého náhľadu tejto tlačiarne na predvolené.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Obnovilo sa predvolené rozloženie. Prejaví sa po uložení.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Upozornenia LayerPeeku sú vypnuté v Nastaveniach &gt; Systém &gt; Oznámenia. Zapnite ich tam.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>Informačný pás pod obrazom malého náhľadu kamery. Vyberte, čo v ňom bude.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Pruh priebehu hore</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Percento</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Zostávajúci čas</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Čas dokončenia</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Vychladnutie po tlači</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Riadok názvu tlače</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Riadok grafu teplôt</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>Stav tlačiarne je v páse viditeľný vždy.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Riadok rozbalíte tlačidlom ⬡ v malom náhľade.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Riadok rozbalíte tlačidlom 📈 v malom náhľade.</value>
   </data>
 </root>

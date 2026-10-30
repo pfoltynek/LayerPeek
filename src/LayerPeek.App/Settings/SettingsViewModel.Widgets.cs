@@ -9,6 +9,7 @@ using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Settings.Widgets;
 using LayerPeek.App.Tray;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Events;
 using LayerPeek.Core.Settings;
@@ -20,13 +21,18 @@ namespace LayerPeek.App.Settings;
 /// (<see cref="SelectedPrinter"/>), the list of the registered widgets with their visibility, the panel of the selected
 /// widget (its description and, when it declares one, its settings panel), and the "All widgets" section: "Edit layout in
 /// camera window…", "Restore defaults", "Use layout for all printers" and the global card background opacity. A layout
-/// saved by the layout mode of a camera window replaces only the layout of its printer here (T-077 Q3).
+/// saved by the layout mode of a camera window replaces only the layout of its printer here (T-077 Q3). Below the widgets,
+/// after a separator, the "Mini preview" item (T-110, design T-104 2) has the panel of what the mini preview strip shows.
 /// </summary>
 public sealed partial class SettingsViewModel
 {
+    private readonly MiniStripListEntry _miniStripEntry = new();
     private WidgetItemViewModel[] _widgets = [];
+    private WidgetsListEntry[] _listEntries = [];
     private WidgetItemViewModel? _selectedWidget;
+    private bool _miniStripSelected;
     private OverlayWidgetSettingsViewModel? _widgetPanel;
+    private MiniStripSettingsViewModel? _miniStripPanel;
     private ICameraLayoutModeLauncher? _layoutModeLauncher;
     private ICameraOverlayLayoutWriter? _layoutWriter;
     private IUiDispatcher _uiDispatcher = null!;
@@ -42,12 +48,43 @@ public sealed partial class SettingsViewModel
     public IReadOnlyList<WidgetItemViewModel> Widgets => _widgets;
 
     /// <summary>
-    /// The widget whose panel is shown; the first one by default. It stays when another printer is selected (the same
-    /// widget of the other printer). A list control writing <see langword="null"/> while it is rebuilt is ignored.
+    /// The rows of the list (T-110): the <see cref="Widgets"/>, the separator (only after at least one widget) and the "Mini
+    /// preview" item.
+    /// </summary>
+    public IReadOnlyList<WidgetsListEntry> WidgetsListEntries => _listEntries;
+
+    /// <summary>The "Mini preview" item of the list (T-110).</summary>
+    public MiniStripListEntry MiniStripEntry => _miniStripEntry;
+
+    /// <summary>
+    /// The selected row of the list: <see cref="SelectedWidget"/> or the "Mini preview" item. The separator and a list
+    /// control writing <see langword="null"/> while it is rebuilt are ignored.
+    /// </summary>
+    public WidgetsListEntry? SelectedWidgetsListEntry
+    {
+        get => _miniStripSelected ? _miniStripEntry : _selectedWidget;
+        set
+        {
+            switch (value)
+            {
+                case WidgetItemViewModel widget:
+                    SelectedWidget = widget;
+                    break;
+                case MiniStripListEntry:
+                    SelectMiniStrip();
+                    break;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The widget whose panel is shown; the first one by default, <see langword="null"/> while the "Mini preview" item is
+    /// selected. It stays when another printer is selected (the same widget of the other printer). A list control writing
+    /// <see langword="null"/> while it is rebuilt is ignored.
     /// </summary>
     public WidgetItemViewModel? SelectedWidget
     {
-        get => _selectedWidget;
+        get => _miniStripSelected ? null : _selectedWidget;
         set
         {
             if (value is null || Array.IndexOf(_widgets, value) < 0)
@@ -55,12 +92,31 @@ public sealed partial class SettingsViewModel
                 return;
             }
 
-            if (SetProperty(ref _selectedWidget, value))
+            bool fromMiniStrip = _miniStripSelected;
+            _miniStripSelected = false;
+            if (SetProperty(ref _selectedWidget, value, nameof(SelectedWidget)) || fromMiniStrip)
             {
+                if (fromMiniStrip)
+                {
+                    OnPropertyChanged(nameof(SelectedWidget));
+                    OnPropertyChanged(nameof(IsMiniStripSelected));
+                    UpdateMiniStripPanel();
+                }
+
+                OnPropertyChanged(nameof(SelectedWidgetsListEntry));
                 UpdateWidgetPanel();
             }
         }
     }
+
+    /// <summary>The "Mini preview" item is selected: its panel is shown instead of a widget's.</summary>
+    public bool IsMiniStripSelected => _miniStripSelected;
+
+    /// <summary>
+    /// The panel of the "Mini preview" item for the selected printer (T-110); <see langword="null"/> while another item is
+    /// selected or no printer is. Replaced when the printer changes.
+    /// </summary>
+    public MiniStripSettingsViewModel? MiniStripPanel => _miniStripPanel;
 
     /// <summary>
     /// The settings panel of the selected widget for the selected printer (<see cref="IOverlayWidgetSettingsFactory"/>);
@@ -70,7 +126,7 @@ public sealed partial class SettingsViewModel
     public OverlayWidgetSettingsViewModel? SelectedWidgetPanel => _widgetPanel;
 
     /// <summary>The selected widget has no settings of its own: the panel says so (design 4.2).</summary>
-    public bool ShowsNoWidgetSettings => _selectedWidget is { HasSettings: false } && _selectedPrinter is not null;
+    public bool ShowsNoWidgetSettings => SelectedWidget is { HasSettings: false } && _selectedPrinter is not null;
 
     /// <summary>The list and the panel are shown: a printer is selected (design 3.6: hidden without printers).</summary>
     public bool ShowsWidgets => _selectedPrinter is not null;
@@ -116,10 +172,16 @@ public sealed partial class SettingsViewModel
     /// </summary>
     public string EditLayoutToolTip => EditLayoutUnavailableReason ?? Strings.SettingsWidgetsEditLayoutHelp;
 
-    /// <summary>"Restore defaults" (design 5.5): the whole layout of the selected printer back to the default, nothing else.</summary>
+    /// <summary>
+    /// "Restore defaults" (design 5.5): the whole layout of the selected printer back to the default, and what its mini
+    /// preview strip shows (T-110, Q10 A); nothing else.
+    /// </summary>
     public IRelayCommand ResetLayoutCommand { get; private set; } = null!;
 
-    /// <summary>"Use layout for all printers": the whole layout of the selected printer to every other one (T-076 Q1, T-077 Q1).</summary>
+    /// <summary>
+    /// "Use layout for all printers": the whole layout of the selected printer to every other one (T-076 Q1, T-077 Q1), and
+    /// what its mini preview strip shows (T-110, Q10 A).
+    /// </summary>
     public IRelayCommand ApplyLayoutToAllCommand { get; private set; } = null!;
 
     /// <summary>Tooltip of the disabled "Use layout for all printers": only one printer; <see langword="null"/> otherwise.</summary>
@@ -173,7 +235,9 @@ public sealed partial class SettingsViewModel
     private void InitializeWidgets(OverlayWidgetRegistry registry, ICameraLayoutModeLauncher? launcher, ICameraOverlayLayoutWriter? writer, IUiDispatcher? dispatcher)
     {
         _widgets = [.. registry.Definitions.Select(definition => new WidgetItemViewModel(this, definition))];
+        _listEntries = _widgets.Length > 0 ? [.. _widgets, new WidgetsSeparatorEntry(), _miniStripEntry] : [_miniStripEntry];
         _selectedWidget = _widgets.Length > 0 ? _widgets[0] : null;
+        _miniStripSelected = _widgets.Length == 0;
         _layoutModeLauncher = launcher;
         _uiDispatcher = dispatcher ?? new AvaloniaUiDispatcher();
         EditLayoutCommand = new RelayCommand(EditLayout, CanEditLayout);
@@ -204,6 +268,36 @@ public sealed partial class SettingsViewModel
         }
 
         ReplaceWidgetPanel(null);
+        _miniStripPanel = null;
+    }
+
+    /// <summary>Selects the "Mini preview" item (a click or the arrows in the list): its panel replaces the widget's.</summary>
+    private void SelectMiniStrip()
+    {
+        if (_miniStripSelected)
+        {
+            return;
+        }
+
+        _miniStripSelected = true;
+        OnPropertyChanged(nameof(SelectedWidgetsListEntry));
+        OnPropertyChanged(nameof(SelectedWidget));
+        OnPropertyChanged(nameof(IsMiniStripSelected));
+        UpdateWidgetPanel();
+        UpdateMiniStripPanel();
+    }
+
+    /// <summary>The panel of the "Mini preview" item for the selected printer while it is selected.</summary>
+    private void UpdateMiniStripPanel()
+    {
+        MiniStripSettingsViewModel? panel = !_disposed && _miniStripSelected && _selectedPrinter is { } printer
+            ? _miniStripPanel is { } current && ReferenceEquals(current.Printer, printer) ? current : new MiniStripSettingsViewModel(this, printer)
+            : null;
+        if (!ReferenceEquals(panel, _miniStripPanel))
+        {
+            _miniStripPanel = panel;
+            OnPropertyChanged(nameof(MiniStripPanel));
+        }
     }
 
     /// <summary>Visibility of <paramref name="widget"/> for the selected printer (its check box or Space in the list).</summary>
@@ -223,7 +317,8 @@ public sealed partial class SettingsViewModel
     /// <summary>Space on the widget list (design 5.2): switches the visibility of the selected widget.</summary>
     public bool ToggleSelectedWidget()
     {
-        if (_selectedWidget is not { CanChangeVisibility: true } widget)
+        // The "Mini preview" item has no visibility: Space does nothing there (T-104 design 2).
+        if (SelectedWidget is not { CanChangeVisibility: true } widget)
         {
             return false;
         }
@@ -236,6 +331,7 @@ public sealed partial class SettingsViewModel
     private void OnSelectedPrinterChanged()
     {
         UpdateWidgetPanel();
+        UpdateMiniStripPanel();
         OnWidgetsStateChanged();
     }
 
@@ -247,6 +343,8 @@ public sealed partial class SettingsViewModel
             widget.Refresh();
         }
 
+        _miniStripEntry.Refresh();
+        _miniStripPanel?.Refresh();
         OnPropertyChanged(nameof(ShowsWidgets));
         OnPropertyChanged(nameof(ShowsNoWidgetSettings));
         OnPropertyChanged(nameof(ShowsWidgetsCameraOff));
@@ -297,7 +395,7 @@ public sealed partial class SettingsViewModel
     /// <summary>The panel of the selected widget for the selected printer; the previous one is disposed.</summary>
     private void UpdateWidgetPanel()
     {
-        OverlayWidgetSettingsViewModel? panel = !_disposed && _selectedPrinter is { } printer && _selectedWidget?.Definition.Settings is { } factory
+        OverlayWidgetSettingsViewModel? panel = !_disposed && _selectedPrinter is { } printer && SelectedWidget?.Definition.Settings is { } factory
             ? factory.Create(new WidgetHost(this, printer))
             : null;
         ReplaceWidgetPanel(panel);
@@ -347,6 +445,7 @@ public sealed partial class SettingsViewModel
         }
 
         printer.SetOverlayLayout(printer.OverlayLayout.ResetToDefault());
+        printer.SetMiniStrip(CameraMiniStripSettings.Default);
         ShowStatus(static () => Strings.SettingsWidgetsResetDone, isError: false);
     }
 
@@ -358,7 +457,15 @@ public sealed partial class SettingsViewModel
         }
 
         CameraOverlayLayout layout = source.OverlayLayout;
-        ApplyToOtherPrinters(source, target => target.SetOverlayLayout(layout), static () => Strings.SettingsOverlayAppliedAll);
+        CameraMiniStripSettings strip = source.MiniStrip;
+        ApplyToOtherPrinters(
+            source,
+            target =>
+            {
+                target.SetOverlayLayout(layout);
+                target.SetMiniStrip(strip);
+            },
+            static () => Strings.SettingsOverlayAppliedAll);
     }
 
     /// <summary>"… for all printers": <paramref name="copy"/> for every printer except <paramref name="source"/>, then the status.</summary>

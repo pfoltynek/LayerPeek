@@ -51,7 +51,8 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="bringAppToFront">Activates the app before a window is activated (macOS, T-019); <see langword="null"/>: nothing.</param>
     /// <param name="localNetwork">The Local Network permission of macOS 15+ (T-097, a fake); <see langword="null"/>: none (Windows).</param>
     /// <param name="macShortcuts">The shortcuts and texts of macOS (T-100) or of Windows; <see langword="null"/>: those of the OS the tests run on.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null)
+    /// <param name="miniStrip">What the mini preview strip of the printers with a camera shows (T-110); <see langword="null"/>: everything.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null)
     {
         _macShortcuts = macShortcuts;
         LayoutWriter = new FakeLayoutWriter();
@@ -62,7 +63,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         _widgets = widgets ?? TestOverlayWidgets.Registry([.. TestOverlayWidgets.Ids]);
         AppSettings settings = new()
         {
-            Printers = [CameraPrinter("a", "Alpha", window, overlay), CameraPrinter("b", "Beta", window, overlay), TestPrinters.Definition("c", "NoCamera")],
+            Printers = [CameraPrinter("a", "Alpha", window, overlay, miniStrip), CameraPrinter("b", "Beta", window, overlay, miniStrip), TestPrinters.Definition("c", "NoCamera")],
             CameraOverlayOpacityPercent = opacity,
         };
         ((IMonitoringObserver)Printers).ApplySettings(settings);
@@ -97,11 +98,32 @@ internal sealed class CameraHarness : IAsyncDisposable
 
     public IReadOnlyList<CameraViewModel> Created => _created;
 
-    public static PrinterDefinition CameraPrinter(string id, string name, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null) =>
+    public static PrinterDefinition CameraPrinter(string id, string name, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, CameraMiniStripSettings? miniStrip = null) =>
         TestPrinters.Definition(id, name) with
         {
-            Camera = new CameraSettings(enabled: true, StreamUri) { Window = window ?? CameraWindowDefaults.Default, Overlay = overlay ?? CameraOverlayLayout.Default },
+            Camera = new CameraSettings(enabled: true, StreamUri)
+            {
+                Window = window ?? CameraWindowDefaults.Default,
+                Overlay = overlay ?? CameraOverlayLayout.Default,
+                MiniStrip = miniStrip ?? CameraMiniStripSettings.Default,
+            },
         };
+
+    /// <summary>
+    /// The settings were saved with <paramref name="miniStrip"/> for every printer with a camera (T-110): the monitored
+    /// printers change like after Save in the settings window, and the open windows apply it on the UI thread.
+    /// </summary>
+    public void SaveMiniStrip(CameraMiniStripSettings miniStrip)
+    {
+        MonitoredPrintersState current = Printers.Current;
+        AppSettings updated = new()
+        {
+            Printers = [.. (current.Printers ?? []).Select(p => p.Camera.Enabled ? p with { Camera = p.Camera with { MiniStrip = miniStrip } } : p)],
+            CameraOverlayOpacityPercent = current.CameraOverlayOpacityPercent,
+        };
+        ((IMonitoringObserver)Printers).ApplySettings(updated);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    }
 
     public CameraWindow Open(string printerId = "a")
     {

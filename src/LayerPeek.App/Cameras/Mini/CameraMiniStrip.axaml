@@ -161,16 +161,17 @@
     <!--
       Summary row: left 10, dot 8 (or icon 16) + 6, the summary panel, 8, toggles 62, right 6 (at 240 wide the panel has
       140). The panel draws the first variant that fits whole (T-103 3): "summary 10 ⚑14 4 time", the free room after it.
+      T-110: a row switched off in the settings has no toggle (IsVisible, so it is neither a Tab stop nor in the automation
+      tree): with one toggle 30 (W = width − 68), with none the toggle column gives way to a 10 margin (W = width − 34).
     -->
-    <Grid Grid.Row="1" ColumnDefinitions="10,Auto,6,*,8,62,6">
+    <Grid Grid.Row="1" ColumnDefinitions="*,Auto,Auto">
       <!-- The summary itself (tooltip and name of the whole content); the toggles are beside it, not inside. -->
       <Grid Grid.Column="0"
-            Grid.ColumnSpan="5"
             AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniSummary"
             AutomationProperties.Name="{Binding AccessibleText}"
             ToolTip.Tip="{Binding AccessibleText}"
-            ColumnDefinitions="10,Auto,6,*,8">
+            ColumnDefinitions="10,Auto,6,*">
         <Panel Grid.Column="1" VerticalAlignment="Center">
           <Ellipse Width="8" Height="8" Fill="{Binding DotBrush}" IsVisible="{Binding ShowsDot}" />
           <ov:OverlayIcon Width="16"
@@ -212,14 +213,17 @@
       </Grid>
       <!-- T-090: Tab between them, Space / Enter toggles; a press never starts dragging the window (the button handles it). -->
       <StackPanel x:Name="Toggles"
-                  Grid.Column="5"
+                  Grid.Column="1"
+                  Margin="8,0,6,0"
                   AutomationProperties.AutomationId="CameraMiniToggles"
+                  IsVisible="{Binding ShowsToggles}"
                   Orientation="Horizontal"
                   Spacing="2">
         <ToggleButton x:Name="NameToggle"
                       Theme="{StaticResource MiniToggleTheme}"
                       AutomationProperties.AutomationId="CameraMiniToggleName"
                       AutomationProperties.Name="{Binding NameToggleName}"
+                      IsVisible="{Binding IsNameRowAvailable}"
                       ToolTip.Tip="{Binding NameToggleTip}"
                       IsChecked="{Binding IsNameRowExpanded}">
           <ov:OverlayIcon Width="16"
@@ -232,6 +236,7 @@
                       Theme="{StaticResource MiniToggleTheme}"
                       AutomationProperties.AutomationId="CameraMiniToggleChart"
                       AutomationProperties.Name="{Binding ChartToggleName}"
+                      IsVisible="{Binding IsChartRowAvailable}"
                       ToolTip.Tip="{Binding ChartToggleTip}"
                       IsChecked="{Binding IsChartRowExpanded}">
           <ov:OverlayIcon Width="16"
@@ -241,6 +246,8 @@
                           Foreground="{Binding $parent[ToggleButton].Foreground}" />
         </ToggleButton>
       </StackPanel>
+      <!-- Without toggles: the right margin of the summary row like the left one. -->
+      <Border Grid.Column="2" Width="10" IsVisible="{Binding !ShowsToggles}" />
     </Grid>
 
     <!-- Print name row (34): the compact Print name template (T-085), left 10; disappears without a job. -->
@@ -266,7 +273,7 @@
     <Border Grid.Row="3"
             Height="64"
             Padding="10,6"
-            IsVisible="{Binding IsChartRowExpanded}"
+            IsVisible="{Binding ShowsChartRow}"
             AutomationProperties.AccessibilityView="Content"
             AutomationProperties.AutomationId="CameraMiniChartRow"
             AutomationProperties.Name="{Binding ChartAccessibleText}">

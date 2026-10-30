@@ -541,7 +541,7 @@
     <value>Salva prima le impostazioni.</value>
   </data>
   <data name="SettingsWidgetsResetHelp" xml:space="preserve">
-    <value>Ripristina visibilità, posizione, ordine, dimensione ed evidenziazione dei widget di questa stampante.</value>
+    <value>Ripristina visibilità, posizione, ordine, dimensione ed evidenziazione dei widget e il contenuto dell'anteprima mini di questa stampante.</value>
   </data>
   <data name="SettingsWidgetsResetDone" xml:space="preserve">
     <value>Layout predefinito ripristinato. Si applica dopo il salvataggio.</value>
@@ -1374,5 +1374,38 @@
   </data>
   <data name="SettingsOpenNotificationSettingsHintWindows" xml:space="preserve">
     <value>Le notifiche di LayerPeek sono disattivate in Impostazioni &gt; Sistema &gt; Notifiche. Attivale lì.</value>
+  </data>
+  <data name="SettingsMiniStripDescription" xml:space="preserve">
+    <value>La barra informativa sotto l'immagine dell'anteprima mini. Scegli cosa mostra.</value>
+  </data>
+  <data name="SettingsMiniStripProgressBar" xml:space="preserve">
+    <value>Barra di avanzamento in alto</value>
+  </data>
+  <data name="SettingsMiniStripPercent" xml:space="preserve">
+    <value>Percentuale</value>
+  </data>
+  <data name="SettingsMiniStripRemaining" xml:space="preserve">
+    <value>Tempo rimanente</value>
+  </data>
+  <data name="SettingsMiniStripFinish" xml:space="preserve">
+    <value>Ora di fine</value>
+  </data>
+  <data name="SettingsMiniStripCooldown" xml:space="preserve">
+    <value>Raffreddamento dopo la stampa</value>
+  </data>
+  <data name="SettingsMiniStripNameRow" xml:space="preserve">
+    <value>Riga del nome di stampa</value>
+  </data>
+  <data name="SettingsMiniStripChartRow" xml:space="preserve">
+    <value>Riga del grafico delle temperature</value>
+  </data>
+  <data name="SettingsMiniStripHint" xml:space="preserve">
+    <value>Lo stato della stampante è sempre visibile.</value>
+  </data>
+  <data name="SettingsMiniStripNameRowHelp" xml:space="preserve">
+    <value>Espandi la riga con il pulsante ⬡ nell'anteprima mini.</value>
+  </data>
+  <data name="SettingsMiniStripChartRowHelp" xml:space="preserve">
+    <value>Espandi la riga con il pulsante 📈 nell'anteprima mini.</value>
   </data>
 </root>

@@ -1091,6 +1091,22 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             return ui;
         });
 
+        // T-110 (design T-104 2): the "Mini preview" panel with its seven check boxes (texts may wrap to 2 lines) and the
+        // one-line hint must fit the 228 high panel in every language; also with the camera off (disabled check boxes).
+        yield return ("widgets: mini preview selected", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = WorkingCamera }, LinkPrinter("b", "Beta", "192.168.1.21")));
+            SelectMiniStrip(ui);
+            return ui;
+        });
+
+        yield return ("widgets: camera off, mini preview selected", static async scope =>
+        {
+            SettingsWindowHarness ui = await SettingsWindowHarness.OpenAsync(scope, SettingsWindowHarness.StoreWith(LinkPrinter("a", "MK4S workshop") with { Camera = new CameraSettings(enabled: false, WorkingCamera.StreamUri) }, CloudPrinter("c", "Cloud XL")));
+            SelectMiniStrip(ui);
+            return ui;
+        });
+
         // T-039: the longest import error of the printer image, in the status line, next to every field error.
         yield return ("all errors + longest image import error", static async scope =>
         {
@@ -1113,6 +1129,13 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             Assert.Equal(SettingsViewModel.GeneralTab, ui.ViewModel.SelectedTabIndex);
             return ui;
         });
+    }
+
+    /// <summary>The "Mini preview" item on the Widgets tab (T-110).</summary>
+    private static void SelectMiniStrip(SettingsWindowHarness ui)
+    {
+        ui.ViewModel.SelectedWidgetsListEntry = ui.ViewModel.MiniStripEntry;
+        ui.Window.Settle();
     }
 
     /// <summary>The Cool-down widget on the Widgets tab.</summary>
