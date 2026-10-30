@@ -85,12 +85,12 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
 - **Nález 1 revize (zvýraznění chybného pole)** → samostatný úkol (založí architekt), zde se neimplementuje. ✔ vyřešeno.
 
 Nové (neblokuje, k rozhodnutí uživatele / ui-designer), zjištěno při úpravě widgetu S 2026-10-30:
-- **QS1 – čára podložky před číslem připomíná znaménko minus.** Na snímku `camera-widget-cooldown-cooling-s-bed`
+- **QS1 → rozhodnuto 2026-10-30 (uživatel): jiná ikona podložky na kartě S, kterou nejde splést se znaménkem (vybere ui-designer).** Původně: **čára podložky před číslem připomíná znaménko minus.** Na snímku `camera-widget-cooldown-cooling-s-bed`
   (macOS) se ikona podložky 12 DIP s mezerou 2 DIP před „57 °C“ čte jako „−57 °C“ (záporná teplota). Kužel trysky
   (`camera-widget-cooldown-cooling-s`) je jednoznačný. Varianty: (A) ponechat podle revize / (B) větší mezera mezi
   ikonou a číslem (např. 4–6 DIP jako v M / L) / (C) jiná ikona podložky ve widgetu S (např. podložka s vlnkami
   tepla) – rozhodne ui-designer / uživatel.
-- **QS2 – S „Vychladlo“:** po vychladnutí je teplota ve widgetu S součástí textu stavu („⏻ Vychladlo · 40 °C“, jeden
+- **QS2 → rozhodnuto 2026-10-30 (uživatel): ikona jen během chladnutí (ponechat).** Původně: S „Vychladlo“:** po vychladnutí je teplota ve widgetu S součástí textu stavu („⏻ Vychladlo · 40 °C“, jeden
   `TextBlock`), proto tam ikona čidla zatím není (pokyn mluvil o zvýrazněné teplotě, ta je jen během chladnutí). Má
   ikona být i v tomto stavu? (A) ne, stav je klíčová hodnota / (B) ano – rozdělit text a ikonu vložit před teplotu.
 
