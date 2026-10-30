@@ -5,9 +5,8 @@ using LayerPeek.App.Printers;
 namespace LayerPeek.App.Tray.Menu;
 
 /// <summary>
-/// Bitmaps for the printer items of the tray menu (T-039, Windows only; macOS gets none until T-018). Avalonia draws the
-/// Windows tray menu itself and fits the item icon into 16 × 16 DIP, so the bitmap has 16 DIP worth of physical pixels at
-/// <see cref="Scaling"/>: 16 / 20 / 24 / 32 px at 100 / 125 / 150 / 200 %, the small sizes from the simplified art.
+/// Bitmaps for the printer items of the tray menu (T-039 Windows, T-116 macOS), all of <see cref="PixelSize"/> pixels for
+/// the icon size of the platform (<see cref="PrinterMenuIconSize"/>: 16 DIP on Windows, 18 pt in the macOS NSMenu).
 /// Illustrations are shared (<see cref="PrinterBitmaps"/>). A custom picture is fitted into a square once and kept per
 /// printer while menu items use it (<see cref="Acquire"/> / <see cref="Release"/>; while the menu is rebuilt two items of
 /// one printer may share it): a new picture of the printer replaces the previous bitmap, the last release or
@@ -15,24 +14,25 @@ namespace LayerPeek.App.Tray.Menu;
 /// </summary>
 internal sealed class PrinterMenuIcons : IDisposable
 {
-    /// <summary>Size of the icon in the menu.</summary>
-    public const double SizeInDip = 16;
-
     // One entry per printer id.
     private readonly Dictionary<string, Entry> _custom = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
-    /// <param name="scaling">Scaling of the screen the menu opens on (Windows: the system scaling).</param>
+    /// <param name="scaling">The Windows system scaling (<see cref="PrinterMenuIconSize.Windows"/>).</param>
     public PrinterMenuIcons(double scaling)
+        : this(PrinterMenuIconSize.Windows(scaling))
     {
-        Scaling = double.IsFinite(scaling) && scaling > 0 ? scaling : 1;
-        PixelSize = PrinterIllustrations.SelectPixelSize(SizeInDip, Scaling);
     }
 
-    public double Scaling { get; }
+    /// <param name="size">Icon size of the platform's tray menu.</param>
+    public PrinterMenuIcons(PrinterMenuIconSize size) => Size = size;
+
+    public PrinterMenuIconSize Size { get; }
+
+    public double Scaling => Size.Scaling;
 
     /// <summary>Pixel size of every icon.</summary>
-    public int PixelSize { get; }
+    public int PixelSize => Size.PixelSize;
 
     /// <summary>How many custom bitmaps are kept (for tests).</summary>
     internal int CustomBitmapCount => _custom.Count;

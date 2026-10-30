@@ -2,7 +2,7 @@
 
 Jeden průchod všemi kroky, které na Macu může ověřit jen člověk (GUI, Gatekeeper, oprávnění macOS, přihlášení, uspaný
 displej, monitory). Kroky jsou posbírané z macOS úkolů (T-095, T-053, T-018, T-019, T-020, T-021, T-026, T-038, T-096,
-T-097, T-098, T-099, T-100, T-101, T-102), bez duplicit a seřazené do sezení tak, aby na sebe navazovaly. Podrobnosti
+T-097, T-098, T-099, T-100, T-101, T-102, T-116), bez duplicit a seřazené do sezení tak, aby na sebe navazovaly. Podrobnosti
 a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
 Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
@@ -61,7 +61,7 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notificat
 | `mac.socket-other-user` | oprávnění (`sudo`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |
 | `mac.display-sleep` | oprávnění (uspání displeje) | T-096 krit. 1, T-099 krit. 1 a 3 | 8.1, 8.2 |
 | `mac.icons` | ručně (obrázek) | T-018 krit. 1, T-098 krit. 2 (ikony v menu baru světlé / tmavé, @1x; ikona vedle systémových) | 2.2, 2.5 |
-| `mac.menu` | ručně | T-018 krit. 1 a 3 (stavy ikony, tooltip, menu; Ukončit ze skutečného menu) | 2.2, 2.3 |
+| `mac.menu` | ručně | T-018 krit. 1 a 3 (stavy ikony, tooltip, menu; Ukončit ze skutečného menu), T-116 krit. 3 (obrázky tiskáren v menu) | 2.2, 2.3 |
 | `mac.camera-look` | ručně | T-026 krit. 1 (obraz a překryv ve všech režimech, simulátor) | 6.1 |
 | `mac.camera-buddy3d` | ručně | T-026 krit. 1 (skutečná kamera Buddy3D; zadáte adresu RTSP) | 6.1 |
 | `mac.notification-click` | ručně | T-020 krit. 2 (klik na doručenou notifikaci testovacího bundlu otevře web) | 5.2 |
@@ -155,6 +155,10 @@ vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
    kritérium 1.
 3. **Menu a tooltip.** Najetí: tooltip se stavem tiskárny. Klik: menu (tiskárny, Diagnostika…, Nastavení…, O aplikaci,
    Ukončit), položky se mění se stavem. „Ukončit“ aplikaci ukončí a ikona zmizí. **Uzavírá:** T-018 kritérium 3.
+   **Obrázky tiskáren (T-116):** u položky tiskárny barevný obrázek tiskárny (18 × 18 bodů, macOS ho nepřebarví) –
+   ostrý na Retině i na externím monitoru @1x, čitelný ve světlém i tmavém vzhledu i u zvýrazněné položky (najetí
+   myší); položky menu a podmenu tiskárny (T-042) zůstanou zarovnané, text položek bez obrázku nepřeskočí. Vlastní
+   obrázek tiskárny (Nastavení → tiskárna → Obrázek) se zobrazí jako čtverec. **Uzavírá:** T-116 kritérium 3.
 4. **Okna do popředí.** Aktivní jiná aplikace (Finder s oknem): z menu Nastavení → okno je nahoře a psaní jde do něj.
    Totéž s oknem už otevřeným a schovaným za jinou aplikací, a pro Diagnostiku, O aplikaci a okno kamery.
    **Uzavírá:** T-019 kritérium 8.
