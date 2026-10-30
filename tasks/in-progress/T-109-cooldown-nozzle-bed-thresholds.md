@@ -75,6 +75,23 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
 ## Otevřené otázky
 **Rozhodnuto 2026-10-30 (uživatel): Q1 A (obě topení), Q5 ano (jen tryska bez teploty podložky)** – potvrzuje implementaci. Q2–Q4 čekají na revizi ui-designera.
 
+**Doporučení ui-designera k Q2–Q4 (revize 2026-10-30, podrobnosti v Poznámkách; k potvrzení uživatelem):**
+- **Q2 – (A, doporučeno, implementováno) dvě pole vedle sebe** s krátkými popisky a tlačítkem vpravo. Vejde se v 8
+  jazycích, záložka Widgety je už na hraně výšky (nápovědy se kvůli 2 DIP musely zkrátit), varianta pod sebou (+~40 DIP)
+  by vynutila posuvník nebo další zkracování. Vzor „dvě související číselná pole v řádku“ odpovídá Fluent i HIG.
+- **Q3 – pás: (A, doporučeno, implementováno) jen omezující teplota bez označení**, obě teploty v tooltipu a ve jméně pro
+  čtečku; číslo je v pásu bílé (neutrální), šířky variant T-103 zůstávají. **Widget S: doporučuji A + ikonu čidla (B)**:
+  zvýrazněné číslo ve widgetu S má barvu akcentu `OverlayAccentBrush` #FA6831, prakticky stejnou jako barva trysky
+  `TemperatureNozzleColor` #FF8A3D (widget Teploty, kužel ve widgetu M / L), takže když omezuje podložka, barva napovídá
+  „tryska“. Ikona čidla (kužel trysky / čára podložky ve svých barvách, 12 DIP + mezera 2, jako v M / L) před číslem to
+  řeší bez spoléhání na barvu; karta S se přizpůsobí obsahu (+14 DIP). Do pásu ikonu nedávat (+14 DIP by měnilo výběr
+  variant při 240 / 320). Varianty: (A) beze změny všude / (B) A + ikona čidla jen ve widgetu S (doporučeno) / (C) ikona
+  i v pásu (nové testy šířek T-103) / (D) „87 / 55 °C“ – nedoporučuji (častěji vypadne odhad v de / fr / it).
+- **Q4 – (A, doporučeno, implementováno) velké číslo zůstává tryska.** Stabilní rozvržení shodné s widgetem Teploty
+  (kužel = tryska, čára = podložka), průběh i řádek podrobností už omezení ukazují. (B) prohazovat zvýraznění podle
+  omezující teploty – nedoporučuji (karta „skáče“, mění se význam velkého čísla). (C) A + značka „✓“ u teploty, která už
+  je na prahu nebo pod ním (ne jen barvou) – levné vylepšení, kdyby uživatel chtěl; samostatný drobný úkol.
+
 Implementace je hotová podle níže uvedených doporučení; nic z toho ji neblokuje, ale jde o UX / produktová rozhodnutí,
 která má potvrdit uživatel (Q1, Q5) a zrevidovat ui-designer (Q2–Q4).
 - **Q1 – ohřev podložky (uživatel):** T-079 ukončuje chladnutí, když se „znovu ohřívá tryska“ (cíl > 0), a sledovat ho
@@ -175,3 +192,29 @@ která má potvrdit uživatel (Q1, Q5) a zrevidovat ui-designer (Q2–Q4).
 - **Platformy:** ověřeno na macOS (build Debug i Release, celý `dotnet test`, headless UI testy). Windows: build a testy
   na Windows neověřené; E2E testy (jen Windows) upravené jen podle kódu (`WidgetRun`, `ToastNotificationTests` zapisují oba
   prahy, toast s podložkou), **nespuštěné**.
+
+### Revize ui-designer (2026-10-30)
+Podklady: snímky macOS `settings-widgets-cooldown-de`, `settings-widgets-cooldown-error-fr`, `settings-widgets-dark`,
+`camera-widget-cooldown-cooling-s / -m / -m-de / -l`, `camera-mini-strip-cooling-240-it`, `camera-mini-strip-cooled-de`
+(zvětšené výřezy), XAML `Settings/Widgets/WidgetSettingsTemplates.axaml` (`CooldownWidgetSettings`),
+`Cameras/Overlay/Widgets/CooldownWidgetView.axaml`, `PrinterEditorViewModel.Cooldown.cs`, `Strings.*.resx`.
+
+**Verdikt: OK s drobnými nedostatky.** Doporučení k Q2–Q4 viz Otevřené otázky (vše varianta A = implementovaný stav).
+
+V pořádku: popisky nad poli, pole 120 DIP, mezera 12, tlačítko „Použít prahy u všech tiskáren“ zarovnané nahoru k polím
+(de / fr na 2 řádky v `MaxWidth` 240, nic se neořízne), nápověda a chyba na jednom místě (vzor T-033), odkaz „Změnit
+na záložce Obecné“ s `MinHeight` 32; tmavý motiv čitelný; jména pro čtečku polí jmenují čidlo („Práh teploty trysky
+(°C)“ / „… podložky …“). Widget M / L: podrobnosti s oběma prahy na 2 řádky i v de; S a pás beze změny šířky.
+
+Nálezy:
+1. **Nízká – jedna chyba pro dvě pole neříká, které pole je špatně** (`CooldownWidgetSettings`, `WidgetCooldownThresholdError`;
+   `SettingsCooldownThresholdError`). Na `settings-widgets-cooldown-error-fr` je chybné pole „Plateau 120“ vizuálně stejné
+   jako platné (bez červeného okraje), patička přitom říká „Corrigez les champs mis en évidence“. Totéž platí v celém okně
+   (vzor T-033, pole se neobarvují), v praxi nastane hlavně prázdné pole (NumericUpDown hodnotu mimo rozsah ořízne), proto
+   nízká. Návrh: (a) ui-dev přidá `HasNozzleThresholdError` / `HasBedThresholdError` a chybnému poli třídu s okrajem
+   `SettingsErrorBrush` (bez změny výšky), nebo (b) text chyby se jménem pole („Podložka: zadejte celé číslo od 30 do
+   100.“; při obou chybách stávající text). Doporučuji (a) jako drobnou úpravu celého okna v samostatném úkolu.
+2. **Nízká – tlačítko „Použít prahy…“ je při chybné hodnotě povolené** a klik jen odhalí chybu (`ApplyCooldownThresholdsToAll`
+   → `RevealErrors`). Chování je bezpečné; jen konstatuji, nic neměnit (zakázané tlačítko by bez vysvětlení mátlo víc).
+3. **Informace – neověřeno:** Windows snímky (Segoe UI je širší → tlačítko „Použít prahy…“ může mít 2 řádky i v en),
+   skutečný toast s podložkou.

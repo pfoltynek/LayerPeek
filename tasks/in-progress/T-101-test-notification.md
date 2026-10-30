@@ -168,6 +168,11 @@ Jen při variantě B otázky 1 (Windows bez tlačítka, jen text výsledku):
 4. ~~**Co udělá kliknutí na zkušební upozornění?**~~ (rozhodnuto 2026-10-29) Varianta A: přenese do popředí (nebo otevře) okno Nastavení na záložce Obecné; nový druh launch argumentu ověřený jako `ToastLaunchArgument.IsWellFormed` (T-068), stejnou cestou aktivace (příkaz instance / `ToastActivationRouter`) na obou OS; během čekání na displej (T-099, macOS) se podrží jako aktivace a vyřídí po připojení UI.
 5. ~~**Ověřit na lokalizovaných systémech** názvy „Nerušit“ (Windows 11) a „Soustředění/Focus“ (macOS) v 8 jazycích.~~ (rozhodnuto 2026-10-29) Ověřit (macOS z lokalizačních tabulek systému, Windows ze stránek podpory Microsoftu), texty opravit a zapsat zdroje – provedeno, viz Poznámky k implementaci.
 
+6. **Výška tlačítek v okně Nastavení (revize ui-designer 2026-10-30, mimo rozsah T-101):** tlačítka okna mají výchozí
+   Fluent výšku (headless macOS ≈ 28 DIP), tj. pod cílem 32 DIP pro cíl klepnutí. (A, doporučeno) samostatný úkol: styl
+   `Button` s `MinHeight="32"` v `SettingsWindow.axaml` + kontrola výšek všech záložek (T-033) a přegenerování snímků /
+   (B) ponechat výchozí Fluent výšku (na Windows se Segoe UI je blízko 32 DIP).
+
 ## Poznámky k implementaci
 Stav 2026-10-29 (ui-dev na macOS 27.2, Apple Silicon): implementováno, úkol zůstává `in-progress` kvůli ověření uživatelem na Macu i Windows, běhu testů a snímků na Windows a revizi ui-designerem.
 
@@ -209,3 +214,32 @@ Stav 2026-10-29 (ui-dev na macOS 27.2, Apple Silicon): implementováno, úkol z�
 **Neověřeno (nutné ověřit uživatelem)**
 - Nic z Windows se na Macu nespustilo: WinRT `IToastNotification2.put_Tag` (nahrazení toastu), `ToastNotifier.Setting` v Nastavení → Systém → Oznámení / zásadě, `ms-settings:notifications`, klik na toast (`Activated` i COM aktivátor), Windows UI testy a snímky, E2E testy na Windows.
 - Na macOS se aplikace podle pokynů nespouštěla: skutečné zkušební upozornění, systémový dotaz (`notDetermined`), nahrazení v Centru oznámení a klik na upozornění ověří uživatel (postup v `docs/macos-manual-testing.md`, sezení 5 krok 4).
+
+### Revize ui-designer (2026-10-30)
+Podklady: snímky macOS `settings-general`, `settings-general-errors`, `settings-general-test-sent-fr` (zvětšené výřezy,
+měřeno v DIP při 100 %), XAML `Windows/SettingsWindow.axaml` (řádek nadpisu „Upozornění“, `TestNotificationButton`,
+`OpenNotificationSettingsButton`, `SettingsTestNotificationResult`), `Strings.*.resx`. Aplikace se nespouštěla.
+
+**Verdikt: OK s drobnými nedostatky** – implementace odpovídá návrhu (jeden slot vpravo v řádku nadpisu, výsledek vlevo
+od tlačítka, neutrální barva u „odesláno“, `error` u chyb, `LiveSetting="Polite"` u výsledku i varování T-020, tooltip
+= `HelpText`, přesun fokusu při přepnutí slotu, tlačítko mimo oblast zakázanou „Zobrazovat upozornění“). Nejdelší
+výsledek (fr „Notification de test envoyée … « Concentration » dans macOS.“) má 2 řádky, tlačítko fr „Envoyer une
+notification de test“ se vejde, záložka bez posuvníku; v chybovém stavu (`settings-general-errors`) se nic neposune.
+
+Nálezy:
+1. **Střední – tlačítko testu „lepí“ na rozbalovací seznam Zvuk.** V en je mezi spodní hranou tlačítka (y ≈ 183)
+   a horní hranou seznamu Zvuk (y ≈ 186) jen ~3 DIP (fr se dvouřádkovým výsledkem ~7 DIP), pod mřížkou 4/8 DIP.
+   Tlačítko pak opticky patří k řádku „Zvuk“, ne k nadpisu sekce. Příčina: `Margin="0,12,0,0"` posouvá tlačítko dolů
+   a řádek nadpisu nemá spodní okraj. Návrh (jen XAML): oběma tlačítkům slotu `Margin="0,8,0,4"` – výška řádku zůstane
+   stejná (8 + ~28 + 4 = 40 DIP jako dnes 12 + ~28), mezera k seznamu ~7 DIP, střed tlačítka se posune o 2 DIP nahoru
+   k nadpisu; `GeneralTabWithTheTestNotificationFitsInEveryLanguage` a test T-020 by měly projít beze změny,
+   přegenerovat `settings-general*`.
+2. **Nízká – výška tlačítka ~28 DIP (< 32 DIP cíle).** Okno nemá styl `Button` s `MinHeight` (návrh omylem uváděl
+   „stávající MinHeight 36“); tlačítka mají výchozí Fluent výšku, v headless macOS ≈ 28 DIP, na Windows se Segoe UI
+   ≈ 30–32. Týká se všech tlačítek okna (Obnovit výchozí, Testovat připojení…), ne jen T-101. Návrh: samostatný úkol
+   „`Button` `MinHeight` 32 v okně Nastavení“ s kontrolou výšek všech záložek (T-033) – viz Otevřené otázky Q6.
+3. **Nízká – chybí snímky dalších stavů slotu.** Stav „vypnuto v systému“ (varování + „Otevřít nastavení oznámení“),
+   „čekám na odpověď“ (tlačítko zakázané) a tmavý motiv výsledku jsou ověřené jen testy stromu. Návrh: doplnit
+   `settings-general-turned-off-de` (nejdelší varování + tlačítko) a `settings-general-test-sent-dark`.
+4. **Informace – neověřeno:** Windows (Segoe UI, Windows sada snímků, skutečný toast, `ms-settings:notifications`),
+   skutečný systémový dotaz macOS a čtení výsledku VoiceOverem / Narratorem.
