@@ -240,7 +240,10 @@
             <RotateTransform Angle="180" />
           </ov:OverlayIcon.RenderTransform>
         </ov:OverlayIcon>
-        <ov:OverlayIcon Classes="cooldownTemperatureIcon cooldownBedIcon"
+        <!-- S only: the heated bed (plate + heat waves), not the bare line of M / L, which read as a minus sign in front
+             of the number (T-109 QS1). -->
+        <ov:OverlayIcon Classes="cooldownTemperatureIcon cooldownHeatedBed"
+                        Data="{DynamicResource IconHeatedBed16Filled}"
                         Foreground="{DynamicResource OverlayBedBrush}"
                         IsVisible="{Binding ShowsSmallBedIcon}" />
         <TextBlock Classes="cooldownValue numeric"

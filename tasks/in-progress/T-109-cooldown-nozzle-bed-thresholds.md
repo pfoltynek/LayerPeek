@@ -85,7 +85,7 @@ tiskárny zvlášť v panelu widgetu Vychladnutí na záložce Widgety (T-092).
 - **Nález 1 revize (zvýraznění chybného pole)** → samostatný úkol (založí architekt), zde se neimplementuje. ✔ vyřešeno.
 
 Nové (neblokuje, k rozhodnutí uživatele / ui-designer), zjištěno při úpravě widgetu S 2026-10-30:
-- **QS1 → rozhodnuto 2026-10-30 (uživatel): jiná ikona podložky na kartě S, kterou nejde splést se znaménkem (vybere ui-designer).** Původně: **čára podložky před číslem připomíná znaménko minus.** Na snímku `camera-widget-cooldown-cooling-s-bed`
+- **QS1 → rozhodnuto 2026-10-30 (uživatel): jiná ikona podložky na kartě S, kterou nejde splést se znaménkem (vybere ui-designer).** ✔ provedeno (ui-designer, větev `feature/T-109-bed-icon-s`): vyhřívaná podložka – deska s třemi vlnkami tepla (`IconHeatedBed16Filled`, vlastní cesta, viz Poznámky). Původně: **čára podložky před číslem připomíná znaménko minus.** Na snímku `camera-widget-cooldown-cooling-s-bed`
   (macOS) se ikona podložky 12 DIP s mezerou 2 DIP před „57 °C“ čte jako „−57 °C“ (záporná teplota). Kužel trysky
   (`camera-widget-cooldown-cooling-s`) je jednoznačný. Varianty: (A) ponechat podle revize / (B) větší mezera mezi
   ikonou a číslem (např. 4–6 DIP jako v M / L) / (C) jiná ikona podložky ve widgetu S (např. podložka s vlnkami
@@ -93,6 +93,11 @@ Nové (neblokuje, k rozhodnutí uživatele / ui-designer), zjištěno při úpra
 - **QS2 → rozhodnuto 2026-10-30 (uživatel): ikona jen během chladnutí (ponechat).** Původně: S „Vychladlo“:** po vychladnutí je teplota ve widgetu S součástí textu stavu („⏻ Vychladlo · 40 °C“, jeden
   `TextBlock`), proto tam ikona čidla zatím není (pokyn mluvil o zvýrazněné teplotě, ta je jen během chladnutí). Má
   ikona být i v tomto stavu? (A) ne, stav je klíčová hodnota / (B) ano – rozdělit text a ikonu vložit před teplotu.
+- **QS3 (nové, ui-designer 2026-10-30, neblokuje):** vyhřívaná podložka (QS1) je jen na kartě S; M / L ponechávají
+  čáru podložky (vedlejší údaj za velkým číslem, 16 / 20 DIP, mezera 6 DIP – znaménko nepřipomíná; čára je legendou
+  grafu widgetu Teploty). (A, doporučeno) ponechat / (B) vyhřívaná podložka i v M / L widgetu Vychladnutí (stejná ve
+  všech velikostech, ale jiná než ve widgetu Teploty) / (C) všude včetně widgetu Teploty a pásu (ztratí vazbu na čáru
+  grafu, potřebuje variantu 20 pro L).
 
 **Doporučení ui-designera k Q2–Q4 (revize 2026-10-30, podrobnosti v Poznámkách; k potvrzení uživatelem):**
 - **Q2 – (A, doporučeno, implementováno) dvě pole vedle sebe** s krátkými popisky a tlačítkem vpravo. Vejde se v 8
@@ -255,3 +260,30 @@ Nálezy:
   změněný `camera-widget-cooldown-cooling-s.png` a nový `camera-widget-cooldown-cooling-s-bed.png`. Úkol zůstává
   v `in-progress` (Windows snímky).
 - CHANGELOG [0.3.1] Changed: řádek o ikoně čidla ve widgetu S. `docs/architecture.md` (Vychladnutí T-088) doplněno.
+
+### QS1 – ikona podložky na kartě S (ui-designer, 2026-10-30, macOS; větev `feature/T-109-bed-icon-s`)
+- **Volba:** vyhřívaná podložka – deska 14 × 3 (zaoblená) a nad ní tři vlnky tepla (jedna perioda sinu, tah 1,75,
+  kulaté konce) na plátně 16; klíč `IconHeatedBed16Filled` v `Cameras/Overlay/OverlayIcons.axaml`. Je to obvyklá
+  značka vyhřívané podložky u 3D tiskáren; svislé vlnky nad deskou nejde přečíst jako znaménko. Barva podložky
+  (`OverlayBedBrush`), 12 × 12 DIP, mezera 2 DIP beze změny, šířka karty S se nemění.
+- **Zdroj a licence:** Fluent UI System Icons vhodný glyf nemají (`bed` = postel na spaní, `stove` = hrnec s párou,
+  `fire` = oheň, `oven` jen od 20) – proto **vlastní cesta** ve stylu filled glyfů Fluent, vytvořená pro LayerPeek
+  (GPL-3.0-only jako zbytek projektu), bez cizí licence; v hlavičce `OverlayIcons.axaml` je označená jako výjimka.
+- **Karta S:** prvek ikony podložky dostal vlastní `Data` a třídu `cooldownHeatedBed` (místo `cooldownBedIcon`, aby na
+  něj nepůsobil styl L s plátnem 20). QS2 beze změny: ikona jen během chladnutí.
+- **M / L beze změny (čára podložky zůstává):** tam je teplota podložky vedlejší údaj za velkým číslem trysky,
+  ikona má 16 / 20 DIP a mezeru 6 DIP, takže se nečte jako znaménko zvýrazněného čísla; čára je zároveň legenda čáry
+  podložky v grafu widgetu Teploty (Q4: „kužel = tryska, čára = podložka“ shodně s widgetem Teploty). Sjednocení viz
+  otázka níže.
+- **Otevřená otázka QS3 (uživatel, neblokuje):** má být vyhřívaná podložka i v M / L (a ve widgetu Teploty / pásu
+  malého náhledu)? (A, doporučeno) ne – čára tam znaménko nepřipomíná a je legendou grafu / (B) jen v M / L widgetu
+  Vychladnutí – stejná ikona ve všech velikostech, ale jiná než ve widgetu Teploty / (C) všude včetně widgetu Teploty
+  a pásu – nová ikona by potřebovala varianty 20 (L) a ztratila by vazbu na čáru grafu.
+- **Testy:** `SmallCardShowsTheBedIconWhileTheBedLimits` ověřuje `IconHeatedBed16Filled` (12 × 12, barva podložky,
+  2 DIP před číslem, 8 jazyků se vejde).
+- **Snímky macOS přegenerované a prohlédnuté** (i zvětšený výřez 1×): změněný jen
+  `camera-widget-cooldown-cooling-s-bed.png` (vlnky nad deskou před „57 °C“, už se nečte jako „−57 °C“).
+- **Windows (ručně):** přegenerovat a prohlédnout `tests/LayerPeek.App.UiTests/Snapshots/camera-widget-cooldown-cooling-s-bed.png`
+  (spolu s dříve uvedeným `camera-widget-cooldown-cooling-s.png`).
+- **Neověřeno:** skutečné vykreslení při 125 / 150 % na Windows a na Retina displeji (snímky jsou 1×).
+- CHANGELOG [0.3.1] a `docs/architecture.md` (Vychladnutí T-088) upraveny na novou ikonu.
