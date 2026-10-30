@@ -1,7 +1,7 @@
 ---
 id: T-038
 title: macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: macos
@@ -24,7 +24,7 @@ Ověřit a případně doladit na macOS chování z T-035 a T-037: výběr monit
 - [x] `dotnet build` a `dotnet test` na macOS bez chyb a varování
 
 ## Otevřené otázky
-1. **Malý náhled „vždy navrchu“ nad aplikací na celé obrazovce a na všech plochách (Spaces).** Avalonia 12.1.4 dává
+1. ~~**Malý náhled „vždy navrchu“ nad aplikací na celé obrazovce a na všech plochách (Spaces).** Avalonia 12.1.4 dává
    oknu s `Topmost` úroveň `NSFloatingWindowLevel` a běžnému oknu `collectionBehavior` jen
    `NSWindowCollectionBehaviorFullScreenPrimary` (zdroje `WindowBaseImpl.mm`, `WindowImpl.mm`). Okno proto zůstane nad
    okny všech aplikací **na stejné ploše**, ale nad jinou aplikací na celé obrazovce (ta má vlastní Space) ani na jiné
@@ -36,22 +36,52 @@ Ověřit a případně doladit na macOS chování z T-035 a T-037: výběr monit
      interop `ObjCRuntime`, `[LibraryImport]`, bez nového balíčku), takže bude jako obraz v obraze vidět na každé ploše
      i nad aplikací na celé obrazovce; normální okno a celá obrazovka beze změny;
    - (c) totéž i pro normální okno se zapnutým „vždy navrchu“.
-   Rozhoduje uživatel (chování UI). Doporučuji nejdřív projít krok J4, ať je jasné, co dnes macOS skutečně dělá.
-2. **Přepnutí z celé obrazovky rovnou do malého náhledu na macOS** (tlačítko malého náhledu v celé obrazovce, Esc
+   Rozhoduje uživatel (chování UI). Doporučuji nejdřív projít krok J4, ať je jasné, co dnes macOS skutečně dělá.~~ → **(b)** (rozhodnuto 2026-10-30): malý náhled se zapnutým „vždy navrchu“ dostane nativně `NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenAuxiliary`, normální okno a celá obrazovka beze změny, po odchodu z malého náhledu nebo vypnutí „vždy navrchu“ se vrátí předchozí `collectionBehavior`. Implementováno, viz Poznámky, „Otázka 1 b“; ruční ověření v T-115 (vedle J4).
+2. ~~**Přepnutí z celé obrazovky rovnou do malého náhledu na macOS** (tlačítko malého náhledu v celé obrazovce, Esc
    u celé obrazovky otevřené z náhledu, „Použít“ v nastavení během celé obrazovky). Avalonia odchod z celé obrazovky
    spustí `toggleFullScreen:` (animace, asynchronní) a hned vrací stav `Normal`; aplikace pak okamžitě odebere rámeček
    a nastaví polohu a velikost náhledu. AppKit na konci animace obnovuje rámec okna z doby před celou obrazovkou, takže
    náhled může skončit ve velikosti normálního okna nebo na jiném místě (z kódu, neověřeno). Oprava bez ručního
    ověření by byla naslepo (okamžik konce animace Avalonia nehlásí), proto jen krok J5. Když se chyba potvrdí: smím
    na macOS po odchodu z celé obrazovky umístění náhledu zopakovat až po skončení animace (např. po první změně
-   velikosti okna, nejpozději po 1 s)? Jde o technickou opravu bez změny chování, ptám se jen kvůli zvolenému způsobu.
+   velikosti okna, nejpozději po 1 s)? Jde o technickou opravu bez změny chování, ptám se jen kvůli zvolenému způsobu.~~ → ano, podmíněně (rozhodnuto 2026-10-30): **když ruční krok J5 chybu potvrdí**, smí se na macOS umístění náhledu po odchodu z celé obrazovky zopakovat až po skončení animace (např. po první změně velikosti okna, nejpozději po 1 s). Naslepo se neimplementuje; bod v T-115 vedle J5 – výsledek J5 nahlásit, oprava pak bude nový úkol.
 3. **Písmo v nastavení na macOS.** Testy rozložení (bez posuvníku, nic uříznuté) běží headless s přibaleným písmem
    Inter; skutečná aplikace na macOS kreslí systémovým písmem (San Francisco), které má jiné šířky. Na MacBooku 13"
    okno nastavení zůstává 780 × 532 (test), takže rozhoduje jen šířka textů – krok J7. Pokud se tam něco uřízne:
    přizpůsobit texty / rozložení (ui-designer), nebo aplikaci dodávat Inter i na macOS (rozhodnutí produktu)?
+   → zůstává otevřená do kroku J7: přesunuto jako rozhodovací bod do T-115 vedle J7 (rozhodnutí uživatele 2026-10-30). Když se při J7 nic neuřízne, otázka odpadá; jinak rozhodne uživatel a oprava bude nový úkol.
 
 ## Poznámky k implementaci
-- 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
+- 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele).
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-115 (rozhodnutí uživatele); otázka 1 implementována (b), otázka 2 podmíněně schválená (výsledek J5 v T-115), otázka 3 přesunuta do T-115 vedle J7.
+
+### Otázka 1 b – malý náhled na všech plochách (2026-10-30, Mac)
+- `Platform/MacOS/MacWindowSpaces.cs`: `MacWindowSpaces` (logika bez závislosti na OS, testovaná s falešným oknem):
+  `JoinsAllSpaces(mode, topmost)` = jen malý náhled se zapnutým „vždy navrchu“; `Joined(previous)` = předchozí příznaky
+  bez těch, které AppKit s novými nepřijme (`MoveToActiveSpace`, `FullScreenPrimary`, `FullScreenNone`,
+  `FullScreenAllowsTiling` – jinak by AppKit vyhodil výjimku Objective-C a proces skončil), plus `CanJoinAllSpaces |
+  FullScreenAuxiliary`; `Apply(bool)` si při připojení zapamatuje předchozí `collectionBehavior` a při odchodu ho vrátí
+  (nic se nepíše, když je stav stejný nebo příznaky nejdou přečíst). `NativeWindowCollectionBehavior`
+  (`[SupportedOSPlatform("macos")]`): `collectionBehavior` / `setCollectionBehavior:` přes existující `ObjCRuntime`
+  (`[LibraryImport]` do `libobjc`, bez nového balíčku); okno z handle Avalonie s deskriptorem `NSWindow` (nebo okno
+  `NSView`), jiný handle (headless) = nic.
+- `Windows/CameraWindow.Spaces.cs`: příznaky se uplatní po otevření okna, po každé změně `Topmost` (i uprostřed přepnutí
+  režimu – přechod z malého náhledu na celou obrazovku vrátí příznaky normálního okna ještě před `toggleFullScreen:`)
+  a na konci každého přepnutí režimu a „Použít“ z nastavení. Po zavření okna se nic nezapisuje. Na Windows a jiných OS se
+  nic nevolá (`OperatingSystem.IsMacOS()`), na macOS bez AppKitu také ne.
+- Testy: `App.Tests/Platform/MacOS/MacWindowSpacesTests` (17: tabulka rozhodnutí, odebrání konfliktních příznaků,
+  zachování ostatních, uložení a obnovení, žádný zápis bez změny, nové čtení při dalším připojení, nečitelné příznaky),
+  `App.UiTests/Cameras/CameraWindowSpacesUiTests` (7, skutečné okno kamery s falešnými příznaky: headless okno nemá
+  nativní příznaky, normální okno navrchu beze změny, malý náhled připojí a normální okno vrátí, náhled otevřený rovnou,
+  celá obrazovka s příznaky normálního okna a návrat Esc, vypnutí a zapnutí „vždy navrchu“ uložením, náhled bez „vždy
+  navrchu“ nic nezapíše, po zavření nic).
+- **Neověřeno lokálně** (sandbox agenta, bez okenního serveru): jestli Avalonia.Native 12.1.4 vrací pro okno handle
+  s deskriptorem `NSWindow` (ošetřeno i `NSView`), jestli Avalonia příznaky později nepřepíše (např. při zobrazení okna
+  nebo změně rámečku) a skutečné chování na jiné ploše a nad aplikací na celé obrazovce – bod v T-115 vedle J4.
+- Ověřeno 2026-10-30 (macOS 27.2, Apple Silicon): `dotnet build` a `dotnet build -c Release` 0 varování, 0 chyb;
+  `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests` 1180 prošlo, žádný snímek se nezměnil
+  (ani Windows snímky není třeba přegenerovat – vzhled okna beze změny); celý `dotnet test` 8271 testů, 0 selhání,
+  183 přeskočeno. Aplikace se nespouštěla.
 
 ### Zjištění ze zdrojů Avalonie 12.1.4 (tag `12.1.4`, `native/Avalonia.Native/src/OSX`, `src/Avalonia.Native`)
 - **`Screen.DisplayName`** = `NSScreen.localizedName` (`Screens.mm`, od macOS 10.15). Je to název, který ukazuje
@@ -170,8 +200,9 @@ Výsledky zapsat sem (pod „Výsledky ručního ověření“) s verzí macOS a
   poměru stran obrazu; užší než minimum nejde. Dvojklik přepne režim.
 - **J4 – vždy navrchu.** Normální okno s vypnutým / zapnutým „vždy navrchu“: kliknout do Finderu nebo Safari – okno
   zůstane vpředu jen se zapnutou volbou. Malý náhled (výchozí zapnuto) zůstane nad okny jiných aplikací. Pak Safari
-  na celou obrazovku (⌃⌘F) a přepnout na jeho plochu: **zapsat, jestli je malý náhled vidět** (podle zdrojů ne –
-  otázka 1). Totéž na jiné ploše (Mission Control → přidat plochu).
+  na celou obrazovku (⌃⌘F) a přepnout na jeho plochu: **malý náhled se zapnutým „vždy navrchu“ je vidět i nad ním**
+  (otázka 1 b, od 2026-10-30). Totéž na jiné ploše (Mission Control → přidat plochu): náhled je vidět na každé ploše.
+  Normální okno se zapnutým „vždy navrchu“ zůstává na své ploše; malý náhled bez „vždy navrchu“ také.
 - **J5 – celá obrazovka.** F11, dvojklik i tlačítko: okno se animací přesune do vlastní plochy na tomtéž monitoru,
   menu bar skrytý, obraz přes celý displej (i pod výřezem – zapsat). Esc vrátí předchozí režim i polohu. Odchod zeleným
   tlačítkem nebo ⌃⌘F: okno kamery ukáže správná tlačítka (normální režim). **Z celé obrazovky rovnou tlačítko malého

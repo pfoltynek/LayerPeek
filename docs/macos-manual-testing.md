@@ -267,13 +267,13 @@ Předpoklad: tiskárna s kamerou (Buddy3D v LAN, nebo kamera simulátoru `rtsp:/
 
 1. **Stream ve všech režimech.** Okno kamery z menu: obraz běží v normálním okně, na celé obrazovce i v malém náhledu,
    překryv stavu tisku je vidět ve všech třech. **Uzavírá:** T-026 kritéria 1 a 3 (s krokem 1.4 na čistém Macu).
-2. **Umístění, monitor, „vždy navrchu“, celá obrazovka** – kroky z [T-038](../tasks/in-progress/T-038-macos-camera-window-placement.md)
+2. **Umístění, monitor, „vždy navrchu“, celá obrazovka** – kroky z [T-038](../tasks/done/T-038-macos-camera-window-placement.md)
    („Ruční ověření“), stručně:
    - **Jeden monitor:** J1 název a rozlišení monitoru v bodech (stejné po restartu aplikace); J2 rohy a střed pro
      normální okno i náhled 16 bodů od kraje pracovní plochy, nikdy pod menu barem / Dockem (Dock dole, vlevo, skrytý),
      posun okna po otevření ano / ne; J3 náhled bez rámečku, přesun tažením, **změna velikosti všemi 8 hranami a rohy**,
-     výška podle poměru stran po uvolnění; J4 „vždy navrchu“ nad Finderem / Safari, **náhled nad aplikací na celé
-     obrazovce a na jiné ploše – zapsat, co se stane**; J5 celá obrazovka (F11 / dvojklik / tlačítko, vlastní plocha,
+     výška podle poměru stran po uvolnění; J4 „vždy navrchu“ nad Finderem / Safari, **malý náhled navrchu je vidět
+     nad aplikací na celé obrazovce i na každé jiné ploše** (T-038 otázka 1 b); J5 celá obrazovka (F11 / dvojklik / tlačítko, vlastní plocha,
      Esc, zelené tlačítko), **z celé obrazovky rovnou do náhledu** a „Použít“ během celé obrazovky – zapsat velikost
      a polohu náhledu; J6 zapamatování polohy po restartu; J7 nastavení na MacBooku 13" (sezení 3).
    - **Dva monitory:** D1 okno, náhled i celá obrazovka na zvoleném externím monitoru; D2 monitor nad / vlevo; D3

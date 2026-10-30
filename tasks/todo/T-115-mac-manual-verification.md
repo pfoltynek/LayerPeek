@@ -82,7 +82,7 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
 - [ ] **T-026** (krit. „Stream … ve všech režimech okna“, část se simulátorem): `mac.camera` = `PASS` a `mac.camera-look`
       potvrzeno (normální okno, celá obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1).
 - [ ] **T-038** (krit. „Ruční ověření … s jedním a se dvěma monitory“, automatická část J2 a D1): `mac.camera-placement`
-      = `PASS` na každém připojeném monitoru. *T-038 zůstává rozpracovaný (otázky 1–3).*
+      = `PASS` na každém připojeném monitoru.
 - [ ] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
       volitelně se druhým účtem podle sezení 10.1.
 - [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
@@ -109,7 +109,21 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       zapsat, v jakém jazyce jsou prvky AppKitu (výběr obrázku tiskárny, kontextové menu textového pole).
 - [ ] **T-038** (krit. „Ruční ověření na macOS s jedním a se dvěma monitory, výsledky v poznámkách“, ruční část):
       kroky J1, J3–J7 a D2–D7 z T-038 („Ruční ověření“, sezení 6.2; J7 = Nastavení na MacBooku 13", sezení 3.3).
-      Výsledky J4, J5 a J7 zapsat i do T-038 k otázkám 1–3. *T-038 zůstává rozpracovaný.*
+      Výsledky J4, J5 a J7 zapsat i do T-038 k otázkám 1–3.
+- [ ] **T-038** (otázka 1 b, rozhodnuto a implementováno 2026-10-30; u kroku J4): malý náhled se zapnutým „vždy
+      navrchu“ je vidět **na každé ploše** (Mission Control → přidat plochu, přepnout) a **nad aplikací na celé
+      obrazovce** (Safari ⌃⌘F, přepnout na jeho plochu); normální okno se zapnutým „vždy navrchu“ a náhled bez „vždy
+      navrchu“ zůstávají na své ploše; po přepnutí náhledu na normální okno nebo na celou obrazovku (a zpět) i po vypnutí
+      „vždy navrchu“ v nastavení se okno chová jako dřív (celá obrazovka ve vlastní ploše funguje). Když ne, nový úkol.
+- [ ] **T-038** (otázka 2, oprava schválená podmíněně 2026-10-30; u kroku J5): z celé obrazovky rovnou do malého
+      náhledu (tlačítko náhledu, Esc u celé obrazovky otevřené z náhledu, „Použít“ v nastavení během celé obrazovky) –
+      zapsat velikost, roh a rámeček náhledu po skončení animace. **Když náhled skončí ve velikosti normálního okna nebo
+      jinde**, nahlásit výsledek J5: oprava je schválená (na macOS zopakovat umístění náhledu až po skončení animace, např.
+      po první změně velikosti okna, nejpozději po 1 s) a založí se na ni nový úkol. Když je náhled v pořádku, nic.
+- [ ] **T-038** (otázka 3, rozhodovací bod; u kroku J7): Nastavení na MacBooku 13" se systémovým písmem (San
+      Francisco) – když se v některém jazyce něco uřízne nebo se objeví posuvník, rozhodnout: přizpůsobit texty /
+      rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
+      a založit úkol. Když se nic neuřízne, otázka odpadá (zapsat).
 - [ ] **T-019** (krit. „Autostart po přihlášení funguje na macOS“): `caffeinate -d -u -i pwsh tools/macos-verify.ps1
       -Only mac.login-item` (dva běhy, mezi nimi odhlášení a přihlášení) a sezení 7.3–7.4 (vypnutí v Nastavení
       systému → hint a tlačítko „Otevřít Nastavení systému“ s nápovědou končící „Povolte ho tam.“, zapsat stav, který

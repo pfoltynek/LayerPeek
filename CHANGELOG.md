@@ -92,6 +92,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   changes (the mini preview is on top and has none); a normal window with "Always on top" now has no taskbar button, a
   mini preview without it now has one. Changing "Always on top" of an open window may make it disappear and reappear
   once (how Avalonia moves a window off the taskbar).
+- macOS: the camera mini preview with *Always on top* is now shown on every desktop (Space) and above apps in full
+  screen, like a picture-in-picture window. The normal camera window and full screen are unchanged; the preview without
+  *Always on top* stays on its desktop.
 - The small temperature charts in the camera window (the *Temperatures* widget and the chart row of the mini preview)
   no longer look like flat lines: the nozzle and the bed each get their own band (nozzle on top, bed below), scaled to
   their own values over the last 60 minutes with at least 6 °C, so a fluctuation of 1–2 °C is visible while sensor

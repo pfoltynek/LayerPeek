@@ -45,6 +45,7 @@ public sealed partial class CameraWindow : Window
     private CameraWindowMode _lastWindowedMode = CameraWindowMode.Normal;
     private bool _applyingMode;
     private bool _opened;
+    private bool _closed;
 
     // Mini preview: the press that may become a move once the pointer travels MoveThreshold.
     private (PointerPressedEventArgs Pressed, Point Origin)? _pendingMove;
@@ -114,6 +115,9 @@ public sealed partial class CameraWindow : Window
             ApplyMode(viewModel.Mode);
             viewModel.SetActive(WindowState != WindowState.Minimized);
         }
+
+        // macOS: the mini preview opened on top joins every Space (T-038).
+        UpdateSpaces();
     }
 
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
@@ -127,6 +131,8 @@ public sealed partial class CameraWindow : Window
         {
             // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence).
             ShowInTaskbar = ShowsInTaskbar(change.GetNewValue<bool>());
+            // macOS (T-038): also before a mode switch goes on, e.g. full screen needs the flags of a normal window back.
+            UpdateSpaces();
         }
 
         if (change.Property != WindowStateProperty || !_opened || _viewModel is not { } viewModel)
@@ -150,6 +156,8 @@ public sealed partial class CameraWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        // The native window is gone: nothing is written to it any more (T-038).
+        _closed = true;
         if (_viewModel is { } viewModel)
         {
             // Stops the stream right away; the slot disposes the view model next (which persists the window state).
@@ -286,6 +294,7 @@ public sealed partial class CameraWindow : Window
             _applyingMode = false;
         }
 
+        UpdateSpaces();
         viewModel.SetActive(WindowState != WindowState.Minimized);
         if (_placedBeforeMeasuring is not null)
         {
@@ -359,6 +368,7 @@ public sealed partial class CameraWindow : Window
             _applyingMode = false;
         }
 
+        UpdateSpaces();
         EnsureOnScreen();
     }
 
