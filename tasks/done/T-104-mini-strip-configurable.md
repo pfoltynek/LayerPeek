@@ -1,7 +1,7 @@
 ---
 id: T-104
 title: Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – návrh
-status: todo
+status: done
 owner: ui-designer
 priority: P3
 platform: all
@@ -22,16 +22,35 @@ přidá čas dokončení a zvýrazněné vychladnutí; návrh T-104 na jeho prav
 - Rozdělení na implementační úkoly (Core: model a uložení nastavení; App: UI nastavení, pás) – po odpovědích na otázky.
 - Mimo rozsah: implementace v tomto úkolu.
 
+## Rozhodnutí (uživatel, 2026-10-30)
+Všechny otázky podle doporučení (varianta A):
+- **Q1 A:** pás se nastavuje na záložce Widgety, položka „Malý náhled“ pod oddělovačem na konci seznamu, vlastní panel
+  (oddíl 2), bez zaškrtávacího pole viditelnosti.
+- **Q2 A:** u každé tiskárny (`printers[*].camera.miniStrip`), pod výběrem tiskárny jako rozložení widgetů.
+- **Q3 A:** 7 nezávislých položek (oddíl 1); minimum je vždy tečka / ikona + název stavu. Dílčí **(a)**: vypnutý pruh
+  průběhu = slabý podklad 3 DIP, výška pásu beze změny. Dílčí **(c)**: vypnutá položka není ani v tooltipu
+  (a `AutomationProperties.Name`).
+- **Q4 A:** nastavení určuje dostupnost řádků: vypnutý řádek = přepínač ⬡ / 📈 zmizí a řádek se nikdy neukáže; zapnutý
+  = přepínač zůstává a rozbalení se pamatuje jako dnes. Skryté přepínače uvolní místo pro souhrn.
+- **Q5 A:** pevné pořadí podle T-103.
+- **Q6 A:** pevná pravidla priority T-103 nad zapnutými položkami, bez volby.
+- **Q7 A:** formát času dokončení jen automatikou T-103, bez volby.
+- **Q8 A:** bez živého náhledu v nastavení.
+- **Q9 A:** `settings.json` u tiskárny, zapisují se jen vypnuté položky, chybějící = zapnuto, bez změny verze; nezapomíná
+  se se stavem okna (`Remove`), `camera-windows.json` se nemění.
+- **Q10 A:** „Obnovit výchozí“ i „Použít rozložení u všech tiskáren“ zahrnou i pás vybrané tiskárny; texty tlačítek
+  beze změny, tooltip `SettingsWidgetsResetHelp` doplněný.
+
 ## Akceptační kritéria
 - [x] Návrh UI s drátovými modely (nastavení i pás při 240 / 320 / 400) a pravidly priority.
-- [ ] Odpovědi uživatele na Otevřené otázky zapsané v `## Rozhodnutí`.
-- [ ] Navazující implementační úkoly v `tasks/todo/` a v `tasks/README.md`.
+- [x] Odpovědi uživatele na Otevřené otázky zapsané v `## Rozhodnutí`.
+- [x] Navazující implementační úkoly v `tasks/todo/` a v `tasks/README.md` (T-110).
 
 ## Návrh UI
 
 Návrh ui-designer, 2026-10-29 (macOS, headless snímky `Snapshots/macOS/`). Navazuje na schválený návrh T-103 (oddíly
 1–6, rozhodnutí Q1–Q7) a na záložku Widgety z T-092 (Návrh UI 3–5). Rozměry v DIP, čeština vyká.
-**Stav: čeká na odpovědi uživatele** (oddíl Otevřené otázky; u každé otázky je doporučená varianta označená
+**Stav: rozhodnuto 2026-10-30, vše podle doporučení (oddíl Rozhodnutí)** (oddíl Otevřené otázky; u každé otázky je doporučená varianta označená
 „(doporučeno)“). Drátové modely níže ukazují doporučené varianty. Předpokládá se T-109 (prahy trysky a podložky
 v panelu Vychladnutí), který se tohoto návrhu netýká: panel Vychladnutí zůstává panelem widgetu, malý náhled má vlastní
 položku.
@@ -275,8 +294,8 @@ přidala S–M a u Q8 B i zvětšení okna nastavení.
 ## Otevřené otázky
 **Rozhodnuto 2026-10-30 (uživatel): Q1 A, Q2 A, Q3 A (včetně dílčích (a) slabý podklad a (c) ne v tooltipu), Q4 A, Q5 A, Q6 A, Q7 A, Q8 A, Q9 A, Q10 A** – vše podle doporučení.
 
-Návrh připraven 2026-10-29 (ui-designer). U každé otázky je doporučená varianta označená „(doporučeno)“; nic z toho
-není rozhodnuté. Odpověď stačí jako „Q1 A, Q2 A, …“.
+Návrh připraven 2026-10-29 (ui-designer). U každé otázky je doporučená varianta označená „(doporučeno)“; rozhodnutí
+viz výše a oddíl `## Rozhodnutí`. Odpověď stačí jako „Q1 A, Q2 A, …“.
 - **Q1 – Kde se pás nastavuje?**
   - **A (doporučeno):** záložka Widgety, položka „Malý náhled“ pod oddělovačem na konci seznamu, vlastní panel
     (oddíl 2). Důvod: uživatel hledá „co se ukazuje v okně kamery“ na jednom místě, panel 508 × 228 se vejde bez
@@ -333,4 +352,10 @@ není rozhodnuté. Odpověď stačí jako „Q1 A, Q2 A, …“.
     jeden řádek navíc, do výšky 228 se nevejde bez zkrácení popisu.
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+(architect, 2026-10-30)
+- Návrhový úkol uzavřen: návrh UI hotový, rozhodnutí uživatele zapsaná v `## Rozhodnutí`.
+- Implementace: **T-110** `tasks/todo/T-110-mini-strip-configurable-impl.md` (ui-dev, `all`, závisí na T-104, T-103,
+  T-109). Odhad T-104a/b/c z oddílu 8 je sloučený do jednoho úkolu (Core část je malá a bez UI nemá samostatnou
+  hodnotu; nastavení i pás sdílejí model, texty a snímky).
+- Nevyřešené drobnosti znění (tooltipy polí 6 a 7, nové znění `SettingsWidgetsResetHelp`) jsou v Otevřených otázkách
+  T-110; implementaci neblokují.

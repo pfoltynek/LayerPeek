@@ -109,11 +109,12 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-094 | Okna Nastavení a Diagnostika – výchozí velikost 780 × 532, zvětšení na celou obrazovku a zapamatování velikosti (hotovo) | all | ui-dev | P2 | – |
 | T-101 | Zkušební upozornění a nový dotaz na povolení notifikací | all | ui-dev + ui-designer | P2 | T-010, T-020 |
 | T-103 | Malý náhled – čas dokončení a stav vychladnutí v základním řádku pásu (návrh hotový, implementace po T-101) | all | ui-designer + ui-dev | P2 | T-079, T-083, T-088, T-089, T-090, T-101 |
-| T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – návrh připraven, čeká na odpovědi Q1–Q10 | all | ui-designer | P3 | T-092, T-103 |
+| T-104 | Malý náhled – nastavitelný obsah pásu (výběr položek jako u widgetů) – návrh (hotovo, rozhodnuto 2026-10-30, implementace T-110) | all | ui-designer | P3 | T-092, T-103 |
 | T-106 | Kompaktní graf teplot – vlastní pás a měřítko pro každou řadu | all | ui-dev | P2 | T-084, T-090 |
 | T-105 | Ověřovací skripty pro uživatele (`tools/macos-verify.ps1`, `tools/windows-verify.ps1`) místo ručních kroků | all | qa-reviewer | P1 | – |
 | T-107 | Bezpečnost – proxy webu PrusaLink bez Service Workeru a s povolenými hlavičkami (N1) (implementováno; čeká ruční ověření a rozhodnutí o `*.localhost`) | all | core-dev | P2 | T-028, T-051 |
 | T-109 | Vychladnutí – prahy trysky i podložky u každé tiskárny (widget Vychladnutí) (implementováno; čeká Windows snímky, revizi ui-designer a potvrzení Q1/Q5) | all | ui-dev + core-dev | P2 | T-079, T-080, T-088, T-092, T-103 |
+| T-110 | Malý náhled – nastavitelný obsah pásu (implementace návrhu T-104) | all | ui-dev | P3 | T-104, T-103, T-109 |
 
 ### Windows (`windows`)
 
