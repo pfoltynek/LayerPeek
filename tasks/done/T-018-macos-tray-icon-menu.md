@@ -1,7 +1,7 @@
 ---
 id: T-018
 title: macOS – ikona a menu v menu baru
-status: in-progress
+status: done
 owner: ui-dev
 priority: P1
 platform: macos
@@ -56,12 +56,14 @@ Idle        Busy        Printing p% Paused p%   Finished    Attention   Error   
 - ~~**Ostrost na displejích @1x:** (A) jedna 36px bitmapa / (B) vícerozlišovací obrázek~~ → **A** jedna 36px bitmapa
   (rozhodnuto 2026-10-29); vícerozlišovací obrázek (18 + 36 px) jen jako záloha, pokud se ikona na skutečném Macu
   s displejem @1x ukáže rozmazaná.
-- **Ikony tiskáren v menu na macOS (T-039):** `TrayMenuOptions.PrinterIcons` je zatím jen pro Windows s poznámkou
+- ~~**Ikony tiskáren v menu na macOS (T-039):** `TrayMenuOptions.PrinterIcons` je zatím jen pro Windows s poznámkou
   „macOS (nativní NSMenu) až po ověření v T-018“ (rozhodnutí 2026-10-19). Rozsah T-018 to nezmiňuje, proto jsem to
-  neměnil. Mají se obrázky tiskáren v NSMenu zapnout (a ověřit) v rámci T-018, nebo v samostatném úkolu?
+  neměnil. Mají se obrázky tiskáren v NSMenu zapnout (a ověřit) v rámci T-018, nebo v samostatném úkolu?~~ →
+  samostatný úkol **T-116** „macOS – obrázky tiskáren v menu v menu baru“ (rozhodnuto 2026-10-30).
 
 ## Poznámky k implementaci
-- 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele). Úkol zůstává rozpracovaný kvůli nezodpovězeným otevřeným otázkám (viz Otevřené otázky).
+- 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele).
+- Uzavřeno 2026-10-30: zbývající ruční ověření přesunuto do T-114 a T-115 (rozhodnutí uživatele); poslední otevřená otázka (obrázky tiskáren v NSMenu) rozhodnuta jako samostatný úkol T-116.
 
 **Stav závislostí:** T-095 je zatím `in-progress` – čeká už jen na ověření na Windows; uživatel požádal pokračovat
 s T-018 i tak (2026-10-29).
