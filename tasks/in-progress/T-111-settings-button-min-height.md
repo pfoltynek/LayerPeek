@@ -55,7 +55,7 @@ pro celé okno (varianta A z Q6).
       (`LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`). Windows sadu
       (`Snapshots/`) přegeneruje uživatel ručně na Windows. Seznam změněných souborů se zapíše do Poznámek
       k implementaci. Do té doby snímkové testy na Windows selžou (stejně jako u T-103 / T-109 / T-110).
-- [ ] Revize ui-designer zapsaná v úkolu, verdikt OK, nebo nálezy vyřešené či přesunuté do Otevřených otázek.
+- [x] Revize ui-designer zapsaná v úkolu, verdikt OK, nebo nálezy vyřešené či přesunuté do Otevřených otázek.
 - [x] **Bezpečné testy:** žádný test nesahá na skutečný profil uživatele (`settings.json`, `camera-windows.json`,
       `windows.json`, logy v `%APPDATA%` / `~/Library/Application Support/LayerPeek`). Headless testy běží ve svém
       harnessu (`SettingsWindowHarness`, `DiagnosticsWindowHarness`) s úložištěm v paměti nebo ve vyhrazených
@@ -72,6 +72,14 @@ pro celé okno (varianta A z Q6).
   seznamem 12 → 8, E) vyjmout tlačítka sekce ze stylu, F) zvětšit okno. Provedeno A: `CompactHeight="224"`
   (7 × 32, rámeček seznamu 2 DIP sedmý řádek při rolování ořízne), test hlídá spodní mez 224, `docs/architecture.md`
   upraveno.
+- **Q2 (2026-10-30, ui-designer) – svislé vystředění textu tlačítek (nález 1 revize).** Text tlačítek je po zvýšení na
+  32 DIP o 1,5 DIP nad středem (dřív 0,5), protože Fluent `Button` nestřeďuje obsah svisle.
+  - **A) (doporučeno)** V rámci T-111 přidat do stylu `Button, HyperlinkButton` setter
+    `VerticalContentAlignment="Center"` a přegenerovat macOS snímky `settings-*`. Jeden řádek XAML, rozložení ani výšky
+    se nemění, Windows snímky se přegenerovávají tak jako tak.
+  - B) Nechat beze změny (rozdíl 1 DIP je okem téměř neviditelný, na Windows se nejspíš neprojeví).
+  - C) Řešit později samostatným úkolem pro všechna okna (Diagnostika, okno kamery) najednou.
+  Pozn.: T-112 mění totéž okno v jiné větvi; varianta A sahá jen na styl, konflikt by byl nanejvýš ve snímcích.
 
 ## Poznámky k implementaci
 - **Zahájení:** uživatel 2026-10-30 rozhodl začít, i když závislosti T-101, T-109 a T-110 jsou ještě
@@ -123,7 +131,41 @@ pro celé okno (varianta A z Q6).
 - **Bezpečnost:** aplikace se nespouštěla; testy běží jen v headless harnessu s úložištěm v paměti, bez sítě.
 
 ### Revize ui-designer
-**ČEKÁ** – revizi spustí hlavní agent. Do té doby jen vlastní kontrola ui-dev (2026-10-30) podle kritérií úkolu:
+**Verdikt (ui-designer, 2026-10-30): OK s drobnou výhradou.** Prohlédnuty macOS snímky `settings-*` (develop e1183ed)
+a porovnány s verzí před T-111 (`8948638^`), u vybraných (`settings-general`, `settings-prusalink`,
+`settings-widgets-cooldown-error-fr`) změřeny pixely (1 px = 1 DIP při 100 %).
+
+Co je v pořádku:
+- Všechna běžná tlačítka mají přesně 32 DIP (Uložit/Zrušit 488–519, Odeslat zkušební upozornění 150–181, Testovat
+  připojení 339–370, Přidat/Odebrat tiskárnu 404–435 / 444–475, tři tlačítka „Všechny widgety“ 364–395 / 404–435 /
+  444–475 s mezerou 8). Spodní okraje tlačítek zápatí zůstaly, tlačítka rostou nahoru.
+- Tlačítka vedle 32 DIP polí lícují horní i dolní hranou: „Testovat připojení“ pod poli, „Použít prahy u všech
+  tiskáren“ vedle `NumericUpDown` (190–221 obojí, `settings-widgets-dark`). Dvouřádková varianta ve francouzštině
+  (`settings-widgets-cooldown-error-fr`) je vyšší, horní hrana lícuje s poli, beze změny proti dřívějšku.
+- Tlačítko zkušebního oznámení vs. řádek Zvuk (`settings-general*`): mezera 5 DIP (řádky 182–186) je stejná jako před
+  T-111, tlačítko se nedotýká rozbalovacího seznamu; mimo mřížku o 1 DIP (zaoblení / okraj `ComboBox`), nález 1 T-101
+  platí dál, není to regrese.
+- Nic oříznutého, žádný posuvník ve všech prohlédnutých stavech (de, fr, it, cs, chyby, oznámení vypnutá, odeslané
+  zkušební oznámení, Login Items, kamera s upozorněním, okno kamery s chybami). Seznam tiskáren a seznam widgetů jsou
+  o 8 DIP nižší (vyplňují zbytek), všechny položky dál viditelné.
+- Tmavý režim (`settings-general-test-sent-dark`, `settings-widgets-dark`, `settings-widgets-mini-strip-dark`):
+  tlačítka čitelná, kontrast beze změny.
+- Odkazové tlačítko „Změnit na záložce Obecné“ vypadá stejně (dřív lokální `MinHeight`, má `VerticalContentAlignment="Center"`).
+- Šipky `NumericUpDown` a posuvník mají stejnou velikost jako dřív (jen posun).
+
+Nález:
+1. **Drobný – text tlačítek o 1 DIP nad středem.** `SettingsWindow.axaml`, styl `Button, HyperlinkButton`. Šablona
+   Fluent `Button` nenastavuje `VerticalContentAlignment` (výchozí `Stretch`, text u horního okraje + `ButtonPadding`),
+   takže 2 DIP navíc z `MinHeight` jdou celé pod text. Naměřeno: Uložit/Zrušit text 498–507 (dřív 500–509) při tlačítku
+   488–519 – text se posunul s horní hranou; Testovat připojení text 348–358 v tlačítku 339–370. Dřív byl text
+   0,5 DIP nad středem, teď 1,5 DIP. Okem téměř nepostřehnutelné; na Windows se Segoe UI (přirozená výška asi 32 DIP)
+   se pravděpodobně neprojeví vůbec. Návrh opravy: do stejného stylu přidat
+   `<Setter Property="VerticalContentAlignment" Value="Center" />` (lokální hodnoty mají přednost: obrázek tiskárny
+   má `Stretch`, odkaz Vychladnutí `Center`), znovu přegenerovat macOS snímky. Rozhodnutí viz Q2.
+
+Nebylo ověřeno: skutečné Windows (Segoe UI, 125/150 % DPI) a skutečný macOS mimo headless – čeká na snímky z Windows.
+
+Předchozí vlastní kontrola ui-dev (2026-10-30) podle kritérií úkolu:
 výšky tlačítek ≥ 32 DIP všude (test), mezery na mřížce 4/8 se nezměnily (mění se jen výška tlačítek), žádné tlačítko se
 nedotýká sousedního prvku (nejmenší mezera 4 DIP u tlačítek v záhlaví oznámení, nález 1 T-101 platí dál), vnitřní
 tlačítka šablon beze změny. Případ 10 widgetů vyřešen variantou A z Q1.
