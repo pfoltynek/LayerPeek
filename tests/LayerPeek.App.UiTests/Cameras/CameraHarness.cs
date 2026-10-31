@@ -57,7 +57,8 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="miniStrip">What the mini preview strip of the printers with a camera shows (T-110); <see langword="null"/>: everything.</param>
     /// <param name="feeds">The camera connections of the windows; <see langword="null"/>: <see cref="Factory"/> (fakes the test drives).</param>
     /// <param name="first">Changes the definition of the first printer ("a"), e.g. its name (README screenshots); <see langword="null"/>: none.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null)
+    /// <param name="activator">Activates the windows (T-119, a fake); <see langword="null"/>: <c>Window.Activate</c>.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null, IWindowActivator? activator = null)
     {
         _feeds = feeds ?? Factory;
         _macShortcuts = macShortcuts;
@@ -79,7 +80,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         // does not exceed, so that the nozzle alone decides (T-109; the bed's own rules are tested in Core and App.Tests).
         Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
         Cooldown.Configure([.. settings.Printers.Select(static p => p with { CooldownThresholds = new(50, 45) })], settings.PollingInterval);
-        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront).CameraWindows(Create, screens, measureChrome, predictChrome);
+        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront, activator: activator).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
 
     public CooldownMonitor Cooldown { get; }

@@ -16,15 +16,21 @@ internal sealed class AuxiliaryWindowTracker
     private readonly IWindowShell _shell;
     private readonly Func<Window, nint> _handleOf;
     private readonly AppPresence? _presence;
+    private readonly IWindowActivator _activator;
 
     /// <param name="handleOf">The native handle of a window; default: <see cref="TopLevel.TryGetPlatformHandle"/>.</param>
     /// <param name="presence">Counts the windows that are not on top (T-102); <see langword="null"/>: nothing is counted.</param>
-    public AuxiliaryWindowTracker(IWindowShell shell, Func<Window, nint>? handleOf = null, AppPresence? presence = null)
+    /// <param name="activator">
+    /// Activates a window a second start brings to the front (T-119, <see cref="AvaloniaRecentWindow.BringToFront"/>);
+    /// <see langword="null"/>: <see cref="Window.Activate"/>.
+    /// </param>
+    public AuxiliaryWindowTracker(IWindowShell shell, Func<Window, nint>? handleOf = null, AppPresence? presence = null, IWindowActivator? activator = null)
     {
         ArgumentNullException.ThrowIfNull(shell);
         _shell = shell;
         _handleOf = handleOf ?? DefaultHandleOf;
         _presence = presence;
+        _activator = activator ?? AvaloniaWindowActivator.Instance;
     }
 
     public RecentWindows Recent { get; } = new();
@@ -38,7 +44,7 @@ internal sealed class AuxiliaryWindowTracker
     {
         ArgumentNullException.ThrowIfNull(window);
         // Counted before it is shown (T-102): on macOS the app is in the Dock when the window comes to the front.
-        AvaloniaRecentWindow tracked = new(window, _shell, _handleOf(window), _presence);
+        AvaloniaRecentWindow tracked = new(window, _shell, _handleOf(window), _presence, _activator);
         // Shown without the focus (T-040: Apply opens the camera window): used only once activated.
         Recent.Track(tracked, used: window.ShowActivated);
         return tracked;
@@ -53,6 +59,7 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
     private readonly IWindowShell _shell;
     private readonly nint _handle;
     private readonly AppPresence? _presence;
+    private readonly IWindowActivator _activator;
     private bool _released;
 
     // The state a minimized window returns to (e.g. full screen of a camera window).
@@ -62,12 +69,14 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
     /// Captured at creation: once the window closed it no longer reports its handle, but the shell must still be told.
     /// </param>
     /// <param name="presence">Counts the window while it is open and not on top (T-102); <see langword="null"/>: not counted.</param>
-    public AvaloniaRecentWindow(Window window, IWindowShell shell, nint handle, AppPresence? presence = null)
+    /// <param name="activator">Activates the window in <see cref="BringToFront"/> (T-119); <see langword="null"/>: <see cref="Window.Activate"/>.</param>
+    public AvaloniaRecentWindow(Window window, IWindowShell shell, nint handle, AppPresence? presence = null, IWindowActivator? activator = null)
     {
         Window = window;
         _shell = shell;
         _handle = handle;
         _presence = presence;
+        _activator = activator ?? AvaloniaWindowActivator.Instance;
         _restoreState = RestoreStateOf(window);
         _shell.Prepare(_handle);
         _presence?.Set(this, window.Topmost);
@@ -109,7 +118,7 @@ internal sealed class AvaloniaRecentWindow : IRecentWindow, IDisposable
             Window.WindowState = _restoreState;
         }
 
-        Window.Activate();
+        _activator.Activate(Window);
         _shell.RequestAttention(_handle);
     }
 

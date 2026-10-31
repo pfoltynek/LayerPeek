@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: windows
-depends_on: [T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109, T-110, T-111, T-112, T-117, T-118]
+depends_on: [T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109, T-110, T-111, T-112, T-117, T-118, T-119]
 ---
 
 ## Cíl
@@ -128,6 +128,13 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
 - [ ] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
       kroky W1–W3 v T-102 („Ruční ověření na Windows“) a `pwsh tools/windows-verify.ps1 -Only win.taskbar`.
+- [ ] **T-119** (krit. „Ruční ověření ve skutečné aplikaci (Windows)“): skutečná aplikace se simulátorem; okno kamery
+      bez špendlíku zakryté oknem jiné aplikace (do ní klepnout myší, je v popředí) → tray menu → „Přenést kameru do
+      popředí“: kamera je vepředu a aktivní; totéž minimalizovaná, se špendlíkem (minimalizovaná) a malý náhled; okno bez
+      špendlíku pak není vždy nahoře. Druhá volba Nastavení… / Diagnostika… / O aplikaci vytáhne otevřené okno dopředu.
+      S VMware Workstation v popředí stačí, že je okno hned pod ním (přijatý záložní stav, T-119). Na volné ploše navíc
+      `pwsh tools/run-e2e.ps1 -Class '*BringToFrontTests' -NoSystemChanges` a `$env:LAYERPEEK_E2E = '1'; dotnet test
+      --project tests/LayerPeek.App.Tests -- --filter-class '*ForegroundRaiserE2ETests'`.
 - [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční kontrola chování špendlíku, část Windows): skutečná
       aplikace se simulátorem – špendlík vpravo nahoře v normálním okně i v malém náhledu, na celé obrazovce není;
       zapnutý je bez myši vidět ztlumený (čitelný i na světlém obrazu, při 125 / 150 / 200 %), vypnutý ne; po kliknutí
