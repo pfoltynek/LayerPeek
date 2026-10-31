@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 
 using LayerPeek.Core.Secrets;
 using LayerPeek.PrusaLink.WebProxy;
@@ -330,9 +331,10 @@ public class WebProxyLifecycleTests
             {
                 using HttpResponseMessage response = await context.Browser.GetAsync(new Uri(address, "api/v1/status"), clientTimeout.Token);
             }
-            catch (Exception ex) when (ex is HttpRequestException || (ex is OperationCanceledException && !Ct.IsCancellationRequested))
+            catch (Exception ex) when (ex is HttpRequestException or SocketException || (ex is OperationCanceledException && !Ct.IsCancellationRequested))
             {
-                // Refused, dropped by the stopping proxy, or timed out.
+                // Refused, dropped by the stopping proxy, or timed out. On macOS a connection the closing listener resets right
+                // after connect fails in HttpClient with a bare SocketException (EINVAL from getpeername), not wrapped.
             }
         })];
         await busy.Task.WaitAsync(Wait, Ct);

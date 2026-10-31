@@ -268,7 +268,8 @@ submenu.
 - **Widgets:** which overlay widgets are shown, their settings (e.g. the nozzle and bed cool-down thresholds of each
   printer), card opacity and layout.
 - **General:** how often the printers are polled, the language and detailed logging.
-- **Startup and updates:** start LayerPeek after you sign in to Windows (off by default; only the installed version).
+- **Startup and updates:** start LayerPeek after you sign in to Windows (on by default: the installer switches it on;
+  only the installed version).
   On macOS: **Open at Login** (off by default; only for LayerPeek.app copied out of the disk image, e.g. to Applications).
   If you turned LayerPeek off in System Settings → General → Login Items, only you can allow it there again; the
   settings window offers a button that opens that page. **Check for updates automatically** (on by default: shortly

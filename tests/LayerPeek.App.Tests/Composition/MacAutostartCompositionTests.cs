@@ -16,6 +16,9 @@ public sealed class MacAutostartCompositionTests : IDisposable
 {
     private const string Installed = "/Applications/LayerPeek.app/Contents/MacOS/LayerPeek";
 
+    /// <summary>System.IO.Path of Windows turns the macOS paths of these tests into \ paths; the code runs only on macOS.</summary>
+    private const string MacPathsOnly = "System.IO.Path parses macOS paths only on macOS.";
+
     private readonly string _data = TestDirectories.NewDirectoryPath();
 
     public void Dispose() => TestDirectories.Delete(_data);
@@ -27,6 +30,8 @@ public sealed class MacAutostartCompositionTests : IDisposable
     [Fact]
     public void TheAppInItsBundleGetsTheRealLoginItem()
     {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), MacPathsOnly);
+
         FakeLoginItem real = new();
 
         AutostartOption option = AppServices.CreateMacAutostart(AppEnvironment.Production, Logger, Installed, static _ => false, () => real);
@@ -42,6 +47,8 @@ public sealed class MacAutostartCompositionTests : IDisposable
     [InlineData("/Volumes/LayerPeek/LayerPeek.app/Contents/MacOS/LayerPeek", true)]
     public void ElsewhereTheOptionIsDisabledWithTheReason(string executable, bool readOnly)
     {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), MacPathsOnly);
+
         AutostartOption option = AppServices.CreateMacAutostart(AppEnvironment.Production, Logger, executable, _ => readOnly, Forbidden);
 
         Assert.Equal(new AutostartOption(null, NeedsInstallation: true), option);

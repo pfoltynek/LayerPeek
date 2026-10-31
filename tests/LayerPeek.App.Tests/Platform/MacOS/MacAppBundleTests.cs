@@ -5,6 +5,9 @@ namespace LayerPeek.App.Tests.Platform.MacOS;
 /// <summary>Where the running app is on macOS (T-019): in its LayerPeek.app, and whether a Login Item of it would last.</summary>
 public sealed class MacAppBundleTests
 {
+    /// <summary>System.IO.Path of Windows turns the macOS paths of these tests into \ paths; the code runs only on macOS.</summary>
+    private const string MacPathsOnly = "System.IO.Path parses macOS paths only on macOS.";
+
     [Theory]
     [InlineData("/Applications/LayerPeek.app/Contents/MacOS/LayerPeek", "/Applications/LayerPeek.app")]
     [InlineData("/Users/u/Apps/LayerPeek 2.app/Contents/MacOS/LayerPeek", "/Users/u/Apps/LayerPeek 2.app")]
@@ -19,6 +22,8 @@ public sealed class MacAppBundleTests
     [InlineData(null, null)]
     public void TheBundleIsFoundOnlyAroundItsExecutable(string? executable, string? bundle)
     {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), MacPathsOnly);
+
         Assert.Equal(bundle, MacAppBundle.BundleOf(executable));
     }
 
