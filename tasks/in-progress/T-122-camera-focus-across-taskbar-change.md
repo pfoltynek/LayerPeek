@@ -29,11 +29,42 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
 3. Chování macOS beze změny (tam se přítomnost řeší jinak, T-102); `Topmost` ani pravidla T-102 se nemění.
 
 ## Akceptační kritéria
-- [ ] Headless testy nejdřív (selžou před opravou): klik myší na špendlík, deaktivace a nová aktivace okna → řada tlačítek
+- [x] Headless testy nejdřív (selžou před opravou): klik myší na špendlík, deaktivace a nová aktivace okna → řada tlačítek
       bez myši skrytá; Enter / mezerník na špendlíku v malém i normálním okně → fokus zůstane na špendlíku
-- [ ] Oprava A i B na Windows, macOS beze změny
+- [x] Oprava A i B na Windows, macOS beze změny
 - [ ] E2E `CameraPinTests` (T-120) projdou na skutečné aplikaci → běh koordinuje hlavní agent s uživatelem
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
+
+## Poznámky k implementaci
+- **Příčina A potvrzena** (dekompilovaná Avalonia 12.1.4): `FocusManager.Focus(null)` ve větvi „zapamatovaný prvek =
+  aktuální“ jen zruší fokus klávesnice, `FocusedElementProperty` okna (rozsahu) zůstane na špendlíku; každá aktivace
+  (`WindowBase.HandleActivated` → `FocusManager.SetFocusScope`) ho fokusuje znovu. Headless to ukáže už samotné
+  `Activate()` (stejně jako Alt+Tab zpět nebo `Hide()`/`Show(activate)` při vrácení tlačítka na hlavní panel).
+- **Oprava A:** `Surface` (`Border` obrazu) má `Focusable="True"`, `IsTabStop="False"`; klik myší na špendlík přesune
+  fokus na `Surface` (`NavigationMethod.Pointer`, bez rámečku fokusu), takže si ho okno pamatuje místo špendlíku. Tab
+  z obrazu jde dál na první tlačítko okna; F11, Esc, kontextová nabídka (klávesa Menu / Shift+F10) bublají z obrazu do okna
+  jako dřív. Vedlejší (zamýšlený) efekt: klik na obraz teď vezme fokus tlačítku, které ho mělo z klávesnice.
+- Ostatní tlačítka okna se po kliku myší skryjí, a tím je okno zapomene (ověřeno testem `ModeButtonClicked…` – prošel
+  i před opravou); jejich chování se proto nemění.
+- **Oprava B** (`CameraWindow.Focus.cs`, `ShowInTaskbarKeepingFocus`): před změnou `ShowInTaskbar` (jen při skutečné
+  změně) si okno zapamatuje fokusovaný prvek a zda měl fokus z klávesnice (`:focus-visible`); bylo-li okno aktivní a je
+  aktivní i po změně, ale bez fokusu, vrátí ho stejnému prvku hned a ještě jednou po zpracování zpráv správce oken
+  (`Dispatcher.Post`, `Background`). Na Windows navíc vrátí fokus správce oken (`SetFocus` na HWND, jen je-li okno
+  aktivním oknem vlákna a fokus jinde; nikdy neaktivuje) – nový `Platform/Windows/WindowFocusNative.cs`
+  (`[LibraryImport]`, AOT v pořádku). Neaktivní okno se nikdy nefokusuje.
+- **Proč jen malý náhled (B):** v kódu se cesty normálního okna a malého náhledu neliší – obě mění jen `Topmost` →
+  `ShowInTaskbar` a Avalonia nastaví stejného skrytého vlastníka (`WindowImpl.UpdateWindowProperties`, `_parent == null`).
+  V E2E se ale liší pořadí: v normálním okně je připnutí (mezerník) první změna po otevření, v malém náhledu (Enter) přijde
+  až po odepnutí, tj. po `Hide()`/`Show(activate)` od Avalonie. Pravděpodobně tedy nejde o režim, ale o stav fokusu Win32
+  po tomto skrytí a ukázání (Avalonia `WM_ACTIVATE` vrací 0 bez `DefWindowProc`, který jinak fokus nastavuje); ověřit to
+  lze jen diagnostikou E2E na skutečné ploše. Oprava je na tom nezávislá: platí pro oba režimy i obě klávesy.
+- macOS: žádná změna chování – fokus tam při změně Dock ikony nemizí, takže se nic nevrací; nativní část jen na Windows.
+  Na macOS neověřeno (vyvíjeno na Windows).
+- Testy: `tests/LayerPeek.App.UiTests/Cameras/CameraWindowFocusUiTests.cs` (10 případů). Před opravou selhalo 8
+  (A: normální okno i malý náhled; B: mezerník / Enter v obou režimech, ztráta fokusu během změny i po ní), prošly 2
+  (tlačítko režimu, neaktivní okno – hlídají regresi). Bez hlavního panelu headless simuluje ztrátu fokusu tím, že ho test
+  zruší při změně `ShowInTaskbar`.
+- Ověřeno 2026-10-31 na Windows 11 Pro 10.0.26300 (headless); E2E `CameraPinTests` nespuštěno (koordinuje hlavní agent).
 
 ## Otevřené otázky
 (žádné)
