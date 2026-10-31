@@ -814,7 +814,7 @@
     <value>Nascondi _telecamera</value>
   </data>
   <data name="MenuCameraToFront" xml:space="preserve">
-    <value>_Mostra telecamera</value>
+    <value>Porta la telecamera in _primo piano</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – telecamera</value>

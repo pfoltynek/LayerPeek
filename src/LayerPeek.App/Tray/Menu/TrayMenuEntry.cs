@@ -35,7 +35,7 @@ public enum TrayMenuCommand
     Camera,
 
     /// <summary>
-    /// "Show camera" next to "Hide camera" while the camera window of <see cref="TrayMenuEntry.PrinterId"/> is open (T-102,
+    /// "Bring camera to front" next to "Hide camera" while the camera window of <see cref="TrayMenuEntry.PrinterId"/> is open (T-102,
     /// macOS and Windows): brings the app and the window to the front (restored when minimized, also a window on top);
     /// opens it when it closed meanwhile.
     /// </summary>
@@ -164,7 +164,7 @@ internal sealed class TrayMenuEntryList : IReadOnlyList<TrayMenuEntry>, IEquatab
 /// NSMenu on macOS (T-116, after the user decision on T-018 of 2026-10-30), sized by <see cref="PrinterMenuIconSize"/>.
 /// </param>
 /// <param name="CameraToFront">
-/// A printer with an open camera window also has "Show camera" (<see cref="TrayMenuCommand.CameraToFront"/>, T-102): on
+/// A printer with an open camera window also has "Bring camera to front" (<see cref="TrayMenuCommand.CameraToFront"/>, T-102): on
 /// every platform (user decision 2026-10-29: the same menu on macOS and Windows; a window on top has no Dock icon or
 /// taskbar button). Off in <see cref="Default"/> only, so that tests of the older menu stay as they were.
 /// </param>
@@ -173,6 +173,6 @@ internal sealed record TrayMenuOptions(bool SettingsAvailable, bool DiagnosticsA
     /// <summary>Both auxiliary windows exist: settings (T-015) and diagnostics (T-011); no printer icons.</summary>
     public static TrayMenuOptions Default { get; } = new(SettingsAvailable: true, DiagnosticsAvailable: true);
 
-    /// <summary><see cref="Default"/> with printer icons (Windows and macOS) and "Show camera" for open camera windows (both OSes).</summary>
+    /// <summary><see cref="Default"/> with printer icons (Windows and macOS) and "Bring camera to front" for open camera windows (both OSes).</summary>
     public static TrayMenuOptions ForCurrentPlatform { get; } = Default with { PrinterIcons = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS(), CameraToFront = true };
 }

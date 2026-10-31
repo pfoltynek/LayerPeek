@@ -814,7 +814,7 @@
     <value>Ukryj _kamerę</value>
   </data>
   <data name="MenuCameraToFront" xml:space="preserve">
-    <value>_Pokaż kamerę</value>
+    <value>Przenieś kamerę na _wierzch</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – kamera</value>

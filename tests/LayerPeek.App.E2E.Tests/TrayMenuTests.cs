@@ -43,6 +43,8 @@ public sealed class TrayMenuTests(E2EFixture fixture)
 
         // Close: "Hide camera" now (no check mark either), the window closes.
         (menu, submenu, _) = await OpenPrinterSubmenuAsync(app, "tray-menu-3");
+        // T-102: the open window also has "Bring camera to front", never a second "Show camera" (2026-10-31).
+        Assert.Equal(["Open PrusaLink", "Bring camera to front", "Hide camera"], submenu.Select(static item => item.Name).ToArray());
         cameraItem = CameraItem(submenu, "Hide camera");
         cameraItem.Patterns.Invoke.Pattern.Invoke();
         await Wait.UntilAsync(() => !Native.IsWindowVisible(opened), TimeSpan.FromSeconds(10), "the camera window to close from the menu");

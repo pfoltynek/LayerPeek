@@ -185,7 +185,7 @@ vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
    - Okno kamery schovat za Safari: klik na ikonu v Docku → okna LayerPeeku vpředu (minimalizované okno se obnoví,
      z celé obrazovky zpět na celou obrazovku). Pravý klik na ikonu v Docku: seznam oken s názvy („Alpha – kamera“,
      „Nastavení“…; malý náhled bez rámečku tam být nemusí – zapsat).
-   - Menu v menu baru → tiskárna s otevřeným oknem kamery: „Zobrazit kameru“ nad „Skrýt kameru“; okno za jinou
+   - Menu v menu baru → tiskárna s otevřeným oknem kamery: „Přenést kameru do popředí“ nad „Skrýt kameru“; okno za jinou
      aplikací, minimalizované i malý náhled navrchu přijde dopředu s fokusem. Po zavření okna položka zmizí.
      (Windows: kroky W1–W3 v T-102.)
    - Vývojové sestavení (`dotnet run`): ikona v Docku je obecná ikona spustitelného souboru – zapsat, jak vypadá.

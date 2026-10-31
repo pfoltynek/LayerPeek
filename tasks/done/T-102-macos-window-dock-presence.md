@@ -1,6 +1,6 @@
 ---
 id: T-102
-title: macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu
+title: macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu (od 2026-10-31 „Přenést kameru do popředí“)
 status: done
 owner: ui-dev
 priority: P1
@@ -74,9 +74,10 @@ Výchozí volby okna kamery (normální okno ne navrchu, malý náhled navrchu),
   V Nastavení → Okno kamery zapnout „Vždy navrchu“ u normálního okna a Použít s otevřeným oknem → tlačítko zmizí;
   vypnout → vrátí se. U malého náhledu „Vždy navrchu“ vypnout → náhled má tlačítko. Nastavení, Diagnostika, O aplikaci
   mají tlačítko vždy.
-- **W2 – „Zobrazit kameru“:** menu v oznamovací oblasti → tiskárna s otevřeným oknem: „Otevřít PrusaLink“, „Zobrazit
-  kameru“, „Skrýt kameru“ (přístupové klávesy: písmeno samotné spustí položku, žádné dvě stejné). Okno za jinou aplikací,
-  minimalizované (i z celé obrazovky) a malý náhled navrchu: „Zobrazit kameru“ ho přivede dopředu s fokusem (Esc
+- **W2 – „Přenést kameru do popředí“** (do 2026-10-31 „Zobrazit kameru“)**:** menu v oznamovací oblasti → tiskárna
+  s otevřeným oknem: „Otevřít PrusaLink“, „Přenést kameru do popředí“, „Skrýt kameru“ (přístupové klávesy: písmeno
+  samotné spustí položku, žádné dvě stejné). Okno za jinou aplikací, minimalizované (i z celé obrazovky) a malý náhled
+  navrchu: „Přenést kameru do popředí“ ho přivede dopředu s fokusem (Esc
   v okně kamery reaguje). Po zavření okna položka zmizí.
 - **W3 – blikání:** při kroku W1 a při přepnutí normální okno navrchu ↔ celá obrazovka se okno jednou krátce skryje
   a ukáže (Avalonia, přijatelné podle otázky 5) – zapsat, jestli nedělá nic horšího (ztráta fokusu, posun, jiný monitor).
@@ -139,4 +140,13 @@ Výchozí volby okna kamery (normální okno ne navrchu, malý náhled navrchu),
   rozhodnutí k otázkám 2, 4 a 5 zapsána, kroky W1–W3. Ověřeno na macOS (headless): `dotnet build` a `dotnet build -c
   Release` 0 varování, `dotnet test` 7706 testů, 0 selhání (181 přeskočeno), profil uživatele beze změny (stejný
   skript v bashi). Na Windows neověřeno.
+- **Přejmenování položky (2026-10-31, větev `feature/camera-to-front-label`):** uživatel na Windows nahlásil jako chybu,
+  že u otevřeného okna je v podmenu „Zobrazit kameru“ i „Skrýt kameru“ (vypadalo to jako nepřepnutý přepínač).
+  Rozhodnutí uživatele: položku ponechat na obou OS, ale pojmenovat ji jinak než `MenuShowCamera`. Výše uvedená věta
+  „stejné znění jako `MenuShowCamera`“ a výčet textů tím neplatí. Nové texty `MenuCameraToFront`: en „Bring camera to
+  _front“, cs „Přenést kameru do _popředí“, sk „Preniesť kameru do _popredia“, de „Kamera in den _Vordergrund holen“,
+  es „Traer la cámara al _frente“, fr „Mettre la caméra au _premier plan“, it „Porta la telecamera in _primo piano“,
+  pl „Przenieś kamerę na _wierzch“. Testy `TrayMenuCameraToFrontTests` nově hlídají ve všech jazycích, že se text liší
+  od „Zobrazit / Skrýt kameru“ a že otevřené okno nikdy neukáže „Zobrazit kameru“; E2E `TrayMenuTests` kontroluje celé
+  podmenu s otevřeným oknem.
 - Bez nových balíčků.

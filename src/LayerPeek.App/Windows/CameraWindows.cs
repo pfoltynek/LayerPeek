@@ -188,7 +188,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     }
 
     /// <summary>
-    /// "Show camera" for an open window (T-102, macOS and Windows): restores a minimized window (to full screen when it
+    /// "Bring camera to front" for an open window (T-102, macOS and Windows): restores a minimized window (to full screen when it
     /// was), then activates the app (macOS) and the window like <see cref="Show"/>, also a window on top (it has no Dock
     /// icon or taskbar button to come back by); a window that closed meanwhile (a stale menu item) opens.
     /// </summary>
