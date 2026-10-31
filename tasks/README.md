@@ -135,6 +135,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-113 | Oddělené vydání macOS a Windows pod jednou verzí (hotovo; ověření u 0.3.1 v T-114 / T-115) | all | qa-reviewer | P2 | T-055, T-058 |
 | T-117 | Okno kamery – špendlík „Vždy navrchu“ (indikace a přepínání přímo v okně) (hotovo; ověření a macOS snímky v T-114 / T-115) | all | ui-dev | P2 | T-037, T-091, T-102 |
 | T-118 | Malý náhled kamery – tenký rámeček okna (hotovo; ověření a macOS snímky v T-114 / T-115) | all | ui-dev | P3 | T-089, T-090, T-117 |
+| T-119 | Windows – spolehlivé vytažení otevřeného okna do popředí | windows | ui-dev | P2 | T-102, T-117 |
 
 ### Windows (`windows`)
 
