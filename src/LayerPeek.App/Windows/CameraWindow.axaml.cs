@@ -130,8 +130,9 @@ public sealed partial class CameraWindow : Window
         }
         else if (change.Property == TopmostProperty)
         {
-            // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence).
-            ShowInTaskbar = ShowsInTaskbar(change.GetNewValue<bool>());
+            // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence); the keyboard focus
+            // stays where it was (T-122).
+            ShowInTaskbarKeepingFocus(ShowsInTaskbar(change.GetNewValue<bool>()));
             // macOS (T-038): also before a mode switch goes on, e.g. full screen needs the flags of a normal window back.
             UpdateSpaces();
         }
@@ -656,9 +657,12 @@ public sealed partial class CameraWindow : Window
     /// <summary>
     /// A window button pressed from the keyboard hides itself (its mode is now shown): the keyboard focus moves to the
     /// first remaining button, after the command switched the mode (Click comes before the command). A mouse click leaves
-    /// the focus alone, so that the buttons still fade out when the pointer leaves the window. The pin (T-117) stays where
-    /// it is: from the keyboard the focus stays on it; a mouse click, which focused it, drops the focus, as the row would
-    /// otherwise stay shown (<c>:focus-within</c>) after the pointer left instead of leaving only the dimmed pin.
+    /// the focus alone, so that the buttons still fade out when the pointer leaves the window (the clicked button hides
+    /// itself, which also makes the window forget it). The pin (T-117) stays where it is: from the keyboard the focus stays
+    /// on it; a mouse click, which focused it, moves the focus to the image, as the row would otherwise stay shown
+    /// (<c>:focus-within</c>) after the pointer left instead of leaving only the dimmed pin. Not just dropped: the window
+    /// would remember the pin and focus it again on its next activation (T-122: Alt+Tab back, or Windows hiding and showing
+    /// the window to give it its taskbar button back after unpinning).
     /// </summary>
     private void OnWindowButtonClick(object? sender, RoutedEventArgs e)
     {
@@ -672,7 +676,7 @@ public sealed partial class CameraWindow : Window
         {
             if (!fromKeyboard)
             {
-                FocusManager?.Focus(null);
+                _ = Surface.Focus(NavigationMethod.Pointer);
             }
         }
         else if (fromKeyboard)
