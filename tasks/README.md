@@ -136,6 +136,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-117 | Okno kamery – špendlík „Vždy navrchu“ (indikace a přepínání přímo v okně) (hotovo; ověření a macOS snímky v T-114 / T-115) | all | ui-dev | P2 | T-037, T-091, T-102 |
 | T-118 | Malý náhled kamery – tenký rámeček okna (hotovo; ověření a macOS snímky v T-114 / T-115) | all | ui-dev | P3 | T-089, T-090, T-117 |
 | T-119 | Windows – spolehlivé vytažení otevřeného okna do popředí (hotovo; ruční ověření v T-114) | windows | ui-dev | P2 | T-102, T-117 |
+| T-121 | Kontextové menu okna kamery – samotné písmeno spustí položku | all | ui-dev | P3 | T-069, T-117 |
+| T-122 | Okno kamery – fokus při změně tlačítka na hlavním panelu | windows | ui-dev | P2 | T-102, T-117 |
 
 ### Windows (`windows`)
 
