@@ -126,7 +126,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
-- [ ] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
+- [x] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
       kroky W1–W3 v T-102 („Ruční ověření na Windows“) a `pwsh tools/windows-verify.ps1 -Only win.taskbar`.
 - [x] **T-119** (krit. „Ruční ověření ve skutečné aplikaci (Windows)“): skutečná aplikace se simulátorem; okno kamery
       bez špendlíku zakryté oknem jiné aplikace (do ní klepnout myší, je v popředí) → tray menu → „Přenést kameru do
@@ -136,7 +136,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `pwsh tools/run-e2e.ps1 -Class '*BringToFrontTests' -NoSystemChanges` a `$env:LAYERPEEK_E2E = '1'; dotnet test
       --project tests/LayerPeek.App.Tests -- --filter-class '*ForegroundRaiserE2ETests'`.
       Ověřeno uživatelem 2026-10-31 ve vývojové verzi (develop 4f366c5): funguje. E2E na volné ploše prošlo 2026-10-31 (s opravou 2/2, bez ní 2/2 selhalo).
-- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční kontrola chování špendlíku, část Windows): skutečná
+- [x] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční kontrola chování špendlíku, část Windows): skutečná
       aplikace se simulátorem – špendlík vpravo nahoře v normálním okně i v malém náhledu, na celé obrazovce není;
       zapnutý je bez myši vidět ztlumený (čitelný i na světlém obrazu, při 125 / 150 / 200 %), vypnutý ne; po kliknutí
       myší a odjetí myši zůstane jen ztlumený špendlík. Klik přepne „vždy navrchu“ hned (okno nad jinou aplikací)
@@ -145,7 +145,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       zaškrtnutá podle stavu). Předčítání (Narrator) přečte přepínač „Vždy navrchu: zapnuto / vypnuto“ se stavem,
       mezerník / Enter přepíná a fokus zůstane na špendlíku. Volba přežije restart a otevřené Nastavení ji ukáže
       (neuložené jiné úpravy zůstanou). Snímek okna se špendlíkem do poznámek.
-- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“ a ostrost obrysu, část Windows): skutečná
+- [x] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“ a ostrost obrysu, část Windows): skutečná
       aplikace se simulátorem, malý náhled – tenký šedý obrys kolem obrazu i pásu je vidět na světlé ploše (bílá tapeta,
       otevřený Průzkumník ve světlém režimu) i na tmavé (tmavá tapeta, tmavé okno za náhledem); v normálním okně a na
       celé obrazovce obrys není. Při najetí myší (nad obraz, pás i okraj) obrys plynule zesvětlí, po odjetí ztmavne.
@@ -154,6 +154,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       velikost (kurzor šipek u okraje), tažení obrazu a pásu přesouvá okno, tlačítka okna a pásu reagují. Při tažení
       úchopem smí obrys ztmavnout až do puštění (systémová smyčka změny velikosti) – není chyba. Snímky na světlém
       a tmavém pozadí do poznámek.
+      Body T-102, T-117 a T-118 výše ověřil uživatel 2026-10-31 ve vývojové verzi (develop 6f80ab0): vše v pořádku; automatizace → T-120.
 - [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
       win-x64,win-arm64` vytvoří i `LayerPeek-<verze>-win-arm64-Setup.exe` a soubory kanálu `win-arm64` bez kolize
