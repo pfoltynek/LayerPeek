@@ -66,5 +66,20 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
   zruší při změně `ShowInTaskbar`.
 - Ověřeno 2026-10-31 na Windows 11 Pro 10.0.26300 (headless); E2E `CameraPinTests` nespuštěno (koordinuje hlavní agent).
 
+### Stav ladění B (2026-10-31)
+- E2E `CameraPinTests` na skutečné ploše: 4/5, A opravena; `SpaceAndEnterSwitchThePinAndTheFocusStaysOnIt` dál selhává
+  v kroku „mini-enter“.
+- Dočasná diagnostika (`CameraWindow.DiagTrace.cs`, záznam do `%TEMP%\layerpeek-t122-trace.log`: WM_ACTIVATE/SETFOCUS/
+  KILLFOCUS/klávesy, GotFocus/LostFocus Avalonie) ukázala skutečnou příčinu: **fokus změna vlastníka okna vůbec nebere**
+  (při připnutí žádné `WM_KILLFOCUS`). Odepnutí (skrytí a nové ukázání okna) vrátí fokus špendlíku při `WM_ACTIVATE`
+  s `NavigationMethod.Unspecified`, tedy **bez `:focus-visible`**. Další Enter pak `OnWindowButtonClick` považuje za klik
+  myší (rozhoduje podle `:focus-visible`) a fokus přesune na obraz (před T-122 ho `Focus(null)` zrušil). Proto jen
+  „malý náhled + Enter“: je to první stisk po odepnutí (v normálním okně je Enter sám tím odepnutím).
+- Domněnka s `WM_KILLFOCUS` / skrytým vlastníkem je tím vyvrácena; obnova fokusu v `CameraWindow.Focus.cs`
+  a `WindowFocusNative` se v záznamu nikdy neuplatnila.
+- Další krok: klávesnici poznávat podle toho, zda klik vznikl během zpracování klávesy (ne podle `:focus-visible`),
+  odstranit neopodstatněnou obnovu fokusu, headless test pro skutečný mechanismus (fokus vrácený aktivací bez
+  `:focus-visible`, pak Enter), odstranit diagnostiku, E2E znovu.
+
 ## Otevřené otázky
 (žádné)

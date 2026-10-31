@@ -30,7 +30,9 @@ public sealed partial class CameraWindow
         }
 
         KeptFocus? kept = FocusToKeep();
+        Trace($"ShowInTaskbar -> {showInTaskbar} kept={kept} {FocusText()}");
         ShowInTaskbar = showInTaskbar;
+        Trace($"ShowInTaskbar done {FocusText()}");
         if (kept is { } focus)
         {
             GiveFocusBack(focus);
@@ -52,6 +54,7 @@ public sealed partial class CameraWindow
 
     private void GiveFocusBack(KeptFocus focus)
     {
+        Trace($"GiveFocusBack closed={_closed} {FocusText()} top={TopLevel.GetTopLevel(focus.Element) == this}");
         if (_closed || !IsActive || FocusManager?.GetFocusedElement() is not null || TopLevel.GetTopLevel(focus.Element) != this)
         {
             return;

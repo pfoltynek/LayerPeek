@@ -108,6 +108,7 @@ public sealed partial class CameraWindow : Window
     protected override void OnOpened(EventArgs e)
     {
         base.OnOpened(e);
+        AttachTrace();
         _opened = true;
         CorrectFrame();
         EnsureOnScreen();
