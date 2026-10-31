@@ -12,9 +12,14 @@ public sealed class UpdateInstallationTests
 {
     private const string MacApp = "/Applications/LayerPeek.app/Contents/MacOS/LayerPeek";
 
+    /// <summary>System.IO.Path of Windows turns the macOS paths of these tests into \ paths; the code runs only on macOS.</summary>
+    private const string MacPathsOnly = "System.IO.Path parses macOS paths only on macOS.";
+
     [Fact]
     public void AMacAppOfVelopackHasUpdateMacAndTheManifestNextToTheExecutable()
     {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), MacPathsOnly);
+
         HashSet<string> files = ["/Applications/LayerPeek.app/Contents/MacOS/UpdateMac", "/Applications/LayerPeek.app/Contents/MacOS/sq.version"];
 
         Assert.True(VelopackInstallation.IsInstalledMac(MacApp, files.Contains));
@@ -31,6 +36,8 @@ public sealed class UpdateInstallationTests
     [InlineData(null, true, true)]
     public void TheAppOf030AndDevelopmentBuildsAreNoInstallation(string? executable, bool hasUpdater, bool hasManifest)
     {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), MacPathsOnly);
+
         bool Exists(string path) =>
             (hasUpdater && path.EndsWith("/UpdateMac", StringComparison.Ordinal)) || (hasManifest && path.EndsWith("/sq.version", StringComparison.Ordinal));
 
@@ -40,6 +47,8 @@ public sealed class UpdateInstallationTests
     [Fact]
     public void OnMacOSVelopackRunsOnlyInAnInstallation()
     {
+        Assert.SkipUnless(OperatingSystem.IsMacOS(), MacPathsOnly);
+
         int runs = 0;
         HashSet<string> files = ["/Applications/LayerPeek.app/Contents/MacOS/UpdateMac", "/Applications/LayerPeek.app/Contents/MacOS/sq.version"];
 
