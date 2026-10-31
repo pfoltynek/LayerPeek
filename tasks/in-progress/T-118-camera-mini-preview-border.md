@@ -1,7 +1,7 @@
 ---
 id: T-118
 title: Malý náhled kamery – tenký rámeček okna
-status: todo
+status: in-progress
 owner: ui-dev
 priority: P3
 platform: all
