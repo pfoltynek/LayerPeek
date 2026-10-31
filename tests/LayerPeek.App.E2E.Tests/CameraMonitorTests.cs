@@ -82,7 +82,7 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
             camera);
 
         nint window = await CameraWindowSettings.OpenCameraAsync(app);
-        await Wait.UntilAsync(() => WindowRect(window).Equals(chosen.Bounds), WindowTimeout, $"full screen over {chosen} (now {WindowRect(window)})");
+        await Wait.UntilAsync(() => WindowRect(window).Equals(chosen.Bounds), WindowTimeout, () => $"full screen over {chosen} (now {WindowRect(window)})");
         Assert.False(CameraWindowSettings.IsTopmost(window), "Full screen is never always on top (T-037).");
         Screenshots.Save(window, "camera-full-screen-chosen-monitor");
 
@@ -342,7 +342,7 @@ public sealed class CameraMonitorTests(E2EFixture fixture)
         nint window = await CameraWindowSettings.OpenCameraAsync(app);
         try
         {
-            await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == size, WindowTimeout, $"{label}: {size.Width}×{size.Height} DIP (now {WindowChecks.ClientSizeDip(window)})");
+            await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == size, WindowTimeout, () => $"{label}: {size.Width}×{size.Height} DIP (now {WindowChecks.ClientSizeDip(window)})");
         }
         catch (TimeoutException ex)
         {

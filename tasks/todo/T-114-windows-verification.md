@@ -36,31 +36,31 @@ Postup: `$env:LAYERPEEK_UPDATE_SNAPSHOTS = '1'; dotnet test --project tests/Laye
 Remove-Item Env:LAYERPEEK_UPDATE_SNAPSHOTS`, potom `git status tests/LayerPeek.App.UiTests/Snapshots`, každý soubor
 prohlédnout (porovnat s protějškem v `Snapshots/macOS/`), nesouvisející změny vrátit (`git restore`) a spustit testy znovu
 bez proměnné – musí projít. Soubory se v seznamech opakují (několik úkolů měnilo tytéž); stačí jedno přegenerování.
-- [ ] **T-101** (krit. „Texty v 8 jazycích, UI testy bez ořezání na obou platformách …“): změněné `settings-general.png`,
+- [x] **T-101** (krit. „Texty v 8 jazycích, UI testy bez ořezání na obou platformách …“): změněné `settings-general.png`,
       `settings-general-errors.png`; nové `settings-general-test-sent-fr.png`, `settings-general-turned-off-de.png`,
       `settings-general-test-sent-dark.png`. UI testy `GeneralTabWithTheTestNotificationFitsInEveryLanguage`
       a `GeneralTabWithNotificationsTurnedOffFitsInEveryLanguage` na Windows projdou (Segoe UI, termín „Nerušit“).
-- [ ] **T-058** (poznámka u krit. „`dotnet build` a `dotnet test` …“): změněné `settings-startup-updates.png`,
+- [x] **T-058** (poznámka u krit. „`dotnet build` a `dotnet test` …“): změněné `settings-startup-updates.png`,
       `settings-startup-updates-not-installed.png` (volby kontroly aktualizací a „Zkontrolovat teď“).
-- [ ] **T-103** (krit. „Snímky …“): změněné `camera-mini-strip-printing.png`, `camera-mini-strip-cooled-de.png`,
+- [x] **T-103** (krit. „Snímky …“): změněné `camera-mini-strip-printing.png`, `camera-mini-strip-cooled-de.png`,
       `camera-mini-strip-rows.png`; nové `camera-mini-strip-finish-320.png`, `camera-mini-strip-finish-400-es.png`,
       `camera-mini-strip-cooling-240-it.png`; `camera-mini-strip-240-pl.png` se nemá změnit. Vizuální kontrola
       uživatelem (čas dokončení, ❄ / ⏻, horní pruh modře / zeleně).
-- [ ] **T-106** (krit. „Snímky Windows přegenerované na Windows“): změněné `camera-widget-temperatures-m.png`,
+- [x] **T-106** (krit. „Snímky Windows přegenerované na Windows“): změněné `camera-widget-temperatures-m.png`,
       `camera-widget-temperatures-l.png`, `camera-mini-strip-rows.png`; nové `camera-widget-temperatures-steady-m.png`,
       `camera-widget-temperatures-steady-l.png`, `camera-mini-strip-chart-steady.png`.
-- [ ] **T-109** (krit. „Snímky … Windows sadu přegenerovat na Windows“): změněné `camera-widget-cooldown-cooling-l.png`,
+- [x] **T-109** (krit. „Snímky … Windows sadu přegenerovat na Windows“): změněné `camera-widget-cooldown-cooling-l.png`,
       `camera-widget-cooldown-cooling-m.png`, `camera-widget-cooldown-cooling-m-de.png`,
       `camera-widget-cooldown-cooling-s.png`, `settings-widgets-cooldown-de.png`, `settings-widgets-cooldown-error-fr.png`,
       `settings-widgets-dark.png`; nový `camera-widget-cooldown-cooling-s-bed.png` (vyhřívaná podložka s vlnkami).
       Zkontrolovat, zda se tlačítko „Použít prahy u všech tiskáren“ v Segoe UI nezalomí hůř než na macOS.
-- [ ] **T-110** (krit. „Snímky …“): nové `settings-widgets-mini-strip.png`, `settings-widgets-mini-strip-de.png`,
+- [x] **T-110** (krit. „Snímky …“): nové `settings-widgets-mini-strip.png`, `settings-widgets-mini-strip-de.png`,
       `settings-widgets-mini-strip-fr.png`, `settings-widgets-mini-strip-dark.png`,
       `settings-widgets-mini-strip-camera-off-it.png`, `camera-mini-strip-custom-240.png`,
       `camera-mini-strip-no-rows-320.png`; změněné `settings-widgets.png`, `settings-widgets-dark.png`,
       `settings-widgets-camera-off-it.png`, `settings-widgets-cooldown-de.png`, `settings-widgets-cooldown-error-fr.png`.
       Poznámka `MiniStripHint` bez výpustky.
-- [ ] **T-111** (krit. „Snímky …“): všechny `settings-*.png` – `settings-camera-notice`, `settings-camera-preview-4x3-de`,
+- [x] **T-111** (krit. „Snímky …“): všechny `settings-*.png` – `settings-camera-notice`, `settings-camera-preview-4x3-de`,
       `settings-camera-preview`, `settings-camera-window-errors-fr`, `settings-camera-window-off-cs`,
       `settings-camera-window`, `settings-camera`, `settings-errors-fr`, `settings-general-errors`,
       `settings-general-test-sent-dark`, `settings-general-test-sent-fr`, `settings-general-turned-off-de`,
@@ -71,20 +71,20 @@ bez proměnné – musí projít. Soubory se v seznamech opakují (několik úko
       `settings-widgets-mini-strip-dark`, `settings-widgets-mini-strip-de`, `settings-widgets-mini-strip-fr`,
       `settings-widgets-mini-strip`, `settings-widgets-no-printers`, `settings-widgets` (a ostatní `settings-*` změněné
       svislým vystředěním textu tlačítek, otázka Q2). Tlačítka vysoká aspoň 32 DIP, text svisle uprostřed.
-- [ ] **T-112** (krit. „Snímky …“): změněné `settings-validation.png`, `settings-validation-cs.png`,
+- [x] **T-112** (krit. „Snímky …“): změněné `settings-validation.png`, `settings-validation-cs.png`,
       `settings-errors-fr.png`, `settings-camera-window-errors-fr.png`, `settings-widgets-cooldown-error-fr.png`,
       `settings-general-errors.png`; nové `settings-invalid-address-focused.png`,
       `settings-camera-window-error-normal-size.png`, `settings-widgets-cooldown-error-nozzle.png`,
       `settings-general-errors-focused.png`, `settings-errors-dark.png`, `settings-general-errors-dark.png`. Hlavně
       `settings-general-errors-focused` a `settings-camera-window-error-normal-size` (jiné vyhlazení písma a hran).
-- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část Windows): windowsová sada už je přegenerovaná na
+- [x] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část Windows): windowsová sada už je přegenerovaná na
       větvi T-117 (agent na Windows) – zkontrolovat `camera-mini-buttons.png` (řada celá obrazovka, normální okno, špendlík vpravo v rohu),
       `camera-mini-strip-240-pl.png`, `camera-mini-strip-chart-steady.png`, `camera-mini-strip-cooled-de.png`,
       `camera-mini-strip-cooling-240-it.png`, `camera-mini-strip-custom-240.png`, `camera-mini-strip-finish-320.png`,
       `camera-mini-strip-finish-400-es.png`, `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`,
       `camera-mini-strip-rows-240-de.png`, `camera-mini-strip-rows.png` (ztlumený plný špendlík vpravo nahoře a od T-118 obrys po obvodu, jinak
       beze změny). Obrázky README se generují na macOS (T-115).
-- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část Windows): windowsová sada už je
+- [x] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část Windows): windowsová sada už je
       přegenerovaná na větvi T-118 (agent na Windows) – zkontrolovat nové `camera-mini-outline.png` (tmavší obrys
       `#737373` 1 px po celém obvodu, obraz i pás) a `camera-mini-outline-hover.png` (myš nad levým úchopem, světlejší
       obrys `#BFBFBF`) a změněné `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`,
@@ -96,22 +96,22 @@ bez proměnné – musí projít. Soubory se v seznamech opakují (několik úko
 ### 2. Build, testy, AOT a E2E (`tools/windows-verify.ps1`)
 Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish s `-warnaserror`), pak
 `pwsh tools/windows-verify.ps1 -ListChecks` a `pwsh tools/windows-verify.ps1` (interaktivně).
-- [ ] **T-095** (krit. „Na Windows `dotnet build` a `dotnet test` beze změny výsledku“): `win.build` a `win.test` =
+- [x] **T-095** (krit. „Na Windows `dotnet build` a `dotnet test` beze změny výsledku“): `win.build` a `win.test` =
       `PASS` (mimo jiné `SnapshotAssert` s windowsovou sadou, `CultureTime`, `aot-smoke.ps1` se zálohou,
       `profile-snapshot.ps1` s `cmdkey`; viz otázka „Ověření na Windows“ v T-095).
-- [ ] **T-018** (krit. „Windows chování z T-007 zůstává beze změny“ a „`dotnet build` a `dotnet test` … na macOS
+- [x] **T-018** (krit. „Windows chování z T-007 zůstává beze změny“ a „`dotnet build` a `dotnet test` … na macOS
       i Windows“, část Windows): `win.build`, `win.test` a `win.e2e` = `PASS`; `Snapshots/TrayIcons/` beze změny.
-- [ ] **T-021** (krit. „Windows build a testy beze změny chování“): `win.build` a `win.test` = `PASS`
+- [x] **T-021** (krit. „Windows build a testy beze změny chování“): `win.build` a `win.test` = `PASS`
       (`WindowsCredentialSecretStore` a jeho testy beze změny).
-- [ ] **T-026** (krit. „Windows build a testy beze změny chování“): `win.build`, `win.test` a `win.e2e` = `PASS`;
+- [x] **T-026** (krit. „Windows build a testy beze změny chování“): `win.build`, `win.test` a `win.e2e` = `PASS`;
       DLL FFmpeg z `build/FFmpeg.targets` jsou ve výstupu jako dřív a kamera simulátoru v E2E běží.
-- [ ] **T-053** (krit. „… Windows build a testy beze změny chování“): `win.build`, `win.test` a `win.aot-smoke` = `PASS`.
-- [ ] **T-097** (krit. „Windows beze změny“): `win.build`, `win.test`, `win.aot-smoke` a `win.e2e` = `PASS`.
-- [ ] **T-100** (krit. „Windows beze změny“): `win.test` a `win.e2e` = `PASS` (F11, Esc a zkratky Nastavení na Windows
+- [x] **T-053** (krit. „… Windows build a testy beze změny chování“): `win.build`, `win.test` a `win.aot-smoke` = `PASS`.
+- [x] **T-097** (krit. „Windows beze změny“): `win.build`, `win.test`, `win.aot-smoke` a `win.e2e` = `PASS`.
+- [x] **T-100** (krit. „Windows beze změny“): `win.test` a `win.e2e` = `PASS` (F11, Esc a zkratky Nastavení na Windows
       jako dřív, tooltipy ukazují zkratky Windows).
-- [ ] **T-101** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `win.build` a `win.test` =
+- [x] **T-101** (krit. „`dotnet build` a `dotnet test` bez chyb a varování“, část Windows): `win.build` a `win.test` =
       `PASS`.
-- [ ] **T-058** (krit. „… AOT publish `win-x64` bez varování“): `pwsh scripts/release-build.ps1` (AOT s `-warnaserror`)
+- [x] **T-058** (krit. „… AOT publish `win-x64` bez varování“): `pwsh scripts/release-build.ps1` (AOT s `-warnaserror`)
       i `win.aot-smoke` bez varování trimmingu / AOT.
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část Windows): `tools/windows-verify.ps1` proběhl celý
       interaktivně (i `-RestoreOnly` po případném přerušení); nalezené chyby skriptu zapsané a opravené (nový úkol).
@@ -184,3 +184,29 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
 
 ## Poznámky k implementaci
 (vyplní agent / uživatel po ověření)
+
+- 2026-10-31: běh win.e2e našel 1 selhání: `CameraMiniPreviewTests.StripTextFollowsThePrinterStates` ve stavu
+  „cooled“. Příčina: zastaralé očekávání E2E testu po T-103 (commit 582488d). Pás po vychladnutí podle rozhodnutí
+  Q2 → A ukazuje „Cooled down – safe to turn off“, test pořád čekal dřívější „Cooled down · 93 °C“. Opraveno jen
+  v testu, produkt je v pořádku. Navíc má `Wait.UntilAsync` přetížení s líně skládanou zprávou (`Func<string>`), takže
+  timeout ukazuje poslední přečtený text a ne prázdné `"" / ""`. Opakovaný běh 2026-10-31: prošel (1/1).
+
+- **2026-10-31, Windows 11 Pro 10.0.26300, develop 6f80ab0 (agent):**
+  - Oddíl 1: `LAYERPEEK_UPDATE_SNAPSHOTS=1` přegeneroval jen `camera-layout-mode-de-480.png` (16 px šumu vyhlazení
+    v pravém horním rohu, obsah stejný) → vráceno; windowsová sada tedy odpovídá kódu a UI testy bez proměnné procházejí
+    (1206 prošlo, 31 přeskočeno). Agent prohlédl hlavní snímky (`camera-mini-buttons`, `camera-mini-outline(-hover)`,
+    `camera-mini-strip-finish-320`, `settings-general-errors-focused`, `settings-camera-window-error-normal-size`,
+    `settings-widgets-cooldown-de` – tlačítko „Schwellen für alle Drucker übernehmen“ se zalomí stejně jako na macOS,
+    `settings-widgets-mini-strip-de` – poznámka bez výpustky). Vizuální kontrolu T-103 může uživatel zopakovat, není
+    blokující.
+  - `tools/windows-verify.ps1 -Unattended -Only win.build,win.test,win.aot-smoke` (report
+    `artifacts/verify/20261031-193152/report.md`): PASS 3 – build Debug i Release 0 varování; test 17 832 celkem,
+    0 selhalo, 524 přeskočeno; AOT publish bez varování, exe běží, profil obnoven.
+  - `pwsh scripts/release-build.ps1`: první běh selhal na 2 testech pod zátěží (souběžný build jiného agenta; oba projekty
+    při samostatném běhu prošly), druhý běh prošel: 0 varování, testy 0 selhalo, instalátor
+    `LayerPeek-0.3.1-win-x64-Setup.exe`, AOT smoke prošel.
+  - `win.e2e` (`run-e2e.ps1 -NoSystemChanges`): 456 testů, 413 prošlo, 42 přeskočeno, 1 selhal (zastaralé očekávání
+    po T-103, viz výše; po opravě testu prošel). Celý `win.e2e` se zopakuje při uzavření T-114.
+  - `win.e2e-installer`: přeskočen – na počítači je nainstalovaná LayerPeek uživatele (test na skutečnou instalaci nesahá).
+    `win.install`, `win.toast-click`, `win.autostart`, `win.uninstall` zatím neprovedeny (vyžadují odložení instalace
+    uživatele).

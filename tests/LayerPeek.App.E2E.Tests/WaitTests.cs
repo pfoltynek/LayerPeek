@@ -54,6 +54,21 @@ public sealed class WaitTests
     }
 
     [Fact]
+    public async Task LazyMessageNamesTheStateOfTheLastPoll()
+    {
+        int calls = 0;
+
+        WaitTimeoutException timeout = await Assert.ThrowsAsync<WaitTimeoutException>(() => Wait.UntilAsync(
+            () => ++calls < 0,
+            TimeSpan.FromMilliseconds(300),
+            () => $"the condition (now {calls})"));
+
+        // Built after the last poll, not before the first one (an interpolated string would say "now 0").
+        Assert.Contains($"(now {calls})", timeout.Message, StringComparison.Ordinal);
+        Assert.True(calls > 1, $"Polled {calls} times.");
+    }
+
+    [Fact]
     public async Task TimeoutOfANestedWaitEndsTheWait()
     {
         int calls = 0;
