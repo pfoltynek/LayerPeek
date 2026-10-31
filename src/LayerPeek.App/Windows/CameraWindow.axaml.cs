@@ -2,6 +2,7 @@ using System.ComponentModel;
 
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
@@ -655,11 +656,26 @@ public sealed partial class CameraWindow : Window
     /// <summary>
     /// A window button pressed from the keyboard hides itself (its mode is now shown): the keyboard focus moves to the
     /// first remaining button, after the command switched the mode (Click comes before the command). A mouse click leaves
-    /// the focus alone, so that the buttons still fade out when the pointer leaves the window.
+    /// the focus alone, so that the buttons still fade out when the pointer leaves the window. The pin (T-117) stays where
+    /// it is: from the keyboard the focus stays on it; a mouse click, which focused it, drops the focus, as the row would
+    /// otherwise stay shown (<c>:focus-within</c>) after the pointer left instead of leaving only the dimmed pin.
     /// </summary>
     private void OnWindowButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (e.Source is Button { IsFocused: true } button && button.Classes.Contains(":focus-visible"))
+        if (e.Source is not Button { IsFocused: true } button)
+        {
+            return;
+        }
+
+        bool fromKeyboard = button.Classes.Contains(":focus-visible");
+        if (button is ToggleButton)
+        {
+            if (!fromKeyboard)
+            {
+                FocusManager?.Focus(null);
+            }
+        }
+        else if (fromKeyboard)
         {
             Dispatcher.UIThread.Post(FocusFirstWindowButton);
         }

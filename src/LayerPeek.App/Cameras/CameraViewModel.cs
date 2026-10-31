@@ -142,6 +142,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <param name="thumbnails">The decoded G-code thumbnails of the Print name widget (T-087); <see langword="null"/> = none.</param>
     /// <param name="layoutWriter">Saves the layout of the layout mode (T-091); <see langword="null"/> = saving fails.</param>
     /// <param name="localNetwork">Whether "no route to host" may be the denied local network permission (T-097); <see langword="null"/> = never.</param>
+    /// <param name="topmostWriter">Saves "always on top" switched by the pin (T-117); <see langword="null"/> = saving fails.</param>
     internal CameraViewModel(
         CameraTarget target,
         ReconnectingCameraFeed feed,
@@ -158,7 +159,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         CooldownMonitor? cooldown = null,
         PrintThumbnails? thumbnails = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
-        ILocalNetworkPrivacy? localNetwork = null)
+        ILocalNetworkPrivacy? localNetwork = null,
+        ICameraWindowTopmostWriter? topmostWriter = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(feed);
@@ -204,6 +206,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         ShowMiniCommand = new RelayCommand(() => Mode = CameraWindowMode.Mini, () => _mode != CameraWindowMode.Mini);
         ShowNormalCommand = new RelayCommand(() => Mode = CameraWindowMode.Normal, () => _mode != CameraWindowMode.Normal);
         EscapeCommand = new RelayCommand(Escape, () => _mode != CameraWindowMode.Normal);
+        // T-117: the pin switches and saves "always on top" of the current mode.
+        CreateTopmost(topmostWriter);
 
         // T-081: the widgets of the printer's layout with the global card opacity.
         Overlay = new CameraOverlayViewModel(
@@ -271,6 +275,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(StatusDetail));
         OnPropertyChanged(nameof(LayoutToolTip));
+        OnPropertyChanged(nameof(TopmostToolTip));
         Overlay.RefreshTexts();
         LayoutMode.RefreshTexts();
         MiniStrip.RefreshTexts();
@@ -304,6 +309,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             OnPropertyChanged(nameof(StatusDetail));
             OnPropertyChanged(nameof(NormalToolTip));
             OnPropertyChanged(nameof(IsTopmost));
+            OnTopmostModeChanged();
             // The mini preview draws no cards (T-081).
             Overlay.SetMode(value);
             ShowFullScreenCommand.NotifyCanExecuteChanged();
@@ -525,7 +531,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
             return;
         }
 
-        SetDefaults(defaults);
+        // T-117: a switch of the pin whose save is pending stays; that save decides (like ApplyPrinters).
+        SetDefaults(WithPendingTopmost(defaults));
         _normalPlacement = null;
         _miniPlacement = null;
         _stateRemoveCount = _stateStore.GetRemoveCount(PrinterId);
@@ -872,7 +879,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         // The open window does not move (T-035); the new defaults apply to the next placement from defaults. Only
         // "always on top" applies to the open window right away (T-037).
-        SetDefaults(target.Window);
+        // T-117: a switch of the pin whose save is pending stays.
+        SetDefaults(WithPendingTopmost(target.Window));
 
         // The layout, the printer (name…) and the global card opacity apply to the open window right away, in place (T-081).
         Overlay.ApplySettings(target.Printer, target.Overlay, state.CameraOverlayOpacityPercent);
@@ -903,6 +911,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         if (IsTopmost != wasTopmost)
         {
             OnPropertyChanged(nameof(IsTopmost));
+            OnPropertyChanged(nameof(TopmostToolTip));
         }
 
         if (_defaults.TopmostMini != wasTopmostMini)

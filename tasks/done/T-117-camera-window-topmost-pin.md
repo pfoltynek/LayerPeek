@@ -1,7 +1,7 @@
 ---
 id: T-117
 title: Okno kamery – špendlík „Vždy navrchu“ (indikace a přepínání přímo v okně)
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: all
@@ -32,18 +32,18 @@ Uživatel teď v okně kamery nevidí, zda je okno „vždy navrchu“. Volbu m�
    `Window.Topmost` a zůstává beze změny. Ověřit, že platí i při přepnutí z okna.
 
 ## Akceptační kritéria
-- [ ] Špendlík v normálním okně i malém náhledu, ne na celé obrazovce; stav odpovídá `CameraViewModel.IsTopmost`
+- [x] Špendlík v normálním okně i malém náhledu, ne na celé obrazovce; stav odpovídá `CameraViewModel.IsTopmost`
       i po přepnutí režimu a po uložení volby v Nastavení
-- [ ] Zapnutý špendlík vidět bez myši (ztlumený), vypnutý ne; při najetí / fokusu celá řada (headless UI testy)
-- [ ] Klik a položka kontextového menu přepnou `Window.Topmost` hned a uloží jen `TopmostNormal` / `TopmostMini`
+- [x] Zapnutý špendlík vidět bez myši (ztlumený), vypnutý ne; při najetí / fokusu celá řada (headless UI testy)
+- [x] Klik a položka kontextového menu přepnou `Window.Topmost` hned a uloží jen `TopmostNormal` / `TopmostMini`
       dané tiskárny (ostatní nastavení byte po bytu beze změny, jako u `SetCameraOverlayLayoutAsync`)
-- [ ] Selhání zápisu: okno se vrátí do uloženého stavu, chyba v logu bez citlivých údajů, aplikace nespadne
-- [ ] Otevřené Nastavení se zobrazenou tiskárnou ukáže novou hodnotu a neztratí neuložené úpravy
-- [ ] Tlačítko na hlavním panelu (Windows) a ikona v Docku (macOS) následují přepnutí z okna (UI testy s `AppPresence`)
-- [ ] Přístupnost: přepínač s názvem a stavem pro čtečky, ovladatelný klávesnicí; kontextové menu i v malém náhledu
-- [ ] Texty ve všech 8 jazycích (popisky zapnuto / vypnuto, položka menu), přístupové klávesy jedinečné
-- [ ] Snímky UI: okno kamery s ikonou (Windows → T-114, macOS → T-115)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Selhání zápisu: okno se vrátí do uloženého stavu, chyba v logu bez citlivých údajů, aplikace nespadne
+- [x] Otevřené Nastavení se zobrazenou tiskárnou ukáže novou hodnotu a neztratí neuložené úpravy
+- [x] Tlačítko na hlavním panelu (Windows) a ikona v Docku (macOS) následují přepnutí z okna (UI testy s `AppPresence`)
+- [x] Přístupnost: přepínač s názvem a stavem pro čtečky, ovladatelný klávesnicí; kontextové menu i v malém náhledu
+- [x] Texty ve všech 8 jazycích (popisky zapnuto / vypnuto, položka menu), přístupové klávesy jedinečné
+- [x] Snímky UI: okno kamery s ikonou (Windows → T-114, macOS → T-115) → přesunuto do T-114 a T-115
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh vzhledu
 (ui-designer 2026-10-31; podklad: `CameraWindow.axaml`, `CameraMiniStrip.axaml`, `OverlayIcons.axaml`,
@@ -180,4 +180,40 @@ Reálné DPI na Windows (125/150/200 %), macOS, kontrast na skutečném obraze k
   stylu. (b) Jen špendlík, ostatní beze změny.
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+- **Zápis (Core):** `ISettingsStore.SetCameraWindowTopmostAsync(printerId, mode, topmost)` + `JsonSettingsStore` přes
+  `Storage/CameraWindowTopmostValueWriter` – stejná pravidla jako `SetCameraOverlayLayoutAsync` (jen ta hodnota, byte po
+  bytu, všechny duplicitní záznamy, BOM, konce řádků, novější / nečitelný formát se nemění). Chybějící sekce `window`
+  (plné uložení ji vynechá, když je vše výchozí) nebo `"window": null` se doplní jen s touto hodnotou; chybějící hodnota
+  rovná výchozí (`topmostNormal: false`, `topmostMini: true`) se nezapisuje. `window` jiného typu (pole, text, číslo,
+  bool) = soubor se nemění (jinak by vznikl duplicitní klíč). Výsledek je `CameraWindowTopmostStoreResult`:
+  `Written`, `AlreadyStored` (soubor hodnotu už má – zapsalo ji třeba Uložit v Nastavení, než ji převzal běžící
+  monitoring, nebo ruční úprava souboru) a `LeftAlone`. Ohlášení: `ICameraWindowTopmostWriter` / `CameraWindowTopmostWriter`
+  (událost `TopmostSaved` i u `AlreadyStored`, jako potvrzení `ConfirmAsync` u rozložení – běžící nastavení a otevřené
+  Nastavení se srovnají), v aplikaci `DeferredCameraWindowTopmostWriter` se sdíleným `SettingsWriteGate`. Modelově
+  `CameraWindowDefaults.WithTopmost`, `AppSettings.WithCameraWindowTopmost`.
+- **Šíření:** `MonitoringSession` převezme hodnotu do běžícího nastavení (i čekajícího na restart), okno kamery ji dostane
+  přes `MonitoredPrinters`. Nastavení: `AnnouncedCameraTopmost` + `SettingsChange.LatestCameraTopmost` /
+  `SettingsSaveResult.KeptCameraTopmost` + `PrinterEditorViewModel.TakeSavedTopmost` – stejná cesta jako u rozložení
+  (převezme se jen ta volba toho režimu, jako uložená; souběžné uložení Nastavení ji neztratí, pokud ji okno samo nezměnilo).
+  Klik na špendlík přepíše i neuloženou úpravu téže volby v otevřeném Nastavení (platí poslední akce, stejně jako
+  u rozložení z okna kamery); ostatní neuložené úpravy zůstanou.
+- **Okno kamery:** `CameraViewModel.ToggleTopmostCommand` přepne `IsTopmost` hned (okno → `Topmost`, `ShowInTaskbar`,
+  `AppPresence`, Spaces beze změny T-102), zápisy jdou po sobě v pořadí kliknutí; dokud zápis běží, nastavení použitá
+  mezitím (uložení i „Použít“ T-040) přepnutou hodnotu nepřepíšou. Selhání (výjimka nebo `LeftAlone`) vrátí volbu
+  uloženou v běžícím nastavení a zaloguje (Warning / Error s výjimkou; jen id tiskárny a režim); `AlreadyStored` je
+  úspěch.
+- **Odchylka od návrhu (drobná):** klik myší na špendlík mu dá fokus a `:focus-within` by pak nechal celou řadu viditelnou
+  i po odjetí myši; po kliknutí myší se proto fokus zruší (`FocusManager.Focus(null)`), z klávesnice zůstává na špendlíku.
+  Starší chování beze změny (nález 6 z review): po Tab na tlačítko řady a následném kliknutí myší zůstane fokus
+  „viditelný“ (`:focus-visible`), takže řada zůstane ukázaná i po odjetí myši – platí pro všechna tlačítka řady už před
+  T-117, neměněno.
+- Styly podle návrhu: průhlednost po tlačítkách, zaškrtnutý špendlík bez akcentní barvy, najetí / stisk `#B3000000` /
+  `#CC000000` pro všechna tlačítka řady (Q-D2 a). Menu: nový klíč `CameraLayoutEditMenu` (Q-D1 a), test
+  `CameraContextMenuAccessKeyTests`. `OverlayArrangement.WindowButtonsReserve` = 146.
+- **Snímky testů:** 12 referencí malého náhledu (`camera-mini-*`) pro Windows přegenerováno (ztlumený špendlík, výchozí
+  `TopmostMini` = zapnuto). Sadu `Snapshots/macOS/` stejných 12 snímků je nutné přegenerovat na Macu (T-115, do té doby
+  tam tyto testy selžou). Obrázky README se generují na macOS (`docs/readme-screenshots.md`); přegenerování na Windows
+  změnilo i nesouvisející obrázky (jiné vyhlazení), proto vráceno a přesunuto do T-115 (`camera-mini.jpg` se špendlíkem).
+- Neověřeno: skutečné z-pořadí, čtečky obrazovky (Předčítání, VoiceOver), macOS (Dock, ⌃-klik v borderless náhledu),
+  vzhled při reálném DPI – snímky / ruční ověření T-114 a T-115.
+- Uzavřeno 2026-10-31: build 0 varování, `dotnet test` 8875 testů, 0 selhání (270 přeskočeno); review (qa-reviewer) dvakrát, nálezy opraveny; zbývající ruční ověření a snímky přesunuty do T-114 a T-115 (rozhodnutí uživatele).

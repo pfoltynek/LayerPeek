@@ -88,10 +88,9 @@ public sealed class CameraWindowMiniStripItemsUiTests(HeadlessSession session)
     /// </summary>
     private static void ShowButtonsAtOnce(CameraWindow window)
     {
-        StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
-        buttons.Transitions = null;
+        CameraHarness.SkipWindowButtonFade(window);
         window.Settle();
-        Assert.Equal(0, buttons.Opacity);
+        Assert.Equal(0, window.Find<Button>("CameraFullScreenButton").Opacity);
     }
 
     private static void Show(CameraHarness harness, CameraWindow window, PrinterSnapshot snapshot)

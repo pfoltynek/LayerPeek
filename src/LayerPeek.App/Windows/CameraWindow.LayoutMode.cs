@@ -101,9 +101,12 @@ public sealed partial class CameraWindow
         }
     }
 
-    /// <summary>The context menu (T-076 5.1) opens only in the normal window and not in the layout mode.</summary>
+    /// <summary>
+    /// The context menu (T-076 5.1) opens in the normal window outside the layout mode and, with only "Always on top" (T-117),
+    /// in the mini preview; never in full screen.
+    /// </summary>
     private void OnContextMenuOpening(object? sender, CancelEventArgs e) =>
-        e.Cancel = _viewModel is not { IsNormal: true, IsLayoutModeActive: false };
+        e.Cancel = _viewModel is not ({ IsNormal: true, IsLayoutModeActive: false } or { IsMini: true });
 
     private void OnLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

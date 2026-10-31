@@ -67,8 +67,8 @@ public sealed class OverlayArrangementTests
     [Fact]
     public void CenterWidthKeepsClearOfTheCornersAndTheWindowButtons()
     {
-        // T-076 3.2: 960 − 2 × 112 − 2 × 20 = 696 when the corners are narrower than the button reserve.
-        Assert.Equal(696, OverlayArrangement.CenterMaxWidth(960, leftWidth: 0, rightWidth: 0, top: true));
+        // T-076 3.2, T-117: 960 − 2 × 146 − 2 × 20 = 628 when the corners are narrower than the button reserve (four buttons).
+        Assert.Equal(628, OverlayArrangement.CenterMaxWidth(960, leftWidth: 0, rightWidth: 0, top: true));
         Assert.Equal(920, OverlayArrangement.CenterMaxWidth(960, leftWidth: 0, rightWidth: 0, top: false));
         // T-076 2.6 (gallery L): next to a 352 wide status card only 960 − 2 × (352 + 8 + 12) = 216 are left.
         Assert.Equal(216, OverlayArrangement.CenterMaxWidth(960, leftWidth: 352, rightWidth: 100, top: true));

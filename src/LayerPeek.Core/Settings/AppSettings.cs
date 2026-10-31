@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
 using LayerPeek.Core.Printers;
 
@@ -192,6 +193,40 @@ public sealed record AppSettings
 
                 PrinterDefinition[] printers = [.. Printers];
                 printers[i] = printer with { Camera = printer.Camera with { Overlay = layout } };
+                return this with { Printers = printers };
+            }
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// These settings with <paramref name="topmost"/> as the "always on top" option of the camera window of printer
+    /// <paramref name="printerId"/> (case-insensitive) in <paramref name="mode"/> (T-117); the same instance when the printer
+    /// is not configured or already has it. Nothing else changes, like <see cref="WithCameraOverlayLayout"/>.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="mode"/> is full screen.</exception>
+    public AppSettings WithCameraWindowTopmost(string printerId, CameraWindowMode mode, bool topmost)
+    {
+        ArgumentNullException.ThrowIfNull(printerId);
+        if (mode is not (CameraWindowMode.Normal or CameraWindowMode.Mini))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Only the normal window and the mini preview have an always-on-top option.");
+        }
+
+        for (int i = 0; i < Printers.Count; i++)
+        {
+            PrinterDefinition printer = Printers[i];
+            if (string.Equals(printer.Id, printerId, StringComparison.OrdinalIgnoreCase))
+            {
+                CameraWindowDefaults window = printer.Camera.Window.WithTopmost(mode, topmost);
+                if (ReferenceEquals(window, printer.Camera.Window))
+                {
+                    return this;
+                }
+
+                PrinterDefinition[] printers = [.. Printers];
+                printers[i] = printer with { Camera = printer.Camera with { Window = window } };
                 return this with { Printers = printers };
             }
         }

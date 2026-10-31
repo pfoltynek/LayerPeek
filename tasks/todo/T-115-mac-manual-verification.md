@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: macos
-depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116]
+depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116, T-117]
 ---
 
 ## Cíl
@@ -41,6 +41,17 @@ zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných krok
       Výstup potřebují `mac.gatekeeper*` a oddíl 5.
       Ověřeno 2026-10-30 (agent, `develop` 33a2678, verze 0.3.1): kód 0, všech 7 souborů v `dist/`, `shasum -c` = OK,
       `codesign --verify --deep --strict` platný, hardened runtime u všech Mach-O, AOT smoke test `.app` prošel (UIElement).
+- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část macOS; bez toho na Macu selže 12 snímkových testů):
+      přegenerovat macOS sadu `tests/LayerPeek.App.UiTests/Snapshots/macOS/` –
+      `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`, commitnout jen změněné
+      `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`, `camera-mini-strip-chart-steady.png`,
+      `camera-mini-strip-cooled-de.png`, `camera-mini-strip-cooling-240-it.png`, `camera-mini-strip-custom-240.png`,
+      `camera-mini-strip-finish-320.png`, `camera-mini-strip-finish-400-es.png`, `camera-mini-strip-no-rows-320.png`,
+      `camera-mini-strip-printing.png`, `camera-mini-strip-rows-240-de.png`, `camera-mini-strip-rows.png` (vpravo
+      nahoře ztlumený plný špendlík, v `camera-mini-buttons` celá řada se špendlíkem vpravo), ostatní změny vrátit
+      a testy spustit znovu bez proměnné. Potom přegenerovat obrázky README (`docs/readme-screenshots.md`, generují se
+      na macOS): změní se `docs/images/{en,cs}/camera-mini.jpg` (špendlík), ostatní obrázky zkontrolovat (rezerva
+      tlačítek okna 146 místo 112 může zúžit kartu nahoře uprostřed v `camera-window.jpg`), nesouvisející změny vrátit.
 
 ### 2. Skript `tools/macos-verify.ps1` (jeden interaktivní běh)
 Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak
@@ -113,6 +124,15 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       objeví / zmizí podle oken, menu Docku se seznamem oken, klik na ikonu v Docku, fokus a pořadí oken, „Zobrazit
       kameru“ v menu. Zapsat i otázku 3 z T-102 (obnoví se menu aplikace v menu baru po přepnutí na běžnou aplikaci?);
       když ne, nový úkol.
+- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční část krit. „Tlačítko na hlavním panelu (Windows) a
+      ikona v Docku (macOS) následují přepnutí z okna“ a „Přístupnost“, část macOS): okno kamery se simulátorem –
+      špendlík vpravo nahoře v normálním okně i v malém náhledu, na celé obrazovce není; zapnutý je bez myši vidět
+      ztlumený (čitelný i na světlém obrazu), vypnutý ne. Klik přepne „vždy navrchu“ hned (okno nad jinou aplikací),
+      ikona v Docku / ⌘Tab zmizí / objeví se podle pravidla T-102, malý náhled navrchu je na všech plochách (Spaces),
+      po vypnutí jen na své. Kontextové menu přes pravé tlačítko i ⌃-klik v normálním okně (dvě položky) i v borderless
+      malém náhledu (jen „Vždy navrchu“, zaškrtnutá podle stavu). VoiceOver přečte přepínač se jménem „Vždy navrchu:
+      zapnuto / vypnuto“ a stavem, mezerník přepíná. Volba přežije restart aplikace a otevřené Nastavení ji ukáže.
+      Snímek okna se špendlíkem do poznámek.
 - [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část macOS): sezení 5.4 (a)–(d) – zkušební upozornění se
       zvukem i bez, nahrazení v Centru oznámení, klik přenese Nastavení na záložku Obecné, stav „zamítnuto“ s hláškou,
       `notDetermined` jen bez zásahu do TCC.

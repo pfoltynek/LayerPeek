@@ -24,15 +24,17 @@
   </Window.KeyBindings>
 
   <!--
-    Layout mode (T-091): the context menu of the image (right click; Menu key / Shift+F10 on Windows; ⌃-click on macOS, whose
-    texts never mention the keys of Windows, T-100) opens only in
-    the normal window outside the layout mode (CameraWindow.LayoutMode.cs); disabled with a tip below 480 × 300.
+    The context menu of the image (right click; Menu key / Shift+F10 on Windows; ⌃-click on macOS, whose texts never mention
+    the keys of Windows, T-100) opens in the normal window outside the layout mode and in the mini preview
+    (CameraWindow.LayoutMode.cs). "Edit layout" (T-091) only in the normal window, disabled with a tip below 480 × 300;
+    "Always on top" (T-117) in both, always enabled, checked like the pin.
   -->
   <Window.ContextMenu>
     <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening">
       <MenuItem AutomationProperties.AutomationId="CameraLayoutMenuItem"
-                Header="{Binding [CameraLayoutEdit], Source={x:Static loc:LocalizedStrings.Instance}}"
+                Header="{Binding [CameraLayoutEditMenu], Source={x:Static loc:LocalizedStrings.Instance}}"
                 Command="{Binding EditLayoutCommand}"
+                IsVisible="{Binding IsNormal}"
                 ToolTip.Tip="{Binding LayoutToolTip}"
                 ToolTip.ShowOnDisabled="True"
                 ToolTip.ServiceEnabled="{Binding !HasLayoutRoom}">
@@ -40,26 +42,70 @@
           <ov:OverlayIcon Width="16" Height="16" Data="{DynamicResource IconLayoutCellFour16Regular}" Foreground="{DynamicResource MenuFlyoutItemForeground}" />
         </MenuItem.Icon>
       </MenuItem>
+      <!-- No icon: the check mark takes the icon column. -->
+      <MenuItem AutomationProperties.AutomationId="CameraTopmostMenuItem"
+                Header="{Binding [CameraTopmostMenu], Source={x:Static loc:LocalizedStrings.Instance}}"
+                ToggleType="CheckBox"
+                IsChecked="{Binding IsTopmost, Mode=OneWay}"
+                Command="{Binding ToggleTopmostCommand}"
+                IsVisible="{Binding !IsFullScreen}" />
     </ContextMenu>
   </Window.ContextMenu>
 
   <Window.Styles>
-    <!-- The window buttons appear while the pointer is over the window or a button has keyboard focus. -->
-    <Style Selector="StackPanel.windowButtons">
+    <!--
+      The window buttons appear while the pointer is over the window or a button has keyboard focus. The opacity is per
+      button (a panel opacity would multiply): the pin stays visible, dimmed, while "always on top" is on (T-117 3). Later
+      styles win: hidden, the checked pin dimmed, everything shown on hover / focus.
+    -->
+    <Style Selector="StackPanel.windowButtons > :is(Button)">
       <Setter Property="Opacity" Value="0" />
       <Setter Property="Transitions">
         <Transitions>
           <DoubleTransition Property="Opacity" Duration="0:0:0.15" />
         </Transitions>
       </Setter>
-    </Style>
-    <Style Selector="Grid#Root:pointerover StackPanel.windowButtons, StackPanel.windowButtons:focus-within">
-      <Setter Property="Opacity" Value="1" />
-    </Style>
-    <Style Selector="StackPanel.windowButtons > Button">
       <Setter Property="Background" Value="#99000000" />
       <Setter Property="Padding" Value="6" />
       <Setter Property="MinWidth" Value="0" />
+    </Style>
+    <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked">
+      <Setter Property="Opacity" Value="0.85" />
+    </Style>
+    <Style Selector="Grid#Root:pointerover StackPanel.windowButtons > :is(Button), StackPanel.windowButtons:focus-within > :is(Button)">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <!--
+      Hover and press stay dark in every theme variant (the window is always black, T-117 Q-D2): the white icons never lie on
+      a light Fluent background. The checked pin keeps the look of an unchecked button (no accent background, T-117 4).
+    -->
+    <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#99000000" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ToggleButtonBorderBrush}" />
+    </Style>
+    <Style Selector="StackPanel.windowButtons > :is(Button):pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#B3000000" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="StackPanel.windowButtons > :is(Button):pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#CC000000" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#B3000000" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ToggleButtonBorderBrushPointerOver}" />
+    </Style>
+    <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#CC000000" />
+      <Setter Property="BorderBrush" Value="{DynamicResource ToggleButtonBorderBrushPressed}" />
+    </Style>
+    <!-- The pin: filled while "always on top" is on, regular while it is off; the state is the shape, not the colour. -->
+    <Style Selector="ToggleButton.topmostPin ov|OverlayIcon">
+      <Setter Property="Data" Value="{DynamicResource IconPin16Regular}" />
+    </Style>
+    <Style Selector="ToggleButton.topmostPin:checked ov|OverlayIcon">
+      <Setter Property="Data" Value="{DynamicResource IconPin16Filled}" />
     </Style>
     <Style Selector="Path.icon">
       <Setter Property="Stroke" Value="White" />
@@ -147,7 +193,8 @@
       <!--
         Every mode shows the buttons of the other two, always in this order: normal window [full screen][mini preview],
         mini preview [full screen][normal window], full screen [normal window][mini preview]. The normal window has
-        "Edit layout" first (T-091, T-076 3.2); hidden while the layout mode is on.
+        "Edit layout" first (T-091, T-076 3.2), the normal window and the mini preview the pin last (T-117); all hidden
+        while the layout mode is on.
       -->
       <Button AutomationProperties.AutomationId="CameraLayoutButton"
               Command="{Binding EditLayoutCommand}"
@@ -181,6 +228,19 @@
           <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />
         </Grid>
       </Button>
+      <!--
+        The pin (T-117): always last, in the corner, so that the dimmed pin stays where it is in both modes; not in full
+        screen, which is never on top. Space / Enter switch it; the focus stays on it (OnWindowButtonClick).
+      -->
+      <ToggleButton Classes="topmostPin"
+                    AutomationProperties.AutomationId="CameraTopmostButton"
+                    IsChecked="{Binding IsTopmost, Mode=OneWay}"
+                    Command="{Binding ToggleTopmostCommand}"
+                    IsVisible="{Binding !IsFullScreen}"
+                    ToolTip.Tip="{Binding TopmostToolTip}"
+                    AutomationProperties.Name="{Binding TopmostToolTip}">
+        <ov:OverlayIcon Width="16" Height="16" CanvasSize="16" Foreground="White" />
+      </ToggleButton>
     </StackPanel>
 
     <!--

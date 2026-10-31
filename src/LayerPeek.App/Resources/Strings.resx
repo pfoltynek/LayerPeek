@@ -1294,6 +1294,22 @@
   <data name="CameraLayoutEdit" xml:space="preserve">
     <value>Edit layout</value>
   </data>
+  <data name="CameraLayoutEditMenu" xml:space="preserve">
+    <value>_Edit layout</value>
+    <comment>Context menu item of the camera window (T-117 Q-D1); CameraLayoutEdit without the access key stays the button tip. "_" marks the access key (unique within the menu, see CameraContextMenuAccessKeyTests).</comment>
+  </data>
+  <data name="CameraTopmostOn" xml:space="preserve">
+    <value>Always on top: on</value>
+    <comment>Tip and accessible name of the pin of the camera window (T-117) while "always on top" is on.</comment>
+  </data>
+  <data name="CameraTopmostOff" xml:space="preserve">
+    <value>Always on top: off</value>
+    <comment>Tip and accessible name of the pin of the camera window (T-117) while "always on top" is off.</comment>
+  </data>
+  <data name="CameraTopmostMenu" xml:space="preserve">
+    <value>Always on _top</value>
+    <comment>Check item of the context menu of the camera window (T-117). "_" marks the access key (unique within the menu, see CameraContextMenuAccessKeyTests).</comment>
+  </data>
   <data name="CameraLayoutTitle" xml:space="preserve">
     <value>Layout mode</value>
   </data>

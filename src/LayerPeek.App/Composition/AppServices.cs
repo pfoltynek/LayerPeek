@@ -248,7 +248,8 @@ internal static partial class AppServices
             sp.GetRequiredService<ILogger<MonitoringSession>>(),
             sp.GetRequiredService<RemovedCameraCredentials>(),
             sp.GetRequiredService<TimeProvider>(),
-            sp.GetRequiredService<ICameraOverlayLayoutWriter>()));
+            sp.GetRequiredService<ICameraOverlayLayoutWriter>(),
+            sp.GetRequiredService<ICameraWindowTopmostWriter>()));
 
         // Settings window (T-015): saving restarts the session above with the new settings; passwords go to the secret store;
         // web proxies of printers whose login changed are stopped (T-028).
@@ -684,6 +685,11 @@ internal static partial class AppServices
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<ILogger<CameraOverlayLayoutWriter>>(),
             sp.GetRequiredService<SettingsWriteGate>()));
+        // The pin of a camera window writes only that option of the printer and announces it (T-117), like the layout above.
+        services.AddSingleton<ICameraWindowTopmostWriter>(static sp => new DeferredCameraWindowTopmostWriter(
+            sp.GetRequiredService<ISettingsStore>,
+            sp.GetRequiredService<ILogger<CameraWindowTopmostWriter>>(),
+            sp.GetRequiredService<SettingsWriteGate>()));
         // A saved camera monitor found on another connector keeps its new device path (user decision 2026-10-23).
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
@@ -752,7 +758,8 @@ internal static partial class AppServices
                 services.GetRequiredService<CooldownMonitor>(),
                 services.GetRequiredService<PrintThumbnails>(),
                 services.GetRequiredService<ICameraOverlayLayoutWriter>(),
-                services.GetRequiredService<ILocalNetworkPrivacy>())
+                services.GetRequiredService<ILocalNetworkPrivacy>(),
+                services.GetRequiredService<ICameraWindowTopmostWriter>())
             : null;
 
         static PrinterDefinition? Monitored(MonitoredPrinters monitored, string printerId)
@@ -820,7 +827,9 @@ internal static partial class AppServices
             // A layout saved from a camera window replaces only that layout in an open settings window (T-077 Q3).
             layoutWriter: services.GetRequiredService<ICameraOverlayLayoutWriter>(),
             uiDispatcher: services.GetRequiredService<IUiDispatcher>(),
-            localNetwork: services.GetRequiredService<ILocalNetworkPrivacy>())
+            localNetwork: services.GetRequiredService<ILocalNetworkPrivacy>(),
+            // An option saved by the pin of a camera window replaces only that option in an open settings window (T-117).
+            topmostWriter: services.GetRequiredService<ICameraWindowTopmostWriter>())
         {
             // The test mode (never in Release builds) opens the image dialog in its own folder, where the tests put their
             // images (T-067; typing a path into the dialog through UI Automation is not reliable, T-064).

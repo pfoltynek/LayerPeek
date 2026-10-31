@@ -4,6 +4,7 @@ using System.Threading.Channels;
 using LayerPeek.App.Cameras;
 using LayerPeek.App.Tests.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Settings;
 
 namespace LayerPeek.App.Tests.Cameras;
 
@@ -260,4 +261,79 @@ internal sealed class RecordingMonitorPathUpdater : ICameraMonitorPathUpdater
     }
 
     public Task<bool> WaitForPendingAsync(TimeSpan timeout) => Task.FromResult(true);
+}
+
+/// <summary>
+/// Records the "always on top" options saved by the pin of camera windows (T-117); nothing on disk. A written option is
+/// announced like the real writer does (<see cref="ICameraWindowTopmostWriter.TopmostSaved"/>, on the saving thread).
+/// </summary>
+internal sealed class FakeTopmostWriter : ICameraWindowTopmostWriter
+{
+    private readonly Lock _gate = new();
+    private readonly List<(string PrinterId, CameraWindowMode Mode, bool Topmost)> _saves = [];
+    private TaskCompletionSource<bool>? _held;
+
+    public event EventHandler<CameraWindowTopmostSavedEventArgs>? TopmostSaved;
+
+    /// <summary>What a save returns (unless held or failing).</summary>
+    public bool Result { get; set; } = true;
+
+    /// <summary>Thrown by the next saves (until reset to <see langword="null"/>).</summary>
+    public Exception? Failure { get; set; }
+
+    public IReadOnlyList<(string PrinterId, CameraWindowMode Mode, bool Topmost)> Saves
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _saves];
+            }
+        }
+    }
+
+    /// <summary>The next saves wait until <see cref="Release"/>.</summary>
+    public void Hold()
+    {
+        lock (_gate)
+        {
+            _held = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+    }
+
+    /// <summary>Completes the held saves with <paramref name="result"/>.</summary>
+    public void Release(bool result)
+    {
+        TaskCompletionSource<bool>? held;
+        lock (_gate)
+        {
+            held = _held;
+            _held = null;
+        }
+
+        held?.TrySetResult(result);
+    }
+
+    public async Task<bool> SaveAsync(string printerId, CameraWindowMode mode, bool topmost, CancellationToken cancellationToken)
+    {
+        TaskCompletionSource<bool>? held;
+        lock (_gate)
+        {
+            _saves.Add((printerId, mode, topmost));
+            held = _held;
+        }
+
+        bool written = held is null ? Result : await held.Task.ConfigureAwait(false);
+        if (Failure is { } failure)
+        {
+            throw failure;
+        }
+
+        if (written)
+        {
+            TopmostSaved?.Invoke(this, new CameraWindowTopmostSavedEventArgs(printerId, mode, topmost));
+        }
+
+        return written;
+    }
 }

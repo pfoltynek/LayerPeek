@@ -1249,6 +1249,18 @@
   <data name="CameraLayoutEdit" xml:space="preserve">
     <value>Modifier la disposition</value>
   </data>
+  <data name="CameraLayoutEditMenu" xml:space="preserve">
+    <value>_Modifier la disposition</value>
+  </data>
+  <data name="CameraTopmostOn" xml:space="preserve">
+    <value>Toujours au premier plan: activé</value>
+  </data>
+  <data name="CameraTopmostOff" xml:space="preserve">
+    <value>Toujours au premier plan: désactivé</value>
+  </data>
+  <data name="CameraTopmostMenu" xml:space="preserve">
+    <value>_Toujours au premier plan</value>
+  </data>
   <data name="CameraLayoutTitle" xml:space="preserve">
     <value>Mode disposition</value>
   </data>

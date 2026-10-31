@@ -731,6 +731,24 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         SetProperty(ref _overlayLayout, layout, nameof(OverlayLayout));
     }
 
+    /// <summary>
+    /// The pin of the camera window saved "always on top" of <paramref name="mode"/> for this printer (T-117), like
+    /// <see cref="TakeSavedOverlayLayout"/>: it replaces the edited option of that mode (also the saved fallback), and nothing
+    /// else of the printer changes. The owner updates its saved state, so that this alone is no unsaved change.
+    /// </summary>
+    internal void TakeSavedTopmost(CameraWindowMode mode, bool topmost)
+    {
+        _savedWindow = _savedWindow.WithTopmost(mode, topmost);
+        if (mode == CameraWindowMode.Normal)
+        {
+            SetProperty(ref _topmostNormal, topmost, nameof(TopmostNormal));
+        }
+        else
+        {
+            SetProperty(ref _topmostMini, topmost, nameof(TopmostMini));
+        }
+    }
+
     /// <summary>The camera window defaults as entered, to compare with the saved ones (tests and saving).</summary>
     internal CameraWindowDefaults? CameraWindow => BuildWindow();
 

@@ -149,6 +149,29 @@ public sealed class CameraWindowSpacesUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task ThePinOfTheMiniPreviewSwitchesItsSpacesAtOnce() =>
+        session.RunAsync(async scope =>
+        {
+            // T-117: the pin switches Window.Topmost, which the flags follow like a saved option.
+            await using CameraHarness harness = new(window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+            CameraWindow window = harness.Open();
+            window.Settle();
+            FakeWindow fake = Attach(window);
+            global::Avalonia.Controls.Primitives.ToggleButton pin = window.Find<global::Avalonia.Controls.Primitives.ToggleButton>("CameraTopmostButton");
+            Assert.True(window.IsOnAllSpaces);
+
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.False(window.Topmost);
+            Assert.False(window.IsOnAllSpaces);
+            Assert.Equal(Avalonia, fake.Behavior);
+
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.True(window.Topmost);
+            Assert.True(window.IsOnAllSpaces);
+            Assert.Equal(AllSpaces, fake.Behavior);
+        });
+
+    [Fact]
     public Task AMiniPreviewThatIsNotOnTopStaysOnItsSpace() =>
         session.RunAsync(async scope =>
         {
