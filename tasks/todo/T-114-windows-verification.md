@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: windows
-depends_on: [T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109, T-110, T-111, T-112]
+depends_on: [T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109, T-110, T-111, T-112, T-117]
 ---
 
 ## Cíl
@@ -77,6 +77,13 @@ bez proměnné – musí projít. Soubory se v seznamech opakují (několik úko
       `settings-camera-window-error-normal-size.png`, `settings-widgets-cooldown-error-nozzle.png`,
       `settings-general-errors-focused.png`, `settings-errors-dark.png`, `settings-general-errors-dark.png`. Hlavně
       `settings-general-errors-focused` a `settings-camera-window-error-normal-size` (jiné vyhlazení písma a hran).
+- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část Windows): windowsová sada už je přegenerovaná na
+      větvi T-117 (agent na Windows) – zkontrolovat `camera-mini-buttons.png` (řada celá obrazovka, normální okno, špendlík vpravo v rohu),
+      `camera-mini-strip-240-pl.png`, `camera-mini-strip-chart-steady.png`, `camera-mini-strip-cooled-de.png`,
+      `camera-mini-strip-cooling-240-it.png`, `camera-mini-strip-custom-240.png`, `camera-mini-strip-finish-320.png`,
+      `camera-mini-strip-finish-400-es.png`, `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`,
+      `camera-mini-strip-rows-240-de.png`, `camera-mini-strip-rows.png` (ztlumený plný špendlík vpravo nahoře, jinak
+      beze změny). Obrázky README se generují na macOS (T-115).
 
 ### 2. Build, testy, AOT a E2E (`tools/windows-verify.ps1`)
 Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish s `-warnaserror`), pak
@@ -113,6 +120,15 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
 - [ ] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
       kroky W1–W3 v T-102 („Ruční ověření na Windows“) a `pwsh tools/windows-verify.ps1 -Only win.taskbar`.
+- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční kontrola chování špendlíku, část Windows): skutečná
+      aplikace se simulátorem – špendlík vpravo nahoře v normálním okně i v malém náhledu, na celé obrazovce není;
+      zapnutý je bez myši vidět ztlumený (čitelný i na světlém obrazu, při 125 / 150 / 200 %), vypnutý ne; po kliknutí
+      myší a odjetí myši zůstane jen ztlumený špendlík. Klik přepne „vždy navrchu“ hned (okno nad jinou aplikací)
+      a tlačítko na hlavním panelu zmizí / objeví se podle pravidla T-102. Kontextové menu pravým tlačítkem, klávesou
+      Menu a Shift+F10 v normálním okně (dvě položky, podtržené klávesy po Alt) i v malém náhledu (jen „Vždy navrchu“,
+      zaškrtnutá podle stavu). Předčítání (Narrator) přečte přepínač „Vždy navrchu: zapnuto / vypnuto“ se stavem,
+      mezerník / Enter přepíná a fokus zůstane na špendlíku. Volba přežije restart a otevřené Nastavení ji ukáže
+      (neuložené jiné úpravy zůstanou). Snímek okna se špendlíkem do poznámek.
 - [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
       win-x64,win-arm64` vytvoří i `LayerPeek-<verze>-win-arm64-Setup.exe` a soubory kanálu `win-arm64` bez kolize

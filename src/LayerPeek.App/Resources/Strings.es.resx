@@ -1249,6 +1249,18 @@
   <data name="CameraLayoutEdit" xml:space="preserve">
     <value>Editar diseño</value>
   </data>
+  <data name="CameraLayoutEditMenu" xml:space="preserve">
+    <value>_Editar diseño</value>
+  </data>
+  <data name="CameraTopmostOn" xml:space="preserve">
+    <value>Siempre encima: activado</value>
+  </data>
+  <data name="CameraTopmostOff" xml:space="preserve">
+    <value>Siempre encima: desactivado</value>
+  </data>
+  <data name="CameraTopmostMenu" xml:space="preserve">
+    <value>_Siempre encima</value>
+  </data>
   <data name="CameraLayoutTitle" xml:space="preserve">
     <value>Modo de diseño</value>
   </data>

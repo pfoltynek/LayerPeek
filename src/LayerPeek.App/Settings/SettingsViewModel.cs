@@ -198,6 +198,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     /// The Local Network permission of the OS (macOS 15+, T-097): "Test connection" offers to open its settings next to the
     /// hint; default: none.
     /// </param>
+    /// <param name="topmostWriter">
+    /// Announces an "always on top" option saved by the pin of a camera window, which the window takes over (T-117); default:
+    /// none.
+    /// </param>
     internal SettingsViewModel(
         ISettingsEditorStore store,
         IConnectionTester tester,
@@ -219,7 +223,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         ICameraOverlayLayoutWriter? layoutWriter = null,
         IUiDispatcher? uiDispatcher = null,
         ISystemNotificationSettings? notificationSettings = null,
-        ILocalNetworkPrivacy? localNetwork = null)
+        ILocalNetworkPrivacy? localNetwork = null,
+        ICameraWindowTopmostWriter? topmostWriter = null)
     {
         ArgumentNullException.ThrowIfNull(store);
         ArgumentNullException.ThrowIfNull(tester);
@@ -274,6 +279,8 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         SendTestNotificationCommand = new AsyncRelayCommand(SendTestNotificationAsync, () => CanSendTestNotification);
         Printers.CollectionChanged += OnPrintersChanged;
         InitializeWidgets(widgets ?? OverlayWidgetRegistry.Empty, layoutModeLauncher, layoutWriter, uiDispatcher);
+        // T-117: an option saved by the pin of a camera window replaces only that option here (after InitializeWidgets: the dispatcher).
+        InitializeTopmost(topmostWriter);
     }
 
     /// <summary>Save succeeded or Cancel was chosen: the window should close (which disposes this view model).</summary>
@@ -856,6 +863,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _disposed = true;
         _lifetime.Cancel();
         DisposeWidgets();
+        DisposeTopmost();
         foreach (PrinterEditorViewModel printer in Printers)
         {
             printer.Detach();
@@ -1058,6 +1066,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         ValidateGeneral();
         // Layouts saved by a camera window while loading (T-092 follow-up): newer than the file that was read, or the same.
         TakeWaitingLayouts();
+        TakeWaitingTopmost();
         SelectedPrinter = Printers.Count > 0 ? Printers[0] : null;
         UpdateDirty();
         OnEditableChanged();
@@ -1260,9 +1269,10 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         // The store reads the layouts saved by a camera window that this window has not taken over yet when it writes
         // (T-092 follow-up): a layout the window did not change is saved as the camera window saved it.
         AnnouncedOverlayLayouts.Reader latestLayouts = _announcedLayouts.CreateReader();
+        AnnouncedCameraTopmost.Reader latestTopmost = _announcedTopmost.CreateReader();
         try
         {
-            result = await _store.SaveAsync(new SettingsChange(_baseline, updated, passwords, images.Count > 0 ? images : null, latestLayouts)).ConfigureAwait(true);
+            result = await _store.SaveAsync(new SettingsChange(_baseline, updated, passwords, images.Count > 0 ? images : null, latestLayouts, latestTopmost)).ConfigureAwait(true);
         }
         catch (Exception)
         {
@@ -1283,6 +1293,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         {
             // Layouts saved by a camera window while saving: the file has them, the window takes them now.
             TakeWaitingLayouts();
+            TakeWaitingTopmost();
             UpdateDirty();
             ShowStatus(
                 result.RollbackIncomplete ? static () => Strings.SettingsSaveRollbackIncomplete
@@ -1296,6 +1307,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _baseline = updated;
         // Before MarkSaved: a printer new in this save is no target of a camera window's layout.
         TakeLayoutsAfterSave(latestLayouts, result.KeptOverlayLayouts);
+        TakeTopmostAfterSave(latestTopmost, result.KeptCameraTopmost);
         // T-039: a printer whose new image could not be stored keeps it (still unsaved), so that Save tries again; it shows
         // its previous custom image meanwhile when there is one, otherwise its illustration.
         bool unsavedImages = false;

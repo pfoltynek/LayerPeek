@@ -28,9 +28,9 @@ internal static class OverlayArrangement
 
     /// <summary>
     /// Room the window buttons need at the top right, counted as the least width of the right column next to the top centre
-    /// anchor (6 + 98 + 8, three buttons of the normal window, T-076 3.2).
+    /// anchor (6 + 132 + 8, four buttons of the normal window: T-076 3.2 and the pin, T-117).
     /// </summary>
-    public const double WindowButtonsReserve = 112;
+    public const double WindowButtonsReserve = 146;
 
     /// <summary>
     /// The small-window stage of a client area of <paramref name="width"/> × <paramref name="height"/> DIP (T-076 1.4):

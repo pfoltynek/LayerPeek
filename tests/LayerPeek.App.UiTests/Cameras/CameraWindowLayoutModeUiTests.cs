@@ -135,8 +135,8 @@ public sealed class CameraWindowLayoutModeUiTests(HeadlessSession session)
             Assert.True(button.IsEffectivelyEnabled);
             Assert.Equal("Edit layout", ToolTip.GetTip(button));
             Assert.Equal("Edit layout", AutomationProperties.GetName(button));
-            // T-076 3.2: [layout][full screen][mini preview], 3 × 30 + 2 × 4 = 98 wide.
-            Assert.Equal(98, window.Find<StackPanel>("CameraWindowButtons").Bounds.Width, 0.5);
+            // T-076 3.2, T-117: [layout][full screen][mini preview][pin], 4 × 30 + 3 × 4 = 132 wide.
+            Assert.Equal(132, window.Find<StackPanel>("CameraWindowButtons").Bounds.Width, 0.5);
 
             // Below 480 × 300: disabled with the tip, still shown.
             window.Width = 479;
@@ -162,24 +162,30 @@ public sealed class CameraWindowLayoutModeUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task ContextMenuOpensOnlyInTheNormalWindowAndEntersTheMode() =>
+    public Task ContextMenuHasTheLayoutItemOnlyInTheNormalWindowAndEntersTheMode() =>
         session.RunAsync(async scope =>
         {
             await using CameraHarness harness = Harness();
             CameraWindow window = OpenNormal(harness);
             ContextMenu menu = window.ContextMenu!;
             Assert.Equal("CameraContextMenu", AutomationProperties.GetAutomationId(menu));
-            MenuItem item = menu.Items.OfType<MenuItem>().Single();
+            MenuItem item = menu.Items.OfType<MenuItem>().First();
             Assert.Equal("CameraLayoutMenuItem", AutomationProperties.GetAutomationId(item));
-            Assert.Equal("Edit layout", item.Header);
+            // The menu-only text with its access key (T-117 Q-D1); the button keeps the text without it.
+            Assert.Equal("_Edit layout", item.Header);
 
-            foreach (Action switchMode in new Action[] { () => ViewModel(window).ShowFullScreenCommand.Execute(null), () => ViewModel(window).ShowMiniCommand.Execute(null) })
-            {
-                switchMode();
-                window.Settle();
-                RightClick(window, new Point(100, 100));
-                Assert.False(menu.IsOpen);
-            }
+            // No menu in full screen; the mini preview has one, without the layout item (T-117).
+            ViewModel(window).ShowFullScreenCommand.Execute(null);
+            window.Settle();
+            RightClick(window, new Point(100, 100));
+            Assert.False(menu.IsOpen);
+            ViewModel(window).ShowMiniCommand.Execute(null);
+            window.Settle();
+            RightClick(window, new Point(100, 100));
+            Assert.True(menu.IsOpen);
+            Assert.False(item.IsVisible);
+            menu.Close();
+            window.Settle();
 
             ViewModel(window).ShowNormalCommand.Execute(null);
             window.Width = 400;

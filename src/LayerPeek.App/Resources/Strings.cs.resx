@@ -1249,6 +1249,18 @@
   <data name="CameraLayoutEdit" xml:space="preserve">
     <value>Upravit rozložení</value>
   </data>
+  <data name="CameraLayoutEditMenu" xml:space="preserve">
+    <value>_Upravit rozložení</value>
+  </data>
+  <data name="CameraTopmostOn" xml:space="preserve">
+    <value>Vždy navrchu: zapnuto</value>
+  </data>
+  <data name="CameraTopmostOff" xml:space="preserve">
+    <value>Vždy navrchu: vypnuto</value>
+  </data>
+  <data name="CameraTopmostMenu" xml:space="preserve">
+    <value>Vždy _navrchu</value>
+  </data>
   <data name="CameraLayoutTitle" xml:space="preserve">
     <value>Režim rozložení</value>
   </data>

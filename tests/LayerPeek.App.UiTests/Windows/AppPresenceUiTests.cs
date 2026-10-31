@@ -112,6 +112,37 @@ public sealed class AppPresenceUiTests(HeadlessSession session)
         });
 
     [Fact]
+    public Task PinOfTheOpenWindowIsCountedAtOnceInBothModes() =>
+        session.RunAsync(static async scope =>
+        {
+            // T-117: the pin switches Window.Topmost, which the tracker follows like a saved option.
+            RecordingAppPresence platform = new();
+            AppPresence presence = new(platform);
+            AuxiliaryWindowTracker tracker = new(NoWindowShell.Instance, presence: presence);
+            await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Normal }, track: tracker.Track);
+            CameraWindow window = scope.Track(harness.Open());
+            window.Settle();
+            Avalonia.Controls.Primitives.ToggleButton pin = window.Find<Avalonia.Controls.Primitives.ToggleButton>("CameraTopmostButton");
+            Assert.True(presence.IsVisible);
+
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.True(window.Topmost);
+            Assert.False(presence.IsVisible);
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.True(presence.IsVisible);
+
+            // The mini preview (on top by default): off with the pin counts it, on again does not.
+            Run(window, () => ViewModel(window).ShowMiniCommand.Execute(null));
+            Assert.False(presence.IsVisible);
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.True(presence.IsVisible);
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.False(presence.IsVisible);
+
+            Assert.Equal(["show", "hide keep-active", "show", "hide keep-active", "show", "hide keep-active"], platform.Calls);
+        });
+
+    [Fact]
     public Task OtherWindowsCountAndTheLastClosedHidesTheApp() =>
         session.RunAsync(static async scope =>
         {

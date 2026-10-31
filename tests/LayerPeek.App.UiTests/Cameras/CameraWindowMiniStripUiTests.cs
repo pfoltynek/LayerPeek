@@ -474,10 +474,9 @@ public sealed class CameraWindowMiniStripUiTests(HeadlessSession session)
 
             Assert.True(SummaryText(window).TextLayout.TextLines[0].HasCollapsed);
             // The pointer left the grip over the window: its buttons are shown (the fade-in runs on real time, skipped).
-            StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
-            buttons.Transitions = null;
+            CameraHarness.SkipWindowButtonFade(window);
             window.Settle();
-            Assert.Equal(1, buttons.Opacity);
+            Assert.Equal(1, window.Find<Button>("CameraFullScreenButton").Opacity);
             SnapshotAssert.Matches(window, "camera-mini-strip-240-pl");
         });
 

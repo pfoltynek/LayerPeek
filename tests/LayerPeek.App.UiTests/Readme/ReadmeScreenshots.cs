@@ -114,7 +114,7 @@ public sealed class ReadmeScreenshots(HeadlessSession session)
     /// <summary>The window buttons appear only under the mouse: the mouse is outside, without the fade.</summary>
     private static void MouseAway(CameraWindow window)
     {
-        window.Find<StackPanel>("CameraWindowButtons").Transitions = null;
+        CameraHarness.SkipWindowButtonFade(window);
         window.MouseMove(new Point(-10, -10));
         window.Settle();
     }

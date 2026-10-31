@@ -84,6 +84,9 @@ internal sealed class CameraHarness : IAsyncDisposable
 
     public FakeCameraFeedFactory Factory { get; } = new();
 
+    /// <summary>Records the "always on top" options saved by the pin of the windows (T-117); nothing on disk.</summary>
+    public FakeTopmostWriter TopmostWriter { get; } = new();
+
     /// <summary>Records the layouts saved by the layout mode of the windows (T-091); nothing on disk.</summary>
     public FakeLayoutWriter LayoutWriter { get; }
 
@@ -208,6 +211,19 @@ internal sealed class CameraHarness : IAsyncDisposable
         window.Settle();
     }
 
+    /// <summary>
+    /// Skips the fade of the window buttons (it runs on real time) for stable frames: each button fades on its own since
+    /// T-117 (the pin stays dimmed while it is checked), so the transitions are removed from every button of the row.
+    /// </summary>
+    public static void SkipWindowButtonFade(CameraWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        foreach (Avalonia.Controls.Control button in window.Find<Avalonia.Controls.StackPanel>("CameraWindowButtons").Children)
+        {
+            button.Transitions = null;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         Windows.Shutdown();
@@ -229,7 +245,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(_feeds, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork, TopmostWriter);
         if (_macShortcuts is { } mac)
         {
             viewModel.UsesMacShortcuts = mac;

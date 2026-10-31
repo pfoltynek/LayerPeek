@@ -287,8 +287,7 @@ public sealed class CameraWindowMiniStripFinishUiTests(HeadlessSession session)
     /// <summary>The pointer leaves the window: its buttons fade out at once (the fade runs on real time, skipped).</summary>
     private static void HideWindowButtons(CameraWindow window)
     {
-        StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
-        buttons.Transitions = null;
+        CameraHarness.SkipWindowButtonFade(window);
         window.MouseMove(new Point(-10, -10));
         window.Settle();
     }

@@ -38,6 +38,7 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     private readonly RemovedCameraCredentials? _removedCameraCredentials;
     private readonly TimeProvider _timeProvider;
     private readonly ICameraOverlayLayoutWriter? _layoutWriter;
+    private readonly ICameraWindowTopmostWriter? _topmostWriter;
     private readonly CancellationTokenSource _stop = new();
     private readonly Lock _gate = new();
 
@@ -81,6 +82,9 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
     /// <param name="layoutWriter">
     /// Saves the overlay layouts of the layout mode of camera windows (T-091); the running settings take each saved layout.
     /// </param>
+    /// <param name="topmostWriter">
+    /// Saves the "always on top" option switched in camera windows (T-117); the running settings take each saved option.
+    /// </param>
     public MonitoringSession(
         Func<ISettingsStore> settingsStoreFactory,
         IPrinterMonitor monitor,
@@ -88,7 +92,8 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         ILogger<MonitoringSession> logger,
         RemovedCameraCredentials? removedCameraCredentials = null,
         TimeProvider? timeProvider = null,
-        ICameraOverlayLayoutWriter? layoutWriter = null)
+        ICameraOverlayLayoutWriter? layoutWriter = null,
+        ICameraWindowTopmostWriter? topmostWriter = null)
     {
         ArgumentNullException.ThrowIfNull(settingsStoreFactory);
         ArgumentNullException.ThrowIfNull(monitor);
@@ -110,6 +115,12 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
         if (layoutWriter is not null)
         {
             layoutWriter.LayoutSaved += OnLayoutSaved;
+        }
+
+        _topmostWriter = topmostWriter;
+        if (topmostWriter is not null)
+        {
+            topmostWriter.TopmostSaved += OnTopmostSaved;
         }
     }
 
@@ -427,6 +438,42 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             }
 
             if (_current is not { } current || ReferenceEquals(updated = current.WithCameraOverlayLayout(saved.PrinterId, saved.Layout), current))
+            {
+                return;
+            }
+
+            _current = updated;
+        }
+
+        UpdateObservers(updated);
+    }
+
+    /// <summary>
+    /// The writer's thread: the pin of a camera window saved its "always on top" option (T-117). Like
+    /// <see cref="OnLayoutSaved"/>: the file has it already; the running settings (and settings waiting for a restart) take
+    /// it without a restart, so that observers (the open camera window, a window opened later) keep it.
+    /// </summary>
+    private void OnTopmostSaved(object? sender, CameraWindowTopmostSavedEventArgs saved)
+    {
+        if (saved is null)
+        {
+            return;
+        }
+
+        AppSettings updated;
+        lock (_gate)
+        {
+            if (_stopping is not null || _disposed)
+            {
+                return;
+            }
+
+            if (_pending is { } pending)
+            {
+                _pending = pending.WithCameraWindowTopmost(saved.PrinterId, saved.Mode, saved.Topmost);
+            }
+
+            if (_current is not { } current || ReferenceEquals(updated = current.WithCameraWindowTopmost(saved.PrinterId, saved.Mode, saved.Topmost), current))
             {
                 return;
             }
@@ -776,6 +823,11 @@ internal sealed partial class MonitoringSession : IAsyncDisposable, IDisposable,
             if (_layoutWriter is not null)
             {
                 _layoutWriter.LayoutSaved -= OnLayoutSaved;
+            }
+
+            if (_topmostWriter is not null)
+            {
+                _topmostWriter.TopmostSaved -= OnTopmostSaved;
             }
 
             CancelModelRetriesLocked();

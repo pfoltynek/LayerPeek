@@ -37,12 +37,18 @@ internal sealed record SettingsEditorData(
 /// by the store when it writes: a printer whose layout <paramref name="Updated"/> has as in <paramref name="Original"/>
 /// gets the latest one instead of the window's older copy. <see langword="null"/> = none.
 /// </param>
+/// <param name="LatestCameraTopmost">
+/// "Always on top" options saved by the pin of a camera window that the window has not taken over (T-117), read by the
+/// store when it writes, like <paramref name="LatestOverlayLayouts"/>: a printer whose option of that mode
+/// <paramref name="Updated"/> has as in <paramref name="Original"/> gets the latest one. <see langword="null"/> = none.
+/// </param>
 internal sealed record SettingsChange(
     AppSettings Original,
     AppSettings Updated,
     IReadOnlyDictionary<string, string> NewPasswords,
     IReadOnlyDictionary<string, byte[]>? NewImages = null,
-    ILatestOverlayLayouts? LatestOverlayLayouts = null);
+    ILatestOverlayLayouts? LatestOverlayLayouts = null,
+    ILatestCameraTopmost? LatestCameraTopmost = null);
 
 /// <summary>Outcome of <see cref="ISettingsEditorStore.SaveAsync"/>. Public only because xUnit theory data needs it.</summary>
 public enum SettingsSaveStatus
@@ -69,12 +75,17 @@ public enum SettingsSaveStatus
 /// Saved with these layouts (by printer id, case-insensitive) from <see cref="SettingsChange.LatestOverlayLayouts"/> instead
 /// of the window's unchanged older copies; the window takes them as saved. <see langword="null"/> = none.
 /// </param>
+/// <param name="KeptCameraTopmost">
+/// Saved with these options from <see cref="SettingsChange.LatestCameraTopmost"/> instead of the window's unchanged older
+/// ones (T-117); the window takes them as saved. <see langword="null"/> = none.
+/// </param>
 internal sealed record SettingsSaveResult(
     SettingsSaveStatus Status,
     bool RollbackIncomplete = false,
     int UndeletedPasswords = 0,
     IReadOnlySet<string>? UnsavedImages = null,
-    IReadOnlyDictionary<string, CameraOverlayLayout>? KeptOverlayLayouts = null);
+    IReadOnlyDictionary<string, CameraOverlayLayout>? KeptOverlayLayouts = null,
+    IReadOnlyList<CameraTopmostChoice>? KeptCameraTopmost = null);
 
 /// <summary>Loads and saves what the settings window edits: <see cref="AppSettings"/> and printer passwords.</summary>
 internal interface ISettingsEditorStore
