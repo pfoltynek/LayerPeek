@@ -2,7 +2,8 @@ namespace LayerPeek.App.Platform;
 
 /// <summary>
 /// Whether the app starts after the user logs on (T-017; Windows: the app's own shortcut in the Startup folder; macOS, T-019:
-/// "Open at Login", the Login Item of <c>SMAppService</c>). Off by default; the settings window switches it.
+/// "Open at Login", the Login Item of <c>SMAppService</c>). Windows: switched on by the install (user decision 2026-10-26);
+/// macOS: off by default. The settings window switches it.
 /// </summary>
 internal interface IAutostart
 {

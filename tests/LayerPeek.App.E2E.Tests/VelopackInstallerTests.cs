@@ -106,7 +106,11 @@ public sealed class VelopackInstallerTests(E2EFixture fixture)
         Assert.Equal("LayerPeek", shortcut.AppUserModelId);
         Assert.Equal(new Guid(AppSwitches.ProductionToastActivatorClsid), Guid.Parse(shortcut.ToastActivatorClsid ?? Guid.Empty.ToString()));
         Assert.False(File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), AppSwitches.ProductionShortcutFileName)), "The installer created a desktop shortcut.");
-        Assert.Equal(change.Original.StartupShortcut, InstallerKind.Read().StartupShortcut);
+        // Autostart on by default (user decision 2026-10-26): the install hook creates the app's shortcut in the Startup folder.
+        Assert.True(File.Exists(InstallerKind.StartupShortcut), $"The install hook did not switch autostart on ({InstallerKind.StartupShortcut}).");
+        ShortcutInfo autostart = ShortcutProperties.Read(InstallerKind.StartupShortcut);
+        Assert.Equal(InstallerKind.InstalledExe, autostart.TargetPath, ignoreCase: true);
+        Assert.Equal("LayerPeek", autostart.AppUserModelId);
 
         // COM toast activator of the install hook: Windows starts the installed exe for a click on a toast.
         using (RegistryKey server = Registry.CurrentUser.OpenSubKey(InstallerKind.ActivatorSubKey + @"\LocalServer32") ?? throw new InvalidOperationException("The install hook did not register the toast activator."))
@@ -114,11 +118,11 @@ public sealed class VelopackInstallerTests(E2EFixture fixture)
             Assert.Equal($"\"{InstallerKind.InstalledExe}\" -ToastActivated", (string?)server.GetValue(null, null, RegistryValueOptions.DoNotExpandEnvironmentNames), ignoreCase: true);
         }
 
-        // 3. What the user and Explorer add while the app is installed: autostart switched on (the app's own shortcut in
-        //    the Startup folder, T-017) and the tray icon shown on the taskbar (T-061; the installed app is never started,
+        // 3. What the user and Explorer add while the app is installed: an autostart shortcut of another copy (it replaces
+        //    the one of the install hook) and the tray icon shown on the taskbar (T-061; the installed app is never started,
         //    so the entry is made here the way Explorer makes it). The autostart shortcut points to a file that does not
         //    exist outside the installation: Velopack deletes only shortcuts into the installation, so only the uninstall
-        //    hook (which deletes the app's Startup\LayerPeek.lnk by its name) can remove it, and a reboot in between starts
+        //    hook (which deletes the app's Startup\LayerPeek.lnk by its name) can remove it, and a reboot from here on starts
         //    nothing.
         string dummyTarget = Path.Combine(E2EFixture.Root, "autostart-target-that-does-not-exist", "LayerPeek.exe");
         ShellStart.CreateShortcut(InstallerKind.StartupShortcut, dummyTarget, string.Empty, E2EFixture.Root);

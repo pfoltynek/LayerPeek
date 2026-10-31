@@ -113,13 +113,14 @@ Describe 'Before/after comparison' {
         $result.Code | Should -Be 1
         $result.Text | Should -Match $Expected
     }
-    It 'reports a new Login Item and a new Keychain service' {
+    It 'reports a new Login Item and a new saved password' {
         $standIn = New-StandIn
         $before = Read-StandIn $standIn
         $after = Read-StandIn $standIn -Login 'URL: file:///Applications/LayerPeek.app/' -Keychain 'LayerPeek/printer-1  x1'
         $changes = (Compare-ProfileState -Before $before -After $after).Changes
         $changes | Should -Contain 'Login Items: + URL: file:///Applications/LayerPeek.app/'
-        $changes | Should -Contain 'Keychain services: + LayerPeek/printer-1  x1'
+        # The place is named after the OS the test runs on (Credential Manager on Windows, Keychain on macOS).
+        $changes | Should -Contain "$(Get-CredentialsPlace): + LayerPeek/printer-1  x1"
     }
     It 'never reports a place that could not be read as a change, but names it' {
         $standIn = New-StandIn
@@ -136,7 +137,7 @@ Describe 'Before/after comparison' {
         $read = Read-ProfileState -Path $file
         , $read['Login Items'] | Should -BeOfType [string[]]
         $read['Login Items'].Count | Should -Be 0
-        $read['Keychain services'].Count | Should -Be 0
+        $read[(Get-CredentialsPlace)].Count | Should -Be 0
         (Compare-ProfileState -Before $read -After $read).NotChecked | Should -BeNullOrEmpty
     }
     It 'refuses a snapshot file inside the repository' {

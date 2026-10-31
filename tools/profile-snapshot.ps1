@@ -178,6 +178,14 @@ function Get-WindowsCredentialTargets {
 
 <#
 .SYNOPSIS
+    The name of the place of the saved passwords in a state: the Credential Manager on Windows, the Keychain elsewhere.
+#>
+function Get-CredentialsPlace {
+    if ($IsWindows) { 'Credential Manager' } else { 'Keychain services' }
+}
+
+<#
+.SYNOPSIS
     The state of every watched place: an ordered dictionary name -> sorted lines, or -> $null when it cannot be read.
 #>
 function Get-ProfileState {
@@ -198,7 +206,7 @@ function Get-ProfileState {
         $entries = & $LaunchServices
         if ($null -eq $entries) { $state['LaunchServices'] = $null } else { $state['LaunchServices'] = [string[]] @($entries) }
     }
-    if ($Credentials) { $state[$(if ($IsWindows) { 'Credential Manager' } else { 'Keychain services' })] = @(& $Credentials) }
+    if ($Credentials) { $state[(Get-CredentialsPlace)] = @(& $Credentials) }
     $state
 }
 
