@@ -1,4 +1,6 @@
 using Avalonia.Headless;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -213,7 +215,8 @@ internal sealed class CameraHarness : IAsyncDisposable
 
     /// <summary>
     /// Skips the fade of the window buttons (it runs on real time) for stable frames: each button fades on its own since
-    /// T-117 (the pin stays dimmed while it is checked), so the transitions are removed from every button of the row.
+    /// T-117 (the pin stays dimmed while it is checked), so the transitions are removed from every button of the row. The
+    /// outline of the mini preview brightens with the same pointer over the window (T-118), so its fade is removed too.
     /// </summary>
     public static void SkipWindowButtonFade(CameraWindow window)
     {
@@ -222,6 +225,8 @@ internal sealed class CameraHarness : IAsyncDisposable
         {
             button.Transitions = null;
         }
+
+        window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "MiniOutline").Transitions = null;
     }
 
     public async ValueTask DisposeAsync()

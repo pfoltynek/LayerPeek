@@ -1,7 +1,7 @@
 ---
 id: T-118
 title: Malý náhled kamery – tenký rámeček okna
-status: in-progress
+status: done
 owner: ui-dev
 priority: P3
 platform: all
@@ -23,12 +23,12 @@ Uživatel si přeje rámeček (2026-10-31). Implementace na Windows i macOS.
 5. Normální okno a celá obrazovka beze změny.
 
 ## Akceptační kritéria
-- [ ] Obrys kolem malého náhledu v obou OS, jen v režimu malého náhledu (headless UI testy: viditelnost podle režimu)
-- [ ] Při najetí výraznější, po odchodu zpět; úchopy pro změnu velikosti fungují jako dřív (UI testy)
-- [ ] Obraz ani pás se nezmenší víc, než návrh určí; rozměry a umístění náhledu (`CameraMiniGeometry`) beze změny
-- [ ] Vysoký kontrast Windows: obrys čitelný (systémová barva nebo zdůvodněná výjimka v návrhu)
-- [ ] Snímky UI: malý náhled na světlém a tmavém pozadí (Windows → T-114, macOS → T-115)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Obrys kolem malého náhledu v obou OS, jen v režimu malého náhledu (headless UI testy: viditelnost podle režimu)
+- [x] Při najetí výraznější, po odchodu zpět; úchopy pro změnu velikosti fungují jako dřív (UI testy)
+- [x] Obraz ani pás se nezmenší víc, než návrh určí; rozměry a umístění náhledu (`CameraMiniGeometry`) beze změny
+- [x] Vysoký kontrast Windows: obrys čitelný (systémová barva nebo zdůvodněná výjimka v návrhu)
+- [x] Snímky UI: malý náhled na světlém a tmavém pozadí (Windows → T-114, macOS → T-115) → přesunuto do T-114 a T-115
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Návrh vzhledu
 (ui-designer 2026-10-31; podklad: `CameraWindow.axaml` (Root, Surface, pás v řádku 1 se `ZIndex 1`, úchopy
@@ -136,4 +136,32 @@ zkontrolovat. Snímek pozadí za oknem headless nevznikne – světlá a tmavá 
   také nesleduje; (b) zvážit až v samostatném úkolu pro celé okno kamery. (c) nedoporučuji (viz 4.).
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+(ui-dev 2026-10-31, Windows 11)
+- `src/LayerPeek.App/Windows/CameraWindow.axaml`: přesně podle návrhu 5 – styly `Border#MiniOutline` (`#73FFFFFF`,
+  `BrushTransition` 0,15 s) a `Grid#Root:pointerover Border#MiniOutline` (`#BFFFFFFF`), překryvný `Border
+  x:Name="MiniOutline"` za mřížkou úchopů (`Grid.RowSpan 2`, `ZIndex 2`, `BorderThickness 1`, `IsHitTestVisible False`,
+  `IsVisible="{Binding IsMini}"`, kompilovaná vazba). Žádný kód, žádný nový balíček, `CameraMiniGeometry` beze změny.
+- **Ověření předpokladu návrhu 2 (zaokrouhlení na celé pixely):** potvrzeno headless testem
+  `OutlineIsCrispWholeDevicePixelsAtEveryScaling` – při `RenderScaling` 1,0 / 1,25 / 1,5 / 1,75 / 2,0 má obrys na levém,
+  pravém, horním i dolním okraji 1 / 1 / 2 / 2 / 2 celé pixely plné barvy `#737373` a hned další pixel je čistě černý
+  (bez rozmazaného půlpixelu). Bez zaokrouhlení by při 125 % a 150 % vznikl částečně šedý druhý pixel. Na skutečném
+  monitoru Windows ověří T-114.
+- Testy (`tests/LayerPeek.App.UiTests/Cameras/CameraWindowMiniOutlineUiTests.cs`, 20 testů): viditelnost podle režimu
+  i po přepínání (normální → malý → celá obrazovka → Esc → malý → normální → celá obrazovka), vlastnosti obrysu
+  (1 DIP, bez pozadí, bez stínu a zaoblení, `ZIndex 2`, přes celé okno), obraz 240 × 135 a pás 33 DIP beze změny
+  i při najetí, barva bez myši / nad obrazem / nad pásem / nad levým a rohovým úchopem / po odjetí, hit test na okrajích
+  vrací `Border.grip` se správnou hranou (7 bodů), změna velikosti úchopem funguje, režim úprav rozvržení beze změny,
+  ostrost při 5 měřítkách a dva snímky (`camera-mini-outline`, `camera-mini-outline-hover`).
+- `CameraHarness.SkipWindowButtonFade` ruší i přechod obrysu (rozsvěcí se se stejnou myší jako tlačítka okna a běží
+  v reálném čase); test přechodu (`BrushTransition`, 0,15 s) proběhne před zrušením.
+- Windows snímky: 12 referencí malého náhledu se změnilo jen o obrys po obvodu (812 až 1312 pixelů podle velikosti, vždy přesně obvod
+  okna) a přibyly 2 nové; přegenerováno s `LAYERPEEK_UPDATE_SNAPSHOTS=1` jen pro 6 tříd malého náhledu, zkontrolováno.
+  macOS sadu a obrázky README přegeneruje T-115 (do té doby na Macu selže 14 snímkových testů); Windows kontrola
+  a ruční ověření na skutečné ploše (světlé / tmavé pozadí, 125 / 150 %) → T-114.
+- Vysoký kontrast: podle rozhodnutí Q1 (a) bez zvláštního chování, zdůvodněná výjimka v návrhu 4.
+- `dotnet build` 0 varování, `dotnet test` 8895 testů: 8625 prošlo, 270 přeskočeno (macOS, README, E2E bez podmínek), 0 selhalo.
+- `dotnet run` se nespustil do vlastní instance: běžela nainstalovaná LayerPeek uživatele (jedna instance), tu agent nezavíral;
+  skutečné okno se proto lokálně neověřilo (→ T-114).
+- Neověřeno lokálně: vzhled na macOS (Retina, @1x, světlý / tmavý režim) a skutečná plocha Windows za oknem
+  (headless snímek pozadí za oknem nevytvoří) – T-114 / T-115.
+- Uzavřeno 2026-10-31: build 0 varování, `dotnet test` 8895 testů, 0 selhání (270 přeskočeno); review (qa-reviewer) bez chyb, drobnosti opraveny; zbývající ruční ověření a macOS snímky přesunuty do T-114 a T-115 (rozhodnutí uživatele).

@@ -129,6 +129,18 @@
     <Style Selector="Border.grip">
       <Setter Property="Background" Value="Transparent" />
     </Style>
+    <!-- Thin neutral outline of the borderless mini preview (T-118): fixed colours, the content is always black. -->
+    <Style Selector="Border#MiniOutline">
+      <Setter Property="BorderBrush" Value="#73FFFFFF" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <Style Selector="Grid#Root:pointerover Border#MiniOutline">
+      <Setter Property="BorderBrush" Value="#BFFFFFFF" />
+    </Style>
   </Window.Styles>
 
   <!-- Row 0: the image and everything over it. Row 1: the info strip of the mini preview (T-089); empty in the other modes. -->
@@ -267,6 +279,17 @@
       <Border Classes="grip" Grid.Row="2" Grid.Column="1" Cursor="SizeNorthSouth" Tag="{x:Static WindowEdge.South}" PointerPressed="OnGripPointerPressed" />
       <Border Classes="grip" Grid.Row="2" Grid.Column="2" Cursor="BottomRightCorner" Tag="{x:Static WindowEdge.SouthEast}" PointerPressed="OnGripPointerPressed" />
     </Grid>
+
+    <!--
+      Outline of the mini preview (T-118): over the image and the strip, not a pointer target, no layout change. Layout
+      rounding (on by default) draws the 1 DIP as whole device pixels: 1 px at 100/125 %, 2 px at 150-200 %.
+    -->
+    <Border x:Name="MiniOutline"
+            Grid.RowSpan="2"
+            ZIndex="2"
+            BorderThickness="1"
+            IsHitTestVisible="False"
+            IsVisible="{Binding IsMini}" />
 
     <!-- Layout mode (T-091): above everything while it is on; its live region for screen readers is always there. -->
     <lay:CameraLayoutOverlay x:Name="LayoutOverlay" DataContext="{Binding LayoutMode}" />

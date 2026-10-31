@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: macos
-depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116, T-117]
+depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116, T-117, T-118]
 ---
 
 ## Cíl
@@ -48,10 +48,19 @@ zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných krok
       `camera-mini-strip-cooled-de.png`, `camera-mini-strip-cooling-240-it.png`, `camera-mini-strip-custom-240.png`,
       `camera-mini-strip-finish-320.png`, `camera-mini-strip-finish-400-es.png`, `camera-mini-strip-no-rows-320.png`,
       `camera-mini-strip-printing.png`, `camera-mini-strip-rows-240-de.png`, `camera-mini-strip-rows.png` (vpravo
-      nahoře ztlumený plný špendlík, v `camera-mini-buttons` celá řada se špendlíkem vpravo), ostatní změny vrátit
+      nahoře ztlumený plný špendlík a od T-118 obrys po obvodu – nevracet, v `camera-mini-buttons` celá řada se špendlíkem vpravo), ostatní změny vrátit
       a testy spustit znovu bez proměnné. Potom přegenerovat obrázky README (`docs/readme-screenshots.md`, generují se
       na macOS): změní se `docs/images/{en,cs}/camera-mini.jpg` (špendlík), ostatní obrázky zkontrolovat (rezerva
       tlačítek okna 146 místo 112 může zúžit kartu nahoře uprostřed v `camera-window.jpg`), nesouvisející změny vrátit.
+- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS; bez toho na Macu selže
+      14 snímkových testů): přegenerovat macOS sadu `tests/LayerPeek.App.UiTests/Snapshots/macOS/` stejným postupem jako
+      u T-117 (lze spojit do jednoho běhu) – nové `camera-mini-outline.png` a `camera-mini-outline-hover.png`, změněné
+      (tenký obrys po obvodu) `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`,
+      `camera-mini-strip-chart-steady.png`, `camera-mini-strip-cooled-de.png`, `camera-mini-strip-cooling-240-it.png`,
+      `camera-mini-strip-custom-240.png`, `camera-mini-strip-finish-320.png`, `camera-mini-strip-finish-400-es.png`,
+      `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`, `camera-mini-strip-rows-240-de.png`,
+      `camera-mini-strip-rows.png`; ostatní změny vrátit a testy spustit znovu bez proměnné. Potom přegenerovat obrázky
+      README: změní se `docs/images/{en,cs}/camera-mini.jpg` (obrys), nesouvisející změny vrátit.
 
 ### 2. Skript `tools/macos-verify.ps1` (jeden interaktivní běh)
 Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak
@@ -133,6 +142,12 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       malém náhledu (jen „Vždy navrchu“, zaškrtnutá podle stavu). VoiceOver přečte přepínač se jménem „Vždy navrchu:
       zapnuto / vypnuto“ a stavem, mezerník přepíná. Volba přežije restart aplikace a otevřené Nastavení ji ukáže.
       Snímek okna se špendlíkem do poznámek.
+- [ ] **T-118** (krit. „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“,
+      část macOS): okno kamery se simulátorem, malý náhled – tenký šedý obrys (1 pt = 2 px na Retině, ostré rohy) kolem
+      obrazu i pásu je vidět ve světlém i tmavém režimu, nad světlou plochou i nad tmavým oknem; v normálním okně a na
+      celé obrazovce obrys není. Při najetí myší zesvětlí, po odjetí ztmavne. Na externím monitoru @1x ostrý (1 px).
+      Úchopy po okrajích dál mění velikost, tažení obrazu a pásu přesouvá okno. Porovnat s nativním obrysem oken macOS
+      (návrh 4: záměrně o něco výraznější). Snímky na světlém a tmavém pozadí do poznámek.
 - [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část macOS): sezení 5.4 (a)–(d) – zkušební upozornění se
       zvukem i bez, nahrazení v Centru oznámení, klik přenese Nastavení na záložku Obecné, stav „zamítnuto“ s hláškou,
       `notDetermined` jen bez zásahu do TCC.

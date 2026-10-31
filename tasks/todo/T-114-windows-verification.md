@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: windows
-depends_on: [T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109, T-110, T-111, T-112, T-117]
+depends_on: [T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109, T-110, T-111, T-112, T-117, T-118]
 ---
 
 ## Cíl
@@ -82,8 +82,16 @@ bez proměnné – musí projít. Soubory se v seznamech opakují (několik úko
       `camera-mini-strip-240-pl.png`, `camera-mini-strip-chart-steady.png`, `camera-mini-strip-cooled-de.png`,
       `camera-mini-strip-cooling-240-it.png`, `camera-mini-strip-custom-240.png`, `camera-mini-strip-finish-320.png`,
       `camera-mini-strip-finish-400-es.png`, `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`,
-      `camera-mini-strip-rows-240-de.png`, `camera-mini-strip-rows.png` (ztlumený plný špendlík vpravo nahoře, jinak
+      `camera-mini-strip-rows-240-de.png`, `camera-mini-strip-rows.png` (ztlumený plný špendlík vpravo nahoře a od T-118 obrys po obvodu, jinak
       beze změny). Obrázky README se generují na macOS (T-115).
+- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část Windows): windowsová sada už je
+      přegenerovaná na větvi T-118 (agent na Windows) – zkontrolovat nové `camera-mini-outline.png` (tmavší obrys
+      `#737373` 1 px po celém obvodu, obraz i pás) a `camera-mini-outline-hover.png` (myš nad levým úchopem, světlejší
+      obrys `#BFBFBF`) a změněné `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`,
+      `camera-mini-strip-chart-steady.png`, `camera-mini-strip-cooled-de.png`, `camera-mini-strip-cooling-240-it.png`,
+      `camera-mini-strip-custom-240.png`, `camera-mini-strip-finish-320.png`, `camera-mini-strip-finish-400-es.png`,
+      `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`, `camera-mini-strip-rows-240-de.png`,
+      `camera-mini-strip-rows.png` (jen obrys po obvodu, jinak beze změny). Obrázky README se generují na macOS (T-115).
 
 ### 2. Build, testy, AOT a E2E (`tools/windows-verify.ps1`)
 Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish s `-warnaserror`), pak
@@ -129,6 +137,15 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       zaškrtnutá podle stavu). Předčítání (Narrator) přečte přepínač „Vždy navrchu: zapnuto / vypnuto“ se stavem,
       mezerník / Enter přepíná a fokus zůstane na špendlíku. Volba přežije restart a otevřené Nastavení ji ukáže
       (neuložené jiné úpravy zůstanou). Snímek okna se špendlíkem do poznámek.
+- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“ a ostrost obrysu, část Windows): skutečná
+      aplikace se simulátorem, malý náhled – tenký šedý obrys kolem obrazu i pásu je vidět na světlé ploše (bílá tapeta,
+      otevřený Průzkumník ve světlém režimu) i na tmavé (tmavá tapeta, tmavé okno za náhledem); v normálním okně a na
+      celé obrazovce obrys není. Při najetí myší (nad obraz, pás i okraj) obrys plynule zesvětlí, po odjetí ztmavne.
+      Při měřítku 100 %, 125 % a 150 % (Nastavení → Systém → Obrazovka) je čára ostrá, bez rozmazaného půlpixelu
+      (125 %: 1 px, 150 %: 2 px; ověřit lupou nebo snímkem obrazovky zvětšeným na pixely). Úchopy po okrajích dál mění
+      velikost (kurzor šipek u okraje), tažení obrazu a pásu přesouvá okno, tlačítka okna a pásu reagují. Při tažení
+      úchopem smí obrys ztmavnout až do puštění (systémová smyčka změny velikosti) – není chyba. Snímky na světlém
+      a tmavém pozadí do poznámek.
 - [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
       win-x64,win-arm64` vytvoří i `LayerPeek-<verze>-win-arm64-Setup.exe` a soubory kanálu `win-arm64` bez kolize
