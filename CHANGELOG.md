@@ -75,6 +75,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   because of a field) the keyboard focus moves to the first invalid field, and screen readers (Narrator, NVDA,
   VoiceOver) read its error as the help text of the field; a valid field gives its hint. The fields keep their size,
   so the window still fits without scrolling.
+- Windows: **Start automatically when I sign in to Windows** is on by default: the installer switches it on. Updates
+  keep your choice (an existing installation does not change).
 - macOS: LayerPeek.app is packed and signed by Velopack (still ad hoc, with the hardened runtime and the entitlements of
   0.3.0), so that it can update itself; the release also carries the Velopack package and update feed of `osx-arm64`.
   The `.dmg` and `.tar.gz` stay; there is no `.pkg`.
