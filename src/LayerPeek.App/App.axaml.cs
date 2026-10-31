@@ -207,9 +207,11 @@ public partial class App : Application, ITrayAppCommands
         }
 
         // macOS (T-102): a Dock icon while a window that is not always on top is open.
-        _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host), presence: new AppPresence(CreateAppPresence()));
+        // Windows (T-119): a window asked to come to the front gets past the foreground lock; other OSes Window.Activate.
+        IWindowActivator activator = WindowsWindowActivator.ForCurrentPlatform(host.CreateLogger<WindowsWindowActivator>);
+        _windowTracker = new AuxiliaryWindowTracker(CreateWindowShell(host), presence: new AppPresence(CreateAppPresence()), activator: activator);
         // macOS (T-019): the menu bar app is not active when its menu opens a window; the window comes with the app to the front.
-        _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates, OperatingSystem.IsMacOS() ? Platform.MacOS.MacAppActivation.Activate : null);
+        _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates, OperatingSystem.IsMacOS() ? Platform.MacOS.MacAppActivation.Activate : null, activator);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());

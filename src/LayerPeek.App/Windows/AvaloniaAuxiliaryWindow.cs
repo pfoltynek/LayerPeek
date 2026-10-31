@@ -9,6 +9,7 @@ internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
 {
     private readonly Window _window;
     private readonly Action? _bringAppToFront;
+    private readonly IWindowActivator _activator;
     private IDisposable? _tracking;
 
     /// <param name="track">
@@ -19,11 +20,16 @@ internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
     /// Activates the app before the window (macOS, T-019: an agent app without a Dock icon is not active when its menu bar
     /// extra opens a window, so the window would stay behind the active app); <see langword="null"/>: the window alone.
     /// </param>
-    public AvaloniaAuxiliaryWindow(Window window, Func<Window, IDisposable>? track = null, Action? bringAppToFront = null)
+    /// <param name="activator">
+    /// Activates the window (T-119: on Windows past the foreground lock, <see cref="WindowsWindowActivator"/>);
+    /// <see langword="null"/>: <see cref="Window.Activate"/>.
+    /// </param>
+    public AvaloniaAuxiliaryWindow(Window window, Func<Window, IDisposable>? track = null, Action? bringAppToFront = null, IWindowActivator? activator = null)
     {
         ArgumentNullException.ThrowIfNull(window);
         _window = window;
         _bringAppToFront = bringAppToFront;
+        _activator = activator ?? AvaloniaWindowActivator.Instance;
         _window.Closed += OnWindowClosed;
         _tracking = track?.Invoke(window);
     }
@@ -48,7 +54,7 @@ internal sealed class AvaloniaAuxiliaryWindow : IAuxiliaryWindow
     public void Activate()
     {
         _bringAppToFront?.Invoke();
-        _window.Activate();
+        _activator.Activate(_window);
     }
 
     public void Close() => _window.Close();
