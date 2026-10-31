@@ -77,7 +77,17 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
   „malý náhled + Enter“: je to první stisk po odepnutí (v normálním okně je Enter sám tím odepnutím).
 - Domněnka s `WM_KILLFOCUS` / skrytým vlastníkem je tím vyvrácena; obnova fokusu v `CameraWindow.Focus.cs`
   a `WindowFocusNative` se v záznamu nikdy neuplatnila.
-- Další krok: klávesnici poznávat podle toho, zda klik vznikl během zpracování klávesy (ne podle `:focus-visible`),
+- Rozpracováno (WIP commit, neověřeno): `OnWindowButtonClick` už nerozhoduje podle `:focus-visible`, ale podle toho,
+  zda se právě směruje událost klávesy (`_routingKey`, tunel/bublání `KeyDown`/`KeyUp` v okně); `CameraWindow.Focus.cs`
+  a `WindowFocusNative.cs` odstraněny, `ShowInTaskbar` se zase nastavuje přímo. Build bez varování; testy nespuštěny –
+  headless testy B v `CameraWindowFocusUiTests` (simulují neexistující ztrátu fokusu) teď selžou a je třeba je nahradit.
+- Přesný další krok: nahradit `PinSwitchedFromTheKeyboardKeepsTheFocusWhenTheTaskbarChangeTakesIt` testem skutečného
+  mechanismu (špendlík fokusován Tabem, mezerník, `FocusManager.Focus(null)` + `Hide()`/`Show()` → fokus vrácen aktivací
+  bez `:focus-visible`, pak Enter v malém i normálním okně → fokus na špendlíku, další mezerník přepne; ověřit, že selže
+  na `bd38012` a projde s opravou); odstranit `CameraWindow.DiagTrace.cs` a `AttachTrace()` v `OnOpened`; `dotnet build`,
+  celý `dotnet test`; pak E2E `-Method '*SpaceAndEnterSwitchThePinAndTheFocusStaysOnIt*'` a celá `-Class '*CameraPinTests'`
+  (`-NoSystemChanges`); upravit poznámky (příčina B potvrzena, oprava), odškrtnout E2E kritérium T-122 a T-120.
+- Původní plán: klávesnici poznávat podle toho, zda klik vznikl během zpracování klávesy (ne podle `:focus-visible`),
   odstranit neopodstatněnou obnovu fokusu, headless test pro skutečný mechanismus (fokus vrácený aktivací bez
   `:focus-visible`, pak Enter), odstranit diagnostiku, E2E znovu.
 

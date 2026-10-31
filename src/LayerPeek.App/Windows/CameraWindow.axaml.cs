@@ -51,6 +51,9 @@ public sealed partial class CameraWindow : Window
     // Mini preview: the press that may become a move once the pointer travels MoveThreshold.
     private (PointerPressedEventArgs Pressed, Point Origin)? _pendingMove;
 
+    // A key event is being routed through the window: a button clicked now was pressed from the keyboard (T-122).
+    private bool _routingKey;
+
     public CameraWindow()
     {
         InitializeComponent();
@@ -59,6 +62,10 @@ public sealed partial class CameraWindow : Window
         // macOS (T-100): ⌘W closes the window like its close button, ⌘. is Esc, ⌃⌘F is F11 (the KeyBindings).
         MacShortcuts.HandleCloseKeys(this, UsesMacShortcuts, Close, CancelFromKeyboard);
         AddHandler(KeyDownEvent, OnMacFullScreenKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(KeyDownEvent, OnKeyRoutingStarted, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyUpEvent, OnKeyRoutingStarted, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyDownEvent, OnKeyRoutingFinished, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(KeyUpEvent, OnKeyRoutingFinished, RoutingStrategies.Bubble, handledEventsToo: true);
     }
 
     /// <summary>
@@ -131,9 +138,8 @@ public sealed partial class CameraWindow : Window
         }
         else if (change.Property == TopmostProperty)
         {
-            // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence); the keyboard focus
-            // stays where it was (T-122).
-            ShowInTaskbarKeepingFocus(ShowsInTaskbar(change.GetNewValue<bool>()));
+            // T-102: on top = no taskbar button (Windows) and no Dock icon (macOS, counted by AppPresence).
+            ShowInTaskbar = ShowsInTaskbar(change.GetNewValue<bool>());
             // macOS (T-038): also before a mode switch goes on, e.g. full screen needs the flags of a normal window back.
             UpdateSpaces();
         }
@@ -663,7 +669,10 @@ public sealed partial class CameraWindow : Window
     /// on it; a mouse click, which focused it, moves the focus to the image, as the row would otherwise stay shown
     /// (<c>:focus-within</c>) after the pointer left instead of leaving only the dimmed pin. Not just dropped: the window
     /// would remember the pin and focus it again on its next activation (T-122: Alt+Tab back, or Windows hiding and showing
-    /// the window to give it its taskbar button back after unpinning).
+    /// the window to give it its taskbar button back after unpinning). From the keyboard means the click came while a key
+    /// event was routed (Enter on key down, Space on key up), not how the button got its focus: a focus given back by an
+    /// activation has no focus ring (<c>:focus-visible</c>), and Enter on the pin then was taken for a mouse click (T-122 B:
+    /// the first key after unpinning, which hides and shows the window).
     /// </summary>
     private void OnWindowButtonClick(object? sender, RoutedEventArgs e)
     {
@@ -672,7 +681,7 @@ public sealed partial class CameraWindow : Window
             return;
         }
 
-        bool fromKeyboard = button.Classes.Contains(":focus-visible");
+        bool fromKeyboard = _routingKey;
         if (button is ToggleButton)
         {
             if (!fromKeyboard)
@@ -685,6 +694,10 @@ public sealed partial class CameraWindow : Window
             Dispatcher.UIThread.Post(FocusFirstWindowButton);
         }
     }
+
+    private void OnKeyRoutingStarted(object? sender, KeyEventArgs e) => _routingKey = true;
+
+    private void OnKeyRoutingFinished(object? sender, KeyEventArgs e) => _routingKey = false;
 
     private void FocusFirstWindowButton()
     {
