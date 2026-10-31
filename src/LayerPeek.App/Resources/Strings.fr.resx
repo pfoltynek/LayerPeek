@@ -814,7 +814,7 @@
     <value>Masquer la _caméra</value>
   </data>
   <data name="MenuCameraToFront" xml:space="preserve">
-    <value>_Afficher la caméra</value>
+    <value>Mettre la caméra au _premier plan</value>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – caméra</value>

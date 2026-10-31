@@ -111,7 +111,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
-- [ ] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“):
+- [ ] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
       kroky W1–W3 v T-102 („Ruční ověření na Windows“) a `pwsh tools/windows-verify.ps1 -Only win.taskbar`.
 - [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
