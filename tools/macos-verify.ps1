@@ -1060,6 +1060,69 @@ $checks = @(
         }
     }
 
+    New-VerifyCheck -Id 'mac.camera-outline' -Kind Auto -Title 'outline of the mini preview in a capture of the real window: at every edge and corner, brighter while the pointer is over it, none in the normal window' `
+        -Closes 'T-118 kritéria „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS (obrys vidět, ostré rohy, zesvětlí při najetí, v normálním okně není)' -Action {
+        param($c)
+        if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (moving the pointer, the Accessibility tree).' }
+        if ((Invoke-Helper $c @('screenrecording')) -notcontains 'true') { Skip-VerifyCheck 'needs Screen Recording for the terminal (System Settings > Privacy & Security > Screen & System Audio Recording), then a restart of the terminal.' }
+        Invoke-SessionCheck $c {
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $screen = @(Get-Screens $c | Where-Object main)[0]
+            # No stream (nothing listens on port 9): the image stays black, so the outline is measured against a steady background.
+            $data = New-TestData -Context $c -Simulator (Get-Simulator $c) -Camera 'rtsp://127.0.0.1:9/live' -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Mini' })
+            $app = Start-TestApp -Context $c -TestData $data
+            $measure = {
+                param([string] $Name)
+                $window = Get-CameraWindow $c $app.Id
+                $file = Join-Path (Get-VerifyEvidenceFolder $c) "$Name.png"
+                & /usr/sbin/screencapture -x -o -l "$($window.number)" $file
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $file)) { throw "screencapture of window $($window.number) failed." }
+                # The outline is 1 point: as many pixels as the capture has per point (2 on Retina, 1 at @1x).
+                $probe = (Invoke-Helper $c @('ring', $file, '0', '1')) -join "`n" | ConvertFrom-Json
+                $pixels = [math]::Max(1, [math]::Round($probe.width / $window.width))
+                $edge = (Invoke-Helper $c @('ring', $file, '0', "$pixels")) -join "`n" | ConvertFrom-Json
+                $inner = (Invoke-Helper $c @('ring', $file, "$($pixels + 2)", "$pixels")) -join "`n" | ConvertFrom-Json
+                [pscustomobject]@{ Pixels = $pixels; Edge = $edge; Inner = $inner }
+            }
+            $sides = 'top', 'right', 'bottom', 'left'
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $w = Get-CameraWindow $c $app.Id; $w -and $w.layer -gt 0 })) { return New-VerifyResult FAIL 'no mini preview opened.' }
+                if (-not (Get-AxElement $c $app.Id 'MiniOutline')) { $problems.Add('the mini preview has no outline element (MiniOutline) in the Accessibility tree') }
+                $null = Invoke-Helper $c @('move', "$($screen.visible.x + 4)", "$($screen.visible.y + $screen.visible.height - 4)")
+                Start-Sleep -Milliseconds 800
+                $away = & $measure 'mini-pointer-away'
+                $over = Get-CameraWindow $c $app.Id
+                $null = Invoke-Helper $c @('move', "$($over.x + $over.width / 2)", "$($over.y + $over.height / 3)")
+                Start-Sleep -Milliseconds 800
+                $hover = & $measure 'mini-pointer-over'
+                $null = Save-VerifyEvidence -Context $c -Name 'rings.json' -Content (@{ away = $away; hover = $hover } | ConvertTo-Json -Depth 6)
+                foreach ($side in $sides) {
+                    $contrast = $away.Edge.$side - $away.Inner.$side
+                    if ($contrast -lt 40) { $problems.Add("no outline at the $side edge ($([math]::Round($away.Edge.$side)) vs $([math]::Round($away.Inner.$side)) inside)") }
+                    $brighter = $hover.Edge.$side - $away.Edge.$side
+                    if ($brighter -lt 25) { $problems.Add("the outline at the $side edge is not brighter while the pointer is over the preview ($([math]::Round($hover.Edge.$side)) vs $([math]::Round($away.Edge.$side)))") }
+                }
+                $cornerLow = @($away.Edge.corners | Where-Object { $_ -lt ($away.Inner.top + 40) })
+                if ($cornerLow.Count -gt 0) { $problems.Add("$($cornerLow.Count) corner(s) without the outline (rounded or cut corners)") }
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+            }
+            finally { $null = Stop-TestApp $data $app }
+
+            $data = New-TestData -Context $c -Simulator (Get-Simulator $c) -Camera 'rtsp://127.0.0.1:9/live' -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $app = Start-TestApp -Context $c -TestData $data
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $app.Id) -and (Get-AxElement $c $app.Id 'Surface') })) { $problems.Add('no normal camera window opened') }
+                elseif (Get-AxElement $c $app.Id 'MiniOutline') { $problems.Add('the normal window shows the outline of the mini preview') }
+            }
+            finally { $null = Stop-TestApp $data $app }
+
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
+            New-VerifyResult PASS "outline $($away.Pixels) px at every edge and corner of the mini preview ($(($sides | ForEach-Object { '{0} {1:0}/{2:0}' -f $_, $away.Edge.$_, $hover.Edge.$_ }) -join ', ') away/over; inside about $([math]::Round($away.Inner.top))), none in the normal window; the colours are fixed (white over the black content), so light and dark appearance look the same. Captures: mini-pointer-away.png, mini-pointer-over.png."
+        }
+    }
+
     New-VerifyCheck -Id 'mac.icons' -Kind Manual -Title 'menu bar icons on light and dark menu bars, app icon next to system app icons (contact sheet)' `
         -Closes 'T-018 kritérium 1 (čitelnost ve světlém i tmavém režimu)', 'T-098 kritérium 2 (velikost vedle systémových aplikací)' -Action {
         param($c)

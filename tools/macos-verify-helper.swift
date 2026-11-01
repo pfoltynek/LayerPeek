@@ -26,6 +26,11 @@
 //                                    children (needs Accessibility)
 //   axpress <pid> <identifier>       performs AXPress on the first element with that identifier (needs Accessibility)
 //   focusedid <pid>                  the identifier of the focused element of the process, or "" (needs Accessibility)
+//   screenrecording                  "true" / "false": whether this process may capture other apps' windows (Screen
+//                                    Recording); never asks for it
+//   ring <png> <offset> <thickness>  JSON: the mean luminance (0-255) of the band <offset> to <offset + thickness> pixels
+//                                    inside each edge of the image (top, right, bottom, left) and of the 2 x 2 pixels in
+//                                    each corner (for an outline drawn at the edge of a window capture)
 //   localized <bundle> <key> <lang>...  for each language the localization macOS picks for a user with that language
 //                                    (Bundle.preferredLocalizations) and the value of <key> in its InfoPlist.strings
 //   icons <out.png> <menu bar icon dir> <app icon or bundle> <system app>...
@@ -294,6 +299,33 @@ func focusedIdentifier(_ pid: Int32) {
     print(text(focused as! AXUIElement, kAXIdentifierAttribute))
 }
 
+func ring(_ path: String, _ offset: Int, _ thickness: Int) {
+    guard let image = NSImage(contentsOfFile: path), let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { fail("not an image: \(path)") }
+    let width = cg.width, height = cg.height
+    guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { fail("no bitmap") }
+    context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
+    guard let pixels = context.data?.assumingMemoryBound(to: UInt8.self) else { fail("no pixels") }
+    // Row 0 of the bitmap is the top of the image (CGContext memory order).
+    func luminance(_ x: Int, _ y: Int) -> Double {
+        let i = (y * width + x) * 4
+        return 0.2126 * Double(pixels[i]) + 0.7152 * Double(pixels[i + 1]) + 0.0722 * Double(pixels[i + 2])
+    }
+    func mean(_ xs: Range<Int>, _ ys: Range<Int>) -> Double {
+        var sum = 0.0
+        for y in ys { for x in xs { sum += luminance(x, y) } }
+        return sum / Double(max(1, xs.count * ys.count))
+    }
+    let band = offset..<(offset + thickness)
+    let inner = thickness + offset
+    printJSON([
+        "width": width, "height": height,
+        "top": mean(inner..<(width - inner), band), "bottom": mean(inner..<(width - inner), (height - offset - thickness)..<(height - offset)),
+        "left": mean(band, inner..<(height - inner)), "right": mean((width - offset - thickness)..<(width - offset), inner..<(height - inner)),
+        "corners": [mean(0..<2, 0..<2), mean((width - 2)..<width, 0..<2), mean(0..<2, (height - 2)..<height), mean((width - 2)..<width, (height - 2)..<height)],
+    ])
+}
+
 func localized(_ path: String, _ key: String, _ languages: [String]) {
     guard let bundle = Bundle(path: path) else { fail("not a bundle: \(path)") }
     var result: [String: Any] = [:]
@@ -409,6 +441,8 @@ case "move" where arguments.count == 3: guard let x = Double(arguments[1]), let 
 case "ax" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axTree(pid)
 case "axpress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axPress(pid, arguments[2])
 case "focusedid" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; focusedIdentifier(pid)
+case "screenrecording": print(CGPreflightScreenCaptureAccess() ? "true" : "false")
+case "ring" where arguments.count == 4: guard let offset = Int(arguments[2]), let thickness = Int(arguments[3]) else { fail("not a number") }; ring(arguments[1], offset, thickness)
 case "localized" where arguments.count >= 4: localized(arguments[1], arguments[2], Array(arguments[3...]))
 case "icons" where arguments.count >= 4: icons(arguments[1], arguments[2], arguments[3], Array(arguments[4...]))
 default: fail("unknown command or arguments: \(arguments.joined(separator: " "))")
