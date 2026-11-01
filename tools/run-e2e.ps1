@@ -38,8 +38,13 @@
     and in the app list of Settings > System > Notifications (T-068, accepted 2026-10-22; the run reports every trace it
     finds in system-state-end.txt of the results folder).
 
-    Screenshots of every checked state and the log of every started app go to the results folder, which is printed at
-    the end (replaced by the next run).
+    Screenshots of every checked state, the log of every started app and test-results.xml go to the results folder
+    %TEMP%\LayerPeek.App.E2E.Results.<id>, which is printed at the end (replaced by the next run). When the run fails,
+    the results folder of every failed pass (of every pass when only the restore afterwards failed) is first copied to
+    <results folder>-failed-<yyyyMMdd-HHmmss> next to it (T-132), and the summary prints that path. Of these copies the
+    newest 10 per results folder stay (the Debug pass and the -aot pass count separately); older ones are deleted at the
+    end of every run. Only folders with exactly these names directly in %TEMP% and with the marker of the tests are
+    ever deleted. A successful run makes no copy.
 
 .PARAMETER Class
     Only test classes matching this xUnit filter (e.g. '*CameraWindowTests').
@@ -305,6 +310,23 @@ finally {
     if ($null -eq $previousApp) { Remove-Item Env:LAYERPEEK_E2E_APP -ErrorAction SilentlyContinue } else { $env:LAYERPEEK_E2E_APP = $previousApp }
     # Also after Ctrl+C or a crashed test process (entries of a test process that still ends are left to its watchdog).
     if (-not (Invoke-SystemChangeRestore 'after the run')) { $exitCode = 1 }
+    # The results of a failed run outlive the next run (T-132); also after Ctrl+C. Never fails the run itself.
+    foreach ($pass in @(Get-PassesToKeep -Passes $passes.ToArray() -ExitCode $exitCode)) {
+        try {
+            $pass | Add-Member -NotePropertyName KeptCopy -NotePropertyValue (Save-FailedTestResults -Results $pass.Results) -Force
+        }
+        catch {
+            Write-Warning "The results of '$($pass.Name)' could not be kept: $($_.Exception.Message)"
+        }
+    }
+    foreach ($folder in @($results, $resultsAot)) {
+        try {
+            $null = @(Remove-OldFailedTestResults -Results $folder)
+        }
+        catch {
+            Write-Warning "Old kept results of '$folder' could not be deleted: $($_.Exception.Message)"
+        }
+    }
 }
 
 Write-Host ''
@@ -313,6 +335,9 @@ foreach ($pass in $passes) {
     $color = if ($pass.ExitCode -eq 0) { [ConsoleColor]::Green } else { [ConsoleColor]::Red }
     Write-Host "  $(Format-TestPassSummary -Name $pass.Name -ExitCode $pass.ExitCode -Counts $pass.Counts)" -ForegroundColor $color
     Write-Host "    screenshots, app logs, test-results.xml: $($pass.Results)"
+    if ($pass.PSObject.Properties['KeptCopy'] -and $pass.KeptCopy) {
+        Write-Host "    kept copy of the failed run (not replaced by the next run): $($pass.KeptCopy)" -ForegroundColor Yellow
+    }
 }
 if ($PublishAot -and $passes.Count -eq 1) {
     Write-Host "  $(Format-TestPassSummary -Name 'Native AOT exe (Debug)' -ExitCode $null -Counts $null -NotRunReason 'not run (the Debug pass failed)')" -ForegroundColor Red
