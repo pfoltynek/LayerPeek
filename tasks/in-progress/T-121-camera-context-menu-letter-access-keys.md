@@ -1,7 +1,7 @@
 ---
 id: T-121
 title: Kontextové menu okna kamery – samotné písmeno spustí položku
-status: todo
+status: in-progress
 owner: ui-dev
 priority: P3
 platform: all
