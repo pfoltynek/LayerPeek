@@ -1,7 +1,7 @@
 ---
 id: T-137
 title: macOS – zapnutí „vždy navrchu“ deaktivuje aplikaci a okno ztratí fokus
-status: todo
+status: in-progress
 owner: ui-dev
 priority: P1
 platform: macos

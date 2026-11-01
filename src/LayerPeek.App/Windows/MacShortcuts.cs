@@ -118,6 +118,32 @@ internal static class MacShortcuts
     }
 
     /// <summary>
+    /// ⌃-click (left button with ⌃ held) in <paramref name="control"/> opens its context menu like the right button while
+    /// <paramref name="isEnabled"/> says so (T-138): AppKit apps do this, Avalonia does not. Handled while tunnelling, so the
+    /// left button does nothing else (no drag of the window, no double-click, no button click).
+    /// </summary>
+    internal static void HandleControlClick(Control control, Func<bool> isEnabled)
+    {
+        ArgumentNullException.ThrowIfNull(control);
+        ArgumentNullException.ThrowIfNull(isEnabled);
+        control.AddHandler(
+            InputElement.PointerPressedEvent,
+            (_, e) =>
+            {
+                if (e.Handled || !isEnabled() || e.KeyModifiers != KeyModifiers.Control
+                    || e.GetCurrentPoint(control).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonPressed)
+                {
+                    return;
+                }
+
+                e.Handled = true;
+                Control target = e.Source as Control ?? control;
+                target.RaiseEvent(new ContextRequestedEventArgs(e));
+            },
+            RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>
     /// ⌘. with an open drop-down (<see cref="ComboBox"/>) of <paramref name="window"/> closes only the drop-down, like Esc
     /// (T-100 question 3, user decision 2026-10-30); <see langword="false"/> when none is open (at most one is).
     /// </summary>
