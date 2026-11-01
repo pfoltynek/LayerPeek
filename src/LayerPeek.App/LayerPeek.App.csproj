@@ -33,10 +33,11 @@
   </PropertyGroup>
   <ItemGroup>
     <!--
-      The SVG sources (app icon, tray design references) and the images of the macOS .icns (app-icon-macos-*.png: the 1024 px
-      master and the 16 and 32 px small variant on Apple's grid, T-019, T-098) are not needed at runtime.
+      The SVG sources (app icon, tray design references) and the small images of the macOS .icns (app-icon-macos-16/32.png
+      on Apple's grid, T-019, T-098) are not needed at runtime. The 1024 px master is: the Dock icon of a run without a
+      bundle icon (dotnet run, the test bundle; T-139).
     -->
-    <AvaloniaResource Include="Assets\**" Exclude="Assets\**\*.svg;Assets\AppIcon\app-icon-macos-*.png" />
+    <AvaloniaResource Include="Assets\**" Exclude="Assets\**\*.svg;Assets\AppIcon\app-icon-macos-16.png;Assets\AppIcon\app-icon-macos-32.png" />
   </ItemGroup>
   <ItemGroup>
     <!-- Third-party licence texts (About window), read by exact name: see Licenses/ThirdPartyLicenses.cs. -->
