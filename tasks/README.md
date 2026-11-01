@@ -159,6 +159,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-129 | windows-verify – testy interaktivního běhu (hotovo) | windows | qa-reviewer | P2 | T-105, T-125 |
 | T-128 | E2E testy místo ručních kontrol – zkušební upozornění a aktualizace přes Velopack (hotovo; instalační případy v T-124) | windows | qa-reviewer | P2 | T-058, T-101, T-125 |
 | T-132 | run-e2e.ps1 – uchovat výsledky neúspěšných běhů (hotovo) | windows | qa-reviewer | P3 | – |
+| T-133 | E2E – návrat upozornění testovací aplikace, předpoklad testu instalátoru, aktivátor po AOT smoke | windows | qa-reviewer | P1 | T-128, T-017 |
 
 ### Windows (`windows`)
 
