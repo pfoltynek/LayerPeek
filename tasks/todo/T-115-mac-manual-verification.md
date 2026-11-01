@@ -5,7 +5,7 @@ status: todo
 owner: qa-reviewer
 priority: P1
 platform: macos
-depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116, T-117, T-118]
+depends_on: [T-020, T-021, T-026, T-053, T-055, T-058, T-096, T-097, T-098, T-099, T-101, T-102, T-105, T-106, T-107, T-116, T-117, T-118, T-122]
 ---
 
 ## Cíl
@@ -61,6 +61,10 @@ zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných krok
       `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`, `camera-mini-strip-rows-240-de.png`,
       `camera-mini-strip-rows.png`; ostatní změny vrátit a testy spustit znovu bez proměnné. Potom přegenerovat obrázky
       README: změní se `docs/images/{en,cs}/camera-mini.jpg` (obrys), nesouvisející změny vrátit.
+- [ ] **T-122** (sdílený kód okna kamery, vyvíjeno a ověřeno jen na Windows): v normálním okně i malém náhledu klik myší
+      na špendlík a odjetí myši → zůstane jen ztlumený špendlík (ne celá řada), i po přepnutí do jiné aplikace a zpět;
+      Tab na špendlík, mezerník a Enter přepínají a fokus zůstane na špendlíku; po kliku na obraz Tab jde na první tlačítko
+      okna; VoiceOver: aktivace špendlíku funguje. `CameraWindowFocusUiTests` na Macu projdou.
 
 ### 2. Skript `tools/macos-verify.ps1` (jeden interaktivní běh)
 Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak

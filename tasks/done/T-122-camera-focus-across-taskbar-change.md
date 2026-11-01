@@ -1,7 +1,7 @@
 ---
 id: T-122
 title: Okno kamery – fokus při změně tlačítka na hlavním panelu
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: windows
@@ -32,8 +32,8 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
 ## Akceptační kritéria
 - [x] Headless testy nejdřív (selžou před opravou): klik myší na špendlík, deaktivace a nová aktivace okna → řada tlačítek
       bez myši skrytá; Enter / mezerník na špendlíku v malém i normálním okně → fokus zůstane na špendlíku
-- [x] Oprava A i B na Windows, macOS beze změny
-- [ ] E2E `CameraPinTests` (T-120) projdou na skutečné aplikaci → běh koordinuje hlavní agent s uživatelem
+- [x] Oprava A i B na Windows, macOS beze změny (sdílený kód okna kamery: ověření na Macu → přesunuto do T-115)
+- [x] E2E `CameraPinTests` (T-120) projdou na skutečné aplikaci → 5/5 dne 2026-11-01 (hlavní agent na volné ploše)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Poznámky k implementaci
@@ -70,6 +70,8 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
   s rozhodováním podle `:focus-visible` (fokus skončil na obrazu – přesně jako E2E) a s opravou prochází.
 - Ověřeno 2026-11-01 na Windows 11 Pro 10.0.26300 (headless, celý `dotnet test`); E2E `CameraPinTests` po opravě B
   zatím nespuštěno (koordinuje hlavní agent).
+
+Review 2026-11-01 bez blokujících nálezů (spolu s T-120); uzavřeno 2026-11-01.
 
 ## Otevřené otázky
 (žádné)

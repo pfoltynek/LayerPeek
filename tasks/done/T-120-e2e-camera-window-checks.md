@@ -1,7 +1,7 @@
 ---
 id: T-120
 title: E2E testy místo ručních kontrol okna kamery (špendlík, obrys, hlavní panel, menu)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P2
 platform: windows
@@ -38,7 +38,7 @@ Nejdřív zmapovat, co už pokrývají stávající testy (headless UI testy T-1
 - [x] Zmapované pokrytí (co už testují stávající testy) v poznámkách
 - [x] E2E / UI testy pro body 1–3, každý ruční bod T-114 (T-102, T-117, T-118) má odkaz na test, který ho nahrazuje
 - [x] Testy po sobě uklidí vše (okna, procesy, nastavení, měřítko, motiv) i po pádu; jména PascalCase bez podtržítek
-- [ ] Běh `tools/run-e2e.ps1` na nové třídy prošel (výsledek v poznámkách)
+- [x] Běh `tools/run-e2e.ps1` na nové třídy prošel (výsledek v poznámkách)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
@@ -171,6 +171,8 @@ a `BringToFrontTests` 2/2 prošly. `CameraPinTests` 2/5 – rozbor tří selhán
   pro `TopmostProperty` (`CameraWindow.axaml.cs:131–137`) si před `ShowInTaskbar = …` zapamatovat `IsActive` a fokusovaný
   prvek a po změně (Dispatcher.Post) je-li okno aktivní a fokus pryč, `Activate()` a vrátit fokus tomu prvku (po kliku
   myší neutrálnímu prvku z opravy A). Obě chyby → nový úkol (zakládá hlavní agent).
+- **Doplnění:** příčina B popsaná výše se ukázala jako chybná (připnutí fokus nebere, `WM_KILLFOCUS` nepřijde). Skutečnou
+  příčinu i opravu obou chyb popisuje T-122.
 
 ### Zůstává ručně (nepovinné, doporučené – zapsáno v T-114)
 - Subjektivní čitelnost ztlumeného špendlíku na světlém obraze kamery a při 200 % (test kontroluje jas a ukládá výřezy).
@@ -187,3 +189,9 @@ E2E (`run-e2e.ps1`) jsem nespouštěl – potřebuje volnou plochu, běh koordin
 `pwsh tools/run-e2e.ps1 -Class '*CameraMiniOutlineTests'` (se změnou měřítka; s `-NoSystemChanges` se test měřítek
 přeskočí) a kvůli změně `CoverWindow` regrese `-Class '*CameraTopmostTests'` a `-Class '*BringToFrontTests'`
 (obě `-NoSystemChanges`).
+
+**Konečné výsledky na skutečné ploše (hlavní agent, Windows 11 Pro 10.0.26300):** `CameraMiniOutlineTests` 3/3 i se změnou
+měřítka 100 / 125 / 150 % (měřítko vráceno), `CameraTaskbarAndModeSwitchTests` 3/3, `CameraTopmostTests` 2/2,
+`BringToFrontTests` 2/2 (2026-10-31); `CameraPinTests` 5/5 (2026-11-01, po opravě T-122 na této větvi, `d7b60a2`).
+Review 2026-11-01 bez blokujících nálezů; `dotnet build` 0 varování, `dotnet test` 8932 testů, 0 selhalo.
+Uzavřeno 2026-11-01.
