@@ -147,8 +147,9 @@ public sealed class CameraPinTests(E2EFixture fixture)
     /// The context menu of the image: the right button, the Menu key and Shift+F10 (sent to the camera window only). In the
     /// normal window "Edit layout" and "Always on top" (access keys E and T, distinct, underlined only after Alt), the second
     /// one checked like the pin; in the mini preview only "Always on top", checked by the mini preview's own option. A click
-    /// on the item and Alt+its letter switch "always on top"; Escape closes the menu and changes nothing else (the mini
-    /// preview stays).
+    /// on the item, its letter alone (without Alt in a menu opened with the right button or in the mini preview, after Alt
+    /// was released in the normal window, T-121) and Alt+its letter switch "always on top" and close the menu; Escape
+    /// closes the menu and changes nothing else (the mini preview stays).
     /// </summary>
     [Fact]
     public async Task ContextMenuOpensWithTheRightButtonTheMenuKeyAndShiftF10()
@@ -171,6 +172,12 @@ public sealed class CameraPinTests(E2EFixture fixture)
             await ClickMenuItemAsync(menu, menu.Item(TopmostMenuItemId));
             await ExpectClosedAndPinnedAsync(window, element, menu, on: true, "normal, item");
 
+            // The right button, then the letter alone without any Alt: the menu's own popup has the keyboard (T-121).
+            menu = await OpenWithRightButtonAsync(app, window, mini: false);
+            AssertItems(menu, mini: false, on: true, "normal, right button again");
+            TrayMenu.Press(app, TrayMenu.KeyOf(topmostKey));
+            await ExpectClosedAndPinnedAsync(window, element, menu, on: false, $"normal, right button, {topmostKey} alone");
+
             // The Menu key with the pointer away from the window: access keys underlined after Alt only, then the letter.
             using (CoverWindow background = await BackgroundBelowAsync(window, DarkBackground))
             {
@@ -178,16 +185,16 @@ public sealed class CameraPinTests(E2EFixture fixture)
             }
 
             menu = await OpenWithKeysAsync(app, window, mini: false, VirtualKeyShort.APPS);
-            AssertItems(menu, mini: false, on: true, "normal, Menu key");
+            AssertItems(menu, mini: false, on: false, "normal, Menu key");
             await ExpectUnderlinesAfterAltAsync(app, menu, "normal");
-            PressAltWith(app, TrayMenu.KeyOf(topmostKey));
-            await ExpectClosedAndPinnedAsync(window, element, menu, on: false, $"normal, Alt+{topmostKey}");
+            TrayMenu.Press(app, TrayMenu.KeyOf(topmostKey));
+            await ExpectClosedAndPinnedAsync(window, element, menu, on: true, $"normal, Alt released, then {topmostKey}");
 
             // Shift+F10, then Escape: closed, nothing switched.
             menu = await OpenWithKeysAsync(app, window, mini: false, VirtualKeyShort.SHIFT, VirtualKeyShort.F10);
-            AssertItems(menu, mini: false, on: false, "normal, Shift+F10");
+            AssertItems(menu, mini: false, on: true, "normal, Shift+F10");
             await EscapeAsync(app, menu);
-            await ExpectClosedAndPinnedAsync(window, element, menu, on: false, "normal, Escape");
+            await ExpectClosedAndPinnedAsync(window, element, menu, on: true, "normal, Escape");
 
             // The mini preview (on by default): only "Always on top", checked.
             await Ui.InvokeAsync(element, "CameraMiniButton");
@@ -201,14 +208,20 @@ public sealed class CameraPinTests(E2EFixture fixture)
 
             menu = await OpenWithKeysAsync(app, window, mini: true, VirtualKeyShort.APPS);
             AssertItems(menu, mini: true, on: false, "mini, Menu key");
+            TrayMenu.Press(app, TrayMenu.KeyOf(topmostKey));
+            await ExpectClosedAndPinnedAsync(window, element, menu, on: true, $"mini, {topmostKey} alone");
+
+            // Alt+letter keeps working.
+            menu = await OpenWithKeysAsync(app, window, mini: true, VirtualKeyShort.APPS);
+            AssertItems(menu, mini: true, on: true, "mini, Menu key again");
             PressAltWith(app, TrayMenu.KeyOf(topmostKey));
-            await ExpectClosedAndPinnedAsync(window, element, menu, on: true, $"mini, Alt+{topmostKey}");
+            await ExpectClosedAndPinnedAsync(window, element, menu, on: false, $"mini, Alt+{topmostKey}");
 
             menu = await OpenWithKeysAsync(app, window, mini: true, VirtualKeyShort.SHIFT, VirtualKeyShort.F10);
-            AssertItems(menu, mini: true, on: true, "mini, Shift+F10");
+            AssertItems(menu, mini: true, on: false, "mini, Shift+F10");
             Screenshots.Save(menu.Handle, "pin-context-menu-mini-shift-f10");
             await EscapeAsync(app, menu);
-            await ExpectClosedAndPinnedAsync(window, element, menu, on: true, "mini, Escape");
+            await ExpectClosedAndPinnedAsync(window, element, menu, on: false, "mini, Escape");
             Assert.True(WindowChecks.ClientSizeDip(window) == (320, 213), $"Escape closing the menu also left the mini preview ({WindowChecks.ClientSizeDip(window)}).");
         });
     }
@@ -434,10 +447,7 @@ public sealed class CameraPinTests(E2EFixture fixture)
 
     /// <summary>
     /// Alt held down with <paramref name="key"/> for the open menu (only while a window of the app has the keyboard). The
-    /// letter after Alt was released, or alone, does not run an item of the camera window's context menu yet (T-120 run
-    /// 2026-10-31); the user decided (T-120 Q3) that it must, like the tray menu of T-069 Q2.
-    /// TODO(T-121): once the letter alone works in the camera context menu, press only the letter here (after Alt was
-    /// released in the normal window, without Alt in the mini preview) instead of Alt+letter.
+    /// letter alone, the usual way since T-121, goes through <see cref="TrayMenu.Press"/>.
     /// </summary>
     private static void PressAltWith(AppInstance app, VirtualKeyShort key)
     {

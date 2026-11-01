@@ -601,6 +601,13 @@ public sealed class CameraWindowLayoutModeUiTests(HeadlessSession session)
     private static void PressIn(TopLevel topLevel, Key key, PhysicalKey physical, string? symbol = null)
     {
         topLevel.KeyPress(key, RawInputModifiers.None, physical, symbol);
+        Dispatcher.UIThread.RunJobs();
+        if (topLevel.PlatformImpl is null)
+        {
+            // The key closed the popup (its own top level since T-121 turned off the headless overlay popups).
+            return;
+        }
+
         topLevel.KeyRelease(key, RawInputModifiers.None, physical, symbol);
         Dispatcher.UIThread.RunJobs();
         topLevel.Settle();
