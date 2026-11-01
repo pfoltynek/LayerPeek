@@ -606,6 +606,19 @@ function Invoke-CameraPinCheck {
             & $add (& $expectState $state "AXPress $round")
         }
 
+        # 5b. Switching "always on top" on while another app is in front (VoiceOver, AXPress) leaves that app in front (T-137).
+        $null = & $readPin
+        if (& $isOn) { $null = Invoke-Helper $c @('axpress', "$appId", $pinId); $null = Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and -not (& $isOn) } }
+        if (Invoke-FinderToFront) {
+            $finder = Get-FrontProcessId
+            $null = Invoke-Helper $c @('axpress', "$appId", $pinId)
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and (& $isOn) })) { & $add 'AXPress with Finder in front did not switch the pin on' }
+            Start-Sleep -Milliseconds 1500
+            if ((Get-FrontProcessId) -ne $finder) { & $add "switching the pin on with Finder in front took the front ($(Get-FrontAppText))" }
+            $state = $true
+        }
+        else { & $add "Finder did not come to the front (front app: $(Get-FrontAppText))" }
+
         # 6. The context menu by right click and by Control-click: the items of the mode, the pin's check mark.
         foreach ($click in 'rightclick', 'ctrlclick') {
             Send-TestCommand $data 'activate'
