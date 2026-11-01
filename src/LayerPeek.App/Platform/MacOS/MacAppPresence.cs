@@ -51,6 +51,12 @@ internal sealed class MacAppPresence : IAppPresence
             bool wasActive = IsActive(application);
             StopWatch();
             _ = ObjCRuntime.SendBool(application, ObjCRuntime.Selector("setActivationPolicy:"), policy);
+            if (visible)
+            {
+                // The new Dock tile shows LayerPeek's icon also without a bundle icon (T-139).
+                MacAppIcon.ApplyWhenTheBundleHasNone();
+            }
+
             if (!visible && keepActive && wasActive)
             {
                 // An accessory app loses the activation with its Dock icon; the window still open (the mini preview the
