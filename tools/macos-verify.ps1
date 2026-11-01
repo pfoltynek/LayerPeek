@@ -111,6 +111,22 @@ function Get-Screens($Context) { @((Invoke-Helper $Context @('screens')) -join "
 
 function Get-ProcessWindows($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('windows', "$ProcessId")) -join "`n" | ConvertFrom-Json) }
 
+function Get-StatusItems($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The status items of a process from the Accessibility API, or $null without Accessibility for the terminal. #>
+    if (-not (Test-Accessibility $Context)) { return $null }
+    @((Invoke-Helper $Context @('statusitems', "$ProcessId")) -join "`n" | ConvertFrom-Json)
+}
+
+function Test-StatusItem($Context, [int] $ProcessId) {
+    <#
+    .SYNOPSIS
+        Whether the process shows a status item in the menu bar: a window on layer 25 (macOS 15), or an item of its
+        AXExtrasMenuBar (macOS 27 draws status items in no window of the process, T-135; needs Accessibility).
+    #>
+    if (Test-VerifyMenuBarItem @(Get-ProcessWindows $Context $ProcessId)) { return $true }
+    [bool] (@(Get-StatusItems $Context $ProcessId) | Where-Object { $_ -and $_.width -gt 0 -and $_.height -gt 0 })
+}
+
 function Get-SessionLimitation($Context) {
     <# .SYNOPSIS Why window checks cannot be judged in this session (locked screen, not on the console), or $null. #>
     try { Get-VerifySessionLimitation ((Invoke-Helper $Context @('session')) -join "`n" | ConvertFrom-Json) } catch { $null }
@@ -644,16 +660,21 @@ $checks = @(
         Invoke-SessionCheck $c {
             $data = New-TestData -Context $c
             $app = Start-TestApp -Context $c -TestData $data
-            $shown = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { Test-VerifyMenuBarItem @(Get-ProcessWindows $c $app.Id) }
+            $shown = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { Test-StatusItem $c $app.Id }
             $null = Save-VerifyEvidence -Context $c -Name 'windows.json' -Content (ConvertTo-VerifyJsonArray (Get-ProcessWindows $c $app.Id))
+            $trusted = Test-Accessibility $c
+            if ($trusted) { $null = Save-VerifyEvidence -Context $c -Name 'status-items.json' -Content (ConvertTo-VerifyJsonArray (Get-StatusItems $c $app.Id)) }
             # Every process's menu bar level windows: shows who owns the status items when the app's own are missing.
             $menuBar = @((Invoke-Helper $c @('menubar')) -join "`n" | ConvertFrom-Json)
             $null = Save-VerifyEvidence -Context $c -Name 'menubar-windows.json' -Content (ConvertTo-VerifyJsonArray $menuBar)
             $code = Stop-TestApp $data $app
+            if (-not $shown -and -not $trusted) {
+                Skip-VerifyCheck 'no status item window (layer 25) of the app; this macOS shows status items only to the Accessibility API: switch on Accessibility for the terminal and run it again.'
+            }
             if (-not $shown) {
                 $owners = @(Get-VerifyMenuBarOwners $menuBar)
                 $others = if ($owners.Count -gt 0) { "status item windows (layer 25) of: $($owners -join ', ')" } else { 'no process has a status item window (layer 25)' }
-                return New-VerifyResult FAIL "no status item (window layer 25) of the app (pid $($app.Id)) in the menu bar; $others (menubar-windows.json)."
+                return New-VerifyResult FAIL "no status item of the app (pid $($app.Id)) in the menu bar (no window on layer 25, nothing in AXExtrasMenuBar, status-items.json); $others (menubar-windows.json)."
             }
             if ($code -ne 0) { return New-VerifyResult FAIL "Quit ended the app with exit code $code." }
             New-VerifyResult PASS 'status item shown in the menu bar; Quit (the same command as the menu item) ended the app with 0 and the item is gone.'
@@ -1025,7 +1046,7 @@ $checks = @(
             & /usr/bin/caffeinate -u -t 2
             Write-VerifyStep $c 'Display woken. Unlock the screen if it is locked.' 'Yellow'
             $ui = Wait-VerifyCondition -TimeoutSeconds 180 -Condition { (Read-TestLog $data) -match 'starting the UI\.' }
-            $item = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-VerifyMenuBarItem @(Get-ProcessWindows $c $app.Id) }
+            $item = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-StatusItem $c $app.Id }
             $log = Read-TestLog $data
             $null = Save-VerifyEvidence -Context $c -Name 'app.log' -Content $log
             $problems = @(

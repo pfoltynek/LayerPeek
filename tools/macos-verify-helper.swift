@@ -10,6 +10,9 @@
 //                                    pid: shows who owns the status items on this macOS version (evidence only)
 //   session                          the login session as JSON: locked (the screen is locked: no window can come to the
 //                                    front, status items and full-screen Spaces are not shown) and onConsole
+//   statusitems <pid>                the status items of a process from the Accessibility API (AXExtrasMenuBar): frame
+//                                    (points, top left), title, description; macOS 27 draws them in no window of the
+//                                    process, so CGWindowList cannot see them (needs Accessibility; exit code 3 without it)
 //   trusted                          "true" / "false": whether this process (i.e. the terminal that started it) has the
 //                                    Accessibility permission; never asks for it
 //   key <combo>                      posts a key press, e.g. ctrl+cmd+f, cmd+w, cmd+period, cmd+shift+], escape
@@ -97,6 +100,33 @@ func menuBarWindows() {
             "pid": (window[kCGWindowOwnerPID as String] as? NSNumber)?.intValue ?? 0,
             "x": number("X"), "y": number("Y"), "width": number("Width"), "height": number("Height"),
             "onscreen": (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false,
+        ])
+    }
+    printJSON(result)
+}
+
+func statusItems(_ pid: Int32) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    var bar: CFTypeRef?
+    // No extras menu bar (yet): the process has no status item.
+    guard AXUIElementCopyAttributeValue(app, "AXExtrasMenuBar" as CFString, &bar) == .success, let bar else { printJSON([]); return }
+    var children: CFTypeRef?
+    _ = AXUIElementCopyAttributeValue(bar as! AXUIElement, kAXChildrenAttribute as CFString, &children)
+    var result: [[String: Any]] = []
+    for item in children as? [AXUIElement] ?? [] {
+        func text(_ attribute: String) -> String {
+            var value: CFTypeRef?
+            return AXUIElementCopyAttributeValue(item, attribute as CFString, &value) == .success ? (value as? String ?? "") : ""
+        }
+        var point = CGPoint.zero
+        var size = CGSize.zero
+        var value: CFTypeRef?
+        if AXUIElementCopyAttributeValue(item, kAXPositionAttribute as CFString, &value) == .success, let value { AXValueGetValue(value as! AXValue, .cgPoint, &point) }
+        if AXUIElementCopyAttributeValue(item, kAXSizeAttribute as CFString, &value) == .success, let value { AXValueGetValue(value as! AXValue, .cgSize, &size) }
+        result.append([
+            "x": Double(point.x), "y": Double(point.y), "width": Double(size.width), "height": Double(size.height),
+            "title": text(kAXTitleAttribute), "description": text(kAXDescriptionAttribute),
         ])
     }
     printJSON(result)
@@ -264,6 +294,7 @@ case "screens": screens()
 case "windows" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; windows(pid)
 case "menubar": menuBarWindows()
 case "session": session()
+case "statusitems" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; statusItems(pid)
 case "trusted": print(AXIsProcessTrusted() ? "true" : "false")
 case "key" where arguments.count == 2: key(arguments[1])
 case "click" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; click(x, y)
