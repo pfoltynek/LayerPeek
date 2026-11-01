@@ -262,3 +262,6 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
   sadě Windows (špendlík vpravo nahoře, tenký obrys). `camera-layout-mode.png` a `camera-layout-mode-de-480.png` se
   přepsaly také, ale se starými referencemi projdou v toleranci – vráceny. README: změnil se jen
   `docs/images/{en,cs}/camera-mini.jpg` (špendlík a obrys), `camera-window.jpg` beze změny. Celá sada testů na Macu prošla.
+- 2026-11-01 (develop po T-119–T-122 a uzavření T-114): na Macu `dotnet build` Debug i Release 0 upozornění, `dotnet test`
+  8478 testů, 0 selhalo (198 přeskočeno, testy jen pro Windows), včetně `CameraWindowFocusUiTests` (automatická část
+  položky T-122); ruční část položky T-122 zůstává. Profil beze změny.
