@@ -130,6 +130,21 @@ git worktree remove <ta složka>
 Ručně: podle tabulky výše se starými názvy (`PrusaTrayDiagnostic.E2E`, `Prusa Tray Diagnostic E2E.lnk`, testovací
 aktivátor `{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}`, `HKCU\Software\PrusaTrayDiagnostic.E2E.Tests`), potom složku smazat.
 
+## Kde jsou výsledky E2E běhu (i neúspěšného)
+
+*Pro vývojáře.* `tools/run-e2e.ps1` ukládá snímky kontrolovaných stavů, logy spuštěných aplikací, `test-results.xml`
+a `system-state-*.txt` do složky výsledků **`%TEMP%\LayerPeek.App.E2E.Results.<id>`** (`<id>` = 8 hex znaků podle cesty
+worktree), průchod proti Native AOT exe (`-PublishAot`) do `…Results.<id>-aot`. Tu složku další běh na začátku smaže.
+
+Když běh skončí selháním, skript ji před tím zkopíruje (T-132) do **`<složka výsledků>-failed-<RRRRMMDD-HHmmss>`** vedle ní
+a cestu kopie vypíše v souhrnu („kept copy of the failed run“). Kopíruje se složka každého neúspěšného průchodu; když
+selhal jen návrat zásahů po běhu, složky všech průchodů. Kopie se dělá i po Ctrl+C. Úspěšný běh žádnou kopii nedělá.
+
+Úklid: na konci každého běhu zůstane od každé složky výsledků (Debug a `-aot` zvlášť) **10 nejnovějších kopií** podle
+časového razítka v názvu, starší se smažou. Smaže se jen složka přímo v `%TEMP%` s přesně tímto názvem a se značkou
+testů `.layerpeek-e2e-results`; odkazy (junction) uvnitř se odstraní bez sledování jejich cíle. Kopie, které chcete
+podržet déle, přejmenujte nebo přesuňte jinam – úklid si jich pak nevšimne.
+
 ## Upozornění se na macOS nezobrazují
 
 - LayerPeek posílá upozornění jen jako aplikace `LayerPeek.app` (ne vývojové sestavení spuštěné přes `dotnet run`). O povolení macOS požádá až s prvním upozorněním, a to vlastním oznámením s dotazem (Volby → Povolit; přesné znění určuje macOS).
