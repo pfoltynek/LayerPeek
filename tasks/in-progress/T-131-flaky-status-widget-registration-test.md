@@ -1,7 +1,7 @@
 ---
 id: T-131
 title: Občasné selhání StatusWidgetTests (Release, statická inicializace)
-status: todo
+status: in-progress
 owner: qa-reviewer
 priority: P3
 platform: all
