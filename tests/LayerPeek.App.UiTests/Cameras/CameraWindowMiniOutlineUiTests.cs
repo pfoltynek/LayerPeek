@@ -20,8 +20,8 @@ namespace LayerPeek.App.UiTests.Cameras;
 /// The thin outline of the borderless mini preview (T-118, design "Návrh vzhledu"): a 1 DIP neutral border over the image
 /// and the strip, only in the mini preview, brighter while the pointer is over the window (also over a resize grip). It is
 /// no pointer target and changes no layout: the grips still take presses at the edge, the image, the strip and the size of
-/// the mini preview stay as they were. Its look over a real desktop (light and dark) and the crispness at 125/150 % on a real
-/// screen are manual checks (T-114, T-115).
+/// the mini preview stay as they were. Its look over a light and a dark background and the crispness at 125/150 % on a real
+/// screen: on Windows the end-to-end tests of T-120 (<c>CameraMiniOutlineTests</c>), on macOS a manual check (T-115).
 /// </summary>
 public sealed class CameraWindowMiniOutlineUiTests(HeadlessSession session)
 {
