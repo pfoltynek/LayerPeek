@@ -12,14 +12,18 @@ namespace LayerPeek.App.Platform.MacOS;
 /// <c>libAvaloniaNative</c> 12.1.4), and <c>Window.Icon</c> (the Windows <c>.ico</c>) is not used by macOS. The released
 /// <c>LayerPeek.app</c> has <c>LayerPeek.icns</c> and is left alone.
 /// </summary>
-/// <remarks>Only an existing <c>NSApp</c> is changed. UI (main) thread only. Never throws.</remarks>
+/// <remarks>
+/// The Dock takes the image set while the app is an accessory app (no Dock tile) not over to the tile it gets as a regular
+/// app: it is set at the start and again each time the app becomes a regular app (<see cref="MacAppPresence"/>). The image
+/// is created once and kept. Only an existing <c>NSApp</c> is changed. UI (main) thread only. Never throws.
+/// </remarks>
 [SupportedOSPlatform("macos")]
 internal static class MacAppIcon
 {
-    /// <summary>The 1024 px master of the macOS icon (Apple's grid, T-098), the image of the <c>.icns</c>.</summary>
-    internal static readonly Uri MasterUri = new("avares://LayerPeek/Assets/AppIcon/app-icon-macos-1024.png");
+    // null: not decided yet; 0: the bundle has its icon (or no image could be made); otherwise the retained NSImage.
+    private static nint? _image;
 
-    /// <summary>Sets the application icon from <see cref="MasterUri"/> when the main bundle has no icon file.</summary>
+    /// <summary>Sets the application icon from <see cref="AppIcon.MacMasterUri"/> when the main bundle has no icon file.</summary>
     public static void ApplyWhenTheBundleHasNone()
     {
         try
@@ -30,19 +34,17 @@ internal static class MacAppIcon
                 return;
             }
 
-            ObjCRuntime.InAutoreleasePool(() =>
+            nint image = _image ??= ObjCRuntime.InAutoreleasePool(static () => HasBundleIcon() ? 0 : CreateImage());
+            if (image != 0)
             {
-                if (!HasBundleIcon())
-                {
-                    SetIcon(application);
-                }
-
-                return 0;
-            });
+                // NSApp retains the image.
+                _ = ObjCRuntime.Send(application, ObjCRuntime.Selector("setApplicationIconImage:"), image);
+            }
         }
         catch (Exception ex) when (ex is DllNotFoundException or EntryPointNotFoundException or IOException)
         {
-            // Not an AppKit process, or the image is missing: the icon stays as it is.
+            // Not an AppKit process, or the image is missing: the icon stays as it is (and is not looked for again).
+            _image = 0;
         }
     }
 
@@ -63,10 +65,11 @@ internal static class MacAppIcon
         return path != 0;
     }
 
-    private static unsafe void SetIcon(nint application)
+    /// <summary>A retained <c>NSImage</c> of <see cref="AppIcon.MacMasterUri"/>, or 0.</summary>
+    private static unsafe nint CreateImage()
     {
         byte[] png;
-        using (Stream stream = AssetLoader.Open(MasterUri))
+        using (Stream stream = AssetLoader.Open(AppIcon.MacMasterUri))
         using (MemoryStream copy = new())
         {
             stream.CopyTo(copy);
@@ -80,13 +83,6 @@ internal static class MacAppIcon
             image = ObjCRuntime.Send(ObjCRuntime.Send(ObjCRuntime.Class("NSImage"), ObjCRuntime.Selector("alloc")), ObjCRuntime.Selector("initWithData:"), data);
         }
 
-        if (image == 0)
-        {
-            return;
-        }
-
-        // NSApp retains the image.
-        _ = ObjCRuntime.Send(application, ObjCRuntime.Selector("setApplicationIconImage:"), image);
-        ObjCRuntime.Release(image);
+        return image;
     }
 }
