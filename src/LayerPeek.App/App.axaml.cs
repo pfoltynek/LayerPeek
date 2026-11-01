@@ -87,8 +87,9 @@ public partial class App : Application, ITrayAppCommands
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
-        // The letter alone runs an item of the tray menu that Avalonia draws on Windows (T-069 Q2).
-        TrayMenuAccessKeys.Register();
+        // The letter alone runs an item of the tray menu that Avalonia draws on Windows (T-069 Q2) and of the context menus
+        // and menu flyouts of the windows (T-121; not on macOS, whose menus have no access keys).
+        MenuAccessKeys.Register(popupMenus: !OperatingSystem.IsMacOS());
     }
 
     public override void OnFrameworkInitializationCompleted()
