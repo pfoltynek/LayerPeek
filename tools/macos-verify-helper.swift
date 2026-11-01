@@ -18,6 +18,14 @@
 //   key <combo>                      posts a key press, e.g. ctrl+cmd+f, cmd+w, cmd+period, cmd+shift+], escape
 //                                    (needs Accessibility; exit code 3 without it)
 //   click <x> <y>                    a left click at a point (global, top left origin; needs Accessibility)
+//   rightclick <x> <y>               a right click at a point (needs Accessibility)
+//   ctrlclick <x> <y>                a left click with Control held (needs Accessibility)
+//   move <x> <y>                     moves the mouse pointer to a point (needs Accessibility)
+//   ax <pid>                         the Accessibility tree of the windows of a process as JSON: role, subrole,
+//                                    identifier, title, description, value, focused, frame (points, top left), actions,
+//                                    children (needs Accessibility)
+//   axpress <pid> <identifier>       performs AXPress on the first element with that identifier (needs Accessibility)
+//   focusedid <pid>                  the identifier of the focused element of the process, or "" (needs Accessibility)
 //   localized <bundle> <key> <lang>...  for each language the localization macOS picks for a user with that language
 //                                    (Bundle.preferredLocalizations) and the value of <key> in its InfoPlist.strings
 //   icons <out.png> <menu bar icon dir> <app icon or bundle> <system app>...
@@ -189,6 +197,103 @@ func click(_ x: Double, _ y: Double) {
     }
 }
 
+func mouse(_ x: Double, _ y: Double, _ types: [CGEventType], _ button: CGMouseButton, _ flags: CGEventFlags = []) {
+    requireTrusted()
+    let point = CGPoint(x: x, y: y)
+    let source = CGEventSource(stateID: .hidSystemState)
+    for type in types {
+        guard let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: button) else { fail("no mouse event") }
+        if type != .mouseMoved { event.flags = flags }
+        event.post(tap: .cghidEventTap)
+        usleep(80_000)
+    }
+}
+
+/// A left click with the Control key really held (key down before, key up after), as a person does it: AppKit and apps
+/// may read the current modifier state rather than the flags of the click.
+func controlClick(_ x: Double, _ y: Double) {
+    requireTrusted()
+    let source = CGEventSource(stateID: .hidSystemState)
+    let control: CGKeyCode = 59
+    guard let down = CGEvent(keyboardEventSource: source, virtualKey: control, keyDown: true) else { fail("no key event") }
+    down.flags = .maskControl
+    down.post(tap: .cghidEventTap)
+    usleep(80_000)
+    mouse(x, y, [.mouseMoved, .leftMouseDown, .leftMouseUp], .left, .maskControl)
+    guard let up = CGEvent(keyboardEventSource: source, virtualKey: control, keyDown: false) else { fail("no key event") }
+    up.flags = []
+    up.post(tap: .cghidEventTap)
+    usleep(80_000)
+}
+
+func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
+    var value: CFTypeRef?
+    return AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success ? value : nil
+}
+
+func text(_ element: AXUIElement, _ name: String) -> String {
+    guard let value = attribute(element, name) else { return "" }
+    if let string = value as? String { return string }
+    if let number = value as? NSNumber { return number.stringValue }
+    return ""
+}
+
+func frame(_ element: AXUIElement) -> [String: Double] {
+    var point = CGPoint.zero
+    var size = CGSize.zero
+    if let value = attribute(element, kAXPositionAttribute) { AXValueGetValue(value as! AXValue, .cgPoint, &point) }
+    if let value = attribute(element, kAXSizeAttribute) { AXValueGetValue(value as! AXValue, .cgSize, &size) }
+    return ["x": Double(point.x), "y": Double(point.y), "width": Double(size.width), "height": Double(size.height)]
+}
+
+func children(_ element: AXUIElement) -> [AXUIElement] { attribute(element, kAXChildrenAttribute) as? [AXUIElement] ?? [] }
+
+func node(_ element: AXUIElement, _ depth: Int) -> [String: Any] {
+    var actions: CFArray?
+    _ = AXUIElementCopyActionNames(element, &actions)
+    var result: [String: Any] = [
+        "role": text(element, kAXRoleAttribute), "subrole": text(element, kAXSubroleAttribute),
+        "identifier": text(element, kAXIdentifierAttribute), "title": text(element, kAXTitleAttribute),
+        "description": text(element, kAXDescriptionAttribute), "value": text(element, kAXValueAttribute),
+        "focused": (attribute(element, kAXFocusedAttribute) as? NSNumber)?.boolValue ?? false,
+        "frame": frame(element), "actions": actions as? [String] ?? [],
+    ]
+    if depth < 40 { result["children"] = children(element).map { node($0, depth + 1) } }
+    return result
+}
+
+func axTree(_ pid: Int32) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    printJSON((attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? []).map { node($0, 0) })
+}
+
+func find(_ element: AXUIElement, _ identifier: String, _ depth: Int = 0) -> AXUIElement? {
+    if text(element, kAXIdentifierAttribute) == identifier { return element }
+    guard depth < 40 else { return nil }
+    for child in children(element) { if let found = find(child, identifier, depth + 1) { return found } }
+    return nil
+}
+
+func axPress(_ pid: Int32, _ identifier: String) {
+    requireTrusted()
+    let app = AXUIElementCreateApplication(pid)
+    for window in attribute(app, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
+        if let element = find(window, identifier) {
+            let status = AXUIElementPerformAction(element, kAXPressAction as CFString)
+            if status != .success { fail("AXPress on \(identifier) failed: \(status.rawValue)") }
+            return
+        }
+    }
+    fail("no element \(identifier)")
+}
+
+func focusedIdentifier(_ pid: Int32) {
+    requireTrusted()
+    guard let focused = attribute(AXUIElementCreateApplication(pid), kAXFocusedUIElementAttribute) else { print(""); return }
+    print(text(focused as! AXUIElement, kAXIdentifierAttribute))
+}
+
 func localized(_ path: String, _ key: String, _ languages: [String]) {
     guard let bundle = Bundle(path: path) else { fail("not a bundle: \(path)") }
     var result: [String: Any] = [:]
@@ -298,6 +403,12 @@ case "statusitems" where arguments.count == 2: guard let pid = Int32(arguments[1
 case "trusted": print(AXIsProcessTrusted() ? "true" : "false")
 case "key" where arguments.count == 2: key(arguments[1])
 case "click" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; click(x, y)
+case "rightclick" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; mouse(x, y, [.mouseMoved, .rightMouseDown, .rightMouseUp], .right)
+case "ctrlclick" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; controlClick(x, y)
+case "move" where arguments.count == 3: guard let x = Double(arguments[1]), let y = Double(arguments[2]) else { fail("not a point") }; mouse(x, y, [.mouseMoved], .left)
+case "ax" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axTree(pid)
+case "axpress" where arguments.count == 3: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; axPress(pid, arguments[2])
+case "focusedid" where arguments.count == 2: guard let pid = Int32(arguments[1]) else { fail("not a pid") }; focusedIdentifier(pid)
 case "localized" where arguments.count >= 4: localized(arguments[1], arguments[2], Array(arguments[3...]))
 case "icons" where arguments.count >= 4: icons(arguments[1], arguments[2], arguments[3], Array(arguments[4...]))
 default: fail("unknown command or arguments: \(arguments.joined(separator: " "))")

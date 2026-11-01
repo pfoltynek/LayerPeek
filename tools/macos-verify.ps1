@@ -476,6 +476,178 @@ function Get-RtspConnections([int] $ProcessId, [int] $Port) {
     @(& /usr/sbin/lsof -a -n -P -p $ProcessId "-iTCP:$Port" -sTCP:ESTABLISHED 2>$null | Select-Object -Skip 1)
 }
 
+function Get-AxTree($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('ax', "$ProcessId")) -join "`n" | ConvertFrom-Json -Depth 100) }
+
+function Find-AxElement($Nodes, [string] $Identifier) {
+    <# .SYNOPSIS The first node of the helper's Accessibility tree with that identifier (AutomationId), depth first; $null when none. #>
+    foreach ($node in @($Nodes)) {
+        if (-not $node) { continue }
+        if ($node.identifier -ceq $Identifier) { return $node }
+        $inner = Find-AxElement $node.children $Identifier
+        if ($inner) { return $inner }
+    }
+    $null
+}
+
+function Get-AxElement($Context, [int] $ProcessId, [string] $Identifier) { Find-AxElement (Get-AxTree $Context $ProcessId) $Identifier }
+
+function Get-AxFocusedId($Context, [int] $ProcessId) { [string] (@(Invoke-Helper $Context @('focusedid', "$ProcessId")) | Select-Object -First 1) }
+
+function Get-AxCenter($Node) { @([math]::Round($Node.frame.x + $Node.frame.width / 2, 1), [math]::Round($Node.frame.y + $Node.frame.height / 2, 1)) }
+
+function Get-AppType([int] $ProcessId) { Get-LaunchServicesAppType -ListOutput @(& /usr/bin/lsappinfo list 2>$null) -ProcessId $ProcessId }
+
+function Invoke-CameraPinCheck {
+    <#
+    .SYNOPSIS
+        T-122 / T-117 in one mode of the camera window, with real mouse and key events (CGEvent) and the Accessibility tree:
+        the pin switches "always on top" at once (window level, Dock / Cmd-Tab by the rule of T-102, settings.json); a
+        mouse click leaves no keyboard focus on the window buttons (the row shows only on hover or focus-within, so with
+        the pointer outside the window only the dimmed pin is left), also after another app came to the front and back;
+        after a click on the image Tab goes to the first window button; Tab to the pin, Space and Return switch it and the
+        focus stays; AXPress (what VoiceOver does) switches it; the context menu (right click and Control-click) has the
+        items of the mode with the check mark of the pin; the option survives a restart. Returns problems and "ok: ..." notes.
+    #>
+    param($Context, $Simulator, [ValidateSet('Normal', 'Mini')] [string] $Mode)
+    $c = $Context
+    $pinId = 'CameraTopmostButton'
+    $buttons = if ($Mode -eq 'Normal') { @('CameraLayoutButton', 'CameraFullScreenButton', 'CameraMiniButton', $pinId) } else { @('CameraFullScreenButton', 'CameraNormalButton', $pinId) }
+    $menuItems = if ($Mode -eq 'Normal') { @('CameraLayoutMenuItem', 'CameraTopmostMenuItem') } else { @('CameraTopmostMenuItem') }
+    $data = New-TestData -Context $c -Simulator $Simulator -Camera $Simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = $Mode })
+    $settingsFile = Join-Path $data.Data 'settings.json'
+    $app = Start-TestApp -Context $c -TestData $data
+    $appId = $app.Id
+    $script:pin = $null
+    $readPin = { $script:pin = Get-AxElement $c $appId $pinId; $script:pin }
+    $isOn = { [string] $script:pin.value -eq '1' }
+    $expectType = { param([bool] $On) if ($On) { 'UIElement' } else { 'Foreground' } }
+    $expectState = {
+        param([bool] $On, [string] $What)
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and ((& $isOn) -eq $On) })) { "${What}: the pin did not switch $(if ($On) { 'on' } else { 'off' }) (Accessibility value '$($script:pin.value)')"; return }
+        $title = [string] $script:pin.title
+        if ($title -notmatch "^Always on top: $(if ($On) { 'on' } else { 'off' })$") { "${What}: accessible name '$title' does not say the state" }
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $w = Get-CameraWindow $c $appId; $w -and (($w.layer -gt 0) -eq $On) })) { "${What}: window level $((Get-CameraWindow $c $appId).layer) does not follow 'always on top' $On" }
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { ($script:type = Get-AppType $appId) -ceq (& $expectType $On) })) { "${What}: LaunchServices type '$($script:type)', expected '$(& $expectType $On)' (Dock and Cmd-Tab, rule of T-102)" }
+    }
+    $buttonFocused = { $id = Get-AxFocusedId $c $appId; if ($buttons -contains $id) { $id } else { $null } }
+    $away = {
+        $screen = @(Get-Screens $c | Where-Object main)[0]
+        $null = Invoke-Helper $c @('move', "$($screen.visible.x + 4)", "$($screen.visible.y + $screen.visible.height - 4)")
+    }
+    $key = { param($Combo) $null = Invoke-Helper $c @('key', $Combo); Start-Sleep -Milliseconds 400 }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $add = { param($Items) foreach ($item in @($Items)) { if ($item) { $problems.Add([string] $item) } } }
+    $notes = [System.Collections.Generic.List[string]]::new()
+    try {
+        Send-TestCommand $data "camera:$($script:PrinterId)"
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $appId) -and (& $readPin) })) { return 'no camera window with the pin in the Accessibility tree' }
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId })) { & $add 'the camera window did not come to the front' }
+        $initial = & $isOn
+        & $add (& $expectState $initial 'at the start')
+
+        # 1. A real mouse click on the pin switches at once; the pointer leaves; no window button keeps the keyboard focus.
+        $hash = (Get-FileHash -LiteralPath $settingsFile).Hash
+        $null = Invoke-Helper $c (@('click') + (Get-AxCenter $script:pin))
+        & $add (& $expectState (-not $initial) 'mouse click')
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (Get-FileHash -LiteralPath $settingsFile).Hash -ne $hash })) { & $add 'the click did not save the option in settings.json' }
+        & $away
+        Start-Sleep -Milliseconds 600
+        $focused = & $buttonFocused
+        if ($focused) { & $add "after the mouse click and the pointer leaving, $focused has the keyboard focus (the whole row stays visible)" }
+
+        # 2. Another app in front and back: the activation does not focus the pin again (T-122).
+        if (Invoke-FinderToFront) {
+            Send-TestCommand $data 'activate'
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId })) { & $add 'the app did not come back to the front' }
+            Start-Sleep -Milliseconds 600
+            & $away
+            $focused = & $buttonFocused
+            if ($focused) { & $add "after switching to Finder and back, $focused has the keyboard focus (the whole row shows)" }
+        }
+        else { & $add "Finder did not come to the front (front app: $(Get-FrontAppText))" }
+
+        # 3. A click on the image, then Tab: the first window button.
+        $surface = Get-AxElement $c $appId 'Surface'
+        if ($surface) {
+            $point = Get-AxCenter $surface
+            $null = Invoke-Helper $c @('click', "$($point[0])", "$([math]::Round($surface.frame.y + $surface.frame.height * 0.7, 1))")
+            Start-Sleep -Milliseconds 500
+            & $key 'tab'
+            $first = Get-AxFocusedId $c $appId
+            if ($first -cne $buttons[0]) { & $add "Tab after a click on the image focused '$first', expected $($buttons[0])" }
+        }
+        else { & $add 'no camera image (Surface) in the Accessibility tree' }
+
+        # 4. Tab to the pin; Space and Return switch it and the focus stays on it (and the app in front: switching "always
+        # on top" on makes it an accessory app, T-102, which must not hand the front to another app).
+        for ($i = 0; $i -lt 8 -and (Get-AxFocusedId $c $appId) -cne $pinId; $i++) { & $key 'tab' }
+        if ((Get-AxFocusedId $c $appId) -cne $pinId) { & $add 'Tab never reached the pin' }
+        else {
+            foreach ($press in 'space', 'return') {
+                $null = & $readPin
+                $state = -not (& $isOn)
+                & $key $press
+                & $add (& $expectState $state $press)
+                $after = Get-AxFocusedId $c $appId
+                if ($after -cne $pinId) { & $add "after $press (pin $(if ($state) { 'on' } else { 'off' })) the pin lost the keyboard focus (focused: '$after', front app: $(Get-FrontAppText))" }
+                if ($after -cne $pinId -and (Get-FrontProcessId) -ne $appId) {
+                    Send-TestCommand $data 'activate'
+                    $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId }
+                    for ($i = 0; $i -lt 8 -and (Get-AxFocusedId $c $appId) -cne $pinId; $i++) { & $key 'tab' }
+                }
+            }
+        }
+
+        # 5. AXPress, as VoiceOver activates the pin (VO-Space).
+        foreach ($round in 1, 2) {
+            $null = & $readPin
+            $state = -not (& $isOn)
+            $null = Invoke-Helper $c @('axpress', "$appId", $pinId)
+            & $add (& $expectState $state "AXPress $round")
+        }
+
+        # 6. The context menu by right click and by Control-click: the items of the mode, the pin's check mark.
+        foreach ($click in 'rightclick', 'ctrlclick') {
+            Send-TestCommand $data 'activate'
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId })) { & $add "before the $click menu the app did not come to the front" }
+            Start-Sleep -Milliseconds 400
+            $surface = Get-AxElement $c $appId 'Surface'
+            $point = Get-AxCenter $surface
+            $null = Invoke-Helper $c @($click, "$($point[0])", "$($point[1])")
+            $script:tree = $null
+            $opened = Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:tree = Get-AxTree $c $appId; $null -ne (Find-AxElement $script:tree 'CameraTopmostMenuItem') }
+            $null = Save-VerifyEvidence -Context $c -Name "$($Mode.ToLowerInvariant())-$click-ax.json" -Content ($script:tree | ConvertTo-Json -Depth 100)
+            if (-not $opened) { & $add "$(if ($click -eq 'ctrlclick') { 'Control-click' } else { 'right click' }) on the image opened no context menu"; continue }
+            $present = @($menuItems | Where-Object { Find-AxElement $script:tree $_ })
+            $extra = @('CameraLayoutMenuItem', 'CameraTopmostMenuItem') | Where-Object { $menuItems -notcontains $_ -and (Find-AxElement $script:tree $_) -and (Find-AxElement $script:tree $_).frame.width -gt 0 }
+            if ($present.Count -ne $menuItems.Count) { & $add "$click menu lacks $(@($menuItems | Where-Object { $present -notcontains $_ }) -join ', ')" }
+            if ($extra) { & $add "$click menu shows $($extra -join ', '), not expected in this mode" }
+            $item = Find-AxElement $script:tree 'CameraTopmostMenuItem'
+            $notes.Add("$click menu item '$($item.title)' value '$($item.value)'")
+            $menuFrame = (Find-AxElement $script:tree 'CameraContextMenu').frame
+            $menuShown = { @(Get-ProcessWindows $c $appId | Where-Object { $_.onscreen -and [math]::Abs($_.x - $menuFrame.x) -le 2 -and [math]::Abs($_.y - $menuFrame.y) -le 2 -and [math]::Abs($_.width - $menuFrame.width) -le 2 }).Count -gt 0 }
+            & $key 'escape'
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { -not (& $menuShown) })) { & $add "Esc did not close the $click menu" }
+        }
+
+        # 7. The option survives a restart.
+        $null = & $readPin
+        $final = & $isOn
+        $code = Stop-TestApp $data $app
+        if ($code -ne 0) { & $add "Quit ended the app with $code" }
+        $app = Start-TestApp -Context $c -TestData $data
+        $appId = $app.Id
+        Send-TestCommand $data "camera:$($script:PrinterId)"
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $appId) -and (& $readPin) })) { & $add 'after the restart: no camera window with the pin' }
+        else { & $add (& $expectState $final 'after the restart') }
+    }
+    finally {
+        $null = Stop-TestApp $data $app
+    }
+    $problems
+    "ok: pin $(if ($initial) { 'on' } else { 'off' }) at the start, switched by click, Space, Return and AXPress (window level, Dock type, accessible name 'Always on top: on/off'), no button focused after the click and an app switch, Tab after the image to $($buttons[0]), menus: $($notes -join ', '), kept after the restart"
+}
+
 function Invoke-CameraModes {
     <#
     .SYNOPSIS
@@ -856,6 +1028,23 @@ $checks = @(
         $null = Save-VerifyEvidence -Context $c -Name 'placements.json' -Content (ConvertTo-VerifyJsonArray $rows -Depth 6)
         if ($problems.Count -gt 0) { return New-VerifyResult FAIL "$($problems.Count) of $($rows.Count) placements wrong: $($problems[0])" }
         New-VerifyResult PASS "$($rows.Count) placements on $($screens.Count) monitor(s) ($(($screens.name) -join ', ')) are 16 pt from the usable area, never under the menu bar or the Dock."
+    }
+
+    New-VerifyCheck -Id 'mac.camera-pin' -Kind Auto -Title 'camera window pin (always on top) with real mouse and key events and the Accessibility API, normal window and mini preview' `
+        -Closes 'T-122 (klik na špendlík a odjetí myši, přepnutí aplikace, Tab / mezerník / Enter, Tab po kliku na obraz, aktivace přes Accessibility jako VoiceOver)', 'T-117 kritéria „Tlačítko na hlavním panelu / ikona v Docku“, „Přístupnost“ a ruční část (klik přepne hned, Dock a ⌘Tab, kontextové menu pravým tlačítkem i ⌃-klikem, volba přežije restart)' -Action {
+        param($c)
+        if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (real mouse and key events, the Accessibility tree of the camera window).' }
+        Invoke-SessionCheck $c {
+            $simulator = Get-Simulator $c
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            foreach ($mode in 'Normal', 'Mini') {
+                $found = @(Invoke-CameraPinCheck -Context $c -Simulator $simulator -Mode $mode)
+                foreach ($line in $found) { if ($line.StartsWith('ok: ')) { $notes.Add("${mode}: $($line.Substring(4))") } else { $problems.Add("${mode}: $line") } }
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
+            New-VerifyResult PASS ($notes -join '; ')
+        }
     }
 
     New-VerifyCheck -Id 'mac.icons' -Kind Manual -Title 'menu bar icons on light and dark menu bars, app icon next to system app icons (contact sheet)' `
