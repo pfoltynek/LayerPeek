@@ -156,6 +156,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-122 | Okno kamery – fokus při změně tlačítka na hlavním panelu (hotovo; macOS v T-115) | windows | ui-dev | P2 | T-102, T-117 |
 | T-123 | Občasné selhání E2E „okno kamery zůstane otevřené při změně volby Vždy navrchu“ | windows | qa-reviewer | P3 | T-114 |
 | T-131 | Občasné selhání StatusWidgetTests (Release, statická inicializace) | all | qa-reviewer | P3 | – |
+| T-129 | windows-verify – testy interaktivního běhu (hotovo) | windows | qa-reviewer | P2 | T-105, T-125 |
 
 ### Windows (`windows`)
 

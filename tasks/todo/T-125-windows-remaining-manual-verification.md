@@ -37,6 +37,9 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 `pwsh tools/windows-verify.ps1` (interaktivně).
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část Windows): `tools/windows-verify.ps1` proběhl celý
       interaktivně (i `-RestoreOnly` po případném přerušení); nalezené chyby skriptu zapsané a opravené (nový úkol).
+      *Automatizováno v T-129:* průchod hlavní části skriptu s podvrženými kontrolami (odpovědi `y` / `n` na
+      standardním vstupu, souhrn, `report.md` / `report.json`, přerušení uprostřed a `-RestoreOnly`) testují Pester testy
+      `tools/windows-verify.Tests.ps1` v `dotnet test`. Ručně zbývá skutečný interaktivní běh se skutečnými kontrolami.
 
 ### 2. Ruční kontroly bez tiskárny (z T-114, oddíl 3)
 - [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část Windows): tlačítko „Poslat zkušební upozornění“
