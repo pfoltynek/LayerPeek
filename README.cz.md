@@ -198,7 +198,7 @@ dostupný z tvého počítače, například kamera Prusa Buddy3D nebo většina 
 | Platforma | Stav |
 |---|---|
 | Windows 10/11 x64 | ✅ podporováno |
-| Windows na ARM64 | 🚧 plánováno |
+| Windows na ARM64 | ❌ nepodporováno |
 | macOS (Apple Silicon) | ✅ podporováno od 0.3.0 (aplikace v menu baru) |
 
 ## Rychlý start
@@ -297,16 +297,14 @@ LayerPeeku, bez účtu a tokenu, a stažení aktualizace, kterou spustíš).
 - Podepsaná sestavení (bez varování SmartScreenu) a instalace přes Homebrew na macOS. Záleží na tom, jestli se
   podaří sehnat peníze na podpisové certifikáty (Apple Developer Program, podpis pro Windows); možnosti podpory
   projektu přibudou později.
-- Windows na ARM64
-- Stav MMU3
 
 Máš nápad? [Založ issue](https://github.com/pfoltynek/LayerPeek/issues).
 
 ## Časté otázky
 
 **Funguje to i mimo domácí síť?**
-Zatím ne. Aplikace mluví s tiskárnami přímo přes lokální síť. Můžeš použít VPN do domácí sítě; volitelná podpora
-Prusa Connect je v plánu.
+Ne. Aplikace mluví s tiskárnami přímo přes lokální síť. Můžeš použít VPN do domácí sítě. Podpora Prusa Connect
+se neplánuje: Prusa Connect nemá veřejné API pro aplikace třetích stran.
 
 **Nahrazuje to Prusa Connect nebo web PrusaLink?**
 Ne, doplňuje je. Je to rychlý pohled přímo na ploše. Pro nahrávání souborů a spouštění tisků otevři z menu web
@@ -375,7 +373,7 @@ displej), jsou v jednom postupu v [docs/macos-manual-testing.md](docs/macos-manu
 |---|---|
 | `src/LayerPeek.Core` | doménový model, abstrakce, monitoring a detekce událostí (bez UI a bez HTTP) |
 | `src/LayerPeek.PrusaLink` | klient PrusaLink REST API a lokální proxy webu |
-| `src/LayerPeek.PrusaConnect` | klient Prusa Connect (pozastaveno: Prusa Connect nemá veřejné API) |
+| `src/LayerPeek.PrusaConnect` | klient Prusa Connect (dál se nevyvíjí: Prusa Connect nemá veřejné API) |
 | `src/LayerPeek.Camera.FFmpeg` | kamera RTSP/H.264 přes FFmpeg |
 | `src/LayerPeek.App` | Avalonia tray aplikace, okna, platformní kód |
 | `tests/` | unit, UI (Avalonia headless) a E2E testy v xUnit v3 |

@@ -8,6 +8,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Removed
+
+- Windows ARM64 (`win-arm64`): no longer planned. The release scripts refuse it and Windows is built and released as
+  `win-x64` only. No release ever shipped a `win-arm64` build.
+
 ## [0.3.1] - 2026-10-30
 
 > **macOS 0.3.0:** that version cannot update itself: drag the new LayerPeek.app from the 0.3.1 disk image over the old

@@ -15,12 +15,12 @@ $ErrorActionPreference = 'Stop'
 # Single configuration point of the released runtimes.
 #   Os          host OS that can build it (Native AOT does not compile across operating systems)
 #   Default     built when the build script gets no -Runtime
-#   Uploadable  its files may be uploaded to GitHub
-# win-arm64 stays off until T-057 ships the ARM64 FFmpeg libraries (camera). Enabling it (Default and Uploadable)
-# is a deliberate change here after T-057 is done.
+#   Uploadable  its files may be uploaded to GitHub (a RID built for local verification only would set it to $false
+#               with a BlockedReason; none does now)
+# Windows ARM64 (win-arm64) is not supported (user decision 2026-11-01, T-130): it is not in this table, so every script
+# refuses it as an unknown runtime.
 $script:ReleaseRuntimes = [ordered]@{
     'win-x64'   = [pscustomobject]@{ Os = 'windows'; Default = $true; Uploadable = $true; BlockedReason = $null }
-    'win-arm64' = [pscustomobject]@{ Os = 'windows'; Default = $false; Uploadable = $false; BlockedReason = 'win-arm64 is not released until T-057 (FFmpeg for ARM64) is done' }
     'osx-arm64' = [pscustomobject]@{ Os = 'macos'; Default = $true; Uploadable = $true; BlockedReason = $null }
 }
 
@@ -696,7 +696,7 @@ function Get-PublishProblems {
         Pure check before a draft release is published: it exists, is a draft, has the checksum file of every
         expected OS and the Velopack feed (releases.<rid>.json) of every released RID of that OS (T-058), every file
         listed in the checksum files is uploaded with the listed SHA256, no other file is uploaded and no file of a
-        runtime that must not be uploaded (win-arm64 until T-057) is there.
+        runtime that must not be uploaded (Uploadable = $false in the runtime table) is there.
     .PARAMETER Release
         Release as returned by Get-GitHubRelease ($null = no release).
     .PARAMETER Checksums
@@ -759,8 +759,8 @@ function Test-RuntimeFileName {
     <#
     .SYNOPSIS
         True when a release file belongs to the RID: the RID as a name part separated by '-' or '.', as in the archive
-        (LayerPeek-0.1.0-win-arm64.zip) and in every Velopack file (releases.win-arm64.json, RELEASES-win-arm64,
-        LayerPeek-0.1.0-win-arm64-full.nupkg, LayerPeek-0.1.0-win-arm64-Setup.exe).
+        (LayerPeek-0.1.0-win-x64.zip) and in every Velopack file (releases.win-x64.json, RELEASES-win-x64,
+        LayerPeek-0.1.0-win-x64-full.nupkg, LayerPeek-0.1.0-win-x64-Setup.exe).
     #>
     param([Parameter(Mandatory)] [string] $Name, [Parameter(Mandatory)] [string] $Runtime)
     [bool]($Name -match "(^|[-.])$([regex]::Escape($Runtime))([-.]|$)")
@@ -1793,8 +1793,7 @@ function Get-NativeToolchainProblems {
         return $problems.ToArray()
     }
     $components = @{
-        'win-x64'   = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
-        'win-arm64' = 'Microsoft.VisualStudio.Component.VC.Tools.ARM64'
+        'win-x64' = 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64'
     }
     foreach ($rid in $Runtimes) {
         $component = $components[$rid]

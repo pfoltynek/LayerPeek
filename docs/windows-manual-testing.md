@@ -14,7 +14,7 @@ T-114 je od 2026-11-01 uzavřený (rozhodnutí uživatele); zbytek je rozdělen�
 [T-124 „Windows – ověření instalátoru“](../tasks/todo/T-124-windows-installer-verification.md) (oddíl „Skutečná
 instalace“ níže a `win.e2e-installer`) a
 [T-125 „Windows – zbývající ruční ověření“](../tasks/todo/T-125-windows-remaining-manual-verification.md) (celý
-interaktivní běh skriptu, zkušební upozornění, `win-arm64`, skutečná tiskárna, vydání). Protějšky pro Mac jsou T-126 a T-127.
+interaktivní běh skriptu, zkušební upozornění, skutečná tiskárna, vydání; bod `win-arm64` je zrušený, T-130). Protějšky pro Mac jsou T-126 a T-127.
 
 > Stav: sepsáno 2026-10-29, odkaz na T-114 doplněn 2026-10-30, odkazy na T-124 / T-125 2026-11-01. Když úkol přidá nebo změní ruční krok na Windows, upraví
 > se skript i tento soubor.

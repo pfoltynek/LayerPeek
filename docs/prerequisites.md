@@ -4,7 +4,7 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka na macOS (T-026): první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje Xcode Command Line Tools** (`xcode-select --install`). Bez nich build hned na začátku (nic nestahuje) skončí chybou `The Xcode Command Line Tools are not installed (or not selected). …` s návodem. Další buildy používají cache a toolchain už nepotřebují.
-> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64` (až po T-057), `osx-arm64` (rozhodnuto 2026-10-21).
+> - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Vydávané RID: `win-x64` a `osx-arm64` (rozhodnuto 2026-10-21; Windows ARM64 `win-arm64` se od 2026-11-01 nepodporuje, T-130).
 > - CI (GitHub Actions) se nepoužívá (T-016 zamítnut 2026-11-01), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
 ## Společné (obě platformy)
@@ -35,7 +35,7 @@ Společné:
 
 - **První build potřebuje internet.** Archiv / tarball se ověří podle připnutého SHA256. Při neshodě build selže a stažený soubor se zahodí. Další buildy jen zkontrolují cache a fungují offline. Jinou složku cache nastavíš vlastností nebo proměnnou prostředí `LayerPeekFFmpegCacheRoot`. `LayerPeekFFmpegEnabled=false` krok vypne úplně (testy FFmpeg se pak přeskočí).
 - Knihovny a `FFmpeg-LICENSE.txt` se kopírují do výstupu i do publish složky projektů, které na FFmpeg projekt odkazují. V `LayerPeek.app` jsou knihovny v `Contents/MacOS` (vedle exe, jako ostatní nativní knihovny) a licence v `Contents/Resources`.
-- IDE (design-time build) nic nestahuje ani nepřekládá. Jiné RID (`win-arm64`, `osx-x64`) a Intel Mac krok přeskočí.
+- IDE (design-time build) nic nestahuje ani nepřekládá. Jiné RID (např. `osx-x64`) a Intel Mac krok přeskočí.
 
 macOS navíc:
 
@@ -104,7 +104,6 @@ Windows, když stažení selže (offline, nebo připnuté vydání z GitHubu zmi
 |---|---|
 | **Build Tools for Visual Studio 2026** (nebo Visual Studio 2022/2026) | bezplatné, plné IDE není nutné |
 | Workload **Desktop development with C++** | obsahuje MSVC překladač/linker (komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) a Windows SDK |
-| *(volitelně)* komponenta **MSVC ARM64 build tools** (`Microsoft.VisualStudio.Component.VC.Tools.ARM64`) | jen pro publish na `win-arm64` (viz „ARM64 build tools“ níže) |
 | Velopack **`vpk`** | jen pro `scripts/release-build.ps1` (instalátor Windows, od T-058 i `.app` a aktualizace pro macOS); lokální dotnet tool, `dotnet tool restore` ho stáhne sám (viz „Velopack `vpk`“ níže) |
 
 Komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64` se samostatně nestahuje, je součástí workloadu *Desktop development with C++* v instalátoru Visual Studia.
@@ -144,33 +143,7 @@ dotnet vpk -h              # ověření; spouští se z kořene repozitáře
 - Verze `vpk` musí být stejná jako NuGet balíček `Velopack` v `Directory.Packages.props` (teď `1.2.161`). `release-build.ps1` to ověří před sestavením a Pester test hlídá oba soubory. Při povýšení změň obě verze najednou.
 - `vpk` 1.2.161 je framework-dependent pro .NET 8, 9 a 10 (verze pro .NET 11 neexistuje). Na stroji jen s .NET 11 ho spustí `"rollForward": true` v manifestu. Když je nainstalovaný runtime .NET 8–10, použije se ten.
 - Při prvním `dotnet tool restore` je potřeba internet (NuGet). `vpk` se spouští s `--skip-updates`, takže sám nic dalšího nestahuje.
-- `vpk` stačí na Windows pro RID `win-x64` i `win-arm64`. Balíčky pro macOS umí vytvořit jen na Macu: od T-058 je `vpk` součástí kroku `app` na macOS (`release-build.ps1` spustí `dotnet tool restore` i tam; podpis `codesign` z Xcode Command Line Tools). Pester test na macOS spustí skutečné `vpk`, když je obnovené (jinak test přeskočí).
-
-### ARM64 build tools (jen pro `win-arm64`)
-
-Publish `win-arm64` (i na x64 Windows) potřebuje navíc komponentu **MSVC ARM64 build tools** `Microsoft.VisualStudio.Component.VC.Tools.ARM64`. `win-arm64` se zatím nevydává (čeká na T-057), komponenta je potřeba jen pro `pwsh scripts/release-build.ps1 -Runtime win-arm64`.
-
-Nová instalace Build Tools rovnou s ARM64:
-
-```powershell
-winget install --id Microsoft.VisualStudio.BuildTools --override "--add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --includeRecommended --passive --wait"
-```
-
-Doplnění do existující instalace (Build Tools nebo Visual Studio). **Spusť v PowerShellu jako správce**: s `--passive` instalátor bez zvýšených oprávnění hned skončí s kódem 5007 („Commands with --quiet or --passive should be run elevated“).
-
-```powershell
-$vs = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
-$path = & "$vs\vswhere.exe" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath | Select-Object -First 1
-& "$vs\setup.exe" modify --installPath $path --add Microsoft.VisualStudio.Component.VC.Tools.ARM64 --passive --norestart
-```
-
-Nebo ručně: *Visual Studio Installer → Upravit → Jednotlivé komponenty →* „MSVC … ARM64/ARM64EC build tools (nejnovější)“.
-
-Ověření (musí vypsat název instalace):
-
-```powershell
-& "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -products * -requires Microsoft.VisualStudio.Component.VC.Tools.ARM64 -property displayName
-```
+- `vpk` na Windows balí RID `win-x64` (jediný vydávaný RID pro Windows, Windows ARM64 se od T-130 nepodporuje). Balíčky pro macOS umí vytvořit jen na Macu: od T-058 je `vpk` součástí kroku `app` na macOS (`release-build.ps1` spustí `dotnet tool restore` i tam; podpis `codesign` z Xcode Command Line Tools). Pester test na macOS spustí skutečné `vpk`, když je obnovené (jinak test přeskočí).
 
 ## macOS
 
@@ -248,7 +221,7 @@ pwsh -NoProfile -Command "Install-Module Pester -Scope CurrentUser -MinimumVersi
 
 ```powershell
 pwsh scripts/aot-smoke.ps1                         # RID podle aktuálního OS/architektury
-pwsh scripts/aot-smoke.ps1 -Runtime win-arm64 -Seconds 15   # jen na ARM64 Windows
+pwsh scripts/aot-smoke.ps1 -Seconds 15             # delší běh (Windows jen win-x64, jiné RID Windows odmítne)
 ```
 
 Skript publikuje aplikaci (Release) do dočasné složky mimo repozitář, spustí ji a ověří, že po `-Seconds` sekundách (výchozí 10) stále běží. S parametrem `-PublishDir <složka>` místo publikování ověří už hotovou publish složku a nechá ji beze změny (používá `scripts/release-build.ps1`). Pak proces ukončí a dočasnou složku smaže (i při chybě). Při neúspěchu vrací nenulový exit code a vypíše výstup aplikace. Vyžaduje PowerShell 7.2+ a nativní toolchain popsaný výše.
@@ -273,7 +246,7 @@ V `src/LayerPeek.App/LayerPeek.App.csproj` je nastaveno `<UseOptimizedPublish>fa
 | macOS: `The Xcode Command Line Tools are not installed (or not selected)` | první `dotnet build` překládá FFmpeg: `xcode-select --install`, po instalaci build zopakovat (`xcode-select -p` musí vypsat složku). Nebo `-p:LayerPeekFFmpegEnabled=false` (bez kamery) |
 | macOS: `Building FFmpeg from source failed` | viz `configure.log` / `make.log` ve složce `tmp-…` z chybové hlášky |
 | Varování `IL2xxx` / `IL3xxx` | kód nebo knihovna není kompatibilní s trimmingem/AOT – viz „Native AOT rules“ v `CLAUDE.md` |
-| `release-build.ps1`: `The MSVC component Microsoft.VisualStudio.Component.VC.Tools.ARM64 … is not installed` | chybí ARM64 build tools (viz „ARM64 build tools“) |
+| `release-build.ps1`: `Unknown runtime 'win-arm64'` / `aot-smoke.ps1`: `runtime 'win-arm64' is not supported` | Windows ARM64 se nepodporuje (T-130), Windows se sestavuje jen jako `win-x64` |
 | `release-upload.ps1`: `GitHub CLI (gh) is not installed` / `is not logged in` | viz „Vydání (GitHub CLI)“ |
 | `release-build.ps1`: `Velopack … and vpk … differ` | verze NuGet balíčku `Velopack` a nástroje `vpk` se liší (viz „Velopack `vpk`“) |
 | `dotnet vpk`: `You must install or update .NET to run this application` | chybí runtime .NET 8–10 a manifest nemá `"rollForward": true` (viz „Velopack `vpk`“) |
