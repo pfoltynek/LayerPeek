@@ -154,6 +154,8 @@ záznamu kamery Buddy3D a simulovaná data tiskárny), viz [docs/readme-screensh
   vybereš) a **celá obrazovka** (F11, na macOS ⌃⌘F).
 - Pro každou tiskárnu zvlášť: výchozí režim, velikost, umístění, monitor a „vždy navrchu“. Okno si umí pamatovat,
   kde jsi ho nechal.
+- Špendlík v okně ukazuje, zda zůstává navrchu, a jedním kliknutím to přepne; malý náhled má tenký obrys, takže je
+  vidět i nad tmavými okny.
 - Po výpadku kamery nebo Wi-Fi se samo znovu připojí.
 
 ### Notifikace

@@ -154,6 +154,8 @@ Buddy3D camera recording and simulated printer data), see [docs/readme-screensho
 - Three modes: **normal**, **mini** (a small preview that stays on top of other windows, with an info strip below the
   image whose content you choose) and **full screen** (F11, on macOS ⌃⌘F).
 - Per printer: start mode, size, position, monitor and "always on top". The window can remember where you left it.
+- A pin in the window shows whether it stays on top and switches it with one click; the mini preview has a thin
+  outline, so it stands out even over dark windows.
 - Reconnects automatically when the camera or Wi-Fi drops out.
 
 ### Notifications

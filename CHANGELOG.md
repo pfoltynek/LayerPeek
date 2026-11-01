@@ -8,6 +8,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Always on top pin** in the camera window (Windows and macOS): a pin button at the right end of the window buttons,
+  in the normal window and in the mini preview (not in full screen), shows and toggles "Always on top". When it is on,
+  the filled pin stays visible, dimmed, even without the mouse over the window; when it is off, the outlined pin
+  appears only with the other buttons. The picture's context menu has the same choice as **Always on top**, now also
+  in the mini preview (there it is its only item; the layout is still edited only in the normal window). A click
+  switches the window at once and saves the choice of that printer for the current mode (normal window or mini
+  preview), the same option as in the settings; an open settings window shows the new value and keeps your other
+  unsaved changes. If saving fails, the window goes back to the saved choice. The taskbar button (Windows) and the
+  Dock icon (macOS) follow the change as they do for the option in the settings. Screen readers announce the pin as a
+  toggle with its state, and it works with the keyboard.
+- Mini preview: a thin light grey **outline** around the borderless window (picture and strip), so that a dark preview
+  no longer blends into a dark desktop or window behind it. With the mouse over the preview it gets brighter, to show
+  that its edges can be dragged. Windows and macOS; the normal window and full screen are unchanged.
+
+### Changed
+
+- The printer menu item that brings an open camera window to the front (added in 0.3.1 as *Show camera*) is now
+  called **Bring camera to front** in all languages, so that it no longer looks like the opposite of *Hide camera*
+  next to it. It works as before on Windows and macOS.
+- Windows: in the context menu of the camera window (right click, the Menu key or Shift+F10) the underlined letter
+  alone runs an item and closes the menu, as in the notification area menu and other Windows menus; Alt+letter still
+  works. macOS is unchanged.
+
+### Fixed
+
+- Windows: choosing **Bring camera to front** in the notification area menu, or choosing Settings, Diagnostics or
+  About again while that window is open, now really brings the window to the front; before, Windows often refused and
+  the window stayed behind other apps (at most its taskbar button flashed). In the rare case that Windows still keeps
+  another app in the foreground, the window ends up right below that app, above all other windows. "Always on top"
+  of the window does not change, and a minimized window is restored as before.
+- Windows: after switching back to a camera window (e.g. with Alt+Tab), a window button pressed with Enter or Space
+  is treated as pressed from the keyboard again, so the keyboard focus stays in the row of window buttons instead of
+  being left on a button that has just hidden itself.
+
 ### Removed
 
 - Windows ARM64 (`win-arm64`): no longer planned. The release scripts refuse it and Windows is built and released as
