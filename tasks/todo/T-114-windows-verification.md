@@ -233,3 +233,8 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
   - `win.e2e-installer`: přeskočen – na počítači je nainstalovaná LayerPeek uživatele (test na skutečnou instalaci nesahá).
     `win.install`, `win.toast-click`, `win.autostart`, `win.uninstall` zatím neprovedeny (vyžadují odložení instalace
     uživatele).
+- **2026-11-01, celý `win.e2e` znovu (develop 7b40a09 sloučený do větve T-114, `run-e2e.ps1 -NoSystemChanges`):**
+  468 testů, 425 prošlo, 42 přeskočeno, 1 selhal – `CameraTopmostTests.TopmostKeepsTheCameraAboveAnotherApp`
+  („The camera window stays open when the option changes.“); dva samostatné opakované běhy třídy hned potom prošly
+  (2/2, 2/2) → občasné selhání, rozbor v novém úkolu T-123. Ostatní třídy včetně nových z T-120 (špendlík, obrys,
+  hlavní panel) zelené.
