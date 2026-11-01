@@ -1,12 +1,14 @@
 ---
 id: T-016
 title: CI – GitHub Actions (Windows + macOS)
-status: todo
+status: rejected
 owner: qa-reviewer
 priority: P3
 platform: all
 depends_on: []
 ---
+
+> **Zamítnuto (rozhodnutí uživatele 2026-11-01):** úkol se nebude implementovat.
 
 ## Cíl
 Automatický build a testy při každém push a PR. 

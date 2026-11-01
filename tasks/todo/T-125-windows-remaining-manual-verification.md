@@ -10,7 +10,8 @@ depends_on: [T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118]
 
 ## Cíl
 Sběrný úkol se zbytkem ověření na Windows mimo instalátor: celý interaktivní běh `tools/windows-verify.ps1` (T-105),
-zkušební upozornění (T-101), nepovinné subjektivní kontroly okna kamery (T-117, T-118), instalátor `win-arm64` (T-017),
+zkušební upozornění (T-101), nepovinné subjektivní kontroly okna kamery (T-117, T-118), instalátor `win-arm64` (T-017;
+zrušeno T-130),
 ověření se skutečnou tiskárnou (T-107) a body vydání (T-055, T-058, SmartScreen z T-017). Vznikl rozdělením T-114
 (rozhodnutí uživatele 2026-11-01): body se přesunuly sem (v T-114 odškrtnuté s „→ přesunuto do T-125“); skutečná
 instalace, autostart a odinstalace jsou v T-124. Protějšek pro Mac je T-127.
@@ -36,21 +37,30 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 `pwsh tools/windows-verify.ps1` (interaktivně).
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část Windows): `tools/windows-verify.ps1` proběhl celý
       interaktivně (i `-RestoreOnly` po případném přerušení); nalezené chyby skriptu zapsané a opravené (nový úkol).
+      *Automatizováno v T-129:* průchod hlavní části skriptu s podvrženými kontrolami (odpovědi `y` / `n` na
+      standardním vstupu, souhrn, `report.md` / `report.json`, přerušení uprostřed a `-RestoreOnly`) testují Pester testy
+      `tools/windows-verify.Tests.ps1` v `dotnet test`. Ručně zbývá skutečný interaktivní běh se skutečnými kontrolami.
 
 ### 2. Ruční kontroly bez tiskárny (z T-114, oddíl 3)
 - [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část Windows): tlačítko „Poslat zkušební upozornění“
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
+      → Nahrazuje E2E test `TestNotificationTests.TestNotificationFollowsTheWindowReplacesItselfOpensGeneralAndWarnsWhenWindowsTurnedItOff`
+      (T-128): `pwsh tools/run-e2e.ps1 -Class '*TestNotificationTests'` (systémové změny `Toasts`, `DoNotDisturb`;
+      s `-NoSystemChanges` se přeskočí). Zvuk se ověřuje v XML toastu z historie oznámení (uložené „Všechna“, v okně
+      neuložené „Vypnuto“ → toast je tichý). Odškrtnout po zeleném běhu.
 - [ ] *Nepovinné, doporučené (zbytek T-117 po T-120):* čitelnost ztlumeného špendlíku na světlém obraze kamery a při
       200 % (subjektivní; E2E jen měří jas a ukládá výřezy) a skutečný hlas Předčítání v češtině („Vždy navrchu: zapnuto /
       vypnuto“; E2E ověřuje jen UIA název a stav, které Předčítání čte).
 - [ ] *Nepovinné, doporučené (zbytek T-118 po T-120):* vzhled obrysu nad skutečnou tapetou a Průzkumníkem (E2E používá
       vlastní bílé a tmavé okno za náhledem); ztmavnutí obrysu během tažení úchopem je přijaté a netestuje se.
-- [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
+- [x] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
       win-x64,win-arm64` vytvoří i `LayerPeek-<verze>-win-arm64-Setup.exe` a soubory kanálu `win-arm64` bez kolize
       s `win-x64`; nic se nenahrává. Spuštění na zařízení ARM64 se tu neověřuje (T-057). Lze spojit s T-063.
+      → zrušeno (T-130): podporu `win-arm64` uživatel 2026-11-01 zrušil, skripty `win-arm64` odmítají, T-057 a T-063
+      jsou zamítnuté.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
@@ -66,6 +76,14 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       část Windows): skutečný klik na položku „Je dostupná nová verze X.Y.Z“ v menu a na banner toastu; nainstalovaná
       starší verze se přes Velopack aktualizuje z GitHub Releases (bez tokenu) a znovu spustí; `.zip` verze otevře
       stránku vydání.
+      → Nahrazují E2E testy `UpdateTests` (T-128): `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick` (klik na položku
+      menu i na banner; přenosná instalace Velopack v `%TEMP%` z místního zdroje, ne z GitHubu; aktualizovanou kopii spustí
+      test, protože testovací režim aplikaci po aktualizaci znovu nespouští) a
+      `ZipVersionOpensTheReleasePageFromTheBannerAndTheMenuItem`. Běh: `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'`, test
+      instalace jen bez nainstalované LayerPeek (poprvé s T-124). Znovuspuštění samotným `Update.exe` se neověřuje, stačí
+      spuštění aktualizované kopie testem (rozhodnutí uživatele 2026-11-01). Odškrtnout po zeleném běhu.
+- [ ] **T-058** (ruční zbytek, rozhodnutí uživatele 2026-11-01): jednou po skutečném vydání aktualizace nainstalované
+      starší verze z GitHub Releases (bez tokenu) – E2E testy používají jen místní zdroj.
 - [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
       při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
 

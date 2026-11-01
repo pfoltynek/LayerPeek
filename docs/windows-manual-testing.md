@@ -14,9 +14,9 @@ T-114 je od 2026-11-01 uzavřený (rozhodnutí uživatele); zbytek je rozdělen�
 [T-124 „Windows – ověření instalátoru“](../tasks/todo/T-124-windows-installer-verification.md) (oddíl „Skutečná
 instalace“ níže a `win.e2e-installer`) a
 [T-125 „Windows – zbývající ruční ověření“](../tasks/todo/T-125-windows-remaining-manual-verification.md) (celý
-interaktivní běh skriptu, zkušební upozornění, `win-arm64`, skutečná tiskárna, vydání). Protějšky pro Mac jsou T-126 a T-127.
+interaktivní běh skriptu, zkušební upozornění, skutečná tiskárna, vydání; bod `win-arm64` je zrušený, T-130). Protějšky pro Mac jsou T-126 a T-127.
 
-> Stav: sepsáno 2026-10-29, odkaz na T-114 doplněn 2026-10-30, odkazy na T-124 / T-125 2026-11-01. Když úkol přidá nebo změní ruční krok na Windows, upraví
+> Stav: sepsáno 2026-10-29, odkaz na T-114 doplněn 2026-10-30, odkazy na T-124 / T-125 2026-11-01, testy interaktivního běhu (T-129) 2026-11-01. Když úkol přidá nebo změní ruční krok na Windows, upraví
 > se skript i tento soubor.
 
 ## Než začnete
@@ -41,6 +41,16 @@ pwsh tools/windows-verify.ps1 -RestoreOnly         # jen obnova profilu po přer
 
 Výsledky `PASS` / `FAIL` / `SKIP` (s důvodem) / `MANUAL` (potvrzeno „y“), zpráva `report.md` a `report.json` s commitem,
 verzí a důkazy v `artifacts/verify/<čas>/`. Kód 1 při jakémkoli `FAIL`.
+
+Samotný průchod skriptu (bez skutečných kontrol) ověřují od T-129 automaticky Pester testy
+`tools/windows-verify.Tests.ps1` (spouští je i `dotnet test` v `LayerPeek.Scripts.Tests`): skutečný hlavní běh skriptu
+v podřízeném `pwsh` s odpověďmi `y` / `n` na standardním vstupu (skutečný `Read-Host`), souhrn v konzoli, `report.md`
+a `report.json`, ponechaná instalace mezi běhy, přerušení uprostřed běhu (tvrdé ukončení procesu) a dokončení obnovy
+`-RestoreOnly`. Kontroly i cesty profilu a Správce pověření jsou při tom podvržené (proměnná `LAYERPEEK_VERIFY_STANDINS`
+ukazuje na soubor, který skript před hlavní částí načte; v běžném běhu není nastavená). Soubor se načte jen z dočasné
+složky testů (`LAYERPEEK_PESTER_TESTS_TEMP` nebo systémový `%TEMP%`), jinak skript skončí s kódem 2 bez jediné kontroly;
+jeho použití ohlásí řádek `STAND-INS:` v konzoli a zapíše se do `report.md` i `report.json`. Na systému se tak nic
+nemění. Ručně tak zbývá jen to, co testy nahradit nemohou: skutečné kontroly a odpovědi na ně (T-125, bod T-105).
 
 | Kontrola | Druh | Uzavírá |
 |---|---|---|

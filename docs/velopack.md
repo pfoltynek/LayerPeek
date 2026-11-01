@@ -12,7 +12,7 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
   2. Balit s `--aumid LayerPeek` (skrytá volba `vpk`, viz bod 4), `--packTitle "LayerPeek"` a `--shortcuts StartMenuRoot` (jen Start menu, bez plochy, rozhodnuto 2026-10-21).
   3. `ToastActivatorCLSID` do zástupce a registraci COM aktivátoru zapisuje aplikace (v hooku `--veloapp-install` a při startu). Úklid registrace, klíče notifikací a historie toastů dělá hook `--veloapp-uninstall`. Hook `--veloapp-install` navíc zapne spouštění po přihlášení (výchozí zapnuto, rozhodnuto 2026-10-26); běží jen při nové instalaci, takže aktualizace volbu uživatele nemění. Jeho selhání jde jen do logu, aby `Setup.exe` neukazoval varování.
   4. Kontrola aktualizací musí chytat výjimky. Při 404 (dříve soukromý repozitář; od 2026-10-30 je veřejný) končí `HttpRequestException`.
-  5. Kanály podle RID: `--channel win-x64` a `--channel win-arm64`.
+  5. Kanály podle RID: `--channel win-x64` (Windows ARM64 `win-arm64` se od 2026-11-01 nepodporuje, T-130).
 - **macOS: ano od T-058 (verze 0.3.1, rozhodnutí Q9 a, 2026-10-30).** `vpk` balí hotovou `LayerPeek.app` z kroku `app` a podepisuje ji ad hoc s hardened runtime a entitlements T-108; `.dmg` a `.tar.gz` vznikají z `.app` v `Portable.zip`, do vydání jde `.nupkg` a feed `osx-arm64`. Postup a výsledky ověření v bodu 10 („Výsledek T-058“). Původní stav T-019: **zatím ne, rozhodnutí odloženo** (pokus na Macu 2026-10-29, bod 10). `vpk` na Macu vytvoří `.app`, `.pkg` a `Portable.zip` (ne `.dmg`) a s `--signAppIdentity -` i ad-hoc podepsanou `.app`, která projde `codesign --verify --deep --strict`. Samotnou aktualizaci s ad-hoc podpisem (Gatekeeper, karanténa, oprávnění) ale lokálně ověřit nejde, proto se `.app` zatím sestavuje vlastními kroky skriptu bez Velopacku.
 - **WiX** se nepoužije (rozhodnuto 2026-10-21), protože Velopack vyhověl. Velopack sám umí vyrobit i `.msi` (`vpk pack --msi`, interně vlastní fork WiX). Pro instalaci pro jednoho uživatele to potřeba není.
 
@@ -106,9 +106,11 @@ Značky u bodů: **(P)** ověřeno pokusem, **(D)** z dokumentace nebo ze zdrojo
   - Integrita aktualizace se ověřuje jen SHA256/SHA1 z feedu. Velopack nemá vlastní podpis balíčků ([#975](https://github.com/velopack/velopack/issues/975)).
 
 ### 8. `win-arm64` (D + částečně P)
+> **Zrušeno (T-130):** uživatel 2026-11-01 rozhodl, že Windows ARM64 se nepodporuje (nemá zařízení na testování). Skripty `win-arm64` odmítají, navazující úkoly T-057 a T-063 jsou zamítnuté. Bod zůstává jako záznam zjištění spiku.
+
 - Každý RID má mít vlastní kanál ([Channels](https://docs.velopack.io/packaging/channels): „every unique os/rid has its own channel“). Pokus `--channel win-arm64 -r win-arm64` (s x64 binárkami, jen kvůli názvům) dal soubory `LayerPeek-0.1.2-win-arm64-full.nupkg`, `LayerPeek-win-arm64-Setup.exe`, `LayerPeek-win-arm64-Portable.zip`, `releases.win-arm64.json`, `assets.win-arm64.json` a `RELEASES-win-arm64`. **Názvy se s `win-x64` nekryjí**, oba RID můžou být ve stejném GitHub vydání. `RELEASES` bez přípony vzniká jen pro výchozí kanál `win`, který nepoužijeme.
 - `Setup.exe` a `Update.exe` pro `win-arm64` jsou nativní ARM64 binárky (hlavička PE `0xAA64`).
-- AOT publish `win-arm64` jsem neověřoval. Na tomto PC chybí MSVC ARM64 build tools a FFmpeg pro ARM64 řeší T-057. Spuštění na ARM64 nejde ověřit, uživatel nemá zařízení. Ověření AOT publish a `vpk pack` nad skutečným výstupem `win-arm64` řeší T-063, instalaci a spuštění na zařízení ARM64 T-057.
+- AOT publish `win-arm64` jsem neověřoval. Na tomto PC chybí MSVC ARM64 build tools a FFmpeg pro ARM64 řeší T-057. Spuštění na ARM64 nejde ověřit, uživatel nemá zařízení. Ověření AOT publish a `vpk pack` nad skutečným výstupem `win-arm64` (T-063) a instalace na zařízení ARM64 (T-057) se kvůli T-130 už nedělají.
 - Pojmenování: názvy souborů Velopacku jsou pevné. T-055 navrhuje `LayerPeek-<verze>-<RID>.zip`. `Setup.exe` jde po zabalení přejmenovat (např. `LayerPeek-<verze>-<RID>-Setup.exe`), protože ho feed nepotřebuje. `*.nupkg` a `releases.*.json` se přejmenovat **nesmí**.
 
 ### 9. Nepodepsané binárky (P částečně, D)

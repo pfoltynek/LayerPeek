@@ -13,7 +13,7 @@
         another commit there, or HEAD is not contained in its main branch,
       - CHANGELOG.md has no dated, non-empty section for the version,
       - the build output is missing, from another commit or version, from a dirty tree, contains a runtime that must
-        not be uploaded (win-arm64 until T-057), or does not match its checksum file,
+        not be uploaded (Uploadable = $false in the runtime table), or does not match its checksum file,
       - gh is missing or not logged in,
       - the release is already published, or a file with the same name but different content is already uploaded
         (replace it only with -Force).
@@ -27,7 +27,7 @@
     are skipped (a re-run after an interrupted upload). The checksum file and the Velopack feed files are uploaded
     last, so that no app sees the OS in the release before its packages are there. The release text and its
     pre-release flag are never changed. Afterwards the whole release is checked like release-publish.ps1 does
-    (every file listed in the checksum files with its SHA256, nothing else, no win-arm64).
+    (every file listed in the checksum files with its SHA256, nothing else).
 
 .PARAMETER Repo
     GitHub repository owner/name of the release. Default: the repository of the git remote origin. Another

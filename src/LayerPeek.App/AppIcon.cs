@@ -13,8 +13,11 @@ public static class AppIcon
 {
     public static readonly Uri AssetUri = new("avares://LayerPeek/Assets/AppIcon/app-icon.ico");
 
-    /// <summary>Loaded on first use (the Avalonia platform must be initialized) and shared by all windows.</summary>
-    public static WindowIcon Window => field ??= Load();
+    /// <summary>
+    /// Loaded on first use (the Avalonia platform must be initialized) and shared by all windows. Published atomically
+    /// (T-131), so concurrent first uses all get the same instance; a failed load is not cached and is retried.
+    /// </summary>
+    public static WindowIcon Window => LazyInitializer.EnsureInitialized(ref field, Load);
 
     private static WindowIcon Load()
     {

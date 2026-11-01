@@ -1,6 +1,6 @@
 # Vydání (release)
 
-Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Windows soubory se sestaví na Windows, macOS soubory na Macu (Native AOT nejde kompilovat napříč OS). Oba běhy nahrávají do **stejného konceptu** (draft) vydání pro tag `vX.Y.Z` na GitHubu. Zveřejnění je samostatný poslední krok, takže nikdo nevidí vydání s polovinou souborů. Od T-113 jde vydání pod jednou verzí rozdělit i v čase: jeden OS zveřejní (`-AllowIncomplete`) a druhý OS později na jiném počítači své soubory **doplní do zveřejněného vydání** (`release-upload.ps1 -AddToPublished`, viz „Vydání na dvou počítačích“).
+Vydání se dělá lokálně bez CI (GitHub Actions se nepoužívají, T-016 zamítnut 2026-11-01). Windows soubory se sestaví na Windows, macOS soubory na Macu (Native AOT nejde kompilovat napříč OS). Oba běhy nahrávají do **stejného konceptu** (draft) vydání pro tag `vX.Y.Z` na GitHubu. Zveřejnění je samostatný poslední krok, takže nikdo nevidí vydání s polovinou souborů. Od T-113 jde vydání pod jednou verzí rozdělit i v čase: jeden OS zveřejní (`-AllowIncomplete`) a druhý OS později na jiném počítači své soubory **doplní do zveřejněného vydání** (`release-upload.ps1 -AddToPublished`, viz „Vydání na dvou počítačích“).
 
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
@@ -14,7 +14,7 @@ Všechny skripty jsou pro PowerShell 7.2 nebo novější (`#Requires -Version 7.
 
 ## Rozhodnutí (2026-10-21)
 
-- Vydávané RID: `win-x64`, `osx-arm64`. `win-arm64` se sestaví jen na výslovné vyžádání a nenahrává se, dokud není hotový T-057 (FFmpeg pro ARM64).
+- Vydávané RID: `win-x64`, `osx-arm64`. Windows ARM64 (`win-arm64`) se nepodporuje (rozhodnutí uživatele 2026-11-01, T-130): skripty ho odmítnou jako neznámý RID (`Unknown runtime 'win-arm64'`).
 - Verze: jediný zdroj je `<Version>` v kořenovém `Directory.Build.props` (tvar `X.Y.Z`). Odtud ji má exe, okno O aplikaci, názvy souborů i tag `vX.Y.Z`.
 - Vydává se jen z `main`: tagovaný commit musí být obsažený v `origin/main`.
 - První nahrání vytvoří **koncept** (`--draft`). Verze `0.x` jsou na GitHubu označené jako předběžné (`--prerelease`).
@@ -160,11 +160,11 @@ git switch develop
 
 Co `-AddToPublished` dělá a hlídá:
 
-- Platí všechny kontroly uploadu (tag na `HEAD` = `<Version>`, tag na `origin`, `HEAD` v `origin/main`, čistý strom, značka sestavení, součty, žádný `win-arm64`).
+- Platí všechny kontroly uploadu (tag na `HEAD` = `<Version>`, tag na `origin`, `HEAD` v `origin/main`, čistý strom, značka sestavení, součty).
 - Vydání musí existovat a být **zveřejněné** (koncept: nahraj bez přepínače a zveřejni) a nesmí ještě obsahovat `SHA256SUMS-<os>.txt` tohoto OS. Soubory jednoho OS se doplní jen jednou; OS, jehož součty už ve vydání jsou, skript odmítne.
 - **Nikdy nic nepřepíše** (s `-Force` se nekombinuje). Soubory se stejným SHA256 přeskočí (navázání po přerušení: stačí spustit znovu). Nedokončený soubor (GitHub ho hlásí ve stavu `starter`, bez `digest`) nebo soubor s jiným obsahem odmítne s návodem: soubor smaž ručně na stránce vydání (*Edit*) a spusť znovu.
 - Nejdřív nahraje balíčky (`.zip`, `Setup.exe`, `.nupkg`, `.dmg`, `.tar.gz`) a **až potom** soubory, podle kterých aplikace OS ve vydání pozná: `SHA256SUMS-<os>.txt` a feed Velopacku (`releases.<RID>.json`, `assets.<RID>.json`, `RELEASES-<RID>`). Během nahrávání tak žádná aplikace nedostane nabídku vydání, jehož balíčky tam ještě nejsou.
-- Na konci zkontroluje celé zveřejněné vydání stejně jako `release-publish.ps1`: součty obou OS, feed každého vydávaného RID, každý soubor ze součtů se stejným SHA256, nic navíc, žádný `win-arm64`. Při problému skončí s kódem 1 a vypíše ho (soubory už jsou nahrané, oprav ručně).
+- Na konci zkontroluje celé zveřejněné vydání stejně jako `release-publish.ps1`: součty obou OS, feed každého vydávaného RID, každý soubor ze součtů se stejným SHA256, nic navíc. Při problému skončí s kódem 1 a vypíše ho (soubory už jsou nahrané, oprav ručně).
 - Bez přepínače se chování nemění: nahrání do zveřejněného vydání skript odmítne (`Release vX.Y.Z is already published …`) a nově jen poradí `-AddToPublished`.
 
 Co mezitím vidí aplikace:
@@ -242,7 +242,7 @@ pwsh scripts/release-publish.ps1 -DryRun
 pwsh scripts/release-publish.ps1
 ```
 
-`release-publish.ps1` zveřejní koncept jen tehdy, když obsahuje `SHA256SUMS-windows.txt` i `SHA256SUMS-macos.txt`, všechny soubory z nich jsou nahrané se stejným SHA256 (podle `digest`, který hlásí GitHub), žádný jiný soubor tam není a není tam soubor `win-arm64`. Přepínač `-AllowIncomplete` dovolí zveřejnit vydání bez souborů některého OS (např. jen macOS); nahrané soubory se kontrolují i tak. Soubory chybějícího OS se pak doplní `release-upload.ps1 -AddToPublished` (viz „Vydání na dvou počítačích“). (Do T-113 `-AllowIncomplete` skončil chybou `Cannot bind argument to parameter 'ExpectedOs' it is null`; opraveno.)
+`release-publish.ps1` zveřejní koncept jen tehdy, když obsahuje `SHA256SUMS-windows.txt` i `SHA256SUMS-macos.txt`, všechny soubory z nich jsou nahrané se stejným SHA256 (podle `digest`, který hlásí GitHub), žádný jiný soubor tam není a není tam soubor RID, který se nahrávat nesmí (`Uploadable = $false`, dnes žádný). Přepínač `-AllowIncomplete` dovolí zveřejnit vydání bez souborů některého OS (např. jen macOS); nahrané soubory se kontrolují i tak. Soubory chybějícího OS se pak doplní `release-upload.ps1 -AddToPublished` (viz „Vydání na dvou počítačích“). (Do T-113 `-AllowIncomplete` skončil chybou `Cannot bind argument to parameter 'ExpectedOs' it is null`; opraveno.)
 
 ### 6. Ověření staženého souboru
 
@@ -295,7 +295,7 @@ Navíc jen `release-upload.ps1`:
 | `CHANGELOG.md` nemá sekci verze, datum nebo text | `… has no section '## [X.Y.Z] - YYYY-MM-DD'` / `… has no release date` / `… is empty` |
 | chybí výstup `release-build.ps1` | `No build output for version …` |
 | výstup je z jiného commitu / verze / ze špinavého stromu | `Build output comes from commit …` / `… was made from a working tree with uncommitted …` |
-| výstup obsahuje `win-arm64` | `Build output contains win-arm64, which must not be uploaded` |
+| výstup obsahuje neznámý RID (např. `win-arm64`) | `Build output contains unknown runtime …` |
 | v `dist/` je soubor navíc, chybí nebo nesedí SHA256 | `dist contains files not produced by the build` / `… does not match its SHA256` |
 | vydání už je zveřejněné (bez `-AddToPublished`) | `Release vX.Y.Z is already published … To add the files of an OS … -AddToPublished` |
 | soubor se stejným názvem, ale jiným obsahem už je nahraný | `Already uploaded with different content … Re-run with -Force` |
@@ -387,7 +387,6 @@ dotnet vpk --skip-updates pack --packId LayerPeek --packVersion <verze> --packDi
 
 - **Poznámky k vydání** v balíčku jsou úsek verze z `CHANGELOG.md`. Build je vezme i z úseku bez data (`- unreleased`), nahrání (`release-upload.ps1`) datum vyžaduje dál.
 - **Bez delt a bez `Portable.zip`** (rozhodnuto 2026-10-21 a 2026-10-24). Každá aktualizace stáhne celý balíček (asi 76 MB). `.zip` dělá krok `archive`.
-- **`win-arm64`** zabalí stejný krok, když se RID sestavuje (`-Runtime win-x64, win-arm64`). Názvy se s `win-x64` nekryjí. Do vydání se `win-arm64` nedostane, dokud není hotový T-057: `release-upload.ps1` odmítne celý výstup a `release-publish.ps1` odmítne každý soubor s `win-arm64` v názvu, tedy i `releases.win-arm64.json` a `RELEASES-win-arm64`. Spuštění na ARM64 zatím nejde ověřit.
 - **Nahrání:** soubory jdou na GitHub jako ostatní (`release-upload.ps1`, `gh`), `vpk upload` se nepoužívá. Aplikace hledá aktualizace v GitHub Releases bez tokenu (`GithubSource`, kanál = RID instalace). Koncept vydání anonymní klient nevidí, aktualizace se nabídne až po zveřejnění. Dokud je repozitář soukromý, kontrola skončí chybou 404 a aplikace ji bere jako „žádná aktualizace“.
 - **Předběžné verze:** volba „Nabízet předběžné verze“ v nastavení (záložka Spuštění a aktualizace). Dokud ji uživatel nezmění, je na `0.x` zapnutá a od `1.0` vypnutá (rozhodnuto 2026-10-24). Nabídku aktualizace v aplikaci doplní T-058.
 
@@ -417,15 +416,9 @@ Test zálohuje vývojového zástupce `LayerPeek.lnk`, obsah složky `%LOCALAPPD
 - **T-058 (kontrola aktualizací):** vydání `0.x` jsou předběžná (`--prerelease`) a `release-publish.ps1` to při zveřejnění zachová, takže je `GET /releases/latest` nevrátí. Koncepty nejsou bez přihlášení vidět vůbec.
 - **T-059 (winget):** odeslání manifestu (`wingetcreate update …`) navazuje až na zveřejnění (`release-publish.ps1`). Postup sem doplní T-059.
 
-## Povolení `win-arm64` (po T-057)
+## Konfigurace RID
 
-Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/ReleaseTools/ReleaseTools.psm1`. Po dokončení T-057 nastav u `win-arm64` `Default = $true` a `Uploadable = $true` a uprav samokontrolu (`ReleaseTools.Tests.ps1`, test „never uploads win-arm64 until T-057“). Do té doby:
-
-```powershell
-pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64   # sestaví a zabalí i win-arm64, jen pro lokální ověření
-```
-
-`release-upload.ps1` takový výstup odmítne celý (součty by obsahovaly i `win-arm64`), před nahráním je potřeba sestavit znovu bez `win-arm64`. Publish `win-arm64` potřebuje komponentu MSVC ARM64 (viz [prerequisites.md](prerequisites.md)). Smoke test `win-arm64` na x64 stroji neproběhne. Lokální ověření tohoto postupu (a instalátoru Velopack pro `win-arm64`) je úkol T-063.
+Konfigurace RID je na jednom místě: `$script:ReleaseRuntimes` v `scripts/ReleaseTools/ReleaseTools.psm1` (dnes `win-x64` a `osx-arm64`). RID, který v tabulce není, skripty odmítnou (`Unknown runtime …`). Windows ARM64 (`win-arm64`) se nepodporuje (rozhodnutí uživatele 2026-11-01, T-130), proto tam není; původní příprava (T-057, T-063) je zamítnutá. Mechanismus `Uploadable = $false` / `BlockedReason` (RID sestavit jen pro lokální ověření, nenahrávat) zůstává pro případné další RID, dnes ho žádný RID nepoužívá.
 
 ## Testy skriptů (Pester)
 
@@ -438,7 +431,7 @@ Invoke-Pester scripts/ReleaseTools/ReleaseOrchestrator.Tests.ps1 -Output Detaile
 
 Spouští je i `dotnet test`: projekt `tests/LayerPeek.Scripts.Tests` (test `ScriptPesterTestsPass`, jeden případ na soubor testů) zavolá `pwsh` s Pesterem a selže při jakékoli chybě Pesteru. Bez `pwsh` nebo bez Pesteru 5+ se test **přeskočí** s důvodem (jako testy prohlížeče bez Edge). Dočasné soubory jdou do složky vyhrazené pro worktree, kterou test smaže i po pádu předchozího běhu.
 
-Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, `win-arm64` ve feedu). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, lokalizace `InfoPlist.strings` (T-097: kopie do bundlu, kontroly, parser `.strings`, na macOS `plutil -lint` a podpis s nimi), pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` (16 a 32 px ze zjednodušené varianty beze změny pixelů, 64 px a víc z předlohy; odmítnutí PNG špatné velikosti) a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
+Testy ověří bez sítě a bez GitHubu: čtení verze, tag, sekci `CHANGELOG.md` (i skutečného souboru), výběr RID (včetně odmítnutí `osx-arm64` na Windows), výběr remote pro `-Repo`, všechna odmítnutí podle stavu gitu (v dočasném repozitáři s lokálním „origin“ a „trial“: špinavý strom, chybějící tag, tag jiné verze, tag jen lokálně, tag přesunutý na remote, commit mimo `main`, nestažený `main`, nedostupný remote), značku sestavení, kontrolní součty, archivy bez ladicích symbolů, plán nahrání, kontroly před zveřejněním a balicí krok Velopack (argumenty `vpk`, názvy souborů, shoda verze `vpk` s NuGet balíčkem, odmítnutí souborů RID, který se nahrávat nesmí, a odmítnutí `win-arm64`). Balení pro macOS (T-019): `Info.plist` ze šablony (verze, `LSUIElement`, bundle identifikátor shodný s aplikací), sestavení bundlu bez ladicích symbolů, lokalizace `InfoPlist.strings` (T-097: kopie do bundlu, kontroly, parser `.strings`, na macOS `plutil -lint` a podpis s nimi), pořadí a argumenty podpisu, argumenty `hdiutil`, typ procesu z `lsappinfo` a registrace v LaunchServices; na macOS i skutečný ad-hoc podpis s `codesign --verify --deep --strict` (a rozbitá pečeť po změně souboru), `.icns` (16 a 32 px ze zjednodušené varianty beze změny pixelů, 64 px a víc z předlohy; odmítnutí PNG špatné velikosti) a ověřený `.dmg` a `.tar.gz` bez `._*` nad zástupným bundlem (nic se nepřipojuje). Záloha smoke testu: místa bundle identifikátoru a domény `defaults` nad zástupnou složkou se zástupným `defaults`. Volání `dotnet` a `gh` a samotné skripty `release-build/upload/publish.ps1` netestují, ty se ověřují `-DryRun` a zkušebním vydáním.
 
 Doplnění OS do zveřejněného vydání (T-113) ověří `ReleaseTools.Tests.ps1` čistými funkcemi (`Get-AddToPublishedProblems`: chybějící vydání, koncept, součty OS už ve vydání, stejné soubory přeskočit, jiný obsah a stav `starter` odmítnout; `Test-ReleaseMarkerFileName`; `Get-PublishProblems -Published`) a `ReleaseOrchestrator.Tests.ps1` skutečnými skripty `release-upload.ps1` a `release-publish.ps1` proti falešnému `gh` (stav vydání v dočasné složce, i `release download` a `release edit`): první OS → koncept → `-AllowIncomplete`, druhý OS bez přepínače odmítnut, s `-Force` odmítnut, špinavý strom odmítnut, `-DryRun` nic nezmění, doplnění ve dvou voláních `gh release upload` (balíčky, pak součty a feed), text a příznaky beze změny, opakování odmítnuto, navázání po přerušení, jiný obsah a nedokončený soubor odmítnuty.
 

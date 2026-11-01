@@ -37,6 +37,12 @@ internal static class AppSwitches
     /// <summary>Real toasts of the test app with its own Start menu shortcut (T-067).</summary>
     public const string TestToastsVariable = "LAYERPEEK_TEST_TOASTS";
 
+    /// <summary>
+    /// The update feed of the test mode (T-058 Q10 a, <c>UpdateSource.TestVariable</c>): a local folder (Velopack feed of an
+    /// installation) or an http address on the loopback (GitHub REST answer); without it the test mode checks nothing.
+    /// </summary>
+    public const string TestUpdateSourceVariable = "LAYERPEEK_TEST_UPDATE_SOURCE";
+
     /// <summary>The real Credential Manager under this prefix, which must start with <see cref="TestCredentialPrefixRoot"/> (T-067).</summary>
     public const string TestCredentialPrefixVariable = "LAYERPEEK_TEST_CREDENTIAL_PREFIX";
 

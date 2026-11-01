@@ -38,6 +38,9 @@ Postup: [docs/windows-manual-testing.md](../../docs/windows-manual-testing.md), 
       a `win.uninstall` = `PASS` / potvrzeno (`docs/windows-manual-testing.md`, „Skutečná instalace“).
 - [ ] **T-017** (krit. „Autostart po přihlášení funguje na Windows“): `win.autostart` (zapnout v nainstalované aplikaci,
       odhlásit, přihlásit, `pwsh tools/windows-verify.ps1 -Only win.autostart`), potom `win.uninstall`.
+- [ ] **T-128** (krit. „Běh `tools/run-e2e.ps1` … T-058 → s T-124“): bez nainstalované LayerPeek uživatele
+      `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'` – projdou i oba instalační případy
+      `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick(MenuItem|Banner)` (s instalací uživatele se přeskočí).
 
 ### Závěr
 - [ ] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; ověřovací

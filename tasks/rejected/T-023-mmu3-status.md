@@ -1,12 +1,14 @@
 ---
 id: T-023
 title: Stav MMU3
-status: todo
+status: rejected
 owner: architect
 priority: P3
 platform: all
 depends_on: [T-003]
 ---
+
+> **Zamítnuto (rozhodnutí uživatele 2026-11-01):** stav slotů, filamentů ani chyby MMU3 neposkytuje PrusaLink (jen `info.mmu`) a Prusa Connect nemá veřejné API pro aplikace třetích stran (T-005). Úkol se nebude implementovat, dokud nebude dostupný oficiální zdroj dat.
 
 ## Cíl
 Zobrazit stav jednotky MMU3 (aktivní slot, filamenty, chyby MMU) u tiskáren, které ji mají (uživatel: Core One a MK4S s MMU3).

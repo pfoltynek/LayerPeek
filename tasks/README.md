@@ -24,6 +24,13 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 - `depends_on` – seznam ID, které musí být v `done/`; úkoly `macos` závisí na svém sdíleném / Windows protějšku
 - `## Otevřené otázky` – co musí rozhodnout uživatel. Úkol s nezodpovězenou otázkou, která blokuje implementaci, se neimplementuje.
 
+## Zamítnuté úkoly (rozhodnutí uživatele 2026-11-01)
+
+Úkol, který se nebude implementovat, se přesune (`git mv`) do `tasks/rejected/` se `status: rejected`. Pod frontmatter
+přibude řádek `> **Zamítnuto (rozhodnutí uživatele RRRR-MM-DD):** <důvod>. Úkol se nebude implementovat.` a řádek
+v tabulce dostane „(zamítnuto RRRR-MM-DD)“. Obsah úkolu zůstává jako historie; na zamítnutý úkol nesmí záviset žádný
+otevřený úkol.
+
 ## Sběrné ověřovací úkoly (rozhodnutí uživatele 2026-10-30)
 
 Kritérium, které už potřebuje jen ruční ověření uživatelem nebo kontrolu na druhém OS, se smí přesunout do sběrného
@@ -81,7 +88,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-013 | Více tiskáren (hotovo) | all | ui-dev | P2 | T-007, T-002 |
 | T-014 | Kamera – živý stream a snímek | all | core-dev + ui-dev | P3 | T-003, T-015 |
 | T-015 | Okno nastavení (+ registrace `ISecretStore` podle OS) (hotovo) | all | ui-dev | P1 | T-002, T-003 |
-| T-023 | Stav MMU3 (průzkum zdroje dat) | all | architect | P3 | T-003 |
+| T-023 | Stav MMU3 (průzkum zdroje dat) (zamítnuto 2026-11-01 – bez zdroje dat) | all | architect | P3 | T-003 |
 | T-024 | Logování do souboru | all | core-dev | P2 | T-007, T-043, T-044 |
 | T-025 | Ikona aplikace (exe, okna, tray) | all | ui-designer + ui-dev | P2 | T-007 |
 | T-027 | PrusaLink – uživatelské jméno v nastavení (hotovo) | all | core-dev + ui-dev | P2 | T-003, T-015 |
@@ -108,9 +115,9 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-050 | Bezpečnost – FFmpeg přijímá jen RTSP/TCP a H.264 (M1) | all | core-dev | P2 | T-014 |
 | T-051 | Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1) | all | core-dev | P3 | T-028, T-030 |
 | T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) (hotovo; zkušební vydání v T-125 / T-127) | all | qa-reviewer | P2 | – |
-| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055; rozbor variant 2026-10-29) | all | qa-reviewer | P3 | – |
+| T-016 | CI – GitHub Actions (Windows + macOS) (zamítnuto 2026-11-01) | all | qa-reviewer | P3 | – |
 | T-058 | Kontrola nové verze v aplikaci (GitHub Releases) + Velopack pro macOS (hotovo; ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
-| T-022 | Prusa Connect – přihlášení k účtu (UI, vyřazeno – bez veřejného API, 2026-10-29) | all | ui-dev | P3 | T-005, T-015 |
+| T-022 | Prusa Connect – přihlášení k účtu (zamítnuto 2026-11-01; dříve vyřazeno – bez veřejného API) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
 | T-076 | Widgety překryvu – návrh UI (design spec) (hotovo) | all | ui-designer | P2 | – |
 | T-077 | Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036 (hotovo) | all | core-dev | P2 | T-076 |
@@ -147,7 +154,11 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-120 | E2E testy místo ručních kontrol okna kamery (špendlík, obrys, hlavní panel, menu) (hotovo) | windows | qa-reviewer | P2 | T-102, T-117, T-118, T-119 |
 | T-121 | Kontextové menu okna kamery – samotné písmeno spustí položku (hotovo) | all | ui-dev | P3 | T-069, T-117 |
 | T-122 | Okno kamery – fokus při změně tlačítka na hlavním panelu (hotovo; macOS v T-115) | windows | ui-dev | P2 | T-102, T-117 |
-| T-123 | Občasné selhání E2E „okno kamery zůstane otevřené při změně volby Vždy navrchu“ | windows | qa-reviewer | P3 | T-114 |
+| T-123 | Občasné selhání E2E „okno kamery zůstane otevřené při změně volby Vždy navrchu“ (hotovo) | windows | qa-reviewer | P3 | T-114 |
+| T-131 | Občasné selhání StatusWidgetTests (Release, statická inicializace) (hotovo) | all | qa-reviewer | P3 | – |
+| T-129 | windows-verify – testy interaktivního běhu (hotovo) | windows | qa-reviewer | P2 | T-105, T-125 |
+| T-128 | E2E testy místo ručních kontrol – zkušební upozornění a aktualizace přes Velopack (hotovo; instalační případy v T-124) | windows | qa-reviewer | P2 | T-058, T-101, T-125 |
+| T-132 | run-e2e.ps1 – uchovat výsledky neúspěšných běhů (hotovo) | windows | qa-reviewer | P3 | – |
 
 ### Windows (`windows`)
 
@@ -155,8 +166,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 |---|---|---|---|---|---|
 | T-010 | Systémové notifikace – Windows | windows | ui-dev | P1 | T-009 |
 | T-056 | Velopack – ověření použitelnosti pro instalátor a aktualizace (spike) (hotovo) | windows | ui-dev | P2 | – |
-| T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) | windows | core-dev | P2 | – |
-| T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) | windows | qa-reviewer | P2 | T-055, T-056 |
+| T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) (zamítnuto 2026-11-01) | windows | core-dev | P2 | – |
+| T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) (zamítnuto 2026-11-01) | windows | qa-reviewer | P2 | T-055, T-056 |
 | T-017 | Balení a distribuce, autostart – Windows (hotovo; ověření v T-124 / T-125) | windows | ui-dev | P2 | T-008, T-055, T-056 |
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
@@ -177,6 +188,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-114 | Ověření na Windows (sběrný úkol: build a testy po macOS úkolech, Windows snímky, ruční kontroly) (hotovo 2026-11-01; zbytek v T-124 / T-125) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109–T-112, T-117–T-119 |
 | T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
 | T-125 | Windows – zbývající ruční ověření (interaktivní windows-verify, tiskárna, vydání) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118 |
+| T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
 
 ### macOS (`macos`) – jen na Macu, později
 
