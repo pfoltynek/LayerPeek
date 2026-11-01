@@ -1,7 +1,7 @@
 ---
 id: T-123
 title: Občasné selhání E2E „okno kamery zůstane otevřené při změně volby Vždy navrchu“
-status: todo
+status: in-progress
 owner: qa-reviewer
 priority: P3
 platform: windows
