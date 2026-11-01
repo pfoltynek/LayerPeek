@@ -15,7 +15,7 @@ Aplikaci jde nainstalovat a aktualizovat příkazem `winget install` z oficiáln
 
 ## Rozsah
 - Identifikátor balíčku (např. `pfoltynek.LayerPeek`) a první manifest vytvořený nástrojem `wingetcreate` (https://github.com/microsoft/winget-create) z instalátoru na GitHub Releases (T-017).
-- Typ instalátoru a přepínač tiché instalace podle instalátoru z T-017 / doporučení T-056 (Velopack `Setup.exe` → typ `exe` s tichým přepínačem); `Scope: user`; architektury `x64` a `arm64` (arm64 až po T-057, viz T-055).
+- Typ instalátoru a přepínač tiché instalace podle instalátoru z T-017 / doporučení T-056 (Velopack `Setup.exe` → typ `exe` s tichým přepínačem); `Scope: user`; architektura jen `x64` (Windows ARM64 se nepodporuje, rozhodnutí uživatele 2026-11-01, T-130).
 - Licence v manifestu: `GPL-3.0-only`, odkaz na `LICENSE`.
 - **Bez CI** (T-016 odložený): aktualizace manifestu ručně z lokálního postupu vydání – po zveřejnění vydání skriptem T-055 spustit `wingetcreate update <id> --version X.Y.Z --urls <url…> --submit`. Postup (případně volitelný krok skriptu T-055) zapsat do `docs/release.md`. Token pro `wingetcreate` jen lokálně (např. `gh auth token` / proměnná prostředí), nikdy v repozitáři ani v logu.
 - Ověření manifestu `winget validate` a lokální instalace `winget install --manifest <složka>` před odesláním.

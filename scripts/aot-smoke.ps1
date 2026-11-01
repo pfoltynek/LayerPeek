@@ -28,7 +28,8 @@
     display sleeps the app waits for one before its UI starts (T-096), so the run would check only that wait, not the UI.
 
 .PARAMETER Runtime
-    Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture.
+    Runtime identifier (win-x64, osx-arm64). Defaults to the current OS/architecture. Windows ARM64 (win-arm64) is
+    not supported (T-130) and is refused, like every Windows RID other than win-x64.
 
 .PARAMETER PublishDir
     Existing Native AOT publish folder to check instead of publishing. The folder is not modified or deleted
@@ -105,6 +106,11 @@ catch {
     exit 1
 }
 if ($RestoreOnly) { exit 0 }
+# Windows is supported as win-x64 only (user decision 2026-11-01, T-130); macOS RIDs are not restricted here.
+if ($Runtime -like 'win-*' -and $Runtime -ne 'win-x64') {
+    Write-Host "AOT smoke check NOT RUN: runtime '$Runtime' is not supported. Windows is built as win-x64 only (pass -Runtime win-x64)." -ForegroundColor Red
+    exit 1
+}
 # Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
 $project = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App')
 # The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.

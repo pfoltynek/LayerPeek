@@ -1,12 +1,13 @@
 ---
 id: T-063
 title: win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64)
-status: todo
+status: rejected
 owner: qa-reviewer
 priority: P2
 platform: windows
 depends_on: [T-055, T-056]
 ---
+> **Zamítnuto (rozhodnutí uživatele 2026-11-01, T-130):** podpora win-arm64 se ruší. Úkol se nebude implementovat.
 
 ## Cíl
 Soustředit na jedno místo všechna neověřená místa kolem `win-arm64`, která zůstala v T-055 (skripty pro vydání) a T-056 (spike Velopack). Obě úlohy byly na Windows x64 ověřené, ale `win-arm64` nešlo ověřit: na stroji chybí komponenta **MSVC ARM64 build tools** a uživatel nemá zařízení s Windows na ARM64 (stav 2026-10-21). Přesunuto na žádost uživatele (2026-10-21: „arm64 věci do samostatného úkolu“), aby T-055 a T-056 na ARM64 nečekaly.
@@ -32,16 +33,16 @@ Vztah k dalším úkolům:
 - **T-017** (Velopack ve skriptech): kritérium „instalátor `win-arm64` vznikne stejným skriptem“ patří dál T-017. Tento úkol ověřuje jen to, co nešlo ověřit ve spiku a ve skriptech T-055.
 
 ## Akceptační kritéria
-- [ ] Komponenta MSVC ARM64 je nainstalovaná a `vswhere` ji najde (příkaz z `docs/prerequisites.md`)
-- [ ] `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64` sestaví a zabalí `win-arm64` (zip, součet v `SHA256SUMS-windows.txt` odpovídá `Get-FileHash`), AOT publish bez trim/AOT varování z kódu projektu, exe je ARM64 PE
-- [ ] Výchozí běh skriptu `win-arm64` nesestaví a `release-upload.ps1 -DryRun` výstup se `win-arm64` odmítne (ověřeno, na GitHubu nic nezměněno)
-- [ ] `vpk pack` nad AOT publish `win-arm64` vytvoří balíček kanálu `win-arm64` bez kolize se soubory `win-x64` (výsledek v `docs/velopack.md`, bod 8)
-- [ ] Pokusné instalace a dočasné složky jsou po ověření uklizené (stejně jako v T-056, „Pokusy a úklid“)
-- [ ] `docs/velopack.md`, `docs/release.md` a `docs/prerequisites.md` aktuální
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [ ] Komponenta MSVC ARM64 je nainstalovaná a `vswhere` ji najde (příkaz z `docs/prerequisites.md`) → zamítnuto (T-130)
+- [ ] `pwsh scripts/release-build.ps1 -Runtime win-x64,win-arm64` sestaví a zabalí `win-arm64` (zip, součet v `SHA256SUMS-windows.txt` odpovídá `Get-FileHash`), AOT publish bez trim/AOT varování z kódu projektu, exe je ARM64 PE → zamítnuto (T-130)
+- [ ] Výchozí běh skriptu `win-arm64` nesestaví a `release-upload.ps1 -DryRun` výstup se `win-arm64` odmítne (ověřeno, na GitHubu nic nezměněno) → zamítnuto (T-130)
+- [ ] `vpk pack` nad AOT publish `win-arm64` vytvoří balíček kanálu `win-arm64` bez kolize se soubory `win-x64` (výsledek v `docs/velopack.md`, bod 8) → zamítnuto (T-130)
+- [ ] Pokusné instalace a dočasné složky jsou po ověření uklizené (stejně jako v T-056, „Pokusy a úklid“) → zamítnuto (T-130)
+- [ ] `docs/velopack.md`, `docs/release.md` a `docs/prerequisites.md` aktuální → zamítnuto (T-130)
+- [ ] `dotnet build` a `dotnet test` bez chyb a varování → zamítnuto (T-130)
 
 ## Otevřené otázky
 - ~~Ruční ověření na zařízení ARM64~~ → jen v T-057, tento úkol se uzavře po bodech 1–3 (rozhodnuto 2026-10-21).
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+Zamítnuto (rozhodnutí uživatele 2026-11-01, T-130): podpora win-arm64 se ruší. Uživatel nemá zařízení s Windows na ARM64, na kterém by ji mohl testovat, a Windows se proto vydává a podporuje jen jako `win-x64`. Nic z úkolu se neimplementovalo; kritéria zůstávají nezaškrtnutá. Úklid skriptů, dokumentace a zmínek v ostatních úkolech je v T-130.

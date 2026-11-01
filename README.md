@@ -197,7 +197,7 @@ cameras.
 | Platform | Status |
 |---|---|
 | Windows 10/11 x64 | ✅ supported |
-| Windows on ARM64 | 🚧 planned |
+| Windows on ARM64 | ❌ not supported |
 | macOS (Apple Silicon) | ✅ supported since 0.3.0 (menu bar app) |
 
 ## Quick start
@@ -297,16 +297,14 @@ LayerPeek releases, without any account or token, and the download of an update 
 - `winget install` as soon as the first release is public
 - Code-signed builds (no SmartScreen warning) and installation through Homebrew on macOS. This depends on funding the
   signing certificates (Apple Developer Program, Windows code signing); sponsorship options will follow.
-- Windows on ARM64
-- MMU3 status
 
 Have an idea? [Open an issue](https://github.com/pfoltynek/LayerPeek/issues).
 
 ## FAQ
 
 **Does it work outside my home network?**
-Not yet. The app talks to the printers directly over the LAN. You can use a VPN to your home network; optional Prusa
-Connect support is on the roadmap.
+No. The app talks to the printers directly over the LAN. You can use a VPN to your home network. Prusa Connect support
+is not planned: Prusa Connect has no public API for third-party apps.
 
 **Does it replace Prusa Connect or PrusaLink web?**
 No, it complements them. It is the quick "glance" view on your desktop. For uploading files and starting prints, open
@@ -376,7 +374,7 @@ display) are collected in one walk-through in [docs/macos-manual-testing.md](doc
 |---|---|
 | `src/LayerPeek.Core` | domain model, abstractions, monitoring and event detection (no UI, no HTTP specifics) |
 | `src/LayerPeek.PrusaLink` | PrusaLink REST client and the local web proxy |
-| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (on hold: Prusa Connect has no public API) |
+| `src/LayerPeek.PrusaConnect` | Prusa Connect cloud client (not developed further: Prusa Connect has no public API) |
 | `src/LayerPeek.Camera.FFmpeg` | RTSP/H.264 camera feed via FFmpeg |
 | `src/LayerPeek.App` | Avalonia tray app, windows, platform specifics |
 | `tests/` | xUnit v3 unit, UI (Avalonia headless) and E2E tests |

@@ -155,8 +155,8 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 |---|---|---|---|---|---|
 | T-010 | Systémové notifikace – Windows | windows | ui-dev | P1 | T-009 |
 | T-056 | Velopack – ověření použitelnosti pro instalátor a aktualizace (spike) (hotovo) | windows | ui-dev | P2 | – |
-| T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) | windows | core-dev | P2 | – |
-| T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) | windows | qa-reviewer | P2 | T-055, T-056 |
+| T-057 | FFmpeg pro win-arm64 (kamera na Windows ARM64) (zamítnuto 2026-11-01) | windows | core-dev | P2 | – |
+| T-063 | win-arm64 – ověření sestavení a balení včetně Velopack (MSVC ARM64) (zamítnuto 2026-11-01) | windows | qa-reviewer | P2 | T-055, T-056 |
 | T-017 | Balení a distribuce, autostart – Windows (hotovo; ověření v T-124 / T-125) | windows | ui-dev | P2 | T-008, T-055, T-056 |
 | T-052 | Bezpečnost – omezené hledání nativních knihoven a absolutní cesta k `open` (L3, L4) | windows | core-dev | P3 | T-014 |
 | T-054 | Ověření, že pole hesla nevydá heslo přes UI Automation (I4) | windows | qa-reviewer | P3 | T-044 |
@@ -177,6 +177,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-114 | Ověření na Windows (sběrný úkol: build a testy po macOS úkolech, Windows snímky, ruční kontroly) (hotovo 2026-11-01; zbytek v T-124 / T-125) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109–T-112, T-117–T-119 |
 | T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
 | T-125 | Windows – zbývající ruční ověření (interaktivní windows-verify, tiskárna, vydání) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118 |
+| T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
 
 ### macOS (`macos`) – jen na Macu, později
 
