@@ -99,6 +99,9 @@ internal static class SystemChanges
     /// <summary>A real install and uninstall of the Velopack installer (T-017).</summary>
     public static InstallerKind Installer { get; } = new();
 
+    /// <summary>The portable Velopack copy of the update test (T-128).</summary>
+    public static UpdateCopyKind UpdateCopy { get; } = new();
+
     /// <summary>Self-test probe of the journal machinery (a registry value of the tests' own, no warning needed).</summary>
     public static ProbeKind Probe { get; } = new("Probe", trait: null);
 
@@ -107,7 +110,7 @@ internal static class SystemChanges
 
     /// <summary>Every kind a journal entry may name (a crash of any of them can be restored by any process).</summary>
     public static IReadOnlyDictionary<string, ISystemChangeKind> Kinds { get; } =
-        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Credentials, Installer, Probe, GuardProbe }
+        new ISystemChangeKind[] { Theme, TrayIconPromotion, DoNotDisturb, DisplayScale, MonitorDisconnect, ToastsEnabled, ToastAppSettings, TestToasts, Credentials, Installer, UpdateCopy, Probe, GuardProbe }
             .ToDictionary(static kind => kind.Name, StringComparer.Ordinal);
 
     /// <summary>The journal of this process; the first change starts the watchdog (unless switched off).</summary>
@@ -252,6 +255,16 @@ internal static class SystemChanges
     {
         Require();
         return SystemChange<InstallerState>.BeginAsync(Journal, Installer, version, cancellationToken);
+    }
+
+    /// <summary>
+    /// The portable Velopack copy of the update test in <paramref name="folder"/> (T-128): its processes, the folder, its tray
+    /// entries and Velopack's new log files go when disposed. Begin it before the copy is extracted.
+    /// </summary>
+    public static Task<SystemChange<UpdateCopyState>> UpdateCopyAsync(string folder, CancellationToken cancellationToken = default)
+    {
+        Require();
+        return SystemChange<UpdateCopyState>.BeginAsync(Journal, UpdateCopy, UpdateCopyKind.Checked(folder), cancellationToken);
     }
 
     /// <summary>The probe of the journal self-tests (end-to-end run only, no warning needed).</summary>

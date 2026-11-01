@@ -43,6 +43,9 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <summary>Label of the run (log file name).</summary>
     public required string Name { get; init; }
 
+    /// <summary>The exe this app was started from (<see cref="E2EFixture.AppPath"/> unless a test chose another copy).</summary>
+    public string Exe { get; init; } = E2EFixture.AppPath;
+
     /// <summary>Data folder and marker folder of this app.</summary>
     public string RunDirectory { get; }
 
@@ -78,13 +81,18 @@ internal sealed class AppInstance : IAsyncDisposable
     /// <param name="name">Label of the run: its log is kept as <c>log-&lt;name&gt;.txt</c> in the results folder.</param>
     /// <param name="switches">More Debug-only switches of the test mode (T-067), e.g. <see cref="AppSwitches.TestToastsVariable"/>.</param>
     /// <param name="dataFiles">More files of the data folder (name, content), e.g. a <c>camera-windows.json</c> of an older version (T-093).</param>
+    /// <param name="exe">
+    /// Another copy of the Debug exe under test (T-128: the portable Velopack copy of the update test, under
+    /// <see cref="E2EFixture.Root"/>); default <see cref="E2EFixture.AppPath"/>.
+    /// </param>
     public static async Task<AppInstance> StartAsync(
         E2EFixture fixture,
         string name,
         string settingsJson,
         IReadOnlyDictionary<string, string>? secrets = null,
         IReadOnlyDictionary<string, string>? switches = null,
-        IReadOnlyDictionary<string, string>? dataFiles = null)
+        IReadOnlyDictionary<string, string>? dataFiles = null,
+        string? exe = null)
     {
         string run = Path.Combine(E2EFixture.Root, "run-" + Guid.NewGuid().ToString("N")[..12]);
         string data = Path.Combine(run, "data");
@@ -101,14 +109,14 @@ internal sealed class AppInstance : IAsyncDisposable
         }
 
         string suffix = "e2e-" + Guid.NewGuid().ToString("N")[..12];
-        ProcessStartInfo start = StartInfo(run, suffix);
+        ProcessStartInfo start = StartInfo(run, suffix, exe);
         foreach ((string variable, string value) in switches ?? new Dictionary<string, string>())
         {
             start.Environment[variable] = value;
         }
 
         Process process = TestLaunch.Start(start);
-        AppInstance app = new(fixture.Automation, run, suffix, process) { Name = name };
+        AppInstance app = new(fixture.Automation, run, suffix, process) { Name = name, Exe = exe ?? E2EFixture.AppPath };
         try
         {
             // The channel exists once the single-instance guard runs (before Avalonia); commands wait for the host.
@@ -123,9 +131,10 @@ internal sealed class AppInstance : IAsyncDisposable
     }
 
     /// <summary>How a (first or second) start of the app under test is launched.</summary>
-    public static ProcessStartInfo StartInfo(string runDirectory, string suffix)
+    /// <param name="exe">Another copy of the Debug exe under test (see <see cref="StartAsync"/>); default <see cref="E2EFixture.AppPath"/>.</param>
+    public static ProcessStartInfo StartInfo(string runDirectory, string suffix, string? exe = null)
     {
-        ProcessStartInfo start = new(E2EFixture.AppPath)
+        ProcessStartInfo start = new(exe ?? E2EFixture.AppPath)
         {
             UseShellExecute = false,
             WorkingDirectory = runDirectory,
@@ -138,6 +147,7 @@ internal sealed class AppInstance : IAsyncDisposable
         start.Environment.Remove(AppSwitches.TestToastsVariable);
         start.Environment.Remove(AppSwitches.TestCredentialPrefixVariable);
         start.Environment.Remove(AppSwitches.TestStartDelayVariable);
+        start.Environment.Remove(AppSwitches.TestUpdateSourceVariable);
         return start;
     }
 
@@ -156,7 +166,7 @@ internal sealed class AppInstance : IAsyncDisposable
     }
 
     /// <summary>A second start of the same app (same data folder and instance names).</summary>
-    public ProcessStartInfo SecondStartInfo() => StartInfo(RunDirectory, Suffix);
+    public ProcessStartInfo SecondStartInfo() => StartInfo(RunDirectory, Suffix, Exe);
 
     /// <summary>Sends a test command (<c>settings</c>, <c>diagnostics[:id]</c>, <c>about</c>, <c>camera:id</c>, <c>quit</c>).</summary>
     public async Task SendAsync(string command)
