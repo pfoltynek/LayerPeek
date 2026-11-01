@@ -1,7 +1,7 @@
 ---
 id: T-137
 title: macOS – zapnutí „vždy navrchu“ deaktivuje aplikaci a okno ztratí fokus
-status: todo
+status: done
 owner: ui-dev
 priority: P1
 platform: macos
@@ -27,9 +27,21 @@ i v malém náhledu.
   podle návrhu.
 
 ## Akceptační kritéria
-- [ ] Po zapnutí „vždy navrchu“ (myš, mezerník, Enter) zůstane LayerPeek vpředu a fokus na špendlíku
-- [ ] Když aplikace aktivní nebyla (AXPress z VoiceOveru / jiná aplikace vpředu), popředí si nevezme
-- [ ] `mac.camera-pin` bez této chyby; `dotnet build` a `dotnet test` bez chyb a varování
+- [x] Po zapnutí „vždy navrchu“ (myš, mezerník, Enter) zůstane LayerPeek vpředu a fokus na špendlíku
+- [x] Když aplikace aktivní nebyla (AXPress z VoiceOveru / jiná aplikace vpředu), popředí si nevezme
+- [x] `mac.camera-pin` bez této chyby; `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 (žádné)
+
+## Poznámky k implementaci
+- Příčina: AppKit deaktivuje aplikaci, která se stala doplňkovou, až chvíli po `setActivationPolicy:`; kontrola
+  `isActive` hned po volání v `MacAppPresence.SetVisible` (s `keepActive`) to nezachytila.
+- Oprava `MacAppPresence`: po přechodu na Accessory u aplikace, která byla aktivní a má dál otevřené okno, se 1 s
+  (20 × 50 ms, `DispatcherTimer`) hlídá `isActive`; při první ztrátě aktivace se aplikace jednou znovu aktivuje
+  (`MacAppActivation.Activate`). Další změna politiky hlídání zruší. Aplikace, která aktivní nebyla, se neaktivuje.
+- Ověřeno 2026-11-01 na macOS 27.2 kontrolou `mac.camera-pin` (T-136): před opravou „after space / return (pin on) the
+  pin lost the keyboard focus (front app: Finder)“ v normálním okně i malém náhledu; po opravě 3 běhy bez této chyby
+  (2 před T-138, 1 úplný PASS s T-138). Krok „AXPress s Finderem vpředu“: Finder zůstane vpředu.
+- Jednotkový test chybí záměrně: chování je jen v AppKitu (headless testy nemají `NSApp`); pokrývá ho `mac.camera-pin`.
+- `dotnet build` 0 upozornění, `dotnet test` 8481 testů, 0 selhalo.
