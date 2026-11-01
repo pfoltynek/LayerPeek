@@ -207,6 +207,12 @@ internal sealed partial class InstallerKind() : SystemChangeKind<InstallerState>
             {
                 Step(failures, "copying the folder back", () => RestoreFromBackup());
             }
+
+            // A folder without files and folders has no backup (an uninstall may leave it empty, T-133): it comes back empty.
+            if (original.InstallFolderExists && !Directory.Exists(InstallFolder))
+            {
+                Step(failures, "creating the empty folder again", () => Directory.CreateDirectory(InstallFolder));
+            }
         }
 
         Step(failures, "leftovers of Setup.exe", () =>
@@ -378,6 +384,17 @@ internal sealed partial class InstallerKind() : SystemChangeKind<InstallerState>
     private static IReadOnlyList<string> TopLevel(string folder) =>
         !Directory.Exists(folder) ? [] : [.. Directory.EnumerateFileSystemEntries(folder).Select(Path.GetFileName).OfType<string>().Order(StringComparer.OrdinalIgnoreCase)];
 
+    /// <summary>
+    /// Where the installer test writes its stand-in log (relative to <see cref="InstallFolder"/>), or <see langword="null"/>
+    /// when the folder already holds a file. The overwrite dialog needs a folder that is not empty. The stand-in is always
+    /// a new top-level entry, so the restore removes it and nothing else: <c>logs\LayerPeek.log</c> as the .zip version
+    /// writes it, or a file at the top when the folder has an (empty) <c>logs</c> already (T-133).
+    /// </summary>
+    internal static string? StandInLog(InstallerState original) =>
+        original.FolderFiles.Count != 0 ? null
+        : original.FolderEntries.Contains("logs", StringComparer.OrdinalIgnoreCase) ? "LayerPeek.E2E-stand-in.log"
+        : Path.Combine("logs", "LayerPeek.log");
+
     /// <summary>The original content is the start of the file now (a log a running build wrote to meanwhile may be longer).</summary>
     internal static bool StartsWithOriginal(string original)
     {
@@ -411,6 +428,12 @@ internal sealed partial class InstallerKind() : SystemChangeKind<InstallerState>
     /// </summary>
     private static void RestoreFromBackup()
     {
+        // Empty folders too (Matches compares the top-level entries).
+        foreach (string folder in Directory.EnumerateDirectories(BackupFolder, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(InstallFolder, Path.GetRelativePath(BackupFolder, folder)));
+        }
+
         foreach (string backup in Directory.EnumerateFiles(BackupFolder, "*", SearchOption.AllDirectories))
         {
             string target = Path.Combine(InstallFolder, Path.GetRelativePath(BackupFolder, backup));
@@ -433,8 +456,14 @@ internal sealed partial class InstallerKind() : SystemChangeKind<InstallerState>
         Directory.Delete(BackupFolder, recursive: true);
     }
 
-    private static void CopyTree(string source, string destination, bool overwrite)
+    /// <summary>The files and the (also empty) folders of <paramref name="source"/> into <paramref name="destination"/>.</summary>
+    internal static void CopyTree(string source, string destination, bool overwrite)
     {
+        foreach (string folder in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(source, folder)));
+        }
+
         foreach (string file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
         {
             string target = Path.Combine(destination, Path.GetRelativePath(source, file));

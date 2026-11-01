@@ -35,11 +35,47 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
 3. AOT smoke: aktivátor upozornění po běhu v původním stavu (nebo zdůvodnit, proč ne).
 
 ## Akceptační kritéria
-- [ ] Unit testy pomocníků (bez plochy) pro návrat nastavení a předpoklad instalátoru
+- [x] Unit testy pomocníků (bez plochy) pro návrat nastavení a předpoklad instalátoru
 - [ ] Po opravě projdou na skutečné ploše `TestNotificationTests`, `UpdateTests` (všechny 3 případy bez instalace
       uživatele) a `VelopackInstallerTests` – běh koordinuje hlavní agent s uživatelem
-- [ ] AOT smoke nenechá aktivátor upozornění ukazovat na sestavení (nebo zdůvodněno)
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [x] AOT smoke nenechá aktivátor upozornění ukazovat na sestavení (nebo zdůvodněno)
+- [x] `dotnet build` a `dotnet test` bez chyb a varování
 
 ## Otevřené otázky
 (žádné)
+
+## Poznámky k implementaci
+- **Účinný stav upozornění** (`Infrastructure/ToastSetting.cs`): `ToastNotifier.Setting` testovací AUMID `LayerPeek.E2E`
+  přes Windows PowerShell 5.1 (jako `ToastHistory`; sdílený spouštěč `WindowsPowerShell.RunAsync`). Ověřeno jen čtením:
+  hodnota je čitelná i bez zástupce ve Start menu (na tomto stroji teď `DisabledForApplication`, neznámé AUMID vrací null
+  → `(unknown)`). Nastavení Windows jsem neměnil.
+- **`ToastAppSettingsKind`**: `WithNotificationsOn` zapíše `Enabled` / `ShowBanner` = 1 (DWORD), i když hodnota nebo celý
+  klíč chybí (dřív chybějící klíč nechal být). Návrat: když by úklid smazal přepínač, který klíč teď má (původně chyběl
+  klíč nebo hodnota), zapíše se nejdřív „most“ (`SwitchOnBridge`: aktuální klíč s přepínači = 1), počká se 2 s a pak až
+  15 s, než `ToastNotifier.Setting` hlásí `Enabled`, a teprve potom se zapíše přesný originál (smazání klíče). Když se
+  `Enabled` do limitu neukáže, úklid stejně pokračuje (žurnál kontroluje klíč) – problém pak ukáže snímek stavu
+  a předběžná kontrola příštího běhu. Ruční postup v `Describe` to zmiňuje.
+- **Předběžná kontrola** v `ToastRun.StartCoreAsync` (po zástupci a aktivátoru): čeká až 15 s na `Enabled`; každá hodnota
+  `Disabled*` (hlavně `DisabledForApplication`) hned selže se zprávou, co Windows drží a jak to zapnout ručně. Výsledek
+  jde i do reportu běhu.
+- **`SystemStateSnapshot`**: `ToastSystemState.TestAppSetting` (účinný stav) v textu snímku; změna z `Enabled` na
+  `Disabled*` je rozdíl (selže běh), jiná změna (např. tento stroj: `DisabledForApplication` → `Enabled`) jen poznámka.
+- **Instalátor**: `InstallerKind.StandInLog(original)` – zástupný log, kdykoli složka nemá žádný soubor (chybí, nebo
+  existuje prázdná). Vždy jako nová položka nejvyšší úrovně, aby ji úklid smazal: `logs\LayerPeek.log`, a když už je
+  prázdná podsložka `logs`, soubor `LayerPeek.E2E-stand-in.log` přímo ve složce. Aby návrat zůstal přesný: záloha
+  (`CopyTree`) i obnova kopírují i prázdné podsložky a prázdná původní složka, kterou odinstalace smazala, se znovu
+  vytvoří (dřív by `Matches` u prázdné složky selhal).
+- **AOT smoke**: ano, `scripts/aot-smoke.ps1` registraci nevracel – exe zapíše svou cestu do
+  `HKCU\Software\Classes\CLSID\{EC47413C-…}\LocalServer32` (na tomto stroji teď ukazuje na
+  `D:\00-Source\LayerPeek-T124\artifacts\release\0.4.0\publish\win-x64\LayerPeek.exe`; nechal jsem to být, vrátí to
+  spuštění nainstalované aplikace). Nově skript před startem uloží celý klíč (`Get-RegistryTreeState`, CLSID čte
+  z `AppEnvironment.cs`) a ve `finally` ho vrátí přesně, nebo smaže, když nebyl (`Restore-RegistryTreeState`); selhání
+  návratu = exit 1 se zprávou. Jako zástupce jen v paměti skriptu (ne v žurnálu): po pádu skriptu ho opraví další start
+  nainstalované aplikace, která registraci při rozdílu přepíše sama. S `-SkipShellIntegration` (testy) se registr
+  nečte ani nemění. Pester testy: CLSID z aplikace = CLSID testů E2E, přesný návrat přepsaného klíče (včetně
+  `REG_EXPAND_SZ`), smazání nově vytvořeného, pořadí zálohy/startu/návratu ve skriptu; testy pracují jen ve vlastním
+  klíči `HKCU\Software\LayerPeek.Scripts.Tests\<guid>` a mažou ho.
+- Vedlejší (mimo rozsah): smoke exe zanechá i položku Exploreru v `NotifyIconSettings` (zapisuje ji Explorer, ne aplikace).
+- Review (qa-reviewer): `ToastHistory.ReadAsync` nově používá stejný spouštěč `WindowsPowerShell.RunAsync` (po limitu proces
+  ukončí; dřív zůstal běžet).
+- Běh na ploše (`TestNotificationTests`, `UpdateTests`, `VelopackInstallerTests`) zatím neproběhl – koordinuje hlavní agent.

@@ -8,7 +8,8 @@
     repository; the process and the directory are always cleaned up. With -PublishDir it checks an existing publish
     folder instead (used by scripts/release-build.ps1) and leaves that folder as it is.
     On Windows it also checks that the app created its Start menu shortcut for notifications (T-010)
-    and restores the previous shortcut (or removes it) afterwards.
+    and restores the previous shortcut (or removes it) afterwards, and so the registration of its toast activator
+    (HKCU\Software\Classes\CLSID\{CLSID}, LocalServer32 = the exe, T-068, T-133).
     The Release exe has no test mode, so it would write into the real data and log folders of the app
     (macOS ~/Library/Application Support/LayerPeek and ~/Library/Logs/LayerPeek, Windows %APPDATA%\LayerPeek and
     %LOCALAPPDATA%\LayerPeek\logs) and on macOS into what the system keeps under the bundle identifier (T-019:
@@ -133,6 +134,11 @@ $exitCode = 1
 # The app creates its Start menu shortcut for notifications (T-010) pointing to the temporary exe: restore the previous state afterwards.
 $shortcut = if ($IsWindows -and -not $SkipShellIntegration) { Join-Path ([Environment]::GetFolderPath('Programs')) 'LayerPeek.lnk' } else { $null }
 $shortcutBackup = if ($shortcut -and (Test-Path -LiteralPath $shortcut)) { [System.IO.File]::ReadAllBytes($shortcut) } else { $null }
+# Likewise the registration of its toast activator (T-068): the exe writes its own path into LocalServer32, so Windows
+# would start the published (or deleted temporary) exe for a click on a toast of the installed app (T-133). Restored
+# exactly afterwards; removed when there was none.
+$activatorSubKey = if ($IsWindows -and -not $SkipShellIntegration) { Get-ProductionToastActivatorSubKey -AppEnvironmentPath (Join-Path $project 'Composition' 'AppEnvironment.cs') } else { $null }
+$activatorBackup = if ($activatorSubKey) { Get-RegistryTreeState -SubKey $activatorSubKey } else { $null }
 # Toasts the app shows during the run (it uses the real settings, so e.g. a printer error at start) stay in the
 # notification center. Windows PowerShell 5.1 is used because pwsh cannot load WinRT types.
 # Returns the number of the app's toasts in the notification center, or $null when it cannot be read reliably
@@ -263,6 +269,18 @@ finally {
         }
         elseif (Test-Path -LiteralPath $shortcut) {
             Remove-Item -LiteralPath $shortcut -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if ($activatorSubKey) {
+        try {
+            if ((Format-RegistryTreeState (Get-RegistryTreeState -SubKey $activatorSubKey)) -cne (Format-RegistryTreeState $activatorBackup)) {
+                Restore-RegistryTreeState -SubKey $activatorSubKey -State $activatorBackup
+                Write-Host "Restored the toast activator registration HKCU\$activatorSubKey ($(if ($null -eq $activatorBackup) { 'removed: there was none' } else { 'as before the run' }))."
+            }
+        }
+        catch {
+            Write-Host "The toast activator registration HKCU\$activatorSubKey was NOT restored: $_ Starting the installed LayerPeek once registers it again." -ForegroundColor Red
+            $exitCode = 1
         }
     }
     # Toasts are cleared only when the history was known to be empty before the run and no other instance of the app
