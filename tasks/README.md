@@ -148,6 +148,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-121 | Kontextové menu okna kamery – samotné písmeno spustí položku (hotovo) | all | ui-dev | P3 | T-069, T-117 |
 | T-122 | Okno kamery – fokus při změně tlačítka na hlavním panelu (hotovo; macOS v T-115) | windows | ui-dev | P2 | T-102, T-117 |
 | T-123 | Občasné selhání E2E „okno kamery zůstane otevřené při změně volby Vždy navrchu“ | windows | qa-reviewer | P3 | T-114 |
+| T-128 | E2E testy místo ručních kontrol – zkušební upozornění a aktualizace přes Velopack | windows | qa-reviewer | P2 | T-058, T-101, T-125 |
 
 ### Windows (`windows`)
 
