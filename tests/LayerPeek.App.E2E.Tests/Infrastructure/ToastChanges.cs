@@ -290,8 +290,9 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnaps
         {
             RegistryKeys.Write(SubKey, bridge);
             await Task.Delay(Settle, cancellationToken).ConfigureAwait(false);
-            // Not reached in time: restored anyway (the journal checks the key); the snapshot of the run reports the
-            // effective setting, and the next toast run switches the app on again and checks it before its toasts.
+            // Only a last attempt: Windows took an "on" while the app ran, not after it quit (desktop run 2026-11-01), so
+            // the tests switch the app on while it runs (ToastRun.SwitchTestAppOnAsync). Not reached in time: restored
+            // anyway (the journal checks the key); the snapshot reports the effective setting, the next toast run checks it.
             await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, EffectiveTimeout, EffectiveInterval, cancellationToken).ConfigureAwait(false);
         }
 

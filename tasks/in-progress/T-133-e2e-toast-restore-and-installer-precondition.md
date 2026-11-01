@@ -41,9 +41,6 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
 - [x] AOT smoke nenechá aktivátor upozornění ukazovat na sestavení (nebo zdůvodněno)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
-## Otevřené otázky
-(žádné)
-
 ## Poznámky k implementaci
 - **Účinný stav upozornění** (`Infrastructure/ToastSetting.cs`): `ToastNotifier.Setting` testovací AUMID `LayerPeek.E2E`
   přes Windows PowerShell 5.1 (jako `ToastHistory`; sdílený spouštěč `WindowsPowerShell.RunAsync`). Ověřeno jen čtením:
@@ -79,3 +76,35 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
 - Review (qa-reviewer): `ToastHistory.ReadAsync` nově používá stejný spouštěč `WindowsPowerShell.RunAsync` (po limitu proces
   ukončí; dřív zůstal běžet).
 - Běh na ploše (`TestNotificationTests`, `UpdateTests`, `VelopackInstallerTests`) zatím neproběhl – koordinuje hlavní agent.
+
+### Běh na ploše 2026-11-01 a oprava 2
+- `VelopackInstallerTests` 1/1 prošel. `TestNotificationTests` a `UpdateTests` 3/3 selhaly na nové předběžné kontrole:
+  klíč `Enabled=1, ShowBanner=1` (zapsaný před startem aplikace), Windows dál `DisabledForApplication`. Předpoklad
+  „Windows převezme `Enabled = 1` z registru“ tím **neplatí** obecně: `Enabled = 0` zapsané **za běhu** testovací
+  aplikace převzal (T-128, výsledky `aadd22ce`), smazání klíče po skončení aplikace ani `1` před jejím startem ne.
+  Veřejné API pro zapnutí upozornění aplikace neexistuje (`ToastNotifier.Setting` je jen pro čtení); služby
+  (`WpnUserService`) ani neveřejná API nepoužívám. Webový průzkum nebyl možný (vyhledávače vrací jen captcha/skripty),
+  vycházím z pozorování.
+- Hypotéza: služba bere zápis do klíče jen jako změnu, kterou vidí za běhu aplikace (se zástupcem). Proto:
+  - `ToastRun.SwitchTestAppOnAsync` (za běhu aplikace): zapne `ToastEnabled`, když je vypnutý; zapíše
+    `Enabled/ShowBanner = 1`, čeká 15 s; když to nestačí, zapíše `Enabled = 0`, 3 s, znovu `1` a čeká 15 s. Všechno
+    přes žurnálované změny.
+  - Předběžná kontrola: při `Disabled*` nejdřív `SwitchTestAppOnAsync`, teprve pak selže; zpráva odkazuje na obnovu.
+    Když hypotéza platí, další běh se z dnešního stavu stroje vzpamatuje sám.
+  - `TestNotificationTests`: krok 4 (vypnutí) je v `try/finally`, `finally` upozornění hned zapne **ještě za běhu
+    aplikace** a test ověří `Enabled` (jinak selže s odkazem na obnovu). Trvalé „vypnuto“ tak už nezůstane potichu.
+  - Most při návratu (`SwitchOnBridge`) zůstává jen jako poslední pokus (po skončení aplikace podle pozorování
+    nepomáhá; když je stav `Enabled`, nic nečeká).
+- Jednorázová obnova `TestAppNotificationRecovery` (spouští se jen s `LAYERPEEK_E2E_RECOVER_NOTIFICATIONS=1`, jinak se
+  přeskočí): spustí testovací aplikaci, zkusí `SwitchTestAppOnAsync`, a když Windows dál drží „vypnuto“, otevře
+  `ms-settings:notifications` (jen když Nastavení neběží) a až 5 min čeká, než uživatel zapne „LayerPeek E2E“. Postup je
+  v `docs/troubleshooting.md` (nová sekce), test hlídá, že příkaz v dokumentaci odpovídá kódu.
+- Globální `ToastEnabled` místo vypnutí aplikace jsem **nezvolil**: nejde ověřit, že Windows bere `ToastEnabled = 1`
+  za běhu, a kdyby se choval stejně nesymetricky, zůstala by vypnutá upozornění **všech** aplikací uživatele (horší
+  než dnes). Zůstává jen jako dosavadní záložní krok T-128.
+
+## Otevřené otázky
+- Když se ukáže, že Windows nebere ani `Enabled` 0 → 1 za běhu aplikace (obnova pak vždy skončí u ručního zapnutí
+  v Nastavení a `TestNotificationTests` po každém běhu selže): má krok 4 místo skutečného vypnutí ve Windows použít
+  Debug-only přepínač testovacího režimu, který aplikaci podstrčí `DisabledForApplication` (bez zásahu do Windows,
+  ale neověří skutečné čtení nastavení Windows)? Nebo krok 4 nechat jen jako ruční kontrolu v T-125?
