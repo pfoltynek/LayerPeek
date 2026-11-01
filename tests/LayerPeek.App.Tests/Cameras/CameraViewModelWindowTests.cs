@@ -246,7 +246,8 @@ public sealed class CameraViewModelWindowTests : IAsyncDisposable
         _dispatcher.RunAll();
 
         Assert.False(viewModel.IsTopmost);
-        Assert.Equal([nameof(CameraViewModel.IsTopmost), nameof(CameraViewModel.MiniToolTip)], changed);
+        // T-117: the tip of the pin names the state too.
+        Assert.Equal([nameof(CameraViewModel.IsTopmost), nameof(CameraViewModel.TopmostToolTip), nameof(CameraViewModel.MiniToolTip)], changed);
         Assert.Equal(CameraWindowMode.Mini, viewModel.Mode);
         Assert.Equal(Remembered.Mini, viewModel.MiniPlacement);
         Assert.Equal(Remembered.Normal, viewModel.NormalPlacement);

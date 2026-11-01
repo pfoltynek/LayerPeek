@@ -63,10 +63,12 @@ public sealed class VelopackInstallerTests(E2EFixture fixture)
 
         await using SystemChange<InstallerState> change = await SystemChanges.InstallerAsync(Version, cancellationToken);
         InstallerKind.BackUpFolder();
-        if (!change.Original.InstallFolderExists)
+        if (InstallerKind.StandInLog(change.Original) is { } standIn)
         {
-            // Like a machine that ran the .zip before: a log in the folder (the restore deletes the whole folder again).
-            string probe = Path.Combine(InstallerKind.InstallFolder, "logs", "LayerPeek.log");
+            // Like a machine that ran the .zip before: a log in the folder, also when the folder is there but holds no
+            // file (left by an uninstall, T-133). The restore removes it as a new top-level entry (the whole folder when
+            // it did not exist).
+            string probe = Path.Combine(InstallerKind.InstallFolder, standIn);
             Directory.CreateDirectory(Path.GetDirectoryName(probe)!);
             await File.WriteAllTextAsync(probe, "E2E stand-in of a log of the .zip version (T-017)\n", cancellationToken);
         }

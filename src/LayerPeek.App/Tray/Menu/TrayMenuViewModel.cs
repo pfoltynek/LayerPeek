@@ -15,7 +15,7 @@ namespace LayerPeek.App.Tray.Menu;
 /// Content of the tray menu, fed by <see cref="IPrinterMonitor"/>: one item per printer with its state and progress,
 /// followed by the fixed items (diagnostics, settings, about, quit). Every printer is a submenu, also when it is the only
 /// one (T-042): "Open PrusaLink" / "Open Prusa Connect" and "Show camera" / "Hide camera" when its camera is enabled
-/// (T-014; the text follows whether the camera window is open, 2026-10-22; an open window also has "Show camera" bringing
+/// (T-014; the text follows whether the camera window is open, 2026-10-22; an open window also has "Bring camera to front" bringing
 /// it to the front, T-102). "Diagnostics…" is a single main menu item
 /// (user decision 2026-10-21: the window has its own printer combo), enabled only while the menu shows printers (not while starting, after a monitoring failure or without
 /// printers). Without printers the menu says so and offers "Add printer…". Fixed and submenu items carry access keys
@@ -471,7 +471,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             return new TrayMenuEntryList([web]);
         }
 
-        // T-102: "Show camera" brings the open window to the front, right above "Hide camera".
+        // T-102: "Bring camera to front" brings the open window to the front, right above "Hide camera".
         return new TrayMenuEntryList(_options.CameraToFront && _openCameras.Contains(line.Id)
             ? [web, CameraToFrontEntry(line.Id), CameraEntry(line.Id)]
             : [web, CameraEntry(line.Id)]);
@@ -487,7 +487,7 @@ internal sealed class TrayMenuViewModel : ITrayMenuSource, IMonitoringObserver, 
             HasAccessKey = true,
         };
 
-    /// <summary>"Show camera" for an open camera window (T-102, macOS and Windows), its own access key next to "Hide camera".</summary>
+    /// <summary>"Bring camera to front" for an open camera window (T-102, macOS and Windows), worded unlike "Show camera" (2026-10-31) and with its own access key next to "Hide camera".</summary>
     private static TrayMenuEntry CameraToFrontEntry(string printerId) =>
         new(TrayMenuCommand.CameraToFront, Strings.MenuCameraToFront, IsEnabled: true, PrinterId: printerId)
         {

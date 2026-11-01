@@ -106,4 +106,42 @@ public interface ISettingsStore
     /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
     Task<bool> SetCameraOverlayLayoutAsync(string printerId, Cameras.Overlay.CameraOverlayLayout layout, CancellationToken cancellationToken) =>
         Task.FromResult(false);
+
+    /// <summary>
+    /// Sets the "always on top" option of the camera window of printer <paramref name="printerId"/> in
+    /// <paramref name="mode"/> (<c>printers[*].camera.window.topmostNormal</c> / <c>topmostMini</c>, T-117) in the stored
+    /// settings and changes <b>nothing else</b>, byte for byte like <see cref="SetCameraOverlayLayoutAsync"/>: the option is
+    /// switched in the camera window while the settings window may hold other unsaved changes. Every entry with that id
+    /// (trimmed, case-insensitive) that has a camera object gets the value (a missing value or window section that already
+    /// means it stays missing); the write is atomic. A missing, unreadable or too large file, one that is not syntactically
+    /// valid JSON, one of a newer settings format (or with an unreadable format version), one without such a printer camera
+    /// and one whose <c>window</c> of that camera is neither an object nor <c>null</c> is left alone. Use
+    /// <see cref="CameraWindowTopmostWriter"/> to announce the result.
+    /// </summary>
+    /// <returns>
+    /// Whether the file was written, already held the value (nothing written; e.g. a save of the settings window wrote it
+    /// before monitoring took it over, or the file was edited by hand) or was left alone.
+    /// </returns>
+    /// <remarks>The default implementation is for stores without a file (e.g. in memory): nothing is written.</remarks>
+    /// <exception cref="IOException">
+    /// The settings could not be read or written, also when another process still held the file after the retries.
+    /// </exception>
+    /// <exception cref="UnauthorizedAccessException">Access to the settings location was denied.</exception>
+    /// <exception cref="OperationCanceledException"><paramref name="cancellationToken"/> was cancelled.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="mode"/> is full screen, which has no such option.</exception>
+    Task<CameraWindowTopmostStoreResult> SetCameraWindowTopmostAsync(string printerId, Cameras.CameraWindowMode mode, bool topmost, CancellationToken cancellationToken) =>
+        Task.FromResult(CameraWindowTopmostStoreResult.LeftAlone);
+}
+
+/// <summary>Outcome of <see cref="ISettingsStore.SetCameraWindowTopmostAsync"/> (T-117).</summary>
+public enum CameraWindowTopmostStoreResult
+{
+    /// <summary>Nothing written: no file, no such printer camera, a newer or unreadable format, or a window value of another type.</summary>
+    LeftAlone,
+
+    /// <summary>The value was written.</summary>
+    Written,
+
+    /// <summary>Nothing written: the file holds the value already (explicitly, or as the default of a missing value).</summary>
+    AlreadyStored,
 }

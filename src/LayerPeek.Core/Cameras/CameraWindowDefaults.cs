@@ -91,6 +91,18 @@ public sealed record CameraWindowDefaults
     };
 
     /// <summary>
+    /// These defaults with <paramref name="topmost"/> as the option of <paramref name="mode"/> (<see cref="TopmostNormal"/>
+    /// or <see cref="TopmostMini"/>, T-117); the same instance when it has that value already.
+    /// </summary>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="mode"/> is full screen, which has no such option.</exception>
+    public CameraWindowDefaults WithTopmost(CameraWindowMode mode, bool topmost) => mode switch
+    {
+        CameraWindowMode.Normal => TopmostNormal == topmost ? this : this with { TopmostNormal = topmost },
+        CameraWindowMode.Mini => TopmostMini == topmost ? this : this with { TopmostMini = topmost },
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Only the normal window and the mini preview have an always-on-top option."),
+    };
+
+    /// <summary>
     /// Whether saving <paramref name="updated"/> over <paramref name="saved"/> must forget the remembered state of the
     /// camera window of that printer (T-035 decision: changed defaults clear it, so that they take effect). Counts the
     /// start mode, the monitor and both layouts; a change of <see cref="RememberLastPlacement"/>, <see cref="TopmostNormal"/> or

@@ -219,6 +219,69 @@ internal static partial class Native
     [LibraryImport("user32.dll")]
     public static partial nint WindowFromPoint(Point point);
 
+    /// <summary>The system cursors of a resize grip (T-120): left / right, top / bottom, top left / bottom right, top right / bottom left.</summary>
+    public const int IdcSizeWe = 32644;
+    public const int IdcSizeNs = 32645;
+    public const int IdcSizeNwse = 32642;
+    public const int IdcSizeNesw = 32643;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct CursorInfo
+    {
+        public int Size;
+        public uint Flags;
+        public nint Cursor;
+        public Point ScreenPosition;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetCursorInfo(ref CursorInfo info);
+
+    [LibraryImport("user32.dll", EntryPoint = "LoadCursorW")]
+    public static partial nint LoadCursor(nint instance, nint name);
+
+    /// <summary>The cursor shown now (a shared system cursor has the same handle in every process), or 0.</summary>
+    public static nint CurrentCursor()
+    {
+        CursorInfo info = new() { Size = Marshal.SizeOf<CursorInfo>() };
+        return GetCursorInfo(ref info) ? info.Cursor : 0;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GuiThreadInfo
+    {
+        public int Size;
+        public uint Flags;
+        public nint Active;
+        public nint Focus;
+        public nint Capture;
+        public nint MenuOwner;
+        public nint MoveSize;
+        public nint Caret;
+        public Rect CaretRect;
+    }
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static partial bool GetGUIThreadInfo(uint threadId, ref GuiThreadInfo info);
+
+    /// <summary>
+    /// The Win32 active and focus windows of the thread that owns <paramref name="hwnd"/> (T-120: where keys go, apart
+    /// from what UI Automation reports), for a report.
+    /// </summary>
+    public static string ThreadFocus(nint hwnd)
+    {
+        uint thread = GetWindowThreadProcessId(hwnd, out _);
+        GuiThreadInfo info = new() { Size = Marshal.SizeOf<GuiThreadInfo>() };
+        return GetGUIThreadInfo(thread, ref info)
+            ? $"Win32 active 0x{info.Active:X}, focus 0x{info.Focus:X} (window 0x{hwnd:X}, owner 0x{GetWindow(hwnd, GwOwner):X}, foreground 0x{GetForegroundWindow():X})"
+            : "Win32 focus unknown (GetGUIThreadInfo failed)";
+    }
+
+    /// <summary>The handle of the shared system cursor <paramref name="id"/> (<c>IDC_*</c>).</summary>
+    public static nint SystemCursor(int id) => LoadCursor(0, id);
+
     [LibraryImport("user32.dll")]
     public static partial nint GetAncestor(nint hwnd, uint flags);
 

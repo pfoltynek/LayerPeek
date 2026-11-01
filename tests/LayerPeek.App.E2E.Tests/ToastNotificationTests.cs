@@ -453,9 +453,10 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
 
     /// <summary>
     /// One test app with real toasts and a printing simulator, with every change a toast needs, all journaled; disposing
-    /// quits the app (it clears its toasts and shortcut), then restores every change in reverse order.
+    /// quits the app (it clears its toasts and shortcut), then restores every change in reverse order. Also used by the
+    /// tests of the test notification and of the update notification (T-128, <see cref="ToastRunOptions"/>).
     /// </summary>
-    private sealed class ToastRun : IAsyncDisposable
+    internal sealed class ToastRun : IAsyncDisposable
     {
         private static readonly HttpClient Http = new(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(15) };
 
@@ -465,22 +466,41 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         private byte[]? _productionShortcut;
         private SystemChange<DoNotDisturbState>? _doNotDisturb;
 
+        /// <summary>How long Windows needs after the test app's Start menu shortcut appeared before it shows the app's toasts.</summary>
+        private static readonly TimeSpan ShortcutSettleTime = TimeSpan.FromSeconds(10);
+
+        /// <summary>How long the pre-flight waits for Windows to take the switched-on notifications of the test app over.</summary>
+        private static readonly TimeSpan PreflightTimeout = TimeSpan.FromSeconds(15);
+
+        /// <summary>How long the switched-off key stays before it is switched on again (Windows took the "off" within seconds).</summary>
+        private static readonly TimeSpan ToggleSettleTime = TimeSpan.FromSeconds(3);
+
         private ToastRun(StringBuilder report) => _report = report;
 
         public AppInstance App { get; private set; } = null!;
 
+        /// <summary>The simulated printer; <see langword="null"/> with <see cref="ToastRunOptions.WithoutPrinter"/>.</summary>
         public SimulatedPrinter Printer { get; private set; } = null!;
 
         /// <summary>Unique per test: only this test's toast is ever found.</summary>
         public string PrinterName { get; } = "LP E2E " + Guid.NewGuid().ToString("N")[..8];
 
-        public static async Task<ToastRun> StartAsync(E2EFixture fixture, string name, string language, StringBuilder report, SimulationTiming? timing = null, int? cooldownThresholdCelsius = null)
+        /// <summary>
+        /// Windows' notification settings key of the test app, journaled (T-128: the test notification switches the app's
+        /// notifications off through it); restored when the run is disposed.
+        /// </summary>
+        public SystemChange<RegistryKeySnapshot> AppSettings { get; private set; } = null!;
+
+        /// <summary>The notifications switch of Windows, journaled (switched on at the start when it was off).</summary>
+        public SystemChange<ToastsEnabledState> ToastsEnabled { get; private set; } = null!;
+
+        public static async Task<ToastRun> StartAsync(E2EFixture fixture, string name, string language, StringBuilder report, SimulationTiming? timing = null, int? cooldownThresholdCelsius = null, ToastRunOptions? options = null)
         {
             Assert.SkipWhen(ToastsEnabledKind.PolicyBlocksToasts() is not null, ToastsEnabledKind.PolicyBlocksToasts() ?? string.Empty);
             ToastRun run = new(report);
             try
             {
-                await run.StartCoreAsync(fixture, name, language, timing, cooldownThresholdCelsius);
+                await run.StartCoreAsync(fixture, name, language, timing, cooldownThresholdCelsius, options ?? new ToastRunOptions());
                 return run;
             }
             catch
@@ -646,16 +666,79 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             }
         }
 
+        /// <summary>
+        /// Pre-flight (T-133): Windows' effective setting of the test app is on. Its notification service keeps an earlier
+        /// "off" although the key says on (desktop run 2026-11-01: <c>Enabled</c> = 0 written while the app ran was taken
+        /// over, <c>Enabled</c> = 1 written before the app started was not), so an "off" is switched on again while the app
+        /// runs and its shortcut exists (<see cref="SwitchTestAppOnAsync"/>). When it stays off every toast would be dropped
+        /// and the test would wait for a banner in vain: it fails at once with the reason and the recovery
+        /// (<see cref="TestAppNotificationRecovery"/>), unless <see cref="ToastRunOptions.AllowNotificationsOff"/>.
+        /// </summary>
+        private async Task AssertNotificationsOnAsync(ToastRunOptions options, CancellationToken cancellationToken)
+        {
+            string setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Effective notification setting of {AppSwitches.AppUserModelId} (ToastNotifier.Setting): {setting}; key {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}");
+            if (ToastSetting.IsDisabled(setting))
+            {
+                setting = await SwitchTestAppOnAsync(cancellationToken);
+            }
+
+            if (options.AllowNotificationsOff)
+            {
+                return;
+            }
+
+            Assert.False(
+                ToastSetting.IsDisabled(setting),
+                $"Windows keeps the notifications of the test app {AppSwitches.AppUserModelId} switched off (ToastNotifier.Setting = {setting}) "
+                + $"although the test switched them on while the app ran (HKCU\\{ToastAppSettingsKind.SubKey}: {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}); "
+                + $"no toast would be shown. Recovery (docs/troubleshooting.md): {TestAppNotificationRecovery.Command}");
+        }
+
+        /// <summary>
+        /// Switches the notifications of the test app on again while the app runs and its Start menu shortcut exists, and
+        /// waits for Windows' effective setting (T-133): the notifications switch of Windows when the run switched it off;
+        /// the app's key with <c>Enabled</c> / <c>ShowBanner</c> = 1; when Windows does not take that, the key once more as
+        /// a change it sees (<c>Enabled</c> 0, then 1), like the switch-off Windows did take. Both keys are journaled.
+        /// </summary>
+        /// <returns>The effective setting at the end (<see cref="ToastSetting.Enabled"/> when it worked).</returns>
+        public async Task<string> SwitchTestAppOnAsync(CancellationToken cancellationToken)
+        {
+            if (!(await ToastsEnabled.ReadAsync(cancellationToken)).IsOn)
+            {
+                await ToastsEnabled.ApplyAsync(new ToastsEnabledState(1), cancellationToken);
+            }
+
+            RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(RegistryKeys.Read(ToastAppSettingsKind.SubKey));
+            await AppSettings.ApplyAsync(on, cancellationToken);
+            string setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Switched the test app on while it runs ({on}): {setting}");
+            if (!ToastSetting.IsDisabled(setting))
+            {
+                return setting;
+            }
+
+            await AppSettings.ApplyAsync(TestNotificationTests.WithNotificationsOff(on), cancellationToken);
+            await Task.Delay(ToggleSettleTime, cancellationToken);
+            await AppSettings.ApplyAsync(on, cancellationToken);
+            setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Switched the test app off and on again while it runs (Enabled 0, then 1): {setting}");
+            return setting;
+        }
+
         private static byte[]? ReadProductionShortcut()
         {
             string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppSwitches.ProductionShortcutFileName);
             return File.Exists(path) ? File.ReadAllBytes(path) : null;
         }
 
-        /// <summary>The test settings with the printer of this run and its cool-down thresholds (T-079, T-109), when given.</summary>
-        private string Settings(string language, int? cooldownThresholdCelsius)
+        /// <summary>
+        /// The test settings with the printer of this run (none with <see cref="ToastRunOptions.WithoutPrinter"/>) and its
+        /// cool-down thresholds (T-079, T-109), when given, then the test's own changes (<see cref="ToastRunOptions.EditSettings"/>).
+        /// </summary>
+        private string Settings(string language, int? cooldownThresholdCelsius, ToastRunOptions options)
         {
-            JsonObject settings = JsonNode.Parse(TestSettings.Json(language, [new TestPrinter(PrinterId, PrinterName, Printer.Address())]))!.AsObject();
+            JsonObject settings = JsonNode.Parse(TestSettings.Json(language, options.WithoutPrinter ? [] : [new TestPrinter(PrinterId, PrinterName, Printer.Address())]))!.AsObject();
             if (cooldownThresholdCelsius is { } threshold)
             {
                 // T-109: the same threshold for the nozzle and the bed.
@@ -663,10 +746,11 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
                 settings["printers"]![0]!["cooldownBedThresholdCelsius"] = threshold;
             }
 
+            options.EditSettings?.Invoke(settings);
             return settings.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
         }
 
-        private async Task StartCoreAsync(E2EFixture fixture, string name, string language, SimulationTiming? timing, int? cooldownThresholdCelsius)
+        private async Task StartCoreAsync(E2EFixture fixture, string name, string language, SimulationTiming? timing, int? cooldownThresholdCelsius, ToastRunOptions options)
         {
             CancellationToken cancellationToken = TestContext.Current.CancellationToken;
             _productionShortcut = ReadProductionShortcut();
@@ -674,6 +758,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             // Restored last: the key Windows creates with the first toast goes after the toasts are cleared.
             SystemChange<RegistryKeySnapshot> appSettings = await SystemChanges.ToastAppSettingsAsync(cancellationToken);
             _undo.Add(appSettings);
+            AppSettings = appSettings;
             RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(appSettings.Original);
             if (!on.SameAs(appSettings.Original))
             {
@@ -682,6 +767,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
 
             SystemChange<ToastsEnabledState> enabled = await SystemChanges.ToastsEnabledAsync(cancellationToken);
             _undo.Add(enabled);
+            ToastsEnabled = enabled;
             await TurnOnAsync(enabled);
 
             _doNotDisturb = await SystemChanges.DoNotDisturbAsync(cancellationToken);
@@ -693,24 +779,68 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             SystemChange<TestToastsState> toasts = await SystemChanges.TestToastsAsync(E2EFixture.AppPath, cancellationToken);
             _undo.Add(toasts);
 
-            Printer = await SimulatedPrinter.StartAsync(new SimulatedPrinterOptions { Scenario = PrinterScenario.Printing, Timing = timing ?? SimulationTiming.Default }, cancellationToken);
-            _undo.Add(Printer);
+            Dictionary<string, string> switches = new() { [AppSwitches.TestToastsVariable] = "1" };
+            foreach ((string variable, string value) in options.Switches ?? new Dictionary<string, string>())
+            {
+                switches[variable] = value;
+            }
+
+            if (!options.WithoutPrinter)
+            {
+                Printer = await SimulatedPrinter.StartAsync(new SimulatedPrinterOptions { Scenario = PrinterScenario.Printing, Timing = timing ?? SimulationTiming.Default }, cancellationToken);
+                _undo.Add(Printer);
+            }
+
             App = await AppInstance.StartAsync(
                 fixture,
                 name,
-                Settings(language, cooldownThresholdCelsius),
-                Simulators.Secrets(PrinterId, Printer),
-                new Dictionary<string, string> { [AppSwitches.TestToastsVariable] = "1" });
+                Settings(language, cooldownThresholdCelsius, options),
+                options.WithoutPrinter ? null : Simulators.Secrets(PrinterId, Printer),
+                switches,
+                exe: options.Exe);
             _undo.Add(App);
 
             await Wait.UntilAsync(() => File.Exists(TestToastsKind.ShortcutPath), TimeSpan.FromSeconds(20), "the Start menu shortcut of the test app");
             // Registered before the shortcut that names it (T-068).
             Assert.True(TestToastsKind.ActivatorRegistered(), "The test app did not register its toast activator.");
+            await AssertNotificationsOnAsync(options, cancellationToken);
+            if (options.WithoutPrinter)
+            {
+                // Windows drops a toast of an app id whose Start menu shortcut it has not taken in yet: the first test
+                // notification, sent 2 s after the shortcut appeared, was handed to Windows and never shown, not even in the
+                // notification center (run 2026-11-01, T-128; the app's read of ToastNotifier.Setting failed meanwhile). The
+                // printer path below gets the same settle time from its poll and its 8 s.
+                await Task.Delay(ShortcutSettleTime, cancellationToken);
+                return;
+            }
+
             // The first status is the baseline (no toast); the scenario switch must come after it. One poll is 5 s.
             await Wait.UntilAsync(() => Printer.RequestCount > 0, TimeSpan.FromSeconds(30), "the app to poll the printer");
             await Task.Delay(TimeSpan.FromSeconds(8), cancellationToken);
         }
     }
+}
+
+/// <summary>What a <see cref="ToastNotificationTests.ToastRun"/> of the tests of T-128 needs besides the defaults.</summary>
+internal sealed record ToastRunOptions
+{
+    /// <summary>No simulated printer and no printer in the settings (no printer event can show a toast meanwhile).</summary>
+    public bool WithoutPrinter { get; init; }
+
+    /// <summary>More Debug-only switches of the test mode (e.g. the update feed, T-058) besides the test toasts.</summary>
+    public IReadOnlyDictionary<string, string>? Switches { get; init; }
+
+    /// <summary>Changes of the test settings before the start (e.g. the sound of the notifications).</summary>
+    public Action<JsonObject>? EditSettings { get; init; }
+
+    /// <summary>Another copy of the Debug exe (the portable Velopack copy of the update test); default <see cref="E2EFixture.AppPath"/>.</summary>
+    public string? Exe { get; init; }
+
+    /// <summary>
+    /// The pre-flight does not fail when Windows keeps the test app's notifications off (only the recovery of T-133,
+    /// <see cref="TestAppNotificationRecovery"/>, which then lets the user switch them on).
+    /// </summary>
+    public bool AllowNotificationsOff { get; init; }
 }
 
 /// <summary>

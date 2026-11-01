@@ -10,7 +10,7 @@ using static LayerPeek.App.Tests.Tray.TestPrinters;
 namespace LayerPeek.App.Tests.Tray.Menu;
 
 /// <summary>
-/// "Show camera" for an open camera window (T-102): right above "Hide camera" while the window is open, with
+/// "Bring camera to front" for an open camera window (T-102, "Show camera" until 2026-10-31): right above "Hide camera" while the window is open, with
 /// <see cref="TrayMenuOptions.CameraToFront"/>, which the app turns on for macOS and Windows alike (user decision
 /// 2026-10-29: the same menu on both); clicking it brings the window to the front. Without the option the menu of T-040.
 /// </summary>
@@ -51,7 +51,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void BothPlatformMenusAddShowCameraAboveHideCamera(bool printerIcons)
+    public void BothPlatformMenusAddBringToFrontAboveHideCamera(bool printerIcons)
     {
         // The Windows menu (with printer icons, T-039) and the macOS menu (without) get the same submenu.
         using TrayMenuViewModel viewModel = Create(AppOptions with { PrinterIcons = printerIcons }, WithCamera(Definition()));
@@ -65,7 +65,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
     }
 
     [Fact]
-    public void OpenWindowAddsShowCameraAboveHideCameraUntilItCloses()
+    public void OpenWindowAddsBringToFrontAboveHideCameraUntilItCloses()
     {
         using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition()));
         Assert.Equal([TrayMenuCommand.OpenWeb, TrayMenuCommand.Camera], viewModel.PrinterItems[0].Submenu!.Select(static item => item.Command));
@@ -77,7 +77,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
             web => Assert.Equal(TrayMenuCommand.OpenWeb, web.Command),
             front =>
             {
-                Assert.Equal((TrayMenuCommand.CameraToFront, "_Show camera", "mk4"), (front.Command, front.Header, front.PrinterId));
+                Assert.Equal((TrayMenuCommand.CameraToFront, "Bring camera to _front", "mk4"), (front.Command, front.Header, front.PrinterId));
                 Assert.True(front.HasAccessKey);
                 Assert.True(front.IsEnabled);
             },
@@ -131,7 +131,7 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
         using TrayMenuViewModel viewModel = Create(AppOptions);
         using TrayMenuPresenter presenter = new(_target, viewModel, _commands, _logger);
 
-        _target.Click(new TrayMenuEntry(TrayMenuCommand.CameraToFront, "Show camera", IsEnabled: true));
+        _target.Click(new TrayMenuEntry(TrayMenuCommand.CameraToFront, "Bring camera to front", IsEnabled: true));
 
         Assert.Empty(_commands.CameraToFrontRequests);
     }
@@ -167,12 +167,55 @@ public sealed class TrayMenuCameraToFrontTests : IDisposable
             Assert.True(keys.Distinct(StringComparer.Ordinal).Count() == keys.Count, $"{language}: access keys {string.Join(", ", keys)} are not unique.");
             // "Hide camera" keeps the key of "Show camera" (T-042), the new item has its own.
             Assert.Equal(closedKeys[i], AccessKey(submenu[^1]));
-            // Same wording as "Show camera" of a closed window, only the access key moved.
-            Assert.Equal(
+            // Its own wording, never the one of "Show camera" (2026-10-31: "Show camera" next to "Hide camera" read as
+            // a stale toggle).
+            Assert.NotEqual(
                 NativeMenuText.DisplayTextOf(LayerPeek.App.Resources.Strings.MenuShowCamera),
                 NativeMenuText.DisplayTextOf(NativeMenuText.HeaderOf(submenu[1])));
         }
     }
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void OpenWindowNeverShowsTheShowCameraText(string language)
+    {
+        // Regression (2026-10-31): with an open window the submenu offered "Show camera" and "Hide camera" at once.
+        using CultureScope culture = new(language);
+        using TrayMenuViewModel viewModel = Create(AppOptions, WithCamera(Definition()));
+        CultureInfo cultureInfo = CultureInfo.GetCultureInfo(language);
+        string showCamera = Displayed(LayerPeek.App.Resources.Strings.MenuShowCamera, cultureInfo);
+        string hideCamera = Displayed(LayerPeek.App.Resources.Strings.MenuHideCamera, cultureInfo);
+
+        viewModel.SetCameraWindowOpen("mk4", isOpen: true);
+
+        string[] open = [.. viewModel.PrinterItems[0].Submenu!.Select(item => Displayed(item.Header, cultureInfo))];
+        Assert.DoesNotContain(showCamera, open);
+        Assert.Single(open, text => text == hideCamera);
+        Assert.Equal(open.Length, open.Distinct(StringComparer.Ordinal).Count());
+
+        viewModel.SetCameraWindowOpen("mk4", isOpen: false);
+
+        string[] closed = [.. viewModel.PrinterItems[0].Submenu!.Select(item => Displayed(item.Header, cultureInfo))];
+        Assert.DoesNotContain(hideCamera, closed);
+        Assert.Single(closed, text => text == showCamera);
+    }
+
+    [Theory]
+    [MemberData(nameof(Languages))]
+    public void BringToFrontTextDiffersFromShowAndHideCamera(string language)
+    {
+        using CultureScope culture = new(language);
+        CultureInfo cultureInfo = CultureInfo.GetCultureInfo(language);
+        string front = Displayed(LayerPeek.App.Resources.Strings.MenuCameraToFront, cultureInfo);
+
+        Assert.False(string.IsNullOrWhiteSpace(front));
+        Assert.NotEqual(Displayed(LayerPeek.App.Resources.Strings.MenuShowCamera, cultureInfo), front);
+        Assert.NotEqual(Displayed(LayerPeek.App.Resources.Strings.MenuHideCamera, cultureInfo), front);
+    }
+
+    // The text the user reads: without the access key marker, case-insensitive (a moved key changes the case only).
+    private static string Displayed(string header, CultureInfo culture) =>
+        NativeMenuText.DisplayTextOf(header).ToUpper(culture);
 
     private static char? AccessKey(TrayMenuEntry item) =>
         NativeMenuText.AccessKeyOf(NativeMenuText.HeaderOf(item)) is { } key ? char.ToUpperInvariant(key) : null;

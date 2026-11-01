@@ -17,7 +17,7 @@ namespace LayerPeek.App.UiTests.Cameras;
 /// T-038 question 1 (user decision 2026-10-30, option b): the real camera window puts its mini preview that is always on
 /// top on every Space (macOS <c>collectionBehavior</c>, here a fake), and restores the flags when it leaves the mini
 /// preview or "always on top" is switched off; full screen is entered with the flags of a normal window. Whether macOS
-/// really shows it on other Spaces and above an app in full screen is a manual check (T-115, next to J4).
+/// really shows it on other Spaces and above an app in full screen is a manual check (T-127, next to J4).
 /// </summary>
 public sealed class CameraWindowSpacesUiTests(HeadlessSession session)
 {
@@ -144,6 +144,29 @@ public sealed class CameraWindowSpacesUiTests(HeadlessSession session)
 
             Save(harness, defaults);
             window.Settle();
+            Assert.True(window.IsOnAllSpaces);
+            Assert.Equal(AllSpaces, fake.Behavior);
+        });
+
+    [Fact]
+    public Task ThePinOfTheMiniPreviewSwitchesItsSpacesAtOnce() =>
+        session.RunAsync(async scope =>
+        {
+            // T-117: the pin switches Window.Topmost, which the flags follow like a saved option.
+            await using CameraHarness harness = new(window: CameraWindowDefaults.Default with { StartMode = CameraWindowStartMode.Mini });
+            CameraWindow window = harness.Open();
+            window.Settle();
+            FakeWindow fake = Attach(window);
+            global::Avalonia.Controls.Primitives.ToggleButton pin = window.Find<global::Avalonia.Controls.Primitives.ToggleButton>("CameraTopmostButton");
+            Assert.True(window.IsOnAllSpaces);
+
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.False(window.Topmost);
+            Assert.False(window.IsOnAllSpaces);
+            Assert.Equal(Avalonia, fake.Behavior);
+
+            Run(window, () => Ui.Click(window, Ui.CentreOf(pin, window)));
+            Assert.True(window.Topmost);
             Assert.True(window.IsOnAllSpaces);
             Assert.Equal(AllSpaces, fake.Behavior);
         });

@@ -328,6 +328,37 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         return (updated, kept);
     }
 
+    /// <summary>
+    /// T-117, like <see cref="WithLatestOverlayLayouts"/>: the pin of a camera window saves an "always on top" option while
+    /// the settings window may be open. A printer whose option of that mode the window left as it loaded or took it over gets
+    /// the option saved last (<see cref="SettingsChange.LatestCameraTopmost"/>); an option changed in the window keeps the
+    /// window's value. New printers have no saved option.
+    /// </summary>
+    /// <returns>The settings to save, and the options taken instead of the window's (<see langword="null"/> = none).</returns>
+    private static (AppSettings Updated, IReadOnlyList<CameraTopmostChoice>? Kept) WithLatestCameraTopmost(SettingsChange change)
+    {
+        if (change.LatestCameraTopmost?.Read() is not { Count: > 0 } latest)
+        {
+            return (change.Updated, null);
+        }
+
+        AppSettings updated = change.Updated;
+        List<CameraTopmostChoice>? kept = null;
+        foreach (CameraTopmostChoice choice in latest)
+        {
+            if (Find(updated, choice.PrinterId) is { } printer
+                && Find(change.Original, choice.PrinterId) is { } original
+                && printer.Camera.Window.IsTopmost(choice.Mode) == original.Camera.Window.IsTopmost(choice.Mode)
+                && printer.Camera.Window.IsTopmost(choice.Mode) != choice.Topmost)
+            {
+                updated = updated.WithCameraWindowTopmost(printer.Id, choice.Mode, choice.Topmost);
+                (kept ??= []).Add(choice with { PrinterId = printer.Id });
+            }
+        }
+
+        return (updated, kept);
+    }
+
     private static PrinterDefinition? Find(AppSettings settings, string id)
     {
         foreach (PrinterDefinition printer in settings.Printers)
@@ -488,11 +519,14 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
         Task webProxiesStopped = Task.CompletedTask;
         Task oldRunEnded = Task.CompletedTask;
         IReadOnlyDictionary<string, CameraOverlayLayout>? keptLayouts = null;
+        IReadOnlyList<CameraTopmostChoice>? keptTopmost = null;
         try
         {
             change = change with { Updated = WithLatestCameraMonitors(change with { Updated = WithLatestDetectedModels(change) }) };
             (AppSettings withLayouts, keptLayouts) = WithLatestOverlayLayouts(change);
             change = change with { Updated = withLayouts };
+            (AppSettings withTopmost, keptTopmost) = WithLatestCameraTopmost(change);
+            change = change with { Updated = withTopmost };
             try
             {
                 await _settingsStore().SaveAsync(change.Updated, CancellationToken.None).ConfigureAwait(false);
@@ -567,7 +601,7 @@ internal sealed partial class SettingsEditorStore : ISettingsEditorStore
             }
         }
 
-        return new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: undeleted, UnsavedImages: unsavedImages, KeptOverlayLayouts: keptLayouts);
+        return new SettingsSaveResult(SettingsSaveStatus.Saved, UndeletedPasswords: undeleted, UnsavedImages: unsavedImages, KeptOverlayLayouts: keptLayouts, KeptCameraTopmost: keptTopmost);
     }
 
     /// <summary>Step 3: undoes written passwords, newest first. <see langword="false"/> when something could not be undone.</summary>

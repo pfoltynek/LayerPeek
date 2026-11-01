@@ -21,6 +21,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     private readonly Func<CameraWindow, double, WindowChrome?>? _predictChrome;
     private readonly Func<Window, IDisposable>? _track;
     private readonly Action? _bringAppToFront;
+    private readonly IWindowActivator? _activator;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
     private bool _shutDown;
@@ -38,15 +39,21 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     /// diagnostics and About windows, <see cref="AvaloniaAuxiliaryWindow"/>); not for a window Apply shows without
     /// activating it. <see langword="null"/>: nothing.
     /// </param>
+    /// <param name="activator">
+    /// Activates a camera window (T-119: "Bring camera to front" on Windows past the foreground lock,
+    /// <see cref="WindowsWindowActivator"/>); <see langword="null"/>: <see cref="Window.Activate"/>.
+    /// </param>
     public CameraWindows(
         Func<string, PrinterDefinition?, CameraViewModel?> createViewModel,
         IScreenCatalog? screens = null,
         Func<CameraWindow, WindowChrome?>? measureChrome = null,
         Func<Window, IDisposable>? track = null,
         Func<CameraWindow, double, WindowChrome?>? predictChrome = null,
-        Action? bringAppToFront = null)
+        Action? bringAppToFront = null,
+        IWindowActivator? activator = null)
     {
         _bringAppToFront = bringAppToFront;
+        _activator = activator;
         _measureChrome = measureChrome;
         _predictChrome = predictChrome;
         _track = track;
@@ -152,7 +159,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
                     OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: false));
                 };
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.
-                return (new AvaloniaAuxiliaryWindow(window, _track, _bringAppToFront), created);
+                return (new AvaloniaAuxiliaryWindow(window, _track, _bringAppToFront, _activator), created);
             }, activate: activate);
         }
         finally
@@ -188,7 +195,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     }
 
     /// <summary>
-    /// "Show camera" for an open window (T-102, macOS and Windows): restores a minimized window (to full screen when it
+    /// "Bring camera to front" for an open window (T-102, macOS and Windows): restores a minimized window (to full screen when it
     /// was), then activates the app (macOS) and the window like <see cref="Show"/>, also a window on top (it has no Dock
     /// icon or taskbar button to come back by); a window that closed meanwhile (a stale menu item) opens.
     /// </summary>

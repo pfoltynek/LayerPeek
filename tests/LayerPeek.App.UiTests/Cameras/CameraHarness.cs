@@ -1,4 +1,6 @@
 using Avalonia.Headless;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
@@ -55,7 +57,8 @@ internal sealed class CameraHarness : IAsyncDisposable
     /// <param name="miniStrip">What the mini preview strip of the printers with a camera shows (T-110); <see langword="null"/>: everything.</param>
     /// <param name="feeds">The camera connections of the windows; <see langword="null"/>: <see cref="Factory"/> (fakes the test drives).</param>
     /// <param name="first">Changes the definition of the first printer ("a"), e.g. its name (README screenshots); <see langword="null"/>: none.</param>
-    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null)
+    /// <param name="activator">Activates the windows (T-119, a fake); <see langword="null"/>: <c>Window.Activate</c>.</param>
+    public CameraHarness(ICameraWindowStateStore? states = null, IScreenCatalog? screens = null, CameraWindowDefaults? window = null, CameraOverlayLayout? overlay = null, Func<CameraWindow, WindowChrome?>? measureChrome = null, Func<Avalonia.Controls.Window, IDisposable>? track = null, Func<CameraWindow, double, WindowChrome?>? predictChrome = null, ICameraMonitorPathUpdater? monitorPaths = null, OverlayWidgetRegistry? widgets = null, int opacity = CameraOverlayOpacity.DefaultPercent, PrintThumbnails? thumbnails = null, Action? bringAppToFront = null, LayerPeek.App.Platform.ILocalNetworkPrivacy? localNetwork = null, bool? macShortcuts = null, CameraMiniStripSettings? miniStrip = null, ICameraFeedFactory? feeds = null, Func<PrinterDefinition, PrinterDefinition>? first = null, IWindowActivator? activator = null)
     {
         _feeds = feeds ?? Factory;
         _macShortcuts = macShortcuts;
@@ -77,12 +80,15 @@ internal sealed class CameraHarness : IAsyncDisposable
         // does not exceed, so that the nozzle alone decides (T-109; the bed's own rules are tested in Core and App.Tests).
         Cooldown = new CooldownMonitor(Monitor, Time, NullLogger<CooldownMonitor>.Instance);
         Cooldown.Configure([.. settings.Printers.Select(static p => p with { CooldownThresholds = new(50, 45) })], settings.PollingInterval);
-        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront).CameraWindows(Create, screens, measureChrome, predictChrome);
+        Windows = new AuxiliaryWindowFactory(track, bringAppToFront: bringAppToFront, activator: activator).CameraWindows(Create, screens, measureChrome, predictChrome);
     }
 
     public CooldownMonitor Cooldown { get; }
 
     public FakeCameraFeedFactory Factory { get; } = new();
+
+    /// <summary>Records the "always on top" options saved by the pin of the windows (T-117); nothing on disk.</summary>
+    public FakeTopmostWriter TopmostWriter { get; } = new();
 
     /// <summary>Records the layouts saved by the layout mode of the windows (T-091); nothing on disk.</summary>
     public FakeLayoutWriter LayoutWriter { get; }
@@ -208,6 +214,22 @@ internal sealed class CameraHarness : IAsyncDisposable
         window.Settle();
     }
 
+    /// <summary>
+    /// Skips the fade of the window buttons (it runs on real time) for stable frames: each button fades on its own since
+    /// T-117 (the pin stays dimmed while it is checked), so the transitions are removed from every button of the row. The
+    /// outline of the mini preview brightens with the same pointer over the window (T-118), so its fade is removed too.
+    /// </summary>
+    public static void SkipWindowButtonFade(CameraWindow window)
+    {
+        ArgumentNullException.ThrowIfNull(window);
+        foreach (Avalonia.Controls.Control button in window.Find<Avalonia.Controls.StackPanel>("CameraWindowButtons").Children)
+        {
+            button.Transitions = null;
+        }
+
+        window.GetVisualDescendants().OfType<Border>().Single(static b => b.Name == "MiniOutline").Transitions = null;
+    }
+
     public async ValueTask DisposeAsync()
     {
         Windows.Shutdown();
@@ -229,7 +251,7 @@ internal sealed class CameraHarness : IAsyncDisposable
         }
 
         ReconnectingCameraFeed feed = new(_feeds, Time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
-        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork);
+        CameraViewModel viewModel = new(target, feed, Monitor, Printers, new AvaloniaUiDispatcher(), States, Time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, _monitorPaths, _widgets, History, Cooldown, _thumbnails, LayoutWriter, _localNetwork, TopmostWriter);
         if (_macShortcuts is { } mac)
         {
             viewModel.UsesMacShortcuts = mac;

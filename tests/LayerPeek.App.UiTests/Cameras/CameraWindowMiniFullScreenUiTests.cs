@@ -59,9 +59,12 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
             Assert.Equal(full.Top, back.Top);
             Assert.True(full.Left >= 0 && full.Top >= 0);
             Assert.True(back.Right <= window.ClientSize.Width && back.Bottom <= window.ClientSize.Height);
-            Assert.Equal(window.ClientSize.Width - 6, back.Right, 0.5);
-            // The overlay keeps 6 + 30 + 4 + 30 + 4 = 74 DIP free on the right of a top-left overlay: both buttons fit in it.
-            Assert.True(window.ClientSize.Width - full.Left <= 74);
+            // The pin is last, in the corner (T-117): 6 + 30 + 4 to the right of "normal window".
+            Rect pin = BoundsIn(window.Find<Button>("CameraTopmostButton"), window);
+            Assert.Equal(back.Right + 4, pin.Left, 0.5);
+            Assert.Equal(window.ClientSize.Width - 6, pin.Right, 0.5);
+            // The three buttons take 6 + 3 × 30 + 2 × 4 = 104 DIP of the smallest mini preview (240, design T-117 5).
+            Assert.Equal(104, window.ClientSize.Width - full.Left, 0.5);
             Assert.True(back.Bottom <= 40);
         });
 
@@ -239,11 +242,15 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
 
     /// <summary>
     /// Exactly <paramref name="ids"/> are shown, side by side in this order in the top right corner. The normal window has
-    /// "Edit layout" first (T-091, T-076 3.2), the other modes only their two buttons.
+    /// "Edit layout" first (T-091, T-076 3.2); the normal window and the mini preview end with the pin (T-117), full screen
+    /// has only its two buttons.
     /// </summary>
     private static void AssertButtons(CameraWindow window, params string[] ids)
     {
-        string[] expected = ViewModel(window).IsNormal ? ["CameraLayoutButton", .. ids] : ids;
+        CameraViewModel viewModel = ViewModel(window);
+        string[] expected = viewModel.IsNormal ? ["CameraLayoutButton", .. ids, "CameraTopmostButton"]
+            : viewModel.IsMini ? [.. ids, "CameraTopmostButton"]
+            : ids;
         string[] shown = [.. window.Find<StackPanel>("CameraWindowButtons").Children
             .Where(static button => button.IsVisible)
             .Select(static button => AutomationProperties.GetAutomationId(button) ?? "")];
@@ -264,15 +271,16 @@ public sealed class CameraWindowMiniFullScreenUiTests(HeadlessSession session)
             await using CameraHarness harness = new(screens: FakeScreenCatalog.ThreeMonitors(), window: MiniFirst);
             (CameraWindow window, _) = await harness.OpenStreamingAsync(320, 180, 0xFF406080);
             // The buttons appear while the pointer is over the window; the fade-in is skipped (it runs on real time).
-            StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
-            Assert.Equal(0, buttons.Opacity);
-            buttons.Transitions = null;
+            // Without the pointer only the checked pin shows, dimmed (T-117 3).
+            Assert.Equal(0, window.Find<Button>("CameraFullScreenButton").Opacity);
+            Assert.Equal(0.85, window.Find<Button>("CameraTopmostButton").Opacity, 3);
+            CameraHarness.SkipWindowButtonFade(window);
             CameraHarness.ResizeMiniWithGrip(window, window.MinWidth, window.MinHeight);
             Assert.Equal(new Size(240, 168), window.ClientSize);
             window.MouseMove(new Point(40, 60), RawInputModifiers.None);
             window.Settle();
 
-            Assert.Equal(1, buttons.Opacity);
+            Assert.All(window.Find<StackPanel>("CameraWindowButtons").Children.Where(static button => button.IsVisible), static button => Assert.Equal(1, button.Opacity));
             SnapshotAssert.Matches(window, "camera-mini-buttons");
         });
 }

@@ -8,7 +8,8 @@
     repository; the process and the directory are always cleaned up. With -PublishDir it checks an existing publish
     folder instead (used by scripts/release-build.ps1) and leaves that folder as it is.
     On Windows it also checks that the app created its Start menu shortcut for notifications (T-010)
-    and restores the previous shortcut (or removes it) afterwards.
+    and restores the previous shortcut (or removes it) afterwards, and so the registration of its toast activator
+    (HKCU\Software\Classes\CLSID\{CLSID}, LocalServer32 = the exe, T-068, T-133).
     The Release exe has no test mode, so it would write into the real data and log folders of the app
     (macOS ~/Library/Application Support/LayerPeek and ~/Library/Logs/LayerPeek, Windows %APPDATA%\LayerPeek and
     %LOCALAPPDATA%\LayerPeek\logs) and on macOS into what the system keeps under the bundle identifier (T-019:
@@ -28,7 +29,8 @@
     display sleeps the app waits for one before its UI starts (T-096), so the run would check only that wait, not the UI.
 
 .PARAMETER Runtime
-    Runtime identifier (win-x64, win-arm64, osx-arm64). Defaults to the current OS/architecture.
+    Runtime identifier (win-x64, osx-arm64). Defaults to the current OS/architecture. Windows ARM64 (win-arm64) is
+    not supported (T-130) and is refused, like every Windows RID other than win-x64.
 
 .PARAMETER PublishDir
     Existing Native AOT publish folder to check instead of publishing. The folder is not modified or deleted
@@ -105,6 +107,11 @@ catch {
     exit 1
 }
 if ($RestoreOnly) { exit 0 }
+# Windows is supported as win-x64 only (user decision 2026-11-01, T-130); macOS RIDs are not restricted here.
+if ($Runtime -like 'win-*' -and $Runtime -ne 'win-x64') {
+    Write-Host "AOT smoke check NOT RUN: runtime '$Runtime' is not supported. Windows is built as win-x64 only (pass -Runtime win-x64)." -ForegroundColor Red
+    exit 1
+}
 # Physical path: dotnet restore breaks on symlinked paths (Resolve-PhysicalPath).
 $project = Resolve-PhysicalPath (Join-Path $PSScriptRoot '..' 'src' 'LayerPeek.App')
 # The smoke run owns (and deletes) only the folders it creates: the temporary publish folder and the log folder.
@@ -127,6 +134,11 @@ $exitCode = 1
 # The app creates its Start menu shortcut for notifications (T-010) pointing to the temporary exe: restore the previous state afterwards.
 $shortcut = if ($IsWindows -and -not $SkipShellIntegration) { Join-Path ([Environment]::GetFolderPath('Programs')) 'LayerPeek.lnk' } else { $null }
 $shortcutBackup = if ($shortcut -and (Test-Path -LiteralPath $shortcut)) { [System.IO.File]::ReadAllBytes($shortcut) } else { $null }
+# Likewise the registration of its toast activator (T-068): the exe writes its own path into LocalServer32, so Windows
+# would start the published (or deleted temporary) exe for a click on a toast of the installed app (T-133). Restored
+# exactly afterwards; removed when there was none.
+$activatorSubKey = if ($IsWindows -and -not $SkipShellIntegration) { Get-ProductionToastActivatorSubKey -AppEnvironmentPath (Join-Path $project 'Composition' 'AppEnvironment.cs') } else { $null }
+$activatorBackup = if ($activatorSubKey) { Get-RegistryTreeState -SubKey $activatorSubKey } else { $null }
 # Toasts the app shows during the run (it uses the real settings, so e.g. a printer error at start) stay in the
 # notification center. Windows PowerShell 5.1 is used because pwsh cannot load WinRT types.
 # Returns the number of the app's toasts in the notification center, or $null when it cannot be read reliably
@@ -257,6 +269,18 @@ finally {
         }
         elseif (Test-Path -LiteralPath $shortcut) {
             Remove-Item -LiteralPath $shortcut -Force -ErrorAction SilentlyContinue
+        }
+    }
+    if ($activatorSubKey) {
+        try {
+            if ((Format-RegistryTreeState (Get-RegistryTreeState -SubKey $activatorSubKey)) -cne (Format-RegistryTreeState $activatorBackup)) {
+                Restore-RegistryTreeState -SubKey $activatorSubKey -State $activatorBackup
+                Write-Host "Restored the toast activator registration HKCU\$activatorSubKey ($(if ($null -eq $activatorBackup) { 'removed: there was none' } else { 'as before the run' }))."
+            }
+        }
+        catch {
+            Write-Host "The toast activator registration HKCU\$activatorSubKey was NOT restored: $_ Starting the installed LayerPeek once registers it again." -ForegroundColor Red
+            $exitCode = 1
         }
     }
     # Toasts are cleared only when the history was known to be empty before the run and no other instance of the app

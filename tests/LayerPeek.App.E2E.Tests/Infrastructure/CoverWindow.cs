@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Globalization;
 using System.Runtime.InteropServices;
 
 using FlaUI.Core.Input;
@@ -9,13 +10,15 @@ namespace LayerPeek.App.E2E.Tests.Infrastructure;
 /// The "other app" of the always-on-top checks (T-071): a plain magenta popup window of the test process – another
 /// process than the app, never a window of the user. Not topmost, no taskbar button, served by its own
 /// <see cref="MessageLoopThread{T}"/>; disposing destroys it on that thread (it dies with the test process at the latest).
+/// In another colour it is the light or dark background behind a camera window (T-120: the outline of the mini preview
+/// on a light and a dark desktop), laid below the window with <see cref="PutBelow"/>.
 /// </summary>
 internal sealed partial class CoverWindow : IDisposable
 {
     /// <summary>The colour of the window: rare in the camera picture, easy to tell in a capture.</summary>
     public static readonly Color Color = Color.FromArgb(255, 0, 255);
 
-    private const string ClassName = "LayerPeek.E2E.CoverWindow";
+    private const string ClassNamePrefix = "LayerPeek.E2E.CoverWindow";
     private const string Title = "LayerPeek E2E – cover window";
 
     private const uint WsPopup = 0x8000_0000;
@@ -24,10 +27,11 @@ internal sealed partial class CoverWindow : IDisposable
     private const int ErrorClassAlreadyExists = 1410;
     private const uint SwpNoSize = 0x0001;
     private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoActivate = 0x0010;
     private const int IdcArrow = 32512;
 
     private static readonly Lock ClassLock = new();
-    private static bool _classRegistered;
+    private static readonly HashSet<int> RegisteredColors = [];
 
     private readonly MessageLoopThread<nint> _loop;
 
@@ -35,13 +39,16 @@ internal sealed partial class CoverWindow : IDisposable
 
     public nint Handle => _loop.State;
 
-    /// <summary>Creates the window over <paramref name="bounds"/> (physical pixels), shown without activation.</summary>
-    public static async Task<CoverWindow> CreateAsync(Native.Rect bounds)
+    /// <summary>Creates the magenta window over <paramref name="bounds"/> (physical pixels), shown without activation.</summary>
+    public static Task<CoverWindow> CreateAsync(Native.Rect bounds) => CreateAsync(bounds, Color);
+
+    /// <summary>Creates the window in <paramref name="color"/> over <paramref name="bounds"/> (physical pixels), shown without activation.</summary>
+    public static async Task<CoverWindow> CreateAsync(Native.Rect bounds, Color color)
     {
-        RegisterClass();
+        string className = RegisterClass(color);
         MessageLoopThread<nint> loop = await MessageLoopThread<nint>.StartAsync(
             "E2E cover window",
-            () => CreateShown(bounds),
+            () => CreateShown(bounds, className),
             static hwnd => DestroyWindow(hwnd),
             ApartmentState.STA);
         return new CoverWindow(loop);
@@ -139,12 +146,25 @@ internal sealed partial class CoverWindow : IDisposable
         }
     }
 
+    /// <summary>
+    /// Lays the window right below <paramref name="upper"/> in the z-order without activating anything: a background
+    /// behind a window of the app that covers nothing of it. Below an always-on-top window Windows may make it always on
+    /// top as well, so a test closes it before that window leaves "always on top".
+    /// </summary>
+    public void PutBelow(nint upper)
+    {
+        if (!SetWindowPos(Handle, upper, 0, 0, 0, 0, SwpNoMove | SwpNoSize | SwpNoActivate))
+        {
+            throw new InvalidOperationException($"SetWindowPos below 0x{upper:X} failed ({Marshal.GetLastPInvokeError()}).");
+        }
+    }
+
     public void Dispose() => _loop.Dispose();
 
-    private static unsafe nint CreateShown(Native.Rect bounds)
+    private static unsafe nint CreateShown(Native.Rect bounds, string name)
     {
         nint hwnd;
-        fixed (char* className = ClassName)
+        fixed (char* className = name)
         fixed (char* title = Title)
         {
             hwnd = CreateWindowEx(WsExToolWindow, className, title, WsPopup, bounds.Left, bounds.Top, bounds.Width, bounds.Height, 0, 0, GetModuleHandle(null), 0);
@@ -159,16 +179,19 @@ internal sealed partial class CoverWindow : IDisposable
         return hwnd;
     }
 
-    private static unsafe void RegisterClass()
+    /// <summary>Registers the window class of <paramref name="color"/> once (one background brush per class); returns its name.</summary>
+    private static unsafe string RegisterClass(Color color)
     {
+        int argb = color.ToArgb();
+        string name = color.ToArgb() == Color.ToArgb() ? ClassNamePrefix : string.Create(CultureInfo.InvariantCulture, $"{ClassNamePrefix}.{argb & 0xFFFFFF:X6}");
         lock (ClassLock)
         {
-            if (_classRegistered)
+            if (RegisteredColors.Contains(argb))
             {
-                return;
+                return name;
             }
 
-            fixed (char* className = ClassName)
+            fixed (char* className = name)
             {
                 WndClassEx windowClass = new()
                 {
@@ -177,7 +200,7 @@ internal sealed partial class CoverWindow : IDisposable
                     Instance = GetModuleHandle(null),
                     Cursor = LoadCursor(0, IdcArrow),
                     // COLORREF 0x00BBGGRR; one brush for the class, released with the test process.
-                    Background = CreateSolidBrush((uint)(Color.B << 16 | Color.G << 8 | Color.R)),
+                    Background = CreateSolidBrush((uint)(color.B << 16 | color.G << 8 | color.R)),
                     ClassName = className,
                 };
                 if (RegisterClassEx(&windowClass) == 0 && Marshal.GetLastPInvokeError() != ErrorClassAlreadyExists)
@@ -186,8 +209,10 @@ internal sealed partial class CoverWindow : IDisposable
                 }
             }
 
-            _classRegistered = true;
+            RegisteredColors.Add(argb);
         }
+
+        return name;
     }
 
     /// <summary>Default handling only: the window lives until the test disposes it (destroyed on its own thread).</summary>
@@ -228,7 +253,7 @@ internal sealed partial class CoverWindow : IDisposable
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ShowWindow(nint hwnd, int command);
 
-    [LibraryImport("user32.dll")]
+    [LibraryImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool SetWindowPos(nint hwnd, nint insertAfter, int x, int y, int width, int height, uint flags);
 

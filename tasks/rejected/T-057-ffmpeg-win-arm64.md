@@ -1,12 +1,13 @@
 ---
 id: T-057
 title: FFmpeg pro win-arm64 (kamera na Windows ARM64)
-status: todo
+status: rejected
 owner: core-dev
 priority: P2
 platform: windows
 depends_on: []
 ---
+> **Zamítnuto (rozhodnutí uživatele 2026-11-01, T-130):** podpora win-arm64 se ruší. Úkol se nebude implementovat.
 
 ## Cíl
 Uživatel chce vydávat i `win-arm64` (rozhodnutí 2026-10-21) a kamera tam má fungovat stejně jako na `win-x64`. Dnes `build/FFmpeg.targets` stahuje nativní knihovny FFmpeg jen pro `win-x64` (podmínka `LayerPeekFFmpegEnabled`, `RuntimeIdentifier` prázdný nebo `win-x64`), takže publish `win-arm64` žádné DLL FFmpeg neobsahuje a kamera tam hlásí chybějící knihovny.
@@ -27,18 +28,18 @@ Navazuje na kód T-014, který je už sloučený v `develop` (T-014 zůstává v
 - Dokumentace: `docs/prerequisites.md` (sekce FFmpeg: obě architektury, ruční naplnění cache pro ARM64) a poznámky v T-014 / T-026 tam, kde se píše „jen win-x64“.
 
 ## Akceptační kritéria
-- [ ] `dotnet publish src/LayerPeek.App -c Release -r win-arm64` obsahuje 5 DLL FFmpeg (ARM64) a `FFmpeg-LICENSE.txt`. Publish `win-x64` obsahuje beze změny x64 knihovny.
-- [ ] SHA256 ARM64 archivu je připnutý v `build/FFmpeg.targets` a ověřený po stažení. Při neshodě build selže stejně jako u x64.
-- [ ] Build bez RID na x64 stroji se chová stejně jako dnes (beze změny pro vývoj na x64)
-- [ ] Okno licencí a test `ThirdPartyLicenses` pokrývají oba připnuté buildy
-- [ ] AOT publish `win-arm64` bez trim/AOT varování z kódu projektu
-- [ ] **Ručně (ARM64 zařízení):** AOT exe `win-arm64` se spustí (tray ikona, menu, okno nastavení), testy FFmpeg projdou a živý stream z kamery Buddy3D se zobrazí. `Setup.exe` `win-arm64` (Velopack) nainstaluje aplikaci bez admin práv, zástupce ve Start menu má AUMID `LayerPeek` a odinstalace proběhne (převzato z T-063 a T-056, rozhodnutí uživatele 2026-10-21; `Setup.exe` vznikne podle T-063 nebo skriptem z T-017). Uživatel zatím ARM64 zařízení nemá (2026-10-21): po implementaci úkol zůstává `in-progress`, dokud zařízení nebude k dispozici a ruční ověření neproběhne.
-- [ ] `docs/prerequisites.md` aktuální
-- [ ] `dotnet build` a `dotnet test` bez chyb a varování
+- [ ] `dotnet publish src/LayerPeek.App -c Release -r win-arm64` obsahuje 5 DLL FFmpeg (ARM64) a `FFmpeg-LICENSE.txt`. Publish `win-x64` obsahuje beze změny x64 knihovny. → zamítnuto (T-130)
+- [ ] SHA256 ARM64 archivu je připnutý v `build/FFmpeg.targets` a ověřený po stažení. Při neshodě build selže stejně jako u x64. → zamítnuto (T-130)
+- [ ] Build bez RID na x64 stroji se chová stejně jako dnes (beze změny pro vývoj na x64) → zamítnuto (T-130)
+- [ ] Okno licencí a test `ThirdPartyLicenses` pokrývají oba připnuté buildy → zamítnuto (T-130)
+- [ ] AOT publish `win-arm64` bez trim/AOT varování z kódu projektu → zamítnuto (T-130)
+- [ ] **Ručně (ARM64 zařízení):** AOT exe `win-arm64` se spustí (tray ikona, menu, okno nastavení), testy FFmpeg projdou a živý stream z kamery Buddy3D se zobrazí. `Setup.exe` `win-arm64` (Velopack) nainstaluje aplikaci bez admin práv, zástupce ve Start menu má AUMID `LayerPeek` a odinstalace proběhne (převzato z T-063 a T-056, rozhodnutí uživatele 2026-10-21; `Setup.exe` vznikne podle T-063 nebo skriptem z T-017). Uživatel zatím ARM64 zařízení nemá (2026-10-21): po implementaci úkol zůstává `in-progress`, dokud zařízení nebude k dispozici a ruční ověření neproběhne. → zamítnuto (T-130)
+- [ ] `docs/prerequisites.md` aktuální → zamítnuto (T-130)
+- [ ] `dotnet build` a `dotnet test` bez chyb a varování → zamítnuto (T-130)
 
 ## Otevřené otázky
 - ~~Ruční ověření na ARM64~~ → uživatel zatím nemá zařízení s Windows na ARM64 (2026-10-21). Po implementaci úkol zůstane `in-progress`, dokud zařízení nebude k dispozici. Do té doby se `win-arm64` nevydává (T-055).
 - **Vývoj na ARM64 bez RID:** má build bez zadaného RID na ARM64 stroji opravdu brát ARM64 knihovny (navrženo výše), nebo se vývoj na ARM64 nepředpokládá a stačí knihovny jen pro publish `win-arm64`?
 
 ## Poznámky k implementaci
-(vyplní agent po dokončení)
+Zamítnuto (rozhodnutí uživatele 2026-11-01, T-130): podpora win-arm64 se ruší. Uživatel nemá zařízení s Windows na ARM64, na kterém by ji mohl testovat, a Windows se proto vydává a podporuje jen jako `win-x64`. Nic z úkolu se neimplementovalo; kritéria zůstávají nezaškrtnutá. Úklid skriptů, dokumentace a zmínek v ostatních úkolech je v T-130.

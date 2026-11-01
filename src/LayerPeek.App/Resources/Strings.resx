@@ -848,8 +848,8 @@
     <comment>Item of a printer submenu while its camera window is open; closes the window. "_" marks the access key: unique within the submenu and on the same noun as MenuShowCamera, so the key stays the same in both states.</comment>
   </data>
   <data name="MenuCameraToFront" xml:space="preserve">
-    <value>_Show camera</value>
-    <comment>Item of a printer submenu on macOS while its camera window is open, right above MenuHideCamera (T-102); brings the window to the front. Same wording as MenuShowCamera. "_" marks the access key: unique within the submenu, so not on the noun MenuHideCamera uses (macOS menus do not show access keys).</comment>
+    <value>Bring camera to _front</value>
+    <comment>Item of a printer submenu while its camera window is open, right above MenuHideCamera (T-102); brings the window to the front (restores it when minimized). Worded unlike MenuShowCamera, so that it is not mistaken for opening the camera next to "Hide camera". "_" marks the access key: unique within the submenu, so not on the noun MenuHideCamera uses.</comment>
   </data>
   <data name="CameraTitle" xml:space="preserve">
     <value>{0} – Camera</value>
@@ -1293,6 +1293,22 @@
   </data>
   <data name="CameraLayoutEdit" xml:space="preserve">
     <value>Edit layout</value>
+  </data>
+  <data name="CameraLayoutEditMenu" xml:space="preserve">
+    <value>_Edit layout</value>
+    <comment>Context menu item of the camera window (T-117 Q-D1); CameraLayoutEdit without the access key stays the button tip. "_" marks the access key (unique within the menu, see CameraContextMenuAccessKeyTests).</comment>
+  </data>
+  <data name="CameraTopmostOn" xml:space="preserve">
+    <value>Always on top: on</value>
+    <comment>Tip and accessible name of the pin of the camera window (T-117) while "always on top" is on.</comment>
+  </data>
+  <data name="CameraTopmostOff" xml:space="preserve">
+    <value>Always on top: off</value>
+    <comment>Tip and accessible name of the pin of the camera window (T-117) while "always on top" is off.</comment>
+  </data>
+  <data name="CameraTopmostMenu" xml:space="preserve">
+    <value>Always on _top</value>
+    <comment>Check item of the context menu of the camera window (T-117). "_" marks the access key (unique within the menu, see CameraContextMenuAccessKeyTests).</comment>
   </data>
   <data name="CameraLayoutTitle" xml:space="preserve">
     <value>Layout mode</value>

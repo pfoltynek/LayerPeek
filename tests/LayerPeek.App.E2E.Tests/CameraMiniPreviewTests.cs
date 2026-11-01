@@ -227,7 +227,7 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
             await run.GuardAsync("mini-old-narrow", async () =>
             {
                 nint window = await run.OpenCameraAsync();
-                await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (240, var h) && Math.Abs(h - (135 + StripCollapsed)) <= 1, WindowTimeout, $"240 × {135 + StripCollapsed} (now {WindowChecks.ClientSizeDip(window)})");
+                await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (240, var h) && Math.Abs(h - (135 + StripCollapsed)) <= 1, WindowTimeout, () => $"240 × {135 + StripCollapsed} (now {WindowChecks.ClientSizeDip(window)})");
                 Native.Rect frame = await Wait.StableAsync(() => WindowRect(window), WindowTimeout, "the window to settle");
                 _report.AppendLine(CultureInfo.InvariantCulture, $"0.1.0 160 × 90 at {narrowX},{narrowY}: {frame}");
                 Assert.True(Math.Abs(frame.Left - narrowX) <= 2, $"The left edge moved: {frame}, expected {narrowX} (widened to the right).");
@@ -250,7 +250,7 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
         await run.GuardAsync("mini-old-settings", async () =>
         {
             nint hwnd = await run.OpenCameraAsync();
-            await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(hwnd) is (240, var h) && Math.Abs(h - (135 + StripCollapsed)) <= 1, WindowTimeout, $"240 × {135 + StripCollapsed} (now {WindowChecks.ClientSizeDip(hwnd)})");
+            await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(hwnd) is (240, var h) && Math.Abs(h - (135 + StripCollapsed)) <= 1, WindowTimeout, () => $"240 × {135 + StripCollapsed} (now {WindowChecks.ClientSizeDip(hwnd)})");
             AssertInsideTheWorkArea(hwnd, "narrow settings");
             Save(hwnd, "mini-old-settings");
             string[] warnings = [.. run.App.ReadLog().Split('\n').Where(static line => line.Contains("is narrower than 240; it is widened to 240", StringComparison.Ordinal))];
@@ -262,6 +262,8 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
     /// <summary>
     /// The strip's text and its name for screen readers (<c>CameraMiniSummary</c>) in the states of the simulator: printing
     /// ("19 % · 2 h 35 min"), cooling down and cooled down after the print (threshold 100 °C), paused, idle, offline.
+    /// Cooled down shows the widget's wording "Cooled down – safe to turn off" in the 320 DIP strip (T-103 Q2 → A, variant
+    /// K1; the shorter "Cooled down · 48 °C" only when it does not fit), its name adds the nozzle and the bed (T-109).
     /// </summary>
     [Fact]
     public async Task StripTextFollowsThePrinterStates()
@@ -280,8 +282,9 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
 
                 string cooling = Prefix("CameraMiniCooling");
                 await ExpectSummaryAsync(window, element, "cooling", visible => visible.StartsWith(cooling, StringComparison.Ordinal), accessible => accessible.StartsWith(cooling, StringComparison.Ordinal), TimeSpan.FromSeconds(150));
-                string cooled = Prefix("CameraMiniCooled");
-                await ExpectSummaryAsync(window, element, "cooled", visible => visible.StartsWith(cooled, StringComparison.Ordinal), accessible => accessible.StartsWith(cooled, StringComparison.Ordinal), TimeSpan.FromSeconds(120));
+                string cooled = AppStrings.Get("en", "CameraOverlayCooled");
+                Regex cooledAccessible = FormatPattern("CameraMiniCooledAccessibleBed");
+                await ExpectSummaryAsync(window, element, "cooled", visible => visible == cooled, accessible => accessible.StartsWith(cooled + ", ", StringComparison.Ordinal) && cooledAccessible.IsMatch(accessible), TimeSpan.FromSeconds(120));
 
                 string paused = AppStrings.Get("en", "StatePaused");
                 run.Printer.Simulation.SetScenario(PrinterScenario.Paused);
@@ -315,10 +318,17 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
         return text[..text.IndexOf('{', StringComparison.Ordinal)];
     }
 
+    /// <summary>
+    /// The whole text of <paramref name="key"/> with each placeholder as a whole number ("Cooled down – safe to turn off,
+    /// nozzle 48 °C, bed 39 °C").
+    /// </summary>
+    private static Regex FormatPattern(string key) =>
+        new("^" + Regex.Replace(Regex.Escape(AppStrings.Get("en", key)), @"\\\{\d+\}", @"\d+") + "$", RegexOptions.CultureInvariant);
+
     private async Task ExpectSummaryAsync(nint window, AutomationElement element, string state, Func<string, bool> visible, Func<string, bool> accessible, TimeSpan timeout)
     {
         (string Visible, string Accessible) summary = default;
-        await Wait.UntilAsync(() => visible((summary = CameraWidgets.MiniSummary(element)).Visible) && accessible(summary.Accessible), timeout, $"the strip in the state {state} (now \"{summary.Visible}\" / \"{summary.Accessible}\")");
+        await Wait.UntilAsync(() => visible((summary = CameraWidgets.MiniSummary(element)).Visible) && accessible(summary.Accessible), timeout, () => $"the strip in the state {state} (now \"{summary.Visible}\" / \"{summary.Accessible}\")");
         _report.AppendLine(CultureInfo.InvariantCulture, $"{state}: \"{summary.Visible}\" / screen reader \"{summary.Accessible}\"");
         Save(window, "mini-state-" + state);
     }
@@ -347,7 +357,7 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
 
     /// <summary>The client size is the 320 DIP wide 16:9 image with a strip of <paramref name="strip"/> DIP below it.</summary>
     private static Task ExpectSizeAsync(nint window, int strip, string what) =>
-        Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == (ImageWidth, ImageHeight + strip), WindowTimeout, $"{what}: {ImageWidth} × {ImageHeight + strip} (now {WindowChecks.ClientSizeDip(window)})");
+        Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) == (ImageWidth, ImageHeight + strip), WindowTimeout, () => $"{what}: {ImageWidth} × {ImageHeight + strip} (now {WindowChecks.ClientSizeDip(window)})");
 
     /// <summary>The height matches the width: a 16:9 image and the collapsed strip (± 1 DIP); returns the size.</summary>
     private static async Task<(int Width, int Height)> ExpectCorrectedAsync(nint window, string what)
@@ -360,7 +370,7 @@ public sealed partial class CameraMiniPreviewTests(E2EFixture fixture)
                 return Math.Abs(size.height - ((size.width * 9.0 / 16) + StripCollapsed)) <= 1;
             },
             WindowTimeout,
-            $"{what}: the height corrected to the width (now {WindowChecks.ClientSizeDip(window)})");
+            () => $"{what}: the height corrected to the width (now {WindowChecks.ClientSizeDip(window)})");
         return size;
     }
 

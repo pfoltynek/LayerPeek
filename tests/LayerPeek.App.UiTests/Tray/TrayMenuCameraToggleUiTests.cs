@@ -226,7 +226,7 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
         });
 
     [Fact]
-    public Task ShowCameraBringsTheOpenWindowToTheFrontAndRestoresItsFullScreen() =>
+    public Task BringToFrontBringsTheOpenWindowToTheFrontAndRestoresItsFullScreen() =>
         session.RunAsync(static async scope =>
         {
             List<string> activations = [];
@@ -237,8 +237,8 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             Wiring.Click(tray.CameraItem());
             CameraWindow window = scope.Track(cameras.Windows.OpenWindows["a"]);
             window.Settle();
-            // "Show camera" right above "Hide camera" (shown by the native menu without the access key marker).
-            Assert.Equal("_Show camera", tray.SubmenuItem(0, 1).Header);
+            // "Bring camera to front" right above "Hide camera".
+            Assert.Equal("Bring camera to _front", tray.SubmenuItem(0, 1).Header);
             Assert.Equal(HideCamera, tray.CameraItem().Header);
 
             ((CameraViewModel)window.DataContext!).ToggleFullScreenCommand.Execute(null);
@@ -255,7 +255,7 @@ public sealed class TrayMenuCameraToggleUiTests(HeadlessSession session)
             Assert.Equal(["app"], activations);
             // Still the same single window, and the item stays while it is open.
             Assert.Same(window, Assert.Single(cameras.Windows.OpenWindows).Value);
-            Assert.Equal("_Show camera", tray.SubmenuItem(0, 1).Header);
+            Assert.Equal("Bring camera to _front", tray.SubmenuItem(0, 1).Header);
 
             Wiring.Click(tray.CameraItem());
             Assert.Empty(cameras.Windows.OpenWindows);

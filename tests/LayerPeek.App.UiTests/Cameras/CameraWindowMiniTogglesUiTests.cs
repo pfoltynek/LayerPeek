@@ -546,8 +546,7 @@ public sealed class CameraWindowMiniTogglesUiTests(HeadlessSession session)
     /// <summary>The window buttons fade in while the pointer is over the window; hidden for stable snapshots.</summary>
     private static void HideWindowButtons(CameraWindow window)
     {
-        StackPanel buttons = window.Find<StackPanel>("CameraWindowButtons");
-        buttons.Transitions = null;
+        CameraHarness.SkipWindowButtonFade(window);
         window.MouseMove(new Point(-10, -10));
         window.Settle();
     }

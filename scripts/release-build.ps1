@@ -21,15 +21,15 @@
     clean working tree can be uploaded.
 
 .PARAMETER Runtime
-    RIDs to build. Default: the default RIDs of this OS (Windows: win-x64, macOS: osx-arm64). win-arm64 must be
-    requested explicitly and its files are not uploaded until T-057 is done. RIDs of another OS are refused.
+    RIDs to build. Default: the default RIDs of this OS (Windows: win-x64, macOS: osx-arm64). RIDs of another OS and
+    unknown RIDs are refused; Windows ARM64 (win-arm64) is not supported (T-130).
 
 .PARAMETER SmokeSeconds
     How long the published app must keep running in the AOT smoke test. Default 10.
 
 .EXAMPLE
     pwsh scripts/release-build.ps1
-    pwsh scripts/release-build.ps1 -Runtime win-x64, win-arm64
+    pwsh scripts/release-build.ps1 -Runtime win-x64
 #>
 #Requires -Version 7.2
 [CmdletBinding()]

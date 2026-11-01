@@ -183,7 +183,7 @@ public sealed class CameraWindowTests(E2EFixture fixture)
     /// <summary>The window is the mini preview: 320×213 (image and strip), in the bottom right corner of <paramref name="monitor"/>, on top, no taskbar button.</summary>
     private static async Task ExpectMiniPreviewAsync(nint window, Native.MonitorInfo monitor, string context)
     {
-        await Wait.UntilAsync(() => ClientDip(window) == (320, 213), TimeSpan.FromSeconds(10), $"{context}: 320×213 (now {ClientDip(window)})");
+        await Wait.UntilAsync(() => ClientDip(window) == (320, 213), TimeSpan.FromSeconds(10), () => $"{context}: 320×213 (now {ClientDip(window)})");
         await Wait.UntilAsync(() => IsTopmost(window), TimeSpan.FromSeconds(5), $"{context}: on top");
         await Wait.UntilAsync(() => !Native.HasTaskbarButton(window), TimeSpan.FromSeconds(5), $"{context}: no taskbar button");
         Assert.True(Native.IsWindowVisible(window), $"{context}: the window is visible.");

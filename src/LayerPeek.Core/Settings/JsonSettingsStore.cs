@@ -270,6 +270,51 @@ public sealed class JsonSettingsStore : ISettingsStore, IDisposable
         }
     }
 
+    public async Task<CameraWindowTopmostStoreResult> SetCameraWindowTopmostAsync(string printerId, CameraWindowMode mode, bool topmost, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        if (mode is not (CameraWindowMode.Normal or CameraWindowMode.Mini))
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Only the normal window and the mini preview have an always-on-top option.");
+        }
+
+        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            // A file still held by another process after the retries is thrown: "nothing written" would hide that the
+            // option the user just switched was not saved.
+            byte[]? content = await ReadAllBytesAsync(cancellationToken).ConfigureAwait(false);
+            if (content is null)
+            {
+                return CameraWindowTopmostStoreResult.LeftAlone;
+            }
+
+            CameraWindowTopmostStoreResult result;
+            byte[]? written;
+            try
+            {
+                result = CameraWindowTopmostValueWriter.Write(content, printerId, mode, topmost, out written);
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+            {
+                // Not valid JSON, or invalid UTF-8 in a property name or printer id: not ours to change.
+                return CameraWindowTopmostStoreResult.LeftAlone;
+            }
+
+            if (result != CameraWindowTopmostStoreResult.Written)
+            {
+                return result;
+            }
+
+            await WriteAtomicallyAsync(written!, cancellationToken).ConfigureAwait(false);
+            return result;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public void Dispose() => _gate.Dispose();
 
     /// <summary>
