@@ -41,7 +41,7 @@ zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných krok
       Výstup potřebují `mac.gatekeeper*` a oddíl 5.
       Ověřeno 2026-10-30 (agent, `develop` 33a2678, verze 0.3.1): kód 0, všech 7 souborů v `dist/`, `shasum -c` = OK,
       `codesign --verify --deep --strict` platný, hardened runtime u všech Mach-O, AOT smoke test `.app` prošel (UIElement).
-- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část macOS; bez toho na Macu selže 12 snímkových testů):
+- [x] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část macOS; bez toho na Macu selže 12 snímkových testů):
       přegenerovat macOS sadu `tests/LayerPeek.App.UiTests/Snapshots/macOS/` –
       `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`, commitnout jen změněné
       `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`, `camera-mini-strip-chart-steady.png`,
@@ -52,7 +52,7 @@ zbyly (T-038 otázky 2–3, T-100 otázky 1–2), jsou tu u příslušných krok
       a testy spustit znovu bez proměnné. Potom přegenerovat obrázky README (`docs/readme-screenshots.md`, generují se
       na macOS): změní se `docs/images/{en,cs}/camera-mini.jpg` (špendlík), ostatní obrázky zkontrolovat (rezerva
       tlačítek okna 146 místo 112 může zúžit kartu nahoře uprostřed v `camera-window.jpg`), nesouvisející změny vrátit.
-- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS; bez toho na Macu selže
+- [x] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS; bez toho na Macu selže
       14 snímkových testů): přegenerovat macOS sadu `tests/LayerPeek.App.UiTests/Snapshots/macOS/` stejným postupem jako
       u T-117 (lze spojit do jednoho běhu) – nové `camera-mini-outline.png` a `camera-mini-outline-hover.png`, změněné
       (tenký obrys po obvodu) `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`,
@@ -245,4 +245,8 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - (žádné vlastní; rozhodovací body T-038 otázky 2–3 a T-100 otázky 1–2 jsou u kroků výše)
 
 ## Poznámky k implementaci
-(vyplní agent / uživatel po ověření)
+- 2026-11-01 (snímky T-117 a T-118, macOS): na developu po T-117/T-118 selhalo na Macu 14 snímkových testů (2 chybějící
+  `camera-mini-outline*.png`, 12 malých náhledů bez špendlíku a obrysu). macOS sada přegenerována; nové snímky odpovídají
+  sadě Windows (špendlík vpravo nahoře, tenký obrys). `camera-layout-mode.png` a `camera-layout-mode-de-480.png` se
+  přepsaly také, ale se starými referencemi projdou v toleranci – vráceny. README: změnil se jen
+  `docs/images/{en,cs}/camera-mini.jpg` (špendlík a obrys), `camera-window.jpg` beze změny. Celá sada testů na Macu prošla.
