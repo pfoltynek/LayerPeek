@@ -15,7 +15,7 @@ namespace LayerPeek.App.UiTests.Cameras;
 
 /// <summary>
 /// The macOS shortcuts of the camera window (T-100, user decision 2026-10-29): ⌃⌘F toggles full screen next to F11, ⌘. is
-/// Esc, ⌘W closes the window; the texts name ⌃⌘F. Forced through <see cref="CameraViewModel.UsesMacShortcuts"/> on every
+/// Esc, ⌘W closes the window; the texts name ⌃⌘F; ⌃-click opens the context menu (T-138). Forced through <see cref="CameraViewModel.UsesMacShortcuts"/> on every
 /// OS; the Windows variant (F11 only, no ⌘ shortcuts) is checked the same way.
 /// </summary>
 public sealed class CameraWindowMacShortcutsUiTests(HeadlessSession session)
@@ -177,6 +177,58 @@ public sealed class CameraWindowMacShortcutsUiTests(HeadlessSession session)
             Assert.True(viewModel.IsFullScreen);
             Press(window, Key.Escape, PhysicalKey.Escape, RawInputModifiers.None);
             Assert.True(viewModel.IsNormal);
+        });
+
+    /// <summary>⌃-click over the image at <paramref name="point"/>: the left button with ⌃ held, pressed and released.</summary>
+    private static void ControlClick(CameraWindow window, Point point)
+    {
+        window.MouseDown(point, MouseButton.Left, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.Control);
+        Dispatcher.UIThread.RunJobs();
+        window.Settle();
+    }
+
+    [Fact]
+    public Task ControlClickOpensTheContextMenuInTheNormalWindowAndTheMiniPreview() =>
+        session.RunAsync(static async scope =>
+        {
+            await using CameraHarness harness = new(macShortcuts: true);
+            CameraWindow window = OpenNormal(harness);
+            CameraViewModel viewModel = ViewModel(window);
+            ContextMenu menu = window.ContextMenu!;
+            bool topmost = window.Topmost;
+
+            // The release over the open menu runs no item; the left button did nothing else.
+            ControlClick(window, new Point(100, 100));
+            Assert.True(menu.IsOpen);
+            Assert.True(viewModel.IsNormal);
+            Assert.Equal(topmost, window.Topmost);
+            menu.Close();
+            window.Settle();
+
+            viewModel.ShowMiniCommand.Execute(null);
+            window.Settle();
+            Assert.True(viewModel.IsMini);
+            topmost = window.Topmost;
+            ControlClick(window, new Point(60, 60));
+            Assert.True(menu.IsOpen);
+            Assert.True(viewModel.IsMini);
+            Assert.Equal(topmost, window.Topmost);
+            menu.Close();
+            window.Settle();
+        });
+
+    [Fact]
+    public Task ControlClickIsAPlainClickWithoutTheMacShortcuts() =>
+        session.RunAsync(static async scope =>
+        {
+            await using CameraHarness harness = new(macShortcuts: false);
+            CameraWindow window = OpenNormal(harness);
+
+            ControlClick(window, new Point(100, 100));
+
+            Assert.False(window.ContextMenu!.IsOpen);
         });
 
     [Fact]

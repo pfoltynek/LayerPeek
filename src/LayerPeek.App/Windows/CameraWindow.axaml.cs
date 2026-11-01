@@ -61,6 +61,8 @@ public sealed partial class CameraWindow : Window
         // DataContext (CameraViewModel) is set by the creator.
         // macOS (T-100): ⌘W closes the window like its close button, ⌘. is Esc, ⌃⌘F is F11 (the KeyBindings).
         MacShortcuts.HandleCloseKeys(this, UsesMacShortcuts, Close, CancelFromKeyboard);
+        // macOS (T-138): ⌃-click opens the context menu like the right button.
+        MacShortcuts.HandleControlClick(this, UsesMacShortcuts);
         AddHandler(KeyDownEvent, OnMacFullScreenKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnKeyRoutingStarted, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyUpEvent, OnKeyRoutingStarted, RoutingStrategies.Tunnel, handledEventsToo: true);
