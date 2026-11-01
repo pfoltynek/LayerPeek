@@ -377,6 +377,8 @@ function Get-VerifyRunInfo {
         [Parameter(Mandatory)] [string] $Script,
         [switch] $Unattended,
         [string[]] $Selected = @(),
+        # T-129: the stand-in file of a test run (LAYERPEEK_VERIFY_STANDINS); only then the report gets a StandIns field.
+        [string] $StandIns,
         [scriptblock] $Git = { param($Arguments) $output = & git -C $RepoRoot @Arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output } else { $null } }
     )
     $commit = & $Git @('rev-parse', 'HEAD')
@@ -391,7 +393,7 @@ function Get-VerifyRunInfo {
     }
     $os = if ($IsMacOS) { "macOS $((& /usr/bin/sw_vers -productVersion 2>$null) -join '') ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))" }
     else { "$([System.Runtime.InteropServices.RuntimeInformation]::OSDescription) ($([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture))" }
-    [ordered]@{
+    $info = [ordered]@{
         Script     = $Script
         Started    = [DateTimeOffset]::Now.ToString('o')
         Commit     = if ($commit) { "$commit".Trim() } else { 'unknown' }
@@ -403,6 +405,24 @@ function Get-VerifyRunInfo {
         Mode       = if ($Unattended) { 'unattended' } else { 'interactive' }
         Selected   = [string[]] $Selected
     }
+    if ($StandIns) { $info.StandIns = $StandIns }
+    $info
+}
+
+function Resolve-VerifyStandInsPath {
+    <#
+    .SYNOPSIS
+        T-129: the full path of the stand-in file of a test run when it lies inside one of -AllowedRoots (the temp folders of
+        the tests), otherwise $null: a stand-in file elsewhere is never loaded. A relative path is relative to -BasePath.
+    #>
+    param([Parameter(Mandatory)] [string] $Path, [Parameter(Mandatory)] [AllowEmptyCollection()] [AllowEmptyString()] [string[]] $AllowedRoots, [Parameter(Mandatory)] [string] $BasePath)
+    $comparison = if ($IsWindows) { [StringComparison]::OrdinalIgnoreCase } else { [StringComparison]::Ordinal }
+    $full = [System.IO.Path]::GetFullPath($Path, $BasePath)
+    foreach ($root in @($AllowedRoots | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+        $prefix = [System.IO.Path]::TrimEndingDirectorySeparator([System.IO.Path]::GetFullPath($root, $BasePath)) + [System.IO.Path]::DirectorySeparatorChar
+        if ($full.StartsWith($prefix, $comparison)) { return $full }
+    }
+    $null
 }
 
 function Get-VerifySummary {
@@ -433,6 +453,7 @@ function ConvertTo-VerifyMarkdown {
     $lines.Add("- App version: $($Info.AppVersion)")
     $lines.Add("- OS: $($Info.Os), PowerShell $($Info.PowerShell)")
     $lines.Add("- Mode: $($Info.Mode)")
+    if ($Info.Contains('StandIns') -and $Info.StandIns) { $lines.Add("- **Stand-ins:** ``$($Info.StandIns)`` (test run with stand-in checks, not a real verification)") }
     $lines.Add("- Result: " + (($summary.Keys | ForEach-Object { "$_ $($summary[$_])" }) -join ', '))
     $lines.Add('')
     $lines.Add('| Check | Kind | Result | Closes | Detail |')

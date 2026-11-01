@@ -105,6 +105,8 @@ function Test-RegistryKey([string] $SubKey) {
 
 function Get-CredentialTargets { Get-VerifyCredentialTargets @(& cmdkey.exe /list 2>$null) }
 
+function Remove-CredentialTarget([string] $Target) { $null = & cmdkey.exe "/delete:$Target" 2>&1 }
+
 function Get-ShortcutTarget([string] $Path) {
     if (-not (Test-Path -LiteralPath $Path)) { return $null }
     (New-Object -ComObject WScript.Shell).CreateShortcut($Path).TargetPath
@@ -163,6 +165,23 @@ function Wait-NoLayerPeek($Context, [string] $Why) {
     if (-not (Wait-VerifyCondition -TimeoutSeconds 180 -Condition { -not (Get-Process -Name 'LayerPeek' -ErrorAction SilentlyContinue) })) { Skip-VerifyCheck 'LayerPeek kept running.' }
 }
 
+function Backup-Install {
+    <#
+    .SYNOPSIS
+        What win.install keeps before Setup.exe runs: the state file (credential targets, the Start menu and Startup
+        shortcuts of before), then the folders moved aside (journal). Restore-Install puts it all back.
+    #>
+    $paths = Get-InstallPaths
+    $state = [ordered]@{
+        Installed          = [DateTimeOffset]::Now.ToString('o')
+        CredentialsBefore  = @(Get-CredentialTargets)
+        StartMenuShortcut  = if (Test-Path -LiteralPath $paths.StartMenu) { [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($paths.StartMenu)) } else { $null }
+        StartupShortcut    = if (Test-Path -LiteralPath $paths.Startup) { [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($paths.Startup)) } else { $null }
+    }
+    [System.IO.File]::WriteAllText($paths.State, ($state | ConvertTo-Json -Depth 4))
+    Backup-SmokeProfile -SmokeProfile (Get-InstallProfile)
+}
+
 function Restore-Install {
     <# .SYNOPSIS Puts back what win.install moved and kept: the folders (journal), the shortcuts, removes new credentials. Returns notes. #>
     $paths = Get-InstallPaths
@@ -170,7 +189,7 @@ function Restore-Install {
     if (Test-Path -LiteralPath $paths.State) {
         $state = Get-Content -LiteralPath $paths.State -Raw | ConvertFrom-Json
         foreach ($target in @(Get-CredentialTargets | Where-Object { @($state.CredentialsBefore) -notcontains $_ })) {
-            $null = & cmdkey.exe "/delete:$target" 2>&1
+            Remove-CredentialTarget $target
             $notes.Add("removed the credential $target")
         }
         foreach ($pair in @(@($paths.StartMenu, $state.StartMenuShortcut), @($paths.Startup, $state.StartupShortcut))) {
@@ -264,14 +283,7 @@ $checks = @(
         if (-not (Test-Path -LiteralPath $setup)) { Skip-VerifyCheck "no installer $setup; build it first: pwsh scripts/release-build.ps1" }
         if ((Test-Path -LiteralPath $paths.UpdateExe) -or (Test-RegistryKey $script:UninstallSubKey)) { Skip-VerifyCheck 'LayerPeek is installed on this machine; the check never touches a real installation.' }
         Wait-NoLayerPeek $c 'before the install'
-        $state = [ordered]@{
-            Installed          = [DateTimeOffset]::Now.ToString('o')
-            CredentialsBefore  = @(Get-CredentialTargets)
-            StartMenuShortcut  = if (Test-Path -LiteralPath $paths.StartMenu) { [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($paths.StartMenu)) } else { $null }
-            StartupShortcut    = if (Test-Path -LiteralPath $paths.Startup) { [Convert]::ToBase64String([System.IO.File]::ReadAllBytes($paths.Startup)) } else { $null }
-        }
-        [System.IO.File]::WriteAllText($paths.State, ($state | ConvertTo-Json -Depth 4))
-        Backup-SmokeProfile -SmokeProfile (Get-InstallProfile)
+        Backup-Install
         $install = Invoke-VerifyTool -Context $c -Label 'setup' -FilePath $setup -ArgumentList @('--silent')
         if ($install.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $paths.InstalledExe)) { return New-VerifyResult FAIL "Setup.exe --silent ended with $($install.ExitCode); run -Only win.uninstall to clean up." }
         $shortcut = Get-ShortcutTarget $paths.StartMenu
@@ -367,6 +379,21 @@ $checks = @(
     }
 )
 
+# Test seam (T-129, tools/windows-verify.Tests.ps1): a file dot-sourced here may replace the checks and the functions that
+# reach the user profile (Get-InstallPaths, Get-CredentialTargets, Remove-CredentialTarget), so that the Pester tests run
+# the real main part of this script, interactive answers through standard input included, against a sandbox. Never set
+# in a real run. Only a file inside a temp folder of the tests is loaded (user decision 2026-11-01); the report names it.
+$script:StandIns = $null
+if ($env:LAYERPEEK_VERIFY_STANDINS) {
+    $script:StandIns = Resolve-VerifyStandInsPath -Path $env:LAYERPEEK_VERIFY_STANDINS -AllowedRoots @($env:LAYERPEEK_PESTER_TESTS_TEMP, [System.IO.Path]::GetTempPath()) -BasePath (Get-Location).ProviderPath
+    if (-not $script:StandIns) {
+        Write-Host "LAYERPEEK_VERIFY_STANDINS=$($env:LAYERPEEK_VERIFY_STANDINS) is not inside the temp folder of the tests (LAYERPEEK_PESTER_TESTS_TEMP or $([System.IO.Path]::GetTempPath())): refused, no check was run. Unset the variable for a real verification." -ForegroundColor Red
+        exit 2
+    }
+    Write-Host "STAND-INS: $($script:StandIns) (test run, not a real verification)" -ForegroundColor Yellow
+    . $script:StandIns
+}
+
 # ---------------------------------------------------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------------------------------------------------
@@ -410,7 +437,7 @@ Write-Host "LayerPeek Windows verification ($($context.Unattended ? 'unattended'
 $pending = Test-Path -LiteralPath (Get-InstallPaths).State
 
 $results = Invoke-VerifyRun -Checks $selected -Context $context
-$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/windows-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id)
+$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/windows-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -StandIns $script:StandIns
 $report = Write-VerifyReport -Folder $runFolder -Info $info -Results $results
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }

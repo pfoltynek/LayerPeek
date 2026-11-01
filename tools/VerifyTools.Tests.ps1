@@ -195,6 +195,32 @@ Describe 'Report' {
         $markdown | Should -Match 'abc123'
         $markdown | Should -Match ([regex]::Escape('a \| b'))
         $markdown | Should -Match ([regex]::Escape('![evidence/rep.one/shot one.png](evidence/rep.one/shot%20one.png)'))
+        # A real run has no stand-ins: no field, no line.
+        $info.Contains('StandIns') | Should -BeFalse
+        $json.Run.PSObject.Properties['StandIns'] | Should -BeNullOrEmpty
+        $markdown | Should -Not -Match 'Stand-ins'
+    }
+
+    It 'names the stand-in file of a test run in both reports' {
+        $context = New-TestContext
+        $results = @(Invoke-VerifyCheck -Check (New-VerifyCheck -Id 'rep.two' -Title 'two' -Closes 'T-129 x' -Kind Auto -Action { New-VerifyResult PASS 'ok' }) -Context $context)
+        $standIns = Join-Path $script:TempRoot 'standins.ps1'
+        $info = Get-VerifyRunInfo -RepoRoot (Join-Path $PSScriptRoot '..') -Script 'tools/x.ps1' -StandIns $standIns -Git { param($Arguments) $null }
+        $report = Write-VerifyReport -Folder $context.RunFolder -Info $info -Results $results
+        (Get-Content -LiteralPath $report.Json -Raw | ConvertFrom-Json).Run.StandIns | Should -Be $standIns
+        Get-Content -LiteralPath $report.Markdown -Raw | Should -Match ([regex]::Escape("- **Stand-ins:** ``$standIns`` (test run with stand-in checks, not a real verification)"))
+    }
+
+    It 'loads a stand-in file only from inside an allowed root' {
+        $root = Join-Path $script:TempRoot 'allowed'
+        $inside = Join-Path $root 'sub' 'standins.ps1'
+        Resolve-VerifyStandInsPath -Path $inside -AllowedRoots @($null, '', $root) -BasePath $script:TempRoot | Should -Be $inside
+        Resolve-VerifyStandInsPath -Path (Join-Path 'allowed' 'standins.ps1') -AllowedRoots $root -BasePath $script:TempRoot | Should -Be (Join-Path $root 'standins.ps1')
+        Resolve-VerifyStandInsPath -Path $inside -AllowedRoots "$root$([System.IO.Path]::DirectorySeparatorChar)" -BasePath $script:TempRoot | Should -Be $inside
+        # A sibling folder with the same prefix, a way out through .., no root at all.
+        Resolve-VerifyStandInsPath -Path (Join-Path "$root-2" 'standins.ps1') -AllowedRoots $root -BasePath $script:TempRoot | Should -BeNullOrEmpty
+        Resolve-VerifyStandInsPath -Path (Join-Path $root '..' 'standins.ps1') -AllowedRoots $root -BasePath $script:TempRoot | Should -BeNullOrEmpty
+        Resolve-VerifyStandInsPath -Path $inside -AllowedRoots @() -BasePath $script:TempRoot | Should -BeNullOrEmpty
     }
 }
 
