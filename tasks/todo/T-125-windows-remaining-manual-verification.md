@@ -42,6 +42,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
+      → Nahrazuje E2E test `TestNotificationTests.TestNotificationFollowsTheWindowReplacesItselfOpensGeneralAndWarnsWhenWindowsTurnedItOff`
+      (T-128): `pwsh tools/run-e2e.ps1 -Class '*TestNotificationTests'` (systémové změny `Toasts`, `DoNotDisturb`;
+      s `-NoSystemChanges` se přeskočí). Zvuk se ověřuje v XML toastu z historie oznámení (uložené „Všechna“, v okně
+      neuložené „Vypnuto“ → toast je tichý). Odškrtnout po zeleném běhu.
 - [ ] *Nepovinné, doporučené (zbytek T-117 po T-120):* čitelnost ztlumeného špendlíku na světlém obraze kamery a při
       200 % (subjektivní; E2E jen měří jas a ukládá výřezy) a skutečný hlas Předčítání v češtině („Vždy navrchu: zapnuto /
       vypnuto“; E2E ověřuje jen UIA název a stav, které Předčítání čte).
@@ -66,6 +70,14 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       část Windows): skutečný klik na položku „Je dostupná nová verze X.Y.Z“ v menu a na banner toastu; nainstalovaná
       starší verze se přes Velopack aktualizuje z GitHub Releases (bez tokenu) a znovu spustí; `.zip` verze otevře
       stránku vydání.
+      → Nahrazují E2E testy `UpdateTests` (T-128): `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick` (klik na položku
+      menu i na banner; přenosná instalace Velopack v `%TEMP%` z místního zdroje, ne z GitHubu; aktualizovanou kopii spustí
+      test, protože testovací režim aplikaci po aktualizaci znovu nespouští) a
+      `ZipVersionOpensTheReleasePageFromTheBannerAndTheMenuItem`. Běh: `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'`, test
+      instalace jen bez nainstalované LayerPeek (poprvé s T-124). Znovuspuštění samotným `Update.exe` se neověřuje, stačí
+      spuštění aktualizované kopie testem (rozhodnutí uživatele 2026-11-01). Odškrtnout po zeleném běhu.
+- [ ] **T-058** (ruční zbytek, rozhodnutí uživatele 2026-11-01): jednou po skutečném vydání aktualizace nainstalované
+      starší verze z GitHub Releases (bez tokenu) – E2E testy používají jen místní zdroj.
 - [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
       při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
 

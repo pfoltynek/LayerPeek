@@ -105,7 +105,7 @@ Windows, když stažení selže (offline, nebo připnuté vydání z GitHubu zmi
 | **Build Tools for Visual Studio 2026** (nebo Visual Studio 2022/2026) | bezplatné, plné IDE není nutné |
 | Workload **Desktop development with C++** | obsahuje MSVC překladač/linker (komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64`) a Windows SDK |
 | *(volitelně)* komponenta **MSVC ARM64 build tools** (`Microsoft.VisualStudio.Component.VC.Tools.ARM64`) | jen pro publish na `win-arm64` (viz „ARM64 build tools“ níže) |
-| Velopack **`vpk`** | jen pro `scripts/release-build.ps1` (instalátor Windows, od T-058 i `.app` a aktualizace pro macOS); lokální dotnet tool, `dotnet tool restore` ho stáhne sám (viz „Velopack `vpk`“ níže) |
+| Velopack **`vpk`** | jen pro `scripts/release-build.ps1` (instalátor Windows, od T-058 i `.app` a aktualizace pro macOS) a pro E2E test aktualizace `UpdateTests` (T-128, balí Debug sestavení; bez obnoveného `vpk` se přeskočí); lokální dotnet tool, `dotnet tool restore` ho stáhne sám (viz „Velopack `vpk`“ níže) |
 
 Komponenta `Microsoft.VisualStudio.Component.VC.Tools.x86.x64` se samostatně nestahuje, je součástí workloadu *Desktop development with C++* v instalátoru Visual Studia.
 
