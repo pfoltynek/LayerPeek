@@ -10,7 +10,15 @@ Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
 jsou uzavřené. Protějšek pro Windows je
 T-114 ([windows-manual-testing.md](windows-manual-testing.md)).
 
-> Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni, odkazy na T-114 / T-115 doplněny 2026-10-30. Když úkol
+Od 2026-11-01 (rozhodnutí uživatele) je zbytek T-115 rozdělený: v T-115 zůstává sezení s agentem (snímky, build a testy,
+jeden běh `tools/macos-verify.ps1`, kontroly T-117 / T-118 / T-122); instalace (sezení 1.2–1.4 s Gatekeeperem, oznámení
+nainstalované aplikace v sezení 5, „Otevřít při přihlášení“ v sezení 7, odstranění instalace v sezení 12) je v
+[T-126 „macOS – ověření instalátoru“](../tasks/todo/T-126-macos-installer-verification.md) a ostatní ruční kroky (Dock
+v sezení 2.7, sezení 4, 5.4, 6.2, 9, 10.2, 11, skutečná tiskárna a vydání) v
+[T-127 „macOS – zbývající ruční ověření“](../tasks/todo/T-127-macos-remaining-manual-verification.md). U každého bodu
+v úkolech je sezení uvedené. Windows: T-114 je uzavřený, zbytek v T-124 a T-125.
+
+> Stav: sepsáno 2026-10-29 podle stavu úkolů k tomuto dni, odkazy na T-114 / T-115 doplněny 2026-10-30, na T-124–T-127 2026-11-01. Když úkol
 > přidá nebo změní ruční krok, upraví se i tady.
 
 ## Nejdřív skript `tools/macos-verify.ps1` (T-105)
@@ -107,7 +115,7 @@ vydání (sezení 11). Skript nic z toho neoznačí jako hotové.
   po dobu běhu (ukončí ho Ctrl+C nebo `kill %1`).
 
 ### Kam hlásit výsledky
-- Do poznámek sběrného úkolu T-115 (bod podle úkolu a kritéria, které krok uzavírá – uvedeno u každého kroku jako
+- Do poznámek sběrného úkolu T-115, T-126 nebo T-127 – podle toho, kde bod je (bod podle úkolu a kritéria, které krok uzavírá – uvedeno u každého kroku jako
   **Uzavírá**), s verzí macOS a datem. Výsledky rozhodovacích bodů (T-038 otázky 2–3, T-100 otázky 1–2) i do
   poznámek původního úkolu. Zaškrtnutí nechte na agentovi / správci úkolu.
 - Při chybě přiložte výňatek z `~/Library/Logs/LayerPeek/LayerPeek.log` (okno **O aplikaci → Otevřít složku s logy**;
@@ -408,5 +416,7 @@ nejvěrnější varianta kroku 1.2. **Uzavírá:** T-019 kritérium 2.
 ## Mimo Mac (připomínka)
 Vše, co zbývá ověřit na Windows (build a testy po macOS úkolech, windowsová sada snímků z T-101, T-103, T-106, T-109–T-112
 a T-058, instalátor s autostartem z T-017, zkušební toast z T-101, hlavní panel z T-102, web přes proxy z T-107), je ve
-sběrném úkolu [T-114 „Ověření na Windows“](../tasks/todo/T-114-windows-verification.md): skript
-`tools/windows-verify.ps1`, postup v [windows-manual-testing.md](windows-manual-testing.md).
+sběrném úkolu [T-114 „Ověření na Windows“](../tasks/done/T-114-windows-verification.md), od 2026-11-01 uzavřeném;
+zbytek je v [T-124](../tasks/todo/T-124-windows-installer-verification.md) (instalátor, toast po instalaci, autostart)
+a [T-125](../tasks/todo/T-125-windows-remaining-manual-verification.md) (celý běh skriptu, zkušební toast, web přes proxy,
+vydání): skript `tools/windows-verify.ps1`, postup v [windows-manual-testing.md](windows-manual-testing.md).
