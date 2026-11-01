@@ -61,4 +61,54 @@ public sealed class InstallerKindTests
     {
         Assert.False(InstallerKind.StartsWithOriginal(entry));
     }
+
+    [Fact]
+    public void AMissingFolderGetsTheStandInLogOfTheZipVersion()
+    {
+        Assert.Equal(Path.Combine("logs", "LayerPeek.log"), InstallerKind.StandInLog(Folder(exists: false, [], [])));
+    }
+
+    [Fact]
+    public void AnEmptyFolderLeftByAnUninstallGetsTheStandInLogToo()
+    {
+        // T-133: the uninstall of 0.3.1 left an empty %LOCALAPPDATA%\LayerPeek.
+        Assert.Equal(Path.Combine("logs", "LayerPeek.log"), InstallerKind.StandInLog(Folder(exists: true, [], [])));
+    }
+
+    [Fact]
+    public void AnEmptyLogsFolderGetsAStandInAtTheTopSoThatTheRestoreRemovesIt()
+    {
+        // The restore removes the new top-level entries only: a file inside the existing "logs" would stay.
+        string? standIn = InstallerKind.StandInLog(Folder(exists: true, ["logs"], []));
+
+        Assert.NotNull(standIn);
+        Assert.Equal(standIn, Path.GetFileName(standIn));
+        Assert.NotEqual("logs", standIn, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AFolderWithAFileNeedsNoStandIn()
+    {
+        Assert.Null(InstallerKind.StandInLog(Folder(exists: true, ["logs"], [@"logs\LayerPeek.log|10|ABC"])));
+    }
+
+    [Fact]
+    public void TheBackupKeepsEmptyFoldersAndFiles()
+    {
+        string root = UnitTestDirectories.Create();
+        string source = Path.Combine(root, "source");
+        string destination = Path.Combine(root, "backup");
+        Directory.CreateDirectory(Path.Combine(source, "logs"));
+        Directory.CreateDirectory(Path.Combine(source, "data", "empty"));
+        File.WriteAllText(Path.Combine(source, "data", "file.txt"), "x");
+
+        InstallerKind.CopyTree(source, destination, overwrite: false);
+
+        Assert.True(Directory.Exists(Path.Combine(destination, "logs")), "The empty folder 'logs' was not copied.");
+        Assert.True(Directory.Exists(Path.Combine(destination, "data", "empty")), "The empty nested folder was not copied.");
+        Assert.Equal("x", File.ReadAllText(Path.Combine(destination, "data", "file.txt")));
+    }
+
+    private static InstallerState Folder(bool exists, IReadOnlyList<string> entries, IReadOnlyList<string> files) =>
+        new(exists, entries, files, [], false, null, null, null, null, null, [], false, [], false);
 }

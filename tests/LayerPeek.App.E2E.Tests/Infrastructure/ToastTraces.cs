@@ -27,6 +27,13 @@ internal sealed record ToastSystemState(
     string ProductionActivator,
     IReadOnlyList<string> Traces)
 {
+    /// <summary>
+    /// The effective notification setting of the test app (<see cref="ToastSetting"/>, T-133), or <see langword="null"/>
+    /// when not read. A change from <see cref="ToastSetting.Enabled"/> to anything else is a difference (the app stays
+    /// switched off in Windows); any other change is only noted.
+    /// </summary>
+    public string? TestAppSetting { get; init; }
+
     /// <summary>The production app id (T-010); its key and shortcut are only compared.</summary>
     public const string ProductionAppUserModelId = "LayerPeek";
 
@@ -71,6 +78,19 @@ internal sealed record ToastSystemState(
         if (TestAppSettings != end.TestAppSettings)
         {
             differences.Add($"Notification settings of {AppSwitches.AppUserModelId}: {TestAppSettings} at the start, {end.TestAppSettings} at the end.");
+        }
+
+        if (TestAppSetting is not null && end.TestAppSetting is not null && TestAppSetting != end.TestAppSetting)
+        {
+            string text = $"Effective notification setting of {AppSwitches.AppUserModelId} (ToastNotifier.Setting): {TestAppSetting} at the start, {end.TestAppSetting} at the end.";
+            if (TestAppSetting == ToastSetting.Enabled && ToastSetting.IsDisabled(end.TestAppSetting))
+            {
+                differences.Add(text + " Switch them on again in Settings > System > Notifications (T-133).");
+            }
+            else
+            {
+                notes.Add(text);
+            }
         }
 
         if (TestShortcutExists != end.TestShortcutExists)
@@ -124,7 +144,7 @@ internal sealed record ToastSystemState(
     public override string ToString()
     {
         StringBuilder text = new();
-        text.AppendLine(CultureInfo.InvariantCulture, $"Toasts: ToastEnabled={ToastsEnabled}; {AppSwitches.AppUserModelId}: {TestAppSettings}; test shortcut {(TestShortcutExists ? "present" : "missing")}; test activator {(TestActivatorRegistered ? "registered" : "missing")}");
+        text.AppendLine(CultureInfo.InvariantCulture, $"Toasts: ToastEnabled={ToastsEnabled}; {AppSwitches.AppUserModelId}: {TestAppSettings}, effective {TestAppSetting ?? "(not read)"}; test shortcut {(TestShortcutExists ? "present" : "missing")}; test activator {(TestActivatorRegistered ? "registered" : "missing")}");
         text.AppendLine(CultureInfo.InvariantCulture, $"Production app: shortcut {ProductionShortcut}; settings {ProductionSettings}; activator {ProductionActivator}");
         text.AppendLine(CultureInfo.InvariantCulture, $"Traces of {AppSwitches.AppUserModelId}:{(Traces.Count == 0 ? " none" : string.Empty)}");
         foreach (string trace in Traces)

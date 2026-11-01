@@ -2024,6 +2024,94 @@ Describe 'AOT smoke backup of the data and log folders' {
     }
 }
 
+Describe 'AOT smoke restore of the toast activator registration (T-133)' {
+    BeforeAll {
+        # A key of the tests' own below HKCU (never the activator of the app); removed again after every test.
+        $script:TestRegistryRoot = 'Software\LayerPeek.Scripts.Tests'
+        function New-TestRegistryKey {
+            $subKey = "$script:TestRegistryRoot\$([guid]::NewGuid().ToString('N').Substring(0, 12))"
+            $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($subKey, $true)
+            $key.SetValue($null, 'LayerPeek', [Microsoft.Win32.RegistryValueKind]::String)
+            $key.SetValue('Number', 7, [Microsoft.Win32.RegistryValueKind]::DWord)
+            $server = $key.CreateSubKey('LocalServer32', $true)
+            $server.SetValue($null, '"%LOCALAPPDATA%\LayerPeek\current\LayerPeek.exe" -ToastActivated', [Microsoft.Win32.RegistryValueKind]::ExpandString)
+            $server.Dispose()
+            $key.Dispose()
+            $subKey
+        }
+        function Remove-TestRegistryKey([string] $SubKey) {
+            [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($SubKey, $false)
+            $root = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($script:TestRegistryRoot)
+            if ($root) {
+                $empty = $root.SubKeyCount -eq 0 -and $root.ValueCount -eq 0
+                $root.Dispose()
+                if ($empty) { [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($script:TestRegistryRoot, $false) }
+            }
+        }
+    }
+    It 'reads the CLSID of the production activator from the app' {
+        $subKey = Get-ProductionToastActivatorSubKey -AppEnvironmentPath (Join-Path $script:RepoRoot 'src' 'LayerPeek.App' 'Composition' 'AppEnvironment.cs')
+        $subKey | Should -Match '^Software\\Classes\\CLSID\\\{[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}\}$'
+        # The E2E tests compare the same registration (AppSwitches.ProductionToastActivatorClsid).
+        $switches = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'tests' 'LayerPeek.App.E2E.Tests' 'Infrastructure' 'AppSwitches.cs') -Raw
+        $switches -match 'ProductionToastActivatorClsid = "(?<clsid>[^"]+)"' | Should -BeTrue
+        $subKey | Should -BeExactly "Software\Classes\CLSID\{$($Matches['clsid'].ToUpperInvariant())}"
+    }
+    It 'puts back a registration the exe overwrote, exactly' -Skip:(-not $IsWindows) {
+        $subKey = New-TestRegistryKey
+        try {
+            $before = Get-RegistryTreeState -SubKey $subKey
+            $expected = Format-RegistryTreeState $before
+            $expected | Should -Match 'LocalServer32'
+            $expected | Should -Match ([regex]::Escape('%LOCALAPPDATA%'))
+            # What the smoke exe does: its own path in LocalServer32; plus a value and a subkey that were not there.
+            $server = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("$subKey\LocalServer32", $true)
+            $server.SetValue($null, '"C:\temp\layerpeek-aot-smoke-x\LayerPeek.exe" -ToastActivated', [Microsoft.Win32.RegistryValueKind]::String)
+            $server.SetValue('Extra', 'x')
+            $server.Dispose()
+            $null = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("$subKey\New", $true)
+            Format-RegistryTreeState (Get-RegistryTreeState -SubKey $subKey) | Should -Not -BeExactly $expected
+
+            Restore-RegistryTreeState -SubKey $subKey -State $before
+
+            Format-RegistryTreeState (Get-RegistryTreeState -SubKey $subKey) | Should -BeExactly $expected
+            $server = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("$subKey\LocalServer32")
+            try { $server.GetValueKind('') | Should -Be ([Microsoft.Win32.RegistryValueKind]::ExpandString) } finally { $server.Dispose() }
+        }
+        finally {
+            Remove-TestRegistryKey $subKey
+        }
+    }
+    It 'removes a registration the exe created when there was none' -Skip:(-not $IsWindows) {
+        $subKey = "$script:TestRegistryRoot\$([guid]::NewGuid().ToString('N').Substring(0, 12))"
+        try {
+            $before = Get-RegistryTreeState -SubKey $subKey
+            $before | Should -BeNullOrEmpty
+            Format-RegistryTreeState $before | Should -BeExactly '(missing)'
+            $null = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("$subKey\LocalServer32", $true)
+
+            Restore-RegistryTreeState -SubKey $subKey -State $before
+
+            Get-RegistryTreeState -SubKey $subKey | Should -BeNullOrEmpty
+        }
+        finally {
+            Remove-TestRegistryKey $subKey
+        }
+    }
+    It 'backs the registration up before the exe starts and restores it afterwards' {
+        $smoke = Get-Content -LiteralPath (Join-Path $script:RepoRoot 'scripts' 'aot-smoke.ps1') -Raw
+        $backup = $smoke.IndexOf('$activatorBackup = if ($activatorSubKey) { Get-RegistryTreeState -SubKey $activatorSubKey }')
+        $start = $smoke.IndexOf('Start-Process -FilePath $exe')
+        $restore = $smoke.IndexOf('Restore-RegistryTreeState -SubKey $activatorSubKey -State $activatorBackup')
+        $finally = $smoke.IndexOf("`nfinally {")
+        $backup | Should -BeGreaterThan 0
+        $backup | Should -BeLessThan $start
+        $restore | Should -BeGreaterThan $finally
+        # Never with -SkipShellIntegration (the tests of the script do not touch the real registration).
+        $smoke | Should -Match ([regex]::Escape('$activatorSubKey = if ($IsWindows -and -not $SkipShellIntegration)'))
+    }
+}
+
 Describe 'Script help' {
     # Comment-based help must come before #Requires, otherwise Get-Help silently ignores it.
     It 'Get-Help reads the synopsis of <_>' -ForEach 'aot-smoke.ps1', 'release-build.ps1', 'release-upload.ps1', 'release-publish.ps1', 'release.ps1' {

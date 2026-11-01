@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.Versioning;
 using System.Text;
@@ -57,19 +56,9 @@ internal static class ToastHistory
             throw new InvalidOperationException($"'{appId}' is not the app id of the test app; refusing to read its notifications.");
         }
 
-        string powershell = Path.Combine(Environment.SystemDirectory, "WindowsPowerShell", "v1.0", "powershell.exe");
-        ProcessStartInfo start = new(powershell) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
-        foreach (string argument in new[] { "-NoProfile", "-NonInteractive", "-EncodedCommand", Convert.ToBase64String(Encoding.Unicode.GetBytes(Script)) })
-        {
-            start.ArgumentList.Add(argument);
-        }
-
-        start.Environment[AppIdVariable] = appId;
-        using Process process = Process.Start(start) ?? throw new InvalidOperationException("Windows PowerShell did not start.");
-        Task<string> error = process.StandardError.ReadToEndAsync(cancellationToken);
-        string output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken).WaitAsync(TimeSpan.FromSeconds(60), cancellationToken);
-        return Parse(output) ?? throw new InvalidOperationException($"Reading the toast history failed (exit code {process.ExitCode}): {await error}");
+        // The shared runner kills Windows PowerShell after the timeout (T-133).
+        (int exitCode, string output, string error) = await WindowsPowerShell.RunAsync(Script, new Dictionary<string, string> { [AppIdVariable] = appId }, TimeSpan.FromSeconds(60), cancellationToken);
+        return Parse(output) ?? throw new InvalidOperationException($"Reading the toast history failed (exit code {exitCode}): {error}");
     }
 
     /// <summary>The toasts of the script's output, or <see langword="null"/> when it did not end with its count.</summary>
