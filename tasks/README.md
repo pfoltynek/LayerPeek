@@ -27,7 +27,9 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 ## Sběrné ověřovací úkoly (rozhodnutí uživatele 2026-10-30)
 
 Kritérium, které už potřebuje jen ruční ověření uživatelem nebo kontrolu na druhém OS, se smí přesunout do sběrného
-ověřovacího úkolu: **T-114 „Ověření na Windows“** (Windows) nebo **T-115 „Ruční ověření na Macu“** (Mac).
+ověřovacího úkolu. Od 2026-11-01 (rozhodnutí uživatele): Windows → **T-124** (instalátor) nebo **T-125** (vše ostatní);
+Mac → **T-115** (sezení s agentem na Macu), **T-126** (instalátor) nebo **T-127** (vše ostatní). Do 2026-11-01 to byly
+**T-114 „Ověření na Windows“** (uzavřený) a **T-115 „Ruční ověření na Macu“**.
 
 - V původním úkolu se kritérium odškrtne, původní text zůstane a na konec se připíše „→ přesunuto do T-114“ /
   „→ přesunuto do T-115“ (u obou OS „→ přesunuto do T-114 a T-115“). Do `## Poznámky k implementaci` přibude řádek
