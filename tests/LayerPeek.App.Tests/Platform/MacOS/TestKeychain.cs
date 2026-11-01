@@ -89,14 +89,15 @@ internal static partial class TestKeychain
         RequireTestPrefix(prefix);
         List<(string Service, string Account)> items = FindItems(prefix);
         Constants c = Const;
-        foreach (string service in items.Select(static item => item.Service).Distinct(StringComparer.Ordinal))
+        foreach ((string service, string account) in items)
         {
             nint serviceRef = CreateString(service);
+            nint accountRef = CreateString(account);
             nint query = 0;
             try
             {
-                // Without a match limit SecItemDelete removes every item of the service (all accounts).
-                query = CreateDictionary([c.Class, c.AttrService], [c.ClassGenericPassword, serviceRef]);
+                // One item per call: on macOS 27 SecItemDelete with only the service removes just one item of it (T-134).
+                query = CreateDictionary([c.Class, c.AttrService, c.AttrAccount], [c.ClassGenericPassword, serviceRef, accountRef]);
                 int status = SecItemDelete(query);
                 if (status is not Success and not ItemNotFound)
                 {
@@ -106,6 +107,7 @@ internal static partial class TestKeychain
             finally
             {
                 Release(query);
+                Release(accountRef);
                 Release(serviceRef);
             }
         }
