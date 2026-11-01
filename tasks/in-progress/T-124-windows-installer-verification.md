@@ -1,7 +1,7 @@
 ---
 id: T-124
 title: Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace)
-status: todo
+status: in-progress
 owner: qa-reviewer
 priority: P1
 platform: windows
