@@ -117,7 +117,7 @@ public sealed class MacUpdateE2ETests
             using Process second = StartApp(app, variables);
             try
             {
-                // Logged with the display awake or asleep (T-128): "Starting printer monitoring …" only comes while waiting for
+                // Logged with the display awake or asleep (T-133): "Starting printer monitoring …" only comes while waiting for
                 // an active display (T-099), so it never came under caffeinate -d.
                 string offered = $"Update check: version {Next} found by an earlier check is offered.";
                 await UntilAsync(() => Log(data).Contains(offered, StringComparison.Ordinal), second, data, "the updated app to start its services", cancellationToken);

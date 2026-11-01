@@ -1,5 +1,5 @@
 ---
-id: T-128
+id: T-133
 title: E2E test aktualizace na Macu selže se zapnutým displejem
 status: done
 owner: qa-reviewer
@@ -38,3 +38,5 @@ se znovu spustila).
   displeji). Po opravě: se zapnutým displejem 3 / 3, s dočasně nastaveným `LAYERPEEK_TEST_NO_DISPLAY_MS=60000` 1 / 1
   (změna vrácena), všechny tři macOS E2E třídy dohromady 2 / 2 (oznámení přeskočena – „LayerPeek E2E“ nemá povolená
   oznámení). `dotnet build` 0 upozornění, `dotnet test` 8478 testů, 0 selhalo.
+- Přečíslováno z T-128 na T-133: číslo T-128 mezitím dostal na Windows jiný úkol (E2E zkušebního upozornění
+  a aktualizace). Commit opravy (abe7705) je ještě označený T-128.

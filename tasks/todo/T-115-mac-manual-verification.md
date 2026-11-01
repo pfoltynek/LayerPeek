@@ -267,6 +267,9 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
   položky T-122); ruční část položky T-122 zůstává. Profil beze změny.
 - 2026-11-01 (develop a83ad13, macOS 27.2): `dotnet build` Debug i Release 0 upozornění, `dotnet test` 8478 testů,
   0 selhalo (11 testů Klíčenky přeskočeno – zamčená Klíčenka), AOT publish `osx-arm64` a `scripts/aot-smoke.ps1` PASSED.
-  macOS E2E (`LAYERPEEK_E2E=1`): `MacUpdateE2ETests` se zapnutým displejem vždy selhal – chyba testu, opraveno v T-128;
+  macOS E2E (`LAYERPEEK_E2E=1`): `MacUpdateE2ETests` se zapnutým displejem vždy selhal – chyba testu, opraveno v T-133;
   `MacDisplayWaitE2ETests` selhává, když skutečný displej spí (spouštět pod `caffeinate -d -u -i`);
   `MacNotificationsE2ETests` přeskočen (bundle „LayerPeek E2E“ nemá povolená oznámení).
+- 2026-11-01 (develop po sloučení s origin/develop 3bfee91 – T-123, T-128..T-132 z Windows – a po T-133): Debug i Release
+  0 upozornění, `dotnet test` 8481 testů, 0 selhalo; macOS E2E 3 prošly, 1 přeskočen (oznámení); AOT publish a smoke
+  test PASSED.
