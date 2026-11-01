@@ -241,8 +241,9 @@ internal sealed class ToastsEnabledKind() : SystemChangeKind<ToastsEnabledState>
 /// <summary>
 /// Windows' notification settings of the test app (T-068): <c>HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\LayerPeek.E2E</c>,
 /// which Windows creates after the first toast of the app. The original key (usually missing) is restored exactly: a key
-/// that did not exist is deleted, otherwise its values are written back. A toast test switches the app's notifications
-/// and banners on when they are off (<c>Enabled</c> / <c>ShowBanner</c> = 0). The production app's key is never touched.
+/// that did not exist is deleted, otherwise its values are written back; a switch the restore deletes goes to 1 first
+/// (see <see cref="SwitchOnBridge"/>, T-133). A toast test switches the app's notifications and banners on when they are
+/// off or missing (<c>Enabled</c> / <c>ShowBanner</c>). The production app's key is never touched.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnapshot>("ToastSettings", SystemChangeTraits.Toasts, SystemChangeJson.Default.RegistryKeySnapshot)
@@ -272,12 +273,28 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnaps
     public override Task<RegistryKeySnapshot> ReadStateAsync(string? key, CancellationToken cancellationToken) =>
         Task.FromResult(RegistryKeys.Read(SubKey));
 
+    /// <summary>How long a restore waits for Windows to switch the app's notifications on again (<see cref="SwitchOnBridge"/>).</summary>
+    private static readonly TimeSpan EffectiveTimeout = TimeSpan.FromSeconds(15);
+
+    private static readonly TimeSpan EffectiveInterval = TimeSpan.FromSeconds(1);
+
     /// <summary>
     /// Writes the original back and waits until it stays so; when Windows writes the key again meanwhile (it records the
-    /// app's last toasts), the original is written once more (the journal then checks the result).
+    /// app's last toasts), the original is written once more (the journal then checks the result). When the original lacks
+    /// a switch the key has now, the switch first goes to 1 and the restore waits until Windows' notification service took
+    /// it over (<see cref="SwitchOnBridge"/>, T-133): only deleting it would leave the service at the last value written.
     /// </summary>
     protected override async Task RestoreCoreAsync(string? key, RegistryKeySnapshot original, CancellationToken cancellationToken)
     {
+        if (SwitchOnBridge(original, RegistryKeys.Read(SubKey)) is { } bridge)
+        {
+            RegistryKeys.Write(SubKey, bridge);
+            await Task.Delay(Settle, cancellationToken).ConfigureAwait(false);
+            // Not reached in time: restored anyway (the journal checks the key); the snapshot of the run reports the
+            // effective setting, and the next toast run switches the app on again and checks it before its toasts.
+            await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, EffectiveTimeout, EffectiveInterval, cancellationToken).ConfigureAwait(false);
+        }
+
         for (int attempt = 1; attempt <= MaxRestoreAttempts; attempt++)
         {
             RegistryKeys.Write(SubKey, original);
@@ -289,26 +306,43 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnaps
         }
     }
 
+    /// <summary>
+    /// What to write before <paramref name="original"/> when the restore would delete a switch (<c>Enabled</c> /
+    /// <c>ShowBanner</c>, or the whole key) that <paramref name="current"/> has: <paramref name="current"/> with those
+    /// switches at 1 (Windows' default of a missing switch), so that the notification service ends at "on" and not at the
+    /// last value a test wrote (T-133). <see langword="null"/> when the restore deletes no switch.
+    /// </summary>
+    internal static RegistryKeySnapshot? SwitchOnBridge(RegistryKeySnapshot original, RegistryKeySnapshot current)
+    {
+        string[] deleted = [.. Switches.Where(name => current.Value(name) is not null && (!original.Exists || original.Value(name) is null))];
+        return deleted.Length == 0 ? null : WithSwitchesOn(current, deleted);
+    }
+
     public override bool Matches(RegistryKeySnapshot original, RegistryKeySnapshot current) => original.SameAs(current);
 
     public override string Describe(string? key, RegistryKeySnapshot original) =>
         $"Notification settings of the test app, HKCU\\{SubKey}: {original}. By hand: "
-        + (original.Exists ? "regedit, write the values above back." : "regedit, delete that key.");
+        + (original.Exists ? "regedit, write the values above back." : "regedit, set Enabled and ShowBanner to 1 (DWORD), wait a few seconds, then delete that key.")
+        + (original.Value("Enabled") is null ? $" Windows keeps the last switch it took over: notifications of {AppSwitches.AppUserModelId} must stay on (T-133)." : string.Empty);
 
     /// <summary>
-    /// <paramref name="original"/> with the app's notifications and banners on: an existing <c>Enabled</c> /
-    /// <c>ShowBanner</c> of 0 becomes 1; a missing key stays missing (Windows' defaults are on).
+    /// <paramref name="original"/> with the app's notifications and banners on: <c>Enabled</c> / <c>ShowBanner</c> become
+    /// DWORD 1 when they are 0 or missing, also when the key is missing (T-133). A missing switch means Windows' default
+    /// (on) for the key, but Windows' notification service may still hold an earlier 0 (a key deleted while it was 0); a
+    /// written 1 is what the service takes over. A switch of another kind is left alone.
     /// </summary>
     internal static RegistryKeySnapshot WithNotificationsOn(RegistryKeySnapshot original) =>
-        !original.Exists
-            ? original
-            : original with
-            {
-                Values = [.. original.Values.Select(static value =>
-                    Switches.Contains(value.Name, StringComparer.OrdinalIgnoreCase) && value.Kind == nameof(RegistryValueKind.DWord) && value.Data == "0"
-                        ? value with { Data = "1" }
-                        : value)],
-            };
+        WithSwitchesOn(original, [.. Switches.Where(name => original.Value(name) is not { } value || (value.Kind == nameof(RegistryValueKind.DWord) && value.Data == "0"))]);
+
+    /// <summary><paramref name="state"/> (created when missing) with <paramref name="switches"/> as DWORD 1, the other values as they are.</summary>
+    private static RegistryKeySnapshot WithSwitchesOn(RegistryKeySnapshot state, string[] switches) =>
+        switches.Length == 0
+            ? state
+            : new RegistryKeySnapshot(
+                true,
+                [.. state.Values.Where(value => !switches.Contains(value.Name, StringComparer.OrdinalIgnoreCase)),
+                 .. switches.Select(static name => new RegistryValueState(name, nameof(RegistryValueKind.DWord), "1"))],
+                state.SubKeys);
 
     protected override Task ApplyCoreAsync(string? key, RegistryKeySnapshot state, CancellationToken cancellationToken)
     {

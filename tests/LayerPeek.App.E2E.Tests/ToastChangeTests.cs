@@ -82,9 +82,133 @@ public sealed class ToastChangeTests
         // Only the two switches; a string "0" is not a switch.
         Assert.Equal("0", on.Value("ShowInActionCenter")?.Data);
         Assert.Equal("0", on.Value("Other")?.Data);
-        // A missing key means Windows' defaults (on): it stays missing.
-        Assert.Same(RegistryKeySnapshot.Missing, ToastAppSettingsKind.WithNotificationsOn(RegistryKeySnapshot.Missing));
+        // Switched on already: nothing changes.
+        Assert.Same(on, ToastAppSettingsKind.WithNotificationsOn(on));
     }
+
+    [Fact]
+    public void NotificationsOfTheTestAppAreSwitchedOnAlsoWhenTheKeyOrASwitchIsMissing()
+    {
+        // T-133: Windows' notification service may hold an earlier 0 for a missing key; only a written 1 resets it.
+        RegistryKeySnapshot fromMissing = ToastAppSettingsKind.WithNotificationsOn(RegistryKeySnapshot.Missing);
+        Assert.True(fromMissing.SameAs(new RegistryKeySnapshot(true, [new("Enabled", "DWord", "1"), new("ShowBanner", "DWord", "1")], [])), fromMissing.ToString());
+
+        RegistryKeySnapshot withoutSwitches = new(true, [Sound], ["sub"]);
+        RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(withoutSwitches);
+        Assert.True(on.SameAs(new RegistryKeySnapshot(true, [Sound, new("Enabled", "DWord", "1"), new("ShowBanner", "DWord", "1")], ["sub"])), on.ToString());
+
+        // A switch of another kind is left alone (it could be a value Windows does not read as the switch).
+        RegistryKeySnapshot otherKind = new(true, [new("Enabled", "String", "0")], []);
+        Assert.Equal("String", ToastAppSettingsKind.WithNotificationsOn(otherKind).Value("Enabled")?.Kind);
+    }
+
+    [Fact]
+    public void ARestoreThatDeletesTheKeySwitchesTheAppOnFirst()
+    {
+        // TestNotificationTests switched the app off in a key the run created (T-133).
+        RegistryKeySnapshot current = new(true, [EnabledOff, new("ShowBanner", "DWord", "1"), Sound], []);
+
+        RegistryKeySnapshot? bridge = ToastAppSettingsKind.SwitchOnBridge(RegistryKeySnapshot.Missing, current);
+
+        Assert.NotNull(bridge);
+        Assert.True(bridge.SameAs(new RegistryKeySnapshot(true, [new("Enabled", "DWord", "1"), new("ShowBanner", "DWord", "1"), Sound], [])), bridge.ToString());
+    }
+
+    [Fact]
+    public void ARestoreThatDeletesOnlyOneSwitchSwitchesOnlyThatOneOnFirst()
+    {
+        RegistryKeySnapshot original = new(true, [BannerOff, Sound], []);
+        RegistryKeySnapshot current = new(true, [EnabledOff, BannerOff, Sound], []);
+
+        RegistryKeySnapshot? bridge = ToastAppSettingsKind.SwitchOnBridge(original, current);
+
+        Assert.NotNull(bridge);
+        Assert.Equal("1", bridge.Value("Enabled")?.Data);
+        // Written back by the restore itself right after.
+        Assert.Equal("0", bridge.Value("ShowBanner")?.Data);
+    }
+
+    [Fact]
+    public void ARestoreThatDeletesNoSwitchNeedsNoBridge()
+    {
+        Assert.Null(ToastAppSettingsKind.SwitchOnBridge(RegistryKeySnapshot.Missing, RegistryKeySnapshot.Missing));
+        Assert.Null(ToastAppSettingsKind.SwitchOnBridge(RegistryKeySnapshot.Missing, new RegistryKeySnapshot(true, [Sound], [])));
+        // The original has the switches: they are written back as they were.
+        Assert.Null(ToastAppSettingsKind.SwitchOnBridge(new RegistryKeySnapshot(true, [EnabledOff, BannerOff], []), new RegistryKeySnapshot(true, [EnabledOff with { Data = "1" }, BannerOff], [])));
+    }
+
+    [Theory]
+    [InlineData("SETTING Enabled\r\n", "Enabled")]
+    [InlineData("noise\nSETTING DisabledForApplication\n", "DisabledForApplication")]
+    [InlineData("SETTING (unknown)", ToastSetting.Unknown)]
+    [InlineData("", null)]
+    [InlineData("SETTING \n", null)]
+    public void TheEffectiveSettingIsReadFromTheScriptOutput(string output, string? expected)
+    {
+        Assert.Equal(expected, ToastSetting.Parse(output));
+    }
+
+    [Fact]
+    public void OnlyReadOffValuesCountAsSwitchedOff()
+    {
+        Assert.True(ToastSetting.IsDisabled(ToastSetting.DisabledForApplication));
+        Assert.True(ToastSetting.IsDisabled("DisabledForUser"));
+        Assert.False(ToastSetting.IsDisabled(ToastSetting.Enabled));
+        Assert.False(ToastSetting.IsDisabled(ToastSetting.Unknown));
+        Assert.False(ToastSetting.IsDisabled("(not readable: exit code 1)"));
+    }
+
+    [Fact]
+    public async Task WaitingForTheEffectiveSettingStopsAtTheWantedValue()
+    {
+        Queue<string> reads = new([ToastSetting.DisabledForApplication, ToastSetting.DisabledForApplication, ToastSetting.Enabled, "never read"]);
+        int count = 0;
+
+        string setting = await ToastSetting.WaitForAsync(_ => { count++; return Task.FromResult(reads.Dequeue()); }, ToastSetting.Enabled, TimeSpan.FromSeconds(30), TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ToastSetting.Enabled, setting);
+        Assert.Equal(3, count);
+    }
+
+    [Fact]
+    public async Task WaitingForTheEffectiveSettingReturnsTheLastValueAfterTheTimeout()
+    {
+        int count = 0;
+
+        string setting = await ToastSetting.WaitForAsync(_ => { count++; return Task.FromResult(ToastSetting.DisabledForApplication); }, ToastSetting.Enabled, TimeSpan.Zero, TimeSpan.Zero, TestContext.Current.CancellationToken);
+
+        Assert.Equal(ToastSetting.DisabledForApplication, setting);
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void ATestAppSwitchedOffDuringTheRunIsADifference()
+    {
+        ToastSystemState start = State() with { TestAppSetting = ToastSetting.Enabled };
+        List<string> differences = [];
+        List<string> notes = [];
+
+        start.Compare(start with { TestAppSetting = ToastSetting.DisabledForApplication }, differences, notes);
+
+        Assert.Contains(differences, static text => text.Contains("DisabledForApplication at the end", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ATestAppSwitchedOnDuringTheRunOrNotReadIsOnlyNoted()
+    {
+        ToastSystemState start = State() with { TestAppSetting = ToastSetting.DisabledForApplication };
+        List<string> differences = [];
+        List<string> notes = [];
+
+        start.Compare(start with { TestAppSetting = ToastSetting.Enabled }, differences, notes);
+        start.Compare(start with { TestAppSetting = null }, differences, notes);
+
+        Assert.Empty(differences);
+        Assert.Single(notes, static text => text.Contains("Enabled at the end", StringComparison.Ordinal));
+        Assert.Contains("effective DisabledForApplication", start.ToString(), StringComparison.Ordinal);
+    }
+
+    private static ToastSystemState State() => new("(missing)", "(key missing)", false, false, "(missing)", "(key missing)", "(key missing)", []);
 
     [Fact]
     public void ToastStatesSurviveTheJournal()

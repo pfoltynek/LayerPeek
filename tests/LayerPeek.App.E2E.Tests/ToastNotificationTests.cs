@@ -469,6 +469,9 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         /// <summary>How long Windows needs after the test app's Start menu shortcut appeared before it shows the app's toasts.</summary>
         private static readonly TimeSpan ShortcutSettleTime = TimeSpan.FromSeconds(10);
 
+        /// <summary>How long the pre-flight waits for Windows to take the switched-on notifications of the test app over.</summary>
+        private static readonly TimeSpan PreflightTimeout = TimeSpan.FromSeconds(15);
+
         private ToastRun(StringBuilder report) => _report = report;
 
         public AppInstance App { get; private set; } = null!;
@@ -660,6 +663,23 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             }
         }
 
+        /// <summary>
+        /// Pre-flight (T-133): Windows' effective setting of the test app is on once the guard switched it on. Its
+        /// notification service may keep an earlier "off" although the key says on (a key deleted while it was 0); every
+        /// toast would then be dropped and the test would wait for a banner in vain, so it fails at once with the reason.
+        /// </summary>
+        private async Task AssertNotificationsOnAsync(CancellationToken cancellationToken)
+        {
+            string setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Effective notification setting of {AppSwitches.AppUserModelId} (ToastNotifier.Setting): {setting}; key {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}");
+            Assert.False(
+                ToastSetting.IsDisabled(setting),
+                $"Windows keeps the notifications of the test app {AppSwitches.AppUserModelId} switched off (ToastNotifier.Setting = {setting}) "
+                + $"{PreflightTimeout.TotalSeconds:0} s after the test switched them on (HKCU\\{ToastAppSettingsKind.SubKey}: {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}); "
+                + "no toast would be shown. By hand: Settings > System > Notifications > "
+                + $"\"{Path.GetFileNameWithoutExtension(AppSwitches.TestShortcutFileName)}\" on (listed while the test shortcut exists), then run the tests again.");
+        }
+
         private static byte[]? ReadProductionShortcut()
         {
             string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppSwitches.ProductionShortcutFileName);
@@ -737,6 +757,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             await Wait.UntilAsync(() => File.Exists(TestToastsKind.ShortcutPath), TimeSpan.FromSeconds(20), "the Start menu shortcut of the test app");
             // Registered before the shortcut that names it (T-068).
             Assert.True(TestToastsKind.ActivatorRegistered(), "The test app did not register its toast activator.");
+            await AssertNotificationsOnAsync(cancellationToken);
             if (options.WithoutPrinter)
             {
                 // Windows drops a toast of an app id whose Start menu shortcut it has not taken in yet: the first test
