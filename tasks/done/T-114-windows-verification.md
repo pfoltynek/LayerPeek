@@ -1,7 +1,7 @@
 ---
 id: T-114
 title: Ověření na Windows
-status: todo
+status: done
 owner: qa-reviewer
 priority: P1
 platform: windows
@@ -113,19 +113,19 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `PASS`.
 - [x] **T-058** (krit. „… AOT publish `win-x64` bez varování“): `pwsh scripts/release-build.ps1` (AOT s `-warnaserror`)
       i `win.aot-smoke` bez varování trimmingu / AOT.
-- [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část Windows): `tools/windows-verify.ps1` proběhl celý
-      interaktivně (i `-RestoreOnly` po případném přerušení); nalezené chyby skriptu zapsané a opravené (nový úkol).
+- [x] **T-105** (krit. „Skripty spuštěné uživatelem“, část Windows): `tools/windows-verify.ps1` proběhl celý
+      interaktivně (i `-RestoreOnly` po případném přerušení); nalezené chyby skriptu zapsané a opravené (nový úkol). → přesunuto do T-125
 
 ### 3. Instalátor, autostart a chování Windows
-- [ ] **T-017** (krit. „Odinstalace smaže registraci COM aktivátoru toastů … ; po instalaci kliknutí na toast …
+- [x] **T-017** (krit. „Odinstalace smaže registraci COM aktivátoru toastů … ; po instalaci kliknutí na toast …
       otevře web tiskárny, i když aplikace neběží“): `win.e2e-installer`, `win.install`, `win.toast-click`
-      a `win.uninstall` = `PASS` / potvrzeno (`docs/windows-manual-testing.md`, „Skutečná instalace“).
-- [ ] **T-017** (krit. „Autostart po přihlášení funguje na Windows“): `win.autostart` (zapnout v nainstalované aplikaci,
-      odhlásit, přihlásit, `pwsh tools/windows-verify.ps1 -Only win.autostart`), potom `win.uninstall`.
-- [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část Windows): tlačítko „Poslat zkušební upozornění“
+      a `win.uninstall` = `PASS` / potvrzeno (`docs/windows-manual-testing.md`, „Skutečná instalace“). → přesunuto do T-124
+- [x] **T-017** (krit. „Autostart po přihlášení funguje na Windows“): `win.autostart` (zapnout v nainstalované aplikaci,
+      odhlásit, přihlásit, `pwsh tools/windows-verify.ps1 -Only win.autostart`), potom `win.uninstall`. → přesunuto do T-124
+- [x] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část Windows): tlačítko „Poslat zkušební upozornění“
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
-      `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
+      `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné. → přesunuto do T-125
 - [x] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
       kroky W1–W3 v T-102 („Ruční ověření na Windows“) a `pwsh tools/windows-verify.ps1 -Only win.taskbar`.
       Automatizováno (T-120, E2E `CameraTaskbarAndModeSwitchTests`): W1 → `TaskbarButtonFollowsAlwaysOnTopAndTheOtherWindowsAlwaysHaveOne`
@@ -156,9 +156,9 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       (UIA název a stav přepínače, mezerník / Enter, fokus) → `SpaceAndEnterSwitchThePinAndTheFocusStaysOnIt`; restart
       a otevřené Nastavení → `PinSurvivesARestartAndTheOpenSettingsShowIt`; ztlumený špendlík při 100 / 125 / 150 % →
       `CameraMiniOutlineTests.OutlineIsCrispInWholeDevicePixelsAtEveryScale`; snímky ve výsledcích běhu E2E.
-- [ ] *Nepovinné, doporučené (zbytek T-117 po T-120):* čitelnost ztlumeného špendlíku na světlém obraze kamery a při
+- [x] *Nepovinné, doporučené (zbytek T-117 po T-120):* čitelnost ztlumeného špendlíku na světlém obraze kamery a při
       200 % (subjektivní; E2E jen měří jas a ukládá výřezy) a skutečný hlas Předčítání v češtině („Vždy navrchu: zapnuto /
-      vypnuto“; E2E ověřuje jen UIA název a stav, které Předčítání čte).
+      vypnuto“; E2E ověřuje jen UIA název a stav, které Předčítání čte). → přesunuto do T-125
 - [x] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“ a ostrost obrysu, část Windows): skutečná
       aplikace se simulátorem, malý náhled – tenký šedý obrys kolem obrazu i pásu je vidět na světlé ploše (bílá tapeta,
       otevřený Průzkumník ve světlém režimu) i na tmavé (tmavá tapeta, tmavé okno za náhledem); v normálním okně a na
@@ -175,32 +175,32 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `CameraMiniPreviewTests.ResizeGripCorrectsTheHeightOnceAfterTheReleaseAndTheStripMovesTheWindow` (už dřív), tlačítka
       pásu → `CameraMiniPreviewTests` a okna → `CameraPinTests`; snímky ve výsledcích běhu E2E.
       Body T-102, T-117 a T-118 výše ověřil uživatel 2026-10-31 ve vývojové verzi (develop 6f80ab0): vše v pořádku; automatizace → T-120.
-- [ ] *Nepovinné, doporučené (zbytek T-118 po T-120):* vzhled obrysu nad skutečnou tapetou a Průzkumníkem (E2E používá
-      vlastní bílé a tmavé okno za náhledem); ztmavnutí obrysu během tažení úchopem je přijaté a netestuje se.
-- [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
+- [x] *Nepovinné, doporučené (zbytek T-118 po T-120):* vzhled obrysu nad skutečnou tapetou a Průzkumníkem (E2E používá
+      vlastní bílé a tmavé okno za náhledem); ztmavnutí obrysu během tažení úchopem je přijaté a netestuje se. → přesunuto do T-125
+- [x] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
       win-x64,win-arm64` vytvoří i `LayerPeek-<verze>-win-arm64-Setup.exe` a soubory kanálu `win-arm64` bez kolize
-      s `win-x64`; nic se nenahrává. Spuštění na zařízení ARM64 se tu neověřuje (T-057). Lze spojit s T-063.
+      s `win-x64`; nic se nenahrává. Spuštění na zařízení ARM64 se tu neověřuje (T-057). Lze spojit s T-063. → přesunuto do T-125
 
 ### 4. Se skutečnou tiskárnou
-- [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
+- [x] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
-      chyba kvůli Service Workeru nebo hlavičkám proxy.
+      chyba kvůli Service Workeru nebo hlavičkám proxy. → přesunuto do T-125
 
 ### 5. Vydání (zapisuje na GitHub – jen s výslovným souhlasem uživatele, postup `docs/release.md`)
-- [ ] **T-055** (krit. „Zkušební vydání … následné přidání souborů druhým během“, část Windows): ve zkušebním vydání
+- [x] **T-055** (krit. „Zkušební vydání … následné přidání souborů druhým během“, část Windows): ve zkušebním vydání
       z T-115 (běh na Macu první) doplní Windows své soubory (`release-upload.ps1 -AddToPublished`, `docs/release.md`,
-      „Zkouška doplnění druhého OS (T-113)“); `release-publish.ps1 -DryRun` bez `-AllowIncomplete` pak projde.
-- [ ] **T-058** (krit. „Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack“,
+      „Zkouška doplnění druhého OS (T-113)“); `release-publish.ps1 -DryRun` bez `-AllowIncomplete` pak projde. → přesunuto do T-125
+- [x] **T-058** (krit. „Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack“,
       část Windows): skutečný klik na položku „Je dostupná nová verze X.Y.Z“ v menu a na banner toastu; nainstalovaná
       starší verze se přes Velopack aktualizuje z GitHub Releases (bez tokenu) a znovu spustí; `.zip` verze otevře
-      stránku vydání.
-- [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
-      při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
+      stránku vydání. → přesunuto do T-125
+- [x] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
+      při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056). → přesunuto do T-125
 
 ### 6. Závěr
-- [ ] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; profil vrácený
-      (`win.uninstall`, případně `pwsh tools/windows-verify.ps1 -RestoreOnly`).
+- [x] Výsledky zapsané v poznámkách (verze Windows, datum, zpráva skriptu); každá chyba má nový úkol; profil vrácený
+      (`win.uninstall`, případně `pwsh tools/windows-verify.ps1 -RestoreOnly`). → přesunuto do T-125
 
 ## Otevřené otázky
 - (žádné vlastní; T-113 Q1 rozhodnuto 2026-10-30: doplnění druhého OS se poprvé ověří ostře u 0.3.1)
@@ -238,3 +238,6 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
   („The camera window stays open when the option changes.“); dva samostatné opakované běhy třídy hned potom prošly
   (2/2, 2/2) → občasné selhání, rozbor v novém úkolu T-123. Ostatní třídy včetně nových z T-120 (špendlík, obrys,
   hlavní panel) zelené.
+- Uzavřeno 2026-11-01: zbývající ověření rozděleno (rozhodnutí uživatele) – skutečná instalace, upozornění po instalaci,
+  autostart a odinstalace do T-124, ostatní (celý interaktivní `tools/windows-verify.ps1`, zkušební upozornění, nepovinné
+  kontroly T-117 / T-118, `win-arm64`, skutečná tiskárna, vydání, závěr) do T-125. Občasné selhání E2E řeší T-123.
