@@ -24,7 +24,8 @@ namespace LayerPeek.App.UiTests.Cameras;
 /// mini preview, none in full screen; filled while "always on top" is on, regular while it is off; the checked pin stays
 /// visible dimmed without the pointer; a click, Space or the context menu item (also in the mini preview) switches
 /// <see cref="Window.Topmost"/> at once, the taskbar button follows (T-102), and only that option of the printer is saved;
-/// a failed save switches back. The real z-order and the look on a real screen are manual checks (T-114, T-115).
+/// a failed save switches back. The real z-order and the look on a real screen: on Windows the end-to-end tests of T-120
+/// (<c>CameraPinTests</c>), on macOS a manual check (T-115).
 /// </summary>
 public sealed class CameraWindowPinUiTests(HeadlessSession session)
 {

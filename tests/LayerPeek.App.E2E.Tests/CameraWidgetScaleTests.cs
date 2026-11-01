@@ -83,7 +83,7 @@ public sealed class CameraWidgetScaleTests(E2EFixture fixture)
 
                     // The mini preview: the 320 × 180 image and the strip, in DIP of this scale, inside the work area.
                     await Ui.InvokeAsync(element, "CameraMiniButton");
-                    await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (320, var h) && Math.Abs(h - 213) <= 1, Timeout, $"the mini preview at {percent} % (now {WindowChecks.ClientSizeDip(window)})");
+                    await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (320, var h) && Math.Abs(h - 213) <= 1, Timeout, () => $"the mini preview at {percent} % (now {WindowChecks.ClientSizeDip(window)})");
                     AssertInsideTheWorkArea(window, $"mini preview at {percent} %");
                     Rectangle strip = (await Ui.FindAsync(element, "CameraMiniInfoStrip")).BoundingRectangle;
                     Native.Rect client = Native.VisibleClientRect(window);
@@ -162,11 +162,11 @@ public sealed class CameraWidgetScaleTests(E2EFixture fixture)
 
                 // The mini preview there: a row expanded grows it inside the work area of that monitor.
                 await Ui.InvokeAsync(element, "CameraMiniButton");
-                await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (320, var h) && Math.Abs(h - 213) <= 1, Timeout, $"the mini preview at 150 % (now {WindowChecks.ClientSizeDip(window)})");
+                await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (320, var h) && Math.Abs(h - 213) <= 1, Timeout, () => $"the mini preview at 150 % (now {WindowChecks.ClientSizeDip(window)})");
                 Assert.Equal(secondDpi, Native.GetDpiForWindow(window));
                 Rectangle toggle = (await Ui.FindAsync(element, "CameraMiniToggleChart")).BoundingRectangle;
                 Mouse.Click(new Point(toggle.Left + (toggle.Width / 2), toggle.Top + (toggle.Height / 2)));
-                await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (320, var h) && Math.Abs(h - 277) <= 1, Timeout, $"the chart row at 150 % (now {WindowChecks.ClientSizeDip(window)})");
+                await Wait.UntilAsync(() => WindowChecks.ClientSizeDip(window) is (320, var h) && Math.Abs(h - 277) <= 1, Timeout, () => $"the chart row at 150 % (now {WindowChecks.ClientSizeDip(window)})");
                 AssertInsideTheWorkArea(window, "mini preview on the second monitor");
                 Assert.Equal(secondDpi, Native.GetDpiForWindow(window));
                 await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);

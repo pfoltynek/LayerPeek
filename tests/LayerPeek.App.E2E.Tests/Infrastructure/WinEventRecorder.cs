@@ -7,7 +7,7 @@ namespace LayerPeek.App.E2E.Tests.Infrastructure;
 internal readonly record struct WindowEvent(uint Kind, nint Window, Native.Rect Rect, DateTime ReceivedUtc)
 {
     public override string ToString() =>
-        $"{ReceivedUtc:HH:mm:ss.fff} {(Kind == WinEventRecorder.EventObjectShow ? "SHOW" : "LOCATIONCHANGE")} 0x{Window:X} {Rect}";
+        $"{ReceivedUtc:HH:mm:ss.fff} {Kind switch { WinEventRecorder.EventObjectShow => "SHOW", WinEventRecorder.EventObjectHide => "HIDE", WinEventRecorder.EventObjectLocationChange => "LOCATIONCHANGE", _ => $"0x{Kind:X4}" }} 0x{Window:X} {Rect}";
 }
 
 /// <summary>
@@ -18,6 +18,9 @@ internal readonly record struct WindowEvent(uint Kind, nint Window, Native.Rect 
 internal sealed partial class WinEventRecorder : IDisposable
 {
     public const uint EventObjectShow = 0x8002;
+
+    /// <summary>A hidden window (in the hooked range between show and location change; T-120 counts the hide / show of a mode switch).</summary>
+    public const uint EventObjectHide = 0x8003;
     public const uint EventObjectLocationChange = 0x800B;
 
     private const uint WinEventOutOfContext = 0x0000;

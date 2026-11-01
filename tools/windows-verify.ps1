@@ -8,8 +8,9 @@
     Run it in your own Windows session. Every check says which task criterion it closes (-ListChecks). Kinds:
       - Auto: build, tests, AOT smoke (scripts/aot-smoke.ps1 backs up and restores the profile itself);
       - Permission: the end-to-end tests (tools/run-e2e.ps1 takes over the desktop for minutes; the installer test installs
-        and uninstalls), the real install and uninstall in your user profile;
-      - Manual: the toast click after the install, autostart after a real sign-in (two runs), the taskbar rule of T-102.
+        and uninstalls; the taskbar rule of T-102 runs CameraTaskbarAndModeSwitchTests, T-120), the real install and
+        uninstall in your user profile;
+      - Manual: the toast click after the install, autostart after a real sign-in (two runs).
     The real install (win.install ... win.uninstall) refuses to run over an existing installation or a running LayerPeek.
     It moves %APPDATA%\LayerPeek and %LOCALAPPDATA%\LayerPeek aside first (renamed to <folder>.aot-smoke-backup next to
     them, with the journal %APPDATA%\LayerPeek.verify-install-journal.json, the mechanism of scripts/aot-smoke.ps1) and keeps
@@ -354,16 +355,15 @@ $checks = @(
         New-VerifyResult PASS "uninstalled: no Uninstall key, no shortcut into the installation, no HKCU\$($script:ActivatorSubKey); $($notes -join '; ')."
     }
 
-    New-VerifyCheck -Id 'win.taskbar' -Kind Manual -Title 'taskbar presence rule of T-102 (only when T-102 is done)' `
-        -Closes 'T-102 (pravidlo přítomnosti na hlavním panelu, Windows)' -Action {
+    New-VerifyCheck -Id 'win.taskbar' -Kind Permission -Permission 'the end-to-end tests of the taskbar rule take over the desktop for a minute (tools/run-e2e.ps1 -Class *CameraTaskbarAndModeSwitchTests -NoSystemChanges: no Windows setting is changed)' `
+        -Title 'taskbar presence rule of T-102 (E2E CameraTaskbarAndModeSwitchTests of T-120, replaces the manual check)' `
+        -Closes 'T-102 (pravidlo přítomnosti na hlavním panelu, Windows; kroky W1–W3 automatizované v T-120)' -Action {
         param($c)
-        $task = Get-ChildItem -LiteralPath (Join-Path $script:Repo 'tasks' 'done') -Filter 'T-102-*.md' -ErrorAction SilentlyContinue | Select-Object -First 1
-        if (-not $task) { Skip-VerifyCheck 'T-102 is not merged (no tasks/done/T-102-*.md); nothing to verify yet.' }
-        $criteria = @(Get-Content -LiteralPath $task.FullName | Where-Object { $_ -match '^\s*- \[[ x]\]' })
-        $null = Save-VerifyEvidence -Context $c -Name 'criteria.txt' -Content $criteria
-        Write-VerifyStep $c "Check the taskbar rule of $($task.Name) (criteria in criteria.txt) with LayerPeek running."
-        if (-not (Confirm-VerifyStep $c 'Does the taskbar presence follow the rule of T-102 on Windows?')) { return New-VerifyResult FAIL 'the user answered no.' }
-        New-VerifyResult MANUAL "confirmed against $($task.Name)."
+        $result = Invoke-ChildPwsh $c 'run-e2e-taskbar' @('-File', (Join-Path $script:Repo 'tools' 'run-e2e.ps1'), '-Class', '*CameraTaskbarAndModeSwitchTests', '-NoSystemChanges')
+        $totals = Get-VerifyRunE2ETotals $result.Output
+        if ($result.ExitCode -ne 0 -or -not $totals -or $totals.Failed -gt 0) { return New-VerifyResult FAIL "run-e2e.ps1 exit code $($result.ExitCode)$(if ($totals) { "; $(Format-Totals $totals)" })." }
+        if ($totals.Passed -eq 0) { return New-VerifyResult FAIL "the taskbar tests did not run: $(Format-Totals $totals) (see run-e2e-taskbar.txt for the skip reason)." }
+        New-VerifyResult PASS "$(Format-Totals $totals): taskbar button by the always-on-top rule, the printer submenu of an open camera, the switch to full screen and back."
     }
 )
 

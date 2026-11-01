@@ -2,15 +2,21 @@
 
 Co na Windows zbývá ověřit pro rozpracované úkoly: „Windows beze změny“ po macOS úkolech (T-095, T-018, T-021, T-026,
 T-053, T-097, T-100), instalátor Velopack s kliknutím na toast a autostart po skutečném přihlášení (T-017) a pravidlo
-hlavního panelu z T-102 (až bude hotové). Vše provede skript `tools/windows-verify.ps1` (T-105); ručně zbývá jen to, na co
+hlavního panelu z T-102 (od T-120 automaticky testy E2E). Vše provede skript `tools/windows-verify.ps1` (T-105); ručně zbývá jen to, na co
 se zeptá.
 
 Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
-[T-114 „Ověření na Windows“](../tasks/todo/T-114-windows-verification.md) (rozhodnutí uživatele), včetně přegenerování
+[T-114 „Ověření na Windows“](../tasks/done/T-114-windows-verification.md) (rozhodnutí uživatele), včetně přegenerování
 windowsové sady snímků UI se seznamem souborů podle původních úkolů. Protějšek pro Mac je T-115
 ([macos-manual-testing.md](macos-manual-testing.md)).
 
-> Stav: sepsáno 2026-10-29, odkaz na T-114 doplněn 2026-10-30. Když úkol přidá nebo změní ruční krok na Windows, upraví
+T-114 je od 2026-11-01 uzavřený (rozhodnutí uživatele); zbytek je rozdělený do dvou úkolů:
+[T-124 „Windows – ověření instalátoru“](../tasks/todo/T-124-windows-installer-verification.md) (oddíl „Skutečná
+instalace“ níže a `win.e2e-installer`) a
+[T-125 „Windows – zbývající ruční ověření“](../tasks/todo/T-125-windows-remaining-manual-verification.md) (celý
+interaktivní běh skriptu, zkušební upozornění, `win-arm64`, skutečná tiskárna, vydání). Protějšky pro Mac jsou T-126 a T-127.
+
+> Stav: sepsáno 2026-10-29, odkaz na T-114 doplněn 2026-10-30, odkazy na T-124 / T-125 2026-11-01. Když úkol přidá nebo změní ruční krok na Windows, upraví
 > se skript i tento soubor.
 
 ## Než začnete
@@ -47,7 +53,7 @@ verzí a důkazy v `artifacts/verify/<čas>/`. Kód 1 při jakémkoli `FAIL`.
 | `win.toast-click` | ručně | T-017 krit. 6 (klik na toast spustí neběžící aplikaci a otevře web tiskárny) |
 | `win.autostart` | ručně, dva běhy | T-017 krit. 7 (autostart po odhlášení a přihlášení) |
 | `win.uninstall` | oprávnění | T-017 krit. 6 (po odinstalaci není klíč Uninstall, zástupci ani `HKCU\Software\Classes\CLSID\{EC47413C-984D-447A-866A-5F780E408DE7}`) |
-| `win.taskbar` | ručně | T-102 (jen když je T-102 v `tasks/done/`, jinak `SKIP`) |
+| `win.taskbar` | oprávnění (plocha asi na minutu) | T-102 – pravidlo hlavního panelu, kroky W1–W3 (`tools/run-e2e.ps1 -Class '*CameraTaskbarAndModeSwitchTests' -NoSystemChanges`, T-120; dřív ruční dotaz) |
 
 ## Skutečná instalace (`win.install` → `win.toast-click` → `win.autostart` → `win.uninstall`)
 

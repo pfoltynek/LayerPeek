@@ -8,7 +8,19 @@ internal static class Wait
     private static readonly TimeSpan Interval = TimeSpan.FromMilliseconds(100);
 
     public static Task UntilAsync(Func<bool> condition, TimeSpan timeout, string what) =>
+        UntilAsync(() => Task.FromResult(condition()), timeout, () => what);
+
+    /// <summary>
+    /// Like <see cref="UntilAsync(Func{bool}, TimeSpan, string)"/>, but <paramref name="what"/> is built only when the
+    /// wait times out: a message that names the state the condition read last (an interpolated string is built once,
+    /// before the first poll, and would always show the initial values).
+    /// </summary>
+    public static Task UntilAsync(Func<bool> condition, TimeSpan timeout, Func<string> what) =>
         UntilAsync(() => Task.FromResult(condition()), timeout, what);
+
+    /// <inheritdoc cref="UntilAsync(Func{Task{bool}}, TimeSpan, Func{string})"/>
+    public static Task UntilAsync(Func<Task<bool>> condition, TimeSpan timeout, string what) =>
+        UntilAsync(condition, timeout, () => what);
 
     /// <summary>
     /// Polls <paramref name="condition"/> until it holds or <paramref name="timeout"/> passes. A UI Automation call in the
@@ -16,8 +28,11 @@ internal static class Wait
     /// the app closes, T-073) counts as "not yet" and is asked again; when the deadline passes after one, the timeout
     /// names it. The timeout of a nested wait (<see cref="WaitTimeoutException"/>) ends this wait as well.
     /// </summary>
+    /// <param name="condition">The condition, polled every 100 ms.</param>
+    /// <param name="timeout">How long to poll.</param>
+    /// <param name="what">What is waited for; built only on the timeout, after the last poll.</param>
     /// <exception cref="WaitTimeoutException">The condition did not hold in time.</exception>
-    public static async Task UntilAsync(Func<Task<bool>> condition, TimeSpan timeout, string what)
+    public static async Task UntilAsync(Func<Task<bool>> condition, TimeSpan timeout, Func<string> what)
     {
         DateTime deadline = DateTime.UtcNow + timeout;
         Exception? busy = null;
@@ -39,9 +54,10 @@ internal static class Wait
 
             if (DateTime.UtcNow >= deadline)
             {
+                string described = what();
                 throw busy is null
-                    ? new WaitTimeoutException($"Waited {timeout.TotalSeconds:0.#} s for {what}.")
-                    : new WaitTimeoutException($"Waited {timeout.TotalSeconds:0.#} s for {what}; the last UI Automation call timed out ({busy.GetType().Name}: {busy.Message}).", busy);
+                    ? new WaitTimeoutException($"Waited {timeout.TotalSeconds:0.#} s for {described}.")
+                    : new WaitTimeoutException($"Waited {timeout.TotalSeconds:0.#} s for {described}; the last UI Automation call timed out ({busy.GetType().Name}: {busy.Message}).", busy);
             }
 
             await Task.Delay(Interval);

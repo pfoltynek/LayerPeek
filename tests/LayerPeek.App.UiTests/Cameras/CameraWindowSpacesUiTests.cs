@@ -17,7 +17,7 @@ namespace LayerPeek.App.UiTests.Cameras;
 /// T-038 question 1 (user decision 2026-10-30, option b): the real camera window puts its mini preview that is always on
 /// top on every Space (macOS <c>collectionBehavior</c>, here a fake), and restores the flags when it leaves the mini
 /// preview or "always on top" is switched off; full screen is entered with the flags of a normal window. Whether macOS
-/// really shows it on other Spaces and above an app in full screen is a manual check (T-115, next to J4).
+/// really shows it on other Spaces and above an app in full screen is a manual check (T-127, next to J4).
 /// </summary>
 public sealed class CameraWindowSpacesUiTests(HeadlessSession session)
 {
