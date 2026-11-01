@@ -84,6 +84,22 @@ internal static class WindowActivation
     }
 
     /// <summary>
+    /// Presses <paramref name="keys"/> together with the real keyboard (e.g. Shift+F10), only while
+    /// <paramref name="hwnd"/> is the foreground window, like <see cref="TypeInto"/>. Never a global shortcut: the keys go
+    /// to the app's own window only.
+    /// </summary>
+    public static void TypeChordInto(nint hwnd, params VirtualKeyShort[] keys)
+    {
+        nint foreground = Native.GetForegroundWindow();
+        if (foreground != hwnd)
+        {
+            throw new InvalidOperationException($"0x{hwnd:X} is no longer in the foreground (0x{foreground:X} '{Native.ClassName(foreground)}' is); not typing {string.Join("+", keys)}.");
+        }
+
+        Keyboard.TypeSimultaneously(keys);
+    }
+
+    /// <summary>
     /// Whether the focused elements after each Tab (<paramref name="seen"/>) go round <paramref name="cycle"/> in its
     /// order (starting anywhere) and visit every element of it.
     /// </summary>

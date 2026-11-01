@@ -126,8 +126,12 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
-- [ ] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
+- [x] **T-102** (krit. „Ověřeno na Windows: tlačítka na hlavním panelu podle pravidla, ‚Zobrazit kameru‘, blikání“; položka se od 2026-10-31 jmenuje „Přenést kameru do popředí“):
       kroky W1–W3 v T-102 („Ruční ověření na Windows“) a `pwsh tools/windows-verify.ps1 -Only win.taskbar`.
+      Automatizováno (T-120, E2E `CameraTaskbarAndModeSwitchTests`): W1 → `TaskbarButtonFollowsAlwaysOnTopAndTheOtherWindowsAlwaysHaveOne`
+      (+ `CameraPinTests.PinClickSwitchesAlwaysOnTopTheTaskbarButtonAndTheOrderAtOnce`), W2 →
+      `PrinterSubmenuOfAnOpenCameraHasUniqueAccessKeysAndTheLetterBringsItToFront` (+ `BringToFrontTests`, `TrayMenuTests`),
+      W3 → `SwitchingThePinnedWindowToFullScreenAndBackKeepsFocusPlaceAndMonitor`; `win.taskbar` od T-120 tyto testy spouští (rozhodnutí uživatele 2026-10-31, T-120 Q1).
 - [x] **T-119** (krit. „Ruční ověření ve skutečné aplikaci (Windows)“): skutečná aplikace se simulátorem; okno kamery
       bez špendlíku zakryté oknem jiné aplikace (do ní klepnout myší, je v popředí) → tray menu → „Přenést kameru do
       popředí“: kamera je vepředu a aktivní; totéž minimalizovaná, se špendlíkem (minimalizovaná) a malý náhled; okno bez
@@ -136,7 +140,7 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       `pwsh tools/run-e2e.ps1 -Class '*BringToFrontTests' -NoSystemChanges` a `$env:LAYERPEEK_E2E = '1'; dotnet test
       --project tests/LayerPeek.App.Tests -- --filter-class '*ForegroundRaiserE2ETests'`.
       Ověřeno uživatelem 2026-10-31 ve vývojové verzi (develop 4f366c5): funguje. E2E na volné ploše prošlo 2026-10-31 (s opravou 2/2, bez ní 2/2 selhalo).
-- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční kontrola chování špendlíku, část Windows): skutečná
+- [x] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční kontrola chování špendlíku, část Windows): skutečná
       aplikace se simulátorem – špendlík vpravo nahoře v normálním okně i v malém náhledu, na celé obrazovce není;
       zapnutý je bez myši vidět ztlumený (čitelný i na světlém obrazu, při 125 / 150 / 200 %), vypnutý ne; po kliknutí
       myší a odjetí myši zůstane jen ztlumený špendlík. Klik přepne „vždy navrchu“ hned (okno nad jinou aplikací)
@@ -145,7 +149,17 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       zaškrtnutá podle stavu). Předčítání (Narrator) přečte přepínač „Vždy navrchu: zapnuto / vypnuto“ se stavem,
       mezerník / Enter přepíná a fokus zůstane na špendlíku. Volba přežije restart a otevřené Nastavení ji ukáže
       (neuložené jiné úpravy zůstanou). Snímek okna se špendlíkem do poznámek.
-- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“ a ostrost obrysu, část Windows): skutečná
+      Automatizováno (T-120, E2E `CameraPinTests`): umístění a ztlumení bez myši → `PinSitsInTheTopRightCornerAndStaysDimmedWithoutThePointer`;
+      klik, „vždy navrchu“ hned, okno nad jinou aplikací, tlačítko na hlavním panelu, po odjetí myši jen ztlumený špendlík →
+      `PinClickSwitchesAlwaysOnTopTheTaskbarButtonAndTheOrderAtOnce`; kontextové menu (pravé tlačítko, Menu, Shift+F10, dvě /
+      jedna položka, podtržení po Alt, zaškrtnutí) → `ContextMenuOpensWithTheRightButtonTheMenuKeyAndShiftF10`; přístupnost
+      (UIA název a stav přepínače, mezerník / Enter, fokus) → `SpaceAndEnterSwitchThePinAndTheFocusStaysOnIt`; restart
+      a otevřené Nastavení → `PinSurvivesARestartAndTheOpenSettingsShowIt`; ztlumený špendlík při 100 / 125 / 150 % →
+      `CameraMiniOutlineTests.OutlineIsCrispInWholeDevicePixelsAtEveryScale`; snímky ve výsledcích běhu E2E.
+- [ ] *Nepovinné, doporučené (zbytek T-117 po T-120):* čitelnost ztlumeného špendlíku na světlém obraze kamery a při
+      200 % (subjektivní; E2E jen měří jas a ukládá výřezy) a skutečný hlas Předčítání v češtině („Vždy navrchu: zapnuto /
+      vypnuto“; E2E ověřuje jen UIA název a stav, které Předčítání čte).
+- [x] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“ a ostrost obrysu, část Windows): skutečná
       aplikace se simulátorem, malý náhled – tenký šedý obrys kolem obrazu i pásu je vidět na světlé ploše (bílá tapeta,
       otevřený Průzkumník ve světlém režimu) i na tmavé (tmavá tapeta, tmavé okno za náhledem); v normálním okně a na
       celé obrazovce obrys není. Při najetí myší (nad obraz, pás i okraj) obrys plynule zesvětlí, po odjetí ztmavne.
@@ -154,6 +168,15 @@ Postup: `pwsh scripts/release-build.ps1` (instalátor pro oddíl 3, AOT publish 
       velikost (kurzor šipek u okraje), tažení obrazu a pásu přesouvá okno, tlačítka okna a pásu reagují. Při tažení
       úchopem smí obrys ztmavnout až do puštění (systémová smyčka změny velikosti) – není chyba. Snímky na světlém
       a tmavém pozadí do poznámek.
+      Automatizováno (T-120, E2E `CameraMiniOutlineTests`): obrys jen v malém náhledu, na světlém i tmavém pozadí (vlastní
+      okna testu), zesvětlení nad obrazem / pásem / úchopem a ztmavnutí po odjetí → `OutlineIsVisibleOnALightAndADarkBackgroundAndBrightensUnderThePointer`;
+      ostrost 1 / 1 / 2 px při 100 / 125 / 150 % (změna měřítka přes žurnál) → `OutlineIsCrispInWholeDevicePixelsAtEveryScale`;
+      kurzory úchopů → `GripsUnderTheOutlineShowTheSizingCursors`; změna velikosti úchopem a tažení pásu →
+      `CameraMiniPreviewTests.ResizeGripCorrectsTheHeightOnceAfterTheReleaseAndTheStripMovesTheWindow` (už dřív), tlačítka
+      pásu → `CameraMiniPreviewTests` a okna → `CameraPinTests`; snímky ve výsledcích běhu E2E.
+      Body T-102, T-117 a T-118 výše ověřil uživatel 2026-10-31 ve vývojové verzi (develop 6f80ab0): vše v pořádku; automatizace → T-120.
+- [ ] *Nepovinné, doporučené (zbytek T-118 po T-120):* vzhled obrysu nad skutečnou tapetou a Průzkumníkem (E2E používá
+      vlastní bílé a tmavé okno za náhledem); ztmavnutí obrysu během tažení úchopem je přijaté a netestuje se.
 - [ ] **T-017** (krit. „Instalátor `win-arm64` vznikne stejným skriptem, pokud je `win-arm64` zapnutý“): po doinstalaci
       komponenty MSVC ARM64 jako správce (`docs/prerequisites.md`, T-063 bod 1) `pwsh scripts/release-build.ps1 -Runtime
       win-x64,win-arm64` vytvoří i `LayerPeek-<verze>-win-arm64-Setup.exe` a soubory kanálu `win-arm64` bez kolize
