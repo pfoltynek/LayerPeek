@@ -314,6 +314,8 @@ finally {
     foreach ($pass in @(Get-PassesToKeep -Passes $passes.ToArray() -ExitCode $exitCode)) {
         try {
             $pass | Add-Member -NotePropertyName KeptCopy -NotePropertyValue (Save-FailedTestResults -Results $pass.Results) -Force
+            # Printed here too: after Ctrl+C the summary below never runs.
+            if ($pass.KeptCopy) { Write-Host "Kept a copy of the failed results of '$($pass.Name)': $($pass.KeptCopy)" -ForegroundColor Yellow }
         }
         catch {
             Write-Warning "The results of '$($pass.Name)' could not be kept: $($_.Exception.Message)"

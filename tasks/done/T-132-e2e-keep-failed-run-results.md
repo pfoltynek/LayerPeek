@@ -1,7 +1,7 @@
 ---
 id: T-132
 title: run-e2e.ps1 – uchovat výsledky neúspěšných běhů
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P3
 platform: windows
@@ -59,3 +59,4 @@ ztratily podklady k selhání dřív, než je šlo rozebrat. Uživatel 2026-11-0
   `tests/LayerPeek.Scripts.Tests/PesterScriptTests.cs`. Testy junction běží jen na Windows. Skutečný E2E běh se
   nespouštěl.
 - Dokumentace: nová sekce „Kde jsou výsledky E2E běhu (i neúspěšného)“ v `docs/troubleshooting.md`.
+- Rozhodnutí uživatele 2026-11-01: 10 kopií na složku výsledků, bez parametru skriptu; cesta ke kopii se vypíše i po přerušení (Ctrl+C) – řádek přímo ve `finally`. Review bez blokujících nálezů (oprava: zamčený soubor ve staré kopii už nezastaví úklid ani nesmaže značku); uzavřeno 2026-11-01.
