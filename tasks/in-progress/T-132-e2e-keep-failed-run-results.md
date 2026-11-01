@@ -1,7 +1,7 @@
 ---
 id: T-132
 title: run-e2e.ps1 – uchovat výsledky neúspěšných běhů
-status: todo
+status: in-progress
 owner: qa-reviewer
 priority: P3
 platform: windows
