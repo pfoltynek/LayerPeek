@@ -190,7 +190,7 @@ Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podr
 - Přihlašovací údaje patří k **účtu** Prusa Account, ne k tiskárně. Jeden účet obsluhuje víc `PrinterDefinition` (`Address` = UUID tiskárny).
 - Klienti téhož účtu sdílejí jeden dotaz na seznam tiskáren za cyklus pollingu, aby se nepřetěžovala služba.
 - Trvale se ukládá jen refresh token, a to přes `ISecretStore` pod klíčem pro účet. Access token zůstává jen v paměti.
-- Kód pro OAuth/PKCE a obnovu tokenů je v `LayerPeek.PrusaConnect` a nezávisí na UI. UI přihlášení (T-022) je v App.
+- Kód pro OAuth/PKCE a obnovu tokenů je v `LayerPeek.PrusaConnect` a nezávisí na UI. UI přihlášení (T-022) se nebude implementovat (zamítnuto 2026-11-01).
 - Klient jen čte a je izolovaný za `IPrinterClient`, takže ho jde při změně nedokumentovaného API vypnout bez dopadu na PrusaLink.
 
 ## Platformní rozdíly

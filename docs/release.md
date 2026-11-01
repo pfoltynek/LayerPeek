@@ -1,6 +1,6 @@
 # Vydání (release)
 
-Vydání se dělá lokálně bez CI (GitHub Actions jsou odložené, T-016). Windows soubory se sestaví na Windows, macOS soubory na Macu (Native AOT nejde kompilovat napříč OS). Oba běhy nahrávají do **stejného konceptu** (draft) vydání pro tag `vX.Y.Z` na GitHubu. Zveřejnění je samostatný poslední krok, takže nikdo nevidí vydání s polovinou souborů. Od T-113 jde vydání pod jednou verzí rozdělit i v čase: jeden OS zveřejní (`-AllowIncomplete`) a druhý OS později na jiném počítači své soubory **doplní do zveřejněného vydání** (`release-upload.ps1 -AddToPublished`, viz „Vydání na dvou počítačích“).
+Vydání se dělá lokálně bez CI (GitHub Actions se nepoužívají, T-016 zamítnut 2026-11-01). Windows soubory se sestaví na Windows, macOS soubory na Macu (Native AOT nejde kompilovat napříč OS). Oba běhy nahrávají do **stejného konceptu** (draft) vydání pro tag `vX.Y.Z` na GitHubu. Zveřejnění je samostatný poslední krok, takže nikdo nevidí vydání s polovinou souborů. Od T-113 jde vydání pod jednou verzí rozdělit i v čase: jeden OS zveřejní (`-AllowIncomplete`) a druhý OS později na jiném počítači své soubory **doplní do zveřejněného vydání** (`release-upload.ps1 -AddToPublished`, viz „Vydání na dvou počítačích“).
 
 | Skript | Co dělá | Mění GitHub? |
 |---|---|---|
