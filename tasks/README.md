@@ -187,7 +187,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-073 | E2E – celá sada proti Debug i Native AOT (Debug) a test Správce pověření | windows | qa-reviewer | P2 | T-067, T-068, T-069, T-070, T-071, T-072 |
 | T-093 | E2E – widgety překryvu, malý náhled, režim rozložení + AOT (hotovo) | windows | qa-reviewer | P2 | T-080, T-087, T-088, T-090, T-091, T-092 |
 | T-114 | Ověření na Windows (sběrný úkol: build a testy po macOS úkolech, Windows snímky, ruční kontroly) (hotovo 2026-11-01; zbytek v T-124 / T-125) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-103, T-105, T-106, T-107, T-109–T-112, T-117–T-119 |
-| T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
+| T-124 | Windows – ověření instalátoru (instalace, upozornění, autostart, odinstalace) (hotovo 2026-11-01; zbytek v T-125) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-114 |
 | T-125 | Windows – zbývající ruční ověření (interaktivní windows-verify, tiskárna, vydání) (sběrný úkol, z T-114) | windows | qa-reviewer | P1 | T-017, T-055, T-058, T-101, T-105, T-107, T-114, T-117, T-118 |
 | T-130 | Zrušit podporu Windows ARM64 (win-arm64) (hotovo) | windows | qa-reviewer | P2 | – |
 

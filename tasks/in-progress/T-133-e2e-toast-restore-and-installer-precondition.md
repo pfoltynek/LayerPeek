@@ -108,3 +108,13 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
   v Nastavení a `TestNotificationTests` po každém běhu selže): má krok 4 místo skutečného vypnutí ve Windows použít
   Debug-only přepínač testovacího režimu, který aplikaci podstrčí `DisabledForApplication` (bez zásahu do Windows,
   ale neověří skutečné čtení nastavení Windows)? Nebo krok 4 nechat jen jako ruční kontrolu v T-125?
+
+### Běh na ploše 2026-11-01 večer (hlavní agent)
+- `VelopackInstallerTests` 1/1 PASS (předpoklad prázdné složky opraven).
+- `TestNotificationTests`: zapnutí za běhu aplikace (`SwitchTestAppOnAsync`, i 0 → 1) **nezabralo** – Windows dál
+  `DisabledForApplication`. Jednorázová obnova `TestAppNotificationRecovery` dvakrát (Nastavení otevřené, přepínač
+  „LayerPeek E2E“ se nepodařilo zapnout, v seznamu nejspíš není) – stav dál vypnutý. Hypotéza „Windows převezme změnu
+  za běhu aplikace“ neplatí.
+- Úkol zůstává otevřený: najít spolehlivý způsob, nebo rozhodnout otázku níže (Debug přepínač místo skutečného vypnutí
+  ve Windows). Do té doby `TestNotificationTests` a `UpdateTests` na tomto stroji selžou na předběžné kontrole se
+  srozumitelnou zprávou.

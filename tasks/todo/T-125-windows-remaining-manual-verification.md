@@ -62,6 +62,12 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       → zrušeno (T-130): podporu `win-arm64` uživatel 2026-11-01 zrušil, skripty `win-arm64` odmítají, T-057 a T-063
       jsou zamítnuté.
 
+- [ ] *Nepovinné (z T-124, rozhodnutí uživatele 2026-11-01):* na nainstalované verzi (po vydání 0.4.0) skutečný klik na
+      upozornění v centru oznámení, když aplikace neběží (`pwsh tools/windows-verify.ps1 -Only win.toast-click`), a autostart
+      po skutečném odhlášení a přihlášení (`-Only win.autostart`).
+- [ ] **T-128** (z T-124): bez nainstalované LayerPeek `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'` – projdou i oba
+      instalační případy. Předpoklad: T-133 (upozornění testovací aplikace `LayerPeek.E2E` zase zapnutá).
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
