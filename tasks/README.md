@@ -24,6 +24,13 @@ Přesun mezi složkami vždy přes `git mv`, aby zůstala historie. Hodnota `sta
 - `depends_on` – seznam ID, které musí být v `done/`; úkoly `macos` závisí na svém sdíleném / Windows protějšku
 - `## Otevřené otázky` – co musí rozhodnout uživatel. Úkol s nezodpovězenou otázkou, která blokuje implementaci, se neimplementuje.
 
+## Zamítnuté úkoly (rozhodnutí uživatele 2026-11-01)
+
+Úkol, který se nebude implementovat, se přesune (`git mv`) do `tasks/rejected/` se `status: rejected`. Pod frontmatter
+přibude řádek `> **Zamítnuto (rozhodnutí uživatele RRRR-MM-DD):** <důvod>. Úkol se nebude implementovat.` a řádek
+v tabulce dostane „(zamítnuto RRRR-MM-DD)“. Obsah úkolu zůstává jako historie; na zamítnutý úkol nesmí záviset žádný
+otevřený úkol.
+
 ## Sběrné ověřovací úkoly (rozhodnutí uživatele 2026-10-30)
 
 Kritérium, které už potřebuje jen ruční ověření uživatelem nebo kontrolu na druhém OS, se smí přesunout do sběrného
@@ -108,9 +115,9 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-050 | Bezpečnost – FFmpeg přijímá jen RTSP/TCP a H.264 (M1) | all | core-dev | P2 | T-014 |
 | T-051 | Bezpečnost – proxy webu PrusaLink odmítá cizí zápisové požadavky (L1) | all | core-dev | P3 | T-028, T-030 |
 | T-055 | Skripty pro vydání (build, AOT publish, archivy, kontrolní součty, GitHub Release) (hotovo; zkušební vydání v T-125 / T-127) | all | qa-reviewer | P2 | – |
-| T-016 | CI – GitHub Actions (Windows + macOS) – **odloženo, přeskočit** (náklady u soukromého repozitáře, vydání přes T-055; rozbor variant 2026-10-29) | all | qa-reviewer | P3 | – |
+| T-016 | CI – GitHub Actions (Windows + macOS) (zamítnuto 2026-11-01) | all | qa-reviewer | P3 | – |
 | T-058 | Kontrola nové verze v aplikaci (GitHub Releases) + Velopack pro macOS (hotovo; ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-008, T-029, T-055 |
-| T-022 | Prusa Connect – přihlášení k účtu (UI, vyřazeno – bez veřejného API, 2026-10-29) | all | ui-dev | P3 | T-005, T-015 |
+| T-022 | Prusa Connect – přihlášení k účtu (zamítnuto 2026-11-01; dříve vyřazeno – bez veřejného API) | all | ui-dev | P3 | T-005, T-015 |
 | T-074 | Přejmenování aplikace a repozitáře na LayerPeek | all | architect | P1 | T-065 |
 | T-076 | Widgety překryvu – návrh UI (design spec) (hotovo) | all | ui-designer | P2 | – |
 | T-077 | Widgety překryvu – model rozložení v Core, uložení a převod nastavení z T-036 (hotovo) | all | core-dev | P2 | T-076 |

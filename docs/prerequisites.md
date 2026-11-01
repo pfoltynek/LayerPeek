@@ -5,7 +5,7 @@ Aplikace se publikuje jako **Native AOT** – výsledkem je jeden nativní spust
 > **Důležité:**
 > - Pro běžný vývoj (`dotnet build`, `dotnet run`, `dotnet test`, ladění F5 ve VS Code) stačí .NET SDK. Nativní toolchain je potřeba **jen pro `dotnet publish`** s AOT. **Výjimka na macOS (T-026): první `dotnet build` přeloží knihovny FFmpeg ze zdrojů, takže potřebuje Xcode Command Line Tools** (`xcode-select --install`). Bez nich build hned na začátku (nic nestahuje) skončí chybou `The Xcode Command Line Tools are not installed (or not selected). …` s návodem. Další buildy používají cache a toolchain už nepotřebují.
 > - AOT nejde kompilovat napříč OS: Windows binárky se sestavují na Windows, macOS binárky na macOS. Jinou architekturu v rámci stejného OS sestavit lze (např. `win-arm64` na x64 Windows, potřebuje ARM64 build tools). Vydávané RID: `win-x64`, `win-arm64` (až po T-057), `osx-arm64` (rozhodnuto 2026-10-21).
-> - CI (GitHub Actions) je zatím odložené (T-016), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
+> - CI (GitHub Actions) se nepoužívá (T-016 zamítnut 2026-11-01), AOT binárky se proto sestavují lokálně skripty pro vydání (T-055, postup v [release.md](release.md)). Pro nahrání na GitHub je potřeba `gh` CLI (viz „Vydání“).
 
 ## Společné (obě platformy)
 
