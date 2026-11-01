@@ -158,6 +158,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-131 | Občasné selhání StatusWidgetTests (Release, statická inicializace) | all | qa-reviewer | P3 | – |
 | T-129 | windows-verify – testy interaktivního běhu (hotovo) | windows | qa-reviewer | P2 | T-105, T-125 |
 | T-128 | E2E testy místo ručních kontrol – zkušební upozornění a aktualizace přes Velopack (hotovo; instalační případy v T-124) | windows | qa-reviewer | P2 | T-058, T-101, T-125 |
+| T-132 | run-e2e.ps1 – uchovat výsledky neúspěšných běhů | windows | qa-reviewer | P3 | – |
 
 ### Windows (`windows`)
 
