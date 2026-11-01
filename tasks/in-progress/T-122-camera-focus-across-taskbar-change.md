@@ -20,12 +20,13 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
 - **B – zapnutí špendlíku Enterem v malém náhledu ztratí fokus klávesnice.** Skrytí tlačítka na hlavním panelu přes
   skrytého vlastníka (`GWLP_HWNDPARENT`) vezme oknu fokus (`WM_KILLFOCUS`), okno zůstane aktivní, takže ho nic nevrátí;
   další mezerník nic nepřepne. Proč jen v malém náhledu, má ukázat diagnostika (Win32 fokus v reportu testu).
+  (Skutečná příčina se ukázala jiná – fokus vrácený aktivací bez `:focus-visible`, viz Poznámky k implementaci.)
 
 ## Rozsah
 1. Po kliknutí myší na tlačítko okna se fokus přesune na neutrální prvek (ne na tlačítko), takže ho nová aktivace okna
    tlačítku nevrátí (návrh: `Surface` `Focusable`, `IsTabStop="False"`).
-2. Při změně přítomnosti na hlavním panelu (`Topmost` → `ShowInTaskbar` / vlastník) zůstane fokus tam, kde byl: bylo-li
-   okno aktivní a fokus po změně zmizel, vrátí se stejnému prvku (klávesnicí ovládaný špendlík zůstane fokusovaný).
+2. Klávesnicí ovládaný špendlík zůstane fokusovaný i po změně přítomnosti na hlavním panelu a po nové aktivaci okna
+   (původní návrh „vrátit ztracený fokus po změně `ShowInTaskbar`“ se ukázal zbytečný – fokus se neztrácí, viz poznámky).
 3. Chování macOS beze změny (tam se přítomnost řeší jinak, T-102); `Topmost` ani pravidla T-102 se nemění.
 
 ## Akceptační kritéria
@@ -46,50 +47,29 @@ přítomnost okna na hlavním panelu (T-102: okno navrchu nemá tlačítko). Roz
   jako dřív. Vedlejší (zamýšlený) efekt: klik na obraz teď vezme fokus tlačítku, které ho mělo z klávesnice.
 - Ostatní tlačítka okna se po kliku myší skryjí, a tím je okno zapomene (ověřeno testem `ModeButtonClicked…` – prošel
   i před opravou); jejich chování se proto nemění.
-- **Oprava B** (`CameraWindow.Focus.cs`, `ShowInTaskbarKeepingFocus`): před změnou `ShowInTaskbar` (jen při skutečné
-  změně) si okno zapamatuje fokusovaný prvek a zda měl fokus z klávesnice (`:focus-visible`); bylo-li okno aktivní a je
-  aktivní i po změně, ale bez fokusu, vrátí ho stejnému prvku hned a ještě jednou po zpracování zpráv správce oken
-  (`Dispatcher.Post`, `Background`). Na Windows navíc vrátí fokus správce oken (`SetFocus` na HWND, jen je-li okno
-  aktivním oknem vlákna a fokus jinde; nikdy neaktivuje) – nový `Platform/Windows/WindowFocusNative.cs`
-  (`[LibraryImport]`, AOT v pořádku). Neaktivní okno se nikdy nefokusuje.
-- **Proč jen malý náhled (B):** v kódu se cesty normálního okna a malého náhledu neliší – obě mění jen `Topmost` →
-  `ShowInTaskbar` a Avalonia nastaví stejného skrytého vlastníka (`WindowImpl.UpdateWindowProperties`, `_parent == null`).
-  V E2E se ale liší pořadí: v normálním okně je připnutí (mezerník) první změna po otevření, v malém náhledu (Enter) přijde
-  až po odepnutí, tj. po `Hide()`/`Show(activate)` od Avalonie. Pravděpodobně tedy nejde o režim, ale o stav fokusu Win32
-  po tomto skrytí a ukázání (Avalonia `WM_ACTIVATE` vrací 0 bez `DefWindowProc`, který jinak fokus nastavuje); ověřit to
-  lze jen diagnostikou E2E na skutečné ploše. Oprava je na tom nezávislá: platí pro oba režimy i obě klávesy.
-- macOS: žádná změna chování – fokus tam při změně Dock ikony nemizí, takže se nic nevrací; nativní část jen na Windows.
-  Na macOS neověřeno (vyvíjeno na Windows).
-- Testy: `tests/LayerPeek.App.UiTests/Cameras/CameraWindowFocusUiTests.cs` (10 případů). Před opravou selhalo 8
-  (A: normální okno i malý náhled; B: mezerník / Enter v obou režimech, ztráta fokusu během změny i po ní), prošly 2
-  (tlačítko režimu, neaktivní okno – hlídají regresi). Bez hlavního panelu headless simuluje ztrátu fokusu tím, že ho test
-  zruší při změně `ShowInTaskbar`.
-- Ověřeno 2026-10-31 na Windows 11 Pro 10.0.26300 (headless); E2E `CameraPinTests` nespuštěno (koordinuje hlavní agent).
-
-### Stav ladění B (2026-10-31)
-- E2E `CameraPinTests` na skutečné ploše: 4/5, A opravena; `SpaceAndEnterSwitchThePinAndTheFocusStaysOnIt` dál selhává
-  v kroku „mini-enter“.
-- Dočasná diagnostika (`CameraWindow.DiagTrace.cs`, záznam do `%TEMP%\layerpeek-t122-trace.log`: WM_ACTIVATE/SETFOCUS/
-  KILLFOCUS/klávesy, GotFocus/LostFocus Avalonie) ukázala skutečnou příčinu: **fokus změna vlastníka okna vůbec nebere**
-  (při připnutí žádné `WM_KILLFOCUS`). Odepnutí (skrytí a nové ukázání okna) vrátí fokus špendlíku při `WM_ACTIVATE`
-  s `NavigationMethod.Unspecified`, tedy **bez `:focus-visible`**. Další Enter pak `OnWindowButtonClick` považuje za klik
-  myší (rozhoduje podle `:focus-visible`) a fokus přesune na obraz (před T-122 ho `Focus(null)` zrušil). Proto jen
-  „malý náhled + Enter“: je to první stisk po odepnutí (v normálním okně je Enter sám tím odepnutím).
-- Domněnka s `WM_KILLFOCUS` / skrytým vlastníkem je tím vyvrácena; obnova fokusu v `CameraWindow.Focus.cs`
-  a `WindowFocusNative` se v záznamu nikdy neuplatnila.
-- Rozpracováno (WIP commit, neověřeno): `OnWindowButtonClick` už nerozhoduje podle `:focus-visible`, ale podle toho,
-  zda se právě směruje událost klávesy (`_routingKey`, tunel/bublání `KeyDown`/`KeyUp` v okně); `CameraWindow.Focus.cs`
-  a `WindowFocusNative.cs` odstraněny, `ShowInTaskbar` se zase nastavuje přímo. Build bez varování; testy nespuštěny –
-  headless testy B v `CameraWindowFocusUiTests` (simulují neexistující ztrátu fokusu) teď selžou a je třeba je nahradit.
-- Přesný další krok: nahradit `PinSwitchedFromTheKeyboardKeepsTheFocusWhenTheTaskbarChangeTakesIt` testem skutečného
-  mechanismu (špendlík fokusován Tabem, mezerník, `FocusManager.Focus(null)` + `Hide()`/`Show()` → fokus vrácen aktivací
-  bez `:focus-visible`, pak Enter v malém i normálním okně → fokus na špendlíku, další mezerník přepne; ověřit, že selže
-  na `bd38012` a projde s opravou); odstranit `CameraWindow.DiagTrace.cs` a `AttachTrace()` v `OnOpened`; `dotnet build`,
-  celý `dotnet test`; pak E2E `-Method '*SpaceAndEnterSwitchThePinAndTheFocusStaysOnIt*'` a celá `-Class '*CameraPinTests'`
-  (`-NoSystemChanges`); upravit poznámky (příčina B potvrzena, oprava), odškrtnout E2E kritérium T-122 a T-120.
-- Původní plán: klávesnici poznávat podle toho, zda klik vznikl během zpracování klávesy (ne podle `:focus-visible`),
-  odstranit neopodstatněnou obnovu fokusu, headless test pro skutečný mechanismus (fokus vrácený aktivací bez
-  `:focus-visible`, pak Enter), odstranit diagnostiku, E2E znovu.
+- **Příčina B potvrzena** (dočasná diagnostika na skutečné ploše 2026-10-31: záznam `WM_ACTIVATE` / `WM_SETFOCUS` /
+  `WM_KILLFOCUS`, kláves a `GotFocus` / `LostFocus` Avalonie; po ladění odstraněna): změna vlastníka okna při připnutí
+  fokus **nebere** (žádné `WM_KILLFOCUS`), domněnka z rozboru T-120 neplatí. Odepnutí vrací tlačítko na hlavní panel
+  skrytím a novým ukázáním okna; jeho aktivace vrátí fokus zapamatovanému špendlíku s `NavigationMethod.Unspecified`,
+  tedy **bez `:focus-visible`**. `OnWindowButtonClick` poznával klávesnici právě podle `:focus-visible`, takže další Enter
+  na špendlíku bral jako klik myší a fokus přesunul na obraz (před T-122 ho `Focus(null)` zrušil); mezerník pak nic
+  nepřepnul. Totéž po každé nové aktivaci (Alt+Tab zpět) – pro špendlík i tlačítka režimů.
+- **Proč jen „malý náhled + Enter“:** nejde o režim, ale o pořadí v E2E. Je to první stisk po odepnutí (malý náhled
+  odepnul mezerník); v normálním okně byl Enter sám tím odepnutím a mezerník před ním měl fokus z Tabu.
+- **Oprava B:** z klávesnice je klik, který přijde během směrování události klávesy oknem (`_routingKey`: nastaví tunel
+  `KeyDown` / `KeyUp` okna, zruší bublání téže události, obojí i pro obsloužené události; Enter kliká při stisku,
+  mezerník při uvolnění), ne podle toho, jak tlačítko fokus dostalo. `ShowInTaskbar` se nastavuje přímo jako dřív; dřívější
+  obnova fokusu po změně hlavního panelu (`CameraWindow.Focus.cs`, `WindowFocusNative.cs`) se v záznamu nikdy neuplatnila
+  a je odstraněna (žádný nativní kód navíc).
+- macOS: beze změny chování (stejné rozhodování klávesnice / myš, nic platformního). Na macOS neověřeno.
+- Testy: `tests/LayerPeek.App.UiTests/Cameras/CameraWindowFocusUiTests.cs` (5 případů). A:
+  `PinClickedWithTheMouseIsNotFocusedAgainByTheNextActivation` (normální okno, malý náhled) selhal před opravou A;
+  `ModeButtonClickedWithTheMouseIsNotFocusedAgainByTheNextActivation` prošel i před ní (hlídá regresi). B:
+  `KeysOnThePinFocusedAgainByAnActivationKeepTheFocusOnIt` (normální okno, malý náhled: Tab, mezerník,
+  `Focus(null)` + `Hide()` / `Show()` → fokus vrácen aktivací bez `:focus-visible`, pak Enter, mezerník, Enter) selhal
+  s rozhodováním podle `:focus-visible` (fokus skončil na obrazu – přesně jako E2E) a s opravou prochází.
+- Ověřeno 2026-11-01 na Windows 11 Pro 10.0.26300 (headless, celý `dotnet test`); E2E `CameraPinTests` po opravě B
+  zatím nespuštěno (koordinuje hlavní agent).
 
 ## Otevřené otázky
 (žádné)

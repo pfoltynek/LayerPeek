@@ -15,13 +15,12 @@ using LayerPeek.Core.Cameras;
 namespace LayerPeek.App.UiTests.Cameras;
 
 /// <summary>
-/// The keyboard focus of the camera window across a change of its taskbar button (T-122). A: a window button clicked with
-/// the mouse leaves the focus on the image, not on itself, so that a new activation (Alt+Tab back, or Windows hiding and
-/// showing the window to give it its taskbar button back after unpinning) does not focus the button again and show the whole
-/// row without the pointer. B: the taskbar button hidden or shown again while the window stays active (on Windows Avalonia
-/// gives the window a hidden owner, and Windows may take the focus away) keeps the focus where it was, so a pin switched
-/// with Space / Enter stays focused. Headless windows have no taskbar: the tests take the focus away while
-/// <see cref="Window.ShowInTaskbar"/> changes, as Windows does; the real window is checked by the E2E tests (T-120).
+/// The keyboard focus of the camera window around a new activation (T-122). On Windows unpinning gives the window its
+/// taskbar button back by hiding and showing it, and the activation gives the focus back to the element the window
+/// remembers, without the focus ring. A: a window button clicked with the mouse leaves the focus on the image, not on itself,
+/// so a new activation does not focus the button again and show the whole row without the pointer. B: a pin focused again by
+/// an activation still takes Enter / Space as keys (not as a mouse click), so the focus stays on it. Headless windows have no
+/// taskbar: the tests hide and show the window or activate it; the real window is checked by the E2E tests (T-120).
 /// </summary>
 public sealed class CameraWindowFocusUiTests(HeadlessSession session)
 {
@@ -139,13 +138,9 @@ public sealed class CameraWindowFocusUiTests(HeadlessSession session)
         });
 
     [Theory]
-    [InlineData(false, Key.Space, false)]
-    [InlineData(false, Key.Enter, false)]
-    [InlineData(true, Key.Space, false)]
-    [InlineData(true, Key.Enter, false)]
-    [InlineData(false, Key.Space, true)]
-    [InlineData(true, Key.Enter, true)]
-    public Task PinSwitchedFromTheKeyboardKeepsTheFocusWhenTheTaskbarChangeTakesIt(bool mini, Key key, bool later) =>
+    [InlineData(false)]
+    [InlineData(true)]
+    public Task KeysOnThePinFocusedAgainByAnActivationKeepTheFocusOnIt(bool mini) =>
         session.RunAsync(async scope =>
         {
             await using CameraHarness harness = Harness();
@@ -154,69 +149,28 @@ public sealed class CameraWindowFocusUiTests(HeadlessSession session)
             MouseAway(window);
             Assert.True(pin.Focus(NavigationMethod.Tab));
             window.Settle();
-            int taskbarChanges = 0;
+            bool pinned = window.Topmost;
+            Press(window, Key.Space, PhysicalKey.Space, " ");
+            Assert.NotEqual(pinned, window.Topmost);
 
-            // Windows takes the focus away while the window keeps being active (WM_KILLFOCUS without WM_ACTIVATE), during
-            // the change or right after it.
-            void TakeFocus(object? sender, AvaloniaPropertyChangedEventArgs e)
-            {
-                if (e.Property != Window.ShowInTaskbarProperty)
-                {
-                    return;
-                }
-
-                taskbarChanges++;
-                if (later)
-                {
-                    Dispatcher.UIThread.Post(() => window.FocusManager?.Focus(null), DispatcherPriority.Input);
-                }
-                else
-                {
-                    window.FocusManager?.Focus(null);
-                }
-            }
-
-            window.PropertyChanged += TakeFocus;
-            try
-            {
-                (PhysicalKey physical, string symbol) = key == Key.Space ? (PhysicalKey.Space, " ") : (PhysicalKey.Enter, "\r");
-                for (int i = 0; i < 3; i++)
-                {
-                    bool before = window.Topmost;
-                    Press(window, key, physical, symbol);
-                    Assert.NotEqual(before, window.Topmost);
-                    Assert.Equal(i + 1, taskbarChanges);
-                    Assert.True(window.IsActive);
-                    Assert.Same(pin, window.FocusManager?.GetFocusedElement());
-                    // Still from the keyboard: the focus ring and the whole row stay shown.
-                    Assert.True(pin.Classes.Contains(":focus-visible"), $"Press {i + 1}: the pin lost its keyboard focus look.");
-                    Assert.All(OtherButtons(window), button => Assert.Equal(1, button.Opacity));
-                }
-            }
-            finally
-            {
-                window.PropertyChanged -= TakeFocus;
-            }
-        });
-
-    [Fact]
-    public Task TaskbarChangeOfAWindowThatIsNotActiveTakesNoFocus() =>
-        session.RunAsync(async scope =>
-        {
-            await using CameraHarness harness = Harness();
-            CameraWindow window = Open(harness, mini: false);
-            ToggleButton pin = Pin(window);
-            Assert.True(pin.Focus(NavigationMethod.Tab));
-            window.Settle();
-
-            // Another window became active: the camera window keeps its scope's focus to itself (Windows gives it back on
-            // the next activation) and grabs nothing when a saved option changes its taskbar button.
+            // What Windows does when unpinning gives the window its taskbar button back (and on Alt+Tab away and back): the
+            // window loses the focus while hidden and its activation gives it back to the pin, without the focus ring.
             Run(window, window.Hide);
-            Assert.False(window.IsActive);
             window.FocusManager?.Focus(null);
-            Run(window, () => window.Topmost = true);
+            Run(window, window.Show);
+            Assert.True(window.IsActive);
+            Assert.Same(pin, window.FocusManager?.GetFocusedElement());
+            Assert.DoesNotContain(":focus-visible", pin.Classes);
 
-            Assert.False(window.ShowInTaskbar);
-            Assert.Null(window.FocusManager?.GetFocusedElement());
+            // Enter (a click on key down) and Space (on key up) are still keys: the focus stays on the pin.
+            (Key Key, PhysicalKey Physical, string Symbol)[] keys =
+                [(Key.Enter, PhysicalKey.Enter, "\r"), (Key.Space, PhysicalKey.Space, " "), (Key.Enter, PhysicalKey.Enter, "\r")];
+            foreach ((Key key, PhysicalKey physical, string symbol) in keys)
+            {
+                bool before = window.Topmost;
+                Press(window, key, physical, symbol);
+                Assert.NotEqual(before, window.Topmost);
+                Assert.Same(pin, window.FocusManager?.GetFocusedElement());
+            }
         });
 }
