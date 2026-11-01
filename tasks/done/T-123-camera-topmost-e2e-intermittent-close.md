@@ -1,7 +1,7 @@
 ---
 id: T-123
 title: Občasné selhání E2E „okno kamery zůstane otevřené při změně volby Vždy navrchu“
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P3
 platform: windows
@@ -23,7 +23,7 @@ selhání se přepsaly opakováním (stejná složka výsledků).
 
 ## Akceptační kritéria
 - [x] Příčina zjištěna a zapsána v poznámkách
-- [ ] Oprava (aplikace nebo test); třída `CameraTopmostTests` projde 10× za sebou (`run-e2e.ps1`)
+- [x] Oprava (aplikace nebo test); třída `CameraTopmostTests` projde 10× za sebou (`run-e2e.ps1`)
   – oprava testu hotová, 10× běh na ploše uživatele zatím nespuštěn (koordinuje hlavní agent)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -60,3 +60,4 @@ celý běh prošly – nejspíš zátěž stroje souběžnými agenty.
 
 Uchování výsledků selhání při opakování (bod 2 rozsahu) řeší obecně T-132; `run-e2e.ps1` zatím výsledky přepisuje, proto
 smyčka pro 10× běh kopíruje složku výsledků po každém selhání.
+- **Ověření na skutečné ploše (hlavní agent, 2026-11-01, Windows 11 Pro 10.0.26300):** `run-e2e.ps1 -Class '*CameraTopmostTests' -NoSystemChanges` 10× za sebou, 10/10 zelených. Hlášení potvrzuje příčinu: po každém Uložit jedno `HIDE` a `SHOW` téhož HWND s odstupem 15–22 ms, žádné zavření ani nové okno. Review bez blokujících nálezů; uzavřeno 2026-11-01.
