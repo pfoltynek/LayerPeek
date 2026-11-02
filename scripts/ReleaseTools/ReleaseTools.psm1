@@ -3058,4 +3058,87 @@ function Restore-SmokeProfile {
     $true
 }
 
+function Get-ProductionToastActivatorSubKey {
+    <#
+    .SYNOPSIS
+        The per-user registration of the production toast activator (T-068), relative to HKCU: the Release exe of the AOT
+        smoke check writes its own path into its LocalServer32 when it starts (T-133).
+    .PARAMETER AppEnvironmentPath
+        src/LayerPeek.App/Composition/AppEnvironment.cs, which holds the CLSID (the only place it is defined).
+    #>
+    param([Parameter(Mandatory)] [string] $AppEnvironmentPath)
+    $text = [System.IO.File]::ReadAllText($AppEnvironmentPath)
+    if ($text -notmatch 'const string ProductionToastActivatorClsid = "(?<clsid>[0-9A-Fa-f-]{36})";') {
+        throw "No ProductionToastActivatorClsid in $AppEnvironmentPath."
+    }
+    "Software\Classes\CLSID\{$($Matches['clsid'].ToUpperInvariant())}"
+}
+
+function Get-RegistryTreeState {
+    <#
+    .SYNOPSIS
+        A registry key below HKCU with its values (name, kind, data; environment variables not expanded) and all its
+        subkeys, or $null when it does not exist (T-133). Restore-RegistryTreeState writes it back exactly.
+    #>
+    param([Parameter(Mandatory)] [string] $SubKey)
+    $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($SubKey)
+    if ($null -eq $key) { return $null }
+    try {
+        $values = @(foreach ($name in $key.GetValueNames()) {
+                [pscustomobject]@{
+                    Name = $name
+                    Kind = $key.GetValueKind($name)
+                    Data = $key.GetValue($name, $null, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+                }
+            })
+        $subKeys = [ordered]@{}
+        foreach ($name in $key.GetSubKeyNames()) { $subKeys[$name] = Get-RegistryTreeState -SubKey "$SubKey\$name" }
+        [pscustomobject]@{ Values = $values; SubKeys = $subKeys }
+    }
+    finally {
+        $key.Dispose()
+    }
+}
+
+function Restore-RegistryTreeState {
+    <#
+    .SYNOPSIS
+        Brings the key below HKCU back to a state of Get-RegistryTreeState: the key goes as a whole and, when it existed,
+        is written again with exactly its values and subkeys (T-133).
+    #>
+    param([Parameter(Mandatory)] [string] $SubKey, [AllowNull()] $State)
+    [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($SubKey, $false)
+    if ($null -ne $State) { Write-RegistryTree -SubKey $SubKey -State $State }
+}
+
+function Write-RegistryTree([string] $SubKey, $State) {
+    $key = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey($SubKey, $true)
+    try {
+        foreach ($value in $State.Values) { $key.SetValue($value.Name, $value.Data, $value.Kind) }
+    }
+    finally {
+        $key.Dispose()
+    }
+    foreach ($name in $State.SubKeys.Keys) { Write-RegistryTree -SubKey "$SubKey\$name" -State $State.SubKeys[$name] }
+}
+
+function Format-RegistryTreeState {
+    <#
+    .SYNOPSIS
+        A comparable text of a state of Get-RegistryTreeState ("(missing)" for $null): value names ignoring case, sorted.
+    #>
+    param([AllowNull()] $State, [string] $Indent = '')
+    if ($null -eq $State) { return '(missing)' }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    foreach ($value in @($State.Values | Sort-Object { $_.Name.ToUpperInvariant() })) {
+        $data = if ($value.Data -is [byte[]]) { [Convert]::ToHexString($value.Data) } elseif ($value.Data -is [string[]]) { $value.Data -join '|' } else { [string]$value.Data }
+        $lines.Add("$Indent$(if ($value.Name) { $value.Name } else { '(Default)' }) [$($value.Kind)] = $data")
+    }
+    foreach ($name in @($State.SubKeys.Keys | Sort-Object { $_.ToUpperInvariant() })) {
+        $lines.Add("$Indent[$name]")
+        $lines.Add((Format-RegistryTreeState -State $State.SubKeys[$name] -Indent "$Indent  "))
+    }
+    $lines -join "`n"
+}
+
 Export-ModuleMember -Function *

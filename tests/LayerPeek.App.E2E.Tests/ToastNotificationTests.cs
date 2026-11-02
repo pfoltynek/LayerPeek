@@ -469,6 +469,12 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
         /// <summary>How long Windows needs after the test app's Start menu shortcut appeared before it shows the app's toasts.</summary>
         private static readonly TimeSpan ShortcutSettleTime = TimeSpan.FromSeconds(10);
 
+        /// <summary>How long the pre-flight waits for Windows to take the switched-on notifications of the test app over.</summary>
+        private static readonly TimeSpan PreflightTimeout = TimeSpan.FromSeconds(15);
+
+        /// <summary>How long the switched-off key stays before it is switched on again (Windows took the "off" within seconds).</summary>
+        private static readonly TimeSpan ToggleSettleTime = TimeSpan.FromSeconds(3);
+
         private ToastRun(StringBuilder report) => _report = report;
 
         public AppInstance App { get; private set; } = null!;
@@ -660,6 +666,66 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             }
         }
 
+        /// <summary>
+        /// Pre-flight (T-133): Windows' effective setting of the test app is on. Its notification service keeps an earlier
+        /// "off" although the key says on (desktop run 2026-11-01: <c>Enabled</c> = 0 written while the app ran was taken
+        /// over, <c>Enabled</c> = 1 written before the app started was not), so an "off" is switched on again while the app
+        /// runs and its shortcut exists (<see cref="SwitchTestAppOnAsync"/>). When it stays off every toast would be dropped
+        /// and the test would wait for a banner in vain: it fails at once with the reason and the recovery
+        /// (<see cref="TestAppNotificationRecovery"/>), unless <see cref="ToastRunOptions.AllowNotificationsOff"/>.
+        /// </summary>
+        private async Task AssertNotificationsOnAsync(ToastRunOptions options, CancellationToken cancellationToken)
+        {
+            string setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Effective notification setting of {AppSwitches.AppUserModelId} (ToastNotifier.Setting): {setting}; key {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}");
+            if (ToastSetting.IsDisabled(setting))
+            {
+                setting = await SwitchTestAppOnAsync(cancellationToken);
+            }
+
+            if (options.AllowNotificationsOff)
+            {
+                return;
+            }
+
+            Assert.False(
+                ToastSetting.IsDisabled(setting),
+                $"Windows keeps the notifications of the test app {AppSwitches.AppUserModelId} switched off (ToastNotifier.Setting = {setting}) "
+                + $"although the test switched them on while the app ran (HKCU\\{ToastAppSettingsKind.SubKey}: {RegistryKeys.Read(ToastAppSettingsKind.SubKey)}); "
+                + $"no toast would be shown. Recovery (docs/troubleshooting.md): {TestAppNotificationRecovery.Command}");
+        }
+
+        /// <summary>
+        /// Switches the notifications of the test app on again while the app runs and its Start menu shortcut exists, and
+        /// waits for Windows' effective setting (T-133): the notifications switch of Windows when the run switched it off;
+        /// the app's key with <c>Enabled</c> / <c>ShowBanner</c> = 1; when Windows does not take that, the key once more as
+        /// a change it sees (<c>Enabled</c> 0, then 1), like the switch-off Windows did take. Both keys are journaled.
+        /// </summary>
+        /// <returns>The effective setting at the end (<see cref="ToastSetting.Enabled"/> when it worked).</returns>
+        public async Task<string> SwitchTestAppOnAsync(CancellationToken cancellationToken)
+        {
+            if (!(await ToastsEnabled.ReadAsync(cancellationToken)).IsOn)
+            {
+                await ToastsEnabled.ApplyAsync(new ToastsEnabledState(1), cancellationToken);
+            }
+
+            RegistryKeySnapshot on = ToastAppSettingsKind.WithNotificationsOn(RegistryKeys.Read(ToastAppSettingsKind.SubKey));
+            await AppSettings.ApplyAsync(on, cancellationToken);
+            string setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Switched the test app on while it runs ({on}): {setting}");
+            if (!ToastSetting.IsDisabled(setting))
+            {
+                return setting;
+            }
+
+            await AppSettings.ApplyAsync(TestNotificationTests.WithNotificationsOff(on), cancellationToken);
+            await Task.Delay(ToggleSettleTime, cancellationToken);
+            await AppSettings.ApplyAsync(on, cancellationToken);
+            setting = await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, PreflightTimeout, TimeSpan.FromSeconds(1), cancellationToken);
+            _report.AppendLine(CultureInfo.InvariantCulture, $"Switched the test app off and on again while it runs (Enabled 0, then 1): {setting}");
+            return setting;
+        }
+
         private static byte[]? ReadProductionShortcut()
         {
             string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), AppSwitches.ProductionShortcutFileName);
@@ -737,6 +803,7 @@ public sealed class ToastNotificationTests(E2EFixture fixture)
             await Wait.UntilAsync(() => File.Exists(TestToastsKind.ShortcutPath), TimeSpan.FromSeconds(20), "the Start menu shortcut of the test app");
             // Registered before the shortcut that names it (T-068).
             Assert.True(TestToastsKind.ActivatorRegistered(), "The test app did not register its toast activator.");
+            await AssertNotificationsOnAsync(options, cancellationToken);
             if (options.WithoutPrinter)
             {
                 // Windows drops a toast of an app id whose Start menu shortcut it has not taken in yet: the first test
@@ -768,6 +835,12 @@ internal sealed record ToastRunOptions
 
     /// <summary>Another copy of the Debug exe (the portable Velopack copy of the update test); default <see cref="E2EFixture.AppPath"/>.</summary>
     public string? Exe { get; init; }
+
+    /// <summary>
+    /// The pre-flight does not fail when Windows keeps the test app's notifications off (only the recovery of T-133,
+    /// <see cref="TestAppNotificationRecovery"/>, which then lets the user switch them on).
+    /// </summary>
+    public bool AllowNotificationsOff { get; init; }
 }
 
 /// <summary>

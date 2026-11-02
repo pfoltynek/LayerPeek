@@ -83,7 +83,7 @@ internal sealed record SystemStateSnapshot(
             DisplayTopology = topology,
             DisplayReport = DisplayConfig.Report(),
             DisplayError = displayError,
-            Toasts = ToastSystemState.Capture(),
+            Toasts = ToastSystemState.Capture() with { TestAppSetting = await ToastSetting.ReadAsync(cancellationToken) },
             CredentialEntries = TestCredentials.Targets(),
         };
     }

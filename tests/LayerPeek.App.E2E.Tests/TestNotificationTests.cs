@@ -124,33 +124,49 @@ public sealed class TestNotificationTests(E2EFixture fixture)
             Screenshots.Save(settings, "test-notification-clicked-general");
 
             // 4. Switched off in Windows: the warning with the button to Settings.
-            string how = await TurnOffAsync(run, window, report, cancellationToken);
-            report.AppendLine("Switched off by " + how);
-            Screenshots.Save(settings, "test-notification-turned-off");
-            Assert.Equal(AppStrings.Get("en", "SettingsNotificationsTurnedOffWindows"), Ui.Text(window, "SettingsNotificationsTurnedOff"));
-            Assert.False(Ui.IsShown(window, "SettingsTestNotification"), "The test button is still shown although Windows turned the notifications off.");
-            Assert.True(Ui.IsShown(window, "SettingsOpenNotificationSettings"), "The button to Settings is not shown.");
-            AutomationElement open = await Ui.FindAsync(window, "SettingsOpenNotificationSettings");
-            Assert.Equal(AppStrings.Get("en", "SettingsOpenNotificationSettingsWindows"), ButtonText(open));
-            open.Patterns.Invoke.Pattern.Invoke();
-            string logged = $"Test mode: System Settings is not opened ({SettingsAddress}).";
-            await Wait.UntilAsync(() => run.App.ReadLog().Contains(logged, StringComparison.Ordinal), TimeSpan.FromSeconds(10), $"the app to log '{logged}'");
+            // T-133: switched on again while the app runs and its shortcut exists (also after a failure): Windows takes
+            // an "on" written after the app quit or before it started no more (its notification service keeps the "off").
+            string switchedOn;
+            try
+            {
+                string how = await TurnOffAsync(run, window, report, cancellationToken);
+                report.AppendLine("Switched off by " + how);
+                Screenshots.Save(settings, "test-notification-turned-off");
+                Assert.Equal(AppStrings.Get("en", "SettingsNotificationsTurnedOffWindows"), Ui.Text(window, "SettingsNotificationsTurnedOff"));
+                Assert.False(Ui.IsShown(window, "SettingsTestNotification"), "The test button is still shown although Windows turned the notifications off.");
+                Assert.True(Ui.IsShown(window, "SettingsOpenNotificationSettings"), "The button to Settings is not shown.");
+                AutomationElement open = await Ui.FindAsync(window, "SettingsOpenNotificationSettings");
+                Assert.Equal(AppStrings.Get("en", "SettingsOpenNotificationSettingsWindows"), ButtonText(open));
+                open.Patterns.Invoke.Pattern.Invoke();
+                string logged = $"Test mode: System Settings is not opened ({SettingsAddress}).";
+                await Wait.UntilAsync(() => run.App.ReadLog().Contains(logged, StringComparison.Ordinal), TimeSpan.FromSeconds(10), $"the app to log '{logged}'");
 
-            // What the button opens outside the test mode, opened by the test (only when Settings does not run).
-            if (WindowsSettingsApp.IsRunning())
-            {
-                report.AppendLine(CultureInfo.InvariantCulture, $"Settings was already open: {SettingsAddress} not opened by the test (it would replace the user's page).");
-                TestContext.Current.SendDiagnosticMessage($"Settings was already open: {SettingsAddress} was not opened by the test.");
-            }
-            else
-            {
-                using (WindowsSettingsApp app = await WindowsSettingsApp.OpenAsync(SettingsAddress, cancellationToken))
+                // What the button opens outside the test mode, opened by the test (only when Settings does not run).
+                if (WindowsSettingsApp.IsRunning())
                 {
-                    report.AppendLine(CultureInfo.InvariantCulture, $"{SettingsAddress} opened Settings in the foreground (process {app.ForegroundProcess}); closed again.");
+                    report.AppendLine(CultureInfo.InvariantCulture, $"Settings was already open: {SettingsAddress} not opened by the test (it would replace the user's page).");
+                    TestContext.Current.SendDiagnosticMessage($"Settings was already open: {SettingsAddress} was not opened by the test.");
                 }
+                else
+                {
+                    using (WindowsSettingsApp app = await WindowsSettingsApp.OpenAsync(SettingsAddress, cancellationToken))
+                    {
+                        report.AppendLine(CultureInfo.InvariantCulture, $"{SettingsAddress} opened Settings in the foreground (process {app.ForegroundProcess}); closed again.");
+                    }
 
-                await Wait.UntilAsync(() => !WindowsSettingsApp.IsRunning(), TimeSpan.FromSeconds(10), "Settings to close");
+                    await Wait.UntilAsync(() => !WindowsSettingsApp.IsRunning(), TimeSpan.FromSeconds(10), "Settings to close");
+                }
             }
+            finally
+            {
+                switchedOn = await run.SwitchTestAppOnAsync(cancellationToken);
+                report.AppendLine("Switched on again while the app runs: " + switchedOn);
+            }
+
+            Assert.True(
+                switchedOn == ToastSetting.Enabled,
+                $"Windows keeps the notifications of the test app {AppSwitches.AppUserModelId} switched off after the test switched them on again (ToastNotifier.Setting = {switchedOn}). "
+                + $"Recovery (docs/troubleshooting.md): {TestAppNotificationRecovery.Command}");
 
             // The window closes without saving (the sound stays All), so the app quits without a question.
             await CameraWindowSettings.CloseAsync(settings, window, save: false);

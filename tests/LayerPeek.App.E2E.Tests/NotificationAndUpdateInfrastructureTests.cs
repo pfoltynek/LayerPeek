@@ -124,4 +124,14 @@ public sealed class NotificationAndUpdateInfrastructureTests
         Assert.Equal(3, github.Requests.Count);
         Assert.StartsWith($"GET {FakeGitHubReleases.ReleasesPath}?per_page=30 HTTP/1.1", github.Requests[0], StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void TheRecoveryOfTheTestAppsNotificationsIsDocumentedWithItsExactCommand()
+    {
+        // T-133: the pre-flight and the test notification point to this command; docs/troubleshooting.md must show it as is.
+        Assert.Contains(TestAppNotificationRecovery.Variable + " = '1'", TestAppNotificationRecovery.Command, StringComparison.Ordinal);
+        Assert.Contains($"-Class '*{nameof(TestAppNotificationRecovery)}'", TestAppNotificationRecovery.Command, StringComparison.Ordinal);
+        string doc = File.ReadAllText(Path.Combine(LayerPeek.Tests.Shared.TestWorktree.Root, "docs", "troubleshooting.md"));
+        Assert.Contains(TestAppNotificationRecovery.Command, doc, StringComparison.Ordinal);
+    }
 }
