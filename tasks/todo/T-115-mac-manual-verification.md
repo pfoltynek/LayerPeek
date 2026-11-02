@@ -122,8 +122,11 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
 - [x] **T-020** (krit. „Notifikace fungují na macOS ze sestavené `.app`“): `mac.notifications` = `PASS` (testovací bundle)
       a `mac.notifications-production` potvrzeno (`/Applications/LayerPeek.app`, banner s názvem tiskárny, zvuk podle
       nastavení, ikona LayerPeeku) (sezení 5.1, 5.3). → přesunuto do T-126
-- [ ] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
+- [x] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
       `mac.notifications` = `PASS` (sezení 5.1).
+      Ověřeno 2026-11-02 (macOS 27.2, agent, zpráva `artifacts/verify/20261102-115907`): `mac.notifications` = `PASS` –
+      doručeno, odstraněno při ukončení i `--layerpeek-e2e-clear-toasts` po pádu (oznámení „LayerPeek E2E“ povolil
+      uživatel jednou).
 - [x] **T-020** (krit. „Kliknutí na notifikaci otevře detail / web tiskárny“): `mac.notification-click` potvrzeno
       (aplikace běží); navíc ručně klik na oznámení v Centru oznámení, když produkční aplikace neběží – macOS ji spustí
       a otevře web tiskárny (sezení 5.2, rozhodnutí T-105 otázka 3). → přesunuto do T-126
@@ -145,8 +148,11 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       = `PASS` na každém připojeném monitoru.
       Ověřeno 2026-11-01: `mac.camera-placement` = `PASS` na jediném připojeném monitoru (virtuální displej „Virtuální
       16:10“); druhý monitor patří k ruční části T-038 v T-127.
-- [ ] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
+- [x] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
       volitelně se druhým účtem podle sezení 10.1.
+      Ověřeno 2026-11-02 (agent, `-Unattended -Allow mac.socket-other-user`, pravidlo `tools/macos-verify-sudoers.sh`):
+      `mac.socket-other-user` = `PASS` – „Refused a connection of another user (uid 4294967294) to the instance channel;
+      nothing was read.“
 - [x] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
       Terminál, po běhu vypnout) a `mac.keyboard-physical` potvrzeno – vestavěná i Logitech klávesnice, české rozložení
       (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení i v Diagnostice (výběr tiskárny, aspoň dvě

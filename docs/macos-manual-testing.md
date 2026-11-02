@@ -48,6 +48,8 @@ připravit:
 - **Zámek obrazovky:** Nastavení systému → Zamykací obrazovka → „Po spuštění spořiče nebo vypnutí displeje vyžadovat
   heslo“ na víc než minutu (např. 1 hodinu) – jinak `mac.display-sleep` po probuzení skončí `SKIP` (zamčeno).
 - Spouští se z Terminálu v přihlášené relaci (ne přes SSH) s odemčenou obrazovkou.
+- `mac.display-sleep` jen bez Sdílení obrazovky: připojený klient drží displej vzhůru („Remote user active“ v
+  `pmset -g assertions`), kontrola pak skončí `SKIP`.
 
 - **Výsledky:** `PASS` (ověřeno automaticky), `FAIL`, `SKIP` (vždy s důvodem, např. chybí `.dmg` nebo spí displej),
   `MANUAL` (potvrdili jste „y“; „n“ je `FAIL`). Kód 1 při jakémkoli `FAIL`. Zpráva `report.md` a `report.json`

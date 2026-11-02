@@ -1382,6 +1382,9 @@ $checks = @(
         Set-SimulatorScenario $simulator 'printing'
         # Session 8.2: with the notifications of the test bundle allowed (mac.notifications), the pause while the display
         # sleeps must be delivered before the wake-up; macOS delivers them only to an app started through LaunchServices.
+        # T-140: a Screen Sharing client keeps the display awake (assertion "Remote user active"): pmset displaysleepnow
+        # then turns nothing off and the app never waits for a display, so nothing could be judged.
+        if (@(& /usr/bin/pmset -g assertions 2>$null) -match 'Remote user active') { Skip-VerifyCheck 'Screen Sharing is connected and keeps the display awake (pmset -g assertions: "Remote user active"); run it at the Mac itself without Screen Sharing.' }
         $notify = (Get-TestNotificationStatus $c).Permission -eq 'Allowed'
         $data = New-TestData -Context $c -Simulator $simulator -Notifications:$notify
         Write-VerifyStep $c 'The display goes to sleep in 5 s and the script wakes it after about 40 s. Do not touch mouse or keyboard meanwhile; unlock the screen afterwards if asked.' 'Yellow'
