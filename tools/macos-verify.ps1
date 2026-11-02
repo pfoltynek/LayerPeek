@@ -1239,6 +1239,7 @@ $checks = @(
         $screens = Get-Screens $c
         $problems = [System.Collections.Generic.List[string]]::new()
         $tabMove = 'not checked'
+        $listCheck = 'not checked'
         $key = { param($Combo) $null = Invoke-Helper $c @('key', $Combo); Start-Sleep -Milliseconds 400 }
         # The app in front is not yet its key window, and a window that reached the full-screen frame still animates: a key
         # event right then is lost (T-140), so both settle for a second first.
@@ -1278,6 +1279,25 @@ $checks = @(
                         else { $tabMove = "$($before.Selected) -> $($after.Selected)" }
                     }
                 }
+                if ($closer -eq 'cmd+period') {
+                    # T-100 question 3: with a list open, Cmd-. closes only the list (like Esc); the next one is Cancel.
+                    $combo = Get-AxElement $c $app.Id 'PrinterConnectionType'
+                    $windows = @(Get-ProcessWindows $c $app.Id).Count
+                    if (-not $combo) { $listCheck = 'not checked (no PrinterConnectionType)' }
+                    else {
+                        $center = Get-AxCenter $combo
+                        $null = Invoke-Helper $c @('click', "$($center[0])", "$($center[1])")
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -gt $windows })) { $problems.Add('a click did not open the list PrinterConnectionType') }
+                        else {
+                            Start-Sleep -Milliseconds 500
+                            & $key 'cmd+period'
+                            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -le $windows })) { $problems.Add('Cmd-. did not close the open list') }
+                            elseif (-not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id))) { $problems.Add('Cmd-. with an open list closed Settings, not only the list') }
+                            else { $listCheck = 'closed only the open list first' }
+                            Start-Sleep -Milliseconds 500
+                        }
+                    }
+                }
                 & $key $closer
                 if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) })) {
                     $problems.Add("$closer did not close Settings")
@@ -1298,7 +1318,7 @@ $checks = @(
             $null = Save-VerifyEvidence -Context $c -Name 'app.log' -Content (Read-TestLog $data)
         }
         if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
-        New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved); Cmd-W in About and Diagnostics."
+        New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved; Cmd-. $listCheck); Cmd-W in About and Diagnostics."
     }
 
     New-VerifyCheck -Id 'mac.notification-click' -Kind Manual -Title 'a click on a delivered notification of the test bundle opens the printer web' `
