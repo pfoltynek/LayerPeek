@@ -93,3 +93,6 @@ Při testování na Macu (2026-10-29) nefungovala v okně kamery F11 pro celou o
   na Windows (kritérium 5 je zajištěné testy s vynucenou Windows variantou, ale ne během na Windows).
 - Ruční kroky: `docs/macos-manual-testing.md`, sezení 6, krok 3; nejdřív skriptem `tools/macos-verify.ps1` – kontroly `mac.keys` (skutečné události klávesnice, potřebuje Zpřístupnění pro Terminál) a `mac.keyboard-physical` (vestavěná a Logitech klávesnice, české rozložení), T-105. CHANGELOG [0.3.0] doplněn. `README.md` zmiňuje F11
   (popis Windows verze) a zůstal beze změny.
+- 2026-11-02 (macOS 27.2, `mac.keys` se skutečnými událostmi klávesnice, T-140): otázka 2 – ⌃⌘F, ⌘W, Esc a ⌘⇧] se
+  dostanou k aplikaci; ⌘. ne (AppKit ho posílá jako `cancelOperation:`, ne jako `keyDown:`), opraveno v T-141. Pak
+  `mac.keys` = `PASS` včetně ⌘. s otevřeným seznamem (otázka 3). Fyzická klávesnice zůstává v T-127.

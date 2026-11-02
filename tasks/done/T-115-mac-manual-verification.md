@@ -1,7 +1,7 @@
 ---
 id: T-115
 title: Ruční ověření na Macu
-status: todo
+status: done
 owner: qa-reviewer
 priority: P1
 platform: macos
@@ -133,14 +133,17 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
 - [x] **T-020** (krit. „Odepřené oprávnění nezpůsobí pád; stav je srozumitelně ohlášen“): `mac.notifications-production`
       – po vypnutí v Nastavení systému → Oznámení červená hláška a tlačítko „Otevřít nastavení oznámení“ v Nastavení →
       Obecné, po zapnutí hláška zmizí, aplikace nespadne (sezení 5.3). → přesunuto do T-126
-- [ ] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
+- [x] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
       potvrzeno; v logu „No active display …“ a „… starting the UI.“ (sezení 8.1).
-- [ ] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
+      `mac.display-wait` = `PASS` (2026-11-01). `mac.display-sleep` nejde se Sdílením obrazovky (drží displej vzhůru,
+      kontrola od T-140 hlásí `SKIP`) → přesunuto do T-127
+- [x] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
       `mac.display-sleep` potvrzeno; navíc ručně sezení 8.2 (událost tisku ze simulátoru během spánku displeje →
       oznámení přijde ještě se zhasnutým displejem, ikona po probuzení hned ukazuje stav).
       Od 2026-11-02 (T-136) ověří sezení 8.2 `mac.display-sleep` sám, když jsou oznámení „LayerPeek E2E“ povolená
       (`mac.notifications` spustit dřív): oznámení pauzy musí být doručené dřív, než se spustí UI, tedy se zhasnutým
       displejem.
+      → přesunuto do T-127
 - [x] **T-026** (krit. „Stream … ve všech režimech okna“, část se simulátorem): `mac.camera` = `PASS` a `mac.camera-look`
       potvrzeno (normální okno, celá obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1).
       Ověřeno 2026-11-01: `mac.camera` = `PASS`. Ruční `mac.camera-look` → přesunuto do T-127
@@ -292,11 +295,19 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       platí, nebo je upravené. → přesunuto do T-127
 
 ### 6. Úklid a závěr
-- [ ] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
+- [x] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
       volby uživatele, Klíčenka, změny systému vrácené); `pwsh tools/profile-snapshot.ps1 -Compare` ukáže jen to, co
       mělo zůstat.
-- [ ] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
+      Hotovo 2026-11-02: skript po každém běhu uklidil testovací bundle, oznámení, Klíčenku a dočasné složky;
+      `mac.profile-unchanged` = `PASS` (beze změny, Login Items nekontrolovány). Instalace a „Otevřít při přihlášení“
+      jsou v T-126. Záměrně ponechané změny pro kontroly bez uživatele (T-140, rozhodnutí uživatele 2026-11-02):
+      pravidlo `/etc/sudoers.d/layerpeek-verify` (jen `nc` jako `nobody`, odebrání `sudo bash
+      tools/macos-verify-sudoers.sh --remove`), heslo po vypnutí displeje za 1 hodinu (`sysadminctl -screenLock`),
+      povolená oznámení „LayerPeek E2E“, Zpřístupnění a Nahrávání obrazovky pro Terminál.
+- [x] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
       T-038 a T-100 zapsané i do jejich poznámek (T-038 od 2026-11-01 v T-127).
+      Hotovo 2026-11-02 (poznámky níže); chyby mají úkoly T-133–T-139 a T-141 (⌘., otázka 2 z T-100 – zapsáno i v
+      T-100); rozhodovací body T-100 otázky 1–2 a T-038 jsou v T-127.
 
 ## Otevřené otázky
 - (žádné vlastní; rozhodovací body T-100 otázky 1–2 jsou u kroků výše, T-038 otázky 2–3 od 2026-11-01 v T-127)
@@ -326,3 +337,8 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
   kontextového menu), T-139 (ikona Docku bez ikony v bundlu). Subjektivní a fyzické body přesunuté do T-127 (oddíl 1b).
   Zbývají interaktivní kontroly uživatele: `mac.keys`, `mac.notifications`, `mac.socket-other-user`,
   `mac.display-sleep` (s oznámením během spánku displeje), pak úklid (oddíl 6).
+- 2026-11-02 (macOS 27.2, agent, T-140 – `-Unattended -Allow`): `mac.keys` = `PASS` (po opravě ⌘. v T-141),
+  `mac.notifications` = `PASS`, `mac.socket-other-user` = `PASS`, `mac.profile-unchanged` = `PASS`; `mac.display-sleep`
+  = `SKIP` (Sdílení obrazovky drží displej vzhůru) – body T-096 / T-099 přesunuté do T-127 (rozhodnutí uživatele).
+  Zprávy `artifacts/verify/20261102-114422`, `20261102-115631`, `20261102-115907`.
+- Uzavřeno 2026-11-02: zbývající ruční ověření přesunuto do T-127 (rozhodnutí uživatele).

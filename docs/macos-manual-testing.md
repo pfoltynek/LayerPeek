@@ -6,7 +6,7 @@ T-097, T-098, T-099, T-100, T-101, T-102, T-116), bez duplicit a seřazené do s
 a pozadí jsou v uvedeném úkolu; tento soubor je jen pořadí a očekávání.
 
 Od 2026-10-30 se zbývající body odškrtávají ve sběrném úkolu
-[T-115 „Ruční ověření na Macu“](../tasks/todo/T-115-mac-manual-verification.md) (rozhodnutí uživatele); původní úkoly
+[T-115 „Ruční ověření na Macu“](../tasks/done/T-115-mac-manual-verification.md) (rozhodnutí uživatele); původní úkoly
 jsou uzavřené. Protějšek pro Windows je
 T-114 ([windows-manual-testing.md](windows-manual-testing.md)).
 
