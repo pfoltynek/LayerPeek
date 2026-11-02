@@ -147,12 +147,15 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       16:10“); druhý monitor patří k ruční části T-038 v T-127.
 - [ ] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
       volitelně se druhým účtem podle sezení 10.1.
-- [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
+- [x] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
       Terminál, po běhu vypnout) a `mac.keyboard-physical` potvrzeno – vestavěná i Logitech klávesnice, české rozložení
       (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení i v Diagnostice (výběr tiskárny, aspoň dvě
       tiskárny) ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam (T-100 otázka 3, rozhodnuto 2026-10-30).
       Od 2026-11-02 tu zůstává jen `mac.keys` = `PASS`; `mac.keyboard-physical` (vestavěná a Logitech klávesnice, české
       rozložení, ⌘. s otevřeným seznamem) → přesunuto do T-127.
+      Ověřeno 2026-11-02 (macOS 27.2, agent, `-Unattended -Allow mac.keys`, zpráva `artifacts/verify/20261102-114422`):
+      `mac.keys` = `PASS` – ⌃⌘F, Esc, ⌘. a ⌘W v okně kamery, ⌘⇧] dvakrát (záložka z Accessibility), ⌘W a ⌘. v Nastavení
+      beze změny, ⌘. s otevřeným seznamem zavře jen seznam, ⌘W v O aplikaci a Diagnostice. ⌘. předtím nefungovalo (T-141).
 - [x] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
       přepínají ⌘⇧] / ⌘⇧[ (klávesy vpravo od P, „ú“ a „)“) hlavní záložky Nastavení? Nestane se nic jiného? Zapsat
       výsledek na vestavěné i Logitech klávesnici a rozhodnout, zda stačí fyzická pozice kláves (dnešní implementace);
