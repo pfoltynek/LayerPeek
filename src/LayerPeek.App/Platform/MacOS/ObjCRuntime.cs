@@ -123,6 +123,17 @@ internal static unsafe partial class ObjCRuntime
         return type;
     }
 
+    /// <summary>
+    /// Adds a method to an existing class (T-141: a responder method a class of <c>libAvaloniaNative</c> lacks). False when
+    /// the class does not exist or already implements the selector itself (then nothing changes).
+    /// </summary>
+    /// <param name="implementation">An <c>UnmanagedCallersOnly</c> function; <paramref name="types"/> its type encoding.</param>
+    public static bool AddMethod(string className, string selector, nint implementation, string types)
+    {
+        nint type = GetClass(className);
+        return type != 0 && AddMethod(type, RegisterName(selector), implementation, types);
+    }
+
     [LibraryImport(LibObjC, EntryPoint = "objc_getClass", StringMarshalling = StringMarshalling.Utf8)]
     private static partial nint GetClass(string name);
 
