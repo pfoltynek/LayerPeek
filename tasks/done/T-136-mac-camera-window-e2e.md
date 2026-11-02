@@ -1,7 +1,7 @@
 ---
 id: T-136
 title: Automatické kontroly okna kamery na Macu místo ručních bodů T-115 (T-122, T-117, T-118)
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P1
 platform: macos
@@ -29,10 +29,10 @@ a fyzické body přesunout do T-127 a T-115 uzavřít.
 
 ## Akceptační kritéria
 - [x] Pomocník a `mac.camera-pin` (bod 1–2); Pester `tools/VerifyTools.Tests.ps1` a `LayerPeek.Scripts.Tests` projdou
-- [ ] `mac.camera-pin` = PASS (po opravě T-137 a T-138)
-- [ ] Kontrola obrysu (bod 3) = PASS
-- [ ] Bod 4 rozhodnut / hotový
-- [ ] T-115: body nahrazené kontrolami odkazují na ně, subjektivní a fyzické body přesunuté do T-127
+- [x] `mac.camera-pin` = PASS (po opravě T-137 a T-138)
+- [x] Kontrola obrysu (bod 3) = PASS
+- [x] Bod 4 rozhodnut / hotový
+- [x] T-115: body nahrazené kontrolami odkazují na ně, subjektivní a fyzické body přesunuté do T-127
 
 ## Otevřené otázky
 (žádné)
@@ -41,3 +41,17 @@ a fyzické body přesunout do T-127 a T-115 uzavřít.
 - 2026-11-01 (macOS 27.2, Zpřístupnění pro Terminál): `mac.camera-pin` funguje; prochází vše kromě dvou chyb aplikace,
   které kontrola našla – T-137 (po zapnutí „vždy navrchu“ macOS aplikaci deaktivuje, fokus klávesnice zmizí, vpředu je
   Finder) a T-138 (⌃-klik neotevře kontextové menu). Syntetický ⌃-klik pomocníka ve Finderu kontextové menu otevře.
+- 2026-11-02 (macOS 27.2, větev se sloučeným `develop` po T-137–T-139, zpráva `artifacts/verify/20261102-102650`):
+  `mac.camera-pin` = `PASS` (normální okno i malý náhled: klik, mezerník, Enter, AXPress, fokus po kliku a přepnutí
+  aplikace, Tab po obrazu, kontextové menu pravým tlačítkem i ⌃-klikem, restart) a `mac.camera-outline` = `PASS`
+  (`mac.camera-outline`: snímek okna `screencapture -l`, obrys 2 px u hran a rohů, jas asi 115 / 191 bez / s ukazatelem,
+  vnitřek asi 0; prvek `MiniOutline` ve stromu Accessibility jen v malém náhledu).
+- Bod 4: `mac.display-sleep` spustí aplikaci se zapnutými oznámeními přes LaunchServices (`Start-TestAppViaOpen
+  -NoWait`), když má bundle „LayerPeek E2E“ oznámení povolená, a vyžaduje, aby oznámení pauzy bylo doručené dřív, než
+  se spustí UI (tedy během spánku displeje); jinak běží jako dřív a ve výsledku napíše, že část s oznámením neproběhla.
+  Uzavírá tím T-099 kritéria 2 a 4 (sezení 8.2). Spustí ho uživatel (uspání displeje) v T-115.
+- T-115: ověřené body odškrtnuté s odkazem na kontrolu, subjektivní a fyzické body (ikony, `mac.menu`,
+  `mac.camera-look`, fyzická klávesnice a otázky 1–2 T-100, skutečný VoiceOver, vzhled špendlíku a obrysu, celý
+  interaktivní běh T-105) přesunuté do T-127, oddíl 1b. `docs/macos-manual-testing.md`: řádky `mac.camera-pin`,
+  `mac.camera-outline` a rozšířený `mac.display-sleep`.
+- Pester `tools/VerifyTools.Tests.ps1` 36/36, `LayerPeek.Scripts.Tests` 12 prošlo, 1 přeskočen.

@@ -392,8 +392,12 @@ function Start-TestApp {
 }
 
 function Start-TestAppViaOpen {
-    <# .SYNOPSIS Starts the test bundle through LaunchServices (open -n), as macOS requires for notifications; returns the pid. #>
-    param($Context, $TestData, [hashtable] $Environment = @{})
+    <#
+    .SYNOPSIS
+        Starts the test bundle through LaunchServices (open -n), as macOS requires for notifications; returns the pid.
+        -NoWait returns right after the start (no wait for the instance socket, no skip while every display sleeps).
+    #>
+    param($Context, $TestData, [hashtable] $Environment = @{}, [switch] $NoWait)
     $bundle = Get-TestBundle $Context
     $before = @(Get-BundleProcessIds $bundle)
     $arguments = @('-n', '-F', '-g', '--stdout', (Join-Path $TestData.Data 'stdout.txt'), '--stderr', (Join-Path $TestData.Data 'stderr.txt'))
@@ -407,6 +411,7 @@ function Start-TestAppViaOpen {
     if ($script:candidate.Count -gt 0) { $found = $script:candidate[0] }
     if (-not $found) { throw 'The test app did not start through open.' }
     Add-VerifyCleanup $Context "test app $found" { param($id) Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } -State $found
+    if ($NoWait) { return $found }
     $null = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-Path -LiteralPath $TestData.Socket }
     Start-Sleep -Seconds 2
     if ((Read-TestLog $TestData) -match 'No active display') {
@@ -1291,23 +1296,32 @@ $checks = @(
     }
 
     New-VerifyCheck -Id 'mac.display-sleep' -Kind Permission -Permission 'putting the display to sleep (pmset displaysleepnow) and waking it (caffeinate -u); you may have to unlock the screen' `
-        -Title 'real start while every display sleeps: monitoring runs, the menu bar item appears after wake-up' `
-        -Closes 'T-096 kritérium 1 (skutečný start s uspaným displejem)', 'T-099 kritérium 1 (ikona po probuzení se stavem)', 'T-099 kritérium 3 (skutečný start se zhasnutým displejem)' -Action {
+        -Title 'real start while every display sleeps: monitoring runs and notifies, the menu bar item appears after wake-up' `
+        -Closes 'T-096 kritérium 1 (skutečný start s uspaným displejem)', 'T-099 kritérium 1 (ikona po probuzení se stavem)', 'T-099 kritérium 3 (skutečný start se zhasnutým displejem)', 'T-099 kritéria 2 a 4 (sezení 8.2: oznámení události tisku ještě se zhasnutým displejem; potřebuje povolená oznámení z mac.notifications)' -Action {
         param($c)
         $simulator = Get-Simulator $c
         Set-SimulatorScenario $simulator 'printing'
-        $data = New-TestData -Context $c -Simulator $simulator
-        $null = Get-TestBundle $c
+        # Session 8.2: with the notifications of the test bundle allowed (mac.notifications), the pause while the display
+        # sleeps must be delivered before the wake-up; macOS delivers them only to an app started through LaunchServices.
+        $notify = (Get-TestNotificationStatus $c).Permission -eq 'Allowed'
+        $data = New-TestData -Context $c -Simulator $simulator -Notifications:$notify
         Write-VerifyStep $c 'The display goes to sleep in 5 s and the script wakes it after about 40 s. Do not touch mouse or keyboard meanwhile; unlock the screen afterwards if asked.' 'Yellow'
         Start-Sleep -Seconds 5
         & /usr/bin/pmset displaysleepnow
         Start-Sleep -Seconds 5
-        $app = Start-TestApp -Context $c -TestData $data -NoWait
+        $app = if ($notify) { Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1' } -NoWait) }
+        else { Start-TestApp -Context $c -TestData $data -NoWait }
         try {
             $waiting = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Read-TestLog $data) -match 'No active display' }
             $monitoring = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Read-TestLog $data) -match 'Starting printer monitoring and notifications while waiting for an active display\.' }
             Set-SimulatorScenario $simulator 'paused'
-            Start-Sleep -Seconds 20
+            $deliveredAsleep = $false
+            if ($notify) {
+                $deliveredAsleep = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Get-TestNotificationStatus $c).Delivered -gt 0 }
+                # Delivered before the UI started, so while the app still waited for a display.
+                $deliveredAsleep = $deliveredAsleep -and (Read-TestLog $data) -notmatch 'starting the UI\.'
+            }
+            else { Start-Sleep -Seconds 20 }
             & /usr/bin/caffeinate -u -t 2
             Write-VerifyStep $c 'Display woken. Unlock the screen if it is locked.' 'Yellow'
             $ui = Wait-VerifyCondition -TimeoutSeconds 180 -Condition { (Read-TestLog $data) -match 'starting the UI\.' }
@@ -1320,11 +1334,13 @@ $checks = @(
                 if (-not $ui) { 'the UI did not start after the wake-up' }
                 if ($log -notmatch 'The menu bar item attaches to the monitoring that already runs\.') { 'the menu bar item did not attach to the running monitoring' }
                 if (-not $item) { 'no status item in the menu bar after the wake-up' }
-                if ($app.HasExited) { "the app ended with $($app.ExitCode)" }
+                if ($notify -and -not $deliveredAsleep) { 'the notification of the pause was not delivered while the display slept' }
+                if ($app.HasExited) { 'the app ended' }
             )
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
             if (-not (Read-VerifyAnswer -Context $c -Question 'Does the [E2E] menu bar icon show the paused printer (not "Starting...")?')) { return New-VerifyResult FAIL 'the icon did not show the state of the running monitoring (user).' }
-            New-VerifyResult MANUAL 'waited without a display with monitoring running; after the wake-up the menu bar item attached and showed the current state.'
+            $notification = if ($notify) { ' The notification of the pause was delivered while the display slept.' } else { " Notification part not run: the notifications of 'LayerPeek E2E' are not allowed (run mac.notifications first)." }
+            New-VerifyResult MANUAL "waited without a display with monitoring running; after the wake-up the menu bar item attached and showed the current state.$notification"
         }
         finally { $null = Stop-TestApp $data $app }
     }

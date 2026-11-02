@@ -62,6 +62,47 @@ a kritérium.
       rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
       a založit úkol. Když se nic neuřízne, otázka odpadá (zapsat).
 
+### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
+- [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
+      proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď
+      na otázku 7 z T-105 (celá obrazovka se zamčenou obrazovkou u `mac.camera`). Otázka 6 je zodpovězená v T-115.
+- [ ] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
+      menu bar, všechny stavy (lomítko offline, ▶ s vrstvami, ❚❚, ✓, !, ×), ostrost na monitoru @1x (při rozmazání
+      zapsat; záloha je vícerozlišovací obrázek) (sezení 2.2).
+- [ ] **T-018** (krit. „Menu z T-008 … aktualizuje“, ruční část): `mac.menu` potvrzeno (sezení 2.3); `mac.menubar` =
+      `PASS` je zapsané v T-115.
+- [ ] **T-116** (krit. „Ruční kontrola na Macu: obrázky tiskáren v menu …“): `mac.menu` – barevný obrázek 18 × 18 bodů
+      u položky tiskárny, ostrý na Retině i na externím monitoru @1x, světlý i tmavý vzhled, zvýrazněná položka,
+      zarovnání položek a podmenu tiskárny z T-042, vlastní obrázek jako čtverec (sezení 2.3). Rozmazání na @1x zapsat
+      – oprava = nový úkol.
+- [ ] **T-098** (krit. „V Docku a Finderu působí stejně velká jako systémové aplikace“): `mac.icons` (obrázek vedle
+      systémových ikon) a pohled ve Finderu, Launchpadu a Nastavení systému (sezení 2.5).
+- [ ] **T-026** (krit. „Stream … ve všech režimech okna“, ruční část): `mac.camera-look` potvrzeno (normální okno, celá
+      obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1); `mac.camera` = `PASS` je v T-115.
+- [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“, fyzická část): `mac.keyboard-physical`
+      potvrzeno – vestavěná i Logitech klávesnice, české rozložení (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení
+      i v Diagnostice (výběr tiskárny, aspoň dvě tiskárny) ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam (T-100
+      otázka 3). `mac.keys` zůstal v T-115.
+- [ ] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
+      přepínají ⌘⇧] / ⌘⇧[ (klávesy vpravo od P, „ú“ a „)“) hlavní záložky Nastavení? Nestane se nic jiného? Zapsat
+      výsledek na vestavěné i Logitech klávesnici a rozhodnout, zda stačí fyzická pozice kláves (dnešní implementace);
+      když ne, nový úkol.
+- [ ] **T-100** (otázka 2, rozhodovací bod; sezení 6.3): dostanou se ⌃⌘F (okno kamery), ⌘W a ⌘. (všechna pomocná
+      okna) na skutečném Macu k aplikaci, nebo je dřív zachytí systém / výchozí menu aplikace? Zapsat u každé zkratky;
+      když některá nefunguje, nový úkol.
+- [ ] **T-122** (VoiceOver): se zapnutým VoiceOverem (⌘F5) přečte špendlík okna kamery jméno a stav a aktivace
+      (⌃⌥mezerník) ho přepne, v normálním okně i malém náhledu. Akci AXPress ověřil `mac.camera-pin` (T-115).
+- [ ] **T-117** (ruční část, vzhled a plochy): špendlík vpravo nahoře v normálním okně i malém náhledu, na celé
+      obrazovce není; zapnutý je bez myši vidět ztlumený (čitelný i na světlém obrazu), vypnutý ne; malý náhled navrchu
+      je na všech plochách (Spaces), po vypnutí jen na své; VoiceOver přečte „Vždy navrchu: zapnuto / vypnuto“;
+      otevřené Nastavení ukáže stav. Snímek okna se špendlíkem do poznámek. Přepínání, Dock / ⌘Tab, kontextové menu
+      a restart ověřil `mac.camera-pin` (T-115).
+- [ ] **T-118** (ruční část): obrys malého náhledu nad světlou plochou i nad tmavým oknem, ve světlém i tmavém režimu;
+      na celé obrazovce není; na externím monitoru @1x ostrý (1 px); úchopy po okrajích dál mění velikost, tažení obrazu
+      a pásu přesouvá okno; porovnat s nativním obrysem oken macOS (návrh 4: záměrně o něco výraznější). Snímky na
+      světlém a tmavém pozadí do poznámek. Obrys 2 px u hran a rohů, zesvětlení při najetí a žádný obrys v normálním
+      okně ověřil `mac.camera-outline` (T-115).
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)
