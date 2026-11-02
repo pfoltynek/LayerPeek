@@ -30,6 +30,13 @@
     Never asks anything and never requests a permission: Permission and Manual checks are SKIP with the reason, Auto
     checks that would need an answer too. For test runs (also inside dotnet test).
 
+.PARAMETER Allow
+    Ids or wildcards of Permission checks you allow in advance (T-140): they run without the question, also with
+    -Unattended, e.g. -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user. What they need once:
+    mac.keys - Accessibility for the terminal; mac.socket-other-user - the sudoers rule of
+    tools/macos-verify-sudoers.ps1; mac.display-sleep - a password delay after the display sleeps longer than a minute
+    (System Settings > Lock Screen), otherwise the locked screen ends it with SKIP.
+
 .PARAMETER Only
     Check ids or wildcards to run (comma-separated or an array), e.g. -Only mac.keychain,mac.camera*.
 
@@ -50,12 +57,14 @@
     pwsh tools/macos-verify.ps1 -ListChecks
     pwsh tools/macos-verify.ps1                              # everything, interactive
     pwsh tools/macos-verify.ps1 -Unattended                  # only what runs without you
+    pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
     pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
 param(
     [switch] $Unattended,
+    [string[]] $Allow,
     [string[]] $Only,
     [string[]] $Skip,
     [switch] $ListChecks,
@@ -495,6 +504,31 @@ function Find-AxElement($Nodes, [string] $Identifier) {
 }
 
 function Get-AxElement($Context, [int] $ProcessId, [string] $Identifier) { Find-AxElement (Get-AxTree $Context $ProcessId) $Identifier }
+
+function Get-AxNodes($Nodes) {
+    <# .SYNOPSIS Every node of the helper's Accessibility tree, depth first. #>
+    foreach ($node in @($Nodes)) {
+        if (-not $node) { continue }
+        $node
+        Get-AxNodes $node.children
+    }
+}
+
+function Get-AxSelectedTab($Context, [int] $ProcessId, [string] $TabsIdentifier) {
+    <#
+    .SYNOPSIS
+        The tabs of a TabControl (identifiers of its tab items, in order) and the selected one from the Accessibility tree
+        (T-140: instead of asking whether the tab moved). Avalonia gives a tab item no value; the selected one is the one
+        that shows the selection pipe of the Fluent theme (PART_SelectedPipe, hidden - so not in the tree - in the others).
+    #>
+    $tabs = Get-AxElement $Context $ProcessId $TabsIdentifier
+    $items = @(Get-AxNodes $tabs.children | Where-Object { $_.identifier -and $_.role -in 'AXRadioButton', 'AXTab' })
+    [pscustomobject]@{
+        Tabs     = [string[]] @($items.identifier)
+        Selected = [string] (@($items | Where-Object { "$($_.value)" -in '1', 'True' -or (Find-AxElement $_.children 'PART_SelectedPipe') }) | Select-Object -First 1).identifier
+        Tree     = $tabs
+    }
+}
 
 function Get-AxFocusedId($Context, [int] $ProcessId) { [string] (@(Invoke-Helper $Context @('focusedid', "$ProcessId")) | Select-Object -First 1) }
 
@@ -1193,6 +1227,7 @@ $checks = @(
         -Closes 'T-100 kritérium 4 (část: zkratky jako skutečné události klávesnice)' -Action {
         param($c)
         if (-not (Test-Accessibility $c)) {
+            if ($c.Unattended) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility).' }
             Write-VerifyStep $c 'Add your terminal app in System Settings > Privacy & Security > Accessibility and switch it on (opening it now). Remove it again after the run.' 'Yellow'
             & /usr/bin/open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
             $null = Read-VerifyAnswer -Context $c -Question 'Is Accessibility switched on for the terminal?'
@@ -1203,18 +1238,23 @@ $checks = @(
         $app = Start-TestApp -Context $c -TestData $data
         $screens = Get-Screens $c
         $problems = [System.Collections.Generic.List[string]]::new()
+        $tabMove = 'not checked'
+        $listCheck = 'not checked'
         $key = { param($Combo) $null = Invoke-Helper $c @('key', $Combo); Start-Sleep -Milliseconds 400 }
-        $frontWith = { param($Command) Send-TestCommand $data $Command; Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id } }
+        # The app in front is not yet its key window, and a window that reached the full-screen frame still animates: a key
+        # event right then is lost (T-140), so both settle for a second first.
+        $frontWith = { param($Command) Send-TestCommand $data $Command; $front = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id }; Start-Sleep -Seconds 1; $front }
         $isFull = { $w = Get-CameraWindow $c $app.Id; $w -and (Test-FullScreen $w $screens) }
+        $settledFull = { $full = Wait-VerifyCondition -TimeoutSeconds 6 -Condition $isFull; Start-Sleep -Seconds 1; $full }
         $noWindow = { -not (Get-CameraWindow $c $app.Id) }
         try {
             if (-not (& $frontWith "camera:$($script:PrinterId)")) { $problems.Add('the camera window did not come to the front') }
             & $key 'ctrl+cmd+f'
-            if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition $isFull)) { $problems.Add('Ctrl-Cmd-F did not enter full screen') }
+            if (-not (& $settledFull)) { $problems.Add('Ctrl-Cmd-F did not enter full screen') }
             & $key 'escape'
             if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (& $isFull) })) { $problems.Add('Esc did not leave full screen') }
             & $key 'ctrl+cmd+f'
-            $null = Wait-VerifyCondition -TimeoutSeconds 6 -Condition $isFull
+            $null = & $settledFull
             & $key 'cmd+period'
             if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (& $isFull) })) { $problems.Add('Cmd-. did not leave full screen') }
             & $key 'cmd+w'
@@ -1225,12 +1265,46 @@ $checks = @(
             foreach ($closer in 'cmd+w', 'cmd+period') {
                 if (-not (& $frontWith 'settings')) { $problems.Add('Settings did not come to the front'); continue }
                 if ($closer -eq 'cmd+w') {
+                    $before = Get-AxSelectedTab $c $app.Id 'SettingsTabs'
                     & $key 'cmd+shift+]'
                     & $key 'cmd+shift+]'
-                    if (-not $c.Unattended -and -not (Read-VerifyAnswer -Context $c -Question 'Settings: did the main tab move twice to the right (Cmd-Shift-])?')) { $problems.Add('Cmd-Shift-] did not switch the tabs (user)') }
+                    $after = Get-AxSelectedTab $c $app.Id 'SettingsTabs'
+                    if (-not $before.Selected -or -not $after.Selected) {
+                        $null = Save-VerifyEvidence -Context $c -Name 'settings-tabs.json' -Content ($after.Tree | ConvertTo-Json -Depth 100)
+                        $problems.Add('the selected main tab of Settings could not be read from the Accessibility tree (settings-tabs.json)')
+                    }
+                    else {
+                        $expected = $before.Tabs[($before.Tabs.IndexOf($before.Selected) + 2) % $before.Tabs.Count]
+                        if ($after.Selected -ne $expected) { $problems.Add("Cmd-Shift-] twice went from $($before.Selected) to $($after.Selected), not to $expected") }
+                        else { $tabMove = "$($before.Selected) -> $($after.Selected)" }
+                    }
+                }
+                if ($closer -eq 'cmd+period') {
+                    # T-100 question 3: with a list open, Cmd-. closes only the list (like Esc); the next one is Cancel.
+                    $combo = Get-AxElement $c $app.Id 'PrinterConnectionType'
+                    $windows = @(Get-ProcessWindows $c $app.Id).Count
+                    if (-not $combo) { $listCheck = 'not checked (no PrinterConnectionType)' }
+                    else {
+                        $center = Get-AxCenter $combo
+                        $null = Invoke-Helper $c @('click', "$($center[0])", "$($center[1])")
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -gt $windows })) { $problems.Add('a click did not open the list PrinterConnectionType') }
+                        else {
+                            Start-Sleep -Milliseconds 500
+                            & $key 'cmd+period'
+                            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -le $windows })) { $problems.Add('Cmd-. did not close the open list') }
+                            elseif (-not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id))) { $problems.Add('Cmd-. with an open list closed Settings, not only the list') }
+                            else { $listCheck = 'closed only the open list first' }
+                            Start-Sleep -Milliseconds 500
+                        }
+                    }
                 }
                 & $key $closer
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) })) { $problems.Add("$closer did not close Settings") }
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) })) {
+                    $problems.Add("$closer did not close Settings")
+                    # Closed another way, so that the next steps are judged on their own.
+                    & $key 'cmd+w'
+                    $null = Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) }
+                }
             }
             if ((Get-FileHash -LiteralPath $settingsFile).Hash -ne $hash) { $problems.Add('closing Settings with a shortcut changed settings.json') }
             foreach ($window in 'about', 'diagnostics') {
@@ -1244,7 +1318,7 @@ $checks = @(
             $null = Save-VerifyEvidence -Context $c -Name 'app.log' -Content (Read-TestLog $data)
         }
         if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
-        New-VerifyResult PASS 'Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-], Cmd-W and Cmd-. in Settings (no change saved); Cmd-W in About and Diagnostics. Remove the terminal from Accessibility again.'
+        New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved; Cmd-. $listCheck); Cmd-W in About and Diagnostics."
     }
 
     New-VerifyCheck -Id 'mac.notification-click' -Kind Manual -Title 'a click on a delivered notification of the test bundle opens the printer web' `
@@ -1269,7 +1343,7 @@ $checks = @(
         New-VerifyResult PASS "the click opened $((Get-Content -LiteralPath $urls | Select-Object -First 1)) (recorded by the test mode instead of a browser)."
     }
 
-    New-VerifyCheck -Id 'mac.socket-other-user' -Kind Permission -Permission 'sudo (your administrator password) to connect to the instance socket as the user nobody' `
+    New-VerifyCheck -Id 'mac.socket-other-user' -Kind Permission -Permission 'sudo to connect to the instance socket as the user nobody (your administrator password, or none with the rule of tools/macos-verify-sudoers.sh)' `
         -Title 'a connection of another user to the instance socket is refused' `
         -Closes 'T-053 kritérium 1 (spojení od jiného UID se odmítne, skutečný test)' -Action {
         param($c)
@@ -1280,9 +1354,14 @@ $checks = @(
             # Reachable for another user: the folder and the socket open to everyone, as an attacker would need.
             & /bin/chmod 755 $data.Data
             & /bin/chmod 777 $data.Socket
-            Write-VerifyStep $c 'sudo asks for your password (only for: sudo -u nobody nc -U <socket>).' 'Yellow'
-            & /usr/bin/sudo -v
-            if ($LASTEXITCODE -ne 0) { Skip-VerifyCheck 'sudo was not authorized.' }
+            # T-140: with the rule of tools/macos-verify-sudoers.sh nc runs as nobody without a password (also unattended).
+            $probe = (& /usr/bin/sudo -n -u nobody /usr/bin/nc -h 2>&1 | Out-String)
+            if ($probe -match 'password is required|may not run|not allowed') {
+                if ($c.Unattended) { Skip-VerifyCheck "sudo needs a password for nc as nobody; install the rule once: sudo bash tools/macos-verify-sudoers.sh" }
+                Write-VerifyStep $c 'sudo asks for your password (only for: sudo -u nobody nc -U <socket>; without it next time: sudo bash tools/macos-verify-sudoers.sh).' 'Yellow'
+                & /usr/bin/sudo -v
+                if ($LASTEXITCODE -ne 0) { Skip-VerifyCheck 'sudo was not authorized.' }
+            }
             $attempt = Invoke-VerifyTool -Context $c -Label 'nc-as-nobody' -FilePath '/bin/sh' -ArgumentList @('-c', "printf 'activate\n' | /usr/bin/sudo -n -u nobody /usr/bin/nc -U -w 3 '$($data.Socket)'; echo `"nc exit code `$?`"")
             & /usr/bin/sudo -k
             Start-Sleep -Seconds 2
@@ -1303,6 +1382,9 @@ $checks = @(
         Set-SimulatorScenario $simulator 'printing'
         # Session 8.2: with the notifications of the test bundle allowed (mac.notifications), the pause while the display
         # sleeps must be delivered before the wake-up; macOS delivers them only to an app started through LaunchServices.
+        # T-140: a Screen Sharing client keeps the display awake (assertion "Remote user active"): pmset displaysleepnow
+        # then turns nothing off and the app never waits for a display, so nothing could be judged.
+        if (@(& /usr/bin/pmset -g assertions 2>$null) -match 'Remote user active') { Skip-VerifyCheck 'Screen Sharing is connected and keeps the display awake (pmset -g assertions: "Remote user active"); run it at the Mac itself without Screen Sharing.' }
         $notify = (Get-TestNotificationStatus $c).Permission -eq 'Allowed'
         $data = New-TestData -Context $c -Simulator $simulator -Notifications:$notify
         Write-VerifyStep $c 'The display goes to sleep in 5 s and the script wakes it after about 40 s. Do not touch mouse or keyboard meanwhile; unlock the screen afterwards if asked.' 'Yellow'
@@ -1324,8 +1406,23 @@ $checks = @(
             else { Start-Sleep -Seconds 20 }
             & /usr/bin/caffeinate -u -t 2
             Write-VerifyStep $c 'Display woken. Unlock the screen if it is locked.' 'Yellow'
+            Start-Sleep -Seconds 3
+            # T-140: unattended nobody unlocks the screen; with a password delay after the display sleeps (System Settings >
+            # Lock Screen) of more than about a minute it stays unlocked.
+            $locked = Get-SessionLimitation $c
+            if ($locked -and $c.Unattended) { Skip-VerifyCheck "the screen is locked after the wake-up ($locked); set a longer password delay after the display sleeps in System Settings > Lock Screen." }
+            if ($locked) { $null = Wait-VerifyCondition -TimeoutSeconds 180 -Condition { -not (Get-SessionLimitation $c) } }
             $ui = Wait-VerifyCondition -TimeoutSeconds 180 -Condition { (Read-TestLog $data) -match 'starting the UI\.' }
             $item = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-StatusItem $c $app.Id }
+            # The tooltip of the menu bar item (AXHelp) tells what the icon shows: the paused printer, not "Starting...".
+            $tooltip = ''
+            $shows = Wait-VerifyCondition -TimeoutSeconds 30 -Condition {
+                $items = @(Get-StatusItems $c $app.Id | Where-Object { $_ -and $_.width -gt 0 })
+                $script:tooltip = [string] ($items | Select-Object -First 1).help
+                $script:tooltip -match 'Paused' -and $script:tooltip -notmatch 'Starting'
+            }
+            $tooltip = $script:tooltip
+            $null = Save-VerifyEvidence -Context $c -Name 'status-items.json' -Content (ConvertTo-VerifyJsonArray (Get-StatusItems $c $app.Id))
             $log = Read-TestLog $data
             $null = Save-VerifyEvidence -Context $c -Name 'app.log' -Content $log
             $problems = @(
@@ -1334,13 +1431,13 @@ $checks = @(
                 if (-not $ui) { 'the UI did not start after the wake-up' }
                 if ($log -notmatch 'The menu bar item attaches to the monitoring that already runs\.') { 'the menu bar item did not attach to the running monitoring' }
                 if (-not $item) { 'no status item in the menu bar after the wake-up' }
+                if ($item -and -not $shows) { "the menu bar item does not show the paused printer (tooltip: '$($tooltip -replace "`n", ' / ')')" }
                 if ($notify -and -not $deliveredAsleep) { 'the notification of the pause was not delivered while the display slept' }
                 if ($app.HasExited) { 'the app ended' }
             )
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
-            if (-not (Read-VerifyAnswer -Context $c -Question 'Does the [E2E] menu bar icon show the paused printer (not "Starting...")?')) { return New-VerifyResult FAIL 'the icon did not show the state of the running monitoring (user).' }
             $notification = if ($notify) { ' The notification of the pause was delivered while the display slept.' } else { " Notification part not run: the notifications of 'LayerPeek E2E' are not allowed (run mac.notifications first)." }
-            New-VerifyResult MANUAL "waited without a display with monitoring running; after the wake-up the menu bar item attached and showed the current state.$notification"
+            New-VerifyResult PASS "waited without a display with monitoring running; after the wake-up the menu bar item attached and showed the current state (tooltip '$($tooltip -replace "`n", ' / ')').$notification"
         }
         finally { $null = Stop-TestApp $data $app }
     }
@@ -1490,6 +1587,13 @@ if (-not $IsMacOS) {
 
 try { $selected = @(Select-VerifyChecks -Checks $checks -Only $Only -Skip $Skip) }
 catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
+$Allow = @($Allow | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+foreach ($pattern in $Allow) {
+    if (-not ($checks | Where-Object { $_.Kind -eq 'Permission' -and $_.Id -like $pattern })) {
+        Write-Host "-Allow '$pattern' matches no Permission check (see -ListChecks)." -ForegroundColor Red
+        exit 2
+    }
+}
 if ($selected.Count -eq 0) { Write-Host 'No check selected.' -ForegroundColor Red; exit 2 }
 if ($PWD.ProviderPath -ne (Resolve-PhysicalPath $PWD.ProviderPath)) {
     Write-Host 'Note: the terminal is in the repository through a symbolic link; the script uses the physical path for dotnet.' -ForegroundColor Yellow
@@ -1497,7 +1601,7 @@ if ($PWD.ProviderPath -ne (Resolve-PhysicalPath $PWD.ProviderPath)) {
 
 $root = if ($OutputRoot) { $OutputRoot } else { Join-Path $script:Repo 'artifacts' 'verify' }
 $runFolder = New-VerifyRunFolder -Root $root
-$context = New-VerifyContext -RunFolder $runFolder -Unattended:$Unattended
+$context = New-VerifyContext -RunFolder $runFolder -Unattended:$Unattended -Allow $Allow
 $context.Shared.ProductionProfileUsed = @()
 Write-Host "LayerPeek macOS verification ($($context.Unattended ? 'unattended' : 'interactive')), $($selected.Count) check(s); report in $runFolder"
 
@@ -1522,7 +1626,7 @@ if ($selected | Where-Object Id -EQ 'mac.profile-unchanged') {
 }
 
 $results = Invoke-VerifyRun -Checks $selected -Context $context
-$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id)
+$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -Allow $Allow
 $report = Write-VerifyReport -Folder $runFolder -Info $info -Results $results
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }

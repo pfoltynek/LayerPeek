@@ -89,7 +89,9 @@ a kritérium.
       když ne, nový úkol.
 - [ ] **T-100** (otázka 2, rozhodovací bod; sezení 6.3): dostanou se ⌃⌘F (okno kamery), ⌘W a ⌘. (všechna pomocná
       okna) na skutečném Macu k aplikaci, nebo je dřív zachytí systém / výchozí menu aplikace? Zapsat u každé zkratky;
-      když některá nefunguje, nový úkol.
+      když některá nefunguje, nový úkol. Stav 2026-11-02: se skutečnými událostmi klávesnice (`mac.keys`) se ⌃⌘F, ⌘W
+      a Esc dostanou k aplikaci; ⌘. AppKit posílá jako `cancelOperation:` a nedostalo se nikam – opraveno v T-141, pak
+      `mac.keys` = `PASS`. Zbývá potvrdit na fyzické (vestavěné a Logitech) klávesnici.
 - [ ] **T-122** (VoiceOver): se zapnutým VoiceOverem (⌘F5) přečte špendlík okna kamery jméno a stav a aktivace
       (⌃⌥mezerník) ho přepne, v normálním okně i malém náhledu. Akci AXPress ověřil `mac.camera-pin` (T-115).
 - [ ] **T-117** (ruční část, vzhled a plochy): špendlík vpravo nahoře v normálním okně i malém náhledu, na celé
@@ -102,6 +104,13 @@ a kritérium.
       a pásu přesouvá okno; porovnat s nativním obrysem oken macOS (návrh 4: záměrně o něco výraznější). Snímky na
       světlém a tmavém pozadí do poznámek. Obrys 2 px u hran a rohů, zesvětlení při najetí a žádný obrys v normálním
       okně ověřil `mac.camera-outline` (T-115).
+
+- [ ] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“) a **T-099** (krit. „Po probuzení displeje se objeví
+      ikona … se stavem“, „Skutečný start se zhasnutým displejem“ a sezení 8.2): u Macu s monitorem **bez Sdílení
+      obrazovky** `caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Unattended -Allow mac.display-sleep -Only
+      mac.notifications,mac.display-sleep` = `PASS` (oznámení pauzy doručené se zhasnutým displejem, tooltip ikony po
+      probuzení „Paused“). Agent ho může spustit sám, když se Sdílení obrazovky na tu dobu odpojí. `mac.display-wait`
+      = `PASS` je v T-115.
 
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.

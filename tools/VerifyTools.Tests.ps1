@@ -24,11 +24,11 @@ BeforeAll {
     $script:TempRoot = Join-Path $base "layerpeek-vt-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
     $null = New-Item -ItemType Directory -Path $script:TempRoot
 
-    function New-TestContext([string[]] $Answers = @(), [switch] $Unattended) {
+    function New-TestContext([string[]] $Answers = @(), [switch] $Unattended, [string[]] $Allow = @()) {
         $queue = [System.Collections.Generic.Queue[string]]::new([string[]] $Answers)
         $asked = [System.Collections.Generic.List[string]]::new()
         $folder = New-VerifyRunFolder -Root (Join-Path $script:TempRoot ([guid]::NewGuid().ToString('N').Substring(0, 8)))
-        $context = New-VerifyContext -RunFolder $folder -Unattended:$Unattended `
+        $context = New-VerifyContext -RunFolder $folder -Unattended:$Unattended -Allow $Allow `
             -Prompt { param($Question) $asked.Add($Question); if ($queue.Count) { $queue.Dequeue() } else { 'n' } }.GetNewClosure() `
             -Writer { param($Text, $Color) }
         $context | Add-Member -NotePropertyName Asked -NotePropertyValue $asked
@@ -97,6 +97,20 @@ Describe 'Running checks' {
             $result.Detail | Should -Not -BeNullOrEmpty
         }
         $ran | Should -HaveCount 0
+        $context.Asked | Should -HaveCount 0
+    }
+
+    It 'runs a Permission check allowed in advance without asking, also unattended, and nothing else (T-140)' {
+        $permission = New-VerifyCheck -Id 'mac.keys' -Title 't' -Closes 'T-001 x' -Kind Permission -Permission 'p' -Action { New-VerifyResult PASS 'ran' }
+        $other = New-VerifyCheck -Id 'mac.sudo' -Title 't' -Closes 'T-001 x' -Kind Permission -Permission 'p' -Action { New-VerifyResult PASS 'ran' }
+        $manual = New-VerifyCheck -Id 'mac.look' -Title 't' -Closes 'T-001 x' -Kind Manual -Action { New-VerifyResult MANUAL 'ran' }
+        foreach ($context in (New-TestContext -Unattended -Allow 'mac.k*', 'mac.look'), (New-TestContext -Allow 'mac.keys')) {
+            (Invoke-VerifyCheck -Check $permission -Context $context).Status | Should -Be 'PASS'
+            $context.Asked | Should -HaveCount 0
+        }
+        $context = New-TestContext -Unattended -Allow 'mac.k*', 'mac.look'
+        (Invoke-VerifyCheck -Check $other -Context $context).Status | Should -Be 'SKIP'
+        (Invoke-VerifyCheck -Check $manual -Context $context).Status | Should -Be 'SKIP'
         $context.Asked | Should -HaveCount 0
     }
 

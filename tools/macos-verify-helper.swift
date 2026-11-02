@@ -11,7 +11,7 @@
 //   session                          the login session as JSON: locked (the screen is locked: no window can come to the
 //                                    front, status items and full-screen Spaces are not shown) and onConsole
 //   statusitems <pid>                the status items of a process from the Accessibility API (AXExtrasMenuBar): frame
-//                                    (points, top left), title, description; macOS 27 draws them in no window of the
+//                                    (points, top left), title, description, help (the tooltip); macOS 27 draws them in no window of the
 //                                    process, so CGWindowList cannot see them (needs Accessibility; exit code 3 without it)
 //   trusted                          "true" / "false": whether this process (i.e. the terminal that started it) has the
 //                                    Accessibility permission; never asks for it
@@ -139,7 +139,7 @@ func statusItems(_ pid: Int32) {
         if AXUIElementCopyAttributeValue(item, kAXSizeAttribute as CFString, &value) == .success, let value { AXValueGetValue(value as! AXValue, .cgSize, &size) }
         result.append([
             "x": Double(point.x), "y": Double(point.y), "width": Double(size.width), "height": Double(size.height),
-            "title": text(kAXTitleAttribute), "description": text(kAXDescriptionAttribute),
+            "title": text(kAXTitleAttribute), "description": text(kAXDescriptionAttribute), "help": text(kAXHelpAttribute),
         ])
     }
     printJSON(result)
@@ -168,13 +168,16 @@ let keyCodes: [String: CGKeyCode] = [
 func key(_ combo: String) {
     requireTrusted()
     var flags: CGEventFlags = []
+    // The modifier keys themselves, pressed before and released after the key as on a real keyboard: AppKit routes some
+    // shortcuts (Cmd-.) by the modifier state of the keyboard, not by the flags of the key event alone (T-140).
+    var modifiers: [(CGKeyCode, CGEventFlags)] = []
     var code: CGKeyCode?
     for part in combo.lowercased().split(separator: "+").map(String.init) {
         switch part {
-        case "cmd", "command": flags.insert(.maskCommand)
-        case "ctrl", "control": flags.insert(.maskControl)
-        case "alt", "opt", "option": flags.insert(.maskAlternate)
-        case "shift": flags.insert(.maskShift)
+        case "cmd", "command": modifiers.append((55, .maskCommand))
+        case "ctrl", "control": modifiers.append((59, .maskControl))
+        case "alt", "opt", "option": modifiers.append((58, .maskAlternate))
+        case "shift": modifiers.append((56, .maskShift))
         case "fn": flags.insert(.maskSecondaryFn)
         default:
             guard let found = keyCodes[part] else { fail("unknown key '\(part)'") }
@@ -183,11 +186,21 @@ func key(_ combo: String) {
     }
     guard let keyCode = code else { fail("no key in '\(combo)'") }
     let source = CGEventSource(stateID: .hidSystemState)
-    for down in [true, false] {
-        guard let event = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: down) else { fail("no key event") }
-        event.flags = flags
+    func post(_ virtualKey: CGKeyCode, _ down: Bool, _ eventFlags: CGEventFlags) {
+        guard let event = CGEvent(keyboardEventSource: source, virtualKey: virtualKey, keyDown: down) else { fail("no key event") }
+        event.flags = eventFlags
         event.post(tap: .cghidEventTap)
         usleep(30_000)
+    }
+    for (modifier, flag) in modifiers {
+        flags.insert(flag)
+        post(modifier, true, flags)
+    }
+    post(keyCode, true, flags)
+    post(keyCode, false, flags)
+    for (modifier, flag) in modifiers.reversed() {
+        flags.remove(flag)
+        post(modifier, false, flags)
     }
 }
 

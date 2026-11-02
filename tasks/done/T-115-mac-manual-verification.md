@@ -1,7 +1,7 @@
 ---
 id: T-115
 title: Ruční ověření na Macu
-status: todo
+status: done
 owner: qa-reviewer
 priority: P1
 platform: macos
@@ -122,22 +122,28 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
 - [x] **T-020** (krit. „Notifikace fungují na macOS ze sestavené `.app`“): `mac.notifications` = `PASS` (testovací bundle)
       a `mac.notifications-production` potvrzeno (`/Applications/LayerPeek.app`, banner s názvem tiskárny, zvuk podle
       nastavení, ikona LayerPeeku) (sezení 5.1, 5.3). → přesunuto do T-126
-- [ ] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
+- [x] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
       `mac.notifications` = `PASS` (sezení 5.1).
+      Ověřeno 2026-11-02 (macOS 27.2, agent, zpráva `artifacts/verify/20261102-115907`): `mac.notifications` = `PASS` –
+      doručeno, odstraněno při ukončení i `--layerpeek-e2e-clear-toasts` po pádu (oznámení „LayerPeek E2E“ povolil
+      uživatel jednou).
 - [x] **T-020** (krit. „Kliknutí na notifikaci otevře detail / web tiskárny“): `mac.notification-click` potvrzeno
       (aplikace běží); navíc ručně klik na oznámení v Centru oznámení, když produkční aplikace neběží – macOS ji spustí
       a otevře web tiskárny (sezení 5.2, rozhodnutí T-105 otázka 3). → přesunuto do T-126
 - [x] **T-020** (krit. „Odepřené oprávnění nezpůsobí pád; stav je srozumitelně ohlášen“): `mac.notifications-production`
       – po vypnutí v Nastavení systému → Oznámení červená hláška a tlačítko „Otevřít nastavení oznámení“ v Nastavení →
       Obecné, po zapnutí hláška zmizí, aplikace nespadne (sezení 5.3). → přesunuto do T-126
-- [ ] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
+- [x] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
       potvrzeno; v logu „No active display …“ a „… starting the UI.“ (sezení 8.1).
-- [ ] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
+      `mac.display-wait` = `PASS` (2026-11-01). `mac.display-sleep` nejde se Sdílením obrazovky (drží displej vzhůru,
+      kontrola od T-140 hlásí `SKIP`) → přesunuto do T-127
+- [x] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
       `mac.display-sleep` potvrzeno; navíc ručně sezení 8.2 (událost tisku ze simulátoru během spánku displeje →
       oznámení přijde ještě se zhasnutým displejem, ikona po probuzení hned ukazuje stav).
       Od 2026-11-02 (T-136) ověří sezení 8.2 `mac.display-sleep` sám, když jsou oznámení „LayerPeek E2E“ povolená
       (`mac.notifications` spustit dřív): oznámení pauzy musí být doručené dřív, než se spustí UI, tedy se zhasnutým
       displejem.
+      → přesunuto do T-127
 - [x] **T-026** (krit. „Stream … ve všech režimech okna“, část se simulátorem): `mac.camera` = `PASS` a `mac.camera-look`
       potvrzeno (normální okno, celá obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1).
       Ověřeno 2026-11-01: `mac.camera` = `PASS`. Ruční `mac.camera-look` → přesunuto do T-127
@@ -145,14 +151,20 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       = `PASS` na každém připojeném monitoru.
       Ověřeno 2026-11-01: `mac.camera-placement` = `PASS` na jediném připojeném monitoru (virtuální displej „Virtuální
       16:10“); druhý monitor patří k ruční části T-038 v T-127.
-- [ ] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
+- [x] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
       volitelně se druhým účtem podle sezení 10.1.
-- [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
+      Ověřeno 2026-11-02 (agent, `-Unattended -Allow mac.socket-other-user`, pravidlo `tools/macos-verify-sudoers.sh`):
+      `mac.socket-other-user` = `PASS` – „Refused a connection of another user (uid 4294967294) to the instance channel;
+      nothing was read.“
+- [x] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
       Terminál, po běhu vypnout) a `mac.keyboard-physical` potvrzeno – vestavěná i Logitech klávesnice, české rozložení
       (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení i v Diagnostice (výběr tiskárny, aspoň dvě
       tiskárny) ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam (T-100 otázka 3, rozhodnuto 2026-10-30).
       Od 2026-11-02 tu zůstává jen `mac.keys` = `PASS`; `mac.keyboard-physical` (vestavěná a Logitech klávesnice, české
       rozložení, ⌘. s otevřeným seznamem) → přesunuto do T-127.
+      Ověřeno 2026-11-02 (macOS 27.2, agent, `-Unattended -Allow mac.keys`, zpráva `artifacts/verify/20261102-114422`):
+      `mac.keys` = `PASS` – ⌃⌘F, Esc, ⌘. a ⌘W v okně kamery, ⌘⇧] dvakrát (záložka z Accessibility), ⌘W a ⌘. v Nastavení
+      beze změny, ⌘. s otevřeným seznamem zavře jen seznam, ⌘W v O aplikaci a Diagnostice. ⌘. předtím nefungovalo (T-141).
 - [x] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
       přepínají ⌘⇧] / ⌘⇧[ (klávesy vpravo od P, „ú“ a „)“) hlavní záložky Nastavení? Nestane se nic jiného? Zapsat
       výsledek na vestavěné i Logitech klávesnici a rozhodnout, zda stačí fyzická pozice kláves (dnešní implementace);
@@ -283,11 +295,19 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       platí, nebo je upravené. → přesunuto do T-127
 
 ### 6. Úklid a závěr
-- [ ] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
+- [x] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
       volby uživatele, Klíčenka, změny systému vrácené); `pwsh tools/profile-snapshot.ps1 -Compare` ukáže jen to, co
       mělo zůstat.
-- [ ] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
+      Hotovo 2026-11-02: skript po každém běhu uklidil testovací bundle, oznámení, Klíčenku a dočasné složky;
+      `mac.profile-unchanged` = `PASS` (beze změny, Login Items nekontrolovány). Instalace a „Otevřít při přihlášení“
+      jsou v T-126. Záměrně ponechané změny pro kontroly bez uživatele (T-140, rozhodnutí uživatele 2026-11-02):
+      pravidlo `/etc/sudoers.d/layerpeek-verify` (jen `nc` jako `nobody`, odebrání `sudo bash
+      tools/macos-verify-sudoers.sh --remove`), heslo po vypnutí displeje za 1 hodinu (`sysadminctl -screenLock`),
+      povolená oznámení „LayerPeek E2E“, Zpřístupnění a Nahrávání obrazovky pro Terminál.
+- [x] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
       T-038 a T-100 zapsané i do jejich poznámek (T-038 od 2026-11-01 v T-127).
+      Hotovo 2026-11-02 (poznámky níže); chyby mají úkoly T-133–T-139 a T-141 (⌘., otázka 2 z T-100 – zapsáno i v
+      T-100); rozhodovací body T-100 otázky 1–2 a T-038 jsou v T-127.
 
 ## Otevřené otázky
 - (žádné vlastní; rozhodovací body T-100 otázky 1–2 jsou u kroků výše, T-038 otázky 2–3 od 2026-11-01 v T-127)
@@ -317,3 +337,8 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
   kontextového menu), T-139 (ikona Docku bez ikony v bundlu). Subjektivní a fyzické body přesunuté do T-127 (oddíl 1b).
   Zbývají interaktivní kontroly uživatele: `mac.keys`, `mac.notifications`, `mac.socket-other-user`,
   `mac.display-sleep` (s oznámením během spánku displeje), pak úklid (oddíl 6).
+- 2026-11-02 (macOS 27.2, agent, T-140 – `-Unattended -Allow`): `mac.keys` = `PASS` (po opravě ⌘. v T-141),
+  `mac.notifications` = `PASS`, `mac.socket-other-user` = `PASS`, `mac.profile-unchanged` = `PASS`; `mac.display-sleep`
+  = `SKIP` (Sdílení obrazovky drží displej vzhůru) – body T-096 / T-099 přesunuté do T-127 (rozhodnutí uživatele).
+  Zprávy `artifacts/verify/20261102-114422`, `20261102-115631`, `20261102-115907`.
+- Uzavřeno 2026-11-02: zbývající ruční ověření přesunuto do T-127 (rozhodnutí uživatele).
