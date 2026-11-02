@@ -45,6 +45,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Windows: after switching back to a camera window (e.g. with Alt+Tab), a window button pressed with Enter or Space
   is treated as pressed from the keyboard again, so the keyboard focus stays in the row of window buttons instead of
   being left on a button that has just hidden itself.
+- macOS: turning on "Always on top" of a camera window (with the pin, Space or Return) no longer leaves LayerPeek
+  inactive with no keyboard focus; the window keeps the focus, so Return on the pin turns it off again.
+- macOS: Control-click (left button with Control held, e.g. on a trackpad) in a camera window opens its context menu,
+  like a right click, instead of starting a window drag.
+- macOS: Command-period (⌘.) now works like Esc in all windows: it leaves full screen of a camera window, cancels
+  Settings and closes Diagnostics, About and Licenses.
 
 ### Removed
 
