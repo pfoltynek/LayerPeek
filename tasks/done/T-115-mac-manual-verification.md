@@ -87,7 +87,7 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       u `mac.menubar`) a 7 (celá obrazovka se zamčenou obrazovkou u `mac.camera`) z T-105.
       Odpověď na otázku 6 (2026-11-01, macOS 27.2): okna vrstvy 25 v `menubar-windows.json` nejsou – stavové položky
       macOS 27 nemají okno v seznamu oken, `mac.menubar` je od T-135 hledá přes Accessibility (`AXExtrasMenuBar`). Chyby
-      skriptu nalezené v tomto sezení opravené v T-133–T-136. Celý interaktivní běh s ručními kontrolami a otázka 7 →
+      skriptu nalezené v tomto sezení opravené v T-134–T-136 a T-142. Celý interaktivní běh s ručními kontrolami a otázka 7 →
       přesunuto do T-127
 - [x] **T-021** (krit. round-trip, přepis / `DeleteAsync` / `null`, velikost písmen, izolace prefixu, úklid po pádu,
       zprávy bez tajného údaje): `mac.keychain` = `PASS` s **0 přeskočenými** testy (sezení 3.1).
@@ -306,7 +306,7 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       povolená oznámení „LayerPeek E2E“, Zpřístupnění a Nahrávání obrazovky pro Terminál.
 - [x] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
       T-038 a T-100 zapsané i do jejich poznámek (T-038 od 2026-11-01 v T-127).
-      Hotovo 2026-11-02 (poznámky níže); chyby mají úkoly T-133–T-139 a T-141 (⌘., otázka 2 z T-100 – zapsáno i v
+      Hotovo 2026-11-02 (poznámky níže); chyby mají úkoly T-134–T-139, T-141 a T-142 (⌘., otázka 2 z T-100 – zapsáno i v
       T-100); rozhodovací body T-100 otázky 1–2 a T-038 jsou v T-127.
 
 ## Otevřené otázky
@@ -323,13 +323,13 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
   položky T-122); ruční část položky T-122 zůstává. Profil beze změny.
 - 2026-11-01 (develop a83ad13, macOS 27.2): `dotnet build` Debug i Release 0 upozornění, `dotnet test` 8478 testů,
   0 selhalo (11 testů Klíčenky přeskočeno – zamčená Klíčenka), AOT publish `osx-arm64` a `scripts/aot-smoke.ps1` PASSED.
-  macOS E2E (`LAYERPEEK_E2E=1`): `MacUpdateE2ETests` se zapnutým displejem vždy selhal – chyba testu, opraveno v T-133;
+  macOS E2E (`LAYERPEEK_E2E=1`): `MacUpdateE2ETests` se zapnutým displejem vždy selhal – chyba testu, opraveno v T-142;
   `MacDisplayWaitE2ETests` selhává, když skutečný displej spí (spouštět pod `caffeinate -d -u -i`);
   `MacNotificationsE2ETests` přeskočen (bundle „LayerPeek E2E“ nemá povolená oznámení).
-- 2026-11-01 (develop po sloučení s origin/develop 3bfee91 – T-123, T-128..T-132 z Windows – a po T-133): Debug i Release
+- 2026-11-01 (develop po sloučení s origin/develop 3bfee91 – T-123, T-128..T-132 z Windows – a po T-142): Debug i Release
   0 upozornění, `dotnet test` 8481 testů, 0 selhalo; macOS E2E 3 prošly, 1 přeskočen (oznámení); AOT publish a smoke
   test PASSED.
-- 2026-11-01–02 (macOS 27.2, T-133–T-139): automatické kontroly `tools/macos-verify.ps1` v terminálu přihlášené
+- 2026-11-01–02 (macOS 27.2, T-134–T-139, T-142): automatické kontroly `tools/macos-verify.ps1` v terminálu přihlášené
   relace – `PASS`: `mac.dock`, `mac.settings-front`, `mac.menubar` (T-135), `mac.keychain` (25/25, 0 přeskočeno, T-134),
   `mac.camera`, `mac.camera-placement`, `mac.display-wait`, `mac.plist-localnetwork`, `mac.profile-unchanged`
   a nové `mac.camera-pin` a `mac.camera-outline` (T-136; zprávy `artifacts/verify/20261101-*`, `20261102-102650`).

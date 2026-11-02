@@ -1,5 +1,5 @@
 ---
-id: T-133
+id: T-142
 title: E2E test aktualizace na Macu selže se zapnutým displejem
 status: done
 owner: qa-reviewer
@@ -40,3 +40,5 @@ se znovu spustila).
   oznámení). `dotnet build` 0 upozornění, `dotnet test` 8478 testů, 0 selhalo.
 - Přečíslováno z T-128 na T-133: číslo T-128 mezitím dostal na Windows jiný úkol (E2E zkušebního upozornění
   a aktualizace). Commit opravy (abe7705) je ještě označený T-128.
+- Přečíslováno 2026-11-02 z T-133 na T-142: číslo T-133 mezitím dostal na Windows jiný úkol (obnovení oznámení testovací
+  aplikace a předpoklad instalátoru, `origin/develop` 0.4.0).
