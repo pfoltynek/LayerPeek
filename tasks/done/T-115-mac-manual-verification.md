@@ -1,7 +1,7 @@
 ---
 id: T-115
 title: Ruční ověření na Macu
-status: todo
+status: done
 owner: qa-reviewer
 priority: P1
 platform: macos
@@ -48,7 +48,7 @@ T-127“.
       Výstup potřebují `mac.gatekeeper*` a oddíl 5.
       Ověřeno 2026-10-30 (agent, `develop` 33a2678, verze 0.3.1): kód 0, všech 7 souborů v `dist/`, `shasum -c` = OK,
       `codesign --verify --deep --strict` platný, hardened runtime u všech Mach-O, AOT smoke test `.app` prošel (UIElement).
-- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část macOS; bez toho na Macu selže 12 snímkových testů):
+- [x] **T-117** (krit. „Snímky UI: okno kamery s ikonou“, část macOS; bez toho na Macu selže 12 snímkových testů):
       přegenerovat macOS sadu `tests/LayerPeek.App.UiTests/Snapshots/macOS/` –
       `LAYERPEEK_UPDATE_SNAPSHOTS=1 dotnet test --project tests/LayerPeek.App.UiTests`, commitnout jen změněné
       `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`, `camera-mini-strip-chart-steady.png`,
@@ -59,7 +59,7 @@ T-127“.
       a testy spustit znovu bez proměnné. Potom přegenerovat obrázky README (`docs/readme-screenshots.md`, generují se
       na macOS): změní se `docs/images/{en,cs}/camera-mini.jpg` (špendlík), ostatní obrázky zkontrolovat (rezerva
       tlačítek okna 146 místo 112 může zúžit kartu nahoře uprostřed v `camera-window.jpg`), nesouvisející změny vrátit.
-- [ ] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS; bez toho na Macu selže
+- [x] **T-118** (krit. „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS; bez toho na Macu selže
       14 snímkových testů): přegenerovat macOS sadu `tests/LayerPeek.App.UiTests/Snapshots/macOS/` stejným postupem jako
       u T-117 (lze spojit do jednoho běhu) – nové `camera-mini-outline.png` a `camera-mini-outline-hover.png`, změněné
       (tenký obrys po obvodu) `camera-mini-buttons.png`, `camera-mini-strip-240-pl.png`,
@@ -68,10 +68,13 @@ T-127“.
       `camera-mini-strip-no-rows-320.png`, `camera-mini-strip-printing.png`, `camera-mini-strip-rows-240-de.png`,
       `camera-mini-strip-rows.png`; ostatní změny vrátit a testy spustit znovu bez proměnné. Potom přegenerovat obrázky
       README: změní se `docs/images/{en,cs}/camera-mini.jpg` (obrys), nesouvisející změny vrátit.
-- [ ] **T-122** (sdílený kód okna kamery, vyvíjeno a ověřeno jen na Windows): v normálním okně i malém náhledu klik myší
+- [x] **T-122** (sdílený kód okna kamery, vyvíjeno a ověřeno jen na Windows): v normálním okně i malém náhledu klik myší
       na špendlík a odjetí myši → zůstane jen ztlumený špendlík (ne celá řada), i po přepnutí do jiné aplikace a zpět;
       Tab na špendlík, mezerník a Enter přepínají a fokus zůstane na špendlíku; po kliku na obraz Tab jde na první tlačítko
       okna; VoiceOver: aktivace špendlíku funguje. `CameraWindowFocusUiTests` na Macu projdou.
+      Ověřeno 2026-11-02 (macOS 27.2, T-136): `mac.camera-pin` = `PASS` – skutečný klik myší, odjetí ukazatele, přepnutí
+      do Finderu a zpět, Tab / mezerník / Enter, Tab po kliku na obraz, AXPress (akce, kterou používá VoiceOver) v
+      normálním okně i malém náhledu; `CameraWindowFocusUiTests` prošly. Skutečná řeč VoiceOveru → přesunuto do T-127
 
 ### 2. Skript `tools/macos-verify.ps1` (jeden interaktivní běh)
 Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak
@@ -79,62 +82,98 @@ Postup: `pwsh tools/macos-verify.ps1 -ListChecks`, pak
 (tiskárna je v oddílu 4, odhlášení v oddílu 3; od 2026-11-01 v T-127 a T-126). Kontroly `mac.gatekeeper*`,
 `mac.notifications-production` a `mac.notification-click` v tomto běhu se zapíšou do T-126. Externí monitor připojit předem (`mac.camera-placement`, ostrost
 ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
-- [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): skript proběhl celý interaktivně; nalezené chyby
+- [x] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): skript proběhl celý interaktivně; nalezené chyby
       skriptu zapsané a opravené (nový úkol). Zapsat i odpovědi na otázky 6 (okna vrstvy 25 v `menubar-windows.json`
       u `mac.menubar`) a 7 (celá obrazovka se zamčenou obrazovkou u `mac.camera`) z T-105.
-- [ ] **T-021** (krit. round-trip, přepis / `DeleteAsync` / `null`, velikost písmen, izolace prefixu, úklid po pádu,
+      Odpověď na otázku 6 (2026-11-01, macOS 27.2): okna vrstvy 25 v `menubar-windows.json` nejsou – stavové položky
+      macOS 27 nemají okno v seznamu oken, `mac.menubar` je od T-135 hledá přes Accessibility (`AXExtrasMenuBar`). Chyby
+      skriptu nalezené v tomto sezení opravené v T-134–T-136 a T-142. Celý interaktivní běh s ručními kontrolami a otázka 7 →
+      přesunuto do T-127
+- [x] **T-021** (krit. round-trip, přepis / `DeleteAsync` / `null`, velikost písmen, izolace prefixu, úklid po pádu,
       zprávy bez tajného údaje): `mac.keychain` = `PASS` s **0 přeskočenými** testy (sezení 3.1).
-- [ ] **T-021** (krit. „Kontrola před/po … v Keychainu nezůstane žádná položka“): `mac.keychain` a na konci
+      Ověřeno 2026-11-01 (macOS 27.2, `develop` 51224e7 po T-134): `mac.keychain` = `PASS`, 25 testů, 25 prošlo, 0
+      přeskočeno.
+- [x] **T-021** (krit. „Kontrola před/po … v Keychainu nezůstane žádná položka“): `mac.keychain` a na konci
       `mac.profile-unchanged` = `PASS`; v aplikaci Klíčenka žádná položka `LayerPeek.Tests…`.
-- [ ] **T-019** (krit. „Aplikace běží bez ikony v Docku, ikona je jen v menu baru“): `mac.dock` a `mac.menubar` = `PASS`
+      Ověřeno 2026-11-01: `mac.keychain` „no LayerPeek.Tests item left in the Keychain“ a `mac.profile-unchanged` =
+      `PASS` (beze změny; Login Items nekontrolovány).
+- [x] **T-019** (krit. „Aplikace běží bez ikony v Docku, ikona je jen v menu baru“): `mac.dock` a `mac.menubar` = `PASS`
       (sezení 2.1).
-- [ ] **T-019** (krit. „Okno Nastavení … v popředí a dostane fokus“): `mac.settings-front` = `PASS` (sezení 2.4).
-- [ ] **T-018** (krit. „Menu z T-008 se v menu baru zobrazí, aktualizuje a ‚Ukončit‘ korektně ukončí aplikaci“):
+      Ověřeno 2026-11-01 (macOS 27.2): `mac.dock` = `PASS`, `mac.menubar` = `PASS` (po T-135).
+- [x] **T-019** (krit. „Okno Nastavení … v popředí a dostane fokus“): `mac.settings-front` = `PASS` (sezení 2.4).
+      Ověřeno 2026-11-01 (macOS 27.2): `mac.settings-front` = `PASS`.
+- [x] **T-018** (krit. „Menu z T-008 se v menu baru zobrazí, aktualizuje a ‚Ukončit‘ korektně ukončí aplikaci“):
       `mac.menubar` = `PASS` a `mac.menu` potvrzeno (sezení 2.3).
-- [ ] **T-116** (krit. „Ruční kontrola na Macu: obrázky tiskáren v menu v menu baru jsou ostré na displeji @1x i @2x,
+      Ověřeno 2026-11-01: `mac.menubar` = `PASS` (Ukončit ze skutečného menu). Ruční `mac.menu` → přesunuto do T-127
+- [x] **T-116** (krit. „Ruční kontrola na Macu: obrázky tiskáren v menu v menu baru jsou ostré na displeji @1x i @2x,
       čitelné ve světlém i tmavém režimu i u zvýrazněné položky, nerozbijí zarovnání položek“): `mac.menu` – otázka
       na obrázky tiskáren potvrzená (barevný obrázek 18 × 18 bodů u položky tiskárny, ostrý na Retině i na externím
       monitoru @1x, světlý i tmavý vzhled, zvýrazněná položka, zarovnání položek a podmenu tiskárny z T-042, vlastní
       obrázek jako čtverec) (sezení 2.3). Rozmazání na @1x zapsat (bitmapa je jedna, pro nejvyšší měřítko displejů,
       na @1x ji AppKit zmenší) – oprava = nový úkol.
-- [ ] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
+      → přesunuto do T-127
+- [x] **T-018** (krit. „ikona čitelná ve světlém i tmavém režimu“): `mac.icons` a `mac.menu` potvrzeno – světlý i tmavý
       menu bar, všechny stavy (lomítko offline, ▶ s vrstvami, ❚❚, ✓, !, ×), ostrost na monitoru @1x (při rozmazání
       zapsat; záloha je vícerozlišovací obrázek) (sezení 2.2).
-- [ ] **T-098** (krit. „V Docku a Finderu působí stejně velká jako systémové aplikace“): `mac.icons` (obrázek vedle
+      → přesunuto do T-127
+- [x] **T-098** (krit. „V Docku a Finderu působí stejně velká jako systémové aplikace“): `mac.icons` (obrázek vedle
       systémových ikon) a pohled ve Finderu, Launchpadu a Nastavení systému (sezení 2.5).
+      → přesunuto do T-127
 - [x] **T-020** (krit. „Notifikace fungují na macOS ze sestavené `.app`“): `mac.notifications` = `PASS` (testovací bundle)
       a `mac.notifications-production` potvrzeno (`/Applications/LayerPeek.app`, banner s názvem tiskárny, zvuk podle
       nastavení, ikona LayerPeeku) (sezení 5.1, 5.3). → přesunuto do T-126
-- [ ] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
+- [x] **T-020** (krit. „Doručené testovací notifikace se odstraní při ukončení i v režimu úklidu po pádu“):
       `mac.notifications` = `PASS` (sezení 5.1).
+      Ověřeno 2026-11-02 (macOS 27.2, agent, zpráva `artifacts/verify/20261102-115907`): `mac.notifications` = `PASS` –
+      doručeno, odstraněno při ukončení i `--layerpeek-e2e-clear-toasts` po pádu (oznámení „LayerPeek E2E“ povolil
+      uživatel jednou).
 - [x] **T-020** (krit. „Kliknutí na notifikaci otevře detail / web tiskárny“): `mac.notification-click` potvrzeno
       (aplikace běží); navíc ručně klik na oznámení v Centru oznámení, když produkční aplikace neběží – macOS ji spustí
       a otevře web tiskárny (sezení 5.2, rozhodnutí T-105 otázka 3). → přesunuto do T-126
 - [x] **T-020** (krit. „Odepřené oprávnění nezpůsobí pád; stav je srozumitelně ohlášen“): `mac.notifications-production`
       – po vypnutí v Nastavení systému → Oznámení červená hláška a tlačítko „Otevřít nastavení oznámení“ v Nastavení →
       Obecné, po zapnutí hláška zmizí, aplikace nespadne (sezení 5.3). → přesunuto do T-126
-- [ ] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
+- [x] **T-096** (krit. „Start s uspaným displejem nezpůsobí pád …“): `mac.display-wait` = `PASS` a `mac.display-sleep`
       potvrzeno; v logu „No active display …“ a „… starting the UI.“ (sezení 8.1).
-- [ ] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
+      `mac.display-wait` = `PASS` (2026-11-01). `mac.display-sleep` nejde se Sdílením obrazovky (drží displej vzhůru,
+      kontrola od T-140 hlásí `SKIP`) → přesunuto do T-127
+- [x] **T-099** (krit. „Po probuzení displeje se objeví ikona … se stavem“ a „Skutečný start se zhasnutým displejem“):
       `mac.display-sleep` potvrzeno; navíc ručně sezení 8.2 (událost tisku ze simulátoru během spánku displeje →
       oznámení přijde ještě se zhasnutým displejem, ikona po probuzení hned ukazuje stav).
-- [ ] **T-026** (krit. „Stream … ve všech režimech okna“, část se simulátorem): `mac.camera` = `PASS` a `mac.camera-look`
+      Od 2026-11-02 (T-136) ověří sezení 8.2 `mac.display-sleep` sám, když jsou oznámení „LayerPeek E2E“ povolená
+      (`mac.notifications` spustit dřív): oznámení pauzy musí být doručené dřív, než se spustí UI, tedy se zhasnutým
+      displejem.
+      → přesunuto do T-127
+- [x] **T-026** (krit. „Stream … ve všech režimech okna“, část se simulátorem): `mac.camera` = `PASS` a `mac.camera-look`
       potvrzeno (normální okno, celá obrazovka, malý náhled navrchu, překryv ve všech třech) (sezení 6.1).
-- [ ] **T-038** (krit. „Ruční ověření … s jedním a se dvěma monitory“, automatická část J2 a D1): `mac.camera-placement`
+      Ověřeno 2026-11-01: `mac.camera` = `PASS`. Ruční `mac.camera-look` → přesunuto do T-127
+- [x] **T-038** (krit. „Ruční ověření … s jedním a se dvěma monitory“, automatická část J2 a D1): `mac.camera-placement`
       = `PASS` na každém připojeném monitoru.
-- [ ] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
+      Ověřeno 2026-11-01: `mac.camera-placement` = `PASS` na jediném připojeném monitoru (virtuální displej „Virtuální
+      16:10“); druhý monitor patří k ruční části T-038 v T-127.
+- [x] **T-053** (krit. „Spojení od jiného UID se odmítne“): `mac.socket-other-user` (sudo, uživatel `nobody`) = `PASS`;
       volitelně se druhým účtem podle sezení 10.1.
-- [ ] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
+      Ověřeno 2026-11-02 (agent, `-Unattended -Allow mac.socket-other-user`, pravidlo `tools/macos-verify-sudoers.sh`):
+      `mac.socket-other-user` = `PASS` – „Refused a connection of another user (uid 4294967294) to the instance channel;
+      nothing was read.“
+- [x] **T-100** (krit. „Ověřeno uživatelem na Macu (včetně Logitech klávesnice)“): `mac.keys` (Zpřístupnění pro
       Terminál, po běhu vypnout) a `mac.keyboard-physical` potvrzeno – vestavěná i Logitech klávesnice, české rozložení
       (⌘⇧] / ⌘⇧[, ⌃⌘F, ⌘W, ⌘.) (sezení 6.3); v Nastavení i v Diagnostice (výběr tiskárny, aspoň dvě
       tiskárny) ⌘. s otevřeným rozbalovacím seznamem zavře jen seznam (T-100 otázka 3, rozhodnuto 2026-10-30).
-- [ ] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
+      Od 2026-11-02 tu zůstává jen `mac.keys` = `PASS`; `mac.keyboard-physical` (vestavěná a Logitech klávesnice, české
+      rozložení, ⌘. s otevřeným seznamem) → přesunuto do T-127.
+      Ověřeno 2026-11-02 (macOS 27.2, agent, `-Unattended -Allow mac.keys`, zpráva `artifacts/verify/20261102-114422`):
+      `mac.keys` = `PASS` – ⌃⌘F, Esc, ⌘. a ⌘W v okně kamery, ⌘⇧] dvakrát (záložka z Accessibility), ⌘W a ⌘. v Nastavení
+      beze změny, ⌘. s otevřeným seznamem zavře jen seznam, ⌘W v O aplikaci a Diagnostice. ⌘. předtím nefungovalo (T-141).
+- [x] **T-100** (otázka 1, rozhodovací bod; sezení 6.3, „Jiné rozložení klávesnice“): s **českým** rozložením
       přepínají ⌘⇧] / ⌘⇧[ (klávesy vpravo od P, „ú“ a „)“) hlavní záložky Nastavení? Nestane se nic jiného? Zapsat
       výsledek na vestavěné i Logitech klávesnici a rozhodnout, zda stačí fyzická pozice kláves (dnešní implementace);
       když ne, nový úkol.
-- [ ] **T-100** (otázka 2, rozhodovací bod; sezení 6.3): dostanou se ⌃⌘F (okno kamery), ⌘W a ⌘. (všechna pomocná
+      → přesunuto do T-127
+- [x] **T-100** (otázka 2, rozhodovací bod; sezení 6.3): dostanou se ⌃⌘F (okno kamery), ⌘W a ⌘. (všechna pomocná
       okna) na skutečném Macu k aplikaci, nebo je dřív zachytí systém / výchozí menu aplikace (`performKeyEquivalent`,
       „Celá obrazovka“, `cancelOperation:`)? Zapsat u každé zkratky; když některá nefunguje, nový úkol.
+      → přesunuto do T-127
 - [x] **T-019** (krit. „Spuštění stažené `.dmg` na Macu s Gatekeeperem ověřené a postup popsaný v dokumentaci“):
       `mac.gatekeeper` = `PASS` a `mac.gatekeeper-dialog` potvrzeno (stažení přes Safari z lokálního serveru, spuštění
       z `.dmg`, přetažení do Aplikací, „Přesto otevřít“, totéž s `.tar.gz`); přesné texty dialogů zapsat a porovnat
@@ -145,7 +184,7 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       objeví / zmizí podle oken, menu Docku se seznamem oken, klik na ikonu v Docku, fokus a pořadí oken, „Zobrazit
       kameru“ v menu. Zapsat i otázku 3 z T-102 (obnoví se menu aplikace v menu baru po přepnutí na běžnou aplikaci?);
       když ne, nový úkol. → přesunuto do T-127
-- [ ] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční část krit. „Tlačítko na hlavním panelu (Windows) a
+- [x] **T-117** (krit. „Snímky UI: okno kamery s ikonou“ a ruční část krit. „Tlačítko na hlavním panelu (Windows) a
       ikona v Docku (macOS) následují přepnutí z okna“ a „Přístupnost“, část macOS): okno kamery se simulátorem –
       špendlík vpravo nahoře v normálním okně i v malém náhledu, na celé obrazovce není; zapnutý je bez myši vidět
       ztlumený (čitelný i na světlém obrazu), vypnutý ne. Klik přepne „vždy navrchu“ hned (okno nad jinou aplikací),
@@ -154,12 +193,21 @@ ikony @1x v `mac.icons`). Zpráva: `artifacts/verify/<čas>/report.md`.
       malém náhledu (jen „Vždy navrchu“, zaškrtnutá podle stavu). VoiceOver přečte přepínač se jménem „Vždy navrchu:
       zapnuto / vypnuto“ a stavem, mezerník přepíná. Volba přežije restart aplikace a otevřené Nastavení ji ukáže.
       Snímek okna se špendlíkem do poznámek.
-- [ ] **T-118** (krit. „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“,
+      Ověřeno 2026-11-02 (T-136): `mac.camera-pin` = `PASS` – klik, mezerník, Enter a AXPress přepnou hned (úroveň okna,
+      typ v Docku / ⌘Tab podle T-102, přístupné jméno „Always on top: on / off“, `settings.json`), kontextové menu
+      pravým tlačítkem i ⌃-klikem s položkou zaškrtnutou podle stavu (⌃-klik opraven v T-138), Esc ho zavře, volba
+      přežije restart; normální okno i malý náhled. Vzhled (ztlumený špendlík na světlém obrazu, na celé obrazovce
+      není), plochy (Spaces), skutečný VoiceOver, Nastavení a snímek → přesunuto do T-127
+- [x] **T-118** (krit. „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“,
       část macOS): okno kamery se simulátorem, malý náhled – tenký šedý obrys (1 pt = 2 px na Retině, ostré rohy) kolem
       obrazu i pásu je vidět ve světlém i tmavém režimu, nad světlou plochou i nad tmavým oknem; v normálním okně a na
       celé obrazovce obrys není. Při najetí myší zesvětlí, po odjetí ztmavne. Na externím monitoru @1x ostrý (1 px).
       Úchopy po okrajích dál mění velikost, tažení obrazu a pásu přesouvá okno. Porovnat s nativním obrysem oken macOS
       (návrh 4: záměrně o něco výraznější). Snímky na světlém a tmavém pozadí do poznámek.
+      Ověřeno 2026-11-02 (T-136): `mac.camera-outline` = `PASS` – ve snímku skutečného okna obrys 2 px u všech hran a
+      rohů malého náhledu, při najetí myší zesvětlí (jas asi 115 → 191), v normálním okně není; barvy jsou pevné (bílá
+      přes černý obsah), světlý a tmavý vzhled vypadá stejně. Pohled nad světlou a tmavou plochou, celá obrazovka,
+      monitor @1x, úchopy, tažení, porovnání s nativním obrysem a snímky → přesunuto do T-127
 - [x] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část macOS): sezení 5.4 (a)–(d) – zkušební upozornění se
       zvukem i bez, nahrazení v Centru oznámení, klik přenese Nastavení na záložku Obecné, stav „zamítnuto“ s hláškou,
       `notDetermined` jen bez zásahu do TCC. → přesunuto do T-127
@@ -247,14 +295,50 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       platí, nebo je upravené. → přesunuto do T-127
 
 ### 6. Úklid a závěr
-- [ ] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
+- [x] Úklid podle sezení 12 (Otevřít při přihlášení vypnuto, aplikace a stažené soubory smazané nebo ponechané podle
       volby uživatele, Klíčenka, změny systému vrácené); `pwsh tools/profile-snapshot.ps1 -Compare` ukáže jen to, co
       mělo zůstat.
-- [ ] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
+      Hotovo 2026-11-02: skript po každém běhu uklidil testovací bundle, oznámení, Klíčenku a dočasné složky;
+      `mac.profile-unchanged` = `PASS` (beze změny, Login Items nekontrolovány). Instalace a „Otevřít při přihlášení“
+      jsou v T-126. Záměrně ponechané změny pro kontroly bez uživatele (T-140, rozhodnutí uživatele 2026-11-02):
+      pravidlo `/etc/sudoers.d/layerpeek-verify` (jen `nc` jako `nobody`, odebrání `sudo bash
+      tools/macos-verify-sudoers.sh --remove`), heslo po vypnutí displeje za 1 hodinu (`sysadminctl -screenLock`),
+      povolená oznámení „LayerPeek E2E“, Zpřístupnění a Nahrávání obrazovky pro Terminál.
+- [x] Výsledky zapsané v poznámkách (verze macOS, datum, zpráva skriptu); každá chyba má nový úkol; výsledky rozhodovacích bodů
       T-038 a T-100 zapsané i do jejich poznámek (T-038 od 2026-11-01 v T-127).
+      Hotovo 2026-11-02 (poznámky níže); chyby mají úkoly T-134–T-139, T-141 a T-142 (⌘., otázka 2 z T-100 – zapsáno i v
+      T-100); rozhodovací body T-100 otázky 1–2 a T-038 jsou v T-127.
 
 ## Otevřené otázky
 - (žádné vlastní; rozhodovací body T-100 otázky 1–2 jsou u kroků výše, T-038 otázky 2–3 od 2026-11-01 v T-127)
 
 ## Poznámky k implementaci
-(vyplní agent / uživatel po ověření)
+- 2026-11-01 (snímky T-117 a T-118, macOS): na developu po T-117/T-118 selhalo na Macu 14 snímkových testů (2 chybějící
+  `camera-mini-outline*.png`, 12 malých náhledů bez špendlíku a obrysu). macOS sada přegenerována; nové snímky odpovídají
+  sadě Windows (špendlík vpravo nahoře, tenký obrys). `camera-layout-mode.png` a `camera-layout-mode-de-480.png` se
+  přepsaly také, ale se starými referencemi projdou v toleranci – vráceny. README: změnil se jen
+  `docs/images/{en,cs}/camera-mini.jpg` (špendlík a obrys), `camera-window.jpg` beze změny. Celá sada testů na Macu prošla.
+- 2026-11-01 (develop po T-119–T-122 a uzavření T-114): na Macu `dotnet build` Debug i Release 0 upozornění, `dotnet test`
+  8478 testů, 0 selhalo (198 přeskočeno, testy jen pro Windows), včetně `CameraWindowFocusUiTests` (automatická část
+  položky T-122); ruční část položky T-122 zůstává. Profil beze změny.
+- 2026-11-01 (develop a83ad13, macOS 27.2): `dotnet build` Debug i Release 0 upozornění, `dotnet test` 8478 testů,
+  0 selhalo (11 testů Klíčenky přeskočeno – zamčená Klíčenka), AOT publish `osx-arm64` a `scripts/aot-smoke.ps1` PASSED.
+  macOS E2E (`LAYERPEEK_E2E=1`): `MacUpdateE2ETests` se zapnutým displejem vždy selhal – chyba testu, opraveno v T-142;
+  `MacDisplayWaitE2ETests` selhává, když skutečný displej spí (spouštět pod `caffeinate -d -u -i`);
+  `MacNotificationsE2ETests` přeskočen (bundle „LayerPeek E2E“ nemá povolená oznámení).
+- 2026-11-01 (develop po sloučení s origin/develop 3bfee91 – T-123, T-128..T-132 z Windows – a po T-142): Debug i Release
+  0 upozornění, `dotnet test` 8481 testů, 0 selhalo; macOS E2E 3 prošly, 1 přeskočen (oznámení); AOT publish a smoke
+  test PASSED.
+- 2026-11-01–02 (macOS 27.2, T-134–T-139, T-142): automatické kontroly `tools/macos-verify.ps1` v terminálu přihlášené
+  relace – `PASS`: `mac.dock`, `mac.settings-front`, `mac.menubar` (T-135), `mac.keychain` (25/25, 0 přeskočeno, T-134),
+  `mac.camera`, `mac.camera-placement`, `mac.display-wait`, `mac.plist-localnetwork`, `mac.profile-unchanged`
+  a nové `mac.camera-pin` a `mac.camera-outline` (T-136; zprávy `artifacts/verify/20261101-*`, `20261102-102650`).
+  Nalezené chyby aplikace opravené: T-137 (po zapnutí „vždy navrchu“ macOS aplikaci deaktivoval), T-138 (⌃-klik bez
+  kontextového menu), T-139 (ikona Docku bez ikony v bundlu). Subjektivní a fyzické body přesunuté do T-127 (oddíl 1b).
+  Zbývají interaktivní kontroly uživatele: `mac.keys`, `mac.notifications`, `mac.socket-other-user`,
+  `mac.display-sleep` (s oznámením během spánku displeje), pak úklid (oddíl 6).
+- 2026-11-02 (macOS 27.2, agent, T-140 – `-Unattended -Allow`): `mac.keys` = `PASS` (po opravě ⌘. v T-141),
+  `mac.notifications` = `PASS`, `mac.socket-other-user` = `PASS`, `mac.profile-unchanged` = `PASS`; `mac.display-sleep`
+  = `SKIP` (Sdílení obrazovky drží displej vzhůru) – body T-096 / T-099 přesunuté do T-127 (rozhodnutí uživatele).
+  Zprávy `artifacts/verify/20261102-114422`, `20261102-115631`, `20261102-115907`.
+- Uzavřeno 2026-11-02: zbývající ruční ověření přesunuto do T-127 (rozhodnutí uživatele).

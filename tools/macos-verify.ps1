@@ -30,6 +30,13 @@
     Never asks anything and never requests a permission: Permission and Manual checks are SKIP with the reason, Auto
     checks that would need an answer too. For test runs (also inside dotnet test).
 
+.PARAMETER Allow
+    Ids or wildcards of Permission checks you allow in advance (T-140): they run without the question, also with
+    -Unattended, e.g. -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user. What they need once:
+    mac.keys - Accessibility for the terminal; mac.socket-other-user - the sudoers rule of
+    tools/macos-verify-sudoers.ps1; mac.display-sleep - a password delay after the display sleeps longer than a minute
+    (System Settings > Lock Screen), otherwise the locked screen ends it with SKIP.
+
 .PARAMETER Only
     Check ids or wildcards to run (comma-separated or an array), e.g. -Only mac.keychain,mac.camera*.
 
@@ -50,12 +57,14 @@
     pwsh tools/macos-verify.ps1 -ListChecks
     pwsh tools/macos-verify.ps1                              # everything, interactive
     pwsh tools/macos-verify.ps1 -Unattended                  # only what runs without you
+    pwsh tools/macos-verify.ps1 -Unattended -Allow mac.keys,mac.display-sleep,mac.socket-other-user
     pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notifications
 #>
 #Requires -Version 7.2
 [CmdletBinding()]
 param(
     [switch] $Unattended,
+    [string[]] $Allow,
     [string[]] $Only,
     [string[]] $Skip,
     [switch] $ListChecks,
@@ -110,6 +119,22 @@ function Invoke-Helper($Context, [string[]] $Arguments, [switch] $AllowFailure) 
 function Get-Screens($Context) { @((Invoke-Helper $Context @('screens')) -join "`n" | ConvertFrom-Json) }
 
 function Get-ProcessWindows($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('windows', "$ProcessId")) -join "`n" | ConvertFrom-Json) }
+
+function Get-StatusItems($Context, [int] $ProcessId) {
+    <# .SYNOPSIS The status items of a process from the Accessibility API, or $null without Accessibility for the terminal. #>
+    if (-not (Test-Accessibility $Context)) { return $null }
+    @((Invoke-Helper $Context @('statusitems', "$ProcessId")) -join "`n" | ConvertFrom-Json)
+}
+
+function Test-StatusItem($Context, [int] $ProcessId) {
+    <#
+    .SYNOPSIS
+        Whether the process shows a status item in the menu bar: a window on layer 25 (macOS 15), or an item of its
+        AXExtrasMenuBar (macOS 27 draws status items in no window of the process, T-135; needs Accessibility).
+    #>
+    if (Test-VerifyMenuBarItem @(Get-ProcessWindows $Context $ProcessId)) { return $true }
+    [bool] (@(Get-StatusItems $Context $ProcessId) | Where-Object { $_ -and $_.width -gt 0 -and $_.height -gt 0 })
+}
 
 function Get-SessionLimitation($Context) {
     <# .SYNOPSIS Why window checks cannot be judged in this session (locked screen, not on the console), or $null. #>
@@ -376,8 +401,12 @@ function Start-TestApp {
 }
 
 function Start-TestAppViaOpen {
-    <# .SYNOPSIS Starts the test bundle through LaunchServices (open -n), as macOS requires for notifications; returns the pid. #>
-    param($Context, $TestData, [hashtable] $Environment = @{})
+    <#
+    .SYNOPSIS
+        Starts the test bundle through LaunchServices (open -n), as macOS requires for notifications; returns the pid.
+        -NoWait returns right after the start (no wait for the instance socket, no skip while every display sleeps).
+    #>
+    param($Context, $TestData, [hashtable] $Environment = @{}, [switch] $NoWait)
     $bundle = Get-TestBundle $Context
     $before = @(Get-BundleProcessIds $bundle)
     $arguments = @('-n', '-F', '-g', '--stdout', (Join-Path $TestData.Data 'stdout.txt'), '--stderr', (Join-Path $TestData.Data 'stderr.txt'))
@@ -391,6 +420,7 @@ function Start-TestAppViaOpen {
     if ($script:candidate.Count -gt 0) { $found = $script:candidate[0] }
     if (-not $found) { throw 'The test app did not start through open.' }
     Add-VerifyCleanup $Context "test app $found" { param($id) Stop-Process -Id $id -Force -ErrorAction SilentlyContinue } -State $found
+    if ($NoWait) { return $found }
     $null = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-Path -LiteralPath $TestData.Socket }
     Start-Sleep -Seconds 2
     if ((Read-TestLog $TestData) -match 'No active display') {
@@ -458,6 +488,216 @@ function Test-FullScreen($Window, $Screens) {
 
 function Get-RtspConnections([int] $ProcessId, [int] $Port) {
     @(& /usr/sbin/lsof -a -n -P -p $ProcessId "-iTCP:$Port" -sTCP:ESTABLISHED 2>$null | Select-Object -Skip 1)
+}
+
+function Get-AxTree($Context, [int] $ProcessId) { @((Invoke-Helper $Context @('ax', "$ProcessId")) -join "`n" | ConvertFrom-Json -Depth 100) }
+
+function Find-AxElement($Nodes, [string] $Identifier) {
+    <# .SYNOPSIS The first node of the helper's Accessibility tree with that identifier (AutomationId), depth first; $null when none. #>
+    foreach ($node in @($Nodes)) {
+        if (-not $node) { continue }
+        if ($node.identifier -ceq $Identifier) { return $node }
+        $inner = Find-AxElement $node.children $Identifier
+        if ($inner) { return $inner }
+    }
+    $null
+}
+
+function Get-AxElement($Context, [int] $ProcessId, [string] $Identifier) { Find-AxElement (Get-AxTree $Context $ProcessId) $Identifier }
+
+function Get-AxNodes($Nodes) {
+    <# .SYNOPSIS Every node of the helper's Accessibility tree, depth first. #>
+    foreach ($node in @($Nodes)) {
+        if (-not $node) { continue }
+        $node
+        Get-AxNodes $node.children
+    }
+}
+
+function Get-AxSelectedTab($Context, [int] $ProcessId, [string] $TabsIdentifier) {
+    <#
+    .SYNOPSIS
+        The tabs of a TabControl (identifiers of its tab items, in order) and the selected one from the Accessibility tree
+        (T-140: instead of asking whether the tab moved). Avalonia gives a tab item no value; the selected one is the one
+        that shows the selection pipe of the Fluent theme (PART_SelectedPipe, hidden - so not in the tree - in the others).
+    #>
+    $tabs = Get-AxElement $Context $ProcessId $TabsIdentifier
+    $items = @(Get-AxNodes $tabs.children | Where-Object { $_.identifier -and $_.role -in 'AXRadioButton', 'AXTab' })
+    [pscustomobject]@{
+        Tabs     = [string[]] @($items.identifier)
+        Selected = [string] (@($items | Where-Object { "$($_.value)" -in '1', 'True' -or (Find-AxElement $_.children 'PART_SelectedPipe') }) | Select-Object -First 1).identifier
+        Tree     = $tabs
+    }
+}
+
+function Get-AxFocusedId($Context, [int] $ProcessId) { [string] (@(Invoke-Helper $Context @('focusedid', "$ProcessId")) | Select-Object -First 1) }
+
+function Get-AxCenter($Node) { @([math]::Round($Node.frame.x + $Node.frame.width / 2, 1), [math]::Round($Node.frame.y + $Node.frame.height / 2, 1)) }
+
+function Get-AppType([int] $ProcessId) { Get-LaunchServicesAppType -ListOutput @(& /usr/bin/lsappinfo list 2>$null) -ProcessId $ProcessId }
+
+function Invoke-CameraPinCheck {
+    <#
+    .SYNOPSIS
+        T-122 / T-117 in one mode of the camera window, with real mouse and key events (CGEvent) and the Accessibility tree:
+        the pin switches "always on top" at once (window level, Dock / Cmd-Tab by the rule of T-102, settings.json); a
+        mouse click leaves no keyboard focus on the window buttons (the row shows only on hover or focus-within, so with
+        the pointer outside the window only the dimmed pin is left), also after another app came to the front and back;
+        after a click on the image Tab goes to the first window button; Tab to the pin, Space and Return switch it and the
+        focus stays; AXPress (what VoiceOver does) switches it; the context menu (right click and Control-click) has the
+        items of the mode with the check mark of the pin; the option survives a restart. Returns problems and "ok: ..." notes.
+    #>
+    param($Context, $Simulator, [ValidateSet('Normal', 'Mini')] [string] $Mode)
+    $c = $Context
+    $pinId = 'CameraTopmostButton'
+    $buttons = if ($Mode -eq 'Normal') { @('CameraLayoutButton', 'CameraFullScreenButton', 'CameraMiniButton', $pinId) } else { @('CameraFullScreenButton', 'CameraNormalButton', $pinId) }
+    $menuItems = if ($Mode -eq 'Normal') { @('CameraLayoutMenuItem', 'CameraTopmostMenuItem') } else { @('CameraTopmostMenuItem') }
+    $data = New-TestData -Context $c -Simulator $Simulator -Camera $Simulator.Camera -Window ([ordered]@{ rememberLastPlacement = $false; startMode = $Mode })
+    $settingsFile = Join-Path $data.Data 'settings.json'
+    $app = Start-TestApp -Context $c -TestData $data
+    $appId = $app.Id
+    $script:pin = $null
+    $readPin = { $script:pin = Get-AxElement $c $appId $pinId; $script:pin }
+    $isOn = { [string] $script:pin.value -eq '1' }
+    $expectType = { param([bool] $On) if ($On) { 'UIElement' } else { 'Foreground' } }
+    $expectState = {
+        param([bool] $On, [string] $What)
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and ((& $isOn) -eq $On) })) { "${What}: the pin did not switch $(if ($On) { 'on' } else { 'off' }) (Accessibility value '$($script:pin.value)')"; return }
+        $title = [string] $script:pin.title
+        if ($title -notmatch "^Always on top: $(if ($On) { 'on' } else { 'off' })$") { "${What}: accessible name '$title' does not say the state" }
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $w = Get-CameraWindow $c $appId; $w -and (($w.layer -gt 0) -eq $On) })) { "${What}: window level $((Get-CameraWindow $c $appId).layer) does not follow 'always on top' $On" }
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { ($script:type = Get-AppType $appId) -ceq (& $expectType $On) })) { "${What}: LaunchServices type '$($script:type)', expected '$(& $expectType $On)' (Dock and Cmd-Tab, rule of T-102)" }
+    }
+    $buttonFocused = { $id = Get-AxFocusedId $c $appId; if ($buttons -contains $id) { $id } else { $null } }
+    $away = {
+        $screen = @(Get-Screens $c | Where-Object main)[0]
+        $null = Invoke-Helper $c @('move', "$($screen.visible.x + 4)", "$($screen.visible.y + $screen.visible.height - 4)")
+    }
+    $key = { param($Combo) $null = Invoke-Helper $c @('key', $Combo); Start-Sleep -Milliseconds 400 }
+    $problems = [System.Collections.Generic.List[string]]::new()
+    $add = { param($Items) foreach ($item in @($Items)) { if ($item) { $problems.Add([string] $item) } } }
+    $notes = [System.Collections.Generic.List[string]]::new()
+    try {
+        Send-TestCommand $data "camera:$($script:PrinterId)"
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $appId) -and (& $readPin) })) { return 'no camera window with the pin in the Accessibility tree' }
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId })) { & $add 'the camera window did not come to the front' }
+        $initial = & $isOn
+        & $add (& $expectState $initial 'at the start')
+
+        # 1. A real mouse click on the pin switches at once; the pointer leaves; no window button keeps the keyboard focus.
+        $hash = (Get-FileHash -LiteralPath $settingsFile).Hash
+        $null = Invoke-Helper $c (@('click') + (Get-AxCenter $script:pin))
+        & $add (& $expectState (-not $initial) 'mouse click')
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (Get-FileHash -LiteralPath $settingsFile).Hash -ne $hash })) { & $add 'the click did not save the option in settings.json' }
+        & $away
+        Start-Sleep -Milliseconds 600
+        $focused = & $buttonFocused
+        if ($focused) { & $add "after the mouse click and the pointer leaving, $focused has the keyboard focus (the whole row stays visible)" }
+
+        # 2. Another app in front and back: the activation does not focus the pin again (T-122).
+        if (Invoke-FinderToFront) {
+            Send-TestCommand $data 'activate'
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId })) { & $add 'the app did not come back to the front' }
+            Start-Sleep -Milliseconds 600
+            & $away
+            $focused = & $buttonFocused
+            if ($focused) { & $add "after switching to Finder and back, $focused has the keyboard focus (the whole row shows)" }
+        }
+        else { & $add "Finder did not come to the front (front app: $(Get-FrontAppText))" }
+
+        # 3. A click on the image, then Tab: the first window button.
+        $surface = Get-AxElement $c $appId 'Surface'
+        if ($surface) {
+            $point = Get-AxCenter $surface
+            $null = Invoke-Helper $c @('click', "$($point[0])", "$([math]::Round($surface.frame.y + $surface.frame.height * 0.7, 1))")
+            Start-Sleep -Milliseconds 500
+            & $key 'tab'
+            $first = Get-AxFocusedId $c $appId
+            if ($first -cne $buttons[0]) { & $add "Tab after a click on the image focused '$first', expected $($buttons[0])" }
+        }
+        else { & $add 'no camera image (Surface) in the Accessibility tree' }
+
+        # 4. Tab to the pin; Space and Return switch it and the focus stays on it (and the app in front: switching "always
+        # on top" on makes it an accessory app, T-102, which must not hand the front to another app).
+        for ($i = 0; $i -lt 8 -and (Get-AxFocusedId $c $appId) -cne $pinId; $i++) { & $key 'tab' }
+        if ((Get-AxFocusedId $c $appId) -cne $pinId) { & $add 'Tab never reached the pin' }
+        else {
+            foreach ($press in 'space', 'return') {
+                $null = & $readPin
+                $state = -not (& $isOn)
+                & $key $press
+                & $add (& $expectState $state $press)
+                $after = Get-AxFocusedId $c $appId
+                if ($after -cne $pinId) { & $add "after $press (pin $(if ($state) { 'on' } else { 'off' })) the pin lost the keyboard focus (focused: '$after', front app: $(Get-FrontAppText))" }
+                if ($after -cne $pinId -and (Get-FrontProcessId) -ne $appId) {
+                    Send-TestCommand $data 'activate'
+                    $null = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId }
+                    for ($i = 0; $i -lt 8 -and (Get-AxFocusedId $c $appId) -cne $pinId; $i++) { & $key 'tab' }
+                }
+            }
+        }
+
+        # 5. AXPress, as VoiceOver activates the pin (VO-Space).
+        foreach ($round in 1, 2) {
+            $null = & $readPin
+            $state = -not (& $isOn)
+            $null = Invoke-Helper $c @('axpress', "$appId", $pinId)
+            & $add (& $expectState $state "AXPress $round")
+        }
+
+        # 5b. Switching "always on top" on while another app is in front (VoiceOver, AXPress) leaves that app in front (T-137).
+        $null = & $readPin
+        if (& $isOn) { $null = Invoke-Helper $c @('axpress', "$appId", $pinId); $null = Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and -not (& $isOn) } }
+        if (Invoke-FinderToFront) {
+            $finder = Get-FrontProcessId
+            $null = Invoke-Helper $c @('axpress', "$appId", $pinId)
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { (& $readPin) -and (& $isOn) })) { & $add 'AXPress with Finder in front did not switch the pin on' }
+            Start-Sleep -Milliseconds 1500
+            if ((Get-FrontProcessId) -ne $finder) { & $add "switching the pin on with Finder in front took the front ($(Get-FrontAppText))" }
+            $state = $true
+        }
+        else { & $add "Finder did not come to the front (front app: $(Get-FrontAppText))" }
+
+        # 6. The context menu by right click and by Control-click: the items of the mode, the pin's check mark.
+        foreach ($click in 'rightclick', 'ctrlclick') {
+            Send-TestCommand $data 'activate'
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $appId })) { & $add "before the $click menu the app did not come to the front" }
+            Start-Sleep -Milliseconds 400
+            $surface = Get-AxElement $c $appId 'Surface'
+            $point = Get-AxCenter $surface
+            $null = Invoke-Helper $c @($click, "$($point[0])", "$($point[1])")
+            $script:tree = $null
+            $opened = Wait-VerifyCondition -TimeoutSeconds 5 -Condition { $script:tree = Get-AxTree $c $appId; $null -ne (Find-AxElement $script:tree 'CameraTopmostMenuItem') }
+            $null = Save-VerifyEvidence -Context $c -Name "$($Mode.ToLowerInvariant())-$click-ax.json" -Content ($script:tree | ConvertTo-Json -Depth 100)
+            if (-not $opened) { & $add "$(if ($click -eq 'ctrlclick') { 'Control-click' } else { 'right click' }) on the image opened no context menu"; continue }
+            $present = @($menuItems | Where-Object { Find-AxElement $script:tree $_ })
+            $extra = @('CameraLayoutMenuItem', 'CameraTopmostMenuItem') | Where-Object { $menuItems -notcontains $_ -and (Find-AxElement $script:tree $_) -and (Find-AxElement $script:tree $_).frame.width -gt 0 }
+            if ($present.Count -ne $menuItems.Count) { & $add "$click menu lacks $(@($menuItems | Where-Object { $present -notcontains $_ }) -join ', ')" }
+            if ($extra) { & $add "$click menu shows $($extra -join ', '), not expected in this mode" }
+            $item = Find-AxElement $script:tree 'CameraTopmostMenuItem'
+            $notes.Add("$click menu item '$($item.title)' value '$($item.value)'")
+            $menuFrame = (Find-AxElement $script:tree 'CameraContextMenu').frame
+            $menuShown = { @(Get-ProcessWindows $c $appId | Where-Object { $_.onscreen -and [math]::Abs($_.x - $menuFrame.x) -le 2 -and [math]::Abs($_.y - $menuFrame.y) -le 2 -and [math]::Abs($_.width - $menuFrame.width) -le 2 }).Count -gt 0 }
+            & $key 'escape'
+            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { -not (& $menuShown) })) { & $add "Esc did not close the $click menu" }
+        }
+
+        # 7. The option survives a restart.
+        $null = & $readPin
+        $final = & $isOn
+        $code = Stop-TestApp $data $app
+        if ($code -ne 0) { & $add "Quit ended the app with $code" }
+        $app = Start-TestApp -Context $c -TestData $data
+        $appId = $app.Id
+        Send-TestCommand $data "camera:$($script:PrinterId)"
+        if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $appId) -and (& $readPin) })) { & $add 'after the restart: no camera window with the pin' }
+        else { & $add (& $expectState $final 'after the restart') }
+    }
+    finally {
+        $null = Stop-TestApp $data $app
+    }
+    $problems
+    "ok: pin $(if ($initial) { 'on' } else { 'off' }) at the start, switched by click, Space, Return and AXPress (window level, Dock type, accessible name 'Always on top: on/off'), no button focused after the click and an app switch, Tab after the image to $($buttons[0]), menus: $($notes -join ', '), kept after the restart"
 }
 
 function Invoke-CameraModes {
@@ -644,16 +884,21 @@ $checks = @(
         Invoke-SessionCheck $c {
             $data = New-TestData -Context $c
             $app = Start-TestApp -Context $c -TestData $data
-            $shown = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { Test-VerifyMenuBarItem @(Get-ProcessWindows $c $app.Id) }
+            $shown = Wait-VerifyCondition -TimeoutSeconds 20 -Condition { Test-StatusItem $c $app.Id }
             $null = Save-VerifyEvidence -Context $c -Name 'windows.json' -Content (ConvertTo-VerifyJsonArray (Get-ProcessWindows $c $app.Id))
+            $trusted = Test-Accessibility $c
+            if ($trusted) { $null = Save-VerifyEvidence -Context $c -Name 'status-items.json' -Content (ConvertTo-VerifyJsonArray (Get-StatusItems $c $app.Id)) }
             # Every process's menu bar level windows: shows who owns the status items when the app's own are missing.
             $menuBar = @((Invoke-Helper $c @('menubar')) -join "`n" | ConvertFrom-Json)
             $null = Save-VerifyEvidence -Context $c -Name 'menubar-windows.json' -Content (ConvertTo-VerifyJsonArray $menuBar)
             $code = Stop-TestApp $data $app
+            if (-not $shown -and -not $trusted) {
+                Skip-VerifyCheck 'no status item window (layer 25) of the app; this macOS shows status items only to the Accessibility API: switch on Accessibility for the terminal and run it again.'
+            }
             if (-not $shown) {
                 $owners = @(Get-VerifyMenuBarOwners $menuBar)
                 $others = if ($owners.Count -gt 0) { "status item windows (layer 25) of: $($owners -join ', ')" } else { 'no process has a status item window (layer 25)' }
-                return New-VerifyResult FAIL "no status item (window layer 25) of the app (pid $($app.Id)) in the menu bar; $others (menubar-windows.json)."
+                return New-VerifyResult FAIL "no status item of the app (pid $($app.Id)) in the menu bar (no window on layer 25, nothing in AXExtrasMenuBar, status-items.json); $others (menubar-windows.json)."
             }
             if ($code -ne 0) { return New-VerifyResult FAIL "Quit ended the app with exit code $code." }
             New-VerifyResult PASS 'status item shown in the menu bar; Quit (the same command as the menu item) ended the app with 0 and the item is gone.'
@@ -837,6 +1082,86 @@ $checks = @(
         New-VerifyResult PASS "$($rows.Count) placements on $($screens.Count) monitor(s) ($(($screens.name) -join ', ')) are 16 pt from the usable area, never under the menu bar or the Dock."
     }
 
+    New-VerifyCheck -Id 'mac.camera-pin' -Kind Auto -Title 'camera window pin (always on top) with real mouse and key events and the Accessibility API, normal window and mini preview' `
+        -Closes 'T-122 (klik na špendlík a odjetí myši, přepnutí aplikace, Tab / mezerník / Enter, Tab po kliku na obraz, aktivace přes Accessibility jako VoiceOver)', 'T-117 kritéria „Tlačítko na hlavním panelu / ikona v Docku“, „Přístupnost“ a ruční část (klik přepne hned, Dock a ⌘Tab, kontextové menu pravým tlačítkem i ⌃-klikem, volba přežije restart)' -Action {
+        param($c)
+        if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (real mouse and key events, the Accessibility tree of the camera window).' }
+        Invoke-SessionCheck $c {
+            $simulator = Get-Simulator $c
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $notes = [System.Collections.Generic.List[string]]::new()
+            foreach ($mode in 'Normal', 'Mini') {
+                $found = @(Invoke-CameraPinCheck -Context $c -Simulator $simulator -Mode $mode)
+                foreach ($line in $found) { if ($line.StartsWith('ok: ')) { $notes.Add("${mode}: $($line.Substring(4))") } else { $problems.Add("${mode}: $line") } }
+            }
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
+            New-VerifyResult PASS ($notes -join '; ')
+        }
+    }
+
+    New-VerifyCheck -Id 'mac.camera-outline' -Kind Auto -Title 'outline of the mini preview in a capture of the real window: at every edge and corner, brighter while the pointer is over it, none in the normal window' `
+        -Closes 'T-118 kritéria „Obrys kolem malého náhledu v obou OS“ a „Snímky UI: malý náhled na světlém a tmavém pozadí“, část macOS (obrys vidět, ostré rohy, zesvětlí při najetí, v normálním okně není)' -Action {
+        param($c)
+        if (-not (Test-Accessibility $c)) { Skip-VerifyCheck 'needs Accessibility for the terminal (moving the pointer, the Accessibility tree).' }
+        if ((Invoke-Helper $c @('screenrecording')) -notcontains 'true') { Skip-VerifyCheck 'needs Screen Recording for the terminal (System Settings > Privacy & Security > Screen & System Audio Recording), then a restart of the terminal.' }
+        Invoke-SessionCheck $c {
+            $problems = [System.Collections.Generic.List[string]]::new()
+            $screen = @(Get-Screens $c | Where-Object main)[0]
+            # No stream (nothing listens on port 9): the image stays black, so the outline is measured against a steady background.
+            $data = New-TestData -Context $c -Simulator (Get-Simulator $c) -Camera 'rtsp://127.0.0.1:9/live' -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Mini' })
+            $app = Start-TestApp -Context $c -TestData $data
+            $measure = {
+                param([string] $Name)
+                $window = Get-CameraWindow $c $app.Id
+                $file = Join-Path (Get-VerifyEvidenceFolder $c) "$Name.png"
+                & /usr/sbin/screencapture -x -o -l "$($window.number)" $file
+                if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $file)) { throw "screencapture of window $($window.number) failed." }
+                # The outline is 1 point: as many pixels as the capture has per point (2 on Retina, 1 at @1x).
+                $probe = (Invoke-Helper $c @('ring', $file, '0', '1')) -join "`n" | ConvertFrom-Json
+                $pixels = [math]::Max(1, [math]::Round($probe.width / $window.width))
+                $edge = (Invoke-Helper $c @('ring', $file, '0', "$pixels")) -join "`n" | ConvertFrom-Json
+                $inner = (Invoke-Helper $c @('ring', $file, "$($pixels + 2)", "$pixels")) -join "`n" | ConvertFrom-Json
+                [pscustomobject]@{ Pixels = $pixels; Edge = $edge; Inner = $inner }
+            }
+            $sides = 'top', 'right', 'bottom', 'left'
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { $w = Get-CameraWindow $c $app.Id; $w -and $w.layer -gt 0 })) { return New-VerifyResult FAIL 'no mini preview opened.' }
+                if (-not (Get-AxElement $c $app.Id 'MiniOutline')) { $problems.Add('the mini preview has no outline element (MiniOutline) in the Accessibility tree') }
+                $null = Invoke-Helper $c @('move', "$($screen.visible.x + 4)", "$($screen.visible.y + $screen.visible.height - 4)")
+                Start-Sleep -Milliseconds 800
+                $away = & $measure 'mini-pointer-away'
+                $over = Get-CameraWindow $c $app.Id
+                $null = Invoke-Helper $c @('move', "$($over.x + $over.width / 2)", "$($over.y + $over.height / 3)")
+                Start-Sleep -Milliseconds 800
+                $hover = & $measure 'mini-pointer-over'
+                $null = Save-VerifyEvidence -Context $c -Name 'rings.json' -Content (@{ away = $away; hover = $hover } | ConvertTo-Json -Depth 6)
+                foreach ($side in $sides) {
+                    $contrast = $away.Edge.$side - $away.Inner.$side
+                    if ($contrast -lt 40) { $problems.Add("no outline at the $side edge ($([math]::Round($away.Edge.$side)) vs $([math]::Round($away.Inner.$side)) inside)") }
+                    $brighter = $hover.Edge.$side - $away.Edge.$side
+                    if ($brighter -lt 25) { $problems.Add("the outline at the $side edge is not brighter while the pointer is over the preview ($([math]::Round($hover.Edge.$side)) vs $([math]::Round($away.Edge.$side)))") }
+                }
+                $cornerLow = @($away.Edge.corners | Where-Object { $_ -lt ($away.Inner.top + 40) })
+                if ($cornerLow.Count -gt 0) { $problems.Add("$($cornerLow.Count) corner(s) without the outline (rounded or cut corners)") }
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+            }
+            finally { $null = Stop-TestApp $data $app }
+
+            $data = New-TestData -Context $c -Simulator (Get-Simulator $c) -Camera 'rtsp://127.0.0.1:9/live' -Window ([ordered]@{ rememberLastPlacement = $false; startMode = 'Normal' })
+            $app = Start-TestApp -Context $c -TestData $data
+            try {
+                Send-TestCommand $data "camera:$($script:PrinterId)"
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 20 -Condition { (Get-CameraWindow $c $app.Id) -and (Get-AxElement $c $app.Id 'Surface') })) { $problems.Add('no normal camera window opened') }
+                elseif (Get-AxElement $c $app.Id 'MiniOutline') { $problems.Add('the normal window shows the outline of the mini preview') }
+            }
+            finally { $null = Stop-TestApp $data $app }
+
+            if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
+            New-VerifyResult PASS "outline $($away.Pixels) px at every edge and corner of the mini preview ($(($sides | ForEach-Object { '{0} {1:0}/{2:0}' -f $_, $away.Edge.$_, $hover.Edge.$_ }) -join ', ') away/over; inside about $([math]::Round($away.Inner.top))), none in the normal window; the colours are fixed (white over the black content), so light and dark appearance look the same. Captures: mini-pointer-away.png, mini-pointer-over.png."
+        }
+    }
+
     New-VerifyCheck -Id 'mac.icons' -Kind Manual -Title 'menu bar icons on light and dark menu bars, app icon next to system app icons (contact sheet)' `
         -Closes 'T-018 kritérium 1 (čitelnost ve světlém i tmavém režimu)', 'T-098 kritérium 2 (velikost vedle systémových aplikací)' -Action {
         param($c)
@@ -902,6 +1227,7 @@ $checks = @(
         -Closes 'T-100 kritérium 4 (část: zkratky jako skutečné události klávesnice)' -Action {
         param($c)
         if (-not (Test-Accessibility $c)) {
+            if ($c.Unattended) { Skip-VerifyCheck 'no Accessibility permission for the terminal (System Settings > Privacy & Security > Accessibility).' }
             Write-VerifyStep $c 'Add your terminal app in System Settings > Privacy & Security > Accessibility and switch it on (opening it now). Remove it again after the run.' 'Yellow'
             & /usr/bin/open 'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility'
             $null = Read-VerifyAnswer -Context $c -Question 'Is Accessibility switched on for the terminal?'
@@ -912,18 +1238,23 @@ $checks = @(
         $app = Start-TestApp -Context $c -TestData $data
         $screens = Get-Screens $c
         $problems = [System.Collections.Generic.List[string]]::new()
+        $tabMove = 'not checked'
+        $listCheck = 'not checked'
         $key = { param($Combo) $null = Invoke-Helper $c @('key', $Combo); Start-Sleep -Milliseconds 400 }
-        $frontWith = { param($Command) Send-TestCommand $data $Command; Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id } }
+        # The app in front is not yet its key window, and a window that reached the full-screen frame still animates: a key
+        # event right then is lost (T-140), so both settle for a second first.
+        $frontWith = { param($Command) Send-TestCommand $data $Command; $front = Wait-VerifyCondition -TimeoutSeconds 10 -Condition { (Get-FrontProcessId) -eq $app.Id }; Start-Sleep -Seconds 1; $front }
         $isFull = { $w = Get-CameraWindow $c $app.Id; $w -and (Test-FullScreen $w $screens) }
+        $settledFull = { $full = Wait-VerifyCondition -TimeoutSeconds 6 -Condition $isFull; Start-Sleep -Seconds 1; $full }
         $noWindow = { -not (Get-CameraWindow $c $app.Id) }
         try {
             if (-not (& $frontWith "camera:$($script:PrinterId)")) { $problems.Add('the camera window did not come to the front') }
             & $key 'ctrl+cmd+f'
-            if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition $isFull)) { $problems.Add('Ctrl-Cmd-F did not enter full screen') }
+            if (-not (& $settledFull)) { $problems.Add('Ctrl-Cmd-F did not enter full screen') }
             & $key 'escape'
             if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (& $isFull) })) { $problems.Add('Esc did not leave full screen') }
             & $key 'ctrl+cmd+f'
-            $null = Wait-VerifyCondition -TimeoutSeconds 6 -Condition $isFull
+            $null = & $settledFull
             & $key 'cmd+period'
             if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (& $isFull) })) { $problems.Add('Cmd-. did not leave full screen') }
             & $key 'cmd+w'
@@ -934,12 +1265,46 @@ $checks = @(
             foreach ($closer in 'cmd+w', 'cmd+period') {
                 if (-not (& $frontWith 'settings')) { $problems.Add('Settings did not come to the front'); continue }
                 if ($closer -eq 'cmd+w') {
+                    $before = Get-AxSelectedTab $c $app.Id 'SettingsTabs'
                     & $key 'cmd+shift+]'
                     & $key 'cmd+shift+]'
-                    if (-not $c.Unattended -and -not (Read-VerifyAnswer -Context $c -Question 'Settings: did the main tab move twice to the right (Cmd-Shift-])?')) { $problems.Add('Cmd-Shift-] did not switch the tabs (user)') }
+                    $after = Get-AxSelectedTab $c $app.Id 'SettingsTabs'
+                    if (-not $before.Selected -or -not $after.Selected) {
+                        $null = Save-VerifyEvidence -Context $c -Name 'settings-tabs.json' -Content ($after.Tree | ConvertTo-Json -Depth 100)
+                        $problems.Add('the selected main tab of Settings could not be read from the Accessibility tree (settings-tabs.json)')
+                    }
+                    else {
+                        $expected = $before.Tabs[($before.Tabs.IndexOf($before.Selected) + 2) % $before.Tabs.Count]
+                        if ($after.Selected -ne $expected) { $problems.Add("Cmd-Shift-] twice went from $($before.Selected) to $($after.Selected), not to $expected") }
+                        else { $tabMove = "$($before.Selected) -> $($after.Selected)" }
+                    }
+                }
+                if ($closer -eq 'cmd+period') {
+                    # T-100 question 3: with a list open, Cmd-. closes only the list (like Esc); the next one is Cancel.
+                    $combo = Get-AxElement $c $app.Id 'PrinterConnectionType'
+                    $windows = @(Get-ProcessWindows $c $app.Id).Count
+                    if (-not $combo) { $listCheck = 'not checked (no PrinterConnectionType)' }
+                    else {
+                        $center = Get-AxCenter $combo
+                        $null = Invoke-Helper $c @('click', "$($center[0])", "$($center[1])")
+                        if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -gt $windows })) { $problems.Add('a click did not open the list PrinterConnectionType') }
+                        else {
+                            Start-Sleep -Milliseconds 500
+                            & $key 'cmd+period'
+                            if (-not (Wait-VerifyCondition -TimeoutSeconds 5 -Condition { @(Get-ProcessWindows $c $app.Id).Count -le $windows })) { $problems.Add('Cmd-. did not close the open list') }
+                            elseif (-not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id))) { $problems.Add('Cmd-. with an open list closed Settings, not only the list') }
+                            else { $listCheck = 'closed only the open list first' }
+                            Start-Sleep -Milliseconds 500
+                        }
+                    }
                 }
                 & $key $closer
-                if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) })) { $problems.Add("$closer did not close Settings") }
+                if (-not (Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) })) {
+                    $problems.Add("$closer did not close Settings")
+                    # Closed another way, so that the next steps are judged on their own.
+                    & $key 'cmd+w'
+                    $null = Wait-VerifyCondition -TimeoutSeconds 6 -Condition { -not (Get-VerifyMainWindow @(Get-ProcessWindows $c $app.Id)) }
+                }
             }
             if ((Get-FileHash -LiteralPath $settingsFile).Hash -ne $hash) { $problems.Add('closing Settings with a shortcut changed settings.json') }
             foreach ($window in 'about', 'diagnostics') {
@@ -953,7 +1318,7 @@ $checks = @(
             $null = Save-VerifyEvidence -Context $c -Name 'app.log' -Content (Read-TestLog $data)
         }
         if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
-        New-VerifyResult PASS 'Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-], Cmd-W and Cmd-. in Settings (no change saved); Cmd-W in About and Diagnostics. Remove the terminal from Accessibility again.'
+        New-VerifyResult PASS "Ctrl-Cmd-F, Esc, Cmd-. and Cmd-W in the camera window; Cmd-Shift-] twice ($tabMove), Cmd-W and Cmd-. in Settings (no change saved; Cmd-. $listCheck); Cmd-W in About and Diagnostics."
     }
 
     New-VerifyCheck -Id 'mac.notification-click' -Kind Manual -Title 'a click on a delivered notification of the test bundle opens the printer web' `
@@ -978,7 +1343,7 @@ $checks = @(
         New-VerifyResult PASS "the click opened $((Get-Content -LiteralPath $urls | Select-Object -First 1)) (recorded by the test mode instead of a browser)."
     }
 
-    New-VerifyCheck -Id 'mac.socket-other-user' -Kind Permission -Permission 'sudo (your administrator password) to connect to the instance socket as the user nobody' `
+    New-VerifyCheck -Id 'mac.socket-other-user' -Kind Permission -Permission 'sudo to connect to the instance socket as the user nobody (your administrator password, or none with the rule of tools/macos-verify-sudoers.sh)' `
         -Title 'a connection of another user to the instance socket is refused' `
         -Closes 'T-053 kritérium 1 (spojení od jiného UID se odmítne, skutečný test)' -Action {
         param($c)
@@ -989,9 +1354,14 @@ $checks = @(
             # Reachable for another user: the folder and the socket open to everyone, as an attacker would need.
             & /bin/chmod 755 $data.Data
             & /bin/chmod 777 $data.Socket
-            Write-VerifyStep $c 'sudo asks for your password (only for: sudo -u nobody nc -U <socket>).' 'Yellow'
-            & /usr/bin/sudo -v
-            if ($LASTEXITCODE -ne 0) { Skip-VerifyCheck 'sudo was not authorized.' }
+            # T-140: with the rule of tools/macos-verify-sudoers.sh nc runs as nobody without a password (also unattended).
+            $probe = (& /usr/bin/sudo -n -u nobody /usr/bin/nc -h 2>&1 | Out-String)
+            if ($probe -match 'password is required|may not run|not allowed') {
+                if ($c.Unattended) { Skip-VerifyCheck "sudo needs a password for nc as nobody; install the rule once: sudo bash tools/macos-verify-sudoers.sh" }
+                Write-VerifyStep $c 'sudo asks for your password (only for: sudo -u nobody nc -U <socket>; without it next time: sudo bash tools/macos-verify-sudoers.sh).' 'Yellow'
+                & /usr/bin/sudo -v
+                if ($LASTEXITCODE -ne 0) { Skip-VerifyCheck 'sudo was not authorized.' }
+            }
             $attempt = Invoke-VerifyTool -Context $c -Label 'nc-as-nobody' -FilePath '/bin/sh' -ArgumentList @('-c', "printf 'activate\n' | /usr/bin/sudo -n -u nobody /usr/bin/nc -U -w 3 '$($data.Socket)'; echo `"nc exit code `$?`"")
             & /usr/bin/sudo -k
             Start-Sleep -Seconds 2
@@ -1005,27 +1375,54 @@ $checks = @(
     }
 
     New-VerifyCheck -Id 'mac.display-sleep' -Kind Permission -Permission 'putting the display to sleep (pmset displaysleepnow) and waking it (caffeinate -u); you may have to unlock the screen' `
-        -Title 'real start while every display sleeps: monitoring runs, the menu bar item appears after wake-up' `
-        -Closes 'T-096 kritérium 1 (skutečný start s uspaným displejem)', 'T-099 kritérium 1 (ikona po probuzení se stavem)', 'T-099 kritérium 3 (skutečný start se zhasnutým displejem)' -Action {
+        -Title 'real start while every display sleeps: monitoring runs and notifies, the menu bar item appears after wake-up' `
+        -Closes 'T-096 kritérium 1 (skutečný start s uspaným displejem)', 'T-099 kritérium 1 (ikona po probuzení se stavem)', 'T-099 kritérium 3 (skutečný start se zhasnutým displejem)', 'T-099 kritéria 2 a 4 (sezení 8.2: oznámení události tisku ještě se zhasnutým displejem; potřebuje povolená oznámení z mac.notifications)' -Action {
         param($c)
         $simulator = Get-Simulator $c
         Set-SimulatorScenario $simulator 'printing'
-        $data = New-TestData -Context $c -Simulator $simulator
-        $null = Get-TestBundle $c
+        # Session 8.2: with the notifications of the test bundle allowed (mac.notifications), the pause while the display
+        # sleeps must be delivered before the wake-up; macOS delivers them only to an app started through LaunchServices.
+        # T-140: a Screen Sharing client keeps the display awake (assertion "Remote user active"): pmset displaysleepnow
+        # then turns nothing off and the app never waits for a display, so nothing could be judged.
+        if (@(& /usr/bin/pmset -g assertions 2>$null) -match 'Remote user active') { Skip-VerifyCheck 'Screen Sharing is connected and keeps the display awake (pmset -g assertions: "Remote user active"); run it at the Mac itself without Screen Sharing.' }
+        $notify = (Get-TestNotificationStatus $c).Permission -eq 'Allowed'
+        $data = New-TestData -Context $c -Simulator $simulator -Notifications:$notify
         Write-VerifyStep $c 'The display goes to sleep in 5 s and the script wakes it after about 40 s. Do not touch mouse or keyboard meanwhile; unlock the screen afterwards if asked.' 'Yellow'
         Start-Sleep -Seconds 5
         & /usr/bin/pmset displaysleepnow
         Start-Sleep -Seconds 5
-        $app = Start-TestApp -Context $c -TestData $data -NoWait
+        $app = if ($notify) { Get-Process -Id (Start-TestAppViaOpen -Context $c -TestData $data -Environment @{ LAYERPEEK_TEST_TOASTS = '1' } -NoWait) }
+        else { Start-TestApp -Context $c -TestData $data -NoWait }
         try {
             $waiting = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Read-TestLog $data) -match 'No active display' }
             $monitoring = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Read-TestLog $data) -match 'Starting printer monitoring and notifications while waiting for an active display\.' }
             Set-SimulatorScenario $simulator 'paused'
-            Start-Sleep -Seconds 20
+            $deliveredAsleep = $false
+            if ($notify) {
+                $deliveredAsleep = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { (Get-TestNotificationStatus $c).Delivered -gt 0 }
+                # Delivered before the UI started, so while the app still waited for a display.
+                $deliveredAsleep = $deliveredAsleep -and (Read-TestLog $data) -notmatch 'starting the UI\.'
+            }
+            else { Start-Sleep -Seconds 20 }
             & /usr/bin/caffeinate -u -t 2
             Write-VerifyStep $c 'Display woken. Unlock the screen if it is locked.' 'Yellow'
+            Start-Sleep -Seconds 3
+            # T-140: unattended nobody unlocks the screen; with a password delay after the display sleeps (System Settings >
+            # Lock Screen) of more than about a minute it stays unlocked.
+            $locked = Get-SessionLimitation $c
+            if ($locked -and $c.Unattended) { Skip-VerifyCheck "the screen is locked after the wake-up ($locked); set a longer password delay after the display sleeps in System Settings > Lock Screen." }
+            if ($locked) { $null = Wait-VerifyCondition -TimeoutSeconds 180 -Condition { -not (Get-SessionLimitation $c) } }
             $ui = Wait-VerifyCondition -TimeoutSeconds 180 -Condition { (Read-TestLog $data) -match 'starting the UI\.' }
-            $item = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-VerifyMenuBarItem @(Get-ProcessWindows $c $app.Id) }
+            $item = Wait-VerifyCondition -TimeoutSeconds 30 -Condition { Test-StatusItem $c $app.Id }
+            # The tooltip of the menu bar item (AXHelp) tells what the icon shows: the paused printer, not "Starting...".
+            $tooltip = ''
+            $shows = Wait-VerifyCondition -TimeoutSeconds 30 -Condition {
+                $items = @(Get-StatusItems $c $app.Id | Where-Object { $_ -and $_.width -gt 0 })
+                $script:tooltip = [string] ($items | Select-Object -First 1).help
+                $script:tooltip -match 'Paused' -and $script:tooltip -notmatch 'Starting'
+            }
+            $tooltip = $script:tooltip
+            $null = Save-VerifyEvidence -Context $c -Name 'status-items.json' -Content (ConvertTo-VerifyJsonArray (Get-StatusItems $c $app.Id))
             $log = Read-TestLog $data
             $null = Save-VerifyEvidence -Context $c -Name 'app.log' -Content $log
             $problems = @(
@@ -1034,11 +1431,13 @@ $checks = @(
                 if (-not $ui) { 'the UI did not start after the wake-up' }
                 if ($log -notmatch 'The menu bar item attaches to the monitoring that already runs\.') { 'the menu bar item did not attach to the running monitoring' }
                 if (-not $item) { 'no status item in the menu bar after the wake-up' }
-                if ($app.HasExited) { "the app ended with $($app.ExitCode)" }
+                if ($item -and -not $shows) { "the menu bar item does not show the paused printer (tooltip: '$($tooltip -replace "`n", ' / ')')" }
+                if ($notify -and -not $deliveredAsleep) { 'the notification of the pause was not delivered while the display slept' }
+                if ($app.HasExited) { 'the app ended' }
             )
             if ($problems.Count -gt 0) { return New-VerifyResult FAIL ($problems -join '; ') }
-            if (-not (Read-VerifyAnswer -Context $c -Question 'Does the [E2E] menu bar icon show the paused printer (not "Starting...")?')) { return New-VerifyResult FAIL 'the icon did not show the state of the running monitoring (user).' }
-            New-VerifyResult MANUAL 'waited without a display with monitoring running; after the wake-up the menu bar item attached and showed the current state.'
+            $notification = if ($notify) { ' The notification of the pause was delivered while the display slept.' } else { " Notification part not run: the notifications of 'LayerPeek E2E' are not allowed (run mac.notifications first)." }
+            New-VerifyResult PASS "waited without a display with monitoring running; after the wake-up the menu bar item attached and showed the current state (tooltip '$($tooltip -replace "`n", ' / ')').$notification"
         }
         finally { $null = Stop-TestApp $data $app }
     }
@@ -1188,6 +1587,13 @@ if (-not $IsMacOS) {
 
 try { $selected = @(Select-VerifyChecks -Checks $checks -Only $Only -Skip $Skip) }
 catch { Write-Host $_.Exception.Message -ForegroundColor Red; exit 2 }
+$Allow = @($Allow | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+foreach ($pattern in $Allow) {
+    if (-not ($checks | Where-Object { $_.Kind -eq 'Permission' -and $_.Id -like $pattern })) {
+        Write-Host "-Allow '$pattern' matches no Permission check (see -ListChecks)." -ForegroundColor Red
+        exit 2
+    }
+}
 if ($selected.Count -eq 0) { Write-Host 'No check selected.' -ForegroundColor Red; exit 2 }
 if ($PWD.ProviderPath -ne (Resolve-PhysicalPath $PWD.ProviderPath)) {
     Write-Host 'Note: the terminal is in the repository through a symbolic link; the script uses the physical path for dotnet.' -ForegroundColor Yellow
@@ -1195,7 +1601,7 @@ if ($PWD.ProviderPath -ne (Resolve-PhysicalPath $PWD.ProviderPath)) {
 
 $root = if ($OutputRoot) { $OutputRoot } else { Join-Path $script:Repo 'artifacts' 'verify' }
 $runFolder = New-VerifyRunFolder -Root $root
-$context = New-VerifyContext -RunFolder $runFolder -Unattended:$Unattended
+$context = New-VerifyContext -RunFolder $runFolder -Unattended:$Unattended -Allow $Allow
 $context.Shared.ProductionProfileUsed = @()
 Write-Host "LayerPeek macOS verification ($($context.Unattended ? 'unattended' : 'interactive')), $($selected.Count) check(s); report in $runFolder"
 
@@ -1220,7 +1626,7 @@ if ($selected | Where-Object Id -EQ 'mac.profile-unchanged') {
 }
 
 $results = Invoke-VerifyRun -Checks $selected -Context $context
-$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id)
+$info = Get-VerifyRunInfo -RepoRoot $script:Repo -Script 'tools/macos-verify.ps1' -Unattended:$Unattended -Selected @($selected.Id) -Allow $Allow
 $report = Write-VerifyReport -Folder $runFolder -Info $info -Results $results
 Write-Host ''
 Format-VerifySummary -Results $results | ForEach-Object { Write-Host $_ }

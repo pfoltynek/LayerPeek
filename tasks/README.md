@@ -203,15 +203,24 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-026 | macOS – FFmpeg pro živý stream kamery (hotovo; ověření v T-114 / T-115, Buddy3D v T-127) | macos | ui-dev | P3 | T-014, T-019, T-095 |
 | T-038 | macOS – ověření umístění okna kamery, monitoru a „vždy navrchu“ (hotovo; malý náhled na všech plochách; ověření v T-115 / T-127, otázky 2–3 v T-127) | macos | ui-dev | P3 | T-026, T-035, T-037 |
 | T-053 | macOS – zabezpečení socketu jediné instance (L2) a ověření `/usr/bin/open` (L4) (hotovo; ověření v T-114 / T-115 / T-127) | macos | ui-dev | P3 | T-043, T-052, T-095 |
-| T-096 | macOS – start aplikace bez aktivního displeje (hotovo; ruční ověření v T-115) | macos | ui-dev | P2 | T-019 |
+| T-096 | macOS – start aplikace bez aktivního displeje (hotovo; ruční ověření v T-115 / T-127) | macos | ui-dev | P2 | T-019 |
 | T-097 | macOS – oprávnění „Místní síť“ (NSLocalNetworkUsageDescription) (hotovo; ověření v T-114 / T-127) | macos | ui-dev | P1 | T-019, T-026 |
-| T-098 | macOS – ikona aplikace s okrajem podle Applu (hotovo; ruční ověření v T-115) | macos | ui-designer | P3 | T-019, T-025 |
-| T-099 | macOS – sledování tiskáren a notifikace během čekání na displej (hotovo; ruční ověření v T-115) | macos | ui-dev | P2 | T-096, T-020 |
-| T-100 | macOS – klávesové zkratky podle zvyklostí Applu (hotovo; ověření a otázky 1–2 v T-114 / T-115) | macos | ui-dev | P2 | T-018, T-038 |
+| T-098 | macOS – ikona aplikace s okrajem podle Applu (hotovo; ruční ověření v T-115 / T-127) | macos | ui-designer | P3 | T-019, T-025 |
+| T-099 | macOS – sledování tiskáren a notifikace během čekání na displej (hotovo; ruční ověření v T-115 / T-127) | macos | ui-dev | P2 | T-096, T-020 |
+| T-100 | macOS – klávesové zkratky podle zvyklostí Applu (hotovo; ověření v T-114 / T-115, ⌘. opraveno v T-141, fyzická klávesnice a otázky 1–2 v T-127) | macos | ui-dev | P2 | T-018, T-038 |
 | T-102 | macOS – ikona v Docku a ⌘Tab při otevřeném okně, „Zobrazit kameru“ v menu (od 2026-10-31 „Přenést kameru do popředí“; hotovo; ověření v T-114 / T-127) | macos | ui-dev | P1 | T-018, T-019, T-038 |
 | T-108 | macOS – hardened runtime v ad-hoc podpisu LayerPeek.app (bezpečnostní revize, N3) (hotovo) | macos | ui-dev | P2 | T-019, T-026 |
 | T-060 | macOS – podpis Developer ID, notarizace a Homebrew tap – **odloženo do rozhodnutí o Apple Developer (99 USD/rok)** | macos | ui-dev | P3 | T-019 |
-| T-115 | Ruční ověření na Macu (sběrný úkol: snímky, build a testy, `tools/macos-verify.ps1`, T-117 / T-118 / T-122; instalátor v T-126, zbytek v T-127) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-096, T-098, T-099, T-105, T-116–T-118, T-122 |
-| T-116 | macOS – obrázky tiskáren v menu v menu baru (hotovo; ruční ověření v T-115) | macos | ui-dev | P3 | T-018, T-039, T-042 |
+| T-115 | Ruční ověření na Macu (sběrný úkol: snímky, build a testy, `tools/macos-verify.ps1`, T-117 / T-118 / T-122; instalátor v T-126, zbytek v T-127) (hotovo 2026-11-02; zbytek v T-127) | macos | qa-reviewer | P1 | T-020, T-021, T-026, T-053, T-096, T-098, T-099, T-105, T-116–T-118, T-122 |
+| T-116 | macOS – obrázky tiskáren v menu v menu baru (hotovo; ruční ověření v T-115 / T-127) | macos | ui-dev | P3 | T-018, T-039, T-042 |
 | T-126 | macOS – ověření instalátoru (Gatekeeper, upozornění, Otevřít při přihlášení, odinstalace) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-115 |
 | T-127 | macOS – zbývající ruční ověření (Dock, monitory, skutečná tiskárna, vydání) (sběrný úkol, z T-115) | macos | qa-reviewer | P1 | T-019, T-020, T-021, T-026, T-038, T-053, T-055, T-058, T-097, T-101, T-102, T-106, T-107, T-115 |
+| T-134 | Úklid testů Klíčenky na macOS 27 smaže jen jednu položku služby (hotovo) | macos | qa-reviewer | P2 | T-021 |
+| T-135 | Kontrola `mac.menubar` na macOS 27 nenajde stavovou položku (hotovo) | macos | qa-reviewer | P2 | T-105 |
+| T-136 | Automatické kontroly okna kamery na Macu místo ručních bodů T-115 (T-122, T-117, T-118) (hotovo) | macos | qa-reviewer | P1 | T-115, T-117, T-118, T-122, T-135 |
+| T-137 | macOS – zapnutí „vždy navrchu“ deaktivuje aplikaci a okno ztratí fokus (hotovo) | macos | ui-dev | P1 | T-102, T-117, T-122 |
+| T-138 | macOS – ⌃-klik v okně kamery neotevře kontextové menu (hotovo) | macos | ui-dev | P2 | T-117 |
+| T-139 | macOS – ikona LayerPeeku v Docku i bez ikony v bundlu (hotovo) | macos | ui-dev | P3 | T-102, T-098 |
+| T-140 | macOS – kontroly s oprávněním bez uživatele (`-Allow`, sudoers, zámek obrazovky) (hotovo) | macos | qa-reviewer | P2 | T-105, T-136 |
+| T-141 | macOS – ⌘. (Zrušit) se k oknům aplikace nedostane (hotovo) | macos | ui-dev | P2 | T-100 |
+| T-142 | E2E test aktualizace na Macu selže se zapnutým displejem (hotovo; dřív T-133, přečíslováno 2026-11-02) | macos | qa-reviewer | P2 | T-058, T-099 |

@@ -117,8 +117,10 @@ public sealed class MacUpdateE2ETests
             using Process second = StartApp(app, variables);
             try
             {
-                const string Monitoring = "Starting printer monitoring";
-                await UntilAsync(() => Occurrences(Log(data), Monitoring) == 2, second, data, "the updated app to start its services", cancellationToken);
+                // Logged with the display awake or asleep (T-142): "Starting printer monitoring …" only comes while waiting for
+                // an active display (T-099), so it never came under caffeinate -d.
+                string offered = $"Update check: version {Next} found by an earlier check is offered.";
+                await UntilAsync(() => Log(data).Contains(offered, StringComparison.Ordinal), second, data, "the updated app to start its services", cancellationToken);
                 Send(data, suffix, new InstanceCommand(InstanceCommandKind.Quit));
                 await WaitForExitAsync(second, data, "the updated app to quit", cancellationToken);
                 Assert.Equal(0, second.ExitCode);
@@ -341,17 +343,6 @@ public sealed class MacUpdateE2ETests
                 return reader.ReadToEnd();
             }))
             : string.Empty;
-    }
-
-    private static int Occurrences(string text, string value)
-    {
-        int count = 0;
-        for (int index = text.IndexOf(value, StringComparison.Ordinal); index >= 0; index = text.IndexOf(value, index + value.Length, StringComparison.Ordinal))
-        {
-            count++;
-        }
-
-        return count;
     }
 
     private static async Task UntilAsync(Func<bool> condition, Process app, string data, string what, CancellationToken cancellationToken)

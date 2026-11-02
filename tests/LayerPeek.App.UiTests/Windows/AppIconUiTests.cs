@@ -21,17 +21,19 @@ public sealed class AppIconUiTests(HeadlessSession session)
     public Task OnlyExpectedAssetsAreBundled() =>
         session.RunAsync(_ =>
         {
-            // Exact list: a new asset must be added here. The SVG sources and the images of the macOS .icns (app-icon-macos-*.png,
-            // T-098) stay out of the binary;
+            // Exact list: a new asset must be added here. The SVG sources and the small images of the macOS .icns
+            // (app-icon-macos-16/32.png, T-098) stay out of the binary; its 1024 px master is the Dock icon without a bundle
+            // icon (T-139);
             // the old tray-idle.png is gone. T-039: the printer illustrations, one PNG per illustration and size.
             Uri[] expected =
             [
                 AppIcon.AssetUri,
+                AppIcon.MacMasterUri,
                 .. PrinterIllustrations.Ids.SelectMany(static id => PrinterIllustrations.PixelSizes.Select(size => PrinterIllustrations.AssetUri(id, size))),
             ];
 
             Assert.Equal(expected.Select(static uri => uri.OriginalString).Order(StringComparer.Ordinal), BundledAssets().Select(static uri => uri.OriginalString).Order(StringComparer.Ordinal));
-            Assert.Equal(56, expected.Length);
+            Assert.Equal(57, expected.Length);
             return Task.CompletedTask;
         });
 
@@ -48,6 +50,17 @@ public sealed class AppIconUiTests(HeadlessSession session)
                 Assert.True(stream.Length > 0, $"{asset} is empty.");
             }
 
+            return Task.CompletedTask;
+        });
+
+    [Fact]
+    public Task MacMasterIsTheSquare1024PixelImage() =>
+        session.RunAsync(_ =>
+        {
+            using Stream stream = AssetLoader.Open(AppIcon.MacMasterUri);
+            using Bitmap bitmap = new(stream);
+
+            Assert.Equal(new PixelSize(1024, 1024), bitmap.PixelSize);
             return Task.CompletedTask;
         });
 
