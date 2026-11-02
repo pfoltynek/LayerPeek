@@ -157,16 +157,20 @@ function New-VerifyContext {
         fixtures the checks share (a built test app, a running simulator) and the cleanup list of the run.
     .PARAMETER Prompt { param($Question) ... } returns the answer text; default: Read-Host.
     .PARAMETER Writer { param($Text, $Color) ... }; default: Write-Host.
+    .PARAMETER Allow Ids or wildcards of the Permission checks the user allowed in advance (T-140): they run without the
+        question, also in -Unattended.
     #>
     param(
         [Parameter(Mandatory)] [string] $RunFolder,
         [switch] $Unattended,
+        [string[]] $Allow = @(),
         [scriptblock] $Prompt = { param($Question) Read-Host $Question },
         [scriptblock] $Writer = { param($Text, $Color) if ($Color) { Write-Host $Text -ForegroundColor $Color } else { Write-Host $Text } }
     )
     [pscustomobject]@{
         PSTypeName = 'LayerPeek.VerifyContext'
         Unattended = [bool] $Unattended
+        Allow      = [string[]] @($Allow | Where-Object { $_ })
         RunFolder  = $RunFolder
         Prompt     = $Prompt
         Writer     = $Writer
@@ -282,7 +286,11 @@ function Invoke-VerifyCheck {
     $result = $null
     & $Context.Writer '' $null
     & $Context.Writer "== $($Check.Id): $($Check.Title)" 'Cyan'
-    if ($Check.Kind -eq 'Permission') {
+    $allowed = @($Context.Allow | Where-Object { $Check.Id -like $_ }).Count -gt 0
+    if ($Check.Kind -eq 'Permission' -and $allowed) {
+        & $Context.Writer "   Allowed in advance (-Allow): $($Check.Permission)." $null
+    }
+    elseif ($Check.Kind -eq 'Permission') {
         if ($Context.Unattended) { $result = New-VerifyResult SKIP "needs a permission or a system change ($($Check.Permission)); never asked in -Unattended." }
         elseif (-not (Read-VerifyAnswer -Context $Context -Question "This check needs: $($Check.Permission). Run it now?")) {
             $result = New-VerifyResult SKIP "declined by the user (needs: $($Check.Permission))."
@@ -377,6 +385,8 @@ function Get-VerifyRunInfo {
         [Parameter(Mandatory)] [string] $Script,
         [switch] $Unattended,
         [string[]] $Selected = @(),
+        # T-140: the Permission checks allowed in advance; only then the report gets an Allowed field.
+        [string[]] $Allow = @(),
         # T-129: the stand-in file of a test run (LAYERPEEK_VERIFY_STANDINS); only then the report gets a StandIns field.
         [string] $StandIns,
         [scriptblock] $Git = { param($Arguments) $output = & git -C $RepoRoot @Arguments 2>$null; if ($LASTEXITCODE -eq 0) { $output } else { $null } }
@@ -405,6 +415,7 @@ function Get-VerifyRunInfo {
         Mode       = if ($Unattended) { 'unattended' } else { 'interactive' }
         Selected   = [string[]] $Selected
     }
+    if ($Allow.Count -gt 0) { $info.Allowed = [string[]] $Allow }
     if ($StandIns) { $info.StandIns = $StandIns }
     $info
 }
