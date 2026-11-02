@@ -65,9 +65,11 @@ caffeinate -d -u -i pwsh tools/macos-verify.ps1 -Only mac.keychain,mac.notificat
 | `mac.display-wait` | automaticky | T-096 krit. 1 a T-099 krit. 1 (podklad: simulované čekání) | – |
 | `mac.camera` | automaticky | T-026 krit. 1 (část: okno a trvalé RTSP spojení v normálním, malém a celoobrazovkovém režimu) | 6.1 |
 | `mac.camera-placement` | automaticky | T-038 krit. 1 (část: J2 rohy a střed 16 bodů od pracovní plochy, D1 zvolený monitor; každý připojený monitor) | 6.2 |
+| `mac.camera-pin` | automaticky* (Zpřístupnění pro Terminál) | T-122, T-117 (špendlík „vždy navrchu“ skutečným klikem, mezerníkem, Enterem a AXPress, fokus, typ v Docku, kontextové menu pravým tlačítkem i ⌃-klikem, restart; normální okno i malý náhled) | 6.2 |
+| `mac.camera-outline` | automaticky* (Zpřístupnění a Nahrávání obrazovky pro Terminál) | T-118 (obrys malého náhledu ze snímku okna, při najetí myší světlejší, normální okno bez obrysu) | 6.2 |
 | `mac.keys` | oprávnění (Zpřístupnění pro Terminál) | T-100 krit. 4 (část: ⌃⌘F, Esc, ⌘., ⌘W, ⌘⇧] jako skutečné události) | 6.3 |
 | `mac.socket-other-user` | oprávnění (`sudo`) | T-053 krit. 1 (spojení uživatele `nobody` se odmítne) | 10.1 |
-| `mac.display-sleep` | oprávnění (uspání displeje) | T-096 krit. 1, T-099 krit. 1 a 3 | 8.1, 8.2 |
+| `mac.display-sleep` | oprávnění (uspání displeje) | T-096 krit. 1, T-099 krit. 1 a 3; krit. 2 a 4 (oznámení během spánku displeje), když `mac.notifications` povolil oznámení testovacího bundlu | 8.1, 8.2 |
 | `mac.icons` | ručně (obrázek) | T-018 krit. 1, T-098 krit. 2 (ikony v menu baru světlé / tmavé, @1x; ikona vedle systémových) | 2.2, 2.5 |
 | `mac.menu` | ručně | T-018 krit. 1 a 3 (stavy ikony, tooltip, menu; Ukončit ze skutečného menu), T-116 krit. 3 (obrázky tiskáren v menu) | 2.2, 2.3 |
 | `mac.camera-look` | ručně | T-026 krit. 1 (obraz a překryv ve všech režimech, simulátor) | 6.1 |
