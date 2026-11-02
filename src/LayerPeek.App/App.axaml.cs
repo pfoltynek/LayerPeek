@@ -208,9 +208,11 @@ public partial class App : Application, ITrayAppCommands
         }
 
         // macOS (T-139): that Dock icon is LayerPeek's also without a bundle icon (dotnet run, the test bundle).
+        // T-141: Cmd-. reaches the windows as a key (Avalonia's view lacks cancelOperation:).
         if (OperatingSystem.IsMacOS())
         {
             Platform.MacOS.MacAppIcon.ApplyWhenTheBundleHasNone();
+            Platform.MacOS.MacCommandPeriod.Install(host.CreateLogger<App>());
         }
 
         // macOS (T-102): a Dock icon while a window that is not always on top is open.
