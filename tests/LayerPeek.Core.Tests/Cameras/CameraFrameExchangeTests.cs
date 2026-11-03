@@ -1,8 +1,7 @@
-using LayerPeek.App.Cameras;
 using LayerPeek.Core.Cameras;
 using LayerPeek.Tests.Allocation;
 
-namespace LayerPeek.App.Tests.Cameras;
+namespace LayerPeek.Core.Tests.Cameras;
 
 public sealed class CameraFrameExchangeTests
 {

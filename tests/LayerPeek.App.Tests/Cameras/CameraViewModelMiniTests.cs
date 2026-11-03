@@ -55,7 +55,7 @@ public sealed class CameraViewModelMiniTests : IAsyncDisposable
 
     private CameraViewModel Create()
     {
-        ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
         CameraViewModel viewModel = new(CameraTarget.From(Printer())!, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, NullLogger<CameraViewModel>.Instance, cooldown: _cooldown);
         _created.Add(viewModel);
         viewModel.AttachFrameSink(_sink);

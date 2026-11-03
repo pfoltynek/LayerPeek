@@ -385,6 +385,33 @@ public sealed class AppServicesTests
     }
 
     /// <summary>
+    /// T-143: one shared camera hub with the decided linger time, told about the cameras of every run before the camera
+    /// windows hear of them; the camera test uses it for saved cameras.
+    /// </summary>
+    [Fact]
+    public async Task CameraStreamHubIsASingletonConfiguredBeforeTheCameraWindows()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        CameraStreamHub hub = services.GetRequiredService<CameraStreamHub>();
+        Assert.Same(hub, services.GetRequiredService<CameraStreamHub>());
+        Assert.Equal(TimeSpan.FromSeconds(10), hub.Linger);
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        int hubObserver = observers.IndexOf(services.GetRequiredService<CameraStreamHubObserver>());
+        int monitored = observers.IndexOf(services.GetRequiredService<MonitoredPrinters>());
+        Assert.True(hubObserver >= 0, "The hub gets no settings.");
+        Assert.True(hubObserver < monitored, "Camera windows would hear of a new address before the hub.");
+
+        ((IMonitoringObserver)services.GetRequiredService<CameraStreamHubObserver>()).ApplySettings(new AppSettings
+        {
+            Printers = [new() { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }],
+        });
+        Assert.True(hub.IsConfigured("a", new Uri("rtsp://192.168.0.227/live")));
+    }
+
+    /// <summary>
     /// T-087: one in-memory preview cache over the PrusaLink fetcher (T-086), fed with every snapshot and the printers of
     /// every run, and one shared store of decoded thumbnails that the Print name widget of every camera window uses.
     /// </summary>

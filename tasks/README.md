@@ -160,7 +160,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-128 | E2E testy místo ručních kontrol – zkušební upozornění a aktualizace přes Velopack (hotovo; instalační případy v T-124) | windows | qa-reviewer | P2 | T-058, T-101, T-125 |
 | T-132 | run-e2e.ps1 – uchovat výsledky neúspěšných běhů (hotovo) | windows | qa-reviewer | P3 | – |
 | T-133 | E2E – návrat upozornění testovací aplikace, předpoklad testu instalátoru, aktivátor po AOT smoke | windows | qa-reviewer | P1 | T-128, T-017 |
-| T-143 | Kamera – sdílené spojení se streamem na pozadí (okno, nahrávání, detekce) | all | core-dev + ui-dev | P2 | T-014, T-034 |
+| T-143 | Kamera – sdílené spojení se streamem na pozadí (okno, nahrávání, detekce) (hotovo) | all | core-dev + ui-dev | P2 | T-014, T-034 |
 | T-144 | Nahrávání kamery – zápis streamu do souboru bez překódování (Camera.FFmpeg + abstrakce v Core) | all | core-dev | P2 | T-143 |
 | T-145 | Nahrávání kamery – služba v Core (ruční a automatické nahrávání při tisku, složka, limit, rotace) | all | core-dev | P2 | T-144, T-009 |
 | T-146 | Nahrávání kamery – UI (tray menu, okno kamery, nastavení) a E2E | all | ui-designer + ui-dev | P2 | T-145, T-033, T-092 |

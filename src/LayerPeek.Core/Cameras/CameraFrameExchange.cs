@@ -1,13 +1,11 @@
-using LayerPeek.Core.Cameras;
-
-namespace LayerPeek.App.Cameras;
+namespace LayerPeek.Core.Cameras;
 
 /// <summary>
 /// An owned copy of a camera frame (BGRA, rows tightly packed). Reused for later frames: its pixels are reallocated only
 /// when a frame needs more room than any before. Valid until it is handed back to the <see cref="CameraFrameExchange"/>
 /// (the next <see cref="CameraFrameExchange.TakeLatest"/>).
 /// </summary>
-internal sealed class CameraFrameBuffer
+public sealed class CameraFrameBuffer
 {
     private byte[] _pixels = [];
 
@@ -22,6 +20,18 @@ internal sealed class CameraFrameBuffer
 
     /// <summary>Exactly <see cref="Stride"/> × <see cref="Height"/> bytes.</summary>
     public ReadOnlySpan<byte> Pixels => _pixels.AsSpan(0, Stride * Height);
+
+    /// <summary>An owned copy of the frame that stays valid after the buffer is reused.</summary>
+    /// <exception cref="InvalidOperationException">No frame was copied into the buffer yet.</exception>
+    public CameraImage ToImage()
+    {
+        if (Width == 0)
+        {
+            throw new InvalidOperationException("An empty frame cannot be copied.");
+        }
+
+        return new CameraImage(Width, Height, Pixels.ToArray());
+    }
 
     /// <summary>Bytes allocated for pixels (for tests: proves that buffers are reused).</summary>
     internal int Capacity => _pixels.Length;
@@ -70,7 +80,7 @@ internal sealed class CameraFrameBuffer
 /// briefly be queued; that is harmless, the later one finds no new frame and does nothing.
 /// One producer (the streaming loop) and one consumer (the UI thread).
 /// </summary>
-internal sealed class CameraFrameExchange
+public sealed class CameraFrameExchange
 {
     private readonly Lock _gate = new();
 

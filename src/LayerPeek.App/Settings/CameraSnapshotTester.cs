@@ -10,6 +10,11 @@ namespace LayerPeek.App.Settings;
 /// that image for the preview, T-034; a failure or timeout carries none). The capture runs
 /// on the thread pool (a decoder may block while connecting) and is abandoned at the timeout or cancellation even if the
 /// decoder does not react to its token in time. The address is logged redacted only.
+/// <para>
+/// T-143 (user decision 2026-11-03, 3): the saved, enabled camera of the edited printer (the address the hub was configured
+/// with) is tested through the <see cref="CameraStreamHub"/>, sharing an open camera window's connection; its first image
+/// after subscribing is the result and the first error status a failure. An unsaved address always gets a connection of its own.
+/// </para>
 /// </summary>
 internal sealed partial class CameraSnapshotTester : ICameraTester
 {
@@ -20,13 +25,16 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<CameraSnapshotTester> _logger;
     private readonly ILocalNetworkPrivacy _localNetwork;
+    private readonly CameraStreamHub? _hub;
 
+    /// <param name="hub">The shared connections for saved cameras (T-143); <see langword="null"/>: every test connects by itself.</param>
     public CameraSnapshotTester(
         ICameraFeedFactory factory,
         TimeProvider timeProvider,
         ILogger<CameraSnapshotTester> logger,
         TimeSpan? timeout = null,
-        ILocalNetworkPrivacy? localNetwork = null)
+        ILocalNetworkPrivacy? localNetwork = null,
+        CameraStreamHub? hub = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
         ArgumentNullException.ThrowIfNull(timeProvider);
@@ -35,6 +43,7 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
         _timeProvider = timeProvider;
         _logger = logger;
         _localNetwork = localNetwork ?? NoLocalNetworkPrivacy.Instance;
+        _hub = hub;
         Timeout = timeout ?? DefaultTimeout;
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(Timeout, TimeSpan.Zero, nameof(timeout));
     }
@@ -44,7 +53,10 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
     /// <summary>The subject of the local network log line (T-097): the address is not logged there.</summary>
     internal const string CameraSubject = "the tested camera";
 
-    public async Task<CameraTestResult> TestAsync(Uri streamUri, CancellationToken cancellationToken)
+    public Task<CameraTestResult> TestAsync(Uri streamUri, CancellationToken cancellationToken) =>
+        TestAsync(streamUri, printerId: null, cancellationToken);
+
+    public async Task<CameraTestResult> TestAsync(Uri streamUri, string? printerId, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(streamUri);
         cancellationToken.ThrowIfCancellationRequested();
@@ -54,7 +66,9 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
         string address = UriRedaction.Redact(streamUri);
         try
         {
-            Task<CameraImage> capture = Task.Run(() => CameraSnapshot.CaptureAsync(_factory, streamUri, token), CancellationToken.None);
+            Task<CameraImage> capture = printerId is not null && _hub is { } hub && hub.IsConfigured(printerId, streamUri)
+                ? CaptureSharedAsync(hub, printerId, streamUri, token)
+                : Task.Run(() => CameraSnapshot.CaptureAsync(_factory, streamUri, token), CancellationToken.None);
             // A capture abandoned at the timeout may still fail later; its exception must not go unobserved.
             _ = capture.ContinueWith(static task => _ = task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
             CameraImage image = await capture.WaitAsync(token).ConfigureAwait(false);
@@ -84,6 +98,70 @@ internal sealed partial class CameraSnapshotTester : ICameraTester
             // Other messages may contain the address or credentials: the result gets only "failed", the log the details.
             LogFailed(ex, address);
             return new CameraTestResult(CameraTestOutcome.Failed);
+        }
+    }
+
+    /// <summary>
+    /// The first image of the saved camera's shared connection after subscribing; the first error status fails like a
+    /// failed connection of its own. The lease is released at the end (the hub keeps the connection for its linger time).
+    /// </summary>
+    internal static async Task<CameraImage> CaptureSharedAsync(CameraStreamHub hub, string printerId, Uri streamUri, CancellationToken cancellationToken)
+    {
+        using SemaphoreSlim frameReady = new(0);
+        // Completed with the failure (never faulted, so nothing is left unobserved when the test ends otherwise).
+        TaskCompletionSource<CameraFeedException> failed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        CameraFrameSubscription lease = hub.SubscribeFrames(printerId, streamUri, new CameraFrameSubscriptionOptions
+        {
+            FrameAvailable = () => Signal(frameReady),
+            Status = new FailureObserver(failed),
+            Ended = _ => failed.TrySetResult(new CameraFeedException("The camera stream ended before sending an image.")),
+        });
+        using (lease)
+        {
+            if (lease.IsEnded)
+            {
+                // The camera is no longer configured, or the app is quitting.
+                throw new CameraFeedException("The camera stream is not available.");
+            }
+
+            while (true)
+            {
+                Task wait = frameReady.WaitAsync(cancellationToken);
+                if (await Task.WhenAny(wait, failed.Task).ConfigureAwait(false) == failed.Task)
+                {
+                    throw await failed.Task.ConfigureAwait(false);
+                }
+
+                await wait.ConfigureAwait(false);
+                if (lease.TakeLatest() is { } frame)
+                {
+                    return frame.ToImage();
+                }
+            }
+        }
+
+        static void Signal(SemaphoreSlim frameReady)
+        {
+            try
+            {
+                frameReady.Release();
+            }
+            catch (ObjectDisposedException)
+            {
+                // A frame that arrived while the test ended.
+            }
+        }
+    }
+
+    /// <summary>Fails the shared capture on the first error status (with the feed's reason, never the address).</summary>
+    private sealed class FailureObserver(TaskCompletionSource<CameraFeedException> failed) : IProgress<CameraStatus>
+    {
+        public void Report(CameraStatus value)
+        {
+            if (value.State == CameraConnectionState.Error)
+            {
+                failed.TrySetResult(new CameraFeedException(value.Reason ?? "The camera stream failed.") { IsHostUnreachable = value.IsHostUnreachable });
+            }
         }
     }
 

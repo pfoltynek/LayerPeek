@@ -6,12 +6,15 @@ namespace LayerPeek.Camera.FFmpeg;
 
 /// <summary>
 /// One FFmpeg connection (see <see cref="ICameraFeed"/>). Nothing is opened before the first <c>MoveNextAsync</c>.
+/// Read either as frames (<see cref="ReadFramesAsync"/>) or as items by a demand (<see cref="ReadAsync"/>, T-143: packets
+/// before decoding, decoding only while frames are wanted).
 /// </summary>
 /// <remarks>
 /// <para>
 /// FFmpeg blocks, so every native call runs on a dedicated decoder thread owned by the enumerator; the caller's thread
 /// only hands work over. Decoding is strictly step by step: the thread decodes one frame per <c>MoveNextAsync</c> into
-/// its reused buffer and then waits, so a borrowed frame is never overwritten while the consumer holds it.
+/// its reused buffer (or copies one packet into its packet buffer) and then waits, so a borrowed frame or packet is never
+/// overwritten while the consumer holds it.
 /// </para>
 /// <para>
 /// The continuation of <c>MoveNextAsync</c> runs inline on the decoder thread (unless the awaiter captured a
@@ -44,7 +47,26 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
     /// <summary>Native FFmpeg objects are currently allocated (for tests).</summary>
     internal bool HoldsNativeResources => Volatile.Read(ref _reader)?.HoldsNativeResources ?? false;
 
+    /// <summary>Frames decoded so far (for tests, T-143).</summary>
+    internal long DecodedFrames => Volatile.Read(ref _reader)?.DecodedFrames ?? 0;
+
+    /// <summary>Whether the H.264 decoder was opened (for tests, T-143).</summary>
+    internal bool DecoderOpened => Volatile.Read(ref _reader)?.DecoderOpened ?? false;
+
     public IAsyncEnumerable<CameraFrame> ReadFramesAsync(CancellationToken cancellationToken)
+    {
+        MarkEnumerated();
+        return new FrameEnumerable(this, cancellationToken);
+    }
+
+    public IAsyncEnumerable<CameraStreamItem> ReadAsync(CameraStreamDemand demand, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(demand);
+        MarkEnumerated();
+        return new ItemEnumerable(this, demand, cancellationToken);
+    }
+
+    private void MarkEnumerated()
     {
         lock (_lock)
         {
@@ -56,8 +78,6 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
 
             _enumerated = true;
         }
-
-        return new FrameEnumerable(this, cancellationToken);
     }
 
     public ValueTask DisposeAsync()
@@ -72,7 +92,7 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
         return reader?.DisposeAsync() ?? ValueTask.CompletedTask;
     }
 
-    private FrameReader CreateReader(CancellationToken feedToken, CancellationToken enumeratorToken)
+    private FrameReader CreateReader(CameraStreamDemand demand, bool emitInfo, CancellationToken feedToken, CancellationToken enumeratorToken)
     {
         lock (_lock)
         {
@@ -82,7 +102,7 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
                 throw new InvalidOperationException("A camera feed can be enumerated only once.");
             }
 
-            FrameReader reader = new(_url, _isNetwork, _ioTimeout, feedToken, enumeratorToken);
+            FrameReader reader = new(_url, _isNetwork, _ioTimeout, demand, emitInfo, feedToken, enumeratorToken);
             Volatile.Write(ref _reader, reader);
             return reader;
         }
@@ -91,15 +111,33 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
     private sealed class FrameEnumerable(FFmpegCameraFeed owner, CancellationToken feedToken) : IAsyncEnumerable<CameraFrame>
     {
         public IAsyncEnumerator<CameraFrame> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
-            owner.CreateReader(feedToken, cancellationToken);
+            new FrameEnumerator(owner.CreateReader(new CameraStreamDemand(frames: true, packets: false), emitInfo: false, feedToken, cancellationToken));
+    }
+
+    private sealed class ItemEnumerable(FFmpegCameraFeed owner, CameraStreamDemand demand, CancellationToken feedToken) : IAsyncEnumerable<CameraStreamItem>
+    {
+        public IAsyncEnumerator<CameraStreamItem> GetAsyncEnumerator(CancellationToken cancellationToken = default) =>
+            owner.CreateReader(demand, emitInfo: true, feedToken, cancellationToken);
+    }
+
+    /// <summary>Frames only: the reader yields nothing else with a frame-only demand and no stream description.</summary>
+    private sealed class FrameEnumerator(FrameReader reader) : IAsyncEnumerator<CameraFrame>
+    {
+        public CameraFrame Current => reader.Current.Frame;
+
+        public ValueTask<bool> MoveNextAsync() => reader.MoveNextAsync();
+
+        public ValueTask DisposeAsync() => reader.DisposeAsync();
     }
 
     /// <summary>The enumerator; owns the decoder thread and, through it, the native decoder.</summary>
-    private sealed class FrameReader : IAsyncEnumerator<CameraFrame>, IValueTaskSource<bool>
+    private sealed class FrameReader : IAsyncEnumerator<CameraStreamItem>, IValueTaskSource<bool>
     {
         private const int DecoderThreadStackSize = 4 * 1024 * 1024;
 
         private readonly FFmpegDecoder _decoder;
+        private readonly CameraStreamDemand _demand;
+        private readonly bool _emitInfo;
         private readonly InterruptFlag _interrupt;
         private readonly CancellationTokenSource? _linked;
         private readonly CancellationToken _token;
@@ -110,7 +148,7 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
 
         // Inline continuations: see the remarks of FFmpegCameraFeed.
         private ManualResetValueTaskSourceCore<bool> _source;
-        private CameraFrame _current;
+        private CameraStreamItem _current;
         private Thread? _thread;
 
         // Guarded by _lock.
@@ -121,8 +159,10 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
         // Written by the decoder thread before it completes a step, read by the consumer after awaiting it.
         private volatile bool _finished;
 
-        public FrameReader(string url, bool isNetwork, TimeSpan ioTimeout, CancellationToken feedToken, CancellationToken enumeratorToken)
+        public FrameReader(string url, bool isNetwork, TimeSpan ioTimeout, CameraStreamDemand demand, bool emitInfo, CancellationToken feedToken, CancellationToken enumeratorToken)
         {
+            _demand = demand;
+            _emitInfo = emitInfo;
             _interrupt = new InterruptFlag();
             _decoder = new FFmpegDecoder(url, isNetwork, ioTimeout, _interrupt);
             if (feedToken.CanBeCanceled && enumeratorToken.CanBeCanceled && feedToken != enumeratorToken)
@@ -138,9 +178,13 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
             _registration = _token.UnsafeRegister(static state => ((InterruptFlag)state!).Set(), _interrupt);
         }
 
-        public CameraFrame Current => _current;
+        public CameraStreamItem Current => _current;
 
         public bool HoldsNativeResources => _decoder.HoldsNativeResources;
+
+        public long DecodedFrames => _decoder.DecodedFrames;
+
+        public bool DecoderOpened => _decoder.DecoderOpened;
 
         public ValueTask<bool> MoveNextAsync()
         {
@@ -239,7 +283,7 @@ internal sealed class FFmpegCameraFeed : ICameraFeed
                             _decoder.Open();
                         }
 
-                        hasFrame = _decoder.TryReadFrame(out _current);
+                        hasFrame = _decoder.TryRead(_demand, _emitInfo, out _current);
                     }
                     catch (Exception ex)
                     {

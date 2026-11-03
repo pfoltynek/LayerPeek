@@ -256,6 +256,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
+                // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
+                sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
                 // T-058: automatic checks, pre-releases and the notification switches of the update check.
@@ -686,17 +688,27 @@ internal static partial class AppServices
             FrameTimeout = TimeSpan.FromSeconds(10),
             ReconnectDelay = TimeSpan.FromSeconds(5),
         });
-        // Stateless: every camera window enumerates its own connection.
+        // Stateless: every enumeration is its own connection; only the hub below enumerates it.
         services.AddSingleton(static sp => new ReconnectingCameraFeed(
             sp.GetRequiredService<ICameraFeedFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<ReconnectingCameraFeed>>(),
             sp.GetRequiredService<CameraFeedOptions>()));
+        // T-143: one shared connection per printer for the camera window (and its mini preview), the camera test of a saved
+        // camera and later recording and failure detection; closes 10 s after its last lease (user decision 2026-11-03).
+        // Follows the cameras of every monitoring run; stopped with a time limit when quitting (ServiceHost).
+        services.AddSingleton(static sp => new CameraStreamHub(
+            sp.GetRequiredService<ReconnectingCameraFeed>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraStreamHub>>()));
+        services.AddSingleton(static sp => new CameraStreamHubObserver(sp.GetRequiredService<CameraStreamHub>()));
+        // T-143 decision 3: an unsaved address is tested over a connection of its own, the saved camera through the hub.
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraSnapshotTester>>(),
-            localNetwork: sp.GetRequiredService<ILocalNetworkPrivacy>()));
+            localNetwork: sp.GetRequiredService<ILocalNetworkPrivacy>(),
+            hub: sp.GetRequiredService<CameraStreamHub>()));
         // Created on first use; reading and writing the file happen later (TrayHost loads it in the background).
         services.AddSingleton(cameraWindowStateStore);
         // The widgets of the camera overlay, an explicit list (T-081).
@@ -795,7 +807,7 @@ internal static partial class AppServices
             && CameraTarget.From(printer) is { } target
             ? new CameraViewModel(
                 target,
-                services.GetRequiredService<ReconnectingCameraFeed>(),
+                services.GetRequiredService<CameraStreamHub>(),
                 services.GetRequiredService<IPrinterMonitor>(),
                 services.GetRequiredService<MonitoredPrinters>(),
                 services.GetRequiredService<IUiDispatcher>(),
