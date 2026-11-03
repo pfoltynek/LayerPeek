@@ -39,5 +39,11 @@ Hodnocení architekta, které uživatel dostal: kvalita první vrstvy je z bočn
 4. **Data z kamery uživatele:** smí se malé ukázky (snímky) uložit do repozitáře jako fixture pro testy? Jak velké a které?
 5. **První detektor:** potvrdit po spiku (doporučení architekta předem: špagety / odlepení dílu, první vrstva až podle výsledku spiku).
 
+### Rozhodnutí uživatele 2026-11-03
+2. Nové závislosti spike **jen doporučí** (s licencí a AOT); prototyp jen mimo repozitář, rozhodne uživatel.
+3. Licence vah modelu: stačí **kompatibilní licence vah** (MIT, Apache-2.0…), veřejná trénovací data nejsou podmínkou.
+4. Fixture: smí se uložit **nejvýš ~10 zmenšených snímků** (640×360 JPEG, celkem do ~1 MB) jen s vnitřkem tiskárny.
+- Záběry: 2026-11-03 se z kamery uživatele (`rtsp://192.168.0.227/live`, Core One, standardní poloha) ukládá snímek každých 30 s během skutečného tisku (lokálně, mimo repozitář).
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

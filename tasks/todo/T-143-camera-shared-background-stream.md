@@ -44,5 +44,11 @@ Dnes patří spojení s kamerou oknu kamery: `CameraViewModel` si přes `ICamera
 3. **Náhled v nastavení (T-034) a „Otestovat kameru“:** mají jít přes hub (sdílet spojení s otevřeným oknem), nebo zůstat samostatné (testují neuloženou adresu z formuláře, takže samostatné spojení dává smysl)? Doporučení architekta: test neuložené adresy samostatně, náhled uložené kamery přes hub – rozhodne uživatel.
 4. **Minimalizované okno + běžící nahrávání:** dnes minimalizace stream zastaví. S hubem minimalizované okno jen přestane odebírat snímky; spojení drží jiný odběratel. Souhlasí uživatel, že se tím chování okna samotného nemění?
 
+### Rozhodnutí uživatele 2026-11-03
+1. Měření 2026-11-03 na kameře uživatele (Buddy3D na Core One, 1280×720): **tři souběžná RTSP spojení** fungují, každé ~20 fps, první snímek za 0,5–2 s. Hub je tedy optimalizace, ne nutnost (priorita zůstává, protože ho potřebuje nahrávání a detekce).
+2. Prodleva zavření spojení po posledním odběrateli: **10 s**.
+3. Test neuložené adresy („Otestovat kameru“) **samostatným spojením**, náhled uložené kamery v nastavení **přes hub** (doporučení architekta).
+4. Minimalizované okno jen přestane odebírat snímky; spojení drží ostatní odběratelé – **souhlas**, chování okna samotného se nemění.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

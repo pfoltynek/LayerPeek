@@ -40,5 +40,12 @@ Uživatelské rozhraní nahrávání z fáze 1 (nápad 1): ruční spuštění a
 3. **Umístění nastavení:** u tiskárny na záložce Kamera, nová podzáložka, nebo globální sekce na záložce Obecné (souvisí s otázkou 7 v T-145)?
 4. **Otevření posledního záznamu** (přehrání) z menu / z notifikace – chce to uživatel ve fázi 1?
 
+### Rozhodnutí uživatele 2026-11-03
+1. Ruční Start/Stop v **tray menu tiskárny i tlačítkem v okně kamery**.
+2. Indikace: červená tečka **REC** v okně kamery a malém náhledu, v tooltipu tray ikony „Nahrává se“; tray ikona se nemění.
+3. Nastavení: složka a limit v nové sekci **Nahrávání na záložce Obecné**, „Automaticky nahrávat tisk“ u tiskárny na **záložce Kamera**.
+4. Ve fázi 1 **ano**: „Otevřít složku s nahrávkami“ a „Přehrát poslední nahrávku“ (otevře se ve výchozí aplikaci systému).
+5. Notifikace jen při chybě nahrávání (T-145, otázka 8).
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
