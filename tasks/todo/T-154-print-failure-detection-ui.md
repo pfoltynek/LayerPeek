@@ -34,6 +34,9 @@ Uživatelské rozhraní detekce chyb tisku (nápad 3): zapnutí / vypnutí každ
 3. **Falešný poplach:** tlačítko přímo v notifikaci (akce toastu), v okně kamery, nebo v historii poplachů? Má aplikace mít seznam / historii poplachů?
 4. **Výchozí stav detektorů:** po instalaci vypnuté (uživatel je musí zapnout), nebo první detektor zapnutý?
 5. **Zvuk** poplachu: stejný jako u chyby tisku, nebo výraznější?
+6. **Výřez podložky:** pokud uživatel v T-152 (otázka 8) zvolí vlastní výřez místo pevného pro Core One, patří jeho vyznačení do tohoto úkolu (editor výřezu nad náhledem kamery, T-034), nebo do samostatného úkolu?
+
+Podklad ze spiku T-152 pro popis detektoru v UI: „Změna na podložce“ pozná zmizení nebo posun dílu a novou hmotu na podložce. Nepozná kvalitu první vrstvy, problémy na trysce ani chyby uvnitř dílu. U tmavého filamentu na černém plátu je méně spolehlivý. Běží jen během tisku a se svítícím osvětlením komory.
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
