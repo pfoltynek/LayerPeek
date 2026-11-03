@@ -29,4 +29,6 @@ public static class SettingsFieldIds
     public const string SettingsPollingInterval = "SettingsPollingInterval";
 
     public const string SettingsRemainingTime = "SettingsRemainingTime";
+
+    public const string SettingsRecordingLimit = "SettingsRecordingLimit";
 }

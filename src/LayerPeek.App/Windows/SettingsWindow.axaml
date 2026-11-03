@@ -428,6 +428,19 @@
                           <TextBlock AutomationProperties.AutomationId="PrinterCameraCredentialsRemoved" FontSize="12" Text="{Binding [SettingsCameraCredentialsRemoved], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
                         </Border>
                         <CheckBox AutomationProperties.AutomationId="PrinterCameraEnabled" Content="{Binding [SettingsCameraEnabled], Source={x:Static loc:LocalizedStrings.Instance}}" IsChecked="{Binding CameraEnabled}" />
+                        <!--
+                          T-146: "Record prints automatically" (per printer, user decision 2026-11-03), under the camera it
+                          needs; disabled (value kept) while the camera is off or this build cannot record. What it does, or
+                          why it is disabled, is its tip and help text: the tab has no room for one more hint line (T-033 fit).
+                        -->
+                        <CheckBox AutomationProperties.AutomationId="PrinterRecordPrints"
+                                  Margin="28,0,0,0"
+                                  Content="{Binding [SettingsRecordPrints], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                  IsChecked="{Binding RecordPrints}"
+                                  IsEnabled="{Binding CanEditRecordPrints}"
+                                  ToolTip.Tip="{Binding RecordPrintsHint}"
+                                  ToolTip.ShowOnDisabled="True"
+                                  AutomationProperties.HelpText="{Binding RecordPrintsHint}" />
                         <TextBlock Classes="label" Margin="0,8,0,4" Text="{Binding [SettingsCameraUrl], Source={x:Static loc:LocalizedStrings.Instance}}" />
                         <TextBox AutomationProperties.AutomationId="PrinterCameraUrl"
                                  Text="{Binding CameraUrl}"
@@ -1132,6 +1145,75 @@
                        Classes="hint"
                        IsVisible="{Binding ShowsMoveToApplications}"
                        Text="{Binding [SettingsUpdateMoveToApplications], Source={x:Static loc:LocalizedStrings.Instance}}" />
+
+            <!--
+              T-146 "Recording" (user decision 2026-11-03: the General tab, which has no room left within 780 × 532; here until
+              the open question of T-146 is answered, SettingsViewModel.RecordingTab). Like the notifications of the General
+              tab: the heading row holds "Open recordings folder" on its right. Two columns below: the folder (read-only,
+              "Change…" opens the system's folder dialog, "Default" the video folder again) and the size limit; the error of
+              each replaces its hint (T-033), and when this build cannot record the reason replaces the hint of the folder.
+            -->
+            <Grid ColumnDefinitions="*,24,*" RowDefinitions="Auto,Auto,Auto,Auto">
+              <Grid Grid.ColumnSpan="3" ColumnDefinitions="Auto,*,Auto">
+                <!-- The stack panel already keeps 12 DIP above: the heading and the button need less of their own (fit, T-033). -->
+                <TextBlock Classes="section" Margin="0,4,0,4" VerticalAlignment="Center" Text="{Binding [SettingsRecording], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <Button Grid.Column="2"
+                        AutomationProperties.AutomationId="SettingsRecordingOpenFolder"
+                        Margin="0,0,0,4"
+                        VerticalAlignment="Center"
+                        Content="{Binding [SettingsRecordingOpenFolder], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Command="{Binding OpenRecordingsFolderCommand}" />
+              </Grid>
+              <TextBlock Grid.Row="1" Classes="label" Text="{Binding [SettingsRecordingFolder], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+              <TextBlock Grid.Row="1" Grid.Column="2" Classes="label" Text="{Binding [SettingsRecordingLimit], Source={x:Static loc:LocalizedStrings.Instance}}" TextWrapping="Wrap" />
+              <Grid Grid.Row="2" ColumnDefinitions="*,8,Auto,8,Auto" IsEnabled="{Binding IsRecordingAvailable}">
+                <TextBox AutomationProperties.AutomationId="SettingsRecordingFolder"
+                         AutomationProperties.Name="{Binding [SettingsRecordingFolder], Source={x:Static loc:LocalizedStrings.Instance}}"
+                         AutomationProperties.HelpText="{Binding RecordingFolderHelpText}"
+                         IsReadOnly="True"
+                         Text="{Binding RecordingFolderText, Mode=OneWay}"
+                         ToolTip.Tip="{Binding RecordingFolderText}"
+                         Classes.invalid="{Binding RecordingFolderError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <Button Grid.Column="2"
+                        AutomationProperties.AutomationId="SettingsRecordingFolderChange"
+                        VerticalAlignment="Center"
+                        Content="{Binding [SettingsRecordingFolderChange], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Command="{Binding ChooseRecordingFolderCommand}" />
+                <Button Grid.Column="4"
+                        AutomationProperties.AutomationId="SettingsRecordingFolderReset"
+                        VerticalAlignment="Center"
+                        Content="{Binding [SettingsRecordingFolderReset], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        ToolTip.Tip="{Binding [SettingsRecordingFolderResetHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        AutomationProperties.HelpText="{Binding [SettingsRecordingFolderResetHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                        Command="{Binding ResetRecordingFolderCommand}" />
+              </Grid>
+              <NumericUpDown Grid.Row="2"
+                             Grid.Column="2"
+                             AutomationProperties.AutomationId="SettingsRecordingLimit"
+                             AutomationProperties.Name="{Binding [SettingsRecordingLimit], Source={x:Static loc:LocalizedStrings.Instance}}"
+                             AutomationProperties.HelpText="{Binding RecordingLimitHelpText}"
+                             IsEnabled="{Binding IsRecordingAvailable}"
+                             Classes.invalid="{Binding HasRecordingLimitError}"
+                             Value="{Binding RecordingLimitGigabytes}"
+                             Minimum="{x:Static vm:SettingsViewModel.MinRecordingLimitGigabytes}"
+                             Maximum="{x:Static vm:SettingsViewModel.MaxRecordingLimitGigabytes}"
+                             Increment="1"
+                             FormatString="0"
+                             Width="160"
+                             HorizontalAlignment="Left" />
+              <StackPanel Grid.Row="3">
+                <TextBlock AutomationProperties.AutomationId="SettingsRecordingFolderHint" Classes="hint" Text="{Binding [SettingsRecordingFolderHint], Source={x:Static loc:LocalizedStrings.Instance}}" IsVisible="{Binding ShowsRecordingFolderHint}" />
+                <TextBlock AutomationProperties.AutomationId="SettingsRecordingFolderError" Classes="error" Text="{Binding RecordingFolderError}" IsVisible="{Binding RecordingFolderError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                <TextBlock AutomationProperties.AutomationId="SettingsRecordingUnavailable"
+                           Classes="error"
+                           Text="{Binding [RecordingUnavailable], Source={x:Static loc:LocalizedStrings.Instance}}"
+                           IsVisible="{Binding !IsRecordingAvailable}" />
+              </StackPanel>
+              <StackPanel Grid.Row="3" Grid.Column="2">
+                <TextBlock AutomationProperties.AutomationId="SettingsRecordingLimitHint" Classes="hint" Text="{Binding RecordingLimitHint}" IsVisible="{Binding ShowsRecordingLimitHint}" />
+                <TextBlock AutomationProperties.AutomationId="SettingsRecordingLimitError" Classes="error" Text="{Binding RecordingLimitError}" IsVisible="{Binding HasRecordingLimitError}" />
+              </StackPanel>
+            </Grid>
           </StackPanel>
         </ScrollViewer>
       </TabItem>

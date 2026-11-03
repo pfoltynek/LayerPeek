@@ -357,8 +357,9 @@ public sealed class TrayMenuDetailTests(E2EFixture fixture)
         Assert.DoesNotContain(name, TrayMenu.IsHidden);
         Assert.DoesNotContain("__", name, StringComparison.Ordinal);
         Assert.Equal(string.Empty, TrayMenu.WithoutWordJoiner(TrayMenu.AccessKeyOf(row)));
-        Assert.Equal(["Open PrusaLink", "Show camera"], submenu.Select(static item => item.Name).ToArray());
-        Assert.Equal(["O", "C"], submenu.Select(TrayMenu.AccessKeyOf).ToArray());
+        // T-146: the recording items follow after a separator (not a menu item).
+        Assert.Equal(["Open PrusaLink", "Show camera", "Start recording", "Play last recording", "Open recordings folder"], submenu.Select(static item => item.Name).ToArray());
+        Assert.Equal(["O", "C", "R", "P", "D"], submenu.Select(TrayMenu.AccessKeyOf).ToArray());
         await TrayMenu.CloseAsync(menu);
     }
 

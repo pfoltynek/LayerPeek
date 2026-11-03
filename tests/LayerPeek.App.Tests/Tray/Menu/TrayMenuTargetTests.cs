@@ -430,6 +430,53 @@ public sealed class TrayMenuTargetTests
         Assert.Equal("Show _camera", item.Header);
     }
 
+    [Fact]
+    public void SubmenuSeparatorsAreBuiltAndTheItemsAroundThemUpdateInPlace()
+    {
+        // T-146: the recording items of a printer are a group of their own after a separator.
+        _target.SetFixedItems([]);
+        TrayMenuEntry start = new(TrayMenuCommand.StartRecording, "Start _recording", IsEnabled: true, PrinterId: "a") { HasAccessKey = true };
+        TrayMenuEntry parent = new(TrayMenuCommand.None, "A: Idle", IsEnabled: true, PrinterId: "a")
+        {
+            Submenu = new TrayMenuEntryList([new TrayMenuEntry(TrayMenuCommand.Camera, "Camera", IsEnabled: true, PrinterId: "a"), TrayMenuEntry.Separator, start]),
+        };
+        _target.InsertPrinterItem(0, parent);
+        FakeNativeItem item = _menu.Items[0];
+        Assert.Equal(["Camera", "---", "Start _recording"], item.Submenu!.Layout());
+        FakeNativeItem record = item.Submenu.Items[1];
+        int structureChanges = _menu.StructureChanges;
+
+        TrayMenuEntry stop = start with { Command = TrayMenuCommand.StopRecording, Header = "Stop _recording" };
+        _target.UpdatePrinterItem(0, parent with { Submenu = new TrayMenuEntryList([parent.Submenu[0], TrayMenuEntry.Separator, stop]) });
+
+        // In place: the same platform items, only the text of the recording item changed.
+        Assert.Same(item, _menu.Items[0]);
+        Assert.Same(record, item.Submenu.Items[1]);
+        Assert.Equal(structureChanges, _menu.StructureChanges);
+        Assert.Equal(["Camera", "---", "Stop _recording"], item.Submenu.Layout());
+        record.Click();
+        Assert.Equal(TrayMenuCommand.StopRecording, Assert.Single(_clicked).Command);
+    }
+
+    [Fact]
+    public void ASeparatorAtAnotherPlaceOfTheSubmenuReplacesTheItem()
+    {
+        _target.SetFixedItems([]);
+        TrayMenuEntry camera = new(TrayMenuCommand.Camera, "Camera", IsEnabled: true, PrinterId: "a");
+        TrayMenuEntry parent = new(TrayMenuCommand.None, "A: Idle", IsEnabled: true, PrinterId: "a")
+        {
+            Submenu = new TrayMenuEntryList([camera, TrayMenuEntry.Separator, camera]),
+        };
+        _target.InsertPrinterItem(0, parent);
+        FakeNativeItem item = _menu.Items[0];
+
+        _target.UpdatePrinterItem(0, parent with { Submenu = new TrayMenuEntryList([TrayMenuEntry.Separator, camera, camera]) });
+
+        Assert.NotSame(item, _menu.Items[0]);
+        Assert.True(item.Detached);
+        Assert.Equal(["---", "Camera", "Camera"], _menu.Items[0].Submenu!.Layout());
+    }
+
     private static TrayMenuEntry Printer(string header, string? uri = "http://printer/") =>
         new(TrayMenuCommand.OpenWeb, header, IsEnabled: uri is not null, "Open", uri is null ? null : new Uri(uri));
 

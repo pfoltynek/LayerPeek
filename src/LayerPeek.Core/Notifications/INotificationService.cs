@@ -1,3 +1,5 @@
+using LayerPeek.Core.Cameras.Recording;
+
 namespace LayerPeek.Core.Notifications;
 
 /// <summary>
@@ -22,9 +24,37 @@ public interface INotificationService
     void ShowUpdateAvailable(UpdateNotification notification)
     {
     }
+
+    /// <summary>
+    /// Shows that a camera recording could not start or ended with an error (T-146; the only notified recording event,
+    /// user decision 2026-11-03 on T-145). The same rules as <see cref="Show"/>: thread-safe, returns quickly, may throw.
+    /// A click opens the settings window (where the folder and the limit are). Default: not shown (platforms without
+    /// notifications).
+    /// </summary>
+    void ShowRecordingFailed(RecordingNotification notification)
+    {
+    }
 }
 
 /// <summary>What the notification about a new version shows (T-058); texts are localized by the implementations.</summary>
 /// <param name="Version">The new version (<c>0.3.2</c>).</param>
 /// <param name="PlaySound">Whether it plays a sound (the "all notifications" sound setting only: it is information).</param>
 public sealed record UpdateNotification(string Version, bool PlaySound);
+
+/// <summary>
+/// What the notification about a failed camera recording shows (T-146); texts are localized by the implementations from
+/// <see cref="Problem"/>. Contains no path.
+/// </summary>
+/// <param name="PrinterId">The printer (id as configured).</param>
+/// <param name="PrinterName">Its name, the title of the notification (the id when empty).</param>
+/// <param name="Problem">What went wrong.</param>
+/// <param name="SizeLimitGigabytes">The size limit of the recordings, for <see cref="CameraRecordingProblem.SizeLimitReached"/>.</param>
+/// <param name="MinFreeGigabytes">The free space the recordings need, for <see cref="CameraRecordingProblem.DiskSpaceLow"/>.</param>
+/// <param name="PlaySound">Whether it plays a sound (decided by the sound setting like a printer error).</param>
+public sealed record RecordingNotification(
+    string PrinterId,
+    string PrinterName,
+    CameraRecordingProblem Problem,
+    int SizeLimitGigabytes,
+    int MinFreeGigabytes,
+    bool PlaySound);

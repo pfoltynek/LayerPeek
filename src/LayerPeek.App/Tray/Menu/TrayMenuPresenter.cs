@@ -161,6 +161,9 @@ internal sealed partial class TrayMenuPresenter : IDisposable
                 case TrayMenuCommand.CameraToFront when entry.PrinterId is { } frontId:
                     _commands.BringCameraToFront(frontId);
                     break;
+                case TrayMenuCommand.StartRecording or TrayMenuCommand.StopRecording or TrayMenuCommand.PlayLastRecording or TrayMenuCommand.OpenRecordingsFolder:
+                    _source.RunRecordingCommand(entry);
+                    break;
                 case TrayMenuCommand.Settings:
                     _commands.ShowSettings();
                     break;

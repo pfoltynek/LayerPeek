@@ -1471,4 +1471,121 @@
   <data name="SettingsUpdateMoveToApplications" xml:space="preserve">
     <value>Přesuňte LayerPeek do složky Aplikace, pak se bude aktualizovat sám.</value>
   </data>
+  <data name="MenuStartRecording" xml:space="preserve">
+    <value>_Nahrávat</value>
+  </data>
+  <data name="MenuStopRecording" xml:space="preserve">
+    <value>Zastavit _nahrávání</value>
+  </data>
+  <data name="MenuPlayLastRecording" xml:space="preserve">
+    <value>Přehrát pos_lední nahrávku</value>
+  </data>
+  <data name="MenuOpenRecordingsFolder" xml:space="preserve">
+    <value>Otevřít _složku s nahrávkami</value>
+  </data>
+  <data name="MenuNoRecordingYet" xml:space="preserve">
+    <value>Tiskárna zatím nemá žádnou nahrávku.</value>
+  </data>
+  <data name="RecordingStart" xml:space="preserve">
+    <value>Nahrávat</value>
+  </data>
+  <data name="RecordingStop" xml:space="preserve">
+    <value>Zastavit nahrávání</value>
+  </data>
+  <data name="RecordingStarting" xml:space="preserve">
+    <value>Nahrávání se spouští…</value>
+  </data>
+  <data name="RecordingStopping" xml:space="preserve">
+    <value>Nahrávání se ukončuje…</value>
+  </data>
+  <data name="RecordingUnavailable" xml:space="preserve">
+    <value>Tato verze LayerPeeku neumí nahrávat kameru.</value>
+  </data>
+  <data name="CameraRecordingIndicator" xml:space="preserve">
+    <value>REC</value>
+  </data>
+  <data name="ToolTipRecording" xml:space="preserve">
+    <value>Nahrává se</value>
+  </data>
+  <data name="ToolTipLineRecording" xml:space="preserve">
+    <value>{0}, nahrává se</value>
+  </data>
+  <data name="NotificationRecordingFailed" xml:space="preserve">
+    <value>Nahrávání kamery selhalo</value>
+  </data>
+  <data name="NotificationRecordingUnavailable" xml:space="preserve">
+    <value>Tato verze LayerPeeku neumí nahrávat kameru.</value>
+  </data>
+  <data name="NotificationRecordingCameraUnavailable" xml:space="preserve">
+    <value>Kamera tiskárny není k dispozici.</value>
+  </data>
+  <data name="NotificationRecordingFolderUnavailable" xml:space="preserve">
+    <value>Do složky s nahrávkami nelze zapisovat. Zkontrolujte disk nebo v nastavení vyberte jinou složku.</value>
+  </data>
+  <data name="NotificationRecordingDiskSpaceLow" xml:space="preserve">
+    <value>Na disku zbývá méně než {0} GB volného místa.</value>
+  </data>
+  <data name="NotificationRecordingDiskFull" xml:space="preserve">
+    <value>Disk je plný.</value>
+  </data>
+  <data name="NotificationRecordingWriteFailed" xml:space="preserve">
+    <value>Soubor nahrávky nelze zapsat.</value>
+  </data>
+  <data name="NotificationRecordingTooSlow" xml:space="preserve">
+    <value>Zápis na disk nestíhal obraz z kamery.</value>
+  </data>
+  <data name="NotificationRecordingStreamFailed" xml:space="preserve">
+    <value>Obraz z kamery se přerušil nebo ho nelze uložit.</value>
+  </data>
+  <data name="NotificationRecordingSizeLimitReached" xml:space="preserve">
+    <value>Samotná nahrávka je větší než limit velikosti všech nahrávek ({0} GB).</value>
+  </data>
+  <data name="SettingsRecording" xml:space="preserve">
+    <value>Nahrávání</value>
+  </data>
+  <data name="SettingsRecordingOpenFolder" xml:space="preserve">
+    <value>Otevřít složku s nahrávkami</value>
+  </data>
+  <data name="SettingsRecordingFolder" xml:space="preserve">
+    <value>Složka pro nahrávky</value>
+  </data>
+  <data name="SettingsRecordingFolderChange" xml:space="preserve">
+    <value>Změnit…</value>
+  </data>
+  <data name="SettingsRecordingFolderReset" xml:space="preserve">
+    <value>Výchozí</value>
+  </data>
+  <data name="SettingsRecordingFolderResetHint" xml:space="preserve">
+    <value>Znovu použít systémovou složku s videi.</value>
+  </data>
+  <data name="SettingsRecordingFolderHint" xml:space="preserve">
+    <value>Každá tiskárna má ve složce vlastní podsložku.</value>
+  </data>
+  <data name="SettingsRecordingFolderPickerTitle" xml:space="preserve">
+    <value>Vyberte složku pro nahrávky</value>
+  </data>
+  <data name="SettingsRecordingFolderNotLocal" xml:space="preserve">
+    <value>Vybraná složka není na disku tohoto počítače.</value>
+  </data>
+  <data name="SettingsRecordingFolderInvalid" xml:space="preserve">
+    <value>Tuto složku nelze použít: cesta je delší než {0} znaků nebo obsahuje nepovolené znaky.</value>
+  </data>
+  <data name="SettingsRecordingFolderNotWritable" xml:space="preserve">
+    <value>Do vybrané složky nelze zapisovat.</value>
+  </data>
+  <data name="SettingsRecordingLimit" xml:space="preserve">
+    <value>Limit velikosti všech nahrávek (GB)</value>
+  </data>
+  <data name="SettingsRecordingLimitHint" xml:space="preserve">
+    <value>Nad limitem se smažou nejstarší nahrávky. Při méně než {0} GB volného místa se nahrávání zastaví.</value>
+  </data>
+  <data name="SettingsErrorRecordingLimit" xml:space="preserve">
+    <value>Zadejte celé číslo od {0} do {1}.</value>
+  </data>
+  <data name="SettingsRecordPrints" xml:space="preserve">
+    <value>Automaticky nahrávat tisk</value>
+  </data>
+  <data name="SettingsRecordPrintsHint" xml:space="preserve">
+    <value>Nahrává od začátku tisku do minuty po jeho konci, i když okno kamery není otevřené.</value>
+  </data>
 </root>

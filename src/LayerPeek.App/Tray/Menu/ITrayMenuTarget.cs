@@ -61,6 +61,12 @@ internal interface ITrayMenuSource
 
     /// <summary>Opens the web interface of a printer entry; does nothing for an entry without an address.</summary>
     void OpenWeb(TrayMenuEntry entry);
+
+    /// <summary>
+    /// A recording item of a printer submenu (T-146: start, stop, play the last recording, open the folder); does nothing
+    /// for other entries or without recordings.
+    /// </summary>
+    void RunRecordingCommand(TrayMenuEntry entry);
 }
 
 /// <summary>Application-level actions of the tray menu, implemented by the Avalonia application.</summary>

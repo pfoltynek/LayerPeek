@@ -72,6 +72,10 @@
     <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked">
       <Setter Property="Opacity" Value="0.85" />
     </Style>
+    <!-- T-146: while anything records, the record button is the REC indicator and stays fully visible (also in the mini preview). -->
+    <Style Selector="StackPanel.windowButtons > Button.record.recording">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
     <Style Selector="Grid#Root:pointerover StackPanel.windowButtons > :is(Button), StackPanel.windowButtons:focus-within > :is(Button)">
       <Setter Property="Opacity" Value="1" />
     </Style>
@@ -99,6 +103,27 @@
     <Style Selector="StackPanel.windowButtons > ToggleButton.topmostPin:checked:pressed /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="#CC000000" />
       <Setter Property="BorderBrush" Value="{DynamicResource ToggleButtonBorderBrushPressed}" />
+    </Style>
+    <!--
+      T-146: the record button keeps the dark look while it is disabled (starting, stopping, no recorder), dimmed; the red dot
+      is the record symbol, "REC" shows while recording. Over a recording button the dot becomes the stop square, so the
+      click target says what it does. Static: no animation, nothing runs while idle.
+    -->
+    <Style Selector="StackPanel.windowButtons > Button.record:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="#99000000" />
+      <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.record:disabled StackPanel.recordContent">
+      <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="Button.record Rectangle.stop">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.record.recording:pointerover Ellipse.dot, Button.record.recording:focus-visible Ellipse.dot">
+      <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Button.record.recording:pointerover Rectangle.stop, Button.record.recording:focus-visible Rectangle.stop">
+      <Setter Property="IsVisible" Value="True" />
     </Style>
     <!-- The pin: filled while "always on top" is on, regular while it is off; the state is the shape, not the colour. -->
     <Style Selector="ToggleButton.topmostPin ov|OverlayIcon">
@@ -244,6 +269,33 @@
           <Path Classes="icon" Data="M1,2 H15 V14 H1 Z" />
           <Path Classes="icon" Fill="White" Data="M8,8 H13 V12 H8 Z" />
         </Grid>
+      </Button>
+      <!--
+        Record (T-146): in every mode, right before the pin (in the corner in full screen); the red dot with "REC" while
+        anything records, which keeps it visible. Starts a manual recording, stops a running one (also an automatic one).
+      -->
+      <Button Classes="record"
+              Classes.recording="{Binding IsRecording}"
+              AutomationProperties.AutomationId="CameraRecordButton"
+              Command="{Binding ToggleRecordingCommand}"
+              IsVisible="{Binding HasRecordingButton}"
+              ToolTip.Tip="{Binding RecordingToolTip}"
+              ToolTip.ShowOnDisabled="True"
+              AutomationProperties.Name="{Binding RecordingToolTip}">
+        <StackPanel Classes="recordContent" Orientation="Horizontal" Spacing="5" Height="16">
+          <Panel Width="16" Height="16">
+            <Ellipse Classes="dot" Width="10" Height="10" Fill="#E5484D" HorizontalAlignment="Center" VerticalAlignment="Center" />
+            <Rectangle Classes="stop" Width="10" Height="10" RadiusX="1.5" RadiusY="1.5" Fill="White" HorizontalAlignment="Center" VerticalAlignment="Center" />
+          </Panel>
+          <TextBlock AutomationProperties.AutomationId="CameraRecordingIndicator"
+                     Text="{Binding [CameraRecordingIndicator], Source={x:Static loc:LocalizedStrings.Instance}}"
+                     IsVisible="{Binding IsRecording}"
+                     Foreground="White"
+                     FontSize="11"
+                     FontWeight="Bold"
+                     VerticalAlignment="Center"
+                     Margin="0,0,2,0" />
+        </StackPanel>
       </Button>
       <!--
         The pin (T-117): always last, in the corner, so that the dimmed pin stays where it is in both modes; not in full

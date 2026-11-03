@@ -355,6 +355,38 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
             problems.AddRange(CutTexts(mac.Window, $"{language} / macOS not in LayerPeek.app"));
             mac.Window.Close();
 
+            // T-146: the recording section on the same tab, with the longest error of the folder (in place of its hint) and of the
+            // limit, and a build without the recorder (the reason in the heading row).
+            foreach (bool available in (bool[])[true, false])
+            {
+                string recordingContext = $"{language} / macOS not in LayerPeek.app + recording {(available ? "errors" : "unavailable")}";
+                LayerPeek.App.Tests.Cameras.Recording.FakeRecordingFolderPicker picker = new() { Answer = new PickedFolder(LongFolder()) };
+                SettingsWindowHarness recording = await SettingsWindowHarness.OpenAsync(
+                    scope,
+                    SettingsWindowHarness.StoreWith(LinkPrinter("a", "Alpha")),
+                    autostartNeedsInstallation: true,
+                    macTerms: true,
+                    checkForUpdatesNow: static _ => Task.FromResult(new LayerPeek.Core.Updates.UpdateCheckResult(LayerPeek.Core.Updates.UpdateCheckOutcome.Failed, null)),
+                    showsMoveToApplications: true,
+                    recordings: new LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings { IsAvailable = available },
+                    recordingFolderPicker: picker);
+                recording.ViewModel.SelectedTabIndex = SettingsViewModel.RecordingTab;
+                await recording.ViewModel.CheckForUpdatesNowCommand.ExecuteAsync(null);
+                if (available)
+                {
+                    await recording.ViewModel.ChooseRecordingFolderCommand.ExecuteAsync(null);
+                    recording.ViewModel.RecordingLimitGigabytes = 0;
+                }
+
+                recording.Window.Settle();
+                Assert.Equal(!available, recording.Find<TextBlock>("SettingsRecordingUnavailable").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingFolderError").IsEffectivelyVisible);
+                Assert.Equal(available, recording.Find<TextBlock>("SettingsRecordingLimitError").IsEffectivelyVisible);
+                problems.AddRange(ScrollingViewers(recording.Window, recordingContext));
+                problems.AddRange(CutTexts(recording.Window, recordingContext));
+                recording.Window.Close();
+            }
+
             // T-019 (user decisions 2026-10-29): switched off in System Settings. Opening the window shows the hint and the button
             // under the option; Save says so in a macOS status of its own; the button opens System Settings (here only counted).
             MemoryApprovalAutostart approval = new()
@@ -389,6 +421,10 @@ public sealed class SettingsWindowLayoutTests(HeadlessSession session)
 
             Assert.True(problems.Count == 0, string.Join(Environment.NewLine, problems));
         });
+
+    /// <summary>A folder whose path is longer than the settings accept (T-146).</summary>
+    private static string LongFolder() =>
+        Path.Combine(Path.GetTempPath(), new string('x', LayerPeek.Core.Cameras.Recording.CameraRecordingSettings.MaxFolderLength));
 
     /// <summary>
     /// T-020 (macOS, user decision 2026-10-29): notifications turned off in System Settings put a warning and a button into the

@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 
+using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Localization;
 using LayerPeek.Core.Monitoring;
 using LayerPeek.Core.Printers;
@@ -15,6 +16,8 @@ namespace LayerPeek.App.Tray;
 /// With several printers the icon follows the most severe printer (<see cref="TrayStatusRules.SelectPrimary"/>, O(n)
 /// without allocation per poll) and the tooltip has one line per printer; a poll compares only the content of its own
 /// printer and bumps a version when it changed, so the n lines are copied and formatted only after a visible change.
+/// T-146: a printer whose camera is being recorded says so in the tooltip ("Recording"); the icon does not change (user
+/// decision 2026-11-03). A recording change (rare) is handled like a snapshot of that printer.
 /// Properties change and <see cref="ObservableObject.PropertyChanged"/> is raised on the UI thread only.
 /// </summary>
 internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource, IMonitoringObserver, IDisposable, ILanguageAware
@@ -23,6 +26,7 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
     private readonly IUiDispatcher _dispatcher;
     private readonly Action _apply;
     private readonly Lock _gate = new();
+    private readonly ICameraRecordings? _recordings;
 
     // Guarded by _gate.
     private TrayPrinter[]? _printers;
@@ -42,18 +46,24 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
     private TrayIconKey _iconKey;
     private string _toolTipText;
 
-    public TrayStatusViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher)
+    /// <param name="recordings">The camera recordings (T-146); <see langword="null"/>: the tooltip never says "Recording".</param>
+    public TrayStatusViewModel(IPrinterMonitor monitor, IUiDispatcher dispatcher, ICameraRecordings? recordings = null)
     {
         ArgumentNullException.ThrowIfNull(monitor);
         ArgumentNullException.ThrowIfNull(dispatcher);
         _monitor = monitor;
         _dispatcher = dispatcher;
+        _recordings = recordings;
         _apply = Apply;
         _latestKey = TrayPresentationKey.Create(printers: null, monitoringFailed: false);
         _latest = TrayPresentation.Format(_latestKey);
         _iconKey = _latest.IconKey;
         _toolTipText = _latest.ToolTipText;
         _monitor.SnapshotUpdated += OnSnapshotUpdated;
+        if (_recordings is not null)
+        {
+            _recordings.Changed += OnRecordingChanged;
+        }
     }
 
     public TrayIconKey IconKey
@@ -98,6 +108,17 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
         ToolTipContent[]? summary;
         lock (_gate)
         {
+            // Recordings outlive a restart of monitoring (T-145): a running one shows right away. The service never calls
+            // back while it holds its own lock, so asking it under this lock cannot deadlock (and orders it with OnRecordingChanged).
+            for (int i = 0; _recordings is not null && i < entries.Length; i++)
+            {
+                if (IsRecordingLocked(entries[i].Definition.Id))
+                {
+                    entries[i] = entries[i] with { IsRecording = true };
+                    contents[i] = ToolTipContent.From(entries[i], otherPrinterCount: 0);
+                }
+            }
+
             _printers = entries;
             _contents = contents;
             _summaryVersion++;
@@ -160,6 +181,11 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
     public void Dispose()
     {
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
+        if (_recordings is not null)
+        {
+            _recordings.Changed -= OnRecordingChanged;
+        }
+
         lock (_gate)
         {
             _disposed = true;
@@ -204,6 +230,46 @@ internal sealed class TrayStatusViewModel : ObservableObject, ITrayStatusSource,
 
         Publish(key, version, summary);
     }
+
+    /// <summary>Any thread (T-146): the recording of a printer started or ended; only its tooltip line can change.</summary>
+    private void OnRecordingChanged(object? sender, string printerId)
+    {
+        if (printerId is null)
+        {
+            return;
+        }
+
+        TrayPresentationKey key;
+        long version;
+        ToolTipContent[]? summary;
+        lock (_gate)
+        {
+            if (_disposed || _printers is null || !_slotById.TryGetValue(printerId, out int slot))
+            {
+                return;
+            }
+
+            bool recording = IsRecordingLocked(printerId);
+            if (_printers[slot].IsRecording == recording)
+            {
+                return;
+            }
+
+            TrayPrinter printer = _printers[slot] with { IsRecording = recording };
+            _printers[slot] = printer;
+            _contents[slot] = ToolTipContent.From(printer, otherPrinterCount: 0);
+            _summaryVersion++;
+            if (!TryAdvanceLocked(out key, out version, out summary))
+            {
+                return;
+            }
+        }
+
+        Publish(key, version, summary);
+    }
+
+    /// <summary>Starting, recording or stopping: "Recording" shows, like the REC dot of the camera window.</summary>
+    private bool IsRecordingLocked(string printerId) => _recordings?.GetStatus(printerId).IsActive == true;
 
     /// <summary>
     /// Builds the key of the current state; <see langword="false"/> when nothing visible changed. For several printers

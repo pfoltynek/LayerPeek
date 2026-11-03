@@ -339,6 +339,44 @@ public sealed class TrayMenuTests(HeadlessSession session)
             return Task.CompletedTask;
         });
 
+    [Fact]
+    public Task RecordingItemsAreAGroupOfTheirOwnAndFollowTheRecordingInPlace() =>
+        session.RunAsync(static scope =>
+        {
+            // T-146: start / stop, play the last recording and open the folder, after a separator, in the native menu.
+            LayerPeek.App.Tests.Cameras.Recording.FakeCameraRecordings recordings = new();
+            TrayMenu tray = TrayMenu.Create(scope, recordings: recordings);
+            tray.ViewModel.SetPrinters([TestPrinters.Definition("mk4", "MK4") with { Camera = new LayerPeek.Core.Cameras.CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }]);
+            Dispatcher.UIThread.RunJobs();
+            NativeMenu submenu = tray.Item(0).Menu!;
+            string?[] Headers() => [.. submenu.Items.Select(static item => item is NativeMenuItemSeparator ? "-" : ((NativeMenuItem)item).Header)];
+
+            Assert.Equal([Strings.MenuOpenPrusaLink, Strings.MenuShowCamera, "-", Strings.MenuStartRecording, Strings.MenuPlayLastRecording, Strings.MenuOpenRecordingsFolder], Headers());
+            NativeMenuItem record = (NativeMenuItem)submenu.Items[3];
+            NativeMenuItem play = (NativeMenuItem)submenu.Items[4];
+            Assert.False(play.IsEnabled);
+            Assert.Equal(Strings.MenuNoRecordingYet, play.ToolTip);
+
+            TrayMenu.ClickLikeThePlatform(record);
+            Assert.Equal(["mk4"], recordings.Started);
+
+            // The service reports the recording from another thread: the same platform items, in place.
+            Task.Run(() => recordings.SetActivity("mk4", LayerPeek.Core.Cameras.Recording.CameraRecordingActivity.Recording, lastFile: "/rec/MK4/2026-11-03_10-00-00.mp4")).Wait(TestContext.Current.CancellationToken);
+            Dispatcher.UIThread.RunJobs();
+            Assert.Same(submenu, tray.Item(0).Menu);
+            Assert.Same(record, submenu.Items[3]);
+            Assert.Equal(Strings.MenuStopRecording, record.Header);
+            Assert.True(play.IsEnabled);
+
+            TrayMenu.ClickLikeThePlatform(record);
+            TrayMenu.ClickLikeThePlatform(play);
+            TrayMenu.ClickLikeThePlatform((NativeMenuItem)submenu.Items[5]);
+            Assert.Equal(["mk4"], recordings.Stopped);
+            Assert.Equal(["mk4"], recordings.Played);
+            Assert.Equal([null], recordings.OpenedFolders);
+            return Task.CompletedTask;
+        });
+
     /// <summary>The characters <paramref name="text"/> has laid out (and draws), without line ends.</summary>
     private static string RenderedText(AccessText text) =>
         string.Concat(text.TextLayout.TextLines.SelectMany(static line => line.TextRuns).Select(static run => run.Text.ToString()))
@@ -379,7 +417,7 @@ public sealed class TrayMenuTests(HeadlessSession session)
 
         public TrayMenuPresenter Presenter { get; }
 
-        public static TrayMenu Create(UiTestScope scope, FakeWebGateway? gateway = null)
+        public static TrayMenu Create(UiTestScope scope, FakeWebGateway? gateway = null, LayerPeek.App.Cameras.Recording.ICameraRecordings? recordings = null)
         {
             TrayIcon icon = Assert.Single(TrayIcon.GetIcons(Application.Current!)!);
             FakePrinterMonitor monitor = new();
@@ -390,7 +428,8 @@ public sealed class TrayMenuTests(HeadlessSession session)
                 monitor,
                 new AvaloniaUiDispatcher(),
                 TestWebOpener.Create(launcher, gateway),
-                TrayMenuOptions.Default));
+                TrayMenuOptions.Default,
+                recordings: recordings));
             TrayMenuPresenter presenter = scope.Defer(new TrayMenuPresenter(
                 new TrayMenuTarget(new AvaloniaNativeTrayMenu(icon)),
                 viewModel,

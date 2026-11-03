@@ -6,6 +6,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 
 using LayerPeek.App.Cameras.Mini;
+using LayerPeek.App.Cameras.Recording;
 using LayerPeek.App.Cameras.Overlay;
 using LayerPeek.App.Localization;
 using LayerPeek.App.Platform;
@@ -144,6 +145,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
     /// <param name="layoutWriter">Saves the layout of the layout mode (T-091); <see langword="null"/> = saving fails.</param>
     /// <param name="localNetwork">Whether "no route to host" may be the denied local network permission (T-097); <see langword="null"/> = never.</param>
     /// <param name="topmostWriter">Saves "always on top" switched by the pin (T-117); <see langword="null"/> = saving fails.</param>
+    /// <param name="recordings">The camera recordings (T-146); <see langword="null"/> = no recording button.</param>
     internal CameraViewModel(
         CameraTarget target,
         CameraStreamHub hub,
@@ -161,7 +163,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         PrintThumbnails? thumbnails = null,
         ICameraOverlayLayoutWriter? layoutWriter = null,
         ILocalNetworkPrivacy? localNetwork = null,
-        ICameraWindowTopmostWriter? topmostWriter = null)
+        ICameraWindowTopmostWriter? topmostWriter = null,
+        ICameraRecordings? recordings = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(hub);
@@ -211,6 +214,8 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         EscapeCommand = new RelayCommand(Escape, () => _mode != CameraWindowMode.Normal);
         // T-117: the pin switches and saves "always on top" of the current mode.
         CreateTopmost(topmostWriter);
+        // T-146: the recording button with the REC indicator.
+        CreateRecording(recordings);
 
         // T-081: the widgets of the printer's layout with the global card opacity.
         Overlay = new CameraOverlayViewModel(
@@ -279,6 +284,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
         OnPropertyChanged(nameof(StatusDetail));
         OnPropertyChanged(nameof(LayoutToolTip));
         OnPropertyChanged(nameof(TopmostToolTip));
+        RefreshRecordingTexts();
         Overlay.RefreshTexts();
         LayoutMode.RefreshTexts();
         MiniStrip.RefreshTexts();
@@ -594,6 +600,7 @@ public sealed partial class CameraViewModel : ObservableObject, IDisposable, ILa
 
         _monitor.SnapshotUpdated -= OnSnapshotUpdated;
         _printers.Changed -= OnPrintersChanged;
+        DisposeRecording();
         // An open edit is discarded (T-091).
         DisposeLayoutMode();
         Overlay.Dispose();

@@ -62,6 +62,15 @@ a kritérium.
       rozložení (ui-designer), nebo dodávat písmo Inter i na macOS (rozhodnutí produktu); výsledek a rozhodnutí zapsat
       a založit úkol. Když se nic neuřízne, otázka odpadá (zapsat).
 
+- [ ] **T-146** (krit. „Ruční nahrávání jde spustit a zastavit … stav je vidět“, ruční část macOS; v sezení agenta nebyl
+      aktivní displej, UI se nespustilo): simulátor s kamerou; v menu baru v podmenu tiskárny je za oddělovačem „Nahrávat“,
+      „Přehrát poslední nahrávku“ (zakázané, dokud nahrávka není) a „Otevřít složku s nahrávkami“; „Nahrávat“ → tooltip
+      ikony „Nahrává se“, v okně kamery „● REC“ i bez ukazatele ve všech třech režimech (pod ukazatelem čtverec Stop),
+      „Zastavit nahrávání“ v menu i tlačítkem; „Přehrát poslední nahrávku“ otevře soubor v QuickTime Playeru, „Otevřít
+      složku s nahrávkami“ Finder v `~/Movies/LayerPeek`. V nastavení „Změnit…“ otevře systémový dialog složky, složka bez
+      práva zápisu ukáže hlášku; chyba nahrávání (např. složka na odpojeném disku) ukáže notifikaci „Nahrávání kamery
+      selhalo“ a klik na ni otevře nastavení. Zapsat, jak vypadá zakázaná položka s tipem v NSMenu (tip se ukáže?).
+
 ### 1b. Subjektivní a fyzické body z T-115 (přesunuto 2026-11-02, rozhodnutí uživatele 2026-11-01; automatické části ověřil T-136)
 - [ ] **T-105** (krit. „Skripty spuštěné uživatelem“, část macOS): `caffeinate -d -u -i pwsh tools/macos-verify.ps1`
       proběhl celý interaktivně včetně ručních kontrol níže; nalezené chyby skriptu zapsané (nový úkol). Zapsat odpověď

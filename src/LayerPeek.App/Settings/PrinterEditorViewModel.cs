@@ -101,8 +101,8 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     // is on in the saved settings, which "Edit layout in camera window…" needs (the camera window works with them).
     private CameraOverlayLayout _overlayLayout;
 
-    /// <summary>"Record prints automatically" (T-145), kept as loaded until the camera tab edits it (T-146).</summary>
-    private readonly bool _recordPrints;
+    /// <summary>"Record prints automatically" (T-145), switched on the Camera sub-tab (T-146).</summary>
+    private bool _recordPrints;
     private bool _savedCameraEnabled;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
@@ -420,10 +420,34 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
                 // T-040: the camera window buttons work only while the camera is on, like the fields next to them.
                 ResetCameraWindowCommand.NotifyCanExecuteChanged();
                 ApplyCameraWindowCommand.NotifyCanExecuteChanged();
+                // T-146: recording needs the camera.
+                OnPropertyChanged(nameof(CanEditRecordPrints));
                 _owner.OnPrinterEdited(nameChanged: false);
             }
         }
     }
+
+    /// <summary>
+    /// "Record prints automatically" (T-145, T-146; off by default, user decision 2026-11-03): from the start of a print to a
+    /// minute after its end, also without an open camera window. Kept while the camera is off (the check box is disabled).
+    /// </summary>
+    public bool RecordPrints
+    {
+        get => _recordPrints;
+        set
+        {
+            if (SetProperty(ref _recordPrints, value))
+            {
+                _owner.OnPrinterEdited(nameChanged: false);
+            }
+        }
+    }
+
+    /// <summary>The check box can be switched: the camera is on and this build can record (otherwise disabled with the reason).</summary>
+    public bool CanEditRecordPrints => _cameraEnabled && _owner.IsRecordingAvailable;
+
+    /// <summary>The tip (and help text) of "Record prints automatically": what it does, or why it is disabled.</summary>
+    public string RecordPrintsHint => _owner.IsRecordingAvailable ? Strings.SettingsRecordPrintsHint : Strings.RecordingUnavailable;
 
     /// <summary>RTSP address of the stream (an invalid address loaded from the file is shown here for correction).</summary>
     public string CameraUrl
@@ -1024,6 +1048,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     /// </summary>
     internal void RefreshTexts()
     {
+        OnPropertyChanged(nameof(RecordPrintsHint));
         ValidateAddress();
         ValidateUserName();
         ValidatePassword();

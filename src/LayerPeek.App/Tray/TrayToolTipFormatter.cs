@@ -44,13 +44,15 @@ internal static class TrayToolTipFormatter
             state = Format(Strings.ToolTipStateWithProgress, state, Format(Strings.ToolTipProgress, progress));
         }
 
+        string? recording = content.IsRecording ? Strings.ToolTipRecording : null;
         string? remaining = content.RemainingMinutes is { } minutes ? Format(Strings.ToolTipRemaining, FormatMinutes(minutes)) : null;
         string? others = content.OtherPrinterCount > 0 ? Format(Strings.ToolTipOtherPrinters, content.OtherPrinterCount) : null;
-        return Compose(content.Name, state, remaining, content.FileName, others);
+        return Compose(content.Name, state, recording, remaining, content.FileName, others);
     }
 
     /// <summary>
-    /// Tooltip for several printers: one line per printer ("Name: State – 42%, 1 h 5 min left"), the most severe first
+    /// Tooltip for several printers: one line per printer ("Name: State – 42%, 1 h 5 min left"; T-146: ", recording" after
+    /// the state of a recorded printer, kept when the remaining times are dropped), the most severe first
     /// (configuration order on a tie, see <see cref="TrayStatusRules.Severity"/>). When everything does not fit into
     /// <see cref="MaxLength"/>, remaining times are dropped first; then the least severe printers are summarized as
     /// "Other printers: N". Names are shortened to <see cref="MaxSummaryNameLength"/>. Called only when something visible
@@ -123,9 +125,10 @@ internal static class TrayToolTipFormatter
     /// <summary>A resource text in <paramref name="culture"/> (<see langword="null"/> = the thread's UI culture), exactly as the generated properties read it.</summary>
     private static string Text(string name, CultureInfo? culture) => Strings.ResourceManager.GetString(name, culture) ?? name;
 
-    private static string Compose(string name, string state, string? remaining, string? fileName, string? others)
+    private static string Compose(string name, string state, string? recording, string? remaining, string? fileName, string? others)
     {
         int fixedLength = name.Length + 1 + state.Length
+            + (recording is null ? 0 : recording.Length + 1)
             + (remaining is null ? 0 : remaining.Length + 1)
             + (others is null ? 0 : others.Length + 1);
 
@@ -138,6 +141,7 @@ internal static class TrayToolTipFormatter
 
         StringBuilder text = new(fixedLength + (fileName?.Length + 1 ?? 0));
         text.Append(name).Append(LineSeparator).Append(state);
+        AppendLine(text, recording);
         AppendLine(text, remaining);
         AppendLine(text, fileName);
         AppendLine(text, others);
@@ -146,7 +150,7 @@ internal static class TrayToolTipFormatter
         return text.Length > MaxLength ? TrayText.Ellipsize(text.ToString(), MaxLength) : text.ToString();
     }
 
-    /// <summary>"Name: State – 42%" with the name shortened to <see cref="MaxSummaryNameLength"/>.</summary>
+    /// <summary>"Name: State – 42%" with the name shortened to <see cref="MaxSummaryNameLength"/> (", recording" appended while recorded).</summary>
     private static string SummaryLine(ToolTipContent printer)
     {
         string state = TrayText.StateName(printer.State);
@@ -155,7 +159,8 @@ internal static class TrayToolTipFormatter
             state = Format(Strings.ToolTipStateWithProgress, state, Format(Strings.ToolTipProgress, progress));
         }
 
-        return Format(Strings.MenuPrinter, TrayText.Ellipsize(printer.Name, MaxSummaryNameLength), state);
+        string line = Format(Strings.MenuPrinter, TrayText.Ellipsize(printer.Name, MaxSummaryNameLength), state);
+        return printer.IsRecording ? Format(Strings.ToolTipLineRecording, line) : line;
     }
 
     /// <summary>Indexes of <paramref name="printers"/>, most severe first; stable, so configuration order decides a tie.</summary>

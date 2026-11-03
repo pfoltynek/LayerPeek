@@ -121,6 +121,28 @@ internal sealed partial class UserNotificationService : INotificationService, ID
         }
     }
 
+    /// <summary>
+    /// The notification about a failed camera recording (T-146), queued like a printer notification, with the launch argument
+    /// <see cref="ToastLaunchArgument.Settings"/> (a click opens the settings window).
+    /// </summary>
+    public void ShowRecordingFailed(RecordingNotification notification)
+    {
+        ArgumentNullException.ThrowIfNull(notification);
+        lock (_gate)
+        {
+            if (_disposed || !_pending.Writer.TryWrite(notification))
+            {
+                return;
+            }
+
+            if (!_started)
+            {
+                _started = true;
+                _ = Task.Run(RunAsync, CancellationToken.None);
+            }
+        }
+    }
+
     public void Dispose()
     {
         lock (_gate)
@@ -155,6 +177,10 @@ internal sealed partial class UserNotificationService : INotificationService, ID
                     if (notification is UpdateNotification update)
                     {
                         await ShowUpdateNowAsync(update, stop).ConfigureAwait(false);
+                    }
+                    else if (notification is RecordingNotification recording)
+                    {
+                        await ShowRecordingNowAsync(recording, stop).ConfigureAwait(false);
                     }
                     else
                     {
@@ -242,6 +268,37 @@ internal sealed partial class UserNotificationService : INotificationService, ID
             LogUpdateShowFailed(ex, notification.Version);
         }
     }
+
+    private async Task ShowRecordingNowAsync(RecordingNotification notification, CancellationToken stop)
+    {
+        if (!await IsAllowedAsync(stop).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        try
+        {
+            NotificationLines lines = ToastContentBuilder.RecordingLines(notification, _textCulture());
+            string body = lines.Detail is { } detail ? lines.Body + "\n" + detail : lines.Body;
+            stop.ThrowIfCancellationRequested();
+            _center.Post(new UserNotificationRequest(_newIdentifier(), lines.Title, body, notification.PlaySound, ToastLaunchArgument.Settings));
+            LogRecordingShown(notification.Problem, notification.PrinterId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            LogRecordingShowFailed(ex, notification.Problem, notification.PrinterId);
+        }
+    }
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the recording failure ({Problem}) of printer '{PrinterId}'.")]
+    private partial void LogRecordingShown(Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
+
+    [LoggerMessage(Level = LogLevel.Warning, Message = "The notification for the recording failure ({Problem}) of printer '{PrinterId}' could not be shown.")]
+    private partial void LogRecordingShowFailed(Exception exception, Core.Cameras.Recording.CameraRecordingProblem problem, string printerId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Notification shown for the new version {Version}.")]
     private partial void LogUpdateShown(string version);

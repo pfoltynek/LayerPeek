@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Camera recording** (Windows and macOS): the submenu of a printer with a camera has **Start recording** / **Stop
+  recording**, **Play last recording** (opens the newest recording in the system's video player) and **Open recordings
+  folder**; the camera window has a record button next to the pin that shows a red dot with **REC** while the camera is
+  recorded (also in the mini preview and in full screen), and the tray tooltip says **Recording**. Recordings are MP4
+  files without re-encoding, by default in the Videos (Windows) / Movies (macOS) folder under `LayerPeek`, one subfolder per
+  printer. **Record prints automatically** on the printer's Camera tab records every print from its start to a minute
+  after its end, also without an open camera window (off by default). The settings have a **Recording** section with the
+  folder and a total size limit (50 GB by default; the oldest recordings are deleted above it, recording stops below 5 GB
+  of free space). A recording that fails shows a notification with the reason.
+
 ## [0.4.0] - 2026-11-02
 
 ### Added

@@ -683,7 +683,8 @@ public sealed partial class CameraWindow : Window
         }
 
         bool fromKeyboard = _routingKey;
-        if (button is ToggleButton)
+        // The pin and the record button (T-146) stay where they are after a click: the focus stays on them from the keyboard.
+        if (button is ToggleButton || button.Classes.Contains("record"))
         {
             if (!fromKeyboard)
             {
