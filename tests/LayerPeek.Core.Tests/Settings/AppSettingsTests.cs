@@ -141,6 +141,15 @@ public class AppSettingsTests
     }
 
     [Fact]
+    public void CameraWindowAutoCloseIsOnByDefaultAndPartOfEquality()
+    {
+        Assert.True(AppSettings.Default.CameraWindowAutoClose);
+        Assert.NotEqual(new AppSettings(), new AppSettings { CameraWindowAutoClose = false });
+        Assert.Equal(new AppSettings { CameraWindowAutoClose = false }, new AppSettings { CameraWindowAutoClose = false });
+        Assert.NotEqual(new AppSettings().GetHashCode(), new AppSettings { CameraWindowAutoClose = false }.GetHashCode());
+    }
+
+    [Fact]
     public void PrereleaseChoiceIsUnsetByDefaultAndPartOfEquality()
     {
         Assert.Null(AppSettings.Default.OfferPrereleaseUpdates);

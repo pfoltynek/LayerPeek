@@ -84,6 +84,13 @@ public sealed record AppSettings
         }
     } = CameraOverlayOpacity.DefaultPercent;
 
+    /// <summary>
+    /// "Close the camera window when the printer is switched off" (T-150, user decision 2026-11-03: one option for all
+    /// printers, on by default): the open camera window of a printer that stays offline closes and opens again once the
+    /// printer is back, see <see cref="CameraWindowAutoVisibility"/>. Off: the windows stay as the user left them.
+    /// </summary>
+    public bool CameraWindowAutoClose { get; init; } = true;
+
     public NotificationSettings Notifications
     {
         get;
@@ -253,11 +260,24 @@ public sealed record AppSettings
         && OfferPrereleaseUpdates == other.OfferPrereleaseUpdates
         && CheckForUpdates == other.CheckForUpdates
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
+        && CameraWindowAutoClose == other.CameraWindowAutoClose
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
-    public override int GetHashCode() =>
-        HashCode.Combine(PollingInterval, Language, DebugLogging, OfferPrereleaseUpdates, CheckForUpdates, CameraOverlayOpacityPercent, Notifications, Printers.Count);
+    public override int GetHashCode()
+    {
+        HashCode hash = default;
+        hash.Add(PollingInterval);
+        hash.Add(Language);
+        hash.Add(DebugLogging);
+        hash.Add(OfferPrereleaseUpdates);
+        hash.Add(CheckForUpdates);
+        hash.Add(CameraOverlayOpacityPercent);
+        hash.Add(CameraWindowAutoClose);
+        hash.Add(Notifications);
+        hash.Add(Printers.Count);
+        return hash.ToHashCode();
+    }
 
     private static ReadOnlyCollection<PrinterDefinition> CopyValidated(IReadOnlyList<PrinterDefinition> printers)
     {

@@ -45,6 +45,13 @@ internal sealed class SettingsDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public CameraOverlaySettingsDocument? CameraOverlay { get; set; }
 
+    /// <summary>
+    /// "Close the camera window when the printer is switched off" (T-150); written only when off, missing (older files,
+    /// the default) = on.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? CameraWindowAutoClose { get; set; }
+
     public List<PrinterDocument?>? Printers { get; set; }
 }
 

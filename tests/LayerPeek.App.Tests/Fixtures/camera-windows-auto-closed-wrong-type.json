@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "windows": {
+    "mk4": { "mode": "Mini", "normal": { "x": -1900, "y": 40, "width": 960, "height": 540 }, "mini": { "x": 1500, "y": 860, "width": 320, "height": 180 } }
+  },
+  "autoClosed": { "mk4": true }
+}

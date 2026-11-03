@@ -34,5 +34,19 @@ Napojit stavový automat z T-150 na skutečná okna kamery: automaticky zavřít
 2. **Režim rozložení (T-091) a otevřené kontextové menu:** zavřít okno automaticky i během úprav rozložení, nebo odložit, dokud uživatel režim neukončí?
 3. **Oznámení:** dát uživateli vědět (toast / tooltip), že okno bylo zavřeno, protože je tiskárna vypnutá? Nebo nic?
 
+### Rozhodnutí uživatele 2026-11-03
+1. Automaticky otevřené okno se objeví **tiše, bez aktivace** (Windows bez aktivace, macOS bez aktivace aplikace); okno „vždy navrchu“ je navrchu vždy.
+2. V **režimu rozložení (T-091)** nebo s otevřeným kontextovým menu se automatické zavření **odloží**; po ukončení režimu / zavření menu se okno zavře, pokud je tiskárna stále `Offline` (déle než T₁).
+3. **Bez oznámení** – žádný toast ani tooltip při automatickém zavření / otevření.
+4. **Implementace primárně na macOS** (rozhodnutí uživatele 2026-11-03): úkol se dělá v session na Macu (implementace pro obě platformy, headless testy, ověření macOS části – tiché otevření bez aktivace aplikace, Dock, ⌘Tab). Windows E2E (UI Automation proti simulátoru) a ověření Windows části se dodělají v další session na Windows; pokud tam nebudou hotové, přesunou se do T-125 podle `tasks/README.md`.
+(Rozhodnutí k T-150: T₁ 30 s, T₂ 10 s pevně, jen `Offline`, globální volba výchozí zapnuto – viz T-150.)
+
+### Poznámky k zapojení z T-150 (review 2026-11-03)
+- API: `CameraWindowAutoVisibility` (Core/Cameras), popis v poznámkách T-150; volat na UI vlákně, jeden časovač na `NextDueAt` → `Evaluate()`.
+- `WindowClosedByUser` volat při **každém** zavření okna, které nevykonává příkaz `Close` (uživatel, odebraná tiskárna, vypnutá kamera, jiné zavření aplikací).
+- Do `CameraWindowAutoVisibilityOptions.Monitor` předat skutečné `PrinterMonitorOptions` monitoru, jinak může být `StaleAfter` krátké.
+- `SystemResumed()` volat z události probuzení systému (Windows `PowerModeChanged` / `WM_POWERBROADCAST`, macOS `NSWorkspaceDidWakeNotification`).
+- Důsledek rozhodnutí 9: když se po probuzení Wi-Fi připojuje déle než 30 s, okno se oprávněně zavře podle čerstvých snímků `Offline`.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

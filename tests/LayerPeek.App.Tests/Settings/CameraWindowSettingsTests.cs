@@ -72,6 +72,28 @@ public sealed class CameraWindowSettingsTests : IDisposable
         return Assert.Single(_store.Saves).Updated;
     }
 
+    // ---- T-150: the global "close when switched off" option has no control yet (T-151); a save must keep it ----
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task SavingKeepsTheAutoCloseOption(bool autoClose)
+    {
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", Camera())], CameraWindowAutoClose = autoClose },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+        Assert.False(vm.IsDirty);
+
+        vm.Printers[0].RememberLastPlacement = false;
+
+        Assert.Equal(autoClose, (await SaveAsync(vm)).CameraWindowAutoClose);
+    }
+
     // ---- Loading ----
 
     [Fact]

@@ -36,6 +36,19 @@ internal interface ICameraWindowStateStore
     /// </summary>
     int GetRemoveCount(string printerId);
 
+    /// <summary>
+    /// The printers whose camera window was closed automatically (T-150, <see cref="CameraWindowAutoVisibility"/>), the
+    /// oldest first; empty while <see cref="LoadAsync"/> runs. Pass them to the state machine once loaded.
+    /// </summary>
+    IReadOnlyList<string> GetAutoClosedPrinters();
+
+    /// <summary>
+    /// Remembers or forgets the "closed automatically" flag of the printer (<see cref="CameraWindowAutoCommand.AutoClosed"/>)
+    /// and saves in the background when it changed. Independent of <see cref="Set"/> and <see cref="Remove"/>: forgetting
+    /// the placement keeps the flag. Never throws for file problems.
+    /// </summary>
+    void SetAutoClosed(string printerId, bool autoClosed);
+
     /// <summary>Waits at most <paramref name="timeout"/> for background saves; <see langword="true"/> when none is running.</summary>
     Task<bool> WaitForPendingSaveAsync(TimeSpan timeout);
 }
@@ -71,6 +84,11 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
 
     // Removed in this run (how often): an entry of the file that is read later must not come back.
     private readonly Dictionary<string, int> _removed = new(StringComparer.OrdinalIgnoreCase);
+
+    // T-150: "closed automatically" flags, the oldest first, and the printers whose flag changed in this run (their file
+    // value is older and ignored when the file is read later).
+    private readonly List<string> _autoClosed = [];
+    private readonly HashSet<string> _autoClosedChanged = new(StringComparer.OrdinalIgnoreCase);
     private Task? _loading;
     private Task _pendingSave = Task.CompletedTask;
     private long _saveVersion;
@@ -152,6 +170,43 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
         }
     }
 
+    public IReadOnlyList<string> GetAutoClosedPrinters()
+    {
+        lock (_gate)
+        {
+            return [.. _autoClosed];
+        }
+    }
+
+    public void SetAutoClosed(string printerId, bool autoClosed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        lock (_gate)
+        {
+            int index = _autoClosed.FindIndex(id => string.Equals(id, printerId, StringComparison.OrdinalIgnoreCase));
+            bool loaded = _loading is { IsCompletedSuccessfully: true };
+            if ((index >= 0) == autoClosed && (loaded || autoClosed))
+            {
+                // Unchanged. A flag cleared before the file was read is saved anyway: the file may have it.
+                return;
+            }
+
+            _autoClosedChanged.Add(printerId);
+            if (autoClosed)
+            {
+                _autoClosed.Add(printerId);
+                TrimAutoClosed();
+            }
+            else if (index >= 0)
+            {
+                _autoClosed.RemoveAt(index);
+            }
+
+            long version = ++_saveVersion;
+            _pendingSave = SaveAfterAsync(_pendingSave, version);
+        }
+    }
+
     public async Task<bool> WaitForPendingSaveAsync(TimeSpan timeout)
     {
         Task pending;
@@ -196,7 +251,17 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
             return;
         }
 
-        if (document?.Windows is not { } windows)
+        if (document is null)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            MergeAutoClosed(document.AutoClosed);
+        }
+
+        if (document.Windows is not { } windows)
         {
             return;
         }
@@ -227,6 +292,44 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
         await using (stream.ConfigureAwait(false))
         {
             return await JsonSerializer.DeserializeAsync(stream, CameraWindowsJsonContext.Default.CameraWindowsDocument, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// Under <c>_gate</c>: the flags of the file go before the ones set in this run; blank and repeated ids and the ids
+    /// changed in this run are skipped.
+    /// </summary>
+    private void MergeAutoClosed(List<string>? fromFile)
+    {
+        if (fromFile is null)
+        {
+            return;
+        }
+
+        List<string> loaded = [];
+        foreach (string printerId in fromFile)
+        {
+            if (string.IsNullOrWhiteSpace(printerId)
+                || _autoClosedChanged.Contains(printerId)
+                || _autoClosed.Contains(printerId, StringComparer.OrdinalIgnoreCase)
+                || loaded.Contains(printerId, StringComparer.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            loaded.Add(printerId);
+        }
+
+        _autoClosed.InsertRange(0, loaded);
+        TrimAutoClosed();
+    }
+
+    /// <summary>Under <c>_gate</c>: the oldest flags are dropped beyond <see cref="MaxEntries"/>.</summary>
+    private void TrimAutoClosed()
+    {
+        if (_autoClosed.Count > MaxEntries)
+        {
+            _autoClosed.RemoveRange(0, _autoClosed.Count - MaxEntries);
         }
     }
 
@@ -323,7 +426,13 @@ internal sealed partial class JsonCameraWindowStateStore : ICameraWindowStateSto
             };
         }
 
-        return new CameraWindowsDocument { Version = CurrentVersion, Windows = windows };
+        return new CameraWindowsDocument
+        {
+            Version = CurrentVersion,
+            Windows = windows,
+            // Not written while there are none (files of earlier versions keep their shape).
+            AutoClosed = _autoClosed.Count == 0 ? null : [.. _autoClosed],
+        };
     }
 
     private static PlacementDocument? ToDocument(CameraWindowPlacement? placement) =>
@@ -356,6 +465,7 @@ internal sealed class MemoryCameraWindowStateStore : ICameraWindowStateStore
     private readonly Lock _gate = new();
     private readonly Dictionary<string, CameraWindowState> _states = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _removed = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<string> _autoClosed = [];
 
     public Task LoadAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
@@ -395,6 +505,31 @@ internal sealed class MemoryCameraWindowStateStore : ICameraWindowStateStore
         }
     }
 
+    public IReadOnlyList<string> GetAutoClosedPrinters()
+    {
+        lock (_gate)
+        {
+            return [.. _autoClosed];
+        }
+    }
+
+    public void SetAutoClosed(string printerId, bool autoClosed)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(printerId);
+        lock (_gate)
+        {
+            int index = _autoClosed.FindIndex(id => string.Equals(id, printerId, StringComparison.OrdinalIgnoreCase));
+            if (autoClosed && index < 0)
+            {
+                _autoClosed.Add(printerId);
+            }
+            else if (!autoClosed && index >= 0)
+            {
+                _autoClosed.RemoveAt(index);
+            }
+        }
+    }
+
     public Task<bool> WaitForPendingSaveAsync(TimeSpan timeout) => Task.FromResult(true);
 }
 
@@ -403,6 +538,65 @@ internal sealed class CameraWindowsDocument
     public int Version { get; set; }
 
     public Dictionary<string, CameraWindowDocument?>? Windows { get; set; }
+
+    /// <summary>
+    /// T-150: printers whose camera window was closed automatically, the oldest first. Missing in files of earlier
+    /// versions; anything but an array is read as no flags and items that are not strings are skipped, so that the flags
+    /// never make the file unreadable.
+    /// </summary>
+    [JsonConverter(typeof(LenientStringListConverter))]
+    public List<string>? AutoClosed { get; set; }
+}
+
+/// <summary>
+/// Reads an array of strings and skips everything else: a value that is not an array is read as <see langword="null"/>,
+/// items that are not strings are left out.
+/// </summary>
+internal sealed class LenientStringListConverter : JsonConverter<List<string>?>
+{
+    public override List<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType != JsonTokenType.StartArray)
+        {
+            // An object is skipped as a whole; a single value needs nothing.
+            reader.Skip();
+            return null;
+        }
+
+        List<string> items = [];
+        while (reader.Read() && reader.TokenType != JsonTokenType.EndArray)
+        {
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                items.Add(reader.GetString()!);
+            }
+            else
+            {
+                // An object or array item is skipped as a whole.
+                reader.Skip();
+            }
+        }
+
+        return items;
+    }
+
+    public override void Write(Utf8JsonWriter writer, List<string>? value, JsonSerializerOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        if (value is null)
+        {
+            writer.WriteNullValue();
+            return;
+        }
+
+        writer.WriteStartArray();
+        foreach (string item in value)
+        {
+            writer.WriteStringValue(item);
+        }
+
+        writer.WriteEndArray();
+    }
 }
 
 internal sealed class CameraWindowDocument
