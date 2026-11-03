@@ -55,7 +55,7 @@ public sealed class CameraViewModelOverlayTests : IAsyncDisposable
 
     private CameraViewModel Create(CameraOverlayLayout layout, CameraWindowDefaults? window = null)
     {
-        ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
         CameraViewModel viewModel = new(
             CameraTarget.From(Printer(layout, window: window))!,
             feed,

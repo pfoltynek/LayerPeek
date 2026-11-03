@@ -1200,7 +1200,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         SetCameraTestResult(static () => Strings.SettingsCameraTesting, TestResultKind.Running);
         try
         {
-            CameraTestResult result = await _owner.CameraTester.TestAsync(uri, test.Token).ConfigureAwait(true);
+            CameraTestResult result = await _owner.CameraTester.TestAsync(uri, Id, test.Token).ConfigureAwait(true);
             if (!test.IsCancellationRequested)
             {
                 bool success = result.Outcome == CameraTestOutcome.Success;

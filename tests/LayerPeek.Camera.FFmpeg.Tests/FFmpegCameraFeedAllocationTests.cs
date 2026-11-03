@@ -43,6 +43,92 @@ public sealed class FFmpegCameraFeedAllocationTests
         Assert.Equal(0, minimum);
     }
 
+    [FFmpegFact]
+    public async Task SteadyStatePacketsAndFramesDoNotAllocate()
+    {
+        // T-143: a recording (packets) and a window (frames) on one connection.
+        long minimum = long.MaxValue;
+        for (int pass = 0; pass < 3 && minimum > 0; pass++)
+        {
+            minimum = Math.Min(minimum, await Task.Run(MeasureItemsPassAsync, TestContext.Current.CancellationToken));
+        }
+
+        Assert.Equal(0, minimum);
+    }
+
+    [FFmpegFact]
+    public async Task SteadyStateFramesThroughTheHubDoNotAllocate()
+    {
+        // T-143: the camera window's real path, the shared connection with the subscriber's own buffers.
+        long minimum = long.MaxValue;
+        for (int pass = 0; pass < 3 && minimum > 0; pass++)
+        {
+            minimum = Math.Min(minimum, await Task.Run(MeasureHubPassAsync, TestContext.Current.CancellationToken));
+        }
+
+        Assert.Equal(0, minimum);
+    }
+
+    private static async Task<long> MeasureItemsPassAsync()
+    {
+        CancellationToken ct = TestContext.Current.CancellationToken;
+        await using FFmpegCameraFeed feed = TestFixtures.CreateFeed(TestFixtures.Buddy3D);
+        IAsyncEnumerator<CameraStreamItem> items = feed.ReadAsync(new CameraStreamDemand(frames: true, packets: true), ct).GetAsyncEnumerator(ct);
+        try
+        {
+            // Description, then packet + frame each.
+            for (int i = 0; i < 1 + (2 * WarmUpFrames); i++)
+            {
+                Assert.True(await items.MoveNextAsync());
+            }
+
+            long before = GC.GetTotalAllocatedBytes(precise: true);
+            for (int i = 0; i < 2 * MeasuredFrames; i++)
+            {
+                Assert.True(await items.MoveNextAsync());
+            }
+
+            return GC.GetTotalAllocatedBytes(precise: true) - before;
+        }
+        finally
+        {
+            await items.DisposeAsync();
+        }
+    }
+
+    private static async Task<long> MeasureHubPassAsync()
+    {
+        ReconnectingCameraFeed camera = new(new FFmpegCameraFeedFactory(), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
+        await using CameraStreamHub hub = new(camera, TimeProvider.System, NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
+        using CameraFrameSubscription lease = hub.SubscribeFrames("mk4", TestFixtures.Buddy3D);
+        // The file plays as fast as it decodes; frames the consumer misses are dropped (and counted).
+        long Seen(ref int taken)
+        {
+            if (lease.TakeLatest() is not null)
+            {
+                taken++;
+            }
+
+            return taken + lease.DroppedFrames;
+        }
+
+        int taken = 0;
+        DateTime deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (Seen(ref taken) < WarmUpFrames)
+        {
+            Assert.True(DateTime.UtcNow < deadline, "No frames.");
+            Thread.Yield();
+        }
+
+        long before = GC.GetTotalAllocatedBytes(precise: true);
+        while (Seen(ref taken) < WarmUpFrames + MeasuredFrames)
+        {
+            Thread.Yield();
+        }
+
+        return GC.GetTotalAllocatedBytes(precise: true) - before;
+    }
+
     private static async Task<long> MeasureReconnectingPassAsync()
     {
         CancellationToken ct = TestContext.Current.CancellationToken;

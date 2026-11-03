@@ -47,6 +47,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
     private GCHandle _interruptHandle;
     private AVFormatContext* _format;
+    private AVCodec* _decoder;
     private AVCodecContext* _codec;
     private AVPacket* _packet;
     private AVFrame* _frame;
@@ -54,6 +55,20 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
     private int _streamIndex = -1;
     private bool _draining;
     private volatile bool _holdsNativeResources;
+
+    // T-143: packets before decoding, decoding only on demand.
+    private CameraStreamInfo? _info;
+    private bool _infoDelivered;
+    private CameraTimeBase _timeBase;
+    private byte[] _packetBuffer = [];
+
+    // _packet holds a packet that was handed out as a packet item and still goes to the decoder.
+    private bool _packetPending;
+
+    // The decoder gets packets (frame demand); when it was off, packets were skipped and it restarts at a key frame.
+    private bool _decoding;
+    private bool _needKeyFrame;
+    private long _decodedFrames;
 
     // Current conversion; the scaler and buffer are rebuilt only when one of these changes.
     private int _width;
@@ -76,6 +91,12 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
 
     /// <summary>Any native FFmpeg object is allocated. Safe to read from any thread.</summary>
     public bool HoldsNativeResources => _holdsNativeResources;
+
+    /// <summary>Frames decoded so far (for tests: a packet-only reader decodes nothing). Safe to read from any thread.</summary>
+    public long DecodedFrames => Interlocked.Read(ref _decodedFrames);
+
+    /// <summary>The H.264 decoder was opened (it is only opened once frames are wanted). Safe to read from any thread.</summary>
+    public bool DecoderOpened { get; private set; }
 
     private string OpenStage => _isNetwork ? "Connecting to the camera failed" : "Opening the video failed";
 
@@ -183,16 +204,44 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
             }
         }
 
-        _codec = ffmpeg.avcodec_alloc_context3(decoder);
+        _decoder = decoder;
         _packet = ffmpeg.av_packet_alloc();
+        if (_packet is null)
+        {
+            throw new CameraFeedException("Out of memory while opening the camera stream.");
+        }
+
+        // What a recording needs to write the packets without decoding them (T-143, T-144).
+        AVStream* video = _format->streams[stream];
+        AVCodecParameters* parameters = video->codecpar;
+        _timeBase = video->time_base.num > 0 && video->time_base.den > 0
+            ? new CameraTimeBase(video->time_base.num, video->time_base.den)
+            : CameraTimeBase.Rtp90kHz;
+        byte[] extradata = parameters->extradata is not null && parameters->extradata_size > 0
+            ? new ReadOnlySpan<byte>(parameters->extradata, parameters->extradata_size).ToArray()
+            : [];
+        _info = new CameraStreamInfo(CameraVideoCodec.H264, Math.Max(parameters->width, 0), Math.Max(parameters->height, 0), _timeBase, extradata);
+    }
+
+    /// <summary>
+    /// Opens the H.264 decoder; only when frames are wanted for the first time (T-143: recording alone decodes nothing).
+    /// </summary>
+    private void EnsureDecoder()
+    {
+        if (_codec is not null)
+        {
+            return;
+        }
+
+        _codec = ffmpeg.avcodec_alloc_context3(_decoder);
         _frame = ffmpeg.av_frame_alloc();
-        if (_codec is null || _packet is null || _frame is null)
+        if (_codec is null || _frame is null)
         {
             throw new CameraFeedException("Out of memory while opening the camera stream.");
         }
 
         const string DecoderStage = "Starting the video decoder failed";
-        Check(ffmpeg.avcodec_parameters_to_context(_codec, _format->streams[stream]->codecpar), DecoderStage);
+        Check(ffmpeg.avcodec_parameters_to_context(_codec, _format->streams[_streamIndex]->codecpar), DecoderStage);
         // Every frame leaves the decoder as soon as it is complete: no frame threading (it delays output by one frame
         // per thread), low-delay mode. A 720p Baseline stream decodes easily on one thread.
         _codec->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
@@ -202,53 +251,91 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         try
         {
             ffmpeg.av_dict_set(&decoderOptions, "codec_whitelist", H264Decoder, 0);
-            Check(ffmpeg.avcodec_open2(_codec, decoder, &decoderOptions), DecoderStage);
+            Check(ffmpeg.avcodec_open2(_codec, _decoder, &decoderOptions), DecoderStage);
         }
         finally
         {
             ffmpeg.av_dict_free(&decoderOptions);
         }
+
+        DecoderOpened = true;
     }
 
     /// <summary>
-    /// Decodes the next frame into the reused buffer. Returns <see langword="false"/> at the end of the stream. The
-    /// returned frame stays valid until the next call (or until the buffer is replaced after a size change; the old
-    /// buffer is then left to the garbage collector, so a consumer holding on to it never sees freed memory).
+    /// The next item by <paramref name="demand"/> (T-143): first the stream description (when
+    /// <paramref name="emitInfo"/>), then every video packet while packets are wanted, before it is decoded, and the
+    /// decoded frames while frames are wanted. Nothing is decoded without frame demand; when frames are wanted again
+    /// after packets were skipped, decoding restarts at the next key frame. Returns <see langword="false"/> at the end of
+    /// the stream. Packet data (copied into a reused buffer) and frames are valid until the next call (or, for frames,
+    /// until the buffer is replaced after a size change; the old buffer is then left to the garbage collector, so a
+    /// consumer holding on to it never sees freed memory).
     /// </summary>
-    public bool TryReadFrame(out CameraFrame frame)
+    public bool TryRead(CameraStreamDemand demand, bool emitInfo, out CameraStreamItem item)
     {
+        if (emitInfo && !_infoDelivered && _info is { } info)
+        {
+            _infoDelivered = true;
+            item = CameraStreamItem.Started(info);
+            return true;
+        }
+
         while (true)
         {
             ThrowIfInterrupted();
-            int received = ffmpeg.avcodec_receive_frame(_codec, _frame);
-            if (received == 0)
+            bool frames = demand.Frames;
+            if (!frames && (_decoding || _packetPending))
             {
-                frame = Convert();
-                return true;
+                // Frames are no longer wanted: the decoder forgets its state and later restarts at a key frame.
+                StopDecoding();
             }
 
-            if (received == ffmpeg.AVERROR_EOF)
+            if (_decoding)
             {
-                frame = default;
-                return false;
-            }
+                int received = ffmpeg.avcodec_receive_frame(_codec, _frame);
+                if (received == 0)
+                {
+                    Interlocked.Increment(ref _decodedFrames);
+                    item = CameraStreamItem.FromFrame(Convert());
+                    return true;
+                }
 
-            // A damaged frame (INVALIDDATA) is skipped like a missing one: live streams recover with the next key frame.
-            if (received != ErrorAgain && received != ffmpeg.AVERROR_INVALIDDATA)
-            {
-                Check(received, "Decoding the video failed");
+                if (received == ffmpeg.AVERROR_EOF)
+                {
+                    item = default;
+                    return false;
+                }
+
+                // A damaged frame (INVALIDDATA) is skipped like a missing one: live streams recover with the next key frame.
+                if (received != ErrorAgain && received != ffmpeg.AVERROR_INVALIDDATA)
+                {
+                    Check(received, "Decoding the video failed");
+                }
             }
 
             if (_draining)
             {
-                frame = default;
+                item = default;
                 return false;
+            }
+
+            if (_packetPending)
+            {
+                // Handed out as a packet item before; now it is decoded.
+                _packetPending = false;
+                SendPacket();
+                continue;
             }
 
             int read = ffmpeg.av_read_frame(_format, _packet);
             if (read == ffmpeg.AVERROR_EOF)
             {
                 ThrowIfInterrupted();
+                if (!_decoding)
+                {
+                    item = default;
+                    return false;
+                }
+
                 // Flush: the decoder returns its buffered frames, then AVERROR_EOF.
                 _draining = true;
                 Check(ffmpeg.avcodec_send_packet(_codec, null), "Decoding the video failed");
@@ -262,13 +349,108 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
                 continue;
             }
 
-            int sent = ffmpeg.avcodec_send_packet(_codec, _packet);
-            ffmpeg.av_packet_unref(_packet);
-            if (sent != ffmpeg.AVERROR_INVALIDDATA)
+            if (frames && !_decoding)
             {
-                Check(sent, "Decoding the video failed");
+                EnsureDecoder();
+                _decoding = true;
+            }
+
+            if (demand.Packets)
+            {
+                item = CameraStreamItem.FromPacket(CopyPacket());
+                if (_decoding)
+                {
+                    _packetPending = true;
+                }
+                else
+                {
+                    Skip();
+                }
+
+                return true;
+            }
+
+            if (_decoding)
+            {
+                SendPacket();
+            }
+            else
+            {
+                Skip();
             }
         }
+    }
+
+    /// <summary>A packet that the decoder does not get: it must restart at a key frame later.</summary>
+    private void Skip()
+    {
+        ffmpeg.av_packet_unref(_packet);
+        _needKeyFrame = true;
+    }
+
+    private void StopDecoding()
+    {
+        if (_packetPending)
+        {
+            ffmpeg.av_packet_unref(_packet);
+            _packetPending = false;
+        }
+
+        if (_codec is not null)
+        {
+            ffmpeg.avcodec_flush_buffers(_codec);
+        }
+
+        _decoding = false;
+        _needKeyFrame = true;
+    }
+
+    /// <summary>Sends <c>_packet</c> to the decoder (from a key frame on, after skipped packets) and releases it.</summary>
+    private void SendPacket()
+    {
+        if (_needKeyFrame)
+        {
+            if ((_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) == 0)
+            {
+                ffmpeg.av_packet_unref(_packet);
+                return;
+            }
+
+            _needKeyFrame = false;
+        }
+
+        int sent = ffmpeg.avcodec_send_packet(_codec, _packet);
+        ffmpeg.av_packet_unref(_packet);
+        if (sent != ffmpeg.AVERROR_INVALIDDATA)
+        {
+            Check(sent, "Decoding the video failed");
+        }
+    }
+
+    /// <summary>The current packet as a borrowed <see cref="CameraPacket"/> over a reused managed buffer.</summary>
+    private CameraPacket CopyPacket()
+    {
+        int size = Math.Max(_packet->size, 0);
+        if (_packetBuffer.Length < size)
+        {
+            // Grows to the largest packet (a key frame) once; no allocation per packet afterwards.
+            _packetBuffer = GC.AllocateUninitializedArray<byte>(Math.Max(size, _packetBuffer.Length * 2));
+        }
+
+        if (size > 0)
+        {
+            new ReadOnlySpan<byte>(_packet->data, size).CopyTo(_packetBuffer);
+        }
+
+        long? pts = _packet->pts == ffmpeg.AV_NOPTS_VALUE ? null : _packet->pts;
+        long? dts = _packet->dts == ffmpeg.AV_NOPTS_VALUE ? null : _packet->dts;
+        return new CameraPacket(
+            new ReadOnlyMemory<byte>(_packetBuffer, 0, size),
+            pts,
+            dts,
+            Math.Max(_packet->duration, 0),
+            (_packet->flags & ffmpeg.AV_PKT_FLAG_KEY) != 0,
+            _timeBase);
     }
 
     /// <summary>Releases every native object; idempotent, also after a failed <see cref="Open"/>.</summary>

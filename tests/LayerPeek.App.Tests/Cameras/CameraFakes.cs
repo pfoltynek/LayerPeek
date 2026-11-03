@@ -18,6 +18,17 @@ internal static class CameraTargets
         })!;
 }
 
+/// <summary>Shared camera connections for camera window tests (T-143).</summary>
+internal static class CameraHubs
+{
+    /// <summary>
+    /// A hub that closes a connection as soon as its last lease ends (no linger), like the camera window's own connection
+    /// before T-143; the linger time itself is tested in Core (<c>CameraStreamHubTests</c>).
+    /// </summary>
+    public static CameraStreamHub Immediate(ReconnectingCameraFeed feed) =>
+        new(feed, TimeProvider.System, Microsoft.Extensions.Logging.Abstractions.NullLogger<CameraStreamHub>.Instance, TimeSpan.Zero);
+}
+
 /// <summary>Creates <see cref="FakeCameraFeed"/>s (no network, no decoder) and lets the test drive each of them.</summary>
 internal sealed class FakeCameraFeedFactory : ICameraFeedFactory
 {

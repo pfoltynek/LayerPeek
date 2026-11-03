@@ -96,6 +96,18 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       otevření (simulátor `offline` → `online`, nebo E2E přepínače) nesmí vzít popředí oknu jiné aplikace. Avalonia na Windows
       aktivuje zobrazené okno, jehož stav se změní (T-040). Pokud ho vezme, zapsat a založit úkol.
 
+### 2c. Sdílené spojení s kamerou (z T-143, implementováno na Macu 2026-11-03)
+- [ ] **T-143** (krit. „Okno kamery, malý náhled a překryv fungují jako dřív; stávající … E2E okna kamery prochází“, část
+      Windows): `pwsh tools/run-e2e.ps1 -Class '*Camera*'` = PASS a `dotnet test` na Windows bez chyb (unit a headless UI
+      testy prošly na Macu).
+- [ ] **T-143** (krit. „Ustálený stav streamu bez alokací“, část Windows): `FFmpegCameraFeedAllocationTests` (včetně
+      `SteadyStatePacketsAndFramesDoNotAllocate` a `SteadyStateFramesThroughTheHubDoNotAllocate`) a
+      `CameraStreamHubAllocationTests` prochází na Windows; `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez
+      nových varování AOT / trim.
+- [ ] **T-143** (ruční, simulátor): okno kamery minimalizovat a do 10 s obnovit – obraz je tam hned (bez čekání na klíčový
+      snímek); zavřít okno a po 10 s simulátor nevidí žádnou relaci (`GET /_simulator/state`, nebo log s podrobným
+      logováním: „The shared camera stream of printer '…' closed after its last subscriber left.“).
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

@@ -11,6 +11,7 @@ using LayerPeek.App.Settings;
 using LayerPeek.App.Support;
 using LayerPeek.App.Tray;
 using LayerPeek.App.Windows;
+using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Notifications;
 using LayerPeek.Core.Settings;
@@ -236,8 +237,9 @@ internal sealed partial class ServiceHost
         await Services.GetRequiredService<ICameraMonitorPathUpdater>().WaitForPendingAsync(PendingSaveTimeout).ConfigureAwait(true);
         await WaitForCameraWindowStateAsync().ConfigureAwait(true);
         await WaitForWindowStateAsync().ConfigureAwait(true);
-        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close.
-        await Task.WhenAll(_session?.StopAsync(timeout) ?? Task.CompletedTask, StopWebProxiesAsync()).ConfigureAwait(true);
+        // In parallel: open browser tabs of the local web proxies (T-028) stop working, and their ports close; the shared
+        // camera connections (T-143) close too, each within the same limit.
+        await Task.WhenAll(_session?.StopAsync(timeout) ?? Task.CompletedTask, StopWebProxiesAsync(), StopCameraStreamsAsync(timeout)).ConfigureAwait(true);
 #if DEBUG
         // Read before the container goes: the toast thread may still be registering the test app (writing its shortcut).
         Task toastThreadEnded = _testToastCleanup is not null && Services.GetRequiredService<INotificationService>() is ToastNotificationService toastService
@@ -266,6 +268,22 @@ internal sealed partial class ServiceHost
 #endif
 
         _backgroundWork.Dispose();
+    }
+
+    /// <summary>
+    /// Ends every camera lease and waits at most <paramref name="timeout"/> for the connections to close (a decoder that does
+    /// not react is left to the process exit). Never throws.
+    /// </summary>
+    private async Task StopCameraStreamsAsync(TimeSpan timeout)
+    {
+        try
+        {
+            await Services.GetRequiredService<CameraStreamHub>().DisposeAsync().AsTask().WaitAsync(timeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
+        catch (Exception ex)
+        {
+            LogDisposeFailed(ex);
+        }
     }
 
     /// <summary>A start that failed after <see cref="CreateAsync"/> (the tray could not be created): releases without waiting.</summary>

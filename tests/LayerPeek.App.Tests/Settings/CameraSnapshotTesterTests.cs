@@ -178,4 +178,119 @@ public sealed class CameraSnapshotTesterTests
         Assert.All(_logger.Entries, entry => Assert.DoesNotContain("secret", entry.Message, StringComparison.Ordinal));
         Assert.Contains(_logger.Entries, entry => entry.Message.Contains("rtsp://***@192.168.0.227/live", StringComparison.Ordinal));
     }
+
+    // ---- T-143 decision 3: the saved camera through the hub, an unsaved address on its own ----
+
+    private static readonly Uri UnsavedUri = new("rtsp://192.168.0.228/live");
+
+    private CameraStreamHub CreateHub()
+    {
+        CameraStreamHub hub = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, Microsoft.Extensions.Logging.Abstractions.NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
+        hub.Configure([TestPrinters.Definition("mk4", "MK4") with { Camera = new CameraSettings(enabled: true, StreamUri) }]);
+        return hub;
+    }
+
+    [Fact]
+    public async Task SavedCameraIsTestedOnTheConnectionOfAnOpenWindow()
+    {
+        await using CameraStreamHub hub = CreateHub();
+        using CameraFrameSubscription window = hub.SubscribeFrames("mk4");
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+        feed.SendColor(8, 6, 0xFFFF0000);
+        await Waiting.UntilAsync(() => feed.Consumed >= 1, "window streaming");
+
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "MK4", Ct);
+        await Task.Delay(50, Ct);
+        feed.SendColor(8, 6, 0xFF0000FF);
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(CameraTestOutcome.Success, result.Outcome);
+        Assert.Equal((8, 6), (result.Width, result.Height));
+        // The first image after the test started (blue), as an owned copy.
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, result.Image!.Pixels[..4].ToArray());
+        Assert.Single(_factory.Feeds);
+        Assert.False(feed.IsDisposed);
+        Assert.False(window.IsEnded);
+    }
+
+    [Fact]
+    public async Task SavedCameraWithoutAWindowIsTestedThroughTheHubAndReleasedAfterwards()
+    {
+        await using CameraStreamHub hub = CreateHub();
+
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "mk4", Ct);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+        feed.Send(width: 1280, height: 720);
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal((CameraTestOutcome.Success, 1280, 720), (result.Outcome, result.Width, result.Height));
+        // The lease is released; this hub closes at once (the app's lingers for 10 s).
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.Equal(0, hub.OpenConnections);
+    }
+
+    [Fact]
+    public async Task UnsavedAddressGetsAConnectionOfItsOwn()
+    {
+        await using CameraStreamHub hub = CreateHub();
+        using CameraFrameSubscription window = hub.SubscribeFrames("mk4");
+        FakeCameraFeed windowFeed = await _factory.WaitForFeedAsync(1);
+
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(UnsavedUri, "mk4", Ct);
+        FakeCameraFeed own = await _factory.WaitForFeedAsync(2);
+        own.Send();
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(CameraTestOutcome.Success, result.Outcome);
+        Assert.Equal([StreamUri, UnsavedUri], _factory.Uris);
+        await own.Disposed.WaitAsync(TestTimeouts.Wait, Ct);
+        Assert.False(windowFeed.IsDisposed);
+        // Without a printer (or another printer's camera) as well.
+        Task<CameraTestResult> other = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "xl", Ct);
+        (await _factory.WaitForFeedAsync(3)).Send();
+        Assert.Equal(CameraTestOutcome.Success, (await other.WaitAsync(TestTimeouts.Wait, Ct)).Outcome);
+    }
+
+    [Fact]
+    public async Task ErrorOfTheSharedConnectionFailsTheTestWithItsReason()
+    {
+        await using CameraStreamHub hub = CreateHub();
+        FakeLocalNetworkPrivacy privacy = new();
+
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, localNetwork: privacy, hub: hub).TestAsync(StreamUri, "mk4", Ct);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+        feed.Fail(new CameraFeedException("Opening the stream: No route to host.") { IsHostUnreachable = true });
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(CameraTestOutcome.LocalNetworkAccessMayBeOff, result.Outcome);
+        Assert.Equal("Opening the stream: No route to host.", result.Reason);
+        Assert.Null(result.Image);
+    }
+
+    [Fact]
+    public async Task StoppedHubFailsTheTestOfTheSavedCamera()
+    {
+        CameraStreamHub hub = CreateHub();
+        await hub.DisposeAsync();
+
+        CameraTestResult result = await new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "mk4", Ct).WaitAsync(TestTimeouts.Wait, Ct);
+
+        // A stopped hub forgets nothing about its configuration, but refuses leases.
+        Assert.Equal(CameraTestOutcome.Failed, result.Outcome);
+        Assert.Empty(_factory.Feeds);
+    }
+
+    [Fact]
+    public async Task SharedTestTimesOutAndReleasesTheLease()
+    {
+        await using CameraStreamHub hub = CreateHub();
+
+        Task<CameraTestResult> test = new CameraSnapshotTester(_factory, _time, _logger, hub: hub).TestAsync(StreamUri, "mk4", Ct);
+        FakeCameraFeed feed = await _factory.WaitForFeedAsync(1);
+        _time.Advance(CameraSnapshotTester.DefaultTimeout);
+        CameraTestResult result = await test.WaitAsync(TestTimeouts.Wait, Ct);
+
+        Assert.Equal(CameraTestOutcome.Timeout, result.Outcome);
+        await feed.Disposed.WaitAsync(TestTimeouts.Wait, Ct);
+    }
 }

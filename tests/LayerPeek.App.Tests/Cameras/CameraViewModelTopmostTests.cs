@@ -59,7 +59,7 @@ public sealed class CameraViewModelTopmostTests : IAsyncDisposable
     {
         CameraWindowDefaults window = (defaults ?? CameraWindowDefaults.Default) with { StartMode = startMode };
         Apply(window);
-        ReconnectingCameraFeed feed = new(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default);
+        CameraStreamHub feed = CameraHubs.Immediate(new ReconnectingCameraFeed(_factory, _time, NullLogger<ReconnectingCameraFeed>.Instance, CameraFeedOptions.Default));
         CameraViewModel viewModel = new(
             CameraTarget.From(Printer(window))!, feed, _monitor, _printers, _dispatcher, _states, _time, CameraFeedOptions.Default, _logger,
             topmostWriter: withWriter ? writer ?? _writer : null);
