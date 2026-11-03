@@ -45,5 +45,15 @@ Logika, **kdy** a **kam** se nahrává, bez UI a testovatelná s falešnými hod
 7. **Nastavení globálně, nebo u každé tiskárny?** (složka a limit spíš globálně, zapnutí automatického nahrávání spíš u tiskárny – rozhodne uživatel.)
 8. **Notifikace** o začátku / konci / chybě nahrávání: žádná, jen při chybě, nebo volitelně vše?
 
+### Rozhodnutí uživatele 2026-11-03
+1. **Ruční i automatické** nahrávání; automatické nahrávání během tisku je ve výchozím stavu **vypnuté**. Tlačítko nahrávání má být i v okně kamery (T-146). Soubory na jednom místě, rozlišené podle tiskárny.
+2. Konec tisku: nahrávat ještě **1 min** po konci tisku; `Offline` ukončí nahrávku po toleranci **1 min** (jako T-079).
+3. `Paused` / `Attention`: **nahrávat dál**.
+4. Ruční nahrávání během automatického: **jedna nahrávka** (ruční Start nic nepřidá); ruční Stop ukončí i automatickou a ta se do konce tisku znovu nespustí.
+5. Složka: Windows `%USERPROFILE%\Videos\LayerPeek`, macOS `~/Movies/LayerPeek`, **podsložka pro každou tiskárnu**, volitelná vlastní složka v nastavení.
+6. Limit: **50 GB celkem** (mazat nejstarší nahrávky), mez volného místa **5 GB** (pod ní se nahrávání zastaví s chybou); limit jde změnit v nastavení.
+7. Nastavení **smíšeně**: složka a limit globálně, „Automaticky nahrávat tisk“ u každé tiskárny.
+8. Notifikace **jen při chybě** nahrávání.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

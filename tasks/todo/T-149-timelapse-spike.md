@@ -32,5 +32,10 @@ Timelapse (zrychlené video celého tisku) na rozdíl od nahrávání z T-144 **
 2. **Výstupní formát** (sekvence obrázků / MJPEG / H.264 / platformní enkodér) – rozhodne uživatel po spiku.
 3. **Spouštěč snímku:** po čase, po vrstvě, obojí jako volba?
 
+### Rozhodnutí uživatele 2026-11-03
+1. Timelapse uživatel chce prověřit – spike je v plánu sezení 2026-11-03.
+3. Spouštěč snímku: spike prověří **obojí jako volbu** (po čase i po vrstvě; ověřit, zda PrusaLink spolehlivě hlásí změnu vrstvy).
+- Nové závislosti spike **jen doporučí**; prototyp jen mimo repozitář (scratchpad), do repozitáře jde jen zpráva.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

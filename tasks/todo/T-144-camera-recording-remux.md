@@ -51,5 +51,12 @@ Tento úkol řeší jen „zapiš pakety ze sdíleného spojení (T-143) do soub
 4. **Zvuk:** Buddy3D zvuk nemá (předpoklad z T-014 – jedna stopa H.264); nahrává se jen video. Potvrdit.
 5. **Co se smí objevit v logu:** stačí název souboru nahrávky bez složky (složka může obsahovat uživatelské jméno), nebo celá cesta?
 
+### Rozhodnutí uživatele 2026-11-03
+1. Kontejner: **fragmentovaný MP4** (`movflags=frag_keyframe+empty_moov`), bez volby v nastavení.
+2. **Jeden soubor na tisk**, bez segmentů.
+3. Výpadek streamu během nahrávání: **nový soubor** (přípona `-2`, `-3`…).
+4. **Jen video, bez zvuku** – potvrzeno.
+5. V logu **jen název souboru**, bez složky.
+
 ## Poznámky k implementaci
 (vyplní agent po dokončení)
