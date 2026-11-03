@@ -160,6 +160,20 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-128 | E2E testy místo ručních kontrol – zkušební upozornění a aktualizace přes Velopack (hotovo; instalační případy v T-124) | windows | qa-reviewer | P2 | T-058, T-101, T-125 |
 | T-132 | run-e2e.ps1 – uchovat výsledky neúspěšných běhů (hotovo) | windows | qa-reviewer | P3 | – |
 | T-133 | E2E – návrat upozornění testovací aplikace, předpoklad testu instalátoru, aktivátor po AOT smoke | windows | qa-reviewer | P1 | T-128, T-017 |
+| T-143 | Kamera – sdílené spojení se streamem na pozadí (okno, nahrávání, detekce) | all | core-dev + ui-dev | P2 | T-014, T-034 |
+| T-144 | Nahrávání kamery – zápis streamu do souboru bez překódování (Camera.FFmpeg + abstrakce v Core) | all | core-dev | P2 | T-143 |
+| T-145 | Nahrávání kamery – služba v Core (ruční a automatické nahrávání při tisku, složka, limit, rotace) | all | core-dev | P2 | T-144, T-009 |
+| T-146 | Nahrávání kamery – UI (tray menu, okno kamery, nastavení) a E2E | all | ui-designer + ui-dev | P2 | T-145, T-033, T-092 |
+| T-148 | Nahrávání kamery fáze 2 – „dashcam“ (kruhový buffer, uložení při chybě tisku) | all | core-dev + ui-dev | P3 | T-145, T-146 |
+| T-149 | Timelapse tisku – průzkum (spike): způsob, licence, AOT | all | architect | P3 | T-144 |
+| T-150 | Okno kamery – automatické zavření při vypnuté tiskárně a znovuotevření (logika v Core) | all | core-dev | P2 | T-035, T-006 |
+| T-151 | Okno kamery – automatické zavření a znovuotevření (App, nastavení, E2E) | all | ui-dev | P2 | T-150 |
+| T-152 | Detekce chyb tisku z kamery – průzkum (spike): CV vs. ML, licence, AOT, Core One | all | architect | P2 | – |
+| T-153 | Detekce chyb tisku – infrastruktura (projekt LayerPeek.Detection, vzorkování, kontext tisku, události) | all | core-dev | P2 | T-143, T-152 |
+| T-154 | Detekce chyb tisku – UI (nastavení detektorů, notifikace, falešný poplach) | all | ui-designer + ui-dev | P2 | T-153, T-033 |
+| T-155 | Detekce chyb tisku – první detektor (typ podle spiku T-152) | all | core-dev | P2 | T-152, T-153 |
+| T-156 | Detekce chyb tisku – další detektory včetně první vrstvy (rozpad) | all | architect | P3 | T-155 |
+| T-157 | Automatické pozastavení tisku po detekci chyby (volitelné, PrusaLink) | all | core-dev + ui-dev | P3 | T-154, T-155 |
 
 ### Windows (`windows`)
 
@@ -224,3 +238,4 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-140 | macOS – kontroly s oprávněním bez uživatele (`-Allow`, sudoers, zámek obrazovky) (hotovo) | macos | qa-reviewer | P2 | T-105, T-136 |
 | T-141 | macOS – ⌘. (Zrušit) se k oknům aplikace nedostane (hotovo) | macos | ui-dev | P2 | T-100 |
 | T-142 | E2E test aktualizace na Macu selže se zapnutým displejem (hotovo; dřív T-133, přečíslováno 2026-11-02) | macos | qa-reviewer | P2 | T-058, T-099 |
+| T-147 | macOS – FFmpeg s muxerem pro nahrávání kamery | macos | ui-dev | P2 | T-144, T-026 |
