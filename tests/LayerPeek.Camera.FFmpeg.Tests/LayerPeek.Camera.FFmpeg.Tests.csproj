@@ -2,12 +2,16 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <IsPackable>false</IsPackable>
+    <!-- The MP4 probe of the recording tests (T-144) reads files through FFmpeg's pointers. -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="..\Shared\AllocationProbe.cs" Link="Shared\AllocationProbe.cs" />
+    <Compile Include="..\Shared\TestRunLock.cs" Link="Shared\TestRunLock.cs" />
+    <Compile Include="..\Shared\TestWorktree.cs" Link="Shared\TestWorktree.cs" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="Xunit" />

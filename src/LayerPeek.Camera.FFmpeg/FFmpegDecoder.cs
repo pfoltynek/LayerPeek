@@ -497,7 +497,7 @@ internal sealed unsafe class FFmpegDecoder : IDisposable
         return opaque is not null && GCHandle.FromIntPtr((nint)opaque).Target is InterruptFlag { IsSet: true } ? 1 : 0;
     }
 
-    private static string Describe(int error)
+    internal static string Describe(int error)
     {
         if (OperatingSystem.IsWindows() && DescribeWindowsNetworkError(-error) is { } network)
         {

@@ -26,6 +26,7 @@ using LayerPeek.App.Updates;
 using LayerPeek.App.Windows;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Images;
@@ -702,6 +703,13 @@ internal static partial class AppServices
             sp.GetRequiredService<TimeProvider>(),
             sp.GetRequiredService<ILogger<CameraStreamHub>>()));
         services.AddSingleton(static sp => new CameraStreamHubObserver(sp.GetRequiredService<CameraStreamHub>()));
+        // T-144: recordings remux the hub's packets into fragmented MP4 (FFmpeg, never an encoder); when and where to
+        // record is decided by T-145. Creating them loads nothing; a build without the muxer reports "not available".
+        services.AddSingleton<ICameraRecordingWriterFactory>(static _ => new FFmpegCameraRecordingWriterFactory());
+        services.AddSingleton<ICameraRecorder>(static sp => new CameraRecorder(
+            sp.GetRequiredService<CameraStreamHub>(),
+            sp.GetRequiredService<ICameraRecordingWriterFactory>(),
+            sp.GetRequiredService<ILogger<CameraRecorder>>()));
         // T-143 decision 3: an unsaved address is tested over a connection of its own, the saved camera through the hub.
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),

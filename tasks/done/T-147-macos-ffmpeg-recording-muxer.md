@@ -1,7 +1,7 @@
 ---
 id: T-147
 title: macOS – FFmpeg s muxerem pro nahrávání kamery
-status: in-progress
+status: done
 owner: ui-dev
 priority: P2
 platform: macos
@@ -20,16 +20,16 @@ Na macOS se FFmpeg staví ze zdrojů minimálně (`build/macos/build-ffmpeg.sh`,
 
 ## Akceptační kritéria
 - [x] První `dotnet build` na Macu postaví FFmpeg s muxerem, licence LGPL 3+, závislosti knihoven jen `@loader_path` a systém (kontroly skriptu prochází).
-- [ ] Testy nahrávání z T-144 prochází na `osx-arm64`; factory hlásí „k dispozici“. (Čeká na kód T-144; zatím prochází `FFmpegRuntimeMuxerTests`: muxer `mp4` je v načtených knihovnách.)
-- [ ] Nahrávka z kamery simulátoru i ze skutečné kamery jde na Macu přehrát. (Čeká na kód T-144.)
+- [x] Testy nahrávání z T-144 prochází na `osx-arm64`; factory hlásí „k dispozici“. (`FFmpegRecordingTests`, `FFmpegRecordingAllocationTests`, `FFmpegRuntimeMuxerTests`; `FFmpegCameraRecordingWriterFactory.Availability.IsAvailable` = `true`.)
+- [x] Nahrávka z kamery simulátoru i ze skutečné kamery jde na Macu přehrát. (Ověřeno 2026-11-03 přes `ffprobe` a úplné dekódování, viz poznámky; přehrání v QuickTime → přesunuto do T-127)
 - [x] Velikost knihoven se zvětšila jen o muxer (zapsat do poznámek před / po).
-- [ ] `dotnet build` a `dotnet test` na Macu bez chyb a varování; Native AOT publish `osx-arm64` bez nových varování. (Pro změny T-147 splněno 2026-11-03, viz poznámky; zopakovat s kódem T-144.)
+- [x] `dotnet build` a `dotnet test` na Macu bez chyb a varování; Native AOT publish `osx-arm64` bez nových varování. (Znovu s kódem T-144 2026-11-03, viz poznámky.)
 
 ## Otevřené otázky
 - (žádné vlastní; kontejner rozhoduje otázka 1 v T-144)
 
 ## Poznámky k implementaci
-Stav 2026-11-03 (core-dev): build pro macOS je hotový, úkol zůstává v `in-progress`. Kritéria 2, 3 a 5 potřebují kód nahrávání z T-144, uzavře se spolu s T-144.
+Stav 2026-11-03 (core-dev): build pro macOS hotový; kritéria 2, 3 a 5 ověřena s kódem T-144 (viz „Ověření s T-144“ na konci).
 
 - **Příznak:** do `CONFIGURE_FLAGS` v `build/macos/build-ffmpeg.sh` přibyl jen `--enable-muxer=mp4` (kontejner podle rozhodnutí T-144: fragmentovaný MP4). Matroska ani jiný muxer, žádný enkodér, žádný bitstream filtr navíc.
 - **Proč bez bitstream filtrů (ověřeno ve zdrojích FFmpeg 9.0.2, `libavformat/movenc.c`):** u H.264 s extradata ve formátu Annex B (začíná start kódem, ne `1`) převede muxer každý paket na délkově prefixované NAL jednotky sám (`ff_nal_parse_units`) a extradata zapíše jako `avcC` (`ff_isom_write_avcc` v `avc.c` převede Annex B se SPS/PPS). `mov_check_bitstream` přidává filtr jen pro AAC s ADTS (`aac_adtstoasc`) a VP9 (`vp9_superframe`). `h264_mp4toannexb` slouží opačnému směru (MP4 → Annex B) a `extract_extradata` muxer nepoužívá.
@@ -41,3 +41,11 @@ Stav 2026-11-03 (core-dev): build pro macOS je hotový, úkol zůstává v `in-p
 - **Windows:** build BtbN (`ffmpeg-n9.0.2-28-g669f5ab083-win64-lgpl-shared-9.0`) je plný LGPL build bez `--disable-everything`. Muxery MP4 i Matroska v `avformat-63.dll` ověřil architekt na Windows 2026-11-03 (viz „Výchozí stav“ v T-144). Na Macu se DLL neověřovaly. Test `FFmpegRuntimeMuxerTests.TheMp4MuxerIsAvailable` to na Windows ověří automaticky při dalším `dotnet test`.
 - **Poznámka pro T-144:** s `movflags=frag_keyframe+empty_moov` zapisuje muxer `moov` už v `avformat_write_header`, takže `avcC` potřebuje extradata (SPS/PPS) hned na začátku. Když je SDP kamery nemá (`sprop-parameter-sets`), vezme je `movenc.c` z prvního paketu jen při `delay_moov`. Ověřit na Buddy3D a simulátoru v T-144.
 - **Build a testy 2026-11-03 (macOS arm64):** `dotnet build` 0 upozornění, 0 chyb; `dotnet test` celkem 8693, neúspěšné 0, úspěšné 8493, přeskočeno 200 (z toho `LayerPeek.Camera.FFmpeg.Tests` +83/x0/?0). `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` prošel bez varování trim/AOT. Vypsal jen varování nativního linkeru a `dsymutil` (duplicitní debug map v `libRuntime.WorkstationGC.a` runtime NativeAOT, chybějící `.pcm` v module cache clangu, `xcodebuild requires Xcode`). Ta nesouvisí s FFmpeg ani s touto změnou.
+
+**Ověření s T-144 (2026-11-03, macOS arm64):**
+- Testy nahrávání T-144 v `LayerPeek.Camera.FFmpeg.Tests` (fixture, simulátor, výpadek, „pád“, ukončení, bez alokací) prochází, nic se nepřeskočilo; factory hlásí „k dispozici“.
+- Simulátor (20 s, `sim.mp4`): `ffprobe` = `mov,mp4,…`, H.264 Constrained Baseline 1280×720; `ffmpeg -v error -i sim.mp4 -f null -` bez chyby.
+- Skutečná Buddy3D přes relay `rtsp://127.0.0.1:8556/live` (30 s, `real.mp4`): H.264 Constrained Baseline 1280×720, extradata 43 B, `ffprobe -count_frames` = 762 / 762 snímků. `ffmpeg -f null` hlásí jen „non monotonically increasing dts to muxer“ výstupu `null` (časová základna ffmpeg CLI podle `r_frame_rate`, kamera má kolísavé rozestupy), s `-enc_time_base:v demux` nic; DTS v souboru přísně roste (podrobně v T-144).
+- `kill -9` během nahrávání ze skutečné kamery: soubor čitelný (17,0 s, 400 snímků, dekódování bez chyby).
+- `dotnet build` 0 upozornění; `dotnet test` celkem 8744, neúspěšné 0, úspěšné 8544, přeskočeno 200; `dotnet publish src/LayerPeek.App -c Release -r osx-arm64` bez varování trim / AOT (jen dřívější hlášky nativního linkeru / `dsymutil`).
+- Uzavřeno 2026-11-03: zbývající ruční ověření (přehrání v QuickTime) přesunuto do T-127 (rozhodnutí uživatele).
