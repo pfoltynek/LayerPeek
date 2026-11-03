@@ -63,6 +63,30 @@ public sealed class RecordingClockTests
     }
 
     [Fact]
+    public void ARealGapDoesNotBecomeTheFrameDuration()
+    {
+        RecordingClock clock = new(Rtp);
+
+        // A 5 s gap (a stalled camera) is kept, but a missing timestamp after it continues one frame (4000), not 5 s.
+        Assert.Equal([0L, 4000L, 454_000L, 458_000L], Dts(ref clock, 0, 4000, 454_000, null));
+        Assert.Equal(TimeSpan.FromTicks(Rescale(462_000)), clock.Elapsed);
+
+        static long Rescale(long ticks) => RecordingClock.Rescale(ticks, Rtp, new CameraTimeBase(1, (int)TimeSpan.TicksPerSecond));
+    }
+
+    [Fact]
+    public void ALongPacketDurationIsNotTakenAsTheFrameDuration()
+    {
+        RecordingClock clock = new(Rtp);
+        clock.Next(Packet(0, 0, duration: 2L * 90_000), out _, out _, out _);
+
+        clock.Next(Packet(null, null), out _, out long dts, out _);
+
+        // The assumed 25 fps (3600 ticks), not the 2 s the packet claimed.
+        Assert.Equal(3600L, dts);
+    }
+
+    [Fact]
     public void ThePacketDurationIsUsedForAMissingTimestamp()
     {
         RecordingClock clock = new(Rtp);

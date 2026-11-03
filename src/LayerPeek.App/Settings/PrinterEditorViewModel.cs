@@ -100,6 +100,9 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     // The widget layout of the camera overlay (T-077) as edited on the Widgets tab (T-092); _savedCameraEnabled: the camera
     // is on in the saved settings, which "Edit layout in camera window…" needs (the camera window works with them).
     private CameraOverlayLayout _overlayLayout;
+
+    /// <summary>"Record prints automatically" (T-145), kept as loaded until the camera tab edits it (T-146).</summary>
+    private readonly bool _recordPrints;
     private bool _savedCameraEnabled;
 
     /// <param name="saved">The saved definition; <see langword="null"/> for a new printer.</param>
@@ -146,6 +149,7 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         ResetCameraWindowCommand = new RelayCommand(ResetCameraWindow, () => _cameraEnabled && _owner.IsEditable);
         ApplyCameraWindowCommand = new AsyncRelayCommand(() => _owner.ApplyAsync(this), () => _cameraEnabled && _owner.IsEditable);
         _overlayLayout = camera.Overlay;
+        _recordPrints = camera.RecordPrints;
         InitializeMiniStrip(camera);
         _savedCameraEnabled = saved is not null && camera.Enabled;
         InitializeImage(saved, storedCustomImage);
@@ -794,9 +798,10 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
     {
         CameraOverlayLayout layout = _overlayLayout;
         CameraMiniStripSettings strip = _miniStrip;
+        bool recordPrints = _recordPrints;
         if (CameraSettings.TryParseStreamUri(_cameraUrl, out Uri? uri, out CameraUrlProblem problem))
         {
-            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip };
+            return new CameraSettings(_cameraEnabled, uri) { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints };
         }
 
         if (_cameraEnabled || problem == CameraUrlProblem.ContainsCredentials)
@@ -808,13 +813,14 @@ public sealed partial class PrinterEditorViewModel : ObservableObject
         {
             // No address and the default window and layout: the shared "no camera" value.
             return window == CameraSettings.Disabled.Window && layout == CameraSettings.Disabled.Overlay && strip == CameraSettings.Disabled.MiniStrip
+                && !recordPrints
                 ? CameraSettings.Disabled
-                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip };
+                : CameraSettings.Disabled with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints };
         }
 
         try
         {
-            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip };
+            return CameraSettings.FromInvalidStreamUrl(_cameraUrl) with { Window = window, Overlay = layout, MiniStrip = strip, RecordPrints = recordPrints };
         }
         catch (ArgumentException)
         {

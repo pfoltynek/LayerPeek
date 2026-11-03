@@ -257,6 +257,8 @@ internal static partial class AppServices
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
                 sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
+                // T-145: before the hub, so that a switched-off camera stops its recording before the hub ends the lease.
+                sp.GetRequiredService<CameraRecordingObserver>(),
                 // Before MonitoredPrinters: the hub knows a new camera address before the open camera windows hear of it.
                 sp.GetRequiredService<CameraStreamHubObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
@@ -675,7 +677,16 @@ internal static partial class AppServices
     private static readonly Func<IServiceProvider, ICameraFeedFactory> CreateCameraFeedFactory =
         static _ => new FFmpegCameraFeedFactory();
 
+    /// <summary>
+    /// The test mode (T-044) records into its data folder by default, never into the user's video folder; the E2E tests
+    /// of T-146 delete it with the rest of their data.
+    /// </summary>
+    internal static CameraRecordingServiceOptions CameraRecordingOptions(AppEnvironment environment) => environment.IsIsolated
+        ? new CameraRecordingServiceOptions { DefaultRoot = Path.Combine(environment.DataDirectory(), "Recordings") }
+        : CameraRecordingServiceOptions.Default;
+
     /// <summary>Camera windows and the camera test of the settings window (T-014), on top of <paramref name="cameraFeedFactory"/>.</summary>
+
     private static void AddCameras(
         ServiceCollection services,
         Func<IServiceProvider, ICameraFeedFactory> cameraFeedFactory,
@@ -710,6 +721,16 @@ internal static partial class AppServices
             sp.GetRequiredService<CameraStreamHub>(),
             sp.GetRequiredService<ICameraRecordingWriterFactory>(),
             sp.GetRequiredService<ILogger<CameraRecorder>>()));
+        // T-145: when and where to record (manual, automatic during prints), the folder, the size limit and the rotation.
+        // Idle without recordings; quitting waits for running recordings to complete their files (ServiceHost).
+        services.AddSingleton(static sp => new CameraRecordingService(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<ICameraRecorder>(),
+            CameraRecordingStorage.Instance,
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraRecordingService>>(),
+            CameraRecordingOptions(sp.GetRequiredService<AppEnvironment>())));
+        services.AddSingleton(static sp => new CameraRecordingObserver(sp.GetRequiredService<CameraRecordingService>()));
         // T-143 decision 3: an unsaved address is tested over a connection of its own, the saved camera through the hub.
         services.AddSingleton<ICameraTester>(static sp => new CameraSnapshotTester(
             sp.GetRequiredService<ICameraFeedFactory>(),

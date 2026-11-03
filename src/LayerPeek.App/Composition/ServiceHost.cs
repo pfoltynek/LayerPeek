@@ -271,14 +271,27 @@ internal sealed partial class ServiceHost
     }
 
     /// <summary>
-    /// Ends every camera lease and waits at most <paramref name="timeout"/> for the connections to close (a decoder that does
-    /// not react is left to the process exit). Never throws.
+    /// Stops the recordings (T-145), then ends every camera lease, waiting at most <paramref name="timeout"/> for both together
+    /// (a decoder that does not react is left to the process exit). Never throws.
     /// </summary>
     private async Task StopCameraStreamsAsync(TimeSpan timeout)
     {
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
         try
         {
-            await Services.GetRequiredService<CameraStreamHub>().DisposeAsync().AsTask().WaitAsync(timeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+            // T-145: running recordings first complete their files (the last fragment and the end), before their
+            // connections close; within the same limit.
+            await Services.GetRequiredService<Core.Cameras.Recording.CameraRecordingService>().StopAllAsync().WaitAsync(timeout).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
+        }
+        catch (Exception ex)
+        {
+            LogDisposeFailed(ex);
+        }
+
+        TimeSpan remaining = timeout - elapsed.Elapsed;
+        try
+        {
+            await Services.GetRequiredService<CameraStreamHub>().DisposeAsync().AsTask().WaitAsync(remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero).ConfigureAwait(ConfigureAwaitOptions.SuppressThrowing);
         }
         catch (Exception ex)
         {

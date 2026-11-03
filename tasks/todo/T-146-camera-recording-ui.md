@@ -22,6 +22,7 @@ Uživatelské rozhraní nahrávání z fáze 1 (nápad 1): ruční spuštění a
   - nastavení podle návrhu, výběr složky přes systémový dialog, „Otevřít složku s nahrávkami“,
   - všechny nové texty ve všech jazycích (`Strings.*.resx`, T-029),
   - compiled bindings, žádná reflexe (Native AOT).
+- **Notifikace chyby nahrávání** (rozhodnutí 8 v T-145): `CameraRecordingService.Failed` (`CameraRecordingError`) přes `INotificationService`, texty podle `CameraRecordingProblem` ve všech jazycích; Core text nelokalizuje (API viz poznámky T-145).
 - **Testy:** headless UI testy (T-031) pro nastavení a menu; E2E na Windows (UI Automation, T-044) proti simulátoru: ruční nahrávka z menu vytvoří soubor, automatická nahrávka během scénáře tisku simulátoru bez otevřeného okna kamery vytvoří soubor, indikace se zobrazí a zmizí.
 
 ## Akceptační kritéria

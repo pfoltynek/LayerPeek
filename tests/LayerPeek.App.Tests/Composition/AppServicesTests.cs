@@ -23,6 +23,7 @@ using LayerPeek.App.Tray;
 using LayerPeek.App.Tray.Menu;
 using LayerPeek.Camera.FFmpeg;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.History;
 using LayerPeek.Core.Monitoring;
@@ -409,6 +410,43 @@ public sealed class AppServicesTests
             Printers = [new() { Id = "a", Name = "Alpha", ConnectionType = ConnectionType.PrusaLink, Address = "192.168.0.226", Camera = new CameraSettings(enabled: true, new Uri("rtsp://192.168.0.227/live")) }],
         });
         Assert.True(hub.IsConfigured("a", new Uri("rtsp://192.168.0.227/live")));
+    }
+
+    /// <summary>
+    /// T-145: one recording service over the recorder, told about every run before the hub (a switched-off camera stops its
+    /// recording on the service's account); the test mode records into its data folder, never into the user's videos.
+    /// </summary>
+    [Fact]
+    public async Task CameraRecordingServiceIsWiredBeforeTheHub()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        CameraRecordingService recordings = services.GetRequiredService<CameraRecordingService>();
+        Assert.Same(recordings, services.GetRequiredService<CameraRecordingService>());
+        List<IMonitoringObserver> observers = [.. services.GetRequiredService<MonitoringSession>().Observers];
+        int recordingObserver = observers.IndexOf(services.GetRequiredService<CameraRecordingObserver>());
+        int hubObserver = observers.IndexOf(services.GetRequiredService<CameraStreamHubObserver>());
+        Assert.True(recordingObserver >= 0, "The recording service gets no settings.");
+        Assert.True(recordingObserver < hubObserver, "The hub would end the lease of a switched-off camera before the recording stops.");
+        Assert.Equal(CameraRecordingFolders.DefaultRoot(), recordings.RecordingsFolder);
+
+        AppEnvironment isolated = AppEnvironment.ForTests(Path.Combine(Path.GetTempPath(), "LayerPeek-test-data"));
+        Assert.Equal(Path.Combine(isolated.DataDirectory(), "Recordings"), AppServices.CameraRecordingOptions(isolated).DefaultRoot);
+        Assert.Same(CameraRecordingServiceOptions.Default, AppServices.CameraRecordingOptions(AppEnvironment.Production));
+    }
+
+    /// <summary>A start that failed after the services were created disposes the container synchronously (DisposeAfterFailedStart).</summary>
+    [Fact]
+    public void TheContainerWithTheRecordingServiceCanBeDisposedSynchronously()
+    {
+        ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+        services.GetRequiredService<CameraRecordingService>();
+
+        services.Dispose();
     }
 
     /// <summary>

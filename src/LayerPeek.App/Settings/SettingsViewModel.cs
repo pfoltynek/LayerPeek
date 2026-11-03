@@ -17,6 +17,7 @@ using LayerPeek.App.Printers;
 using LayerPeek.App.Resources;
 using LayerPeek.App.Tray;
 using LayerPeek.Core.Cameras;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Images;
 using LayerPeek.Core.Printers;
 using LayerPeek.Core.Settings;
@@ -142,6 +143,12 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private bool _debugLogging;
 
     private bool _cameraWindowAutoClose = true;
+
+    /// <summary>
+    /// The recording folder and size limit (T-145), kept as loaded until the settings window edits them (T-146), so that a
+    /// save never loses them.
+    /// </summary>
+    private CameraRecordingSettings _recording = CameraRecordingSettings.Default;
     private bool _offerPrereleaseUpdates;
     private bool _startWithWindows;
 
@@ -1063,6 +1070,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
         _cameraWindowAutoClose = settings.CameraWindowAutoClose;
+        _recording = settings.Recording;
 
         _noticeSource = data.Status switch
         {
@@ -1475,6 +1483,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
                 CameraWindowAutoClose = _cameraWindowAutoClose,
+                Recording = _recording,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,

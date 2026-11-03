@@ -223,6 +223,11 @@ internal sealed partial class CameraRecording : ICameraRecording
         {
             (failure, message) = (ex.Failure, ex.Message);
         }
+        catch (CameraRecordingException ex)
+        {
+            // Closing after a failure (e.g. the disk is still full): expected, and the first failure is the one that counts.
+            LogCloseAfterFailureFailed(PrinterId, ex.Failure, ex.Message);
+        }
         catch (Exception ex)
         {
             // Closing after a failure: the first failure is the one that counts.
@@ -404,6 +409,9 @@ internal sealed partial class CameraRecording : ICameraRecording
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recording of printer '{PrinterId}' failed ({Failure}): {Reason}")]
     private partial void LogFailed(string printerId, CameraRecordingFailure failure, string reason);
+
+    [LoggerMessage(Level = LogLevel.Debug, Message = "Recording of printer '{PrinterId}' could not complete its file after the failure either ({Failure}): {Reason}")]
+    private partial void LogCloseAfterFailureFailed(string printerId, CameraRecordingFailure failure, string reason);
 
     [LoggerMessage(Level = LogLevel.Warning, Message = "Recording of printer '{PrinterId}' could not delete its empty file '{FileName}'.")]
     private partial void LogDeleteFailed(string printerId, string fileName);

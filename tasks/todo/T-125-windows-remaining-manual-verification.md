@@ -114,6 +114,9 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (build BtbN má muxer MP4); `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
 - [ ] **T-144** (ruční, přehrání): nahrávka z kamery simulátoru (po T-146 z menu nebo okna kamery) jde přehrát ve
       Filmech a TV i ve VLC od začátku do konce, posuvník funguje.
+- [ ] **T-145** (služba nahrávání, implementováno na Macu 2026-11-03): testy `CameraRecording*` v `LayerPeek.Core.Tests`
+      prochází na Windows (výchozí složka `%USERPROFILE%\Videos\LayerPeek` podle známé složky Videa, volné místo přes
+      `DriveInfo` kořene disku, skrytá značka `.layerpeek-recordings`); složka se značkou je v Průzkumníku skrytá; s Videi na OneDrive (Files On-Demand) rotace staré nahrávky skutečně maže (soubory s reparse pointem rotace přeskakuje, revize T-145).
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →

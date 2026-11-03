@@ -19,6 +19,8 @@ public sealed class ReconnectingCameraFeedAllocationTests
         SynchronousCameraFeed inner = new();
         ReconnectingCameraFeed camera = new(new SingleStreamFactory(inner), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        // A bug fails the test instead of hanging the run (set once, outside the measured loops).
+        cancellation.CancelAfter(TimeSpan.FromSeconds(60));
         IAsyncEnumerator<CameraFrame> frames = camera.ReadFramesAsync(new Uri("rtsp://192.168.0.227/live"), status: null, cancellation.Token)
             .GetAsyncEnumerator(cancellation.Token);
         try
@@ -54,6 +56,8 @@ public sealed class ReconnectingCameraFeedAllocationTests
         using AsynchronousCameraFeed inner = new();
         ReconnectingCameraFeed camera = new(new SingleStreamFactory(inner), TimeProvider.System, NullLogger<ReconnectingCameraFeed>.Instance);
         using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        // A bug fails the test instead of hanging the run (set once, outside the measured loops).
+        cancellation.CancelAfter(TimeSpan.FromSeconds(60));
 
         // On the thread pool: no synchronization context, continuations stay on the producer thread.
         long allocated = await Task.Run(

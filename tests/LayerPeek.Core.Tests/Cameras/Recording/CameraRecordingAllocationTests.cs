@@ -65,7 +65,7 @@ public sealed class CameraRecordingAllocationTests : IDisposable
         }
 
         long allocated = GC.GetTotalAllocatedBytes(precise: true) - before;
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         return allocated;
     }
 }
