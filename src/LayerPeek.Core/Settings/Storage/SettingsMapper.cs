@@ -3,6 +3,7 @@ using System.Text.Json;
 
 using LayerPeek.Core.Cameras;
 using LayerPeek.Core.Cameras.Overlay;
+using LayerPeek.Core.Cameras.Recording;
 using LayerPeek.Core.Cooldown;
 using LayerPeek.Core.Printers;
 
@@ -46,6 +47,7 @@ internal static class SettingsMapper
                 ? null
                 : new CameraOverlaySettingsDocument { BackgroundOpacityPercent = settings.CameraOverlayOpacityPercent },
             CameraWindowAutoClose = settings.CameraWindowAutoClose ? null : false,
+            Recording = ToDocument(settings.Recording),
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
             {
                 Id = printer.Id,
@@ -60,6 +62,7 @@ internal static class SettingsMapper
                     Window = ToDocument(printer.Camera.Window),
                     Overlay = ToDocument(printer.Camera.Overlay),
                     MiniStrip = ToDocument(printer.Camera.MiniStrip),
+                    RecordPrints = printer.Camera.RecordPrints ? JsonSerializer.SerializeToElement(true, SettingsJsonContext.Default.Boolean) : null,
                 },
                 DetectedModel = printer.DetectedModel?.ToString(),
                 Image = ToDocument(printer.Image),
@@ -90,6 +93,7 @@ internal static class SettingsMapper
             CheckForUpdates = document.CheckForUpdates ?? true,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
             CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
+            Recording = ToRecording(document.Recording, warnings),
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),
         };
@@ -112,6 +116,115 @@ internal static class SettingsMapper
         }
 
         return settings;
+    }
+
+    /// <summary>Not written while both values are the defaults, so that files stay as they were.</summary>
+    internal static JsonElement? ToDocument(CameraRecordingSettings recording)
+    {
+        if (recording == CameraRecordingSettings.Default)
+        {
+            return null;
+        }
+
+        RecordingDocument document = new()
+        {
+            Folder = recording.Folder,
+            SizeLimitGigabytes = recording.SizeLimitGigabytes == CameraRecordingSettings.DefaultSizeLimitGigabytes ? null : recording.SizeLimitGigabytes,
+        };
+        return JsonSerializer.SerializeToElement(document, SettingsJsonContext.Default.RecordingDocument);
+    }
+
+    /// <summary>
+    /// The recording section read leniently (T-145): a missing section or value is the default; an invalid value (a folder
+    /// that is no absolute path, a limit that is no whole number of gigabytes in range, a value of the wrong type) is its
+    /// default with one warning that never echoes the value (the folder may contain the user name). Property names are
+    /// matched case-insensitively and the last of duplicates wins; unknown names (a newer version) are ignored.
+    /// </summary>
+    private static CameraRecordingSettings ToRecording(JsonElement? section, List<string> warnings)
+    {
+        if (!IsPresent(section))
+        {
+            return CameraRecordingSettings.Default;
+        }
+
+        JsonElement value = section!.Value;
+        if (value.ValueKind != JsonValueKind.Object)
+        {
+            warnings.Add("Recording settings are invalid; the default folder and size limit are used.");
+            return CameraRecordingSettings.Default;
+        }
+
+        JsonElement? folder = null;
+        JsonElement? limit = null;
+        foreach (JsonProperty property in value.EnumerateObject())
+        {
+            if (string.Equals(property.Name, "folder", StringComparison.OrdinalIgnoreCase))
+            {
+                folder = property.Value;
+            }
+            else if (string.Equals(property.Name, "sizeLimitGigabytes", StringComparison.OrdinalIgnoreCase))
+            {
+                limit = property.Value;
+            }
+        }
+
+        string? folderPath = null;
+        if (IsPresent(folder))
+        {
+            if (folder!.Value.ValueKind == JsonValueKind.String && CameraRecordingSettings.IsValidFolder(folder.Value.GetString()))
+            {
+                folderPath = folder.Value.GetString();
+            }
+            else
+            {
+                warnings.Add("Recording folder is invalid (an absolute folder path); the default folder is used.");
+            }
+        }
+
+        int gigabytes = CameraRecordingSettings.DefaultSizeLimitGigabytes;
+        if (IsPresent(limit))
+        {
+            double? number = limit!.Value.ValueKind switch
+            {
+                JsonValueKind.Number when limit.Value.TryGetDouble(out double parsed) => parsed,
+                JsonValueKind.String when double.TryParse(limit.Value.GetString(), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out double parsed) => parsed,
+                _ => null,
+            };
+            if (TryGetWholeNumber(number, out int whole)
+                && whole is >= CameraRecordingSettings.MinSizeLimitGigabytes and <= CameraRecordingSettings.MaxSizeLimitGigabytes)
+            {
+                gigabytes = whole;
+            }
+            else
+            {
+                warnings.Add(
+                    $"Recording size limit is invalid (whole number {CameraRecordingSettings.MinSizeLimitGigabytes}–{CameraRecordingSettings.MaxSizeLimitGigabytes} GB); {CameraRecordingSettings.DefaultSizeLimitGigabytes} GB is used.");
+            }
+        }
+
+        return folderPath is null && gigabytes == CameraRecordingSettings.DefaultSizeLimitGigabytes
+            ? CameraRecordingSettings.Default
+            : new CameraRecordingSettings { Folder = folderPath, SizeLimitGigabytes = gigabytes };
+    }
+
+    /// <summary>Missing = off; a value that is not a JSON boolean is off with a warning (T-145).</summary>
+    private static bool ToRecordPrints(JsonElement? value, string printerId, List<string> warnings)
+    {
+        if (!IsPresent(value))
+        {
+            return false;
+        }
+
+        switch (value!.Value.ValueKind)
+        {
+            case JsonValueKind.True:
+                return true;
+            case JsonValueKind.False:
+                return false;
+            default:
+                warnings.Add($"Camera of printer '{Shorten(printerId)}': automatic recording of prints is invalid (true / false); it is off.");
+                return false;
+        }
     }
 
     /// <summary>Missing = the default; a fraction or a value out of range falls back to the default with a warning.</summary>
@@ -288,6 +401,11 @@ internal static class SettingsMapper
                 if (!ReferenceEquals(miniStrip, CameraMiniStripSettings.Default))
                 {
                     camera = camera with { MiniStrip = miniStrip };
+                }
+
+                if (ToRecordPrints(documents[i]!.Camera?.RecordPrints, printer.Id, warnings))
+                {
+                    camera = camera with { RecordPrints = true };
                 }
 
                 // Reference check: equality ignores CredentialsRemoved, which a credentials-only address sets on a Disabled copy.

@@ -20,12 +20,14 @@ public sealed class ReconnectingCameraFeedItemsTests
         ReconnectingCameraFeed camera = new(factory, new FakeTimeProvider(), new ListLogger<ReconnectingCameraFeed>());
         CameraStreamDemand demand = new(frames: false, packets: true);
         using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(Ct);
+        // A bug fails the test instead of hanging the run.
+        stop.CancelAfter(TestTimeouts.Wait * 3);
         await using IAsyncEnumerator<CameraStreamItem> items = camera.ReadAsync(StreamUri, demand, status, stop.Token).GetAsyncEnumerator(stop.Token);
 
         Assert.True(await items.MoveNextAsync());
         Assert.Equal(CameraStreamItemKind.StreamStarted, items.Current.Kind);
         FakeItemFeed feed = await factory.FeedAsync(1);
-        Assert.Same(demand, await feed.Started);
+        Assert.Same(demand, await feed.Started.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken));
         // The description alone is no image yet.
         Assert.Equal([CameraStatus.Connecting], status.All);
 

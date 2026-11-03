@@ -69,7 +69,7 @@ public sealed class CameraRecordingTests : IDisposable
         _packets.Started();
         _packets.Packet(6, keyFrame: true);
         await Eventually.TrueAsync(() => writers.Writers is [_, _, { Count: 1 }], "third file written");
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         FakeRecordingWriter[] files = writers.Writers;
         Assert.Equal(3, files.Length);
@@ -102,7 +102,7 @@ public sealed class CameraRecordingTests : IDisposable
         _packets.Started();
         _packets.Packet(1, keyFrame: true);
         await Eventually.TrueAsync(() => recording.Files.Count == 1, "file started");
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal([Path.Combine(_folder, "mk4 print-3.mp4")], recording.Files);
         Assert.Equal("user data", await File.ReadAllTextAsync(BasePath, TestContext.Current.CancellationToken));
@@ -118,7 +118,7 @@ public sealed class CameraRecordingTests : IDisposable
         _packets.Started();
         _packets.Packet(1);
         _packets.Packet(2);
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Empty(writers.Writers);
         Assert.Empty(recording.Files);
@@ -133,8 +133,8 @@ public sealed class CameraRecordingTests : IDisposable
         CameraRecording recording = Start(new FakeRecordingWriterFactory());
         Assert.Equal(CameraRecordingState.Starting, recording.State);
 
-        await recording.StopAsync();
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         await recording.DisposeAsync();
 
         Assert.True(_packets.Subscription.IsEnded);
@@ -193,6 +193,29 @@ public sealed class CameraRecordingTests : IDisposable
     }
 
     [Fact]
+    public async Task AFailureWhileCompletingAfterAFailureIsExpectedAndTheFirstFailureCounts()
+    {
+        // A full disk fails the write and then the end of the container as well (review of T-144: no error "unexpected").
+        FakeRecordingWriterFactory writers = new()
+        {
+            WriteFailure = (2, new CameraRecordingException(CameraRecordingFailure.DiskFull, "Writing the recording failed: No space left on device.")),
+            CompleteFailure = new CameraRecordingException(CameraRecordingFailure.DiskFull, "Completing the recording failed: No space left on device."),
+        };
+        CameraRecording recording = Start(writers);
+
+        _packets.Started();
+        _packets.Packet(1, keyFrame: true);
+        _packets.Packet(2);
+        await recording.Completion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+
+        Assert.Equal(CameraRecordingFailure.DiskFull, recording.Failure);
+        Assert.Equal("Writing the recording failed: No space left on device.", recording.FailureMessage);
+        Assert.True(Assert.Single(writers.Writers).IsDisposed);
+        Assert.DoesNotContain(_logger.Entries, static e => e.Level >= Microsoft.Extensions.Logging.LogLevel.Error);
+        Assert.Contains(_logger.Entries, static e => e.Message.Contains("could not complete its file after the failure", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task AFailureWhileCompletingTheFileFailsTheRecording()
     {
         FakeRecordingWriterFactory writers = new() { CompleteFailure = new CameraRecordingException("Completing the recording failed: I/O error.") };
@@ -201,7 +224,7 @@ public sealed class CameraRecordingTests : IDisposable
         _packets.Started();
         _packets.Packet(1, keyFrame: true);
         await Eventually.TrueAsync(() => recording.BytesWritten > 0, "first packet written");
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.True(Assert.Single(writers.Writers).IsDisposed);
         Assert.Equal(CameraRecordingFailure.WriteFailed, recording.Failure);
@@ -247,7 +270,7 @@ public sealed class CameraRecordingTests : IDisposable
         _packets.Started();
         _packets.Packet(2, keyFrame: true);
         await Eventually.TrueAsync(() => recording.Files.Count == 2, "second file");
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Contains(_logger.Entries, static e => e.Message.Contains("'mk4 print-2.mp4'", StringComparison.Ordinal));
         Assert.DoesNotContain(_logger.Entries, e => e.Message.Contains(_folder, StringComparison.Ordinal));
@@ -263,7 +286,7 @@ public sealed class CameraRecordingTests : IDisposable
         _packets.Packet(1, keyFrame: true);
         _packets.Packet(2);
         await Eventually.TrueAsync(() => recording.BytesWritten == 32, "both packets written");
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal(CameraRecordingState.Completed, recording.State);
         Assert.Equal(2, Assert.Single(writers.Writers).Count);
@@ -285,7 +308,7 @@ public sealed class CameraRecordingTests : IDisposable
         // 40 packets of 1/20 s.
         Assert.Equal(TimeSpan.FromSeconds(2), recording.Duration);
         Assert.Equal(CameraRecordingState.Recording, recording.State);
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -298,7 +321,7 @@ public sealed class CameraRecordingTests : IDisposable
 
         await recording.Completion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
-        Assert.False(await completedInCallback.Task, "Completion completes after the last callback, never before it is set.");
+        Assert.False(await completedInCallback.Task.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken), "Completion completes after the last callback, never before it is set.");
         Assert.Equal(CameraRecordingFailure.CameraUnavailable, recording.Failure);
     }
 

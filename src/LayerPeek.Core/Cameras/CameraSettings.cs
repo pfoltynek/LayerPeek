@@ -104,6 +104,13 @@ public sealed record CameraSettings
         }
     } = CameraMiniStripSettings.Default;
 
+    /// <summary>
+    /// "Record prints automatically" (T-145, user decision 2026-11-03: per printer, off by default): while the camera is
+    /// enabled, every print of the printer is recorded by <see cref="Recording.CameraRecordingService"/>. Kept while the
+    /// camera is disabled or its address is invalid. Persisted as <c>printers[*].camera.recordPrints</c> (only when on).
+    /// </summary>
+    public bool RecordPrints { get; init; }
+
     /// <summary>A disabled camera that keeps an invalid address for correction.</summary>
     /// <exception cref="ArgumentException">
     /// <paramref name="streamUrl"/> is empty (no address), valid (use the constructor) or contains credentials
@@ -269,9 +276,10 @@ public sealed record CameraSettings
         && string.Equals(InvalidStreamUrl, other.InvalidStreamUrl, StringComparison.Ordinal)
         && Window == other.Window
         && Overlay == other.Overlay
-        && MiniStrip == other.MiniStrip;
+        && MiniStrip == other.MiniStrip
+        && RecordPrints == other.RecordPrints;
 
-    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip);
+    public override int GetHashCode() => HashCode.Combine(Enabled, StreamUri?.OriginalString, InvalidStreamUrl, Window, Overlay, MiniStrip, RecordPrints);
 
     // Replaces the synthesized member list used by ToString: the invalid text may contain credentials.
     private bool PrintMembers(StringBuilder builder)
@@ -283,7 +291,8 @@ public sealed record CameraSettings
             .Append(", CredentialsRemoved = ").Append(CredentialsRemoved)
             .Append(", Window = ").Append(Window)
             .Append(", Overlay = ").Append(Overlay)
-            .Append(", MiniStrip = ").Append(MiniStrip);
+            .Append(", MiniStrip = ").Append(MiniStrip)
+            .Append(", RecordPrints = ").Append(RecordPrints);
         return true;
     }
 }

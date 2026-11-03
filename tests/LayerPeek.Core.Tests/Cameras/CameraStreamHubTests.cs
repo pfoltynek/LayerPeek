@@ -28,12 +28,26 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
     private readonly ListLogger<CameraStreamHub> _logger = new();
     private readonly CameraStreamHub _hub;
 
+    // Bounds every read of a subscription: a bug fails the test instead of hanging the whole run.
+    private readonly CancellationTokenSource _timeout = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+
     public CameraStreamHubTests()
     {
+        _timeout.CancelAfter(TestTimeouts.Wait * 3);
         _hub = new CameraStreamHub(new ReconnectingCameraFeed(_factory, _time, new ListLogger<ReconnectingCameraFeed>(), Options), _time, _logger);
     }
 
-    public async ValueTask DisposeAsync() => await _hub.DisposeAsync().AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+    public async ValueTask DisposeAsync()
+    {
+        await _hub.DisposeAsync().AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        _timeout.Dispose();
+    }
+
+    private CancellationToken Bounded => _timeout.Token;
+
+    private static Task<T> Within<T>(Task<T> task) => task.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+
+    private static Task Within(ValueTask task) => task.AsTask().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
     private static PrinterDefinition Printer(string id = "mk4", Uri? camera = null, bool enabled = true) => new()
     {
@@ -146,10 +160,10 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
 
         Assert.True(first.IsDisposed);
         Assert.True(second.IsDisposed);
-        Assert.Equal(CameraStreamEndReason.HubStopped, await frames.Ended);
-        Assert.Equal(CameraStreamEndReason.HubStopped, await packets.Ended);
+        Assert.Equal(CameraStreamEndReason.HubStopped, await Within(frames.Ended));
+        Assert.Equal(CameraStreamEndReason.HubStopped, await Within(packets.Ended));
         Assert.Same(frames, Assert.Single(probe.Ended));
-        Assert.Equal(CameraStreamEndReason.HubStopped, await _hub.SubscribeFrames("mk4", StreamUri).Ended);
+        Assert.Equal(CameraStreamEndReason.HubStopped, await Within(_hub.SubscribeFrames("mk4", StreamUri).Ended));
         Assert.Equal(0, _hub.OpenConnections);
     }
 
@@ -160,7 +174,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
     {
         await using CameraPacketSubscription packets = _hub.SubscribePackets("mk4", StreamUri);
         FakeItemFeed feed = await _factory.FeedAsync(1);
-        CameraStreamDemand demand = await feed.Started;
+        CameraStreamDemand demand = await Within(feed.Started);
 
         feed.PushPacket(fill: 1, keyFrame: true);
         feed.PushFrame(fill: 1);
@@ -177,7 +191,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
     {
         await using CameraPacketSubscription packets = _hub.SubscribePackets("mk4", StreamUri);
         FakeItemFeed feed = await _factory.FeedAsync(1);
-        CameraStreamDemand demand = await feed.Started;
+        CameraStreamDemand demand = await Within(feed.Started);
         Assert.False(demand.Frames);
 
         CameraFrameSubscription window = _hub.SubscribeFrames("mk4", StreamUri);
@@ -201,10 +215,10 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         using CameraFrameSubscription window = _hub.SubscribeFrames("mk4", StreamUri);
         CameraPacketSubscription recording = _hub.SubscribePackets("mk4", StreamUri);
         FakeItemFeed feed = await _factory.FeedAsync(1);
-        CameraStreamDemand demand = await feed.Started;
+        CameraStreamDemand demand = await Within(feed.Started);
         Assert.True(demand.Packets);
 
-        await recording.DisposeAsync();
+        await Within(recording.DisposeAsync());
 
         Assert.False(demand.Packets);
         Assert.True(demand.Frames);
@@ -224,9 +238,9 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         await using CameraStreamHub hub = new(new ReconnectingCameraFeed(_factory, _time, new ListLogger<ReconnectingCameraFeed>(), options), _time, _logger);
         CameraPacketSubscription recording = hub.SubscribePackets("mk4", StreamUri);
         FakeItemFeed feed = await _factory.FeedAsync(1);
-        CameraStreamDemand demand = await feed.Started;
+        CameraStreamDemand demand = await Within(feed.Started);
 
-        await recording.DisposeAsync();
+        await Within(recording.DisposeAsync());
         Assert.True(demand.Packets || demand.Frames, "a lingering connection must still read something");
 
         // The camera keeps sending; the linger time passes in steps shorter than the stall timeout.
@@ -253,7 +267,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         feed.PushPacket(fill: 1, keyFrame: true);
         feed.PushPacket(fill: 2);
         await Eventually.TrueAsync(() => feed.Consumed >= 3, "packets queued");
-        using CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        using CancellationTokenSource cancel = CancellationTokenSource.CreateLinkedTokenSource(Bounded);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
         {
@@ -279,7 +293,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         feed.OverwriteBuffers(0xEE);
 
         List<(CameraStreamItemKind Kind, byte First, int Length, bool Key, long? Pts)> items = [];
-        await foreach (CameraStreamItem item in packets.ReadAsync(TestContext.Current.CancellationToken))
+        await foreach (CameraStreamItem item in packets.ReadAsync(Bounded))
         {
             items.Add(item.Kind == CameraStreamItemKind.Packet
                 ? (item.Kind, item.Packet.Data.Span[0], item.Packet.Data.Length, item.Packet.IsKeyFrame, item.Packet.Pts)
@@ -315,7 +329,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         await using CameraPacketSubscription recording = _hub.SubscribePackets("mk4", StreamUri);
         feed.PushPacket(fill: 5, keyFrame: true);
 
-        await using IAsyncEnumerator<CameraStreamItem> items = recording.ReadAsync(TestContext.Current.CancellationToken).GetAsyncEnumerator(TestContext.Current.CancellationToken);
+        await using IAsyncEnumerator<CameraStreamItem> items = recording.ReadAsync(Bounded).GetAsyncEnumerator(Bounded);
         Assert.True(await items.MoveNextAsync());
         Assert.Equal(CameraStreamItemKind.StreamStarted, items.Current.Kind);
         Assert.True(await items.MoveNextAsync());
@@ -336,7 +350,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         second.PushPacket(fill: 2, keyFrame: true);
 
         List<CameraStreamItemKind> kinds = [];
-        await foreach (CameraStreamItem item in recording.ReadAsync(TestContext.Current.CancellationToken))
+        await foreach (CameraStreamItem item in recording.ReadAsync(Bounded))
         {
             kinds.Add(item.Kind);
             if (kinds.Count == 4)
@@ -380,7 +394,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         await using CameraPacketSubscription reading = _hub.SubscribePackets("mk4", StreamUri);
         using CameraFrameSubscription window = _hub.SubscribeFrames("mk4", StreamUri);
         FakeItemFeed feed = await _factory.FeedAsync(1);
-        Task<int> read = CountPacketsAsync(reading, 10);
+        Task<int> read = CountPacketsAsync(reading, 10, Bounded);
 
         for (byte fill = 1; fill <= 10; fill++)
         {
@@ -396,17 +410,17 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         Assert.Contains(_logger.Entries, static e => e.Level == LogLevel.Warning && e.Message.Contains("fell behind", StringComparison.Ordinal));
         // Nobody was reading it: its queued buffers went back to the pool, and reading it now ends at once.
         int queued = 0;
-        await foreach (CameraStreamItem item in stuck.ReadAsync(TestContext.Current.CancellationToken))
+        await foreach (CameraStreamItem item in stuck.ReadAsync(Bounded))
         {
             queued++;
         }
 
         Assert.Equal(0, queued);
 
-        static async Task<int> CountPacketsAsync(CameraPacketSubscription subscription, int wanted)
+        static async Task<int> CountPacketsAsync(CameraPacketSubscription subscription, int wanted, CancellationToken cancellationToken)
         {
             int count = 0;
-            await foreach (CameraStreamItem item in subscription.ReadAsync(TestContext.Current.CancellationToken))
+            await foreach (CameraStreamItem item in subscription.ReadAsync(cancellationToken))
             {
                 if (item.Kind == CameraStreamItemKind.Packet && ++count == wanted)
                 {
@@ -572,7 +586,7 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         Assert.False(otherFeed.IsDisposed);
         Assert.False(other.IsEnded);
-        Assert.Equal(CameraStreamEndReason.CameraUnavailable, await _hub.SubscribeFrames("mk4").Ended);
+        Assert.Equal(CameraStreamEndReason.CameraUnavailable, await Within(_hub.SubscribeFrames("mk4").Ended));
     }
 
     [Fact]
@@ -597,8 +611,8 @@ public sealed class CameraStreamHubTests : IAsyncDisposable
         CameraFrameSubscription frames = _hub.SubscribeFrames("mk4");
         CameraPacketSubscription packets = _hub.SubscribePackets("mk4");
 
-        Assert.Equal(CameraStreamEndReason.CameraUnavailable, await frames.Ended);
-        Assert.Equal(CameraStreamEndReason.CameraUnavailable, await packets.Ended);
+        Assert.Equal(CameraStreamEndReason.CameraUnavailable, await Within(frames.Ended));
+        Assert.Equal(CameraStreamEndReason.CameraUnavailable, await Within(packets.Ended));
         Assert.Null(frames.TakeLatest());
         await Task.Delay(50, TestContext.Current.CancellationToken);
         Assert.Equal(0, _factory.CreateCount);

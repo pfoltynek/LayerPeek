@@ -88,6 +88,8 @@ public sealed class CameraStreamHubAllocationTests
         using Stopper stopper = new(feed);
         using CameraPacketSubscription recording = hub.SubscribePackets("mk4", StreamUri);
         using CancellationTokenSource stop = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        // A bug fails the test instead of hanging the run (set once: nothing of it runs in the measured loop).
+        stop.CancelAfter(TimeSpan.FromSeconds(60));
         IAsyncEnumerator<CameraStreamItem> items = recording.ReadAsync(stop.Token).GetAsyncEnumerator(stop.Token);
         try
         {

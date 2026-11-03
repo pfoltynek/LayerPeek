@@ -59,14 +59,14 @@ public sealed class CameraRecorderTests : IAsyncDisposable
         feed.PushPacket(2, keyFrame: true);
         feed.PushPacket(3);
         await Eventually.TrueAsync(() => writers.Writers is [{ Count: 2 }], "two packets written");
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
 
         Assert.Equal([2, 3], writers.Writers[0].Packets.Select(static p => p.Fill));
         Assert.Equal(FakeItemFeed.Info, writers.Writers[0].Info);
         Assert.Equal([FilePath], recording.Files);
         Assert.Equal("mk4", recording.PrinterId);
         Assert.Equal(CameraRecordingState.Completed, recording.State);
-        Assert.False((await feed.Started).Frames);
+        Assert.False((await feed.Started.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken)).Frames);
         Assert.Equal(0, feed.DecodedFrames);
     }
 
@@ -112,7 +112,7 @@ public sealed class CameraRecorderTests : IAsyncDisposable
         Assert.Equal(CameraRecordingState.Failed, recording.State);
         Assert.Equal(CameraRecordingFailure.Unavailable, recording.Failure);
         Assert.Equal("The video library (FFmpeg) has no MP4 muxer.", recording.FailureMessage);
-        await recording.StopAsync();
+        await recording.StopAsync().WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         // No connection was opened for it.
         Assert.Equal(0, _hub.OpenConnections);
         Assert.Empty(Directory.EnumerateFileSystemEntries(_folder));

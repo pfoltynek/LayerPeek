@@ -11,11 +11,18 @@ internal struct RecordingClock
     /// <summary>A step further than this is a discontinuity, not a real gap (the feed reconnects after a few seconds of silence).</summary>
     internal static readonly TimeSpan MaxStep = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Longest step taken as the frame duration: a longer one is a gap (a stalled camera, lost packets), and a gap must not
+    /// become the step that a later missing or backwards timestamp continues with.
+    /// </summary>
+    internal static readonly TimeSpan MaxFrameDuration = TimeSpan.FromSeconds(1);
+
     /// <summary>Assumed frame duration until the stream shows its own (the Buddy3D sends ~22 fps).</summary>
     private const int AssumedFramesPerSecond = 25;
 
     private readonly CameraTimeBase _timeBase;
     private readonly long _maxStep;
+    private readonly long _maxFrameDuration;
     private bool _started;
     private long _origin;
     private long _lastDts;
@@ -25,6 +32,7 @@ internal struct RecordingClock
     {
         _timeBase = timeBase;
         _maxStep = Math.Max(1, ToTicks(MaxStep, timeBase));
+        _maxFrameDuration = Math.Max(1, ToTicks(MaxFrameDuration, timeBase));
         _frameDuration = Math.Max(1, ToTicks(TimeSpan.FromSeconds(1.0 / AssumedFramesPerSecond), timeBase));
     }
 
@@ -44,7 +52,7 @@ internal struct RecordingClock
             _started = true;
             _origin = raw ?? 0;
             dts = 0;
-            if (duration > 0 && duration <= _maxStep)
+            if (duration > 0 && duration <= _maxFrameDuration)
             {
                 // The stream states its frame duration: better than the assumption until a second packet shows it.
                 _frameDuration = duration;
@@ -56,13 +64,13 @@ internal struct RecordingClock
             if (raw is null || step <= 0 || step > _maxStep)
             {
                 // Missing, backwards or a jump: one frame after the previous packet, and later packets follow from here.
-                step = duration > 0 && duration <= _maxStep ? duration : _frameDuration;
+                step = duration > 0 && duration <= _maxFrameDuration ? duration : _frameDuration;
                 if (raw is { } anchor)
                 {
                     _origin = anchor - (_lastDts + step);
                 }
             }
-            else
+            else if (step <= _maxFrameDuration)
             {
                 _frameDuration = step;
             }

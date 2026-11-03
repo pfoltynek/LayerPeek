@@ -52,7 +52,27 @@ internal sealed class SettingsDocument
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? CameraWindowAutoClose { get; set; }
 
+    /// <summary>
+    /// Folder and size limit of the camera recordings (T-145): a <see cref="RecordingDocument"/> object; missing in older
+    /// files and not written while both are the defaults. Kept as raw JSON and read leniently by <see cref="SettingsMapper"/>
+    /// (a value of the wrong type is a warning and its default, not a corrupted file).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? Recording { get; set; }
+
     public List<PrinterDocument?>? Printers { get; set; }
+}
+
+/// <summary><see cref="SettingsDocument.Recording"/> as written: only the values that differ from the defaults.</summary>
+internal sealed class RecordingDocument
+{
+    /// <summary>The folder chosen by the user; not written for the default folder.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? Folder { get; set; }
+
+    /// <summary>Size limit in whole gigabytes; not written while it is the default.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int? SizeLimitGigabytes { get; set; }
 }
 
 internal sealed class CameraOverlaySettingsDocument
@@ -185,6 +205,13 @@ internal sealed class CameraDocument
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public JsonElement? MiniStrip { get; set; }
+
+    /// <summary>
+    /// "Record prints automatically" (T-145); written only when on, missing (older files, the default) = off. Kept as raw
+    /// JSON: a value that is not <see langword="true"/> / <see langword="false"/> is off with a warning.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? RecordPrints { get; set; }
 }
 
 /// <summary>
@@ -324,4 +351,6 @@ internal sealed class CameraWindowLayoutDocument
 [JsonSerializable(typeof(CameraOverlayDocument))]
 [JsonSerializable(typeof(List<OverlayWidgetDocument>))]
 [JsonSerializable(typeof(CameraMiniStripDocument))]
+[JsonSerializable(typeof(RecordingDocument))]
+[JsonSerializable(typeof(bool))]
 internal sealed partial class SettingsJsonContext : JsonSerializerContext;

@@ -91,6 +91,17 @@ public sealed record AppSettings
     /// </summary>
     public bool CameraWindowAutoClose { get; init; } = true;
 
+    /// <summary>Folder and size limit of the camera recordings (T-145); whether a printer records is per printer.</summary>
+    public Cameras.Recording.CameraRecordingSettings Recording
+    {
+        get;
+        init
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = Cameras.Recording.CameraRecordingSettings.Default;
+
     public NotificationSettings Notifications
     {
         get;
@@ -261,6 +272,7 @@ public sealed record AppSettings
         && CheckForUpdates == other.CheckForUpdates
         && CameraOverlayOpacityPercent == other.CameraOverlayOpacityPercent
         && CameraWindowAutoClose == other.CameraWindowAutoClose
+        && Recording == other.Recording
         && Notifications == other.Notifications
         && Printers.SequenceEqual(other.Printers);
 
@@ -274,6 +286,7 @@ public sealed record AppSettings
         hash.Add(CheckForUpdates);
         hash.Add(CameraOverlayOpacityPercent);
         hash.Add(CameraWindowAutoClose);
+        hash.Add(Recording);
         hash.Add(Notifications);
         hash.Add(Printers.Count);
         return hash.ToHashCode();
