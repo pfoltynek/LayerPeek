@@ -37,12 +37,12 @@ public sealed class TestToastCleanupTests
     {
         AppShortcut production = new(@"C:\Apps\LayerPeek.exe", "LayerPeek");
         _shortcuts.Shortcuts[ProductionShortcut] = production;
-        _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\src\bin\Debug\LayerPeek.exe", "LayerPeek.E2E");
+        _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\src\bin\Debug\LayerPeek.exe", AppEnvironment.TestAppUserModelId);
 
         IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Empty(failures);
-        Assert.Equal(["LayerPeek.E2E"], _history.Cleared);
+        Assert.Equal([AppEnvironment.TestAppUserModelId], _history.Cleared);
         Assert.Equal([TestShortcut], _shortcuts.Deleted);
         Assert.Equal(production, Assert.Single(_shortcuts.Shortcuts).Value);
         Assert.Equal(ProductionShortcut, Assert.Single(_shortcuts.Shortcuts).Key);
@@ -54,7 +54,7 @@ public sealed class TestToastCleanupTests
         IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Empty(failures);
-        Assert.Equal(["LayerPeek.E2E"], _history.Cleared);
+        Assert.Equal([AppEnvironment.TestAppUserModelId], _history.Cleared);
         Assert.Empty(_shortcuts.Shortcuts);
     }
 
@@ -62,7 +62,7 @@ public sealed class TestToastCleanupTests
     public void AFailingHistoryStillDeletesTheShortcutAndReportsTheFailure()
     {
         _history.Failure = new InvalidOperationException("history gone");
-        _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", "LayerPeek.E2E");
+        _shortcuts.Shortcuts[TestShortcut] = new AppShortcut(@"C:\x.exe", AppEnvironment.TestAppUserModelId);
 
         IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
@@ -79,7 +79,7 @@ public sealed class TestToastCleanupTests
         IReadOnlyList<string> failures = new TestToastCleanup(_history, _shortcuts, TestShortcut, _activators, _logger).Run();
 
         Assert.Contains("denied", Assert.Single(failures), StringComparison.Ordinal);
-        Assert.Equal(["LayerPeek.E2E"], _history.Cleared);
+        Assert.Equal([AppEnvironment.TestAppUserModelId], _history.Cleared);
     }
 
     [Fact]

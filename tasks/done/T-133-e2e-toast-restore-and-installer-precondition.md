@@ -1,7 +1,7 @@
 ---
 id: T-133
 title: E2E – návrat upozornění testovací aplikace, předpoklad testu instalátoru, aktivátor po AOT smoke
-status: in-progress
+status: done
 owner: qa-reviewer
 priority: P1
 platform: windows
@@ -36,8 +36,11 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
 
 ## Akceptační kritéria
 - [x] Unit testy pomocníků (bez plochy) pro návrat nastavení a předpoklad instalátoru
-- [ ] Po opravě projdou na skutečné ploše `TestNotificationTests`, `UpdateTests` (všechny 3 případy bez instalace
+- [x] Po opravě projdou na skutečné ploše `TestNotificationTests`, `UpdateTests` (všechny 3 případy bez instalace
       uživatele) a `VelopackInstallerTests` – běh koordinuje hlavní agent s uživatelem
+      → 2026-11-03: `TestNotificationTests` 1/1 PASS, `UpdateTests` případ `.zip` PASS; oba instalační případy
+      `UpdateTests` přeskočené (nainstalovaná 0.4.0, uživatel ji odinstalovat nechtěl) a nahrazené ostrou aktualizací
+      0.3.1 → 0.4.0 uživatelem (rozhodnutí uživatele 2026-11-03, T-125); `VelopackInstallerTests` PASS 2026-11-01.
 - [x] AOT smoke nenechá aktivátor upozornění ukazovat na sestavení (nebo zdůvodněno)
 - [x] `dotnet build` a `dotnet test` bez chyb a varování
 
@@ -103,11 +106,63 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
   za běhu, a kdyby se choval stejně nesymetricky, zůstala by vypnutá upozornění **všech** aplikací uživatele (horší
   než dnes). Zůstává jen jako dosavadní záložní krok T-128.
 
+### Rozhodnutí 2026-11-03 a oprava 3
+Rozhodnutí uživatele: (1) krok 4 `TestNotificationTests` už ve Windows nic nevypíná, místo toho Debug přepínač
+testovacího režimu, který aplikaci podstrčí `DisabledForApplication`; (2) nové testovací AUMID.
+
+- **Debug přepínač** (`src/LayerPeek.App/Notifications/PretendedToastSetting.cs`, celý soubor jen `#if DEBUG`): singleton
+  v DI; `ToastNotificationService.Pretended` (vlastnost jen v Debug) ho dostane jen v izolovaném testovacím režimu
+  (`AppServices.CreateNotificationService`, větev testovacích toastů), produkce `null`. `ReadState` čte
+  `Pretended?.Value ?? session.Setting`, takže okno Nastavení i zkušební upozornění dostanou `TurnedOff` stejnou cestou jako
+  od Windows. Zapíná se **za běhu** existujícím kanálem testovacích příkazů (jako `settings`, `quit`, `crash:…`): nový
+  Debug příkaz `notifications:off` / `notifications:on` (`InstanceCommandKind.Notifications`, argument jen `off`/`on`),
+  zpracuje ho `App.OnInstanceCommand` jen při `IsIsolated` → `TrayHost.PretendNotificationsOff`. Aplikace to zaloguje
+  („Test mode: Windows' notification setting of the app is pretended to be DisabledForApplication.“ / „… is read again.“).
+  Nová proměnná prostředí ani restart nejsou potřeba. Release build typ, vlastnost ani příkaz nemá (unit test Release
+  buildu kontroluje chybějící typ; `ReleaseBuildsKnowOnlyActivate` i `notifications:off`). AOT: žádná reflexe, jen
+  `Volatile` int.
+- **`TestNotificationTests` krok 4:** pošle `notifications:off`, počká na log, kliká na zkušební tlačítko do varování,
+  ověří text varování, tlačítko do Nastavení (log testovacího režimu) a otevření `ms-settings:notifications` testem (jen
+  když Nastavení neběží); ve `finally` pošle `notifications:on` (chyba se jen zapíše do reportu, aby nezakryla původní
+  selhání) a pak ověří log návratu. Žádný zápis do registru Windows. Skutečné čtení nastavení Windows hlídají unit testy
+  `StateOf` (`ToastTestNotificationTests`) a ruční kontrola – doplněno do T-125 u položky T-101.
+- **Odstraněno (mrtvý kód):** `TestNotificationTests.TurnOffAsync` se zápisem `Enabled = 0` / `ToastEnabled = 0`,
+  `WithNotificationsOff` a jeho unit test, `ToastRun.SwitchTestAppOnAsync`, `ToggleSettleTime`, veřejné
+  `ToastRun.AppSettings` / `ToastsEnabled`, `ToastRunOptions.AllowNotificationsOff`, jednorázová obnova
+  `TestAppNotificationRecovery` (soubor smazán) i s testem příkazu v dokumentaci.
+- **Zůstává (bezpečnost):** předběžná kontrola `ToastRun.AssertNotificationsOnAsync` (čeká až 15 s na `Enabled`, při
+  `Disabled*` hned selže; zpráva nově radí zvýšit číslo AUMID), `WithNotificationsOn` na začátku běhu, žurnálované změny
+  klíče aplikace a `ToastEnabled`, most `SwitchOnBridge` při návratu, účinný stav ve snímku systému.
+- **Nové AUMID `LayerPeek.E2E.2`:** v aplikaci jediná konstanta `AppEnvironment.TestAppUserModelId` (používá ji
+  `AppUserModelId` procesu/oken, Windows toast platforma testovacího režimu, zástupce „LayerPeek E2E.lnk“ – jméno zástupce
+  zůstává – a úklid `TestToastCleanup`); v E2E testech jediná konstanta `AppSwitches.AppUserModelId`
+  (= `TestAppUserModelIdRoot + ".2"`; z ní `ToastSetting`, `ToastHistory`, `ToastAppSettingsKind.SubKey`, snímek
+  `ToastSystemState`, `TaskbarJumpList`, `WindowChecks`, `TestModeOsIntegrationTests`). Nový test
+  `TheTestAppIdOfTheTestsIsTheAppsOwn` čte `AppEnvironment.cs` a hlídá shodu obou konstant. Pojistky, které dřív
+  vyžadovaly příponu `.E2E`, jsou nově `AppSwitches.IsTestAppUserModelId` (kořen `LayerPeek.E2E` sám nebo s příponou za
+  tečkou, bez `\` a mezer) s unit testy. Unit testy aplikace používají konstantu, pevnou hodnotu má jen
+  `ProductIdentityTests`. Testovací prefix pověření `LayerPeek.E2E/` a macOS bundle `…LayerPeek.E2E` se nemění (nejsou
+  AUMID Windows).
+- **Dokumentace:** `docs/troubleshooting.md` sekce „Testy upozornění selžou…“ přepsaná (co se stalo, Debug přepínač, nové
+  AUMID, obnova = zvýšit číslo na obou místech + `ProductIdentityTests` + tato sekce); test
+  `TheRecoveryOfTheTestAppsNotificationsIsDocumentedWithTheCurrentTestAppId` hlídá, že sekce uvádí aktuální AUMID a obě
+  konstanty. Tabulka ručního návratu a „Stopy“ uvádějí nové AUMID; `tools/run-e2e.ps1` (nápověda) a varování druhu
+  `Toasts` v `tools/RunE2E.SystemChanges.psm1` upravené (test testovacího upozornění už nic nevypíná).
+- **Pozůstatky starého AUMID `LayerPeek.E2E` (jen čteno, nic jsem neměnil):** klíč
+  `HKCU\…\Notifications\Settings\LayerPeek.E2E` ani `HKCU\Software\Classes\AppUserModelId\LayerPeek.E2E` neexistují,
+  testovací zástupce ve Start menu není, složka žurnálu `%LOCALAPPDATA%\LayerPeek.E2E.Restore` neexistuje. Zůstává jen
+  záznam „vypnuto“ v databázi WPN (`wpndatabase.db`) a případně položka v Nastavení → Oznámení – to spravuje Windows,
+  testy ho nečtou ani nemění. Pozor: záznam žurnálu `ToastSettings` z doby před změnou by se vrátil do klíče nového AUMID
+  (klíč druhu je pevný) – na tomto stroji žádný nečeká.
+- Běh na ploše (`TestNotificationTests`, `UpdateTests`) po opravě 3 zatím neproběhl – koordinuje hlavní agent.
+
 ## Otevřené otázky
-- Když se ukáže, že Windows nebere ani `Enabled` 0 → 1 za běhu aplikace (obnova pak vždy skončí u ručního zapnutí
+- ~~Když se ukáže, že Windows nebere ani `Enabled` 0 → 1 za běhu aplikace (obnova pak vždy skončí u ručního zapnutí
   v Nastavení a `TestNotificationTests` po každém běhu selže): má krok 4 místo skutečného vypnutí ve Windows použít
   Debug-only přepínač testovacího režimu, který aplikaci podstrčí `DisabledForApplication` (bez zásahu do Windows,
-  ale neověří skutečné čtení nastavení Windows)? Nebo krok 4 nechat jen jako ruční kontrolu v T-125?
+  ale neověří skutečné čtení nastavení Windows)? Nebo krok 4 nechat jen jako ruční kontrolu v T-125?~~
+  **Rozhodnuto uživatelem 2026-11-03:** Debug přepínač testovacího režimu + nové testovací AUMID; skutečné vypnutí ve
+  Windows → ruční kontrola v T-125 (provedení viz „Rozhodnutí 2026-11-03 a oprava 3“).
 
 ### Běh na ploše 2026-11-01 večer (hlavní agent)
 - `VelopackInstallerTests` 1/1 PASS (předpoklad prázdné složky opraven).
@@ -118,3 +173,12 @@ Při ověření T-124 (2026-11-01) selhaly `UpdateTests` 3/3 a `VelopackInstalle
 - Úkol zůstává otevřený: najít spolehlivý způsob, nebo rozhodnout otázku níže (Debug přepínač místo skutečného vypnutí
   ve Windows). Do té doby `TestNotificationTests` a `UpdateTests` na tomto stroji selžou na předběžné kontrole se
   srozumitelnou zprávou.
+
+### Běh na ploše 2026-11-03 (hlavní agent, po opravě 3)
+- `pwsh tools/run-e2e.ps1 -Class '*TestNotificationTests'`: 1/1 PASS (Debug exe, 58 s), žurnál systémových změn prázdný.
+  Nové AUMID `LayerPeek.E2E.2` Windows zapnulo, předběžná kontrola prošla.
+- `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'`: 1 PASS (`ZipVersionOpensTheReleasePageFromTheBannerAndTheMenuItem`),
+  2 SKIP (`InstalledOlderVersionUpdatesFromALocalFeedAfterAClick` – na stroji je nainstalovaná 0.4.0). Uživatel rozhodl
+  instalaci nechat a instalační případy uzavřít na základě ostré aktualizace 0.3.1 → 0.4.0 z GitHub Releases (klik na
+  položku v menu, znovuspuštění `Update.exe`), viz T-125.
+- `VelopackInstallerTests` se znovu nespouštěl (s instalací by se přeskočil); prošel 2026-11-01 po opravě 1.

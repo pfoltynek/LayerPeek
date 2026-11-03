@@ -2,8 +2,6 @@ using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
 
-using Microsoft.Win32;
-
 using LayerPeek.App.E2E.Tests.Infrastructure;
 
 namespace LayerPeek.App.E2E.Tests;
@@ -37,21 +35,6 @@ public sealed class NotificationAndUpdateInfrastructureTests
     {
         Assert.False(new HistoryToast("t", string.Empty, "<toast><visual><binding template=\"ToastGeneric\"><text>a</text></binding></visual></toast>").IsSilent);
         Assert.False(new HistoryToast("t", string.Empty, "<toast><audio src=\"ms-winsoundevent:Notification.Default\"/></toast>").IsSilent);
-    }
-
-    [Fact]
-    public void NotificationsOffSetsEnabledToZeroAndKeepsTheOtherValues()
-    {
-        RegistryKeySnapshot existing = new(true, [new RegistryValueState("Enabled", nameof(RegistryValueKind.DWord), "1"), new RegistryValueState("ShowInActionCenter", nameof(RegistryValueKind.DWord), "1")], []);
-        RegistryKeySnapshot off = TestNotificationTests.WithNotificationsOff(existing);
-        Assert.Equal("0", off.Value("Enabled")?.Data);
-        Assert.Equal(nameof(RegistryValueKind.DWord), off.Value("Enabled")?.Kind);
-        Assert.Equal("1", off.Value("ShowInActionCenter")?.Data);
-        Assert.Equal(2, off.Values.Count);
-
-        RegistryKeySnapshot created = TestNotificationTests.WithNotificationsOff(RegistryKeySnapshot.Missing);
-        Assert.True(created.Exists);
-        Assert.Equal("0", Assert.Single(created.Values).Data);
     }
 
     [Theory]
@@ -126,12 +109,39 @@ public sealed class NotificationAndUpdateInfrastructureTests
     }
 
     [Fact]
-    public void TheRecoveryOfTheTestAppsNotificationsIsDocumentedWithItsExactCommand()
+    public void TheTestAppIdOfTheTestsIsTheAppsOwn()
     {
-        // T-133: the pre-flight and the test notification point to this command; docs/troubleshooting.md must show it as is.
-        Assert.Contains(TestAppNotificationRecovery.Variable + " = '1'", TestAppNotificationRecovery.Command, StringComparison.Ordinal);
-        Assert.Contains($"-Class '*{nameof(TestAppNotificationRecovery)}'", TestAppNotificationRecovery.Command, StringComparison.Ordinal);
-        string doc = File.ReadAllText(Path.Combine(LayerPeek.Tests.Shared.TestWorktree.Root, "docs", "troubleshooting.md"));
-        Assert.Contains(TestAppNotificationRecovery.Command, doc, StringComparison.Ordinal);
+        // T-133: the app id lives once in the app (AppEnvironment.TestAppUserModelId) and once here (the tests do not
+        // reference the app); raising it is the recovery when Windows keeps the test app's notifications off.
+        string source = File.ReadAllText(Path.Combine(LayerPeek.Tests.Shared.TestWorktree.Root, "src", "LayerPeek.App", "Composition", "AppEnvironment.cs"));
+        Assert.Contains($"internal const string TestAppUserModelId = \"{AppSwitches.AppUserModelId}\";", source, StringComparison.Ordinal);
+        Assert.True(AppSwitches.IsTestAppUserModelId(AppSwitches.AppUserModelId));
     }
+
+    [Fact]
+    public void TheRecoveryOfTheTestAppsNotificationsIsDocumentedWithTheCurrentTestAppId()
+    {
+        // T-133: the pre-flight points to docs/troubleshooting.md, which names the current test app id and the two constants.
+        string doc = File.ReadAllText(Path.Combine(LayerPeek.Tests.Shared.TestWorktree.Root, "docs", "troubleshooting.md"));
+        Assert.Contains($"`{AppSwitches.AppUserModelId}`", doc, StringComparison.Ordinal);
+        Assert.Contains("AppEnvironment.TestAppUserModelId", doc, StringComparison.Ordinal);
+        Assert.Contains("AppSwitches.AppUserModelId", doc, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("LayerPeek.E2E", true)]
+    [InlineData("LayerPeek.E2E.2", true)]
+    [InlineData("LayerPeek.E2E.10", true)]
+    [InlineData("LayerPeek", false)]
+    [InlineData("LayerPeek.E2Ex", false)]
+    [InlineData("Other.LayerPeek.E2E", false)]
+    [InlineData("LayerPeek.E2E.2 x", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void OnlyTheAppIdsOfTheTestAppAreTheTestApps(string? appUserModelId, bool expected) =>
+        Assert.Equal(expected, AppSwitches.IsTestAppUserModelId(appUserModelId));
+
+    [Fact]
+    public void AnAppIdWithABackslashIsNeverTheTestApps() =>
+        Assert.False(AppSwitches.IsTestAppUserModelId(AppSwitches.TestAppUserModelIdRoot + ".2" + Path.DirectorySeparatorChar + "x"));
 }

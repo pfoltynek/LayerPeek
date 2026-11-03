@@ -81,6 +81,14 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     /// <summary>The OS side (composition tests).</summary>
     internal IToastPlatform Platform => _platform;
 
+#if DEBUG
+    /// <summary>
+    /// Debug builds only, set only in the test mode with toasts (T-133): when it holds a value, that value is read instead of
+    /// Windows' <c>ToastNotifier.Setting</c>; <see langword="null"/> (always outside the test mode): Windows' own setting.
+    /// </summary>
+    internal PretendedToastSetting? Pretended { get; init; }
+#endif
+
     /// <summary>
     /// Completes once the thread has ended for good (disposed, or the platform turned out unavailable; right at
     /// <see cref="Dispose"/> when it never started), so nothing touches the OS (e.g. writes the Start menu shortcut while
@@ -348,7 +356,11 @@ internal sealed partial class ToastNotificationService : INotificationService, I
     {
         try
         {
+#if DEBUG
+            ToastNotifierSetting setting = Pretended?.Value ?? session.Setting;
+#else
             ToastNotifierSetting setting = session.Setting;
+#endif
             SystemNotificationState state = StateOf(setting);
             if (state != SystemNotificationState.Allowed)
             {

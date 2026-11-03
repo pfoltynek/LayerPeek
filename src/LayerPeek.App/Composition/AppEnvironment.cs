@@ -37,7 +37,7 @@ internal sealed class AppEnvironment
 
     /// <summary>
     /// The AppUserModelID of the process and its windows on Windows: <c>LayerPeek</c> (T-010, T-043), in the test
-    /// mode <c>LayerPeek.E2E</c>, so that test windows never group with the user's instance on the taskbar.
+    /// mode <see cref="TestAppUserModelId"/>, so that test windows never group with the user's instance on the taskbar.
     /// </summary>
     public string AppUserModelId => IsIsolated ? TestAppUserModelId : ProductionAppUserModelId;
 
@@ -47,8 +47,14 @@ internal sealed class AppEnvironment
     /// <summary>Same value as <c>WindowsAppIdentity.AppUserModelId</c> (a unit test keeps them equal).</summary>
     internal const string ProductionAppUserModelId = "LayerPeek";
 
-    /// <summary>The AppUserModelID of the test mode (never used by Release builds).</summary>
-    internal const string TestAppUserModelId = "LayerPeek.E2E";
+    /// <summary>
+    /// The AppUserModelID of the test mode (never used by Release builds); the one place of the app that names it (the
+    /// end-to-end tests keep <c>AppSwitches.AppUserModelId</c> equal, checked by a test). <c>.2</c> since T-133: Windows
+    /// keeps the notifications of the former test app id <c>LayerPeek.E2E</c> switched off for good (no program can switch
+    /// them on again), and a new app id starts switched on. Should Windows ever keep this one off, raising the number is the
+    /// recovery (docs/troubleshooting.md).
+    /// </summary>
+    internal const string TestAppUserModelId = "LayerPeek.E2E.2";
 
     /// <summary>
     /// The CLSID of the COM toast activator on Windows (T-068), carried by the Start menu shortcut and registered under

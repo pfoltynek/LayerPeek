@@ -175,6 +175,9 @@ public partial class App : Application, ITrayAppCommands
                 case InstanceCommandKind.Crash:
                     TestCrash.Run(command.Argument);
                     break;
+                case InstanceCommandKind.Notifications:
+                    _host?.PretendNotificationsOff(command.Argument == InstanceProtocol.NotificationsOffArgument);
+                    break;
             }
         }
 #endif

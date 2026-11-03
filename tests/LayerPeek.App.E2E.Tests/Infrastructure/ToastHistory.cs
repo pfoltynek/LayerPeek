@@ -51,7 +51,7 @@ internal static class ToastHistory
     public static async Task<IReadOnlyList<HistoryToast>> ReadAsync(CancellationToken cancellationToken)
     {
         string appId = AppSwitches.AppUserModelId;
-        if (!appId.EndsWith(".E2E", StringComparison.Ordinal))
+        if (!AppSwitches.IsTestAppUserModelId(appId))
         {
             throw new InvalidOperationException($"'{appId}' is not the app id of the test app; refusing to read its notifications.");
         }

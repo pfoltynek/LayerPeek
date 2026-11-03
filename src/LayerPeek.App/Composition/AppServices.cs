@@ -162,6 +162,10 @@ internal static partial class AppServices
             sp.GetRequiredService<CustomPrinterImages>(),
             // T-058: "A new version X.Y.Z is available" while one is offered.
             sp.GetRequiredService<UpdateOffer>()));
+#if DEBUG
+        // T-133: the stand-in for Windows' notification setting of the test app, only read by the toasts of the test mode.
+        services.AddSingleton(static sp => new PretendedToastSetting(sp.GetRequiredService<ILogger<PretendedToastSetting>>()));
+#endif
         services.AddSingleton(static sp => new ToastActivationRouter(
             sp.GetRequiredService<PrinterWebOpener>(),
             sp.GetRequiredService<ILogger<ToastActivationRouter>>(),
@@ -382,7 +386,13 @@ internal static partial class AppServices
             platform,
             argument => _ = router.ActivateAsync(argument),
             UiLanguage.CurrentTextCulture,
-            services.GetRequiredService<ILogger<ToastNotificationService>>());
+            services.GetRequiredService<ILogger<ToastNotificationService>>())
+        {
+#if DEBUG
+            // T-133: the end-to-end test pretends that Windows switched the test app's notifications off (never in production).
+            Pretended = environment.IsIsolated ? services.GetRequiredService<PretendedToastSetting>() : null,
+#endif
+        };
     }
 
     /// <summary>
