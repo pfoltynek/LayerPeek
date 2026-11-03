@@ -291,6 +291,8 @@ public sealed partial class ThirdPartyLicensesTests
         Assert.DoesNotContain("--enable-gpl", configure, StringComparison.Ordinal);
         Assert.DoesNotContain("--enable-nonfree", configure, StringComparison.Ordinal);
         Assert.DoesNotContain("--enable-videotoolbox", configure, StringComparison.Ordinal);
+        // T-147: recording only remuxes (--enable-muxer=mp4), it never encodes.
+        Assert.DoesNotContain("--enable-encoder", configure, StringComparison.Ordinal);
         Assert.Contains("--enable-version3", configure, StringComparison.Ordinal);
         Assert.Contains("--disable-autodetect", configure, StringComparison.Ordinal);
         Assert.Contains("--enable-shared", configure, StringComparison.Ordinal);

@@ -55,12 +55,12 @@ macOS navíc:
   ```
   configure --enable-shared --disable-static --enable-version3 --disable-programs --disable-doc --disable-debug
     --disable-autodetect --disable-everything --disable-avdevice --disable-avfilter --disable-swresample
-    --enable-network --enable-protocol=tcp,file --enable-demuxer=rtsp,h264 --enable-parser=h264 --enable-decoder=h264
-    --arch=aarch64 --install-name-dir=@loader_path
+    --enable-network --enable-protocol=tcp,file --enable-demuxer=rtsp,h264 --enable-muxer=mp4 --enable-parser=h264
+    --enable-decoder=h264 --arch=aarch64 --install-name-dir=@loader_path
     --extra-cflags="-arch arm64 -mmacosx-version-min=14.0" --extra-ldflags="-arch arm64 -mmacosx-version-min=14.0"
   ```
 
-  `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Bez `--enable-gpl` a `--enable-nonfree`, bez VideoToolbox (dekódování jen softwarově, rozhodnuto 2026-10-29), licence podle `configure`: „LGPL version 3 or later“.
+  `configure` přidá automaticky závislosti vybraných komponent (demuxery `asf`, `mov`, `mpegts`, `rm` a protokoly `rtp`, `udp`, `http` kvůli RTSP; muxer `mov`, parser `ac3` a bitstream filtry `aac_adtstoasc`, `vp9_superframe` kvůli muxeru `mp4`). Aplikace je stejně nepovolí (`protocol_whitelist`, `format_whitelist`, `codec_whitelist`, T-014). Muxer `mp4` (T-147) slouží nahrávání kamery (T-144): pakety H.264 z RTSP se jen přebalí do fragmentovaného MP4, žádný enkodér se nepřidává. Převod Annex B na délkově prefixované NAL jednotky a SPS/PPS na `avcC` dělá muxer sám, bitstream filtry `h264_mp4toannexb` ani `extract_extradata` potřeba nejsou. Knihovny jsou díky tomu větší asi o 262 KiB (`libavformat` o 245 KiB, `libavcodec` o 16 KiB). Bez `--enable-gpl` a `--enable-nonfree`, bez VideoToolbox (dekódování jen softwarově, rozhodnuto 2026-10-29), licence podle `configure`: „LGPL version 3 or later“.
 - **Když build selže:** logy `configure.log` a `make.log` zůstanou ve složce `tmp-…` v cache (smaže je build po dvou hodinách). Když tarball z ffmpeg.org zmizí, změň v `build/FFmpeg.targets` `LayerPeekFFmpegMacSourceUrl`, `LayerPeekFFmpegMacSourceSha256` a `LayerPeekFFmpegMacSourceFolder` na jiný oficiální tarball 9.0.x (stejné verze knihoven). Postup je v „Nová verze FFmpeg“ níže.
 - **Ověření tarballu je automatické:** každý první build ověří připnutý SHA256 (`LayerPeekFFmpegMacSourceSha256`) a při neshodě skončí chybou. Uživatel ani vývojář nic ručně neověřuje. FFmpeg nezveřejňuje SHA256, jen podpisy GPG (`.asc`). Proto se připnutý hash při změně verze ověřuje skriptem `build/update-ffmpeg.ps1` proti nezávislému zdroji (vzorec Homebrew) a podpisem GPG, když je `gpg` k dispozici. Hash 9.0.2 (`8c38502…e002e`) souhlasí se vzorcem Homebrew (ověřeno 2026-10-29), podpis GPG ověřený nebyl (`gpg` na stroji není).
 

@@ -40,6 +40,20 @@ internal static class FFmpegRuntime
         }
     }
 
+    /// <summary>
+    /// Whether the loaded libraries contain the muxer (output container) with the short name
+    /// <paramref name="shortName"/>, e.g. <c>mp4</c> for camera recording (T-144; on macOS built in since T-147).
+    /// </summary>
+    /// <exception cref="CameraFeedException">FFmpeg cannot be loaded.</exception>
+    public static unsafe bool HasMuxer(string shortName)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(shortName);
+        EnsureLoaded();
+        // Only the short name is matched (no file name, no MIME type), so a muxer that is left out yields null and
+        // never a different container.
+        return ffmpeg.av_guess_format(shortName, null, null) is not null;
+    }
+
     private static LoadResult Load()
     {
         try
