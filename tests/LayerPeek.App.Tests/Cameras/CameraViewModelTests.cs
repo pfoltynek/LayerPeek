@@ -819,6 +819,8 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         FakeCameraFeed first = await _factory.WaitForFeedAsync(1);
         first.Send();
         await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+        // See RunFailingAgainTheSameWayIsLoggedInFullOnlyOnce: the connection's thread must be done with the fake clock.
+        await first.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
         _dispatcher.RunAll();
 
         _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
@@ -845,6 +847,11 @@ public sealed class CameraViewModelTests : IAsyncDisposable
             FakeCameraFeed feed = await _factory.WaitForFeedAsync(run);
             feed.Send();
             await viewModel.StreamCompletion.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
+            // The hub ends the lease before it drops it and closes the connection. Until the connection is closed, its
+            // thread still arms the stall watchdog on the fake clock: an Advance that overlaps it returns without firing
+            // the retry timer (FakeTimeProvider lets the other thread fire it later), and a retry that comes too early
+            // joins that connection before it closes instead of opening a new one.
+            await feed.Disposed.WaitAsync(TestTimeouts.Wait, TestContext.Current.CancellationToken);
             _dispatcher.RunAll();
             _time.Advance(CameraFeedOptions.Default.ReconnectDelay);
             _dispatcher.RunAll();
@@ -984,7 +991,6 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         Assert.Single(_factory.Feeds);
     }
 
-    /// <summary>Forwards to an inner dispatcher; the given post (1-based) throws instead.</summary>
     /// <summary>
     /// Like a dispatcher that is shutting down, but only for some callbacks of the view model, told apart by their method:
     /// showing a frame (<see cref="FailFrames"/>) and the automatic retry (<see cref="FailRetries"/>).
@@ -1007,6 +1013,7 @@ public sealed class CameraViewModelTests : IAsyncDisposable
         }
     }
 
+    /// <summary>Forwards to an inner dispatcher; the given post (1-based) throws instead.</summary>
     private sealed class FaultyDispatcher(ManualDispatcher inner, int failingPost) : IUiDispatcher
     {
         private int _posts;
