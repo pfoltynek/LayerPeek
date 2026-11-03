@@ -74,6 +74,28 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       → nahrazeno ostrou aktualizací 0.3.1 → 0.4.0 (rozhodnutí uživatele 2026-11-03: 0.4.0 neodinstalovat); instalační
       případy se při instalaci přeskočí, viz poznámky.
 
+### 2b. Automatické okno kamery (z T-151, implementováno na Macu 2026-11-03)
+- [ ] **T-151** (krit. „Vypnutí tiskárny (simulátor offline) okno zavře po debounce, zapnutí ho otevře na posledním místě“,
+      „Ručně zavřené okno se znovu neotevře“ a „Automaticky otevřené okno nebere fokus …“, část Windows):
+      `pwsh tools/run-e2e.ps1 -Class '*CameraWindowAutoCloseTests'` = PASS. Test byl napsaný a přeložený na Macu a na Windows
+      ještě neběžel. Když selže kvůli testu, opravit test, když kvůli aplikaci, založit úkol. Prohlédnout snímky
+      `camera-auto-close-1-open` a `camera-auto-close-2-reopened`.
+- [ ] **T-151** (krit. „Stávající E2E okna kamery (T-071, T-120) prochází“): `pwsh tools/run-e2e.ps1 -Class '*Camera*'` = PASS.
+- [ ] **T-151** (snímky UI a `dotnet test` na Windows): přegenerovat a zkontrolovat referenční snímky Windows
+      `tests/LayerPeek.App.UiTests/Snapshots/settings-camera-window.png`, `settings-camera-window-error-normal-size.png`,
+      `settings-camera-window-errors-fr.png` a `settings-camera-window-off-cs.png`
+      (`$env:LAYERPEEK_UPDATE_SNAPSHOTS=1; dotnet test --project tests/LayerPeek.App.UiTests -- --filter-class "*SettingsWindowSnapshotTests"`).
+      V podzáložce „Okno kamery“ přibylo zaškrtávátko „Close when the printer turns off…“ pod tlačítky. Pak celý
+      `dotnet test` bez chyb, včetně `SettingsWindowLayoutTests` (bez posuvníku ve všech jazycích).
+- [ ] **T-151** (krit. Native AOT, část Windows): `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových
+      varování (nový `[LibraryImport("powrprof.dll")]` + `UnmanagedCallersOnly` v `WindowsSystemResumeEvents`).
+- [ ] **T-151** (ruční, Windows, probuzení): se zapnutým podrobným logováním otevřít okno kamery, uspat počítač
+      a probudit ho. V logu je „The computer resumed from sleep: the camera window delays start again.“ a okno se po
+      probuzení nezavře podle stavu z doby před uspáním (T-150 rozhodnutí 9).
+- [ ] **T-151** (ruční, Windows, okrajový případ): u tiskárny s „Otevřít jako: Celá obrazovka“ okno po automatickém
+      otevření (simulátor `offline` → `online`, nebo E2E přepínače) nesmí vzít popředí oknu jiné aplikace. Avalonia na Windows
+      aktivuje zobrazené okno, jehož stav se změní (T-040). Pokud ho vezme, zapsat a založit úkol.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná

@@ -80,6 +80,12 @@ internal static class AppSwitches
     /// <summary>Monitoring starts this many milliseconds later, 0 to 60000 (T-067).</summary>
     public const string TestStartDelayVariable = "LAYERPEEK_TEST_START_DELAY_MS";
 
+    /// <summary>The camera window of a printer offline this many milliseconds closes automatically, 0 to 120000 (T-151; default 30 s).</summary>
+    public const string TestCameraCloseAfterVariable = "LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS";
+
+    /// <summary>An automatically closed camera window opens again after this many milliseconds online, 0 to 120000 (T-151; default 10 s).</summary>
+    public const string TestCameraOpenAfterVariable = "LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS";
+
     /// <summary>
     /// Command line mode of the exe (T-067): removes the toasts of the test app and its Start menu shortcut, starts nothing
     /// else, exits with 0 (otherwise 1 and the reason on stderr).

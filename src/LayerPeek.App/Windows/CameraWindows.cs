@@ -1,3 +1,5 @@
+using System.ComponentModel;
+
 using Avalonia.Controls;
 
 using LayerPeek.App.Cameras;
@@ -13,7 +15,7 @@ namespace LayerPeek.App.Windows;
 /// printers may be open at the same time. Each window owns its view model, which is disposed when the window closes
 /// (stopping the stream). After <see cref="Shutdown"/> (quitting) all are closed and none opens. UI thread only.
 /// </summary>
-internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLauncher
+internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLauncher, ICameraWindowAutoTarget
 {
     private readonly Func<string, PrinterDefinition?, CameraViewModel?> _createViewModel;
     private readonly IScreenCatalog? _screens;
@@ -24,6 +26,9 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     private readonly IWindowActivator? _activator;
     private readonly Dictionary<string, AuxiliaryWindowSlot> _slots = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, CameraWindow> _open = new(StringComparer.OrdinalIgnoreCase);
+
+    // T-151: windows being closed by CloseAutomatically, until they report closing.
+    private readonly HashSet<CameraWindow> _closingAutomatically = new(ReferenceEqualityComparer.Instance);
     private bool _shutDown;
 
     /// <param name="createViewModel">
@@ -68,12 +73,41 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     /// </summary>
     public event EventHandler<CameraWindowOpenChangedEventArgs>? OpenChanged;
 
+    /// <inheritdoc/>
+    public event EventHandler<CameraWindowCloseDeferralChangedEventArgs>? CloseDeferralChanged;
+
     /// <summary>The open windows by printer id (for tests and diagnostics).</summary>
     public IReadOnlyDictionary<string, CameraWindow> OpenWindows => _open;
+
+    /// <inheritdoc/>
+    public IReadOnlyCollection<string> OpenPrinterIds => _open.Keys;
 
     /// <summary>Opens the camera window of <paramref name="printerId"/>, or activates it when it is open.</summary>
     /// <returns>Whether a window of the printer is open now (not when it has no enabled camera, or after <see cref="Shutdown"/>).</returns>
     public bool Show(string printerId) => Show(printerId, saved: null);
+
+    /// <inheritdoc/>
+    public bool ShowAutomatically(string printerId) => Show(printerId, saved: null, activate: false);
+
+    /// <inheritdoc/>
+    public bool CloseAutomatically(string printerId)
+    {
+        if (_shutDown || string.IsNullOrWhiteSpace(printerId) || !_open.TryGetValue(printerId, out CameraWindow? open))
+        {
+            return false;
+        }
+
+        // The same close as the close button (placement remembered, stream stopped), reported as automatic.
+        _ = _closingAutomatically.Add(open);
+        open.Close();
+        return !_open.ContainsKey(printerId);
+    }
+
+    /// <inheritdoc/>
+    public bool IsCloseDeferred(string printerId) =>
+        !string.IsNullOrWhiteSpace(printerId)
+        && _open.TryGetValue(printerId, out CameraWindow? open)
+        && open.DataContext is CameraViewModel { DefersAutoClose: true };
 
     /// <inheritdoc/>
     public bool Start(string printerId, CameraOverlayLayout? startingLayout)
@@ -101,7 +135,12 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
     /// (user decision 2026-10-21); <see langword="null"/>: the monitored settings, activated.
     /// </param>
     /// <param name="prepare">Called with the view model of a new window before the window gets it (T-091: the layout mode).</param>
-    private bool Show(string printerId, PrinterDefinition? saved, Action<CameraViewModel>? prepare = null)
+    /// <param name="activate">
+    /// Whether the window is activated; <see langword="null"/>: unless <paramref name="saved"/> is given. <see langword="false"/>
+    /// for the automatic open (T-151, user decision 2026-11-03 #1): shown without taking the focus, and without activating
+    /// the app on macOS.
+    /// </param>
+    private bool Show(string printerId, PrinterDefinition? saved, Action<CameraViewModel>? prepare = null, bool? activate = null)
     {
         if (_shutDown || string.IsNullOrWhiteSpace(printerId))
         {
@@ -117,7 +156,7 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
         // Apply keeps the focus in the settings window. Exception (user decision 2026-10-21): full screen takes it when the
         // window switches after opening (on Windows Avalonia activates a shown window whose state changes), so that Esc
         // and F11 reach the camera window that covers the settings.
-        bool activate = saved is null;
+        bool activates = activate ?? saved is null;
         CameraViewModel? created = null;
         if (!slot.IsOpen)
         {
@@ -146,21 +185,40 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
                 used = true;
                 // The monitors first: the window places itself when it gets its view model.
                 CameraWindow window = _screens is { } screens
-                    ? new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ScreenCatalog = screens, ShowActivated = activate, DataContext = created }
-                    : new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ShowActivated = activate, DataContext = created };
+                    ? new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ScreenCatalog = screens, ShowActivated = activates, DataContext = created }
+                    : new() { ChromeMeasurement = _measureChrome, ChromePrediction = _predictChrome, ShowActivated = activates, DataContext = created };
                 _open[printerId] = window;
+                CameraViewModel? viewModel = created;
+                PropertyChangedEventHandler? deferral = viewModel is null ? null : (_, e) =>
+                {
+                    if (e.PropertyName == nameof(CameraViewModel.DefersAutoClose))
+                    {
+                        CloseDeferralChanged?.Invoke(this, new CameraWindowCloseDeferralChangedEventArgs(printerId, viewModel.DefersAutoClose));
+                    }
+                };
+                if (viewModel is not null)
+                {
+                    viewModel.PropertyChanged += deferral;
+                }
+
                 window.Closed += (_, _) =>
                 {
+                    if (viewModel is not null)
+                    {
+                        viewModel.PropertyChanged -= deferral;
+                    }
+
                     if (_open.TryGetValue(printerId, out CameraWindow? current) && ReferenceEquals(current, window))
                     {
                         _open.Remove(printerId);
                     }
 
-                    OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: false));
+                    bool automatic = _closingAutomatically.Remove(window);
+                    OpenChanged?.Invoke(this, new CameraWindowOpenChangedEventArgs(printerId, isOpen: false, automatic));
                 };
                 // The stream runs only while the window is open: the slot disposes the view model when it closes.
                 return (new AvaloniaAuxiliaryWindow(window, _track, _bringAppToFront, _activator), created);
-            }, activate: activate);
+            }, activate: activates);
         }
         finally
         {
@@ -255,20 +313,28 @@ internal sealed class CameraWindows : ICameraWindowPlacer, ICameraLayoutModeLaun
         }
 
         _open.Clear();
+        _closingAutomatically.Clear();
     }
 }
 
 /// <summary>The camera window of a printer opened or closed (T-040).</summary>
 internal sealed class CameraWindowOpenChangedEventArgs : EventArgs
 {
-    public CameraWindowOpenChangedEventArgs(string printerId, bool isOpen)
+    public CameraWindowOpenChangedEventArgs(string printerId, bool isOpen, bool automatic = false)
     {
         PrinterId = printerId;
         IsOpen = isOpen;
+        Automatic = automatic;
     }
 
     public string PrinterId { get; }
 
     /// <summary>Open now (otherwise closed).</summary>
     public bool IsOpen { get; }
+
+    /// <summary>
+    /// Closed by <see cref="CameraWindows.CloseAutomatically"/> (T-151: the printer is off); <see langword="false"/> for every
+    /// other close (the user, settings, quitting) and for opening.
+    /// </summary>
+    public bool Automatic { get; }
 }

@@ -72,7 +72,7 @@ public sealed class CameraWindowSettingsTests : IDisposable
         return Assert.Single(_store.Saves).Updated;
     }
 
-    // ---- T-150: the global "close when switched off" option has no control yet (T-151); a save must keep it ----
+    // ---- T-150 / T-151: the global "close when switched off" option ----
 
     [Theory]
     [InlineData(true)]
@@ -92,6 +92,49 @@ public sealed class CameraWindowSettingsTests : IDisposable
         vm.Printers[0].RememberLastPlacement = false;
 
         Assert.Equal(autoClose, (await SaveAsync(vm)).CameraWindowAutoClose);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TheAutoCloseOptionIsShownChangedAndSaved(bool loaded)
+    {
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", Camera())], CameraWindowAutoClose = loaded },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+        Assert.Equal(loaded, vm.CameraWindowAutoClose);
+        Assert.False(vm.IsDirty);
+
+        vm.CameraWindowAutoClose = !loaded;
+        Assert.True(vm.IsDirty);
+        vm.CameraWindowAutoClose = loaded;
+        Assert.False(vm.IsDirty);
+        vm.CameraWindowAutoClose = !loaded;
+
+        Assert.Equal(!loaded, (await SaveAsync(vm)).CameraWindowAutoClose);
+    }
+
+    [Fact]
+    public async Task ResettingTheCameraWindowOfAPrinterKeepsTheGlobalAutoCloseOption()
+    {
+        _store.Data = new SettingsEditorData(
+            new AppSettings { Printers = [Printer("a", "Alpha", Camera())] },
+            SettingsLoadStatus.Loaded,
+            [],
+            Ids());
+        SettingsViewModel vm = new(_store, new FakeConnectionTester(), Supported, cameraTester: new FakeCameraTester(), cameraWindowStates: _states);
+        _viewModel = vm;
+        await vm.LoadAsync();
+        vm.CameraWindowAutoClose = false;
+
+        vm.Printers[0].ResetCameraWindowCommand.Execute(null);
+
+        Assert.False(vm.CameraWindowAutoClose);
     }
 
     // ---- Loading ----

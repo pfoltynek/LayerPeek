@@ -228,6 +228,17 @@ internal static partial class AppServices
         services.AddSingleton<IPrinterInfoSource>(static sp => new PrinterInfoSource(sp.GetRequiredService<PrusaLinkClientFactory>()));
         // Cameras (T-014): printers whose camera address lost its credentials at startup, for the settings window.
         services.AddSingleton(static _ => new RemovedCameraCredentials());
+        // T-151: the camera window of a switched-off printer closes and opens again once it is back (T-150 state machine);
+        // the resume after sleep starts its delays again. The app attaches the camera windows once the UI runs.
+        services.AddSingleton(static _ => CreateSystemResumeEvents());
+        services.AddSingleton(sp => new CameraWindowAutoVisibilityObserver(
+            sp.GetRequiredService<IPrinterMonitor>(),
+            sp.GetRequiredService<ICameraWindowStateStore>(),
+            sp.GetRequiredService<IUiDispatcher>(),
+            sp.GetRequiredService<TimeProvider>(),
+            sp.GetRequiredService<ILogger<CameraWindowAutoVisibilityObserver>>(),
+            CameraWindowAutoOptions(env),
+            sp.GetRequiredService<ISystemResumeEvents>()));
         services.AddSingleton(static sp => new MonitoringSession(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<IPrinterMonitor>(),
@@ -244,6 +255,7 @@ internal static partial class AppServices
                 sp.GetRequiredService<TelemetryHistoryObserver>(),
                 sp.GetRequiredService<LocalNetworkPrivacyObserver>(),
                 sp.GetRequiredService<PrintPreviewObserver>(),
+                sp.GetRequiredService<CameraWindowAutoVisibilityObserver>(),
                 sp.GetRequiredService<MonitoredPrinters>(),
                 sp.GetRequiredService<ToastActivationRouter>(),
                 // T-058: automatic checks, pre-releases and the notification switches of the update check.
@@ -704,6 +716,35 @@ internal static partial class AppServices
         services.AddSingleton<ICameraMonitorPathUpdater>(static sp => new CameraMonitorPathUpdater(
             sp.GetRequiredService<ISettingsStore>,
             sp.GetRequiredService<ILogger<CameraMonitorPathUpdater>>()));
+    }
+
+    /// <summary>The resume after sleep of this OS (T-151); none elsewhere.</summary>
+    private static ISystemResumeEvents CreateSystemResumeEvents() =>
+        OperatingSystem.IsWindows() ? new WindowsSystemResumeEvents()
+        : OperatingSystem.IsMacOS() ? new MacSystemResumeEvents()
+        : NoSystemResumeEvents.Instance;
+
+    /// <summary>
+    /// The delays of the automatic close and reopen of the camera windows (T-150 decision 1: 30 s / 10 s); the Debug test
+    /// mode may shorten them for the end-to-end tests (T-151).
+    /// </summary>
+    private static CameraWindowAutoVisibilityOptions CameraWindowAutoOptions(AppEnvironment environment)
+    {
+        CameraWindowAutoVisibilityOptions options = CameraWindowAutoVisibilityOptions.Default;
+#if DEBUG
+        if (environment.TestCameraCloseAfter is { } closeAfter)
+        {
+            options = options with { CloseAfterOffline = closeAfter };
+        }
+
+        if (environment.TestCameraOpenAfter is { } openAfter)
+        {
+            options = options with { OpenAfterOnline = openAfter };
+        }
+#else
+        _ = environment;
+#endif
+        return options;
     }
 
     private static IAuxiliaryWindowStateStore CreateAuxiliaryWindowStateStore(IServiceProvider services)

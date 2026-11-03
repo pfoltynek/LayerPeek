@@ -967,6 +967,12 @@
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>When on, the values below are used only until the window has a remembered position. Save applies changes the next time the window opens, Apply right away.</value>
   </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Close when the printer turns off, reopen when it is back on</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>For all printers. A window you close yourself stays closed.</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Open as</value>
   </data>

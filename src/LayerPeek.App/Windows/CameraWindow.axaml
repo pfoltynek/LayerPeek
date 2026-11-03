@@ -30,7 +30,7 @@
     "Always on top" (T-117) in both, always enabled, checked like the pin.
   -->
   <Window.ContextMenu>
-    <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening">
+    <ContextMenu AutomationProperties.AutomationId="CameraContextMenu" Opening="OnContextMenuOpening" Opened="OnContextMenuOpened" Closed="OnContextMenuClosed">
       <MenuItem AutomationProperties.AutomationId="CameraLayoutMenuItem"
                 Header="{Binding [CameraLayoutEditMenu], Source={x:Static loc:LocalizedStrings.Instance}}"
                 Command="{Binding EditLayoutCommand}"

@@ -112,6 +112,20 @@ a kritérium.
       probuzení „Paused“). Agent ho může spustit sám, když se Sdílení obrazovky na tu dobu odpojí. `mac.display-wait`
       = `PASS` je v T-115.
 
+- [ ] **T-151** (krit. „Automaticky otevřené okno nebere fokus aktivnímu oknu jiné aplikace“, část macOS): s **odemčenou**
+      obrazovkou `LAYERPEEK_E2E=1 caffeinate -d -u dotnet test --project tests/LayerPeek.App.Tests -- --filter-class
+      "*MacCameraWindowAutoCloseE2ETests"` = PASS, ne „vynecháno … the screen is locked“. Agent ho může spustit sám, test
+      přepne do popředí Finder. 2026-11-03 prošlo zavření a znovuotevření, ale obrazovka byla zamčená, takže fokus test
+      neověřil.
+- [ ] **T-151** (ruční, Dock a ⌘Tab): simulátor s kamerou, okno kamery otevřené, `POST /_simulator/offline` → po 30 s okno
+      zmizí (Dock ikona zmizí, pokud nebylo jiné okno), `POST /_simulator/online` → po 10 s se okno objeví na stejném místě.
+      Aktivní zůstane předchozí aplikace (menu bar s jejím jménem), LayerPeek je v Docku a v ⌘Tab (T-102). Zapsat, jestli je
+      okno nad okny aktivní aplikace, nebo pod nimi. Malý náhled (vždy navrchu) se objeví navrchu na aktuální ploše bez
+      ikony v Docku. Žádná notifikace.
+- [ ] **T-151** (ruční, probuzení): se zapnutým podrobným logováním otevřít okno kamery, uspat Mac a probudit ho. V logu je
+      „The computer resumed from sleep: the camera window delays start again.“ (`NSWorkspaceDidWakeNotification`)
+      a okno se po probuzení nezavře podle stavu z doby před uspáním.
+
 ### 2. Se skutečnou tiskárnou (PrusaLink a kamera Buddy3D v místní síti; z T-115, oddíl 4)
 Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
 - [ ] **T-097** (krit. „Dialog ‚Místní síť‘ ukáže text v jazyce systému“): `mac.plist-localnetwork` = `PASS` (oddíl 2 v T-115)

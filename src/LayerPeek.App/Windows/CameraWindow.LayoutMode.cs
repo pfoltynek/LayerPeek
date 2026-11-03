@@ -108,6 +108,11 @@ public sealed partial class CameraWindow
     private void OnContextMenuOpening(object? sender, CancelEventArgs e) =>
         e.Cancel = _viewModel is not ({ IsNormal: true, IsLayoutModeActive: false } or { IsMini: true });
 
+    /// <summary>T-151: an automatic close of the window waits while its context menu is open.</summary>
+    private void OnContextMenuOpened(object? sender, RoutedEventArgs e) => _viewModel?.SetContextMenuOpen(true);
+
+    private void OnContextMenuClosed(object? sender, RoutedEventArgs e) => _viewModel?.SetContextMenuOpen(false);
+
     private void OnLayoutPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)

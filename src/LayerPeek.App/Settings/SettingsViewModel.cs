@@ -141,7 +141,6 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private LanguageOption _selectedLanguage;
     private bool _debugLogging;
 
-    // T-150: no control yet (T-151 adds it); kept as loaded so that a save does not turn the option back on.
     private bool _cameraWindowAutoClose = true;
     private bool _offerPrereleaseUpdates;
     private bool _startWithWindows;
@@ -544,6 +543,16 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
                 SetGeneral(ref _selectedLanguage, value);
             }
         }
+    }
+
+    /// <summary>
+    /// The camera window of a switched-off printer closes and opens again once the printer is back (T-150, T-151): global,
+    /// on by default, shown on the Camera window sub-tab of every printer; applied right after saving.
+    /// </summary>
+    public bool CameraWindowAutoClose
+    {
+        get => _cameraWindowAutoClose;
+        set => SetGeneral(ref _cameraWindowAutoClose, value);
     }
 
     /// <summary>Detailed logging (Debug) in the log file (T-047); applied right after saving, without a restart.</summary>

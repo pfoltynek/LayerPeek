@@ -226,6 +226,8 @@ public partial class App : Application, ITrayAppCommands
         _windows = new AuxiliaryWindowFactory(_windowTracker.Track, host.WindowStates, OperatingSystem.IsMacOS() ? Platform.MacOS.MacAppActivation.Activate : null, activator);
         _activation = new InstanceActivation(_windowTracker.Recent, () => ((ITrayAppCommands)this).ShowSettings());
         _host = host;
+        // T-151: the camera window of a switched-off printer closes and opens again once it is back.
+        host.AttachCameraWindows(CameraWindowsFor(host));
         _quit = new QuitCoordinator(StopHostAsync, () => desktop.Shutdown(), QuitTimeout, QuitGrace, host.CreateLogger<QuitCoordinator>());
         host.LanguageChanged += OnLanguageChanged;
         _commandLogger = host.CreateLogger<App>();
@@ -397,7 +399,9 @@ public partial class App : Application, ITrayAppCommands
         // model unsubscribes from the monitor before the services are released.
         _settingsWindow.Shutdown();
         _diagnosticsWindow.Shutdown();
-        // Stops the streams; the window state is saved and awaited by the host below.
+        // Stops the streams; the window state is saved and awaited by the host below. Closes of quitting are no closes by
+        // the user (T-151): the automatic close and reopen lets the windows go first.
+        _host?.DetachCameraWindows();
         _cameraWindows?.Shutdown();
 
         _aboutWindow.Shutdown();

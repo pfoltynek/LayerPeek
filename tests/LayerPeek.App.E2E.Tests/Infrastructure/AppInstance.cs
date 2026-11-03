@@ -148,6 +148,8 @@ internal sealed class AppInstance : IAsyncDisposable
         start.Environment.Remove(AppSwitches.TestCredentialPrefixVariable);
         start.Environment.Remove(AppSwitches.TestStartDelayVariable);
         start.Environment.Remove(AppSwitches.TestUpdateSourceVariable);
+        start.Environment.Remove(AppSwitches.TestCameraCloseAfterVariable);
+        start.Environment.Remove(AppSwitches.TestCameraOpenAfterVariable);
         return start;
     }
 
