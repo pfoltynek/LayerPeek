@@ -407,6 +407,22 @@ public sealed class AppServicesTests
         Assert.Same(services.GetRequiredService<PrintThumbnails>(), widget.Thumbnails);
     }
 
+    /// <summary>T-151: one observer of the automatic close and reopen of the camera windows, told about every monitoring run.</summary>
+    [Fact]
+    public async Task CameraWindowAutoVisibilityIsWiredToMonitoring()
+    {
+        await using ServiceProvider services = AppServices.Create(
+            cameraFeedFactory: static _ => UnavailableCameraFeedFactory.Instance,
+            cameraWindowStateStore: static _ => new MemoryCameraWindowStateStore());
+
+        CameraWindowAutoVisibilityObserver observer = services.GetRequiredService<CameraWindowAutoVisibilityObserver>();
+        Assert.Same(observer, services.GetRequiredService<CameraWindowAutoVisibilityObserver>());
+        Assert.Contains(observer, services.GetRequiredService<MonitoringSession>().Observers);
+        // The windows are attached by the app once its UI runs.
+        Assert.False(observer.IsRunning);
+        Assert.NotNull(services.GetRequiredService<LayerPeek.App.Platform.ISystemResumeEvents>());
+    }
+
     [Fact]
     public async Task CameraWindowOfApplyComesFromTheSavedPrinter()
     {

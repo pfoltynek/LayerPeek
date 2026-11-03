@@ -152,6 +152,8 @@ public sealed partial class CameraViewModel
         if (e.PropertyName == nameof(CameraLayoutModeViewModel.IsActive))
         {
             OnPropertyChanged(nameof(IsLayoutModeActive));
+            // T-151: the automatic close waits while the mode is on.
+            OnPropertyChanged(nameof(DefersAutoClose));
             OnLayoutAvailabilityChanged();
         }
     }

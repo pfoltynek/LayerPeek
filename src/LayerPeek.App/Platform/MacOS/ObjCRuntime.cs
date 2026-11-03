@@ -182,6 +182,10 @@ internal static unsafe partial class ObjCRuntime
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial nint Send(nint receiver, nint selector, nint first, nint second, nint third);
 
+    /// <summary><c>id</c> result, four pointer-sized arguments (<c>addObserverForName:object:queue:usingBlock:</c>).</summary>
+    [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
+    public static partial nint Send(nint receiver, nint selector, nint first, nint second, nint third, nint fourth);
+
     /// <summary><c>id</c> result, one <c>CGFloat</c> argument (<c>menuFontOfSize:</c>).</summary>
     [LibraryImport(LibObjC, EntryPoint = "objc_msgSend")]
     public static partial nint SendWithCGFloat(nint receiver, nint selector, double argument);

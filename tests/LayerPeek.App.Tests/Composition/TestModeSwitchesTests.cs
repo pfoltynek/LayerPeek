@@ -164,6 +164,53 @@ public sealed class TestModeSwitchesTests
         Assert.Equal([AppEnvironment.TestNoDisplayVariable], environment.IgnoredTestSwitches);
     }
 
+    /// <summary>T-151: the delays of the automatic close and reopen of the camera windows, only in the test mode, within their limit.</summary>
+    [Theory]
+    [InlineData("0", "0")]
+    [InlineData("1500", "500")]
+    [InlineData("120000", "120000")]
+    public void CameraWindowDelaysInMilliseconds(string closeAfter, string openAfter)
+    {
+        AppEnvironment environment = Read(
+            (AppEnvironment.DataDirectoryVariable, Folder),
+            (AppEnvironment.TestCameraCloseAfterVariable, closeAfter),
+            (AppEnvironment.TestCameraOpenAfterVariable, openAfter));
+
+        Assert.Equal("LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS", AppEnvironment.TestCameraCloseAfterVariable);
+        Assert.Equal("LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS", AppEnvironment.TestCameraOpenAfterVariable);
+        Assert.Equal(TimeSpan.FromMilliseconds(int.Parse(closeAfter, System.Globalization.CultureInfo.InvariantCulture)), environment.TestCameraCloseAfter);
+        Assert.Equal(TimeSpan.FromMilliseconds(int.Parse(openAfter, System.Globalization.CultureInfo.InvariantCulture)), environment.TestCameraOpenAfter);
+    }
+
+    [Fact]
+    public void WithoutTheCameraWindowSwitchesTheDelaysAreTheDefaults()
+    {
+        AppEnvironment environment = Read((AppEnvironment.DataDirectoryVariable, Folder));
+
+        Assert.Null(environment.TestCameraCloseAfter);
+        Assert.Null(environment.TestCameraOpenAfter);
+    }
+
+    [Theory]
+    [InlineData(AppEnvironment.TestCameraCloseAfterVariable, "-1")]
+    [InlineData(AppEnvironment.TestCameraCloseAfterVariable, "120001")]
+    [InlineData(AppEnvironment.TestCameraOpenAfterVariable, "1.5")]
+    [InlineData(AppEnvironment.TestCameraOpenAfterVariable, "10s")]
+    public void InvalidCameraWindowDelaysAreAnInvalidTestMode(string variable, string value)
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Read((AppEnvironment.DataDirectoryVariable, Folder), (variable, value)));
+    }
+
+    [Fact]
+    public void CameraWindowDelaysOutsideTheTestModeAreIgnoredAndReported()
+    {
+        AppEnvironment environment = Read((AppEnvironment.TestCameraCloseAfterVariable, "1000"), (AppEnvironment.TestCameraOpenAfterVariable, "1000"));
+
+        Assert.False(environment.IsIsolated);
+        Assert.Null(environment.TestCameraCloseAfter);
+        Assert.Equal([AppEnvironment.TestCameraCloseAfterVariable, AppEnvironment.TestCameraOpenAfterVariable], environment.IgnoredTestSwitches);
+    }
+
     [Fact]
     public void WithoutAnyVariableTheProcessIsProduction()
     {

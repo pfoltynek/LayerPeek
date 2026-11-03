@@ -930,6 +930,12 @@
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>Když je zapnuto, hodnoty níže se použijí, jen dokud okno nemá zapamatovanou pozici. Uložit je použije při dalším otevření okna, Použít hned.</value>
   </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Zavřít, když se tiskárna vypne, a znovu otevřít po jejím zapnutí</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>Platí pro všechny tiskárny. Okno, které zavřete sami, zůstane zavřené.</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Otevřít jako</value>
   </data>

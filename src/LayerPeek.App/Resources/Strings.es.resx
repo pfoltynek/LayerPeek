@@ -930,6 +930,12 @@
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>Si está activado, los valores siguientes solo se usan mientras la ventana no tenga una posición recordada. Guardar los aplica en la próxima apertura; Aplicar, al instante.</value>
   </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Cerrar al apagarse la impresora y volver a abrir al encenderse</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>Para todas las impresoras. Una ventana cerrada manualmente permanece cerrada.</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Abrir como</value>
   </data>

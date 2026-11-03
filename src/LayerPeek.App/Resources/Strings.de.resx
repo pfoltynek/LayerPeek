@@ -930,6 +930,12 @@
   <data name="SettingsCameraWindowRememberHint" xml:space="preserve">
     <value>Wenn aktiviert, gelten die Werte unten nur, solange keine Position gespeichert ist. Speichern wirkt beim nächsten Öffnen, Übernehmen sofort.</value>
   </data>
+  <data name="SettingsCameraWindowAutoClose" xml:space="preserve">
+    <value>Bei ausgeschaltetem Drucker schließen, nach dem Einschalten wieder öffnen</value>
+  </data>
+  <data name="SettingsCameraWindowAutoCloseHint" xml:space="preserve">
+    <value>Gilt für alle Drucker. Ein selbst geschlossenes Fenster bleibt geschlossen.</value>
+  </data>
   <data name="SettingsCameraWindowStartMode" xml:space="preserve">
     <value>Öffnen als</value>
   </data>

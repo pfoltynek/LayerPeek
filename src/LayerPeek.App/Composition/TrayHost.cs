@@ -232,6 +232,27 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// UI thread: the camera windows the automatic close and reopen drives from now on (T-151,
+    /// <see cref="CameraWindowAutoVisibilityObserver"/>). Ignored once stopping started.
+    /// </summary>
+    internal void AttachCameraWindows(ICameraWindowAutoTarget cameraWindows)
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<CameraWindowAutoVisibilityObserver>().Attach(cameraWindows);
+        }
+    }
+
+    /// <summary>UI thread, quitting: the camera windows close now; that is no close by the user (T-151).</summary>
+    internal void DetachCameraWindows()
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<CameraWindowAutoVisibilityObserver>().Detach();
+        }
+    }
+
     /// <summary>Where the settings and diagnostics windows remember their size (T-094). Valid until <see cref="StopAsync"/>.</summary>
     internal IAuxiliaryWindowStateStore WindowStates => _services.GetRequiredService<IAuxiliaryWindowStateStore>();
 

@@ -220,6 +220,19 @@ internal sealed class AppEnvironment
     public const string TestUpdateSourceVariable = Installer.UpdateSource.TestVariable;
 
     /// <summary>
+    /// Debug builds only (T-151): the camera window of a printer offline this many milliseconds (0 to
+    /// <see cref="MaxTestCameraAutoDelayMilliseconds"/>) closes automatically, instead of after 30 s, so that the end-to-end
+    /// test does not wait that long.
+    /// </summary>
+    public const string TestCameraCloseAfterVariable = "LAYERPEEK_TEST_CAMERA_CLOSE_AFTER_MS";
+
+    /// <summary>
+    /// Debug builds only (T-151): an automatically closed camera window opens again after the printer has been online this
+    /// many milliseconds (0 to <see cref="MaxTestCameraAutoDelayMilliseconds"/>), instead of after 10 s.
+    /// </summary>
+    public const string TestCameraOpenAfterVariable = "LAYERPEEK_TEST_CAMERA_OPEN_AFTER_MS";
+
+    /// <summary>
     /// Debug builds only (T-067): the command line mode that removes the toasts of the test app and its Start menu shortcut
     /// after a crashed test run, and nothing else: no app, no single-instance guard, no log; exit code 0, otherwise 1 with
     /// the reason on stderr. macOS (T-020): run as the executable of the test bundle, it removes the delivered and pending
@@ -267,6 +280,9 @@ internal sealed class AppEnvironment
     /// <summary>The longest pretended time without a display in the test mode.</summary>
     public const int MaxTestNoDisplayMilliseconds = 120_000;
 
+    /// <summary>The longest delay of the automatic close and reopen of the camera windows in the test mode (T-151).</summary>
+    public const int MaxTestCameraAutoDelayMilliseconds = 120_000;
+
     /// <summary>
     /// Exit code of a test-mode start without an instance name suffix, with a relative data folder or an invalid test switch,
     /// and of a test start (<see cref="IsTestStart"/>) without the test data folder.
@@ -308,6 +324,12 @@ internal sealed class AppEnvironment
     /// <summary>Test mode with <see cref="TestUpdateSourceVariable"/>: the update feed of the test; otherwise <see langword="null"/>.</summary>
     public Installer.UpdateSource? TestUpdateSource { get; private init; }
 
+    /// <summary>Test mode with <see cref="TestCameraCloseAfterVariable"/>: the offline delay of the camera windows; otherwise <see langword="null"/>.</summary>
+    public TimeSpan? TestCameraCloseAfter { get; private init; }
+
+    /// <summary>Test mode with <see cref="TestCameraOpenAfterVariable"/>: the online delay of the camera windows; otherwise <see langword="null"/>.</summary>
+    public TimeSpan? TestCameraOpenAfter { get; private init; }
+
     /// <summary>Test switches set outside the test mode: they are ignored, and <c>Program.Main</c> logs them.</summary>
     public IReadOnlyList<string> IgnoredTestSwitches { get; private init; } = [];
 
@@ -317,6 +339,8 @@ internal sealed class AppEnvironment
     /// <param name="startDelay">How much later monitoring starts (T-067).</param>
     /// <param name="noDisplay">How long macOS reports no active display (T-099).</param>
     /// <param name="updateSource">The update feed of the test (T-058).</param>
+    /// <param name="cameraCloseAfter">The offline delay of the automatic close of the camera windows (T-151).</param>
+    /// <param name="cameraOpenAfter">The online delay of their automatic reopen (T-151).</param>
     /// <exception cref="ArgumentException">The folder is not absolute, or a switch value is invalid.</exception>
     public static AppEnvironment ForTests(
         string dataDirectory,
@@ -324,7 +348,9 @@ internal sealed class AppEnvironment
         string? credentialPrefix = null,
         TimeSpan startDelay = default,
         TimeSpan noDisplay = default,
-        Installer.UpdateSource? updateSource = null)
+        Installer.UpdateSource? updateSource = null,
+        TimeSpan? cameraCloseAfter = null,
+        TimeSpan? cameraOpenAfter = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(dataDirectory);
         if (!Path.IsPathFullyQualified(dataDirectory))
@@ -347,8 +373,18 @@ internal sealed class AppEnvironment
             throw new ArgumentOutOfRangeException(nameof(noDisplay), noDisplay, "The time without a display of the test mode is out of range.");
         }
 
+        foreach ((TimeSpan? delay, string name) in new[] { (cameraCloseAfter, nameof(cameraCloseAfter)), (cameraOpenAfter, nameof(cameraOpenAfter)) })
+        {
+            if (delay is { } value && (value < TimeSpan.Zero || value > TimeSpan.FromMilliseconds(MaxTestCameraAutoDelayMilliseconds)))
+            {
+                throw new ArgumentOutOfRangeException(name, value, "The camera window delay of the test mode is out of range.");
+            }
+        }
+
         return new AppEnvironment(Path.GetFullPath(dataDirectory), isolated: true)
         {
+            TestCameraCloseAfter = cameraCloseAfter,
+            TestCameraOpenAfter = cameraOpenAfter,
             TestToasts = toasts,
             TestCredentialPrefix = credentialPrefix,
             TestStartDelay = startDelay,
@@ -371,10 +407,12 @@ internal sealed class AppEnvironment
         string? startDelay = read(TestStartDelayVariable);
         string? noDisplay = read(TestNoDisplayVariable);
         string? updateSource = read(TestUpdateSourceVariable);
+        string? cameraCloseAfter = read(TestCameraCloseAfterVariable);
+        string? cameraOpenAfter = read(TestCameraOpenAfterVariable);
         if (string.IsNullOrWhiteSpace(dataDirectory))
         {
             List<string> ignored = [];
-            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource) })
+            foreach ((string name, string? value) in new[] { (TestToastsVariable, toasts), (TestCredentialPrefixVariable, credentialPrefix), (TestStartDelayVariable, startDelay), (TestNoDisplayVariable, noDisplay), (TestUpdateSourceVariable, updateSource), (TestCameraCloseAfterVariable, cameraCloseAfter), (TestCameraOpenAfterVariable, cameraOpenAfter) })
             {
                 if (!string.IsNullOrEmpty(value))
                 {
@@ -391,7 +429,9 @@ internal sealed class AppEnvironment
             credentialPrefix: string.IsNullOrEmpty(credentialPrefix) ? null : credentialPrefix,
             startDelay: ParseMilliseconds(startDelay, TestStartDelayVariable, MaxTestStartDelayMilliseconds),
             noDisplay: ParseMilliseconds(noDisplay, TestNoDisplayVariable, MaxTestNoDisplayMilliseconds),
-            updateSource: ParseUpdateSource(updateSource));
+            updateSource: ParseUpdateSource(updateSource),
+            cameraCloseAfter: string.IsNullOrEmpty(cameraCloseAfter) ? null : ParseMilliseconds(cameraCloseAfter, TestCameraCloseAfterVariable, MaxTestCameraAutoDelayMilliseconds),
+            cameraOpenAfter: string.IsNullOrEmpty(cameraOpenAfter) ? null : ParseMilliseconds(cameraOpenAfter, TestCameraOpenAfterVariable, MaxTestCameraAutoDelayMilliseconds));
     }
 
     /// <summary>Only the loopback or an existing local folder; anything else refuses the start (never GitHub, never another host).</summary>

@@ -499,161 +499,177 @@
                 </StackPanel>
               </TabItem.Header>
               <ScrollViewer HorizontalScrollBarVisibility="Disabled" Margin="0,8,0,0">
-                <ContentControl Content="{Binding SelectedPrinter}">
-                  <ContentControl.ContentTemplate>
-                    <DataTemplate x:DataType="vm:PrinterEditorViewModel">
-                      <StackPanel>
-                        <TextBlock AutomationProperties.AutomationId="PrinterCameraWindowCameraOff"
-                                   Classes="hint"
-                                   Margin="0,0,0,8"
-                                   Text="{Binding [SettingsCameraWindowCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                   IsVisible="{Binding !CameraEnabled}" />
-                        <StackPanel AutomationProperties.AutomationId="PrinterCameraWindowFields" IsEnabled="{Binding CameraEnabled}">
-                          <CheckBox AutomationProperties.AutomationId="PrinterCameraWindowRemember"
-                                    Content="{Binding [SettingsCameraWindowRemember], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                    IsChecked="{Binding RememberLastPlacement}" />
-                          <TextBlock AutomationProperties.AutomationId="PrinterCameraWindowRememberHint" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsCameraWindowRememberHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                <StackPanel>
+                  <ContentControl Content="{Binding SelectedPrinter}">
+                    <ContentControl.ContentTemplate>
+                      <DataTemplate x:DataType="vm:PrinterEditorViewModel">
+                        <StackPanel>
+                          <TextBlock AutomationProperties.AutomationId="PrinterCameraWindowCameraOff"
+                                     Classes="hint"
+                                     Margin="0,0,0,8"
+                                     Text="{Binding [SettingsCameraWindowCameraOff], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                     IsVisible="{Binding !CameraEnabled}" />
+                          <StackPanel AutomationProperties.AutomationId="PrinterCameraWindowFields" IsEnabled="{Binding CameraEnabled}">
+                            <CheckBox AutomationProperties.AutomationId="PrinterCameraWindowRemember"
+                                      Content="{Binding [SettingsCameraWindowRemember], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      IsChecked="{Binding RememberLastPlacement}" />
+                            <TextBlock AutomationProperties.AutomationId="PrinterCameraWindowRememberHint" Classes="hint" Margin="28,0,0,0" Text="{Binding [SettingsCameraWindowRememberHint], Source={x:Static loc:LocalizedStrings.Instance}}" />
 
-                          <Grid ColumnDefinitions="Auto,12,*" RowDefinitions="Auto,8,Auto" Margin="0,12,0,0">
-                            <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowStartMode], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <ComboBox Grid.Column="2"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowStartMode"
-                                      AutomationProperties.Name="{Binding [SettingsCameraWindowStartMode], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                      ItemsSource="{Binding StartModeOptions}"
-                                      SelectedItem="{Binding SelectedStartMode}"
-                                      MinWidth="220">
-                              <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CameraStartModeOption">
-                                  <TextBlock Text="{Binding Text}" />
-                                </DataTemplate>
-                              </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowMonitor], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <ComboBox Grid.Row="2"
-                                      Grid.Column="2"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowMonitor"
-                                      AutomationProperties.Name="{Binding [SettingsCameraWindowMonitor], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                      ItemsSource="{Binding MonitorOptions}"
-                                      SelectedItem="{Binding SelectedMonitor}"
-                                      HorizontalAlignment="Stretch">
-                              <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CameraMonitorOption">
-                                  <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
-                                </DataTemplate>
-                              </ComboBox.ItemTemplate>
-                            </ComboBox>
-                          </Grid>
+                            <Grid ColumnDefinitions="Auto,12,*" RowDefinitions="Auto,8,Auto" Margin="0,12,0,0">
+                              <TextBlock VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowStartMode], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <ComboBox Grid.Column="2"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowStartMode"
+                                        AutomationProperties.Name="{Binding [SettingsCameraWindowStartMode], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                        ItemsSource="{Binding StartModeOptions}"
+                                        SelectedItem="{Binding SelectedStartMode}"
+                                        MinWidth="220">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:CameraStartModeOption">
+                                    <TextBlock Text="{Binding Text}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowMonitor], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <ComboBox Grid.Row="2"
+                                        Grid.Column="2"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowMonitor"
+                                        AutomationProperties.Name="{Binding [SettingsCameraWindowMonitor], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                        ItemsSource="{Binding MonitorOptions}"
+                                        SelectedItem="{Binding SelectedMonitor}"
+                                        HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:CameraMonitorOption">
+                                    <TextBlock Text="{Binding Text}" TextTrimming="CharacterEllipsis" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                            </Grid>
 
-                          <!--
-                            Rows: normal window, mini preview; columns: size (editable, presets + "W × H"), position, always on top (T-037).
-                            No top margin of its own (T-040): the section headers bring 16 DIP, which keeps room for the buttons below.
-                          -->
-                          <Grid ColumnDefinitions="Auto,12,140,12,*,12,88" RowDefinitions="Auto,4,Auto,Auto,8,Auto,Auto">
-                            <TextBlock Grid.Column="2" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowSize], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <TextBlock Grid.Column="4" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowPosition], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <TextBlock Grid.Column="6"
-                                       AutomationProperties.AutomationId="PrinterCameraWindowTopmostHeader"
-                                       Classes="section"
-                                       VerticalAlignment="Bottom"
-                                       HorizontalAlignment="Center"
-                                       TextAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxLines="2"
-                                       TextTrimming="CharacterEllipsis"
-                                       Text="{Binding [SettingsCameraWindowTopmost], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                            <!--
+                              Rows: normal window, mini preview; columns: size (editable, presets + "W × H"), position, always on top (T-037).
+                              No top margin of its own (T-040): the section headers bring 16 DIP, which keeps room for the buttons below.
+                            -->
+                            <Grid ColumnDefinitions="Auto,12,140,12,*,12,88" RowDefinitions="Auto,4,Auto,Auto,8,Auto,Auto">
+                              <TextBlock Grid.Column="2" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowSize], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <TextBlock Grid.Column="4" Classes="section" VerticalAlignment="Bottom" Text="{Binding [SettingsCameraWindowPosition], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <TextBlock Grid.Column="6"
+                                         AutomationProperties.AutomationId="PrinterCameraWindowTopmostHeader"
+                                         Classes="section"
+                                         VerticalAlignment="Bottom"
+                                         HorizontalAlignment="Center"
+                                         TextAlignment="Center"
+                                         TextWrapping="Wrap"
+                                         MaxLines="2"
+                                         TextTrimming="CharacterEllipsis"
+                                         Text="{Binding [SettingsCameraWindowTopmost], Source={x:Static loc:LocalizedStrings.Instance}}" />
 
-                            <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowNormal], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <ComboBox Grid.Row="2"
-                                      Grid.Column="2"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowNormalSize"
-                                      AutomationProperties.Name="{Binding NormalSizeName}"
-                                      AutomationProperties.HelpText="{Binding NormalSizeHelpText}"
-                                      Classes.invalid="{Binding HasNormalSizeError}"
-                                      IsEditable="True"
-                                      ItemsSource="{x:Static vm:CameraWindowSizeText.Presets}"
-                                      Text="{Binding NormalSizeText, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch" />
-                            <ComboBox Grid.Row="2"
-                                      Grid.Column="4"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowNormalCorner"
-                                      AutomationProperties.Name="{Binding NormalCornerName}"
-                                      ItemsSource="{Binding CornerOptions}"
-                                      SelectedItem="{Binding SelectedNormalCorner}"
-                                      HorizontalAlignment="Stretch">
-                              <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CameraCornerOption">
-                                  <TextBlock Text="{Binding Text}" />
-                                </DataTemplate>
-                              </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <CheckBox Grid.Row="2"
-                                      Grid.Column="6"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowNormalTopmost"
-                                      AutomationProperties.Name="{Binding NormalTopmostName}"
-                                      HorizontalAlignment="Center"
-                                      IsChecked="{Binding TopmostNormal}" />
-                            <TextBlock Grid.Row="3"
-                                       Grid.Column="2"
-                                       Grid.ColumnSpan="5"
-                                       AutomationProperties.AutomationId="PrinterCameraWindowNormalSizeError"
-                                       Classes="error"
-                                       Text="{Binding NormalSizeError}"
-                                       IsVisible="{Binding NormalSizeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                              <TextBlock Grid.Row="2" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowNormal], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <ComboBox Grid.Row="2"
+                                        Grid.Column="2"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowNormalSize"
+                                        AutomationProperties.Name="{Binding NormalSizeName}"
+                                        AutomationProperties.HelpText="{Binding NormalSizeHelpText}"
+                                        Classes.invalid="{Binding HasNormalSizeError}"
+                                        IsEditable="True"
+                                        ItemsSource="{x:Static vm:CameraWindowSizeText.Presets}"
+                                        Text="{Binding NormalSizeText, Mode=TwoWay}"
+                                        HorizontalAlignment="Stretch" />
+                              <ComboBox Grid.Row="2"
+                                        Grid.Column="4"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowNormalCorner"
+                                        AutomationProperties.Name="{Binding NormalCornerName}"
+                                        ItemsSource="{Binding CornerOptions}"
+                                        SelectedItem="{Binding SelectedNormalCorner}"
+                                        HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:CameraCornerOption">
+                                    <TextBlock Text="{Binding Text}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <CheckBox Grid.Row="2"
+                                        Grid.Column="6"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowNormalTopmost"
+                                        AutomationProperties.Name="{Binding NormalTopmostName}"
+                                        HorizontalAlignment="Center"
+                                        IsChecked="{Binding TopmostNormal}" />
+                              <TextBlock Grid.Row="3"
+                                         Grid.Column="2"
+                                         Grid.ColumnSpan="5"
+                                         AutomationProperties.AutomationId="PrinterCameraWindowNormalSizeError"
+                                         Classes="error"
+                                         Text="{Binding NormalSizeError}"
+                                         IsVisible="{Binding NormalSizeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-                            <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowMini], Source={x:Static loc:LocalizedStrings.Instance}}" />
-                            <ComboBox Grid.Row="5"
-                                      Grid.Column="2"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowMiniSize"
-                                      AutomationProperties.Name="{Binding MiniSizeName}"
-                                      AutomationProperties.HelpText="{Binding MiniSizeHelpText}"
-                                      Classes.invalid="{Binding HasMiniSizeError}"
-                                      IsEditable="True"
-                                      ItemsSource="{x:Static vm:CameraWindowSizeText.MiniPresets}"
-                                      Text="{Binding MiniSizeText, Mode=TwoWay}"
-                                      HorizontalAlignment="Stretch" />
-                            <ComboBox Grid.Row="5"
-                                      Grid.Column="4"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowMiniCorner"
-                                      AutomationProperties.Name="{Binding MiniCornerName}"
-                                      ItemsSource="{Binding CornerOptions}"
-                                      SelectedItem="{Binding SelectedMiniCorner}"
-                                      HorizontalAlignment="Stretch">
-                              <ComboBox.ItemTemplate>
-                                <DataTemplate x:DataType="vm:CameraCornerOption">
-                                  <TextBlock Text="{Binding Text}" />
-                                </DataTemplate>
-                              </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <CheckBox Grid.Row="5"
-                                      Grid.Column="6"
-                                      AutomationProperties.AutomationId="PrinterCameraWindowMiniTopmost"
-                                      AutomationProperties.Name="{Binding MiniTopmostName}"
-                                      HorizontalAlignment="Center"
-                                      IsChecked="{Binding TopmostMini}" />
-                            <TextBlock Grid.Row="6"
-                                       Grid.Column="2"
-                                       Grid.ColumnSpan="5"
-                                       AutomationProperties.AutomationId="PrinterCameraWindowMiniSizeError"
-                                       Classes="error"
-                                       Text="{Binding MiniSizeError}"
-                                       IsVisible="{Binding MiniSizeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                          </Grid>
+                              <TextBlock Grid.Row="5" VerticalAlignment="Center" Text="{Binding [SettingsCameraWindowMini], Source={x:Static loc:LocalizedStrings.Instance}}" />
+                              <ComboBox Grid.Row="5"
+                                        Grid.Column="2"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowMiniSize"
+                                        AutomationProperties.Name="{Binding MiniSizeName}"
+                                        AutomationProperties.HelpText="{Binding MiniSizeHelpText}"
+                                        Classes.invalid="{Binding HasMiniSizeError}"
+                                        IsEditable="True"
+                                        ItemsSource="{x:Static vm:CameraWindowSizeText.MiniPresets}"
+                                        Text="{Binding MiniSizeText, Mode=TwoWay}"
+                                        HorizontalAlignment="Stretch" />
+                              <ComboBox Grid.Row="5"
+                                        Grid.Column="4"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowMiniCorner"
+                                        AutomationProperties.Name="{Binding MiniCornerName}"
+                                        ItemsSource="{Binding CornerOptions}"
+                                        SelectedItem="{Binding SelectedMiniCorner}"
+                                        HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                  <DataTemplate x:DataType="vm:CameraCornerOption">
+                                    <TextBlock Text="{Binding Text}" />
+                                  </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                              </ComboBox>
+                              <CheckBox Grid.Row="5"
+                                        Grid.Column="6"
+                                        AutomationProperties.AutomationId="PrinterCameraWindowMiniTopmost"
+                                        AutomationProperties.Name="{Binding MiniTopmostName}"
+                                        HorizontalAlignment="Center"
+                                        IsChecked="{Binding TopmostMini}" />
+                              <TextBlock Grid.Row="6"
+                                         Grid.Column="2"
+                                         Grid.ColumnSpan="5"
+                                         AutomationProperties.AutomationId="PrinterCameraWindowMiniSizeError"
+                                         Classes="error"
+                                         Text="{Binding MiniSizeError}"
+                                         IsVisible="{Binding MiniSizeError, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                            </Grid>
 
-                          <!-- T-040: values of this sub-tab back to the defaults; Apply = Save + place the open camera window again. -->
-                          <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,8,0,0">
-                            <Button AutomationProperties.AutomationId="PrinterCameraWindowReset"
-                                    Content="{Binding [SettingsCameraWindowReset], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                    Command="{Binding ResetCameraWindowCommand}" />
-                            <Button AutomationProperties.AutomationId="PrinterCameraWindowApply"
-                                    MinWidth="96"
-                                    Content="{Binding [SettingsCameraWindowApply], Source={x:Static loc:LocalizedStrings.Instance}}"
-                                    Command="{Binding ApplyCameraWindowCommand}" />
+                            <!--
+                              T-040: values of this sub-tab back to the defaults; Apply = Save + place the open camera window again.
+                              4 above (8 before T-151): room for the automatic close below.
+                            -->
+                            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Right" Margin="0,4,0,0">
+                              <Button AutomationProperties.AutomationId="PrinterCameraWindowReset"
+                                      Content="{Binding [SettingsCameraWindowReset], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      Command="{Binding ResetCameraWindowCommand}" />
+                              <Button AutomationProperties.AutomationId="PrinterCameraWindowApply"
+                                      MinWidth="96"
+                                      Content="{Binding [SettingsCameraWindowApply], Source={x:Static loc:LocalizedStrings.Instance}}"
+                                      Command="{Binding ApplyCameraWindowCommand}" />
+                            </StackPanel>
                           </StackPanel>
                         </StackPanel>
-                      </StackPanel>
-                    </DataTemplate>
-                  </ContentControl.ContentTemplate>
-                </ContentControl>
+                      </DataTemplate>
+                    </ContentControl.ContentTemplate>
+                  </ContentControl>
+                  <!--
+                    T-151: global (every printer, user decision 2026-11-03 #5), so outside the fields of the printer: enabled also
+                    while its camera is off; Reset leaves it alone. Right below the buttons and 28 high (Fluent: 32) with its hint
+                    as the tooltip: the sub-tab is full, the window must not scroll (SettingsWindowLayoutTests).
+                  -->
+                  <CheckBox AutomationProperties.AutomationId="CameraWindowAutoClose"
+                            MinHeight="28"
+                            Content="{Binding [SettingsCameraWindowAutoClose], Source={x:Static loc:LocalizedStrings.Instance}}"
+                            ToolTip.Tip="{Binding [SettingsCameraWindowAutoCloseHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                            AutomationProperties.HelpText="{Binding [SettingsCameraWindowAutoCloseHint], Source={x:Static loc:LocalizedStrings.Instance}}"
+                            IsChecked="{Binding CameraWindowAutoClose}" />
+                </StackPanel>
               </ScrollViewer>
             </TabItem>
           </TabControl>
