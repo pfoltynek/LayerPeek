@@ -110,6 +110,8 @@ public sealed class InstanceProtocolTests
     [InlineData("crash:ui", "Crash", "ui")]
     [InlineData("crash:background", "Crash", "background")]
     [InlineData("crash:task", "Crash", "task")]
+    [InlineData("notifications:off", "Notifications", "off")]
+    [InlineData("notifications:on", "Notifications", "on")]
     public void TestCommandsRoundTripInDebugBuilds(string text, string kind, string? argument)
     {
         Assert.True(InstanceProtocol.TryDecode(Encoding.ASCII.GetBytes(text + "\n"), out InstanceCommand decoded));
@@ -129,6 +131,10 @@ public sealed class InstanceProtocolTests
     [InlineData("quit:x")]
     [InlineData("crash")]
     [InlineData("crash:")]
+    [InlineData("notifications")]
+    [InlineData("notifications:")]
+    [InlineData("notifications:Off")]
+    [InlineData("notifications:disabled")]
     [InlineData("Settings")]
     [InlineData("diagnostics:é")]
     public void MalformedTestCommandsAreRejected(string text)
@@ -147,6 +153,7 @@ public sealed class InstanceProtocolTests
     [InlineData("camera:x")]
     [InlineData("quit")]
     [InlineData("crash:ui")]
+    [InlineData("notifications:off")]
     public void ReleaseBuildsKnowOnlyActivate(string text)
     {
         Assert.False(InstanceProtocol.TryDecode(Encoding.ASCII.GetBytes(text), out _));

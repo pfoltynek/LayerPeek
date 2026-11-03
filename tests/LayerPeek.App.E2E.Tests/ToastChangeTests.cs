@@ -278,7 +278,7 @@ public sealed class ToastChangeTests
     [Fact]
     public void TestAppSettingsKeyIsTheTestAppsOnly()
     {
-        Assert.EndsWith(@"\Notifications\Settings\LayerPeek.E2E", ToastAppSettingsKind.SubKey, StringComparison.Ordinal);
+        Assert.EndsWith(@"\Notifications\Settings\LayerPeek.E2E.2", ToastAppSettingsKind.SubKey, StringComparison.Ordinal);
         Assert.Equal("LayerPeek E2E", ToastTexts.AppName);
     }
 
@@ -377,6 +377,11 @@ public sealed class ToastChangeTests
         Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(string.Empty));
         Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(ToastSystemState.ProductionAppUserModelId));
         Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(@"LayerPeek\x.E2E"));
+        // T-133: the current test app id and a former one are the test app's; a name that only starts alike is not.
+        Assert.Equal(ToastAppSettingsKind.SettingsSubKey + @"\LayerPeek.E2E.2", ToastAppSettingsKind.TestAppKey(AppSwitches.AppUserModelId));
+        Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey("LayerPeek.E2Ex"));
+        Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey(@"LayerPeek.E2E.2\x"));
+        Assert.Throws<InvalidOperationException>(() => ToastAppSettingsKind.TestAppKey("LayerPeek.E2E.2 x"));
     }
 
     [Fact]

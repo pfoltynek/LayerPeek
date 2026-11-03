@@ -42,7 +42,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `tools/windows-verify.Tests.ps1` v `dotnet test`. Ručně zbývá skutečný interaktivní běh se skutečnými kontrolami.
 
 ### 2. Ruční kontroly bez tiskárny (z T-114, oddíl 3)
-- [ ] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část Windows): tlačítko „Poslat zkušební upozornění“
+- [x] **T-101** (krit. „Ověřeno uživatelem na Macu i Windows“, část Windows): tlačítko „Poslat zkušební upozornění“
       pošle toast (zvuk podle hodnoty vybrané v okně, i neuložené), druhý klik předchozí toast nahradí; po vypnutí
       v Nastavení → Systém → Oznámení varování „Upozornění jsou ve Windows vypnutá.“ s tlačítkem, které otevře
       `ms-settings:notifications`; klik na zkušební toast přenese okno Nastavení na záložku Obecné.
@@ -50,6 +50,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       (T-128): `pwsh tools/run-e2e.ps1 -Class '*TestNotificationTests'` (systémové změny `Toasts`, `DoNotDisturb`;
       s `-NoSystemChanges` se přeskočí). Zvuk se ověřuje v XML toastu z historie oznámení (uložené „Všechna“, v okně
       neuložené „Vypnuto“ → toast je tichý). Odškrtnout po zeleném běhu.
+      → E2E zelený 2026-11-03 (T-133).
+- [ ] **T-101** (ruční zbytek z T-133): E2E test vypnutí ve Windows jen předstírá (Debug přepínač), proto skutečné vypnutí
+      upozornění LayerPeeku v Nastavení → Systém → Oznámení → varování v okně Nastavení ověřte ručně (a pak upozornění zase
+      zapněte).
 - [ ] *Nepovinné, doporučené (zbytek T-117 po T-120):* čitelnost ztlumeného špendlíku na světlém obraze kamery a při
       200 % (subjektivní; E2E jen měří jas a ukládá výřezy) a skutečný hlas Předčítání v češtině („Vždy navrchu: zapnuto /
       vypnuto“; E2E ověřuje jen UIA název a stav, které Předčítání čte).
@@ -65,8 +69,10 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - [ ] *Nepovinné (z T-124, rozhodnutí uživatele 2026-11-01):* na nainstalované verzi (po vydání 0.4.0) skutečný klik na
       upozornění v centru oznámení, když aplikace neběží (`pwsh tools/windows-verify.ps1 -Only win.toast-click`), a autostart
       po skutečném odhlášení a přihlášení (`-Only win.autostart`).
-- [ ] **T-128** (z T-124): bez nainstalované LayerPeek `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'` – projdou i oba
-      instalační případy. Předpoklad: T-133 (upozornění testovací aplikace `LayerPeek.E2E` zase zapnutá).
+- [x] **T-128** (z T-124): bez nainstalované LayerPeek `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'` – projdou i oba
+      instalační případy. Předpoklad: T-133 (nové testovací AUMID `LayerPeek.E2E.2`, jehož upozornění jsou zapnutá).
+      → nahrazeno ostrou aktualizací 0.3.1 → 0.4.0 (rozhodnutí uživatele 2026-11-03: 0.4.0 neodinstalovat); instalační
+      případy se při instalaci přeskočí, viz poznámky.
 
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
@@ -78,7 +84,7 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       z T-115 (běh na Macu první; od 2026-11-01 bod v T-127) doplní Windows své soubory (`release-upload.ps1
       -AddToPublished`, `docs/release.md`, „Zkouška doplnění druhého OS (T-113)“); `release-publish.ps1 -DryRun` bez
       `-AllowIncomplete` pak projde.
-- [ ] **T-058** (krit. „Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack“,
+- [x] **T-058** (krit. „Klik na položku / notifikaci otevře stránku vydání, případně spustí aktualizaci přes Velopack“,
       část Windows): skutečný klik na položku „Je dostupná nová verze X.Y.Z“ v menu a na banner toastu; nainstalovaná
       starší verze se přes Velopack aktualizuje z GitHub Releases (bez tokenu) a znovu spustí; `.zip` verze otevře
       stránku vydání.
@@ -88,8 +94,11 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       `ZipVersionOpensTheReleasePageFromTheBannerAndTheMenuItem`. Běh: `pwsh tools/run-e2e.ps1 -Class '*UpdateTests'`, test
       instalace jen bez nainstalované LayerPeek (poprvé s T-124). Znovuspuštění samotným `Update.exe` se neověřuje, stačí
       spuštění aktualizované kopie testem (rozhodnutí uživatele 2026-11-01). Odškrtnout po zeleném běhu.
-- [ ] **T-058** (ruční zbytek, rozhodnutí uživatele 2026-11-01): jednou po skutečném vydání aktualizace nainstalované
+      → 2026-11-03: případ `.zip` (banner i položka menu) PASS; instalační případy přeskočené (nainstalovaná 0.4.0)
+      a nahrazené ostrou aktualizací uživatelem (klik na položku menu, viz poznámky).
+- [x] **T-058** (ruční zbytek, rozhodnutí uživatele 2026-11-01): jednou po skutečném vydání aktualizace nainstalované
       starší verze z GitHub Releases (bez tokenu) – E2E testy používají jen místní zdroj.
+      → ověřeno uživatelem 2026-11-03 (0.3.1 → 0.4.0, viz poznámky).
 - [ ] **T-017** (otevřená otázka SmartScreen): stažení `Setup.exe` z GitHub vydání v Edge – zapsat varování SmartScreen
       při stahování a doplnit ho do `docs/release.md` (spuštění se značkou Mark-of-the-Web ověřil T-056).
 
@@ -101,8 +110,20 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
 - Má „celý interaktivní běh“ `tools/windows-verify.ps1` (T-105) obsahovat i kontroly se skutečnou instalací, které
   ověřuje T-124 (pak i tady musí být instalace uživatele odložená), nebo stačí běh s
   `-Skip win.e2e-installer,win.install,win.toast-click,win.autostart,win.uninstall` a výsledek těchto kontrol z T-124?
-- Aktualizace přes Velopack (T-058) potřebuje nainstalovanou starší verzi: dělat ji ve stejném sezení jako T-124
-  (instalace uživatele už odložená), nebo samostatně? Rozhodne uživatel.
+- ~~Aktualizace přes Velopack (T-058) potřebuje nainstalovanou starší verzi: dělat ji ve stejném sezení jako T-124,
+  nebo samostatně?~~ Vyřešeno: ověřeno samostatně na ostré instalaci (2026-11-03).
 
 ## Poznámky k implementaci
-(vyplní agent / uživatel po ověření)
+### T-058 – ostrá aktualizace (uživatel, 2026-11-03, Windows 11 Pro 10.0.26300)
+- Nainstalovaná 0.3.1 (instalátor Velopack) se po vydání 0.4.0 aktualizovala z GitHub Releases bez tokenu.
+- Spuštěno klikem na položku „Je dostupná nová verze 0.4.0“ v menu v tray; klik na banner toastu se ručně nezkoušel
+  (pokrývá E2E `UpdateTests`, bod výše).
+- Po aktualizaci `Update.exe` aplikaci sám znovu spustil a běží 0.4.0 – tím je ověřené i znovuspuštění, které E2E testy
+  záměrně nepokrývají.
+
+### E2E běhy 2026-11-03 (hlavní agent, po T-133)
+- `TestNotificationTests` 1/1 PASS (nové AUMID `LayerPeek.E2E.2`, vypnutí ve Windows jen předstírané) → T-101 (E2E část).
+- `UpdateTests`: `ZipVersionOpensTheReleasePageFromTheBannerAndTheMenuItem` PASS; oba případy
+  `InstalledOlderVersionUpdatesFromALocalFeedAfterAClick` SKIP kvůli nainstalované 0.4.0. Uživatel rozhodl 0.4.0
+  neodinstalovat a body T-058 (E2E) a T-128 uzavřít na základě ostré aktualizace výše. Klik na banner toastu
+  u instalované verze tak ověřuje jen případ `.zip` (stejná cesta banneru, jiná akce).

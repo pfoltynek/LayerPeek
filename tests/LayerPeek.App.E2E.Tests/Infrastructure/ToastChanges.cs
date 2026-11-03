@@ -239,7 +239,7 @@ internal sealed class ToastsEnabledKind() : SystemChangeKind<ToastsEnabledState>
 }
 
 /// <summary>
-/// Windows' notification settings of the test app (T-068): <c>HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\LayerPeek.E2E</c>,
+/// Windows' notification settings of the test app (T-068): <c>HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\</c> + <see cref="AppSwitches.AppUserModelId"/>,
 /// which Windows creates after the first toast of the app. The original key (usually missing) is restored exactly: a key
 /// that did not exist is deleted, otherwise its values are written back; a switch the restore deletes goes to 1 first
 /// (see <see cref="SwitchOnBridge"/>, T-133). A toast test switches the app's notifications and banners on when they are
@@ -266,7 +266,7 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnaps
     /// the key as a whole, and an empty or production id would delete the user's notification settings.
     /// </summary>
     internal static string TestAppKey(string appUserModelId) =>
-        appUserModelId is { Length: > 0 } && appUserModelId.EndsWith(".E2E", StringComparison.Ordinal) && !appUserModelId.Contains('\\', StringComparison.Ordinal)
+        AppSwitches.IsTestAppUserModelId(appUserModelId)
             ? $@"{SettingsSubKey}\{appUserModelId}"
             : throw new InvalidOperationException($"'{appUserModelId}' is not the app id of the test app; refusing to touch its notification settings.");
 
@@ -290,9 +290,9 @@ internal sealed class ToastAppSettingsKind() : SystemChangeKind<RegistryKeySnaps
         {
             RegistryKeys.Write(SubKey, bridge);
             await Task.Delay(Settle, cancellationToken).ConfigureAwait(false);
-            // Only a last attempt: Windows took an "on" while the app ran, not after it quit (desktop run 2026-11-01), so
-            // the tests switch the app on while it runs (ToastRun.SwitchTestAppOnAsync). Not reached in time: restored
-            // anyway (the journal checks the key); the snapshot reports the effective setting, the next toast run checks it.
+            // Only a last attempt: Windows took no "on" after an "off" (desktop runs 2026-11-01), so the tests never switch
+            // the test app off in Windows any more (T-133: the app only pretends it). Not reached in time: restored anyway
+            // (the journal checks the key); the snapshot reports the effective setting, the next toast run checks it.
             await ToastSetting.WaitForAsync(ToastSetting.ReadAsync, ToastSetting.Enabled, EffectiveTimeout, EffectiveInterval, cancellationToken).ConfigureAwait(false);
         }
 

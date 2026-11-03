@@ -25,8 +25,36 @@ internal static class AppSwitches
     /// <summary>Marker argument of every app process these tests start (a start with it but without the test data folder exits with 4, T-074).</summary>
     public const string MarkerArgument = "--layerpeek-e2e-run=";
 
-    /// <summary>AppUserModelID of the app in the test mode (T-044); production uses "LayerPeek".</summary>
-    public const string AppUserModelId = "LayerPeek.E2E";
+    /// <summary>
+    /// AppUserModelID of the app in the test mode (T-044); production uses "LayerPeek". Must equal
+    /// <c>AppEnvironment.TestAppUserModelId</c> (a test reads it from the app's source). <c>.2</c> since T-133: Windows keeps
+    /// the notifications of the former <c>LayerPeek.E2E</c> switched off for good; raising the number is the recovery should
+    /// it ever happen again (docs/troubleshooting.md).
+    /// </summary>
+    public const string AppUserModelId = TestAppUserModelIdRoot + ".2";
+
+    /// <summary>Every app id of the test app, former and current, is this or starts with it and a dot (T-133).</summary>
+    public const string TestAppUserModelIdRoot = "LayerPeek.E2E";
+
+    /// <summary>
+    /// Whether <paramref name="appUserModelId"/> is an app id of the test app (<see cref="TestAppUserModelIdRoot"/>, alone or
+    /// with a suffix after a dot, without a backslash or white space): the guard of every helper that reads or changes
+    /// Windows' state of an app id, so that it never touches the production app or another app.
+    /// </summary>
+    public static bool IsTestAppUserModelId(string? appUserModelId) =>
+        appUserModelId is { Length: > 0 }
+        && (appUserModelId == TestAppUserModelIdRoot || appUserModelId.StartsWith(TestAppUserModelIdRoot + ".", StringComparison.Ordinal))
+        && !appUserModelId.Contains('\\', StringComparison.Ordinal)
+        && !appUserModelId.Any(char.IsWhiteSpace);
+
+    /// <summary>
+    /// Debug-only test command (T-133): the app pretends that Windows switched its notifications off
+    /// (<c>ToastNotifierSetting.DisabledForApplication</c>) instead of reading Windows' setting; nothing changes in Windows.
+    /// </summary>
+    public const string NotificationsOffCommand = "notifications:off";
+
+    /// <summary>Debug-only test command (T-133): the app reads Windows' own notification setting again.</summary>
+    public const string NotificationsOnCommand = "notifications:on";
 
     /// <summary>Secrets file of the test mode: key, tab, secret per line.</summary>
     public const string SecretsFileName = "test-secrets.txt";

@@ -175,6 +175,20 @@ internal sealed partial class TrayHost : IAsyncDisposable
         }
     }
 
+#if DEBUG
+    /// <summary>
+    /// Debug test mode only (T-133, test command <c>notifications:off|on</c>): pretends that Windows switched the app's
+    /// notifications off, or reads Windows' own setting again (<see cref="PretendedToastSetting"/>). Ignored once stopping.
+    /// </summary>
+    public void PretendNotificationsOff(bool off)
+    {
+        if (Volatile.Read(ref _stopped) == 0)
+        {
+            _services.GetRequiredService<PretendedToastSetting>().Pretend(off ? ToastNotifierSetting.DisabledForApplication : null);
+        }
+    }
+#endif
+
     /// <summary>The settings window for a click on the test notification (T-101, <see cref="ServiceHost.AttachSettingsOpener"/>).</summary>
     public void AttachSettingsOpener(Action open) => _core.AttachSettingsOpener(open);
 

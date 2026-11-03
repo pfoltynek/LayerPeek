@@ -182,7 +182,7 @@ public sealed class TestModeSwitchesTests
             await using ServiceProvider services = AppServices.Create(environment: AppEnvironment.ForTests(folder, toasts: true));
 
             WindowsToastPlatform platform = ToastPlatform(services);
-            Assert.Equal("LayerPeek.E2E", platform.AppUserModelId);
+            Assert.Equal(AppEnvironment.TestAppUserModelId, platform.AppUserModelId);
             Assert.Equal(TestToastCleanup.DefaultShortcutPath(), platform.ShortcutPath());
             Assert.Equal("LayerPeek E2E.lnk", Path.GetFileName(platform.ShortcutPath()));
             // T-068: the test app's own COM toast activator, whose start by Windows comes up in this test mode again.

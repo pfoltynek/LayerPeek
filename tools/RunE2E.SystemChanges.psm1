@@ -38,12 +38,11 @@ $script:Kinds = [ordered]@{
         Change  = @(
             'silent test toasts in the notification center, a temporary Start menu shortcut',
             '     "LayerPeek E2E" and its toast activator under HKCU\Software\Classes\CLSID',
-            '     (a click on a test toast starts the test app) (Windows may keep remembering the app LayerPeek.E2E',
+            '     (a click on a test toast starts the test app) (Windows may keep remembering the app LayerPeek.E2E.2',
             '     in its notification database / Settings > Notifications); notifications of Windows and of',
             '     the test app are switched on for the test if they are off. The test of the test notification',
-            '     (T-128) switches the notifications of the test app off for a few seconds (if Windows does not take',
-            '     that: all notifications of Windows) and opens Settings > Notifications when Settings is not open',
-            '     (closed again). The update test packs the Debug app with vpk and updates a portable copy in %TEMP%',
+            '     (T-128) opens Settings > Notifications when Settings is not open (closed again; the switched-off',
+            '     notifications it checks are only pretended by the test app, T-133). The update test packs the Debug app with vpk and updates a portable copy in %TEMP%',
             '     from a local feed (no network; Velopack may add lines to its log in %LOCALAPPDATA%\velopack)')
         Restore = 'Settings > System > Notifications'
     }

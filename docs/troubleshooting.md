@@ -93,8 +93,8 @@ Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo 
 | Motiv | Nastavení → Přizpůsobení → Barvy → Zvolit režim (Vlastní: režim Windows / režim aplikací), nebo hodnoty DWORD `SystemUsesLightTheme` a `AppsUseLightTheme` v `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize` (chybějící hodnota = světlý). `ColorPrevalence` testy nemění. |
 | Nerušit | Kliknout na hodiny na hlavním panelu (nebo Win+N) → tlačítko Nerušit (zvonek) nahoře v centru oznámení, nebo Nastavení → Systém → Oznámení → Nerušit. |
 | Testovací ikona na hlavním panelu | Nastavení → Přizpůsobení → Hlavní panel → Další ikony na hlavním panelu (testovací ikonu vypnout), nebo v `HKCU\Control Panel\NotifyIconSettings` u položek testovaného exe vrátit `IsPromoted` na hodnotu ze záznamu (kde chyběla, a u položek vzniklých během běhu, ji smazat). Položky samotné se nemažou (rozhodnutí 2026-10-22). |
-| Toasty testovací aplikace (`ToastHistory`) | Spusťte Debug exe z cesty uvedené v záznamu s argumentem `--layerpeek-e2e-clear-toasts` (vymaže toasty `LayerPeek.E2E` z centra oznámení, smaže zástupce `LayerPeek E2E.lnk` a registraci testovacího COM aktivátoru toastů `HKCU\Software\Classes\CLSID\{EDD3ED5E-8363-4CF4-977A-64A623E0A5A2}` z T-068, kód 0 = hotovo). Ručně: kliknout na hodiny na hlavním panelu (nebo Win+N) → u skupiny „LayerPeek E2E“ vymazat oznámení, smazat `%APPDATA%\Microsoft\Windows\Start Menu\Programs\LayerPeek E2E.lnk` a v Editoru registru klíč `HKCU\Software\Classes\CLSID\{EDD3ED5E-8363-4CF4-977A-64A623E0A5A2}`. Produkční zástupce `LayerPeek.lnk` ani registraci produkčního aktivátoru `{EC47413C-984D-447A-866A-5F780E408DE7}` testy nemění. |
-| Nastavení oznámení testovací aplikace (`ToastSettings`) | Klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\LayerPeek.E2E`: když v záznamu chyběl, smazat ho; jinak vrátit hodnoty ze záznamu. Klíč produkční aplikace `…\Settings\LayerPeek` testy nemění. Smazání klíče upozornění aplikace nezapne – když zůstala vypnutá, viz [Testy upozornění selžou: upozornění testovací aplikace jsou vypnutá](#testy-upozornění-selžou-upozornění-testovací-aplikace-jsou-vypnutá). |
+| Toasty testovací aplikace (`ToastHistory`) | Spusťte Debug exe z cesty uvedené v záznamu s argumentem `--layerpeek-e2e-clear-toasts` (vymaže toasty testovací aplikace `LayerPeek.E2E.2` z centra oznámení, smaže zástupce `LayerPeek E2E.lnk` a registraci testovacího COM aktivátoru toastů `HKCU\Software\Classes\CLSID\{EDD3ED5E-8363-4CF4-977A-64A623E0A5A2}` z T-068, kód 0 = hotovo). Ručně: kliknout na hodiny na hlavním panelu (nebo Win+N) → u skupiny „LayerPeek E2E“ vymazat oznámení, smazat `%APPDATA%\Microsoft\Windows\Start Menu\Programs\LayerPeek E2E.lnk` a v Editoru registru klíč `HKCU\Software\Classes\CLSID\{EDD3ED5E-8363-4CF4-977A-64A623E0A5A2}`. Produkční zástupce `LayerPeek.lnk` ani registraci produkčního aktivátoru `{EC47413C-984D-447A-866A-5F780E408DE7}` testy nemění. |
+| Nastavení oznámení testovací aplikace (`ToastSettings`) | Klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\LayerPeek.E2E.2` (do T-133 `…\LayerPeek.E2E`): když v záznamu chyběl, smazat ho; jinak vrátit hodnoty ze záznamu. Klíč produkční aplikace `…\Settings\LayerPeek` testy nemění. Smazání klíče upozornění aplikace nezapne – když zůstala vypnutá, viz [Testy upozornění selžou: upozornění testovací aplikace jsou vypnutá](#testy-upozornění-selžou-upozornění-testovací-aplikace-jsou-vypnutá). |
 | Oznámení Windows (`ToastsEnabled`) | Nastavení → Systém → Oznámení → Oznámení (zapnuto/vypnuto podle záznamu), nebo hodnota DWORD `ToastEnabled` v `HKCU\Software\Microsoft\Windows\CurrentVersion\PushNotifications` (chybějící = zapnuto). |
 | Položky Správce pověření (`Credentials`, T-073) | Ovládací panely → Správce pověření → Přihlašovací údaje systému Windows → obecné přihlašovací údaje `LayerPeek.E2E/…` odebrat. Jsou jen pro relaci (`CRED_PERSIST_SESSION`), takže zmizí i odhlášením. Každý další běh je na začátku i na konci maže sám. Položky `LayerPeek/…` patří skutečné aplikaci, ty testy nečtou ani nemění. |
 | Měřítko (T-066) | Nastavení → Systém → Obrazovka → vybrat monitor → Měřítko (hodnoty ze záznamu). Potom klíč `HKCU\Control Panel\Desktop\PerMonitorSettings` uvést přesně do stavu ze záznamu (záznam obsahuje jeho export): podklíče a hodnoty, které v exportu nejsou, smazat; `(key missing)` = smazat celý klíč. Systémové DPI se mění jen odhlášením a testy ho nemění. |
@@ -109,7 +109,7 @@ Když přesto něco zůstane (např. restart počítače uprostřed běhu, nebo 
 Spuštění bez zásahů: `pwsh tools/run-e2e.ps1 -NoSystemChanges` (bez varování, testy se zásahy se přeskočí).
 
 **Stopy, které se neodstraňují (přijato 2026-10-22, T-068):** po testech toastů si Windows může dál pamatovat testovací
-aplikaci `LayerPeek.E2E` v databázi oznámení `%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db`
+aplikaci `LayerPeek.E2E.2` (i dřívější `LayerPeek.E2E`) v databázi oznámení `%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db`
 a v seznamu aplikací v Nastavení → Systém → Oznámení. Běh všechny nalezené stopy testovací aplikace (klíče a hodnoty pod
 `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications`, `…\PushNotifications`, `HKCU\Software\Classes\AppUserModelId`
 a zmínku v databázi oznámení) zapíše do `system-state-start.txt` / `system-state-end.txt` ve složce výsledků. Nijak
@@ -133,34 +133,36 @@ aktivátor `{1708A774-C00D-4A8B-B9E5-1BEB8527DD24}`, `HKCU\Software\PrusaTrayDia
 ## Testy upozornění selžou: upozornění testovací aplikace jsou vypnutá
 
 *Pro vývojáře (T-133).* Testy upozornění (`TestNotificationTests`, `UpdateTests`, `ToastNotificationTests`) hned na
-začátku selžou se zprávou „Windows keeps the notifications of the test app LayerPeek.E2E switched off
+začátku selžou se zprávou „Windows keeps the notifications of the test app `<AUMID>` switched off
 (ToastNotifier.Setting = DisabledForApplication)“. Služba upozornění Windows (databáze
 `%LOCALAPPDATA%\Microsoft\Windows\Notifications\wpndatabase.db`) si pro testovací aplikaci pamatuje „vypnuto“, i když
-klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\LayerPeek.E2E` říká „zapnuto“ nebo chybí.
+klíč `HKCU\Software\Microsoft\Windows\CurrentVersion\Notifications\Settings\<AUMID>` říká „zapnuto“ nebo chybí.
 
 Co bylo vidět (běhy 2026-11-01): `Enabled = 0` zapsané do klíče, když testovací aplikace běžela, Windows převzal během
-pár sekund. Smazání klíče po skončení aplikace ani `Enabled = 1` zapsané před jejím startem nepřevzal. Veřejné API, kterým
-by program upozornění aplikace zapnul, Windows nemá (`ToastNotifier.Setting` jde jen číst). Testy proto upozornění zapínají
-jen za běhu testovací aplikace (`Enabled = 1`, když to nestačí, `0` a znovu `1`). Test testovacího upozornění je po
-vypnutí hned zase zapne a ověří to.
+pár sekund. Zpět na „zapnuto“ ho už nic nevrátilo: smazání klíče po skončení aplikace, `Enabled = 1` před jejím startem
+ani za jejího běhu (ani `0` a znovu `1`). Veřejné API, kterým by program upozornění aplikace zapnul, Windows nemá
+(`ToastNotifier.Setting` jde jen číst), a přepínač testovací aplikace v Nastavení → Systém → Oznámení se nepodařilo najít.
+Proto (rozhodnutí 2026-11-03):
 
-Když to nestačí, jednorázová obnova (z kořene repozitáře, potvrdí se stejné varování jako u ostatních testů upozornění):
+- Žádný test už upozornění testovací aplikace ve Windows nevypíná. `TestNotificationTests` místo toho pošle Debug
+  aplikaci v testovacím režimu příkaz `notifications:off` a aplikace pak místo skutečného nastavení Windows čte
+  `DisabledForApplication` (`notifications:on` ji vrátí ke skutečnému nastavení). Skutečné čtení nastavení Windows hlídají
+  unit testy a ruční kontrola v T-125.
+- Testovací aplikace má od T-133 nové AUMID **`LayerPeek.E2E.2`** (dřív `LayerPeek.E2E`, které Windows na tomto stroji drží
+  vypnuté natrvalo; nové AUMID začíná zapnuté). Zástupce ve Start menu se dál jmenuje „LayerPeek E2E“.
 
-```powershell
-$env:LAYERPEEK_E2E_RECOVER_NOTIFICATIONS = '1'; pwsh ./tools/run-e2e.ps1 -Class '*TestAppNotificationRecovery'; Remove-Item Env:LAYERPEEK_E2E_RECOVER_NOTIFICATIONS
-```
+**Obnova, kdyby Windows znovu drželo upozornění testovací aplikace vypnutá:** zvyšte číslo v AUMID (např. `.2` → `.3`)
+na obou místech, kde je:
 
-1. Obnova spustí testovací aplikaci (zástupce „LayerPeek E2E“ ve Start menu, testovací aktivátor; všechno v záznamu jako
-   u každého testu upozornění) a zkusí upozornění zapnout sama.
-2. Když Windows upozornění dál drží vypnutá, otevře Nastavení → Systém → Oznámení (jen když Nastavení neběží; jinak tu
-   stránku otevřete sami). V seznamu aplikací zapněte **LayerPeek E2E**. Obnova čeká až 5 minut, dokud Windows nehlásí
-   `Enabled`, pak Nastavení zavře.
-3. Na konci vrátí všechno ostatní jako po každém testu (zástupce, aktivátor a toasty testovací aplikace zmizí, klíč dostane
-   původní hodnoty). Upozornění testovací aplikace zůstanou zapnutá. Bez proměnné prostředí se obnova v běžných bězích
-   přeskočí.
+1. `AppEnvironment.TestAppUserModelId` v `src/LayerPeek.App/Composition/AppEnvironment.cs` (aplikace),
+2. `AppSwitches.AppUserModelId` v `tests/LayerPeek.App.E2E.Tests/Infrastructure/AppSwitches.cs` (testy E2E aplikaci
+   nereferencují).
 
-Výsledek je v `notification-recovery-report.txt` ve složce výsledků. Když už upozornění zapnutá jsou, obnova nic nespouští.
-Ručně jde totéž udělat i během libovolného testu upozornění, dokud běží testovací aplikace (zástupce existuje).
+Test `TheTestAppIdOfTheTestsIsTheAppsOwn` hlídá, že se obě hodnoty shodují, a `TheRecoveryOfTheTestAppsNotificationsIsDocumentedWithTheCurrentTestAppId`,
+že tato sekce uvádí aktuální AUMID – upravte proto i AUMID výše a pevnou hodnotu v `ProductIdentityTests`. Nastavení
+Windows se při tom nemění. Po starém AUMID zůstane jen záznam v databázi oznámení a v seznamu aplikací v Nastavení (viz
+„Stopy, které se neodstraňují“ výše); klíč `Notifications\Settings\<staré AUMID>`, zástupce i aktivátor po každém běhu
+uklidí záznam změn.
 
 ## Kde jsou výsledky E2E běhu (i neúspěšného)
 

@@ -93,7 +93,7 @@ public sealed class ProductIdentityTests
     [SupportedOSPlatform("windows")]
     public void TestModeNamesAreSeparateFromProduction()
     {
-        Assert.Equal("LayerPeek.E2E", AppEnvironment.TestAppUserModelId);
+        Assert.Equal("LayerPeek.E2E.2", AppEnvironment.TestAppUserModelId);
         Assert.Equal("LayerPeek.E2E/", AppEnvironment.TestCredentialPrefixRoot);
         Assert.Equal("LayerPeek E2E.lnk", AppEnvironment.TestShortcutFileName);
         Assert.StartsWith("--layerpeek-e2e-", AppEnvironment.ClearToastsArgument, StringComparison.Ordinal);
