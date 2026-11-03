@@ -147,6 +147,10 @@ Aplikaci spouštět z Finderu (`/Applications/LayerPeek.app`), ne z Terminálu.
       vrátí snímek bez druhého spojení (s podrobným logováním žádné nové „Opening camera stream“ / připojení v logu),
       u změněné neuložené adresy vlastním spojením; minimalizace a obnovení do 10 s ukáže obraz hned, zavřené okno po
       10 s spojení uzavře („closed after its last subscriber left“ v logu s podrobným logováním).
+- [ ] **T-147** (krit. „Nahrávka z kamery simulátoru i ze skutečné kamery jde na Macu přehrát“, přehrání v QuickTime):
+      nahrávku z kamery simulátoru i ze skutečné Buddy3D (po T-146 z menu nebo okna kamery; do té doby soubor nahraný
+      podle T-144 / T-147, poznámky) otevřít v QuickTime Playeru: obraz běží od začátku do konce, posuvník funguje, délka
+      odpovídá. U nahrávky přerušené výpadkem kamery jdou přehrát oba soubory (`…mp4`, `…-2.mp4`).
 - [ ] **T-106** (krit. „Ruční krok: na skutečné tiskárně ověřit, že kolísání s minimálním rozsahem 6 °C nepůsobí příliš
       dramaticky“): widget Teploty M a L a řádek grafu malého náhledu během ustáleného tisku; když působí dramaticky,
       zapsat a založit úkol (návrh 8–10 °C, rozhodne uživatel).

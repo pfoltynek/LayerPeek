@@ -108,6 +108,13 @@ Postup: `pwsh scripts/release-build.ps1`, pak `pwsh tools/windows-verify.ps1 -Li
       snímek); zavřít okno a po 10 s simulátor nevidí žádnou relaci (`GET /_simulator/state`, nebo log s podrobným
       logováním: „The shared camera stream of printer '…' closed after its last subscriber left.“).
 
+### 2d. Nahrávání kamery (z T-144, implementováno na Macu 2026-11-03)
+- [ ] **T-144** (krit. „Nahrávka z fixture i z RTSP kamery simulátoru … platný soubor“ a „Ustálený stav … bez alokací“, část
+      Windows): `FFmpegRecordingTests`, `FFmpegRecordingAllocationTests` a `FFmpegRuntimeMuxerTests` prochází na Windows
+      (build BtbN má muxer MP4); `dotnet publish src/LayerPeek.App -c Release -r win-x64` bez nových varování AOT / trim.
+- [ ] **T-144** (ruční, přehrání): nahrávka z kamery simulátoru (po T-146 z menu nebo okna kamery) jde přehrát ve
+      Filmech a TV i ve VLC od začátku do konce, posuvník funguje.
+
 ### 3. Se skutečnou tiskárnou (z T-114, oddíl 4)
 - [ ] **T-107** (krit. „Ruční ověření uživatelem se skutečnou tiskárnou“, část Windows): Edge i Chrome, menu tiskárny →
       Otevřít web – web PrusaLink přes proxy se načte, zobrazí stav, nahraje a stáhne soubor; v konzoli prohlížeče žádná
