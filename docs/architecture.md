@@ -183,6 +183,22 @@ Jediný `Border` s řádky z T-036 nahradil systém widgetů. Otázky rozhodl u�
 - Vnitřní `TextBox` (`PART_TextBox`, `PART_EditableTextBox`) drží klávesový fokus. Kompilovaný binding `$parent[…]` mu předá `AutomationProperties.Name` a `HelpText` rodiče, takže čtečka čte totéž u vnějšího i vnitřního prvku.
 - Fokus: neúspěšné Uložit / Použít a odmítnutý Otestovat připojení / kameru vyvolají `SettingsViewModel.FieldFocusRequested` s `AutomationId` pole (`SettingsFieldIds`). Okno pole najde průchodem vizuálního stromu (bez reflexe) a s `DispatcherPriority.Loaded` ho zaostří přes `NavigationMethod.Tab`, jen když je viditelné a povolené. Bez živého ohlášení (Q6).
 
+## Plánované: nahrávání kamery, automatické okno kamery, detekce chyb tisku (T-143 až T-157)
+
+**Plán, nic z toho není implementované.** Nápady probrané s uživatelem 2026-11-03. Otevřené otázky jsou v jednotlivých úkolech a implementaci zčásti blokují.
+
+- **Sdílené spojení s kamerou (T-143):** dnes má každé okno kamery vlastní RTSP spojení a zavřením okna spojení končí. Nahrávání a detekce potřebují stream i bez okna. Proto vznikne služba v `Core/Cameras` (pracovně `CameraStreamHub`) s nejvýš jedním spojením na tiskárnu a více odběrateli (lease, `IAsyncDisposable`). Odběratel buď chce dekódované snímky (okno, malý náhled, detekce), nebo jen zakódované pakety H.264 (nahrávání). Dekóduje se jen tehdy, když snímky někdo odebírá. Core zná jen neutrální tvar paketu (bajty, pts/dts, klíčový snímek, časová základna, extradata), ne typy FFmpeg.
+- **Nahrávání (T-144 až T-149):** pakety se jen přebalí (remux) do souboru bez překódování. Žádný enkodér znamená nízké CPU a žádnou otázku licence GPL / x264, licence FFmpeg zůstává LGPL. Build BtbN pro `win-x64` muxery MP4 i Matroska obsahuje (ověřeno 2026-11-03). Minimální build pro macOS (`build/macos/build-ffmpeg.sh`) muxer nemá, doplní ho T-147 (`macos`). Do té doby hlásí nahrávání za běhu „není k dispozici“. Kdy se nahrává (ručně / během tisku), kam se ukládá a jak se rotuje, řeší služba v Core (T-145). Fáze 2 přidá dashcam s kruhovým bufferem (T-148) a timelapse (T-149, spike, protože timelapse překódování potřebuje).
+- **Automatické okno kamery (T-150, T-151):** čistý stavový automat v `Core/Cameras` pro každou tiskárnu. Zavře okno po souvislém `Offline` (debounce) a znovu ho otevře na posledním místě (`CameraWindowOpenPolicy`, T-035) jen tehdy, když ho předtím zavřel sám. Příznak „zavřeno automaticky“ je stav aplikace v `camera-windows.json`. Zavřené okno uvolní jen svůj odběr spojení, nahrávání a detekce běží dál.
+- **Detekce chyb tisku (T-152 až T-157):** navržené vrstvy, potvrdí uživatel (otázka 1 v T-153):
+  ```
+  App ──► LayerPeek.Detection ──► Core
+   └──► Camera.FFmpeg ───────────┘
+  ```
+  - `Core/Detection` obsahuje jen abstrakce a orchestraci bez závislostí: `IPrintFailureDetector`, nastavení detektoru (zapnuto, citlivost), vzorkování snímků z hubu jen během tisku, kontext tisku z PrusaLink (stav, Z, progress, id úlohy), potvrzení poplachu, událost pro `INotificationService`, snímek při poplachu, lokální záznam „falešný poplach“.
+  - Nový projekt `src/LayerPeek.Detection` obsahuje implementace detektorů a případně runtime CV / ML. Ten vybere spike T-152 s ověřenou licencí (GPL-3.0-only: kód, váhy modelu i data) a kompatibilitou s Native AOT. Detection nezná Avalonii ani FFmpeg.
+  - Nejdřív se jen upozorňuje. Automatické pozastavení tisku (`PUT /api/v1/job/{id}/pause`, T-157) bude první zápisová operace vůči tiskárně, proto je oddělené a volitelné.
+
 ## Prusa Connect (cloud)
 
 Podle T-004 nemá Prusa Connect oficiální API pro uživatelské aplikace. Podrobnosti a rozhodnutí, která čekají na uživatele, jsou v [api/prusa-connect.md](api/prusa-connect.md). Pokud se klient (T-005) bude implementovat, platí pro něj:
