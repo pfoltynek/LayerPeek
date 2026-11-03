@@ -301,6 +301,44 @@ public class SettingsMapperTests
         Assert.True(AppSettings.Default.CheckForUpdates);
     }
 
+    /// <summary>T-150: on by default and then not written; off is written as <c>false</c>.</summary>
+    [Fact]
+    public void CameraWindowAutoCloseIsWrittenOnlyWhenOff()
+    {
+        string on = JsonSerializer.Serialize(SettingsMapper.ToDocument(new AppSettings()), SettingsJsonContext.Default.SettingsDocument);
+        string off = JsonSerializer.Serialize(SettingsMapper.ToDocument(new AppSettings { CameraWindowAutoClose = false }), SettingsJsonContext.Default.SettingsDocument);
+
+        Assert.DoesNotContain("cameraWindowAutoClose", on, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("\"cameraWindowAutoClose\": false", off, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void CameraWindowAutoCloseRoundTrips(bool autoClose)
+    {
+        AppSettings settings = new() { CameraWindowAutoClose = autoClose };
+
+        AppSettings loaded = RoundTrip(settings, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(autoClose, loaded.CameraWindowAutoClose);
+        Assert.Equal(settings, loaded);
+    }
+
+    [Theory]
+    [InlineData("""{ "version": 2, "pollingIntervalSeconds": 5, "printers": [] }""", true)]
+    [InlineData("""{ "cameraWindowAutoClose": null }""", true)]
+    [InlineData("""{ "cameraWindowAutoClose": true }""", true)]
+    [InlineData("""{ "cameraWindowAutoClose": false }""", false)]
+    public void CameraWindowAutoCloseIsReadWithItsDefault(string json, bool expected)
+    {
+        AppSettings settings = Load(json, out List<string> warnings);
+
+        Assert.Empty(warnings);
+        Assert.Equal(expected, settings.CameraWindowAutoClose);
+    }
+
     [Theory]
     [InlineData("""{ "version": 1, "pollingIntervalSeconds": 5, "printers": [] }""")]
     [InlineData("""{ "offerPrereleaseUpdates": null }""")]

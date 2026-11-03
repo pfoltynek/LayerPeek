@@ -140,6 +140,9 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
     private SoundOption _selectedSound;
     private LanguageOption _selectedLanguage;
     private bool _debugLogging;
+
+    // T-150: no control yet (T-151 adds it); kept as loaded so that a save does not turn the option back on.
+    private bool _cameraWindowAutoClose = true;
     private bool _offerPrereleaseUpdates;
     private bool _startWithWindows;
 
@@ -1050,6 +1053,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
         _checkForUpdates = settings.CheckForUpdates;
         _startWithWindows = _autostartBaseline;
         _overlayOpacityPercent = settings.CameraOverlayOpacityPercent;
+        _cameraWindowAutoClose = settings.CameraWindowAutoClose;
 
         _noticeSource = data.Status switch
         {
@@ -1461,6 +1465,7 @@ public sealed partial class SettingsViewModel : ObservableObject, IDisposable, I
 
                 // The slider of the Widgets tab (T-092); always valid (clamped and rounded by the property).
                 CameraOverlayOpacityPercent = _overlayOpacityPercent,
+                CameraWindowAutoClose = _cameraWindowAutoClose,
                 Notifications = new NotificationSettings
                 {
                     Enabled = _notificationsEnabled,

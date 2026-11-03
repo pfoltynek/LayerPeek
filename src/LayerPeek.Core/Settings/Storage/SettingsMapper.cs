@@ -45,6 +45,7 @@ internal static class SettingsMapper
             CameraOverlay = settings.CameraOverlayOpacityPercent == CameraOverlayOpacity.DefaultPercent
                 ? null
                 : new CameraOverlaySettingsDocument { BackgroundOpacityPercent = settings.CameraOverlayOpacityPercent },
+            CameraWindowAutoClose = settings.CameraWindowAutoClose ? null : false,
             Printers = [.. settings.Printers.Select(static printer => new PrinterDocument
             {
                 Id = printer.Id,
@@ -88,6 +89,7 @@ internal static class SettingsMapper
             OfferPrereleaseUpdates = document.OfferPrereleaseUpdates,
             CheckForUpdates = document.CheckForUpdates ?? true,
             CameraOverlayOpacityPercent = ToOverlayOpacity(document.CameraOverlay?.BackgroundOpacityPercent, warnings),
+            CameraWindowAutoClose = document.CameraWindowAutoClose ?? true,
             Notifications = ToNotifications(document.Notifications, warnings),
             Printers = ToPrinters(document.Printers, warnings, ref convertedOverlays, ref discardedThresholds),
         };
