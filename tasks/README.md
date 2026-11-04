@@ -172,7 +172,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-153 | Detekce chyb tisku – infrastruktura (projekt LayerPeek.Detection, vzorkování, kontext tisku, události) (hotovo) | all | core-dev | P2 | T-143, T-152 |
 | T-154 | Detekce chyb tisku – UI (nastavení detektorů, notifikace, falešný poplach) (hotovo; Windows v T-125, ruční macOS v T-127) | all | ui-designer + ui-dev | P2 | T-153, T-033 |
 | T-155 | Detekce chyb tisku – první detektor „Změna na podložce“ (bed-change) (hotovo) | all | core-dev | P2 | T-152, T-153 |
-| T-156 | Detekce chyb tisku – další detektory včetně první vrstvy (rozpad) | all | architect | P3 | T-155 |
+| T-156 | Detekce chyb tisku – další detektory včetně první vrstvy (rozpad) (hotovo; vybrán „tisk do vzduchu“ → T-167) | all | architect | P3 | T-155 |
 | T-157 | Automatické pozastavení tisku po detekci chyby (volitelné, PrusaLink) | all | core-dev + ui-dev | P3 | T-154, T-155 |
 | T-158 | Timelapse – zápis z klíčových snímků bez překódování (Core + Camera.FFmpeg) (hotovo; ruční přehrání a Windows v T-125 / T-127) | all | core-dev | P3 | T-149, T-144, T-148 |
 | T-159 | Detekce změny vrstvy z osy Z (PrusaLink `axis_z`) a spouštěč timelapse po vrstvě | all | core-dev + ui-dev | P3 | T-149, T-148, T-160, T-161 |
@@ -182,6 +182,7 @@ Pořadí: nejdřív společné úkoly (`all`), pak Windows, nakonec macOS. Úkol
 | T-164 | Timelapse z hotové nahrávky (varianta F) (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-158, T-161 |
 | T-165 | Timelapse – export sekvence snímků JPEG (hotovo; Windows a ruční ověření v T-125 / T-127) | all | core-dev + ui-dev | P3 | T-160, T-161 |
 | T-166 | Detekce chyb tisku – ladění citlivosti „Změna na podložce“ na více semínkách (hotovo) | all | core-dev | P2 | T-155, T-154 |
+| T-167 | Detekce chyb tisku – detektor „Tisk do vzduchu“ (Z roste, díl neroste; fáze 1 měření, otázky 1 a 2 blokují fázi 2) | all | core-dev | P3 | T-155, T-166, T-154 |
 
 ### Windows (`windows`)
 
