@@ -79,6 +79,12 @@ První skutečný detektor v `LayerPeek.Detection` nad infrastrukturou z T-153 (
    ~80 → ~116), takže pauza při tmě z T-153 (`DarkBrightness` 12) nezabere a náhlá změna celého obrazu by během tisku vyvolala
    falešný poplach. V datech se to stalo jen po konci tisku. Řešit (např. rozpoznat skokovou změnu celého obrazu a začít
    znovu se učit), nebo zatím jen zdokumentovat? Práh tmy 12 jsem neměnil (ve vzorcích není tmavý snímek).
+7. **Přesnost na jiných semínkách (neblokuje, zjištěno při review 2026-11-04):** sada `SyntheticSets.Failures(seed: 7)`
+   dává 95 %, stejně vygenerované sady se semínky 11, 23, 31 a 47 dávají 48–51 z 56 (86–91 %); neodhalené jsou hlavně
+   hroudy r 5–9 px a špagety s jasem 105–130 (skóre 0,0–0,29 %, pod výchozím prahem 0,3 %). Cíl ≥ 90 % je tedy splněný na
+   commitnuté sadě, ne s rezervou. Ve výřezu celého snímku při 5 s vyšly ve dvou z těchto běhů po jednom potvrzeném
+   falešném poplachu před začátkem selhání (~2 za ~21 h čistého tisku celkem, blízko cíle ≤ 1 / 10 h), ve výřezu Core One
+   žádný. Ponechat výchozí citlivost, nebo zvýšit (práh níž), případně rozšířit test o více semínek?
 
 ## Poznámky k implementaci
 - **Detektor** `src/LayerPeek.Detection/BedChangeDetector.cs` (`bed-change`), parametry `BedChangeOptions` (interní, testy
@@ -175,3 +181,13 @@ První skutečný detektor v `LayerPeek.Detection` nad infrastrukturou z T-153 (
   „T-155 adds the first“ jsem kvůli souběžnému T-154 neupravoval), práh tmy `DarkBrightness` (otázka 6), T-157.
 - Uzavřeno 2026-11-04: zbývající ověření na Windows přesunuto do T-125, ruční ověření se skutečnou tiskárnou do T-127
   (rozhodnutí uživatele 2026-10-30, postup v `tasks/README.md`).
+
+## Review
+- 2026-11-04 (qa-reviewer): opraveno na větvi – (1) detektor, který začal bez výšky Z (snapshot bez telemetrie) a hned
+  potom dostal výšku první vrstvy, první vrstvy hodnotil (po 2 min poplach na nové hmotě); teď se první známá výška pod
+  1 mm vrátí k učení a zahodí reference (test `AHeightThatComesOnlyAfterTheStartStillMeansTheFirstLayers`);
+  (2) `Mp4H264Reader` u poškozeného MP4 házel `ArgumentOutOfRangeException` / `OverflowException` (simulátor spadl místo
+  hlášky), obří počet vzorků v `trun` / `stsz` vedl k `OutOfMemoryException` a překrývající se vzorky mohly rozepsat
+  proud libovolně velký – teď vše `InvalidDataException` (testy v `Mp4ClipTests`); (3) E2E `BedChangeAlarmSimulatorTests`
+  četl notifikaci hned po události `AlarmRaised`, i když ji služba ukazuje až po ní (závod), teď na ni čeká.
+  Otevřená otázka 7 (přesnost na jiných semínkách) je pro uživatele.

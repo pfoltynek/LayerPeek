@@ -18,12 +18,25 @@ internal static class Mp4H264Reader
     /// <exception cref="InvalidDataException">No H.264 track, or the boxes are broken.</exception>
     public static byte[] ToAnnexB(ReadOnlySpan<byte> file)
     {
+        try
+        {
+            return Convert(file);
+        }
+        catch (Exception ex) when (ex is ArgumentOutOfRangeException or OverflowException)
+        {
+            // A box shorter than its fields, or a count or size beyond what the file can hold: the file is broken.
+            throw new InvalidDataException("The MP4 file is broken.", ex);
+        }
+    }
+
+    private static byte[] Convert(ReadOnlySpan<byte> file)
+    {
         if (!TryFind(file, "moov"u8, out ReadOnlySpan<byte> moov))
         {
             throw new InvalidDataException("The MP4 file has no movie header (moov).");
         }
 
-        Track track = FindVideoTrack(moov) ?? throw new InvalidDataException("The MP4 file has no H.264 video track.");
+        Track track = FindVideoTrack(moov, file.Length) ?? throw new InvalidDataException("The MP4 file has no H.264 video track.");
         using MemoryStream annexB = new();
         foreach (byte[] parameterSet in track.ParameterSets)
         {
@@ -32,11 +45,19 @@ internal static class Mp4H264Reader
         }
 
         int samples = 0;
+        long total = 0;
         foreach ((long offset, int size) in track.Samples.Count > 0 ? track.Samples : FragmentSamples(file, track))
         {
             if (offset < 0 || size < 0 || offset + size > file.Length)
             {
                 throw new InvalidDataException("An MP4 sample lies outside the file.");
+            }
+
+            // Samples never overlap: more than the file holds would only repeat its bytes (and could take any memory).
+            total += size;
+            if (total > file.Length)
+            {
+                throw new InvalidDataException("The MP4 samples overlap.");
             }
 
             WriteSample(annexB, file.Slice((int)offset, size), track.LengthSize);
@@ -56,7 +77,7 @@ internal static class Mp4H264Reader
     {
         while (sample.Length >= lengthSize)
         {
-            int length = 0;
+            long length = 0;
             for (int i = 0; i < lengthSize; i++)
             {
                 length = (length << 8) | sample[i];
@@ -71,14 +92,14 @@ internal static class Mp4H264Reader
             if (length > 0)
             {
                 annexB.Write(StartCode);
-                annexB.Write(sample[..length]);
+                annexB.Write(sample[..(int)length]);
             }
 
-            sample = sample[length..];
+            sample = sample[(int)length..];
         }
     }
 
-    private static Track? FindVideoTrack(ReadOnlySpan<byte> moov)
+    private static Track? FindVideoTrack(ReadOnlySpan<byte> moov, long fileLength)
     {
         uint defaultSize = 0;
         foreach (Box trak in Children(moov))
@@ -110,7 +131,7 @@ internal static class Mp4H264Reader
                 }
             }
 
-            return new Track(trackId, config.LengthSize, config.ParameterSets, SampleTable(stbl), defaultSize);
+            return new Track(trackId, config.LengthSize, config.ParameterSets, SampleTable(stbl, fileLength), defaultSize);
         }
 
         return null;
@@ -176,7 +197,7 @@ internal static class Mp4H264Reader
     }
 
     /// <summary>Offsets and sizes from the sample table (empty in a fragmented file, whose samples are in fragments).</summary>
-    private static List<(long Offset, int Size)> SampleTable(ReadOnlySpan<byte> stbl)
+    private static List<(long Offset, int Size)> SampleTable(ReadOnlySpan<byte> stbl, long fileLength)
     {
         List<(long, int)> samples = [];
         if (!TryFind(stbl, "stsz"u8, out ReadOnlySpan<byte> stsz) || !TryFind(stbl, "stsc"u8, out ReadOnlySpan<byte> stsc))
@@ -194,6 +215,11 @@ internal static class Mp4H264Reader
         int sampleCount = checked((int)BinaryPrimitives.ReadUInt32BigEndian(stsz[8..]));
         int chunkCount = checked((int)BinaryPrimitives.ReadUInt32BigEndian(chunks[4..]));
         int ruleCount = checked((int)BinaryPrimitives.ReadUInt32BigEndian(stsc[4..]));
+        // No more samples than the table lists or the file holds (a broken count must not take any memory).
+        if (uniformSize == 0 ? sampleCount > (stsz.Length - 12) / 4 : sampleCount > fileLength / uniformSize)
+        {
+            throw new InvalidDataException("The MP4 sample table lists more samples than it holds.");
+        }
         int sample = 0;
         for (int rule = 0; rule < ruleCount && sample < sampleCount; rule++)
         {
@@ -262,7 +288,7 @@ internal static class Mp4H264Reader
                 {
                     if (trun.Is("trun"u8))
                     {
-                        ReadRun(body.Slice(trun.BodyStart, trun.BodyLength), baseOffset, defaultSize, samples);
+                        ReadRun(body.Slice(trun.BodyStart, trun.BodyLength), baseOffset, defaultSize, file.Length, samples);
                     }
                 }
             }
@@ -271,7 +297,7 @@ internal static class Mp4H264Reader
         return samples;
     }
 
-    private static void ReadRun(ReadOnlySpan<byte> trun, long baseOffset, uint defaultSize, List<(long, int)> samples)
+    private static void ReadRun(ReadOnlySpan<byte> trun, long baseOffset, uint defaultSize, long fileLength, List<(long, int)> samples)
     {
         uint flags = BinaryPrimitives.ReadUInt32BigEndian(trun) & 0xFFFFFF;
         int count = checked((int)BinaryPrimitives.ReadUInt32BigEndian(trun[4..]));
@@ -284,6 +310,13 @@ internal static class Mp4H264Reader
         }
 
         position += (flags & 0x04) != 0 ? 4 : 0;
+        // No more samples than the run describes or the file holds (a broken count must not take any memory).
+        int perSample = 4 * System.Numerics.BitOperations.PopCount(flags & 0xF00);
+        if (perSample > 0 ? count > (trun.Length - position) / perSample : (defaultSize == 0 ? count > 0 : count > fileLength / defaultSize))
+        {
+            throw new InvalidDataException("An MP4 track run lists more samples than it holds.");
+        }
+
         for (int i = 0; i < count; i++)
         {
             position += (flags & 0x100) != 0 ? 4 : 0;

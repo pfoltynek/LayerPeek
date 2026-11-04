@@ -112,8 +112,10 @@ public sealed class BedChangeAlarmSimulatorTests : IDisposable
         Assert.Equal((320, 180), StandInJpegEncoder.SizeOf(alarm.SnapshotJpeg.Span));
         Assert.NotNull(alarm.SnapshotPath);
         Assert.True(File.Exists(alarm.SnapshotPath));
-        PrintFailureNotification shown = Assert.Single(notifications.Shown);
+        // The notification follows the event on the alarm's own thread.
+        PrintFailureNotification shown = await notifications.First.Task.WaitAsync(TimeSpan.FromSeconds(10), Ct);
         Assert.Equal(alarm.Id, shown.Alarm.Id);
+        Assert.Single(notifications.Shown);
 
         // "False alarm" (T-154's toast action) keeps a local record.
         Assert.True(detection.TryGetAlarm(alarm.Id, out PrintFailureAlarm? found));
@@ -207,11 +209,17 @@ public sealed class BedChangeAlarmSimulatorTests : IDisposable
     {
         public ConcurrentQueue<PrintFailureNotification> Shown { get; } = new();
 
+        public TaskCompletionSource<PrintFailureNotification> First { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
         public void Show(PrintNotification notification)
         {
         }
 
-        public void ShowPrintFailure(PrintFailureNotification notification) => Shown.Enqueue(notification);
+        public void ShowPrintFailure(PrintFailureNotification notification)
+        {
+            Shown.Enqueue(notification);
+            First.TrySetResult(notification);
+        }
     }
 
     /// <summary>Not a JPEG (the app encodes with Avalonia): SOI, the frame's size, EOI.</summary>

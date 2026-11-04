@@ -69,6 +69,7 @@ public sealed class BedChangeDetector : IPrintFailureDetector
 
     private bool _started;
     private bool _aboveFirstLayers;
+    private bool _heightKnown;
     private long _start;
     private long _last;
     private double _pendingStep;
@@ -154,6 +155,16 @@ public sealed class BedChangeDetector : IPrintFailureDetector
             _aboveFirstLayers = IsAboveFirstLayers(height);
             _start = now;
         }
+        else if (!_heightKnown && height is { } z && z < _options.FirstLayersHeight)
+        {
+            // The stretch began without a height (no telemetry yet), and the first one says the first layers are still
+            // being laid down: back to learning them, and what was kept meanwhile shows the bed before them.
+            _aboveFirstLayers = false;
+            _start = now;
+            ForgetReferences();
+        }
+
+        _heightKnown |= height is not null;
 
         bool warm = now - _start >= _warmUpTicks;
         bool fast = now - _start < _fastLearningTicks;
@@ -220,10 +231,16 @@ public sealed class BedChangeDetector : IPrintFailureDetector
         _backgroundSum = sum;
         _started = true;
         _aboveFirstLayers = IsAboveFirstLayers(sample.Context.AxisZ);
+        _heightKnown = sample.Context.AxisZ is not null;
         _start = now;
         _last = now;
         _pendingStep = 0;
         _pendingSeconds = 0;
+        ForgetReferences();
+    }
+
+    private void ForgetReferences()
+    {
         _referencesTaken = 0;
         _lastReferenceHeight = double.NaN;
         _oldest = 0;

@@ -77,6 +77,30 @@ public sealed class BedChangeDetectorTests
     }
 
     [Fact]
+    public void AHeightThatComesOnlyAfterTheStartStillMeansTheFirstLayers()
+    {
+        // The first sample has no telemetry yet (e.g. the first snapshot of a print); then the printer reports the first layer.
+        BedChangeDetector detector = new();
+        Session session = new(detector, DetectionRegion.CoreOneBed) { AxisZ = null };
+        TimeSpan time = TimeSpan.Zero;
+        Assert.False(session.Analyze(SyntheticScene.Median, time).IsWarmedUp);
+        session.AxisZ = 0.2;
+        for (time += TimeSpan.FromSeconds(2); time < TimeSpan.FromMinutes(5); time += TimeSpan.FromSeconds(2))
+        {
+            Assert.False(session.Analyze(SyntheticScene.Median, time).IsWarmedUp, $"Judging the first layers at {time}.");
+        }
+
+        session.AxisZ = 1.2;
+        TimeSpan above = time;
+        for (; time < above + BedChangeOptions.Default.WarmUp; time += TimeSpan.FromSeconds(2))
+        {
+            Assert.False(session.Analyze(SyntheticScene.Median, time).IsWarmedUp);
+        }
+
+        Assert.True(session.Analyze(SyntheticScene.Median, time).IsWarmedUp);
+    }
+
+    [Fact]
     public void ResetStartsOver()
     {
         BedChangeDetector detector = new();

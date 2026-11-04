@@ -73,6 +73,86 @@ public sealed class Mp4ClipTests : IDisposable
         File.WriteAllBytes(path, ftyp);
         Assert.Throws<InvalidDataException>(() => H264Clip.Load(path));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ABrokenMp4IsRejectedAsInvalidData(bool fragmented)
+    {
+        // Seeded corruption of a valid file (cut off, bytes overwritten, also with values of extreme counts and sizes):
+        // a clip file is the user's input, so it may be anything, and it is told as broken, not as a crash.
+        byte[] valid = TestMp4.FromClip(Buddy3D, fragmented);
+        Random random = new(fragmented ? 2 : 1);
+        byte[][] extremes = [[0xFF, 0xFF, 0xFF, 0xFF], [0x7F, 0xFF, 0xFF, 0xFF], [0x80, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 1]];
+        for (int i = 0; i < 600; i++)
+        {
+            byte[] broken = i % 3 == 0 ? valid[..random.Next(8, valid.Length)] : [.. valid];
+            if (i % 3 != 0)
+            {
+                // Mostly the boxes before the media data: sizes, counts, flags, offsets.
+                int position = random.Next(i % 2 == 0 ? Math.Min(valid.Length - 4, 2048) : valid.Length - 4);
+                extremes[random.Next(extremes.Length)].CopyTo(broken, position);
+            }
+
+            try
+            {
+                H264Clip.Parse(Mp4H264Reader.ToAnnexB(broken));
+            }
+            catch (InvalidDataException)
+            {
+            }
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AHugeSampleCountTakesNoMemory(bool fragmented)
+    {
+        // A count of 2^31 - 1 samples of the default / uniform size, with nothing behind it.
+        byte[] ftyp = TestMp4.Box("ftyp", "isom"u8.ToArray(), new byte[4], "isom"u8.ToArray());
+        byte[] avc1 = TestMp4.Box("avc1", new byte[78], TestMp4.Box("avcC", [1, 0x42, 0, 0x1E, 0xFF, 0xE0, 0]));
+        byte[] stsd = TestMp4.Box("stsd", new byte[4], [0, 0, 0, 1], avc1);
+        byte[] tkhd = TestMp4.Box("tkhd", new byte[4], new byte[8], [0, 0, 0, 1], new byte[68]);
+        byte[] huge = [0x7F, 0xFF, 0xFF, 0xFF];
+        byte[] file = fragmented
+            ? [.. ftyp,
+                .. TestMp4.Box("moov",
+                    TestMp4.Box("trak", tkhd, TestMp4.Box("mdia", TestMp4.Box("minf", TestMp4.Box("stbl", stsd)))),
+                    TestMp4.Box("mvex", TestMp4.Box("trex", new byte[4], [0, 0, 0, 1], [0, 0, 0, 1], new byte[4], [0, 0, 0, 1], new byte[4]))),
+                .. TestMp4.Box("moof", TestMp4.Box("traf", TestMp4.Box("tfhd", [0, 0x02, 0, 0], [0, 0, 0, 1]), TestMp4.Box("trun", new byte[4], huge)))]
+            : [.. ftyp,
+                .. TestMp4.Box("moov", TestMp4.Box("trak", tkhd, TestMp4.Box("mdia", TestMp4.Box("minf", TestMp4.Box("stbl",
+                    stsd,
+                    TestMp4.Box("stsc", new byte[4], [0, 0, 0, 1], [0, 0, 0, 1], huge, [0, 0, 0, 1]),
+                    TestMp4.Box("stsz", new byte[4], [0, 0, 0, 1], huge),
+                    TestMp4.Box("stco", new byte[4], [0, 0, 0, 1], [0, 0, 0, 0]))))))];
+
+        Assert.Throws<InvalidDataException>(() => Mp4H264Reader.ToAnnexB(file));
+    }
+
+    [Fact]
+    public void SamplesThatRepeatTheSameBytesAreRejected()
+    {
+        // 20 samples of 1000 bytes, all at the same place of a file of ~1.3 kB: the stream would repeat its bytes.
+        const int Samples = 20;
+        byte[] sample = [0, 0, 0x03, 0xE4, 0x65, .. new byte[995]];
+        byte[] ftyp = TestMp4.Box("ftyp", "isom"u8.ToArray(), new byte[4], "isom"u8.ToArray());
+        byte[] avc1 = TestMp4.Box("avc1", new byte[78], TestMp4.Box("avcC", [1, 0x42, 0, 0x1E, 0xFF, 0xE0, 0]));
+        byte[] stsd = TestMp4.Box("stsd", new byte[4], [0, 0, 0, 1], avc1);
+        byte[] tkhd = TestMp4.Box("tkhd", new byte[4], new byte[8], [0, 0, 0, 1], new byte[68]);
+        byte[] Moov(uint mdat) => TestMp4.Box("moov", TestMp4.Box("trak", tkhd, TestMp4.Box("mdia", TestMp4.Box("minf", TestMp4.Box("stbl",
+            stsd,
+            TestMp4.Box("stsc", new byte[4], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]),
+            TestMp4.Box("stsz", new byte[4], new byte[4], Be(Samples), [.. Enumerable.Repeat(Be((uint)sample.Length), Samples).SelectMany(static b => b)]),
+            TestMp4.Box("stco", new byte[4], Be(Samples), [.. Enumerable.Repeat(Be(mdat + 8), Samples).SelectMany(static b => b)]))))));
+        uint mdatStart = (uint)(ftyp.Length + Moov(0).Length);
+        byte[] file = [.. ftyp, .. Moov(mdatStart), .. TestMp4.Box("mdat", sample)];
+
+        Assert.Throws<InvalidDataException>(() => Mp4H264Reader.ToAnnexB(file));
+    }
+
+    private static byte[] Be(uint value) => [(byte)(value >> 24), (byte)(value >> 16), (byte)(value >> 8), (byte)value];
 }
 
 /// <summary>Minimal MP4 files with one H.264 track, written from a clip (only the boxes the reader needs).</summary>
