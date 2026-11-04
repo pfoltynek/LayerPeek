@@ -2,7 +2,7 @@
 
 Stav 2026-11-03 (architekt, macOS arm64, Mac mini M2 Pro). Prototypy běžely jen mimo repozitář (scratchpad,
 Homebrew FFmpeg 9.0.2 a vlastní buildy knihoven podle `build/macos/build-ffmpeg.sh`). Do repozitáře jde jen tato zpráva
-a návrh úkolů. Rozhodnutí patří uživateli, viz `## Otevřené otázky` v úkolu T-149.
+a návrh úkolů. Rozhodnutí uživatele z 2026-11-04 jsou v oddílu „Rozhodnutí uživatele“ na konci a v úkolu T-149.
 
 ## Shrnutí
 
@@ -152,7 +152,7 @@ Core/Cameras/Timelapse            (T-158, T-160)
         └──► ICameraRecordingWriter (T-144, beze změny) ──► Camera.FFmpeg (muxer mp4)
   spouštěč po čase (TimeProvider)  /  spouštěč po vrstvě ◄── detektor vrstvy z Telemetry.AxisZ (T-159)
   služba timelapse (kdy, kam, rotace) – po vzoru CameraRecordingService (T-145)
-App                                (T-161) nastavení, tray menu, notifikace
+App                                (T-161) nastavení, tray menu, okno kamery, notifikace
 ```
 
 Core nezná FFmpeg ani Avalonii. Varianty A–C by místo odběru paketů potřebovaly odběr snímků a nové rozhraní kodéru
@@ -169,3 +169,16 @@ snímků v Core s implementací v App (Avalonia JPEG) nebo v Camera.FFmpeg (enko
 - Totéž z 5min živého záznamu: 138 snímků, 8 977 143 B, FFmpeg i AVFoundation bez chyby.
 - V C# by výběr byl jednoduchý: `CameraPacket.IsKeyFrame` + vlastní hodiny místo `RecordingClock`. Bitstream filtry
   FFmpeg (`noise`, `setts`) potřeba nejsou.
+
+## Rozhodnutí uživatele (2026-11-04)
+
+- **Varianta D** (MP4 z klíčových snímků bez překódování) schválena, výstup pevně 30 fps → T-158.
+- **Spouštěč:** nejdřív po čase (T-158, T-160), výchozí interval 30 s, nastavitelný (návrh 10 / 30 / 60 s nebo
+  5–600 s, ovládání vybere T-161). Po vrstvě až po ověření na skutečném tisku (T-159).
+- **Kdy:** automaticky při tisku (volba u tiskárny, výchozí vypnuto) i ručně z tray menu a z okna kamery. Během
+  `Paused` / `Attention` se nesnímá. Okno kamery ukazuje indikátor pořizování timelapse (jako REC).
+- **Experimentální funkce:** celý timelapse má v UI štítek „Experimentální“ → T-161.
+- **Ukládání** do kořene a podsložky tiskárny jako nahrávky, společný limit a rotace. RTSP zůstává otevřené po celý tisk.
+- **Priorita:** až po dashcamu T-148 (T-158 až T-161 na něm závisí).
+- **Samostatné úkoly P3:** timelapse z hotové nahrávky (varianta F) → T-164, export sekvence snímků JPEG → T-165.
+- **FFmpeg pro Windows (T-162):** připnout trvalý měsíční build `autobuild-2026-10-31-12-59`.

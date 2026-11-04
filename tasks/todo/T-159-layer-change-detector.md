@@ -5,11 +5,12 @@ status: todo
 owner: core-dev + ui-dev
 priority: P3
 platform: all
-depends_on: [T-149, T-160, T-161]
+depends_on: [T-149, T-148, T-160, T-161]
 ---
 
-> **Návrh ze spiku T-149 (2026-11-03).** Implementuje se jen tehdy, když uživatel v T-149 ponechá spouštěč „po vrstvě“
-> (otázka 2 v T-149). Podrobnosti: `docs/timelapse-spike.md`, oddíl „Spouštěč po vrstvě“.
+> **Návrh ze spiku T-149 (2026-11-03).** Uživatel 2026-11-04 schválil postup (otázka 2 v T-149): spouštěč „po vrstvě“
+> přijde až po spouštěči po čase (T-160, T-161) a po ověření na záznamu ze skutečného tisku. Celá funkce timelapse je
+> v UI experimentální (T-161). Podrobnosti: `docs/timelapse-spike.md`, oddíl „Spouštěč po vrstvě“.
 
 ## Cíl
 PrusaLink na Buddy (`GET /api/v1/status`) číslo vrstvy ani událost změny vrstvy nehlásí. Jediný údaj je `axis_z`
@@ -36,7 +37,7 @@ změnu vrstvy, a nejdřív ji ověří na záznamu ze skutečného tisku.
 - **Napojení (core-dev):** pozorovatel snímků monitoru (`IMonitoringObserver`) předá změnu vrstvy službě timelapse
   (T-160) jako druhý spouštěč vedle spouštěče po čase.
 - **UI (ui-dev):** volba spouštěče „po vrstvě“ v nastavení timelapse (T-161), s krátkým vysvětlením, že jde o odhad
-  z osy Z. Nové texty do všech jazyků `Strings.*.resx`.
+  z osy Z, a se stejným označením „Experimentální“ jako ostatní volby timelapse. Nové texty do všech jazyků `Strings.*.resx`.
 - Záznam ze skutečné tiskárny (skript + spuštění uživatelem) jde udělat kdykoli dřív, nezávisle na T-160 / T-161.
 
 ## Akceptační kritéria
@@ -50,6 +51,8 @@ změnu vrstvy, a nejdřív ji ověří na záznamu ze skutečného tisku.
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
+- **Každá N-tá vrstva:** nabízet u spouštěče po vrstvě i „každou N-tou vrstvu“? (Dílčí otázka 3 v T-149, uživatel
+  ji 2026-11-04 nerozhodl.)
 - Pokud záznam ukáže, že při pollingu 5 s je detekce nepoužitelná (např. drobné díly s vrstvou pod 5 s), rozhodne
   uživatel: zkrátit polling během timelapse po vrstvě (víc dotazů na tiskárnu), nebo spouštěč po vrstvě nenabízet.
 

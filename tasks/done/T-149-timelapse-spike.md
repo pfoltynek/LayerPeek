@@ -1,7 +1,7 @@
 ---
 id: T-149
 title: Timelapse tisku – průzkum (spike): způsob, licence, AOT
-status: in-progress
+status: done
 owner: architect
 priority: P3
 platform: all
@@ -37,8 +37,8 @@ Timelapse (zrychlené video celého tisku) na rozdíl od nahrávání z T-144 **
 3. Spouštěč snímku: spike prověří **obojí jako volbu** (po čase i po vrstvě; ověřit, zda PrusaLink spolehlivě hlásí změnu vrstvy).
 - Nové závislosti spike **jen doporučí**; prototyp jen mimo repozitář (scratchpad), do repozitáře jde jen zpráva.
 
-### Otázky po spiku (2026-11-03, čekají na uživatele)
-Podklady: [docs/timelapse-spike.md](../../docs/timelapse-spike.md). Úkoly T-158 až T-161 se implementují až po odpovědích.
+### Otázky po spiku (2026-11-03, rozhodnuto 2026-11-04)
+Podklady: [docs/timelapse-spike.md](../../docs/timelapse-spike.md). Odpovědi jsou v oddílu „Rozhodnutí uživatele 2026-11-04“ níže.
 
 1. **Způsob (výstupní formát, původní otázka 2):** schvaluje uživatel **variantu D – MP4 z klíčových snímků kamery
    bez překódování**? Bez enkodéru, bez nové závislosti, 0 B navíc, ~78 MB za 10 h, kvalita klíčového snímku. Omezení:
@@ -68,6 +68,24 @@ Podklady: [docs/timelapse-spike.md](../../docs/timelapse-spike.md). Úkoly T-158
 10. **Priorita:** timelapse (P3) před dashcamem T-148, nebo po něm?
 11. **Vedlejší nález, mimo timelapse:** připnutý build FFmpeg pro Windows (BtbN `autobuild-2026-10-17-20-51`) už na
     GitHubu neexistuje (404), čistý build na Windows bez cache selže. Otázka, kterou verzi připnout, je v **T-162**.
+
+### Rozhodnutí uživatele 2026-11-04
+1. **Způsob:** schválena **varianta D** – MP4 z klíčových snímků kamery bez překódování. → T-158.
+2. **Spouštěč:** nejdřív po čase (T-158, T-160), po vrstvě až po ověření na skutečném tisku (T-159). Interval
+   nastavuje uživatel. **Celá funkce timelapse je v UI označená jako experimentální** (štítek „Experimentální“ u voleb
+   a všude, kde se timelapse zapíná) → T-161, text ve všech jazycích.
+3. **Interval:** výchozí 30 s, nastavitelný. Návrh nabídky (10 / 30 / 60 s nebo volné číslo 5–600 s) platí, ovládací
+   prvek vybere T-161. Dílčí otázka „každá N-tá vrstva“ zůstává otevřená v T-159.
+4. **Výstup** pevně 30 fps: schváleno. Během `Paused` / `Attention` se nesnímá: schváleno.
+5. **Kdy:** **obojí** – automaticky při tisku jako volba u tiskárny (po vzoru `recordPrints`, výchozí vypnuto)
+   **i ručně** z tray menu. Timelapse jde zapnout / vypnout i z okna kamery. Když se timelapse pořizuje, okno kamery
+   to ukazuje (indikátor po vzoru indikátoru REC nahrávání). → T-160, T-161.
+6. **Ukládání:** stejný kořen a podsložka tiskárny jako nahrávky, počítá se do společného limitu a rotace: schváleno.
+7. **Spojení s kamerou:** RTSP zůstane otevřené po celý tisk – zatím schváleno.
+8. **Timelapse z hotové nahrávky (varianta F):** samostatný úkol → **T-164** (P3).
+9. **Export sekvence snímků JPEG:** samostatný úkol → **T-165** (P3).
+10. **Priorita:** timelapse až **po dashcamu T-148** → T-158 až T-161 závisí na T-148.
+11. **T-162:** varianta a) – připnout trvalý měsíční build BtbN `autobuild-2026-10-31-12-59` (SHA-256 ověřený ve spiku).
 
 ## Poznámky k implementaci
 Spike 2026-11-03 (architekt, macOS arm64). Úplná zpráva, tabulka variant, měření a zdroje: **`docs/timelapse-spike.md`**.
@@ -108,5 +126,6 @@ Prototypy jen ve scratchpadu, v repozitáři žádný kód.
 | T-161 | Timelapse – UI (nastavení, tray menu, notifikace) a E2E | ui-designer + ui-dev | T-160, T-146 |
 | T-162 | FFmpeg pro Windows – připnutý build BtbN už neexistuje (404) | core-dev | – |
 
-Úkol zůstává v `in-progress/`: kritéria jsou splněná, ale výsledkem spiku jsou rozhodnutí uživatele (otázky 1–10)
-a na T-149 závisí T-158 až T-161. Po odpovědích se doplní do úkolů a T-149 se uzavře.
+Uzavřeno 2026-11-04: výstup spiku (zpráva `docs/timelapse-spike.md` a rozhodnutí uživatele) je hotový. T-158 až T-162
+jsou upravené podle rozhodnutí (T-158 až T-161 navíc závisí na T-148) a přibyly T-164 (timelapse z hotové nahrávky)
+a T-165 (export snímků JPEG).

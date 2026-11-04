@@ -5,11 +5,11 @@ status: todo
 owner: core-dev
 priority: P3
 platform: all
-depends_on: [T-149, T-144]
+depends_on: [T-149, T-144, T-148]
 ---
 
-> **Návrh ze spiku T-149 (2026-11-03).** Implementuje se jen tehdy, když uživatel v T-149 zvolí variantu „klíčové snímky
-> bez překódování“ (otázka 1 v T-149). Podrobnosti a měření: `docs/timelapse-spike.md`.
+> **Návrh ze spiku T-149 (2026-11-03), schválený uživatelem 2026-11-04** (varianta D, výstup pevně 30 fps). Implementuje
+> se až po dashcamu T-148 (rozhodnutí uživatele, otázka 10 v T-149). Podrobnosti a měření: `docs/timelapse-spike.md`.
 
 ## Cíl
 Timelapse jako MP4 s H.264 bez enkodéru: z odběru paketů hubu (T-143) se vybírají jen klíčové snímky (IDR) kamery,
@@ -26,7 +26,7 @@ dostanou nová časová razítka (snímek *n* = *n* × délka snímku výstupu) 
     snímek po požadavku**; víc požadavků před dalším klíčovým snímkem = jeden snímek. Ostatní pakety se zahodí hned
     (žádná kopie navíc).
   - Hodiny timelapse: v časové základně streamu, PTS = DTS = *n* × (časová základna / fps výstupu), délka = jeden
-    snímek. Snímková frekvence výstupu podle rozhodnutí v T-149 (otázka 4).
+    snímek. Snímková frekvence výstupu je pevně **30 fps** (rozhodnutí 2026-11-04, otázka 4 v T-149).
   - Nové spojení (`StreamStarted`): když jsou SPS/PPS (`Extradata`) a rozměr stejné, pokračuje stejný soubor; jinak
     se soubor dokončí a další začne s příponou `-2`, `-3`… (jako T-144).
   - Volitelně (rozhodne core-dev podle měření): volba odběru paketů „jen klíčové snímky“ v `CameraPacketSubscriptionOptions`,
@@ -49,7 +49,7 @@ dostanou nová časová razítka (snímek *n* = *n* × délka snímku výstupu) 
       (nebo `win-x64`) bez varování trim / AOT.
 
 ## Otevřené otázky
-- Závisí na rozhodnutí v T-149 (otázky 1 a 4). Jiné otázky nejsou.
+- (žádné – otázky 1 a 4 v T-149 rozhodnuté 2026-11-04)
 
 ## Poznámky k implementaci
 (vyplní agent po dokončení)

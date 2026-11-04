@@ -22,7 +22,7 @@ Zjištěno (GitHub API `releases?per_page=100`, 2026-11-03): BtbN drží denní 
 `-09-30-…`, `-08-31-…`, … až `autobuild-2024-12-31-13-02`).
 
 ## Rozsah
-- Připnout build, který zůstane dostupný, podle rozhodnutí uživatele (viz otázka), přes `build/update-ffmpeg.ps1`
+- Připnout build `autobuild-2026-10-31-12-59` (rozhodnutí uživatele 2026-11-04, viz otázka 1) přes `build/update-ffmpeg.ps1`
   (ověří `checksums.sha256`, složku v archivu, licenci LGPL) a aktualizovat `build/FFmpeg.targets`.
 - Pravidlo pro budoucí aktualizace zapsat do dokumentace skriptu / `docs/prerequisites.md` (např. „připínat jen
   měsíční build“) a případně ho vynutit v `update-ffmpeg.ps1` (+ `update-ffmpeg.Tests.ps1`).
@@ -36,7 +36,8 @@ Zjištěno (GitHub API `releases?per_page=100`, 2026-11-03): BtbN drží denní 
 - [ ] `dotnet build` a `dotnet test` bez chyb a varování.
 
 ## Otevřené otázky
-1. **Který build připnout?** Návrh architekta: poslední měsíční build větve 9.0, dnes
+1. ~~**Který build připnout?**~~ *Rozhodnutí uživatele 2026-11-04: varianta a) – trvalý měsíční build
+   `autobuild-2026-10-31-12-59`.* Původní návrh architekta: poslední měsíční build větve 9.0, dnes
    `autobuild-2026-10-31-12-59` / `ffmpeg-n9.0.2-39-g7adfbe40dc-win64-lgpl-shared-9.0.zip`
    (SHA-256 `e907b01fa4783913151237e37df2a10fa97d99a1598a021bf59d4ae62ffed4c0` podle `checksums.sha256` releasu,
    ověřeno stažením 2026-11-03). Alternativa: zrcadlit zip na vlastní release v repozitáři LayerPeek na GitHubu
